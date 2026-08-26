@@ -1,0 +1,296 @@
+"""Projects API — list/create/select Project, manage RAGs and Training Runs.
+
+WHY THIS EXISTS
+===============
+The Studio is organised around Projects. Each Project:
+  - has a base model + system prompt
+  - owns N RAGs (legal, social, paperwork, ...)
+  - owns N Training Runs (each with settings + metrics + benchmark results)
+  - has one "production" Run that the Inference Chat loads
+
+This route file covers all of that.
+"""
+
+from __future__ import annotations
+
+import os
+import time
+
+from fastapi import APIRouter, Request
+
+from finetune_studio import db
+from finetune_studio.rag.manager import RAGManager
+from finetune_studio.webui.app import training_engine
+
+router = APIRouter()
+
+
+# ── Projects ─────────────────────────────────────────────────────────────
+
+@router.get("")
+async def list_projects():
+    return db.list_projects()
+
+
+@router.post("")
+async def create_project(request: Request):
+    body = await request.json()
+    p = db.create_project(
+        name=body.get("name", "Untitled"),
+        description=body.get("description", ""),
+        base_model=body.get("base_model", ""),
+        system_prompt=body.get("system_prompt", ""),
+    )
+    return p
+
+
+@router.get("/{pid}")
+async def get_project(pid: str):
+    p = db.get_project(pid)
+    if not p:
+        return {"error": "not found"}
+    p["rags"] = db.list_rags(pid)
+    p["runs"] = db.list_runs(pid)
+    # Attach benchmark summaries to runs.
+    for run in p["runs"]:
+        run["benchmarks"] = db.list_benchmarks(run["id"])
+    return p
+
+
+@router.patch("/{pid}")
+async def update_project(pid: str, request: Request):
+    body = await request.json()
+    return db.update_project(pid, **body)
+
+
+@router.delete("/{pid}")
+async def delete_project(pid: str):
+    db.delete_project(pid)
+    return {"ok": True}
+
+
+@router.post("/{pid}/promote")
+async def promote_run(pid: str, request: Request):
+    """Set a Training Run as the Project's production model."""
+    body = await request.json()
+    run_id = body.get("run_id", "")
+    if not db.get_run(run_id):
+        return {"error": "run not found"}
+    db.update_project(pid, production_run=run_id)
+    return db.get_project(pid)
+
+
+# ── RAGs ─────────────────────────────────────────────────────────────────
+
+@router.get("/{pid}/rags")
+async def list_rags(pid: str):
+    return db.list_rags(pid)
+
+
+@router.post("/{pid}/rags")
+async def create_rag(pid: str, request: Request):
+    body = await request.json()
+    rag = db.create_rag(
+        project_id=pid,
+        name=body.get("name", "Untitled RAG"),
+        description=body.get("description", ""),
+        tags=body.get("tags", ""),
+        store_path=body.get("store_path", ""),
+    )
+    return rag
+
+
+@router.patch("/{pid}/rags/{rid}")
+async def update_rag(pid: str, rid: str, request: Request):
+    body = await request.json()
+    return db.update_rag(rid, **body)
+
+
+@router.delete("/{pid}/rags/{rid}")
+async def delete_rag(pid: str, rid: str):
+    db.delete_rag(rid)
+    return {"ok": True}
+
+
+@router.post("/{pid}/rags/{rid}/ingest")
+async def ingest_into_rag(pid: str, rid: str, request: Request):
+    """Ingest a file or directory into a project RAG."""
+    body = await request.json()
+    path = body.get("path", "")
+    if not path or not os.path.exists(path):
+        return {"error": "path not found"}
+    rag = db.get_rag(rid)
+    if not rag:
+        return {"error": "rag not found"}
+    mgr = RAGManager(rag["store_path"])
+    if os.path.isdir(path):
+        result = mgr.ingest_directory(path)
+    else:
+        result = mgr.ingest_file(path)
+    db.update_rag(rid, doc_count=mgr.stats()["total_documents"],
+                  chunk_count=mgr.stats()["total_chunks"])
+    return {"result": result, "rag": db.get_rag(rid)}
+
+
+@router.post("/{pid}/rags/{rid}/query")
+async def query_rag(pid: str, rid: str, request: Request):
+    body = await request.json()
+    query = body.get("query", "")
+    top_k = int(body.get("top_k", 5))
+    if not query:
+        return {"error": "no query"}
+    rag = db.get_rag(rid)
+    if not rag:
+        return {"error": "rag not found"}
+    mgr = RAGManager(rag["store_path"])
+    chunks = mgr.store.search(query, top_k=top_k)
+    return {"chunks": [
+        {"text": c.text, "score": c.score, "source": c.source}
+        for c in chunks
+    ]}
+
+
+@router.get("/{pid}/rags/{rid}/stats")
+async def rag_stats(pid: str, rid: str):
+    rag = db.get_rag(rid)
+    if not rag:
+        return {"error": "rag not found"}
+    mgr = RAGManager(rag["store_path"])
+    return mgr.stats()
+
+
+# ── Training Runs ────────────────────────────────────────────────────────
+
+@router.get("/{pid}/runs")
+async def list_runs(pid: str):
+    return db.list_runs(pid)
+
+
+@router.post("/{pid}/runs")
+async def create_run(pid: str, request: Request):
+    body = await request.json()
+    run = db.create_run(
+        project_id=pid,
+        name=body.get("name", "Run"),
+        base_model=body.get("base_model", ""),
+        data_path=body.get("data_path", ""),
+        rag_ids=body.get("rag_ids", []),
+        settings_obj=body.get("settings", {}),
+        system_prompt=body.get("system_prompt", ""),
+        parent_run_id=body.get("parent_run_id"),
+        notes=body.get("notes", ""),
+    )
+    return run
+
+
+@router.get("/{pid}/runs/{rid}")
+async def get_run(pid: str, rid: str):
+    run = db.get_run(rid)
+    if not run:
+        return {"error": "not found"}
+    run["benchmarks"] = db.list_benchmarks(rid)
+    return run
+
+
+@router.patch("/{pid}/runs/{rid}")
+async def update_run(pid: str, rid: str, request: Request):
+    body = await request.json()
+    return db.update_run(rid, **body)
+
+
+@router.delete("/{pid}/runs/{rid}")
+async def delete_run(pid: str, rid: str):
+    db.delete_run(rid)
+    return {"ok": True}
+
+
+@router.post("/{pid}/runs/{rid}/start")
+async def start_run(pid: str, rid: str, request: Request):
+    """Wire a persisted Run into the training engine and start it.
+
+    This bridges the persistent run record with the live training loop.
+    Engine state gets tagged with the run_id so progress events can
+    update the DB row.
+    """
+    run = db.get_run(rid)
+    if not run:
+        return {"error": "run not found"}
+    if run["status"] not in ("created", "idle", "error", "stopped"):
+        return {"error": f"cannot start run in status {run['status']}"}
+    body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
+    # Allow per-start overrides; fall back to persisted settings.
+    settings_obj = {**run.get("settings", {}), **body.get("settings", {})}
+    from finetune_studio.training.engine import TrainingConfig
+    config = TrainingConfig(
+        model_path=run.get("base_model", ""),
+        output_dir=settings_obj.get("output_dir", "output"),
+        lora_rank=int(settings_obj.get("lora_rank", 64)),
+        learning_rate=float(settings_obj.get("learning_rate", 8e-5)),
+        num_epochs=int(settings_obj.get("num_epochs", 4)),
+        batch_size=int(settings_obj.get("batch_size", 2)),
+        max_seq_length=int(settings_obj.get("max_seq_length", 2048)),
+    )
+    if not run.get("base_model"):
+        return {"error": "run has no base_model"}
+    if not run.get("data_path"):
+        return {"error": "run has no data_path"}
+    from finetune_studio.training.data import load_jsonl
+    training_data = load_jsonl(run["data_path"])
+    db.update_run(rid, status="running", started_at=time.time())
+    training_engine.run_id = rid  # type: ignore[attr-defined]
+    training_engine.start(config, training_data, run.get("system_prompt", ""))
+    return {"status": "started", "run_id": rid, "run": db.get_run(rid)}
+
+
+@router.post("/{pid}/runs/{rid}/stop")
+async def stop_run(pid: str, rid: str):
+    training_engine.stop()
+    db.update_run(rid, status="stopped", finished_at=time.time())
+    return {"ok": True}
+
+
+@router.post("/{pid}/runs/{rid}/benchmark")
+async def run_benchmark(pid: str, rid: str, request: Request):
+    """Run a benchmark suite against a run's output model.
+
+    The output model path is read from run.output_path. If empty,
+    falls back to base_model. Persists results under benchmark_runs.
+    """
+    body = await request.json()
+    suite_name = body.get("suite_name", "default")
+    suite_path = body.get("suite_path", "")
+
+    from finetune_studio.testing.inference import InferenceEngine
+    from finetune_studio.testing.suite import load_test_suite, run_suite, score_results
+
+    run = db.get_run(rid)
+    if not run:
+        return {"error": "run not found"}
+    target_model = run.get("output_path") or run.get("base_model")
+    if not target_model:
+        return {"error": "run has no model to benchmark"}
+    engine = InferenceEngine()
+    try:
+        engine.load(target_model)
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"load failed: {e}"}
+
+    if not suite_path:
+        return {"error": "suite_path required"}
+    cases = load_test_suite(suite_path)
+    t0 = time.time()
+    results = run_suite(engine, cases)
+    scores = score_results(results)
+    dt_ms = int((time.time() - t0) * 1000)
+    bid = db.create_benchmark(rid, suite_name, scores, dt_ms)
+    engine.unload()
+    return {"benchmark": db.get_benchmark(bid), "results": [
+        {"name": r.test_name, "passed": r.passed, "time_ms": r.time_ms,
+         "response": r.response[:300]}
+        for r in results
+    ]}
+
+
+@router.get("/{pid}/runs/{rid}/benchmarks")
+async def list_run_benchmarks(pid: str, rid: str):
+    return db.list_benchmarks(rid)

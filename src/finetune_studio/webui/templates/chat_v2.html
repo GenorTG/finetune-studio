@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block title %}Chat - Finetune Studio{% endblock %}
+{% block nav_chat %}bg-gray-800 text-emerald-400{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">Inference Chat</h1>
+
+<!-- Project Picker -->
+<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-4">
+  <label class="text-sm text-gray-400 mb-1 block">Project</label>
+  <select id="chat-project" onchange="loadProjectContext()" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
+    <option value="">Select a project…</option>
+  </select>
+</div>
+
+<!-- Model + RAG + Sampler Controls -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+  <!-- Model -->
+  <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+    <h2 class="text-sm font-semibold mb-3 text-gray-300">Model</h2>
+    <div id="model-path" class="text-xs text-gray-500 mb-2 break-all">No project selected</div>
+    <select id="chat-model" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700 mb-2">
+      <option value="">Select model…</option>
+    </select>
+    <div class="flex gap-2">
+      <button onclick="loadModel()" class="flex-1 px-3 py-1.5 bg-emerald-600 rounded hover:bg-emerald-500 text-sm">Load</button>
+      <button onclick="unloadModel()" class="px-3 py-1.5 bg-red-700 rounded hover:bg-red-600 text-sm">Unload</button>
+    </div>
+    <div id="model-status" class="text-xs text-gray-400 mt-2"></div>
+  </div>
+
+  <!-- RAG Toggles -->
+  <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+    <h2 class="text-sm font-semibold mb-3 text-gray-300">RAG Sources</h2>
+    <div id="rag-list" class="space-y-2 text-sm text-gray-500">No RAGs</div>
+  </div>
+
+  <!-- Sampler -->
+  <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+    <h2 class="text-sm font-semibold mb-3 text-gray-300">Sampling</h2>
+    <label class="text-xs text-gray-400">Temperature: <span id="temp-val">0.7</span></label>
+    <input id="chat-temp" type="range" min="0" max="1.5" step="0.05" value="0.7"
+           oninput="document.getElementById('temp-val').textContent=this.value" class="w-full mb-2">
+    <label class="text-xs text-gray-400">Top-p: <span id="topp-val">0.9</span></label>
+    <input id="chat-topp" type="range" min="0" max="1" step="0.05" value="0.9"
+           oninput="document.getElementById('topp-val').textContent=this.value" class="w-full mb-2">
+    <label class="text-xs text-gray-400">Max tokens</label>
+    <input id="chat-maxtokens" type="number" value="512" min="1" max="8192" class="w-full bg-gray-800 rounded px-3 py-1.5 text-sm border border-gray-700">
+  </div>
+</div>
+
+<!-- System Prompt -->
+<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-4">
+  <h2 class="text-sm font-semibold mb-2 text-gray-300">System Prompt</h2>
+  <textarea id="chat-sysprompt" rows="3" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700 resize-y" placeholder="System prompt…"></textarea>
+</div>
+
+<!-- Chat -->
+<div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+  <div id="chat-box" class="h-96 overflow-y-auto bg-gray-950 rounded p-3 mb-3 text-sm space-y-3"></div>
+  <div class="flex gap-2">
+    <input id="chat-input" type="text" placeholder="Type a message…"
+           class="flex-1 bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700"
+           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"
+           autocomplete="off">
+    <button onclick="sendChat()" id="chat-send" class="px-4 py-2 bg-emerald-600 rounded hover:bg-emerald-500 text-sm">Send</button>
+  </div>
+</div>
+
+<script>
+let chatHistory = [];
+let projectRags = [];
+
+async function init() {
+  const res = await fetch("/api/chat-v2/projects");
+  const projects = await res.json();
+  const sel = document.getElementById("chat-project");
+  projects.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.name + (p.rag_count ? ` (${p.rag_count} RAGs)` : "");
+    sel.appendChild(opt);
+  });
+  // Check URL for deep link
+  const parts = location.pathname.split("/");
+  if (parts[1] === "projects" && parts[3] === "chat" && parts[2]) {
+    sel.value = parts[2];
+    loadProjectContext();
+  }
+}
+
+async function loadProjectContext() {
+  const pid = document.getElementById("chat-project").value;
+  if (!pid) return;
+  const res = await fetch(`/api/chat-v2/projects/${pid}/context`);
+  const ctx = await res.json();
+  if (ctx.error) { alert(ctx.error); return; }
+
+  // System prompt
+  document.getElementById("chat-sysprompt").value = ctx.system_prompt || "";
+
+  // Production model
+  const modelPath = ctx.production_model_path || "";
+  document.getElementById("model-path").textContent = modelPath || "No production model";
+
+  // Model dropdown
+  const sel = document.getElementById("chat-model");
+  sel.innerHTML = '<option value="">Select model…</option>';
+  if (modelPath) {
+    const opt = document.createElement("option");
+    opt.value = modelPath;
+    opt.textContent = modelPath.split("/").pop() + " (production)";
+    sel.appendChild(opt);
+  }
+  ctx.models.forEach(m => {
+    if (m.path === modelPath) return;
+    const opt = document.createElement("option");
+    opt.value = m.path;
+    opt.textContent = m.name + ` (${m.size_gb}GB, ${m.format})`;
+    sel.appendChild(opt);
+  });
+
+  // RAG toggles
+  projectRags = ctx.rags;
+  const ragDiv = document.getElementById("rag-list");
+  if (!ctx.rags.length) {
+    ragDiv.innerHTML = '<div class="text-xs text-gray-500">No RAGs for this project</div>';
+  } else {
+    ragDiv.innerHTML = ctx.rags.map(r =>
+      `<label class="flex items-center gap-2">
+        <input type="checkbox" class="rag-toggle" value="${r.id}" checked>
+        <span>${r.name}</span>
+        <span class="text-gray-600 text-xs">(${r.chunk_count} chunks)</span>
+      </label>`
+    ).join("");
+  }
+
+  // Reset chat
+  chatHistory = [];
+  renderChat();
+}
+
+async function loadModel() {
+  const path = document.getElementById("chat-model").value;
+  if (!path) return;
+  const el = document.getElementById("model-status");
+  el.textContent = "Loading…";
+  el.className = "text-xs text-yellow-400 mt-2";
+  const res = await fetch("/api/chat-v2/load", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({model_path: path}),
+  });
+  const d = await res.json();
+  if (d.error) {
+    el.textContent = "Error: " + d.error;
+    el.className = "text-xs text-red-400 mt-2";
+  } else {
+    el.textContent = "✓ Loaded: " + d.model;
+    el.className = "text-xs text-emerald-400 mt-2";
+  }
+}
+
+async function unloadModel() {
+  await fetch("/api/testing/unload", {method: "POST"});
+  const el = document.getElementById("model-status");
+  el.textContent = "Unloaded";
+  el.className = "text-xs text-gray-400 mt-2";
+}
+
+async function sendChat() {
+  const input = document.getElementById("chat-input");
+  const msg = input.value.trim();
+  if (!msg) return;
+  const pid = document.getElementById("chat-project").value;
+  if (!pid) { alert("Select a project first"); return; }
+
+  input.value = "";
+  chatHistory.push({role: "user", content: msg});
+  renderChat();
+
+  // Gather enabled RAG IDs
+  const enabled_rag_ids = Array.from(document.querySelectorAll(".rag-toggle:checked")).map(el => el.value);
+
+  const body = {
+    messages: chatHistory,
+    enabled_rag_ids,
+    system_prompt_override: document.getElementById("chat-sysprompt").value || undefined,
+    max_tokens: parseInt(document.getElementById("chat-maxtokens").value) || 512,
+    temperature: parseFloat(document.getElementById("chat-temp").value),
+    top_p: parseFloat(document.getElementById("chat-topp").value),
+  };
+
+  document.getElementById("chat-send").disabled = true;
+  try {
+    const res = await fetch(`/api/chat-v2/projects/${pid}/chat`, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body),
+    });
+    const d = await res.json();
+    if (d.error) {
+      chatHistory.push({role: "assistant", content: "⚠ " + d.error, error: true});
+    } else {
+      chatHistory.push({
+        role: "assistant",
+        content: d.response,
+        sources: d.sources,
+        chunks_retrieved: d.chunks_retrieved,
+      });
+    }
+  } catch (e) {
+    chatHistory.push({role: "assistant", content: "⚠ Request failed: " + e.message, error: true});
+  }
+  document.getElementById("chat-send").disabled = false;
+  renderChat();
+}
+
+function renderChat() {
+  const box = document.getElementById("chat-box");
+  if (!chatHistory.length) {
+    box.innerHTML = '<div class="text-gray-600 text-center text-sm py-8">Start a conversation…</div>';
+    return;
+  }
+  box.innerHTML = chatHistory.map((m, i) => {
+    const isUser = m.role === "user";
+    const color = m.error ? "text-red-400" : isUser ? "text-blue-300" : "text-emerald-300";
+    let html = `<div class="${color}"><span class="font-semibold text-xs uppercase tracking-wide">${m.role}:</span> ${escHtml(m.content)}</div>`;
+    // Source citations
+    if (m.sources && m.sources.length) {
+      html += '<div class="flex flex-wrap gap-2 mt-1">';
+      m.sources.forEach(s => {
+        html += `<div class="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs max-w-xs">
+          <span class="text-purple-400 font-medium">${escHtml(s.rag_name)}</span>
+          <span class="text-gray-500 ml-1">(${s.score})</span>
+          <div class="text-gray-400 mt-0.5 line-clamp-2">${escHtml(s.text.slice(0, 120))}…</div>
+        </div>`;
+      });
+      html += '</div>';
+    }
+    return html;
+  }).join("");
+  box.scrollTop = box.scrollHeight;
+}
+
+function escHtml(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Poll model status
+setInterval(() => {
+  fetch("/api/testing/status").then(r => r.json()).then(d => {
+    const el = document.getElementById("model-status");
+    if (!el) return;
+    if (d.loaded) {
+      el.textContent = "✓ Loaded: " + d.model_path;
+      el.className = "text-xs text-emerald-400 mt-2";
+    }
+  }).catch(() => {});
+}, 5000);
+
+init();
+</script>
+{% endblock %}

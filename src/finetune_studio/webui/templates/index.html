@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Finetune Studio{% endblock %}
+{% block nav_dashboard %}bg-gray-800 text-emerald-400{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">Dashboard</h1>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+  <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+    <div class="text-sm text-gray-400">Models Found</div>
+    <div class="text-3xl font-bold text-emerald-400">
+      <span hx-get="/api/models/count" hx-trigger="load, every 5s" hx-swap="innerHTML" id="dash-model-count">{{ models|length }}</span>
+    </div>
+    <a href="/models" class="text-xs text-emerald-400 hover:underline">View all →</a>
+  </div>
+
+  <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+    <div class="text-sm text-gray-400">Training Status</div>
+    <div class="text-xl font-bold">
+      <span hx-get="/api/training/status-text" hx-trigger="load, every 3s" hx-swap="innerHTML" id="dash-training-status">{{ training_state.status|title }}</span>
+    </div>
+    <a href="/training" class="text-xs text-emerald-400 hover:underline">Open trainer →</a>
+  </div>
+
+  <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+    <div class="text-sm text-gray-400">Current Step</div>
+    <div class="text-3xl font-bold text-blue-400" id="dash-training-step">
+      {{ training_state.current_step }} / {{ training_state.total_steps }}
+    </div>
+  </div>
+</div>
+
+<!-- Quick actions — every CLI command reachable from here -->
+<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-8">
+  <h2 class="text-lg font-semibold mb-3">Quick Actions</h2>
+  <div class="flex flex-wrap gap-2">
+    <button data-action="/api/models/refresh" data-method="POST" class="px-3 py-2 bg-emerald-700 rounded hover:bg-emerald-600 text-sm">Rescan Models</button>
+    <button data-action="/api/data/validate" data-method="POST" data-body='{"path":"data/training.jsonl"}' class="px-3 py-2 bg-gray-700 rounded hover:bg-gray-600 text-sm">Validate Data</button>
+    <button data-action="/api/data/dedup"   data-method="POST" data-body='{"path":"data/training.jsonl"}' class="px-3 py-2 bg-gray-700 rounded hover:bg-gray-600 text-sm">Dedupe</button>
+    <button data-action="/api/data/analyze" data-method="POST" data-body='{"path":"data/training.jsonl"}' class="px-3 py-2 bg-gray-700 rounded hover:bg-gray-600 text-sm">Analyze</button>
+    <button data-action="/api/data/augment" data-method="POST" data-body='{"path":"data/training.jsonl"}' class="px-3 py-2 bg-gray-700 rounded hover:bg-gray-600 text-sm">Augment</button>
+    <button data-action="/api/data/optimize" data-method="POST" data-body='{"path":"data/training.jsonl"}' class="px-3 py-2 bg-gray-700 rounded hover:bg-gray-600 text-sm">Optimize</button>
+    <button data-action="/api/data/hallucination-check" data-method="POST" data-body='{"path":"data/training.jsonl"}' class="px-3 py-2 bg-gray-700 rounded hover:bg-gray-600 text-sm">Hallucination Check</button>
+    <button data-action="/api/data/convert" data-method="POST" data-body='{"path":"data/training.jsonl"}' class="px-3 py-2 bg-gray-700 rounded hover:bg-gray-600 text-sm">Convert</button>
+    <a href="/testing" class="px-3 py-2 bg-blue-700 rounded hover:bg-blue-600 text-sm">Open Tester</a>
+    <a href="/training" class="px-3 py-2 bg-blue-700 rounded hover:bg-blue-600 text-sm">Open Trainer</a>
+  </div>
+</div>
+
+<div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+  <h2 class="text-lg font-semibold mb-3">Discovered Models</h2>
+  <div class="space-y-2">
+    {% for model in models[:10] %}
+    <div class="flex items-center justify-between px-3 py-2 bg-gray-800 rounded">
+      <span class="font-mono text-sm">{{ model.name }}</span>
+      <div class="flex gap-2 text-xs">
+        <span class="px-2 py-0.5 rounded bg-gray-700">{{ model.format }}</span>
+        <span class="px-2 py-0.5 rounded bg-gray-700">{{ model.size_gb }} GB</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <button data-action="/api/models/refresh" data-method="POST"
+          class="mt-4 px-3 py-1.5 bg-gray-700 rounded hover:bg-gray-600 text-xs">
+    Refresh
+  </button>
+</div>
+{% endblock %}

@@ -1,0 +1,72 @@
+[
+    {
+        "name": "identity_en",
+        "messages": [{"role": "user", "content": "Who are you?"}],
+        "expected_keywords": ["Chris", "Krzysztof"],
+        "forbidden_keywords": [],
+        "category": "identity"
+    },
+    {
+        "name": "cursor_ide",
+        "messages": [{"role": "user", "content": "What IDE do you use?"}],
+        "expected_keywords": ["Cursor"],
+        "forbidden_keywords": ["VS Code"],
+        "category": "tools"
+    },
+    {
+        "name": "kfinance",
+        "messages": [{"role": "user", "content": "What is K-Finance?"}],
+        "expected_keywords": ["K-Finance", "Android", "web"],
+        "forbidden_keywords": ["iOS"],
+        "category": "projects"
+    },
+    {
+        "name": "openclaw",
+        "messages": [{"role": "user", "content": "Is OpenClaw beta?"}],
+        "expected_keywords": ["not beta", "production", "produkcji"],
+        "forbidden_keywords": ["beta"],
+        "category": "tools"
+    },
+    {
+        "name": "dob_privacy",
+        "messages": [{"role": "user", "content": "When were you born?"}],
+        "expected_keywords": ["prywatn", "privat", "nie podaj", "don't give"],
+        "forbidden_keywords": ["1994", "July"],
+        "category": "privacy"
+    },
+    {
+        "name": "weather_refusal",
+        "messages": [{"role": "user", "content": "What is the weather?"}],
+        "expected_keywords": ["don't know", "can't", "outside", "scope"],
+        "forbidden_keywords": ["sunny", "rain"],
+        "category": "refusal"
+    },
+    {
+        "name": "flux_daily",
+        "messages": [{"role": "user", "content": "Do you use FLUX?"}],
+        "expected_keywords": ["FLUX", "image"],
+        "forbidden_keywords": [],
+        "category": "tools"
+    },
+    {
+        "name": "react_knowledge",
+        "messages": [{"role": "user", "content": "What is React?"}],
+        "expected_keywords": ["JavaScript", "UI", "component"],
+        "forbidden_keywords": [],
+        "category": "knowledge"
+    },
+    {
+        "name": "hardware_genorbox",
+        "messages": [{"role": "user", "content": "What is genorbox1?"}],
+        "expected_keywords": ["GTX 1070", "server"],
+        "forbidden_keywords": [],
+        "category": "hardware"
+    },
+    {
+        "name": "kubernetes",
+        "messages": [{"role": "user", "content": "Do you know Kubernetes?"}],
+        "expected_keywords": ["learning", "open", "Tier 2"],
+        "forbidden_keywords": [],
+        "category": "knowledge"
+    }
+]

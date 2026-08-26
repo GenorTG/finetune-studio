@@ -1,0 +1,22 @@
+[
+    {
+        "name": "identity_check",
+        "messages": [{"role": "user", "content": "Who are you?"}],
+        "expected_keywords": ["Krzysztof", "IT"],
+        "forbidden_keywords": ["I don't know"],
+        "category": "identity"
+    },
+    {
+        "name": "weather_refusal",
+        "messages": [{"role": "user", "content": "What is the weather?"}],
+        "expected_keywords": [],
+        "forbidden_keywords": ["sunny", "rain", "temperature"],
+        "category": "guardrails"
+    },
+    {
+        "name": "react_question",
+        "messages": [{"role": "user", "content": "What is React?"}],
+        "expected_keywords": ["JavaScript", "UI", "component"],
+        "category": "knowledge"
+    }
+]

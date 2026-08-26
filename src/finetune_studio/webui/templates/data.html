@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Data - Finetune Studio{% endblock %}
+{% block nav_data %}bg-gray-800 text-emerald-400{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">Training Data</h1>
+<div class="bg-gray-900 rounded-lg p-6 border border-gray-800 mb-6">
+    <h2 class="text-lg font-semibold mb-4">Upload</h2>
+    <form hx-post="/api/data/upload" hx-encoding="multipart/form-data" hx-target="#file-list" hx-swap="innerHTML" class="flex gap-2">
+        <input type="file" name="file" accept=".jsonl,.json,.csv,.txt" class="flex-1 bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
+        <button type="submit" class="px-4 py-2 bg-emerald-600 rounded hover:bg-emerald-500 text-sm">Upload</button>
+    </form>
+</div>
+<div class="bg-gray-900 rounded-lg p-6 border border-gray-800">
+    <h2 class="text-lg font-semibold mb-4">Files</h2>
+    <div id="file-list" class="space-y-2">
+        {% for f in files %}
+        <div class="flex items-center justify-between px-3 py-2 bg-gray-800 rounded">
+            <div>
+                <span class="font-mono text-sm">{{ f.relative }}</span>
+                <span class="text-xs text-gray-500 ml-2">{{ f.size_kb }} KB</span>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="validateFile(&apos;{{ f.path }}&apos;)" class="text-xs px-2 py-1 bg-blue-800 rounded hover:bg-blue-700">Validate</button>
+                <button onclick="previewFile(&apos;{{ f.path }}&apos;)" class="text-xs px-2 py-1 bg-gray-700 rounded hover:bg-gray-600">Preview</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+<div id="result-area" class="mt-6"></div>
+<script>
+function validateFile(path) {
+    fetch("/api/data/validate?path=" + encodeURIComponent(path))
+        .then(r => r.json()).then(d => {
+            const area = document.getElementById("result-area");
+            const cls = d.valid ? "border-green-800 bg-green-950" : "border-red-800 bg-red-950";
+            area.innerHTML = '<div class="rounded-lg p-4 border ' + cls + '"><h3 class="font-semibold mb-2">' + (d.valid ? "Valid" : "Invalid") + '</h3><pre class="text-xs">' + JSON.stringify(d, null, 2) + '</pre></div>';
+        });
+}
+function previewFile(path) {
+    fetch("/api/data/preview?path=" + encodeURIComponent(path))
+        .then(r => r.json()).then(d => {
+            const area = document.getElementById("result-area");
+            area.innerHTML = '<div class="bg-gray-900 rounded-lg p-4 border border-gray-800"><h3 class="font-semibold mb-2">Preview (' + d.rows + ' rows)</h3><pre class="text-xs h-64 overflow-auto bg-gray-950 rounded p-3">' + JSON.stringify(d.preview, null, 2) + '</pre></div>';
+        });
+}
+</script>
+{% endblock %}

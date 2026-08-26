@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Projects - Finetune Studio{% endblock %}
+{% block nav_projects %}bg-gray-800 text-emerald-400{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold">Projects</h1>
+    <button onclick="showNewProject()" class="px-3 py-1.5 bg-emerald-600 rounded hover:bg-emerald-500 text-sm">+ New Project</button>
+</div>
+
+<div id="new-project" class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6 hidden">
+    <h3 class="font-semibold mb-3">New Project</h3>
+    <form id="np-form" class="grid grid-cols-2 gap-3">
+        <input name="name" placeholder="Project name" class="bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700" required>
+        <select name="base_model" class="bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
+            <option value="">— Base model —</option>
+        </select>
+        <textarea name="description" placeholder="Description (optional)" rows="2" class="col-span-2 bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700"></textarea>
+        <textarea name="system_prompt" placeholder="System prompt (optional)" rows="2" class="col-span-2 bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700"></textarea>
+        <div class="col-span-2 flex gap-2">
+            <button type="submit" class="px-3 py-1.5 bg-emerald-600 rounded hover:bg-emerald-500 text-sm">Create</button>
+            <button type="button" onclick="hideNewProject()" class="px-3 py-1.5 bg-gray-700 rounded hover:bg-gray-600 text-sm">Cancel</button>
+        </div>
+    </form>
+</div>
+
+<div class="space-y-2">
+    {% if not projects %}
+    <div class="bg-gray-900 rounded-lg p-8 border border-gray-800 text-center text-gray-500">
+        No projects yet. Create one to get started.
+    </div>
+    {% endif %}
+    {% for p in projects %}
+    <a href="/projects/{{ p.id }}" class="block bg-gray-900 rounded-lg p-4 border border-gray-800 hover:border-emerald-700">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="font-semibold">{{ p.name }}</div>
+                <div class="text-xs text-gray-500">{{ p.description or 'No description' }}</div>
+            </div>
+            <div class="flex gap-2 text-xs">
+                {% if p.base_model %}<span class="px-2 py-0.5 rounded bg-gray-800">base: {{ p.base_model.split('/')[-1] }}</span>{% endif %}
+                {% if p.production_run %}<span class="px-2 py-0.5 rounded bg-emerald-800">production: {{ p.production_run[:8] }}</span>{% endif %}
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+
+<script>
+function showNewProject() {
+    document.getElementById('new-project').classList.remove('hidden');
+}
+function hideNewProject() {
+    document.getElementById('new-project').classList.add('hidden');
+}
+// Pre-populate base_model dropdown.
+fetch('/api/models/list').then(r => r.json()).then(models => {
+    const sel = document.querySelector('#np-form select[name="base_model"]');
+    models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.path;
+        opt.textContent = `${m.name} (${m.format}, ${m.size_gb} GB)`;
+        sel.appendChild(opt);
+    });
+});
+document.getElementById('np-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target));
+    const r = await fetch('/api/projects', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
+    const d = await r.json();
+    if (d.error) { notify(d.error, 'error'); return; }
+    location.href = '/projects/' + d.id;
+});
+</script>
+{% endblock %}

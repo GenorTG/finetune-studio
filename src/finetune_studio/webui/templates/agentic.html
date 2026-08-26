@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Agentic Tools - Finetune Studio{% endblock %}
+{% block content %}
+<div class="mb-6">
+    <a href="/projects/{{ project.id }}" class="text-sm text-emerald-400 hover:text-emerald-300">&larr; Back to {{ project.name }}</a>
+    <h1 class="text-2xl font-bold mt-2">Agentic Tools — {{ project.name }}</h1>
+</div>
+
+<!-- Model Loader -->
+<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-4">
+    <h2 class="text-lg font-semibold mb-3">Model</h2>
+    <div class="flex flex-wrap gap-2">
+        <select id="agentic-model" class="flex-1 min-w-0 bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
+            {% for model in models %}<option value="{{ model.path }}">{{ model.name }} ({{ model.format }})</option>{% endfor %}
+        </select>
+        <button onclick="agenticLoadModel()" class="px-4 py-2 bg-emerald-600 rounded hover:bg-emerald-500 text-sm whitespace-nowrap">Load</button>
+    </div>
+    <div id="agentic-load-status" class="text-sm text-gray-400 mt-2">No model loaded</div>
+</div>
+
+<!-- Tools Checklist -->
+<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-4">
+    <h2 class="text-lg font-semibold mb-3">Enabled Tools</h2>
+    <div id="agentic-tools" class="flex flex-wrap gap-3">
+        <div class="text-sm text-gray-500">Loading tools…</div>
+    </div>
+</div>
+
+<!-- Chat Area -->
+<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-4">
+    <h2 class="text-lg font-semibold mb-3">Chat</h2>
+    <div id="agentic-chat" class="h-80 overflow-y-auto bg-gray-950 rounded p-3 mb-3 text-sm space-y-3"></div>
+    <div class="flex gap-2">
+        <input id="agentic-input" type="text" placeholder="Ask something…"
+               class="flex-1 bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700"
+               onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();agenticSend()}">
+        <button onclick="agenticSend()" id="agentic-send-btn" class="px-4 py-2 bg-emerald-600 rounded hover:bg-emerald-500 text-sm">Send</button>
+    </div>
+</div>
+
+<!-- Tool Trace -->
+<div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+    <h2 class="text-lg font-semibold mb-3">Tool Trace</h2>
+    <div id="agentic-trace" class="text-sm text-gray-500">No trace yet.</div>
+</div>
+
+<script>
+const PROJECT_ID = "{{ project.id }}";
+let chatHistory = [];
+let enabledTools = [];
+
+// Fetch tools on load
+async function agenticLoadTools() {
+    const res = await fetch(`/api/agentic/projects/${PROJECT_ID}/tools`);
+    const tools = await res.json();
+    const container = document.getElementById("agentic-tools");
+    container.innerHTML = tools.map(t =>
+        `<label class="flex items-center gap-2 bg-gray-800 rounded px-3 py-1.5 border border-gray-700 cursor-pointer">
+            <input type="checkbox" value="${t.name}" ${t.enabled_by_default ? "checked" : ""} onchange="agenticSyncTools()">
+            <span class="text-sm">${t.name}</span>
+            <span class="text-xs text-gray-500">${t.description}</span>
+        </label>`
+    ).join("");
+    agenticSyncTools();
+}
+
+function agenticSyncTools() {
+    enabledTools = [...document.querySelectorAll("#agentic-tools input[type=checkbox]:checked")].map(c => c.value);
+}
+
+// Load model
+async function agenticLoadModel() {
+    const path = document.getElementById("agentic-model").value;
+    const el = document.getElementById("agentic-load-status");
+    el.textContent = "Loading…";
+    const res = await fetch(`/api/agentic/load?path=${encodeURIComponent(path)}`);
+    const d = await res.json();
+    el.textContent = d.error ? `Error: ${d.error}` : `Loaded: ${d.model}`;
+    el.className = "text-sm mt-2 " + (d.error ? "text-red-400" : "text-emerald-400");
+}
+
+// Render chat
+function agenticRenderChat() {
+    const box = document.getElementById("agentic-chat");
+    box.innerHTML = chatHistory.map(m => {
+        if (m.role === "user") {
+            return `<div class="text-blue-300"><span class="font-semibold text-blue-200">You:</span> ${escHtml(m.content)}</div>`;
+        }
+        if (m.type === "tool_call") {
+            return `<div class="bg-purple-900/30 border border-purple-700 rounded p-2">
+                <span class="font-semibold text-purple-300">🔧 ${escHtml(m.toolName)}</span>
+                <span class="text-xs text-purple-400 ml-2">${escHtml(JSON.stringify(m.args))}</span>
+            </div>`;
+        }
+        if (m.type === "tool_result") {
+            const truncated = m.result.length > 300 ? m.result.slice(0, 300) + "…" : m.result;
+            return `<div class="bg-blue-900/30 border border-blue-700 rounded p-2">
+                <span class="font-semibold text-blue-300">📋 Result:</span>
+                <div class="text-blue-200 text-xs mt-1">${escHtml(truncated)}</div>
+            </div>`;
+        }
+        return `<div class="text-emerald-300"><span class="font-semibold text-emerald-200">Assistant:</span> ${escHtml(m.content)}</div>`;
+    }).join("");
+    box.scrollTop = box.scrollHeight;
+}
+
+// Render trace
+function agenticRenderTrace(steps) {
+    const el = document.getElementById("agentic-trace");
+    if (!steps || steps.length === 0) {
+        el.innerHTML = '<div class="text-gray-500">No trace yet.</div>';
+        return;
+    }
+    el.innerHTML = steps.map((step, i) => {
+        if (!step.tool_calls || step.tool_calls.length === 0) {
+            return `<div class="bg-gray-800 rounded p-2 mb-2 border border-gray-700">
+                <div class="font-semibold text-emerald-400">Step ${i+1}: Final Response</div>
+                <div class="text-xs text-gray-300 mt-1">${escHtml(step.content.slice(0, 500))}${step.content.length > 500 ? "…" : ""}</div>
+            </div>`;
+        }
+        const tool = step.tool_calls[0];
+        const result = (step.tool_results && step.tool_results[0]) ? step.tool_results[0].result : "";
+        const id = `trace-${i}`;
+        return `<div class="bg-gray-800 rounded p-2 mb-2 border border-gray-700">
+            <button onclick="document.getElementById('${id}').classList.toggle('hidden')" class="w-full text-left">
+                <span class="font-semibold text-purple-400">Step ${i+1}: ${escHtml(tool.name)}</span>
+                <span class="text-xs text-gray-500 ml-2">▸</span>
+            </button>
+            <div id="${id}" class="hidden mt-2 text-xs space-y-1">
+                <div><span class="text-gray-400">Args:</span> <span class="text-gray-200">${escHtml(JSON.stringify(tool.arguments))}</span></div>
+                <div><span class="text-gray-400">Result:</span>
+                    <div class="text-blue-200 bg-gray-900 rounded p-2 mt-1 whitespace-pre-wrap">${escHtml(result.slice(0, 500))}${result.length > 500 ? "…" : ""}</div>
+                </div>
+            </div>
+        </div>`;
+    }).join("");
+}
+
+// Send message
+async function agenticSend() {
+    const input = document.getElementById("agentic-input");
+    const msg = input.value.trim();
+    if (!msg) return;
+    input.value = "";
+
+    chatHistory = chatHistory.concat([{role: "user", content: msg, type: "text"}]);
+    agenticRenderChat();
+
+    // Show loading
+    chatHistory.push({role: "assistant", content: "Thinking…", type: "text"});
+    agenticRenderChat();
+
+    const btn = document.getElementById("agentic-send-btn");
+    btn.disabled = true;
+    btn.textContent = "Running…";
+
+    try {
+        const res = await fetch(`/api/agentic/projects/${PROJECT_ID}/run`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                messages: chatHistory.filter(m => m.type === "text").map(m => ({role: m.role, content: m.content})),
+                enabled_tools: enabledTools,
+                model_path: document.getElementById("agentic-model").value,
+                max_tokens: 512,
+                temperature: 0.7,
+                max_steps: 6,
+            }),
+        });
+        const data = await res.json();
+
+        // Remove loading message
+        chatHistory.pop();
+
+        if (data.error) {
+            chatHistory.push({role: "assistant", content: data.error, type: "text"});
+        } else {
+            // Render steps into chat
+            for (const step of data.steps) {
+                if (step.tool_calls && step.tool_calls.length > 0) {
+                    for (const tc of step.tool_calls) {
+                        chatHistory.push({role: "assistant", type: "tool_call", toolName: tc.name, args: tc.arguments, content: ""});
+                    }
+                    for (const tr of step.tool_results) {
+                        chatHistory.push({role: "assistant", type: "tool_result", result: tr.result, content: ""});
+                    }
+                }
+                if (step.content && (!step.tool_calls || step.tool_calls.length === 0)) {
+                    chatHistory.push({role: "assistant", content: step.content, type: "text"});
+                }
+            }
+            agenticRenderTrace(data.steps);
+        }
+    } catch (e) {
+        chatHistory.pop();
+        chatHistory.push({role: "assistant", content: `Network error: ${e.message}`, type: "text"});
+    }
+
+    agenticRenderChat();
+    btn.disabled = false;
+    btn.textContent = "Send";
+}
+
+function escHtml(s) {
+    const d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+// Poll model status
+setInterval(async () => {
+    try {
+        const res = await fetch("/api/agentic/status");
+        const d = await res.json();
+        const el = document.getElementById("agentic-load-status");
+        if (d.loaded) {
+            el.textContent = `Loaded: ${d.model_path}`;
+            el.className = "text-sm mt-2 text-emerald-400";
+        } else {
+            el.textContent = "No model loaded";
+            el.className = "text-sm mt-2 text-gray-400";
+        }
+    } catch {}
+}, 5000);
+
+// Init
+agenticLoadTools();
+</script>
+{% endblock %}

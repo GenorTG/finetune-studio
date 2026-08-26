@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Finetune Studio{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
+    <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body class="h-full bg-gray-950 text-gray-100">
+    <div class="flex h-full">
+        <nav class="w-56 bg-gray-900 border-r border-gray-800 p-4 flex flex-col gap-1 shrink-0">
+            <div class="text-lg font-bold text-emerald-400 mb-4 px-3">Finetune Studio</div>
+            <a href="/" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_dashboard %}{% endblock %}">Dashboard</a>
+            <a href="/projects" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_projects %}{% endblock %}">Projects</a>
+            <a href="/chat" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_chat %}{% endblock %}">Chat</a>
+            <a href="/models" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_models %}{% endblock %}">Models</a>
+            <a href="/training" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_training %}{% endblock %}">Training</a>
+            <a href="/data" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_data %}{% endblock %}">Data</a>
+            <a href="/testing" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_testing %}{% endblock %}">Testing</a>
+            <div class="mt-auto px-3 text-xs text-gray-600">v0.1.0</div>
+        </nav>
+        <main class="flex-1 overflow-auto p-6">{% block content %}{% endblock %}</main>
+    </div>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
