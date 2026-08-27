@@ -132,7 +132,7 @@ if torch.cuda.is_available(): print(f'[install]   GPU: {torch.cuda.get_device_na
 " 2>/dev/null || warn "✗ torch check failed"
         [ "$SKIP_GGUF" = "0" ] && "$VENV_DIR/bin/python" -c "import llama_cpp; print(f'[install]   llama-cpp-python: {llama_cpp.__version__}', flush=True)" 2>/dev/null || true
     else warn "✗ no venv — run: bash install.sh"; fi
-    [ -d "../inference-server" ] && log "✓ ../inference-server present" || warn "✗ ../inference-server missing"
+    log "✓ chat templates bundled (no sibling dep)"
     exit 0
 fi
 

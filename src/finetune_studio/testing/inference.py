@@ -50,7 +50,7 @@ class InferenceEngine:
         self.is_gguf = True
         # Cache the GGUF's own chat template + tokens so we don't re-extract per call.
         try:
-            from inference_server.templates.renderer import extract_template_from_gguf
+            from finetune_studio.templates.renderer import extract_template_from_gguf
             self._gguf_template = extract_template_from_gguf(gguf_path)
         except Exception:
             self._gguf_template = None
@@ -84,10 +84,10 @@ class InferenceEngine:
 
     def _generate_gguf(self, messages, max_tokens, temperature, top_p, stop):
         # Respect the GGUF's built-in tokenizer.chat_template via the existing
-        # inference-server renderer. Mixing templates across models is fragile —
+        # finetune_studio.templates.renderer. Mixing templates across models is fragile —
         # we never fall back to a hardcoded prompt; the renderer itself falls
         # back to ChatML only when the GGUF has no template at all.
-        from inference_server.templates.renderer import render_chat
+        from finetune_studio.templates.renderer import render_chat
         tmpl = self._gguf_template or {}
         prompt = render_chat(
             template_str=tmpl.get("chat_template", ""),

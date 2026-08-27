@@ -23,13 +23,7 @@ dependencies = [
     "sentence-transformers>=3.0.0",
     "requests>=2.31.0",
     "aiofiles>=23.2.0",
-    # inference-server (chat template renderer) is added as a local editable
-    # dep via [tool.uv.sources] — see below. For pip-only installs, run:
-    #   pip install -e ../inference-server
 ]
-
-[tool.uv.sources]
-inference-server = { path = "../inference-server", editable = true }
 
 [project.optional-dependencies]
 # GGUF is installed separately by install.sh (GPU-aware wheel selection).

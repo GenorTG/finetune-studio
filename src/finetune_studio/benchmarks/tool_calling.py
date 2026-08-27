@@ -4,7 +4,7 @@ WHAT THIS FILE DOES
 ==================
 Tests whether the model can correctly call tools when given an
 appropriate prompt. Uses the canonical Jinja renderer from
-inference-server to ensure the model's template is respected.
+finetune_studio to ensure the model's template is respected.
 
 KEY CONCEPTS
 ============
@@ -26,10 +26,10 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, cast
 
-# Jinja template support — canonical renderer lives in inference-server.
+# Jinja template support — canonical renderer lives in finetune_studio.templates.
 # We import render_chat (universal Jinja2 renderer with ChatML fallback)
 # and extract_template_from_gguf (extracts tokenizer.chat_template from GGUF metadata).
-from inference_server.templates.renderer import (
+from finetune_studio.templates.renderer import (
     extract_template_from_gguf,
     render_chat,
 )
@@ -342,7 +342,7 @@ def get_tool_system_prompt(tools: list[dict] | None = None) -> str:
 
 
 # extract_template_from_gguf, render_chat, _render_chatml_fallback are
-# imported at the top of this module from inference_server.templates.renderer.
+# imported at the top of this module from finetune_studio.templates.renderer.
 # Do NOT re-define them here — keep a single source of truth.
 
 

@@ -8,7 +8,7 @@ This package is the APPLICATION LAYER for our AI workflow:
   - Manage RAG documents (rag/)
   - Inspect and validate training data (data/)
 
-It depends on the inference-server package for:
+It depends on the finetune_studio.templates module for:
   - Jinja2 template rendering (canonical source)
   - Tool-call parsing
   - Built-in tools

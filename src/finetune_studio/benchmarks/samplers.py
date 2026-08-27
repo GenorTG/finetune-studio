@@ -13,7 +13,7 @@ different use cases:
 
 KEY CONCEPTS
 ============
-- Sampler parameters: see samplers.py in inference-server for full details.
+- Sampler parameters: see samplers.py for full details.
 - Preset names: a friendly way to refer to a configuration without
   remembering all the numbers.
 - Custom presets: users can define their own presets in config files.
