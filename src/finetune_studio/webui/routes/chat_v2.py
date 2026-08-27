@@ -50,6 +50,43 @@ async def project_context(pid: str):
     }
 
 
+@router.post("/inference/chat")
+async def inference_chat(request: Request):
+    """Global inference chat — no project required."""
+    from finetune_studio.webui.app import inference_engine
+    body = await request.json()
+    messages = body.get("messages", [])
+    max_tokens = body.get("max_tokens", 1024)
+    temperature = body.get("temperature", 0.7)
+    if not messages:
+        return {"error": "No messages"}
+    if inference_engine.model is None:
+        return {"error": "No model loaded. Load a model first."}
+    try:
+        response = inference_engine.generate(messages, max_tokens=max_tokens, temperature=temperature)
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+    return {"response": response if isinstance(response, str) else str(response)}
+
+
+@router.post("/inference/benchmark")
+async def inference_benchmark(request: Request):
+    """Run quick benchmarks on the loaded model."""
+    from finetune_studio.webui.app import inference_engine
+    from finetune_studio.benchmarks.real_benchmarks import RealBenchmarkSuite
+    body = await request.json()
+    model_path = body.get("model_path", "")
+    if inference_engine.model is None:
+        return {"error": "No model loaded. Load a model first."}
+    try:
+        suite = RealBenchmarkSuite()
+        results = suite.run_all(inference_engine, num_samples=20)
+        overall = sum(results.values()) / len(results) if results else 0
+        return {"results": results, "overall": overall}
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+
+
 @router.post("/load")
 async def load_model(request: Request):
     """Load a model into the inference engine."""

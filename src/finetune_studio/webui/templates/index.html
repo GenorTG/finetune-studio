@@ -11,10 +11,9 @@
     <div class="text-3xl font-bold text-emerald-400">{{ projects|length }}</div>
   </div>
   <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
-    <div class="text-sm text-gray-400">Models Found</div>
-    <div class="text-3xl font-bold text-emerald-400">
-      <span hx-get="/api/models/count" hx-trigger="load, every 5s" hx-swap="innerHTML" id="dash-model-count">{{ models|length }}</span>
-    </div>
+    <div class="text-sm text-gray-400">Models</div>
+    <div class="text-3xl font-bold text-emerald-400">{{ models|length }}</div>
+    <a href="/inference" class="text-xs text-emerald-400 hover:underline">Open Inference →</a>
   </div>
   <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
     <div class="text-sm text-gray-400">Training Status</div>
@@ -49,21 +48,48 @@
   </div>
 </div>
 
-<!-- Recent Activity -->
+<!-- Models -->
+<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-8">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="text-lg font-semibold">Models</h2>
+    <div class="flex items-center gap-3">
+      <a href="/inference" class="text-xs text-emerald-400 hover:underline">Inference →</a>
+      <button hx-post="/api/models/refresh" hx-swap="none" hx-on::after-request="window.location.reload()" class="text-xs text-emerald-400 hover:underline">Rescan</button>
+    </div>
+  </div>
+  {% if not models %}
+  <div class="text-sm text-gray-500">No models found. Add models to your model directories.</div>
+  {% endif %}
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+    {% for m in models %}
+    <div class="bg-gray-800 rounded p-3 border border-gray-700 hover:border-gray-600 transition-colors">
+      <div class="flex items-center justify-between mb-1">
+        <span class="font-semibold text-sm truncate">{{ m.name }}</span>
+        <span class="px-1.5 py-0.5 text-xs rounded {% if m.format == 'gguf' %}bg-blue-900 text-blue-300{% else %}bg-purple-900 text-purple-300{% endif %}">{{ m.format }}</span>
+      </div>
+      <div class="text-xs text-gray-400 space-y-0.5">
+        <div>{{ m.size_gb }} GB{% if m.architecture %} · {{ m.architecture }}{% endif %}</div>
+        <div class="text-gray-500 truncate">{{ m.path }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- System -->
 <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
   <h2 class="text-lg font-semibold mb-3">System</h2>
   <div class="grid grid-cols-2 gap-4 text-sm">
-    <div class="bg-gray-800 rounded p-3">
-      <div class="text-gray-400 text-xs">Models Available</div>
-      <div class="font-bold text-lg">{{ models|length }}</div>
-      <a href="#" hx-post="/api/models/refresh" hx-swap="none" class="text-xs text-emerald-400 hover:underline">Rescan</a>
-    </div>
     <div class="bg-gray-800 rounded p-3">
       <div class="text-gray-400 text-xs">Training</div>
       <div class="font-bold text-lg">{{ training_state.status|title }}</div>
       {% if training_state.status == 'training' %}
       <div class="text-xs text-gray-500">Step {{ training_state.current_step }}/{{ training_state.total_steps }}</div>
       {% endif %}
+    </div>
+    <div class="bg-gray-800 rounded p-3">
+      <div class="text-gray-400 text-xs">GPU</div>
+      <div class="font-bold text-lg" hx-get="/api/gpu/status" hx-trigger="load, every 10s" hx-swap="innerHTML">—</div>
     </div>
   </div>
 </div>

@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Inference - Finetune Studio{% endblock %}
+{% block nav_inference %}bg-gray-800 text-emerald-400{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">Inference</h1>
+
+<!-- Model selector -->
+<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6">
+  <h2 class="text-lg font-semibold mb-3">Load Model</h2>
+  <div class="flex gap-3">
+    <select id="inf-model-select" class="flex-1 bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
+      <option value="">Select a model…</option>
+      {% for m in models %}
+      <option value="{{ m.path }}" data-format="{{ m.format }}" data-size="{{ m.size_gb }}" data-arch="{{ m.architecture }}">
+        {{ m.name }} ({{ m.size_gb }}GB, {{ m.format }})
+      </option>
+      {% endfor %}
+    </select>
+    <button onclick="loadModel()" id="inf-load-btn" class="px-4 py-2 bg-emerald-600 rounded hover:bg-emerald-500 text-sm font-medium">Load</button>
+  </div>
+  <div id="inf-model-status" class="mt-2 text-sm text-gray-400"></div>
+  <div id="inf-model-info" class="mt-2 text-xs text-gray-500 hidden"></div>
+</div>
+
+<!-- Chat -->
+<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6">
+  <h2 class="text-lg font-semibold mb-3">Chat</h2>
+  <div id="inf-chat-messages" class="h-96 overflow-y-auto mb-3 space-y-3 p-3 bg-gray-800 rounded border border-gray-700">
+    <div class="text-sm text-gray-500 italic">Load a model and start chatting.</div>
+  </div>
+  <div class="flex gap-2">
+    <input id="inf-chat-input" type="text" placeholder="Type a message…"
+           class="flex-1 bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700"
+           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendInfChat()}" disabled>
+    <button onclick="sendInfChat()" id="inf-chat-send" class="px-4 py-2 bg-emerald-600 rounded hover:bg-emerald-500 text-sm" disabled>Send</button>
+  </div>
+</div>
+
+<!-- Benchmarks -->
+<div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+  <h2 class="text-lg font-semibold mb-3">Quick Benchmark</h2>
+  <p class="text-sm text-gray-400 mb-3">Run standard quality benchmarks on the loaded model (MMLU, HellaSwag, ARC, TruthfulQA, GSM8K, Winogrande).</p>
+  <button onclick="runBenchmark()" id="inf-bench-btn" class="px-4 py-2 bg-gray-700 rounded hover:bg-gray-600 text-sm" disabled>Run Benchmark</button>
+  <div id="inf-bench-status" class="mt-2 text-sm text-gray-400"></div>
+  <div id="inf-bench-results" class="mt-3 hidden"></div>
+</div>
+
+<script>
+let infModelLoaded = false;
+
+async function loadModel() {
+    const sel = document.getElementById('inf-model-select');
+    const path = sel.value;
+    if (!path) return;
+    const btn = document.getElementById('inf-load-btn');
+    const status = document.getElementById('inf-model-status');
+    const info = document.getElementById('inf-model-info');
+    btn.disabled = true; btn.textContent = 'Loading…';
+    status.textContent = 'Loading model into GPU…';
+    status.className = 'mt-2 text-sm text-yellow-400';
+    try {
+        const r = await fetch('/load', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({model_path:path})});
+        const d = await r.json();
+        if (d.error) {
+            status.textContent = 'Error: ' + d.error;
+            status.className = 'mt-2 text-sm text-red-400';
+        } else {
+            infModelLoaded = true;
+            status.textContent = '✓ Model loaded: ' + path.split('/').pop();
+            status.className = 'mt-2 text-sm text-emerald-400';
+            const opt = sel.selectedOptions[0];
+            info.textContent = `${opt.dataset.format.toUpperCase()} · ${opt.dataset.size}GB · ${opt.dataset.arch || 'unknown arch'}`;
+            info.classList.remove('hidden');
+            document.getElementById('inf-chat-input').disabled = false;
+            document.getElementById('inf-chat-send').disabled = false;
+            document.getElementById('inf-bench-btn').disabled = false;
+        }
+    } catch(e) {
+        status.textContent = 'Error: ' + e.message;
+        status.className = 'mt-2 text-sm text-red-400';
+    }
+    btn.disabled = false; btn.textContent = 'Load';
+}
+
+async function sendInfChat() {
+    const input = document.getElementById('inf-chat-input');
+    const msg = input.value.trim();
+    if (!msg || !infModelLoaded) return;
+    input.value = '';
+    const box = document.getElementById('inf-chat-messages');
+    // Remove placeholder
+    const ph = box.querySelector('.italic');
+    if (ph) ph.remove();
+    // Add user message
+    box.innerHTML += `<div class="flex justify-end"><div class="bg-emerald-800 rounded-lg px-3 py-2 text-sm max-w-[70%]">${escHtml(msg)}</div></div>`;
+    box.scrollTop = box.scrollHeight;
+    // Add loading
+    box.innerHTML += `<div id="inf-chat-loading" class="flex justify-start"><div class="bg-gray-700 rounded-lg px-3 py-2 text-sm text-gray-400">Thinking…</div></div>`;
+    box.scrollTop = box.scrollHeight;
+    try {
+        const r = await fetch('/inference/chat', {method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({messages:[{role:'user',content:msg}], max_tokens:1024, temperature:0.7})});
+        const d = await r.json();
+        document.getElementById('inf-chat-loading')?.remove();
+        if (d.error) {
+            box.innerHTML += `<div class="flex justify-start"><div class="bg-red-900 rounded-lg px-3 py-2 text-sm text-red-300">Error: ${escHtml(d.error)}</div></div>`;
+        } else {
+            box.innerHTML += `<div class="flex justify-start"><div class="bg-gray-700 rounded-lg px-3 py-2 text-sm max-w-[70%]">${escHtml(d.response)}</div></div>`;
+        }
+    } catch(e) {
+        document.getElementById('inf-chat-loading')?.remove();
+        box.innerHTML += `<div class="flex justify-start"><div class="bg-red-900 rounded-lg px-3 py-2 text-sm text-red-300">Error: ${escHtml(e.message)}</div></div>`;
+    }
+    box.scrollTop = box.scrollHeight;
+}
+
+async function runBenchmark() {
+    if (!infModelLoaded) return;
+    const btn = document.getElementById('inf-bench-btn');
+    const status = document.getElementById('inf-bench-status');
+    const results = document.getElementById('inf-bench-results');
+    btn.disabled = true; btn.textContent = 'Running…';
+    status.textContent = 'Running benchmarks (this may take a few minutes)…';
+    status.className = 'mt-2 text-sm text-yellow-400';
+    results.classList.add('hidden');
+    try {
+        const sel = document.getElementById('inf-model-select');
+        const path = sel.value;
+        const r = await fetch('/inference/benchmark', {method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({model_path:path})});
+        const d = await r.json();
+        if (d.error) {
+            status.textContent = 'Error: ' + d.error;
+            status.className = 'mt-2 text-sm text-red-400';
+        } else {
+            status.textContent = '✓ Benchmarks complete';
+            status.className = 'mt-2 text-sm text-emerald-400';
+            let html = '<div class="grid grid-cols-2 md:grid-cols-3 gap-2">';
+            for (const [k,v] of Object.entries(d.results || {})) {
+                const pct = typeof v === 'number' ? (v * 100).toFixed(1) + '%' : v;
+                html += `<div class="bg-gray-800 rounded p-2 text-center"><div class="text-xs text-gray-400">${k}</div><div class="font-bold text-emerald-400">${pct}</div></div>`;
+            }
+            html += '</div>';
+            if (d.overall !== undefined) {
+                html = `<div class="bg-gray-800 rounded p-3 mb-2 text-center"><div class="text-sm text-gray-400">Overall</div><div class="text-2xl font-bold text-emerald-400">${(d.overall*100).toFixed(1)}%</div></div>` + html;
+            }
+            results.innerHTML = html;
+            results.classList.remove('hidden');
+        }
+    } catch(e) {
+        status.textContent = 'Error: ' + e.message;
+        status.className = 'mt-2 text-sm text-red-400';
+    }
+    btn.disabled = false; btn.textContent = 'Run Benchmark';
+}
+
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+</script>
+{% endblock %}

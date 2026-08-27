@@ -59,6 +59,19 @@ async def index(request: Request):
     )
 
 
+# ── Global Inference ──────────────────────────────────────────────────
+
+@router.get("/inference", response_class=HTMLResponse)
+async def inference_page(request: Request):
+    """Global inference page — load any model, chat, run benchmarks."""
+    from finetune_studio.webui.app import discovered_models
+    return templates.TemplateResponse(
+        request,
+        "inference.html",
+        {"request": request, "models": discovered_models},
+    )
+
+
 # ── Projects list ────────────────────────────────────────────────────────
 
 @router.get("/projects", response_class=HTMLResponse)
