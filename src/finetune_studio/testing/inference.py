@@ -236,64 +236,33 @@ class InferenceEngine:
     def read_model_metadata(model_path):
         """Read model metadata (layer count, etc.) without loading the full model."""
         from pathlib import Path
-        import struct, mmap, json
+        import json
         path = Path(model_path)
         result = {"total_layers": 0, "num_kv_heads": 0, "head_dim": 0, "n_ctx_default": 4096}
 
         if path.is_file() and path.suffix == ".gguf":
             try:
-                with open(path, "rb") as f:
-                    h = f.read(262144)  # 256KB covers all metadata before tokenizer vocab
-                off = 24  # magic(4) + version(4) + n_tensors(8) + n_kv(8)
-                n_kv = struct.unpack_from("<Q", h, 16)[0]
-                for _ in range(int(n_kv)):
-                    if off + 9 > len(h): break
-                    klen = struct.unpack_from("<Q", h, off)[0]; off += 8
-                    if klen > 200 or off + klen + 1 > len(h): break
-                    key = h[off:off+klen].decode("utf-8"); off += klen
-                    vtype = h[off]; off += 1
-                    if vtype == 9:  # ARRAY — skip (tokenizer vocab is huge)
-                        alen = struct.unpack_from("<Q", h, off)[0]; off += 8
-                        atype = h[off]; off += 1
-                        can_skip = True
-                        for _ in range(alen):
-                            if atype == 8: el = struct.unpack_from("<Q", h, off)[0]; off += 8 + el
-                            elif atype in (0,1): off += 1
-                            elif atype in (2,3): off += 2
-                            elif atype in (4,5): off += 4
-                            elif atype == 6: off += 4
-                            elif atype == 7: off += 1
-                            else: can_skip = False; break
-                            if off > len(h): can_skip = False; break
-                        if not can_skip: break
-                        continue
-                    if vtype == 0: val = h[off]; off += 1
-                    elif vtype == 1: val = struct.unpack_from("<b", h, off)[0]; off += 1
-                    elif vtype == 2: val = struct.unpack_from("<H", h, off)[0]; off += 2
-                    elif vtype == 3: val = struct.unpack_from("<h", h, off)[0]; off += 2
-                    elif vtype == 4: val = struct.unpack_from("<I", h, off)[0]; off += 4
-                    elif vtype == 5: val = struct.unpack_from("<i", h, off)[0]; off += 4
-                    elif vtype == 6: val = struct.unpack_from("<f", h, off)[0]; off += 4
-                    elif vtype == 7: val = h[off] != 0; off += 1
-                    elif vtype == 8:
-                        slen = struct.unpack_from("<Q", h, off)[0]; off += 8
-                        val = h[off:off+slen].decode("utf-8", errors="replace"); off += slen
-                    else: break
-                    # Extract what we need
-                    if "block_count" in key and result["total_layers"] == 0:
-                        result["total_layers"] = int(val) if isinstance(val, (int, float)) else 0
-                    elif "head_count_kv" in key and result["num_kv_heads"] == 0:
-                        result["num_kv_heads"] = int(val) if isinstance(val, (int, float)) else 0
-                    elif "head_count" in key and "kv" not in key and result["num_kv_heads"] == 0:
-                        result["num_kv_heads"] = int(val) if isinstance(val, (int, float)) else 0
-                    elif "rope.dimension_count" in key:
-                        result["head_dim"] = int(val) if isinstance(val, (int, float)) else 0
-                    elif "embedding_length" in key and result["head_dim"] == 0:
-                        embd = int(val) if isinstance(val, (int, float)) else 0
-                        if embd and result["num_kv_heads"]:
-                            result["head_dim"] = embd // result["num_kv_heads"]
+                from gguf.gguf_reader import GGUFReader
+                reader = GGUFReader(str(path))
+                # Get architecture
+                arch_field = reader.fields.get("general.architecture")
+                if arch_field:
+                    arch = bytes(arch_field.parts[arch_field.data[0]]).decode("utf-8")
+                    # Read architecture-specific keys
+                    for key_suffix, result_key, fallback in [
+                        (".block_count", "total_layers", 0),
+                        (".attention.head_count_kv", "num_kv_heads", 0),
+                        (".attention.key_length", "head_dim", 0),
+                        (".context_length", "n_ctx_default", 4096),
+                    ]:
+                        field = reader.fields.get(f"{arch}{key_suffix}")
+                        if field:
+                            val = field.parts[field.data[0]]
+                            result[result_key] = int(val[0]) if len(val) else fallback
+                del reader  # free memory
             except Exception:
                 pass
+
         elif path.is_dir() and (path / "config.json").exists():
             try:
                 with open(path / "config.json") as f:
