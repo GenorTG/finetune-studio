@@ -8,7 +8,7 @@
 <div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6">
   <h2 class="text-lg font-semibold mb-3">Load Model</h2>
   <div class="flex gap-3">
-    <select id="inf-model-select" class="flex-1 bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
+    <select id="inf-model-select" class="flex-1 bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700" onchange="onModelSelect()">
       <option value="">Select a model…</option>
       {% for m in models %}
       <option value="{{ m.path }}" data-format="{{ m.format }}" data-size="{{ m.size_gb }}" data-arch="{{ m.architecture }}" data-vision="{{ m.vision|lower }}">
@@ -16,7 +16,6 @@
       </option>
       {% endfor %}
     </select>
-    <button onclick="loadModel()" id="inf-load-btn" class="px-4 py-2 bg-emerald-600 rounded hover:bg-emerald-500 text-sm font-medium">Load</button>
   </div>
   <div id="inf-model-status" class="mt-2 text-sm text-gray-400"></div>
   <div id="inf-model-info" class="mt-2 text-xs text-gray-500 hidden"></div>
@@ -27,30 +26,103 @@
       <button onclick="unloadModel()" class="px-2 py-1 bg-red-900 hover:bg-red-800 rounded text-red-300">Unload</button>
     </div>
   </div>
+</div>
 
-  <!-- Advanced loading params (collapsed) -->
-  <div class="mt-3">
-    <button onclick="togglePanel('load-advanced')" class="text-xs text-gray-400 hover:text-gray-300 focus:outline-none">▶ Advanced</button>
-    <div id="load-advanced" class="hidden mt-2 grid grid-cols-2 md:grid-cols-3 gap-3">
-      <div>
-        <label class="block text-xs text-gray-400 mb-1">n_ctx <span id="n-ctx-val" class="text-emerald-400">4096</span></label>
-        <input type="range" id="n-ctx" min="512" max="131072" step="512" value="4096" class="w-full" oninput="document.getElementById('n-ctx-val').textContent=this.value">
-      </div>
-      <div>
-        <label class="block text-xs text-gray-400 mb-1">n_gpu_layers <span id="n-gpu-val" class="text-emerald-400">99</span></label>
-        <input type="range" id="n-gpu-layers" min="0" max="200" step="1" value="99" class="w-full" oninput="document.getElementById('n-gpu-val').textContent=this.value">
-      </div>
-      <div>
-        <label class="block text-xs text-gray-400 mb-1">n_batch <span id="n-batch-val" class="text-emerald-400">512</span></label>
-        <input type="range" id="n-batch" min="64" max="2048" step="64" value="512" class="w-full" oninput="document.getElementById('n-batch-val').textContent=this.value">
-      </div>
-      <label class="flex items-center gap-2 text-xs text-gray-400">
-        <input type="checkbox" id="mmap" checked class="rounded"> mmap
-      </label>
-      <label class="flex items-center gap-2 text-xs text-gray-400">
-        <input type="checkbox" id="mlock" class="rounded"> mlock
-      </label>
+<!-- Memory Estimation Bar -->
+<div id="inf-memory-section" class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6 hidden">
+  <h3 class="text-sm font-semibold mb-2">Estimated Memory Usage</h3>
+  <div class="w-full bg-gray-800 rounded-full h-5 overflow-hidden mb-2">
+    <div id="inf-mem-bar" class="h-full rounded-full transition-all duration-300" style="width:0%">
     </div>
+  </div>
+  <div class="flex justify-between text-xs">
+    <span id="inf-mem-label" class="text-gray-400"></span>
+    <span id="inf-mem-detail" class="text-gray-500"></span>
+  </div>
+</div>
+
+<!-- Loading Parameters -->
+<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6">
+  <div class="space-y-4">
+    <!-- Context Length -->
+    <div>
+      <label class="block text-xs text-gray-400 mb-1">Context Length <span id="n-ctx-val" class="text-emerald-400">4096</span><span id="n-ctx-max" class="text-gray-500 text-[10px]"></span></label>
+      <input type="range" id="n-ctx" min="512" max="131072" step="512" value="4096" class="w-full" oninput="onParamChange()">
+    </div>
+
+    <!-- GPU Offload Layers -->
+    <div>
+      <label class="block text-xs text-gray-400 mb-1">GPU Offload Layers <span id="n-gpu-val" class="text-emerald-400">99</span><span id="n-gpu-max" class="text-gray-500 text-[10px]"></span></label>
+      <input type="range" id="n-gpu-layers" min="0" max="200" step="1" value="99" class="w-full" oninput="onParamChange()">
+      <div class="text-[10px] text-gray-500 mt-0.5">0 = CPU only, max = full GPU offload</div>
+    </div>
+
+    <!-- n_batch -->
+    <div>
+      <label class="block text-xs text-gray-400 mb-1">Batch Size <span id="n-batch-val" class="text-emerald-400">512</span></label>
+      <input type="range" id="n-batch" min="64" max="2048" step="64" value="512" class="w-full" oninput="onParamChange()">
+    </div>
+
+    <!-- Advanced toggle -->
+    <button onclick="toggleAdvanced()" id="adv-toggle" class="text-xs text-gray-400 hover:text-gray-300 focus:outline-none">▶ Show advanced settings</button>
+
+    <!-- Advanced settings (collapsed) -->
+    <div id="adv-panel" class="hidden space-y-4 border-t border-gray-800 pt-4">
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <!-- CPU Threads -->
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">CPU Threads <span id="n-threads-val" class="text-emerald-400">auto</span></label>
+          <input type="range" id="n-threads" min="0" max="32" step="1" value="0" class="w-full" oninput="onParamChange()">
+          <div class="text-[10px] text-gray-500 mt-0.5">0 = auto (CPU count)</div>
+        </div>
+
+        <!-- Seed -->
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Seed</label>
+          <input type="number" id="seed" min="-1" placeholder="random" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700" oninput="onParamChange()">
+          <div class="text-[10px] text-gray-500 mt-0.5">-1 or empty = random</div>
+        </div>
+
+        <!-- RoPE Frequency Base -->
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">RoPE Freq Base <span id="rope-base-val" class="text-emerald-400">auto</span></label>
+          <input type="number" id="rope-freq-base" min="0" step="1" value="0" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700" oninput="onParamChange()">
+          <div class="text-[10px] text-gray-500 mt-0.5">0 = model default</div>
+        </div>
+
+        <!-- RoPE Frequency Scale -->
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">RoPE Freq Scale <span id="rope-scale-val" class="text-emerald-400">auto</span></label>
+          <input type="number" id="rope-freq-scale" min="0" step="0.01" value="0" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700" oninput="onParamChange()">
+          <div class="text-[10px] text-gray-500 mt-0.5">0 = model default</div>
+        </div>
+      </div>
+
+      <!-- Toggle row -->
+      <div class="flex flex-wrap gap-x-6 gap-y-2">
+        <label class="flex items-center gap-2 text-xs text-gray-400">
+          <input type="checkbox" id="flash-attn" checked class="rounded" onchange="onParamChange()"> Flash Attention
+        </label>
+        <label class="flex items-center gap-2 text-xs text-gray-400">
+          <input type="checkbox" id="mmap" checked class="rounded" onchange="onParamChange()"> mmap
+        </label>
+        <label class="flex items-center gap-2 text-xs text-gray-400">
+          <input type="checkbox" id="mlock" class="rounded" onchange="onParamChange()"> mlock
+        </label>
+        <label class="flex items-center gap-2 text-xs text-gray-400">
+          <input type="checkbox" id="keep-in-memory" class="rounded"> Keep Model in Memory
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Remember settings + Load button -->
+  <div class="mt-4 flex items-center gap-4">
+    <label class="flex items-center gap-2 text-xs text-gray-400">
+      <input type="checkbox" id="remember-settings" class="rounded"> Remember settings for this model
+    </label>
+    <div class="flex-1"></div>
+    <button onclick="loadModel()" id="inf-load-btn" class="px-6 py-2 bg-emerald-600 rounded hover:bg-emerald-500 text-sm font-medium">Load Model</button>
   </div>
 </div>
 
@@ -126,7 +198,9 @@
 <script>
 let infModelLoaded = false;
 let infImageData = null;
+let modelTotalLayers = 0;
 
+// ── Panel toggles ──
 function togglePanel(id) {
     const el = document.getElementById(id);
     el.classList.toggle('hidden');
@@ -134,6 +208,14 @@ function togglePanel(id) {
     btn.textContent = (el.classList.contains('hidden') ? '▶ ' : '▼ ') + btn.textContent.slice(2);
 }
 
+function toggleAdvanced() {
+    const panel = document.getElementById('adv-panel');
+    const btn = document.getElementById('adv-toggle');
+    panel.classList.toggle('hidden');
+    btn.textContent = (panel.classList.contains('hidden') ? '▶ Show advanced settings' : '▼ Hide advanced settings');
+}
+
+// ── Image handling ──
 function handleImage(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -152,6 +234,181 @@ function clearImage() {
     document.getElementById('inf-image-preview').classList.add('hidden');
 }
 
+// ── Model selection: load metadata + restore remembered settings ──
+async function onModelSelect() {
+    const sel = document.getElementById('inf-model-select');
+    const path = sel.value;
+    if (!path) {
+        document.getElementById('inf-memory-section').classList.add('hidden');
+        modelTotalLayers = 0;
+        return;
+    }
+
+    // Try to restore remembered settings
+    const remembered = loadRemembered(path);
+    if (remembered) {
+        document.getElementById('n-ctx').value = remembered.n_ctx || 4096;
+        document.getElementById('n-gpu-layers').value = remembered.n_gpu_layers ?? 99;
+        document.getElementById('n-batch').value = remembered.n_batch || 512;
+        document.getElementById('n-threads').value = remembered.n_threads || 0;
+        document.getElementById('seed').value = remembered.seed ?? '';
+        document.getElementById('rope-freq-base').value = remembered.rope_freq_base || 0;
+        document.getElementById('rope-freq-scale').value = remembered.rope_freq_scale || 0;
+        document.getElementById('flash-attn').checked = remembered.flash_attn !== false;
+        document.getElementById('mmap').checked = remembered.mmap !== false;
+        document.getElementById('mlock').checked = !!remembered.mlock;
+        document.getElementById('remember-settings').checked = true;
+    } else {
+        document.getElementById('n-ctx').value = 4096;
+        document.getElementById('n-gpu-layers').value = 99;
+        document.getElementById('n-batch').value = 512;
+        document.getElementById('n-threads').value = 0;
+        document.getElementById('seed').value = '';
+        document.getElementById('rope-freq-base').value = 0;
+        document.getElementById('rope-freq-scale').value = 0;
+        document.getElementById('flash-attn').checked = true;
+        document.getElementById('mmap').checked = true;
+        document.getElementById('mlock').checked = false;
+        document.getElementById('remember-settings').checked = false;
+    }
+    onParamChange();
+
+    // Fetch model metadata to cap layers
+    try {
+        const r = await fetch('/api/chat-v2/model-info', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({model_path: path})
+        });
+        const info = await r.json();
+        if (info.total_layers && info.total_layers > 0) {
+            modelTotalLayers = info.total_layers;
+            document.getElementById('n-gpu-layers').max = info.total_layers;
+            document.getElementById('n-gpu-max').textContent = ` / ${info.total_layers}`;
+            // If current value exceeds new max, clamp
+            const gpuSlider = document.getElementById('n-gpu-layers');
+            if (parseInt(gpuSlider.value) > info.total_layers) {
+                gpuSlider.value = info.total_layers;
+            }
+        } else {
+            modelTotalLayers = 0;
+            document.getElementById('n-gpu-layers').max = 200;
+            document.getElementById('n-gpu-max').textContent = '';
+        }
+    } catch(e) {
+        modelTotalLayers = 0;
+        document.getElementById('n-gpu-layers').max = 200;
+        document.getElementById('n-gpu-max').textContent = '';
+    }
+
+    updateMemoryEstimate();
+}
+
+// ── Update memory estimate on param change ──
+let memDebounce = null;
+function onParamChange() {
+    // Update display values
+    const nCtx = document.getElementById('n-ctx');
+    document.getElementById('n-ctx-val').textContent = nCtx.value;
+    const gpuLayers = document.getElementById('n-gpu-layers');
+    document.getElementById('n-gpu-val').textContent = gpuLayers.value;
+    const batch = document.getElementById('n-batch');
+    document.getElementById('n-batch-val').textContent = batch.value;
+    const threads = document.getElementById('n-threads');
+    document.getElementById('n-threads-val').textContent = threads.value == 0 ? 'auto' : threads.value;
+    const ropeBase = document.getElementById('rope-freq-base');
+    document.getElementById('rope-base-val').textContent = ropeBase.value == 0 ? 'auto' : ropeBase.value;
+    const ropeScale = document.getElementById('rope-freq-scale');
+    document.getElementById('rope-scale-val').textContent = ropeScale.value == 0 ? 'auto' : ropeScale.value;
+
+    // Debounce memory estimate
+    if (memDebounce) clearTimeout(memDebounce);
+    memDebounce = setTimeout(updateMemoryEstimate, 300);
+}
+
+async function updateMemoryEstimate() {
+    const path = document.getElementById('inf-model-select').value;
+    if (!path) return;
+
+    const nCtx = parseInt(document.getElementById('n-ctx').value);
+    const gpuLayers = parseInt(document.getElementById('n-gpu-layers').value);
+    const sel = document.getElementById('inf-model-select');
+    const opt = sel.selectedOptions[0];
+    const sizeGb = parseFloat(opt?.dataset.size || '0');
+
+    const section = document.getElementById('inf-memory-section');
+    section.classList.remove('hidden');
+
+    // Client-side estimation for instant feedback
+    const totalLayers = modelTotalLayers || 32;
+    const gpuFrac = Math.min(gpuLayers / totalLayers, 1.0);
+    const weightsVram = sizeGb * gpuFrac;
+    const weightsRam = sizeGb * (1.0 - gpuFrac);
+
+    // Approximate KV cache: assume 8 KV heads, 128 head_dim, fp16
+    const numKvHeads = 8;
+    const headDim = 128;
+    const kvBytes = nCtx * 2 * totalLayers * numKvHeads * headDim * 2;
+    const kvGb = kvBytes / (1024**3);
+
+    const totalVram = weightsVram + kvGb;
+
+    // Try to get system VRAM if available (from CUDA)
+    // For now show the bar relative to a rough estimate
+    const bar = document.getElementById('inf-mem-bar');
+    const label = document.getElementById('inf-mem-label');
+    const detail = document.getElementById('inf-mem-detail');
+
+    // Color: green < 8GB, yellow 8-16GB, red > 16GB (rough VRAM thresholds)
+    let color;
+    if (totalVram <= 8) {
+        color = 'bg-emerald-500';
+    } else if (totalVram <= 16) {
+        color = 'bg-amber-500';
+    } else {
+        color = 'bg-red-500';
+    }
+    bar.className = `h-full rounded-full transition-all duration-300 ${color}`;
+    bar.style.width = `${Math.min(totalVram / 24 * 100, 100)}%`;
+
+    label.textContent = `~${totalVram.toFixed(1)} GB VRAM`;
+    detail.textContent = `Weights: ~${weightsVram.toFixed(1)} GB · KV Cache: ~${kvGb.toFixed(2)} GB`;
+    if (weightsRam > 0.01) {
+        detail.textContent += ` · RAM: ~${weightsRam.toFixed(1)} GB`;
+    }
+}
+
+// ── Remember settings (localStorage) ──
+function getSettingsKey(modelPath) {
+    return 'fts_model_settings_' + btoa(modelPath).replace(/=/g, '');
+}
+
+function saveRemembered(modelPath) {
+    const settings = {
+        n_ctx: parseInt(document.getElementById('n-ctx').value),
+        n_gpu_layers: parseInt(document.getElementById('n-gpu-layers').value),
+        n_batch: parseInt(document.getElementById('n-batch').value),
+        n_threads: parseInt(document.getElementById('n-threads').value),
+        seed: document.getElementById('seed').value,
+        rope_freq_base: parseFloat(document.getElementById('rope-freq-base').value),
+        rope_freq_scale: parseFloat(document.getElementById('rope-freq-scale').value),
+        flash_attn: document.getElementById('flash-attn').checked,
+        mmap: document.getElementById('mmap').checked,
+        mlock: document.getElementById('mlock').checked,
+    };
+    try {
+        localStorage.setItem(getSettingsKey(modelPath), JSON.stringify(settings));
+    } catch(e) {}
+}
+
+function loadRemembered(modelPath) {
+    try {
+        const raw = localStorage.getItem(getSettingsKey(modelPath));
+        return raw ? JSON.parse(raw) : null;
+    } catch(e) { return null; }
+}
+
+// ── Load model ──
 function getLoadParams() {
     return {
         n_ctx: parseInt(document.getElementById('n-ctx').value),
@@ -159,6 +416,11 @@ function getLoadParams() {
         n_batch: parseInt(document.getElementById('n-batch').value),
         mmap: document.getElementById('mmap').checked,
         mlock: document.getElementById('mlock').checked,
+        n_threads: parseInt(document.getElementById('n-threads').value) || null,
+        flash_attn: document.getElementById('flash-attn').checked,
+        seed: document.getElementById('seed').value !== '' ? parseInt(document.getElementById('seed').value) : null,
+        rope_freq_base: parseFloat(document.getElementById('rope-freq-base').value),
+        rope_freq_scale: parseFloat(document.getElementById('rope-freq-scale').value),
     };
 }
 
@@ -178,11 +440,20 @@ async function loadModel() {
     const sel = document.getElementById('inf-model-select');
     const path = sel.value;
     if (!path) return;
+
+    // Save remembered settings
+    if (document.getElementById('remember-settings').checked) {
+        saveRemembered(path);
+    } else {
+        // Clear remembered settings if unchecked
+        try { localStorage.removeItem(getSettingsKey(path)); } catch(e) {}
+    }
+
     const btn = document.getElementById('inf-load-btn');
     const status = document.getElementById('inf-model-status');
     const info = document.getElementById('inf-model-info');
     btn.disabled = true; btn.textContent = 'Loading…';
-    status.textContent = 'Loading model into GPU…';
+    status.textContent = 'Loading model…';
     status.className = 'mt-2 text-sm text-yellow-400';
     try {
         const body = {model_path: path, ...getLoadParams()};
@@ -195,9 +466,8 @@ async function loadModel() {
             infModelLoaded = true;
             status.textContent = '✓ Model loaded: ' + path.split('/').pop();
             status.className = 'mt-2 text-sm text-emerald-400';
-            const opt = sel.selectedOptions[0];
-            const visionTag = opt.dataset.vision === 'true' ? ' · 👁 Vision' : '';
-            info.textContent = `${opt.dataset.format.toUpperCase()} · ${opt.dataset.size}GB · ${opt.dataset.arch || 'unknown arch'}${visionTag}`;
+            const visionTag = sel.selectedOptions[0]?.dataset.vision === 'true' ? ' · 👁 Vision' : '';
+            info.textContent = `${sel.selectedOptions[0]?.dataset.format.toUpperCase()} · ${sel.selectedOptions[0]?.dataset.size}GB · ${sel.selectedOptions[0]?.dataset.arch || ''}${visionTag}`;
             info.classList.remove('hidden');
             document.getElementById('inf-chat-input').disabled = false;
             document.getElementById('inf-chat-send').disabled = false;
@@ -208,9 +478,10 @@ async function loadModel() {
         status.textContent = 'Error: ' + e.message;
         status.className = 'mt-2 text-sm text-red-400';
     }
-    btn.disabled = false; btn.textContent = 'Load';
+    btn.disabled = false; btn.textContent = 'Load Model';
 }
 
+// ── Chat ──
 async function sendInfChat() {
     const input = document.getElementById('inf-chat-input');
     const msg = input.value.trim();
@@ -218,17 +489,14 @@ async function sendInfChat() {
     if (!infModelLoaded) return;
     input.value = '';
     const box = document.getElementById('inf-chat-messages');
-    // Remove placeholder
     const ph = box.querySelector('.italic');
     if (ph) ph.remove();
-    // Build user content — text + optional image
     let userContent;
     if (infImageData) {
         userContent = [
             {type: 'image_url', image_url: {url: infImageData}},
             {type: 'text', text: msg || 'What do you see in this image?'}
         ];
-        // Show image thumbnail in chat
         box.innerHTML += `<div class="flex justify-end"><div class="bg-emerald-800 rounded-lg px-3 py-2 text-sm max-w-[70%]"><img src="${infImageData}" class="max-h-40 rounded mb-1"><div>${escHtml(msg || 'What do you see?')}</div></div></div>`;
         clearImage();
     } else {
@@ -236,7 +504,6 @@ async function sendInfChat() {
         box.innerHTML += `<div class="flex justify-end"><div class="bg-emerald-800 rounded-lg px-3 py-2 text-sm max-w-[70%]">${escHtml(msg)}</div></div>`;
     }
     box.scrollTop = box.scrollHeight;
-    // Add loading
     box.innerHTML += `<div id="inf-chat-loading" class="flex justify-start"><div class="bg-gray-700 rounded-lg px-3 py-2 text-sm text-gray-400">Thinking…</div></div>`;
     box.scrollTop = box.scrollHeight;
     try {
@@ -257,6 +524,7 @@ async function sendInfChat() {
     box.scrollTop = box.scrollHeight;
 }
 
+// ── Benchmark ──
 async function runBenchmark() {
     if (!infModelLoaded) return;
     const btn = document.getElementById('inf-bench-btn');
@@ -343,6 +611,8 @@ async function unloadModel() {
     } catch(e) {}
 }
 
+// ── Init ──
+onParamChange();
 statusInterval = setInterval(pollStatus, 5000);
 pollStatus();
 </script>

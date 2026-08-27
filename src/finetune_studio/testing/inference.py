@@ -35,12 +35,15 @@ class InferenceEngine:
         self._last_used = 0.0
         self._idle_timer = None
 
-    def load(self, model_path, device="auto", n_ctx=4096, n_gpu_layers=99, n_batch=512, mmap=True, mlock=False):
+    def load(self, model_path, device="auto", n_ctx=4096, n_gpu_layers=99, n_batch=512, mmap=True, mlock=False,
+              n_threads=None, flash_attn=True, seed=None, rope_freq_base=0.0, rope_freq_scale=0.0):
         from pathlib import Path
         self.unload()
         path = Path(model_path)
         if path.is_file() and path.suffix == ".gguf":
-            self._load_gguf(str(path), n_ctx=n_ctx, n_gpu_layers=n_gpu_layers, n_batch=n_batch, mmap=mmap, mlock=mlock)
+            self._load_gguf(str(path), n_ctx=n_ctx, n_gpu_layers=n_gpu_layers, n_batch=n_batch,
+                            mmap=mmap, mlock=mlock, n_threads=n_threads, flash_attn=flash_attn,
+                            seed=seed, rope_freq_base=rope_freq_base, rope_freq_scale=rope_freq_scale)
         else:
             self._load_hf(model_path, device)
         self.model_path = model_path
@@ -57,7 +60,8 @@ class InferenceEngine:
         )
         self.is_gguf = False
 
-    def _load_gguf(self, gguf_path, n_ctx=4096, n_gpu_layers=99, n_batch=512, mmap=True, mlock=False):
+    def _load_gguf(self, gguf_path, n_ctx=4096, n_gpu_layers=99, n_batch=512, mmap=True, mlock=False,
+                   n_threads=None, flash_attn=True, seed=None, rope_freq_base=0.0, rope_freq_scale=0.0):
         from pathlib import Path
         from llama_cpp import Llama
         self.is_gguf = True
@@ -87,11 +91,25 @@ class InferenceEngine:
                 print(f"mmproj load failed ({e}), running text-only")
                 self.mmproj_path = None
 
-        self.model = Llama(
+        import multiprocessing
+        if n_threads is None or n_threads <= 0:
+            n_threads = multiprocessing.cpu_count()
+
+        kwargs = dict(
             model_path=gguf_path, n_ctx=n_ctx, n_gpu_layers=n_gpu_layers,
             n_batch=n_batch, mmap=mmap, mlock=mlock,
             chat_handler=chat_handler, verbose=False,
+            n_threads=n_threads,
         )
+        if flash_attn:
+            kwargs["flash_attn"] = True
+        if seed is not None and seed >= 0:
+            kwargs["seed"] = seed
+        if rope_freq_base > 0:
+            kwargs["rope_freq_base"] = rope_freq_base
+        if rope_freq_scale > 0:
+            kwargs["rope_freq_scale"] = rope_freq_scale
+        self.model = Llama(**kwargs)
         self.tokenizer = None
         # Cache the GGUF's own chat template + tokens so we don't re-extract per call.
         try:
@@ -159,6 +177,107 @@ class InferenceEngine:
             )
         generated = outputs[0][inputs["input_ids"].shape[-1]:]
         return self.tokenizer.decode(generated, skip_special_tokens=True)
+
+    @staticmethod
+    def estimate_memory(model_path, n_ctx=4096, n_gpu_layers=99):
+        """Estimate VRAM/RAM usage for a model. Returns dict with estimates in GB."""
+        from pathlib import Path
+        path = Path(model_path)
+        result = {"weights_gb": 0.0, "kv_cache_gb": 0.0, "total_vram_gb": 0.0, "total_ram_gb": 0.0, "total_layers": 0}
+
+        if path.is_file() and path.suffix == ".gguf":
+            size_gb = path.stat().st_size / (1024**3)
+            # Try to read GGUF metadata for layer count
+            total_layers = 0
+            num_kv_heads = 0
+            head_dim = 0
+            try:
+                from llama_cpp import Llama
+                llama = Llama(model_path=str(path), n_ctx=256, n_gpu_layers=0, verbose=False)
+                # llama_cpp exposes metadata via _model
+                meta = {}
+                try:
+                    n = llama._model.n_kv()
+                    total_layers = llama._model.n_layer()
+                    num_kv_heads = llama._model.n_head_kv() if hasattr(llama._model, 'n_head_kv') else 0
+                    head_dim = llama._model.n_embd() // llama._model.n_head() if hasattr(llama._model, 'n_head') else 0
+                except Exception:
+                    pass
+                del llama
+            except Exception:
+                pass
+
+            if total_layers == 0:
+                total_layers = 32  # fallback
+            if num_kv_heads == 0:
+                num_kv_heads = 8
+            if head_dim == 0:
+                head_dim = 128
+
+            # Weight distribution
+            gpu_frac = min(n_gpu_layers / total_layers, 1.0)
+            weights_vram = size_gb * gpu_frac
+            weights_ram = size_gb * (1.0 - gpu_frac)
+
+            # KV cache: n_ctx * 2 * n_layers * n_kv_heads * head_dim * 2 bytes (fp16)
+            kv_bytes = n_ctx * 2 * total_layers * num_kv_heads * head_dim * 2
+            kv_gb = kv_bytes / (1024**3)
+
+            result.update({
+                "weights_gb": round(weights_vram, 2),
+                "kv_cache_gb": round(kv_gb, 2),
+                "total_vram_gb": round(weights_vram + kv_gb, 2),
+                "total_ram_gb": round(weights_ram, 2),
+                "total_layers": total_layers,
+                "num_kv_heads": num_kv_heads,
+                "head_dim": head_dim,
+            })
+        else:
+            # Safetensors — approximate from file size
+            if path.is_dir():
+                total = sum(
+                    f.stat().st_size for f in path.rglob("*")
+                    if f.suffix in (".safetensors", ".bin", ".pt")
+                ) / (1024**3)
+            else:
+                total = path.stat().st_size / (1024**3) if path.exists() else 0
+            result["weights_gb"] = round(total, 2)
+            result["total_vram_gb"] = round(total, 2)
+            result["total_ram_gb"] = 0.0
+        return result
+
+    @staticmethod
+    def read_model_metadata(model_path):
+        """Read model metadata (layer count, etc.) for UI configuration."""
+        from pathlib import Path
+        import json
+        path = Path(model_path)
+        result = {"total_layers": 0, "num_kv_heads": 0, "head_dim": 0, "n_ctx_default": 4096}
+
+        if path.is_file() and path.suffix == ".gguf":
+            try:
+                from llama_cpp import Llama
+                llama = Llama(model_path=str(path), n_ctx=256, n_gpu_layers=0, verbose=False)
+                try:
+                    result["total_layers"] = llama._model.n_layer()
+                    result["num_kv_heads"] = llama._model.n_head_kv() if hasattr(llama._model, 'n_head_kv') else 0
+                    result["head_dim"] = llama._model.n_embd() // llama._model.n_head() if hasattr(llama._model, 'n_head') else 0
+                except Exception:
+                    pass
+                del llama
+            except Exception:
+                pass
+        elif path.is_dir() and (path / "config.json").exists():
+            try:
+                with open(path / "config.json") as f:
+                    cfg = json.load(f)
+                result["total_layers"] = cfg.get("num_hidden_layers", 0)
+                result["num_kv_heads"] = cfg.get("num_key_value_heads", cfg.get("num_attention_heads", 0))
+                result["head_dim"] = cfg.get("hidden_size", 0) // max(cfg.get("num_attention_heads", 1), 1)
+                result["n_ctx_default"] = cfg.get("max_position_embeddings", 4096)
+            except Exception:
+                pass
+        return result
 
     def _generate_gguf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop):
         if self.vision and self.mmproj_path:

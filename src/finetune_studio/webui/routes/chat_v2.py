@@ -105,6 +105,11 @@ async def load_model(request: Request):
             n_batch=body.get("n_batch", 512),
             mmap=body.get("mmap", True),
             mlock=body.get("mlock", False),
+            n_threads=body.get("n_threads"),
+            flash_attn=body.get("flash_attn", True),
+            seed=body.get("seed"),
+            rope_freq_base=body.get("rope_freq_base", 0.0),
+            rope_freq_scale=body.get("rope_freq_scale", 0.0),
         )
         vision = getattr(inference_engine, "vision", False)
         return {"status": "loaded", "model": model_path, "vision": vision}
@@ -136,6 +141,38 @@ async def unload_model():
     was = inference_engine.model_path
     inference_engine.unload()
     return {"status": "unloaded", "was": was}
+
+
+@router.post("/model-info")
+async def model_info(request: Request):
+    """Read model metadata (layer count, etc.) for UI configuration."""
+    from finetune_studio.testing.inference import InferenceEngine
+    body = await request.json()
+    model_path = body.get("model_path", "")
+    if not model_path:
+        return {"error": "No model_path"}
+    try:
+        info = InferenceEngine.read_model_metadata(model_path)
+        return info
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+
+
+@router.post("/memory-estimate")
+async def memory_estimate(request: Request):
+    """Estimate VRAM/RAM usage for a model with given settings."""
+    from finetune_studio.testing.inference import InferenceEngine
+    body = await request.json()
+    model_path = body.get("model_path", "")
+    n_ctx = body.get("n_ctx", 4096)
+    n_gpu_layers = body.get("n_gpu_layers", 99)
+    if not model_path:
+        return {"error": "No model_path"}
+    try:
+        est = InferenceEngine.estimate_memory(model_path, n_ctx=n_ctx, n_gpu_layers=n_gpu_layers)
+        return est
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
 
 
 @router.post("/inference/benchmark")
