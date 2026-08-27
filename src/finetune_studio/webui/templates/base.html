@@ -15,7 +15,6 @@
             <a href="/" class="text-lg font-bold text-emerald-400 mb-4 px-3 hover:text-emerald-300">Finetune Studio</a>
             <a href="/" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_dashboard %}{% endblock %}">Dashboard</a>
             <a href="/projects" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_projects %}{% endblock %}">Projects</a>
-            <a href="/projects" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_chat %}{% endblock %}">Chat</a>
 
             {# Project-scoped nav: only visible inside a project #}
             {% if pid is defined and pid %}
