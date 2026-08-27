@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ project.name }} - Finetune Studio{% endblock %}
-{% block nav_projects %}bg-gray-800 text-emerald-400{% endblock %}
+{% block nav_project_overview %}bg-gray-800 text-emerald-400{% endblock %}
 {% block content %}
 <div class="flex items-center justify-between mb-6">
     <div>
@@ -14,14 +14,7 @@
     </div>
 </div>
 
-<!-- Sub-nav for project-scoped pages -->
-<div class="flex gap-2 mb-6 text-sm">
-    <a href="/projects/{{ project.id }}/chat" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded">Chat</a>
-    <a href="/projects/{{ project.id }}/agentic" class="px-3 py-1.5 bg-purple-900 hover:bg-purple-800 rounded">Agentic Tools</a>
-    <a href="/projects/{{ project.id }}/benchmarks" class="px-3 py-1.5 bg-blue-900 hover:bg-blue-800 rounded">Benchmarks</a>
-    <a href="/projects/{{ project.id }}/data/training.jsonl" class="px-3 py-1.5 bg-emerald-900 hover:bg-emerald-800 rounded">Data Prep</a>
-</div>
-
+<!-- Project stats -->
 <div class="grid grid-cols-3 gap-4 mb-8">
     <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
         <div class="text-xs text-gray-500">Base model</div>

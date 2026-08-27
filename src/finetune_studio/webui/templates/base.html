@@ -12,14 +12,24 @@
 <body class="h-full bg-gray-950 text-gray-100">
     <div class="flex h-full">
         <nav class="w-56 bg-gray-900 border-r border-gray-800 p-4 flex flex-col gap-1 shrink-0">
-            <div class="text-lg font-bold text-emerald-400 mb-4 px-3">Finetune Studio</div>
+            <a href="/" class="text-lg font-bold text-emerald-400 mb-4 px-3 hover:text-emerald-300">Finetune Studio</a>
             <a href="/" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_dashboard %}{% endblock %}">Dashboard</a>
             <a href="/projects" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_projects %}{% endblock %}">Projects</a>
-            <a href="/chat" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_chat %}{% endblock %}">Chat</a>
-            <a href="/models" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_models %}{% endblock %}">Models</a>
-            <a href="/training" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_training %}{% endblock %}">Training</a>
-            <a href="/data" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_data %}{% endblock %}">Data</a>
-            <a href="/testing" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_testing %}{% endblock %}">Testing</a>
+            <a href="/projects" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_chat %}{% endblock %}">Chat</a>
+
+            {# Project-scoped nav: only visible inside a project #}
+            {% if pid is defined and pid %}
+            <div class="mt-2 mb-1 px-3 text-xs text-gray-500 uppercase tracking-wider">{{ project.name if project else 'Project' }}</div>
+            <a href="/projects/{{ pid }}" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_project_overview %}{% endblock %}">Overview</a>
+            <a href="/projects/{{ pid }}/data" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_data %}{% endblock %}">Data</a>
+            <a href="/projects/{{ pid }}/training" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_training %}{% endblock %}">Training</a>
+            <a href="/projects/{{ pid }}/testing" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_testing %}{% endblock %}">Testing</a>
+            <a href="/projects/{{ pid }}/models" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_models %}{% endblock %}">Models</a>
+            <a href="/projects/{{ pid }}/benchmarks" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_benchmarks %}{% endblock %}">Benchmarks</a>
+            <a href="/projects/{{ pid }}/agentic" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_agentic %}{% endblock %}">Agentic</a>
+            <a href="/projects/{{ pid }}/chat" class="px-3 py-2 rounded hover:bg-gray-800 {% block nav_project_chat %}{% endblock %}">Chat</a>
+            {% endif %}
+
             <div class="mt-auto px-3 text-xs text-gray-600">v0.1.0</div>
         </nav>
         <main class="flex-1 overflow-auto p-6">{% block content %}{% endblock %}</main>
