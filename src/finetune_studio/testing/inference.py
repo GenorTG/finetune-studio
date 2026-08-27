@@ -194,13 +194,21 @@ class InferenceEngine:
             try:
                 from llama_cpp import Llama
                 llama = Llama(model_path=str(path), n_ctx=256, n_gpu_layers=0, verbose=False)
-                # llama_cpp exposes metadata via _model
-                meta = {}
                 try:
-                    n = llama._model.n_kv()
-                    total_layers = llama._model.n_layer()
-                    num_kv_heads = llama._model.n_head_kv() if hasattr(llama._model, 'n_head_kv') else 0
-                    head_dim = llama._model.n_embd() // llama._model.n_head() if hasattr(llama._model, 'n_head') else 0
+                    meta = llama.metadata
+                    for key in ("qwen35.block_count", "llama.block_count", "phi3.block_count",
+                                "gemma2.block_count", "mistral.block_count"):
+                        if key in meta:
+                            total_layers = meta[key]
+                            break
+                    for key in ("qwen35.attention.head_count", "llama.attention.head_count"):
+                        if key in meta:
+                            num_kv_heads = meta.get(key.replace("head_count", "head_count_kv"), meta[key])
+                            break
+                    if "qwen35.rope.dimension_count" in meta:
+                        head_dim = meta["qwen35.rope.dimension_count"]
+                    elif llama._model.n_embd() and num_kv_heads:
+                        head_dim = llama._model.n_embd() // num_kv_heads
                 except Exception:
                     pass
                 del llama
@@ -259,9 +267,22 @@ class InferenceEngine:
                 from llama_cpp import Llama
                 llama = Llama(model_path=str(path), n_ctx=256, n_gpu_layers=0, verbose=False)
                 try:
-                    result["total_layers"] = llama._model.n_layer()
-                    result["num_kv_heads"] = llama._model.n_head_kv() if hasattr(llama._model, 'n_head_kv') else 0
-                    result["head_dim"] = llama._model.n_embd() // llama._model.n_head() if hasattr(llama._model, 'n_head') else 0
+                    meta = llama.metadata
+                    # Try common block_count keys across model families
+                    for key in ("qwen35.block_count", "llama.block_count", "phi3.block_count",
+                                "gemma2.block_count", "mistral.block_count"):
+                        if key in meta:
+                            result["total_layers"] = meta[key]
+                            break
+                    # head info from metadata
+                    for key in ("qwen35.attention.head_count", "llama.attention.head_count"):
+                        if key in meta:
+                            result["num_kv_heads"] = meta.get(key.replace("head_count", "head_count_kv"), meta[key])
+                            break
+                    if "qwen35.rope.dimension_count" in meta:
+                        result["head_dim"] = meta["qwen35.rope.dimension_count"]
+                    elif llama._model.n_embd() and result["num_kv_heads"]:
+                        result["head_dim"] = llama._model.n_embd() // result["num_kv_heads"]
                 except Exception:
                     pass
                 del llama
