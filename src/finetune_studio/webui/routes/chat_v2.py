@@ -59,13 +59,27 @@ async def inference_chat(request: Request):
     messages = body.get("messages", [])
     max_tokens = body.get("max_tokens", 1024)
     temperature = body.get("temperature", 0.7)
+    top_p = body.get("top_p", 0.9)
+    top_k = body.get("top_k", 40)
+    repeat_penalty = body.get("repeat_penalty", 1.1)
+    thinking = body.get("thinking", False)
+    reasoning_effort = body.get("reasoning_effort", 5)
     if not messages:
         return {"error": "No messages"}
     if inference_engine.model is None:
         return {"error": "No model loaded. Load a model first."}
-    # Pass through image content if present — Qwen25VLChatHandler handles it
+    # Thinking support: prepend /think instruction for Qwen3 models
+    if thinking:
+        think_instruction = "/think" if reasoning_effort <= 3 else f"/think\n/think_budget:{reasoning_effort * 100}"
+        if messages and messages[0].get("role") == "system":
+            messages[0]["content"] = messages[0]["content"] + "\n\n" + think_instruction
+        else:
+            messages.insert(0, {"role": "system", "content": think_instruction})
     try:
-        response = inference_engine.generate(messages, max_tokens=max_tokens, temperature=temperature)
+        response = inference_engine.generate(
+            messages, max_tokens=max_tokens, temperature=temperature,
+            top_p=top_p, top_k=top_k, repeat_penalty=repeat_penalty,
+        )
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
     vision_status = getattr(inference_engine, "vision", False)
@@ -84,11 +98,44 @@ async def load_model(request: Request):
     if not model_path:
         return {"error": "No model_path"}
     try:
-        inference_engine.load(model_path)
+        inference_engine.load(
+            model_path,
+            n_ctx=body.get("n_ctx", 4096),
+            n_gpu_layers=body.get("n_gpu_layers", 99),
+            n_batch=body.get("n_batch", 512),
+            mmap=body.get("mmap", True),
+            mlock=body.get("mlock", False),
+        )
         vision = getattr(inference_engine, "vision", False)
         return {"status": "loaded", "model": model_path, "vision": vision}
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
+
+
+@router.get("/status")
+async def inference_status():
+    """Current inference engine status."""
+    from finetune_studio.webui.app import inference_engine
+    from finetune_studio.testing.inference import IDLE_TIMEOUT
+    loaded = inference_engine.model is not None
+    return {
+        "loaded": loaded,
+        "model": inference_engine.model_path if loaded else None,
+        "vision": getattr(inference_engine, "vision", False) if loaded else False,
+        "is_gguf": inference_engine.is_gguf if loaded else False,
+        "idle_seconds": inference_engine.idle_seconds,
+        "idle_timeout": IDLE_TIMEOUT,
+        "auto_unload_remaining": max(0, IDLE_TIMEOUT - inference_engine.idle_seconds) if loaded and IDLE_TIMEOUT > 0 else None,
+    }
+
+
+@router.post("/unload")
+async def unload_model():
+    """Manually unload the current model."""
+    from finetune_studio.webui.app import inference_engine
+    was = inference_engine.model_path
+    inference_engine.unload()
+    return {"status": "unloaded", "was": was}
 
 
 @router.post("/inference/benchmark")
@@ -108,20 +155,6 @@ async def inference_benchmark(request: Request):
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
 
-
-@router.post("/load")
-async def load_model(request: Request):
-    """Load a model into the inference engine."""
-    from finetune_studio.webui.app import inference_engine
-    body = await request.json()
-    model_path = body.get("model_path", "")
-    if not model_path:
-        return {"error": "No model_path"}
-    try:
-        inference_engine.load(model_path)
-        return {"status": "loaded", "model": model_path}
-    except Exception as e:  # noqa: BLE001
-        return {"error": str(e)}
 
 
 @router.post("/projects/{pid}/chat")

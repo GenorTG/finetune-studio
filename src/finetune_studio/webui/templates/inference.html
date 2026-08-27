@@ -20,6 +20,38 @@
   </div>
   <div id="inf-model-status" class="mt-2 text-sm text-gray-400"></div>
   <div id="inf-model-info" class="mt-2 text-xs text-gray-500 hidden"></div>
+  <div id="inf-model-live" class="mt-2 hidden">
+    <div class="flex items-center gap-4 text-xs">
+      <span id="inf-idle-timer" class="text-gray-400"></span>
+      <span id="inf-auto-unload" class="text-amber-400"></span>
+      <button onclick="unloadModel()" class="px-2 py-1 bg-red-900 hover:bg-red-800 rounded text-red-300">Unload</button>
+    </div>
+  </div>
+
+  <!-- Advanced loading params (collapsed) -->
+  <div class="mt-3">
+    <button onclick="togglePanel('load-advanced')" class="text-xs text-gray-400 hover:text-gray-300 focus:outline-none">▶ Advanced</button>
+    <div id="load-advanced" class="hidden mt-2 grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">n_ctx <span id="n-ctx-val" class="text-emerald-400">4096</span></label>
+        <input type="range" id="n-ctx" min="512" max="131072" step="512" value="4096" class="w-full" oninput="document.getElementById('n-ctx-val').textContent=this.value">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">n_gpu_layers <span id="n-gpu-val" class="text-emerald-400">99</span></label>
+        <input type="range" id="n-gpu-layers" min="0" max="200" step="1" value="99" class="w-full" oninput="document.getElementById('n-gpu-val').textContent=this.value">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">n_batch <span id="n-batch-val" class="text-emerald-400">512</span></label>
+        <input type="range" id="n-batch" min="64" max="2048" step="64" value="512" class="w-full" oninput="document.getElementById('n-batch-val').textContent=this.value">
+      </div>
+      <label class="flex items-center gap-2 text-xs text-gray-400">
+        <input type="checkbox" id="mmap" checked class="rounded"> mmap
+      </label>
+      <label class="flex items-center gap-2 text-xs text-gray-400">
+        <input type="checkbox" id="mlock" class="rounded"> mlock
+      </label>
+    </div>
+  </div>
 </div>
 
 <!-- Chat -->
@@ -34,6 +66,43 @@
       <button onclick="clearImage()" class="absolute -top-1 -right-1 bg-red-600 rounded-full w-4 h-4 text-xs text-white leading-none">×</button>
     </div>
   </div>
+
+  <!-- Generation params (collapsed) -->
+  <div class="mb-3">
+    <button onclick="togglePanel('gen-params')" class="text-xs text-gray-400 hover:text-gray-300 focus:outline-none">▶ Parameters</button>
+    <div id="gen-params" class="hidden mt-2 grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">max_tokens <span id="max-tokens-val" class="text-emerald-400">1024</span></label>
+        <input type="range" id="max-tokens" min="1" max="8192" step="1" value="1024" class="w-full" oninput="document.getElementById('max-tokens-val').textContent=this.value">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">temperature <span id="temp-val" class="text-emerald-400">0.7</span></label>
+        <input type="range" id="temperature" min="0" max="2" step="0.05" value="0.7" class="w-full" oninput="document.getElementById('temp-val').textContent=this.value">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">top_p <span id="top-p-val" class="text-emerald-400">0.9</span></label>
+        <input type="range" id="top-p" min="0" max="1" step="0.05" value="0.9" class="w-full" oninput="document.getElementById('top-p-val').textContent=this.value">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">top_k <span id="top-k-val" class="text-emerald-400">40</span></label>
+        <input type="range" id="top-k" min="0" max="200" step="1" value="40" class="w-full" oninput="document.getElementById('top-k-val').textContent=this.value">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">repeat_penalty <span id="rep-val" class="text-emerald-400">1.1</span></label>
+        <input type="range" id="repeat-penalty" min="1" max="2" step="0.05" value="1.1" class="w-full" oninput="document.getElementById('rep-val').textContent=this.value">
+      </div>
+      <div>
+        <label class="flex items-center gap-2 text-xs text-gray-400">
+          <input type="checkbox" id="thinking" checked class="rounded"> Thinking (Qwen3)
+        </label>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">reasoning_effort <span id="reason-val" class="text-emerald-400">5</span></label>
+        <input type="range" id="reasoning-effort" min="1" max="10" step="1" value="5" class="w-full" oninput="document.getElementById('reason-val').textContent=this.value">
+      </div>
+    </div>
+  </div>
+
   <div class="flex gap-2">
     <label class="px-3 py-2 bg-gray-700 rounded hover:bg-gray-600 text-sm cursor-pointer" title="Attach image">
       📷 <input type="file" id="inf-image-input" accept="image/*" class="hidden" onchange="handleImage(event)">
@@ -58,6 +127,13 @@
 let infModelLoaded = false;
 let infImageData = null;
 
+function togglePanel(id) {
+    const el = document.getElementById(id);
+    el.classList.toggle('hidden');
+    const btn = el.previousElementSibling;
+    btn.textContent = (el.classList.contains('hidden') ? '▶ ' : '▼ ') + btn.textContent.slice(2);
+}
+
 function handleImage(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -76,6 +152,28 @@ function clearImage() {
     document.getElementById('inf-image-preview').classList.add('hidden');
 }
 
+function getLoadParams() {
+    return {
+        n_ctx: parseInt(document.getElementById('n-ctx').value),
+        n_gpu_layers: parseInt(document.getElementById('n-gpu-layers').value),
+        n_batch: parseInt(document.getElementById('n-batch').value),
+        mmap: document.getElementById('mmap').checked,
+        mlock: document.getElementById('mlock').checked,
+    };
+}
+
+function getGenParams() {
+    return {
+        max_tokens: parseInt(document.getElementById('max-tokens').value),
+        temperature: parseFloat(document.getElementById('temperature').value),
+        top_p: parseFloat(document.getElementById('top-p').value),
+        top_k: parseInt(document.getElementById('top-k').value),
+        repeat_penalty: parseFloat(document.getElementById('repeat-penalty').value),
+        thinking: document.getElementById('thinking').checked,
+        reasoning_effort: parseInt(document.getElementById('reasoning-effort').value),
+    };
+}
+
 async function loadModel() {
     const sel = document.getElementById('inf-model-select');
     const path = sel.value;
@@ -87,7 +185,8 @@ async function loadModel() {
     status.textContent = 'Loading model into GPU…';
     status.className = 'mt-2 text-sm text-yellow-400';
     try {
-        const r = await fetch('/api/chat-v2/load', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({model_path:path})});
+        const body = {model_path: path, ...getLoadParams()};
+        const r = await fetch('/api/chat-v2/load', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
         const d = await r.json();
         if (d.error) {
             status.textContent = 'Error: ' + d.error;
@@ -103,6 +202,7 @@ async function loadModel() {
             document.getElementById('inf-chat-input').disabled = false;
             document.getElementById('inf-chat-send').disabled = false;
             document.getElementById('inf-bench-btn').disabled = false;
+            pollStatus();
         }
     } catch(e) {
         status.textContent = 'Error: ' + e.message;
@@ -140,8 +240,9 @@ async function sendInfChat() {
     box.innerHTML += `<div id="inf-chat-loading" class="flex justify-start"><div class="bg-gray-700 rounded-lg px-3 py-2 text-sm text-gray-400">Thinking…</div></div>`;
     box.scrollTop = box.scrollHeight;
     try {
+        const genParams = getGenParams();
         const r = await fetch('/api/chat-v2/inference/chat', {method:'POST', headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({messages:[{role:'user',content:userContent}], max_tokens:1024, temperature:0.7})});
+            body:JSON.stringify({messages:[{role:'user',content:userContent}], ...genParams})});
         const d = await r.json();
         document.getElementById('inf-chat-loading')?.remove();
         if (d.error) {
@@ -197,5 +298,52 @@ async function runBenchmark() {
 }
 
 function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ── Model status polling ──
+let statusInterval = null;
+
+async function pollStatus() {
+    try {
+        const r = await fetch('/api/chat-v2/status');
+        const d = await r.json();
+        const live = document.getElementById('inf-model-live');
+        if (d.loaded) {
+            live.classList.remove('hidden');
+            document.getElementById('inf-idle-timer').textContent = `Idle: ${d.idle_seconds}s`;
+            if (d.auto_unload_remaining !== null) {
+                document.getElementById('inf-auto-unload').textContent = `Auto-unload in ${Math.max(0, d.auto_unload_remaining)}s`;
+            } else {
+                document.getElementById('inf-auto-unload').textContent = '';
+            }
+        } else {
+            live.classList.add('hidden');
+            if (infModelLoaded) {
+                infModelLoaded = false;
+                document.getElementById('inf-chat-input').disabled = true;
+                document.getElementById('inf-chat-send').disabled = true;
+                document.getElementById('inf-bench-btn').disabled = true;
+                document.getElementById('inf-model-status').textContent = 'Model auto-unloaded (idle timeout)';
+                document.getElementById('inf-model-status').className = 'mt-2 text-sm text-amber-400';
+            }
+        }
+    } catch(e) {}
+}
+
+async function unloadModel() {
+    try {
+        await fetch('/api/chat-v2/unload', {method:'POST'});
+        infModelLoaded = false;
+        document.getElementById('inf-model-live').classList.add('hidden');
+        document.getElementById('inf-chat-input').disabled = true;
+        document.getElementById('inf-chat-send').disabled = true;
+        document.getElementById('inf-bench-btn').disabled = true;
+        document.getElementById('inf-model-status').textContent = 'Model unloaded';
+        document.getElementById('inf-model-status').className = 'mt-2 text-sm text-gray-400';
+        document.getElementById('inf-model-info').classList.add('hidden');
+    } catch(e) {}
+}
+
+statusInterval = setInterval(pollStatus, 5000);
+pollStatus();
 </script>
 {% endblock %}
