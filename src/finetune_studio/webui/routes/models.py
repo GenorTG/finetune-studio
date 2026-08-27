@@ -11,7 +11,8 @@ router = APIRouter()
 async def list_models():
     from finetune_studio.webui.app import discovered_models
     return [{"name": m.name, "path": m.path, "format": m.format,
-            "size_gb": m.size_gb, "architecture": m.architecture} for m in discovered_models]
+            "size_gb": m.size_gb, "architecture": m.architecture,
+            "vision": getattr(m, "vision", False)} for m in discovered_models]
 
 @router.get("/count")
 async def count_models():

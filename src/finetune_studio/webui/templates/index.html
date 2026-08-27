@@ -65,7 +65,10 @@
     <div class="bg-gray-800 rounded p-3 border border-gray-700 hover:border-gray-600 transition-colors">
       <div class="flex items-center justify-between mb-1">
         <span class="font-semibold text-sm truncate">{{ m.name }}</span>
-        <span class="px-1.5 py-0.5 text-xs rounded {% if m.format == 'gguf' %}bg-blue-900 text-blue-300{% else %}bg-purple-900 text-purple-300{% endif %}">{{ m.format }}</span>
+        <div class="flex gap-1">
+          {% if m.vision %}<span class="px-1.5 py-0.5 text-xs rounded bg-amber-900 text-amber-300">👁 vision</span>{% endif %}
+          <span class="px-1.5 py-0.5 text-xs rounded {% if m.format == 'gguf' %}bg-blue-900 text-blue-300{% else %}bg-purple-900 text-purple-300{% endif %}">{{ m.format }}</span>
+        </div>
       </div>
       <div class="text-xs text-gray-400 space-y-0.5">
         <div>{{ m.size_gb }} GB{% if m.architecture %} · {{ m.architecture }}{% endif %}</div>

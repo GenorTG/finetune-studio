@@ -11,8 +11,8 @@
     <select id="inf-model-select" class="flex-1 bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
       <option value="">Select a model…</option>
       {% for m in models %}
-      <option value="{{ m.path }}" data-format="{{ m.format }}" data-size="{{ m.size_gb }}" data-arch="{{ m.architecture }}">
-        {{ m.name }} ({{ m.size_gb }}GB, {{ m.format }})
+      <option value="{{ m.path }}" data-format="{{ m.format }}" data-size="{{ m.size_gb }}" data-arch="{{ m.architecture }}" data-vision="{{ m.vision|lower }}">
+        {{ m.name }} ({{ m.size_gb }}GB, {{ m.format }}{% if m.vision %} 👁 vision{% endif %})
       </option>
       {% endfor %}
     </select>
@@ -28,7 +28,16 @@
   <div id="inf-chat-messages" class="h-96 overflow-y-auto mb-3 space-y-3 p-3 bg-gray-800 rounded border border-gray-700">
     <div class="text-sm text-gray-500 italic">Load a model and start chatting.</div>
   </div>
+  <div id="inf-image-preview" class="mb-2 hidden">
+    <div class="relative inline-block">
+      <img id="inf-image-thumb" class="h-20 rounded border border-gray-600">
+      <button onclick="clearImage()" class="absolute -top-1 -right-1 bg-red-600 rounded-full w-4 h-4 text-xs text-white leading-none">×</button>
+    </div>
+  </div>
   <div class="flex gap-2">
+    <label class="px-3 py-2 bg-gray-700 rounded hover:bg-gray-600 text-sm cursor-pointer" title="Attach image">
+      📷 <input type="file" id="inf-image-input" accept="image/*" class="hidden" onchange="handleImage(event)">
+    </label>
     <input id="inf-chat-input" type="text" placeholder="Type a message…"
            class="flex-1 bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700"
            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendInfChat()}" disabled>
@@ -47,6 +56,25 @@
 
 <script>
 let infModelLoaded = false;
+let infImageData = null;
+
+function handleImage(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        infImageData = ev.target.result;
+        document.getElementById('inf-image-thumb').src = infImageData;
+        document.getElementById('inf-image-preview').classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+}
+
+function clearImage() {
+    infImageData = null;
+    document.getElementById('inf-image-input').value = '';
+    document.getElementById('inf-image-preview').classList.add('hidden');
+}
 
 async function loadModel() {
     const sel = document.getElementById('inf-model-select');
@@ -69,7 +97,8 @@ async function loadModel() {
             status.textContent = '✓ Model loaded: ' + path.split('/').pop();
             status.className = 'mt-2 text-sm text-emerald-400';
             const opt = sel.selectedOptions[0];
-            info.textContent = `${opt.dataset.format.toUpperCase()} · ${opt.dataset.size}GB · ${opt.dataset.arch || 'unknown arch'}`;
+            const visionTag = opt.dataset.vision === 'true' ? ' · 👁 Vision' : '';
+            info.textContent = `${opt.dataset.format.toUpperCase()} · ${opt.dataset.size}GB · ${opt.dataset.arch || 'unknown arch'}${visionTag}`;
             info.classList.remove('hidden');
             document.getElementById('inf-chat-input').disabled = false;
             document.getElementById('inf-chat-send').disabled = false;
@@ -85,21 +114,34 @@ async function loadModel() {
 async function sendInfChat() {
     const input = document.getElementById('inf-chat-input');
     const msg = input.value.trim();
-    if (!msg || !infModelLoaded) return;
+    if (!msg && !infImageData) return;
+    if (!infModelLoaded) return;
     input.value = '';
     const box = document.getElementById('inf-chat-messages');
     // Remove placeholder
     const ph = box.querySelector('.italic');
     if (ph) ph.remove();
-    // Add user message
-    box.innerHTML += `<div class="flex justify-end"><div class="bg-emerald-800 rounded-lg px-3 py-2 text-sm max-w-[70%]">${escHtml(msg)}</div></div>`;
+    // Build user content — text + optional image
+    let userContent;
+    if (infImageData) {
+        userContent = [
+            {type: 'image_url', image_url: {url: infImageData}},
+            {type: 'text', text: msg || 'What do you see in this image?'}
+        ];
+        // Show image thumbnail in chat
+        box.innerHTML += `<div class="flex justify-end"><div class="bg-emerald-800 rounded-lg px-3 py-2 text-sm max-w-[70%]"><img src="${infImageData}" class="max-h-40 rounded mb-1"><div>${escHtml(msg || 'What do you see?')}</div></div></div>`;
+        clearImage();
+    } else {
+        userContent = msg;
+        box.innerHTML += `<div class="flex justify-end"><div class="bg-emerald-800 rounded-lg px-3 py-2 text-sm max-w-[70%]">${escHtml(msg)}</div></div>`;
+    }
     box.scrollTop = box.scrollHeight;
     // Add loading
     box.innerHTML += `<div id="inf-chat-loading" class="flex justify-start"><div class="bg-gray-700 rounded-lg px-3 py-2 text-sm text-gray-400">Thinking…</div></div>`;
     box.scrollTop = box.scrollHeight;
     try {
         const r = await fetch('/inference/chat', {method:'POST', headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({messages:[{role:'user',content:msg}], max_tokens:1024, temperature:0.7})});
+            body:JSON.stringify({messages:[{role:'user',content:userContent}], max_tokens:1024, temperature:0.7})});
         const d = await r.json();
         document.getElementById('inf-chat-loading')?.remove();
         if (d.error) {

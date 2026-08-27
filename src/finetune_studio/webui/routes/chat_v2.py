@@ -45,14 +45,15 @@ async def project_context(pid: str):
         "base_model": project.get("base_model", ""),
         "rags": [{"id": r["id"], "name": r["name"], "doc_count": r.get("doc_count", 0),
                   "chunk_count": r.get("chunk_count", 0)} for r in rags],
-        "models": [{"name": m.name, "path": m.path, "format": m.format, "size_gb": m.size_gb}
+        "models": [{"name": m.name, "path": m.path, "format": m.format, "size_gb": m.size_gb,
+                     "vision": getattr(m, "vision", False)}
                    for m in discovered_models],
     }
 
 
 @router.post("/inference/chat")
 async def inference_chat(request: Request):
-    """Global inference chat — no project required."""
+    """Global inference chat — supports text and vision (images)."""
     from finetune_studio.webui.app import inference_engine
     body = await request.json()
     messages = body.get("messages", [])
@@ -62,11 +63,16 @@ async def inference_chat(request: Request):
         return {"error": "No messages"}
     if inference_engine.model is None:
         return {"error": "No model loaded. Load a model first."}
+    # Pass through image content if present — Qwen25VLChatHandler handles it
     try:
         response = inference_engine.generate(messages, max_tokens=max_tokens, temperature=temperature)
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
-    return {"response": response if isinstance(response, str) else str(response)}
+    vision_status = getattr(inference_engine, "vision", False)
+    return {
+        "response": response if isinstance(response, str) else str(response),
+        "vision": vision_status,
+    }
 
 
 @router.post("/inference/benchmark")

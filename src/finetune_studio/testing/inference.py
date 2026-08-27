@@ -44,10 +44,40 @@ class InferenceEngine:
         self.is_gguf = False
 
     def _load_gguf(self, gguf_path):
+        from pathlib import Path
         from llama_cpp import Llama
-        self.model = Llama(model_path=gguf_path, n_ctx=4096, n_gpu_layers=99, verbose=False)
-        self.tokenizer = None
         self.is_gguf = True
+        self.vision = False
+        self.mmproj_path = None
+
+        # Auto-detect mmproj in same directory
+        gguf_dir = Path(gguf_path).parent
+        base_name = Path(gguf_path).stem.replace("-Q4_K_M", "").replace("-Q8_0", "").replace("-F16", "").replace("-BF16", "")
+        for candidate in gguf_dir.glob("mmproj*.gguf"):
+            self.mmproj_path = str(candidate)
+            break
+        if not self.mmproj_path:
+            # Also check for files matching base model name
+            for candidate in gguf_dir.glob(f"*mmproj*{base_name}*.gguf"):
+                self.mmproj_path = str(candidate)
+                break
+
+        chat_handler = None
+        if self.mmproj_path:
+            try:
+                from llama_cpp.llama_chat_format import Qwen25VLChatHandler
+                chat_handler = Qwen25VLChatHandler(clip_model_path=self.mmproj_path, verbose=False)
+                self.vision = True
+                print(f"Vision enabled: mmproj={Path(self.mmproj_path).name}")
+            except Exception as e:  # noqa: BLE001
+                print(f"mmproj load failed ({e}), running text-only")
+                self.mmproj_path = None
+
+        self.model = Llama(
+            model_path=gguf_path, n_ctx=4096, n_gpu_layers=99,
+            chat_handler=chat_handler, verbose=False,
+        )
+        self.tokenizer = None
         # Cache the GGUF's own chat template + tokens so we don't re-extract per call.
         try:
             from finetune_studio.templates.renderer import extract_template_from_gguf
@@ -83,7 +113,16 @@ class InferenceEngine:
         return self.tokenizer.decode(generated, skip_special_tokens=True)
 
     def _generate_gguf(self, messages, max_tokens, temperature, top_p, stop):
-        # Respect the GGUF's built-in tokenizer.chat_template via the existing
+        if self.vision and self.mmproj_path:
+            # Use chat_handler which supports image content
+            result = self.model.create_chat_completion(
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=max(temperature, 0.01),
+                top_p=top_p,
+            )
+            return result["choices"][0]["message"]["content"].strip()
+        # Text-only: respect the GGUF's built-in tokenizer.chat_template via the existing
         # finetune_studio.templates.renderer. Mixing templates across models is fragile —
         # we never fall back to a hardcoded prompt; the renderer itself falls
         # back to ChatML only when the GGUF has no template at all.

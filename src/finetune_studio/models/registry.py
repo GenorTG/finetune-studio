@@ -28,6 +28,7 @@ class ModelInfo:
     architecture: str = ""
     parameters: str = ""
     modified: str = ""
+    vision: bool = False
 
 # Non-chat model architectures to skip
 _SKIP_ARCHES = {"BertModel", "BertForMaskedLM", "ClipVisionModel", "CLIPVisionModel",
@@ -77,6 +78,8 @@ def scan_models(directories: list) -> list:
             continue
         for root, dirs, files in os.walk(d):
             dirs[:] = [x for x in dirs if not x.startswith(".") and x != "__pycache__"]
+            # Detect mmproj files in this directory
+            has_mmproj = any("mmproj" in f.lower() for f in files if f.endswith(".gguf"))
             for f in files:
                 if f.endswith(".gguf"):
                     # Skip multimodal projectors and vision encoders
@@ -87,6 +90,7 @@ def scan_models(directories: list) -> list:
                     size = os.path.getsize(fp) / (1024**3)
                     models.append(ModelInfo(
                         name=f, path=fp, format="gguf", size_gb=round(size, 2),
+                        vision=has_mmproj,
                     ))
             has_st = any(f.endswith(".safetensors") for f in files)
             has_cfg = "config.json" in files

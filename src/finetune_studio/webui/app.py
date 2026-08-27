@@ -75,7 +75,8 @@ async def lifespan(app: FastAPI):
     discovered_models = scan_models(dirs)
     print(f"Found {len(discovered_models)} models")
     for m in discovered_models:
-        print(f"  {m.name} ({m.format}, {m.size_gb}GB)")
+        vision = " 👁 vision" if getattr(m, "vision", False) else ""
+        print(f"  {m.name} ({m.format}, {m.size_gb}GB{vision})")
     # Init DB and hook training -> DB persistence.
     db.init_db()
     training_engine.on_update(_on_training_update)
