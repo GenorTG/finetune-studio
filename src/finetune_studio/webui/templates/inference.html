@@ -271,7 +271,11 @@ async function onModelSelect() {
         document.getElementById('mlock').checked = false;
         document.getElementById('remember-settings').checked = false;
     }
-    onParamChange();
+
+    // Update display values immediately
+    document.getElementById('n-ctx-val').textContent = document.getElementById('n-ctx').value;
+    document.getElementById('n-gpu-val').textContent = document.getElementById('n-gpu-layers').value;
+    document.getElementById('n-batch-val').textContent = document.getElementById('n-batch').value;
 
     // Fetch model metadata to cap layers
     try {
@@ -301,6 +305,8 @@ async function onModelSelect() {
         document.getElementById('n-gpu-max').textContent = '';
     }
 
+    // Cancel any stale debounce, then update directly with correct layer count
+    if (memDebounce) { clearTimeout(memDebounce); memDebounce = null; }
     updateMemoryEstimate();
 }
 
