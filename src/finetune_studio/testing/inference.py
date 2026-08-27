@@ -187,33 +187,11 @@ class InferenceEngine:
 
         if path.is_file() and path.suffix == ".gguf":
             size_gb = path.stat().st_size / (1024**3)
-            # Try to read GGUF metadata for layer count
-            total_layers = 0
-            num_kv_heads = 0
-            head_dim = 0
-            try:
-                from llama_cpp import Llama
-                llama = Llama(model_path=str(path), n_ctx=256, n_gpu_layers=0, verbose=False)
-                try:
-                    meta = llama.metadata
-                    for key in ("qwen35.block_count", "llama.block_count", "phi3.block_count",
-                                "gemma2.block_count", "mistral.block_count"):
-                        if key in meta:
-                            total_layers = int(meta[key])
-                            break
-                    for key in ("qwen35.attention.head_count", "llama.attention.head_count"):
-                        if key in meta:
-                            num_kv_heads = int(meta.get(key.replace("head_count", "head_count_kv"), meta[key]))
-                            break
-                    if "qwen35.rope.dimension_count" in meta:
-                        head_dim = int(meta["qwen35.rope.dimension_count"])
-                    elif llama._model.n_embd() and num_kv_heads:
-                        head_dim = int(llama._model.n_embd()) // num_kv_heads
-                except Exception:
-                    pass
-                del llama
-            except Exception:
-                pass
+            # Read GGUF metadata via fast header parser (no model load)
+            meta_info = InferenceEngine.read_model_metadata(str(path))
+            total_layers = meta_info["total_layers"]
+            num_kv_heads = meta_info["num_kv_heads"]
+            head_dim = meta_info["head_dim"]
 
             if total_layers == 0:
                 total_layers = 32  # fallback
@@ -256,35 +234,64 @@ class InferenceEngine:
 
     @staticmethod
     def read_model_metadata(model_path):
-        """Read model metadata (layer count, etc.) for UI configuration."""
+        """Read model metadata (layer count, etc.) without loading the full model."""
         from pathlib import Path
-        import json
+        import struct, mmap, json
         path = Path(model_path)
         result = {"total_layers": 0, "num_kv_heads": 0, "head_dim": 0, "n_ctx_default": 4096}
 
         if path.is_file() and path.suffix == ".gguf":
             try:
-                from llama_cpp import Llama
-                llama = Llama(model_path=str(path), n_ctx=256, n_gpu_layers=0, verbose=False)
-                try:
-                    meta = llama.metadata
-                    # Try common block_count keys across model families
-                    for key in ("qwen35.block_count", "llama.block_count", "phi3.block_count",
-                                "gemma2.block_count", "mistral.block_count"):
-                        if key in meta:
-                            result["total_layers"] = int(meta[key])
-                            break
-                    for key in ("qwen35.attention.head_count", "llama.attention.head_count"):
-                        if key in meta:
-                            result["num_kv_heads"] = int(meta.get(key.replace("head_count", "head_count_kv"), meta[key]))
-                            break
-                    if "qwen35.rope.dimension_count" in meta:
-                        result["head_dim"] = int(meta["qwen35.rope.dimension_count"])
-                    elif llama._model.n_embd() and result["num_kv_heads"]:
-                        result["head_dim"] = int(llama._model.n_embd()) // result["num_kv_heads"]
-                except Exception:
-                    pass
-                del llama
+                with open(path, "rb") as f:
+                    h = f.read(262144)  # 256KB covers all metadata before tokenizer vocab
+                off = 24  # magic(4) + version(4) + n_tensors(8) + n_kv(8)
+                n_kv = struct.unpack_from("<Q", h, 16)[0]
+                for _ in range(int(n_kv)):
+                    if off + 9 > len(h): break
+                    klen = struct.unpack_from("<Q", h, off)[0]; off += 8
+                    if klen > 200 or off + klen + 1 > len(h): break
+                    key = h[off:off+klen].decode("utf-8"); off += klen
+                    vtype = h[off]; off += 1
+                    if vtype == 9:  # ARRAY — skip (tokenizer vocab is huge)
+                        alen = struct.unpack_from("<Q", h, off)[0]; off += 8
+                        atype = h[off]; off += 1
+                        can_skip = True
+                        for _ in range(alen):
+                            if atype == 8: el = struct.unpack_from("<Q", h, off)[0]; off += 8 + el
+                            elif atype in (0,1): off += 1
+                            elif atype in (2,3): off += 2
+                            elif atype in (4,5): off += 4
+                            elif atype == 6: off += 4
+                            elif atype == 7: off += 1
+                            else: can_skip = False; break
+                            if off > len(h): can_skip = False; break
+                        if not can_skip: break
+                        continue
+                    if vtype == 0: val = h[off]; off += 1
+                    elif vtype == 1: val = struct.unpack_from("<b", h, off)[0]; off += 1
+                    elif vtype == 2: val = struct.unpack_from("<H", h, off)[0]; off += 2
+                    elif vtype == 3: val = struct.unpack_from("<h", h, off)[0]; off += 2
+                    elif vtype == 4: val = struct.unpack_from("<I", h, off)[0]; off += 4
+                    elif vtype == 5: val = struct.unpack_from("<i", h, off)[0]; off += 4
+                    elif vtype == 6: val = struct.unpack_from("<f", h, off)[0]; off += 4
+                    elif vtype == 7: val = h[off] != 0; off += 1
+                    elif vtype == 8:
+                        slen = struct.unpack_from("<Q", h, off)[0]; off += 8
+                        val = h[off:off+slen].decode("utf-8", errors="replace"); off += slen
+                    else: break
+                    # Extract what we need
+                    if "block_count" in key and result["total_layers"] == 0:
+                        result["total_layers"] = int(val) if isinstance(val, (int, float)) else 0
+                    elif "head_count_kv" in key and result["num_kv_heads"] == 0:
+                        result["num_kv_heads"] = int(val) if isinstance(val, (int, float)) else 0
+                    elif "head_count" in key and "kv" not in key and result["num_kv_heads"] == 0:
+                        result["num_kv_heads"] = int(val) if isinstance(val, (int, float)) else 0
+                    elif "rope.dimension_count" in key:
+                        result["head_dim"] = int(val) if isinstance(val, (int, float)) else 0
+                    elif "embedding_length" in key and result["head_dim"] == 0:
+                        embd = int(val) if isinstance(val, (int, float)) else 0
+                        if embd and result["num_kv_heads"]:
+                            result["head_dim"] = embd // result["num_kv_heads"]
             except Exception:
                 pass
         elif path.is_dir() and (path / "config.json").exists():
