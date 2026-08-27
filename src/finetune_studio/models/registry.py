@@ -56,6 +56,10 @@ def _safe_model_name(root: str, cfg: dict) -> str:
         # e.g. "models--unsloth--gemma-4-E4B-it-unsloth-bnb-4bit" → "gemma-4-E4B-it-unsloth-bnb-4bit"
         if dirname.startswith("models--"):
             dirname = dirname.split("--", 2)[-1] if "--" in dirname else dirname
+    # Use the directory name (which is usually descriptive) as the primary name
+    # Only fall back to arch+model_type if dirname is generic or missing
+    if dirname and dirname not in ("export", "model", "snapshots"):
+        return dirname
     if arch and model_type:
         return f"{arch} ({model_type})"
     if arch:
