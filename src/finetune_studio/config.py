@@ -43,11 +43,10 @@ class Settings:
     port: int = 7860
     debug: bool = False
     model_dirs: list = field(default_factory=lambda: [
-        os.path.expanduser("~/1TB-SAMSUNG/Comfy/models"),
-        os.path.expanduser("~/gemma-finetune"),
-        os.path.expanduser("~/gemma-training"),
-        os.path.expanduser("~/.cache/huggingface/hub"),
+        "models",           # project-local models/ directory
+        "output",           # training output directory
     ])
+    model_dirs_extra: list = field(default_factory=list)  # user-added via env or config
     default_lora_rank: int = 64
     default_lr: float = 8e-5
     default_epochs: int = 4

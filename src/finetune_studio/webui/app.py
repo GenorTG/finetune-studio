@@ -24,13 +24,14 @@ from fastapi.staticfiles import StaticFiles
 
 from finetune_studio import db
 from finetune_studio.config import settings
-from finetune_studio.models.registry import scan_models
+import os
+
+from finetune_studio.models.registry import ModelInfo, scan_models
 from finetune_studio.testing.inference import InferenceEngine
 from finetune_studio.training.engine import TrainingEngine
 
 training_engine = TrainingEngine()
 inference_engine = InferenceEngine()
-from finetune_studio.models.registry import ModelInfo
 discovered_models: list[ModelInfo] = []
 
 def _on_training_update(state):
@@ -62,9 +63,19 @@ def _on_training_update(state):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global discovered_models
-    print("Scanning model directories...")
-    discovered_models = scan_models(settings.model_dirs)
+    # Ensure model directories exist
+    for d in settings.model_dirs:
+        os.makedirs(d, exist_ok=True)
+    # Merge extra dirs from env/config
+    dirs = list(settings.model_dirs)
+    for d in settings.model_dirs_extra:
+        if d not in dirs:
+            dirs.append(d)
+    print(f"Scanning {len(dirs)} model directories...")
+    discovered_models = scan_models(dirs)
     print(f"Found {len(discovered_models)} models")
+    for m in discovered_models:
+        print(f"  {m.name} ({m.format}, {m.size_gb}GB)")
     # Init DB and hook training -> DB persistence.
     db.init_db()
     training_engine.on_update(_on_training_update)

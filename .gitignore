@@ -12,6 +12,8 @@ build/
 venv/
 
 # Data & models (large files — use Git LFS or separate storage)
+models/
+output/
 *.gguf
 *.safetensors
 *.bin
