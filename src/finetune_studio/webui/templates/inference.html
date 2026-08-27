@@ -87,7 +87,7 @@ async function loadModel() {
     status.textContent = 'Loading model into GPU…';
     status.className = 'mt-2 text-sm text-yellow-400';
     try {
-        const r = await fetch('/load', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({model_path:path})});
+        const r = await fetch('/api/chat-v2/load', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({model_path:path})});
         const d = await r.json();
         if (d.error) {
             status.textContent = 'Error: ' + d.error;
@@ -140,7 +140,7 @@ async function sendInfChat() {
     box.innerHTML += `<div id="inf-chat-loading" class="flex justify-start"><div class="bg-gray-700 rounded-lg px-3 py-2 text-sm text-gray-400">Thinking…</div></div>`;
     box.scrollTop = box.scrollHeight;
     try {
-        const r = await fetch('/inference/chat', {method:'POST', headers:{'Content-Type':'application/json'},
+        const r = await fetch('/api/chat-v2/inference/chat', {method:'POST', headers:{'Content-Type':'application/json'},
             body:JSON.stringify({messages:[{role:'user',content:userContent}], max_tokens:1024, temperature:0.7})});
         const d = await r.json();
         document.getElementById('inf-chat-loading')?.remove();
@@ -168,7 +168,7 @@ async function runBenchmark() {
     try {
         const sel = document.getElementById('inf-model-select');
         const path = sel.value;
-        const r = await fetch('/inference/benchmark', {method:'POST', headers:{'Content-Type':'application/json'},
+        const r = await fetch('/api/chat-v2/inference/benchmark', {method:'POST', headers:{'Content-Type':'application/json'},
             body:JSON.stringify({model_path:path})});
         const d = await r.json();
         if (d.error) {
