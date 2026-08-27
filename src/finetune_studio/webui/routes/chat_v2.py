@@ -75,6 +75,22 @@ async def inference_chat(request: Request):
     }
 
 
+@router.post("/load")
+async def load_model(request: Request):
+    """Load a model into the inference engine."""
+    from finetune_studio.webui.app import inference_engine
+    body = await request.json()
+    model_path = body.get("model_path", "")
+    if not model_path:
+        return {"error": "No model_path"}
+    try:
+        inference_engine.load(model_path)
+        vision = getattr(inference_engine, "vision", False)
+        return {"status": "loaded", "model": model_path, "vision": vision}
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+
+
 @router.post("/inference/benchmark")
 async def inference_benchmark(request: Request):
     """Run quick benchmarks on the loaded model."""
