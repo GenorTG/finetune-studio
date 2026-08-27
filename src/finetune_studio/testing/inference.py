@@ -199,16 +199,16 @@ class InferenceEngine:
                     for key in ("qwen35.block_count", "llama.block_count", "phi3.block_count",
                                 "gemma2.block_count", "mistral.block_count"):
                         if key in meta:
-                            total_layers = meta[key]
+                            total_layers = int(meta[key])
                             break
                     for key in ("qwen35.attention.head_count", "llama.attention.head_count"):
                         if key in meta:
-                            num_kv_heads = meta.get(key.replace("head_count", "head_count_kv"), meta[key])
+                            num_kv_heads = int(meta.get(key.replace("head_count", "head_count_kv"), meta[key]))
                             break
                     if "qwen35.rope.dimension_count" in meta:
-                        head_dim = meta["qwen35.rope.dimension_count"]
+                        head_dim = int(meta["qwen35.rope.dimension_count"])
                     elif llama._model.n_embd() and num_kv_heads:
-                        head_dim = llama._model.n_embd() // num_kv_heads
+                        head_dim = int(llama._model.n_embd()) // num_kv_heads
                 except Exception:
                     pass
                 del llama
@@ -272,17 +272,16 @@ class InferenceEngine:
                     for key in ("qwen35.block_count", "llama.block_count", "phi3.block_count",
                                 "gemma2.block_count", "mistral.block_count"):
                         if key in meta:
-                            result["total_layers"] = meta[key]
+                            result["total_layers"] = int(meta[key])
                             break
-                    # head info from metadata
                     for key in ("qwen35.attention.head_count", "llama.attention.head_count"):
                         if key in meta:
-                            result["num_kv_heads"] = meta.get(key.replace("head_count", "head_count_kv"), meta[key])
+                            result["num_kv_heads"] = int(meta.get(key.replace("head_count", "head_count_kv"), meta[key]))
                             break
                     if "qwen35.rope.dimension_count" in meta:
-                        result["head_dim"] = meta["qwen35.rope.dimension_count"]
+                        result["head_dim"] = int(meta["qwen35.rope.dimension_count"])
                     elif llama._model.n_embd() and result["num_kv_heads"]:
-                        result["head_dim"] = llama._model.n_embd() // result["num_kv_heads"]
+                        result["head_dim"] = int(llama._model.n_embd()) // result["num_kv_heads"]
                 except Exception:
                     pass
                 del llama
