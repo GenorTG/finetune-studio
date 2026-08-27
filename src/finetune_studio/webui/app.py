@@ -30,7 +30,8 @@ from finetune_studio.training.engine import TrainingEngine
 
 training_engine = TrainingEngine()
 inference_engine = InferenceEngine()
-discovered_models: list[str] = []
+from finetune_studio.models.registry import ModelInfo
+discovered_models: list[ModelInfo] = []
 
 def _on_training_update(state):
     """Persist training progress to the DB row tagged on the engine."""
