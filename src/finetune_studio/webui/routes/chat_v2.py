@@ -57,6 +57,7 @@ async def inference_chat(request: Request):
     from finetune_studio.webui.app import inference_engine
     body = await request.json()
     messages = body.get("messages", [])
+    system_prompt = body.get("system_prompt", "")
     max_tokens = body.get("max_tokens", 1024)
     temperature = body.get("temperature", 0.7)
     top_p = body.get("top_p", 0.9)
@@ -68,6 +69,12 @@ async def inference_chat(request: Request):
         return {"error": "No messages"}
     if inference_engine.model is None:
         return {"error": "No model loaded. Load a model first."}
+    # System prompt: prepend if provided and not already present
+    if system_prompt:
+        if messages and messages[0].get("role") == "system":
+            messages[0]["content"] = system_prompt + "\n\n" + messages[0]["content"]
+        else:
+            messages.insert(0, {"role": "system", "content": system_prompt})
     # Thinking support: prepend /think instruction for Qwen3 models
     if thinking:
         think_instruction = "/think" if reasoning_effort <= 3 else f"/think\n/think_budget:{reasoning_effort * 100}"

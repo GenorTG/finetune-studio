@@ -6,16 +6,16 @@
 
 <!-- System overview cards -->
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-  <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+  <div class="bg-gray-900 rounded-lg p-4 border border-gray-800 card-hover">
     <div class="text-sm text-gray-400">Projects</div>
     <div class="text-3xl font-bold text-emerald-400">{{ projects|length }}</div>
   </div>
-  <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+  <div class="bg-gray-900 rounded-lg p-4 border border-gray-800 card-hover">
     <div class="text-sm text-gray-400">Models</div>
     <div class="text-3xl font-bold text-emerald-400">{{ models|length }}</div>
     <a href="/inference" class="text-xs text-emerald-400 hover:underline">Open Inference →</a>
   </div>
-  <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+  <div class="bg-gray-900 rounded-lg p-4 border border-gray-800 card-hover">
     <div class="text-sm text-gray-400">Training Status</div>
     <div class="text-xl font-bold">
       <span hx-get="/api/training/status-text" hx-trigger="load, every 3s" hx-swap="innerHTML" id="dash-training-status">{{ training_state.status|title }}</span>
@@ -34,7 +34,7 @@
   {% endif %}
   <div class="space-y-2">
     {% for p in projects %}
-    <a href="/projects/{{ p.id }}" class="flex items-center justify-between px-3 py-3 bg-gray-800 rounded hover:bg-gray-750 border border-gray-700 hover:border-gray-600 transition-colors">
+    <a href="/projects/{{ p.id }}" class="flex items-center justify-between px-3 py-3 bg-gray-800 rounded card-hover border border-gray-700 transition-colors">
       <div>
         <div class="font-semibold text-sm">{{ p.name }}</div>
         <div class="text-xs text-gray-500 mt-0.5">{{ p.description or 'No description' }}</div>
@@ -62,7 +62,7 @@
   {% endif %}
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
     {% for m in models %}
-    <div class="bg-gray-800 rounded p-3 border border-gray-700 hover:border-gray-600 transition-colors">
+    <div class="bg-gray-800 rounded p-3 border border-gray-700 card-hover">
       <div class="flex items-center justify-between mb-1">
         <span class="font-semibold text-sm truncate">{{ m.name }}</span>
         <div class="flex gap-1">

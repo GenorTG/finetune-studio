@@ -1,4 +1,47 @@
+/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #1a1a2e; }
 ::-webkit-scrollbar-thumb { background: #4a4a6a; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #5a5a7a; }
+
+/* HTMX indicator */
 .htmx-request::after { content: ' ...'; color: #34d399; }
+
+/* Smooth transitions on cards */
+.card-hover {
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.card-hover:hover {
+    border-color: #059669;
+    box-shadow: 0 0 12px rgba(5, 150, 105, 0.15);
+    transform: translateY(-1px);
+}
+
+/* Active nav item subtle glow */
+.nav-active {
+    background: rgba(52, 211, 153, 0.1);
+    border-left: 2px solid #34d399;
+    color: #34d399;
+}
+
+/* Custom range slider thumb */
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #34d399;
+    cursor: pointer;
+    border: 2px solid #065f46;
+}
+input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #34d399;
+    cursor: pointer;
+    border: 2px solid #065f46;
+}
+
+/* Smooth scroll */
+html { scroll-behavior: smooth; }

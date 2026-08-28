@@ -5,7 +5,7 @@
 <h1 class="text-2xl font-bold mb-6">Inference</h1>
 
 <!-- Model selector -->
-<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6">
+<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6 card-hover">
   <h2 class="text-lg font-semibold mb-3">Load Model</h2>
   <div class="flex gap-3">
     <select id="inf-model-select" class="flex-1 bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700" onchange="onModelSelect()">
@@ -129,6 +129,22 @@
 <!-- Chat -->
 <div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6">
   <h2 class="text-lg font-semibold mb-3">Chat</h2>
+
+  <!-- System prompt -->
+  <div class="mb-3">
+    <button onclick="togglePanel('sys-prompt-panel')" id="sys-prompt-toggle" class="text-xs text-gray-400 hover:text-gray-300 focus:outline-none">▶ System Prompt</button>
+    <div id="sys-prompt-panel" class="hidden mt-2">
+      <textarea id="inf-system-prompt" rows="3" placeholder="Optional system prompt prepended to every message (e.g. 'You are a helpful assistant.')"
+        class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700 resize-y"></textarea>
+      <div class="flex items-center gap-3 mt-1">
+        <label class="flex items-center gap-2 text-xs text-gray-500">
+          <input type="checkbox" id="inf-sys-prompt-remember" class="rounded" checked> Remember for session
+        </label>
+        <span id="inf-sys-prompt-status" class="text-xs text-gray-500"></span>
+      </div>
+    </div>
+  </div>
+
   <div id="inf-chat-messages" class="h-96 overflow-y-auto mb-3 space-y-3 p-3 bg-gray-800 rounded border border-gray-700">
     <div class="text-sm text-gray-500 italic">Load a model and start chatting.</div>
   </div>
@@ -514,8 +530,13 @@ async function sendInfChat() {
     box.scrollTop = box.scrollHeight;
     try {
         const genParams = getGenParams();
+        const sysPrompt = document.getElementById('inf-system-prompt')?.value?.trim() || '';
+        // Persist system prompt to localStorage if checkbox is checked
+        if (document.getElementById('inf-sys-prompt-remember')?.checked && sysPrompt) {
+            try { localStorage.setItem('fts_inference_sys_prompt', sysPrompt); } catch(e) {}
+        }
         const r = await fetch('/api/chat-v2/inference/chat', {method:'POST', headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({messages:[{role:'user',content:userContent}], ...genParams})});
+            body:JSON.stringify({messages:[{role:'user',content:userContent}], system_prompt: sysPrompt, ...genParams})});
         const d = await r.json();
         document.getElementById('inf-chat-loading')?.remove();
         if (d.error) {
@@ -621,5 +642,10 @@ async function unloadModel() {
 onParamChange();
 statusInterval = setInterval(pollStatus, 5000);
 pollStatus();
+// Restore remembered system prompt
+try {
+    const savedSys = localStorage.getItem('fts_inference_sys_prompt');
+    if (savedSys) { document.getElementById('inf-system-prompt').value = savedSys; }
+} catch(e) {}
 </script>
 {% endblock %}
