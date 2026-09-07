@@ -25,7 +25,7 @@ def profile_training(
     seq_length: int = 512,
     lora_rank: int = 16,
     num_steps: int = 5,
-    output_dir: str = "/tmp/vram_profile",
+    output_dir: str = str(Path.home() / ".cache" / "fts-vram-profile"),
 ) -> ProfileResult:
     """Run a short training job and measure actual peak VRAM.
 

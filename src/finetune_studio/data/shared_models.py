@@ -37,6 +37,20 @@ EMBEDDERS = SHARED / "embedders"
 RERANKERS = SHARED / "rerankers"
 
 
+def hf_cache_dir() -> Path:
+    """Canonical HuggingFace cache root for finetune-studio.
+
+    Lives in the user's home so it does NOT fill /tmp (which is tmpfs on
+    fan-dragon and only 32 GB — 14 builds of multilingual-e5-large would
+    OOM it). Created on first use.
+    """
+    d = Path.home() / ".cache" / "huggingface"
+    d.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("HF_HOME", str(d))
+    os.environ.setdefault("TRANSFORMERS_CACHE", str(d))
+    return d
+
+
 def _safe_repo_name(name: str) -> str:
     """HuggingFace 'org/name' becomes 'org__name' for filesystem safety."""
     return name.replace("/", "__")
@@ -156,13 +170,17 @@ def register(model_name: str, kind: str, src_dir: Optional[Path] = None,
         # Download fresh into target dir.
         # Use a temp staging path so the sentence-transformers save() doesn't get
         # fooled by our `pending` placeholder in the path. We then move the dir
-        # to its final hashed name.
+        # to its final hashed name. Stage dir lives under the user cache, NOT
+        # /tmp — fan-dragon's tmpfs is 32 GB and a single 2.2 GB embedder model
+        # would burn 7% of it per build.
         from tempfile import mkdtemp
-        stage = Path(mkdtemp(prefix=f"fts_{kind}_", dir="/tmp"))
+        stage_parent = Path.home() / ".cache" / "fts-stage"
+        stage_parent.mkdir(parents=True, exist_ok=True)
+        stage = Path(mkdtemp(prefix=f"fts_{kind}_", dir=str(stage_parent)))
         try:
             if kind == "embedder":
                 from sentence_transformers import SentenceTransformer
-                model = SentenceTransformer(model_name, cache_folder="/tmp/hf_cache")
+                model = SentenceTransformer(model_name, cache_folder=str(hf_cache_dir()))
                 model.save(str(stage))
             else:  # reranker
                 from sentence_transformers import CrossEncoder

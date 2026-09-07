@@ -18,7 +18,11 @@ from finetune_studio.data.rag_portable.schema import EmbeddingModelInfo
 
 def get_embedder(name: str = DEFAULT_EMBEDDER, device: str = "cpu"):
     """Return (encode, info) where encode(text|list[str]) -> ndarray(float32)."""
-    os.environ.setdefault("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
+    # Use canonical cache under user's home (NOT /tmp) — see
+    # finetune_studio.data.shared_models.hf_cache_dir for rationale.
+    from finetune_studio.data.shared_models import hf_cache_dir
+    cache_dir = hf_cache_dir()
+    os.environ.setdefault("HF_HOME", str(cache_dir))
     from sentence_transformers import SentenceTransformer
 
     local_path = None
@@ -26,7 +30,7 @@ def get_embedder(name: str = DEFAULT_EMBEDDER, device: str = "cpu"):
         local_path = name[len(EMBEDDER_LOCAL_PREFIX):]
     load_target = local_path if local_path else name
 
-    model = SentenceTransformer(load_target, device=device, cache_folder="/tmp/hf_cache")
+    model = SentenceTransformer(load_target, device=device, cache_folder=str(cache_dir))
     dim = model.get_embedding_dimension()
 
     def encode(texts):
