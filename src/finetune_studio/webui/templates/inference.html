@@ -211,7 +211,7 @@
 {% block scripts %}
 <style>
   .mem-bar-track { background: var(--bg-elev); height: 8px; border-radius: 4px; overflow: hidden; }
-  .mem-bar-fill  { background: linear-gradient(90deg, var(--violet), var(--blue)); height: 100%; transition: width .3s; }
+  .mem-bar-fill  { background: linear-gradient(90deg, var(--accent), var(--accent-2)); height: 100%; transition: width .3s; }
   .loader-params summary { list-style: none; user-select: none; }
   .loader-params summary::-webkit-details-marker { display: none; }
   .loader-params[open] > summary { font-weight: 600; }
@@ -264,7 +264,7 @@ function updateMemEstimate() {
       const pct = Math.min(100, (used + total) / cap * 100);
       $('mem-bar-wrap').hidden = false;
       $('mem-bar').style.width = pct + '%';
-      $('mem-bar').style.background = pct > 90 ? 'var(--red)' : pct > 75 ? 'var(--amber)' : 'linear-gradient(90deg, var(--violet), var(--blue))';
+      $('mem-bar').style.background = pct > 90 ? 'var(--err)' : pct > 75 ? 'var(--warn)' : 'linear-gradient(90deg, var(--accent), var(--accent-2))';
       $('mem-label').textContent = `${total.toFixed(1)} GB est (used ${used.toFixed(1)} / ${cap.toFixed(0)})`;
       $('mem-detail').textContent = `weights ${weights.toFixed(1)} GB · KV cache ${ctx.toFixed(2)} GB`;
     } catch (e) {
