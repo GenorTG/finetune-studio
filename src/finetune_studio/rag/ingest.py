@@ -1,25 +1,16 @@
 """Document ingestion — parse files and store chunks.
 
-WHAT THIS FILE DOES
-==================
-The "ETL" of RAG (Extract, Transform, Load):
-  1. Extract: read documents (PDF, DOCX, etc.) using parsers.py
-  2. Transform: split into chunks of ~512 tokens
-  3. Load: embed each chunk and store in the vector database
+Now uses `finetune_studio.data.parsers` (33+ formats, OCR via tesseract).
+Falls back to raw-text read for unknown extensions.
 
-KEY CONCEPTS
-============
-- Chunking: large documents are split into smaller pieces because:
-  a) LLMs have context limits (can't fit a whole book)
-  b) Smaller chunks have more focused meaning
-  c) Retrieval is more precise when chunks are focused
-- Overlap: consecutive chunks overlap by 50-100 tokens so we don't
-  lose information at chunk boundaries.
-- Metadata: each chunk remembers where it came from (filename, page,
-  chunk index) so we can cite sources.
+WHY THIS WAS REWRITTEN: the previous version only handled PDF and DOCX
+and fell back to opening files as text — which means PNG/JPG were ingested
+as raw binary, defeating OCR. All ingestion must go through the unified
+parser package.
 """
 
-"""Document ingestion — chunking and embedding for RAG."""
+from __future__ import annotations
+
 import hashlib
 import os
 from dataclasses import dataclass, field
@@ -36,137 +27,128 @@ class Document:
     metadata: dict = field(default_factory=dict)
     chunk_count: int = 0
 
+
 @dataclass
 class Chunk:
     id: str = ""
-    document_id: str = ""
     text: str = ""
     chunk_index: int = 0
+    document_id: str = ""
     metadata: dict = field(default_factory=dict)
 
 
 def extract_text(file_path: str) -> str:
-    """Extract text from various file formats."""
-    path = Path(file_path)
-    ext = path.suffix.lower()
+    """Extract text via the unified parser package.
 
-    if ext in (".txt", ".md", ".csv", ".json", ".jsonl", ".py", ".js", ".ts", ".html", ".css"):
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
-            return f.read()
-    elif ext == ".pdf":
-        return extract_pdf(path)
-    elif ext in (".docx", ".doc"):
-        return extract_docx(path)
-    else:
-        # Try reading as text
-        try:
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                return f.read()
-        except Exception:  # noqa: BLE001
-            return ""
+    Routes through `finetune_studio.data.parsers` which has:
+      - 33+ format-specific parsers
+      - OCR fallback for image-only PDFs (tesseract)
+      - Dedicated image parser for png/jpg/tiff/etc. (also tesseract)
+      - Robust JSON, XML, CSV/TSV, EML parsers
+    """
+    from finetune_studio.data.parsers import parse as parser_parse
+    result = parser_parse(Path(file_path))
+    return result.get("text", "")
 
 
 def extract_pdf(path: Path) -> str:
-    """Extract text from PDF."""
+    """Kept as a fallback for callers that want PDF-only extraction. Prefers
+    pypdf, falls back to pdftotext, then OCR. Use extract_text() for the
+    full multi-format pipeline.
+    """
     try:
-        import subprocess
-        result = subprocess.run(
-            ["pdftotext", str(path), "-"],
-            capture_output=True, text=True, timeout=30,
-            check=False,
-        )
-        if result.returncode == 0:
-            return result.stdout
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        pass
-
-    # Fallback: PyPDF2
-    try:
-        from PyPDF2 import PdfReader
-        reader = PdfReader(str(path))
-        text = ""
-        for page in reader.pages:
-            text += page.extract_text() + "\n"
-        return text
-    except ImportError:
-        return f"[PDF: {path.name} — install PyPDF2 or pdftotext to read]"
+        from finetune_studio.data.parsers.pdf import parse as pdf_parse
+        return pdf_parse(path).get("text", "")
+    except Exception as e:  # noqa: BLE001
+        return f"[extract_pdf failed: {e}]"
 
 
 def extract_docx(path: Path) -> str:
-    """Extract text from DOCX."""
+    """Kept for backward-compat. Use extract_text() for full pipeline."""
     try:
-        from docx import Document as DocxDocument
-        doc = DocxDocument(str(path))
-        return "\n".join(p.text for p in doc.paragraphs)
-    except ImportError:
-        return f"[DOCX: {path.name} — install python-docx to read]"
+        from finetune_studio.data.parsers.docx import parse as docx_parse
+        return docx_parse(path).get("text", "")
+    except Exception as e:  # noqa: BLE001
+        return f"[extract_docx failed: {e}]"
 
 
-def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50, metadata: dict | None = None) -> list[Chunk]:
-    """Split text into overlapping chunks."""
+def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50,
+               metadata: dict | None = None, doc_id: str = "") -> list[Chunk]:
+    """Split text into overlapping word-based chunks. Each Chunk has a unique
+    `id` and `document_id` so the vector store can dedupe and group."""
     if not text.strip():
         return []
-
     words = text.split()
-    chunks = []
-    start = 0
-    idx = 0
-
+    chunks: list[Chunk] = []
+    start, idx = 0, 0
     while start < len(words):
         end = min(start + chunk_size, len(words))
-        chunk_words = words[start:end]
-        chunk_text_str = " ".join(chunk_words)
-
+        chunk_id = f"{doc_id}_{idx}" if doc_id else f"chunk_{idx}"
         chunks.append(Chunk(
-            text=chunk_text_str,
+            id=chunk_id,
+            text=" ".join(words[start:end]),
             chunk_index=idx,
+            document_id=doc_id,
             metadata=metadata or {},
         ))
         idx += 1
         start += chunk_size - overlap
-
     return chunks
 
 
 def ingest_file(file_path: str, chunk_size: int = 512, overlap: int = 50) -> Document:
-    """Ingest a single file — extract text, chunk it."""
+    """Ingest a single file. Routes through extract_text() which uses the
+    unified parser package (so OCR works for images and image-PDFs)."""
     path = Path(file_path)
-    content = extract_text(file_path)
-
-    doc_id = hashlib.md5(f"{path.resolve()}".encode()).hexdigest()[:12]
-
-    chunks = chunk_text(content, chunk_size, overlap, {"source": str(path)})
-
-    for i, chunk in enumerate(chunks):
-        chunk.document_id = doc_id
-        chunk.id = f"{doc_id}_{i}"
-
+    text = extract_text(str(path))
+    file_id = hashlib.md5(f"{path.name}:{text[:100]}:{path.stat().st_size}".encode()).hexdigest()[:12]
+    meta = {"source": str(path), "filename": path.name}
+    chunks = chunk_text(text, chunk_size=chunk_size, overlap=overlap,
+                       metadata=meta, doc_id=file_id)
     return Document(
-        id=doc_id,
-        path=str(path.resolve()),
+        id=file_id,
+        path=str(path),
         filename=path.name,
-        content=content,
+        content=text,
         chunks=chunks,
+        metadata={**meta, "size_bytes": path.stat().st_size if path.exists() else 0},
         chunk_count=len(chunks),
-        metadata={"size": path.stat().st_size if path.exists() else 0},
     )
 
 
 def ingest_directory(directory: str, chunk_size: int = 512, overlap: int = 50,
                      extensions: list | None = None) -> list[Document]:
-    """Ingest all supported files in a directory."""
+    """Ingest all files in a directory whose extension is in the supported list."""
+    dir_path = Path(directory)
+    if not dir_path.exists():
+        return []
     if extensions is None:
-        extensions = [".txt", ".md", ".pdf", ".docx", ".csv", ".json", ".jsonl",
-                      ".py", ".js", ".ts", ".html", ".css"]
-
-    documents = []
-    for root, dirs, files in os.walk(directory):
-        dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__pycache__"]
-        for f in sorted(files):
-            if any(f.lower().endswith(ext) for ext in extensions):
-                fp = os.path.join(root, f)
-                doc = ingest_file(fp, chunk_size, overlap)
-                if doc.chunk_count > 0:
-                    documents.append(doc)
-
-    return documents
+        # Default to all parser-supported formats
+        from finetune_studio.data.parsers import PARSERS
+        extensions = sorted(PARSERS.keys())
+    out: list[Document] = []
+    # Recursive walk: build corpus from flat OR nested directories.
+    # Default behavior: rglob finds all files matching the extension list.
+    files = []
+    for ext in extensions:
+        # rglob('*.ext') matches case-sensitively; do both lower/upper to be safe
+        files.extend(sorted(dir_path.rglob(f"*{ext}")))
+        files.extend(sorted(dir_path.rglob(f"*{ext.upper()}")))
+    # Dedup while preserving order
+    seen = set()
+    uniq = []
+    for f in files:
+        if f not in seen:
+            seen.add(f)
+            uniq.append(f)
+    for path in uniq:
+        if not path.is_file():
+            continue
+            continue
+        try:
+            doc = ingest_file(str(path), chunk_size=chunk_size, overlap=overlap)
+            if doc.chunks:
+                out.append(doc)
+        except Exception as e:  # noqa: BLE001
+            print(f"[ingest] skipping {path.name}: {e}", flush=True)
+    return out
