@@ -38,6 +38,33 @@ async def status_text():
 async def progress():
     return StreamingResponse(training_events(training_engine), media_type="text/event-stream")
 
+
+@router.get("/progress-text")
+async def progress_text():
+    """Plain-text one-shot progress string for dashboard polling.
+
+    Returns something short the dashboard can render without streaming:
+      "Idle"            — no run
+      "step 124/1000"   — running
+      "step 1000/1000 · loss 1.42" — running w/ loss
+      "Saving…"         — saving
+      "Done"            — terminal state
+      "Error"           — terminal error
+    """
+    s = training_engine.state
+    if s.status == "training":
+        loss = f" · loss {s.loss:.2f}" if s.loss else ""
+        return PlainTextResponse(f"step {s.current_step}/{s.total_steps}{loss}")
+    if s.status == "loading":
+        return PlainTextResponse("Loading model…")
+    if s.status == "saving":
+        return PlainTextResponse("Saving…")
+    if s.status == "done":
+        return PlainTextResponse(f"Done · {s.total_steps} steps")
+    if s.status == "error":
+        return PlainTextResponse(f"Error · {s.error or 'unknown'}")
+    return PlainTextResponse("Idle")
+
 @router.post("/start")
 async def start_training(request: Request):
     body = await request.json()
