@@ -188,8 +188,8 @@
 
 <script>
 (function() {
-  // Look up fts lazily — base.html loads app.js AFTER the {% block %}
-  // content script runs, so window.fts may not exist yet at first render.
+  // Look up fts lazily — base.html loads app.js AFTER the content
+  // script runs, so window.fts may not exist yet at first render.
   const api = () => {
     const a = window.fts && window.fts.api;
     if (!a) throw new Error('fts.api not loaded yet — wait a moment and retry');
