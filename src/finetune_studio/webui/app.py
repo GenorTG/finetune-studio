@@ -90,7 +90,23 @@ static_dir.mkdir(parents=True, exist_ok=True)
 (static_dir / "css").mkdir(exist_ok=True)
 (static_dir / "js").mkdir(exist_ok=True)
 
-app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+class _NoCacheStatic(StaticFiles):
+    """Static files with no-cache headers for css/js so deploys apply instantly.
+
+    Images/fonts keep default caching (file lookup is cheap).
+    """
+
+    async def get_response(self, path, scope):
+        resp = await super().get_response(path, scope)
+        # Cache-bust css/js so the modal-CSS fix and similar ship immediately.
+        if path.endswith((".css", ".js")):
+            resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+            resp.headers["Pragma"] = "no-cache"
+            resp.headers["Expires"] = "0"
+        return resp
+
+
+app.mount("/static", _NoCacheStatic(directory=str(static_dir)), name="static")
 
 from finetune_studio.webui.routes import (
     agentic,
