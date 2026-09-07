@@ -1,8 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Chat · Finetune Studio{% endblock %}
+{% block title %}Chat · {{ project.name }} · Finetune Studio{% endblock %}
+{% block nav_projects %}active{% endblock %}
+{% block crumb %}
+<a href="/projects" data-link>Projects</a> <span class="sep">/</span> <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a> <span class="sep">/</span> <span>Chat</span>
+{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>Chat</h1>
+  <h1>Chat — {{ project.name }}</h1>
   <div class="sub">Test a model with a single chat. Per-project.</div>
 </div>
 
@@ -10,10 +14,14 @@
   <div class="card-head">
     <div>
       <div class="card-title">Start a chat</div>
-      <div class="card-sub">Per-project.</div>
+      <div class="card-sub">Chat sessions for project <span class="mono">{{ pid[:8] }}</span>.</div>
     </div>
   </div>
-  <p class="text-sm muted">Chat sessions are scoped to a project.</p>
-  <a href="/projects" class="btn primary" data-link>Open Projects</a>
+  {% if project.description %}
+  <p class="text-sm muted">{{ project.description }}</p>
+  {% endif %}
+  <div class="flex gap-2 mt-4">
+    <a href="/projects/{{ pid }}" class="btn" data-link>← Back to project</a>
+  </div>
 </div>
 {% endblock %}

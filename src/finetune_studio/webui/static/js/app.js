@@ -30,7 +30,11 @@
 
   // ── API ─────────────────────────────────────────────────────────────
   const api = {
-    get: (url) => fetch(url).then((r) => r.json().catch(() => ({}))),
+    get: (url) => fetch(url).then(async (r) => {
+      const ct = r.headers.get("content-type") || "";
+      if (ct.includes("application/json")) return r.json();
+      return r.text();
+    }),
     post: (url, body) => fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

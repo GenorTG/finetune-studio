@@ -4,7 +4,7 @@
 {% block crumb_here %}Projects{% endblock %}
 
 {% block topbar_right %}
-  <button class="btn primary" onclick="fts.notify('Use the + New Project form below', 'info')">＋ New project</button>
+  <button class="btn primary" onclick="(function(){const c=document.getElementById('new-project');if(c){c.hidden=false;c.scrollIntoView({behavior:'smooth',block:'start'});}else{location.reload();}})()">＋ New project</button>
 {% endblock %}
 
 {% block content %}

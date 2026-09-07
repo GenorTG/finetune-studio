@@ -1,8 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Benchmarks · Finetune Studio{% endblock %}
+{% block title %}Benchmarks · {{ project.name }} · Finetune Studio{% endblock %}
+{% block nav_projects %}active{% endblock %}
+{% block crumb %}
+<a href="/projects" data-link>Projects</a> <span class="sep">/</span> <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a> <span class="sep">/</span> <span>Benchmarks</span>
+{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>Benchmarks</h1>
+  <h1>Benchmarks — {{ project.name }}</h1>
   <div class="sub">Compare models on standard industry benchmarks (MMLU, HellaSwag, ARC, etc.).</div>
 </div>
 
@@ -10,10 +14,43 @@
   <div class="card-head">
     <div>
       <div class="card-title">Run a benchmark</div>
-      <div class="card-sub">Per-project. Open a project first.</div>
+      <div class="card-sub">Project <span class="mono">{{ pid[:8] }}</span> · {{ runs|length }} run{{ '' if (runs|length == 1) else 's' }} · {{ suites|length }} suite{{ '' if (suites|length == 1) else 's' }} available</div>
     </div>
   </div>
-  <p class="text-sm muted">Benchmarks are run per project so you can track scores across fine-tunes.</p>
-  <a href="/projects" class="btn primary" data-link>Open Projects</a>
+
+  {% if not runs %}
+  <div class="empty">
+    <p>No training runs yet — start one to enable benchmarking.</p>
+    <a href="/projects/{{ pid }}/training" class="btn primary" data-link>Open Training</a>
+  </div>
+  {% elif not suites %}
+  <div class="empty">
+    <p>No test suites discovered. Add JSON suites under the project's data dir.</p>
+    <a href="/projects/{{ pid }}" class="btn" data-link>← Back to project</a>
+  </div>
+  {% else %}
+  <ul class="text-sm">
+    {% for s in suites %}<li class="mono">{{ s }}</li>{% endfor %}
+  </ul>
+  {% if all_benchmarks %}
+  <h3 class="mt-6 text-md">Recent scores</h3>
+  <table class="table">
+    <thead><tr><th>Run</th><th>Suite</th><th>Score</th><th>When</th></tr></thead>
+    <tbody>
+      {% for b in all_benchmarks[:10] %}
+      <tr>
+        <td>{{ b._run_name }}</td>
+        <td class="mono">{{ b.suite }}</td>
+        <td>{{ '%.2f'|format(b.score) }}</td>
+        <td class="dim">{{ b._ran_at_str }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  <div class="flex gap-2 mt-4">
+    <a href="/projects/{{ pid }}" class="btn" data-link>← Back to project</a>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

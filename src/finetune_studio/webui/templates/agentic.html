@@ -1,8 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Agentic · Finetune Studio{% endblock %}
+{% block title %}Agentic · {{ project.name }} · Finetune Studio{% endblock %}
+{% block nav_projects %}active{% endblock %}
+{% block crumb %}
+<a href="/projects" data-link>Projects</a> <span class="sep">/</span> <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a> <span class="sep">/</span> <span>Agentic</span>
+{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>Agentic</h1>
+  <h1>Agentic — {{ project.name }}</h1>
   <div class="sub">A model that can call tools (search, read files, run code) to answer questions.</div>
 </div>
 
@@ -10,10 +14,21 @@
   <div class="card-head">
     <div>
       <div class="card-title">Run an agent</div>
-      <div class="card-sub">Per-project. Open a project first.</div>
+      <div class="card-sub">Project <span class="mono">{{ pid[:8] }}</span> · {{ project.rags|length if project.rags else 0 }} RAG{{ '' if (project.rags|length == 1) else 's' }} available</div>
     </div>
   </div>
-  <p class="text-sm muted">Agent runs need a project context (data + RAG) to know what to search.</p>
-  <a href="/projects" class="btn primary" data-link>Open Projects</a>
+  {% if project.description %}
+  <p class="text-sm muted">{{ project.description }}</p>
+  {% endif %}
+  {% if not project.rags %}
+  <div class="empty">
+    <p>No RAG corpora yet for this project.</p>
+    <a href="/projects/{{ pid }}/data" class="btn" data-link>Add data</a>
+  </div>
+  {% else %}
+  <div class="flex gap-2 mt-4">
+    <a href="/projects/{{ pid }}" class="btn" data-link>← Back to project</a>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}
