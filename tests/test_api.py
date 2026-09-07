@@ -1,27 +1,3 @@
-"""Tests for webui API routes — FastAPI TestClient integration tests."""
-import pytest
-from unittest.mock import patch, MagicMock
-from fastapi.testclient import TestClient
-
-# ── App fixture ───────────────────────────────────────────────────────────────
-
-@pytest.fixture
-def client():
-    """Create a test client with heavy dependencies mocked."""
-    with patch("finetune_studio.models.registry.scan_models") as mock_scan, \
-         patch("finetune_studio.training.engine.TrainingEngine") as mock_te, \
-         patch("finetune_studio.testing.inference.InferenceEngine") as mock_ie, \
-         patch("finetune_studio.db.init_db"):  # don't init real DB
-        mock_scan.return_value = []
-        # Import app after mocking
-        import importlib
-        import finetune_studio.webui.app as app_module
-        importlib.reload(app_module)
-        app = app_module.app
-        with TestClient(app) as c:
-            yield c
-
-
 # ── Health / system ─────────────────────────────────────────────────────────
 
 class TestHealthRoutes:
