@@ -1,0 +1,75 @@
+"""CRUD for `training_runs`."""
+from __future__ import annotations
+
+import json
+import time
+from typing import Any
+
+from finetune_studio.db.connection import cursor, new_id, row_to_dict
+
+
+def _get(rid: str) -> dict | None:
+    with cursor() as c:
+        r = c.execute("SELECT * FROM training_runs WHERE id = ?", (rid,)).fetchone()
+    return row_to_dict(r)
+
+
+def create_run(project_id: str, name: str, base_model: str = "",
+               data_path: str = "", rag_ids: list | None = None,
+               settings_obj: dict | None = None, system_prompt: str = "",
+               parent_run_id: str | None = None, notes: str = "") -> dict:
+    rid = new_id()
+    now = time.time()
+    with cursor() as c:
+        c.execute(
+            "INSERT INTO training_runs (id, project_id, name, base_model, data_path, "
+            "rag_ids_json, settings_json, system_prompt, parent_run_id, notes, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (rid, project_id, name, base_model, data_path,
+             json.dumps(rag_ids or []), json.dumps(settings_obj or {}),
+             system_prompt, parent_run_id, notes, now),
+        )
+    return _get(rid)  # type: ignore[return-value]
+
+
+def get_run(rid: str) -> dict | None:
+    return _get(rid)
+
+
+def list_runs(project_id: str | None = None) -> list[dict]:
+    with cursor() as c:
+        if project_id:
+            rows = c.execute(
+                "SELECT * FROM training_runs WHERE project_id = ? ORDER BY created_at DESC",
+                (project_id,),
+            ).fetchall()
+        else:
+            rows = c.execute("SELECT * FROM training_runs ORDER BY created_at DESC").fetchall()
+    return [row_to_dict(r) for r in rows]
+
+
+def update_run(rid: str, **fields: Any) -> dict | None:
+    allowed = {
+        "name", "base_model", "data_path", "system_prompt",
+        "status", "started_at", "finished_at", "output_path",
+        "metrics_json", "notes", "parent_run_id",
+    }
+    sets, vals = [], []
+    for k, v in fields.items():
+        if k in allowed:
+            if k in ("metrics_json",) and isinstance(v, (dict, list)):
+                v = json.dumps(v)
+            sets.append(f"{k} = ?")
+            vals.append(v)
+    if not sets:
+        return _get(rid)
+    vals.append(rid)
+    with cursor() as c:
+        c.execute(f"UPDATE training_runs SET {', '.join(sets)} WHERE id = ?", vals)
+    return _get(rid)
+
+
+def delete_run(rid: str) -> bool:
+    with cursor() as c:
+        c.execute("DELETE FROM training_runs WHERE id = ?", (rid,))
+    return True
