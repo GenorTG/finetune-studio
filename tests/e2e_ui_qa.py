@@ -297,6 +297,71 @@ async () => {
         await page.close()
 
 
+async def test_palette(ctx):
+    page = await ctx.new_page()
+    try:
+        await page.goto(BASE + "/", wait_until="networkidle")
+        await page.wait_for_timeout(1500)
+
+        # Button label must reflect the user's platform (Ctrl on Linux/Win,
+        # ⌘ on Mac) — never a one-size-fits-all lie.
+        btn_text = await page.evaluate(
+            "() => document.getElementById('sb-palette')?.innerText || ''"
+        )
+        is_mac = await page.evaluate("() => /Mac/.test(navigator.platform)")
+        expected = "⌘" if is_mac else "Ctrl"
+        rec("palette.platform_label", expected in btn_text, btn_text[:40])
+
+        # Open via hotkey and search 'rag' from a no-project page.
+        await page.keyboard.press("Control+K")
+        await page.wait_for_timeout(400)
+        visible = await page.evaluate(
+            "() => !document.getElementById('palette').hidden"
+        )
+        rec("palette.opens_with_ctrl_k", visible)
+
+        await page.fill("#palette-input", "rag")
+        await page.wait_for_timeout(500)
+        rows = await page.evaluate("""
+() => Array.from(document.querySelectorAll('.palette-row')).map(r => ({
+  href: r.dataset.href, label: r.querySelector('.palette-row-label')?.textContent
+}))
+        """)
+        rec("palette.rag_returns_multiple", len(rows) >= 3,
+            f"got {len(rows)} rows")
+
+        # Multi-token: 'qa3 rag' should only return rag pages of QA3-test.
+        await page.fill("#palette-input", "qa3 rag")
+        await page.wait_for_timeout(500)
+        rows = await page.evaluate("""
+() => Array.from(document.querySelectorAll('.palette-row')).map(r => ({
+  href: r.dataset.href, label: r.querySelector('.palette-row-label')?.textContent
+}))
+        """)
+        all_rag = all(r["label"] == "rag" for r in rows) and len(rows) >= 1
+        rec("palette.multi_token_tight", all_rag, str([r["label"] for r in rows]))
+
+        # Unknown query → empty state.
+        await page.fill("#palette-input", "xyz_no_match")
+        await page.wait_for_timeout(400)
+        empty = await page.evaluate(
+            "() => Boolean(document.querySelector('.palette-empty'))"
+        )
+        rec("palette.empty_state", empty)
+
+        # Escape closes.
+        await page.keyboard.press("Escape")
+        await page.wait_for_timeout(300)
+        closed = await page.evaluate(
+            "() => document.getElementById('palette').hidden"
+        )
+        rec("palette.escape_closes", closed)
+    except Exception as e:
+        rec("palette.test.error", False, str(e)[:120])
+    finally:
+        await page.close()
+
+
 async def test_spa(ctx):
     page = await ctx.new_page()
     try:
@@ -402,6 +467,7 @@ async def main():
         await test_hf_explore(ctx)
         await test_hf_local_api(ctx)
         await test_projects(ctx)
+        await test_palette(ctx)
         await test_spa(ctx)
         await test_settings_ssr(ctx)
 
