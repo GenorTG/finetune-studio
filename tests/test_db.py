@@ -106,7 +106,7 @@ class TestRuns:
         assert rid is not None
         run = db.get_run(rid)
         assert run["name"] == "Run 1"
-        assert run["status"] == "pending"
+        assert run["status"] == "created"
 
     def test_update_run_status(self, mock_settings):
         import finetune_studio.db as db
@@ -138,10 +138,9 @@ class TestRuns:
         r1 = db.create_run(project_id=pid, name="Pending Run", settings_obj={})["id"]
         r2 = db.create_run(project_id=pid, name="Done Run", settings_obj={})["id"]
         db.update_run(r2, status="done")
-        pending = db.list_runs(pid, status="pending")
-        done = db.list_runs(pid, status="done")
-        pending_names = {r["name"] for r in pending}
-        done_names = {r["name"] for r in done}
+        all_runs = db.list_runs(pid)
+        pending_names = {r["name"] for r in all_runs if r["status"] == "created"}
+        done_names = {r["name"] for r in all_runs if r["status"] == "done"}
         assert "Pending Run" in pending_names
         assert "Done Run" in done_names
         assert "Done Run" not in pending_names
@@ -155,21 +154,21 @@ class TestBenchmarks:
         pid = db.create_project(name="Benchmark Test", description="")["id"]
         rid = db.create_run(project_id=pid, name="Run", settings_obj={})["id"]
         bid = db.create_benchmark(
-            run_id=rid, name="Benchmark 1", score=0.85,
-            details='{"loss": 0.15}',
+            run_id=rid, suite_name="loss",
+            scores={"loss": 0.15},
         )["id"]
         assert bid is not None
         b = db.get_benchmark(bid)
-        assert b["score"] == 0.85
+        assert b["scores"]["loss"] == 0.15
         assert b["run_id"] == rid
 
     def test_list_benchmarks(self, mock_settings):
         import finetune_studio.db as db
         pid = db.create_project(name="List Bench", description="")["id"]
         rid = db.create_run(project_id=pid, name="Run", settings_obj={})["id"]
-        db.create_benchmark(run_id=rid, name="B1", score=0.8)
-        db.create_benchmark(run_id=rid, name="B2", score=0.9)
-        benchmarks = db.list_benchmarks(rid)
+        db.create_benchmark(run_id=rid, suite_name="B1", scores={"acc": 0.8})
+        db.create_benchmark(run_id=rid, suite_name="B2", scores={"acc": 0.9})
+        benchmarks = db.list_benchmarks(run_id=rid)
         assert len(benchmarks) == 2
 
 
