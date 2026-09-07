@@ -38,8 +38,8 @@
 </div>
 
 <div id="hf-results">
-  {% if results %}
   <div class="hf-grid" id="hf-grid">
+    {% if results %}
     {% for r in results %}
     <div class="hf-card">
       <div class="head">
@@ -66,9 +66,10 @@
       </div>
     </div>
     {% endfor %}
+    {% endif %}
   </div>
-  {% else %}
-  <div class="empty">
+  {% if not results %}
+  <div class="empty" id="hf-empty">
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
     <div>Loading...</div>
   </div>
@@ -113,8 +114,13 @@ async function doSearch() {
 
 function renderResults(results) {
   const grid = document.getElementById('hf-grid');
+  const empty = document.getElementById('hf-empty');
+  if (!grid) return;
+  grid.innerHTML = '';
+  if (empty) empty.style.display = '';
   if (!results.length) {
     grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">No results.</div>';
+    if (empty) empty.style.display = 'none';
     return;
   }
   const COLORS = ['solid-blue','solid-green','solid-purple','solid-orange','solid-pink','solid-cyan','solid-amber'];
@@ -145,6 +151,7 @@ function renderResults(results) {
         </div>
       </div>`;
   }).join('');
+  if (empty) empty.style.display = 'none';
 }
 
 function esc(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
