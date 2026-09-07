@@ -947,6 +947,21 @@ body::before {
                       100% calc(100% - 4px), calc(100% - 4px) 100%,
                       4px 100%, 0 calc(100% - 4px));
 }
+
+/* Phosphor icon — generic chip-shaped icon used in project cards, headers, etc. */
+.ph-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 32px; height: 32px;
+  background: var(--accent);
+  color: #060a07;
+  font-size: 16px;
+  border: 0;
+  clip-path: polygon(0 4px, 4px 0, calc(100% - 4px) 0, 100% 4px,
+                      100% calc(100% - 4px), calc(100% - 4px) 100%,
+                      4px 100%, 0 calc(100% - 4px));
+}
+.ph-icon.lg { width: 36px; height: 36px; font-size: 18px; }
 .hf-card .name {
   font-weight: 700;
   font-size: 13px;

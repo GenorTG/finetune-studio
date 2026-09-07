@@ -97,7 +97,7 @@
     <div class="proj-list">
       {% for p in projects %}
       <a class="proj-card" href="/projects/{{ p.id }}" data-link>
-        <div class="icon" style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;color:#fff;font-weight:700;">{{ p.name[0]|upper }}</div>
+        <div class="icon ph-icon">{{ p.name[0]|upper }}</div>
         <div style="flex:1;min-width:0;">
           <div class="name truncate">{{ p.name }}</div>
           <div class="desc truncate">{{ p.description or 'No description' }}</div>

@@ -210,8 +210,9 @@
 
 {% block scripts %}
 <style>
-  .mem-bar-track { background: var(--bg-elev); height: 8px; border-radius: 4px; overflow: hidden; }
-  .mem-bar-fill  { background: linear-gradient(90deg, var(--accent), var(--accent-2)); height: 100%; transition: width .3s; }
+  .mem-bar-track { background: var(--bg-elev); height: 10px; border-radius: 0; overflow: hidden;
+                    border: 1px solid var(--border); }
+  .mem-bar-fill  { background: repeating-linear-gradient(90deg, var(--accent) 0 6px, var(--accent-2) 6px 8px); height: 100%; transition: width .3s; }
   .loader-params summary { list-style: none; user-select: none; }
   .loader-params summary::-webkit-details-marker { display: none; }
   .loader-params[open] > summary { font-weight: 600; }
