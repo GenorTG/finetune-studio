@@ -84,12 +84,23 @@
       form.addEventListener("submit", (ev) => {
         ev.preventDefault();
         const url = form.getAttribute("data-api");
-        const data = Object.fromEntries(new FormData(form));
-        api.post(url, data).then((d) => {
-          if (d.error) notify(d.error, "error");
-          else notify("Done", "success");
-          if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
-        });
+        // If the form has file inputs, submit as multipart; otherwise JSON
+        const hasFiles = form.querySelector('input[type="file"]');
+        if (hasFiles && form.enctype === "multipart/form-data") {
+          const fd = new FormData(form);
+          fetch(url, { method: "POST", body: fd }).then(_ok).then((d) => {
+            if (d && d.error) notify(d.error, "error");
+            else notify("Upload done", "success");
+            if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
+          }).catch((err) => notify(err.message || "Upload failed", "error"));
+        } else {
+          const data = Object.fromEntries(new FormData(form));
+          api.post(url, data).then((d) => {
+            if (d.error) notify(d.error, "error");
+            else notify("Done", "success");
+            if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
+          });
+        }
       });
     });
     // Buttons
