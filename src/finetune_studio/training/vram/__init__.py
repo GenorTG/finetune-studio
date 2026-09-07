@@ -30,7 +30,7 @@ training/vram/
 from finetune_studio.training.vram.constants import (
     ACTIVATION_SAFETY_MARGIN, CUDA_OVERHEAD_GB, DTYPE_BYTES, MODEL_PRESETS,
 )
-from finetune_studio.training.vram.gpu import GPUInfo
+from finetune_studio.training.vram.gpu import GPUInfo, detect
 from finetune_studio.training.vram.schema import ProfileResult, RecommendedConfig, VRAMEstimate
 from finetune_studio.training.vram.estimate import estimate_vram
 from finetune_studio.training.vram.recommend import recommend_config, recommend_for_model
