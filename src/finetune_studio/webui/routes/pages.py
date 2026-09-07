@@ -64,11 +64,34 @@ async def index(request: Request):
 @router.get("/inference", response_class=HTMLResponse)
 async def inference_page(request: Request):
     """Global inference page — load any model, chat, run benchmarks."""
-    from finetune_studio.webui.app import discovered_models
+    from finetune_studio.webui.app import discovered_models, inference_engine
+    loaded = None
+    if inference_engine.model is not None:
+        # Find matching discovered model for metadata
+        loaded_path = inference_engine.model_path
+        loaded = next(
+            (m for m in discovered_models if m.path == loaded_path),
+            None,
+        )
+        if loaded is None:
+            # Model is loaded but not in discovered set (e.g. via /api/chat-v2/load)
+            from finetune_studio.models.loader import load_model_info
+            info = load_model_info(loaded_path) or {}
+            from types import SimpleNamespace
+            loaded = SimpleNamespace(
+                name=info.get("name") or loaded_path.split("/")[-1],
+                path=loaded_path,
+                format=info.get("format", ""),
+                size_gb=info.get("size_gb", 0.0),
+                architecture=info.get("architecture", ""),
+                vision=getattr(inference_engine, "vision", False),
+            )
+        else:
+            loaded.vision = getattr(inference_engine, "vision", False)
     return templates.TemplateResponse(
         request,
         "inference.html",
-        {"request": request, "models": discovered_models},
+        {"request": request, "models": discovered_models, "loaded": loaded},
     )
 
 

@@ -129,6 +129,7 @@ from finetune_studio.webui.routes import (
 
 app.include_router(pages.router)  # type: ignore[has-type]
 app.include_router(models.router, prefix="/api/models", tags=["models"])  # type: ignore[has-type]
+app.include_router(models.inference_router, prefix="/api/inference", tags=["inference"])  # type: ignore[has-type]
 app.include_router(training.router, prefix="/api/training", tags=["training"])  # type: ignore[has-type]
 app.include_router(data.router, prefix="/api/data", tags=["data"])  # type: ignore[has-type]
 app.include_router(testing.router, prefix="/api/testing", tags=["testing"])  # type: ignore[has-type]

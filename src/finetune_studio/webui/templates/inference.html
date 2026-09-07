@@ -6,64 +6,173 @@
 {% block content %}
 <div class="grid grid-1-3" style="height: calc(100vh - var(--header-h) - 56px);">
 
-  {# ── Left: model picker + params ──────────────────────── #}
+  {# ── Left: model loader + params ──────────────────────── #}
   <div class="card" style="overflow:auto;">
     <div class="card-head">
       <div class="card-title">Model</div>
-      <span class="pill solid-blue" id="loaded-badge" hidden>● loaded</span>
+      {% if loaded %}
+      <span class="pill solid-green">● loaded</span>
+      {% else %}
+      <span class="pill">unloaded</span>
+      {% endif %}
     </div>
 
+    {# Loaded-model summary (always shown when loaded) #}
     {% if loaded %}
-      <div class="text-sm" style="margin-bottom:12px;">
-        <div class="mono truncate">{{ loaded.path }}</div>
-        <div class="text-xs dim mt-1">
-          {{ loaded.format|upper }} · {{ "%.1f"|format(loaded.size_gb) }} GB
-          {% if loaded.architecture %} · {{ loaded.architecture }}{% endif %}
-        </div>
+    <div class="text-sm" style="margin-bottom:12px;">
+      <div class="mono truncate">{{ loaded.path }}</div>
+      <div class="text-xs dim mt-1">
+        {{ loaded.format|upper }} · {{ "%.1f"|format(loaded.size_gb) }} GB
+        {% if loaded.architecture %} · {{ loaded.architecture }}{% endif %}
+        {% if loaded.vision %} · vision{% endif %}
       </div>
-    {% else %}
-      <select id="model-select" class="select mb-4">
-        <option value="">— pick a model —</option>
-        {% for m in models %}
-          <option value="{{ m.path }}">{{ m.name }} · {{ m.format|upper }} · {{ "%.1f"|format(m.size_gb) }}GB</option>
-        {% endfor %}
-      </select>
-      <button class="btn primary" id="load-btn" onclick="loadModel()" {% if not models %}disabled{% endif %}>Load model</button>
+    </div>
     {% endif %}
 
-    {% if loaded %}
+    {# Model picker (always available, so user can swap) #}
+    <select id="model-select" class="select mb-3">
+      <option value="">— pick a model —</option>
+      {% for m in models %}
+        <option value="{{ m.path }}" {% if loaded and loaded.path == m.path %}selected{% endif %}>
+          {{ m.name }} · {{ m.format|upper }} · {{ "%.1f"|format(m.size_gb) }}GB
+        </option>
+      {% endfor %}
+    </select>
+
+    {# Memory estimation bar #}
+    <div id="mem-bar-wrap" class="mb-3" hidden>
+      <div class="flex justify-between text-xs muted mb-1">
+        <span>VRAM estimate</span>
+        <span id="mem-label" class="mono">—</span>
+      </div>
+      <div class="mem-bar-track">
+        <div id="mem-bar" class="mem-bar-fill" style="width:0%"></div>
+      </div>
+      <div class="text-[10px] dim mt-1" id="mem-detail"></div>
+    </div>
+
+    {# ── Loader controls (LM Studio-style) ─────────────────── #}
+    <details open class="loader-params">
+      <summary class="text-sm mb-2 cursor-pointer">Loader settings</summary>
+
+      <div class="mt-3">
+        <label class="block text-xs muted mb-1">
+          Context length <span id="n-ctx-val" class="mono violet">4096</span>
+        </label>
+        <input type="range" id="n-ctx" class="range" min="512" max="131072" step="512" value="4096"
+               oninput="document.getElementById('n-ctx-val').textContent=this.value; updateMemEstimate()">
+        <div class="text-[10px] dim mt-0.5">KV cache size. Larger = more VRAM.</div>
+      </div>
+
+      <div class="mt-3">
+        <label class="block text-xs muted mb-1">
+          GPU offload layers <span id="n-gpu-val" class="mono violet">all</span>
+        </label>
+        <input type="range" id="n-gpu-layers" class="range" min="0" max="200" step="1" value="99"
+               oninput="document.getElementById('n-gpu-val').textContent=this.value==99?'all':this.value; updateMemEstimate()">
+        <div class="text-[10px] dim mt-0.5">0 = CPU only · 99+ = all layers offloaded to GPU</div>
+      </div>
+
+      <div class="mt-3">
+        <label class="block text-xs muted mb-1">
+          Batch size <span id="n-batch-val" class="mono violet">512</span>
+        </label>
+        <input type="range" id="n-batch" class="range" min="64" max="2048" step="64" value="512"
+               oninput="document.getElementById('n-batch-val').textContent=this.value">
+        <div class="text-[10px] dim mt-0.5">Prompt eval batch. 512 is a good default.</div>
+      </div>
+
+      <button onclick="toggleAdv()" id="adv-toggle" class="text-xs muted mt-3 mb-2" type="button">
+        ▶ Advanced settings
+      </button>
+
+      <div id="adv-panel" hidden>
+        <div class="grid-2 gap-3">
+          <div>
+            <label class="block text-xs muted mb-1">
+              CPU threads <span id="n-threads-val" class="mono violet">auto</span>
+            </label>
+            <input type="range" id="n-threads" class="range" min="0" max="32" step="1" value="0"
+                   oninput="document.getElementById('n-threads-val').textContent=this.value==0?'auto':this.value">
+            <div class="text-[10px] dim mt-0.5">0 = auto</div>
+          </div>
+          <div>
+            <label class="block text-xs muted mb-1">Seed</label>
+            <input type="number" id="seed" min="-1" placeholder="random" class="input"
+                   oninput="document.getElementById('seed-val').textContent=this.value||'random'">
+            <div class="text-[10px] dim mt-0.5">-1 = random</div>
+          </div>
+          <div>
+            <label class="block text-xs muted mb-1">RoPE freq base</label>
+            <input type="number" id="rope-freq-base" min="0" step="1" value="0" class="input"
+                   oninput="document.getElementById('rope-base-val').textContent=this.value||'auto'">
+            <div class="text-[10px] dim mt-0.5">0 = model default</div>
+          </div>
+          <div>
+            <label class="block text-xs muted mb-1">RoPE freq scale</label>
+            <input type="number" id="rope-freq-scale" min="0" step="0.01" value="0" class="input"
+                   oninput="document.getElementById('rope-scale-val').textContent=this.value||'auto'">
+            <div class="text-[10px] dim mt-0.5">0 = model default</div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-3 mt-3 text-xs">
+          <label class="flex items-center gap-2 muted">
+            <input type="checkbox" id="flash-attn" checked> Flash attention
+          </label>
+          <label class="flex items-center gap-2 muted">
+            <input type="checkbox" id="mmap" checked> mmap
+          </label>
+          <label class="flex items-center gap-2 muted">
+            <input type="checkbox" id="mlock"> mlock (pin in RAM)
+          </label>
+          <label class="flex items-center gap-2 muted">
+            <input type="checkbox" id="keep-in-memory">
+            Keep model in memory after unload
+          </label>
+        </div>
+      </div>
+    </details>
+
+    <div class="mt-4 flex gap-2">
+      {% if loaded %}
+      <button class="btn primary" id="load-btn" onclick="loadModel()">Reload model</button>
+      <button class="btn danger" id="unload-btn" onclick="unloadModel()">Unload</button>
+      {% else %}
+      <button class="btn primary" id="load-btn" onclick="loadModel()" {% if not models %}disabled{% endif %}>Load model</button>
+      {% endif %}
+    </div>
+
     <div class="divider"></div>
 
-    {# Generation params #}
+    {# Generation params (only when loaded) #}
+    {% if loaded %}
     <div class="card-title">Generation</div>
-
     <div class="mt-3">
-      <label class="block text-xs muted mb-1">Temperature <span id="t-val" class="violet mono">0.7</span></label>
-      <input type="range" id="t" class="range" min="0" max="2" step="0.05" value="0.7" oninput="document.getElementById('t-val').textContent=this.value">
+      <label class="block text-xs muted mb-1">
+        Temperature <span id="t-val" class="violet mono">0.7</span>
+      </label>
+      <input type="range" id="t" class="range" min="0" max="2" step="0.05" value="0.7"
+             oninput="document.getElementById('t-val').textContent=this.value">
     </div>
-
     <div class="mt-3">
-      <label class="block text-xs muted mb-1">Max tokens <span id="m-val" class="violet mono">512</span></label>
-      <input type="range" id="m" class="range" min="32" max="4096" step="32" value="512" oninput="document.getElementById('m-val').textContent=this.value">
+      <label class="block text-xs muted mb-1">
+        Max tokens <span id="m-val" class="violet mono">512</span>
+      </label>
+      <input type="range" id="m" class="range" min="32" max="4096" step="32" value="512"
+             oninput="document.getElementById('m-val').textContent=this.value">
     </div>
-
     <div class="mt-3">
-      <label class="block text-xs muted mb-1">Top-P <span id="p-val" class="violet mono">0.9</span></label>
-      <input type="range" id="p" class="range" min="0" max="1" step="0.05" value="0.9" oninput="document.getElementById('p-val').textContent=this.value">
+      <label class="block text-xs muted mb-1">
+        Top-P <span id="p-val" class="violet mono">0.9</span>
+      </label>
+      <input type="range" id="p" class="range" min="0" max="1" step="0.05" value="0.9"
+             oninput="document.getElementById('p-val').textContent=this.value">
     </div>
-
-    <div class="mt-3">
-      <label class="block text-xs muted mb-1">GPU layers <span id="g-val" class="violet mono">all</span></label>
-      <input type="range" id="g" class="range" min="0" max="120" step="1" value="99" oninput="document.getElementById('g-val').textContent=this.value==99?'all':this.value">
-    </div>
-
     <div class="mt-3">
       <label class="block text-xs muted mb-1">System prompt</label>
       <textarea id="sp" class="textarea" rows="3" placeholder="You are a helpful assistant."></textarea>
     </div>
-
-    <div class="divider"></div>
-    <button class="btn danger" data-confirm="Unload the model and free VRAM?" data-action="/api/models/unload" data-reload="true">Unload model</button>
     {% endif %}
   </div>
 
@@ -77,16 +186,19 @@
     <div class="chat" style="flex:1;">
       <div class="msgs" id="msgs">
         {% if not loaded %}
-          <div class="empty">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-            <div>Load a model on the left to start chatting.</div>
-          </div>
+        <div class="empty">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+          </svg>
+          <div>Load a model on the left to start chatting.</div>
+        </div>
         {% endif %}
       </div>
 
       {% if loaded %}
       <div class="chat-input">
-        <textarea id="msg" rows="1" placeholder="Message… (Shift+Enter for newline)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"></textarea>
+        <textarea id="msg" rows="1" placeholder="Message… (Shift+Enter for newline)"
+                  onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"></textarea>
         <button class="btn primary" onclick="send()" id="send-btn">Send</button>
       </div>
       {% endif %}
@@ -97,30 +209,110 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+  .mem-bar-track { background: var(--bg-elev); height: 8px; border-radius: 4px; overflow: hidden; }
+  .mem-bar-fill  { background: linear-gradient(90deg, var(--violet), var(--blue)); height: 100%; transition: width .3s; }
+  .loader-params summary { list-style: none; user-select: none; }
+  .loader-params summary::-webkit-details-marker { display: none; }
+  .loader-params[open] > summary { font-weight: 600; }
+</style>
 <script>
+const $ = (id) => document.getElementById(id);
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+function readLoaderParams() {
+  const v = (id) => $(id).value;
+  const i = (id) => $(id).checked;
+  const seed = v('seed').trim();
+  const ropeBase = v('rope-freq-base').trim();
+  const ropeScale = v('rope-freq-scale').trim();
+  return {
+    n_ctx: parseInt(v('n-ctx')),
+    n_gpu_layers: parseInt(v('n-gpu-layers')),
+    n_batch: parseInt(v('n-batch')),
+    n_threads: parseInt(v('n-threads')) || null,
+    seed: seed === '' || seed === '-1' ? -1 : parseInt(seed),
+    rope_freq_base: ropeBase === '' ? 0 : parseFloat(ropeBase),
+    rope_freq_scale: ropeScale === '' ? 0 : parseFloat(ropeScale),
+    flash_attn: i('flash-attn'),
+    mmap: i('mmap'),
+    mlock: i('mlock'),
+  };
+}
+
+function toggleAdv() {
+  const p = $('adv-panel');
+  p.hidden = !p.hidden;
+  $('adv-toggle').textContent = p.hidden ? '▶ Advanced settings' : '▼ Advanced settings';
+}
+
+let memTimer = null;
+function updateMemEstimate() {
+  clearTimeout(memTimer);
+  memTimer = setTimeout(async () => {
+    const path = $('model-select').value;
+    if (!path) { $('mem-bar-wrap').hidden = true; return; }
+    const params = readLoaderParams();
+    try {
+      const r = await fts.api.post('/api/inference/memory-estimate', { path, ...params });
+      if (r.error) { $('mem-bar-wrap').hidden = true; return; }
+      const total = (r.total_vram_gb || r.vram_gb || 0);
+      const weights = (r.weights_gb || 0);
+      const ctx = (r.kv_cache_gb || 0);
+      const used = (r.currently_used_gb || 0);
+      const cap = (r.total_gpu_gb || 24);
+      const pct = Math.min(100, (used + total) / cap * 100);
+      $('mem-bar-wrap').hidden = false;
+      $('mem-bar').style.width = pct + '%';
+      $('mem-bar').style.background = pct > 90 ? 'var(--red)' : pct > 75 ? 'var(--amber)' : 'linear-gradient(90deg, var(--violet), var(--blue))';
+      $('mem-label').textContent = `${total.toFixed(1)} GB est (used ${used.toFixed(1)} / ${cap.toFixed(0)})`;
+      $('mem-detail').textContent = `weights ${weights.toFixed(1)} GB · KV cache ${ctx.toFixed(2)} GB`;
+    } catch (e) {
+      $('mem-bar-wrap').hidden = true;
+    }
+  }, 250);
+}
+
 async function loadModel() {
-  const path = document.getElementById('model-select').value;
+  const path = $('model-select').value;
   if (!path) return fts.notify('Pick a model first', 'warn');
-  const btn = document.getElementById('load-btn');
+  const btn = $('load-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Loading…';
   try {
-    const r = await fts.api.post('/api/models/load', { path });
+    const params = readLoaderParams();
+    const r = await fts.api.post('/api/models/load', { path, ...params });
     if (r.error) throw new Error(r.error);
     fts.notify('Model loaded', 'success');
-    setTimeout(() => location.reload(), 500);
+    setTimeout(() => location.reload(), 600);
   } catch (e) {
-    fts.notify(e.message, 'error');
+    fts.notify('Load failed: ' + e.message, 'error');
     btn.disabled = false;
     btn.textContent = 'Load model';
   }
 }
 
+async function unloadModel() {
+  if (!confirm('Unload the model and free VRAM?')) return;
+  const btn = $('unload-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Unloading…';
+  try {
+    await fts.api.post('/api/models/unload', {});
+    fts.notify('Model unloaded', 'success');
+    setTimeout(() => location.reload(), 400);
+  } catch (e) {
+    fts.notify('Unload failed: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Unload';
+  }
+}
+
 async function send() {
-  const ta = document.getElementById('msg');
+  const ta = $('msg');
   const text = ta.value.trim();
   if (!text) return;
-  const msgs = document.getElementById('msgs');
+  const msgs = $('msgs');
   const userDiv = document.createElement('div');
   userDiv.className = 'bubble user';
   userDiv.textContent = text;
@@ -133,42 +325,38 @@ async function send() {
   msgs.appendChild(aDiv);
   msgs.scrollTop = msgs.scrollHeight;
 
-  document.getElementById('send-btn').disabled = true;
-  document.getElementById('chat-status').textContent = 'Generating…';
+  $('send-btn').disabled = true;
+  $('chat-status').textContent = 'Generating…';
   const start = performance.now();
 
   try {
     const params = {
-      temperature: parseFloat(document.getElementById('t').value),
-      max_tokens: parseInt(document.getElementById('m').value),
-      top_p: parseFloat(document.getElementById('p').value),
-      n_gpu_layers: parseInt(document.getElementById('g').value),
-      system_prompt: document.getElementById('sp').value || '',
-      messages: Array.from(msgs.querySelectorAll('.bubble')).map(b => ({
-        role: b.classList.contains('user') ? 'user' : 'assistant',
-        content: b.textContent.replace(/^assistant$/, '').trim(),
-      })),
+      temperature: parseFloat($('t').value),
+      max_tokens: parseInt($('m').value),
+      top_p: parseFloat($('p').value),
+      system_prompt: $('sp').value || '',
+      messages: [{role: 'user', content: text}],
     };
-
     const r = await fts.api.post('/api/inference/chat', params);
-    const text = (r.response || r.text || '').trim() || '(no response)';
+    const body = (r.response || r.text || '').trim() || '(no response)';
     const dt = ((performance.now() - start) / 1000).toFixed(1);
 
     let thinking = '';
-    let body = text;
     const tm = r.thinking || r.reasoning || '';
-    if (tm) {
-      thinking = `<details><summary>thinking (${tm.length} chars)</summary><pre>${esc(tm)}</pre></details>`;
-    }
+    if (tm) thinking = `<details><summary>thinking (${tm.length} chars)</summary><pre>${esc(tm)}</pre></details>`;
     aDiv.innerHTML = `<span class="meta">assistant · ${dt}s</span>${thinking}${esc(body)}`;
     msgs.scrollTop = msgs.scrollHeight;
-    document.getElementById('chat-status').innerHTML = '<span class="ok">● live</span> · ' + dt + 's';
+    $('chat-status').innerHTML = '<span class="ok">● live</span> · ' + dt + 's';
   } catch (e) {
     aDiv.innerHTML = '<span class="meta err">error</span> ' + esc(e.message);
   } finally {
-    document.getElementById('send-btn').disabled = false;
+    $('send-btn').disabled = false;
   }
 }
-function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+// Auto-refresh memory estimate when model changes
+document.getElementById('model-select').addEventListener('change', updateMemEstimate);
+// Run once on load if a model is already loaded (to refresh mem-bar status)
+updateMemEstimate();
 </script>
 {% endblock %}
