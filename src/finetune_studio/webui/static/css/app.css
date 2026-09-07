@@ -1063,6 +1063,41 @@ body::before {
 .row-hover { transition: background var(--t-fast) var(--ease); }
 .row-hover:hover { background: var(--bg-panel); }
 
+/* ===== Chunky block progress bar (RAG build, etc.) =====
+   Same brutalist aesthetic as .mem-bar: repeating blocks, no gradients,
+   zero radius. Used by the RAG build SSE progress feed. */
+.hpbar {
+  position: relative;
+  height: 14px;
+  width: 100%;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-strong);
+  border-radius: 0;
+  overflow: hidden;
+  background-image: repeating-linear-gradient(90deg,
+    var(--bg-panel) 0 8px, transparent 8px 16px);
+}
+.hpbar-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  background-image: repeating-linear-gradient(90deg,
+    var(--accent) 0 8px, var(--accent-2) 8px 16px);
+  transition: width 0.4s var(--ease);
+  box-shadow: 0 0 8px var(--accent);
+}
+.hpbar-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(0deg,
+    rgba(0,0,0,0.18) 0 1px, transparent 1px 3px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .hpbar-fill { transition: none; }
+}
+
 /* ============================================================
    SPRITE & ANIMATION SYSTEM
    ============================================================ */

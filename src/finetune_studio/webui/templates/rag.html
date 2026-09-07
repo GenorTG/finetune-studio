@@ -62,6 +62,10 @@
     </div>
   </div>
   <div id="build-status" class="mt-3 text-xs dim"></div>
+  <div id="build-progress-wrap" class="mt-2" hidden>
+    <div class="hpbar"><div id="build-progress-fill" class="hpbar-fill"></div></div>
+    <div id="build-progress-text" class="text-xs mono mt-1"></div>
+  </div>
 </div>
 
 {# Settings #}
@@ -213,11 +217,73 @@
         notify(r.error, 'error');
         return;
       }
-      const n = r.chunk_count || r.chunks || (r.manifest && r.manifest.chunk_count) || '?';
-      status.textContent = 'Done — ' + n + ' chunks indexed.';
-      notify('Corpus built: ' + n + ' chunks', 'success');
-      if (typeof window.loadRagStatus === 'function') window.loadRagStatus();
-      else if (typeof loadRagStatus === 'function') loadRagStatus();
+      // Backend kicks off embedding in the background, so the immediate
+      // response carries only the queued file count. Show that now, then
+      // open an SSE stream to /rag/build/progress for live chunking/embedding
+      // feedback, and replace with the final chunk count when done.
+      const q = r.queued_files != null ? r.queued_files : '?';
+      status.textContent = 'Queued ' + q + ' file' + (q === 1 ? '' : 's') + ' — embedding…';
+      notify('Corpus build started: ' + q + ' files queued', 'info');
+
+      const wrap = document.getElementById('build-progress-wrap');
+      const fill = document.getElementById('build-progress-fill');
+      const progText = document.getElementById('build-progress-text');
+      wrap.hidden = false;
+      fill.style.width = '0%';
+      progText.textContent = 'INIT…';
+
+      let es;
+      try {
+        es = new EventSource('/api/projects/' + PID + '/rag/build/progress');
+        es.onmessage = (ev) => {
+          let p;
+          try { p = JSON.parse(ev.data); } catch (_) { return; }
+          const total = p.files_total || 1;
+          const done = p.files_done || 0;
+          const pct = Math.min(100, Math.round((done / total) * 100));
+          fill.style.width = pct + '%';
+          const phaseTag = (p.phase || '').toUpperCase();
+          progText.textContent = phaseTag + ' ' + done + '/' + total +
+            ' files  ' + pct + '%  ' + p.elapsed_s + 's';
+          if (p.phase === 'done') {
+            const m = p.chunks || '?';
+            status.textContent = 'Done — ' + m + ' chunks indexed.';
+            notify('Corpus built: ' + m + ' chunks', 'success');
+            es.close();
+            wrap.hidden = true;
+            if (typeof window.loadRagStatus === 'function') window.loadRagStatus();
+            else if (typeof loadRagStatus === 'function') loadRagStatus();
+          } else if (p.phase === 'timeout') {
+            status.textContent = 'Build still running — see status panel.';
+            es.close();
+          }
+        };
+        es.onerror = () => { /* let onmessage drive the rest */ };
+      } catch (e) {
+        // SSE not available — fall back to status polling.
+        let polls = 0;
+        const maxPolls = 240;
+        const pollHandle = setInterval(async () => {
+          polls++;
+          try {
+            const s = await api.get('/api/projects/' + PID + '/rag/status');
+            if (s && s.exists) {
+              const m = s.chunks || s.chunk_count || '?';
+              status.textContent = 'Done — ' + m + ' chunks indexed.';
+              notify('Corpus built: ' + m + ' chunks', 'success');
+              wrap.hidden = true;
+              clearInterval(pollHandle);
+              if (typeof window.loadRagStatus === 'function') window.loadRagStatus();
+              else if (typeof loadRagStatus === 'function') loadRagStatus();
+              return;
+            }
+          } catch (_) {}
+          if (polls >= maxPolls) {
+            status.textContent = 'Build still running.';
+            clearInterval(pollHandle);
+          }
+        }, 1500);
+      }
     } catch (e) {
       const msg = (e && e.message) || String(e);
       status.textContent = 'Error: ' + msg;

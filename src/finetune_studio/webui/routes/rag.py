@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
@@ -182,6 +182,13 @@ async def rag_build(pid: str, req: BuildRequest, background: BackgroundTasks):
         shutil.rmtree(corpus)
     rag = PortableRAG(corpus)
 
+    # Synchronously count .txt files we are about to feed — gives the UI a
+    # real "queued N files" message instead of the '?' fallback while the
+    # background embedder spins up (which can take minutes on CPU).
+    txt_files = sorted(project_files_dir.rglob("*.txt"))
+    queued_files = sum(1 for f in txt_files if f.is_file())
+    queued_chars = sum(f.stat().st_size for f in txt_files)
+
     # Run in background — embedding large corpora takes minutes on CPU
     background.add_task(
         rag.build_from_directory,
@@ -192,7 +199,81 @@ async def rag_build(pid: str, req: BuildRequest, background: BackgroundTasks):
         overlap=req.overlap,
         extensions=[".txt"],   # we feed it the parsed.txt files (already clean)
     )
-    return {"ok": True, "building": True, "corpus_dir": str(corpus)}
+    return {
+        "ok": True,
+        "building": True,
+        "corpus_dir": str(corpus),
+        "queued_files": queued_files,
+        "queued_chars": queued_chars,
+    }
+
+
+@router.get("/{pid}/rag/build/progress")
+async def rag_build_progress(pid: str):
+    """Server-Sent Events stream that reports corpus build progress.
+
+    The background build writes one .txt per source under
+    `<corpus>/sources/` and finally a `manifest.json`. This stream polls
+    those files every second and emits a JSON event:
+        {"phase":"queued|chunking|embedding|done|error",
+         "files_done":N,"files_total":M,"chunks":K}
+    Stream terminates once `phase` is `done` or `error`, or after 10 min.
+    """
+    import asyncio
+    import json as _json
+
+    corpus = _corpus_dir(pid)
+    project_files_dir = Path.home() / ".finetune-studio" / "projects" / pid / "files"
+    total_files = sum(1 for f in project_files_dir.rglob("*.txt") if f.is_file()) \
+        if project_files_dir.exists() else 0
+
+    async def gen():
+        start = asyncio.get_event_loop().time()
+        deadline = start + 600  # 10 min
+        last_phase = "queued"
+        try:
+            while asyncio.get_event_loop().time() < deadline:
+                # Sources written so far
+                sources_dir = corpus / "sources"
+                files_done = sum(1 for _ in sources_dir.glob("*.txt")) \
+                    if sources_dir.exists() else 0
+                # Phase inference
+                manifest_exists = (corpus / "manifest.json").exists()
+                chunks_path = corpus / "chunks.parquet"
+                if manifest_exists:
+                    phase = "done"
+                elif chunks_path.exists():
+                    phase = "embedding"
+                elif files_done > 0:
+                    phase = "chunking"
+                else:
+                    phase = "queued"
+                chunks_count = 0
+                if manifest_exists:
+                    try:
+                        m = _json.loads((corpus / "manifest.json").read_text())
+                        chunks_count = m.get("chunks", 0)
+                    except Exception:
+                        pass
+                payload = _json.dumps({
+                    "phase": phase,
+                    "files_done": files_done,
+                    "files_total": total_files,
+                    "chunks": chunks_count,
+                    "elapsed_s": int(asyncio.get_event_loop().time() - start),
+                })
+                yield f"data: {payload}\n\n"
+                if phase == "done":
+                    return
+                if phase != last_phase:
+                    last_phase = phase
+                await asyncio.sleep(1.0)
+            # Timed out
+            yield 'data: {"phase":"timeout","files_total":' + str(total_files) + '}\n\n'
+        except asyncio.CancelledError:
+            return
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 @router.post("/{pid}/rag/rebuild-vectors")

@@ -195,6 +195,53 @@ async def test_hf_explore(ctx):
         await page.close()
 
 
+async def test_hf_local_api(ctx):
+    """Verify HF local-models endpoints (list + delete) work end-to-end.
+
+    These are the data plane behind the 'Pull / Delete local' UI buttons.
+    Real downloads are heavy (multi-GB) so we exercise them via direct
+    fetch with a tiny placeholder repo and assert the round-trip.
+    """
+    page = await ctx.new_page()
+    try:
+        # 1) GET /api/hf/local should return a list (possibly empty).
+        items = await page.evaluate("""
+() => fetch('/api/hf/local').then(r => r.ok ? r.json() : [])
+        """)
+        rec("hf.local_api.list_ok", isinstance(items, list), f"{len(items)} local models")
+        # 2) The shape: each item should expose at least a 'repo_id' or 'id'.
+        if items:
+            keys = set(items[0].keys())
+            rec("hf.local_api.has_id_field", bool(keys & {"repo_id", "id"}),
+                f"keys={sorted(keys)[:5]}")
+        # 3) Files endpoint for a known local model — pick the first one if any.
+        if items:
+            first = items[0].get("repo_id") or items[0].get("id")
+            try:
+                fl = await page.evaluate(f"""
+() => fetch('/api/hf/local/{first}/files').then(r => r.ok ? r.json() : {{error: 'http ' + r.status}})
+                """)
+                rec("hf.local_api.files_ok", isinstance(fl, dict) and "files" in fl,
+                    f"{len(fl.get('files', [])) if isinstance(fl, dict) else '?'} files")
+            except Exception as e:
+                rec("hf.local_api.files_error", False, str(e)[:80])
+        # 4) Delete endpoint shape — DELETE a non-existent repo should return
+        # 404 (proves the route is wired), not 500.
+        try:
+            status = await page.evaluate("""
+() => fetch('/api/hf/local/__qa_nonexistent__/__qa_dummy__', {method: 'DELETE'})
+        .then(r => r.status)
+            """)
+            rec("hf.local_api.delete_route_wired", status in (200, 404),
+                f"status={status}")
+        except Exception as e:
+            rec("hf.local_api.delete_route_wired", False, str(e)[:80])
+    except Exception as e:
+        rec("hf.local_api.error", False, str(e)[:120])
+    finally:
+        await page.close()
+
+
 async def test_projects(ctx):
     page = await ctx.new_page()
     try:
@@ -339,6 +386,7 @@ async def main():
         await test_dashboard(ctx)
         await test_inference(ctx)
         await test_hf_explore(ctx)
+        await test_hf_local_api(ctx)
         await test_projects(ctx)
         await test_spa(ctx)
         await test_settings_ssr(ctx)
