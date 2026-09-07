@@ -279,6 +279,11 @@ async function loadModel() {
   const btn = $('load-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Loading…';
+  // show wire-transfer overlay
+  const wt = document.createElement('div');
+  wt.style.cssText = 'margin-top:12px;';
+  wt.appendChild(spriteWireTransfer('TRANSMITTING ' + (path.split('/').pop() || 'model')));
+  btn.parentElement.appendChild(wt);
   try {
     const params = readLoaderParams();
     const r = await fts.api.post('/api/models/load', { path, ...params });
@@ -289,6 +294,7 @@ async function loadModel() {
     fts.notify('Load failed: ' + e.message, 'error');
     btn.disabled = false;
     btn.textContent = 'Load model';
+    wt.remove();
   }
 }
 

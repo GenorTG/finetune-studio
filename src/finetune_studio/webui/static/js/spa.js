@@ -86,6 +86,8 @@
       });
       // Re-init known page modules (data-poll spans, etc.)
       window.fts && window.fts.init && window.fts.init();
+      // Re-mount sprites & animations for the new page
+      window.spritesInit && window.spritesInit();
       if (push) history.pushState({}, "", url);
       // Scroll to top on new page
       c.scrollTo({ top: 0, behavior: "instant" });

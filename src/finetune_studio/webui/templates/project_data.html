@@ -25,8 +25,14 @@
       <div class="card-sub">Drag &amp; drop or pick files. They'll be content-hashed, parsed, and chunked.</div>
     </div>
   </div>
-  <form id="upload-form" data-api="/api/projects/{{ pid }}/data-prep/upload" data-reload="true" enctype="multipart/form-data">
-    <input type="file" name="file" class="input" style="padding:8px;">
+  <form id="upload-form" data-api="/api/projects/{{ pid }}/data-prep/upload" data-reload="true" enctype="multipart/form-data" data-drop class="dropzone">
+    <div class="flex gap-3 items-center">
+      <div class="bin-host"></div>
+      <div class="flex-1">
+        <input type="file" name="file" class="input" style="padding:8px;">
+        <div class="text-xs dim mt-1 mono">// drag &amp; drop a file here to feed the bin</div>
+      </div>
+    </div>
     <div class="flex gap-2 mt-3">
       <button type="submit" class="btn primary">Upload</button>
       <span id="upload-status" class="text-xs dim self-center"></span>
