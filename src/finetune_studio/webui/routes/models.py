@@ -121,7 +121,7 @@ async def inference_unload():
 async def inference_chat(request: Request):
     """Generate a chat completion using the global inference engine."""
     from finetune_studio.webui.app import inference_engine
-    from finetune_studio.testing.inference import IDLE_TIMEOUT
+    from finetune_studio.webui.thinking import split_thinking
     from fastapi.responses import JSONResponse
 
     if inference_engine.model is None:
@@ -137,7 +137,7 @@ async def inference_chat(request: Request):
         messages = [{"role": "system", "content": sp}] + messages
 
     try:
-        parts = inference_engine.generate(
+        response = inference_engine.generate(
             messages,
             max_tokens=body.get("max_tokens", 512),
             temperature=body.get("temperature", 0.7),
@@ -148,9 +148,18 @@ async def inference_chat(request: Request):
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": str(e)}, status_code=500)
 
+    # inference_engine.generate() returns a string — split thinking from response
+    if isinstance(response, dict):
+        resp_text = response.get("response", "")
+        thinking_text = response.get("thinking", "")
+    else:
+        parts = split_thinking(str(response))
+        resp_text = parts["response"]
+        thinking_text = parts["thinking"]
+
     return {
-        "response": parts["response"],
-        "thinking": parts["thinking"],
+        "response": resp_text,
+        "thinking": thinking_text,
         "vision": getattr(inference_engine, "vision", False),
     }
 

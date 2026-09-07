@@ -53,3 +53,66 @@
   <div id="t-results" class="text-sm muted">No run yet.</div>
 </div>
 {% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  const fts = window.fts || {};
+  const api = fts.api || {};
+  const notify = fts.notify || function(msg) { console.log(msg); };
+  const escapeHtml = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+  window.runSuite = async function() {
+    const status = document.getElementById('t-status');
+    const results = document.getElementById('t-results');
+    const model = document.getElementById('t-model').value;
+    const suite = document.getElementById('t-suite').value.trim();
+    if (!suite) {
+      status.textContent = 'Please enter a test suite path.';
+      return;
+    }
+    status.textContent = 'Loading model…';
+    results.innerHTML = '<span class="muted">Loading model and running suite…</span>';
+    try {
+      // 1. Load selected model (so the global inference engine is ready)
+      await api.post('/api/models/load', { path: model });
+      status.textContent = 'Running suite…';
+      // 2. Run the suite
+      const r = await api.post('/api/testing/run-suite', { suite_path: suite });
+      if (r.error) {
+        status.textContent = 'Error: ' + r.error;
+        results.innerHTML = '<span class="err">' + escapeHtml(r.error) + '</span>';
+        notify(r.error, 'error');
+        return;
+      }
+      const scores = r.scores || {};
+      const cases = r.results || [];
+      status.textContent = 'Done — pass rate ' + (scores.pass_rate || 0).toFixed(1) + '%';
+      let html = '<div class="mb-2"><b>' + (cases.length) + '</b> cases — passed <b>' + (scores.passed || 0) + '</b>, failed <b>' + (scores.failed || 0) + '</b></div>';
+      html += '<table class="data-table w-full text-xs"><thead><tr><th>Name</th><th>Pass</th><th>Hits/Miss</th><th>Forbidden</th><th>Time</th></tr></thead><tbody>';
+      for (const c of cases) {
+        html += '<tr>'
+          + '<td>' + escapeHtml(c.name || '') + '</td>'
+          + '<td>' + (c.passed ? '<span class="ok">✓</span>' : '<span class="err">✗</span>') + '</td>'
+          + '<td>' + (c.keyword_hits || 0) + ' / ' + (c.keyword_misses || 0) + '</td>'
+          + '<td>' + (c.forbidden_hits || 0) + '</td>'
+          + '<td>' + Math.round(c.time_ms || 0) + ' ms</td>'
+          + '</tr>';
+        if (c.error) html += '<tr><td colspan="5" class="err text-xs">' + escapeHtml(c.error) + '</td></tr>';
+        if (c.response) html += '<tr><td colspan="5" class="dim text-xs"><pre class="m-0">' + escapeHtml(c.response.slice(0, 400)) + '</pre></td></tr>';
+      }
+      html += '</tbody></table>';
+      results.innerHTML = html;
+      notify('Suite finished: ' + (scores.passed || 0) + '/' + cases.length + ' passed', 'success');
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      status.textContent = 'Error: ' + msg;
+      results.innerHTML = '<span class="err">' + escapeHtml(msg) + '</span>';
+      notify(msg, 'error');
+    }
+  };
+})();
+</script>
+{% endblock %}

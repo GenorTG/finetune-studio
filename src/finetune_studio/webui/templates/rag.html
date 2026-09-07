@@ -182,3 +182,53 @@
   </div>
 </div>
 {% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  const fts = window.fts || {};
+  const api = fts.api || {};
+  const notify = fts.notify || function(msg) { console.log(msg); };
+  const PID = {{ pid | tojson }};
+
+  window.buildCorpus = async function(rebuild) {
+    const status = document.getElementById('build-status');
+    const btn = document.getElementById('build-btn');
+    const rebuildBtn = document.getElementById('rebuild-btn');
+    const chunk = parseInt((document.getElementById('b-chunk') && document.getElementById('b-chunk').value) || '400', 10);
+    const overlap = parseInt((document.getElementById('b-overlap') && document.getElementById('b-overlap').value) || '80', 10);
+    const embedderEl = document.getElementById('b-embedder');
+    const embedder = embedderEl ? embedderEl.value : '';
+    btn.disabled = true;
+    rebuildBtn.disabled = true;
+    status.textContent = (rebuild ? 'Rebuilding' : 'Building') + ' corpus…';
+    try {
+      const body = {
+        chunk_size: chunk,
+        overlap: overlap,
+        embedder: embedder,
+        reset: !!rebuild,
+      };
+      const r = await api.post('/api/projects/' + PID + '/rag/build', body);
+      if (r.error) {
+        status.textContent = 'Error: ' + r.error;
+        notify(r.error, 'error');
+        return;
+      }
+      const n = r.chunk_count || r.chunks || (r.manifest && r.manifest.chunk_count) || '?';
+      status.textContent = 'Done — ' + n + ' chunks indexed.';
+      notify('Corpus built: ' + n + ' chunks', 'success');
+      if (typeof window.loadRagStatus === 'function') window.loadRagStatus();
+      else if (typeof loadRagStatus === 'function') loadRagStatus();
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      status.textContent = 'Error: ' + msg;
+      notify(msg, 'error');
+    } finally {
+      btn.disabled = false;
+      rebuildBtn.disabled = false;
+    }
+  };
+})();
+</script>
+{% endblock %}

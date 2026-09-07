@@ -81,7 +81,7 @@ class SettingsPatch(BaseModel):
 
 @router.get("/{pid}/rag")
 async def rag_status(pid: str):
-    from finetune_studio.data.rag_portable import PortableRAG, read_json
+    from finetune_studio.data.rag_portable import PortableRAG
     rag = PortableRAG(_corpus_dir(pid))
     if not rag.exists():
         return {"exists": False, "corpus_dir": str(_corpus_dir(pid))}

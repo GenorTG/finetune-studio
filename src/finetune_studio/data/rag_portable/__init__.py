@@ -51,3 +51,4 @@ from finetune_studio.data.rag_portable.store import PortableRAG
 from finetune_studio.data.rag_portable.query import PortableRAGQuery
 
 from finetune_studio.data.rag_portable.tokenize import tokenize
+from finetune_studio.data.rag_portable.io import read_json, write_json, try_import_pandas
