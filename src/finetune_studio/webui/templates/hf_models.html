@@ -126,7 +126,7 @@ function renderResults(results) {
     return `
       <div class="hf-card">
         <div class="head">
-          <div class="icon">${esc((repo.split('/')[-1][0] || '?').toUpperCase())}</div>
+          <div class="icon">${esc(((repo.split('/').slice(-1)[0] || repo[0] || '?').toUpperCase()))}</div>
           <div style="flex:1;min-width:0;">
             <div class="name truncate">${esc(repo)}</div>
             <div class="text-xs dim mono truncate">${esc(r.id || '')}</div>
