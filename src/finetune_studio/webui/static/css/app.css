@@ -781,6 +781,7 @@ button { font-family: inherit; cursor: pointer; }
   display: grid; place-items: center;
   animation: fade-in var(--t-mid) var(--ease);
 }
+.modal-back[hidden] { display: none; }
 .modal {
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
