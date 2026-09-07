@@ -29,26 +29,36 @@
   }
 
   // ── API ─────────────────────────────────────────────────────────────
+  // ── Fetch helper: throw on non-2xx so callers can handle errors ──
+  async function _ok(r) {
+    const ct = r.headers.get("content-type") || "";
+    let body = ct.includes("application/json") ? await r.json().catch(() => ({})) : await r.text();
+    if (!r.ok) {
+      const detail = (body && typeof body === "object" && body.detail) || (typeof body === "string" ? body : "");
+      const err = new Error(detail || `HTTP ${r.status}`);
+      err.status = r.status;
+      err.body = body;
+      throw err;
+    }
+    return body;
+  }
+
   const api = {
-    get: (url) => fetch(url).then(async (r) => {
-      const ct = r.headers.get("content-type") || "";
-      if (ct.includes("application/json")) return r.json();
-      return r.text();
-    }),
+    get: (url) => fetch(url).then(_ok),
     post: (url, body) => fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body || {}),
-    }).then((r) => r.json().catch(() => ({}))),
+    }).then(_ok),
     upload: (url, file) => {
       const fd = new FormData();
       fd.append("file", file);
-      return fetch(url, { method: "POST", body: fd }).then((r) => r.json().catch(() => ({})));
+      return fetch(url, { method: "POST", body: fd }).then(_ok);
     },
     uploadMany: (url, files, fieldName) => {
       const fd = new FormData();
       for (const f of files) fd.append(fieldName || "files", f);
-      return fetch(url, { method: "POST", body: fd }).then((r) => r.json().catch(() => ({})));
+      return fetch(url, { method: "POST", body: fd }).then(_ok);
     },
   };
 

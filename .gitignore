@@ -12,3 +12,4 @@ data/projects/
 data/models/
 *.gguf
 *.safetensors
+projects/
