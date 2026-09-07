@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Projects · Finetune Studio{% endblock %}
 {% block nav_projects %}active{% endblock %}
-{% block crumb_here %}Projects{% endblock %}
+{% block crumbs_leaf %}Projects{% endblock %}
 
 {% block topbar_right %}
   <button class="btn primary" onclick="(function(){const c=document.getElementById('new-project');if(c){c.hidden=false;c.scrollIntoView({behavior:'smooth',block:'start'});}else{location.reload();}})()">＋ New project</button>

@@ -110,7 +110,7 @@ async def test_dashboard(ctx):
             "() => Boolean(document.querySelector('[data-matrix] .matrix-rain'))"
         )
         rec("dashboard.matrix_rain_active", mr)
-        brand = await page.query_selector(".nav-brand .logo")
+        brand = await page.query_selector(".brand .logo")
         if brand:
             clip = await brand.evaluate("el => getComputedStyle(el).clipPath")
             rec("dashboard.logo_clippath", clip not in ("none", ""),
@@ -304,7 +304,7 @@ async def test_spa(ctx):
         await page.wait_for_timeout(1500)
 
         nav_hrefs = await page.evaluate("""
-() => Array.from(document.querySelectorAll('.nav-item'))
+() => Array.from(document.querySelectorAll('.drawer-item'))
   .map(a => a.getAttribute('href')).filter(Boolean)
         """)
         for href in nav_hrefs:

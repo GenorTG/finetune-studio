@@ -13,12 +13,17 @@
 
   const content = () => document.getElementById("content");
   const app     = () => document.getElementById("app");
-  const nav     = () => document.getElementById("nav");
-  const crumbs  = () => document.getElementById("crumbs");
+  const drawer  = () => document.getElementById("drawer");
+  const crumbLeaf = () => document.getElementById("crumb-leaf");
+  const pop     = () => document.getElementById("crumb-popover");
 
   function setActiveNav(url) {
     const path = url.split("?")[0];
-    nav().querySelectorAll(".nav-item").forEach((a) => {
+    const targets = [
+      ...(drawer() ? drawer().querySelectorAll(".drawer-item") : []),
+      ...(pop() ? pop().querySelectorAll(".crumb-pop-item") : []),
+    ];
+    targets.forEach((a) => {
       const href = a.getAttribute("href") || "";
       if (href === path) a.classList.add("active");
       else if (href && path.startsWith(href + "/")) a.classList.add("active");
@@ -35,8 +40,8 @@
   function extractContent(html) {
     const doc = new DOMParser().parseFromString(html, "text/html");
     const newContent = doc.getElementById("content");
-    const newCrumbs  = doc.getElementById("crumbs");
-    const newNav     = doc.getElementById("nav");
+    const newCrumbs  = doc.getElementById("crumb-leaf");
+    const newNav     = doc.getElementById("drawer");
     const newTitle   = doc.querySelector("title");
     return {
       contentHTML: newContent ? newContent.innerHTML : null,
@@ -69,8 +74,8 @@
       await new Promise((r) => setTimeout(r, 80));
       // Swap
       c.innerHTML = ext.contentHTML;
-      if (ext.crumbsHTML && crumbs()) crumbs().innerHTML = ext.crumbsHTML;
-      if (ext.navHTML && nav()) nav().innerHTML = ext.navHTML;
+      if (ext.crumbsHTML && crumbLeaf()) crumbLeaf().innerHTML = ext.crumbsHTML;
+      if (ext.navHTML && drawer()) drawer().innerHTML = ext.navHTML;
       if (ext.title) document.title = ext.title;
       // Highlight nav
       setActiveNav(url);
@@ -105,15 +110,6 @@
         a.target === "_blank" || ev.metaKey || ev.ctrlKey || ev.shiftKey) return;
     ev.preventDefault();
     navigate(href);
-  });
-
-  // ── Nav toggle ────────────────────────────────────────────────────
-  document.addEventListener("click", function (ev) {
-    const t = ev.target.closest("#nav-toggle");
-    if (!t) return;
-    const collapsed = !app().classList.contains("collapsed-nav");
-    app().classList.toggle("collapsed-nav", collapsed);
-    try { localStorage.setItem("fts.nav.collapsed", collapsed ? "1" : ""); } catch (e) {}
   });
 
   // ── Apply persisted collapsed state ──────────────────────────────
