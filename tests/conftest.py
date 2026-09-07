@@ -1,7 +1,7 @@
 """Shared test fixtures for finetune-studio tests.
 
 Provides:
-- temp_db: real SQLite database in tmp dir, returns db_path
+- temp_db: real SQLite database in tmp dir, schema initialized via init_db()
 - mock_settings: MagicMock with full settings interface + patched into config
 - client: FastAPI TestClient bound to the webui app
 """
@@ -23,40 +23,19 @@ sys.path.insert(0, str(ROOT / "src"))
 
 @pytest.fixture
 def temp_db(monkeypatch):
-    """Create a temp SQLite DB file; init schema; yield path; cleanup."""
+    """Create a temp SQLite DB file, init schema, yield path, cleanup."""
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
 
-    # Initialise schema
-    import sqlite3
-    conn = sqlite3.connect(db_path)
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS projects (
-            id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
-            base_model TEXT NOT NULL DEFAULT '', system_prompt TEXT NOT NULL DEFAULT '',
-            production_run TEXT, created_at REAL NOT NULL, updated_at REAL NOT NULL);
-        CREATE TABLE IF NOT EXISTS project_rags (
-            id TEXT PRIMARY KEY, project_id TEXT NOT NULL, name TEXT NOT NULL,
-            description TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '',
-            store_path TEXT NOT NULL, doc_count INTEGER NOT NULL DEFAULT 0,
-            chunk_count INTEGER NOT NULL DEFAULT 0, created_at REAL NOT NULL,
-            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE);
-        CREATE INDEX IF NOT EXISTS idx_rags_project ON project_rags(project_id);
-        CREATE TABLE IF NOT EXISTS training_runs (
-            id TEXT PRIMARY KEY, project_id TEXT NOT NULL, name TEXT NOT NULL,
-            config_json TEXT NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'pending',
-            started_at REAL, finished_at REAL, created_at REAL NOT NULL,
-            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE);
-        CREATE TABLE IF NOT EXISTS benchmark_runs (
-            id TEXT PRIMARY KEY, run_id TEXT NOT NULL, name TEXT NOT NULL,
-            score REAL, details TEXT NOT NULL DEFAULT '{}', created_at REAL NOT NULL,
-            FOREIGN KEY (run_id) REFERENCES training_runs(id) ON DELETE CASCADE);
-        CREATE TABLE IF NOT EXISTS data_reviews (
-            id TEXT PRIMARY KEY, project_id TEXT NOT NULL, run_id TEXT,
-            file_hash TEXT NOT NULL, decision TEXT NOT NULL, note TEXT NOT NULL DEFAULT '',
-            reviewed_at REAL NOT NULL);
-    """)
-    conn.close()
+    # Patch settings.db_path before importing db modules
+    import finetune_studio.config as cfg
+    class _Fake:
+        db_path = db_path
+    monkeypatch.setattr(cfg, "settings", _Fake())
+
+    # Initialise schema with the real init_db
+    from finetune_studio.db.connection import init_db
+    init_db()
 
     yield db_path
     try:
@@ -93,7 +72,7 @@ def client(mock_settings, monkeypatch):
     """FastAPI TestClient for the webui app with heavy deps mocked."""
     from fastapi.testclient import TestClient
 
-    # Install missing modules so import doesn't fail
+    # Stub missing aiofiles
     try:
         import aiofiles  # noqa: F401
     except ImportError:
@@ -103,9 +82,8 @@ def client(mock_settings, monkeypatch):
         monkeypatch.setitem(sys.modules, "aiofiles", fake)
 
     with patch("finetune_studio.models.registry.scan_models") as mock_scan, \
-         patch("finetune_studio.training.engine.TrainingEngine") as mock_te, \
-         patch("finetune_studio.testing.inference.InferenceEngine") as mock_ie, \
-         patch("finetune_studio.db.init_db"):
+         patch("finetune_studio.training.engine.TrainingEngine"), \
+         patch("finetune_studio.testing.inference.InferenceEngine"):
         mock_scan.return_value = []
         try:
             import importlib
