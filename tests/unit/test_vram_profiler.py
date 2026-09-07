@@ -9,7 +9,7 @@ class TestGPUInfo:
     def test_gpu_info_detect_no_cuda(self):
         """When CUDA is unavailable, returns safe defaults."""
         with patch("torch.cuda.is_available", return_value=False):
-            from finetune_studio.training.vram_profiler import GPUInfo
+            from finetune_studio.training.vram import GPUInfo
             gpu = GPUInfo.detect()
             assert gpu.total_vram_gb == 0
             assert gpu.supports_flash_attention is False
@@ -25,7 +25,7 @@ class TestGPUInfo:
         with patch("torch.cuda.is_available", return_value=True), \
              patch("torch.cuda.get_device_properties", return_value=mock_props), \
              patch("torch.cuda.mem_get_info", return_value=(22 * 1024**3, 2 * 1024**3)):
-            from finetune_studio.training.vram_profiler import GPUInfo
+            from finetune_studio.training.vram import GPUInfo
             gpu = GPUInfo.detect()
             assert gpu.name == "NVIDIA GeForce RTX 3090"
             assert gpu.total_vram_gb > 0
