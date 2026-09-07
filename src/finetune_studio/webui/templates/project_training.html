@@ -1,93 +1,119 @@
 {% extends "base.html" %}
-{% block title %}Training - {{ project.name }} - Finetune Studio{% endblock %}
-{% block nav_training %}bg-gray-800 text-emerald-400{% endblock %}
+{% block title %}Training — {{ project.name }}{% endblock %}
+{% block nav_training %}active{% endblock %}
+
+{% block crumbs %}
+  <a href="/projects" data-link>Projects</a>
+  <span class="sep">/</span>
+  <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a>
+  <span class="sep">/</span>
+  <span class="here">Training</span>
+{% endblock %}
+
 {% block content %}
-<div class="flex items-center gap-3 mb-6">
-    <a href="/projects/{{ pid }}" class="text-xs text-gray-500 hover:text-gray-300">← {{ project.name }}</a>
-    <h1 class="text-2xl font-bold">Training</h1>
+{% include "_resources.html" %}
+
+<div class="page-head">
+  <h1>Training</h1>
+  <div class="sub">LoRA / QLoRA / full fine-tune. Pick a base model + dataset, configure, start.</div>
 </div>
-<div class="bg-gray-900 rounded-lg p-6 border border-gray-800 mb-6">
-    <h2 class="text-lg font-semibold mb-4">Configuration</h2>
-    <form id="train-form" class="grid grid-cols-2 gap-4">
-        <div>
-            <label class="block text-sm text-gray-400 mb-1">Base Model</label>
-            <select name="model_path" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
-                {% for model in models %}<option value="{{ model.path }}" {% if model.path == project.base_model %}selected{% endif %}>{{ model.name }} ({{ model.format }}, {{ model.size_gb }} GB)</option>{% endfor %}
-            </select>
-        </div>
-        <div>
-            <label class="block text-sm text-gray-400 mb-1">Training Data</label>
-            <input type="text" name="data_path" placeholder="path/to/data.jsonl" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
-        </div>
-        <div>
-            <label class="block text-sm text-gray-400 mb-1">Output Dir</label>
-            <input type="text" name="output_dir" value="output" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
-        </div>
-        <div>
-            <label class="block text-sm text-gray-400 mb-1">LoRA Rank</label>
-            <input type="number" name="lora_rank" value="64" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
-        </div>
-        <div>
-            <label class="block text-sm text-gray-400 mb-1">Learning Rate</label>
-            <input type="text" name="learning_rate" value="8e-5" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
-        </div>
-        <div>
-            <label class="block text-sm text-gray-400 mb-1">Epochs</label>
-            <input type="number" name="num_epochs" value="4" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
-        </div>
-        <div>
-            <label class="block text-sm text-gray-400 mb-1">Batch Size</label>
-            <input type="number" name="batch_size" value="2" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
-        </div>
-        <div>
-            <label class="block text-sm text-gray-400 mb-1">Max Seq Length</label>
-            <input type="number" name="max_seq_length" value="2048" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
-        </div>
-        <div class="col-span-2">
-            <label class="block text-sm text-gray-400 mb-1">System Prompt (optional)</label>
-            <textarea name="system_prompt" rows="2" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700"></textarea>
-        </div>
-    </form>
-    <div class="flex gap-2 mt-4">
-        <button onclick="startTraining()" class="px-4 py-2 bg-emerald-600 rounded hover:bg-emerald-500 text-sm font-medium">Start Training</button>
-        <button onclick="stopTraining()" class="px-4 py-2 bg-red-600 rounded hover:bg-red-500 text-sm font-medium">Stop</button>
+
+<div class="steps">
+  <div class="step done"><span class="num">1</span> Configure</div>
+  <div class="step"><span class="num">2</span> Start</div>
+  <div class="step"><span class="num">3</span> Monitor</div>
+  <div class="step"><span class="num">4</span> Evaluate</div>
+</div>
+
+<div class="card mb-6">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Configuration</div>
+      <div class="card-sub">Settings used for the next training run.</div>
     </div>
+  </div>
+  <form id="train-form" class="grid grid-2 gap-4">
+    <label>
+      <span class="block text-xs muted mb-1">Base Model</span>
+      <select name="model_path" class="select">
+        {% for model in models %}
+        <option value="{{ model.path }}" {% if model.path == project.base_model %}selected{% endif %}>{{ model.name }} ({{ model.format }}, {{ model.size_gb }} GB)</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1">Training Data</span>
+      <input type="text" name="data_path" placeholder="path/to/data.jsonl" class="input">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1">Output Dir</span>
+      <input type="text" name="output_dir" value="output" class="input">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1">LoRA Rank</span>
+      <input type="number" name="lora_rank" value="64" class="input">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1">Learning Rate</span>
+      <input type="text" name="learning_rate" value="8e-5" class="input">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1">Epochs</span>
+      <input type="number" name="num_epochs" value="4" class="input">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1">Batch size</span>
+      <input type="number" name="batch_size" value="2" class="input">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1">Max sequence</span>
+      <input type="number" name="max_seq_length" value="2048" class="input">
+    </label>
+  </form>
+  <div class="flex gap-2 mt-4">
+    <button class="btn primary" data-action="/api/training/start" data-reload="true" id="start-btn" onclick="this.disabled=true;this.textContent='Starting…'">Start training</button>
+    <button class="btn danger" data-action="/api/training/stop" data-reload="true">Stop</button>
+  </div>
 </div>
-<div class="bg-gray-900 rounded-lg p-6 border border-gray-800 mb-6">
-    <h2 class="text-lg font-semibold mb-4">Progress</h2>
-    <div class="grid grid-cols-4 gap-4 mb-4 text-center">
-        <div><div class="text-xs text-gray-400">Status</div><div id="t-status" class="text-lg font-bold">{{ training_state.status }}</div></div>
-        <div><div class="text-xs text-gray-400">Step</div><div id="t-step" class="text-lg font-bold">{{ training_state.current_step }}</div></div>
-        <div><div class="text-xs text-gray-400">Loss</div><div id="t-loss" class="text-lg font-bold">{{ training_state.loss }}</div></div>
-        <div><div class="text-xs text-gray-400">ETA</div><div id="t-eta" class="text-lg font-bold">{{ training_state.eta }}s</div></div>
+
+<div class="card mb-6">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Live status</div>
+      <div class="card-sub">Updated every 3s while training is running.</div>
     </div>
-    <div id="t-message" class="text-sm text-gray-400">{{ training_state.message }}</div>
+    <span class="pill solid-amber" id="train-status-badge">idle</span>
+  </div>
+  <div id="train-status" class="text-sm muted">No run in progress.</div>
+  <div class="bar mt-3"><div class="fill indeterminate" id="train-progress-bar" style="width:0%"></div></div>
+  <div id="train-log" class="text-xs mt-3 mono dim" style="font-size:11px;line-height:1.5;white-space:pre-wrap;background:var(--bg-app);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);max-height:180px;overflow-y:auto;"></div>
 </div>
-<div class="bg-gray-900 rounded-lg p-6 border border-gray-800">
-    <h2 class="text-lg font-semibold mb-4">Training Log</h2>
-    <pre id="t-log" class="text-xs text-gray-400 h-64 overflow-auto bg-gray-950 rounded p-3"></pre>
+
+<div class="card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Past runs</div>
+      <div class="card-sub">All training runs for this project.</div>
+    </div>
+  </div>
+  {% if project.runs %}
+  <table class="table">
+    <thead><tr><th>Name</th><th>Status</th><th>Started</th><th>Duration</th><th>Loss</th><th></th></tr></thead>
+    <tbody>
+      {% for run in project.runs %}
+      <tr class="row-hover">
+        <td class="name">{{ run.name }}</td>
+        <td><span class="pill {{ {'running':'solid-amber','done':'solid-green','failed':'solid-rose','stopped':'outline'}.get(run.status, 'outline') }}">{{ run.status }}</span></td>
+        <td class="meta">{{ run.started_at or '—' }}</td>
+        <td class="meta">{{ run.duration or '—' }}</td>
+        <td class="num mono">{{ '%.4f'|format(run.final_loss) if run.final_loss else '—' }}</td>
+        <td><a class="btn sm" href="/projects/{{ pid }}/training?run={{ run.id }}" data-link>Details</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No runs yet. Configure above and hit "Start training".</div>
+  {% endif %}
 </div>
-<script>
-function startTraining() {
-    const form = document.getElementById("train-form");
-    const data = Object.fromEntries(new FormData(form));
-    fetch("/api/training/start", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(data)})
-        .then(r => r.json()).then(d => { if (d.error) alert(d.error); else connectSSE(); });
-}
-function stopTraining() { fetch("/api/training/stop", {method: "POST"}); }
-function connectSSE() {
-    const es = new EventSource("/api/training/progress");
-    es.onmessage = (e) => {
-        const d = JSON.parse(e.data);
-        document.getElementById("t-status").textContent = d.status;
-        document.getElementById("t-step").textContent = d.step + "/" + d.total_steps;
-        document.getElementById("t-loss").textContent = d.loss;
-        document.getElementById("t-eta").textContent = d.eta + "s";
-        document.getElementById("t-message").textContent = d.message;
-        if (d.log_lines) document.getElementById("t-log").textContent = d.log_lines.join("\n");
-        if (["done", "error", "idle"].includes(d.status)) es.close();
-    };
-    es.onerror = () => es.close();
-}
-</script>
 {% endblock %}

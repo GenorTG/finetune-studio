@@ -1,173 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Data Editor - Finetune Studio{% endblock %}
-{% block nav_data %}bg-gray-800 text-emerald-400{% endblock %}
+{% block title %}Data Editor · Finetune Studio{% endblock %}
 {% block content %}
-<div class="mb-6 flex items-center gap-4">
-  <a href="/projects/{{ project.id }}" class="text-emerald-400 hover:underline text-sm">&larr; {{ project.name }}</a>
-  <span class="text-gray-600">/</span>
-  <span class="font-mono text-sm text-gray-300">{{ dataset }}</span>
-  <span id="total-badge" class="ml-auto text-xs text-gray-500"></span>
+<div class="page-head">
+  <h1>Data Editor</h1>
+  <div class="sub">Browse and edit individual Q&amp;A pairs in a table.</div>
 </div>
 
-<!-- Row table -->
-<div id="rows-container" class="space-y-3"></div>
-
-<!-- Pagination -->
-<div id="pagination" class="flex items-center justify-center gap-4 mt-6"></div>
-
-<script>
-(function() {
-  const PID = "{{ project.id }}";
-  const DATASET = "{{ dataset }}";
-  const PER_PAGE = 50;
-  let offset = 0;
-  let total = 0;
-  let reviews = {};
-
-  function fetchPage(off) {
-    offset = off || 0;
-    fetch("/api/data-editor/projects/" + PID + "/preview?dataset=" + encodeURIComponent(DATASET) + "&limit=" + PER_PAGE + "&offset=" + offset)
-      .then(r => r.json())
-      .then(d => {
-        total = d.total;
-        document.getElementById("total-badge").textContent = total + " rows";
-        fetchReviews().then(() => renderRows(d.rows, d.offset));
-        renderPagination();
-      });
-  }
-
-  function fetchReviews() {
-    return fetch("/api/data-editor/projects/" + PID + "/review?dataset=" + encodeURIComponent(DATASET))
-      .then(r => r.json())
-      .then(list => {
-        reviews = {};
-        list.forEach(r => { reviews[r.row_index] = r.decision; });
-      });
-  }
-
-  function badge(idx) {
-    const d = reviews[idx];
-    if (d === "approved") return '<span class="text-xs bg-emerald-900 text-emerald-300 px-2 py-0.5 rounded">approved</span>';
-    if (d === "rejected") return '<span class="text-xs bg-red-900 text-red-300 px-2 py-0.5 rounded">rejected</span>';
-    if (d === "edited") return '<span class="text-xs bg-blue-900 text-blue-300 px-2 py-0.5 rounded">edited</span>';
-    if (d === "deleted") return '<span class="text-xs bg-gray-800 text-gray-500 px-2 py-0.5 rounded">deleted</span>';
-    return '<span class="text-xs bg-gray-800 text-gray-600 px-2 py-0.5 rounded">—</span>';
-  }
-
-  function renderRows(rows, off) {
-    const c = document.getElementById("rows-container");
-    if (!rows.length) { c.innerHTML = '<div class="text-center text-gray-500 py-8">No rows</div>'; return; }
-    let html = '';
-    rows.forEach((row, i) => {
-      const idx = off + i;
-      const pretty = JSON.stringify(row, null, 2);
-      html += '<div class="bg-gray-900 rounded-lg p-4 border border-gray-800">' +
-        '<div class="flex items-center gap-3 mb-2">' +
-          '<span class="text-xs text-gray-500 font-mono">#' + idx + '</span>' +
-          badge(idx) +
-          '<div class="ml-auto flex gap-2">' +
-            '<button onclick="approveRow(' + idx + ')" class="text-xs px-2 py-1 bg-emerald-800 rounded hover:bg-emerald-700">Approve</button>' +
-            '<button onclick="rejectRow(' + idx + ')" class="text-xs px-2 py-1 bg-red-800 rounded hover:bg-red-700">Reject</button>' +
-            '<button onclick="deleteRow(' + idx + ')" class="text-xs px-2 py-1 bg-gray-700 rounded hover:bg-gray-600">Delete</button>' +
-          '</div>' +
-        '</div>' +
-        '<details class="group">' +
-          '<summary class="text-xs text-gray-500 cursor-pointer hover:text-gray-300 mb-1">View JSON</summary>' +
-          '<pre class="text-xs bg-gray-950 rounded p-3 overflow-auto max-h-48 mb-2">' + escapeHtml(pretty) + '</pre>' +
-        '</details>' +
-        '<textarea id="edit-' + idx + '" class="w-full bg-gray-950 border border-gray-700 rounded p-2 text-xs font-mono text-gray-300 resize-y" rows="4">' + escapeHtml(pretty) + '</textarea>' +
-        '<div class="flex gap-2 mt-2">' +
-          '<button onclick="saveRow(' + idx + ')" class="text-xs px-3 py-1 bg-blue-800 rounded hover:bg-blue-700">Save Edit</button>' +
-        '</div>' +
-      '</div>';
-    });
-    c.innerHTML = html;
-  }
-
-  function renderPagination() {
-    const p = document.getElementById("pagination");
-    if (total <= PER_PAGE) { p.innerHTML = ''; return; }
-    let html = '';
-    if (offset > 0) html += '<button onclick="goPage(' + (offset - PER_PAGE) + ')" class="px-3 py-1 bg-gray-800 rounded hover:bg-gray-700 text-sm">&laquo; Prev</button>';
-    html += '<span class="text-sm text-gray-500">' + (offset + 1) + '–' + Math.min(offset + PER_PAGE, total) + ' of ' + total + '</span>';
-    if (offset + PER_PAGE < total) html += '<button onclick="goPage(' + (offset + PER_PAGE) + ')" class="px-3 py-1 bg-gray-800 rounded hover:bg-gray-700 text-sm">Next &raquo;</button>';
-    p.innerHTML = html;
-  }
-
-  function escapeHtml(s) {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
-  function parseEdit(idx) {
-    const ta = document.getElementById('edit-' + idx);
-    try { return JSON.parse(ta.value); } catch(e) { notify("Invalid JSON: " + e.message, "error"); return null; }
-  }
-
-  window.goPage = function(off) { fetchPage(off); };
-
-  window.saveRow = function(idx) {
-    const row = parseEdit(idx);
-    if (row === null) return;
-    fetch("/api/data-editor/projects/" + PID + "/row", {
-      method: "PATCH",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({dataset: DATASET, index: idx, row: row})
-    }).then(r => r.json()).then(d => {
-      if (d.ok) { notify("Row " + idx + " saved", "success"); fetchPage(offset); }
-      else notify("Error: " + JSON.stringify(d), "error");
-    });
-  };
-
-  window.approveRow = function(idx) {
-    fetch("/api/data-editor/projects/" + PID + "/approve", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({dataset: DATASET, index: idx})
-    }).then(r => r.json()).then(d => {
-      if (d.ok) { notify("Row " + idx + " approved", "success"); fetchPage(offset); }
-      else notify("Error", "error");
-    });
-  };
-
-  window.rejectRow = function(idx) {
-    fetch("/api/data-editor/projects/" + PID + "/reject", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({dataset: DATASET, index: idx})
-    }).then(r => r.json()).then(d => {
-      if (d.ok) { notify("Row " + idx + " rejected", "success"); fetchPage(offset); }
-      else notify("Error", "error");
-    });
-  };
-
-  window.deleteRow = function(idx) {
-    if (!confirm("Delete row " + idx + "?")) return;
-    fetch("/api/data-editor/projects/" + PID + "/row", {
-      method: "DELETE",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({dataset: DATASET, index: idx})
-    }).then(r => r.json()).then(d => {
-      if (d.ok) { notify("Row " + idx + " deleted", "success"); fetchPage(offset); }
-      else notify("Error", "error");
-    });
-  };
-
-  // Bulk actions
-  window.approveVisible = function() {
-    document.querySelectorAll('[id^="edit-"]').forEach(el => {
-      const idx = parseInt(el.id.replace('edit-', ''));
-      window.approveRow(idx);
-    });
-  };
-  window.rejectVisible = function() {
-    document.querySelectorAll('[id^="edit-"]').forEach(el => {
-      const idx = parseInt(el.id.replace('edit-', ''));
-      window.rejectRow(idx);
-    });
-  };
-
-  // Init
-  fetchPage(0);
-})();
-</script>
+<div class="card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Browse pairs</div>
+      <div class="card-sub">Pick a project + dataset to start.</div>
+    </div>
+  </div>
+  <p class="text-sm muted">The data editor lives inside each project's Data Prep view so the pairs are scoped properly.</p>
+  <a href="/projects" class="btn primary" data-link>Open Projects</a>
+</div>
 {% endblock %}

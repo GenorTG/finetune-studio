@@ -1,651 +1,174 @@
 {% extends "base.html" %}
-{% block title %}Inference - Finetune Studio{% endblock %}
-{% block nav_inference %}bg-gray-800 text-emerald-400{% endblock %}
+{% block title %}Inference · Finetune Studio{% endblock %}
+{% block nav_inference %}active{% endblock %}
+{% block crumb_here %}Inference{% endblock %}
+
 {% block content %}
-<h1 class="text-2xl font-bold mb-6">Inference</h1>
+<div class="grid grid-1-3" style="height: calc(100vh - var(--header-h) - 56px);">
 
-<!-- Model selector -->
-<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6 card-hover">
-  <h2 class="text-lg font-semibold mb-3">Load Model</h2>
-  <div class="flex gap-3">
-    <select id="inf-model-select" class="flex-1 bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700" onchange="onModelSelect()">
-      <option value="">Select a model…</option>
-      {% for m in models %}
-      <option value="{{ m.path }}" data-format="{{ m.format }}" data-size="{{ m.size_gb }}" data-arch="{{ m.architecture }}" data-vision="{{ m.vision|lower }}">
-        {{ m.name }} ({{ m.size_gb }}GB, {{ m.format }}{% if m.vision %} 👁 vision{% endif %})
-      </option>
-      {% endfor %}
-    </select>
-  </div>
-  <div id="inf-model-status" class="mt-2 text-sm text-gray-400"></div>
-  <div id="inf-model-info" class="mt-2 text-xs text-gray-500 hidden"></div>
-  <div id="inf-model-live" class="mt-2 hidden">
-    <div class="flex items-center gap-4 text-xs">
-      <span id="inf-idle-timer" class="text-gray-400"></span>
-      <span id="inf-auto-unload" class="text-amber-400"></span>
-      <button onclick="unloadModel()" class="px-2 py-1 bg-red-900 hover:bg-red-800 rounded text-red-300">Unload</button>
-    </div>
-  </div>
-</div>
-
-<!-- Memory Estimation Bar -->
-<div id="inf-memory-section" class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6 hidden">
-  <h3 class="text-sm font-semibold mb-2">Estimated Memory Usage</h3>
-  <div class="w-full bg-gray-800 rounded-full h-5 overflow-hidden mb-2">
-    <div id="inf-mem-bar" class="h-full rounded-full transition-all duration-300" style="width:0%">
-    </div>
-  </div>
-  <div class="flex justify-between text-xs">
-    <span id="inf-mem-label" class="text-gray-400"></span>
-    <span id="inf-mem-detail" class="text-gray-500"></span>
-  </div>
-</div>
-
-<!-- Loading Parameters -->
-<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6">
-  <div class="space-y-4">
-    <!-- Context Length -->
-    <div>
-      <label class="block text-xs text-gray-400 mb-1">Context Length <span id="n-ctx-val" class="text-emerald-400">4096</span><span id="n-ctx-max" class="text-gray-500 text-[10px]"></span></label>
-      <input type="range" id="n-ctx" min="512" max="131072" step="512" value="4096" class="w-full" oninput="onParamChange()">
+  {# ── Left: model picker + params ──────────────────────── #}
+  <div class="card" style="overflow:auto;">
+    <div class="card-head">
+      <div class="card-title">Model</div>
+      <span class="pill solid-blue" id="loaded-badge" hidden>● loaded</span>
     </div>
 
-    <!-- GPU Offload Layers -->
-    <div>
-      <label class="block text-xs text-gray-400 mb-1">GPU Offload Layers <span id="n-gpu-val" class="text-emerald-400">99</span><span id="n-gpu-max" class="text-gray-500 text-[10px]"></span></label>
-      <input type="range" id="n-gpu-layers" min="0" max="200" step="1" value="99" class="w-full" oninput="onParamChange()">
-      <div class="text-[10px] text-gray-500 mt-0.5">0 = CPU only, max = full GPU offload</div>
-    </div>
-
-    <!-- n_batch -->
-    <div>
-      <label class="block text-xs text-gray-400 mb-1">Batch Size <span id="n-batch-val" class="text-emerald-400">512</span></label>
-      <input type="range" id="n-batch" min="64" max="2048" step="64" value="512" class="w-full" oninput="onParamChange()">
-    </div>
-
-    <!-- Advanced toggle -->
-    <button onclick="toggleAdvanced()" id="adv-toggle" class="text-xs text-gray-400 hover:text-gray-300 focus:outline-none">▶ Show advanced settings</button>
-
-    <!-- Advanced settings (collapsed) -->
-    <div id="adv-panel" class="hidden space-y-4 border-t border-gray-800 pt-4">
-      <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <!-- CPU Threads -->
-        <div>
-          <label class="block text-xs text-gray-400 mb-1">CPU Threads <span id="n-threads-val" class="text-emerald-400">auto</span></label>
-          <input type="range" id="n-threads" min="0" max="32" step="1" value="0" class="w-full" oninput="onParamChange()">
-          <div class="text-[10px] text-gray-500 mt-0.5">0 = auto (CPU count)</div>
-        </div>
-
-        <!-- Seed -->
-        <div>
-          <label class="block text-xs text-gray-400 mb-1">Seed</label>
-          <input type="number" id="seed" min="-1" placeholder="random" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700" oninput="onParamChange()">
-          <div class="text-[10px] text-gray-500 mt-0.5">-1 or empty = random</div>
-        </div>
-
-        <!-- RoPE Frequency Base -->
-        <div>
-          <label class="block text-xs text-gray-400 mb-1">RoPE Freq Base <span id="rope-base-val" class="text-emerald-400">auto</span></label>
-          <input type="number" id="rope-freq-base" min="0" step="1" value="0" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700" oninput="onParamChange()">
-          <div class="text-[10px] text-gray-500 mt-0.5">0 = model default</div>
-        </div>
-
-        <!-- RoPE Frequency Scale -->
-        <div>
-          <label class="block text-xs text-gray-400 mb-1">RoPE Freq Scale <span id="rope-scale-val" class="text-emerald-400">auto</span></label>
-          <input type="number" id="rope-freq-scale" min="0" step="0.01" value="0" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700" oninput="onParamChange()">
-          <div class="text-[10px] text-gray-500 mt-0.5">0 = model default</div>
+    {% if loaded %}
+      <div class="text-sm" style="margin-bottom:12px;">
+        <div class="mono truncate">{{ loaded.path }}</div>
+        <div class="text-xs dim mt-1">
+          {{ loaded.format|upper }} · {{ "%.1f"|format(loaded.size_gb) }} GB
+          {% if loaded.architecture %} · {{ loaded.architecture }}{% endif %}
         </div>
       </div>
+    {% else %}
+      <select id="model-select" class="select mb-4">
+        <option value="">— pick a model —</option>
+        {% for m in models %}
+          <option value="{{ m.path }}">{{ m.name }} · {{ m.format|upper }} · {{ "%.1f"|format(m.size_gb) }}GB</option>
+        {% endfor %}
+      </select>
+      <button class="btn primary" id="load-btn" onclick="loadModel()" {% if not models %}disabled{% endif %}>Load model</button>
+    {% endif %}
 
-      <!-- Toggle row -->
-      <div class="flex flex-wrap gap-x-6 gap-y-2">
-        <label class="flex items-center gap-2 text-xs text-gray-400">
-          <input type="checkbox" id="flash-attn" checked class="rounded" onchange="onParamChange()"> Flash Attention
-        </label>
-        <label class="flex items-center gap-2 text-xs text-gray-400">
-          <input type="checkbox" id="mmap" checked class="rounded" onchange="onParamChange()"> mmap
-        </label>
-        <label class="flex items-center gap-2 text-xs text-gray-400">
-          <input type="checkbox" id="mlock" class="rounded" onchange="onParamChange()"> mlock
-        </label>
-        <label class="flex items-center gap-2 text-xs text-gray-400">
-          <input type="checkbox" id="keep-in-memory" class="rounded"> Keep Model in Memory
-        </label>
+    {% if loaded %}
+    <div class="divider"></div>
+
+    {# Generation params #}
+    <div class="card-title">Generation</div>
+
+    <div class="mt-3">
+      <label class="block text-xs muted mb-1">Temperature <span id="t-val" class="violet mono">0.7</span></label>
+      <input type="range" id="t" class="range" min="0" max="2" step="0.05" value="0.7" oninput="document.getElementById('t-val').textContent=this.value">
+    </div>
+
+    <div class="mt-3">
+      <label class="block text-xs muted mb-1">Max tokens <span id="m-val" class="violet mono">512</span></label>
+      <input type="range" id="m" class="range" min="32" max="4096" step="32" value="512" oninput="document.getElementById('m-val').textContent=this.value">
+    </div>
+
+    <div class="mt-3">
+      <label class="block text-xs muted mb-1">Top-P <span id="p-val" class="violet mono">0.9</span></label>
+      <input type="range" id="p" class="range" min="0" max="1" step="0.05" value="0.9" oninput="document.getElementById('p-val').textContent=this.value">
+    </div>
+
+    <div class="mt-3">
+      <label class="block text-xs muted mb-1">GPU layers <span id="g-val" class="violet mono">all</span></label>
+      <input type="range" id="g" class="range" min="0" max="120" step="1" value="99" oninput="document.getElementById('g-val').textContent=this.value==99?'all':this.value">
+    </div>
+
+    <div class="mt-3">
+      <label class="block text-xs muted mb-1">System prompt</label>
+      <textarea id="sp" class="textarea" rows="3" placeholder="You are a helpful assistant."></textarea>
+    </div>
+
+    <div class="divider"></div>
+    <button class="btn danger" data-confirm="Unload the model and free VRAM?" data-action="/api/models/unload" data-reload="true">Unload model</button>
+    {% endif %}
+  </div>
+
+  {# ── Right: chat ────────────────────────────────────────────── #}
+  <div class="card" style="display:flex;flex-direction:column;overflow:hidden;">
+    <div class="card-head">
+      <div class="card-title">Chat</div>
+      <div class="text-xs dim" id="chat-status">{{ 'Ready' if loaded else 'Load a model first' }}</div>
+    </div>
+
+    <div class="chat" style="flex:1;">
+      <div class="msgs" id="msgs">
+        {% if not loaded %}
+          <div class="empty">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            <div>Load a model on the left to start chatting.</div>
+          </div>
+        {% endif %}
       </div>
+
+      {% if loaded %}
+      <div class="chat-input">
+        <textarea id="msg" rows="1" placeholder="Message… (Shift+Enter for newline)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"></textarea>
+        <button class="btn primary" onclick="send()" id="send-btn">Send</button>
+      </div>
+      {% endif %}
     </div>
   </div>
 
-  <!-- Remember settings + Load button -->
-  <div class="mt-4 flex items-center gap-4">
-    <label class="flex items-center gap-2 text-xs text-gray-400">
-      <input type="checkbox" id="remember-settings" class="rounded"> Remember settings for this model
-    </label>
-    <div class="flex-1"></div>
-    <button onclick="loadModel()" id="inf-load-btn" class="px-6 py-2 bg-emerald-600 rounded hover:bg-emerald-500 text-sm font-medium">Load Model</button>
-  </div>
 </div>
+{% endblock %}
 
-<!-- Chat -->
-<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6">
-  <h2 class="text-lg font-semibold mb-3">Chat</h2>
-
-  <!-- System prompt -->
-  <div class="mb-3">
-    <button onclick="togglePanel('sys-prompt-panel')" id="sys-prompt-toggle" class="text-xs text-gray-400 hover:text-gray-300 focus:outline-none">▶ System Prompt</button>
-    <div id="sys-prompt-panel" class="hidden mt-2">
-      <textarea id="inf-system-prompt" rows="3" placeholder="Optional system prompt prepended to every message (e.g. 'You are a helpful assistant.')"
-        class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700 resize-y"></textarea>
-      <div class="flex items-center gap-3 mt-1">
-        <label class="flex items-center gap-2 text-xs text-gray-500">
-          <input type="checkbox" id="inf-sys-prompt-remember" class="rounded" checked> Remember for session
-        </label>
-        <span id="inf-sys-prompt-status" class="text-xs text-gray-500"></span>
-      </div>
-    </div>
-  </div>
-
-  <div id="inf-chat-messages" class="h-96 overflow-y-auto mb-3 space-y-3 p-3 bg-gray-800 rounded border border-gray-700">
-    <div class="text-sm text-gray-500 italic">Load a model and start chatting.</div>
-  </div>
-  <div id="inf-image-preview" class="mb-2 hidden">
-    <div class="relative inline-block">
-      <img id="inf-image-thumb" class="h-20 rounded border border-gray-600">
-      <button onclick="clearImage()" class="absolute -top-1 -right-1 bg-red-600 rounded-full w-4 h-4 text-xs text-white leading-none">×</button>
-    </div>
-  </div>
-
-  <!-- Generation params (collapsed) -->
-  <div class="mb-3">
-    <button onclick="togglePanel('gen-params')" class="text-xs text-gray-400 hover:text-gray-300 focus:outline-none">▶ Parameters</button>
-    <div id="gen-params" class="hidden mt-2 grid grid-cols-2 md:grid-cols-3 gap-3">
-      <div>
-        <label class="block text-xs text-gray-400 mb-1">max_tokens <span id="max-tokens-val" class="text-emerald-400">1024</span></label>
-        <input type="range" id="max-tokens" min="1" max="8192" step="1" value="1024" class="w-full" oninput="document.getElementById('max-tokens-val').textContent=this.value">
-      </div>
-      <div>
-        <label class="block text-xs text-gray-400 mb-1">temperature <span id="temp-val" class="text-emerald-400">0.7</span></label>
-        <input type="range" id="temperature" min="0" max="2" step="0.05" value="0.7" class="w-full" oninput="document.getElementById('temp-val').textContent=this.value">
-      </div>
-      <div>
-        <label class="block text-xs text-gray-400 mb-1">top_p <span id="top-p-val" class="text-emerald-400">0.9</span></label>
-        <input type="range" id="top-p" min="0" max="1" step="0.05" value="0.9" class="w-full" oninput="document.getElementById('top-p-val').textContent=this.value">
-      </div>
-      <div>
-        <label class="block text-xs text-gray-400 mb-1">top_k <span id="top-k-val" class="text-emerald-400">40</span></label>
-        <input type="range" id="top-k" min="0" max="200" step="1" value="40" class="w-full" oninput="document.getElementById('top-k-val').textContent=this.value">
-      </div>
-      <div>
-        <label class="block text-xs text-gray-400 mb-1">repeat_penalty <span id="rep-val" class="text-emerald-400">1.1</span></label>
-        <input type="range" id="repeat-penalty" min="1" max="2" step="0.05" value="1.1" class="w-full" oninput="document.getElementById('rep-val').textContent=this.value">
-      </div>
-      <div>
-        <label class="flex items-center gap-2 text-xs text-gray-400">
-          <input type="checkbox" id="thinking" checked class="rounded"> Thinking (Qwen3)
-        </label>
-      </div>
-      <div>
-        <label class="block text-xs text-gray-400 mb-1">reasoning_effort <span id="reason-val" class="text-emerald-400">5</span></label>
-        <input type="range" id="reasoning-effort" min="1" max="10" step="1" value="5" class="w-full" oninput="document.getElementById('reason-val').textContent=this.value">
-      </div>
-    </div>
-  </div>
-
-  <div class="flex gap-2">
-    <label class="px-3 py-2 bg-gray-700 rounded hover:bg-gray-600 text-sm cursor-pointer" title="Attach image">
-      📷 <input type="file" id="inf-image-input" accept="image/*" class="hidden" onchange="handleImage(event)">
-    </label>
-    <input id="inf-chat-input" type="text" placeholder="Type a message…"
-           class="flex-1 bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700"
-           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendInfChat()}" disabled>
-    <button onclick="sendInfChat()" id="inf-chat-send" class="px-4 py-2 bg-emerald-600 rounded hover:bg-emerald-500 text-sm" disabled>Send</button>
-  </div>
-</div>
-
-<!-- Benchmarks -->
-<div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
-  <h2 class="text-lg font-semibold mb-3">Quick Benchmark</h2>
-  <p class="text-sm text-gray-400 mb-3">Run standard quality benchmarks on the loaded model (MMLU, HellaSwag, ARC, TruthfulQA, GSM8K, Winogrande).</p>
-  <button onclick="runBenchmark()" id="inf-bench-btn" class="px-4 py-2 bg-gray-700 rounded hover:bg-gray-600 text-sm" disabled>Run Benchmark</button>
-  <div id="inf-bench-status" class="mt-2 text-sm text-gray-400"></div>
-  <div id="inf-bench-results" class="mt-3 hidden"></div>
-</div>
-
+{% block scripts %}
 <script>
-let infModelLoaded = false;
-let infImageData = null;
-let modelTotalLayers = 0;
-
-// ── Panel toggles ──
-function togglePanel(id) {
-    const el = document.getElementById(id);
-    el.classList.toggle('hidden');
-    const btn = el.previousElementSibling;
-    btn.textContent = (el.classList.contains('hidden') ? '▶ ' : '▼ ') + btn.textContent.slice(2);
-}
-
-function toggleAdvanced() {
-    const panel = document.getElementById('adv-panel');
-    const btn = document.getElementById('adv-toggle');
-    panel.classList.toggle('hidden');
-    btn.textContent = (panel.classList.contains('hidden') ? '▶ Show advanced settings' : '▼ Hide advanced settings');
-}
-
-// ── Image handling ──
-function handleImage(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-        infImageData = ev.target.result;
-        document.getElementById('inf-image-thumb').src = infImageData;
-        document.getElementById('inf-image-preview').classList.remove('hidden');
-    };
-    reader.readAsDataURL(file);
-}
-
-function clearImage() {
-    infImageData = null;
-    document.getElementById('inf-image-input').value = '';
-    document.getElementById('inf-image-preview').classList.add('hidden');
-}
-
-// ── Model selection: load metadata + restore remembered settings ──
-async function onModelSelect() {
-    const sel = document.getElementById('inf-model-select');
-    const path = sel.value;
-    if (!path) {
-        document.getElementById('inf-memory-section').classList.add('hidden');
-        modelTotalLayers = 0;
-        return;
-    }
-
-    // Try to restore remembered settings
-    const remembered = loadRemembered(path);
-    if (remembered) {
-        document.getElementById('n-ctx').value = remembered.n_ctx || 4096;
-        document.getElementById('n-gpu-layers').value = remembered.n_gpu_layers ?? 99;
-        document.getElementById('n-batch').value = remembered.n_batch || 512;
-        document.getElementById('n-threads').value = remembered.n_threads || 0;
-        document.getElementById('seed').value = remembered.seed ?? '';
-        document.getElementById('rope-freq-base').value = remembered.rope_freq_base || 0;
-        document.getElementById('rope-freq-scale').value = remembered.rope_freq_scale || 0;
-        document.getElementById('flash-attn').checked = remembered.flash_attn !== false;
-        document.getElementById('mmap').checked = remembered.mmap !== false;
-        document.getElementById('mlock').checked = !!remembered.mlock;
-        document.getElementById('remember-settings').checked = true;
-    } else {
-        document.getElementById('n-ctx').value = 4096;
-        document.getElementById('n-gpu-layers').value = 99;
-        document.getElementById('n-batch').value = 512;
-        document.getElementById('n-threads').value = 0;
-        document.getElementById('seed').value = '';
-        document.getElementById('rope-freq-base').value = 0;
-        document.getElementById('rope-freq-scale').value = 0;
-        document.getElementById('flash-attn').checked = true;
-        document.getElementById('mmap').checked = true;
-        document.getElementById('mlock').checked = false;
-        document.getElementById('remember-settings').checked = false;
-    }
-
-    // Update display values immediately
-    document.getElementById('n-ctx-val').textContent = document.getElementById('n-ctx').value;
-    document.getElementById('n-gpu-val').textContent = document.getElementById('n-gpu-layers').value;
-    document.getElementById('n-batch-val').textContent = document.getElementById('n-batch').value;
-
-    // Fetch model metadata to cap layers
-    try {
-        const r = await fetch('/api/chat-v2/model-info', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({model_path: path})
-        });
-        const info = await r.json();
-        if (info.total_layers && info.total_layers > 0) {
-            modelTotalLayers = info.total_layers;
-            document.getElementById('n-gpu-layers').max = info.total_layers;
-            document.getElementById('n-gpu-max').textContent = ` / ${info.total_layers}`;
-            // If current value exceeds new max, clamp
-            const gpuSlider = document.getElementById('n-gpu-layers');
-            if (parseInt(gpuSlider.value) > info.total_layers) {
-                gpuSlider.value = info.total_layers;
-            }
-        } else {
-            modelTotalLayers = 0;
-            document.getElementById('n-gpu-layers').max = 200;
-            document.getElementById('n-gpu-max').textContent = '';
-        }
-    } catch(e) {
-        modelTotalLayers = 0;
-        document.getElementById('n-gpu-layers').max = 200;
-        document.getElementById('n-gpu-max').textContent = '';
-    }
-
-    // Cancel any stale debounce, then update directly with correct layer count
-    if (memDebounce) { clearTimeout(memDebounce); memDebounce = null; }
-    updateMemoryEstimate();
-}
-
-// ── Update memory estimate on param change ──
-let memDebounce = null;
-function onParamChange() {
-    // Update display values
-    const nCtx = document.getElementById('n-ctx');
-    document.getElementById('n-ctx-val').textContent = nCtx.value;
-    const gpuLayers = document.getElementById('n-gpu-layers');
-    document.getElementById('n-gpu-val').textContent = gpuLayers.value;
-    const batch = document.getElementById('n-batch');
-    document.getElementById('n-batch-val').textContent = batch.value;
-    const threads = document.getElementById('n-threads');
-    document.getElementById('n-threads-val').textContent = threads.value == 0 ? 'auto' : threads.value;
-    const ropeBase = document.getElementById('rope-freq-base');
-    document.getElementById('rope-base-val').textContent = ropeBase.value == 0 ? 'auto' : ropeBase.value;
-    const ropeScale = document.getElementById('rope-freq-scale');
-    document.getElementById('rope-scale-val').textContent = ropeScale.value == 0 ? 'auto' : ropeScale.value;
-
-    // Debounce memory estimate
-    if (memDebounce) clearTimeout(memDebounce);
-    memDebounce = setTimeout(updateMemoryEstimate, 300);
-}
-
-async function updateMemoryEstimate() {
-    const path = document.getElementById('inf-model-select').value;
-    if (!path) return;
-
-    const nCtx = parseInt(document.getElementById('n-ctx').value);
-    const gpuLayers = parseInt(document.getElementById('n-gpu-layers').value);
-    const sel = document.getElementById('inf-model-select');
-    const opt = sel.selectedOptions[0];
-    const sizeGb = parseFloat(opt?.dataset.size || '0');
-
-    const section = document.getElementById('inf-memory-section');
-    section.classList.remove('hidden');
-
-    // Client-side estimation for instant feedback
-    const totalLayers = modelTotalLayers || 32;
-    const gpuFrac = Math.min(gpuLayers / totalLayers, 1.0);
-    const weightsVram = sizeGb * gpuFrac;
-    const weightsRam = sizeGb * (1.0 - gpuFrac);
-
-    // Approximate KV cache: assume 8 KV heads, 128 head_dim, fp16
-    const numKvHeads = 8;
-    const headDim = 128;
-    const kvBytes = nCtx * 2 * totalLayers * numKvHeads * headDim * 2;
-    const kvGb = kvBytes / (1024**3);
-
-    const totalVram = weightsVram + kvGb;
-
-    // Try to get system VRAM if available (from CUDA)
-    // For now show the bar relative to a rough estimate
-    const bar = document.getElementById('inf-mem-bar');
-    const label = document.getElementById('inf-mem-label');
-    const detail = document.getElementById('inf-mem-detail');
-
-    // Color: green < 8GB, yellow 8-16GB, red > 16GB (rough VRAM thresholds)
-    let color;
-    if (totalVram <= 8) {
-        color = 'bg-emerald-500';
-    } else if (totalVram <= 16) {
-        color = 'bg-amber-500';
-    } else {
-        color = 'bg-red-500';
-    }
-    bar.className = `h-full rounded-full transition-all duration-300 ${color}`;
-    bar.style.width = `${Math.min(totalVram / 24 * 100, 100)}%`;
-
-    label.textContent = `~${totalVram.toFixed(1)} GB VRAM`;
-    detail.textContent = `Weights: ~${weightsVram.toFixed(1)} GB · KV Cache: ~${kvGb.toFixed(2)} GB`;
-    if (weightsRam > 0.01) {
-        detail.textContent += ` · RAM: ~${weightsRam.toFixed(1)} GB`;
-    }
-}
-
-// ── Remember settings (localStorage) ──
-function getSettingsKey(modelPath) {
-    return 'fts_model_settings_' + btoa(modelPath).replace(/=/g, '');
-}
-
-function saveRemembered(modelPath) {
-    const settings = {
-        n_ctx: parseInt(document.getElementById('n-ctx').value),
-        n_gpu_layers: parseInt(document.getElementById('n-gpu-layers').value),
-        n_batch: parseInt(document.getElementById('n-batch').value),
-        n_threads: parseInt(document.getElementById('n-threads').value),
-        seed: document.getElementById('seed').value,
-        rope_freq_base: parseFloat(document.getElementById('rope-freq-base').value),
-        rope_freq_scale: parseFloat(document.getElementById('rope-freq-scale').value),
-        flash_attn: document.getElementById('flash-attn').checked,
-        mmap: document.getElementById('mmap').checked,
-        mlock: document.getElementById('mlock').checked,
-    };
-    try {
-        localStorage.setItem(getSettingsKey(modelPath), JSON.stringify(settings));
-    } catch(e) {}
-}
-
-function loadRemembered(modelPath) {
-    try {
-        const raw = localStorage.getItem(getSettingsKey(modelPath));
-        return raw ? JSON.parse(raw) : null;
-    } catch(e) { return null; }
-}
-
-// ── Load model ──
-function getLoadParams() {
-    return {
-        n_ctx: parseInt(document.getElementById('n-ctx').value),
-        n_gpu_layers: parseInt(document.getElementById('n-gpu-layers').value),
-        n_batch: parseInt(document.getElementById('n-batch').value),
-        mmap: document.getElementById('mmap').checked,
-        mlock: document.getElementById('mlock').checked,
-        n_threads: parseInt(document.getElementById('n-threads').value) || null,
-        flash_attn: document.getElementById('flash-attn').checked,
-        seed: document.getElementById('seed').value !== '' ? parseInt(document.getElementById('seed').value) : null,
-        rope_freq_base: parseFloat(document.getElementById('rope-freq-base').value),
-        rope_freq_scale: parseFloat(document.getElementById('rope-freq-scale').value),
-    };
-}
-
-function getGenParams() {
-    return {
-        max_tokens: parseInt(document.getElementById('max-tokens').value),
-        temperature: parseFloat(document.getElementById('temperature').value),
-        top_p: parseFloat(document.getElementById('top-p').value),
-        top_k: parseInt(document.getElementById('top-k').value),
-        repeat_penalty: parseFloat(document.getElementById('repeat-penalty').value),
-        thinking: document.getElementById('thinking').checked,
-        reasoning_effort: parseInt(document.getElementById('reasoning-effort').value),
-    };
-}
-
 async function loadModel() {
-    const sel = document.getElementById('inf-model-select');
-    const path = sel.value;
-    if (!path) return;
-
-    // Save remembered settings
-    if (document.getElementById('remember-settings').checked) {
-        saveRemembered(path);
-    } else {
-        // Clear remembered settings if unchecked
-        try { localStorage.removeItem(getSettingsKey(path)); } catch(e) {}
-    }
-
-    const btn = document.getElementById('inf-load-btn');
-    const status = document.getElementById('inf-model-status');
-    const info = document.getElementById('inf-model-info');
-    btn.disabled = true; btn.textContent = 'Loading…';
-    status.textContent = 'Loading model…';
-    status.className = 'mt-2 text-sm text-yellow-400';
-    try {
-        const body = {model_path: path, ...getLoadParams()};
-        const r = await fetch('/api/chat-v2/load', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-        const d = await r.json();
-        if (d.error) {
-            status.textContent = 'Error: ' + d.error;
-            status.className = 'mt-2 text-sm text-red-400';
-        } else {
-            infModelLoaded = true;
-            status.textContent = '✓ Model loaded: ' + path.split('/').pop();
-            status.className = 'mt-2 text-sm text-emerald-400';
-            const visionTag = sel.selectedOptions[0]?.dataset.vision === 'true' ? ' · 👁 Vision' : '';
-            info.textContent = `${sel.selectedOptions[0]?.dataset.format.toUpperCase()} · ${sel.selectedOptions[0]?.dataset.size}GB · ${sel.selectedOptions[0]?.dataset.arch || ''}${visionTag}`;
-            info.classList.remove('hidden');
-            document.getElementById('inf-chat-input').disabled = false;
-            document.getElementById('inf-chat-send').disabled = false;
-            document.getElementById('inf-bench-btn').disabled = false;
-            pollStatus();
-        }
-    } catch(e) {
-        status.textContent = 'Error: ' + e.message;
-        status.className = 'mt-2 text-sm text-red-400';
-    }
-    btn.disabled = false; btn.textContent = 'Load Model';
+  const path = document.getElementById('model-select').value;
+  if (!path) return fts.notify('Pick a model first', 'warn');
+  const btn = document.getElementById('load-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Loading…';
+  try {
+    const r = await fts.api.post('/api/models/load', { path });
+    if (r.error) throw new Error(r.error);
+    fts.notify('Model loaded', 'success');
+    setTimeout(() => location.reload(), 500);
+  } catch (e) {
+    fts.notify(e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Load model';
+  }
 }
 
-// ── Chat ──
-async function sendInfChat() {
-    const input = document.getElementById('inf-chat-input');
-    const msg = input.value.trim();
-    if (!msg && !infImageData) return;
-    if (!infModelLoaded) return;
-    input.value = '';
-    const box = document.getElementById('inf-chat-messages');
-    const ph = box.querySelector('.italic');
-    if (ph) ph.remove();
-    let userContent;
-    if (infImageData) {
-        userContent = [
-            {type: 'image_url', image_url: {url: infImageData}},
-            {type: 'text', text: msg || 'What do you see in this image?'}
-        ];
-        box.innerHTML += `<div class="flex justify-end"><div class="bg-emerald-800 rounded-lg px-3 py-2 text-sm max-w-[70%]"><img src="${infImageData}" class="max-h-40 rounded mb-1"><div>${escHtml(msg || 'What do you see?')}</div></div></div>`;
-        clearImage();
-    } else {
-        userContent = msg;
-        box.innerHTML += `<div class="flex justify-end"><div class="bg-emerald-800 rounded-lg px-3 py-2 text-sm max-w-[70%]">${escHtml(msg)}</div></div>`;
+async function send() {
+  const ta = document.getElementById('msg');
+  const text = ta.value.trim();
+  if (!text) return;
+  const msgs = document.getElementById('msgs');
+  const userDiv = document.createElement('div');
+  userDiv.className = 'bubble user';
+  userDiv.textContent = text;
+  msgs.appendChild(userDiv);
+  ta.value = '';
+
+  const aDiv = document.createElement('div');
+  aDiv.className = 'bubble assistant';
+  aDiv.innerHTML = '<span class="meta">assistant</span><span class="spinner"></span> thinking…';
+  msgs.appendChild(aDiv);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  document.getElementById('send-btn').disabled = true;
+  document.getElementById('chat-status').textContent = 'Generating…';
+  const start = performance.now();
+
+  try {
+    const params = {
+      temperature: parseFloat(document.getElementById('t').value),
+      max_tokens: parseInt(document.getElementById('m').value),
+      top_p: parseFloat(document.getElementById('p').value),
+      n_gpu_layers: parseInt(document.getElementById('g').value),
+      system_prompt: document.getElementById('sp').value || '',
+      messages: Array.from(msgs.querySelectorAll('.bubble')).map(b => ({
+        role: b.classList.contains('user') ? 'user' : 'assistant',
+        content: b.textContent.replace(/^assistant$/, '').trim(),
+      })),
+    };
+
+    const r = await fts.api.post('/api/inference/chat', params);
+    const text = (r.response || r.text || '').trim() || '(no response)';
+    const dt = ((performance.now() - start) / 1000).toFixed(1);
+
+    let thinking = '';
+    let body = text;
+    const tm = r.thinking || r.reasoning || '';
+    if (tm) {
+      thinking = `<details><summary>thinking (${tm.length} chars)</summary><pre>${esc(tm)}</pre></details>`;
     }
-    box.scrollTop = box.scrollHeight;
-    box.innerHTML += `<div id="inf-chat-loading" class="flex justify-start"><div class="bg-gray-700 rounded-lg px-3 py-2 text-sm text-gray-400">Thinking…</div></div>`;
-    box.scrollTop = box.scrollHeight;
-    try {
-        const genParams = getGenParams();
-        const sysPrompt = document.getElementById('inf-system-prompt')?.value?.trim() || '';
-        // Persist system prompt to localStorage if checkbox is checked
-        if (document.getElementById('inf-sys-prompt-remember')?.checked && sysPrompt) {
-            try { localStorage.setItem('fts_inference_sys_prompt', sysPrompt); } catch(e) {}
-        }
-        const r = await fetch('/api/chat-v2/inference/chat', {method:'POST', headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({messages:[{role:'user',content:userContent}], system_prompt: sysPrompt, ...genParams})});
-        const d = await r.json();
-        document.getElementById('inf-chat-loading')?.remove();
-        if (d.error) {
-            box.innerHTML += `<div class="flex justify-start"><div class="bg-red-900 rounded-lg px-3 py-2 text-sm text-red-300">Error: ${escHtml(d.error)}</div></div>`;
-        } else {
-            box.innerHTML += `<div class="flex justify-start"><div class="bg-gray-700 rounded-lg px-3 py-2 text-sm max-w-[70%]">${escHtml(d.response)}</div></div>`;
-        }
-    } catch(e) {
-        document.getElementById('inf-chat-loading')?.remove();
-        box.innerHTML += `<div class="flex justify-start"><div class="bg-red-900 rounded-lg px-3 py-2 text-sm text-red-300">Error: ${escHtml(e.message)}</div></div>`;
-    }
-    box.scrollTop = box.scrollHeight;
+    aDiv.innerHTML = `<span class="meta">assistant · ${dt}s</span>${thinking}${esc(body)}`;
+    msgs.scrollTop = msgs.scrollHeight;
+    document.getElementById('chat-status').innerHTML = '<span class="ok">● live</span> · ' + dt + 's';
+  } catch (e) {
+    aDiv.innerHTML = '<span class="meta err">error</span> ' + esc(e.message);
+  } finally {
+    document.getElementById('send-btn').disabled = false;
+  }
 }
-
-// ── Benchmark ──
-async function runBenchmark() {
-    if (!infModelLoaded) return;
-    const btn = document.getElementById('inf-bench-btn');
-    const status = document.getElementById('inf-bench-status');
-    const results = document.getElementById('inf-bench-results');
-    btn.disabled = true; btn.textContent = 'Running…';
-    status.textContent = 'Running benchmarks (this may take a few minutes)…';
-    status.className = 'mt-2 text-sm text-yellow-400';
-    results.classList.add('hidden');
-    try {
-        const sel = document.getElementById('inf-model-select');
-        const path = sel.value;
-        const r = await fetch('/api/chat-v2/inference/benchmark', {method:'POST', headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({model_path:path})});
-        const d = await r.json();
-        if (d.error) {
-            status.textContent = 'Error: ' + d.error;
-            status.className = 'mt-2 text-sm text-red-400';
-        } else {
-            status.textContent = '✓ Benchmarks complete';
-            status.className = 'mt-2 text-sm text-emerald-400';
-            let html = '<div class="grid grid-cols-2 md:grid-cols-3 gap-2">';
-            for (const [k,v] of Object.entries(d.results || {})) {
-                const pct = typeof v === 'number' ? (v * 100).toFixed(1) + '%' : v;
-                html += `<div class="bg-gray-800 rounded p-2 text-center"><div class="text-xs text-gray-400">${k}</div><div class="font-bold text-emerald-400">${pct}</div></div>`;
-            }
-            html += '</div>';
-            if (d.overall !== undefined) {
-                html = `<div class="bg-gray-800 rounded p-3 mb-2 text-center"><div class="text-sm text-gray-400">Overall</div><div class="text-2xl font-bold text-emerald-400">${(d.overall*100).toFixed(1)}%</div></div>` + html;
-            }
-            results.innerHTML = html;
-            results.classList.remove('hidden');
-        }
-    } catch(e) {
-        status.textContent = 'Error: ' + e.message;
-        status.className = 'mt-2 text-sm text-red-400';
-    }
-    btn.disabled = false; btn.textContent = 'Run Benchmark';
-}
-
-function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-
-// ── Model status polling ──
-let statusInterval = null;
-
-async function pollStatus() {
-    try {
-        const r = await fetch('/api/chat-v2/status');
-        const d = await r.json();
-        const live = document.getElementById('inf-model-live');
-        if (d.loaded) {
-            live.classList.remove('hidden');
-            document.getElementById('inf-idle-timer').textContent = `Idle: ${d.idle_seconds}s`;
-            if (d.auto_unload_remaining !== null) {
-                document.getElementById('inf-auto-unload').textContent = `Auto-unload in ${Math.max(0, d.auto_unload_remaining)}s`;
-            } else {
-                document.getElementById('inf-auto-unload').textContent = '';
-            }
-        } else {
-            live.classList.add('hidden');
-            if (infModelLoaded) {
-                infModelLoaded = false;
-                document.getElementById('inf-chat-input').disabled = true;
-                document.getElementById('inf-chat-send').disabled = true;
-                document.getElementById('inf-bench-btn').disabled = true;
-                document.getElementById('inf-model-status').textContent = 'Model auto-unloaded (idle timeout)';
-                document.getElementById('inf-model-status').className = 'mt-2 text-sm text-amber-400';
-            }
-        }
-    } catch(e) {}
-}
-
-async function unloadModel() {
-    try {
-        await fetch('/api/chat-v2/unload', {method:'POST'});
-        infModelLoaded = false;
-        document.getElementById('inf-model-live').classList.add('hidden');
-        document.getElementById('inf-chat-input').disabled = true;
-        document.getElementById('inf-chat-send').disabled = true;
-        document.getElementById('inf-bench-btn').disabled = true;
-        document.getElementById('inf-model-status').textContent = 'Model unloaded';
-        document.getElementById('inf-model-status').className = 'mt-2 text-sm text-gray-400';
-        document.getElementById('inf-model-info').classList.add('hidden');
-    } catch(e) {}
-}
-
-// ── Init ──
-onParamChange();
-statusInterval = setInterval(pollStatus, 5000);
-pollStatus();
-// Restore remembered system prompt
-try {
-    const savedSys = localStorage.getItem('fts_inference_sys_prompt');
-    if (savedSys) { document.getElementById('inf-system-prompt').value = savedSys; }
-} catch(e) {}
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 </script>
 {% endblock %}

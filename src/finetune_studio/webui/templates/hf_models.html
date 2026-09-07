@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block title %}HF Explorer · Finetune Studio{% endblock %}
+{% block nav_models_explore %}active{% endblock %}
+{% block crumb_here %}HF Explorer{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Model Library</h1>
+  <div class="sub">
+    Browse and download models from <a href="https://huggingface.co" target="_blank" class="cyan">HuggingFace</a>.
+    Use <span class="pill solid-green">safetensors</span> for training (LoRA / QLoRA) —
+    <span class="pill solid-purple">gguf</span> is inference-only.
+  </div>
+</div>
+
+{# Filters bar — sticky #}
+<div class="card mb-4" id="filter-bar" style="position:sticky;top:var(--header-h);z-index:10;backdrop-filter:blur(8px);background:rgba(15,18,25,0.85);">
+  <div class="flex gap-3 items-center">
+    <input id="hf-q" class="input" placeholder="Search qwen, llama, polish embed…" style="flex:1;" autofocus>
+    <select id="hf-task" class="select" style="max-width:220px;">
+      <option value="text-generation" selected>text-generation</option>
+      <option value="image-text-to-text">image-text-to-text (vision)</option>
+      <option value="feature-extraction">feature-extraction (embed)</option>
+      <option value="text2text-generation">text2text</option>
+      <option value="text-to-image">text-to-image</option>
+      <option value="image-classification">image-classification</option>
+      <option value="automatic-speech-recognition">automatic-speech-recognition</option>
+      <option value="">— any —</option>
+    </select>
+    <select id="hf-sort" class="select" style="max-width:160px;">
+      <option value="downloads" selected>Downloads</option>
+      <option value="likes">Likes</option>
+      <option value="trending">Trending</option>
+    </select>
+    <button class="btn primary" onclick="doSearch()">Search</button>
+  </div>
+  <div id="hf-status" class="mt-2 text-xs muted">Ready.</div>
+</div>
+
+<div id="hf-results">
+  {% if results %}
+  <div class="hf-grid" id="hf-grid">
+    {% for r in results %}
+    <div class="hf-card">
+      <div class="head">
+        <div class="icon">{{ r.repo_id.split('/')[-1][0]|upper }}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="name truncate">{{ r.repo_id }}</div>
+          <div class="text-xs dim mono truncate">{{ r.id }}</div>
+        </div>
+      </div>
+      <div class="pills">
+        {% for t in (r.tags or [])[:4] %}
+          <span class="pill {{ ['solid-blue','solid-green','solid-purple','solid-orange','solid-pink','solid-cyan','solid-amber']|random }}">{{ t }}</span>
+        {% endfor %}
+      </div>
+      <div class="meta">
+        <span class="stat" title="Downloads">⬇ <span class="num">{{ '%0.1fM'|format((r.downloads or 0)/1000000) }}</span></span>
+        <span class="stat" title="Likes">♥ <span class="num">{{ '%0.1fK'|format((r.likes or 0)/1000) }}</span></span>
+        {% if r.pipeline_tag %}<span class="pill outline">{{ r.pipeline_tag }}</span>{% endif %}
+      </div>
+      <div class="actions">
+        <button class="btn sm primary" data-action="/api/hf/info/{{ r.repo_id }}" onclick="showInfo(this.dataset.action, this)">View</button>
+        <button class="btn sm" onclick="showFiles('{{ r.repo_id }}', this)">Files</button>
+        <button class="btn sm" data-confirm="Pull all files of {{ r.repo_id }}?" data-action="/api/hf/download" data-body='{"repo_id":"{{ r.repo_id }}"}' data-method="POST">Pull</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
+    <div>Loading...</div>
+  </div>
+  {% endif %}
+</div>
+
+{# Modal for model info / file picker #}
+<div id="hf-modal" class="modal-back" hidden onclick="if(event.target===this)this.hidden=true">
+  <div class="modal">
+    <div class="modal-head">
+      <strong id="hf-modal-title">Model</strong>
+      <button class="btn ghost icon" onclick="document.getElementById('hf-modal').hidden=true" style="margin-left:auto;">✕</button>
+    </div>
+    <div class="modal-body" id="hf-modal-body">…</div>
+    <div class="modal-foot" id="hf-modal-foot"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let hfTimer = null;
+function scheduleSearch() {
+  clearTimeout(hfTimer);
+  hfTimer = setTimeout(doSearch, 280);
+}
+async function doSearch() {
+  const q = document.getElementById('hf-q').value.trim();
+  const task = document.getElementById('hf-task').value;
+  const sort = document.getElementById('hf-sort').value;
+  const status = document.getElementById('hf-status');
+  status.innerHTML = '<span class="spinner"></span> Searching…';
+  try {
+    const url = `/api/hf/search?q=${encodeURIComponent(q)}&task=${encodeURIComponent(task)}&sort=${encodeURIComponent(sort)}&limit=24`;
+    const data = await fts.api.get(url);
+    renderResults(data.results || []);
+    status.textContent = `${data.results?.length || 0} results · ${(data.took_ms||0).toFixed(0)}ms`;
+  } catch (e) {
+    status.textContent = 'Search failed: ' + e.message;
+  }
+}
+
+function renderResults(results) {
+  const grid = document.getElementById('hf-grid');
+  if (!results.length) {
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">No results.</div>';
+    return;
+  }
+  const COLORS = ['solid-blue','solid-green','solid-purple','solid-orange','solid-pink','solid-cyan','solid-amber'];
+  const safeColor = (i, j) => (COLORS[(i + j) % COLORS.length] || '');
+  grid.innerHTML = results.map((r, i) => {
+    const repo = r.repo_id || '?';
+    const tagPills = (r.tags || []).slice(0, 4).map((t, j) =>
+      `<span class="pill ${safeColor(i, j)}">${esc(t)}</span>`).join('');
+    return `
+      <div class="hf-card">
+        <div class="head">
+          <div class="icon">${esc((repo.split('/')[-1][0] || '?').toUpperCase())}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="name truncate">${esc(repo)}</div>
+            <div class="text-xs dim mono truncate">${esc(r.id || '')}</div>
+          </div>
+        </div>
+        <div class="pills">${tagPills}</div>
+        <div class="meta">
+          <span class="stat">⬇ <span class="num">${fmtM(r.downloads || 0)}</span></span>
+          <span class="stat">♥ <span class="num">${fmtK(r.likes || 0)}</span></span>
+          ${r.pipeline_tag ? `<span class="pill outline">${esc(r.pipeline_tag)}</span>` : ''}
+        </div>
+        <div class="actions">
+          <button class="btn sm primary" onclick="showInfo('${esc(repo)}', this)">View</button>
+          <button class="btn sm" onclick="showFiles('${esc(repo)}', this)">Files</button>
+          <button class="btn sm" data-confirm="Pull all files of ${esc(repo)}?" data-action="/api/hf/download" data-body='${JSON.stringify({repo_id: repo})}' data-method="POST">Pull</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function esc(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtM(n) { return (n/1e6).toFixed(n>=1e6 ? 1 : 2) + 'M'; }
+function fmtK(n) { return (n/1e3).toFixed(n>=1e3 ? 1 : 2) + 'K'; }
+
+async function showInfo(repo, btn) {
+  const m = document.getElementById('hf-modal');
+  document.getElementById('hf-modal-title').textContent = repo;
+  document.getElementById('hf-modal-body').innerHTML = '<div class="spinner lg"></div>';
+  document.getElementById('hf-modal-foot').innerHTML = '';
+  m.hidden = false;
+  try {
+    const d = await fts.api.get(`/api/hf/info/${encodeURIComponent(repo)}`);
+    document.getElementById('hf-modal-body').innerHTML = `
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px;">
+        <div><span class="dim text-xs">Downloads</span><div class="text-2xl mono">${fmtM(d.downloads || 0)}</div></div>
+        <div><span class="dim text-xs">Likes</span><div class="text-2xl mono">${fmtK(d.likes || 0)}</div></div>
+        <div><span class="dim text-xs">Pipeline</span><div>${esc(d.pipeline_tag || '—')}</div></div>
+        <div><span class="dim text-xs">License</span><div>${esc(d.card_data?.license || '—')}</div></div>
+      </div>
+      <div class="divider"></div>
+      <div class="text-sm" style="line-height:1.6;">${esc((d.card_data?.description || 'No description.').slice(0, 600))}</div>
+      <div class="divider"></div>
+      <div class="text-xs dim">Last updated: ${esc(d.last_modified || 'unknown')}</div>
+    `;
+    document.getElementById('hf-modal-foot').innerHTML = `
+      <button class="btn primary" data-confirm="Pull all files of ${esc(repo)}?" data-action="/api/hf/download" data-body='${JSON.stringify({repo_id: repo})}' data-method="POST">Pull all files</button>
+      <button class="btn" onclick="showFiles('${esc(repo)}', null)">Pick files…</button>
+    `;
+  } catch (e) {
+    document.getElementById('hf-modal-body').textContent = 'Failed: ' + e.message;
+  }
+}
+
+async function showFiles(repo, btn) {
+  const m = document.getElementById('hf-modal');
+  document.getElementById('hf-modal-title').textContent = `Files in ${repo}`;
+  document.getElementById('hf-modal-body').innerHTML = '<div class="spinner lg"></div>';
+  document.getElementById('hf-modal-foot').innerHTML = '';
+  m.hidden = false;
+  try {
+    const d = await fts.api.get(`/api/hf/local/${encodeURIComponent(repo)}/files`);
+    const files = d.files || [];
+    if (!files.length) {
+      document.getElementById('hf-modal-body').innerHTML = '<div class="empty">No files downloaded yet.</div>';
+      return;
+    }
+    const colors = ['solid-blue','solid-green','solid-purple','solid-orange','solid-pink','solid-cyan'];
+    document.getElementById('hf-modal-body').innerHTML = `
+      <div class="text-sm">
+        ${files.map(f => `
+          <div class="src">
+            <span class="pill ${colors[(f.path||'').length % colors.length]}">${(f.path||'').split('.').pop().toUpperCase()}</span>
+            <div class="body">
+              <div class="mono truncate">${esc(f.path)}</div>
+              <div class="meta">${(f.size_bytes/1024/1024).toFixed(1)} MB</div>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  } catch (e) {
+    document.getElementById('hf-modal-body').textContent = 'Failed: ' + e.message;
+  }
+}
+
+// Initial load (the page was server-rendered with results already; we replace them on first interaction)
+document.getElementById('hf-q').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+</script>
+{% endblock %}

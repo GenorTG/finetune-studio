@@ -89,9 +89,12 @@ async def inference_chat(request: Request):
         )
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
+    from finetune_studio.webui.thinking import split_thinking
+    parts = split_thinking(response if isinstance(response, str) else str(response))
     vision_status = getattr(inference_engine, "vision", False)
     return {
-        "response": response if isinstance(response, str) else str(response),
+        "response": parts["response"],
+        "thinking": parts["thinking"],
         "vision": vision_status,
     }
 
@@ -303,8 +306,11 @@ async def chat(request: Request, pid: str):
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
 
+    from finetune_studio.webui.thinking import split_thinking
+    parts = split_thinking(response if isinstance(response, str) else str(response))
     return {
-        "response": response if isinstance(response, str) else str(response),
+        "response": parts["response"],
+        "thinking": parts["thinking"],
         "sources": [
             {"text": s["text"][:300], "score": s["score"],
              "rag_id": s["rag_id"], "rag_name": s["rag_name"]}

@@ -99,10 +99,14 @@ from finetune_studio.webui.routes import (
     comparison,
     data,
     data_editor,
+    data_prep,
+    hf_models,
     models,
     pages,
     projects,
     quality,
+    rag,
+    system,
     testing,
     training,
 )
@@ -118,4 +122,10 @@ app.include_router(quality.router)  # type: ignore[has-type]  # already self-pre
 app.include_router(benchmarks.router, prefix="/api/benchmarks", tags=["benchmarks"])  # type: ignore[has-type]
 app.include_router(data_editor.router, prefix="/api/data-editor", tags=["data-editor"])  # type: ignore[has-type]
 app.include_router(chat_v2.router, prefix="/api/chat-v2", tags=["chat-v2"])  # type: ignore[has-type]
+app.include_router(hf_models.router, prefix="/api", tags=["hf-models"])  # type: ignore[has-type]  # /api/hf/* + /api/shared-models/*
 app.include_router(agentic.router, prefix="/api/agentic", tags=["agentic"])  # type: ignore[has-type]
+app.include_router(system.router)  # type: ignore[has-type]  # /api/system/* — RAM/VRAM snapshot
+app.include_router(data_prep.router, prefix="/api", tags=["data-prep"])  # type: ignore[has-type]
+app.include_router(data_prep._pages)  # type: ignore[has-type]  # HTML page /projects/{pid}/data-prep
+app.include_router(rag.router, prefix="/api/projects", tags=["rag"])  # type: ignore[has-type]  # /api/projects/{pid}/rag/*
+

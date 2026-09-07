@@ -1,64 +1,14 @@
-# Python
-__pycache__/
+# Local junk
+tmp/
+uploads/
+rag_data/
 *.pyc
-*.pyo
-*.egg-info/
-.eggs/
-dist/
-build/
-
-# Venv
+__pycache__/
 .venv/
-venv/
-
-# Data & models (large files — use Git LFS or separate storage)
-models/
-output/
+.env
+data/docs/
+data/*.db
+data/projects/
+data/models/
 *.gguf
 *.safetensors
-*.bin
-*.pt
-*.pth
-*.onnx
-
-# Database
-*.db
-*.sqlite3
-
-# Logs
-*.log
-
-# IDE
-.vscode/
-.idea/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Training artifacts
-output_*/
-wandb/
-mlruns/
-
-# Dev/test scripts (kept in archive/)
-archive/
-_build.py
-_gen.py
-_write_files.py
-debug_bench*.py
-run_baseline_*.py
-run_benchmark*.py
-test_engine.py
-test_tool_calling*.py
-test_tool_parser*.py
-test_tools.py
-test_tqa*.py
-test_v21*.py
-train_v21.py
-comparison_suite.json
-example_suite.json
-PORTABLE_SERVER.md
-RAG_PLAN.md
-SPEC.md
-WEBUI_PLAN.md

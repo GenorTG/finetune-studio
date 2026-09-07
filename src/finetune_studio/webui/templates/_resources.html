@@ -1,0 +1,84 @@
+{# Partial: host RAM + per-GPU VRAM bars. Polled every 3s by the fetcher at the bottom. #}
+<div id="sys-resources" class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6">
+  <div class="flex items-center justify-between mb-3">
+    <h3 class="text-sm font-semibold text-gray-300">Host Resources</h3>
+    <span id="sys-resources-updated" class="text-[10px] text-gray-500"></span>
+  </div>
+  <div class="space-y-3">
+    {# RAM row — single bar #}
+    <div>
+      <div class="flex justify-between text-xs mb-1">
+        <span class="text-gray-400">RAM</span>
+        <span id="ram-text" class="text-gray-500">— / — GB (—%)</span>
+      </div>
+      <div class="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
+        <div id="ram-bar" class="h-full rounded-full transition-all duration-500 ease-out bg-emerald-500" style="width:0%"></div>
+      </div>
+    </div>
+    {# VRAM rows — one per GPU, populated by JS #}
+    <div id="vram-rows" class="space-y-3"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const ramText = document.getElementById('ram-text');
+  const ramBar = document.getElementById('ram-bar');
+  const vramRows = document.getElementById('vram-rows');
+  const updated = document.getElementById('sys-resources-updated');
+
+  function colorFor(pct) {
+    if (pct < 60) return 'bg-emerald-500';
+    if (pct < 85) return 'bg-amber-500';
+    return 'bg-red-500';
+  }
+
+  function fmtGb(g) { return (g || 0).toFixed(1); }
+
+  function renderRam(ram) {
+    if (!ram || !ram.available) {
+      ramText.textContent = 'unavailable';
+      ramBar.style.width = '0%';
+      return;
+    }
+    ramText.textContent = `${fmtGb(ram.used_gb)} / ${fmtGb(ram.total_gb)} GB (${ram.pct}%)`;
+    ramBar.style.width = Math.min(100, ram.pct) + '%';
+    ramBar.className = 'h-full rounded-full transition-all duration-500 ease-out ' + colorFor(ram.pct);
+  }
+
+  function renderVram(vram) {
+    if (!vram || vram.length === 0) {
+      vramRows.innerHTML = '<div class="text-xs text-gray-500">No GPU detected on host.</div>';
+      return;
+    }
+    vramRows.innerHTML = vram.map(g => `
+      <div data-vram-idx="${g.index}">
+        <div class="flex justify-between text-xs mb-1">
+          <span class="text-gray-400 truncate pr-2">VRAM · ${g.name}</span>
+          <span class="vram-text text-gray-500">${fmtGb(g.used_gb)} / ${fmtGb(g.total_gb)} GB (${g.pct}%)</span>
+        </div>
+        <div class="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
+          <div class="vram-bar h-full rounded-full transition-all duration-500 ease-out ${colorFor(g.pct)}" style="width:${Math.min(100, g.pct)}%"></div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function poll() {
+    try {
+      const r = await fetch('/api/system/resources', { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      renderRam(d.ram);
+      renderVram(d.vram);
+      const t = new Date();
+      updated.textContent = 'updated ' + t.toLocaleTimeString();
+    } catch (e) {
+      updated.textContent = 'fetch failed';
+    }
+  }
+
+  poll();
+  setInterval(poll, 3000);
+})();
+</script>

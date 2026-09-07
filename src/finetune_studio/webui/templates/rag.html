@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}RAG — {{ project.name }}{% endblock %}
+{% block nav_rag %}active{% endblock %}
+
+{% block crumbs %}
+  <a href="/projects" data-link>Projects</a>
+  <span class="sep">/</span>
+  <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a>
+  <span class="sep">/</span>
+  <span class="here">RAG</span>
+{% endblock %}
+
+{% block content %}
+{% include "_resources.html" %}
+
+<div class="page-head">
+  <h1>RAG — Retrieval-Augmented Generation</h1>
+  <div class="sub">Build a searchable index from this project's parsed documents, then query it.</div>
+</div>
+
+{# Status #}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">1. Corpus status</div>
+      <div class="card-sub">Where the RAG index lives on disk</div>
+    </div>
+    <span class="pill solid-purple" id="rag-summary-badge" hidden></span>
+  </div>
+  <div id="rag-status" class="text-sm muted">Loading…</div>
+  <div id="shared-models-info" class="mt-2 text-xs dim"></div>
+</div>
+
+{# Build #}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">2. Build &amp; rebuild</div>
+      <div class="card-sub">First build downloads the embedder (~2.2 GB for multilingual-e5-large), then takes seconds.</div>
+    </div>
+  </div>
+  <div class="grid grid-12 gap-3 items-end">
+    <div class="col-span-4">
+      <label class="block text-xs muted mb-1">Embedder</label>
+      <select id="b-embedder" class="select">
+        <option value="intfloat/multilingual-e5-large" selected>multilingual-e5-large (1024d, multilingual, recommended)</option>
+        <option value="BAAI/bge-large-en-v1.5">bge-large-en-v1.5 (1024d, English only, strong)</option>
+        <option value="sentence-transformers/all-MiniLM-L6-v2">all-MiniLM-L6-v2 (384d, fast, weaker)</option>
+      </select>
+    </div>
+    <div class="col-span-3">
+      <label class="block text-xs muted mb-1">Chunk size (words)</label>
+      <input id="b-chunk" type="number" min="100" max="2000" value="400" class="input">
+    </div>
+    <div class="col-span-3">
+      <label class="block text-xs muted mb-1">Overlap (words)</label>
+      <input id="b-overlap" type="number" min="0" max="500" value="80" class="input">
+    </div>
+    <div class="col-span-2 flex gap-2">
+      <button onclick="buildCorpus(false)" id="build-btn" class="btn primary" style="flex:1;">Build</button>
+      <button onclick="buildCorpus(true)" id="rebuild-btn" class="btn" title="Wipe existing corpus and rebuild from scratch">⟲</button>
+    </div>
+  </div>
+  <div id="build-status" class="mt-3 text-xs dim"></div>
+</div>
+
+{# Settings #}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">3. Retrieval settings</div>
+      <div class="card-sub">Hybrid = BM25 + dense; rerank = cross-encoder</div>
+    </div>
+  </div>
+  <div class="grid grid-12 gap-3 items-end">
+    <div class="col-span-5">
+      <label class="block text-xs muted mb-1">Reranker (cross-encoder)</label>
+      <select id="s-reranker" class="select">
+        <option value="cross-encoder/ms-marco-MiniLM-L-6-v2" selected>ms-marco-MiniLM-L-6-v2 (English, fast)</option>
+        <option value="BAAI/bge-reranker-v2-m3">bge-reranker-v2-m3 (multilingual, larger)</option>
+      </select>
+    </div>
+    <div class="col-span-3">
+      <label class="block text-xs muted mb-1">Rerank top-N</label>
+      <input id="s-rerank-top-n" type="number" min="1" max="200" value="50" class="input">
+    </div>
+    <div class="col-span-2 flex items-center gap-3">
+      <label class="flex items-center gap-2 text-xs"><input id="s-rerank-enabled" type="checkbox" checked> Rerank</label>
+      <label class="flex items-center gap-2 text-xs"><input id="s-hybrid-enabled" type="checkbox" checked> Hybrid</label>
+    </div>
+    <div class="col-span-2">
+      <button onclick="saveSettings()" class="btn primary" style="width:100%;">Save</button>
+    </div>
+  </div>
+</div>
+
+{# Test #}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">4. Live test query</div>
+      <div class="card-sub">Retrieve top-K without generating an answer.</div>
+    </div>
+  </div>
+  <div class="flex gap-2">
+    <input id="q-text" type="text" placeholder="Ask a question about this project's documents…"
+           class="input" style="flex:1;">
+    <button onclick="runQuery()" id="q-btn" class="btn primary">Search</button>
+  </div>
+  <div id="q-status" class="mt-2 text-xs dim"></div>
+  <div id="q-results" class="mt-3" hidden></div>
+</div>
+
+{# Chat #}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">5. Chat with RAG</div>
+      <div class="card-sub">Generate an answer using retrieved chunks as context.</div>
+    </div>
+  </div>
+  <div id="chat-messages" class="flex flex-col gap-2 mb-3" style="min-height:120px;max-height:360px;overflow-y:auto;background:var(--bg-app);border:1px solid var(--border);border-radius:var(--radius);padding:12px;"></div>
+  <div class="flex gap-2">
+    <input id="chat-input" type="text" placeholder="Ask anything — model uses the retrieved documents as context…"
+           class="input" style="flex:1;"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();sendChat();}">
+    <button onclick="sendChat()" id="chat-btn" class="btn primary">Send</button>
+  </div>
+</div>
+
+{# Bundle #}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">6. Self-contained export</div>
+      <div class="card-sub">Tarball with corpus + vectors + BM25 + (optional) embedder. Run offline anywhere.</div>
+    </div>
+  </div>
+  <div class="grid grid-12 gap-3 items-end mb-3">
+    <div class="col-span-5">
+      <label class="block text-xs muted mb-1">Bundle filename stem</label>
+      <input id="bundle-name" type="text" placeholder="helios-docs-v1" class="input">
+    </div>
+    <div class="col-span-3">
+      <label class="block text-xs muted mb-1">Format</label>
+      <select id="bundle-fmt" class="select">
+        <option value="tar" selected>.tar (faster, ~2.2 GB)</option>
+        <option value="tar.gz">.tar.gz (compressed, slower)</option>
+      </select>
+    </div>
+    <div class="col-span-2 flex items-end pb-2">
+      <label class="flex items-center gap-2 text-xs"><input id="bundle-include-models" type="checkbox" checked> Include models</label>
+    </div>
+    <div class="col-span-2">
+      <button id="bundle-btn" onclick="startBundleDownload()" class="btn primary" style="width:100%;">Download</button>
+    </div>
+  </div>
+  <p class="text-xs dim">"Include models" bakes embedder + reranker into the bundle (~2 GB extra) so the recipient can run offline. Uncheck for a small bundle (~30 KB).</p>
+  <span id="bundle-status" class="block mt-2 text-xs dim"></span>
+</div>
+
+{# Shared models #}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">7. Shared model library</div>
+      <div class="card-sub">Models used by RAG corpora live in <code>~/.finetune-studio/shared_models/</code> (one copy per model, shared across all corpora).</div>
+    </div>
+    <button class="btn ghost" onclick="loadSharedModels()">Refresh</button>
+  </div>
+  <div id="shared-models-list" class="text-xs muted">Loading…</div>
+</div>
+
+{# Danger zone #}
+<div class="card" style="border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.04);">
+  <div class="card-head">
+    <div>
+      <div class="card-title err">Danger zone</div>
+      <div class="card-sub">Wipes the entire corpus directory. Models in the shared store stay put.</div>
+    </div>
+    <button class="btn danger" onclick="wipeCorpus()">Delete corpus</button>
+  </div>
+</div>
+{% endblock %}

@@ -1,96 +1,124 @@
 /**
  * Finetune Studio — global JS bridge
- * Loaded on every page (via base.html <script src="/static/js/app.js">).
- * Adds global event listeners + helpers so pages stay interactive
- * even when their inline scripts haven't loaded yet.
+ *
+ * Exposed as window.fts:
+ *   fts.notify(msg, type)        — toast
+ *   fts.api.get/post/upload      — fetch helpers
+ *   fts.poll(url, el, field, ms) — refresh an element with a JSON field
+ *   fts.init()                   — re-bind global handlers on SPA page change
+ *
+ * Plus three global delegation listeners for forms, action buttons, and
+ * confirm prompts — pages just emit data-action="URL" / data-api="URL"
+ * and they wire up automatically.
  */
 (function () {
   "use strict";
 
-  // ── Utility: show toast / inline error ─────────────────────────────────
-  window.notify = function (msg, type) {
+  // ── Toasts ──────────────────────────────────────────────────────────
+  const toastsEl = () => document.getElementById("toasts");
+  function notify(msg, type) {
     type = type || "info";
     const div = document.createElement("div");
-    div.className =
-      "fixed top-4 right-4 z-50 px-4 py-2 rounded shadow-lg text-sm " " +
-      (type === "error" ? "bg-red-600" : type === "success" ? "bg-emerald-600" : "bg-gray-700");
+    div.className = "toast " + type;
     div.textContent = msg;
-    document.body.appendChild(div);
-    setTimeout(() => div.remove(), 3500);
-  };
+    toastsEl().appendChild(div);
+    setTimeout(() => {
+      div.classList.add("leaving");
+      setTimeout(() => div.remove(), 280);
+    }, 3500);
+  }
 
-  // ── Utility: small API helper ───────────────────────────────────────────
-  window.api = {
+  // ── API ─────────────────────────────────────────────────────────────
+  const api = {
     get: (url) => fetch(url).then((r) => r.json().catch(() => ({}))),
-    post: (url, body) =>
-      fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body || {}),
-      }).then((r) => r.json().catch(() => ({}))),
+    post: (url, body) => fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    }).then((r) => r.json().catch(() => ({}))),
     upload: (url, file) => {
       const fd = new FormData();
       fd.append("file", file);
       return fetch(url, { method: "POST", body: fd }).then((r) => r.json().catch(() => ({})));
     },
+    uploadMany: (url, files, fieldName) => {
+      const fd = new FormData();
+      for (const f of files) fd.append(fieldName || "files", f);
+      return fetch(url, { method: "POST", body: fd }).then((r) => r.json().catch(() => ({})));
+    },
   };
 
-  // ── Wire up every <form data-api="POST"> with fetch on submit ──────────
-  document.addEventListener("submit", function (ev) {
-    const form = ev.target;
-    if (!form.matches || !form.matches("form[data-api]")) return;
-    ev.preventDefault();
-    const url = form.getAttribute("data-api");
-    const data = Object.fromEntries(new FormData(form));
-    api.post(url, data).then((d) => {
-      if (d.error) notify(d.error, "error");
-      else notify("Done", "success");
-      if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
+  // ── Polling helper ─────────────────────────────────────────────────
+  function poll(url, el, field, interval) {
+    interval = interval || 3000;
+    const fn = () => api.get(url).then((d) => {
+      if (!d) return;
+      if (field) {
+        if (d[field] !== undefined) el.textContent = d[field];
+      } else if (typeof d === "string") {
+        el.textContent = d;
+      }
     });
-  });
+    fn();
+    return setInterval(fn, interval);
+  }
 
-  // ── Wire up every <button data-action="..."> with one-click API calls ──
-  document.addEventListener("click", function (ev) {
-    const btn = ev.target.closest('[data-action]');
-    if (!btn) return;
-    ev.preventDefault();
-    const url = btn.dataset.action;
-    const method = (btn.dataset.method || "POST").toUpperCase();
-    const body = btn.dataset.body ? JSON.parse(btn.dataset.body) : {};
-    const opts = { method };
-    if (method !== "GET") {
-      opts.headers = { "Content-Type": "application/json" };
-      opts.body = JSON.stringify(body);
-    }
-    fetch(url, opts)
-      .then((r) => r.json().catch(() => ({})))
-      .then((d) => {
-        if (d.error) notify(d.error, "error");
-        else notify("Done", "success");
-        if (btn.dataset.reload === "true") setTimeout(() => location.reload(), 600);
+  // ── Delegation: form data-api / button data-action / data-confirm ──
+  function delegate() {
+    // Forms
+    document.querySelectorAll("form[data-api]").forEach((form) => {
+      form.addEventListener("submit", (ev) => {
+        ev.preventDefault();
+        const url = form.getAttribute("data-api");
+        const data = Object.fromEntries(new FormData(form));
+        api.post(url, data).then((d) => {
+          if (d.error) notify(d.error, "error");
+          else notify("Done", "success");
+          if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
+        });
       });
-  });
-
-  // ── Refresh <span data-poll="URL" data-field="x"> every N ms ──────────
-  document.addEventListener("DOMContentLoaded", function () {
+    });
+    // Buttons
+    document.querySelectorAll("[data-action]").forEach((btn) => {
+      btn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        const url = btn.dataset.action;
+        const method = (btn.dataset.method || "POST").toUpperCase();
+        const body = btn.dataset.body ? JSON.parse(btn.dataset.body) : {};
+        const opts = { method };
+        if (method !== "GET") {
+          opts.headers = { "Content-Type": "application/json" };
+          opts.body = JSON.stringify(body);
+        }
+        fetch(url, opts)
+          .then((r) => r.json().catch(() => ({})))
+          .then((d) => {
+            if (d.error) notify(d.error, "error");
+            else notify("Done", "success");
+            if (btn.dataset.reload === "true") setTimeout(() => location.reload(), 600);
+          });
+      });
+    });
+    // data-poll spans
     document.querySelectorAll("[data-poll]").forEach((el) => {
       const url = el.getAttribute("data-poll");
       const field = el.getAttribute("data-field");
       const interval = parseInt(el.getAttribute("data-interval") || "3000", 10);
-      setInterval(() => {
-        api.get(url).then((d) => {
-          if (field && d && d[field] !== undefined) el.textContent = d[field];
-        });
-      }, interval);
+      poll(url, el, field, interval);
     });
-  });
+    // data-confirm buttons
+    document.querySelectorAll("[data-confirm]").forEach((btn) => {
+      btn.addEventListener("click", (ev) => {
+        if (!confirm(btn.dataset.confirm)) ev.preventDefault();
+      });
+    });
+  }
 
-  // ── Confirm before destructive actions ─────────────────────────────────
-  document.addEventListener("click", function (ev) {
-    const el = ev.target.closest("[data-confirm]");
-    if (!el) return;
-    if (!confirm(el.dataset.confirm)) ev.preventDefault();
-  });
+  // ── Run once on full load, then re-run on every SPA swap ─────────
+  document.addEventListener("DOMContentLoaded", delegate);
 
-  console.log("Finetune Studio ready");
+  // Page-swap hook called from spa.js after each navigation
+  window.fts = {
+    notify, api, poll, init: delegate,
+  };
 })();

@@ -1,126 +1,97 @@
 {% extends "base.html" %}
-{% block title %}Dashboard - Finetune Studio{% endblock %}
-{% block nav_dashboard %}bg-gray-800 text-emerald-400{% endblock %}
+{% block title %}Dashboard · Finetune Studio{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+{% block crumb_here %}Dashboard{% endblock %}
+
 {% block content %}
-<h1 class="text-2xl font-bold mb-6">Dashboard</h1>
-
-<!-- System overview cards -->
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-  <div class="bg-gray-900 rounded-lg p-4 border border-gray-800 card-hover">
-    <div class="text-sm text-gray-400">Projects</div>
-    <div class="text-3xl font-bold text-emerald-400">{{ projects|length }}</div>
-  </div>
-  <div class="bg-gray-900 rounded-lg p-4 border border-gray-800 card-hover">
-    <div class="text-sm text-gray-400">Models</div>
-    <div class="text-3xl font-bold text-emerald-400">{{ models|length }}</div>
-    <a href="/inference" class="text-xs text-emerald-400 hover:underline">Open Inference →</a>
-  </div>
-  <div class="bg-gray-900 rounded-lg p-4 border border-gray-800 card-hover">
-    <div class="text-sm text-gray-400">Training Status</div>
-    <div class="text-xl font-bold">
-      <span hx-get="/api/training/status-text" hx-trigger="load, every 3s" hx-swap="innerHTML" id="dash-training-status">{{ training_state.status|title }}</span>
-    </div>
-  </div>
+<div class="page-head">
+  <h1>Welcome back, Chris</h1>
+  <div class="sub">Your model training & RAG control center.</div>
 </div>
 
-<!-- Projects -->
-<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-8">
-  <div class="flex items-center justify-between mb-3">
-    <h2 class="text-lg font-semibold">Projects</h2>
-    <button onclick="document.getElementById('new-project-modal').classList.remove('hidden')" class="px-3 py-1.5 bg-emerald-700 rounded hover:bg-emerald-600 text-xs">+ New Project</button>
+{# System stats #}
+<div class="grid grid-4 mb-6">
+  <div class="stat">
+    <div class="label">Projects</div>
+    <div class="value">{{ projects|length }}</div>
+    <a href="/projects" class="delta cyan">Open list →</a>
   </div>
-  {% if not projects %}
-  <div class="text-sm text-gray-500">No projects yet. Create one to get started.</div>
-  {% endif %}
-  <div class="space-y-2">
-    {% for p in projects %}
-    <a href="/projects/{{ p.id }}" class="flex items-center justify-between px-3 py-3 bg-gray-800 rounded card-hover border border-gray-700 transition-colors">
-      <div>
-        <div class="font-semibold text-sm">{{ p.name }}</div>
-        <div class="text-xs text-gray-500 mt-0.5">{{ p.description or 'No description' }}</div>
-      </div>
-      <div class="flex items-center gap-3 text-xs text-gray-500">
-        {% if p.base_model %}<span>{{ p.base_model.split('/')[-1] }}</span>{% endif %}
-        <span class="px-2 py-0.5 rounded bg-gray-700">{{ p.created_at[:10] if p.created_at else '?' }}</span>
-      </div>
-    </a>
-    {% endfor %}
-  </div>
-</div>
-
-<!-- Models -->
-<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-8">
-  <div class="flex items-center justify-between mb-3">
-    <h2 class="text-lg font-semibold">Models</h2>
-    <div class="flex items-center gap-3">
-      <a href="/inference" class="text-xs text-emerald-400 hover:underline">Inference →</a>
-      <button hx-post="/api/models/refresh" hx-swap="none" hx-on::after-request="window.location.reload()" class="text-xs text-emerald-400 hover:underline">Rescan</button>
-    </div>
-  </div>
-  {% if not models %}
-  <div class="text-sm text-gray-500">No models found. Add models to your model directories.</div>
-  {% endif %}
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-    {% for m in models %}
-    <div class="bg-gray-800 rounded p-3 border border-gray-700 card-hover">
-      <div class="flex items-center justify-between mb-1">
-        <span class="font-semibold text-sm truncate">{{ m.name }}</span>
-        <div class="flex gap-1">
-          {% if m.vision %}<span class="px-1.5 py-0.5 text-xs rounded bg-amber-900 text-amber-300">👁 vision</span>{% endif %}
-          <span class="px-1.5 py-0.5 text-xs rounded {% if m.format == 'gguf' %}bg-blue-900 text-blue-300{% else %}bg-purple-900 text-purple-300{% endif %}">{{ m.format }}</span>
-        </div>
-      </div>
-      <div class="text-xs text-gray-400 space-y-0.5">
-        <div>{{ m.size_gb }} GB{% if m.architecture %} · {{ m.architecture }}{% endif %}</div>
-        <div class="text-gray-500 truncate">{{ m.path }}</div>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-</div>
-
-<!-- System -->
-<div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
-  <h2 class="text-lg font-semibold mb-3">System</h2>
-  <div class="grid grid-cols-2 gap-4 text-sm">
-    <div class="bg-gray-800 rounded p-3">
-      <div class="text-gray-400 text-xs">Training</div>
-      <div class="font-bold text-lg">{{ training_state.status|title }}</div>
-      {% if training_state.status == 'training' %}
-      <div class="text-xs text-gray-500">Step {{ training_state.current_step }}/{{ training_state.total_steps }}</div>
+  <div class="stat">
+    <div class="label">Local models</div>
+    <div class="value">{{ models|length }}</div>
+    <div class="delta">
+      {% if loaded_model %}
+        <span class="ok">● {{ loaded_model }}</span>
+      {% else %}
+        <span class="dim">none loaded</span>
       {% endif %}
     </div>
-    <div class="bg-gray-800 rounded p-3">
-      <div class="text-gray-400 text-xs">GPU</div>
-      <div class="font-bold text-lg" hx-get="/api/gpu/status" hx-trigger="load, every 10s" hx-swap="innerHTML">—</div>
+  </div>
+  <div class="stat">
+    <div class="label">Training</div>
+    <div class="value" id="dash-training-status" data-poll="/api/training/status-text" data-interval="3000">
+      <span class="spinner" style="vertical-align:middle;"></span>
+    </div>
+    <div class="delta" id="dash-training-progress" data-poll="/api/training/progress" data-interval="3000"></div>
+  </div>
+  <div class="stat">
+    <div class="label">GPU</div>
+    <div class="value" id="dash-gpu" data-poll="/api/system/gpu" data-interval="5000">
+      <span class="dim">—</span>
+    </div>
+    <div class="delta dim" id="dash-gpu-sub" data-poll="/api/system/gpu-text" data-interval="5000"></div>
+  </div>
+</div>
+
+{# Quick actions #}
+<div class="card mb-6">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Quick actions</div>
+      <div class="card-sub">Most common workflows, one click away.</div>
     </div>
   </div>
-</div>
-
-<!-- New project modal -->
-<div id="new-project-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-  <div class="bg-gray-900 border border-gray-800 rounded-lg p-6 max-w-md w-full">
-    <h3 class="text-lg font-semibold mb-3">New Project</h3>
-    <form id="new-project-form" class="space-y-3">
-      <input name="name" placeholder="Project name" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700" required>
-      <input name="description" placeholder="Description (optional)" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
-      <input name="base_model" placeholder="Base model path (optional)" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
-      <textarea name="system_prompt" placeholder="System prompt (optional)" rows="2" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700"></textarea>
-      <div class="flex gap-2">
-        <button type="submit" class="px-3 py-1.5 bg-emerald-600 rounded hover:bg-emerald-500 text-sm">Create</button>
-        <button type="button" onclick="document.getElementById('new-project-modal').classList.add('hidden')" class="px-3 py-1.5 bg-gray-700 rounded hover:bg-gray-600 text-sm">Cancel</button>
-      </div>
-    </form>
+  <div class="grid grid-4" style="gap:10px;">
+    <a href="/projects" class="btn lg" data-link><span>＋</span> New project</a>
+    <a href="/models/explore" class="btn lg" data-link><span>⬇</span> Download model</a>
+    <a href="/inference" class="btn lg primary" data-link><span>▶</span> Load & chat</a>
+    <a href="/projects" class="btn lg" data-link><span>📦</span> Open project</a>
   </div>
 </div>
 
-<script>
-document.getElementById('new-project-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const data = Object.fromEntries(new FormData(e.target));
-    const r = await fetch('/api/projects', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
-    const d = await r.json();
-    if (d.error) { alert(d.error); } else { window.location.href = '/projects/' + d.id; }
-});
-</script>
+{# Projects #}
+<div class="card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Projects</div>
+      <div class="card-sub">{{ projects|length }} project{{ '' if projects|length == 1 else 's' }}</div>
+    </div>
+    <a href="/projects" class="btn sm ghost" data-link>All projects →</a>
+  </div>
+
+  {% if not projects %}
+    <div class="empty">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
+      <div style="margin-top:6px;">No projects yet.</div>
+      <a href="/projects" class="btn primary" data-link style="margin-top:12px;">Create your first project</a>
+    </div>
+  {% else %}
+    <div class="proj-list">
+      {% for p in projects %}
+      <a class="proj-card" href="/projects/{{ p.id }}" data-link>
+        <div class="icon" style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;color:#fff;font-weight:700;">{{ p.name[0]|upper }}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="name truncate">{{ p.name }}</div>
+          <div class="desc truncate">{{ p.description or 'No description' }}</div>
+        </div>
+        <div class="meta">
+          {% if p.base_model %}<span class="pill solid-blue">{{ p.base_model.split('/')[-1] }}</span>{% endif %}
+          {% if p.production_run %}<span class="pill solid-green">production</span>{% endif %}
+          <span class="dim">{{ p.id[:6] }}</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
 {% endblock %}

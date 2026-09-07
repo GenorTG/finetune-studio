@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Data Prep · Finetune Studio{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Data Prep</h1>
+  <div class="sub">Parse files, chunk, score Q&amp;A pairs, export to ShareGPT / Alpaca / OpenAI.</div>
+</div>
+
+<div class="card mb-6">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Run a prep job</div>
+      <div class="card-sub">Pick a project + files, choose chunking + difficulty, hit start.</div>
+    </div>
+  </div>
+  <div class="grid grid-2 gap-3 items-end">
+    <label>
+      <span class="block text-xs muted mb-1">Project</span>
+      <select id="dp-project" class="select">
+        {% for p in projects %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1">QA per chunk</span>
+      <input id="dp-qa" type="number" min="1" max="10" value="3" class="input">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1">Difficulty</span>
+      <select id="dp-difficulty" class="select">
+        <option value="easy">easy</option>
+        <option value="medium" selected>medium</option>
+        <option value="hard">hard</option>
+      </select>
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1">Style</span>
+      <select id="dp-style" class="select">
+        <option value="socratic" selected>socratic</option>
+        <option value="factual">factual</option>
+        <option value="analytical">analytical</option>
+        <option value="comparative">comparative</option>
+        <option value="applied">applied</option>
+      </select>
+    </label>
+  </div>
+  <button id="dp-start" class="btn primary mt-3" onclick="startPrep()">Start prep</button>
+  <div id="dp-status" class="mt-3 text-xs dim"></div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Prepped Q&amp;A</div>
+      <div class="card-sub">All Q&amp;A pairs across projects, pending / approved / rejected.</div>
+    </div>
+  </div>
+  <div id="dp-results" class="text-sm muted">No pairs yet.</div>
+</div>
+{% endblock %}

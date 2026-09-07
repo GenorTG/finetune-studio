@@ -1,24 +1,46 @@
 {% extends "base.html" %}
-{% block title %}Models - Finetune Studio{% endblock %}
-{% block nav_models %}bg-gray-800 text-emerald-400{% endblock %}
+{% block title %}Models · Finetune Studio{% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold">Models</h1>
-    <button hx-post="/api/models/refresh" hx-swap="none" class="px-4 py-2 bg-emerald-600 rounded hover:bg-emerald-500 text-sm">Refresh</button>
+<div class="page-head">
+  <h1>Models</h1>
+  <div class="sub">All local models discovered on this host. Open a project to see project-specific trained checkpoints.</div>
 </div>
-<div class="space-y-2">
-    {% for model in models %}
-    <div class="bg-gray-900 rounded-lg p-4 border border-gray-800 flex items-center justify-between">
-        <div class="min-w-0 mr-4">
-            <div class="font-mono text-sm">{{ model.name }}</div>
-            <div class="text-xs text-gray-500 mt-1 break-all">{{ model.path }}</div>
-        </div>
-        <div class="flex gap-2 text-xs shrink-0">
-            <span class="px-2 py-0.5 rounded bg-gray-700">{{ model.format }}</span>
-            <span class="px-2 py-0.5 rounded bg-gray-700">{{ model.size_gb }} GB</span>
-            {% if model.architecture %}<span class="px-2 py-0.5 rounded bg-blue-900 max-w-xs truncate" title="{{ model.architecture }}">{{ model.architecture }}</span>{% endif %}
-        </div>
+
+<div class="card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Discovered models</div>
+      <div class="card-sub">Scanned from your configured model directories.</div>
     </div>
-    {% endfor %}
+    <a href="/models/explore" class="btn" data-link>Browse HF Hub →</a>
+  </div>
+  {% if models %}
+  <table class="table">
+    <thead><tr><th>Name</th><th>Format</th><th>Size</th><th>Architecture</th><th>Path</th><th></th></tr></thead>
+    <tbody>
+      {% for m in models %}
+      <tr class="row-hover">
+        <td class="name">
+          <span class="pill {{ 'solid-purple' if m.vision else 'solid-blue' }}" style="margin-right:6px;">{{ m.format }}</span>
+          {{ m.name }}
+          {% if m.vision %}<span class="pill solid-cyan">👁 vision</span>{% endif %}
+        </td>
+        <td class="meta mono">{{ m.size_gb }} GB</td>
+        <td class="meta">{{ m.architecture or '—' }}</td>
+        <td class="meta mono truncate" style="max-width:200px;">{{ m.path }}</td>
+        <td>
+          {% if loaded and loaded.path == m.path %}
+          <span class="pill solid-green">● loaded</span>
+          {% else %}
+          <button class="btn sm primary" data-action="/api/models/load" data-body='{"path":"{{ m.path }}"}' data-reload="true">Load</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No models found. Add directories to scan in Settings, or browse the HF Hub.</div>
+  {% endif %}
 </div>
 {% endblock %}

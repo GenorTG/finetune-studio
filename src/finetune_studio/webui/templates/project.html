@@ -1,206 +1,125 @@
 {% extends "base.html" %}
-{% block title %}{{ project.name }} - Finetune Studio{% endblock %}
-{% block nav_project_overview %}bg-gray-800 text-emerald-400{% endblock %}
+{% block title %}{{ project.name }} · Finetune Studio{% endblock %}
+{% block nav_project_overview %}active{% endblock %}
+
+{% block crumbs %}
+  <a href="/projects" data-link>Projects</a>
+  <span class="sep">/</span>
+  <span class="here">{{ project.name }}</span>
+{% endblock %}
+
+{% block topbar_right %}
+  <button class="btn" onclick="document.getElementById('settings-modal').classList.remove('hidden')">Settings</button>
+  <button class="btn danger" data-confirm="Delete this project and ALL its RAGs and Runs?" data-action="/api/projects/{{ project.id }}" data-method="DELETE" data-reload="true">Delete</button>
+{% endblock %}
+
 {% block content %}
-<div class="flex items-center justify-between mb-6">
+{% include "_resources.html" %}
+
+<div class="page-head row">
+  <div>
+    <h1>{{ project.name }}</h1>
+    <div class="sub">{{ project.description or 'No description yet — add one in Settings.' }}</div>
+  </div>
+  <div class="actions">
+    {% if project.production_run %}
+    <span class="pill solid-green">● production</span>
+    {% endif %}
+    <span class="pill outline mono">{{ project.id[:8] }}</span>
+  </div>
+</div>
+
+{# Quick stats #}
+<div class="grid grid-4 mb-6">
+  <a class="stat hover" href="/projects/{{ pid }}/data" data-link>
+    <div class="label">RAGs</div>
+    <div class="value violet">{{ project.rags|length }}</div>
+    <div class="delta dim">knowledge bases</div>
+  </a>
+  <a class="stat hover" href="/projects/{{ pid }}/training" data-link>
+    <div class="label">Training runs</div>
+    <div class="value cyan">{{ project.runs|length }}</div>
+    <div class="delta dim">{% set running = project.runs|selectattr('status','equalto','running')|list %}{{ running|length }} running</div>
+  </a>
+  <a class="stat hover" href="/projects/{{ pid }}/models" data-link>
+    <div class="label">Models</div>
+    <div class="value" style="color: var(--ok);">—</div>
+    <div class="delta dim">from training runs</div>
+  </a>
+  <a class="stat hover" href="/projects/{{ pid }}/testing" data-link>
+    <div class="label">Benchmarks</div>
+    <div class="value">—</div>
+    <div class="delta dim">coming soon</div>
+  </a>
+</div>
+
+{# Quick links #}
+<div class="card mb-6">
+  <div class="card-head">
     <div>
-        <a href="/projects" class="text-xs text-gray-500 hover:text-gray-300">← Projects</a>
-        <h1 class="text-2xl font-bold">{{ project.name }}</h1>
-        <p class="text-sm text-gray-400 mt-1">{{ project.description }}</p>
+      <div class="card-title">Open a section</div>
+      <div class="card-sub">Everything for this project lives in one place.</div>
     </div>
-    <div class="flex gap-2">
-        <button onclick="editProject()" class="px-3 py-1.5 bg-gray-700 rounded hover:bg-gray-600 text-sm">Edit</button>
-        <button data-confirm="Delete this project and ALL its RAGs and Runs?" data-action="/api/projects/{{ project.id }}" data-method="DELETE" data-reload="true" class="px-3 py-1.5 bg-red-700 rounded hover:bg-red-600 text-sm">Delete</button>
-    </div>
+  </div>
+  <div class="grid grid-3">
+    <a class="card flat hover" href="/projects/{{ pid }}/data" data-link style="display:flex;align-items:center;gap:10px;">
+      <span style="width:32px;height:32px;border-radius:8px;background:rgba(139,92,246,0.15);color:#c084fc;display:grid;place-items:center;">📁</span>
+      <span><b>Data</b><br><span class="dim text-xs">upload, parse, browse</span></span>
+    </a>
+    <a class="card flat hover" href="/projects/{{ pid }}/data-prep" data-link style="display:flex;align-items:center;gap:10px;">
+      <span style="width:32px;height:32px;border-radius:8px;background:rgba(6,182,212,0.15);color:#22d3ee;display:grid;place-items:center;">✂︎</span>
+      <span><b>Data Prep</b><br><span class="dim text-xs">chunk, embed, export</span></span>
+    </a>
+    <a class="card flat hover" href="/projects/{{ pid }}/rag" data-link style="display:flex;align-items:center;gap:10px;">
+      <span style="width:32px;height:32px;border-radius:8px;background:rgba(34,197,94,0.15);color:#4ade80;display:grid;place-items:center;">🔍</span>
+      <span><b>RAG</b><br><span class="dim text-xs">build index, search</span></span>
+    </a>
+    <a class="card flat hover" href="/projects/{{ pid }}/training" data-link style="display:flex;align-items:center;gap:10px;">
+      <span style="width:32px;height:32px;border-radius:8px;background:rgba(245,158,11,0.15);color:#fbbf24;display:grid;place-items:center;">🔥</span>
+      <span><b>Training</b><br><span class="dim text-xs">LoRA / QLoRA / full</span></span>
+    </a>
+    <a class="card flat hover" href="/projects/{{ pid }}/chat" data-link style="display:flex;align-items:center;gap:10px;">
+      <span style="width:32px;height:32px;border-radius:8px;background:rgba(168,85,247,0.15);color:#c084fc;display:grid;place-items:center;">💬</span>
+      <span><b>Chat</b><br><span class="dim text-xs">test the model</span></span>
+    </a>
+    <a class="card flat hover" href="/projects/{{ pid }}/agentic" data-link style="display:flex;align-items:center;gap:10px;">
+      <span style="width:32px;height:32px;border-radius:8px;background:rgba(249,115,22,0.15);color:#fb923c;display:grid;place-items:center;">🧠</span>
+      <span><b>Agentic</b><br><span class="dim text-xs">tool-using agent</span></span>
+    </a>
+  </div>
 </div>
 
-<!-- Project stats -->
-<div class="grid grid-cols-3 gap-4 mb-8">
-    <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
-        <div class="text-xs text-gray-500">Base model</div>
-        <div class="font-mono text-sm truncate">{{ project.base_model.split('/')[-1] or '—' }}</div>
+{# Settings modal #}
+<div id="settings-modal" class="modal-back" hidden onclick="if(event.target===this)this.hidden=true">
+  <div class="modal">
+    <div class="modal-head">
+      <strong>Project settings</strong>
+      <button class="btn ghost icon" onclick="document.getElementById('settings-modal').hidden=true" style="margin-left:auto;">✕</button>
     </div>
-    <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
-        <div class="text-xs text-gray-500">RAGs</div>
-        <div class="text-2xl font-bold text-purple-400">{{ project.rags|length }}</div>
+    <div class="modal-body">
+      <form id="settings-form" data-api="/api/projects/{{ project.id }}" data-reload="true">
+        <label class="block mb-3">
+          <span class="muted text-xs">Name</span>
+          <input class="input" name="name" value="{{ project.name }}">
+        </label>
+        <label class="block mb-3">
+          <span class="muted text-xs">Base model</span>
+          <input class="input" name="base_model" value="{{ project.base_model or '' }}" placeholder="intfloat/multilingual-e5-large">
+        </label>
+        <label class="block mb-3">
+          <span class="muted text-xs">Description</span>
+          <textarea class="textarea" name="description" rows="3">{{ project.description or '' }}</textarea>
+        </label>
+        <label class="block mb-3">
+          <span class="muted text-xs">System prompt</span>
+          <textarea class="textarea" name="system_prompt" rows="4">{{ project.system_prompt or '' }}</textarea>
+        </label>
+      </form>
     </div>
-    <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
-        <div class="text-xs text-gray-500">Training runs</div>
-        <div class="text-2xl font-bold text-emerald-400">{{ project.runs|length }}</div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="document.getElementById('settings-modal').hidden=true">Cancel</button>
+      <button class="btn primary" form="settings-form" type="submit">Save</button>
     </div>
+  </div>
 </div>
-
-<!-- RAGs -->
-<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6">
-    <div class="flex items-center justify-between mb-3">
-        <h2 class="text-lg font-semibold">RAGs</h2>
-        <button onclick="newRag()" class="px-2 py-1 bg-purple-700 rounded hover:bg-purple-600 text-xs">+ Add RAG</button>
-    </div>
-    <div id="rag-list" class="space-y-2">
-        {% if not project.rags %}
-        <div class="text-sm text-gray-500">No RAGs yet. Add one to give the model a knowledge base (legal docs, social, paperwork, …).</div>
-        {% endif %}
-        {% for rag in project.rags %}
-        <div class="bg-gray-800 rounded p-3 flex items-center justify-between" id="rag-{{ rag.id }}">
-            <div>
-                <div class="font-semibold text-sm">{{ rag.name }}</div>
-                <div class="text-xs text-gray-500">{{ rag.description or 'no description' }} · {{ rag.doc_count }} docs / {{ rag.chunk_count }} chunks</div>
-            </div>
-            <div class="flex gap-2 text-xs">
-                <button onclick="ingestToRag('{{ rag.id }}')" class="px-2 py-1 bg-purple-700 rounded hover:bg-purple-600">Ingest</button>
-                <button onclick="queryRag('{{ rag.id }}')" class="px-2 py-1 bg-blue-700 rounded hover:bg-blue-600">Query</button>
-                <button data-confirm="Delete this RAG?" data-action="/api/projects/{{ project.id }}/rags/{{ rag.id }}" data-method="DELETE" data-reload="true" class="px-2 py-1 bg-red-700 rounded hover:bg-red-600">Delete</button>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-</div>
-
-<!-- Runs -->
-<div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6">
-    <div class="flex items-center justify-between mb-3">
-        <h2 class="text-lg font-semibold">Training Runs</h2>
-        <button onclick="newRun()" class="px-2 py-1 bg-emerald-700 rounded hover:bg-emerald-600 text-xs">+ New Run</button>
-    </div>
-    <div id="run-list" class="space-y-2">
-        {% if not project.runs %}
-        <div class="text-sm text-gray-500">No runs yet. Create one to start training.</div>
-        {% endif %}
-        {% for run in project.runs %}
-        <div class="bg-gray-800 rounded p-3" id="run-{{ run.id }}">
-            <div class="flex items-center justify-between mb-2">
-                <div>
-                    <div class="font-semibold text-sm">
-                        {{ run.name }}
-                        <span class="ml-2 px-2 py-0.5 rounded text-xs
-                            {% if run.status == 'done' %}bg-emerald-800
-                            {% elif run.status == 'running' %}bg-blue-800
-                            {% elif run.status == 'error' %}bg-red-800
-                            {% else %}bg-gray-700{% endif %}">{{ run.status }}</span>
-                        {% if project.production_run == run.id %}<span class="ml-2 px-2 py-0.5 rounded text-xs bg-yellow-700">★ production</span>{% endif %}
-                    </div>
-                    <div class="text-xs text-gray-500 mt-1">
-                        base: {{ run.base_model.split('/')[-1] or '—' }} ·
-                        {% if run.metrics %}{% if run.metrics.loss %}loss: {{ run.metrics.loss }}{% endif %}{% if run.metrics.step %} · step {{ run.metrics.step }}/{{ run.metrics.total_steps }}{% endif %}{% endif %}
-                    </div>
-                </div>
-                <div class="flex gap-2 text-xs">
-                    {% if run.status in ['created', 'idle', 'stopped', 'error'] %}
-                    <button data-action="/api/projects/{{ project.id }}/runs/{{ run.id }}/start" data-method="POST" class="px-2 py-1 bg-emerald-700 rounded hover:bg-emerald-600">Start</button>
-                    {% endif %}
-                    {% if run.status == 'running' %}
-                    <button data-action="/api/projects/{{ project.id }}/runs/{{ run.id }}/stop" data-method="POST" class="px-2 py-1 bg-red-700 rounded hover:bg-red-600">Stop</button>
-                    {% endif %}
-                    {% if run.status == 'done' and project.production_run != run.id %}
-                    <button data-action="/api/projects/{{ project.id }}/promote" data-method="POST" data-body='{"run_id":"{{ run.id }}"}' class="px-2 py-1 bg-yellow-700 rounded hover:bg-yellow-600">Promote</button>
-                    {% endif %}
-                    <button data-confirm="Delete this run?" data-action="/api/projects/{{ project.id }}/runs/{{ run.id }}" data-method="DELETE" data-reload="true" class="px-2 py-1 bg-red-800 rounded hover:bg-red-700">Delete</button>
-                </div>
-            </div>
-            {% if run.benchmarks %}
-            <div class="text-xs text-gray-500 mt-1">
-                Benchmarks:
-                {% for b in run.benchmarks %}
-                <span class="ml-1 px-1.5 py-0.5 bg-gray-700 rounded">{{ b.suite_name }} → {{ b.scores.pass_rate or b.scores.score or '?' }}%</span>
-                {% endfor %}
-            </div>
-            {% endif %}
-        </div>
-        {% endfor %}
-    </div>
-</div>
-
-<!-- Modal: New RAG -->
-<div id="rag-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-    <div class="bg-gray-900 border border-gray-800 rounded-lg p-6 max-w-md w-full">
-        <h3 class="text-lg font-semibold mb-3">New RAG</h3>
-        <form id="rag-form" class="space-y-3">
-            <input name="name" placeholder="RAG name (e.g. 'Legal docs')" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700" required>
-            <input name="tags" placeholder="tags (comma-sep, e.g. legal, contracts)" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
-            <textarea name="description" placeholder="What does this RAG know?" rows="2" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700"></textarea>
-            <div class="flex gap-2">
-                <button type="submit" class="px-3 py-1.5 bg-emerald-600 rounded hover:bg-emerald-500 text-sm">Create</button>
-                <button type="button" onclick="document.getElementById('rag-modal').classList.add('hidden')" class="px-3 py-1.5 bg-gray-700 rounded hover:bg-gray-600 text-sm">Cancel</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Modal: New Run -->
-<div id="run-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-    <div class="bg-gray-900 border border-gray-800 rounded-lg p-6 max-w-lg w-full">
-        <h3 class="text-lg font-semibold mb-3">New Training Run</h3>
-        <form id="run-form" class="space-y-3">
-            <input name="name" placeholder="Run name (e.g. 'v22-lr8e5')" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700" required>
-            <select name="base_model" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
-                {% for m in models %}<option value="{{ m.path }}" {% if m.path == project.base_model %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
-            </select>
-            <input name="data_path" placeholder="Path to training data .jsonl" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
-            <div class="grid grid-cols-3 gap-2">
-                <input name="lora_rank" type="number" value="64" placeholder="LoRA rank" class="bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
-                <input name="learning_rate" type="text" value="8e-5" placeholder="LR" class="bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
-                <input name="num_epochs" type="number" value="4" placeholder="epochs" class="bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
-            </div>
-            <textarea name="notes" placeholder="Notes (optional)" rows="2" class="w-full bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700"></textarea>
-            <div class="flex gap-2">
-                <button type="submit" class="px-3 py-1.5 bg-emerald-600 rounded hover:bg-emerald-500 text-sm">Create</button>
-                <button type="button" onclick="document.getElementById('run-modal').classList.add('hidden')" class="px-3 py-1.5 bg-gray-700 rounded hover:bg-gray-600 text-sm">Cancel</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<script>
-const PID = '{{ project.id }}';
-function newRag() { document.getElementById('rag-modal').classList.remove('hidden'); }
-function newRun() { document.getElementById('run-modal').classList.remove('hidden'); }
-async function ingestToRag(rid) {
-    const path = prompt('File or directory path to ingest:');
-    if (!path) return;
-    const r = await fetch(`/api/projects/${PID}/rags/${rid}/ingest`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({path})});
-    const d = await r.json();
-    if (d.error) notify(d.error, 'error'); else notify(`Ingested ${d.result.chunks_added} chunks`, 'success');
-    setTimeout(() => location.reload(), 800);
-}
-async function queryRag(rid) {
-    const q = prompt('Query:');
-    if (!q) return;
-    const r = await fetch(`/api/projects/${PID}/rags/${rid}/query`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({query:q, top_k:5})});
-    const d = await r.json();
-    let msg = `Top chunks:\n` + (d.chunks || []).slice(0,3).map((c,i) => `[${i+1}] (score ${c.score.toFixed(3)}) ${c.text.slice(0,120)}...`).join('\n');
-    alert(msg || 'No chunks returned');
-}
-document.getElementById('rag-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const data = Object.fromEntries(new FormData(e.target));
-    const r = await fetch(`/api/projects/${PID}/rags`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
-    const d = await r.json();
-    if (d.error) notify(d.error, 'error'); else location.reload();
-});
-document.getElementById('run-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const data = Object.fromEntries(new FormData(e.target));
-    const settings_obj = {
-        lora_rank: parseInt(data.lora_rank) || 64,
-        learning_rate: data.learning_rate || '8e-5',
-        num_epochs: parseInt(data.num_epochs) || 4,
-    };
-    const body = {
-        name: data.name,
-        base_model: data.base_model,
-        data_path: data.data_path,
-        settings: settings_obj,
-        notes: data.notes,
-    };
-    const r = await fetch(`/api/projects/${PID}/runs`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-    const d = await r.json();
-    if (d.error) notify(d.error, 'error'); else location.reload();
-});
-async function editProject() {
-    const desc = prompt('Description:', `{{ project.description }}`);
-    if (desc === null) return;
-    await fetch(`/api/projects/${PID}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({description: desc})});
-    location.reload();
-}
-</script>
 {% endblock %}

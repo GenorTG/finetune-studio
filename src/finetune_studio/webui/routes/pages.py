@@ -72,6 +72,17 @@ async def inference_page(request: Request):
     )
 
 
+@router.get("/models/explore", response_class=HTMLResponse)
+async def hf_models_page(request: Request):
+    """HuggingFace model browser + downloader (LM Studio-style)."""
+    from finetune_studio.webui.app import discovered_models
+    return templates.TemplateResponse(
+        request,
+        "hf_models.html",
+        {"request": request, "models": discovered_models},
+    )
+
+
 # ── Projects list ────────────────────────────────────────────────────────
 
 @router.get("/projects", response_class=HTMLResponse)
@@ -105,6 +116,7 @@ async def project_detail_page(request: Request, pid: str):
         "project.html",
         {
             "request": request,
+            "pid": pid,
             "project": project,
             "models": discovered_models,
         },
