@@ -13,17 +13,14 @@
 
   const content = () => document.getElementById("content");
   const app     = () => document.getElementById("app");
-  const drawer  = () => document.getElementById("drawer");
+  const sessionBar = () => document.getElementById("session-bar");
   const crumbLeaf = () => document.getElementById("crumb-leaf");
-  const pop     = () => document.getElementById("crumb-popover");
 
   function setActiveNav(url) {
     const path = url.split("?")[0];
-    const targets = [
-      ...(drawer() ? drawer().querySelectorAll(".drawer-item") : []),
-      ...(pop() ? pop().querySelectorAll(".crumb-pop-item") : []),
-    ];
-    targets.forEach((a) => {
+    const sb = sessionBar();
+    if (!sb) return;
+    sb.querySelectorAll(".sb-tab").forEach((a) => {
       const href = a.getAttribute("href") || "";
       if (href === path) a.classList.add("active");
       else if (href && path.startsWith(href + "/")) a.classList.add("active");
@@ -40,13 +37,11 @@
   function extractContent(html) {
     const doc = new DOMParser().parseFromString(html, "text/html");
     const newContent = doc.getElementById("content");
-    const newCrumbs  = doc.getElementById("crumb-leaf");
-    const newNav     = doc.getElementById("drawer");
+    const newActive  = doc.querySelector(".sb-active-bar");
     const newTitle   = doc.querySelector("title");
     return {
       contentHTML: newContent ? newContent.innerHTML : null,
-      crumbsHTML:  newCrumbs  ? newCrumbs.innerHTML  : null,
-      navHTML:     newNav     ? newNav.innerHTML     : null,
+      activeHTML:  newActive  ? newActive.innerHTML  : null,
       title:       newTitle   ? newTitle.textContent : null,
       fullHTML:    !newContent,
     };
@@ -74,8 +69,9 @@
       await new Promise((r) => setTimeout(r, 80));
       // Swap
       c.innerHTML = ext.contentHTML;
-      if (ext.crumbsHTML && crumbLeaf()) crumbLeaf().innerHTML = ext.crumbsHTML;
-      if (ext.navHTML && drawer()) drawer().innerHTML = ext.navHTML;
+      const activeBar = document.querySelector(".sb-active-bar");
+      if (ext.activeHTML && activeBar) activeBar.innerHTML = ext.activeHTML;
+      if (window.ftsPalette && window.ftsPalette.refresh) window.ftsPalette.refresh();
       if (ext.title) document.title = ext.title;
       // Highlight nav
       setActiveNav(url);

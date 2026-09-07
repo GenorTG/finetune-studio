@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Benchmarks · {{ project.name }} · Finetune Studio{% endblock %}
 {% block nav_projects %}active{% endblock %}
+{% block sb_path %}~ / projects / {{ project.name }} / bench{% endblock %}
 {% block crumb %}
 <a href="/projects" data-link>Projects</a> <span class="sep">/</span> <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a> <span class="sep">/</span> <span>Benchmarks</span>
 {% endblock %}

@@ -6,176 +6,122 @@
   <meta name="color-scheme" content="dark">
   <title>{% block title %}Finetune Studio{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/css/app.css?v=4">
+  <link rel="stylesheet" href="/static/css/app.css?v=5">
   <script>
-    // Theme preset before paint — prevents flash.
-    try {
-      // drawer state lives in a single key per session
-    } catch (e) {}
+    // Pre-paint: nothing to pre-load for the session bar.
   </script>
 </head>
 <body>
   <div id="toasts" class="toasts" aria-live="polite"></div>
   <div class="app" id="app">
 
-    {# ── Top header (replaces persistent sidebar) ───────────────────── #}
-    <header class="tophead" id="tophead">
-      <button class="nav-toggle" id="nav-toggle" title="Open nav (\\)" aria-label="Open navigation">
-        <span class="bracket">[</span>
-        <span class="bars">
-          <span></span><span></span><span></span>
-        </span>
-        <span class="bracket">]</span>
-        <span class="hotkey">\\</span>
-      </button>
+    {# ── Session bar (tmux-style tabs) ──────────────────────────────── #}
+    <header class="session-bar" id="session-bar">
 
-      <a href="/" class="brand" data-link>
+      {# Brand cluster — minimal, always present #}
+      <a href="/" class="sb-brand" data-link title="Finetune Studio">
         <span class="logo">FS</span>
-        <span class="brand-name">FINETUNE_STUDIO</span>
+        <span class="sb-prompt">root@fts:~$</span>
       </a>
 
-      {# Project breadcrumb popover — visible on project pages only #}
-      {% if pid is defined and pid %}
-      <div class="crumb-wrap">
-        <span class="crumb-sep">/</span>
-        <a href="/projects" class="crumb-link" data-link>Projects</a>
-        <span class="crumb-sep">/</span>
-        <button class="crumb-popover-btn" id="crumb-popover-btn" type="button">
-          <span>{{ project.name if project else pid }}</span>
-          <span class="caret">▾</span>
-        </button>
-        <div class="crumb-popover" id="crumb-popover" hidden>
-          <div class="crumb-pop-head">
-            <span class="pop-frame">{{ project.name if project else pid }}</span>
-            <button class="pop-close" id="crumb-pop-close" type="button">✕</button>
-          </div>
-          <nav class="crumb-pop-body" aria-label="Project sub-pages">
-            <a href="/projects/{{ pid }}" class="crumb-pop-item {% block nav_project_overview %}{% endblock %}" data-link>
-              <span class="ic">◉</span><span>Overview</span>
-            </a>
-            <a href="/projects/{{ pid }}/data" class="crumb-pop-item {% block nav_data %}{% endblock %}" data-link>
-              <span class="ic">▤</span><span>Data</span>
-            </a>
-            <a href="/projects/{{ pid }}/data-prep" class="crumb-pop-item {% block nav_data_prep %}{% endblock %}" data-link>
-              <span class="ic">▥</span><span>Data Prep</span>
-            </a>
-            <a href="/projects/{{ pid }}/rag" class="crumb-pop-item {% block nav_rag %}{% endblock %}" data-link>
-              <span class="ic">⌗</span><span>RAG</span>
-            </a>
-            <a href="/projects/{{ pid }}/training" class="crumb-pop-item {% block nav_training %}{% endblock %}" data-link>
-              <span class="ic">▣</span><span>Training</span>
-            </a>
-            <a href="/projects/{{ pid }}/testing" class="crumb-pop-item {% block nav_testing %}{% endblock %}" data-link>
-              <span class="ic">✓</span><span>Testing</span>
-            </a>
-            <a href="/projects/{{ pid }}/benchmarks" class="crumb-pop-item {% block nav_benchmarks %}{% endblock %}" data-link>
-              <span class="ic">▲</span><span>Benchmarks</span>
-            </a>
-            <a href="/projects/{{ pid }}/chat" class="crumb-pop-item {% block nav_project_chat %}{% endblock %}" data-link>
-              <span class="ic">◊</span><span>Chat</span>
-            </a>
-            <a href="/projects/{{ pid }}/agentic" class="crumb-pop-item {% block nav_agentic %}{% endblock %}" data-link>
-              <span class="ic">✶</span><span>Agentic</span>
-            </a>
-          </nav>
-          <div class="crumb-pop-foot">
-            <span class="dim">PID: {{ pid[:8] }}</span>
-          </div>
+      {# Tab strip — the actual navigation #}
+      <nav class="sb-tabs" aria-label="Sessions">
+
+        {# GROUP: System #}
+        <div class="sb-group">
+          <span class="sb-group-label" title="System">[sys]</span>
+          <a href="/" class="sb-tab {% block nav_dashboard %}{% endblock %}" data-link data-tab="dashboard">
+            <span class="sb-tab-label">dashboard</span>
+            <span class="sb-cursor" aria-hidden="true">▮</span>
+          </a>
+          <a href="/projects" class="sb-tab {% block nav_projects %}{% endblock %}" data-link data-tab="projects">
+            <span class="sb-tab-label">projects</span>
+            {% if projects %}<span class="sb-badge">{{ projects|length }}</span>{% endif %}
+          </a>
         </div>
-      </div>
-      {% endif %}
 
-      <div class="crumb-leaf" id="crumb-leaf">
-        {% block crumbs_leaf %}{% endblock %}
-      </div>
+        {# GROUP: Project (only on project pages) #}
+        {% if pid is defined and pid %}
+        <div class="sb-group sb-group-project">
+          <span class="sb-group-label" title="Active project">[{{ (project.name if project else pid)[:10] }}]</span>
+          <a href="/projects/{{ pid }}" class="sb-tab {% block nav_project_overview %}{% endblock %}" data-link data-tab="overview">
+            <span class="sb-tab-label">overview</span>
+          </a>
+          <a href="/projects/{{ pid }}/data" class="sb-tab {% block nav_data %}{% endblock %}" data-link data-tab="data">
+            <span class="sb-tab-label">data</span>
+          </a>
+          <a href="/projects/{{ pid }}/data-prep" class="sb-tab {% block nav_data_prep %}{% endblock %}" data-link data-tab="data-prep">
+            <span class="sb-tab-label">data-prep</span>
+          </a>
+          <a href="/projects/{{ pid }}/rag" class="sb-tab {% block nav_rag %}{% endblock %}" data-link data-tab="rag">
+            <span class="sb-tab-label">rag</span>
+          </a>
+          <a href="/projects/{{ pid }}/training" class="sb-tab {% block nav_training %}{% endblock %}" data-link data-tab="training">
+            <span class="sb-tab-label">training</span>
+          </a>
+          <a href="/projects/{{ pid }}/testing" class="sb-tab {% block nav_testing %}{% endblock %}" data-link data-tab="testing">
+            <span class="sb-tab-label">testing</span>
+          </a>
+          <a href="/projects/{{ pid }}/benchmarks" class="sb-tab {% block nav_benchmarks %}{% endblock %}" data-link data-tab="benchmarks">
+            <span class="sb-tab-label">bench</span>
+          </a>
+          <a href="/projects/{{ pid }}/chat" class="sb-tab {% block nav_project_chat %}{% endblock %}" data-link data-tab="project-chat">
+            <span class="sb-tab-label">chat</span>
+          </a>
+          <a href="/projects/{{ pid }}/agentic" class="sb-tab {% block nav_agentic %}{% endblock %}" data-link data-tab="agentic">
+            <span class="sb-tab-label">agentic</span>
+          </a>
+        </div>
+        {% endif %}
 
-      <div class="spacer"></div>
+        {# GROUP: Tools #}
+        <div class="sb-group">
+          <span class="sb-group-label" title="Tools">[tools]</span>
+          <a href="/models/explore" class="sb-tab {% block nav_models_explore %}{% endblock %}" data-link data-tab="hf">
+            <span class="sb-tab-label">hf</span>
+          </a>
+          <a href="/inference" class="sb-tab {% block nav_inference %}{% endblock %}" data-link data-tab="inference">
+            <span class="sb-tab-label">inference</span>
+          </a>
+        </div>
+      </nav>
 
-      <div class="right">
-        {% block topbar_right %}{% endblock %}
+      {# Right cluster — status + command palette launcher #}
+      <div class="sb-right">
+        <button class="sb-palette" id="sb-palette" title="Command palette (Ctrl+K)" aria-label="Open command palette">
+          <span class="sb-palette-key">⌘</span><span>K</span>
+        </button>
         <span class="status-pill" id="status-pill" title="System status">
           <span class="status-dot {% if resources and resources.gpu %}idle{% endif %}" id="status-dot"></span>
           <span class="status-label" id="status-label">{% if resources and resources.gpu %}READY{% else %}NO_DATA{% endif %}</span>
         </span>
         <span class="version">v0.2.0</span>
       </div>
+
+      {# Active-session indicator bar — thin strip below the tabs that
+         shows the current full path in terminal-prompt style. #}
+      <div class="sb-active-bar">
+        <span class="sb-active-prefix">{% block sb_path %}{% endblock %}</span>
+        <span class="sb-active-cursor">█</span>
+      </div>
     </header>
 
-    {# ── Drawer modal (replaces persistent sidebar) ─────────────────── #}
-    <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
-    <aside class="drawer" id="drawer" hidden aria-label="Navigation">
-      <div class="drawer-head">
-        <div class="drawer-brand">
-          <span class="logo">FS</span>
-          <span>FINETUNE_STUDIO</span>
-        </div>
-        <button class="drawer-close" id="drawer-close" title="Close (\\)" aria-label="Close navigation">✕</button>
+    {# ── Command palette (Ctrl+K) — stub for now, real impl in palette.js ── #}
+    <div class="palette-backdrop" id="palette-backdrop" hidden></div>
+    <div class="palette" id="palette" hidden role="dialog" aria-label="Command palette">
+      <div class="palette-head">
+        <span class="palette-prefix">root@fts:~$</span>
+        <input type="text" id="palette-input" class="palette-input" autocomplete="off"
+               placeholder="jump to...  (try 'rag', 'qa3 rag', 'inference')" />
+        <span class="palette-hint">ESC</span>
       </div>
-
-      <nav class="drawer-scroll" aria-label="Primary">
-        <div class="drawer-section">SYSTEM</div>
-        <a href="/" class="drawer-item {% block nav_dashboard %}{% endblock %}" data-link data-drawer-close>
-          <span class="ic">▦</span><span>Dashboard</span>
-        </a>
-        <a href="/projects" class="drawer-item {% block nav_projects %}{% endblock %}" data-link data-drawer-close>
-          <span class="ic">▤</span><span>Projects</span>
-          {% if projects %}<span class="badge">{{ projects|length }}</span>{% endif %}
-        </a>
-        <a href="/models/explore" class="drawer-item {% block nav_models_explore %}{% endblock %}" data-link data-drawer-close>
-          <span class="ic">◈</span><span>HF Explorer</span>
-        </a>
-        <a href="/inference" class="drawer-item {% block nav_inference %}{% endblock %}" data-link data-drawer-close>
-          <span class="ic">◉</span><span>Inference</span>
-        </a>
-
-        {% if pid is defined and pid %}
-        <div class="drawer-section">PROJECT · {{ project.name if project else pid }}</div>
-        <a href="/projects/{{ pid }}" class="drawer-item {{ self.nav_project_overview() }}" data-link data-drawer-close>
-          <span class="ic">◉</span><span>Overview</span>
-        </a>
-        <a href="/projects/{{ pid }}/data" class="drawer-item {{ self.nav_data() }}" data-link data-drawer-close>
-          <span class="ic">▤</span><span>Data</span>
-        </a>
-        <a href="/projects/{{ pid }}/data-prep" class="drawer-item {{ self.nav_data_prep() }}" data-link data-drawer-close>
-          <span class="ic">▥</span><span>Data Prep</span>
-        </a>
-        <a href="/projects/{{ pid }}/rag" class="drawer-item {{ self.nav_rag() }}" data-link data-drawer-close>
-          <span class="ic">⌗</span><span>RAG</span>
-        </a>
-        <a href="/projects/{{ pid }}/training" class="drawer-item {{ self.nav_training() }}" data-link data-drawer-close>
-          <span class="ic">▣</span><span>Training</span>
-        </a>
-        <a href="/projects/{{ pid }}/testing" class="drawer-item {{ self.nav_testing() }}" data-link data-drawer-close>
-          <span class="ic">✓</span><span>Testing</span>
-        </a>
-        <a href="/projects/{{ pid }}/benchmarks" class="drawer-item {{ self.nav_benchmarks() }}" data-link data-drawer-close>
-          <span class="ic">▲</span><span>Benchmarks</span>
-        </a>
-        <a href="/projects/{{ pid }}/chat" class="drawer-item {{ self.nav_project_chat() }}" data-link data-drawer-close>
-          <span class="ic">◊</span><span>Chat</span>
-        </a>
-        <a href="/projects/{{ pid }}/agentic" class="drawer-item {{ self.nav_agentic() }}" data-link data-drawer-close>
-          <span class="ic">✶</span><span>Agentic</span>
-        </a>
-        {% endif %}
-
-        {% if resources and resources.gpu %}
-        <div class="drawer-section">RESOURCES</div>
-        {% for r in resources.gpu %}
-        <div class="drawer-item" style="cursor:default;">
-          <span class="ic">▥</span>
-          <span style="overflow:hidden;text-overflow:ellipsis;">{{ r.name|truncate(20) }}</span>
-          <span class="badge">{{ "%.1f"|format(r.free_vram_gb) }}GB</span>
-        </div>
-        {% endfor %}
-        {% endif %}
-      </nav>
-
-      <div class="drawer-foot">
-        <span class="hotkey-hint">PRESS <kbd>\\</kbd> TO TOGGLE</span>
-        <span class="dim">v0.2.0</span>
+      <div class="palette-results" id="palette-results" role="listbox"></div>
+      <div class="palette-foot">
+        <span><kbd>↑↓</kbd> navigate</span>
+        <span><kbd>↵</kbd> open</span>
+        <span><kbd>esc</kbd> close</span>
       </div>
-    </aside>
+    </div>
 
     {# ── Main content ────────────────────────────────────────────────── #}
     <div class="main">
@@ -185,10 +131,10 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=4"></script>
-  <script src="/static/js/sprites.js?v=4"></script>
-  <script src="/static/js/spa.js?v=4"></script>
-  <script src="/static/js/drawer.js?v=4"></script>
+  <script src="/static/js/app.js?v=5"></script>
+  <script src="/static/js/sprites.js?v=5"></script>
+  <script src="/static/js/spa.js?v=5"></script>
+  <script src="/static/js/palette.js?v=5"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

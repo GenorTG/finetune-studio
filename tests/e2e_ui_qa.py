@@ -110,7 +110,7 @@ async def test_dashboard(ctx):
             "() => Boolean(document.querySelector('[data-matrix] .matrix-rain'))"
         )
         rec("dashboard.matrix_rain_active", mr)
-        brand = await page.query_selector(".brand .logo")
+        brand = await page.query_selector(".sb-brand .logo")
         if brand:
             clip = await brand.evaluate("el => getComputedStyle(el).clipPath")
             rec("dashboard.logo_clippath", clip not in ("none", ""),
@@ -304,18 +304,15 @@ async def test_spa(ctx):
         await page.wait_for_timeout(1500)
 
         nav_hrefs = await page.evaluate("""
-() => Array.from(document.querySelectorAll('.drawer-item'))
+() => Array.from(document.querySelectorAll('.sb-tab'))
   .map(a => a.getAttribute('href')).filter(Boolean)
         """)
         for href in nav_hrefs:
             if href.startswith("http"):
                 continue
             try:
-                # Drawer items live inside #drawer (hidden until [≡] clicked).
-                # Open the drawer before each click so Playwright can interact.
-                await page.evaluate("() => { const d = document.getElementById('drawer'); if (d) { d.hidden = false; d.classList.add('open'); const b = document.getElementById('drawer-backdrop'); if (b) b.hidden = false; } }")
-                await page.wait_for_timeout(120)
-                await page.click(f'#drawer a[href="{href}"]')
+                before = page.url
+                await page.click(f'.sb-tab[href="{href}"]')
                 await page.wait_for_timeout(700)
                 after = page.url
                 rec(f"spa.nav->{href}", after.endswith(href))
