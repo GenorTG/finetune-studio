@@ -311,8 +311,11 @@ async def test_spa(ctx):
             if href.startswith("http"):
                 continue
             try:
-                before = page.url
-                await page.click(f'a[href="{href}"]')
+                # Drawer items live inside #drawer (hidden until [≡] clicked).
+                # Open the drawer before each click so Playwright can interact.
+                await page.evaluate("() => { const d = document.getElementById('drawer'); if (d) { d.hidden = false; d.classList.add('open'); const b = document.getElementById('drawer-backdrop'); if (b) b.hidden = false; } }")
+                await page.wait_for_timeout(120)
+                await page.click(f'#drawer a[href="{href}"]')
                 await page.wait_for_timeout(700)
                 after = page.url
                 rec(f"spa.nav->{href}", after.endswith(href))
