@@ -109,13 +109,19 @@
         if (re.test(haystack)) total += 50;
         else total += 20;
       } else {
-        // Try subsequence match (fuzzy)
+        // Try subsequence match (fuzzy) — but require tight gaps:
+        // each token char must be found within 8 haystack chars of the
+        // previous one. This prevents 'rag' matching across unrelated words.
         let ti = 0;
+        let last = -10;
         for (let hi = 0; hi < haystack.length && ti < tok.length; hi++) {
-          if (haystack[hi] === tok[ti]) ti++;
+          if (haystack[hi] === tok[ti] && (hi - last) <= 8) {
+            ti++;
+            last = hi;
+          }
         }
         if (ti < tok.length) return 0;  // token didn't match at all
-        total += 5;
+        total += 3;
       }
     }
     // Boost exact matches
@@ -156,7 +162,7 @@
     } else {
       scored = navIndex
         .map((it) => ({ ...it, score: fuzzyScore(query, it) }))
-        .filter((it) => it.score > 0)
+        .filter((it) => it.score >= 30)
         .sort((a, b) => b.score - a.score)
         .slice(0, 14);
     }
