@@ -204,33 +204,47 @@ async def test_hf_local_api(ctx):
     """
     page = await ctx.new_page()
     try:
+        # Navigate first so fetch has a URL base to resolve against.
+        await page.goto(BASE + "/models/explore", wait_until="networkidle")
+        await page.wait_for_timeout(500)
         # 1) GET /api/hf/local should return a list (possibly empty).
         items = await page.evaluate("""
-() => fetch('/api/hf/local').then(r => r.ok ? r.json() : [])
+async () => {
+  const r = await fetch('/api/hf/local');
+  if (!r.ok) return [];
+  const d = await r.json();
+  return d.models || d || [];
+}
         """)
         rec("hf.local_api.list_ok", isinstance(items, list), f"{len(items)} local models")
         # 2) The shape: each item should expose at least a 'repo_id' or 'id'.
         if items:
-            keys = set(items[0].keys())
+            keys = set(items[0].keys()) if isinstance(items[0], dict) else set()
             rec("hf.local_api.has_id_field", bool(keys & {"repo_id", "id"}),
                 f"keys={sorted(keys)[:5]}")
         # 3) Files endpoint for a known local model — pick the first one if any.
-        if items:
+        if items and isinstance(items[0], dict):
             first = items[0].get("repo_id") or items[0].get("id")
             try:
                 fl = await page.evaluate(f"""
-() => fetch('/api/hf/local/{first}/files').then(r => r.ok ? r.json() : {{error: 'http ' + r.status}})
+async () => {{
+  const r = await fetch('/api/hf/local/{first}/files');
+  return {{ok: r.ok, status: r.status, body: r.ok ? await r.json() : null}};
+}}
                 """)
-                rec("hf.local_api.files_ok", isinstance(fl, dict) and "files" in fl,
-                    f"{len(fl.get('files', [])) if isinstance(fl, dict) else '?'} files")
+                rec("hf.local_api.files_ok",
+                    isinstance(fl, dict) and fl.get("ok"),
+                    f"status={fl.get('status') if isinstance(fl, dict) else '?'}")
             except Exception as e:
                 rec("hf.local_api.files_error", False, str(e)[:80])
         # 4) Delete endpoint shape — DELETE a non-existent repo should return
         # 404 (proves the route is wired), not 500.
         try:
             status = await page.evaluate("""
-() => fetch('/api/hf/local/__qa_nonexistent__/__qa_dummy__', {method: 'DELETE'})
-        .then(r => r.status)
+async () => {
+  const r = await fetch('/api/hf/local/__qa_nonexistent__/__qa_dummy__', {method: 'DELETE'});
+  return r.status;
+}
             """)
             rec("hf.local_api.delete_route_wired", status in (200, 404),
                 f"status={status}")

@@ -188,9 +188,17 @@
 
 <script>
 (function() {
-  const fts = window.fts || {};
-  const api = fts.api || {};
-  const notify = fts.notify || function(msg) { console.log(msg); };
+  // Look up fts lazily — base.html loads app.js AFTER the {% block %}
+  // content script runs, so window.fts may not exist yet at first render.
+  const api = () => {
+    const a = window.fts && window.fts.api;
+    if (!a) throw new Error('fts.api not loaded yet — wait a moment and retry');
+    return a;
+  };
+  const notify = (msg, type) => {
+    const n = window.fts && window.fts.notify;
+    if (n) n(msg, type); else console.log(msg);
+  };
   const PID = {{ pid | tojson }};
 
   window.buildCorpus = async function(rebuild) {
@@ -211,7 +219,7 @@
         embedder: embedder,
         reset: !!rebuild,
       };
-      const r = await api.post('/api/projects/' + PID + '/rag/build', body);
+      const r = await api().post('/api/projects/' + PID + '/rag/build', body);
       if (r.error) {
         status.textContent = 'Error: ' + r.error;
         notify(r.error, 'error');
@@ -266,7 +274,7 @@
         const pollHandle = setInterval(async () => {
           polls++;
           try {
-            const s = await api.get('/api/projects/' + PID + '/rag/status');
+            const s = await api().get('/api/projects/' + PID + '/rag/status');
             if (s && s.exists) {
               const m = s.chunks || s.chunk_count || '?';
               status.textContent = 'Done — ' + m + ' chunks indexed.';
