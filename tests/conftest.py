@@ -29,8 +29,12 @@ def temp_db(monkeypatch):
 
     # Patch settings.db_path before importing db modules
     import finetune_studio.config as cfg
+
     class _Fake:
-        db_path = db_path
+        pass
+    _Fake.db_path = db_path
+    _Fake.host = "127.0.0.1"
+    _Fake.port = 7860
     monkeypatch.setattr(cfg, "settings", _Fake())
 
     # Initialise schema with the real init_db
