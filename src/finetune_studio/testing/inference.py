@@ -16,8 +16,14 @@ KEY CONCEPTS
 import os
 import threading
 import time
+from collections import OrderedDict
 
 import torch
+
+# Module-level cache for GGUF metadata reads (fast header-only parser is still
+# cheap, but for 16 GB files we don't want to walk the header twice).
+_GGUF_META_CACHE: "OrderedDict[tuple, dict]" = OrderedDict()
+_GGUF_META_CACHE_MAX = 32
 
 # Auto-unload after idle (configurable via FTS_IDLE_TIMEOUT env, default 30 min)
 IDLE_TIMEOUT = int(os.environ.get("FTS_IDLE_TIMEOUT", 1800))
@@ -234,34 +240,137 @@ class InferenceEngine:
 
     @staticmethod
     def read_model_metadata(model_path):
-        """Read model metadata (layer count, etc.) without loading the full model."""
+        """Read model metadata (layer count, etc.) without loading the full model.
+
+        Uses an in-process cache keyed on (path, mtime) so repeated calls on the
+        same file are O(1). Reads only the GGUF header (first few KB) by hand
+        so we never walk the whole file just to peek at layer counts.
+        """
         from pathlib import Path
         import json
+        import time as _time
         path = Path(model_path)
+        try:
+            st = path.stat()
+            cache_key = (str(path), st.st_mtime, st.st_size)
+        except OSError:
+            cache_key = (str(path), 0, 0)
+        cached = _GGUF_META_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
         result = {"total_layers": 0, "num_kv_heads": 0, "head_dim": 0, "n_ctx_default": 4096}
 
         if path.is_file() and path.suffix == ".gguf":
             try:
-                from gguf.gguf_reader import GGUFReader
-                reader = GGUFReader(str(path))
-                # Get architecture
-                arch_field = reader.fields.get("general.architecture")
-                if arch_field:
-                    arch = bytes(arch_field.parts[arch_field.data[0]]).decode("utf-8")
-                    # Read architecture-specific keys
-                    for key_suffix, result_key, fallback in [
-                        (".block_count", "total_layers", 0),
-                        (".attention.head_count_kv", "num_kv_heads", 0),
-                        (".attention.key_length", "head_dim", 0),
-                        (".context_length", "n_ctx_default", 4096),
-                    ]:
-                        field = reader.fields.get(f"{arch}{key_suffix}")
-                        if field:
-                            val = field.parts[field.data[0]]
-                            result[result_key] = int(val[0]) if len(val) else fallback
-                del reader  # free memory
+                # Fast path: parse GGUF header in-process (first few KB).
+                # GGUF files are little-endian; header has magic 'GGUF' (0x46554747).
+                # Format (v2/v3):
+                #   magic: 4 bytes ('GGUF')
+                #   version: uint32
+                #   tensor_count: uint64
+                #   kv_count: uint64
+                #   For each KV:
+                #     key_length: uint64
+                #     key: utf-8 bytes
+                #     value_type: uint32 (0..=10 are scalar; >10 are arrays)
+                #     value: depends on type
+                import struct
+                with open(path, "rb") as f:
+                    magic = f.read(4)
+                    if magic != b"GGUF":
+                        raise ValueError("not a GGUF file")
+                    f.read(4)  # version (v2 or v3)
+                    f.read(8)  # tensor_count
+                    f.read(8)  # kv_count (we don't need exact — bounded by safety cap)
+                    # The actual key format is "{arch}.X" (e.g. "qwen35.block_count"),
+                    # but we don't know `arch` until we find general.architecture.
+                    # Collect every KV (cheap — small header), match the arch-prefixed
+                    # ones after we know the architecture.
+                    found_arch = None
+                    found = {}
+                    for _ in range(500):  # safety cap
+                        raw = f.read(8)
+                        if len(raw) < 8:
+                            break
+                        klen = struct.unpack("<Q", raw)[0]
+                        if klen == 0 or klen > 1024:
+                            break
+                        key = f.read(klen).decode("utf-8", errors="ignore").strip("\x00")
+                        raw_t = f.read(4)
+                        if len(raw_t) < 4:
+                            break
+                        gtype = struct.unpack("<I", raw_t)[0]
+                        if gtype == 4:  # UINT32
+                            v = struct.unpack("<I", f.read(4))[0]
+                        elif gtype == 5:  # INT32
+                            v = struct.unpack("<i", f.read(4))[0]
+                        elif gtype == 8:  # STRING
+                            slen = struct.unpack("<Q", f.read(8))[0]
+                            v = f.read(slen).decode("utf-8", errors="ignore").strip("\x00")
+                        elif gtype == 10:  # BOOL
+                            v = bool(f.read(1)[0])
+                        elif gtype == 0:  # UINT8
+                            v = struct.unpack("<B", f.read(1))[0]
+                        elif gtype == 6:  # FLOAT32
+                            f.read(4); v = None
+                        elif gtype == 7:  # FLOAT64
+                            f.read(8); v = None
+                        else:
+                            # ARRAY (type 9): [4-byte elem_type][8-byte count][elements...]
+                            etype = struct.unpack("<I", f.read(4))[0]
+                            acount = struct.unpack("<Q", f.read(8))[0]
+                            if etype == 8:  # string array: variable-size elements
+                                for _ in range(acount):
+                                    slen = struct.unpack("<Q", f.read(8))[0]
+                                    f.read(slen)
+                            else:
+                                sizes = {0:1, 1:1, 2:2, 3:2, 4:4, 5:4, 6:4, 7:8, 10:1}
+                                esize = sizes.get(etype, 1)
+                                f.read(acount * esize)
+                            v = None
+                        if key == "general.architecture" and isinstance(v, str):
+                            found_arch = v
+                            result["total_layers"] = 0  # reset so we know real values vs defaults
+                            continue  # we'll re-fill below once we know arch
+                        # Once we know the arch, accept arch-prefixed scalars.
+                        if found_arch and key.startswith(found_arch + "."):
+                            short = key[len(found_arch) + 1:]
+                            if short == "block_count" and isinstance(v, int):
+                                result["total_layers"] = int(v)
+                            elif short == "attention.head_count_kv" and isinstance(v, int):
+                                result["num_kv_heads"] = int(v)
+                            elif short == "attention.key_length" and isinstance(v, int):
+                                result["head_dim"] = int(v)
+                            elif short == "context_length" and isinstance(v, int):
+                                result["n_ctx_default"] = int(v)
+                            if (result["total_layers"] > 0 and result["num_kv_heads"] > 0
+                                    and result["head_dim"] > 0 and result["n_ctx_default"] != 4096):
+                                # Got everything we need
+                                break
+                    # If arch-prefixed keys were never found, fall back to full reader.
+                    if result["total_layers"] == 0 or result["num_kv_heads"] == 0 or result["head_dim"] == 0:
+                        try:
+                            from gguf.gguf_reader import GGUFReader
+                            reader = GGUFReader(str(path))
+                            arch_field = reader.fields.get("general.architecture")
+                            if arch_field:
+                                arch = bytes(arch_field.parts[arch_field.data[0]]).decode("utf-8")
+                                for key_suffix, result_key, fallback in [
+                                    (".block_count", "total_layers", 0),
+                                    (".attention.head_count_kv", "num_kv_heads", 0),
+                                    (".attention.key_length", "head_dim", 0),
+                                    (".context_length", "n_ctx_default", 4096),
+                                ]:
+                                    field = reader.fields.get(f"{arch}{key_suffix}")
+                                    if field:
+                                        val = field.parts[field.data[0]]
+                                        result[result_key] = int(val[0]) if len(val) else fallback
+                            del reader
+                        except Exception:
+                            pass
             except Exception:
                 pass
+
 
         elif path.is_dir() and (path / "config.json").exists():
             try:
@@ -273,6 +382,10 @@ class InferenceEngine:
                 result["n_ctx_default"] = cfg.get("max_position_embeddings", 4096)
             except Exception:
                 pass
+        # Cache the result (even partial) so next call is O(1)
+        _GGUF_META_CACHE[cache_key] = result
+        while len(_GGUF_META_CACHE) > _GGUF_META_CACHE_MAX:
+            _GGUF_META_CACHE.popitem(last=False)
         return result
 
     def _generate_gguf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop):
