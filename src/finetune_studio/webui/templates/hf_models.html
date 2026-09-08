@@ -38,7 +38,7 @@
     </select>
     <button class="btn primary" onclick="doSearch()">Search</button>
   </div>
-  <div id="hf-status" class="mt-2 text-xs muted">Ready.</div>
+  <div id="hf-status" class="mt-2 text-xs muted"><span class="spinner"></span> Loading…</div>
 </div>
 
 <div id="hf-results">
@@ -239,7 +239,12 @@ async function showFiles(repo, btn) {
   }
 }
 
-// Initial load (the page was server-rendered with results already; we replace them on first interaction)
+// Initial load — page is not server-rendered with results, so fetch them
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => setTimeout(doSearch, 0));
+} else {
+  setTimeout(doSearch, 0);
+}
 document.getElementById('hf-q').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
 </script>
 {% endblock %}

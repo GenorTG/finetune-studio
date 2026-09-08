@@ -84,6 +84,13 @@ async def main():
         # Pre-mark tutorial as seen so it doesn't intercept clicks
         await ctx.add_init_script("try{localStorage.setItem('fts.tutorial.seen','1');}catch(e){}")
         page = await ctx.new_page()
+        # The Pull / Delete buttons use native window.confirm() prompts.
+        # Register a SYNC handler (no asyncio.create_task) so accept() runs
+        # before Playwright dismisses the dialog.
+        page.on("dialog", lambda d: d.accept())
+        # Capture console + page errors for debugging
+        page.on("console", lambda m: print(f"  [console.{m.type}] {m.text[:200]}"))
+        page.on("pageerror", lambda e: print(f"  [pageerror] {str(e)[:200]}"))
 
         async def shot(name):
             out = SHOTS / f"{name}.png"
@@ -115,39 +122,56 @@ async def main():
 
         # ── 2. DOWNLOAD: click Pull button in the UI ───────────────────
         print("\n[2/8] WEBUI: click PULL on Qwen3-0.6B card")
-        pulled = False
-        # The Pull button has data-body containing the repo_id
-        repo_escaped = "Qwen/Qwen3-0.6B".replace("/", "\\/")
-        try:
-            btn_sel = f'button[data-body*="{repo_escaped}"]'
-            await page.wait_for_selector(btn_sel, timeout=8000)
-            await shot("02b_hf_pull_button_visible")
-            await page.click(btn_sel)
-            pulled = True
-            print("  PULL button clicked")
-        except Exception as e:
-            print(f"  primary PULL selector failed: {e}")
+        # Close any leftover modal from previous runs/click attempts
+        await page.evaluate("""
+            () => { const m = document.getElementById('hf-modal'); if (m) m.hidden = true; }
+        """)
+        await page.wait_for_timeout(300)
+        await shot("02a_modal_closed")
 
-        # If primary selector missed, find by card text and click the Pull button inside it
-        if not pulled:
-            try:
-                # Find the card containing "Qwen3-0.6B", then click its Pull button
-                clicked = await page.evaluate("""
-                    () => {
-                        const cards = Array.from(document.querySelectorAll('.hf-card'));
-                        for (const c of cards) {
-                            if (!c.innerText.includes('Qwen3-0.6B')) continue;
-                            const btn = c.querySelector('button[data-confirm]');
-                            if (btn) { btn.click(); return true; }
+        pulled = False
+        # Find the card whose text contains EXACTLY "Qwen/Qwen3-0.6B"
+        # (not the -Base / -GGUF variants), then click its Pull button.
+        try:
+            clicked = await page.evaluate("""
+                () => {
+                    const cards = Array.from(document.querySelectorAll('.hf-card'));
+                    const log = [];
+                    for (const c of cards) {
+                        const all = Array.from(c.querySelectorAll('*'));
+                        const hit = all.find(el => el.textContent.trim() === 'Qwen/Qwen3-0.6B'
+                                                       && el.children.length === 0);
+                        if (!hit) continue;
+                        log.push('found card with exact Qwen/Qwen3-0.6B');
+                        const btn = c.querySelector('button[data-action="/api/hf/download"]');
+                        if (btn) {
+                            log.push('found download btn');
+                            btn.scrollIntoView();
+                            btn.click();
+                            return {ok: true, log};
                         }
-                        return false;
+                        // Dump what buttons are in this card
+                        const btns = Array.from(c.querySelectorAll('button')).map(b => ({
+                            action: b.dataset.action,
+                            body: b.dataset.body,
+                            text: b.textContent.trim(),
+                            onclick: b.getAttribute('onclick') || ''
+                        }));
+                        return {ok: false, log, btns};
                     }
-                """)
-                if clicked:
-                    pulled = True
-                    print("  PULL button clicked via card-finder")
-            except Exception as e:
-                print(f"  card-finder failed: {e}")
+                    return {ok: false, log: ['no exact card found'], total_cards: cards.length};
+                }
+            """)
+            print(f"  click result: {clicked}")
+            if clicked.get("ok"):
+                pulled = True
+                print(f"  PULL button clicked (log: {clicked.get('log')})")
+            else:
+                print(f"  pull click failed: {clicked}")
+        except Exception as e:
+            print(f"  card-finder error: {e}")
+        await page.wait_for_timeout(800)
+        await shot("02b_hf_pull_clicked")
         rec("webui.hf_pull_clicked", pulled)
 
         # ── 3. WATCH download progress UI ─────────────────────────────

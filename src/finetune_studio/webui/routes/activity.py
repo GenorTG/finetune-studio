@@ -141,6 +141,44 @@ async def activity() -> dict:
     except Exception as e:
         tasks.append({"kind": "_error", "message": f"rag: {e}"})
 
+    # ── HF downloads ──────────────────────────────────────
+    try:
+        from finetune_studio.webui.routes.hf_models import _DOWNLOADS
+        for jid, entry in _DOWNLOADS.items():
+            status = entry.get("status", "queued")
+            if status not in ("queued", "downloading", "completed", "error"):
+                continue
+            # Don't accumulate stale finished entries forever
+            if status in ("completed", "error"):
+                age = _now() - (entry.get("started_at", 0) or 0)
+                if age > 600:
+                    continue
+            repo = entry.get("repo_id", "?")
+            done = entry.get("bytes_done", 0) or 0
+            total = entry.get("bytes_total", 0) or 0
+            is_done = status == "completed"
+            if is_done:
+                msg = f"completed → {entry.get('path','')}"
+                prog = 1.0
+            elif status == "error":
+                msg = f"failed: {(entry.get('error') or '')[:60]}"
+                prog = 0
+            else:
+                msg = f"{done/1e9:.2f}GB / {total/1e9:.2f}GB" if total else f"starting…"
+                prog = (done / total) if total > 0 else 0
+            tasks.append({
+                "kind": "download",
+                "project_id": "",
+                "project_name": repo.split("/")[-1],
+                "status": status,
+                "progress": prog,
+                "message": msg,
+                "started_at": entry.get("started_at", _now()),
+                "url": f"/models/explore#repo={repo}",
+            })
+    except Exception as e:
+        tasks.append({"kind": "_error", "message": f"downloads: {e}"})
+
     # Sort: running first, then by started_at desc
     tasks.sort(key=lambda t: (
         0 if t.get("status") in ("running", "queued") else 1,
