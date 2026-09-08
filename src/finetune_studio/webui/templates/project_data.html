@@ -51,4 +51,37 @@
   </div>
   <div id="file-list" class="text-sm muted">Loading…</div>
 </div>
+
+<script>
+// Populate the file list from /projects/{pid}/data-prep/sources
+(async function() {
+  const list = document.getElementById('file-list');
+  const count = document.getElementById('file-count');
+  if (!list) return;
+  try {
+    const r = await fetch('/api/projects/{{ pid }}/data-prep/sources');
+    const d = await r.json();
+    const sources = d.sources || [];
+    if (sources.length === 0) {
+      list.innerHTML = '<div class="dim">No files yet. Upload one above to get started.</div>';
+      count.textContent = '0 files';
+      return;
+    }
+    list.innerHTML = sources.map(s => `
+      <div class="file-row" data-sha="${s.sha256 || ''}"
+           style="display:flex;gap:14px;padding:5px 8px;border-bottom:1px dashed var(--border);align-items:baseline;">
+        <span class="file-name mono" style="flex:1;color:var(--accent);">${s.filename}</span>
+        <span class="file-meta text-xs dim">
+          ${(s.char_count || 0).toLocaleString()} chars
+          · ${s.chunk_count || 0} chunks
+          · ${s.parser || 'parser'}
+        </span>
+      </div>
+    `).join('');
+    count.textContent = sources.length + ' file' + (sources.length === 1 ? '' : 's');
+  } catch (e) {
+    list.innerHTML = '<div class="dim">Failed to load files: ' + e.message + '</div>';
+  }
+})();
+</script>
 {% endblock %}
