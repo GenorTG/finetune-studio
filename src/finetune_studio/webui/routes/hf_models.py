@@ -78,19 +78,21 @@ def _search_hf(req: SearchRequest) -> list[dict]:
     """Query the HuggingFace Hub."""
     from huggingface_hub import HfApi
     api = HfApi()
-    # Build filter kwargs
-    fk: dict = {}
-    if req.task:
-        fk["pipeline_tag"] = req.task
-    if req.library:
-        fk["library"] = req.library
     sort = {"downloads": "downloads", "likes": "likes",
-            "trending": "trending_score"}.get(req.sort, "downloads")
+            "trending": "trendingScore"}.get(req.sort, "downloads")
     try:
-        models = api.list_models(filter=req.task, sort=sort, limit=req.limit * 2)
+        # Use the real Hub text search when a query is present — this does a
+        # proper fuzzy/full-text match server-side instead of fetching a tiny
+        # window of popular models and substring-filtering locally.
+        models = api.list_models(
+            search=req.query or None,
+            pipeline_tag=req.task or None,
+            sort=sort,
+            direction=-1,
+            limit=req.limit * 2 + 10,
+        )
         out = []
         for m in models:
-            # The list filter is loose; do a substring match on the query ourselves.
             mid = m.modelId
             if req.query and req.query.lower() not in mid.lower():
                 continue
