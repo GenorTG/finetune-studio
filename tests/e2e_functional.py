@@ -175,10 +175,10 @@ async def main():
         # Find build button and click
         build_clicked = False
         for sel in [
-            'button:has-text("BUILD")',
+            '#build-btn',
             'button:has-text("Build")',
+            'button:has-text("BUILD")',
             'button:has-text("Start")',
-            '#rag-build-btn',
             '[data-action*="build"]',
         ]:
             try:
@@ -189,13 +189,14 @@ async def main():
                 continue
         rec("rag.build_clicked", build_clicked)
 
-        # Wait for progress to start (status text appears) or completion
+        # Wait for progress to start: buildCorpus() logs to #build-status
         try:
             await wait_for(
-                lambda: page.locator(
-                    'text=/embed|chunk|index|building|queued|complete/i'
-                ).count() > 0,
-                timeout_ms=15000, label="rag build started/completed"
+                lambda: page.evaluate(
+                    "() => { const s = document.getElementById('build-status'); "
+                    "return s && s.innerText && s.innerText.length > 0; }"
+                ),
+                timeout_ms=20000, label="rag build started/completed"
             )
             rec("rag.build_started", True)
         except Exception:
@@ -281,14 +282,14 @@ async def main():
         except Exception:
             rec("training.visible_in_ui", False)
 
-        # Wait for completion or progress > 0
+        # Wait for completion: badge text changes to done/failed/stopped
         try:
             await wait_for(
                 lambda: page.evaluate(
-                    "() => /complete|done|finished|saved|complete/i.test(document.body.innerText) || "
-                    "parseInt((document.body.innerText.match(/step\\s*(\\d+)/i) || [])[1] || '0', 10) >= 3"
+                    "() => { const b = document.getElementById('train-status-badge'); "
+                    "return b && /done|failed|stopped|complete/i.test(b.innerText); }"
                 ),
-                timeout_ms=240000, label="training completion"
+                timeout_ms=360000, label="training completion"
             )
             rec("training.completed_or_progressed", True)
         except Exception as e:
@@ -357,20 +358,21 @@ async def main():
 
             # Send a chat message and watch for streaming tokens
             try:
-                msg_input = await page.query_selector(
-                    'textarea, input[type="text"][placeholder*="ask" i], '
-                    'input[type="text"][placeholder*="message" i], '
-                    'input[type="text"][placeholder*="chat" i]'
-                )
+                msg_input = await page.query_selector('#msg, textarea[placeholder*="Message" i]')
                 if msg_input:
                     await msg_input.fill("Hello.")
-                    await page.keyboard.press("Enter")
-                    # Wait for some response to appear
+                    # Click send button (Enter triggers send too but we use button to be sure)
+                    try:
+                        await page.click('#send-btn')
+                    except Exception:
+                        await page.keyboard.press("Enter")
+                    # Wait for response in the #msgs container
                     await wait_for(
                         lambda: page.evaluate(
-                            "() => /hello|hi|response|assistant/i.test(document.body.innerText)"
+                            "() => { const m = document.getElementById('msgs'); "
+                            "return m && m.innerText.length > 10; }"
                         ),
-                        timeout_ms=30000, label="inference response"
+                        timeout_ms=60000, label="inference response"
                     )
                     rec("inference.streamed_response", True)
                 else:

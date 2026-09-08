@@ -30,9 +30,35 @@
     <a href="/projects/{{ pid }}" class="btn" data-link>← Back to project</a>
   </div>
   {% else %}
-  <ul class="text-sm">
-    {% for s in suites %}<li class="mono">{{ s }}</li>{% endfor %}
+  <div class="text-sm dim mb-2">Available test suites:</div>
+  <ul class="text-sm mb-4">
+    {% for s in suites %}<li class="mono">› {{ s }}</li>{% endfor %}
   </ul>
+
+  <h3 class="mt-4 mb-2">Run a benchmark</h3>
+  <table class="table">
+    <thead><tr><th>Training run</th><th>Base model</th><th>Status</th><th>Suite</th><th></th></tr></thead>
+    <tbody>
+      {% for run in runs %}
+      <tr>
+        <td class="mono">{{ run.name }}</td>
+        <td class="mono text-xs dim">{{ (run.base_model or '')[-40:] }}</td>
+        <td><span class="pill outline">{{ run.status }}</span></td>
+        <td>
+          <form data-api="/api/projects/{{ pid }}/runs/{{ run.id }}/run"
+                data-reload="true" style="display:inline;">
+            <input type="hidden" name="suite_name" value="default">
+            <select name="suite_path" class="select" style="min-width:140px;font-size:11px;">
+              {% for s in suites %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+            </select>
+            <button type="submit" class="btn primary" style="font-size:11px;padding:4px 10px;">RUN</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
   {% if all_benchmarks %}
   <h3 class="mt-6 text-md">Recent scores</h3>
   <table class="table">
