@@ -84,9 +84,12 @@
       <div class="card-title">Live status</div>
       <div class="card-sub">Updated every 3s while training is running.</div>
     </div>
-    <span class="pill solid-amber" id="train-status-badge">idle</span>
+    <span class="pill solid-amber" id="train-status-badge"
+          data-poll="/api/training/status-text">idle</span>
   </div>
-  <div id="train-status" class="text-sm muted">No run in progress.</div>
+  <div id="train-status" class="text-sm muted"
+       data-poll="/api/training/status-text"
+       data-poll-mode="text">No run in progress.</div>
   <div class="bar mt-3"><div class="fill indeterminate" id="train-progress-bar" style="width:0%"></div></div>
   <div id="train-log" class="text-xs mt-3 mono dim" style="font-size:11px;line-height:1.5;white-space:pre-wrap;background:var(--bg-app);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);max-height:180px;overflow-y:auto;"></div>
 </div>

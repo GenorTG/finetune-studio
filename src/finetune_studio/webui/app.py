@@ -146,3 +146,5 @@ app.include_router(data_prep.router, prefix="/api", tags=["data-prep"])  # type:
 app.include_router(data_prep._pages)  # type: ignore[has-type]  # HTML page /projects/{pid}/data-prep
 app.include_router(rag.router, prefix="/api/projects", tags=["rag"])  # type: ignore[has-type]  # /api/projects/{pid}/rag/*
 
+from finetune_studio.webui.routes import activity as _activity  # noqa: E402
+app.include_router(_activity.router)  # type: ignore[has-type]  # /api/activity

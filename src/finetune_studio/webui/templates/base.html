@@ -91,6 +91,10 @@
 
       {# Right cluster — status + command palette launcher #}
       <div class="sb-right">
+        <button class="sb-activity" id="sb-activity" title="Activity feed — running tasks" aria-label="Open activity feed">
+          <span class="sb-activity-icon">⚙</span>
+          <span class="sb-activity-count" id="sb-activity-count" hidden>0</span>
+        </button>
         <button class="sb-palette" id="sb-palette" title="Command palette (Ctrl+K)" aria-label="Open command palette">
           <span class="sb-palette-key">⌘</span><span>K</span>
         </button>
@@ -126,6 +130,21 @@
       </div>
     </div>
 
+    {# ── Activity drawer (bottom-right slide-up) ────────────────── #}
+    <div class="activity-backdrop" id="activity-backdrop" hidden></div>
+    <aside class="activity" id="activity" hidden aria-label="Activity feed">
+      <div class="activity-head">
+        <span class="activity-title">⚙ ACTIVITY</span>
+        <span class="activity-sub" id="activity-sub">Loading…</span>
+        <button class="activity-close" id="activity-close" title="Close (Esc)" aria-label="Close">✕</button>
+      </div>
+      <div class="activity-body" id="activity-body"></div>
+      <div class="activity-foot">
+        <span class="dim text-xs">Updated every 2s</span>
+        <span class="dim text-xs">ESC to close</span>
+      </div>
+    </aside>
+
     {# ── Main content ────────────────────────────────────────────────── #}
     <div class="main">
       <main class="content" id="content">
@@ -139,6 +158,7 @@
   <script src="/static/js/spa.js?v=5"></script>
   <script src="/static/js/palette.js?v=5"></script>
   <script src="/static/js/tutorial.js?v=5"></script>
+  <script src="/static/js/activity.js?v=5"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

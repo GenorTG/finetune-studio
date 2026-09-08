@@ -2539,8 +2539,8 @@ body::before {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(0,0,0,0.7);
-  backdrop-filter: blur(2px);
+  background: rgba(0,0,0,0.18);
+  /* No blur — user wants to see the page during the tutorial. */
 }
 
 .tutorial-highlight {
@@ -2759,3 +2759,277 @@ body::before {
 }
 .pkg-table td:first-child { color: var(--accent); }
 .pkg-table td:last-child { color: var(--text-muted); text-align: right; }
+
+/* ============================================================
+   ACTIVITY FEED — global task panel
+   ============================================================ */
+
+/* Top-bar trigger button */
+.sb-activity {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 13px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+}
+.sb-activity:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+.sb-activity.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0,255,102,0.08);
+  animation: activity-blink 1.5s steps(2) infinite;
+}
+.sb-activity-icon { font-size: 13px; line-height: 1; }
+.sb-activity-count {
+  background: var(--accent);
+  color: #000;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 0 5px;
+  border: 1px solid var(--accent);
+  min-width: 14px;
+  text-align: center;
+  font-family: "VT323", monospace;
+  letter-spacing: 0.05em;
+}
+
+@keyframes activity-blink {
+  0%, 100% { box-shadow: 0 0 0 transparent; }
+  50%      { box-shadow: 0 0 12px var(--accent-glow); }
+}
+
+/* Backdrop */
+.activity-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(2px);
+  z-index: 60;
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease);
+}
+.activity-backdrop.open { opacity: 1; }
+
+/* Drawer — bottom-right slide-up */
+.activity {
+  position: fixed;
+  bottom: 0; right: 0;
+  width: min(480px, 96vw);
+  max-height: 80vh;
+  background: var(--bg-panel);
+  border: 1px solid var(--accent);
+  border-bottom: none;
+  border-right: none;
+  box-shadow: 0 0 32px var(--accent-glow), 0 -8px 32px rgba(0,0,0,0.5);
+  z-index: 65;
+  font-family: "Share Tech Mono", monospace;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  transform: translateY(100%);
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.activity.open { transform: translateY(0); }
+.activity::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(0deg,
+    rgba(0,255,102,0.03) 0, rgba(0,255,102,0.03) 1px,
+    transparent 1px, transparent 4px);
+  pointer-events: none;
+}
+
+.activity-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--bg-panel-2);
+  position: relative;
+  z-index: 1;
+}
+.activity-title {
+  font-family: "Press Start 2P", monospace;
+  font-size: 11px;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 4px var(--accent-glow);
+}
+.activity-sub {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-close {
+  background: none;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  cursor: pointer;
+  width: 22px; height: 22px;
+  font-size: 12px;
+  font-family: inherit;
+  display: grid; place-items: center;
+}
+.activity-close:hover {
+  border-color: var(--err);
+  color: var(--err);
+}
+
+.activity-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 8px;
+  position: relative;
+  z-index: 1;
+}
+.activity-empty {
+  padding: 40px 20px;
+  text-align: center;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+}
+
+.activity-row {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  background: var(--bg-app);
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+  position: relative;
+}
+.activity-row:hover {
+  border-color: var(--accent);
+  background: var(--bg-panel-2);
+}
+.activity-row.done {
+  border-left-color: var(--ok);
+  opacity: 0.7;
+}
+.activity-row.err {
+  border-left-color: var(--err);
+}
+.activity-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  flex-wrap: wrap;
+}
+.activity-kind {
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+.activity-kind .ki {
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+  margin-right: 3px;
+}
+.activity-proj {
+  color: var(--text);
+  font-family: "VT323", monospace;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+.activity-status {
+  font-family: "VT323", monospace;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  padding: 0 5px;
+  border: 1px solid var(--border-strong);
+  text-transform: uppercase;
+}
+.status-running { color: var(--accent); border-color: var(--accent); }
+.status-queued  { color: var(--text-muted); }
+.status-done    { color: var(--ok); border-color: var(--ok); }
+.status-ready   { color: var(--ok); border-color: var(--ok); }
+.status-loaded  { color: var(--accent); border-color: var(--accent); }
+.status-error   { color: var(--err); border-color: var(--err); }
+
+.activity-time {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-family: "VT323", monospace;
+}
+.activity-msg {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 3px;
+  word-break: break-word;
+  letter-spacing: 0.02em;
+}
+.activity-bar {
+  position: relative;
+  height: 12px;
+  margin-top: 5px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-strong);
+}
+.activity-bar-fill {
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+  transition: width 0.3s var(--ease);
+}
+.activity-bar-text {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  text-align: center;
+  font-size: 10px;
+  line-height: 12px;
+  color: #000;
+  font-weight: 700;
+  text-shadow: 0 0 2px rgba(255,255,255,0.5);
+}
+.activity-goto {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  text-decoration: none;
+  padding: 2px 8px;
+  border: 1px solid var(--accent);
+  font-family: inherit;
+}
+.activity-goto:hover {
+  background: var(--accent);
+  color: #000;
+}
+
+.activity-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-top: 1px solid var(--border-strong);
+  background: var(--bg-panel-2);
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 700px) {
+  .activity { width: 100vw; max-height: 90vh; }
+}

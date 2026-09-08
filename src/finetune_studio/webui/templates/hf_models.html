@@ -17,7 +17,10 @@
 {# Filters bar — sticky #}
 <div class="card mb-4" id="filter-bar" style="position:sticky;top:var(--header-h);z-index:10;backdrop-filter:blur(8px);background:rgba(15,18,25,0.85);">
   <div class="flex gap-3 items-center">
-    <input id="hf-q" class="input" placeholder="Search qwen, llama, polish embed…" style="flex:1;" autofocus>
+    <input id="hf-q" class="input" placeholder="Search qwen, llama, polish embed…" style="flex:1;"
+           autofocus
+           oninput="onHfQueryInput()"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();doSearch();}">
     <select id="hf-task" class="select" style="max-width:220px;">
       <option value="text-generation" selected>text-generation</option>
       <option value="image-text-to-text">image-text-to-text (vision)</option>
@@ -102,15 +105,33 @@ async function doSearch() {
   const task = document.getElementById('hf-task').value;
   const sort = document.getElementById('hf-sort').value;
   const status = document.getElementById('hf-status');
-  status.innerHTML = '<span class="spinner"></span> Searching…';
+  const grid = document.getElementById('hf-grid');
+  // Live feedback: clear results, show spinner
+  status.innerHTML = '<span class="spinner"></span> Searching for "' + esc(q || '(all)') + '"…';
+  if (grid) grid.innerHTML = '';
   try {
     const url = `/api/hf/search?q=${encodeURIComponent(q)}&task=${encodeURIComponent(task)}&sort=${encodeURIComponent(sort)}&limit=24`;
     const data = await fts.api.get(url);
     renderResults(data.results || []);
-    status.textContent = `${data.results?.length || 0} results · ${(data.took_ms||0).toFixed(0)}ms`;
+    const n = data.results?.length || 0;
+    const took = (data.took_ms || 0).toFixed(0);
+    status.textContent = `${n} result${n === 1 ? '' : 's'} · ${took}ms`;
   } catch (e) {
-    status.textContent = 'Search failed: ' + e.message;
+    status.textContent = '⚠ Search failed: ' + (e.message || e);
+    console.error('HF search error:', e);
   }
+}
+
+// Live status feedback as the user types (so they know typing is being captured)
+let _hfTypingTimer = null;
+function onHfQueryInput() {
+  const status = document.getElementById('hf-status');
+  if (!status) return;
+  status.innerHTML = '<span class="text-dim">▌ typing… press Enter to search</span>';
+  if (_hfTypingTimer) clearTimeout(_hfTypingTimer);
+  _hfTypingTimer = setTimeout(() => {
+    status.innerHTML = '<span class="text-dim">Ready.</span>';
+  }, 3000);
 }
 
 function renderResults(results) {
