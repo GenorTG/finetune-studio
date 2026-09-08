@@ -300,7 +300,7 @@ async def agentic_page(request: Request, pid: str):
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
     """Settings, debug info, replay tutorial, system status."""
-    from finetune_studio.webui.app import __version__ as APP_VERSION
+    from finetune_studio import __version__ as APP_VERSION
     return templates.TemplateResponse(
         request,
         "settings.html",
@@ -318,7 +318,7 @@ async def debug_info():
     import sys
     import os
     from pathlib import Path
-    from finetune_studio.webui.app import __version__ as APP_VERSION
+    from finetune_studio import __version__ as APP_VERSION
 
     info = {
         "app_version": APP_VERSION,
