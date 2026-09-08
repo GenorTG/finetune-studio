@@ -515,24 +515,28 @@
      data-sprite hooks when present, falls back to route inference. */
   function mountPageSprites() {
     const path = location.pathname;
+    // Universal mount target: the first card on the page (always present).
+    // Pages can override via [data-sprite="robot-head"] etc.
+    const firstCard = document.querySelector('.card');
 
     // Robot head → inference pages (live model thinking)
     if (/^\/inference/.test(path) || /\/chat\b/.test(path)) {
-      const target = document.querySelector('[data-sprite="robot-head"]')
-                  || document.querySelector('.inference-status, #model-status, .chat-header');
+      const target = document.querySelector('[data-sprite="robot-head"]') || firstCard;
       if (target && !target.querySelector('.robot-sprite')) {
         const cap = document.createElement('div');
         cap.className = 'sprite-mount-caption';
         cap.textContent = 'MODEL ONLINE';
         const host = document.createElement('div');
         host.className = 'sprite-mount';
-        host.style.flexDirection = 'column';
-        host.style.padding = '12px';
-        target.prepend(host);
-        host.appendChild(spriteRobotHead(80));
+        host.style.flexDirection = 'row';
+        host.style.alignItems = 'center';
+        host.style.gap = '14px';
+        host.style.padding = '10px 14px';
+        host.style.marginBottom = '10px';
+        host.appendChild(spriteRobotHead(64));
         host.appendChild(cap);
+        target.prepend(host);
 
-        // Watch for streaming events to feed the sprite.
         document.addEventListener('fts:token', () => {
           robotFeed(host.querySelector('.robot-sprite'));
         });
@@ -541,70 +545,77 @@
 
     // CPU chip → training pages
     if (/\/training/.test(path)) {
-      const target = document.querySelector('[data-sprite="cpu-chip"]')
-                  || document.querySelector('.training-status, #training-status');
+      const target = document.querySelector('[data-sprite="cpu-chip"]') || firstCard;
       if (target && !target.querySelector('.chip-sprite')) {
         const cap = document.createElement('div');
         cap.className = 'sprite-mount-caption';
         cap.textContent = 'GPU ACCELERATING';
         const host = document.createElement('div');
         host.className = 'sprite-mount';
-        host.style.flexDirection = 'column';
-        host.style.padding = '12px';
-        target.prepend(host);
-        host.appendChild(spriteCpuChip(80));
+        host.style.flexDirection = 'row';
+        host.style.alignItems = 'center';
+        host.style.gap = '14px';
+        host.style.padding = '10px 14px';
+        host.style.marginBottom = '10px';
+        host.appendChild(spriteCpuChip(64));
         host.appendChild(cap);
+        target.prepend(host);
       }
     }
 
     // Data stream → data prep pages
     if (/\/data-prep/.test(path) || /\/data\b/.test(path)) {
-      const target = document.querySelector('[data-sprite="data-stream"]')
-                  || document.querySelector('.parser-status, .data-status, #parse-status');
+      const target = document.querySelector('[data-sprite="data-stream"]') || firstCard;
       if (target && !target.querySelector('.stream-sprite')) {
         const host = document.createElement('div');
         host.className = 'sprite-mount';
-        host.style.padding = '8px 12px';
+        host.style.flexDirection = 'row';
+        host.style.justifyContent = 'flex-start';
+        host.style.padding = '6px 14px';
+        host.style.marginBottom = '10px';
+        host.appendChild(spriteDataStream(120));
         target.prepend(host);
-        host.appendChild(spriteDataStream(140));
       }
     }
 
     // Corpus graph → RAG pages
     if (/\/rag/.test(path)) {
-      const target = document.querySelector('[data-sprite="corpus-node"]')
-                  || document.querySelector('.rag-status, #rag-status');
+      const target = document.querySelector('[data-sprite="corpus-node"]') || firstCard;
       if (target && !target.querySelector('.corpus-sprite')) {
         const cap = document.createElement('div');
         cap.className = 'sprite-mount-caption';
         cap.textContent = 'EMBEDDING CORPUS';
         const host = document.createElement('div');
         host.className = 'sprite-mount';
-        host.style.flexDirection = 'column';
-        host.style.padding = '10px';
-        target.prepend(host);
-        host.appendChild(spriteCorpusNode(140));
+        host.style.flexDirection = 'row';
+        host.style.alignItems = 'center';
+        host.style.gap = '14px';
+        host.style.padding = '10px 14px';
+        host.style.marginBottom = '10px';
+        host.appendChild(spriteCorpusNode(120));
         host.appendChild(cap);
+        target.prepend(host);
       }
     }
 
-    // Bench bars → benchmarks page
+    // Bench bars → benchmarks / testing pages
     if (/\/benchmarks/.test(path) || /\/testing/.test(path)) {
-      const target = document.querySelector('[data-sprite="bench-bars"]')
-                  || document.querySelector('.bench-status, #bench-status');
+      const target = document.querySelector('[data-sprite="bench-bars"]') || firstCard;
       if (target && !target.querySelector('.bench-sprite')) {
         const cap = document.createElement('div');
         cap.className = 'sprite-mount-caption';
         cap.textContent = 'COMPUTING SCORES';
         const host = document.createElement('div');
         host.className = 'sprite-mount';
-        host.style.flexDirection = 'column';
-        host.style.padding = '10px';
-        target.prepend(host);
-        host.appendChild(spriteBenchBars(140));
+        host.style.flexDirection = 'row';
+        host.style.alignItems = 'center';
+        host.style.gap = '14px';
+        host.style.padding = '10px 14px';
+        host.style.marginBottom = '10px';
+        host.appendChild(spriteBenchBars(120));
         host.appendChild(cap);
+        target.prepend(host);
 
-        // Hook progress events: fts:bench-progress { detail: { score: 0..1 } }
         document.addEventListener('fts:bench-progress', (ev) => {
           if (ev.detail && typeof ev.detail.score === 'number') {
             benchUpdate(host.querySelector('.bench-sprite'), ev.detail.score);
