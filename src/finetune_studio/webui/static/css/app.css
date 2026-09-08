@@ -12,13 +12,13 @@
   --bg-panel-2:    #122619;
   --bg-elevated:   #143022;
 
-  --border:        #1d3a25;
-  --border-strong: #2f5c3a;
+  --border:        #2b4a30;
+  --border-strong: #3f7a4d;
   --border-hot:    #00ff66;
 
-  --text:          #c8ffd4;
-  --text-muted:    #6ba87a;
-  --text-dim:      #3d6b48;
+  --text:          #d2ffda;
+  --text-muted:    #7fc98f;
+  --text-dim:      #4d7f5c;
 
   --accent:        #00ff66;
   --accent-2:      #9cff00;
@@ -33,7 +33,7 @@
   --radius-lg:     0px;
   --radius-sm:     0px;
   --nav-w:         244px;
-  --header-h:      64px;
+  --header-h:      68px;
 
   --ease:          cubic-bezier(.2, .8, .2, 1);
   --t-fast:        120ms;
@@ -1832,11 +1832,12 @@ body::before {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 9px;
+  padding: 4px 10px;
   background: var(--bg-panel);
   border: 1px solid var(--border-strong);
   font-family: "VT323", monospace;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 600;
   letter-spacing: 0.06em;
 }
 .status-pill .status-dot {
@@ -2114,7 +2115,7 @@ body::before {
   text-decoration: none;
   color: var(--text-muted);
   font-family: "Share Tech Mono", monospace;
-  font-size: 11px;
+  font-size: 12.5px;
   letter-spacing: 0.06em;
   z-index: 2;
 }
@@ -2136,8 +2137,8 @@ body::before {
   flex-shrink: 0;
 }
 .sb-prompt {
-  color: var(--text-dim);
-  text-shadow: 0 0 4px rgba(0,255,102,0.2);
+  color: var(--text-muted);
+  text-shadow: 0 0 5px rgba(0,255,102,0.35);
   transition: color var(--t-fast) var(--ease);
 }
 
@@ -2151,7 +2152,7 @@ body::before {
   overflow-y: hidden;
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
-  min-height: 38px;
+  min-height: 42px;
 }
 
 .sb-group {
@@ -2170,8 +2171,10 @@ body::before {
   align-items: center;
   padding: 0 6px;
   font-family: "Share Tech Mono", monospace;
-  font-size: 9.5px;
-  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  opacity: 0.8;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   user-select: none;
@@ -2184,9 +2187,10 @@ body::before {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px 8px;
+  padding: 7px 13px 9px;
   font-family: "Share Tech Mono", monospace;
-  font-size: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--text-muted);
   text-decoration: none;
@@ -2205,7 +2209,7 @@ body::before {
 }
 .sb-tab:hover {
   color: var(--accent);
-  background: rgba(0,255,102,0.05);
+  background: rgba(0,255,102,0.08);
 }
 .sb-tab-label {
   position: relative;
@@ -2214,7 +2218,7 @@ body::before {
 .sb-tab .sb-cursor {
   opacity: 0;
   color: var(--accent);
-  font-size: 11px;
+  font-size: 13px;
 }
 .sb-tab .sb-badge {
   background: var(--bg-panel-2);
@@ -2282,10 +2286,11 @@ body::before {
   gap: 3px;
   background: var(--bg-panel);
   border: 1px solid var(--border-strong);
-  color: var(--text-muted);
+  color: var(--text);
   font-family: "Share Tech Mono", monospace;
-  font-size: 11px;
-  padding: 3px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 9px;
   cursor: pointer;
   transition: all var(--t-fast) var(--ease);
 }
@@ -2295,13 +2300,13 @@ body::before {
   box-shadow: 0 0 8px var(--accent-glow);
 }
 .sb-palette-key {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--accent);
 }
 
 /* Active path bar — thin strip below the tabs */
 .sb-active-bar {
-  height: 22px;
+  height: 24px;
   padding: 0 14px;
   background: var(--bg-app);
   border-top: 1px solid var(--border-strong);
@@ -2309,9 +2314,9 @@ body::before {
   align-items: center;
   gap: 4px;
   font-family: "Share Tech Mono", monospace;
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.06em;
-  color: var(--text-dim);
+  color: var(--text-muted);
   position: relative;
   overflow: hidden;
 }
@@ -2773,10 +2778,11 @@ body::before {
   gap: 4px;
   background: var(--bg-panel);
   border: 1px solid var(--border-strong);
-  color: var(--text-muted);
+  color: var(--text);
   font-family: "Share Tech Mono", monospace;
-  font-size: 13px;
-  padding: 3px 8px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 4px 9px;
   cursor: pointer;
   transition: all var(--t-fast) var(--ease);
 }
