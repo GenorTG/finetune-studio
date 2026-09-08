@@ -88,7 +88,6 @@ def _search_hf(req: SearchRequest) -> list[dict]:
             search=req.query or None,
             pipeline_tag=req.task or None,
             sort=sort,
-            direction=-1,
             limit=req.limit * 2 + 10,
         )
         out = []
