@@ -31,18 +31,24 @@ async def activity() -> dict:
     try:
         from finetune_studio.webui.app import training_engine
         s = training_engine.state
-        # s has: running, current_step, total_steps, loss, project_id, started_at
-        if s.get("running") or s.get("started_at"):
-            pid = s.get("project_id", "")
-            proj = db.get_project(pid) if pid else None
+        # TrainingState is a dataclass, not a dict
+        is_active = s.status not in ("idle", "") or s.current_step > 0
+        if is_active:
+            run_id = getattr(training_engine, "current_run_id", "") or ""
+            pid = run_id.split("-", 1)[0] if "-" in run_id else ""
+            proj_name = "(running)"
+            if pid:
+                proj = db.get_project(pid)
+                if proj:
+                    proj_name = proj["name"]
             tasks.append({
                 "kind": "training",
                 "project_id": pid,
-                "project_name": proj["name"] if proj else "?",
-                "status": "running" if s.get("running") else "queued",
-                "progress": (s.get("current_step", 0) / max(1, s.get("total_steps", 1))),
-                "message": f"step {s.get('current_step', 0)}/{s.get('total_steps', 0)} · loss {s.get('loss', 0):.4f}",
-                "started_at": s.get("started_at", 0),
+                "project_name": proj_name,
+                "status": s.status or "running",
+                "progress": (s.current_step / max(1, s.total_steps)),
+                "message": f"step {s.current_step}/{s.total_steps} · loss {s.loss:.4f} · {s.message or ''}",
+                "started_at": _now() - int(s.elapsed or 0),
                 "url": f"/projects/{pid}/training" if pid else "/projects",
             })
     except Exception as e:
