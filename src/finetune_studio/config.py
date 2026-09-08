@@ -46,7 +46,10 @@ class Settings:
         "models",           # project-local models/ directory
         "output",           # training output directory
     ])
-    model_dirs_extra: list = field(default_factory=list)  # user-added via env or config
+    model_dirs_extra: list = field(default_factory=lambda: [
+        "~/.cache/huggingface/hub",  # models downloaded via HF Explorer
+        "~/.finetune-studio/shared_models",  # embedder/reranker cache
+    ])  # user-added via env or config
     default_lora_rank: int = 64
     default_lr: float = 8e-5
     default_epochs: int = 4
