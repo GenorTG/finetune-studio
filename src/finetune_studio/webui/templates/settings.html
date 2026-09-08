@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Settings · Finetune Studio{% endblock %}
+{% block crumbs_leaf %}Settings{% endblock %}
+{% block sb_path %}~ / settings{% endblock %}
+
+{% block content %}
+<div class="grid grid-1-2" style="gap: 16px;">
+
+  {# ── Left column: Help + Tutorial ──────────────────────── #}
+  <div>
+    <div class="card mb-4">
+      <div class="card-head">
+        <div class="card-title">Tutorial</div>
+        <div class="card-sub">First-run onboarding walkthrough.</div>
+      </div>
+      <div class="text-sm mb-3">
+        A guided 8-step tour explaining how the studio works. Skip anytime,
+        replay anytime. Nothing runs during the tutorial.
+      </div>
+      <button class="btn primary" id="btn-replay-tutorial">
+        <span>▶</span> REPLAY TUTORIAL
+      </button>
+      <div class="text-xs dim mt-2" id="tutorial-status">Last completed: <span id="tutorial-last">never</span></div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-head">
+        <div class="card-title">Quick Reference</div>
+        <div class="card-sub">Hotkeys that work everywhere.</div>
+      </div>
+      <table class="ref-table">
+        <tr><td><kbd>Ctrl</kbd>+<kbd>K</kbd></td><td>Open command palette</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Save current form</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Close overlay / drawer</td></tr>
+        <tr><td><kbd>↑</kbd>/<kbd>↓</kbd></td><td>Navigate palette results</td></tr>
+        <tr><td><kbd>↵</kbd></td><td>Open highlighted item</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">About</div>
+        <div class="card-sub">Finetune Studio.</div>
+      </div>
+      <div class="text-sm">
+        <p class="mb-2">
+          A self-hosted training studio for local LLMs: build RAG corpora,
+          fine-tune models on your own hardware, run benchmarks, chat —
+          all in one place. No cloud, no lock-in.
+        </p>
+        <p class="dim text-xs">
+          See <a href="/README.md" target="_blank">README</a> for the full
+          rationale, <code>docs/INSTALL.md</code> for installation, and
+          <code>docs/ATTRIBUTIONS.md</code> for package licenses.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  {# ── Right column: Debug info ──────────────────────────── #}
+  <div>
+    <div class="card mb-4">
+      <div class="card-head">
+        <div class="card-title">Debug Info</div>
+        <div class="card-sub">Live system snapshot.</div>
+      </div>
+      <div id="debug-info" class="debug-grid">
+        <div class="text-xs dim">Loading…</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Storage Paths</div>
+        <div class="card-sub">Where Finetune Studio keeps your data.</div>
+      </div>
+      <table class="ref-table" id="paths-table">
+        <tr><td colspan="2" class="dim text-xs">Loading…</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/settings.js?v=1"></script>
+{% endblock %}

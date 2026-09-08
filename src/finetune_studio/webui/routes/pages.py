@@ -293,3 +293,87 @@ async def agentic_page(request: Request, pid: str):
             "models": discovered_models,
         },
     )
+
+
+# ── Settings & Debug Info ───────────────────────────────────────────
+
+@router.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request):
+    """Settings, debug info, replay tutorial, system status."""
+    from finetune_studio.webui.app import __version__ as APP_VERSION
+    return templates.TemplateResponse(
+        request,
+        "settings.html",
+        {
+            "request": request,
+            "app_version": APP_VERSION,
+        },
+    )
+
+
+@router.get("/api/debug/info")
+async def debug_info():
+    """Return system debug info for the Settings page."""
+    import platform
+    import sys
+    import os
+    from pathlib import Path
+    from finetune_studio.webui.app import __version__ as APP_VERSION
+
+    info = {
+        "app_version": APP_VERSION,
+        "python": sys.version.split()[0],
+        "platform": platform.platform(),
+        "machine": platform.machine(),
+        "hostname": platform.node(),
+        "cwd": os.getcwd(),
+        "user": os.environ.get("USER", "unknown"),
+        "paths": {
+            "data_dir": str(Path.home() / ".finetune-studio"),
+            "hf_cache": str(Path.home() / ".cache" / "huggingface"),
+            "shared_models": str(Path.home() / ".finetune-studio" / "shared_models"),
+        },
+    }
+
+    # GPU info via nvidia-smi
+    try:
+        import subprocess
+        r = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name,memory.total,memory.free,driver_version",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if r.returncode == 0:
+            gpus = []
+            for line in r.stdout.strip().split("\n"):
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) >= 4:
+                    gpus.append({
+                        "name": parts[0],
+                        "vram_total_mb": int(parts[1]),
+                        "vram_free_mb": int(parts[2]),
+                        "driver": parts[3],
+                    })
+            info["gpus"] = gpus
+        else:
+            info["gpus"] = []
+    except Exception as e:
+        info["gpus"] = []
+        info["gpu_error"] = str(e)
+
+    # Package versions
+    pkgs = ["torch", "transformers", "peft", "llama_cpp", "sentence_transformers",
+            "fastapi", "uvicorn", "jinja2", "playwright", "numpy", "pandas"]
+    versions = {}
+    for pkg in pkgs:
+        try:
+            mod = __import__(pkg)
+            v = getattr(mod, "__version__", "?")
+            versions[pkg] = v
+        except ImportError:
+            versions[pkg] = "(not installed)"
+        except Exception as e:
+            versions[pkg] = f"(error: {e})"
+    info["packages"] = versions
+
+    return info
