@@ -1370,6 +1370,191 @@ body::before {
   100% { opacity: 1; }
 }
 
+/* ============================================================
+   11. PAGE-CONTEXT SPRITES (P1)
+   ------------------------------------------------------------
+   These keyframes + classes drive spriteRobotHead, spriteCpuChip,
+   spriteDataStream, spriteCorpusNode, spriteBenchBars. They are
+   triggered by data-sprite attribute hooks in templates or by
+   JS calls (robotFeed, benchUpdate).
+   ============================================================ */
+
+/* ---------- Robot head ---------- */
+.robot-sprite {
+  display: inline-block;
+  position: relative;
+  image-rendering: pixelated;
+}
+.robot-sprite svg { display: block; image-rendering: pixelated; }
+.robot-sprite .rh-ant-dot { animation: rh-ant-blink 1s steps(2) infinite; }
+.robot-sprite .rh-eyes rect:not(.rh-scan) { animation: rh-eye-pulse 2s ease-in-out infinite; }
+.robot-sprite .rh-scan { animation: rh-scan-line 1.2s linear infinite; }
+.robot-sprite.rh-idle .rh-mouth rect { animation: rh-mouth-idle 3s ease-in-out infinite; }
+.robot-sprite.rh-active .rh-mouth rect { animation: rh-mouth-active 0.15s steps(2) infinite; }
+.robot-sprite.rh-active .rh-eyes rect:not(.rh-scan) { animation: rh-eye-active 0.25s steps(2) infinite; }
+.robot-sprite.rh-active .rh-scan { animation-duration: 0.4s; }
+.robot-sprite { animation: rh-float 4s ease-in-out infinite; }
+
+@keyframes rh-ant-blink {
+  0%, 50%   { fill: #9cff00; }
+  51%, 100% { fill: #00ff66; fill-opacity: 0.3; }
+}
+@keyframes rh-eye-pulse {
+  0%, 100% { fill: #00ff66; }
+  50%      { fill: #9cff00; }
+}
+@keyframes rh-eye-active {
+  0%, 100% { fill: #9cff00; }
+  50%      { fill: #00ff66; }
+}
+@keyframes rh-scan-line {
+  0%   { y: 8px; }
+  33%  { y: 9px; }
+  66%  { y: 10px; }
+  100% { y: 8px; }
+}
+@keyframes rh-mouth-idle {
+  0%, 100% { fill-opacity: 1; }
+  50%      { fill-opacity: 0.5; }
+}
+@keyframes rh-mouth-active {
+  0%, 100% { fill-opacity: 1; }
+  50%      { fill-opacity: 0.2; }
+}
+@keyframes rh-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2px); }
+}
+
+/* ---------- CPU chip ---------- */
+.chip-sprite { display: inline-block; position: relative; image-rendering: pixelated; }
+.chip-sprite svg { display: block; image-rendering: pixelated; }
+.chip-sprite .chip-die { animation: chip-core-glow 1.4s ease-in-out infinite; }
+.chip-sprite .chip-bar { transform-origin: bottom; animation: chip-bar-flicker 0.6s ease-in-out infinite alternate; }
+.chip-sprite .cb2 { animation-delay: 0.1s; }
+.chip-sprite .cb3 { animation-delay: 0.2s; animation-duration: 0.4s; }
+.chip-sprite .cb4 { animation-delay: 0.3s; }
+.chip-sprite .cb5 { animation-delay: 0.15s; }
+.chip-sprite .chip-heat { animation: chip-heat 0.8s steps(2) infinite; }
+
+@keyframes chip-core-glow {
+  0%, 100% { fill-opacity: 0.15; }
+  50%      { fill-opacity: 0.5; }
+}
+@keyframes chip-bar-flicker {
+  0%   { transform: scaleY(0.4); }
+  100% { transform: scaleY(1); }
+}
+@keyframes chip-heat {
+  0%, 50%   { fill: #ff3a3a; }
+  51%, 100% { fill: #ff8800; }
+}
+
+/* ---------- Data stream ---------- */
+.stream-sprite { display: inline-block; position: relative; image-rendering: pixelated; }
+.stream-sprite svg { display: block; image-rendering: pixelated; }
+.stream-sprite .stream-pkt { animation: stream-flow 1.2s linear infinite; }
+.stream-sprite .sp2 { animation-delay: 0.4s; }
+.stream-sprite .sp3 { animation-delay: 0.8s; }
+.stream-sprite .stream-out-line { animation: stream-out-blink 0.5s steps(2) infinite; }
+.stream-sprite .ol2 { animation-delay: 0.25s; }
+.stream-sprite .stream-src { animation: stream-src-pulse 2s ease-in-out infinite; }
+
+@keyframes stream-flow {
+  0%   { transform: translateX(-4px); opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateX(14px); opacity: 0; }
+}
+@keyframes stream-out-blink {
+  0%, 100% { fill: #9cff00; }
+  50%      { fill: #9cff00; fill-opacity: 0.3; }
+}
+@keyframes stream-src-pulse {
+  0%, 100% { stroke-opacity: 1; }
+  50%      { stroke-opacity: 0.4; }
+}
+
+/* ---------- Corpus graph ---------- */
+.corpus-sprite { display: inline-block; position: relative; image-rendering: pixelated; }
+.corpus-sprite svg { display: block; image-rendering: pixelated; }
+.corpus-sprite .corpus-pkt {
+  animation: corpus-pkt-travel 1.6s linear infinite;
+}
+.corpus-sprite .cp1 { animation-delay: 0s; }
+.corpus-sprite .cp2 { animation-delay: 0.5s; }
+.corpus-sprite .cp3 { animation-delay: 1s; }
+.corpus-sprite .corpus-vec { animation: corpus-vec-pulse 1.4s ease-in-out infinite; }
+.corpus-sprite .cv2 { animation-delay: 0.7s; }
+.corpus-sprite .corpus-cosine { animation: corpus-cosine-pulse 0.8s steps(2) infinite; }
+.corpus-sprite .corpus-index-dot { animation: rh-ant-blink 0.6s steps(2) infinite; }
+
+@keyframes corpus-pkt-travel {
+  0%   { cx: 4; cy: 3; opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { cx: 11; cy: 7; opacity: 0; }
+}
+@keyframes corpus-vec-pulse {
+  0%, 100% { fill-opacity: 0.2; }
+  50%      { fill-opacity: 0.7; }
+}
+@keyframes corpus-cosine-pulse {
+  0%, 100% { stroke-opacity: 0.3; }
+  50%      { stroke-opacity: 1; }
+}
+
+/* ---------- Benchmark bars ---------- */
+.bench-sprite { display: inline-block; position: relative; image-rendering: pixelated; }
+.bench-sprite svg { display: block; image-rendering: pixelated; }
+.bench-sprite .bench-bar {
+  /* bars grow upward from baseline; height set via --bench-h */
+  transform-origin: bottom;
+  transform-box: fill-box;
+  transition: y 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.bench-sprite .bb1 { y: calc(13px - var(--bench-h, 0px)); height: var(--bench-h, 0px); }
+.bench-sprite .bb2 { y: calc(13px - var(--bench-h, 0px)); height: var(--bench-h, 0px); animation-delay: 0.1s; }
+.bench-sprite .bb3 { y: calc(13px - var(--bench-h, 0px)); height: var(--bench-h, 0px); animation-delay: 0.2s; }
+.bench-sprite .bb4 { y: calc(13px - var(--bench-h, 0px)); height: var(--bench-h, 0px); animation-delay: 0.3s; }
+.bench-sprite .bench-line { animation: bench-line-sweep 3s linear infinite; }
+.bench-sprite .bench-cap { animation: rh-ant-blink 0.4s steps(2) infinite; }
+
+@keyframes bench-line-sweep {
+  0%   { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -16; }
+}
+
+/* ---------- Sprite mount point (for pages that want one inline) ---------- */
+.sprite-mount {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  position: relative;
+  overflow: hidden;
+}
+.sprite-mount::before {
+  /* scanline overlay */
+  content: "";
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(0deg,
+    rgba(0,255,102,0.04) 0, rgba(0,255,102,0.04) 1px,
+    transparent 1px, transparent 4px);
+  pointer-events: none;
+}
+.sprite-mount-caption {
+  font-family: "VT323", monospace;
+  font-size: 14px;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+  margin-top: 8px;
+  text-align: center;
+  text-shadow: 0 0 4px var(--accent-glow);
+}
+
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

@@ -216,6 +216,218 @@
   };
 
   /* ============================================================
+     NEW SPRITES (P1) — page-context visual effects
+     ------------------------------------------------------------
+     Each sprite is an inline-SVG pixel-art component plus a
+     behavior helper. All respect prefers-reduced-motion.
+     ============================================================ */
+
+  /* ---------- ROBOT HEAD (inference / model thinking) ---------- */
+  // Eyes scan, blink, and pulse with token-stream activity.
+  // Mouth opens/closes as tokens arrive (call `robotFeed(el)` on
+  // each streamed chunk to bump activity).
+  window.spriteRobotHead = function (size = 96) {
+    const wrap = document.createElement('div');
+    wrap.className = 'robot-sprite';
+    wrap.style.width = size + 'px';
+    wrap.style.height = size + 'px';
+    wrap.setAttribute('aria-hidden', 'true');
+    wrap.innerHTML = SVG(`
+      <!-- antenna -->
+      <rect class="rh-ant" x="11" y="1" width="2" height="3" fill="#00ff66"/>
+      <rect class="rh-ant-dot" x="11" y="0" width="2" height="1" fill="#9cff00"/>
+      <!-- head outline -->
+      <rect x="5" y="5" width="14" height="13" fill="#0c1810" stroke="#00ff66" stroke-width="1"/>
+      <!-- eyes (CRT scanlines inside) -->
+      <g class="rh-eyes">
+        <rect x="7" y="8" width="3" height="3" fill="#00ff66"/>
+        <rect x="14" y="8" width="3" height="3" fill="#00ff66"/>
+        <rect class="rh-scan" x="7" y="8" width="3" height="1" fill="#9cff00"/>
+        <rect class="rh-scan" x="14" y="8" width="3" height="1" fill="#9cff00"/>
+      </g>
+      <!-- mouth (LED bar) -->
+      <g class="rh-mouth">
+        <rect x="8" y="13" width="8" height="1" fill="#00ff66"/>
+        <rect x="8" y="15" width="8" height="1" fill="#00ff66" fill-opacity="0.4"/>
+      </g>
+      <!-- neck/base -->
+      <rect x="9" y="18" width="6" height="1" fill="#00ff66"/>
+      <rect x="8" y="19" width="8" height="1" fill="#00ff66" fill-opacity="0.5"/>
+      <!-- side bolts -->
+      <rect x="3" y="9" width="1" height="3" fill="#9cff00"/>
+      <rect x="20" y="9" width="1" height="3" fill="#9cff00"/>
+    `, '0 0 24 24');
+
+    // CSS-driven behaviors attached via classes already in app.css
+    wrap.classList.add('rh-idle');
+    return wrap;
+  };
+
+  // Bump mouth intensity when a token arrives (caller passes sprite element).
+  window.robotFeed = function (el) {
+    if (!el) return;
+    el.classList.remove('rh-active');
+    void el.offsetWidth;
+    el.classList.add('rh-active');
+    el.classList.remove('rh-idle');
+    setTimeout(() => {
+      el.classList.remove('rh-active');
+      el.classList.add('rh-idle');
+    }, 180);
+  };
+
+  /* ---------- CPU CHIP (training / GPU active) ---------- */
+  // Heat-glow indicator + activity bars flickering at training speed.
+  // Pass `progress` (0..1) to fill the central heat meter.
+  window.spriteCpuChip = function (size = 96) {
+    const wrap = document.createElement('div');
+    wrap.className = 'chip-sprite';
+    wrap.style.width = size + 'px';
+    wrap.style.height = size + 'px';
+    wrap.setAttribute('aria-hidden', 'true');
+    wrap.innerHTML = SVG(`
+      <!-- chip body -->
+      <rect x="4" y="4" width="16" height="16" fill="#0c1810" stroke="#00ff66" stroke-width="1"/>
+      <!-- pins top -->
+      <rect x="6" y="1" width="1" height="3" fill="#00ff66"/>
+      <rect x="9" y="1" width="1" height="3" fill="#00ff66"/>
+      <rect x="12" y="1" width="1" height="3" fill="#00ff66"/>
+      <rect x="15" y="1" width="1" height="3" fill="#00ff66"/>
+      <!-- pins bottom -->
+      <rect x="6" y="20" width="1" height="3" fill="#00ff66"/>
+      <rect x="9" y="20" width="1" height="3" fill="#00ff66"/>
+      <rect x="12" y="20" width="1" height="3" fill="#00ff66"/>
+      <rect x="15" y="20" width="1" height="3" fill="#00ff66"/>
+      <!-- pins left -->
+      <rect x="1" y="6" width="3" height="1" fill="#00ff66"/>
+      <rect x="1" y="9" width="3" height="1" fill="#00ff66"/>
+      <rect x="1" y="12" width="3" height="1" fill="#00ff66"/>
+      <rect x="1" y="15" width="3" height="1" fill="#00ff66"/>
+      <!-- pins right -->
+      <rect x="20" y="6" width="3" height="1" fill="#00ff66"/>
+      <rect x="20" y="9" width="3" height="1" fill="#00ff66"/>
+      <rect x="20" y="12" width="3" height="1" fill="#00ff66"/>
+      <rect x="20" y="15" width="3" height="1" fill="#00ff66"/>
+      <!-- core die -->
+      <rect class="chip-die" x="7" y="7" width="10" height="10" fill="#00ff66" fill-opacity="0.15" stroke="#9cff00" stroke-width="1"/>
+      <!-- activity bars -->
+      <g class="chip-bars">
+        <rect class="chip-bar cb1" x="8"  y="11" width="1" height="2" fill="#9cff00"/>
+        <rect class="chip-bar cb2" x="10" y="10" width="1" height="4" fill="#9cff00"/>
+        <rect class="chip-bar cb3" x="12" y="9"  width="1" height="6" fill="#9cff00"/>
+        <rect class="chip-bar cb4" x="14" y="11" width="1" height="2" fill="#9cff00"/>
+        <rect class="chip-bar cb5" x="16" y="10" width="1" height="4" fill="#9cff00"/>
+      </g>
+      <!-- heat indicator top-right -->
+      <rect class="chip-heat" x="16" y="4" width="2" height="2" fill="#ff3a3a"/>
+    `, '0 0 24 24');
+    return wrap;
+  };
+
+  /* ---------- DATA STREAM (data prep / parser running) ---------- */
+  // Bytes flow left-to-right through a pipe with parser arrows.
+  window.spriteDataStream = function (size = 120) {
+    const wrap = document.createElement('div');
+    wrap.className = 'stream-sprite';
+    wrap.style.width = size + 'px';
+    wrap.style.height = (size * 0.5) + 'px';
+    wrap.setAttribute('aria-hidden', 'true');
+    wrap.innerHTML = SVG(`
+      <!-- source box -->
+      <rect class="stream-src" x="1" y="4" width="4" height="4" fill="#0c1810" stroke="#00ff66" stroke-width="1"/>
+      <rect class="stream-dot sd1" x="2" y="5" width="1" height="1" fill="#00ff66"/>
+      <rect class="stream-dot sd2" x="2" y="6" width="1" height="1" fill="#9cff00"/>
+      <!-- pipe -->
+      <rect x="5"  y="5" width="14" height="2" fill="#00ff66" fill-opacity="0.15"/>
+      <rect class="stream-pkt sp1" x="6"  y="5" width="2" height="2" fill="#00ff66"/>
+      <rect class="stream-pkt sp2" x="10" y="5" width="2" height="2" fill="#9cff00"/>
+      <rect class="stream-pkt sp3" x="14" y="5" width="2" height="2" fill="#00ff66"/>
+      <!-- parser arrow -->
+      <rect x="19" y="4" width="1" height="4" fill="#00ff66"/>
+      <rect x="20" y="5" width="1" height="2" fill="#9cff00"/>
+      <!-- output doc -->
+      <rect class="stream-out" x="21" y="3" width="2" height="6" fill="#0c1810" stroke="#00ff66" stroke-width="1"/>
+      <rect class="stream-out-line ol1" x="22" y="4" width="1" height="1" fill="#9cff00"/>
+      <rect class="stream-out-line ol2" x="22" y="6" width="1" height="1" fill="#9cff00"/>
+    `, '0 0 24 12');
+    return wrap;
+  };
+
+  /* ---------- CORPUS NODE GRAPH (RAG embedding) ---------- */
+  // Document nodes on the left, embedding vectors on the right,
+  // packet trails flowing inward as chunks get embedded.
+  window.spriteCorpusNode = function (size = 120) {
+    const wrap = document.createElement('div');
+    wrap.className = 'corpus-sprite';
+    wrap.style.width = size + 'px';
+    wrap.style.height = (size * 0.6) + 'px';
+    wrap.setAttribute('aria-hidden', 'true');
+    wrap.innerHTML = SVG(`
+      <!-- doc nodes (left) -->
+      <rect class="corpus-doc cd1" x="1"  y="2"  width="3" height="3" fill="#0c1810" stroke="#00ff66" stroke-width="1"/>
+      <rect class="corpus-doc cd2" x="1"  y="7"  width="3" height="3" fill="#0c1810" stroke="#00ff66" stroke-width="1"/>
+      <rect class="corpus-doc cd3" x="1"  y="12" width="3" height="3" fill="#0c1810" stroke="#00ff66" stroke-width="1"/>
+      <!-- doc text marks -->
+      <rect x="2" y="3" width="1" height="1" fill="#9cff00"/>
+      <rect x="2" y="8" width="1" height="1" fill="#9cff00"/>
+      <rect x="2" y="13" width="1" height="1" fill="#9cff00"/>
+      <!-- edges -->
+      <line class="corpus-edge" x1="4" y1="3" x2="11" y2="7"  stroke="#00ff66" stroke-width="1"/>
+      <line class="corpus-edge" x1="4" y1="8" x2="11" y2="9"  stroke="#00ff66" stroke-width="1"/>
+      <line class="corpus-edge" x1="4" y1="13" x2="11" y2="11" stroke="#00ff66" stroke-width="1"/>
+      <!-- moving packets on edges -->
+      <circle class="corpus-pkt cp1" cx="6"  cy="4.5" r="1" fill="#9cff00"/>
+      <circle class="corpus-pkt cp2" cx="6"  cy="8.5" r="1" fill="#9cff00"/>
+      <circle class="corpus-pkt cp3" cx="6"  cy="12.5" r="1" fill="#9cff00"/>
+      <!-- vector nodes (right) -->
+      <rect class="corpus-vec cv1" x="11" y="6"  width="3" height="3" fill="#00ff66" fill-opacity="0.2" stroke="#9cff00" stroke-width="1"/>
+      <rect class="corpus-vec cv2" x="11" y="10" width="3" height="3" fill="#00ff66" fill-opacity="0.2" stroke="#9cff00" stroke-width="1"/>
+      <!-- vector bits -->
+      <rect x="12" y="7"  width="1" height="1" fill="#9cff00"/>
+      <rect x="12" y="11" width="1" height="1" fill="#9cff00"/>
+      <!-- cosine connection (dashed) -->
+      <line class="corpus-cosine" x1="14" y1="7" x2="14" y2="11" stroke="#ff2bd6" stroke-width="1" stroke-dasharray="2 1"/>
+      <!-- index dot -->
+      <rect class="corpus-index" x="18" y="8" width="3" height="3" fill="#0c1810" stroke="#9cff00" stroke-width="1"/>
+      <rect class="corpus-index-dot" x="19" y="9" width="1" height="1" fill="#9cff00"/>
+    `, '0 0 24 16');
+    return wrap;
+  };
+
+  /* ---------- BENCHMARK BARS (live scores) ---------- */
+  // Bar chart that fills in real-time. Call `benchUpdate(el, score)`
+  // with a 0..1 value; bars grow upward and the score text refreshes.
+  window.spriteBenchBars = function (size = 120) {
+    const wrap = document.createElement('div');
+    wrap.className = 'bench-sprite';
+    wrap.style.width = size + 'px';
+    wrap.style.height = (size * 0.6) + 'px';
+    wrap.setAttribute('aria-hidden', 'true');
+    wrap.innerHTML = SVG(`
+      <!-- baseline -->
+      <rect x="1" y="13" width="22" height="1" fill="#00ff66" fill-opacity="0.4"/>
+      <!-- bars (heights set via CSS var --bench-h) -->
+      <rect class="bench-bar bb1" x="3"  y="13" width="3" height="1" fill="#00ff66"/>
+      <rect class="bench-bar bb2" x="8"  y="13" width="3" height="1" fill="#9cff00"/>
+      <rect class="bench-bar bb3" x="13" y="13" width="3" height="1" fill="#00ff66"/>
+      <rect class="bench-bar bb4" x="18" y="13" width="3" height="1" fill="#9cff00"/>
+      <!-- moving score line -->
+      <line class="bench-line" x1="2" y1="13" x2="22" y2="13" stroke="#ff2bd6" stroke-width="1" stroke-dasharray="2 2"/>
+      <!-- top label -->
+      <rect class="bench-cap" x="9" y="1" width="6" height="1" fill="#00ff66"/>
+      <rect x="10" y="2" width="4" height="1" fill="#9cff00"/>
+    `, '0 0 24 16');
+    wrap.style.setProperty('--bench-h', '12');
+    return wrap;
+  };
+
+  window.benchUpdate = function (el, score) {
+    if (!el) return;
+    const h = Math.max(0, Math.min(12, Math.round(score * 12)));
+    el.style.setProperty('--bench-h', h + 'px');
+  };
+
+  /* ============================================================
      AUTO-WIRING: page-action classes trigger sprites
      ============================================================ */
 
@@ -293,6 +505,114 @@
     document.querySelectorAll('[data-save], .btn-save').forEach((btn) => {
       btn.addEventListener('click', () => floppySave(btn));
     });
+
+    // ---- P1: Page-context sprite mounts (auto-inject by route) ----
+    mountPageSprites();
+  }
+
+  /* Page-context sprite mounts: picks the right sprite for the current
+     page and injects it into the best matching container. Driven by
+     data-sprite hooks when present, falls back to route inference. */
+  function mountPageSprites() {
+    const path = location.pathname;
+
+    // Robot head → inference pages (live model thinking)
+    if (/^\/inference/.test(path) || /\/chat\b/.test(path)) {
+      const target = document.querySelector('[data-sprite="robot-head"]')
+                  || document.querySelector('.inference-status, #model-status, .chat-header');
+      if (target && !target.querySelector('.robot-sprite')) {
+        const cap = document.createElement('div');
+        cap.className = 'sprite-mount-caption';
+        cap.textContent = 'MODEL ONLINE';
+        const host = document.createElement('div');
+        host.className = 'sprite-mount';
+        host.style.flexDirection = 'column';
+        host.style.padding = '12px';
+        target.prepend(host);
+        host.appendChild(spriteRobotHead(80));
+        host.appendChild(cap);
+
+        // Watch for streaming events to feed the sprite.
+        document.addEventListener('fts:token', () => {
+          robotFeed(host.querySelector('.robot-sprite'));
+        });
+      }
+    }
+
+    // CPU chip → training pages
+    if (/\/training/.test(path)) {
+      const target = document.querySelector('[data-sprite="cpu-chip"]')
+                  || document.querySelector('.training-status, #training-status');
+      if (target && !target.querySelector('.chip-sprite')) {
+        const cap = document.createElement('div');
+        cap.className = 'sprite-mount-caption';
+        cap.textContent = 'GPU ACCELERATING';
+        const host = document.createElement('div');
+        host.className = 'sprite-mount';
+        host.style.flexDirection = 'column';
+        host.style.padding = '12px';
+        target.prepend(host);
+        host.appendChild(spriteCpuChip(80));
+        host.appendChild(cap);
+      }
+    }
+
+    // Data stream → data prep pages
+    if (/\/data-prep/.test(path) || /\/data\b/.test(path)) {
+      const target = document.querySelector('[data-sprite="data-stream"]')
+                  || document.querySelector('.parser-status, .data-status, #parse-status');
+      if (target && !target.querySelector('.stream-sprite')) {
+        const host = document.createElement('div');
+        host.className = 'sprite-mount';
+        host.style.padding = '8px 12px';
+        target.prepend(host);
+        host.appendChild(spriteDataStream(140));
+      }
+    }
+
+    // Corpus graph → RAG pages
+    if (/\/rag/.test(path)) {
+      const target = document.querySelector('[data-sprite="corpus-node"]')
+                  || document.querySelector('.rag-status, #rag-status');
+      if (target && !target.querySelector('.corpus-sprite')) {
+        const cap = document.createElement('div');
+        cap.className = 'sprite-mount-caption';
+        cap.textContent = 'EMBEDDING CORPUS';
+        const host = document.createElement('div');
+        host.className = 'sprite-mount';
+        host.style.flexDirection = 'column';
+        host.style.padding = '10px';
+        target.prepend(host);
+        host.appendChild(spriteCorpusNode(140));
+        host.appendChild(cap);
+      }
+    }
+
+    // Bench bars → benchmarks page
+    if (/\/benchmarks/.test(path) || /\/testing/.test(path)) {
+      const target = document.querySelector('[data-sprite="bench-bars"]')
+                  || document.querySelector('.bench-status, #bench-status');
+      if (target && !target.querySelector('.bench-sprite')) {
+        const cap = document.createElement('div');
+        cap.className = 'sprite-mount-caption';
+        cap.textContent = 'COMPUTING SCORES';
+        const host = document.createElement('div');
+        host.className = 'sprite-mount';
+        host.style.flexDirection = 'column';
+        host.style.padding = '10px';
+        target.prepend(host);
+        host.appendChild(spriteBenchBars(140));
+        host.appendChild(cap);
+
+        // Hook progress events: fts:bench-progress { detail: { score: 0..1 } }
+        document.addEventListener('fts:bench-progress', (ev) => {
+          if (ev.detail && typeof ev.detail.score === 'number') {
+            benchUpdate(host.querySelector('.bench-sprite'), ev.detail.score);
+            cap.textContent = `SCORE ${(ev.detail.score * 100).toFixed(0)}%`;
+          }
+        });
+      }
+    }
   }
 
   if (document.readyState === 'loading') {
