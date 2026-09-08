@@ -88,6 +88,10 @@ async def main():
         # Register a SYNC handler (no asyncio.create_task) so accept() runs
         # before Playwright dismisses the dialog.
         page.on("dialog", lambda d: d.accept())
+        # BEFORE any page script runs, override window.confirm to always
+        # return true. Playwright's dialog handler has race conditions with
+        # multi-event click handlers (data-action + data-confirm both fire).
+        await ctx.add_init_script("window.confirm = () => true;")
         # Capture console + page errors for debugging
         page.on("console", lambda m: print(f"  [console.{m.type}] {m.text[:200]}"))
         page.on("pageerror", lambda e: print(f"  [pageerror] {str(e)[:200]}"))
@@ -133,7 +137,7 @@ async def main():
         # Find the card whose text contains EXACTLY "Qwen/Qwen3-0.6B"
         # (not the -Base / -GGUF variants), then click its Pull button.
         try:
-            clicked = await page.evaluate("""
+            handle = await page.evaluate_handle("""
                 () => {
                     const cards = Array.from(document.querySelectorAll('.hf-card'));
                     const log = [];
@@ -142,34 +146,23 @@ async def main():
                         const hit = all.find(el => el.textContent.trim() === 'Qwen/Qwen3-0.6B'
                                                        && el.children.length === 0);
                         if (!hit) continue;
-                        log.push('found card with exact Qwen/Qwen3-0.6B');
                         const btn = c.querySelector('button[data-action="/api/hf/download"]');
-                        if (btn) {
-                            log.push('found download btn');
-                            btn.scrollIntoView();
-                            btn.click();
-                            return {ok: true, log};
-                        }
-                        // Dump what buttons are in this card
-                        const btns = Array.from(c.querySelectorAll('button')).map(b => ({
-                            action: b.dataset.action,
-                            body: b.dataset.body,
-                            text: b.textContent.trim(),
-                            onclick: b.getAttribute('onclick') || ''
-                        }));
-                        return {ok: false, log, btns};
+                        if (btn) { btn.scrollIntoView(); return btn; }
                     }
-                    return {ok: false, log: ['no exact card found'], total_cards: cards.length};
+                    return null;
                 }
             """)
-            print(f"  click result: {clicked}")
-            if clicked.get("ok"):
+            if handle:
+                # Use Playwright's native click — handles dialog + event
+                # dispatch ordering correctly (evaluate's btn.click() can
+                # skip event-listener chains on some Chromium versions).
+                await handle.as_element().click(timeout=10000)
                 pulled = True
-                print(f"  PULL button clicked (log: {clicked.get('log')})")
+                print("  PULL button clicked via Playwright native click")
             else:
-                print(f"  pull click failed: {clicked}")
+                print("  no PULL button found")
         except Exception as e:
-            print(f"  card-finder error: {e}")
+            print(f"  pull click error: {e}")
         await page.wait_for_timeout(800)
         await shot("02b_hf_pull_clicked")
         rec("webui.hf_pull_clicked", pulled)
