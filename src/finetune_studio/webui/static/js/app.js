@@ -103,26 +103,34 @@
         }
       });
     });
-    // Buttons
-    document.querySelectorAll("[data-action]").forEach((btn) => {
-      btn.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        const url = btn.dataset.action;
-        const method = (btn.dataset.method || "POST").toUpperCase();
-        const body = btn.dataset.body ? JSON.parse(btn.dataset.body) : {};
-        const opts = { method };
-        if (method !== "GET") {
-          opts.headers = { "Content-Type": "application/json" };
-          opts.body = JSON.stringify(body);
-        }
-        fetch(url, opts)
-          .then((r) => r.json().catch(() => ({})))
-          .then((d) => {
-            if (d.error) notify(d.error, "error");
-            else notify("Done", "success");
-            if (btn.dataset.reload === "true") setTimeout(() => location.reload(), 600);
-          });
-      });
+    // Buttons — use event delegation on document so dynamically rendered
+    // buttons (e.g. HF Explorer cards loaded async after doSearch) still
+    // fire data-action handlers.
+    document.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("[data-action]");
+      if (!btn || !document.contains(btn)) return;
+      ev.preventDefault();
+      const url = btn.dataset.action;
+      const method = (btn.dataset.method || "POST").toUpperCase();
+      const body = btn.dataset.body ? JSON.parse(btn.dataset.body) : {};
+      const opts = { method };
+      if (method !== "GET") {
+        opts.headers = { "Content-Type": "application/json" };
+        opts.body = JSON.stringify(body);
+      }
+      fetch(url, opts)
+        .then((r) => r.json().catch(() => ({})))
+        .then((d) => {
+          if (d.error) notify(d.error, "error");
+          else notify("Done", "success");
+          if (btn.dataset.reload === "true") setTimeout(() => location.reload(), 600);
+        });
+    });
+    // data-confirm buttons — also delegated so dynamically rendered buttons work
+    document.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("[data-confirm]");
+      if (!btn || !document.contains(btn)) return;
+      if (!confirm(btn.dataset.confirm)) ev.preventDefault();
     });
     // data-poll spans
     document.querySelectorAll("[data-poll]").forEach((el) => {
@@ -131,12 +139,7 @@
       const interval = parseInt(el.getAttribute("data-interval") || "3000", 10);
       poll(url, el, field, interval);
     });
-    // data-confirm buttons
-    document.querySelectorAll("[data-confirm]").forEach((btn) => {
-      btn.addEventListener("click", (ev) => {
-        if (!confirm(btn.dataset.confirm)) ev.preventDefault();
-      });
-    });
+    // (data-confirm already handled by delegated click listener above)
   }
 
   // ── Run once on full load, then re-run on every SPA swap ─────────
