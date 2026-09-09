@@ -6,6 +6,7 @@ rag_data/
 __pycache__/
 .venv/
 .env
+data/
 data/docs/
 data/*.db
 data/projects/
@@ -13,3 +14,11 @@ data/models/
 *.gguf
 *.safetensors
 projects/
+output/
+screenshots/
+# Common runtime / build artifacts
+*.log
+*.tmp
+node_modules/
+dist/
+build/
