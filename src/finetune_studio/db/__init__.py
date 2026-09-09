@@ -36,6 +36,10 @@ from finetune_studio.db.rags import (
 from finetune_studio.db.runs import (
     create_run, delete_run, get_run, list_runs, update_run,
 )
+from finetune_studio.db.datasets import (
+    create_dataset, delete_dataset, datasets_dir, get_dataset, list_datasets,
+    update_dataset, count_qa_pairs,
+)
 from finetune_studio.db.benchmarks import (
     create_benchmark, get_benchmark, list_benchmarks,
 )

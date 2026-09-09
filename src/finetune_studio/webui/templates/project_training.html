@@ -19,12 +19,70 @@
   <div class="sub">LoRA / QLoRA / full fine-tune. Pick a base model + dataset, configure, start.</div>
 </div>
 
-<div class="steps">
-  <div class="step done"><span class="num">1</span> Configure</div>
-  <div class="step"><span class="num">2</span> Start</div>
-  <div class="step"><span class="num">3</span> Monitor</div>
-  <div class="step"><span class="num">4</span> Evaluate</div>
+{% if detail_run %}
+{# ── Run-detail panel — only rendered when ?run=<id> is in the URL ── #}
+<div class="card mb-6 run-detail">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Run details · {{ detail_run.name }}</div>
+      <div class="card-sub">
+        <a href="/projects/{{ pid }}/training" data-link class="muted">← Back to all runs</a>
+      </div>
+    </div>
+    <span class="pill {{ {'done':'solid-green','failed':'solid-rose','running':'solid-amber','stopped':'outline'}.get(detail_run.status, 'outline') }}">
+      {{ detail_run.status }}
+    </span>
+  </div>
+
+  <div class="grid grid-2 gap-4">
+    <div>
+      <table class="table compact run-meta">
+        <tr><td class="meta muted">ID</td><td class="mono">{{ detail_run.id }}</td></tr>
+        <tr><td class="meta muted">Base model</td>
+            <td class="mono">{{ detail_run.base_model.split('/')[-1] if detail_run.base_model else '—' }}</td></tr>
+        <tr><td class="meta muted">Dataset</td>
+            <td class="mono" title="{{ detail_run.data_path or '' }}">{{ detail_run.data_path.split('/')[-1] if detail_run.data_path else '—' }}</td></tr>
+        <tr><td class="meta muted">Output</td>
+            <td class="mono" title="{{ detail_run.output_path or '' }}">{{ detail_run.output_path or '—' }}</td></tr>
+        <tr><td class="meta muted">Created</td><td class="mono js-time" data-ts="{{ detail_run.created_at }}">—</td></tr>
+        <tr><td class="meta muted">Started</td><td class="mono js-time" data-ts="{{ detail_run.started_at or '' }}">—</td></tr>
+        <tr><td class="meta muted">Finished</td><td class="mono js-time" data-ts="{{ detail_run.finished_at or '' }}">—</td></tr>
+        <tr><td class="meta muted">Final loss</td>
+            <td class="mono num">{{ '%.4f' % detail_run.final_loss if detail_run.final_loss else '—' }}</td></tr>
+      </table>
+    </div>
+
+    <div>
+      <h4 class="text-xs muted mb-1">Settings</h4>
+      <pre class="mono text-xs run-settings">{{ detail_run.settings|tojson(indent=2) }}</pre>
+      {% if detail_run.metrics and (detail_run.metrics|length > 0) %}
+      <h4 class="text-xs muted mb-1 mt-3">Metrics</h4>
+      <pre class="mono text-xs run-settings">{{ detail_run.metrics|tojson(indent=2) }}</pre>
+      {% endif %}
+      {% if detail_run.notes %}
+      <h4 class="text-xs muted mb-1 mt-3">Notes</h4>
+      <div class="text-xs">{{ detail_run.notes }}</div>
+      {% endif %}
+      {% if detail_run.error %}
+      <h4 class="text-xs muted mb-1 mt-3" style="color:var(--err)">Error</h4>
+      <pre class="mono text-xs run-error">{{ detail_run.error }}</pre>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="flex gap-2 mt-4 wrap">
+    <a class="btn sm" href="/projects/{{ pid }}/training?run={{ detail_run.id }}" data-link>Refresh</a>
+    <a class="btn sm primary"
+       href="/inference{% if detail_run.output_path %}?adapter_path={{ detail_run.output_path }}{% endif %}"
+       data-link>Use adapter in inference</a>
+    <button class="btn sm danger"
+            data-action="/api/projects/{{ pid }}/runs/{{ detail_run.id }}"
+            data-method="DELETE"
+            data-confirm="Delete this run? Output files on disk will be kept."
+            data-reload="true">Delete</button>
+  </div>
 </div>
+{% endif %}
 
 <div class="card mb-6">
   <div class="card-head">
@@ -33,7 +91,20 @@
       <div class="card-sub">Settings used for the next training run.</div>
     </div>
   </div>
-  <form id="train-form" class="grid grid-2 gap-4" data-api="/api/training/start">
+
+  {# ── Project nav step indicator ── #}
+  <div class="steps">
+    <div class="step done"><span class="num">1</span> Configure</div>
+    <div class="step"><span class="num">2</span> Start</div>
+    <div class="step"><span class="num">3</span> Monitor</div>
+    <div class="step"><span class="num">4</span> Evaluate</div>
+  </div>
+
+  <form id="train-form" class="grid grid-2 gap-4 mt-4" data-api="/api/training/start">
+    <input type="hidden" name="project_id" value="{{ pid }}">
+    <input type="hidden" name="dataset_id" id="dataset-id-input" value="">
+    <input type="hidden" name="data_path" id="data-path-input" value="">
+
     <label>
       <span class="block text-xs muted mb-1">Base Model</span>
       <select name="model_path" class="select">
@@ -42,10 +113,49 @@
         {% endfor %}
       </select>
     </label>
-    <label>
+
+    {# ── Training Data — tabs (project datasets vs upload) ── #}
+    <div class="data-source">
       <span class="block text-xs muted mb-1">Training Data</span>
-      <input type="text" name="data_path" placeholder="path/to/data.jsonl" class="input">
-    </label>
+      <div class="data-tabs" role="tablist">
+        <button type="button" class="data-tab active" data-tab="project" role="tab">From this project</button>
+        <button type="button" class="data-tab" data-tab="upload" role="tab">Upload my own</button>
+      </div>
+
+      <div class="data-panel active" data-panel="project">
+        {% if project.datasets %}
+          <select id="dataset-select" class="select mt-1">
+            <option value="">— pick a dataset —</option>
+            {% for ds in project.datasets %}
+            <option value="{{ ds.id }}" data-path="{{ ds.data_path }}">
+              {{ ds.name }} · {{ ds.qa_count }} pairs · {{ (ds.size_bytes / 1024)|round(1) }} KB
+              {% if ds.source == 'data-prep-export' %} · (from data-prep){% endif %}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="text-xs muted mt-1">
+            Manage datasets in
+            <a href="/projects/{{ pid }}/data-prep" data-link>Data Prep</a>
+            — exports land here automatically.
+          </div>
+        {% else %}
+          <div class="empty small">
+            No datasets yet.
+            <a href="/projects/{{ pid }}/data-prep" data-link>Use Data Prep</a>
+            to generate one, or switch to <strong>Upload my own</strong>.
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="data-panel" data-panel="upload">
+        <input type="file" id="dataset-upload" accept=".jsonl,.json,.txt" class="input mt-1">
+        <div id="dataset-upload-status" class="text-xs muted mt-1">
+          Pick a jsonl file. It's saved to this project's dataset folder and added
+          to the list above.
+        </div>
+      </div>
+    </div>
+
     <label>
       <span class="block text-xs muted mb-1">Output Dir</span>
       <input type="text" name="output_dir" value="output" class="input">
@@ -72,7 +182,7 @@
     </label>
     <div class="flex gap-2 mt-4" style="grid-column: 1 / -1;">
       <button type="submit" class="btn primary" id="start-btn" onclick="this.disabled=true;this.textContent='Starting…'">Start training</button>
-      <button class="btn danger" data-action="/api/training/stop" data-reload="true">Stop</button>
+      <button type="button" class="btn danger" data-action="/api/training/stop" data-reload="true">Stop</button>
     </div>
   </form>
   <div data-forge class="mt-3" id="training-forge"></div>
@@ -106,7 +216,7 @@
     <thead><tr><th>Name</th><th>Status</th><th>Started</th><th>Duration</th><th>Loss</th><th></th></tr></thead>
     <tbody>
       {% for run in project.runs %}
-      <tr class="row-hover">
+      <tr class="row-hover {% if detail_run and detail_run.id == run.id %}row-active{% endif %}">
         <td class="name">{{ run.name }}</td>
         <td><span class="pill {{ {'running':'solid-amber','done':'solid-green','failed':'solid-rose','stopped':'outline'}.get(run.status, 'outline') }}">{{ run.status }}</span></td>
         <td class="meta">{{ run.started_at or '—' }}</td>
@@ -122,9 +232,108 @@
   {% endif %}
 </div>
 
+{# ── Behaviour for the data-source tabs + dataset upload + form submit ── #}
+<script>
+(function () {
+  // Tab switching
+  const tabs = document.querySelectorAll(".data-tab");
+  const panels = document.querySelectorAll(".data-panel");
+  tabs.forEach((t) => {
+    t.addEventListener("click", () => {
+      tabs.forEach((x) => x.classList.remove("active"));
+      panels.forEach((p) => p.classList.remove("active"));
+      t.classList.add("active");
+      const panel = document.querySelector(`.data-panel[data-panel="${t.dataset.tab}"]`);
+      if (panel) panel.classList.add("active");
+    });
+  });
+
+  const dataPathInput = document.getElementById("data-path-input");
+  const datasetIdInput = document.getElementById("dataset-id-input");
+  const select = document.getElementById("dataset-select");
+  const fileInput = document.getElementById("dataset-upload");
+  const statusEl = document.getElementById("dataset-upload-status");
+
+  // Picking a project dataset fills both hidden fields.
+  if (select) {
+    select.addEventListener("change", () => {
+      const opt = select.selectedOptions[0];
+      if (!opt) return;
+      const path = opt.getAttribute("data-path");
+      if (path) {
+        dataPathInput.value = path;
+        datasetIdInput.value = opt.value;
+      }
+    });
+  }
+
+  // File upload: POST to /datasets/upload, then fill the hidden fields.
+  if (fileInput) {
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      statusEl.textContent = `Uploading ${file.name}…`;
+      const fd = new FormData();
+      fd.append("file", file);
+      try {
+        const r = await fetch(`/api/projects/{{ pid }}/datasets/upload`, { method: "POST", body: fd });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.error || `HTTP ${r.status}`);
+        }
+        const ds = await r.json();
+        statusEl.textContent = `✓ ${ds.name} (${ds.qa_count} pairs)`;
+        dataPathInput.value = ds.data_path;
+        datasetIdInput.value = ds.id;
+        // Switch back to "From project" tab so the user sees the new entry.
+        tabs.forEach((t) => t.classList.remove("active"));
+        panels.forEach((p) => p.classList.remove("active"));
+        document.querySelector('.data-tab[data-tab="project"]').classList.add("active");
+        document.querySelector('.data-panel[data-panel="project"]').classList.add("active");
+        // Inject the new option into the dropdown so it's discoverable.
+        if (select) {
+          const opt = document.createElement("option");
+          opt.value = ds.id;
+          opt.setAttribute("data-path", ds.data_path);
+          opt.textContent = `${ds.name} · ${ds.qa_count} pairs · (just uploaded)`;
+          opt.selected = true;
+          select.insertBefore(opt, select.firstChild);
+        }
+      } catch (e) {
+        statusEl.textContent = `✗ upload failed: ${e.message || e}`;
+      }
+    });
+  }
+
+  // Form submission: validate a dataset/data_path is selected.
+  const form = document.getElementById("train-form");
+  if (form) {
+    form.addEventListener("submit", (ev) => {
+      if (!dataPathInput.value) {
+        ev.preventDefault();
+        statusEl && (statusEl.textContent = "✗ Pick or upload a dataset first.");
+        // Bring user to the project tab so the dropdown is visible.
+        tabs.forEach((t) => t.classList.remove("active"));
+        panels.forEach((p) => p.classList.remove("active"));
+        document.querySelector('.data-tab[data-tab="project"]').classList.add("active");
+        document.querySelector('.data-panel[data-panel="project"]').classList.add("active");
+        return;
+      }
+    });
+  }
+
+  // Render ISO-formatted times for run detail rows.
+  document.querySelectorAll(".js-time").forEach((el) => {
+    const ts = parseFloat(el.dataset.ts || "");
+    if (!ts || isNaN(ts)) { el.textContent = "—"; return; }
+    const d = new Date(ts * 1000);
+    el.textContent = d.toLocaleString();
+  });
+})();
+</script>
+
 {# ── Populate the model dropdown from /api/hf/local so newly downloaded
-   models show up without restarting the server (discovered_models is
-   only scanned once at boot). ─────────────────────────────── #}
+   models show up without restarting the server. ── #}
 <script>
 (async () => {
   const sel = document.querySelector('select[name="model_path"]');
@@ -134,7 +343,7 @@
     if (!r.ok) return;
     const d = await r.json();
     const local = d.models || [];
-    if (local.length === 0) return;  // keep server-rendered options if any
+    if (local.length === 0) return;
     const current = sel.value;
     sel.innerHTML = '';
     for (const m of local) {

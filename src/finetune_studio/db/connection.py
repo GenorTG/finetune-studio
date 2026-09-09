@@ -80,6 +80,22 @@ CREATE TABLE IF NOT EXISTS data_review (
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_review_project ON data_review(project_id, dataset);
+
+-- Per-project jsonl training files (uploaded or exported from data-prep).
+-- The training tab reads from this table instead of taking a raw path.
+CREATE TABLE IF NOT EXISTS project_datasets (
+    id            TEXT PRIMARY KEY,
+    project_id    TEXT NOT NULL,
+    name          TEXT NOT NULL,
+    data_path     TEXT NOT NULL,
+    source        TEXT NOT NULL DEFAULT 'upload',   -- upload | data-prep-export
+    qa_count      INTEGER NOT NULL DEFAULT 0,
+    size_bytes    INTEGER NOT NULL DEFAULT 0,
+    created_at    REAL NOT NULL,
+    last_used_at  REAL,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_datasets_project ON project_datasets(project_id);
 """
 
 

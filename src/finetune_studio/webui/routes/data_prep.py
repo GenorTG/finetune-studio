@@ -205,6 +205,29 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved"):
         body = export_qa_jsonl(pid, fmt=fmt, only=only)
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
+    # The export lives in a stream buffer; persist it to the project's datasets
+    # dir so it's selectable from the Training tab and referenceable forever.
+    try:
+        from finetune_studio import db
+        from pathlib import Path as _P
+        from finetune_studio.db.datasets import datasets_dir, count_qa_pairs
+        ds_dir = datasets_dir(pid)
+        fname = f"{pid}-{fmt}-{only}.jsonl"
+        target = ds_dir / fname
+        target.write_text(body, encoding="utf-8")
+        existing = db.get_dataset_by_path(pid, str(target))
+        if not existing:
+            db.create_dataset(
+                project_id=pid,
+                name=target.stem,
+                data_path=str(target),
+                source="data-prep-export",
+                qa_count=count_qa_pairs(str(target)),
+                size_bytes=target.stat().st_size,
+            )
+    except Exception as e:  # noqa: BLE001
+        # Don't fail the export if the registry step fails — payload still ships.
+        log.warning("dataset registry failed: %s", e)
     return Response(
         body.encode("utf-8"),
         media_type="application/x-ndjson",

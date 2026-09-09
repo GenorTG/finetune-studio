@@ -1,5 +1,5 @@
 {# Partial: host RAM + per-GPU VRAM bars. Polled every 3s by the fetcher at the bottom. #}
-<div id="sys-resources" class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6">
+<div id="sys-resources" class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6 overflow-hidden">
   <div class="flex items-center justify-between mb-3">
     <h3 class="text-sm font-semibold text-gray-300">Host Resources</h3>
     <span id="sys-resources-updated" class="text-[10px] text-gray-500"></span>
@@ -7,9 +7,9 @@
   <div class="space-y-3">
     {# RAM row — single bar #}
     <div>
-      <div class="flex justify-between text-xs mb-1">
-        <span class="text-gray-400">RAM</span>
-        <span id="ram-text" class="text-gray-500">— / — GB (—%)</span>
+      <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs mb-1">
+        <span class="text-gray-300 font-medium">RAM</span>
+        <span id="ram-text" class="text-emerald-400 font-semibold">— / — GB (—%)</span>
       </div>
       <div class="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
         <div id="ram-bar" class="h-full rounded-full transition-all duration-500 ease-out bg-emerald-500" style="width:0%"></div>
@@ -53,9 +53,9 @@
     }
     vramRows.innerHTML = vram.map(g => `
       <div data-vram-idx="${g.index}">
-        <div class="flex justify-between text-xs mb-1">
-          <span class="text-gray-400 truncate pr-2">VRAM · ${g.name}</span>
-          <span class="vram-text text-gray-500">${fmtGb(g.used_gb)} / ${fmtGb(g.total_gb)} GB (${g.pct}%)</span>
+        <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs mb-1">
+          <span class="text-gray-300 font-medium truncate" title="${g.name}">VRAM · ${g.name}</span>
+          <span class="vram-text text-emerald-400 font-semibold">${fmtGb(g.used_gb)} / ${fmtGb(g.total_gb)} GB (${g.pct}%)</span>
         </div>
         <div class="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
           <div class="vram-bar h-full rounded-full transition-all duration-500 ease-out ${colorFor(g.pct)}" style="width:${Math.min(100, g.pct)}%"></div>

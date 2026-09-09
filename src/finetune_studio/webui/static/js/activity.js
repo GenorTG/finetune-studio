@@ -1,10 +1,12 @@
 /* ============================================================
-   Activity feed — bottom-right slide-up drawer
+   Activity feed — top-right slide-out drawer
    ------------------------------------------------------------
-   Shows all running tasks: training, RAG build, data-prep,
-   inference loaded, HF downloads. Each row has a "go to" link.
-   Polls /api/activity every 2s. The header button shows an
-   active-count badge when any task is running.
+   Each row is collapsed by default (kind + project + status).
+   Click the row head to expand inline details: progress bar,
+   full message, project_id, started/elapsed, and a prominent
+   "GO TO →" button. Multiple rows can be expanded at once;
+   expansion pushes siblings down (no overlay).
+   Polls /api/activity every 2s.
    ============================================================ */
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -36,10 +38,10 @@
   function fmtTimeAgo(ts) {
     if (!ts) return "";
     const dt = Math.max(0, Date.now() / 1000 - ts);
-    if (dt < 60) return dt.toFixed(0) + "s ago";
-    if (dt < 3600) return (dt / 60).toFixed(0) + "m ago";
-    if (dt < 86400) return (dt / 3600).toFixed(0) + "h ago";
-    return (dt / 86400).toFixed(0) + "d ago";
+    if (dt < 60) return Math.round(dt) + "s ago";
+    if (dt < 3600) return Math.round(dt / 60) + "m ago";
+    if (dt < 86400) return Math.round(dt / 3600) + "h ago";
+    return Math.round(dt / 86400) + "d ago";
   }
 
   function escapeHtml(s) {
@@ -51,48 +53,89 @@
 
   function renderTasks(tasks) {
     if (!tasks || tasks.length === 0) {
-      bodyEl.innerHTML = '<div class="activity-empty">No activity. Upload a file or start a training run.</div>';
+      bodyEl.innerHTML =
+        '<div class="activity-empty">No activity. Upload a file or start a training run.</div>';
       return;
     }
-    bodyEl.innerHTML = tasks.map((t) => {
-      const icon = KIND_ICON[t.kind] || "›";
-      const label = KIND_LABEL[t.kind] || t.kind;
-      const pct = Math.round((t.progress || 0) * 100);
-      const isDone = t.status === "done" || t.status === "ready";
-      const isErr = t.status === "error";
-      const projectBadge = t.project_name
-        ? `<span class="activity-proj">${escapeHtml(t.project_name)}</span>`
-        : "";
-      return `
-        <div class="activity-row ${isDone ? 'done' : ''} ${isErr ? 'err' : ''}" data-url="${escapeHtml(t.url || '')}">
-          <div class="activity-row-head">
-            <span class="activity-kind"><span class="ki">${icon}</span> ${label}</span>
-            ${projectBadge}
-            <span class="activity-status status-${t.status}">${escapeHtml(t.status)}</span>
-            <span class="activity-time">${fmtTimeAgo(t.started_at)}</span>
-          </div>
-          <div class="activity-msg">${escapeHtml(t.message || "")}</div>
-          ${!isDone ? `
-            <div class="activity-bar">
-              <div class="activity-bar-fill" style="width:${pct}%"></div>
-              <span class="activity-bar-text">${pct}%</span>
-            </div>` : ""}
-          ${t.url ? `<a href="${escapeHtml(t.url)}" class="activity-goto" data-link data-link-href="${escapeHtml(t.url)}">GO TO →</a>` : ""}
-        </div>
-      `;
-    }).join("");
 
-    // Row click → navigate to url
-    bodyEl.querySelectorAll(".activity-row[data-url]").forEach((row) => {
-      row.addEventListener("click", (ev) => {
-        // Ignore if user clicked the link directly
+    bodyEl.innerHTML = tasks
+      .map((t, idx) => {
+        const icon = KIND_ICON[t.kind] || "›";
+        const label = KIND_LABEL[t.kind] || t.kind;
+        const pct = Math.round((t.progress || 0) * 100);
+        const isDone = t.status === "done" || t.status === "ready";
+        const isErr = t.status === "error";
+        const isActive = !isDone && !isErr;
+        const projectBadge = t.project_name
+          ? `<span class="activity-proj">${escapeHtml(t.project_name)}</span>`
+          : "";
+        const shortMsg = (t.message || "").split("·")[0].trim().slice(0, 80);
+        return `
+        <div class="activity-row ${isDone ? "done" : ""} ${isErr ? "err" : ""}"
+             data-url="${escapeHtml(t.url || "")}" data-idx="${idx}">
+          <div class="activity-row-head" aria-expanded="false">
+            <span class="ki">${icon}</span>
+            <span class="activity-label">${escapeHtml(label)}</span>
+            ${projectBadge}
+            <span class="activity-status status-${escapeHtml(t.status)}">${escapeHtml(t.status)}</span>
+            <span class="activity-time">${escapeHtml(fmtTimeAgo(t.started_at))}</span>
+            <span class="activity-chevron" aria-hidden="true">▸</span>
+          </div>
+          <div class="activity-msg activity-msg-short">${escapeHtml(shortMsg || "")}</div>
+          <div class="activity-expand">
+            <div class="activity-msg activity-msg-full">${escapeHtml(t.message || "")}</div>
+            ${
+              isActive || pct > 0
+                ? `<div class="activity-bar">
+                     <div class="activity-bar-fill" style="width:${pct}%"></div>
+                     <span class="activity-bar-text">${pct}%</span>
+                   </div>`
+                : ""
+            }
+            <div class="activity-meta">
+              ${
+                t.project_id
+                  ? `<span class="meta-row"><span class="meta-k">project</span><span class="mono">${escapeHtml(t.project_id)}</span></span>`
+                  : ""
+              }
+              ${
+                t.kind
+                  ? `<span class="meta-row"><span class="meta-k">kind</span><span class="mono">${escapeHtml(t.kind)}</span></span>`
+                  : ""
+              }
+              <span class="meta-row"><span class="meta-k">started</span><span class="mono">${escapeHtml(fmtTimeAgo(t.started_at))}</span></span>
+              ${
+                typeof t.progress === "number"
+                  ? `<span class="meta-row"><span class="meta-k">progress</span><span class="mono">${pct}%</span></span>`
+                  : ""
+              }
+            </div>
+            ${
+              t.url
+                ? `<a href="${escapeHtml(t.url)}" class="activity-goto"
+                      data-link data-link-href="${escapeHtml(t.url)}">GO TO →</a>`
+                : ""
+            }
+          </div>
+        </div>`;
+      })
+      .join("");
+
+    // Accordion handlers — each row toggles its expand panel on click.
+    bodyEl.querySelectorAll(".activity-row").forEach((row) => {
+      const head = row.querySelector(".activity-row-head");
+      if (!head) return;
+      head.addEventListener("click", (ev) => {
+        // Don't toggle when the user clicks the GO TO link.
         if (ev.target.closest(".activity-goto")) return;
-        const url = row.dataset.url;
-        if (!url) return;
-        close();
-        if (window.ftsSPA && window.ftsSPA.navigate) window.ftsSPA.navigate(url);
-        else location.href = url;
+        const open = row.classList.toggle("open");
+        head.setAttribute("aria-expanded", open ? "true" : "false");
       });
+      // The GO TO link itself — stop propagation so click doesn't toggle.
+      const goto = row.querySelector(".activity-goto");
+      if (goto) {
+        goto.addEventListener("click", (ev) => ev.stopPropagation());
+      }
     });
   }
 
@@ -118,11 +161,12 @@
       updateBadge(d.active_count || 0);
 
       if (drawer && !drawer.hidden) {
-        // Show sub-title with breakdown
+        // Sub-title summarises kinds of active work (or "idle").
         const kinds = Object.entries(d.by_kind || {})
           .map(([k, n]) => `${KIND_LABEL[k] || k}: ${n}`)
           .join(" · ");
         subEl.textContent = kinds || (d.active_count ? `${d.active_count} active` : "idle");
+        // Re-render only if the task list changed shape (cheap pointer compare).
         renderTasks(lastTasks);
       }
     } catch (e) {
@@ -147,16 +191,16 @@
     setTimeout(() => {
       drawer.hidden = true;
       backdrop.hidden = true;
-    }, 200);
+    }, 220);
   }
 
   if (trigger) trigger.addEventListener("click", () => {
-    if (drawer && !drawer.hidden) close(); else open();
+    if (drawer && !drawer.hidden) close();
+    else open();
   });
   if (closeBtn) closeBtn.addEventListener("click", close);
   if (backdrop) backdrop.addEventListener("click", close);
 
-  // Escape closes
   document.addEventListener("keydown", (ev) => {
     if (ev.key === "Escape" && drawer && !drawer.hidden) {
       ev.preventDefault();
@@ -164,7 +208,6 @@
     }
   });
 
-  // Poll every 2s; updates badge regardless of drawer state
   setInterval(refresh, 2000);
   refresh();
 

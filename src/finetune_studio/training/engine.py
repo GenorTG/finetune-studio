@@ -200,11 +200,12 @@ class TrainingEngine:
             learning_rate=cfg.learning_rate, warmup_steps=cfg.warmup_steps,
             weight_decay=cfg.weight_decay, logging_steps=cfg.logging_steps,
             save_steps=cfg.save_steps, fp16=not cfg.bf16, bf16=cfg.bf16,
-            optim="adamw_8bit", seed=3407, report_to="none",
+            optim="adamw_torch", seed=3407, report_to="none",
         )
         start_time = time.time()
         engine = self
-        class ProgressCallback:
+        from transformers import TrainerCallback
+        class ProgressCallback(TrainerCallback):
             def on_log(self2, args, state, control, logs=None, **kwargs):
                 if logs:
                     engine.state.current_step = state.global_step
@@ -220,7 +221,7 @@ class TrainingEngine:
                     )
                     engine._notify()
         trainer = SFTTrainer(
-            model=model, tokenizer=tokenizer, train_dataset=dataset,
+            model=model, processing_class=tokenizer, train_dataset=dataset,
             args=args, callbacks=[ProgressCallback()],
         )
         self.state.status = "training"
@@ -274,11 +275,12 @@ class TrainingEngine:
             learning_rate=cfg.learning_rate, warmup_steps=cfg.warmup_steps,
             weight_decay=cfg.weight_decay, logging_steps=cfg.logging_steps,
             save_steps=cfg.save_steps, fp16=not cfg.bf16, bf16=cfg.bf16,
-            optim="adamw_8bit", seed=3407, report_to="none",
+            optim="adamw_torch", seed=3407, report_to="none",
         )
         start_time = time.time()
         engine = self
-        class ProgressCallback:
+        from transformers import TrainerCallback
+        class ProgressCallback(TrainerCallback):
             def on_log(self2, args, state, control, logs=None, **kwargs):
                 if logs:
                     engine.state.current_step = state.global_step
@@ -291,7 +293,7 @@ class TrainingEngine:
                         engine.state.eta = round(rate * (total - state.global_step), 1)
                     engine._notify()
         trainer = SFTTrainer(
-            model=model, tokenizer=tokenizer, train_dataset=dataset,
+            model=model, processing_class=tokenizer, train_dataset=dataset,
             args=args, callbacks=[ProgressCallback()],
         )
         self.state.status = "training"

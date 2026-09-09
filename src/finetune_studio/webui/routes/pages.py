@@ -37,6 +37,11 @@ def _project_ctx(pid: str) -> dict:
     project = db.get_project(pid)
     if not project:
         return {}
+    project["rags"] = db.list_rags(pid)
+    project["runs"] = db.list_runs(pid)
+    project["datasets"] = db.list_datasets(pid)
+    for run in project["runs"]:
+        run["benchmarks"] = db.list_benchmarks(run["id"])
     return {"project": project, "pid": pid}
 
 
@@ -167,14 +172,29 @@ async def project_data_page(request: Request, pid: str):
 @router.get("/projects/{pid}/training", response_class=HTMLResponse)
 async def project_training_page(request: Request, pid: str):
     """Training config + progress for a project."""
+    from finetune_studio import db
     from finetune_studio.webui.app import discovered_models, training_engine
     ctx = _project_ctx(pid)
     if not ctx:
         return RedirectResponse(url="/projects", status_code=302)
+    # ?run=<id> opens the run-detail panel above the config card.
+    detail_run = None
+    run_id = request.query_params.get("run")
+    if run_id:
+        candidate = db.get_run(run_id)
+        # Only show runs for this project (don't leak cross-project data).
+        if candidate and candidate.get("project_id") == pid:
+            detail_run = candidate
     return templates.TemplateResponse(
         request,
         "project_training.html",
-        {**ctx, "models": discovered_models, "training_state": training_engine.state},
+        {
+            **ctx,
+            "models": discovered_models,
+            "training_state": training_engine.state,
+            "detail_run": detail_run,
+            "detail_run_id": run_id or "",
+        },
     )
 
 

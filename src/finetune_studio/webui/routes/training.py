@@ -7,6 +7,7 @@ from finetune_studio.training.data import load_jsonl
 from finetune_studio.training.engine import TrainingConfig
 from finetune_studio.training.monitor import training_events
 from finetune_studio.webui.app import training_engine
+from pathlib import Path
 
 router = APIRouter()
 
@@ -67,6 +68,7 @@ async def progress_text():
 
 @router.post("/start")
 async def start_training(request: Request):
+    from finetune_studio import db
     body = await request.json()
     config = TrainingConfig(
         model_path=body.get("model_path", ""),
@@ -78,14 +80,75 @@ async def start_training(request: Request):
         max_seq_length=int(body.get("max_seq_length", 2048)),
     )
     data_path = body.get("data_path", "")
+    dataset_id = body.get("dataset_id", "")
+    project_id = body.get("project_id", "")
+    if dataset_id and not data_path:
+        # Resolve dataset_id → data_path so the rest of the pipeline stays path-based.
+        from finetune_studio import db
+        ds = db.get_dataset(dataset_id)
+        if not ds or ds.get("project_id") != project_id:
+            return {"error": f"dataset {dataset_id!r} not found in this project"}
+        data_path = ds["data_path"]
+        # Track that the dataset was used (for "last used" sorting in the UI).
+        try:
+            db.update_dataset(dataset_id, last_used_at=__import__("time").time())
+        except Exception:
+            pass
     if not data_path:
-        return {"error": "No data_path provided"}
+        return {"error": "No data_path / dataset_id provided"}
     if not config.model_path:
         return {"error": "No model_path provided"}
     training_data = load_jsonl(data_path)
     system_prompt = body.get("system_prompt", "")
+
+    # Create a run record so it shows up in the project's "Past runs" list.
+    # Also lets the activity feed's "GO TO →" deep-link to the right page.
+    run = db.create_run(
+        project_id=project_id,
+        name=f"Run · {Path(data_path).name}",
+        base_model=config.model_path,
+        data_path=data_path,
+        rag_ids=[],
+        settings_obj={
+            "lora_rank": config.lora_rank,
+            "learning_rate": config.learning_rate,
+            "num_epochs": config.num_epochs,
+            "batch_size": config.batch_size,
+            "max_seq_length": config.max_seq_length,
+            "system_prompt": system_prompt,
+        },
+        system_prompt=system_prompt,
+    )
+    run_id = run["id"]
+    # Encode project_id into current_run_id so the activity feed can
+    # derive the URL without needing an extra DB lookup.
+    training_engine.current_run_id = f"{project_id}-{run_id}" if project_id else run_id
+    training_engine.current_project_id = project_id
+    training_engine.current_db_run_id = run_id
+
+    # Push state changes (loss, status, final_loss) into the run row.
+    def _on_state_change(state):
+        update: dict = {}
+        if state.status in ("running", "training", "loading", "saving"):
+            update["status"] = state.status
+        elif state.status == "done":
+            update["status"] = "done"
+            if state.loss:
+                update["final_loss"] = state.loss
+        elif state.status == "error":
+            update["status"] = "failed"
+            update["error"] = state.error or state.message or "training failed"
+        else:
+            return
+        try:
+            db.update_run(run_id, **update)
+        except Exception:
+            pass
+
+    training_engine.on_update(_on_state_change)
+
     training_engine.start(config, training_data, system_prompt)
-    return {"status": "started", "steps": training_engine.state.total_steps}
+    return {"status": "started", "steps": training_engine.state.total_steps, "run_id": run_id}
 
 @router.post("/stop")
 async def stop_training():
