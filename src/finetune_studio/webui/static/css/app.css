@@ -2068,8 +2068,11 @@ body::before {
 
 /* The old .topbar element is no longer used. Content fills the main area. */
 .content {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 100%;
   padding: 22px 28px;
+  overflow-x: hidden;
   overflow-y: auto;
   position: relative;
 }
