@@ -3222,8 +3222,12 @@ body::before {
   .sb-group-label { font-size: 10px; }
   /* Tools always on its own row below project nav. */
   .sb-tabs { flex-wrap: wrap; overflow-x: hidden; }
+  /* Force system + project items to NOT shrink — they keep their
+     natural width so the tools row (flex-basis:100%) has no room
+     and wraps to row 2 instead of everyone cramming onto row 1. */
+  .sb-group:not(.sb-group-tools) { flex-shrink: 0; }
   .sb-group-tools {
-    flex-basis: 100%;
+    flex: 0 0 100%;       /* grow:0 shrink:0 basis:100% — take full row, never shrink */
     border-top: 1px dashed var(--border);
     border-left: none !important;
     padding-top: 4px;
