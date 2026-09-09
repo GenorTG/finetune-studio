@@ -262,6 +262,7 @@ body::before {
 .main {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   overflow: hidden;
   position: relative;
 }
@@ -2061,6 +2062,7 @@ body::before {
 .main {
   grid-row: 2;
   grid-column: 1;
+  min-width: 0;
   overflow: auto;
   display: flex;
   flex-direction: column;
