@@ -121,4 +121,35 @@
   <div class="empty">No runs yet. Configure above and hit "Start training".</div>
   {% endif %}
 </div>
+
+{# ── Populate the model dropdown from /api/hf/local so newly downloaded
+   models show up without restarting the server (discovered_models is
+   only scanned once at boot). ─────────────────────────────── #}
+<script>
+(async () => {
+  const sel = document.querySelector('select[name="model_path"]');
+  if (!sel) return;
+  try {
+    const r = await fetch('/api/hf/local');
+    if (!r.ok) return;
+    const d = await r.json();
+    const local = d.models || [];
+    if (local.length === 0) return;  // keep server-rendered options if any
+    const current = sel.value;
+    sel.innerHTML = '';
+    for (const m of local) {
+      const opt = document.createElement('option');
+      opt.value = m.path;
+      const gb = (m.size_bytes / 1e9).toFixed(2);
+      const hasWeights = (m.files || []).some(f => f.path.endsWith('.safetensors'));
+      const tag = hasWeights ? '' : ' (incomplete — no .safetensors)';
+      opt.textContent = `${m.repo_id.replace(/__/g, '/')} (${gb} GB)${tag}`;
+      if (m.path === current) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  } catch (e) {
+    console.warn('model dropdown refresh failed:', e);
+  }
+})();
+</script>
 {% endblock %}
