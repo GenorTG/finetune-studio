@@ -263,7 +263,10 @@ body::before {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-y: hidden;
   position: relative;
 }
 
@@ -2063,6 +2066,9 @@ body::before {
   grid-row: 2;
   grid-column: 1;
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
   overflow: auto;
   display: flex;
   flex-direction: column;
