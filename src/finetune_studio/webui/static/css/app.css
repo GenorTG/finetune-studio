@@ -1014,7 +1014,6 @@ body::before {
   color: var(--text-muted);
   font-family: "Share Tech Mono", monospace;
   letter-spacing: 0.04em;
-  overflow: hidden;
 }
 .step .num {
   width: 22px; height: 22px;
