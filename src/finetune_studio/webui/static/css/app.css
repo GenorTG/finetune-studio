@@ -298,7 +298,9 @@ body::before {
 .topbar .nav-toggle:hover { background: var(--bg-panel); border-color: var(--accent); }
 
 .content {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 28px 32px 48px;
@@ -317,6 +319,8 @@ body::before {
   padding: 18px;
   position: relative;
   transition: border-color var(--t-fast) var(--ease);
+  min-width: 0;
+  max-width: 100%;
 }
 .card::before, .card::after {
   content: "";
