@@ -91,7 +91,7 @@ body::before {
 .app {
   display: grid;
   grid-template-rows: var(--header-h) 1fr;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
 }
