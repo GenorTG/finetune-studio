@@ -62,6 +62,30 @@ async def wait_for(fn, timeout_ms, label, interval_ms=2000):
     raise TimeoutError(f"{label}: timed out after {timeout_ms}ms (last={last!r})")
 
 
+async def _hf_repo_ready(page, repo_underscored: str) -> bool:
+    """True iff the WebUI's /api/hf/local reports the model fully downloaded.
+
+    Uses the same source of truth the HF Explorer card list calls when
+    rendering "downloaded" state — so a green badge here = a green badge
+    in the UI. Repo id is the filesystem form (slash → double underscore).
+    """
+    try:
+        ok = await page.evaluate(f"""
+async () => {{
+    const r = await fetch('/api/hf/local');
+    if (!r.ok) return false;
+    const d = await r.json();
+    const m = (d.models || []).find(m => m.repo_id === {repo_underscored!r});
+    if (!m) return false;
+    // Real "downloaded" = at least one safetensors file present.
+    return (m.files || []).some(f => f.path.endsWith('.safetensors'));
+}}
+        """)
+        return bool(ok)
+    except Exception:
+        return False
+
+
 async def main():
     from playwright.async_api import async_playwright
 
@@ -167,24 +191,33 @@ async def main():
         await shot("02b_hf_pull_clicked")
         rec("webui.hf_pull_clicked", pulled)
 
-        # ── 3. WATCH download progress UI ─────────────────────────────
+        # ── 3. WATCH download progress (via WebUI's API surface) ──────
         print("\n[3/8] WEBUI: watch download progress")
-        # The download modal/progress shows in the WebUI. Watch for the file
-        # to appear on disk too (both UI + filesystem must confirm completion).
-        hub_dir = Path.home() / ".cache/huggingface/hub"
-        model_dir = hub_dir / "models--Qwen--Qwen3-0.6B"
-        # Wait for safetensors file on disk
+        # The download lands on the SERVER (fan-dragon), not on the box the
+        # test runs on. Poll the WebUI's own /api/hf/local endpoint — the
+        # very endpoint the HF Explorer card list calls when rendering
+        # "downloaded" state. This is the same source of truth the human
+        # sees in the UI badge.
+        repo_underscored = "Qwen__Qwen3-0.6B"
         try:
             await wait_for(
-                lambda: model_dir.exists() and any(
-                    p.suffix == ".safetensors" for p in model_dir.rglob("*")
-                ),
+                lambda: _hf_repo_ready(page, repo_underscored),
                 timeout_ms=900000, label="Qwen3-0.6B downloaded",
                 interval_ms=5000,
             )
-            sf = [p for p in model_dir.rglob("*.safetensors")]
-            total_gb = sum(p.stat().st_size for p in sf) / 1e9
-            rec("webui.hf_download_complete", len(sf) > 0, f"{len(sf)} safetensors, {total_gb:.2f} GB")
+            info = await page.evaluate(f"""
+async () => {{
+    const r = await fetch('/api/hf/local');
+    if (!r.ok) return null;
+    const d = await r.json();
+    return (d.models || []).find(m => m.repo_id === {repo_underscored!r}) || null;
+}}
+            """)
+            sf_count = sum(1 for f in (info or {}).get("files", [])
+                           if f["path"].endswith(".safetensors"))
+            total_gb = (info or {}).get("size_bytes", 0) / 1e9
+            rec("webui.hf_download_complete", sf_count > 0,
+                f"{sf_count} safetensors, {total_gb:.2f} GB")
         except Exception as e:
             rec("webui.hf_download_complete", False, str(e)[:100])
 
