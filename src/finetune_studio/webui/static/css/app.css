@@ -666,6 +666,144 @@ body::before {
 .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
 .tabnums { font-variant-numeric: tabular-nums; }
 .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ----------------------------------------------------------------------
+ * Tailwind utility gap-fillers
+ *
+ * The templates (e.g. _resources.html) reference Tailwind utility classes
+ * like .gap-x-3, .items-baseline, .bg-gray-800, etc. but Tailwind itself
+ * is NOT loaded in this build (no CDN, no build step). Without these
+ * utility rules, .flex / .flex-wrap / .text-xs / etc. work but the
+ * spacing, colors, and progress bars are silently broken — e.g. RAM
+ * and VRAM labels render glued to their values because .gap-x-3 has no
+ * matching CSS rule.
+ *
+ * This block adds the utilities actually referenced in templates so
+ * the host-resources card (and any other Tailwind-classed markup)
+ * renders correctly. If Tailwind is ever installed properly, this
+ * block can be removed in one go.
+ * ---------------------------------------------------------------------- */
+
+/* Directional gap (column-gap / row-gap) */
+.gap-x-1 { column-gap: 0.25rem; }
+.gap-x-2 { column-gap: 0.5rem; }
+.gap-x-3 { column-gap: 0.75rem; }
+.gap-x-4 { column-gap: 1rem; }
+.gap-y-1 { row-gap: 0.25rem; }
+.gap-y-2 { row-gap: 0.5rem; }
+.gap-y-3 { row-gap: 0.75rem; }
+
+/* Flex alignment */
+.items-baseline { align-items: baseline; }
+.items-start    { align-items: flex-start; }
+.items-end      { align-items: flex-end; }
+.items-stretch  { align-items: stretch; }
+.self-center    { align-self: center; }
+
+/* Spacing between siblings */
+.space-y-1 > * + * { margin-top: 0.25rem; }
+.space-y-2 > * + * { margin-top: 0.5rem; }
+.space-y-3 > * + * { margin-top: 0.75rem; }
+.space-y-4 > * + * { margin-top: 1rem; }
+.space-y-5 > * + * { margin-top: 1.25rem; }
+.space-y-6 > * + * { margin-top: 1.5rem; }
+.space-x-2 > * + * { margin-left: 0.5rem; }
+.space-x-3 > * + * { margin-left: 0.75rem; }
+
+/* Margin utilities (Tailwind's 4px scale, decimals escaped) */
+.mt-1  { margin-top: 0.25rem; } .mt-2  { margin-top: 0.5rem; } .mt-3  { margin-top: 0.75rem; }
+.mt-4  { margin-top: 1rem; }    .mt-5  { margin-top: 1.25rem; } .mt-6  { margin-top: 1.5rem; }
+.mb-1\.5 { margin-bottom: 0.375rem; }
+.mb-5  { margin-bottom: 1.25rem; }
+.ml-1  { margin-left: 0.25rem; } .ml-2  { margin-left: 0.5rem; } .ml-3  { margin-left: 0.75rem; }
+.mr-1  { margin-right: 0.25rem; } .mr-2 { margin-right: 0.5rem; } .mr-3  { margin-right: 0.75rem; }
+.m-0   { margin: 0; }
+.p-0   { padding: 0; }
+.p-2   { padding: 0.5rem; }
+.p-3   { padding: 0.75rem; }
+.px-2  { padding-left: 0.5rem; padding-right: 0.5rem; }
+.px-3  { padding-left: 0.75rem; padding-right: 0.75rem; }
+.py-1  { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.py-2  { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+
+/* Font weights */
+.font-normal   { font-weight: 400; }
+.font-medium   { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold     { font-weight: 700; }
+
+/* Font sizes (Tailwind default scale + arbitrary value support) */
+.text-\[10px\] { font-size: 10px; line-height: 1.2; }
+.text-lg       { font-size: 1.125rem; line-height: 1.75rem; }
+.text-xl       { font-size: 1.25rem; line-height: 1.75rem; }
+.text-2xl      { font-size: 1.5rem; line-height: 2rem; }
+
+/* Text colors */
+.text-gray-100  { color: rgb(243 244 246); }
+.text-gray-200  { color: rgb(229 231 235); }
+.text-gray-300  { color: rgb(209 213 219); }
+.text-gray-400  { color: rgb(156 163 175); }
+.text-gray-500  { color: rgb(107 114 128); }
+.text-gray-600  { color: rgb(75 85 99); }
+.text-emerald-300 { color: rgb(110 231 183); }
+.text-emerald-400 { color: rgb(52 211 153); }
+.text-emerald-500 { color: rgb(16 185 129); }
+.text-red-400   { color: rgb(248 113 113); }
+.text-red-500   { color: rgb(239 68 68); }
+.text-amber-400 { color: rgb(251 191 36); }
+.text-amber-500 { color: rgb(245 158 11); }
+
+/* Background colors */
+.bg-gray-700    { background-color: rgb(55 65 81); }
+.bg-gray-800    { background-color: rgb(31 41 55); }
+.bg-gray-900    { background-color: rgb(17 24 39); }
+.bg-emerald-500 { background-color: rgb(16 185 129); }
+.bg-emerald-600 { background-color: rgb(5 150 105); }
+.bg-amber-500   { background-color: rgb(245 158 11); }
+.bg-red-500     { background-color: rgb(239 68 68); }
+.bg-transparent { background-color: transparent; }
+
+/* Borders */
+.border         { border-width: 1px; border-style: solid; border-color: currentColor; }
+.border-0       { border-width: 0; }
+.border-gray-700 { border-color: rgb(55 65 81); }
+.border-gray-800 { border-color: rgb(31 41 55); }
+
+/* Border radius */
+.rounded-sm    { border-radius: 0.125rem; }
+.rounded       { border-radius: 0.25rem; }
+.rounded-md    { border-radius: 0.375rem; }
+.rounded-lg    { border-radius: 0.5rem; }
+.rounded-xl    { border-radius: 0.75rem; }
+.rounded-full  { border-radius: 9999px; }
+
+/* Sizing */
+.h-0   { height: 0; }
+.h-1   { height: 0.25rem; }
+.h-2   { height: 0.5rem; }
+.h-3   { height: 0.75rem; }
+.h-4   { height: 1rem; }
+.h-5   { height: 1.25rem; }
+.h-6   { height: 1.5rem; }
+.h-8   { height: 2rem; }
+.h-full { height: 100%; }
+.w-full { width: 100%; }
+.w-fit  { width: fit-content; }
+.min-w-0 { min-width: 0; }
+.max-w-full { max-width: 100%; }
+
+/* Overflow */
+.overflow-hidden { overflow: hidden; }
+.overflow-auto   { overflow: auto; }
+
+/* Transitions */
+.transition         { transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
+.transition-all     { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
+.duration-150 { transition-duration: 150ms; }
+.duration-300 { transition-duration: 300ms; }
+.duration-500 { transition-duration: 500ms; }
+.ease-out      { transition-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+.ease-in-out   { transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
 .center { text-align: center; }
 .right { text-align: right; }
 
