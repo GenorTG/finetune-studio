@@ -68,6 +68,13 @@ def format_for_sft(data: list, system_prompt: str = "") -> list:
                 msgs.append({"role": "system", "content": system_prompt})
             msgs.append({"role": "user", "content": item["text"]})
             formatted.append({"messages": msgs})
+        elif "prompt" in item and "completion" in item:
+            msgs = []
+            if system_prompt:
+                msgs.append({"role": "system", "content": system_prompt})
+            msgs.append({"role": "user", "content": item["prompt"]})
+            msgs.append({"role": "assistant", "content": item["completion"]})
+            formatted.append({"messages": msgs})
     return formatted
 
 def split_data(data: list, train_ratio: float = 0.9):

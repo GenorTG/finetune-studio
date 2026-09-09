@@ -111,7 +111,11 @@ class TrainingEngine:
             self.state.message = f"Training on {len(train_data)} examples..."
             self._notify()
             if self.config.unsloth:
-                self._train_unsloth(train_data)
+                try:
+                    self._train_unsloth(train_data)
+                except ImportError:
+                    # unsloth not installed — fall back to standard transformers
+                    self._train_standard(train_data)
             else:
                 self._train_standard(train_data)
             self.state.status = "done"
