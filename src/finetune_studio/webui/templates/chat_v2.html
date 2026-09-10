@@ -6,38 +6,80 @@
 <a href="/projects" data-link>Projects</a> <span class="sep">/</span> <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a> <span class="sep">/</span> <span>Chat</span>
 {% endblock %}
 {% block content %}
-<div class="page-head">
-  <h1>Chat — {{ project.name }}</h1>
-  <div class="sub">Test a model with a single chat. Per-project. Uses the project's production system prompt and any enabled RAG corpora for context.</div>
+<div class="page-head flex items-baseline justify-between gap-3 wrap">
+  <div>
+    <h1>Chat — {{ project.name }}</h1>
+    <div class="sub">Two modes. <b>Test</b> = simple Q&amp;A with the project's system prompt + optional RAG context. <b>Agent</b> = tool-calling AI that can list sources, read chunks, and <i>create training datasets</i> from your parsed files. Use <b>Agent</b> when you want to organize Q&amp;A pairs; use <b>Test</b> when you want to chat with the model.</div>
+  </div>
+  <div class="pill solid-amber" id="chat-status-pill" title="Click to load a model on the Inference tab">No model loaded</div>
 </div>
 
 <div class="card mb-6">
   <div class="card-head">
     <div>
-      <div class="card-title">Chat</div>
-      <div class="card-sub">Send a message. The reply uses the project's production system prompt and any enabled RAG corpora for context.</div>
+      <div class="card-title">Mode</div>
+      <div class="card-sub">Pick what the chat is <i>for</i>. The endpoint, system prompt, and tools change with the mode.</div>
     </div>
-    <span id="chat-status-pill" class="pill solid-amber">No model loaded</span>
   </div>
 
-  {# ── RAG selector (if project has any) ───────────────────────── #}
-  {% if rags %}
-  <div class="mb-3">
-    <span class="block text-xs muted mb-1">RAG corpora</span>
-    <div class="flex flex-wrap gap-3 text-xs">
-      {% for rag in rags %}
-      <label class="flex items-center gap-1 muted">
-        <input type="checkbox" name="chat-rag-enabled" value="{{ rag.id }}" checked>
-        {{ rag.name }} <span class="dim">({{ rag.doc_count }} docs · {{ rag.chunk_count }} chunks)</span>
-      </label>
-      {% endfor %}
-    </div>
+  <div class="grid grid-2 gap-3 mt-2">
+    <label class="flex items-start gap-3 p-3 card-inner" style="cursor:pointer; border:1px solid var(--border);">
+      <input type="radio" name="chat-mode" value="test" checked class="mt-1">
+      <div>
+        <div class="font-bold">Test</div>
+        <div class="text-xs muted">Simple chat with the project's production system prompt. Optionally enable RAG corpora for retrieval-augmented answers. Best for: testing the trained model, comparing runs, debugging prompts.</div>
+      </div>
+    </label>
+    <label class="flex items-start gap-3 p-3 card-inner" style="cursor:pointer; border:1px solid var(--border);">
+      <input type="radio" name="chat-mode" value="agent" class="mt-1">
+      <div>
+        <div class="font-bold">Agent <span class="pill solid-violet text-[10px] ml-1">tool-calling</span></div>
+        <div class="text-xs muted">The model gets tools: <code>list_sources</code>, <code>read_source</code>, <code>list_qa_pairs</code>, <code>create_qa_pairs</code>. Ask it to mine Q&amp;A pairs from your documents. The pairs end up in <code>project_datasets</code> ready for fine-tuning. Best for: building training data with AI help.</div>
+      </div>
+    </label>
   </div>
-  {% endif %}
+
+  <div id="chat-mode-test-extras" class="mt-3">
+    {# ── RAG selector (only relevant in Test mode) ─────────── #}
+    {% if rags %}
+    <div>
+      <span class="block text-xs muted mb-1">RAG corpora <span class="dim">(retrieval-augmented context)</span></span>
+      <div class="flex flex-wrap gap-3 text-xs">
+        {% for rag in rags %}
+        <label class="flex items-center gap-1 muted">
+          <input type="checkbox" name="chat-rag-enabled" value="{{ rag.id }}" checked>
+          {{ rag.name }} <span class="dim">({{ rag.doc_count }} docs · {{ rag.chunk_count }} chunks)</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mb-6">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Conversation</div>
+      <div class="card-sub">Messages render below. In Agent mode each <code>tool_call</code> is shown inline with its result so you can audit what the AI did.</div>
+    </div>
+    <button class="btn small" id="chat-clear" onclick="_chatClear()" title="Forget all messages in this session">Clear</button>
+  </div>
 
   <div id="chat-msgs" class="dp-chat-msgs">
-    <div class="dp-chat-empty">
-      {% if rags %}Send a message below — RAG context will be retrieved automatically.{% else %}Send a message below. Load a model on the <a href="/inference" data-link>Inference</a> tab first if you haven't already.{% endif %}
+    <div class="dp-chat-empty" id="chat-empty">
+      <span data-empty="test">
+        {% if rags %}
+        Send a message — RAG context will be retrieved from your enabled corpora.
+        {% else %}
+        No RAG corpora yet. You can still chat — answers won't have retrieval-augmented context. Build a corpus on the <a href="/projects/{{ pid }}/rag" data-link>RAG</a> tab.
+        {% endif %}
+        <div class="dim mt-2">Tip: Switch to <b>Agent</b> mode above to let the AI organize your files into training pairs.</div>
+      </span>
+      <span data-empty="agent" hidden>
+        In Agent mode the AI can <b>list_sources</b>, <b>read_source</b>, <b>list_qa_pairs</b>, and <b>create_qa_pairs</b> against the parsed files in this project.
+        <div class="dim mt-2">Try: <i>"List my sources, then generate 5 socratic Q&amp;A pairs from the first one."</i></div>
+      </span>
     </div>
   </div>
 
@@ -51,12 +93,13 @@
   <div class="card-head">
     <div>
       <div class="card-title">Project context</div>
-      <div class="card-sub">What's being sent to the model alongside your message.</div>
+      <div class="card-sub">What's pinned to the conversation. Toggle Mode above to swap the system prompt + tools.</div>
     </div>
   </div>
   <table class="table compact">
     <tr><td class="meta muted">Project ID</td><td class="mono">{{ pid }}</td></tr>
-    <tr><td class="meta muted">System prompt</td><td class="mono">{{ project.system_prompt or '(none)' }}</td></tr>
+    <tr data-mode="test"><td class="meta muted">System prompt</td><td class="mono">{{ project.system_prompt or '(none)' }}</td></tr>
+    <tr data-mode="agent"><td class="meta muted">Agent system prompt</td><td class="mono">Server-side. The model is instructed to call <code>list_sources</code> → <code>read_source</code> → <code>create_qa_pairs</code> before answering.</td></tr>
     <tr><td class="meta muted">Base model</td><td class="mono">{{ project.base_model or '—' }}</td></tr>
     <tr><td class="meta muted">Production run</td><td class="mono">{{ project.production_run or '(none)' }}</td></tr>
     <tr><td class="meta muted">RAG corpora</td><td class="mono">{{ rags|length if rags else 0 }} attached</td></tr>
@@ -64,6 +107,7 @@
   <div class="flex gap-2 mt-4 wrap">
     <a href="/projects/{{ pid }}" class="btn" data-link>← Back to project</a>
     <a href="/inference" class="btn" data-link>Load / switch model →</a>
+    <a href="/projects/{{ pid }}/data-prep" class="btn" data-link>Data Prep →</a>
   </div>
 </div>
 
@@ -72,7 +116,7 @@
   border: 1px solid var(--border);
   background: var(--bg-elev, #0a0a0a);
   padding: 12px;
-  max-height: 460px;
+  max-height: 480px;
   overflow-y: auto;
   font-size: 13px;
   display: flex;
@@ -80,30 +124,29 @@
   gap: 10px;
 }
 .dp-chat-empty {
-  color: var(--text-dim, #666);
+  color: var(--text-dim, #888);
   font-style: italic;
-  text-align: center;
-  padding: 24px 0;
+  text-align: left;
+  padding: 24px 12px;
+  line-height: 1.5;
 }
-.dp-chat-msg {
-  padding: 8px 10px;
-  border-left: 2px solid var(--border);
-}
+.dp-chat-msg { padding: 8px 10px; border-left: 2px solid var(--border); }
 .dp-chat-user      { border-left-color: var(--accent-green, #00ff66); }
 .dp-chat-assistant { border-left-color: var(--accent, #00ccff); }
+.dp-chat-tool      { border-left-color: var(--accent-violet, #cc88ff); }
 .dp-chat-error     { border-left-color: var(--err, #ff4444); color: var(--err, #ff4444); }
 .dp-chat-label {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-dim, #666);
+  color: var(--text-dim, #888);
   margin-bottom: 4px;
 }
 .dp-chat-body { white-space: pre-wrap; word-break: break-word; }
-.dp-chat-meta { font-size: 10px; color: var(--text-dim, #666); margin-top: 4px; }
+.dp-chat-meta { font-size: 10px; color: var(--text-dim, #888); margin-top: 4px; }
 .dp-chat-sources {
   font-size: 10px;
-  color: var(--text-dim, #666);
+  color: var(--text-dim, #888);
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid var(--border);
@@ -114,11 +157,32 @@
   padding-left: 8px;
   border-left: 2px solid var(--border);
 }
+.dp-chat-tool-block {
+  font-size: 11px;
+  border: 1px dashed var(--accent-violet, #cc88ff);
+  padding: 4px 8px;
+  margin-top: 4px;
+}
+.dp-chat-tool-block summary { cursor: pointer; }
+.dp-chat-tool-block pre {
+  font-size: 10px;
+  margin: 4px 0 0;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--bg, #000);
+  padding: 6px;
+  white-space: pre-wrap;
+}
 </style>
 
 <script>
 const _chatHistory = [];
 const _chatPid = "{{ pid }}";
+
+function _chatCurrentMode() {
+  const r = document.querySelector('input[name="chat-mode"]:checked');
+  return r ? r.value : 'test';
+}
 
 async function _chatCheckModel() {
   try {
@@ -133,7 +197,7 @@ async function _chatCheckModel() {
       }
       pill.textContent = '● ' + nice;
       pill.className = 'pill solid-green';
-      pill.title = 'Loaded: ' + nice;
+      pill.title = 'Loaded: ' + nice + ' — click for details';
     } else {
       pill.textContent = '○ No model loaded';
       pill.className = 'pill solid-rose';
@@ -143,7 +207,6 @@ async function _chatCheckModel() {
   } catch (e) { /* ignore */ }
 }
 
-// Click the status pill to jump to /inference when no model is loaded.
 document.getElementById('chat-status-pill').addEventListener('click', () => {
   window.location.href = '/inference';
 });
@@ -192,6 +255,33 @@ function _chatAppend(role, content, meta, sources) {
   return div;
 }
 
+function _chatRenderToolCalls(toolCalls) {
+  const wrap = document.createElement('div');
+  wrap.className = 'dp-chat-tools';
+  toolCalls.forEach((tc) => {
+    const det = document.createElement('details');
+    det.className = 'dp-chat-tool-block';
+    det.open = true;  // always expanded — users want to see what the AI did
+    const ok = tc.result && !tc.result.error;
+    const sum = document.createElement('summary');
+    sum.textContent = (ok ? '✓ ' : '✗ ') + (tc.name || 'tool');
+    if (tc.result && tc.result.error) sum.textContent += ' — ' + tc.result.error.slice(0, 120);
+    else if (tc.result && Array.isArray(tc.result.sources)) sum.textContent += ' · ' + tc.result.sources.length + ' item(s)';
+    else if (tc.result && Array.isArray(tc.result.qa_pairs)) sum.textContent += ' · ' + tc.result.qa_pairs.length + ' Q&A pair(s)';
+    else if (tc.result && Array.isArray(tc.result.pairs)) sum.textContent += ' · ' + tc.result.pairs.length + ' Q&A pair(s)';
+    else if (typeof tc.result === 'object' && tc.result && Object.keys(tc.result).length <= 2) {
+      const summary = Object.entries(tc.result).map(([k, v]) => k + '=' + (Array.isArray(v) ? '[' + v.length + ']' : String(v).slice(0, 40))).join(' · ');
+      if (summary) sum.textContent += ' · ' + summary;
+    }
+    const pre = document.createElement('pre');
+    pre.textContent = JSON.stringify(tc, null, 2);
+    det.appendChild(sum);
+    det.appendChild(pre);
+    wrap.appendChild(det);
+  });
+  return wrap;
+}
+
 async function chatSend() {
   const ta = document.getElementById('chat-input');
   const text = ta.value.trim();
@@ -199,32 +289,102 @@ async function chatSend() {
   const sendBtn = document.getElementById('chat-send');
   sendBtn.disabled = true;
   ta.value = '';
+  const mode = _chatCurrentMode();
   _chatAppend('user', text);
   _chatHistory.push({ role: 'user', content: text });
 
-  const enabled_rag_ids = [...document.querySelectorAll('input[name="chat-rag-enabled"]:checked')].map((c) => c.value);
+  const statusEl = document.getElementById('chat-status-pill');
 
   try {
-    const r = await fetch('/api/chat-v2/projects/' + _chatPid + '/chat', {
+    let url, body, parseFn;
+    if (mode === 'agent') {
+      // Agent mode — tool-calling against the project's parsed sources.
+      // Reuses the data-prep endpoint which has tools wired up.
+      url = '/api/projects/' + _chatPid + '/data-prep/chat';
+      body = { messages: _chatHistory };
+      parseFn = (b) => ({
+        reply: b.reply || '',
+        tool_calls: b.tool_calls || [],
+        rounds: b.rounds,
+      });
+    } else {
+      // Test mode — simple chat with optional RAG.
+      const enabled_rag_ids = [...document.querySelectorAll('input[name="chat-rag-enabled"]:checked')].map((c) => c.value);
+      url = '/api/chat-v2/projects/' + _chatPid + '/chat';
+      body = { messages: _chatHistory, enabled_rag_ids };
+      parseFn = (b) => ({
+        reply: b.response || b.reply || '',
+        sources: b.sources || [],
+        rounds: b.chunks_retrieved,
+      });
+    }
+
+    const r = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: _chatHistory,
-        enabled_rag_ids: enabled_rag_ids,
-      }),
+      body: JSON.stringify(body),
     });
-    const body = await r.json();
-    if (body.error) throw new Error(body.error);
-    const reply = body.response || body.reply || '(no reply)';
-    _chatHistory.push({ role: 'assistant', content: reply });
-    const meta = (body.chunks_retrieved || 0) + ' chunk(s) retrieved';
-    _chatAppend('assistant', reply, meta, body.sources);
+    const raw = await r.json();
+    if (raw.error) throw new Error(raw.error);
+    const parsed = parseFn(raw);
+
+    // Show tool calls inline BEFORE the reply so the audit trail reads
+    // "user → tool1 → tool2 → assistant" instead of "user → assistant
+    // (with tool results stuck inside)".
+    if (parsed.tool_calls && parsed.tool_calls.length) {
+      _chatAppend('tool', _chatRenderToolCalls(parsed.tool_calls), `round ${parsed.rounds || 1} · ${parsed.tool_calls.length} tool call(s)`);
+    }
+    if (parsed.reply) {
+      _chatHistory.push({ role: 'assistant', content: parsed.reply });
+      let meta = '';
+      if (mode === 'test') {
+        meta = (parsed.rounds || 0) + ' chunk(s) retrieved';
+      } else {
+        meta = 'round ' + (parsed.rounds || 1);
+      }
+      _chatAppend('assistant', parsed.reply, meta, parsed.sources);
+    } else if (!parsed.tool_calls || !parsed.tool_calls.length) {
+      _chatHistory.push({ role: 'assistant', content: '(no reply)' });
+      _chatAppend('assistant', '(no reply)', 'round ' + (parsed.rounds || 1));
+    }
   } catch (e) {
     _chatAppend('error', (e && e.message) || String(e));
   } finally {
     sendBtn.disabled = false;
   }
 }
+
+function _chatClear() {
+  _chatHistory.length = 0;
+  const msgs = document.getElementById('chat-msgs');
+  msgs.innerHTML = '';
+  // Re-append the empty state.
+  const empty = document.createElement('div');
+  empty.className = 'dp-chat-empty';
+  empty.id = 'chat-empty';
+  empty.innerHTML = document.querySelector('[data-empty="' + _chatCurrentMode() + '"]').innerHTML;
+  msgs.appendChild(empty);
+}
+
+// Toggle Mode → swap the empty-state hint + show/hide the right
+// context-table rows.
+document.querySelectorAll('input[name="chat-mode"]').forEach((r) => {
+  r.addEventListener('change', () => {
+    const mode = r.value;
+    // Swap empty state
+    const empty = document.getElementById('chat-empty');
+    if (empty) {
+      empty.innerHTML = document.querySelector('[data-empty="' + mode + '"]').innerHTML;
+    }
+    // Toggle context rows
+    document.querySelectorAll('tr[data-mode]').forEach((tr) => {
+      tr.style.display = (tr.getAttribute('data-mode') === mode) ? '' : 'none';
+    });
+    // Toggle RAG-extras visibility
+    const extras = document.getElementById('chat-mode-test-extras');
+    if (extras) extras.style.display = (mode === 'test') ? '' : 'none';
+  });
+});
 
 // Enter to send, Shift+Enter for newline
 document.getElementById('chat-input').addEventListener('keydown', (e) => {

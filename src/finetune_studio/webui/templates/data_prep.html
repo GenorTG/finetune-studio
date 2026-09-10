@@ -1,605 +1,178 @@
 {% extends "base.html" %}
-{% block title %}Data Prep · Finetune Studio{% endblock %}
+{% block title %}Data Prep · {{ project.name }} · Finetune Studio{% endblock %}
+{% block nav_data_prep %}active{% endblock %}
+{% block sb_path %}~ / projects / {{ project.name }} / data-prep{% endblock %}
+{% block crumb %}
+<a href="/projects" data-link>Projects</a> <span class="sep">/</span> <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a> <span class="sep">/</span> <span>Data Prep</span>
+{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>Data Prep</h1>
-  <div class="sub">Parse files, chunk, score Q&amp;A pairs, export to ShareGPT / Alpaca / OpenAI.</div>
+  <h1>Data Prep — {{ project.name }}</h1>
+  <div class="sub">Two steps. <b>(1)</b> Run a prep job below to chunk a source and draft Q&amp;A pairs. <b>(2)</b> Open the <a href="/projects/{{ pid }}/chat" data-link>Chat</a> tab in <b>Agent</b> mode to refine, approve, and persist the pairs into <code>project_datasets</code> (they then show up on the Training tab under <i>From this project</i>).</div>
 </div>
 
 <div class="card mb-6">
   <div class="card-head">
     <div>
       <div class="card-title">Run a prep job</div>
-      <div class="card-sub">Pick a project + files, choose chunking + difficulty, hit start.</div>
+      <div class="card-sub">Pick a source, choose chunking + difficulty, hit start. Drafts land in <i>Prepped Q&amp;A</i> below — then take them to the Chat tab in Agent mode to curate + persist.</div>
     </div>
   </div>
-  <div class="grid grid-2 gap-3 items-end">
-    <label>
-      <span class="block text-xs muted mb-1">Project</span>
-      <select id="dp-project" class="select">
-        {% for p in projects %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+
+  <form id="prep-form" class="grid grid-2 gap-4 mt-4" data-api="/api/projects/{{ pid }}/data-prep/start">
+    <div>
+      <label class="block text-xs muted mb-1" for="prep-source">Source file</label>
+      <select id="prep-source" name="source_id" class="select">
+        <option value="">— pick a parsed source —</option>
+        {% for s in sources or [] %}
+        <option value="{{ s.id }}">{{ s.name }} · {{ s.char_count }} chars · {{ s.chunk_count }} chunks</option>
+        {% endfor %}
       </select>
-    </label>
-    <label>
-      <span class="block text-xs muted mb-1">QA per chunk</span>
-      <input id="dp-qa" type="number" min="1" max="10" value="3" class="input">
-    </label>
-    <label>
-      <span class="block text-xs muted mb-1">Difficulty</span>
-      <select id="dp-difficulty" class="select">
+      <div class="text-xs dim mt-1">Sources come from the <a href="/projects/{{ pid }}/data" data-link>Data</a> tab. Upload a file there first if this list is empty.</div>
+    </div>
+
+    <div>
+      <label class="block text-xs muted mb-1" for="prep-qpc">Q&amp;A per chunk</label>
+      <input id="prep-qpc" name="qa_per_chunk" type="number" value="3" min="1" max="10" class="input">
+    </div>
+
+    <div>
+      <label class="block text-xs muted mb-1" for="prep-diff">Difficulty</label>
+      <select id="prep-diff" name="difficulty" class="select">
         <option value="easy">easy</option>
         <option value="medium" selected>medium</option>
         <option value="hard">hard</option>
+        <option value="expert">expert</option>
       </select>
-    </label>
-    <label>
-      <span class="block text-xs muted mb-1">Style</span>
-      <select id="dp-style" class="select">
+    </div>
+
+    <div>
+      <label class="block text-xs muted mb-1" for="prep-style">Style</label>
+      <select id="prep-style" name="style" class="select">
         <option value="socratic" selected>socratic</option>
+        <option value="direct">direct</option>
         <option value="factual">factual</option>
-        <option value="analytical">analytical</option>
-        <option value="comparative">comparative</option>
-        <option value="applied">applied</option>
+        <option value="eli5">eli5</option>
+        <option value="code">code</option>
       </select>
-    </label>
-  </div>
-  <button id="dp-start" class="btn primary mt-3" onclick="startPrep()">Start prep</button>
-  <div id="dp-status" class="mt-3 text-xs dim"></div>
+    </div>
+
+    <div class="flex gap-2 mt-4" style="grid-column: 1 / -1;">
+      <button type="submit" class="btn primary" id="prep-start-btn">Start prep</button>
+      <button type="button" class="btn" id="prep-refresh-btn" onclick="prepRefresh()">Refresh list</button>
+    </div>
+  </form>
 </div>
 
 <div class="card mb-6">
   <div class="card-head">
     <div>
-      <div class="card-title">Organize Training Data</div>
-      <div class="card-sub">Chat with a model (local provider or external API) to plan, mine, and curate Q&amp;A pairs from your parsed sources. Tools are called server-side.</div>
+      <div class="card-title">Curate with the agentic chat</div>
+      <div class="card-sub">The tool-calling chat used to live on this page. It's been moved to the <b>Chat</b> tab so one chat page handles both <i>Test</i> (Q&amp;A + RAG) and <i>Agent</i> (tool-calling, mine Q&amp;A pairs from your sources) modes.</div>
     </div>
+    <a href="/projects/{{ pid }}/chat" class="btn primary" data-link>Open chat in Agent mode →</a>
   </div>
-
-  <div class="grid grid-2 gap-3 mb-3">
-    <div>
-      <span class="block text-xs muted mb-1">Backend</span>
-      <div class="flex gap-3 text-xs">
-        <label class="flex items-center gap-1"><input type="radio" name="dp-chat-backend" value="provider" checked> Local provider</label>
-        <label class="flex items-center gap-1"><input type="radio" name="dp-chat-backend" value="external"> External API</label>
-      </div>
-    </div>
-    <label>
-      <span class="block text-xs muted mb-1">Local provider</span>
-      <select id="dp-chat-provider" class="select">
-        <option value="">(loading…)</option>
-      </select>
-    </label>
-  </div>
-
-  <div id="dp-chat-external" class="grid grid-2 gap-3 mb-3" hidden>
-    <label>
-      <span class="block text-xs muted mb-1">Base URL</span>
-      <input id="dp-chat-base-url" type="text" class="input" placeholder="https://api.openai.com/v1">
-    </label>
-    <label>
-      <span class="block text-xs muted mb-1">API Key</span>
-      <input id="dp-chat-api-key" type="password" class="input" placeholder="sk-…">
-    </label>
-    <label>
-      <span class="block text-xs muted mb-1">Model ID</span>
-      <input id="dp-chat-model-id" type="text" class="input" placeholder="gpt-4o-mini">
-    </label>
-    <label>
-      <span class="block text-xs muted mb-1">Name (optional)</span>
-      <input id="dp-chat-name" type="text" class="input" placeholder="My external model">
-    </label>
-  </div>
-
-  {# ── Loader settings (only for local backends) ───────────────────── #}
-  <details id="dp-chat-loader" class="dp-loader mb-3" open>
-    <summary class="text-sm mb-2 cursor-pointer">Loader settings (local models only)</summary>
-
-    <div class="grid grid-2 gap-3 mt-2">
-      <div>
-        <label class="block text-xs muted mb-1">
-          Context length <span id="dp-n-ctx-val" class="mono violet">16384</span>
-        </label>
-        <input type="range" id="dp-n-ctx" class="range" min="512" max="131072" step="512" value="16384"
-               oninput="document.getElementById('dp-n-ctx-val').textContent=this.value">
-        <div class="text-[10px] dim mt-0.5">KV cache size. Larger = more VRAM.</div>
-      </div>
-
-      <div>
-        <label class="block text-xs muted mb-1">
-          GPU offload layers <span id="dp-n-gpu-val" class="mono violet">all</span>
-        </label>
-        <input type="range" id="dp-n-gpu-layers" class="range" min="0" max="200" step="1" value="99"
-               oninput="document.getElementById('dp-n-gpu-val').textContent=this.value==99?'all':this.value">
-        <div class="text-[10px] dim mt-0.5">0 = CPU only · 99+ = all layers offloaded to GPU</div>
-      </div>
-
-      <div>
-        <label class="block text-xs muted mb-1">
-          Batch size <span id="dp-n-batch-val" class="mono violet">512</span>
-        </label>
-        <input type="range" id="dp-n-batch" class="range" min="64" max="2048" step="64" value="512"
-               oninput="document.getElementById('dp-n-batch-val').textContent=this.value">
-      </div>
-
-      <div>
-        <label class="block text-xs muted mb-1">
-          CPU threads <span id="dp-n-threads-val" class="mono violet">auto</span>
-        </label>
-        <input type="range" id="dp-n-threads" class="range" min="0" max="32" step="1" value="0"
-               oninput="document.getElementById('dp-n-threads-val').textContent=this.value==0?'auto':this.value">
-      </div>
-
-      <div>
-        <label class="block text-xs muted mb-1">Seed</label>
-        <input type="number" id="dp-seed" min="-1" placeholder="random" value="-1" class="input">
-        <div class="text-[10px] dim mt-0.5">-1 = random</div>
-      </div>
-
-      <div>
-        <label class="block text-xs muted mb-1">RoPE freq base / scale</label>
-        <div class="flex gap-2">
-          <input type="number" id="dp-rope-freq-base" min="0" step="1" placeholder="auto" class="input flex-1">
-          <input type="number" id="dp-rope-freq-scale" min="0" step="0.01" placeholder="auto" class="input flex-1">
-        </div>
-        <div class="text-[10px] dim mt-0.5">0 / blank = model default</div>
-      </div>
-    </div>
-
-    <div class="flex flex-wrap gap-3 mt-3 text-xs">
-      <label class="flex items-center gap-2 muted">
-        <input type="checkbox" id="dp-flash-attn" checked> Flash attention
-      </label>
-      <label class="flex items-center gap-2 muted">
-        <input type="checkbox" id="dp-mmap" checked> mmap
-      </label>
-      <label class="flex items-center gap-2 muted">
-        <input type="checkbox" id="dp-mlock"> mlock (pin in RAM)
-      </label>
-    </div>
-
-    <div class="mt-3 flex gap-2">
-      <button id="dp-chat-load" class="btn primary" onclick="dpChatLoad()">Load / reload model</button>
-      <button id="dp-chat-unload" class="btn danger" onclick="dpChatUnload()">Unload</button>
-      <span id="dp-chat-loader-status" class="text-xs dim self-center">No model loaded.</span>
-    </div>
-  </details>
-
-  {# ── Generation params (always visible) ──────────────────────── #}
-  <details class="dp-gen mb-2">
-    <summary class="text-xs muted cursor-pointer">Generation settings</summary>
-    <div class="grid grid-2 gap-3 mt-2">
-      <div>
-        <label class="block text-xs muted mb-1">
-          Temperature <span id="dp-t-val" class="violet mono">0.2</span>
-        </label>
-        <input type="range" id="dp-t" class="range" min="0" max="2" step="0.05" value="0.2"
-               oninput="document.getElementById('dp-t-val').textContent=this.value">
-      </div>
-      <div>
-        <label class="block text-xs muted mb-1">
-          Max tokens <span id="dp-m-val" class="violet mono">2048</span>
-        </label>
-        <input type="range" id="dp-m" class="range" min="128" max="8192" step="32" value="2048"
-               oninput="document.getElementById('dp-m-val').textContent=this.value">
-      </div>
-      <div>
-        <label class="block text-xs muted mb-1">
-          Top-P <span id="dp-p-val" class="violet mono">0.9</span>
-        </label>
-        <input type="range" id="dp-p" class="range" min="0" max="1" step="0.05" value="0.9"
-               oninput="document.getElementById('dp-p-val').textContent=this.value">
-      </div>
-      <div>
-        <label class="block text-xs muted mb-1">
-          Repeat penalty <span id="dp-rp-val" class="violet mono">1.10</span>
-        </label>
-        <input type="range" id="dp-rp" class="range" min="0.5" max="2" step="0.05" value="1.10"
-               oninput="document.getElementById('dp-rp-val').textContent=parseFloat(this.value).toFixed(2)">
-      </div>
-    </div>
-  </details>
-
-  <div id="dp-chat-status" class="text-xs dim mb-2">Ready.</div>
-
-  <div id="dp-chat-msgs" class="dp-chat-msgs">
-    <div class="dp-chat-empty">Ask the model to list your sources, then mine Q&amp;A pairs. Try: "List my sources and generate 5 Q&amp;A pairs from the first one."</div>
-  </div>
-
-  <div class="flex gap-2 mt-3">
-    <textarea id="dp-chat-input" rows="2" placeholder="Message… (Shift+Enter for newline)" class="input flex-1"></textarea>
-    <button id="dp-chat-send" class="btn primary" onclick="dpChatSend()">Send</button>
+  <div class="mt-2 dim text-xs">
+    The chat in Agent mode has four tools wired up: <code>list_sources</code>, <code>read_source</code>,
+    <code>list_qa_pairs</code>, <code>create_qa_pairs</code>. The model runs them server-side and the
+    UI shows each call + result inline. Pairs created with <code>create_qa_pairs</code> land in
+    <code>project_datasets</code> and become selectable on the Training tab under
+    <i>From this project</i>.
   </div>
 </div>
 
-<div class="card">
+<div class="card mb-6">
   <div class="card-head">
     <div>
       <div class="card-title">Prepped Q&amp;A</div>
-      <div class="card-sub">All Q&amp;A pairs across projects, pending / approved / rejected.</div>
+      <div class="card-sub">All Q&amp;A pairs this project has ever drafted. Pending pairs can be approved or rejected; approved pairs export to <code>project_datasets</code>.</div>
     </div>
+    <button class="btn small" id="prep-results-refresh" onclick="prepRefreshResults()">Refresh</button>
   </div>
-  <div id="dp-results" class="text-sm muted">No pairs yet.</div>
+  <div id="dp-results" class="text-sm muted">Loading…</div>
 </div>
 
 <style>
-/* The .grid utility on the external-fields div overrides [hidden] in some
-   themes. Force it off so the external form stays collapsed when 'Local
-   provider' is selected. */
-[hidden] { display: none !important; }
-
-.dp-chat-msgs {
-  border: 1px solid var(--border);
-  background: var(--bg-elev, #0a0a0a);
-  padding: 12px;
-  max-height: 360px;
-  overflow-y: auto;
-  font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.dp-chat-empty {
-  color: var(--text-dim, #666);
-  font-style: italic;
+.dp-results-table { width: 100%; font-size: 12px; }
+.dp-results-table td { padding: 6px 8px; vertical-align: top; }
+.dp-results-table tr:nth-child(even) td { background: var(--bg-elev, #0a0a0a); }
+.dp-results-table .q { color: var(--accent-cyan, #66ddff); }
+.dp-results-table .a { color: var(--text, #ccc); }
+.dp-results-table .meta { color: var(--text-dim, #666); font-size: 10px; }
+.dp-status-pending  { color: var(--accent-amber, #ffaa00); }
+.dp-status-approved { color: var(--accent-green, #00ff66); }
+.dp-status-rejected { color: var(--accent-rose, #ff6666); }
+.dp-empty {
+  padding: 24px;
   text-align: center;
-  padding: 24px 0;
-}
-.dp-chat-msg {
-  padding: 8px 10px;
-  border-left: 2px solid var(--border);
-}
-.dp-chat-user   { border-left-color: var(--accent-green, #00ff66); }
-.dp-chat-assistant { border-left-color: var(--accent, #00ccff); }
-.dp-chat-error  { border-left-color: var(--err, #ff4444); color: var(--err, #ff4444); }
-.dp-chat-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dim, #666);
-  margin-bottom: 4px;
-}
-.dp-chat-body { white-space: pre-wrap; word-break: break-word; }
-.dp-chat-meta { font-size: 10px; color: var(--text-dim, #666); margin-top: 4px; }
-.dp-chat-tools { display: flex; flex-direction: column; gap: 4px; }
-.dp-chat-tool {
-  border: 1px solid var(--border);
-  padding: 4px 8px;
-  font-size: 11px;
-}
-.dp-chat-tool summary { cursor: pointer; }
-.dp-chat-tool pre {
-  font-size: 10px;
-  margin: 4px 0 0;
-  max-height: 200px;
-  overflow: auto;
-  background: var(--bg, #000);
-  padding: 6px;
+  color: var(--text-dim, #888);
+  font-style: italic;
 }
 </style>
 
 <script>
-const _dpChatHistory = [];
-
-function _dpChatBackend() {
-  const backend = document.querySelector('input[name="dp-chat-backend"]:checked').value;
-  if (backend === 'external') {
-    const base_url = document.getElementById('dp-chat-base-url').value.trim();
-    const api_key  = document.getElementById('dp-chat-api-key').value.trim();
-    const model_id = document.getElementById('dp-chat-model-id').value.trim();
-    if (!base_url || !model_id) return null;
-    return { external_api: { base_url, api_key, model_id, name: document.getElementById('dp-chat-name').value.trim() } };
-  }
-  const pid = document.getElementById('dp-chat-provider').value;
-  if (!pid) return null;
-  return { provider_id: pid };
-}
-
-async function _dpChatLoadProviders() {
-  const sel = document.getElementById('dp-chat-provider');
+// Load + render the prepped Q&A pairs for this project.
+async function prepRefreshResults() {
+  const el = document.getElementById('dp-results');
+  el.innerHTML = 'Loading…';
   try {
-    const r = await fetch('/api/providers').then(r => r.json());
-    const providers = r.providers || [];
-    sel.innerHTML = '';
-    if (providers.length === 0) {
-      sel.innerHTML = '<option value="">(no providers configured)</option>';
+    const r = await fetch('/projects/{{ pid }}/data-prep/qa?limit=200').then((r) => r.json());
+    const items = (r && r.items) || r || [];
+    if (!items.length) {
+      el.innerHTML = '<div class="dp-empty">No Q&amp;A pairs yet. Run a prep job above, or use the Chat tab in Agent mode to mine pairs from your sources.</div>';
       return;
     }
-    providers.forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = p.id;
-      // For local GGUF providers, derive a friendly model label from the
-      // file path so the dropdown shows "Qwen3.8-27B-abliterated-Q4_K_M"
-      // instead of the generic "Local GGUF" name. Falls back gracefully
-      // if model_id is missing or doesn't end in .gguf.
-      let label = p.name || p.id || '(unnamed)';
-      if (p.kind === 'local_gguf' && p.model_id) {
-        const base = String(p.model_id).split(/[\\/]/).pop() || p.model_id;
-        const stripped = base.replace(/\.gguf$/i, '');
-        if (stripped) label = stripped;
-      }
-      opt.textContent = label + (p.kind ? '  [' + p.kind + ']' : '');
-      sel.appendChild(opt);
-    });
-    // After populating, reflect which one is currently loaded.
-    if (r.active && r.active.id) _dpChatMarkActive(r.active.id, providers);
+    const rows = items.slice(0, 50).map((q) => {
+      const status = (q.status || 'pending');
+      const statusClass = 'dp-status-' + status;
+      return '<tr>' +
+        '<td class="meta"><span class="' + statusClass + '">' + status + '</span></td>' +
+        '<td class="meta">' + (q.source_filename || q.source_id || '') + '</td>' +
+        '<td class="q">' + escapeHtml((q.question || '').slice(0, 200)) + '</td>' +
+        '<td class="a">' + escapeHtml((q.answer || '').slice(0, 200)) + '</td>' +
+        '<td class="meta">' + (q.created_at ? new Date(q.created_at * 1000).toISOString().slice(0, 16).replace('T', ' ') : '') + '</td>' +
+      '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="dp-results-table">' +
+      '<thead><tr><th class="meta">status</th><th class="meta">source</th><th class="meta">question</th><th class="meta">answer</th><th class="meta">created</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table>' +
+      (items.length > 50 ? '<div class="dim text-xs mt-2">Showing first 50 of ' + items.length + '.</div>' : '');
   } catch (e) {
-    sel.innerHTML = '<option value="">(failed to load providers)</option>';
+    el.innerHTML = '<div class="dp-empty">Failed to load: ' + escapeHtml((e && e.message) || String(e)) + '</div>';
   }
 }
 
-// Show currently-loaded model in the loader-status line and persist the
-// loader params the user picked so a refresh keeps them.
-function _dpChatMarkActive(active_id, providers) {
-  const el = document.getElementById('dp-chat-loader-status');
-  if (!el) return;
-  const p = (providers || []).find(x => x.id === active_id);
-  if (!p) { el.textContent = 'No model loaded.'; return; }
-  let nice = p.name || active_id;
-  if (p.kind === 'local_gguf' && p.model_id) {
-    const base = String(p.model_id).split(/[\\/]/).pop() || p.model_id;
-    const stripped = base.replace(/\.gguf$/i, '');
-    if (stripped) nice = stripped;
-  }
-  el.textContent = '● Loaded: ' + nice + ' · ' + (p.kind || '?');
-  el.title = JSON.stringify(p, null, 2);
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
-// Read loader params from the panel (returns a clean dict, omits empty
-// fields). All keys are passed to /api/providers/{pid}/load — the backend
-// only forwards recognized loader keys.
-function _dpChatReadLoaderParams() {
-  const v = id => (document.getElementById(id)?.value || '').trim();
-  const i = id => !!document.getElementById(id)?.checked;
-  const num = id => {
-    const s = v(id);
-    if (s === '') return null;
-    const n = Number(s);
-    return Number.isFinite(n) ? n : null;
-  };
-  const out = {
-    n_ctx:         num('dp-n-ctx'),
-    n_gpu_layers:  num('dp-n-gpu-layers'),
-    n_batch:       num('dp-n-batch'),
-    n_threads:     num('dp-n-threads'),
-    seed:          num('dp-seed'),
-    rope_freq_base:  num('dp-rope-freq-base'),
-    rope_freq_scale: num('dp-rope-freq-scale'),
-    flash_attn:    i('dp-flash-attn') ? true : false,
-    mmap:          i('dp-mmap')       ? true : false,
-    mlock:         i('dp-mlock')      ? true : false,
-  };
-  // Drop nulls so the manager treats them as 'not specified this call'
-  // and keeps the persisted values.
-  Object.keys(out).forEach(k => out[k] === null && delete out[k]);
-  return out;
+function prepRefresh() {
+  // Reload the source dropdown + the prepped-Q&A list.
+  location.reload();
 }
 
-function _dpChatReadGenParams() {
-  const num = id => {
-    const s = (document.getElementById(id)?.value || '').trim();
-    if (s === '') return null;
-    const n = Number(s);
-    return Number.isFinite(n) ? n : null;
-  };
-  const out = {
-    temperature:    num('dp-t'),
-    max_tokens:     num('dp-m'),
-    top_p:          num('dp-p'),
-    repeat_penalty: num('dp-rp'),
-  };
-  Object.keys(out).forEach(k => out[k] === null && delete out[k]);
-  return out;
+// Wire the form: on submit, fire a toast + reset the button + reload results.
+const _prepForm = document.getElementById('prep-form');
+if (_prepForm) {
+  const _origHandler = _prepForm.onsubmit;
+  _prepForm.addEventListener('submit', () => {
+    const btn = document.getElementById('prep-start-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
+    setTimeout(() => {
+      // After ~5s, reset the button regardless of outcome — the activity feed
+      // + the Prepped Q&A table below will reflect the actual status.
+      if (btn) { btn.disabled = false; btn.textContent = 'Start prep'; }
+      prepRefreshResults();
+    }, 5000);
+  }, true);  // capture phase
 }
 
-async function dpChatLoad() {
-  const pid = document.getElementById('dp-chat-provider').value;
-  if (!pid) return _dpChatAppend('error', 'Pick a local provider first.');
-  const status = document.getElementById('dp-chat-loader-status');
-  const btn = document.getElementById('dp-chat-load');
-  btn.disabled = true;
-  const prev = status.textContent;
-  status.textContent = 'Loading… (15s–2min for first load)';
-  try {
-    const extra = _dpChatReadLoaderParams();
-    const r = await fetch(`/api/providers/${pid}/load`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(extra),
-    });
-    const body = await r.json();
-    if (!body.ok) throw new Error(body.error || 'load failed');
-    _dpChatMarkActive(body.active.id, [body.active]);
-    _dpChatAppend('assistant', `✓ Loaded ${body.active.name || body.active.id} (n_ctx=${extra.n_ctx || 16384}, n_gpu_layers=${extra.n_gpu_layers ?? 'all'})`);
-  } catch (e) {
-    status.textContent = 'Load failed: ' + (e.message || e);
-    _dpChatAppend('error', 'Load failed: ' + (e.message || e));
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-async function dpChatUnload() {
-  const status = document.getElementById('dp-chat-loader-status');
-  try {
-    await fetch('/api/providers/unload', { method: 'POST' });
-    status.textContent = '○ Unloaded.';
-    _dpChatAppend('assistant', '✓ Model unloaded.');
-  } catch (e) {
-    status.textContent = 'Unload failed: ' + (e.message || e);
-  }
-}
-
-function _dpChatAppend(role, content, meta) {
-  const msgs = document.getElementById('dp-chat-msgs');
-  const empty = msgs.querySelector('.dp-chat-empty');
-  if (empty) empty.remove();
-  const div = document.createElement('div');
-  div.className = 'dp-chat-msg dp-chat-' + role;
-  const label = document.createElement('div');
-  label.className = 'dp-chat-label';
-  label.textContent = role.toUpperCase();
-  const body = document.createElement('div');
-  body.className = 'dp-chat-body';
-  if (typeof content === 'string') {
-    body.textContent = content;
-  } else {
-    body.appendChild(content);
-  }
-  div.appendChild(label);
-  div.appendChild(body);
-  if (meta) {
-    const m = document.createElement('div');
-    m.className = 'dp-chat-meta';
-    m.textContent = meta;
-    div.appendChild(m);
-  }
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-  return div;
-}
-
-function _dpChatRenderToolCalls(toolCalls) {
-  const wrap = document.createElement('div');
-  wrap.className = 'dp-chat-tools';
-  toolCalls.forEach((tc) => {
-    const det = document.createElement('details');
-    det.className = 'dp-chat-tool';
-    const sum = document.createElement('summary');
-    const ok = tc.result && !tc.result.error;
-    sum.textContent = (ok ? '✓ ' : '✗ ') + tc.name + (tc.result && tc.result.error ? ' — error' : '');
-    const pre = document.createElement('pre');
-    pre.textContent = JSON.stringify(tc, null, 2);
-    det.appendChild(sum);
-    det.appendChild(pre);
-    wrap.appendChild(det);
-  });
-  return wrap;
-}
-
-async function dpChatSend() {
-  const ta = document.getElementById('dp-chat-input');
-  const text = ta.value.trim();
-  if (!text) return;
-  const backend = _dpChatBackend();
-  if (!backend) {
-    _dpChatAppend('error', 'Pick a backend first — a local provider or fill in the external API fields.');
-    return;
-  }
-  ta.value = '';
-  _dpChatAppend('user', text);
-  _dpChatHistory.push({ role: 'user', content: text });
-
-  const status = document.getElementById('dp-chat-status');
-  const sendBtn = document.getElementById('dp-chat-send');
-  status.textContent = 'Thinking…';
-  sendBtn.disabled = true;
-
-  // For the local backend, make sure the chosen provider is actually loaded
-  // with the loader params currently shown in the panel. Clicking "Send"
-  // before hitting "Load / reload model" still works — it just transparently
-  // loads on first send. After that, calls reuse the same provider with
-  // the same params.
-  if (backend.provider_id) {
-    try {
-      const cur = await fetch('/api/providers').then(r => r.json());
-      if (!cur.active || cur.active.id !== backend.provider_id) {
-        const extra = _dpChatReadLoaderParams();
-        const lr = await fetch(`/api/providers/${backend.provider_id}/load`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(extra),
-        });
-        const lb = await lr.json();
-        if (!lb.ok) throw new Error(lb.error || 'auto-load failed');
-        if (lb.active) _dpChatMarkActive(lb.active.id, [lb.active]);
-      }
-    } catch (e) {
-      _dpChatAppend('error', 'auto-load failed: ' + (e.message || e));
-      sendBtn.disabled = false;
-      return;
-    }
-  }
-
-  const projectId = window.location.pathname.split('/')[2];
-  try {
-    const r = await fetch(`/api/projects/${projectId}/data-prep/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: _dpChatHistory, ...backend, gen: _dpChatReadGenParams() }),
-    });
-    const body = await r.json();
-    if (body.error) throw new Error(body.error);
-    if (body.tool_calls && body.tool_calls.length) {
-      _dpChatAppend('assistant', _dpChatRenderToolCalls(body.tool_calls), `round ${body.rounds} · ${body.tool_calls.length} tool call(s)`);
-    }
-    if (body.reply) {
-      _dpChatAppend('assistant', body.reply, `round ${body.rounds}`);
-      _dpChatHistory.push({ role: 'assistant', content: body.reply });
-    } else if (!body.tool_calls || !body.tool_calls.length) {
-      _dpChatAppend('assistant', '(no reply)', `round ${body.rounds}`);
-    }
-    status.textContent = `Done. Round ${body.rounds}, ${body.tool_calls ? body.tool_calls.length : 0} tool call(s) executed.`;
-  } catch (e) {
-    _dpChatAppend('error', e.message || String(e));
-    status.textContent = 'Error: ' + (e.message || String(e));
-  } finally {
-    sendBtn.disabled = false;
-  }
-}
-
-// Toggle external-fields visibility when backend radio changes
-document.querySelectorAll('input[name="dp-chat-backend"]').forEach(r => {
-  r.addEventListener('change', () => {
-    document.getElementById('dp-chat-external').hidden = r.value !== 'external';
-  });
-});
-
-// Shift+Enter newline, plain Enter sends
-document.getElementById('dp-chat-input').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    dpChatSend();
-  }
-});
-
-// Load providers + show active provider status on page load
-_dpChatLoadProviders();
-fetch('/api/providers').then(r => r.json()).then(d => {
-  const active = d.active;
-  const status = document.getElementById('dp-chat-status');
-  if (active && active.id) {
-    status.textContent = 'Active provider: ' + (active.name || active.id) + ' · ' + (active.kind || '?');
-  } else {
-    status.textContent = 'No provider loaded — pick one above or fill the external API fields.';
-  }
-});
-
-// Existing prep-job behaviour (preserved from the original template)
-async function startPrep() {
-  const projectId = document.getElementById('dp-project').value;
-  if (!projectId) return;
-  const btn = document.getElementById('dp-start');
-  const status = document.getElementById('dp-status');
-  btn.disabled = true; btn.textContent = 'Starting…';
-  status.textContent = 'Queueing prep job…';
-  try {
-    const r = await fetch(`/api/projects/${projectId}/data-prep/run`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        qa_per_chunk: parseInt(document.getElementById('dp-qa').value, 10),
-        difficulty: document.getElementById('dp-difficulty').value,
-        style: document.getElementById('dp-style').value,
-      }),
-    });
-    const body = await r.json();
-    if (body.error) throw new Error(body.error);
-    status.textContent = 'Prep job started: ' + (body.run_id || JSON.stringify(body));
-  } catch (e) {
-    status.textContent = 'Error: ' + (e.message || String(e));
-  } finally {
-    btn.disabled = false; btn.textContent = 'Start prep';
-  }
-}
+// Initial load
+prepRefreshResults();
+setInterval(prepRefreshResults, 15000);  // poll every 15s so new pairs show up
 </script>
 {% endblock %}
