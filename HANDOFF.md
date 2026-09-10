@@ -55,6 +55,24 @@ Fixture needle in every file: **`OCTOPUS-7741`**.
 
 ---
 
+## Local docx fixture check (genorbox1)
+
+Package root is **`src/`**, not repo root — `PYTHONPATH=.` fails with `ModuleNotFoundError`.
+
+```bash
+cd ~/work/finetune-studio
+PYTHONPATH=src /tmp/fixtvenv/bin/python -c "
+from finetune_studio.data.parsers.docx import parse
+from pathlib import Path
+r = parse(Path('tests/fixtures/octopus/spec.docx'))
+print('needle', 'OCTOPUS-7741' in r['text'], 'parser', r['metadata'].get('parser'))
+"
+```
+
+Dashboard may show exec commands as `PYTHON…tune-studio` — that is **UI truncation only** (`compactProgressText` / 120-char display). Never copy ellipsis into `exec` commands.
+
+---
+
 ## Key paths
 
 | What | Path |

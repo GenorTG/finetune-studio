@@ -136,8 +136,20 @@ def _run_tool(pid: str, name: str, args: dict) -> dict:
             src = qa_fs.read_qa_source(pid, sid)
             if not src:
                 return {"error": f"source {sid} not found"}
-            # Trim very long content to keep the context window healthy.
+            # Prefer the in-manifest text if present (legacy / future path).
             text = src.get("text") or src.get("parsed_text") or ""
+            # The data-prep runner stores parsed text at
+            # files/<sha256[:12]>/parsed.txt, NOT in the manifest. Fall
+            # back to disk if the manifest has no text.
+            if not text:
+                sha = src.get("sha256") or sid
+                from finetune_studio.data.fs.paths import file_dir
+                parsed_path = file_dir(pid, sha) / "parsed.txt"
+                if parsed_path.exists():
+                    try:
+                        text = parsed_path.read_text(encoding="utf-8", errors="replace")
+                    except Exception:
+                        text = ""
             return {
                 "id": src.get("id", sid),
                 "filename": src.get("filename", "?"),

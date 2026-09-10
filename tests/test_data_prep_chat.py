@@ -38,6 +38,58 @@ class TestChatTools:
         result = _run_tool("test-project", "read_source", {"source_id": "missing"})
         assert "error" in result
 
+    def test_read_source_falls_back_to_parsed_txt(self, tmp_path, monkeypatch):
+        """Regression: read_source must read files/<sha>/parsed.txt when the
+        qa/sources/<id>.json manifest has no 'text' field. This was the
+        2026-09-10 E2E bug where all uploads returned text=''.
+        """
+        monkeypatch.setenv("FTS_DB", str(tmp_path / "fts.db"))
+        from finetune_studio.data.fs import paths as paths_mod
+        monkeypatch.setattr(paths_mod, "project_dir", lambda pid: tmp_path / pid)
+        import finetune_studio.data.fs.qa as qa_fs_mod
+        monkeypatch.setattr(qa_fs_mod, "project_dir", lambda pid: tmp_path / pid)
+
+        # Seed a qa source manifest with sha256 but no 'text' field
+        sid = "abcd12345678"
+        sha = "abcd12345678" + "0" * 52  # 64 hex chars
+        qa_fs_mod.write_qa_source("test-project", {
+            "id": sid, "sha256": sha, "filename": "needle.md",
+            "mime_type": "text/markdown", "char_count": 13,
+            "chunk_count": 1, "parser": "text_v1",
+            "uploaded_at": 0.0, "status": "ready",
+        })
+        # Seed the parsed text on disk
+        parsed_path = tmp_path / "test-project" / "files" / sid / "parsed.txt"
+        parsed_path.parent.mkdir(parents=True, exist_ok=True)
+        parsed_path.write_text("OCTOPUS-7741", encoding="utf-8")
+
+        from finetune_studio.webui.routes.data_prep_chat import _run_tool
+        result = _run_tool("test-project", "read_source", {"source_id": sid})
+        assert result.get("text") == "OCTOPUS-7741", (
+            f"read_source should fall back to parsed.txt; got {result!r}"
+        )
+        assert result.get("truncated") is False
+
+    def test_read_source_prefers_manifest_text(self, tmp_path, monkeypatch):
+        """If the manifest already carries 'text', use it (legacy / future path)."""
+        monkeypatch.setenv("FTS_DB", str(tmp_path / "fts.db"))
+        from finetune_studio.data.fs import paths as paths_mod
+        monkeypatch.setattr(paths_mod, "project_dir", lambda pid: tmp_path / pid)
+        import finetune_studio.data.fs.qa as qa_fs_mod
+        monkeypatch.setattr(qa_fs_mod, "project_dir", lambda pid: tmp_path / pid)
+
+        sid = "deadbeef0001"
+        qa_fs_mod.write_qa_source("test-project", {
+            "id": sid, "sha256": "x", "filename": "in-manifest.md",
+            "mime_type": "text/markdown", "char_count": 0,
+            "chunk_count": 0, "parser": "text_v1",
+            "uploaded_at": 0.0, "status": "ready",
+            "text": "manifest-text OCTOPUS-7741",
+        })
+        from finetune_studio.webui.routes.data_prep_chat import _run_tool
+        result = _run_tool("test-project", "read_source", {"source_id": sid})
+        assert "manifest-text" in result.get("text", "")
+
     def test_create_qa_pairs_writes_to_disk(self, tmp_path, monkeypatch):
         """Verify create_qa_pairs writes JSON files under the project's qa/pairs dir.
 
