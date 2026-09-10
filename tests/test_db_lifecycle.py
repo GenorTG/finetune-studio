@@ -440,6 +440,96 @@ class TestModelExportLifecycle:
         assert db.list_exports_for_run(rid) == []
 
 
+# ── System update lifecycle ─────────────────────────────────────────────
+
+
+class TestSystemUpdateLifecycle:
+    """system_updates: status, started_at, finished_at, duration_ms,
+    log_text (append + truncate), error, options_json, triggered_by.
+    """
+
+    def test_create_with_options(self, mock_settings):
+        from finetune_studio import db
+        row = db.create_update(mode="update", options={"no_pull": True},
+                               triggered_by="user")
+        assert row["status"] == "queued"
+        assert row["mode"] == "update"
+        assert row["options_json"] == {"no_pull": True}
+        assert row["triggered_by"] == "user"
+
+    def test_done_lifecycle_preserves_log(self, mock_settings):
+        from finetune_studio import db
+        uid = db.create_update(mode="update")["id"]
+        db.mark_update_running(uid)
+        assert db.get_update(uid)["status"] == "running"
+        db.append_update_log(uid, "step 1: pull\n")
+        db.append_update_log(uid, "step 2: pip\n")
+        db.append_update_log(uid, "step 3: restart\n")
+        db.mark_update_done(uid)
+        r = db.get_update(uid)
+        assert r["status"] == "done"
+        assert r["finished_at"] is not None
+        assert r["duration_ms"] is not None and r["duration_ms"] >= 0
+        # mark_done MUST NOT wipe log_text
+        assert "step 1: pull" in r["log_text"]
+        assert "step 3: restart" in r["log_text"]
+
+    def test_failed_lifecycle(self, mock_settings):
+        from finetune_studio import db
+        uid = db.create_update(mode="repair")["id"]
+        db.mark_update_running(uid)
+        db.append_update_log(uid, "trying cmake...\n")
+        db.mark_update_failed(uid, error="cmake not found")
+        r = db.get_update(uid)
+        assert r["status"] == "error"
+        assert "cmake not found" in r["error"]
+        assert "trying cmake" in r["log_text"]  # log preserved
+
+    def test_cancellation(self, mock_settings):
+        from finetune_studio import db
+        uid = db.create_update(mode="update")["id"]
+        db.mark_update_running(uid)
+        db.mark_update_cancelled(uid)
+        r = db.get_update(uid)
+        assert r["status"] == "cancelled"
+        assert r["finished_at"] is not None
+
+    def test_append_log_truncates_at_256kb(self, mock_settings):
+        from finetune_studio import db
+        uid = db.create_update(mode="update")["id"]
+        for _ in range(60):  # 60 * 5KB = 300KB > 256KB cap
+            db.append_update_log(uid, "x" * 5000)
+        r = db.get_update(uid)
+        assert len(r["log_text"]) <= 256_000
+        # Truncation is from the top, so newest content is preserved
+        assert r["log_text"].endswith("x" * 5000)
+
+    def test_latest_in_progress_excludes_done(self, mock_settings):
+        from finetune_studio import db
+        # queued
+        q = db.create_update(mode="update")["id"]
+        # running
+        r = db.create_update(mode="update")["id"]
+        db.mark_update_running(r)
+        # done — should NOT appear
+        d = db.create_update(mode="update")["id"]
+        db.mark_update_running(d)
+        db.mark_update_done(d)
+        latest = db.latest_update_in_progress()
+        assert latest is not None
+        assert latest["id"] in (q, r)
+        assert latest["status"] in ("queued", "running")
+
+    def test_list_recent_ordered_newest_first(self, mock_settings):
+        from finetune_studio import db
+        ids = []
+        for _ in range(3):
+            ids.append(db.create_update(mode="update")["id"])
+            time.sleep(0.005)
+        recent = db.list_updates_recent(limit=3)
+        assert [r["id"] for r in recent] == list(reversed(ids))
+
+
 # ── FK + cascade ─────────────────────────────────────────────────────────
 
 
