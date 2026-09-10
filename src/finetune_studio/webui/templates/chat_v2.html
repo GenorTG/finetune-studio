@@ -293,22 +293,26 @@ async function chatSend() {
   _chatAppend('user', text);
   _chatHistory.push({ role: 'user', content: text });
 
-  const statusEl = document.getElementById('chat-status-pill');
-
   try {
     let url, body, parseFn;
     if (mode === 'agent') {
-      // Agent mode — tool-calling against the project's parsed sources.
-      // Reuses the data-prep endpoint which has tools wired up.
+      // Agent mode needs either provider_id (load/use the local manager's
+      // model) or external_api (an OpenAI-compat endpoint). Fetch the active
+      // model from /api/providers and send its id; the endpoint loads it via
+      // the manager if not already loaded.
+      let provider_id = null;
+      try {
+        const prov = await fetch('/api/providers').then((r) => r.json());
+        if (prov.active && prov.active.id) provider_id = prov.active.id;
+      } catch (_) { /* ignore — endpoint will return a clear error */ }
       url = '/api/projects/' + _chatPid + '/data-prep/chat';
-      body = { messages: _chatHistory };
+      body = { messages: _chatHistory, provider_id };
       parseFn = (b) => ({
         reply: b.reply || '',
         tool_calls: b.tool_calls || [],
         rounds: b.rounds,
       });
     } else {
-      // Test mode — simple chat with optional RAG.
       const enabled_rag_ids = [...document.querySelectorAll('input[name="chat-rag-enabled"]:checked')].map((c) => c.value);
       url = '/api/chat-v2/projects/' + _chatPid + '/chat';
       body = { messages: _chatHistory, enabled_rag_ids };
@@ -328,9 +332,6 @@ async function chatSend() {
     if (raw.error) throw new Error(raw.error);
     const parsed = parseFn(raw);
 
-    // Show tool calls inline BEFORE the reply so the audit trail reads
-    // "user → tool1 → tool2 → assistant" instead of "user → assistant
-    // (with tool results stuck inside)".
     if (parsed.tool_calls && parsed.tool_calls.length) {
       _chatAppend('tool', _chatRenderToolCalls(parsed.tool_calls), `round ${parsed.rounds || 1} · ${parsed.tool_calls.length} tool call(s)`);
     }
