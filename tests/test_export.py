@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -86,6 +87,77 @@ class TestExportWorkerSkip:
             assert os.path.isfile(out_path)
             assert r["finished_at"] is not None
             assert r["duration_ms"] is not None and r["duration_ms"] >= 0
+
+    def test_single_step_quant_uses_outfile_flag(self, mock_settings, monkeypatch, tmp_path):
+        """Regression for the fan-dragon 2026-09-10 GGUF Q8_0 export:
+        convert_hf_to_gguf.py takes [model] as a single positional arg
+        and uses --outfile OUTFILE + --outtype QUANT for output. Earlier
+        worker code passed `model outfile --outtype q8_0`, which the
+        CLI rejected with 'unrecognized arguments: /path/...'. Capture
+        the subprocess.run argv so we lock in the right flag layout."""
+        from unittest.mock import patch
+        from finetune_studio import db
+        from finetune_studio.webui.routes.exports import _export_worker
+
+        monkeypatch.delenv("FTS_SKIP_EXPORT", raising=False)
+        pid = db.create_project(name="E", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        eid = db.create_export(project_id=pid, run_id=rid, quant="Q8_0")["id"]
+
+        fake_convert = tmp_path / "convert_hf_to_gguf.py"
+        fake_convert.write_text("# fake\n")
+        fake_quantize = tmp_path / "llama-quantize"
+        fake_quantize.write_text("#!/bin/sh\n"); fake_quantize.chmod(0o755)
+
+        # Pretend convert_hf_to_gguf.py actually wrote the file at out_path
+        # so the worker's post-step size check doesn't crash.
+        merged_dir = tmp_path / "merged"; merged_dir.mkdir()
+        out_path = tmp_path / "model-Q8_0.gguf"
+
+        captured = []
+        def fake_run(cmd, *args, **kwargs):
+            captured.append(cmd)
+            # Make the convert step "succeed" by writing the target file
+            if "convert_hf_to_gguf.py" in " ".join(cmd):
+                Path(out_path).write_bytes(b"\x00")
+            r = type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+            return r
+
+        with patch("finetune_studio.webui.routes.exports._find_convert_script",
+                   return_value=str(fake_convert)), \
+             patch("finetune_studio.webui.routes.exports._find_llama_tool",
+                   return_value=str(fake_quantize)), \
+             patch("finetune_studio.webui.routes.exports.subprocess.run",
+                   side_effect=fake_run):
+            _export_worker(eid, merged_dir=str(merged_dir),
+                           out_path=str(out_path), quant="Q8_0")
+
+        assert captured, "subprocess.run was never called"
+        cmd = captured[0]
+        # The script must be invoked with --outfile (not as a 2nd positional)
+        assert "--outfile" in cmd, f"missing --outfile flag in argv: {cmd}"
+        # The script must receive --outtype q8_0
+        assert "--outtype" in cmd
+        assert cmd[cmd.index("--outtype") + 1] == "q8_0"
+        # Position of the model path: it must be a single positional after
+        # python3 <script>; no extra positional at the end.
+        try:
+            script_idx = next(i for i, c in enumerate(cmd)
+                              if str(c).endswith("convert_hf_to_gguf.py"))
+        except StopIteration:
+            raise AssertionError(f"script path missing in argv: {cmd}")
+        # Tokens strictly between script and --outfile must be empty
+        # (only the model positional should be there).
+        tail = cmd[script_idx + 1:]
+        # tail should look like: [merged_dir, --outfile, out_path, --outtype, q8_0]
+        assert str(tail[0]) == str(merged_dir), f"first arg after script must be merged_dir; got {tail[0]}"
+        assert tail[1] == "--outfile"
+        assert str(tail[2]) == str(out_path)
+        assert tail[3] == "--outtype"
+        assert tail[4] == "q8_0"
+        # Most importantly: no extra positional after --outtype
+        assert len(tail) == 5, f"unexpected extra args in argv tail: {tail[5:]}"
 
     def test_failure_when_no_tooling(self, mock_settings, monkeypatch):
         """With FTS_SKIP_EXPORT unset and no llama.cpp on the host, the

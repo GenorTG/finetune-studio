@@ -210,9 +210,20 @@ def _export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None
                               "f32": "f32", "Q8_0": "q8_0"}
         if quant in single_step_quants:
             outtype = single_step_quants[quant]
-            cmd = ["python3", convert_script, merged_dir, out_path,
+            # convert_hf_to_gguf.py takes the model dir as a positional
+            # `[model]` and the output path via `--outfile OUTFILE`. Earlier
+            # code passed outfile as a 2nd positional which the CLI rejected
+            # with 'unrecognized arguments'.
+            cmd = ["python3", convert_script, merged_dir,
+                   "--outfile", out_path,
                    "--outtype", outtype]
             log.info("export single-step: %s", " ".join(cmd))
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+            if r.returncode != 0:
+                err_tail = (r.stderr or r.stdout or "")[-1000:]
+                raise RuntimeError(
+                    f"convert_hf_to_gguf failed (rc={r.returncode}): {err_tail}"
+                )
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
             if r.returncode != 0:
                 err_tail = (r.stderr or r.stdout or "")[-1000:]
