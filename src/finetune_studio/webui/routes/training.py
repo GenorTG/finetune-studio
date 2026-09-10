@@ -105,6 +105,7 @@ async def start_training(request: Request):
 
     # Create a run record so it shows up in the project's "Past runs" list.
     # Also lets the activity feed's "GO TO →" deep-link to the right page.
+    import time as _time
     run = db.create_run(
         project_id=project_id,
         name=f"Run · {Path(data_path).name}",
@@ -123,6 +124,7 @@ async def start_training(request: Request):
         system_prompt=system_prompt,
     )
     run_id = run["id"]
+    run_started_at = _time.time()  # wall-clock for this run; written on first transition
     # Encode project_id into current_run_id so the activity feed can
     # derive the URL without needing an extra DB lookup.
     training_engine.current_run_id = f"{project_id}-{run_id}" if project_id else run_id
@@ -130,18 +132,45 @@ async def start_training(request: Request):
     training_engine.current_db_run_id = run_id
 
     # Push state changes (loss, status, final_loss) into the run row.
+    # Captures started_at on the first training-state transition and
+    # finished_at (+ duration) on every terminal state so the past-runs
+    # table can render human time without re-computing from the engine.
+    state_started_logged = {"value": False}  # closure-shared flag
     def _on_state_change(state):
         update: dict = {}
-        if state.status in ("running", "training", "loading", "saving"):
+        # First transition into an active training state → stamp started_at.
+        active_states = ("running", "training", "loading", "saving")
+        terminal_states = ("done", "error")
+        if state.status in active_states and not state_started_logged["value"]:
+            state_started_logged["value"] = True
+            update["started_at"] = run_started_at
             update["status"] = state.status
-        elif state.status == "done":
+        elif state.status in active_states:
+            update["status"] = state.status
+        if state.status == "done":
             update["status"] = "done"
+            finished = _time.time()
+            update["finished_at"] = finished
+            update["duration"] = max(0.0, finished - run_started_at)
             if state.loss:
                 update["final_loss"] = state.loss
+            metrics = {
+                "total_steps": state.total_steps,
+                "current_step": state.current_step,
+                "loss": state.loss,
+                "epoch": state.epoch,
+                "elapsed": state.elapsed,
+            }
+            update["metrics"] = metrics
+        elif state.status == "saving":
+            update["status"] = "saving"
         elif state.status == "error":
             update["status"] = "failed"
+            finished = _time.time()
+            update["finished_at"] = finished
+            update["duration"] = max(0.0, finished - run_started_at)
             update["error"] = state.error or state.message or "training failed"
-        else:
+        if not update:
             return
         try:
             db.update_run(run_id, **update)

@@ -416,34 +416,97 @@ def _chat_external(backend: dict, messages: list[dict], gen: dict | None = None)
 def _chat_local(backend: dict, messages: list[dict], gen: dict | None = None) -> str:
     """One round of chat via the local ModelManager provider.
 
-    Renders the structured messages into a single prompt (system prefix +
-    role-tagged turns) so the model's text-completion interface can
-    answer. The system prompt already tells the model to emit
-    <tool_call>...</tool_call> when it wants a tool.
+    Uses `mgr.chat()` (which calls llama_cpp.create_chat_completion) so the
+    model's proper chat template is applied. This is critical for Qwen-style
+    instruct models: a manually-rendered prompt (role.upper() + colons) often
+    produces empty output because the model expects its ChatML tokens. Falling
+    back to generate() for any provider that doesn't expose chat().
     """
     mgr = backend["manager"]
-    sys_prefix, rendered = _messages_to_prompt(messages)
-    parts = []
-    if sys_prefix:
-        parts.append(sys_prefix)
-    for m in rendered:
-        parts.append(f"{m['role'].upper()}: {m['content']}")
-    parts.append("ASSISTANT:")
-    prompt = "\n\n".join(parts)
     g = gen or {}
     _temp = g.get("temperature", 0.2)
     _max  = g.get("max_tokens", 1024)
     _topp = g.get("top_p", 0.9)
+    # Build the messages list we send to llama_cpp: drop the leading system
+    # message because llama_cpp.create_chat_completion takes it via the
+    # `messages` array (system role is supported there). For local chat models
+    # we also rely on the system prompt's instruction to emit
+    # <tool_call>{...}</tool_call> blocks when the model wants to act; the
+    # native tool-call API is only used for external OpenAI-compat backends.
+    chat_messages: list[dict] = []
+    for m in messages:
+        role = m.get("role", "user")
+        content = m.get("content", "")
+        if not content:
+            continue
+        # Local chat templates usually require assistant / user roles only —
+        # system messages get folded into the first user turn's prefix so
+        # models that don't grok the system role (older GGUF quants) still
+        # see the rules.
+        if role == "system" and not chat_messages:
+            chat_messages.append({"role": "user", "content": content})
+            continue
+        if role == "system":
+            # Append to last user message as a "system reminder".
+            for j in range(len(chat_messages) - 1, -1, -1):
+                if chat_messages[j].get("role") == "user":
+                    chat_messages[j] = {
+                        **chat_messages[j],
+                        "content": chat_messages[j]["content"] + "\n\n" + content,
+                    }
+                    break
+            else:
+                chat_messages.append({"role": "user", "content": content})
+            continue
+        chat_messages.append({"role": role, "content": content})
+
+    # Drop trailing duplicate user / empty assistant turns that llama_cpp
+    # may reject.
+    cleaned: list[dict] = []
+    for m in chat_messages:
+        if not m.get("content"):
+            continue
+        cleaned.append(m)
+    if not cleaned:
+        return ""
+
+    # Ensure conversation starts with a user turn (required by most chat
+    # templates).
+    if cleaned[0]["role"] != "user":
+        cleaned = [{"role": "user", "content": "(start)"}] + cleaned
+
+    # Append a final nudge so instruction-tuned models actually produce a
+    # reply (some chat templates leave the model hanging after tool
+    # descriptions otherwise).
+    if cleaned[-1]["role"] == "assistant":
+        cleaned.append({"role": "user", "content": "(continue)"})
     try:
-        text = mgr.generate(
-            prompt,
+        text = mgr.chat(
+            cleaned,
             max_tokens=_max,
             temperature=_temp,
             top_p=_topp,
         )
     except Exception:
-        # Fall back to chat() if the provider supports it.
-        text = mgr.chat(rendered, max_tokens=_max, temperature=_temp, top_p=_topp)
+        # Fall back to generate() with a flattened prompt for providers that
+        # only support raw text-completion (rare).
+        sys_prefix, rendered = _messages_to_prompt(messages)
+        parts = []
+        if sys_prefix:
+            parts.append(sys_prefix)
+        for m in rendered:
+            parts.append(f"{m['role'].upper()}: {m['content']}")
+        parts.append("ASSISTANT:")
+        prompt = "\n\n".join(parts)
+        try:
+            text = mgr.generate(
+                prompt,
+                max_tokens=_max,
+                temperature=_temp,
+                top_p=_topp,
+            )
+        except Exception:
+            text = ""
     return text or ""
 
 
