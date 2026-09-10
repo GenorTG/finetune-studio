@@ -153,6 +153,17 @@ class ModelManager:
         cfg_row = self.get_provider(pid)
         if not cfg_row:
             raise ValueError(f"Unknown provider: {pid}")
+        # Fast path: same provider already active — don't touch the model.
+        # Previously this method always built a fresh provider object and
+        # called load() on it, which tried to instantiate a second Llama()
+        # while the first still held the file handle / VRAM, raising
+        # "Failed to load model from file" on every chat call after the
+        # first probe.
+        with self._lock:
+            if (self._provider is not None
+                    and self._active_id == pid
+                    and self._provider.is_loaded()):
+                return self.active()
         cfg = ProviderConfig(
             id=cfg_row["id"], name=cfg_row["name"], kind=cfg_row["kind"],
             model_id=cfg_row["model_id"], base_url=cfg_row["base_url"],
