@@ -22,3 +22,10 @@ screenshots/
 node_modules/
 dist/
 build/
+
+# Workspace-level OpenClaw files (Amy persona, handoff notes).
+# These belong in ~/.openclaw/workspace/, NEVER inside a project repo.
+IDENTITY.md
+SOUL.md
+USER.md
+HANDOFF-*.md
