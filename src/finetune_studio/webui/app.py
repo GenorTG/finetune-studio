@@ -181,6 +181,9 @@ app.include_router(rag.router, prefix="/api/projects", tags=["rag"])  # type: ig
 from finetune_studio.webui.routes import exports as _exports  # noqa: E402
 app.include_router(_exports.router, prefix="/api", tags=["exports"])  # type: ignore[has-type]  # /api/projects/{pid}/runs/{rid}/export
 
+from finetune_studio.webui.routes import updates as _updates  # noqa: E402
+app.include_router(_updates.router, prefix="/api", tags=["system-updates"])  # type: ignore[has-type]  # /api/system/update*
+
 from finetune_studio.webui.routes import activity as _activity  # noqa: E402
 app.include_router(_activity.router)  # type: ignore[has-type]  # /api/activity
 
