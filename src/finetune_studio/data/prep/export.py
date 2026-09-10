@@ -22,7 +22,9 @@ def export_qa_jsonl(pid: str, fmt: str = "sharegpt", only: str = "approved") -> 
         out = [{"conversations": [
             {"from": "human", "value": it["question"]},
             {"from": "gpt", "value": it["answer"]},
-        ], "source_id": it["source_id"], "chunk_idx": it["chunk_idx"], "score": it["score"]} for it in items]
+        ], "source_id": it.get("source_id", ""),
+           "chunk_idx": it.get("chunk_idx", 0),
+           "score": it.get("score", 0.0)} for it in items]
     elif fmt == "alpaca":
         out = [{"instruction": it["question"], "input": "", "output": it["answer"]} for it in items]
     elif fmt == "openai":

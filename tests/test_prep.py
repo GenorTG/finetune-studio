@@ -174,3 +174,64 @@ class TestExportQA:
             mock_pfs.list_qa_pairs.return_value = []
             with pytest.raises(ValueError, match="Unknown format"):
                 export_qa_jsonl("pid", fmt="made_up_format")
+
+    def test_export_tolerates_minimal_pair_schema(self):
+        """Pairs written by the data-prep chat tool's create_qa_pairs
+        only carry id/source_id/question/answer/status — no chunk_idx,
+        chunk_text, difficulty, style, or score. The exporter must
+        still produce valid JSONL (regression test for the 500 we hit
+        on fan-dragon when 2 of 29 pairs lacked these fields)."""
+        import json
+        from finetune_studio.data.prep.export import export_qa_jsonl
+        from unittest.mock import patch
+
+        minimal_pairs = [
+            {
+                "id": "qa_1",
+                "source_id": "abc",
+                "question": "What is fine-tuning?",
+                "answer": "Adapting a pretrained model.",
+                "status": "approved",
+                "created_at": 1.0,
+                "created_via": "data-prep-chat",
+            }
+        ]
+        with patch("finetune_studio.data.prep.export.pfs") as mock_pfs:
+            mock_pfs.list_qa_pairs.return_value = minimal_pairs
+            result = export_qa_jsonl("pid", fmt="sharegpt", only="approved")
+            lines = [l for l in result.strip().split("\n") if l]
+            assert len(lines) == 1
+            obj = json.loads(lines[0])
+            assert obj["conversations"][0]["from"] == "human"
+            assert obj["conversations"][1]["from"] == "gpt"
+            assert obj["source_id"] == "abc"
+            # chunk_idx and score should default, not crash
+            assert obj["chunk_idx"] == 0
+            assert obj["score"] in (0, 0.0)
+
+    def test_export_alpaca_tolerates_minimal_pair_schema(self):
+        from finetune_studio.data.prep.export import export_qa_jsonl
+        from unittest.mock import patch
+        minimal_pairs = [{
+            "id": "qa_x", "source_id": "s", "question": "q",
+            "answer": "a", "status": "approved",
+        }]
+        with patch("finetune_studio.data.prep.export.pfs") as mock_pfs:
+            mock_pfs.list_qa_pairs.return_value = minimal_pairs
+            result = export_qa_jsonl("pid", fmt="alpaca", only="approved")
+            assert "q" in result and "a" in result
+
+    def test_export_openai_tolerates_minimal_pair_schema(self):
+        import json
+        from finetune_studio.data.prep.export import export_qa_jsonl
+        from unittest.mock import patch
+        minimal_pairs = [{
+            "id": "qa_x", "source_id": "s", "question": "q",
+            "answer": "a", "status": "approved",
+        }]
+        with patch("finetune_studio.data.prep.export.pfs") as mock_pfs:
+            mock_pfs.list_qa_pairs.return_value = minimal_pairs
+            result = export_qa_jsonl("pid", fmt="openai", only="approved")
+            obj = json.loads(result.strip())
+            assert obj["messages"][0]["role"] == "user"
+            assert obj["messages"][1]["role"] == "assistant"
