@@ -23,15 +23,19 @@ CREATE TABLE IF NOT EXISTS projects (
 );
 
 CREATE TABLE IF NOT EXISTS project_rags (
-    id           TEXT PRIMARY KEY,
-    project_id   TEXT NOT NULL,
-    name         TEXT NOT NULL,
-    description  TEXT NOT NULL DEFAULT '',
-    tags         TEXT NOT NULL DEFAULT '',
-    store_path   TEXT NOT NULL,
-    doc_count    INTEGER NOT NULL DEFAULT 0,
-    chunk_count  INTEGER NOT NULL DEFAULT 0,
-    created_at   REAL NOT NULL,
+    id                TEXT PRIMARY KEY,
+    project_id        TEXT NOT NULL,
+    name              TEXT NOT NULL,
+    description       TEXT NOT NULL DEFAULT '',
+    tags              TEXT NOT NULL DEFAULT '',
+    store_path        TEXT NOT NULL,
+    doc_count         INTEGER NOT NULL DEFAULT 0,
+    chunk_count       INTEGER NOT NULL DEFAULT 0,
+    status            TEXT NOT NULL DEFAULT 'ready',
+    last_build_at     REAL,
+    last_build_status TEXT,
+    error             TEXT NOT NULL DEFAULT '',
+    created_at        REAL NOT NULL,
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_rags_project ON project_rags(project_id);
@@ -51,6 +55,7 @@ CREATE TABLE IF NOT EXISTS training_runs (
     output_path   TEXT NOT NULL DEFAULT '',
     metrics_json  TEXT NOT NULL DEFAULT '{}',
     notes         TEXT NOT NULL DEFAULT '',
+    error         TEXT NOT NULL DEFAULT '',
     parent_run_id TEXT,
     created_at    REAL NOT NULL,
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
@@ -96,6 +101,70 @@ CREATE TABLE IF NOT EXISTS project_datasets (
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_datasets_project ON project_datasets(project_id);
+
+-- data_prep_runs: per-run persistence for the data-prep pipeline.
+-- The in-memory _RUNS dict in routes/data_prep.py stays for in-progress
+-- polling, but the DB is the durable record.
+CREATE TABLE IF NOT EXISTS data_prep_runs (
+    id            TEXT PRIMARY KEY,
+    project_id    TEXT NOT NULL,
+    source_id     TEXT NOT NULL DEFAULT '',
+    filename      TEXT NOT NULL DEFAULT '',
+    byte_count    INTEGER NOT NULL DEFAULT 0,
+    status        TEXT NOT NULL DEFAULT 'queued',
+    started_at    REAL,
+    finished_at   REAL,
+    duration_ms   INTEGER,
+    qa_total      INTEGER NOT NULL DEFAULT 0,
+    qa_approved   INTEGER NOT NULL DEFAULT 0,
+    output_path   TEXT NOT NULL DEFAULT '',
+    error         TEXT NOT NULL DEFAULT '',
+    settings_json TEXT NOT NULL DEFAULT '{}',
+    created_at    REAL NOT NULL,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_data_prep_project ON data_prep_runs(project_id);
+CREATE INDEX IF NOT EXISTS idx_data_prep_status  ON data_prep_runs(status);
+
+-- rag_corpora: one row per RAG build attempt. Tracks timing + status +
+-- final doc/chunk counts. project_rags holds the latest summary; this
+-- table is the history.
+CREATE TABLE IF NOT EXISTS rag_corpora (
+    id            TEXT PRIMARY KEY,
+    project_id    TEXT NOT NULL,
+    rag_id        TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'queued',
+    started_at    REAL,
+    finished_at   REAL,
+    duration_ms   INTEGER,
+    doc_count     INTEGER NOT NULL DEFAULT 0,
+    chunk_count   INTEGER NOT NULL DEFAULT 0,
+    error         TEXT NOT NULL DEFAULT '',
+    created_at    REAL NOT NULL,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (rag_id) REFERENCES project_rags(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_rag_corpora_project ON rag_corpora(project_id);
+CREATE INDEX IF NOT EXISTS idx_rag_corpora_rag     ON rag_corpora(rag_id);
+
+-- hf_downloads: durable record of HF model download jobs. Replaces the
+-- in-memory _DOWNLOADS dict in routes/hf_models.py so downloads survive
+-- a service restart.
+CREATE TABLE IF NOT EXISTS hf_downloads (
+    id            TEXT PRIMARY KEY,
+    repo_id       TEXT NOT NULL,
+    filename      TEXT NOT NULL DEFAULT '',
+    status        TEXT NOT NULL DEFAULT 'queued',
+    started_at    REAL,
+    finished_at   REAL,
+    duration_ms   INTEGER,
+    bytes_total   INTEGER,
+    bytes_done    INTEGER,
+    path          TEXT NOT NULL DEFAULT '',
+    error         TEXT NOT NULL DEFAULT '',
+    created_at    REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hf_downloads_status ON hf_downloads(status);
 """
 
 
@@ -105,11 +174,17 @@ def new_id() -> str:
 
 
 def _connect() -> sqlite3.Connection:
-    """Open a connection with foreign keys enabled and row factory set."""
+    """Open a connection with foreign keys enabled and row factory set.
+
+    `defer_foreign_keys = ON` lets us INSERT a child row before its parent
+    is fully visible — useful when a route creates a parent (e.g. project)
+    and a child (e.g. run) in the same request.
+    """
     os.makedirs(os.path.dirname(settings.db_path) or ".", exist_ok=True)
     conn = sqlite3.connect(settings.db_path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA defer_foreign_keys = ON")
     return conn
 
 
@@ -126,10 +201,33 @@ def cursor() -> Iterator[sqlite3.Cursor]:
             raise
 
 
+def _safe_alter(cur: sqlite3.Cursor, sql: str) -> None:
+    """Run an ALTER TABLE; ignore `duplicate column name` errors.
+
+    We use this for additive migrations on tables that pre-date the current
+    schema. If the column is already there, the ALTER is a no-op.
+    """
+    try:
+        cur.execute(sql)
+    except sqlite3.OperationalError as e:
+        if "duplicate column" not in str(e):
+            raise
+
+
 def init_db() -> None:
-    """Create tables if they don't exist. Safe to call repeatedly."""
+    """Create tables if they don't exist, then run additive migrations.
+
+    Safe to call repeatedly. New columns added in newer code are detected
+    via _safe_alter — repeated calls are no-ops.
+    """
     with cursor() as c:
         c.executescript(_SCHEMA)
+        # Migrations: widen tables that already exist on upgraded installs.
+        _safe_alter(c, "ALTER TABLE project_rags ADD COLUMN status TEXT NOT NULL DEFAULT 'ready'")
+        _safe_alter(c, "ALTER TABLE project_rags ADD COLUMN last_build_at REAL")
+        _safe_alter(c, "ALTER TABLE project_rags ADD COLUMN last_build_status TEXT")
+        _safe_alter(c, "ALTER TABLE project_rags ADD COLUMN error TEXT NOT NULL DEFAULT ''")
+        _safe_alter(c, "ALTER TABLE training_runs ADD COLUMN error TEXT NOT NULL DEFAULT ''")
 
 
 def row_to_dict(row: sqlite3.Row | None) -> dict | None:

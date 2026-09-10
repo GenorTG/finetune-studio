@@ -42,7 +42,11 @@ def list_rags(project_id: str) -> list[dict]:
 
 
 def update_rag(rid: str, **fields: Any) -> dict | None:
-    allowed = {"name", "description", "tags", "doc_count", "chunk_count"}
+    allowed = {
+        "name", "description", "tags",
+        "doc_count", "chunk_count",
+        "status", "last_build_at", "last_build_status", "error",
+    }
     sets, vals = [], []
     for k, v in fields.items():
         if k in allowed:

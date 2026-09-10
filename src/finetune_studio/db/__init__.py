@@ -44,6 +44,37 @@ from finetune_studio.db.benchmarks import (
     create_benchmark, get_benchmark, list_benchmarks,
 )
 from finetune_studio.db.reviews import list_review, record_review
+from finetune_studio.db.data_prep_runs import (
+    create_run as create_data_prep_run,
+    get_run as get_data_prep_run,
+    list_for_project as list_data_prep_for_project,
+    list_recent as list_data_prep_recent,
+    mark_done as mark_data_prep_done,
+    mark_failed as mark_data_prep_failed,
+    mark_running as mark_data_prep_running,
+    update_run as update_data_prep_run,
+)
+from finetune_studio.db.rag_corpora import (
+    create_build as create_rag_build,
+    get_build as get_rag_build,
+    latest_for_rag as latest_rag_build,
+    list_for_rag as list_rag_builds,
+    mark_done as mark_rag_build_done,
+    mark_failed as mark_rag_build_failed,
+    mark_running as mark_rag_build_running,
+    update_build as update_rag_build,
+)
+from finetune_studio.db.hf_downloads import (
+    create_job as create_hf_download,
+    get_job as get_hf_download,
+    list_in_progress as list_hf_downloads_in_progress,
+    list_recent as list_hf_downloads_recent,
+    mark_cancelled as mark_hf_download_cancelled,
+    mark_done as mark_hf_download_done,
+    mark_failed as mark_hf_download_failed,
+    mark_running as mark_hf_download_running,
+    update_job as update_hf_download,
+)
 
 # Initialise on import so callers don't have to remember.
 init_db()

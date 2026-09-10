@@ -52,7 +52,7 @@ def update_run(rid: str, **fields: Any) -> dict | None:
     allowed = {
         "name", "base_model", "data_path", "system_prompt",
         "status", "started_at", "finished_at", "output_path",
-        "metrics_json", "notes", "parent_run_id",
+        "metrics_json", "notes", "error", "parent_run_id",
     }
     sets, vals = [], []
     for k, v in fields.items():
