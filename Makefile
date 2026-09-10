@@ -1,11 +1,13 @@
-.PHONY: help install install-gguf install-conda check run webui test lint clean
+.PHONY: help install install-cpu install-conda install-llama check update run webui test lint clean
 
 help:
 	@echo "Finetune Studio — common targets:"
-	@echo "  make install         install into ./.venv"
-	@echo "  make install-gguf    install + llama-cpp-python for GGUF"
+	@echo "  make install         install into ./.venv + llama-cpp-python"
+	@echo "  make install-cpu     CPU-only install (skip GPU wheel selection)"
 	@echo "  make install-conda   install into conda env CONDA_ENV=chris-ai"
-	@echo "  make check           verify install"
+	@echo "  make install-llama   build ~/llama.cpp CLI (convert_hf_to_gguf + llama-quantize)"
+	@echo "  make check           verify install + llama.cpp CLI"
+	@echo "  make update          self-healing: pull + sync deps + llama.cpp + restart"
 	@echo "  make run             start webui on :7860"
 	@echo "  make test            run pytest"
 	@echo "  make lint            ruff check"
@@ -20,8 +22,14 @@ install-cpu:
 install-conda:
 	USE_CONDA=1 bash install.sh
 
+install-llama:
+	bash install.sh --llama-cpp-only
+
 check:
 	bash install.sh --check
+
+update:
+	bash update.sh
 
 run:
 	bash run.sh

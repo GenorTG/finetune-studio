@@ -2,6 +2,10 @@
 # Source of truth is pyproject.toml. This file is for users who can't use uv.
 # Install:  pip install -r requirements.txt
 # Then:     pip install -e ../inference-server   (if sibling repo available)
+#
+# GGUF / llama.cpp tooling: required for the export endpoint
+# (POST /api/projects/{pid}/runs/{rid}/export). install.sh builds
+# the llama.cpp CLI binaries separately under ~/llama.cpp.
 
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
@@ -24,3 +28,8 @@ sentencepiece>=0.2.0
 tiktoken>=0.7.0
 requests>=2.31.0
 aiofiles>=23.2.0
+# GGUF export — pure-Python writer + Python inference bindings.
+# For GPU wheel selection use install.sh; raw `pip install -r requirements.txt`
+# gets the CPU llama-cpp-python build (still functional, just slower).
+gguf>=0.10.0
+llama-cpp-python>=0.3.0

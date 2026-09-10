@@ -29,10 +29,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# GGUF is installed separately by install.sh (GPU-aware wheel selection).
-# Only use this if you want a manual CPU-only install: pip install -e .[gguf]
-gguf = ["llama-cpp-python>=0.3.0"]
+# GGUF is also in [project.dependencies] so `pip install -e .` includes it.
+# install.sh installs llama-cpp-python with GPU-aware wheel selection and
+# builds the llama.cpp CLI binaries (~/llama.cpp) for the export endpoint.
+# Optional extras below add bitsandbytes for 4-bit base-model loading.
 bitsandbytes = ["bitsandbytes>=0.43.0"]
+dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "ruff>=0.6.0"]
 
 [project.scripts]
 finetune-studio = "finetune_studio.cli:main"

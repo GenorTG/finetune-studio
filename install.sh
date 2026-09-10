@@ -21,8 +21,11 @@ PYTHON_VERSION="${PYTHON_VERSION:-}"
 USE_CONDA="${USE_CONDA:-0}"
 CONDA_ENV="${CONDA_ENV:-chris-ai}"
 VENV_DIR="${VENV_DIR:-.venv}"
+LLAMA_CPP_DIR="${LLAMA_CPP_DIR:-$HOME/llama.cpp}"
 FORCE_CPU=0
 SKIP_GGUF=0
+SKIP_LLAMA_CPP=0
+LLAMA_CPP_ONLY=0
 
 log()  { echo "[install] $*"; }
 warn() { echo "[install] WARN: $*" >&2; }
@@ -30,9 +33,11 @@ die()  { echo "[install] ERROR: $*" >&2; exit 1; }
 
 for arg in "$@"; do
     case "$arg" in
-        --check)   MODE="check" ;;
-        --cpu)     FORCE_CPU=1 ;;
-        --no-gguf) SKIP_GGUF=1 ;;
+        --check)          MODE="check" ;;
+        --cpu)            FORCE_CPU=1 ;;
+        --no-gguf)        SKIP_GGUF=1 ;;
+        --no-llama-cpp)   SKIP_LLAMA_CPP=1 ;;
+        --llama-cpp-only) LLAMA_CPP_ONLY=1 ;;
         --help|-h) sed -n '2,15p' "$0" | sed 's/^# *//'; exit 0 ;;
         *) die "Unknown arg: $arg  (try --help)" ;;
     esac
@@ -131,6 +136,9 @@ print(f'[install]   torch: {a}', flush=True)
 if torch.cuda.is_available(): print(f'[install]   GPU: {torch.cuda.get_device_name(0)} ({torch.cuda.get_device_properties(0).total_memory/1024**3:.1f} GiB)', flush=True)
 " 2>/dev/null || warn "✗ torch check failed"
         [ "$SKIP_GGUF" = "0" ] && "$VENV_DIR/bin/python" -c "import llama_cpp; print(f'[install]   llama-cpp-python: {llama_cpp.__version__}', flush=True)" 2>/dev/null || true
+        if [ -x "$LLAMA_CPP_DIR/build/bin/llama-quantize" ] && [ -f "$LLAMA_CPP_DIR/convert_hf_to_gguf.py" ]; then
+            log "✓ llama.cpp CLI at $LLAMA_CPP_DIR"
+        else warn "✗ llama.cpp CLI missing — run: bash install.sh --llama-cpp-only"; fi
     else warn "✗ no venv — run: bash install.sh"; fi
     log "✓ chat templates bundled (no sibling dep)"
     exit 0
@@ -245,12 +253,52 @@ install_gguf() {
     esac
 }
 
+# ── Build llama.cpp CLI tools (convert_hf_to_gguf.py + llama-quantize) ──
+# Required by the GGUF export endpoint. Skipped via --no-llama-cpp.
+# Use --llama-cpp-only to JUST build this (skip torch, llama-cpp-python, base pkgs).
+install_llama_cpp_cli() {
+    [ "$SKIP_LLAMA_CPP" = "1" ] && { log "Skipping llama.cpp CLI build (--no-llama-cpp)."; return 0; }
+
+    local convert_script="$LLAMA_CPP_DIR/convert_hf_to_gguf.py"
+    local quantize_bin="$LLAMA_CPP_DIR/build/bin/llama-quantize"
+
+    if [ -f "$convert_script" ] && [ -x "$quantize_bin" ]; then
+        log "llama.cpp CLI present at $LLAMA_CPP_DIR (skipping build)."
+        return 0
+    fi
+
+    log "Building llama.cpp CLI at $LLAMA_CPP_DIR (needed by export endpoint)..."
+    command -v cmake >/dev/null 2>&1 || die "cmake not found. Install build-essential + cmake."
+    command -v git  >/dev/null 2>&1 || die "git not found."
+    if [ ! -d "$LLAMA_CPP_DIR" ]; then
+        git clone --depth 1 https://github.com/ggerganov/llama.cpp "$LLAMA_CPP_DIR" \
+            || die "git clone llama.cpp failed"
+    fi
+    "$PYTHON_CMD" -m pip install --quiet --disable-pip-version-check \
+        -r "$LLAMA_CPP_DIR/requirements/requirements-convert_hf_to_gguf.txt" 2>&1 | tail -3 \
+        || warn "convert_hf_to_gguf pip deps install failed — conversion may not work."
+    cmake -B "$LLAMA_CPP_DIR/build" 2>&1 | tail -2 \
+        || die "cmake configure failed."
+    cmake --build "$LLAMA_CPP_DIR/build" --config Release -j 2>&1 | tail -3 \
+        || die "cmake build failed."
+
+    if [ ! -x "$quantize_bin" ]; then
+        die "llama-quantize not built. Check the cmake output above."
+    fi
+    log "llama-quantize: present at $quantize_bin"
+}
+
 # ── Install everything ──
+if [ "$LLAMA_CPP_ONLY" = "1" ]; then
+    install_llama_cpp_cli
+    exit 0
+fi
 install_torch
 install_gguf
 log "Installing base packages from pyproject.toml..."
 uv pip install --python "$PYTHON_CMD" -e .
 mkdir -p data
+install_llama_cpp_cli
 
 # ── Verify ──
 log "Verifying..."
@@ -262,6 +310,7 @@ if torch.cuda.is_available():
     print(f'  GPU: {torch.cuda.get_device_name(0)} ({torch.cuda.get_device_properties(0).total_memory/1024**3:.1f} GiB)', flush=True)
 " 2>&1 | sed 's/^/[install]   /'
 [ "$SKIP_GGUF" = "0" ] && "$PYTHON_CMD" -c "import llama_cpp; print(f'  llama-cpp-python: {llama_cpp.__version__}')" 2>/dev/null | sed 's/^/[install]   /' || true
+[ -x "$LLAMA_CPP_DIR/build/bin/llama-quantize" ] && log "  llama.cpp CLI: $LLAMA_CPP_DIR" || true
 
 echo ""
 echo "═══════════════════════════════════════════════════════════════"
