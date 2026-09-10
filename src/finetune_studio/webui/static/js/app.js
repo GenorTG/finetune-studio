@@ -145,8 +145,47 @@
   // ── Run once on full load, then re-run on every SPA swap ─────────
   document.addEventListener("DOMContentLoaded", delegate);
 
+  // .js-time formatter: reads data-ts (Unix seconds, possibly float) and
+  // writes a localized "YYYY-MM-DD HH:MM:SS" string. Used by training past-runs
+  // list + detail to render started_at / finished_at as human time instead of
+  // raw Unix timestamps (or "—" when missing).
+  function formatJsTime() {
+    document.querySelectorAll('.js-time[data-ts]').forEach((el) => {
+      const raw = (el.getAttribute('data-ts') || '').trim();
+      if (!raw) { el.textContent = '\u2014'; return; }
+      const ts = Number(raw);
+      if (!Number.isFinite(ts) || ts <= 0) { el.textContent = raw; return; }
+      const d = new Date(ts * 1000);
+      if (isNaN(d.getTime())) { el.textContent = raw; return; }
+      const pad = (n) => String(n).padStart(2, '0');
+      el.textContent = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+        + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    });
+    document.querySelectorAll('.js-duration[data-secs]').forEach((el) => {
+      const raw = (el.getAttribute('data-secs') || '').trim();
+      if (!raw) { el.textContent = '\u2014'; return; }
+      const s = Number(raw);
+      if (!Number.isFinite(s) || s < 0) { el.textContent = raw; return; }
+      if (s < 1) { el.textContent = (s * 1000).toFixed(0) + ' ms'; return; }
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = (s % 60);
+      if (h > 0) el.textContent = h + 'h ' + m + 'm ' + sec.toFixed(1) + 's';
+      else if (m > 0) el.textContent = m + 'm ' + sec.toFixed(1) + 's';
+      else el.textContent = sec.toFixed(2) + 's';
+    });
+  }
+
   // Page-swap hook called from spa.js after each navigation
   window.fts = {
-    notify, api, poll, init: delegate,
+    notify, api, poll, init: delegate, formatJsTime,
   };
+
+  // Run the formatter on full load + after every SPA swap
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', formatJsTime);
+  } else {
+    formatJsTime();
+  }
+  document.addEventListener('fts:navigated', formatJsTime);
 })();

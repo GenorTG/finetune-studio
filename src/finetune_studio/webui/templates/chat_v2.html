@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Chat · {{ project.name }} · Finetune Studio{% endblock %}
-{% block nav_projects %}active{% endblock %}
+{% block nav_project_chat %}active{% endblock %}
 {% block sb_path %}~ / projects / {{ project.name }} / chat{% endblock %}
 {% block crumb %}
 <a href="/projects" data-link>Projects</a> <span class="sep">/</span> <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a> <span class="sep">/</span> <span>Chat</span>
@@ -8,21 +8,234 @@
 {% block content %}
 <div class="page-head">
   <h1>Chat — {{ project.name }}</h1>
-  <div class="sub">Test a model with a single chat. Per-project.</div>
+  <div class="sub">Test a model with a single chat. Per-project. Uses the project's production system prompt and any enabled RAG corpora for context.</div>
+</div>
+
+<div class="card mb-6">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Chat</div>
+      <div class="card-sub">Send a message. The reply uses the project's production system prompt and any enabled RAG corpora for context.</div>
+    </div>
+    <span id="chat-status-pill" class="pill solid-amber">No model loaded</span>
+  </div>
+
+  {# ── RAG selector (if project has any) ───────────────────────── #}
+  {% if rags %}
+  <div class="mb-3">
+    <span class="block text-xs muted mb-1">RAG corpora</span>
+    <div class="flex flex-wrap gap-3 text-xs">
+      {% for rag in rags %}
+      <label class="flex items-center gap-1 muted">
+        <input type="checkbox" name="chat-rag-enabled" value="{{ rag.id }}" checked>
+        {{ rag.name }} <span class="dim">({{ rag.doc_count }} docs · {{ rag.chunk_count }} chunks)</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div id="chat-msgs" class="dp-chat-msgs">
+    <div class="dp-chat-empty">
+      {% if rags %}Send a message below — RAG context will be retrieved automatically.{% else %}Send a message below. Load a model on the <a href="/inference" data-link>Inference</a> tab first if you haven't already.{% endif %}
+    </div>
+  </div>
+
+  <div class="flex gap-2 mt-3">
+    <textarea id="chat-input" rows="2" placeholder="Message… (Shift+Enter for newline)" class="input flex-1"></textarea>
+    <button id="chat-send" class="btn primary" onclick="chatSend()">Send</button>
+  </div>
 </div>
 
 <div class="card">
   <div class="card-head">
     <div>
-      <div class="card-title">Start a chat</div>
-      <div class="card-sub">Chat sessions for project <span class="mono">{{ pid[:8] }}</span>.</div>
+      <div class="card-title">Project context</div>
+      <div class="card-sub">What's being sent to the model alongside your message.</div>
     </div>
   </div>
-  {% if project.description %}
-  <p class="text-sm muted">{{ project.description }}</p>
-  {% endif %}
-  <div class="flex gap-2 mt-4">
+  <table class="table compact">
+    <tr><td class="meta muted">Project ID</td><td class="mono">{{ pid }}</td></tr>
+    <tr><td class="meta muted">System prompt</td><td class="mono">{{ project.system_prompt or '(none)' }}</td></tr>
+    <tr><td class="meta muted">Base model</td><td class="mono">{{ project.base_model or '—' }}</td></tr>
+    <tr><td class="meta muted">Production run</td><td class="mono">{{ project.production_run or '(none)' }}</td></tr>
+    <tr><td class="meta muted">RAG corpora</td><td class="mono">{{ rags|length if rags else 0 }} attached</td></tr>
+  </table>
+  <div class="flex gap-2 mt-4 wrap">
     <a href="/projects/{{ pid }}" class="btn" data-link>← Back to project</a>
+    <a href="/inference" class="btn" data-link>Load / switch model →</a>
   </div>
 </div>
+
+<style>
+.dp-chat-msgs {
+  border: 1px solid var(--border);
+  background: var(--bg-elev, #0a0a0a);
+  padding: 12px;
+  max-height: 460px;
+  overflow-y: auto;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dp-chat-empty {
+  color: var(--text-dim, #666);
+  font-style: italic;
+  text-align: center;
+  padding: 24px 0;
+}
+.dp-chat-msg {
+  padding: 8px 10px;
+  border-left: 2px solid var(--border);
+}
+.dp-chat-user      { border-left-color: var(--accent-green, #00ff66); }
+.dp-chat-assistant { border-left-color: var(--accent, #00ccff); }
+.dp-chat-error     { border-left-color: var(--err, #ff4444); color: var(--err, #ff4444); }
+.dp-chat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim, #666);
+  margin-bottom: 4px;
+}
+.dp-chat-body { white-space: pre-wrap; word-break: break-word; }
+.dp-chat-meta { font-size: 10px; color: var(--text-dim, #666); margin-top: 4px; }
+.dp-chat-sources {
+  font-size: 10px;
+  color: var(--text-dim, #666);
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+.dp-chat-sources summary { cursor: pointer; }
+.dp-chat-source {
+  margin: 4px 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--border);
+}
+</style>
+
+<script>
+const _chatHistory = [];
+const _chatPid = "{{ pid }}";
+
+async function _chatCheckModel() {
+  try {
+    const r = await fetch('/api/providers').then((r) => r.json());
+    const pill = document.getElementById('chat-status-pill');
+    if (r.active && r.active.loaded) {
+      let nice = r.active.name || r.active.id || '?';
+      if (r.active.kind === 'local_gguf' && r.active.model_id) {
+        const base = String(r.active.model_id).split(/[\\/]/).pop() || r.active.model_id;
+        const stripped = base.replace(/\.gguf$/i, '');
+        if (stripped) nice = stripped;
+      }
+      pill.textContent = '● ' + nice;
+      pill.className = 'pill solid-green';
+      pill.title = 'Loaded: ' + nice;
+    } else {
+      pill.textContent = '○ No model loaded';
+      pill.className = 'pill solid-rose';
+      pill.title = 'No model loaded — click to go to Inference.';
+      pill.style.cursor = 'pointer';
+    }
+  } catch (e) { /* ignore */ }
+}
+
+// Click the status pill to jump to /inference when no model is loaded.
+document.getElementById('chat-status-pill').addEventListener('click', () => {
+  window.location.href = '/inference';
+});
+
+function _chatAppend(role, content, meta, sources) {
+  const msgs = document.getElementById('chat-msgs');
+  const empty = msgs.querySelector('.dp-chat-empty');
+  if (empty) empty.remove();
+  const div = document.createElement('div');
+  div.className = 'dp-chat-msg dp-chat-' + role;
+  const label = document.createElement('div');
+  label.className = 'dp-chat-label';
+  label.textContent = role.toUpperCase();
+  const body = document.createElement('div');
+  body.className = 'dp-chat-body';
+  if (typeof content === 'string') {
+    body.textContent = content;
+  } else {
+    body.appendChild(content);
+  }
+  div.appendChild(label);
+  div.appendChild(body);
+  if (sources && sources.length) {
+    const det = document.createElement('details');
+    det.className = 'dp-chat-sources';
+    const sum = document.createElement('summary');
+    sum.textContent = '▾ ' + sources.length + ' source chunk(s) used as context';
+    det.appendChild(sum);
+    sources.forEach((s) => {
+      const src = document.createElement('div');
+      src.className = 'dp-chat-source';
+      const truncated = (s.text || '').slice(0, 300);
+      src.textContent = '[' + (s.rag_name || '?') + ' · score ' + (s.score || '?') + '] ' + truncated + (s.text && s.text.length > 300 ? '…' : '');
+      det.appendChild(src);
+    });
+    div.appendChild(det);
+  }
+  if (meta) {
+    const m = document.createElement('div');
+    m.className = 'dp-chat-meta';
+    m.textContent = meta;
+    div.appendChild(m);
+  }
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+async function chatSend() {
+  const ta = document.getElementById('chat-input');
+  const text = ta.value.trim();
+  if (!text) return;
+  const sendBtn = document.getElementById('chat-send');
+  sendBtn.disabled = true;
+  ta.value = '';
+  _chatAppend('user', text);
+  _chatHistory.push({ role: 'user', content: text });
+
+  const enabled_rag_ids = [...document.querySelectorAll('input[name="chat-rag-enabled"]:checked')].map((c) => c.value);
+
+  try {
+    const r = await fetch('/api/chat-v2/projects/' + _chatPid + '/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: _chatHistory,
+        enabled_rag_ids: enabled_rag_ids,
+      }),
+    });
+    const body = await r.json();
+    if (body.error) throw new Error(body.error);
+    const reply = body.response || body.reply || '(no reply)';
+    _chatHistory.push({ role: 'assistant', content: reply });
+    const meta = (body.chunks_retrieved || 0) + ' chunk(s) retrieved';
+    _chatAppend('assistant', reply, meta, body.sources);
+  } catch (e) {
+    _chatAppend('error', (e && e.message) || String(e));
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+// Enter to send, Shift+Enter for newline
+document.getElementById('chat-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    chatSend();
+  }
+});
+
+// Check model status on load + every 5s
+_chatCheckModel();
+setInterval(_chatCheckModel, 5000);
+</script>
 {% endblock %}

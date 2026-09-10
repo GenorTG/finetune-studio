@@ -218,9 +218,20 @@
   }
 
   function finish() {
-    if (overlay) overlay.hidden = true;
+    if (overlay) {
+      overlay.hidden = true;
+      // Belt-and-suspenders: the .tutorial-overlay CSS uses
+      // position: fixed + inset: 0 which can override the default
+      // [hidden]{display:none} browser rule. Force it off + remove
+      // from the DOM so subsequent clicks / lookups don't find it.
+      overlay.style.display = "none";
+    }
     const highlight = document.getElementById("tutorial-highlight");
     if (highlight) highlight.hidden = true;
+    if (onNavHandler) {
+      document.removeEventListener("fts:navigated", onNavHandler);
+      onNavHandler = null;
+    }
     markSeen();
   }
 

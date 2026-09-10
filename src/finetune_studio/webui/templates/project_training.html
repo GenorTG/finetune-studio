@@ -185,7 +185,7 @@
       <input type="number" name="max_seq_length" value="2048" class="input">
     </label>
     <div class="flex gap-2 mt-4" style="grid-column: 1 / -1;">
-      <button type="submit" class="btn primary" id="start-btn" onclick="this.disabled=true;this.textContent='Starting…'">Start training</button>
+      <button type="submit" class="btn primary" id="start-btn">Start training</button>
       <button type="button" class="btn danger" data-action="/api/training/stop" data-reload="true">Stop</button>
     </div>
   </form>
@@ -223,8 +223,8 @@
       <tr class="row-hover {% if detail_run and detail_run.id == run.id %}row-active{% endif %}">
         <td class="name">{{ run.name }}</td>
         <td><span class="pill {{ {'running':'solid-amber','done':'solid-green','failed':'solid-rose','stopped':'outline'}.get(run.status, 'outline') }}">{{ run.status }}</span></td>
-        <td class="meta">{{ run.started_at or '—' }}</td>
-        <td class="meta">{{ run.duration or '—' }}</td>
+        <td class="meta mono js-time" data-ts="{{ run.started_at or '' }}">—</td>
+        <td class="meta mono js-duration" data-secs="{{ run.duration or '' }}">—</td>
         <td class="num mono">{{ '%.4f'|format(run.final_loss) if run.final_loss else '—' }}</td>
         <td><a class="btn sm" href="/projects/{{ pid }}/training?run={{ run.id }}" data-link>Details</a></td>
       </tr>
@@ -309,21 +309,62 @@
     });
   }
 
-  // Form submission: validate a dataset/data_path is selected.
+  // Form submission: validate a dataset/data_path is selected AND wrap the
+  // submit so the Start button always resets on failure. The global
+  // data-api handler in app.js doesn't reset the button when the POST
+  // rejects, which used to leave it stuck on "Starting…" forever.
   const form = document.getElementById("train-form");
   if (form) {
     form.addEventListener("submit", (ev) => {
+      const startBtn = document.getElementById("start-btn");
+      const originalText = startBtn ? startBtn.textContent : "Start training";
+
       if (!dataPathInput.value) {
         ev.preventDefault();
+        ev.stopImmediatePropagation();
         statusEl && (statusEl.textContent = "✗ Pick or upload a dataset first.");
         // Bring user to the project tab so the dropdown is visible.
         tabs.forEach((t) => t.classList.remove("active"));
         panels.forEach((p) => p.classList.remove("active"));
-        document.querySelector('.data-tab[data-tab="project"]').classList.add("active");
-        document.querySelector('.data-panel[data-panel="project"]').classList.add("active");
+        const projectTab = document.querySelector('.data-tab[data-tab="project"]');
+        const projectPanel = document.querySelector('.data-panel[data-panel="project"]');
+        projectTab && projectTab.classList.add("active");
+        projectPanel && projectPanel.classList.add("active");
+        if (startBtn) { startBtn.disabled = false; startBtn.textContent = originalText; }
         return;
       }
-    });
+
+      // Otherwise wrap the submit: show "Starting…" while the global handler
+      // does its api.post(). Use a flag to detect failure so we can reset.
+      if (startBtn) {
+        startBtn.disabled = true;
+        startBtn.textContent = "Starting…";
+      }
+      // Listen for the next notify/error to re-enable. fts.notify() appends
+      // a .toast to #toasts — observe that.
+      const toasts = document.getElementById("toasts");
+      let resetTimer = setTimeout(() => {
+        // After 5s with no response, assume training started and reset is OK
+        // to leave up to the live-status polling.
+        if (startBtn) { startBtn.disabled = false; startBtn.textContent = originalText; }
+      }, 5000);
+      if (toasts) {
+        const obs = new MutationObserver((muts) => {
+          muts.forEach((m) => {
+            m.addedNodes.forEach((n) => {
+              if (n.classList && n.classList.contains("toast")) {
+                clearTimeout(resetTimer);
+                if (startBtn) { startBtn.disabled = false; startBtn.textContent = originalText; }
+                setTimeout(() => obs.disconnect(), 100);
+              }
+            });
+          });
+        });
+        obs.observe(toasts, { childList: true });
+        // Safety: always reset after 30s no matter what
+        setTimeout(() => obs.disconnect(), 30000);
+      }
+    }, true); // capture phase: run BEFORE the global app.js handler
   }
 
   // Render ISO-formatted times for run detail rows.

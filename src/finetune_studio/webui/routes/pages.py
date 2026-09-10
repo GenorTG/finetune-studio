@@ -286,12 +286,18 @@ async def benchmarks_page(request: Request, pid: str):
 
 @router.get("/projects/{pid}/chat", response_class=HTMLResponse)
 async def project_chat_page(request: Request, pid: str):
-    """Deep-link to chat with a specific project pre-selected."""
+    """Project chat page — chat with the project's production model, optionally
+    augmented by any enabled RAG corpora attached to the project."""
     from finetune_studio import db
     project = db.get_project(pid)
     if not project:
         return RedirectResponse(url="/projects", status_code=302)
-    return templates.TemplateResponse(request, "chat_v2.html", {"request": request, "project": project, "pid": pid})
+    rags = db.list_rags(pid)
+    return templates.TemplateResponse(
+        request,
+        "chat_v2.html",
+        {"request": request, "project": project, "pid": pid, "rags": rags},
+    )
 
 
 @router.get("/projects/{pid}/agentic", response_class=HTMLResponse)
