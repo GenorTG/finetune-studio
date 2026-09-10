@@ -113,6 +113,11 @@
 </div>
 
 <style>
+/* The .grid utility on the external-fields div overrides [hidden] in some
+   themes. Force it off so the external form stays collapsed when 'Local
+   provider' is selected. */
+[hidden] { display: none !important; }
+
 .dp-chat-msgs {
   border: 1px solid var(--border);
   background: var(--bg-elev, #0a0a0a);
