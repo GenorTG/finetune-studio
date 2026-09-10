@@ -105,6 +105,13 @@ async def lifespan(app: FastAPI):
     # Init DB and hook training -> DB persistence.
     db.init_db()
     training_engine.on_update(_on_training_update)
+    # Re-attach to in-flight HF downloads from the previous session so
+    # the UI shows them (and we can mark the dead ones as cancelled).
+    try:
+        from finetune_studio.webui.routes.hf_models import restore_in_progress_downloads
+        restore_in_progress_downloads()
+    except Exception:  # noqa: BLE001
+        pass
     yield
 
 app = FastAPI(title="Finetune Studio", version="0.1.0", lifespan=lifespan)
