@@ -23,9 +23,33 @@ KEY CONCEPTS
 """
 
 import os
+import shutil
 import threading
 import time
 from dataclasses import dataclass, field
+
+
+def _dir_size(path: str) -> int:
+    """Sum of file sizes under `path`, in bytes. Missing dir → 0."""
+    if not os.path.isdir(path):
+        return 0
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(root, f))
+            except OSError:
+                pass
+    return total
+
+
+def _human_size(n: int) -> str:
+    """1.4 GB / 235 MB / 12 KB style."""
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1024:
+            return f"{n:.1f} {unit}" if unit != "B" else f"{n} B"
+        n /= 1024
+    return f"{n:.1f} PB"
 
 
 @dataclass
@@ -45,6 +69,7 @@ class TrainingConfig:
     logging_steps: int = 10
     bf16: bool = True
     unsloth: bool = True
+    merge_on_save: bool = False  # also save a full standalone model at <output_dir>/merged/
     lora_target_modules: list = field(default_factory=lambda: [
         "q_proj", "k_proj", "v_proj", "o_proj",
         "gate_proj", "up_proj", "down_proj",
@@ -231,8 +256,21 @@ class TrainingEngine:
         self.state.message = "Saving model..."
         self._notify()
         os.makedirs(cfg.output_dir, exist_ok=True)
-        model.save_pretrained(os.path.join(cfg.output_dir, "adapter"))
-        tokenizer.save_pretrained(os.path.join(cfg.output_dir, "adapter"))
+        adapter_dir = os.path.join(cfg.output_dir, "adapter")
+        model.save_pretrained(adapter_dir)
+        tokenizer.save_pretrained(adapter_dir)
+        # Persist chat template alongside adapter so the merged model has it.
+        if hasattr(tokenizer, "chat_template") and tokenizer.chat_template:
+            try:
+                with open(os.path.join(adapter_dir, "chat_template.jinja"), "w") as f:
+                    f.write(tokenizer.chat_template)
+            except Exception:  # noqa: BLE001
+                pass
+        if cfg.merge_on_save:
+            self._do_merge(model, tokenizer, cfg.output_dir)
+        self.state.status = "done"
+        self.state.message = "Training complete!"
+        self._notify()
 
     def _train_standard(self, train_data):
         import sys
@@ -302,5 +340,121 @@ class TrainingEngine:
         self.state.status = "saving"
         self._notify()
         os.makedirs(cfg.output_dir, exist_ok=True)
-        model.save_pretrained(os.path.join(cfg.output_dir, "adapter"))
-        tokenizer.save_pretrained(os.path.join(cfg.output_dir, "adapter"))
+        adapter_dir = os.path.join(cfg.output_dir, "adapter")
+        model.save_pretrained(adapter_dir)
+        tokenizer.save_pretrained(adapter_dir)
+        if hasattr(tokenizer, "chat_template") and tokenizer.chat_template:
+            try:
+                with open(os.path.join(adapter_dir, "chat_template.jinja"), "w") as f:
+                    f.write(tokenizer.chat_template)
+            except Exception:  # noqa: BLE001
+                pass
+        if cfg.merge_on_save:
+            self._do_merge(model, tokenizer, cfg.output_dir)
+        self.state.status = "done"
+        self.state.message = "Training complete!"
+        self._notify()
+
+    def _do_merge(self, model, tokenizer, output_dir: str) -> dict:
+        """Merge the in-memory PEFT adapter into the base model and save to
+        `<output_dir>/merged/`. Returns {merged_path, size_bytes, size_human,
+        skipped}.
+
+        Sets engine state messages so the UI shows a 'Merging…' step. Idempotent
+        by default: if `<output_dir>/merged/` already has files, we skip and
+        report the existing size. Test environments can opt out via
+        `FTS_SKIP_MERGE=1`.
+        """
+        merged_dir = os.path.join(output_dir, "merged")
+        if os.path.isdir(merged_dir) and os.listdir(merged_dir):
+            size = _dir_size(merged_dir)
+            self.state.message = "Merged model already exists; skipping."
+            self._notify()
+            return {"merged_path": merged_dir, "size_bytes": size,
+                    "size_human": _human_size(size), "skipped": True}
+        os.makedirs(merged_dir, exist_ok=True)
+        if os.environ.get("FTS_SKIP_MERGE") == "1":
+            self.state.message = "FTS_SKIP_MERGE=1 — skipping merge."
+            self._notify()
+            return {"merged_path": merged_dir, "size_bytes": 0,
+                    "size_human": "0 B", "skipped": True}
+        self.state.message = "Merging adapter into full model..."
+        self._notify()
+        merged = model.merge_and_unload()
+        merged.save_pretrained(merged_dir)
+        tokenizer.save_pretrained(merged_dir)
+        # Copy chat template if it lives in the adapter dir (Unsloth case).
+        src = os.path.join(output_dir, "adapter", "chat_template.jinja")
+        if os.path.exists(src):
+            shutil.copy(src, os.path.join(merged_dir, "chat_template.jinja"))
+        size = _dir_size(merged_dir)
+        self.state.message = f"Saved merged model ({_human_size(size)})."
+        self._notify()
+        return {"merged_path": merged_dir, "size_bytes": size,
+                "size_human": _human_size(size), "skipped": False}
+
+
+def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
+    """Merge a persisted run's adapter on disk into a standalone model.
+
+    Loads `run.base_model` + `<run.output_path>/adapter/`, merges via
+    PEFT's `merge_and_unload()`, saves to `<run.output_path>/merged/`.
+
+    Idempotent: if `<output_path>/merged/` already has files and `force`
+    is False, the existing merge is returned without reloading the model.
+
+    Returns: {merged_path, size_bytes, size_human, skipped, run}.
+    Raises ValueError for the obvious pre-conditions (no base_model,
+    no output_path, no adapter dir on disk).
+    """
+    output_path = (run.get("output_path") or "").strip()
+    base_model = (run.get("base_model") or "").strip()
+    if not output_path:
+        raise ValueError("run has no output_path yet; nothing to merge")
+    if not base_model:
+        raise ValueError("run has no base_model; cannot load base for merging")
+    adapter_dir = os.path.join(output_path, "adapter")
+    if not os.path.isdir(adapter_dir):
+        raise ValueError(f"adapter dir not found on disk: {adapter_dir}")
+    merged_dir = os.path.join(output_path, "merged")
+    if os.path.isdir(merged_dir) and os.listdir(merged_dir) and not force:
+        size = _dir_size(merged_dir)
+        return {"merged_path": merged_dir, "size_bytes": size,
+                "size_human": _human_size(size), "skipped": True, "run": run}
+    if os.environ.get("FTS_SKIP_MERGE") == "1":
+        os.makedirs(merged_dir, exist_ok=True)
+        # Touch a marker so the caller can tell the merge ran.
+        with open(os.path.join(merged_dir, "SKIPPED_BY_TEST"), "w") as f:
+            f.write("FTS_SKIP_MERGE=1\n")
+        return {"merged_path": merged_dir, "size_bytes": 0,
+                "size_human": "0 B", "skipped": True, "run": run}
+    os.makedirs(merged_dir, exist_ok=True)
+    from peft import PeftModel
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    tokenizer = AutoTokenizer.from_pretrained(adapter_dir, trust_remote_code=True)
+    base = AutoModelForCausalLM.from_pretrained(
+        base_model, torch_dtype="auto", trust_remote_code=True,
+    )
+    try:
+        model = PeftModel.from_pretrained(base, adapter_dir)
+        merged = model.merge_and_unload()
+        merged.save_pretrained(merged_dir)
+        tokenizer.save_pretrained(merged_dir)
+        src = os.path.join(adapter_dir, "chat_template.jinja")
+        if os.path.exists(src):
+            shutil.copy(src, os.path.join(merged_dir, "chat_template.jinja"))
+    finally:
+        # Free GPU memory before returning.
+        try:
+            del base, model, merged  # noqa: F821
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:  # noqa: BLE001
+            pass
+    size = _dir_size(merged_dir)
+    return {"merged_path": merged_dir, "size_bytes": size,
+            "size_human": _human_size(size), "skipped": False, "run": run}
