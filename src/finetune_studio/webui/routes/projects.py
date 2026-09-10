@@ -114,7 +114,11 @@ async def delete_rag(pid: str, rid: str):
 
 @router.post("/{pid}/rags/{rid}/ingest")
 async def ingest_into_rag(pid: str, rid: str, request: Request):
-    """Ingest a file or directory into a project RAG."""
+    """Ingest a file or directory into a project RAG.
+
+    Tracks timing + status on both project_rags (latest summary) and
+    rag_corpora (history of every build attempt).
+    """
     body = await request.json()
     path = body.get("path", "")
     if not path or not os.path.exists(path):
@@ -122,14 +126,35 @@ async def ingest_into_rag(pid: str, rid: str, request: Request):
     rag = db.get_rag(rid)
     if not rag:
         return {"error": "rag not found"}
+    # Mark the rag as building + create a history row.
+    build_row = db.create_rag_build(project_id=pid, rag_id=rid)
+    db.update_rag(rid, status="building", last_build_at=time.time(),
+                  last_build_status="running")
+    db.mark_rag_build_running(build_row["id"])
     mgr = RAGManager(rag["store_path"])
-    if os.path.isdir(path):
-        result = mgr.ingest_directory(path)
-    else:
-        result = mgr.ingest_file(path)
-    db.update_rag(rid, doc_count=mgr.stats()["total_documents"],
-                  chunk_count=mgr.stats()["total_chunks"])
-    return {"result": result, "rag": db.get_rag(rid)}
+    try:
+        if os.path.isdir(path):
+            result = mgr.ingest_directory(path)
+        else:
+            result = mgr.ingest_file(path)
+        stats = mgr.stats()
+        doc_count = stats.get("total_documents", 0)
+        chunk_count = stats.get("total_chunks", 0)
+        db.mark_rag_build_done(build_row["id"], doc_count=doc_count,
+                               chunk_count=chunk_count)
+        db.update_rag(rid, doc_count=doc_count, chunk_count=chunk_count,
+                      status="ready", last_build_status="ok",
+                      error="")
+        return {"result": result, "rag": db.get_rag(rid), "build": build_row}
+    except Exception as e:  # noqa: BLE001
+        try:
+            db.mark_rag_build_failed(build_row["id"], str(e))
+            db.update_rag(rid, status="error", last_build_status="failed",
+                          error=str(e)[:500])
+        except Exception:  # noqa: BLE001
+            pass
+        return {"error": f"ingest failed: {e}", "rag": db.get_rag(rid),
+                "build": build_row}
 
 
 @router.post("/{pid}/rags/{rid}/query")
