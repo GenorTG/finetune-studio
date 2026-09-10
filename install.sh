@@ -277,7 +277,7 @@ install_llama_cpp_cli() {
     "$PYTHON_CMD" -m pip install --quiet --disable-pip-version-check \
         -r "$LLAMA_CPP_DIR/requirements/requirements-convert_hf_to_gguf.txt" 2>&1 | tail -3 \
         || warn "convert_hf_to_gguf pip deps install failed — conversion may not work."
-    cmake -B "$LLAMA_CPP_DIR/build" 2>&1 | tail -2 \
+    cmake -S "$LLAMA_CPP_DIR" -B "$LLAMA_CPP_DIR/build" 2>&1 | tail -2 \
         || die "cmake configure failed."
     cmake --build "$LLAMA_CPP_DIR/build" --config Release -j 2>&1 | tail -3 \
         || die "cmake build failed."

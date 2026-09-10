@@ -96,7 +96,7 @@ if [ "$NO_LLAMA" = "0" ] && [ "$CHECK_MODE" = "0" ]; then
             "$VENV_PY" -m pip install --quiet --disable-pip-version-check \
                 -r "$LLAMA_CPP_DIR/requirements/requirements-convert_hf_to_gguf.txt" 2>&1 | tail -3 \
                 || warn "convert_hf_to_gguf pip deps failed"
-            cmake -B "$LLAMA_CPP_DIR/build" 2>&1 | tail -2 \
+            cmake -S "$LLAMA_CPP_DIR" -B "$LLAMA_CPP_DIR/build" 2>&1 | tail -2 \
                 || warn "cmake configure failed"
             cmake --build "$LLAMA_CPP_DIR/build" --config Release -j 2>&1 | tail -3 \
                 || warn "cmake build failed"
