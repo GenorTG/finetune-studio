@@ -547,18 +547,12 @@ def repair(
     if REINSTALL_TORCH in by_code:
         if gpu.vendor == "nvidia" and gpu.cuda_ver:
             idx = f"https://download.pytorch.org/whl/{gpu.cuda_ver}"
-            cmd = [
-                shutil.which("uv") and "uv" or "pip",
-                "pip", "install", "--python", str(venv_py),
+            log(f"[repair] reinstalling torch family from {idx}")
+            r = subprocess.run([
+                sys.executable, "-m", "pip", "install",
                 "--reinstall", "--index-url", idx,
                 "torch", "torchvision", "torchaudio",
-            ]
-            # Strip the bogus leading "pip" if uv wasn't found
-            if not shutil.which("uv"):
-                cmd = cmd[2:]
-                cmd = [sys.executable, "-m"] + cmd
-            log(f"[repair] reinstalling torch family from {idx}")
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
+            ], capture_output=True, text=True, timeout=900)
             actions.append(f"torch reinstall: {'ok' if r.returncode == 0 else 'FAIL'}")
             if r.returncode != 0:
                 log(r.stderr[-800:])

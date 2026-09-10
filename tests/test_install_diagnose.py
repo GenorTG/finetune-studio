@@ -285,6 +285,110 @@ class TestDiagnoseHealthy:
         assert diag.BUILD_LLAMA_CPP_CLI not in codes
 
 
+# ── repair() — autofix command construction ──────────────────────────────
+
+class TestRepairTorchCommand:
+    """Regression for the cmd-construction bug: fan-dragon's install
+    repaired to 'pip pip install --python X --reinstall ...' (duplicated
+    pip + wrong module path). Resulted in python -m install which
+    silently failed and the bash script's set -e killed it before any
+    wheel was downloaded."""
+
+    def test_torch_repair_uses_python_m_pip(self, tmp_path):
+        """The torch reinstall must use `sys.executable -m pip install`,
+        NOT 'pip pip install --python X ...'. Captured via subprocess.run
+        patch so we can assert the exact argv without doing a real pip
+        install."""
+        venv = tmp_path / ".venv"
+        (venv / "bin").mkdir(parents=True)
+        (venv / "bin" / "python").write_text("#!/bin/sh\n")
+        (venv / "bin" / "python").chmod(0o755)
+        (tmp_path / "llama.cpp").mkdir()
+
+        import install_diagnose as d
+        gpu_stub = d.GpuInfo(
+            vendor="nvidia", name="RTX 3090", driver_version="610.57.04",
+            cuda_ver="cu130", cuda_toolkit_path="/opt/cuda",
+        )
+        issues = [d.Issue(d.REINSTALL_TORCH, "broken", "fix it", severity=2)]
+
+        with patch.object(d, "GpuInfo") as gi, \
+             patch.object(d, "subprocess") as sb:
+            gi.detect.return_value = gpu_stub
+            sb.run.return_value = _fake_run(returncode=0)
+            ok, actions = d.repair(issues, venv, tmp_path / "llama.cpp",
+                                   log=lambda *a, **k: None)
+
+        # argv[0] must be a python interpreter (sys.executable is "/usr/bin/python3"
+        # on Linux); argv[1]='-m'; argv[2]='pip'
+        argv = sb.run.call_args[0][0]
+        assert "python" in argv[0].lower(), \
+            f"expected python interpreter, got {argv[0]}"
+        assert argv[1] == "-m"
+        assert argv[2] == "pip"
+        # Must use the cu130 index (no --python flag — pip picks venv from sys.executable)
+        assert "--index-url" in argv
+        idx = argv[argv.index("--index-url") + 1]
+        assert idx.endswith("/cu130"), f"expected cu130 index, got {idx}"
+        # Must target the torch family
+        for pkg in ("torch", "torchvision", "torchaudio"):
+            assert pkg in argv, f"missing {pkg} in argv: {argv}"
+        # The original bug was a duplicated 'pip' subcommand
+        # (e.g. ['pip', 'pip', 'install', ...] or ['pip', 'pip', ...]).
+        # The CORRECT pattern is ['python', '-m', 'pip', 'install', ...].
+        # So we forbid two consecutive 'pip' entries.
+        for i in range(len(argv) - 1):
+            assert not (argv[i] == "pip" and argv[i + 1] == "pip"), \
+                f"duplicated pip subcommand in argv: {argv}"
+        assert "--python" not in argv, \
+            "pip doesn't accept --python; rely on sys.executable for venv context"
+
+    def test_cpu_torch_repair_uses_cpu_index(self, tmp_path):
+        venv = tmp_path / ".venv"
+        (venv / "bin").mkdir(parents=True)
+        (venv / "bin" / "python").write_text("#!/bin/sh\n")
+        (venv / "bin" / "python").chmod(0o755)
+        (tmp_path / "llama.cpp").mkdir()
+
+        import install_diagnose as d
+        gpu_stub = d.GpuInfo(
+            vendor="none", name="(no GPU)", driver_version="",
+            cuda_ver="", cuda_toolkit_path="",
+        )
+        issues = [d.Issue(d.REINSTALL_TORCH, "broken", "fix it", severity=2)]
+        with patch.object(d, "GpuInfo") as gi, \
+             patch.object(d, "subprocess") as sb:
+            gi.detect.return_value = gpu_stub
+            sb.run.return_value = _fake_run(returncode=0)
+            d.repair(issues, venv, tmp_path / "llama.cpp",
+                     log=lambda *a, **k: None)
+        argv = sb.run.call_args[0][0]
+        idx = argv[argv.index("--index-url") + 1]
+        assert idx.endswith("/cpu"), f"expected cpu index, got {idx}"
+
+    def test_repair_returns_false_when_torch_install_fails(self, tmp_path):
+        venv = tmp_path / ".venv"
+        (venv / "bin").mkdir(parents=True)
+        (venv / "bin" / "python").write_text("#!/bin/sh\n")
+        (venv / "bin" / "python").chmod(0o755)
+        (tmp_path / "llama.cpp").mkdir()
+
+        import install_diagnose as d
+        gpu_stub = d.GpuInfo(
+            vendor="nvidia", name="RTX 3090", driver_version="610.57.04",
+            cuda_ver="cu130", cuda_toolkit_path="/opt/cuda",
+        )
+        issues = [d.Issue(d.REINSTALL_TORCH, "broken", "fix it", severity=2)]
+        with patch.object(d, "GpuInfo") as gi, \
+             patch.object(d, "subprocess") as sb:
+            gi.detect.return_value = gpu_stub
+            sb.run.return_value = _fake_run(returncode=1, stderr="boom")
+            ok, actions = d.repair(issues, venv, tmp_path / "llama.cpp",
+                                   log=lambda *a, **k: None)
+        assert ok is False
+        assert any("torch reinstall: FAIL" in a for a in actions)
+
+
 # ── CLI smoke tests ─────────────────────────────────────────────────────
 
 class TestCLI:

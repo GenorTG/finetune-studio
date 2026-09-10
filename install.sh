@@ -173,7 +173,9 @@ case "$MODE" in
         # can fix (mixed torch, missing llama.cpp CLI), apply the fixes.
         # Anything requiring a venv recreate delegates back to install.
         log "Diagnosing current install..."
-        run_diagnose
+        # NB: don't let `set -e` kill us on non-zero — the diagnostic
+        # exits 2 to signal critical issues. We capture the rc explicitly.
+        run_diagnose || true
         DIAG_RC=$?
         if [ "$DIAG_RC" = "0" ]; then
             log "✓ install already healthy, nothing to repair."
@@ -183,11 +185,11 @@ case "$MODE" in
         # Re-run with --repair to apply; the helper handles torch + llama-cpp
         # fixes in-process. For RECREATE_VENV, it advises recreating the venv
         # and we fall through to the normal install path.
-        run_diagnose --repair --no-service-check
+        run_diagnose --repair --no-service-check || true
         REPAIR_RC=$?
         if [ "$REPAIR_RC" -eq 0 ]; then
             log "✓ repair succeeded. Re-running diagnose to verify..."
-            run_diagnose
+            run_diagnose || true
             exit $?
         fi
         # Repair couldn't autofix everything (likely needs venv recreate).
