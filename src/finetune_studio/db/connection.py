@@ -191,6 +191,24 @@ CREATE TABLE IF NOT EXISTS model_exports (
 CREATE INDEX IF NOT EXISTS idx_exports_project ON model_exports(project_id);
 CREATE INDEX IF NOT EXISTS idx_exports_run     ON model_exports(run_id);
 CREATE INDEX IF NOT EXISTS idx_exports_status  ON model_exports(status);
+
+-- system_updates: every self-healing update attempt. Logs the full
+-- script output so the UI can show what happened during the install.
+-- Not tied to a project — it's a system-wide concern.
+CREATE TABLE IF NOT EXISTS system_updates (
+    id            TEXT PRIMARY KEY,
+    mode          TEXT NOT NULL DEFAULT 'update',  -- update | check | repair
+    status        TEXT NOT NULL DEFAULT 'queued',  -- queued | running | done | error | cancelled
+    started_at    REAL,
+    finished_at   REAL,
+    duration_ms   INTEGER,
+    log_text      TEXT NOT NULL DEFAULT '',
+    error         TEXT NOT NULL DEFAULT '',
+    options_json  TEXT NOT NULL DEFAULT '{}',       -- no_pull, no_llama, no_restart
+    triggered_by  TEXT NOT NULL DEFAULT 'user',     -- user | system
+    created_at    REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_updates_status ON system_updates(status);
 """
 
 

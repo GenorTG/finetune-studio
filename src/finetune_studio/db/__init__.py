@@ -86,6 +86,18 @@ from finetune_studio.db.model_exports import (
     mark_running as mark_export_running,
     update_export,
 )
+from finetune_studio.db.system_updates import (
+    append_log as append_update_log,
+    create_update,
+    get_update,
+    latest_in_progress as latest_update_in_progress,
+    list_recent as list_updates_recent,
+    mark_cancelled as mark_update_cancelled,
+    mark_done as mark_update_done,
+    mark_failed as mark_update_failed,
+    mark_running as mark_update_running,
+    update_update,
+)
 
 # Initialise on import so callers don't have to remember.
 init_db()
