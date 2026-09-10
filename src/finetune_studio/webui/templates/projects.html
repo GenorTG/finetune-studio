@@ -57,6 +57,17 @@
   <button class="btn" onclick="document.getElementById('new-project').hidden=false" style="margin-left:auto;">＋ New project</button>
 </div>
 
+{# Bulk-action bar — shows when at least one card is selected. #}
+<div class="bulk-bar" id="bulk-bar">
+  <label class="flex items-center gap-2" style="font-size:12px;">
+    <input type="checkbox" id="proj-select-all" onclick="event.stopPropagation(); selectAll(this.checked);">
+    <span class="muted">all visible</span>
+  </label>
+  <span id="bulk-count" class="mono text-xs">0 selected</span>
+  <button type="button" class="btn ghost" style="margin-left:auto;" onclick="clearSelection()">Clear</button>
+  <button type="button" class="btn danger" onclick="bulkDelete()">Delete selected</button>
+</div>
+
 {% if not projects %}
   <div class="empty">
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
@@ -66,7 +77,13 @@
 {% else %}
   <div class="proj-list" id="proj-list">
     {% for p in projects %}
-    <a class="proj-card" href="/projects/{{ p.id }}" data-link data-search="{{ (p.name + ' ' + (p.description or ''))|lower }}">
+    <a class="proj-card" href="/projects/{{ p.id }}" data-link data-search="{{ (p.name + ' ' + (p.description or ''))|lower }}" data-pid="{{ p.id }}" data-name="{{ p.name|e }}">
+      <input type="checkbox" class="proj-select"
+             onclick="event.preventDefault(); event.stopPropagation(); toggleSelect('{{ p.id }}', this.checked);"
+             aria-label="Select {{ p.name|e }}">
+      <button type="button" class="proj-delete"
+              onclick="event.preventDefault(); event.stopPropagation(); confirmDelete(['{{ p.id }}'], '{{ p.name|e }}');"
+              aria-label="Delete {{ p.name|e }}">✕</button>
       <div class="ph-icon lg">
         {{ p.name[0]|upper }}
       </div>
@@ -89,6 +106,63 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+/* Per-card select checkbox + delete button. Positioned absolutely so
+   they overlay the navigation card without breaking the <a> wrapper. */
+.proj-card { position: relative; }
+.proj-card .proj-select {
+  position: absolute; left: 10px; top: 10px;
+  width: 16px; height: 16px; z-index: 5;
+  accent-color: var(--accent-green, #00ff66);
+  cursor: pointer;
+}
+.proj-card .proj-delete {
+  position: absolute; right: 8px; top: 8px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-dim, #666); padding: 2px 7px;
+  font-family: var(--font-mono, monospace); font-size: 11px;
+  cursor: pointer; z-index: 5;
+  border-radius: 3px;
+}
+.proj-card .proj-delete:hover {
+  color: var(--accent-red, #ff4444);
+  border-color: var(--accent-red, #ff4444);
+}
+.proj-card.selected { outline: 1px solid var(--accent-green, #00ff66); }
+
+/* Bulk-action toolbar. */
+.bulk-bar {
+  display: none; align-items: center; gap: 14px;
+  padding: 10px 14px; margin-bottom: 12px;
+  border: 1px solid var(--border); background: var(--bg-elev, #0a0a0a);
+}
+.bulk-bar.visible { display: flex; }
+.bulk-bar .btn.danger { background: var(--accent-red, #ff4444); color: #000; }
+
+/* Confirm modal. */
+.modal-bg {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+  z-index: 100; display: none; align-items: center; justify-content: center;
+}
+.modal-bg.visible { display: flex; }
+.modal-bg .modal {
+  background: var(--bg, #000); border: 1px solid var(--border);
+  padding: 24px; max-width: 480px; width: 90%;
+}
+</style>
+
+{# Confirm modal. Single instance reused for both single + bulk delete. #}
+<div class="modal-bg" id="delete-modal-bg" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3 id="delete-modal-title" style="margin-top:0;">Confirm delete</h3>
+    <p id="delete-modal-body" class="muted text-sm"></p>
+    <div class="flex gap-2 mt-4" style="justify-content:flex-end;">
+      <button type="button" class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button type="button" class="btn danger" id="delete-modal-confirm">Delete</button>
+    </div>
+  </div>
+</div>
+
 <script>
 fts.api.get('/api/models/list').then(models => {
   const sel = document.getElementById('np-base');
@@ -101,12 +175,109 @@ fts.api.get('/api/models/list').then(models => {
   });
 });
 
+const _projSelected = new Set();
+
+function toggleSelect(pid, checked) {
+  if (checked) _projSelected.add(pid); else _projSelected.delete(pid);
+  const card = document.querySelector(`.proj-card[data-pid="${pid}"]`);
+  if (card) card.classList.toggle('selected', checked);
+  updateBulkBar();
+}
+
+function selectAll(checked) {
+  document.querySelectorAll('#proj-list .proj-card').forEach(card => {
+    if (card.hidden) return;
+    const cb = card.querySelector('.proj-select');
+    if (!cb) return;
+    cb.checked = checked;
+    const pid = card.dataset.pid;
+    if (checked) _projSelected.add(pid); else _projSelected.delete(pid);
+    card.classList.toggle('selected', checked);
+  });
+  updateBulkBar();
+}
+
+function clearSelection() {
+  _projSelected.clear();
+  document.querySelectorAll('#proj-list .proj-card').forEach(card => {
+    card.classList.remove('selected');
+    const cb = card.querySelector('.proj-select');
+    if (cb) cb.checked = false;
+  });
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById('bulk-bar');
+  const n = _projSelected.size;
+  bar.classList.toggle('visible', n > 0);
+  document.getElementById('bulk-count').textContent = `${n} selected`;
+  const allCb = document.getElementById('proj-select-all');
+  if (!allCb) return;
+  const visible = [...document.querySelectorAll('#proj-list .proj-card')].filter(c => !c.hidden);
+  const selVisible = visible.filter(c => _projSelected.has(c.dataset.pid));
+  allCb.checked = visible.length > 0 && selVisible.length === visible.length;
+  allCb.indeterminate = selVisible.length > 0 && selVisible.length < visible.length;
+}
+
+function confirmDelete(ids, name) {
+  const title = document.getElementById('delete-modal-title');
+  const body = document.getElementById('delete-modal-body');
+  if (ids.length === 1) {
+    title.textContent = 'Delete project?';
+    body.innerHTML = `Permanently delete <code>${name || ids[0]}</code> along with all its runs, datasets, RAGs, and activity. <strong>This cannot be undone.</strong>`;
+  } else {
+    title.textContent = `Delete ${ids.length} projects?`;
+    body.innerHTML = `Permanently delete ${ids.length} projects along with all their runs, datasets, RAGs, and activity. <strong>This cannot be undone.</strong>`;
+  }
+  document.getElementById('delete-modal-confirm').onclick = () => doDelete(ids);
+  document.getElementById('delete-modal-bg').classList.add('visible');
+}
+
+function closeModal() {
+  document.getElementById('delete-modal-bg').classList.remove('visible');
+}
+
+async function doDelete(ids) {
+  const btn = document.getElementById('delete-modal-confirm');
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = 'Deleting…';
+  let ok = 0, fail = 0, lastErr = '';
+  for (const id of ids) {
+    try {
+      const r = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+      if (r.ok) ok++; else { fail++; lastErr = `${r.status} ${await r.text().catch(()=>'')}`; }
+    } catch (e) { fail++; lastErr = String(e); }
+  }
+  btn.disabled = false;
+  btn.textContent = origText;
+  closeModal();
+  if (fail > 0) {
+    fts && fts.toast ? fts.toast(`Deleted ${ok}, failed ${fail}: ${lastErr}`, 'error') : alert(`Deleted ${ok}, failed ${fail}: ${lastErr}`);
+  }
+  _projSelected.clear();
+  // Full reload so server-side counts (badge, etc.) refresh.
+  location.reload();
+}
+
+function bulkDelete() {
+  if (_projSelected.size === 0) return;
+  confirmDelete([..._projSelected], null);
+}
+
 function filterProjects() {
   const q = document.getElementById('proj-search').value.trim().toLowerCase();
   document.querySelectorAll('#proj-list .proj-card').forEach(el => {
     const s = el.dataset.search || '';
     el.hidden = q && !s.includes(q);
   });
+  updateBulkBar();
 }
+
+// ESC closes the modal.
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal();
+});
 </script>
 {% endblock %}
