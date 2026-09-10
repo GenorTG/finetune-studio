@@ -59,16 +59,49 @@ else
 fi
 
 # ── Step 2: venv check / repair ─────────────────────────────────────────
+DIAGNOSE_PY="$(dirname "$(readlink -f "$0")")/scripts/install_diagnose.py"
+run_diagnose() {
+    local py
+    if [ -x "$VENV_PY" ] && "$VENV_PY" -c "import sys" >/dev/null 2>&1; then
+        py="$VENV_PY"
+    else
+        py="$(command -v python3 || command -v python)"
+    fi
+    "$py" "$DIAGNOSE_PY" --venv "$VENV_DIR" --llama-cpp "$LLAMA_CPP_DIR" "$@"
+}
+
 if [ "$REPAIR_MODE" = "1" ]; then
     log "REPAIR: removing $VENV_DIR and recreating..."
     rm -rf "$VENV_DIR"
 fi
 
-if [ ! -x "$VENV_PY" ]; then
-    warn "venv missing at $VENV_DIR — running install.sh --cpu..."
-    bash install.sh --cpu 2>&1 | tail -8 || die "install.sh failed"
+if [ ! -x "$VENV_PY" ] || ! "$VENV_PY" -c "import sys" >/dev/null 2>&1; then
+    warn "venv missing or broken at $VENV_DIR — running install.sh..."
+    bash install.sh 2>&1 | tail -8 || die "install.sh failed"
     VENV_PY="$PWD/$VENV_DIR/bin/python"
     [ -x "$VENV_PY" ] || die "venv still broken after install.sh"
+else
+    # Existing venv: run deep diagnostic to catch mixed installs,
+    # missing deps, and broken torchaudio that the old existence check missed.
+    if [ "$CHECK_MODE" = "0" ]; then
+        log "Running venv health check (autodetect broken installs)..."
+        if ! run_diagnose --no-service-check > /tmp/fts-update-diag.txt 2>&1; then
+            warn "Health check found issues — see /tmp/fts-update-diag.txt"
+            cat /tmp/fts-update-diag.txt | sed 's/^/  /'
+            log "Attempting autofix via scripts/install_diagnose.py --repair..."
+            if run_diagnose --repair --no-service-check; then
+                log "✓ repair ok, continuing with update."
+            else
+                warn "Repair couldn't fully resolve. Recreating venv..."
+                rm -rf "$VENV_DIR"
+                bash install.sh 2>&1 | tail -8 || die "install.sh failed"
+                VENV_PY="$PWD/$VENV_DIR/bin/python"
+                [ -x "$VENV_PY" ] || die "venv still broken after install.sh"
+            fi
+        else
+            log "✓ venv health OK."
+        fi
+    fi
 fi
 
 # ── Step 3: pip sync ────────────────────────────────────────────────────

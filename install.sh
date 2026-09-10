@@ -10,6 +10,8 @@
 #
 # Flags:
 #   --check     verify install, no changes
+#   --repair    diagnose broken install + auto-fix (mixed torch, missing deps, etc.)
+#   --verify    deep diagnostic, exit code = health (2=critical, 1=warn, 0=ok)
 #   --cpu       force CPU-only (skip GPU wheel selection)
 #   --no-gguf   skip llama-cpp-python entirely
 #   --help      show usage
@@ -34,15 +36,39 @@ die()  { echo "[install] ERROR: $*" >&2; exit 1; }
 for arg in "$@"; do
     case "$arg" in
         --check)          MODE="check" ;;
+        --repair)         MODE="repair" ;;
+        --verify)         MODE="verify" ;;
         --cpu)            FORCE_CPU=1 ;;
         --no-gguf)        SKIP_GGUF=1 ;;
         --no-llama-cpp)   SKIP_LLAMA_CPP=1 ;;
         --llama-cpp-only) LLAMA_CPP_ONLY=1 ;;
-        --help|-h) sed -n '2,15p' "$0" | sed 's/^# *//'; exit 0 ;;
+        --help|-h) sed -n '2,18p' "$0" | sed 's/^# *//'; exit 0 ;;
         *) die "Unknown arg: $arg  (try --help)" ;;
     esac
 done
 : "${MODE:=install}"
+
+# ── Delegate to Python diagnostic for these modes ──────────────────────
+# The Python module (scripts/install_diagnose.py) owns the deep health
+# logic. Bash handles package installs + cmake builds; Python inspects.
+DIAGNOSE_PY="$(dirname "$(readlink -f "$0")")/scripts/install_diagnose.py"
+run_diagnose() {
+    local extra_args=("$@")
+    if [ -x "$VENV_DIR/bin/python" ] && [ "$MODE" != "repair" ]; then
+        # Use the venv python if it's at least importable; else fall back
+        # to the system python (the helper avoids importing torch itself).
+        if "$VENV_DIR/bin/python" -c "import sys" >/dev/null 2>&1; then
+            "$VENV_DIR/bin/python" "$DIAGNOSE_PY" --venv "$VENV_DIR" \
+                --llama-cpp "$LLAMA_CPP_DIR" "${extra_args[@]}"
+            return $?
+        fi
+    fi
+    local py
+    py="$(command -v python3 || command -v python)"
+    [ -n "$py" ] || die "no python3 found on PATH"
+    "$py" "$DIAGNOSE_PY" --venv "$VENV_DIR" \
+        --llama-cpp "$LLAMA_CPP_DIR" "${extra_args[@]}"
+}
 
 # ── OS detection ──
 if [ -f /etc/os-release ]; then
@@ -122,27 +148,57 @@ pick_python() {
 
 PYTHON_CMD="$(pick_python || true)"
 
-# ── --check ──
-if [ "$MODE" = "check" ]; then
-    if [ -n "$PYTHON_CMD" ]; then
-        log "✓ Python $("$PYTHON_CMD" -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")') at $PYTHON_CMD"
-    else warn "✗ Python 3.12+ not found"; fi
-    if [ -d "$VENV_DIR" ] && [ -x "$VENV_DIR/bin/python" ]; then
-        log "✓ venv at $VENV_DIR"
-        "$VENV_DIR/bin/python" -c "import fastapi, jinja2" 2>/dev/null && log "✓ key packages OK" || warn "✗ key packages missing"
-        "$VENV_DIR/bin/python" -c "
-import torch; a='cuda' if torch.cuda.is_available() else ('mps' if torch.backends.mps.is_available() else 'cpu')
-print(f'[install]   torch: {a}', flush=True)
-if torch.cuda.is_available(): print(f'[install]   GPU: {torch.cuda.get_device_name(0)} ({torch.cuda.get_device_properties(0).total_memory/1024**3:.1f} GiB)', flush=True)
-" 2>/dev/null || warn "✗ torch check failed"
-        [ "$SKIP_GGUF" = "0" ] && "$VENV_DIR/bin/python" -c "import llama_cpp; print(f'[install]   llama-cpp-python: {llama_cpp.__version__}', flush=True)" 2>/dev/null || true
-        if [ -x "$LLAMA_CPP_DIR/build/bin/llama-quantize" ] && [ -f "$LLAMA_CPP_DIR/convert_hf_to_gguf.py" ]; then
-            log "✓ llama.cpp CLI at $LLAMA_CPP_DIR"
-        else warn "✗ llama.cpp CLI missing — run: bash install.sh --llama-cpp-only"; fi
-    else warn "✗ no venv — run: bash install.sh"; fi
-    log "✓ chat templates bundled (no sibling dep)"
-    exit 0
-fi
+# ── Diagnostic-only modes (delegate to Python helper) ──
+# These exit before any install/build work, so they can be run cheaply
+# from cron, systemd health checks, or CI.
+case "$MODE" in
+    verify|check)
+        # Back-compat: --check still prints a friendly summary, --verify
+        # is the strict (exit-code-driven) variant for scripts.
+        if [ "$MODE" = "check" ]; then
+            # Friendly summary
+            run_diagnose --no-service-check
+            echo ""
+            log "For deeper diagnosis (with service check + JSON), run:"
+            log "  bash install.sh --verify"
+            log "  python3 scripts/install_diagnose.py --json"
+            exit 0
+        fi
+        # verify: deep diagnostic, exit code reflects health
+        #   0 = ok   1 = warnings only   2+ = critical
+        run_diagnose --check
+        ;;
+    repair)
+        # Diagnose + autofix. If the diagnostic finds issues that bash
+        # can fix (mixed torch, missing llama.cpp CLI), apply the fixes.
+        # Anything requiring a venv recreate delegates back to install.
+        log "Diagnosing current install..."
+        run_diagnose
+        DIAG_RC=$?
+        if [ "$DIAG_RC" = "0" ]; then
+            log "✓ install already healthy, nothing to repair."
+            exit 0
+        fi
+        log "Issues found (rc=$DIAG_RC). Applying fixes..."
+        # Re-run with --repair to apply; the helper handles torch + llama-cpp
+        # fixes in-process. For RECREATE_VENV, it advises recreating the venv
+        # and we fall through to the normal install path.
+        run_diagnose --repair --no-service-check
+        REPAIR_RC=$?
+        if [ "$REPAIR_RC" -eq 0 ]; then
+            log "✓ repair succeeded. Re-running diagnose to verify..."
+            run_diagnose
+            exit $?
+        fi
+        # Repair couldn't autofix everything (likely needs venv recreate).
+        # Remove the venv and let the normal install path build a fresh one
+        # with the correct GPU-aware wheels.
+        log "Repair didn't fully resolve. Recreating venv and re-installing..."
+        rm -rf "$VENV_DIR"
+        # Fall through to install path
+        MODE="install"
+        ;;
+esac
 
 [ -z "$PYTHON_CMD" ] && die "Python 3.12+ not found. Install:
   Debian/Ubuntu:  sudo apt-get install -y python3.12 python3.12-venv python3.12-dev
@@ -311,6 +367,18 @@ if torch.cuda.is_available():
 " 2>&1 | sed 's/^/[install]   /'
 [ "$SKIP_GGUF" = "0" ] && "$PYTHON_CMD" -c "import llama_cpp; print(f'  llama-cpp-python: {llama_cpp.__version__}')" 2>/dev/null | sed 's/^/[install]   /' || true
 [ -x "$LLAMA_CPP_DIR/build/bin/llama-quantize" ] && log "  llama.cpp CLI: $LLAMA_CPP_DIR" || true
+
+# ── Post-install health check (autodetect broken installs) ──
+# The deep diagnostic catches issues the surface checks miss
+# (mixed torch family, torchaudio+libc10_cuda.so mismatches, etc.).
+# On a fresh install this should be a no-op; on a re-install into an
+# existing venv it surfaces problems that need --repair.
+log "Running deep health check (scripts/install_diagnose.py)..."
+if ! run_diagnose; then
+    warn "Deep health check found issues. Run  bash install.sh --repair  to autofix,"
+    warn "or  bash install.sh --verify  to see details. Common fix:"
+    warn "  bash install.sh --repair"
+fi
 
 echo ""
 echo "═══════════════════════════════════════════════════════════════"
