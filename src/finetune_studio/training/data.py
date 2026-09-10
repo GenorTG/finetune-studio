@@ -54,27 +54,57 @@ def validate_messages(data: list) -> list:
             errors.append(f"Row {i}: no messages or text key found")
     return errors
 
+_SHAREGPT_FROM_TO_ROLE = {
+    "human": "user",
+    "user": "user",
+    "gpt": "assistant",
+    "assistant": "assistant",
+    "system": "system",
+    "observation": "tool",
+}
+
+
+def _conversations_to_messages(conversations: list) -> list:
+    """Convert sharegpt `conversations: [{from, value}]` to OpenAI
+    `messages: [{role, content}]`. Unknown `from` values raise so
+    training fails loudly instead of silently dropping the row."""
+    out = []
+    for turn in conversations:
+        src = (turn.get("from") or "").strip().lower()
+        dst = _SHAREGPT_FROM_TO_ROLE.get(src)
+        if dst is None:
+            raise ValueError(f"unknown sharegpt 'from' role: {turn.get('from')!r}")
+        out.append({"role": dst, "content": turn.get("value", "")})
+    return out
+
+
 def format_for_sft(data: list, system_prompt: str = "") -> list:
     formatted = []
     for item in data:
-        if "messages" in item:
+        # Prefer 'conversations' (sharegpt) when BOTH are present — that's
+        # what the data-prep export endpoint writes, and a row with both
+        # is almost always an export artefact, not user intent.
+        if "conversations" in item and isinstance(item["conversations"], list):
+            try:
+                msgs = _conversations_to_messages(item["conversations"])
+            except ValueError:
+                continue
+        elif "messages" in item:
             msgs = list(item["messages"])
-            if system_prompt and (not msgs or msgs[0].get("role") != "system"):
-                msgs = [{"role": "system", "content": system_prompt}] + msgs
-            formatted.append({"messages": msgs})
         elif "text" in item:
-            msgs = []
-            if system_prompt:
-                msgs.append({"role": "system", "content": system_prompt})
-            msgs.append({"role": "user", "content": item["text"]})
-            formatted.append({"messages": msgs})
+            msgs = [{"role": "user", "content": item["text"]}]
         elif "prompt" in item and "completion" in item:
-            msgs = []
-            if system_prompt:
-                msgs.append({"role": "system", "content": system_prompt})
-            msgs.append({"role": "user", "content": item["prompt"]})
-            msgs.append({"role": "assistant", "content": item["completion"]})
-            formatted.append({"messages": msgs})
+            msgs = [
+                {"role": "user", "content": item["prompt"]},
+                {"role": "assistant", "content": item["completion"]},
+            ]
+        else:
+            continue
+        if not msgs:
+            continue
+        if system_prompt and msgs[0].get("role") != "system":
+            msgs = [{"role": "system", "content": system_prompt}] + msgs
+        formatted.append({"messages": msgs})
     return formatted
 
 def split_data(data: list, train_ratio: float = 0.9):
