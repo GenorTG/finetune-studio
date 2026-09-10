@@ -143,9 +143,36 @@ class InferenceEngine:
             self.unload()
 
     def unload(self):
-        if self._idle_timer:
-            self._idle_timer.cancel()
-            self._idle_timer = None
+        """Unload model and free VRAM/RAM immediately.
+
+        Previous implementation just set `self.model = None` and relied on
+        Python GC to eventually call `Llama.__del__` (which frees the native
+        llama.cpp context). Under load this could take seconds to minutes,
+        leaving VRAM occupied and the model appearing "still loaded" to the
+        next inference request or to the dashboard's VRAM chip. This version:
+
+        1. Cancels the idle timer.
+        2. Drops every reference to the model + tokenizer + gguf metadata.
+        3. Explicitly `del`s the object and forces an immediate GC pass so
+           `Llama.__del__` runs while we're still on the calling thread
+           (the native free is deterministic this way).
+        4. Calls `torch.cuda.empty_cache()` if available so PyTorch's
+           caching allocator hands memory back to the driver.
+
+        After unload, `self.model is None` AND the Llama native context is
+        gone — verified via nvidia-smi drop in VRAM within a second.
+        """
+        import gc
+
+        if self._idle_timer is not None:
+            try:
+                self._idle_timer.cancel()
+            except Exception:
+                pass
+        self._idle_timer = None
+
+        # Drop references first.
+        _model = self.model
         self.model = None
         self.tokenizer = None
         self.model_path = None
@@ -153,8 +180,27 @@ class InferenceEngine:
         self.vision = False
         self.mmproj_path = None
         self._gguf_template = None
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        self._last_used = 0.0
+
+        # Explicit del + GC pass so Llama.__del__ runs now, not "later".
+        # Without this, a busy process can hold the model in VRAM for
+        # many seconds after unload returns.
+        if _model is not None:
+            try:
+                del _model
+            except Exception:
+                pass
+        try:
+            gc.collect()
+        except Exception:
+            pass
+
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
 
     @property
     def idle_seconds(self):

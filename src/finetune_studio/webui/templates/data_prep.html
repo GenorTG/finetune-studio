@@ -47,6 +47,61 @@
   <div id="dp-status" class="mt-3 text-xs dim"></div>
 </div>
 
+<div class="card mb-6">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Organize Training Data</div>
+      <div class="card-sub">Chat with a model (local provider or external API) to plan, mine, and curate Q&amp;A pairs from your parsed sources. Tools are called server-side.</div>
+    </div>
+  </div>
+
+  <div class="grid grid-2 gap-3 mb-3">
+    <div>
+      <span class="block text-xs muted mb-1">Backend</span>
+      <div class="flex gap-3 text-xs">
+        <label class="flex items-center gap-1"><input type="radio" name="dp-chat-backend" value="provider" checked> Local provider</label>
+        <label class="flex items-center gap-1"><input type="radio" name="dp-chat-backend" value="external"> External API</label>
+      </div>
+    </div>
+    <label>
+      <span class="block text-xs muted mb-1">Local provider</span>
+      <select id="dp-chat-provider" class="select">
+        <option value="">(loading…)</option>
+      </select>
+    </label>
+  </div>
+
+  <div id="dp-chat-external" class="grid grid-2 gap-3 mb-3" hidden>
+    <label>
+      <span class="block text-xs muted mb-1">Base URL</span>
+      <input id="dp-chat-base-url" type="text" class="input" placeholder="https://api.openai.com/v1">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1">API Key</span>
+      <input id="dp-chat-api-key" type="password" class="input" placeholder="sk-…">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1">Model ID</span>
+      <input id="dp-chat-model-id" type="text" class="input" placeholder="gpt-4o-mini">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1">Name (optional)</span>
+      <input id="dp-chat-name" type="text" class="input" placeholder="My external model">
+    </label>
+  </div>
+
+  <div id="dp-chat-status" class="text-xs dim mb-2">Ready.</div>
+
+  <div id="dp-chat-msgs" class="dp-chat-msgs">
+    <div class="dp-chat-empty">Ask the model to list your sources, then mine Q&amp;A pairs. Try: "List my sources and generate 5 Q&amp;A pairs from the first one."</div>
+  </div>
+
+  <div class="flex gap-2 mt-3">
+    <textarea id="dp-chat-input" rows="2" placeholder="Message… (Shift+Enter for newline)" class="input flex-1"></textarea>
+    <button id="dp-chat-send" class="btn primary" onclick="dpChatSend()">Send</button>
+  </div>
+</div>
+
 <div class="card">
   <div class="card-head">
     <div>
@@ -56,4 +111,241 @@
   </div>
   <div id="dp-results" class="text-sm muted">No pairs yet.</div>
 </div>
+
+<style>
+.dp-chat-msgs {
+  border: 1px solid var(--border);
+  background: var(--bg-elev, #0a0a0a);
+  padding: 12px;
+  max-height: 360px;
+  overflow-y: auto;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dp-chat-empty {
+  color: var(--text-dim, #666);
+  font-style: italic;
+  text-align: center;
+  padding: 24px 0;
+}
+.dp-chat-msg {
+  padding: 8px 10px;
+  border-left: 2px solid var(--border);
+}
+.dp-chat-user   { border-left-color: var(--accent-green, #00ff66); }
+.dp-chat-assistant { border-left-color: var(--accent, #00ccff); }
+.dp-chat-error  { border-left-color: var(--err, #ff4444); color: var(--err, #ff4444); }
+.dp-chat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim, #666);
+  margin-bottom: 4px;
+}
+.dp-chat-body { white-space: pre-wrap; word-break: break-word; }
+.dp-chat-meta { font-size: 10px; color: var(--text-dim, #666); margin-top: 4px; }
+.dp-chat-tools { display: flex; flex-direction: column; gap: 4px; }
+.dp-chat-tool {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  font-size: 11px;
+}
+.dp-chat-tool summary { cursor: pointer; }
+.dp-chat-tool pre {
+  font-size: 10px;
+  margin: 4px 0 0;
+  max-height: 200px;
+  overflow: auto;
+  background: var(--bg, #000);
+  padding: 6px;
+}
+</style>
+
+<script>
+const _dpChatHistory = [];
+
+function _dpChatBackend() {
+  const backend = document.querySelector('input[name="dp-chat-backend"]:checked').value;
+  if (backend === 'external') {
+    const base_url = document.getElementById('dp-chat-base-url').value.trim();
+    const api_key  = document.getElementById('dp-chat-api-key').value.trim();
+    const model_id = document.getElementById('dp-chat-model-id').value.trim();
+    if (!base_url || !model_id) return null;
+    return { external_api: { base_url, api_key, model_id, name: document.getElementById('dp-chat-name').value.trim() } };
+  }
+  const pid = document.getElementById('dp-chat-provider').value;
+  if (!pid) return null;
+  return { provider_id: pid };
+}
+
+async function _dpChatLoadProviders() {
+  const sel = document.getElementById('dp-chat-provider');
+  try {
+    const r = await fetch('/api/providers').then(r => r.json());
+    const providers = r.providers || [];
+    sel.innerHTML = '';
+    if (providers.length === 0) {
+      sel.innerHTML = '<option value="">(no providers configured)</option>';
+      return;
+    }
+    providers.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name + ' · ' + (p.kind || '?');
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    sel.innerHTML = '<option value="">(failed to load providers)</option>';
+  }
+}
+
+function _dpChatAppend(role, content, meta) {
+  const msgs = document.getElementById('dp-chat-msgs');
+  const empty = msgs.querySelector('.dp-chat-empty');
+  if (empty) empty.remove();
+  const div = document.createElement('div');
+  div.className = 'dp-chat-msg dp-chat-' + role;
+  const label = document.createElement('div');
+  label.className = 'dp-chat-label';
+  label.textContent = role.toUpperCase();
+  const body = document.createElement('div');
+  body.className = 'dp-chat-body';
+  if (typeof content === 'string') {
+    body.textContent = content;
+  } else {
+    body.appendChild(content);
+  }
+  div.appendChild(label);
+  div.appendChild(body);
+  if (meta) {
+    const m = document.createElement('div');
+    m.className = 'dp-chat-meta';
+    m.textContent = meta;
+    div.appendChild(m);
+  }
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function _dpChatRenderToolCalls(toolCalls) {
+  const wrap = document.createElement('div');
+  wrap.className = 'dp-chat-tools';
+  toolCalls.forEach((tc) => {
+    const det = document.createElement('details');
+    det.className = 'dp-chat-tool';
+    const sum = document.createElement('summary');
+    const ok = tc.result && !tc.result.error;
+    sum.textContent = (ok ? '✓ ' : '✗ ') + tc.name + (tc.result && tc.result.error ? ' — error' : '');
+    const pre = document.createElement('pre');
+    pre.textContent = JSON.stringify(tc, null, 2);
+    det.appendChild(sum);
+    det.appendChild(pre);
+    wrap.appendChild(det);
+  });
+  return wrap;
+}
+
+async function dpChatSend() {
+  const ta = document.getElementById('dp-chat-input');
+  const text = ta.value.trim();
+  if (!text) return;
+  const backend = _dpChatBackend();
+  if (!backend) {
+    _dpChatAppend('error', 'Pick a backend first — a local provider or fill in the external API fields.');
+    return;
+  }
+  ta.value = '';
+  _dpChatAppend('user', text);
+  _dpChatHistory.push({ role: 'user', content: text });
+
+  const status = document.getElementById('dp-chat-status');
+  const sendBtn = document.getElementById('dp-chat-send');
+  status.textContent = 'Thinking…';
+  sendBtn.disabled = true;
+
+  const projectId = window.location.pathname.split('/')[2];
+  try {
+    const r = await fetch(`/api/projects/${projectId}/data-prep/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: _dpChatHistory, ...backend }),
+    });
+    const body = await r.json();
+    if (body.error) throw new Error(body.error);
+    if (body.tool_calls && body.tool_calls.length) {
+      _dpChatAppend('assistant', _dpChatRenderToolCalls(body.tool_calls), `round ${body.rounds} · ${body.tool_calls.length} tool call(s)`);
+    }
+    if (body.reply) {
+      _dpChatAppend('assistant', body.reply, `round ${body.rounds}`);
+      _dpChatHistory.push({ role: 'assistant', content: body.reply });
+    } else if (!body.tool_calls || !body.tool_calls.length) {
+      _dpChatAppend('assistant', '(no reply)', `round ${body.rounds}`);
+    }
+    status.textContent = `Done. Round ${body.rounds}, ${body.tool_calls ? body.tool_calls.length : 0} tool call(s) executed.`;
+  } catch (e) {
+    _dpChatAppend('error', e.message || String(e));
+    status.textContent = 'Error: ' + (e.message || String(e));
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+// Toggle external-fields visibility when backend radio changes
+document.querySelectorAll('input[name="dp-chat-backend"]').forEach(r => {
+  r.addEventListener('change', () => {
+    document.getElementById('dp-chat-external').hidden = r.value !== 'external';
+  });
+});
+
+// Shift+Enter newline, plain Enter sends
+document.getElementById('dp-chat-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    dpChatSend();
+  }
+});
+
+// Load providers + show active provider status on page load
+_dpChatLoadProviders();
+fetch('/api/providers').then(r => r.json()).then(d => {
+  const active = d.active;
+  const status = document.getElementById('dp-chat-status');
+  if (active && active.id) {
+    status.textContent = 'Active provider: ' + (active.name || active.id) + ' · ' + (active.kind || '?');
+  } else {
+    status.textContent = 'No provider loaded — pick one above or fill the external API fields.';
+  }
+});
+
+// Existing prep-job behaviour (preserved from the original template)
+async function startPrep() {
+  const projectId = document.getElementById('dp-project').value;
+  if (!projectId) return;
+  const btn = document.getElementById('dp-start');
+  const status = document.getElementById('dp-status');
+  btn.disabled = true; btn.textContent = 'Starting…';
+  status.textContent = 'Queueing prep job…';
+  try {
+    const r = await fetch(`/api/projects/${projectId}/data-prep/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        qa_per_chunk: parseInt(document.getElementById('dp-qa').value, 10),
+        difficulty: document.getElementById('dp-difficulty').value,
+        style: document.getElementById('dp-style').value,
+      }),
+    });
+    const body = await r.json();
+    if (body.error) throw new Error(body.error);
+    status.textContent = 'Prep job started: ' + (body.run_id || JSON.stringify(body));
+  } catch (e) {
+    status.textContent = 'Error: ' + (e.message || String(e));
+  } finally {
+    btn.disabled = false; btn.textContent = 'Start prep';
+  }
+}
+</script>
 {% endblock %}
