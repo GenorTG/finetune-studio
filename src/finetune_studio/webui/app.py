@@ -35,7 +35,15 @@ inference_engine = InferenceEngine()
 discovered_models: list[ModelInfo] = []
 
 def _on_training_update(state):
-    """Persist training progress to the DB row tagged on the engine."""
+    """Persist training progress to the DB row tagged on the engine.
+
+    Guarantees the standard lifecycle fields land in the row:
+      - status, metrics, started_at, finished_at, output_path, error.
+
+    `output_path` is the *parent* directory `<output_dir>/` so the
+    standalone merge endpoint can locate both `<output_dir>/adapter/`
+    and `<output_dir>/merged/`.
+    """
     rid = training_engine.current_run_id
     if not rid:
         return
@@ -49,12 +57,29 @@ def _on_training_update(state):
         "eta": state.eta,
     }
     fields: dict = {"status": state.status, "metrics": metrics}
+    cfg_dir = getattr(training_engine.config, "output_dir", "") or ""
+    cfg_dir_abs = os.path.abspath(cfg_dir) if cfg_dir else ""
+    now = __import__("time").time()
+    if state.status in ("loading", "training", "running", "saving"):
+        # First active transition records started_at. Read existing to avoid
+        # clobbering a started_at the routes layer already wrote.
+        try:
+            existing = db.get_run(rid)
+            if existing and not existing.get("started_at"):
+                fields["started_at"] = now
+        except Exception:  # noqa: BLE001
+            pass
     if state.status == "done":
-        fields["finished_at"] = __import__("time").time()
-        fields["output_path"] = str(Path(training_engine.config.output_dir) / "adapter")
+        fields["finished_at"] = now
+        if cfg_dir_abs:
+            fields["output_path"] = cfg_dir_abs
     elif state.status == "error":
-        fields["finished_at"] = __import__("time").time()
-        fields["notes"] = (state.error or state.message)[:500]
+        fields["finished_at"] = now
+        fields["error"] = (state.error or state.message or "training failed")[:500]
+        # If the adapter was saved before the failure, still point the user
+        # at the output dir so they can recover / merge manually.
+        if cfg_dir_abs and os.path.isdir(os.path.join(cfg_dir_abs, "adapter")):
+            fields["output_path"] = cfg_dir_abs
     try:
         db.update_run(rid, **fields)
     except Exception:  # noqa: BLE001, S110
