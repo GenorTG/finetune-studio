@@ -70,6 +70,7 @@ async def progress_text():
 async def start_training(request: Request):
     from finetune_studio import db
     body = await request.json()
+    merge_on_save = bool(body.get("merge_on_save"))
     config = TrainingConfig(
         model_path=body.get("model_path", ""),
         output_dir=body.get("output_dir", "output"),
@@ -78,6 +79,7 @@ async def start_training(request: Request):
         num_epochs=int(body.get("num_epochs", 4)),
         batch_size=int(body.get("batch_size", 2)),
         max_seq_length=int(body.get("max_seq_length", 2048)),
+        merge_on_save=merge_on_save,
     )
     data_path = body.get("data_path", "")
     dataset_id = body.get("dataset_id", "")
@@ -115,6 +117,7 @@ async def start_training(request: Request):
             "num_epochs": config.num_epochs,
             "batch_size": config.batch_size,
             "max_seq_length": config.max_seq_length,
+            "merge_on_save": merge_on_save,
             "system_prompt": system_prompt,
         },
         system_prompt=system_prompt,

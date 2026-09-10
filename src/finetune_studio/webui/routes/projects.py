@@ -257,6 +257,7 @@ async def start_run(pid: str, rid: str, request: Request):
         num_epochs=int(settings_obj.get("num_epochs", 4)),
         batch_size=int(settings_obj.get("batch_size", 2)),
         max_seq_length=int(settings_obj.get("max_seq_length", 2048)),
+        merge_on_save=bool(settings_obj.get("merge_on_save", False)),
     )
     if not run.get("base_model"):
         return {"error": "run has no base_model"}
