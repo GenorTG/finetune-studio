@@ -19,6 +19,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import time
 from typing import Optional
 
@@ -214,7 +215,12 @@ def _export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None
             # `[model]` and the output path via `--outfile OUTFILE`. Earlier
             # code passed outfile as a 2nd positional which the CLI rejected
             # with 'unrecognized arguments'.
-            cmd = ["python3", convert_script, merged_dir,
+            # Use sys.executable (the venv python the worker is running in)
+            # — `python3` on PATH might be a different interpreter that's
+            # missing sentencepiece / torch / etc. (caught on fan-dragon
+            # 2026-09-10 when Qwen export died with ModuleNotFoundError
+            # on `from sentencepiece import SentencePieceProcessor`).
+            cmd = [sys.executable, convert_script, merged_dir,
                    "--outfile", out_path,
                    "--outtype", outtype]
             log.info("export single-step: %s", " ".join(cmd))
@@ -239,7 +245,8 @@ def _export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None
                     "cmake --build build --config Release"
                 )
             fp16_path = out_path.replace(f"-{quant}.gguf", "-fp16.gguf")
-            cmd1 = ["python3", convert_script, merged_dir, fp16_path,
+            cmd1 = [sys.executable, convert_script, merged_dir,
+                    "--outfile", fp16_path,
                     "--outtype", "f16"]
             log.info("export step 1 (HF -> fp16): %s", " ".join(cmd1))
             r1 = subprocess.run(cmd1, capture_output=True, text=True,

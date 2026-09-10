@@ -159,6 +159,57 @@ class TestExportWorkerSkip:
         # Most importantly: no extra positional after --outtype
         assert len(tail) == 5, f"unexpected extra args in argv tail: {tail[5:]}"
 
+    def test_subprocess_uses_venv_python_not_path_python3(
+        self, mock_settings, monkeypatch, tmp_path,
+    ):
+        """Regression for fan-dragon 2026-09-10: the worker used
+        `python3` from PATH, which resolved to miniconda's interpreter
+        and missed the venv's sentencepiece / torch. Convert died
+        with `ModuleNotFoundError: No module named 'sentencepiece'`.
+        The worker MUST use sys.executable so it inherits the venv."""
+        import sys
+        from unittest.mock import patch
+        from finetune_studio import db
+        from finetune_studio.webui.routes.exports import _export_worker
+
+        monkeypatch.delenv("FTS_SKIP_EXPORT", raising=False)
+        pid = db.create_project(name="E", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        eid = db.create_export(project_id=pid, run_id=rid, quant="Q8_0")["id"]
+
+        fake_convert = tmp_path / "convert_hf_to_gguf.py"
+        fake_convert.write_text("# fake\n")
+        fake_quantize = tmp_path / "llama-quantize"
+        fake_quantize.write_text("#!/bin/sh\n"); fake_quantize.chmod(0o755)
+        merged_dir = tmp_path / "merged"; merged_dir.mkdir()
+        out_path = tmp_path / "model-Q8_0.gguf"
+
+        captured = []
+        def fake_run(cmd, *a, **kw):
+            captured.append(cmd)
+            if "convert_hf_to_gguf.py" in " ".join(cmd):
+                Path(out_path).write_bytes(b"\x00")
+            return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        with patch("finetune_studio.webui.routes.exports._find_convert_script",
+                   return_value=str(fake_convert)), \
+             patch("finetune_studio.webui.routes.exports._find_llama_tool",
+                   return_value=str(fake_quantize)), \
+             patch("finetune_studio.webui.routes.exports.subprocess.run",
+                   side_effect=fake_run):
+            _export_worker(eid, merged_dir=str(merged_dir),
+                           out_path=str(out_path), quant="Q8_0")
+        cmd = captured[0]
+        # Must use the venv / worker interpreter, NOT a bare "python3" on PATH
+        assert cmd[0] == sys.executable, (
+            f"worker must use sys.executable (the venv python), got cmd[0]={cmd[0]!r}"
+        )
+        assert cmd[0] != "python3", (
+            "bare 'python3' from PATH can resolve to a non-venv interpreter "
+            "that's missing sentencepiece / torch"
+        )
+
     def test_failure_when_no_tooling(self, mock_settings, monkeypatch):
         """With FTS_SKIP_EXPORT unset and no llama.cpp on the host, the
         worker should mark the export failed with a clean, installable
