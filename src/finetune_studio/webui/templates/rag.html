@@ -19,6 +19,21 @@
   <div class="sub">Build a searchable index from this project's parsed documents, then query it.</div>
 </div>
 
+<div class="card mb-4" style="border-color: var(--accent); background: linear-gradient(180deg, rgba(0,255,102,0.04) 0%, transparent 100%);">
+  <div class="card-head">
+    <div>
+      <div class="card-title">0. <span class="text-accent">Build with AI</span> <span class="pill solid-violet text-[10px] ml-1">agentic</span></div>
+      <div class="card-sub">The agentic chat can walk you through the steps below — chunking strategy, embedder choice, overlap tuning. It can also call the build endpoint for you.</div>
+    </div>
+    <a href="/projects/{{ pid }}/chat" class="btn primary" data-link>Open chat in Agent mode →</a>
+  </div>
+  <div class="text-xs dim">
+    Try prompts like <i>"Look at my project sources and recommend a chunk size + embedder for a Q&amp;A corpus."</i>
+    or <i>"Build the corpus with chunk_size=400 and overlap=80."</i> The chat has the same tools as the manual
+    flow — just ask in plain English.
+  </div>
+</div>
+
 {# Status #}
 <div class="card mb-4">
   <div class="card-head">
