@@ -371,6 +371,75 @@ class TestHfDownloadLifecycle:
         assert recent[0]["created_at"] >= recent[1]["created_at"]
 
 
+# ── Model export lifecycle ───────────────────────────────────────────────
+
+
+class TestModelExportLifecycle:
+    """model_exports: status, started_at, finished_at, duration_ms,
+    output_path, size_bytes, size_human, intermediate_path, error.
+    """
+
+    def test_full_lifecycle_done(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="E", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        job = db.create_export(project_id=pid, run_id=rid, quant="Q4_K_M")
+        eid = job["id"]
+        assert job["status"] == "queued"
+        assert job["format"] == "gguf"
+        assert job["quant"] == "Q4_K_M"
+        db.mark_export_running(eid)
+        r = db.get_export(eid)
+        assert r["status"] == "running"
+        assert r["started_at"] is not None
+        time.sleep(0.01)
+        db.mark_export_done(eid, output_path="/tmp/q.gguf", size_bytes=98765,
+                            size_human="96.5 KB",
+                            intermediate_path="/tmp/q-fp16.gguf")
+        r = db.get_export(eid)
+        assert r["status"] == "done"
+        assert r["finished_at"] is not None
+        assert r["duration_ms"] is not None and r["duration_ms"] > 0
+        assert r["size_bytes"] == 98765
+        assert r["size_human"] == "96.5 KB"
+        assert r["intermediate_path"] == "/tmp/q-fp16.gguf"
+
+    def test_failure_records_error(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="E", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        eid = db.create_export(project_id=pid, run_id=rid, quant="Q4_K_M")["id"]
+        db.mark_export_running(eid)
+        db.mark_export_failed(eid, "convert_hf_to_gguf failed (rc=1): OOM")
+        r = db.get_export(eid)
+        assert r["status"] == "error"
+        assert "OOM" in r["error"]
+        assert r["finished_at"] is not None
+
+    def test_list_for_run(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="E", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        db.create_export(project_id=pid, run_id=rid, quant="Q4_K_M")
+        db.create_export(project_id=pid, run_id=rid, quant="Q8_0")
+        exports = db.list_exports_for_run(rid)
+        assert len(exports) == 2
+        quants = {e["quant"] for e in exports}
+        assert quants == {"Q4_K_M", "Q8_0"}
+
+    def test_cascade_delete_project_removes_exports(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="E", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        db.create_export(project_id=pid, run_id=rid, quant="Q4_K_M")
+        db.delete_project(pid)
+        assert db.list_exports_for_run(rid) == []
+
+
 # ── FK + cascade ─────────────────────────────────────────────────────────
 
 
