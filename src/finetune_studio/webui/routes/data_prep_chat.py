@@ -236,6 +236,9 @@ async def data_prep_chat(pid: str, request: Request):
       external_api: dict    — {base_url, api_key, model_id, name?} for
                               OpenAI-compatible endpoints
       max_rounds: int       — cap tool-call loop iterations (default 6)
+      gen: dict             — generation kwargs merged with sensible defaults
+                              (temperature, max_tokens, top_p, top_k,
+                              repeat_penalty). Used for both backend paths.
 
     Returns:
       {ok, reply, tool_calls, rounds}
@@ -248,6 +251,30 @@ async def data_prep_chat(pid: str, request: Request):
     provider_id: Optional[str] = body.get("provider_id")
     external: Optional[dict] = body.get("external_api")
     max_rounds = max(1, min(int(body.get("max_rounds") or MAX_TOOL_ROUNDS), 12))
+
+    # Generation kwargs — allow per-request override. Anything not supplied
+    # falls back to sane defaults for tool-calling (low temperature, modest
+    # max_tokens). We clamp types here so junk from the frontend doesn't
+    # crash llama_cpp.
+    gen_raw = body.get("gen") or {}
+    gen: dict[str, Any] = {}
+    if "temperature" in gen_raw:
+        try: gen["temperature"] = max(0.0, min(2.0, float(gen_raw["temperature"])))
+        except Exception: pass
+    if "max_tokens" in gen_raw:
+        try: gen["max_tokens"] = max(32, min(8192, int(gen_raw["max_tokens"])))
+        except Exception: pass
+    if "top_p" in gen_raw:
+        try: gen["top_p"] = max(0.0, min(1.0, float(gen_raw["top_p"])))
+        except Exception: pass
+    if "top_k" in gen_raw:
+        try: gen["top_k"] = max(0, int(gen_raw["top_k"]))
+        except Exception: pass
+    if "repeat_penalty" in gen_raw:
+        try: gen["repeat_penalty"] = max(0.5, min(2.0, float(gen_raw["repeat_penalty"])))
+        except Exception: pass
+    gen.setdefault("temperature", 0.2)
+    gen.setdefault("max_tokens", 1024)
 
     # Resolve the chat backend (provider OR external API). Validate this
     # before touching the filesystem so a missing project doesn't mask a
@@ -294,9 +321,9 @@ async def data_prep_chat(pid: str, request: Request):
         rounds += 1
         try:
             if backend["kind"] == "external":
-                reply_text = await _chat_external(backend, full_messages)
+                reply_text = await _chat_external(backend, full_messages, gen)
             else:
-                reply_text = _chat_local(backend, full_messages)
+                reply_text = _chat_local(backend, full_messages, gen)
         except Exception as e:  # noqa: BLE001
             log.exception("chat call failed")
             return {"error": f"chat call failed: {e}"}
@@ -330,7 +357,7 @@ async def data_prep_chat(pid: str, request: Request):
     }
 
 
-def _chat_external(backend: dict, messages: list[dict]) -> str:
+def _chat_external(backend: dict, messages: list[dict], gen: dict | None = None) -> str:
     """One round of chat via an OpenAI-compatible HTTP endpoint.
 
     We use the native `tools` parameter so the model returns structured
@@ -340,13 +367,15 @@ def _chat_external(backend: dict, messages: list[dict]) -> str:
     import httpx
     base = backend["base_url"]
     url = base + "/chat/completions"
+    g = gen or {}
     payload = {
         "model": backend["model_id"],
         "messages": messages,
         "tools": [{"type": "function", "function": t} for t in TOOLS_CATALOG],
         "tool_choice": "auto",
-        "temperature": 0.2,
-        "max_tokens": 1024,
+        "temperature": g.get("temperature", 0.2),
+        "max_tokens": g.get("max_tokens", 1024),
+        "top_p": g.get("top_p", 0.9),
     }
     headers = {"Content-Type": "application/json"}
     if backend["api_key"]:
@@ -372,7 +401,7 @@ def _chat_external(backend: dict, messages: list[dict]) -> str:
     return msg.get("content") or ""
 
 
-def _chat_local(backend: dict, messages: list[dict]) -> str:
+def _chat_local(backend: dict, messages: list[dict], gen: dict | None = None) -> str:
     """One round of chat via the local ModelManager provider.
 
     Renders the structured messages into a single prompt (system prefix +
@@ -389,16 +418,20 @@ def _chat_local(backend: dict, messages: list[dict]) -> str:
         parts.append(f"{m['role'].upper()}: {m['content']}")
     parts.append("ASSISTANT:")
     prompt = "\n\n".join(parts)
+    g = gen or {}
+    _temp = g.get("temperature", 0.2)
+    _max  = g.get("max_tokens", 1024)
+    _topp = g.get("top_p", 0.9)
     try:
         text = mgr.generate(
             prompt,
-            max_tokens=1024,
-            temperature=0.2,
-            top_p=0.9,
+            max_tokens=_max,
+            temperature=_temp,
+            top_p=_topp,
         )
     except Exception:
         # Fall back to chat() if the provider supports it.
-        text = mgr.chat(rendered, max_tokens=1024, temperature=0.2)
+        text = mgr.chat(rendered, max_tokens=_max, temperature=_temp, top_p=_topp)
     return text or ""
 
 

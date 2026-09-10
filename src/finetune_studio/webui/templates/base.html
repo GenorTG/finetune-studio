@@ -98,6 +98,10 @@
         <button class="sb-palette" id="sb-palette" title="Command palette (Ctrl+K)" aria-label="Open command palette">
           <span class="sb-palette-key">⌘</span><span>K</span>
         </button>
+        <span class="status-pill" id="model-status-pill" title="Loaded model">
+          <span class="status-dot" id="model-status-dot"></span>
+          <span class="status-label" id="model-status-label">no model</span>
+        </span>
         <span class="status-pill" id="status-pill" title="System status">
           <span class="status-dot {% if resources and resources.gpu %}idle{% endif %}" id="status-dot"></span>
           <span class="status-label" id="status-label">{% if resources and resources.gpu %}READY{% else %}NO_DATA{% endif %}</span>
@@ -159,6 +163,59 @@
   <script src="/static/js/palette.js?v=11"></script>
   <script src="/static/js/tutorial.js?v=11"></script>
   <script src="/static/js/activity.js?v=11"></script>
+  <script>
+    // Global "loaded model" indicator — polls /api/providers every 3s on
+    // any page (data-prep, rag, inference, training, testing) so the user
+    // can see at a glance whether a model is loaded from anywhere. The
+    // label is the model file's basename for local_gguf providers,
+    // otherwise the provider's name. Clicking the pill jumps to the
+    // data-prep chat loader when not loaded, or to the inference tab
+    // when loaded.
+    (function () {
+      const dot  = document.getElementById('model-status-dot');
+      const lbl  = document.getElementById('model-status-label');
+      const pill = document.getElementById('model-status-pill');
+      if (!dot || !lbl || !pill) return;
+      let lastState = null;
+      function deriveLabel(p) {
+        if (!p) return 'no model';
+        if (p.kind === 'local_gguf' && p.model_id) {
+          const base = String(p.model_id).split(/[\\/]/).pop() || p.model_id;
+          const stripped = base.replace(/\.gguf$/i, '');
+          if (stripped) return stripped;
+        }
+        return p.name || p.id || '(unnamed)';
+      }
+      function render(d) {
+        const active = d && d.active;
+        const fingerprint = active ? active.id + ':' + (active.model_id || '') : 'none';
+        if (fingerprint === lastState) return;
+        lastState = fingerprint;
+        if (active && active.loaded) {
+          dot.className = 'status-dot idle';
+          lbl.textContent = '● ' + deriveLabel(active);
+          pill.title = 'Loaded: ' + deriveLabel(active) + '\n' + JSON.stringify(active, null, 2);
+        } else {
+          dot.className = 'status-dot';
+          lbl.textContent = '○ no model';
+          pill.title = 'No model loaded. Click to open data-prep.';
+        }
+      }
+      async function tick() {
+        try {
+          const d = await fetch('/api/providers').then(r => r.json());
+          render(d);
+        } catch (e) { /* ignore */ }
+      }
+      pill.addEventListener('click', () => {
+        // Soft navigation: don't break the SPA if it's running.
+        const target = document.querySelector('a[href="/inference"]') ? '/inference' : '/projects';
+        window.location.href = target;
+      });
+      tick();
+      setInterval(tick, 3000);
+    })();
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

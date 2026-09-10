@@ -49,7 +49,7 @@ async def load_model_endpoint(request: Request):
     try:
         inference_engine.load(
             model_path,
-            n_ctx=body.get("n_ctx", 4096),
+            n_ctx=body.get("n_ctx", 16384),
             n_gpu_layers=body.get("n_gpu_layers", 99),
             n_batch=body.get("n_batch", 512),
             mmap=body.get("mmap", True),
@@ -175,7 +175,7 @@ async def inference_memory_estimate(request: Request):
     try:
         est = inference_engine.estimate_memory(
             model_path,
-            n_ctx=body.get("n_ctx", 4096),
+            n_ctx=body.get("n_ctx", 16384),
             n_gpu_layers=body.get("n_gpu_layers", 99),
         )
         return est

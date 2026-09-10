@@ -20,7 +20,8 @@ class FakeProvider:
     instances: list = []
 
     def __init__(self, cfg, **kwargs):
-        self.cfg = cfg
+        self.config = cfg  # mirrors real providers (ModelProvider.config)
+        self._used_extra = None  # manager sets this after building
         self._loaded_at = 0.0
         self._load_calls = 0
         FakeProvider.instances.append(self)
@@ -36,7 +37,7 @@ class FakeProvider:
         self._loaded_at = 0.0
 
     def describe(self) -> dict:
-        return {"id": self.cfg.id, "loaded": self.is_loaded()}
+        return {"id": self.config.id, "loaded": self.is_loaded()}
 
     def chat(self, messages, **gen):
         return "ok"
@@ -117,3 +118,76 @@ class TestModelManagerLoadFastPath:
         mm.get_provider = MagicMock(return_value=None)
         with pytest.raises(ValueError, match="Unknown provider"):
             mm.load("nonexistent")
+
+    def test_load_passes_runtime_extra_to_provider(self):
+        """When load(pid, extra={'n_ctx': 4096}) is called, the merged
+        extras must reach the built provider so its Llama() is
+        instantiated with the new n_ctx / n_gpu_layers / etc."""
+        from finetune_studio.models import manager as mgr_mod
+
+        cfg_row = {"id": "local-default", "name": "Local GGUF",
+                   "kind": "local_gguf",
+                   "model_id": "/fake/model.gguf",
+                   "base_url": "", "api_key": "",
+                   "extra": {"n_ctx": 16384, "n_gpu_layers": 99,
+                             "n_batch": 512, "n_threads": 0, "seed": -1}}
+
+        mm = mgr_mod.ModelManager()
+        mm.get_provider = MagicMock(return_value=cfg_row)
+        mm.list_providers = MagicMock(return_value=[cfg_row])
+
+        with patch.object(mgr_mod, "build_provider", FakeProvider):
+            mm.load("local-default", extra={"n_ctx": 8192, "n_gpu_layers": 33})
+            assert len(FakeProvider.instances) == 1
+            # The provider's _used_extra snapshot must reflect the merge
+            used = FakeProvider.instances[0]._used_extra
+            assert used["n_ctx"] == 8192
+            assert used["n_gpu_layers"] == 33
+            # Unspecified keys fall through from persisted extra
+            assert used["n_batch"] == 512
+            assert used["seed"] == -1
+
+    def test_reload_when_runtime_extra_changes(self):
+        """If load() is called with different extra than what the active
+        provider was built with, the provider must be unloaded and rebuilt."""
+        from finetune_studio.models import manager as mgr_mod
+
+        cfg_row = {"id": "local-default", "name": "Local GGUF",
+                   "kind": "local_gguf",
+                   "model_id": "/fake/model.gguf",
+                   "base_url": "", "api_key": "",
+                   "extra": {"n_ctx": 16384, "n_gpu_layers": 99}}
+
+        mm = mgr_mod.ModelManager()
+        mm.get_provider = MagicMock(return_value=cfg_row)
+        mm.list_providers = MagicMock(return_value=[cfg_row])
+
+        with patch.object(mgr_mod, "build_provider", FakeProvider):
+            mm.load("local-default", extra={"n_ctx": 8192})
+            assert FakeProvider.instances[0]._load_calls == 1
+            mm.load("local-default", extra={"n_ctx": 32768})
+            # Second build is required because n_ctx changed.
+            assert FakeProvider.instances[1]._load_calls == 1
+            assert FakeProvider.instances[1]._used_extra["n_ctx"] == 32768
+
+    def test_load_explicit_none_does_not_overwrite_persisted(self):
+        """Passing extra={'n_ctx': None} must NOT clobber the persisted
+        n_ctx — None signals 'not set this call'."""
+        from finetune_studio.models import manager as mgr_mod
+
+        cfg_row = {"id": "local-default", "name": "Local GGUF",
+                   "kind": "local_gguf",
+                   "model_id": "/fake/model.gguf",
+                   "base_url": "", "api_key": "",
+                   "extra": {"n_ctx": 16384, "n_gpu_layers": 99}}
+
+        mm = mgr_mod.ModelManager()
+        mm.get_provider = MagicMock(return_value=cfg_row)
+        mm.list_providers = MagicMock(return_value=[cfg_row])
+
+        with patch.object(mgr_mod, "build_provider", FakeProvider):
+            mm.load("local-default", extra={"n_ctx": None, "n_gpu_layers": 50})
+            used = FakeProvider.instances[0]._used_extra
+            # n_ctx fell through to persisted value (not None)
+            assert used["n_ctx"] == 16384
+            assert used["n_gpu_layers"] == 50

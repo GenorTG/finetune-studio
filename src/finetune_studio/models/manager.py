@@ -55,8 +55,23 @@ def _ensure_db() -> None:
                 "VALUES (?,?,?,?,?,?,?,?)",
                 ("local-default", "Local GGUF", "local_gguf",
                  str(Path.home() / "finetune-studio" / "models" / "gguf" / "Qwen3.8-27B-abliterated-Q4_K_M.gguf"),
-                 "", "", json_dumps({"n_ctx": 4096, "n_gpu_layers": 99}), now),
+                 "", "", json_dumps({"n_ctx": 16384, "n_gpu_layers": 99, "n_batch": 512,
+                                     "n_threads": 0, "seed": -1,
+                                     "rope_freq_base": 0.0, "rope_freq_scale": 0.0,
+                                     "flash_attn": True, "mmap": True, "mlock": False}), now),
             )
+
+
+_LOG = logging.getLogger(__name__)
+
+
+# Loader parameters exposed through ModelManager.load(pid, extra=...).
+# Kept module-level so callers (load() merge loop, tests) can iterate.
+_LOADER_KEYS = (
+    "n_ctx", "n_gpu_layers", "n_batch", "n_threads",
+    "seed", "rope_freq_base", "rope_freq_scale",
+    "flash_attn", "mmap", "mlock", "keep_in_memory",
+)
 
 
 def json_dumps(d: dict) -> str:
@@ -149,27 +164,44 @@ class ModelManager:
             d["idle_seconds"] = int(time.time() - self._provider._loaded_at) if self._provider._loaded_at else 0
             return d
 
-    def load(self, pid: str) -> dict:
+    def load(self, pid: str, extra: Optional[dict] = None) -> dict:
         cfg_row = self.get_provider(pid)
         if not cfg_row:
             raise ValueError(f"Unknown provider: {pid}")
-        # Fast path: same provider already active — don't touch the model.
-        # Previously this method always built a fresh provider object and
-        # called load() on it, which tried to instantiate a second Llama()
-        # while the first still held the file handle / VRAM, raising
-        # "Failed to load model from file" on every chat call after the
-        # first probe.
+        # Merge any runtime-provided loader params on top of the persisted
+        # extra JSON. None / unknown keys are dropped so the provider's own
+        # defaults kick in. This lets every page (data-prep, inference,
+        # ...) load the same provider with different n_ctx / n_gpu_layers /
+        # n_batch / n_threads / seed / rope / flash_attn / mmap / mlock /
+        # keep_in_memory without a DB write.
+        merged_extra = dict(cfg_row.get("extra") or {})
+        if extra:
+            for k in _LOADER_KEYS:
+                if k in extra and extra[k] is not None:
+                    merged_extra[k] = extra[k]
         with self._lock:
             if (self._provider is not None
                     and self._active_id == pid
                     and self._provider.is_loaded()):
-                return self.active()
+                # Fast path: same provider, already loaded with the same
+                # merged_extra — no-op. Without this guard, calling load()
+                # a second time was building a fresh LocalGGUFProvider,
+                # calling .load() on it, and triggering 'Failed to load
+                # model from file' because a second Llama() can't be
+                # instantiated while the first still holds the mmap/VRAM.
+                if getattr(self._provider, "_used_extra", None) == merged_extra:
+                    return self.active()
+                # Loader params actually changed — unload + reload so the
+                # new n_ctx / n_gpu_layers / etc. take effect.
+                self._safe_unload()
         cfg = ProviderConfig(
             id=cfg_row["id"], name=cfg_row["name"], kind=cfg_row["kind"],
             model_id=cfg_row["model_id"], base_url=cfg_row["base_url"],
-            api_key=cfg_row.get("api_key", ""), extra=cfg_row.get("extra", {}),
+            api_key=cfg_row.get("api_key", ""),
+            extra=merged_extra,
         )
         new_provider = build_provider(cfg)
+        new_provider._used_extra = dict(merged_extra)  # snapshot for fast-path
         with self._lock:
             # Unload previous local model (mutual exclusion)
             if self._provider is not None and isinstance(self._provider, type(new_provider)) is False:

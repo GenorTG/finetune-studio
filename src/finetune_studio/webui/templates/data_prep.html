@@ -90,6 +90,115 @@
     </label>
   </div>
 
+  {# ── Loader settings (only for local backends) ───────────────────── #}
+  <details id="dp-chat-loader" class="dp-loader mb-3" open>
+    <summary class="text-sm mb-2 cursor-pointer">Loader settings (local models only)</summary>
+
+    <div class="grid grid-2 gap-3 mt-2">
+      <div>
+        <label class="block text-xs muted mb-1">
+          Context length <span id="dp-n-ctx-val" class="mono violet">16384</span>
+        </label>
+        <input type="range" id="dp-n-ctx" class="range" min="512" max="131072" step="512" value="16384"
+               oninput="document.getElementById('dp-n-ctx-val').textContent=this.value">
+        <div class="text-[10px] dim mt-0.5">KV cache size. Larger = more VRAM.</div>
+      </div>
+
+      <div>
+        <label class="block text-xs muted mb-1">
+          GPU offload layers <span id="dp-n-gpu-val" class="mono violet">all</span>
+        </label>
+        <input type="range" id="dp-n-gpu-layers" class="range" min="0" max="200" step="1" value="99"
+               oninput="document.getElementById('dp-n-gpu-val').textContent=this.value==99?'all':this.value">
+        <div class="text-[10px] dim mt-0.5">0 = CPU only · 99+ = all layers offloaded to GPU</div>
+      </div>
+
+      <div>
+        <label class="block text-xs muted mb-1">
+          Batch size <span id="dp-n-batch-val" class="mono violet">512</span>
+        </label>
+        <input type="range" id="dp-n-batch" class="range" min="64" max="2048" step="64" value="512"
+               oninput="document.getElementById('dp-n-batch-val').textContent=this.value">
+      </div>
+
+      <div>
+        <label class="block text-xs muted mb-1">
+          CPU threads <span id="dp-n-threads-val" class="mono violet">auto</span>
+        </label>
+        <input type="range" id="dp-n-threads" class="range" min="0" max="32" step="1" value="0"
+               oninput="document.getElementById('dp-n-threads-val').textContent=this.value==0?'auto':this.value">
+      </div>
+
+      <div>
+        <label class="block text-xs muted mb-1">Seed</label>
+        <input type="number" id="dp-seed" min="-1" placeholder="random" value="-1" class="input">
+        <div class="text-[10px] dim mt-0.5">-1 = random</div>
+      </div>
+
+      <div>
+        <label class="block text-xs muted mb-1">RoPE freq base / scale</label>
+        <div class="flex gap-2">
+          <input type="number" id="dp-rope-freq-base" min="0" step="1" placeholder="auto" class="input flex-1">
+          <input type="number" id="dp-rope-freq-scale" min="0" step="0.01" placeholder="auto" class="input flex-1">
+        </div>
+        <div class="text-[10px] dim mt-0.5">0 / blank = model default</div>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-3 mt-3 text-xs">
+      <label class="flex items-center gap-2 muted">
+        <input type="checkbox" id="dp-flash-attn" checked> Flash attention
+      </label>
+      <label class="flex items-center gap-2 muted">
+        <input type="checkbox" id="dp-mmap" checked> mmap
+      </label>
+      <label class="flex items-center gap-2 muted">
+        <input type="checkbox" id="dp-mlock"> mlock (pin in RAM)
+      </label>
+    </div>
+
+    <div class="mt-3 flex gap-2">
+      <button id="dp-chat-load" class="btn primary" onclick="dpChatLoad()">Load / reload model</button>
+      <button id="dp-chat-unload" class="btn danger" onclick="dpChatUnload()">Unload</button>
+      <span id="dp-chat-loader-status" class="text-xs dim self-center">No model loaded.</span>
+    </div>
+  </details>
+
+  {# ── Generation params (always visible) ──────────────────────── #}
+  <details class="dp-gen mb-2">
+    <summary class="text-xs muted cursor-pointer">Generation settings</summary>
+    <div class="grid grid-2 gap-3 mt-2">
+      <div>
+        <label class="block text-xs muted mb-1">
+          Temperature <span id="dp-t-val" class="violet mono">0.2</span>
+        </label>
+        <input type="range" id="dp-t" class="range" min="0" max="2" step="0.05" value="0.2"
+               oninput="document.getElementById('dp-t-val').textContent=this.value">
+      </div>
+      <div>
+        <label class="block text-xs muted mb-1">
+          Max tokens <span id="dp-m-val" class="violet mono">2048</span>
+        </label>
+        <input type="range" id="dp-m" class="range" min="128" max="8192" step="32" value="2048"
+               oninput="document.getElementById('dp-m-val').textContent=this.value">
+      </div>
+      <div>
+        <label class="block text-xs muted mb-1">
+          Top-P <span id="dp-p-val" class="violet mono">0.9</span>
+        </label>
+        <input type="range" id="dp-p" class="range" min="0" max="1" step="0.05" value="0.9"
+               oninput="document.getElementById('dp-p-val').textContent=this.value">
+      </div>
+      <div>
+        <label class="block text-xs muted mb-1">
+          Repeat penalty <span id="dp-rp-val" class="violet mono">1.10</span>
+        </label>
+        <input type="range" id="dp-rp" class="range" min="0.5" max="2" step="0.05" value="1.10"
+               oninput="document.getElementById('dp-rp-val').textContent=parseFloat(this.value).toFixed(2)">
+      </div>
+    </div>
+  </details>
+
   <div id="dp-chat-status" class="text-xs dim mb-2">Ready.</div>
 
   <div id="dp-chat-msgs" class="dp-chat-msgs">
@@ -198,11 +307,125 @@ async function _dpChatLoadProviders() {
     providers.forEach(p => {
       const opt = document.createElement('option');
       opt.value = p.id;
-      opt.textContent = p.name + ' · ' + (p.kind || '?');
+      // For local GGUF providers, derive a friendly model label from the
+      // file path so the dropdown shows "Qwen3.8-27B-abliterated-Q4_K_M"
+      // instead of the generic "Local GGUF" name. Falls back gracefully
+      // if model_id is missing or doesn't end in .gguf.
+      let label = p.name || p.id || '(unnamed)';
+      if (p.kind === 'local_gguf' && p.model_id) {
+        const base = String(p.model_id).split(/[\\/]/).pop() || p.model_id;
+        const stripped = base.replace(/\.gguf$/i, '');
+        if (stripped) label = stripped;
+      }
+      opt.textContent = label + (p.kind ? '  [' + p.kind + ']' : '');
       sel.appendChild(opt);
     });
+    // After populating, reflect which one is currently loaded.
+    if (r.active && r.active.id) _dpChatMarkActive(r.active.id, providers);
   } catch (e) {
     sel.innerHTML = '<option value="">(failed to load providers)</option>';
+  }
+}
+
+// Show currently-loaded model in the loader-status line and persist the
+// loader params the user picked so a refresh keeps them.
+function _dpChatMarkActive(active_id, providers) {
+  const el = document.getElementById('dp-chat-loader-status');
+  if (!el) return;
+  const p = (providers || []).find(x => x.id === active_id);
+  if (!p) { el.textContent = 'No model loaded.'; return; }
+  let nice = p.name || active_id;
+  if (p.kind === 'local_gguf' && p.model_id) {
+    const base = String(p.model_id).split(/[\\/]/).pop() || p.model_id;
+    const stripped = base.replace(/\.gguf$/i, '');
+    if (stripped) nice = stripped;
+  }
+  el.textContent = '● Loaded: ' + nice + ' · ' + (p.kind || '?');
+  el.title = JSON.stringify(p, null, 2);
+}
+
+// Read loader params from the panel (returns a clean dict, omits empty
+// fields). All keys are passed to /api/providers/{pid}/load — the backend
+// only forwards recognized loader keys.
+function _dpChatReadLoaderParams() {
+  const v = id => (document.getElementById(id)?.value || '').trim();
+  const i = id => !!document.getElementById(id)?.checked;
+  const num = id => {
+    const s = v(id);
+    if (s === '') return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  };
+  const out = {
+    n_ctx:         num('dp-n-ctx'),
+    n_gpu_layers:  num('dp-n-gpu-layers'),
+    n_batch:       num('dp-n-batch'),
+    n_threads:     num('dp-n-threads'),
+    seed:          num('dp-seed'),
+    rope_freq_base:  num('dp-rope-freq-base'),
+    rope_freq_scale: num('dp-rope-freq-scale'),
+    flash_attn:    i('dp-flash-attn') ? true : false,
+    mmap:          i('dp-mmap')       ? true : false,
+    mlock:         i('dp-mlock')      ? true : false,
+  };
+  // Drop nulls so the manager treats them as 'not specified this call'
+  // and keeps the persisted values.
+  Object.keys(out).forEach(k => out[k] === null && delete out[k]);
+  return out;
+}
+
+function _dpChatReadGenParams() {
+  const num = id => {
+    const s = (document.getElementById(id)?.value || '').trim();
+    if (s === '') return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  };
+  const out = {
+    temperature:    num('dp-t'),
+    max_tokens:     num('dp-m'),
+    top_p:          num('dp-p'),
+    repeat_penalty: num('dp-rp'),
+  };
+  Object.keys(out).forEach(k => out[k] === null && delete out[k]);
+  return out;
+}
+
+async function dpChatLoad() {
+  const pid = document.getElementById('dp-chat-provider').value;
+  if (!pid) return _dpChatAppend('error', 'Pick a local provider first.');
+  const status = document.getElementById('dp-chat-loader-status');
+  const btn = document.getElementById('dp-chat-load');
+  btn.disabled = true;
+  const prev = status.textContent;
+  status.textContent = 'Loading… (15s–2min for first load)';
+  try {
+    const extra = _dpChatReadLoaderParams();
+    const r = await fetch(`/api/providers/${pid}/load`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(extra),
+    });
+    const body = await r.json();
+    if (!body.ok) throw new Error(body.error || 'load failed');
+    _dpChatMarkActive(body.active.id, [body.active]);
+    _dpChatAppend('assistant', `✓ Loaded ${body.active.name || body.active.id} (n_ctx=${extra.n_ctx || 16384}, n_gpu_layers=${extra.n_gpu_layers ?? 'all'})`);
+  } catch (e) {
+    status.textContent = 'Load failed: ' + (e.message || e);
+    _dpChatAppend('error', 'Load failed: ' + (e.message || e));
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function dpChatUnload() {
+  const status = document.getElementById('dp-chat-loader-status');
+  try {
+    await fetch('/api/providers/unload', { method: 'POST' });
+    status.textContent = '○ Unloaded.';
+    _dpChatAppend('assistant', '✓ Model unloaded.');
+  } catch (e) {
+    status.textContent = 'Unload failed: ' + (e.message || e);
   }
 }
 
@@ -271,12 +494,38 @@ async function dpChatSend() {
   status.textContent = 'Thinking…';
   sendBtn.disabled = true;
 
+  // For the local backend, make sure the chosen provider is actually loaded
+  // with the loader params currently shown in the panel. Clicking "Send"
+  // before hitting "Load / reload model" still works — it just transparently
+  // loads on first send. After that, calls reuse the same provider with
+  // the same params.
+  if (backend.provider_id) {
+    try {
+      const cur = await fetch('/api/providers').then(r => r.json());
+      if (!cur.active || cur.active.id !== backend.provider_id) {
+        const extra = _dpChatReadLoaderParams();
+        const lr = await fetch(`/api/providers/${backend.provider_id}/load`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(extra),
+        });
+        const lb = await lr.json();
+        if (!lb.ok) throw new Error(lb.error || 'auto-load failed');
+        if (lb.active) _dpChatMarkActive(lb.active.id, [lb.active]);
+      }
+    } catch (e) {
+      _dpChatAppend('error', 'auto-load failed: ' + (e.message || e));
+      sendBtn.disabled = false;
+      return;
+    }
+  }
+
   const projectId = window.location.pathname.split('/')[2];
   try {
     const r = await fetch(`/api/projects/${projectId}/data-prep/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: _dpChatHistory, ...backend }),
+      body: JSON.stringify({ messages: _dpChatHistory, ...backend, gen: _dpChatReadGenParams() }),
     });
     const body = await r.json();
     if (body.error) throw new Error(body.error);

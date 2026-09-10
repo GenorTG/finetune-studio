@@ -79,10 +79,23 @@ async def delete_provider(pid: str):
 
 
 @router.post("/providers/{pid}/load")
-async def load_provider(pid: str):
+async def load_provider(pid: str, request: Request):
+    """Load a model provider. Accepts an optional JSON body of loader
+    params (n_ctx, n_gpu_layers, n_batch, n_threads, seed,
+    rope_freq_base, rope_freq_scale, flash_attn, mmap, mlock) which are
+    merged into the provider's persisted extras for this load. Pass
+    through to ModelManager.load(pid, extra=...)."""
     from finetune_studio.models.manager import get_manager
+    extra = {}
     try:
-        return {"ok": True, "active": get_manager().load(pid)}
+        body = await request.json()
+        if isinstance(body, dict):
+            extra = body.get("extra") or body
+    except Exception:
+        # No body / empty body / non-JSON -> just reload with persisted extras.
+        pass
+    try:
+        return {"ok": True, "active": get_manager().load(pid, extra=extra)}
     except Exception as e:
         log.exception("load failed")
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)

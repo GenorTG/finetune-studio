@@ -85,22 +85,49 @@ class LocalGGUFProvider(ModelProvider):
     def __init__(self, config: ProviderConfig):
         super().__init__(config)
         self._llama = None  # the llama_cpp.Llama instance
-        self._n_ctx: int = int(config.extra.get("n_ctx", 4096))
+        self._n_ctx: int = int(config.extra.get("n_ctx", 16384))
         self._n_gpu_layers: int = int(config.extra.get("n_gpu_layers", 99))
+        self._n_batch: int = int(config.extra.get("n_batch", 512))
+        self._n_threads: int = int(config.extra.get("n_threads", 0))
+        self._seed: int = int(config.extra.get("seed", -1))
+        self._rope_freq_base: float = float(config.extra.get("rope_freq_base", 0.0))
+        self._rope_freq_scale: float = float(config.extra.get("rope_freq_scale", 0.0))
+        self._flash_attn: bool = bool(config.extra.get("flash_attn", True))
+        self._mmap: bool = bool(config.extra.get("mmap", True))
+        self._mlock: bool = bool(config.extra.get("mlock", False))
 
     def load(self) -> None:
         from llama_cpp import Llama
-        log.info("LocalGGUFProvider loading %s (n_ctx=%d, n_gpu=%d)", self.config.model_id, self._n_ctx, self._n_gpu_layers)
+        log.info(
+            "LocalGGUFProvider loading %s (n_ctx=%d, n_gpu=%d, n_batch=%d, "
+            "n_threads=%d, seed=%d, rope_base=%s, rope_scale=%s, "
+            "flash=%s, mmap=%s, mlock=%s)",
+            self.config.model_id, self._n_ctx, self._n_gpu_layers,
+            self._n_batch, self._n_threads, self._seed,
+            self._rope_freq_base, self._rope_freq_scale,
+            self._flash_attn, self._mmap, self._mlock,
+        )
+        kwargs = dict(
+            model_path=self.config.model_id,
+            n_ctx=self._n_ctx,
+            n_gpu_layers=self._n_gpu_layers,
+            n_batch=self._n_batch,
+            mmap=self._mmap,
+            flash_attn=self._flash_attn,
+            verbose=False,
+        )
+        if self._n_threads > 0:
+            kwargs["n_threads"] = self._n_threads
+        if self._seed >= 0:
+            kwargs["seed"] = self._seed
+        if self._mlock:
+            kwargs["use_mlock"] = True
+        if self._rope_freq_base > 0:
+            kwargs["rope_freq_base"] = self._rope_freq_base
+        if self._rope_freq_scale > 0:
+            kwargs["rope_freq_scale"] = self._rope_freq_scale
         with self._lock:
-            self._llama = Llama(
-                model_path=self.config.model_id,
-                n_ctx=self._n_ctx,
-                n_gpu_layers=self._n_gpu_layers,
-                n_batch=512,
-                mmap=True,
-                flash_attn=True,
-                verbose=False,
-            )
+            self._llama = Llama(**kwargs)
         self._loaded_at = time.time()
 
     def unload(self) -> None:
