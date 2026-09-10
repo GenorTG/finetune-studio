@@ -75,6 +75,17 @@ from finetune_studio.db.hf_downloads import (
     mark_running as mark_hf_download_running,
     update_job as update_hf_download,
 )
+from finetune_studio.db.model_exports import (
+    create_export,
+    get_export,
+    list_for_project as list_exports_for_project,
+    list_for_run as list_exports_for_run,
+    list_recent as list_exports_recent,
+    mark_done as mark_export_done,
+    mark_failed as mark_export_failed,
+    mark_running as mark_export_running,
+    update_export,
+)
 
 # Initialise on import so callers don't have to remember.
 init_db()

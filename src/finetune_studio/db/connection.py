@@ -165,6 +165,32 @@ CREATE TABLE IF NOT EXISTS hf_downloads (
     created_at    REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_hf_downloads_status ON hf_downloads(status);
+
+-- model_exports: GGUF / future-format exports of a trained run.
+-- One row per export attempt. Tracks timing + status + output path
+-- + file size. Replaces any prior ad-hoc logging.
+CREATE TABLE IF NOT EXISTS model_exports (
+    id            TEXT PRIMARY KEY,
+    project_id    TEXT NOT NULL,
+    run_id        TEXT NOT NULL,
+    format        TEXT NOT NULL DEFAULT 'gguf',
+    quant         TEXT NOT NULL DEFAULT 'Q4_K_M',
+    status        TEXT NOT NULL DEFAULT 'queued',
+    started_at    REAL,
+    finished_at   REAL,
+    duration_ms   INTEGER,
+    output_path   TEXT NOT NULL DEFAULT '',
+    size_bytes    INTEGER NOT NULL DEFAULT 0,
+    size_human    TEXT NOT NULL DEFAULT '',
+    intermediate_path TEXT NOT NULL DEFAULT '',
+    error         TEXT NOT NULL DEFAULT '',
+    created_at    REAL NOT NULL,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (run_id) REFERENCES training_runs(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_exports_project ON model_exports(project_id);
+CREATE INDEX IF NOT EXISTS idx_exports_run     ON model_exports(run_id);
+CREATE INDEX IF NOT EXISTS idx_exports_status  ON model_exports(status);
 """
 
 
