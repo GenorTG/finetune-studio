@@ -175,8 +175,10 @@ case "$MODE" in
         log "Diagnosing current install..."
         # NB: don't let `set -e` kill us on non-zero — the diagnostic
         # exits 2 to signal critical issues. We capture the rc explicitly.
-        run_diagnose || true
-        DIAG_RC=$?
+        # Don't use `run_diagnose || true` here either — that swallows the
+        # rc with `true`, making DIAG_RC always 0.
+        DIAG_RC=0
+        run_diagnose || DIAG_RC=$?
         if [ "$DIAG_RC" = "0" ]; then
             log "✓ install already healthy, nothing to repair."
             exit 0
@@ -185,12 +187,13 @@ case "$MODE" in
         # Re-run with --repair to apply; the helper handles torch + llama-cpp
         # fixes in-process. For RECREATE_VENV, it advises recreating the venv
         # and we fall through to the normal install path.
-        run_diagnose --repair --no-service-check || true
-        REPAIR_RC=$?
+        REPAIR_RC=0
+        run_diagnose --repair --no-service-check || REPAIR_RC=$?
         if [ "$REPAIR_RC" -eq 0 ]; then
             log "✓ repair succeeded. Re-running diagnose to verify..."
-            run_diagnose || true
-            exit $?
+            DIAG_RC2=0
+            run_diagnose || DIAG_RC2=$?
+            exit $DIAG_RC2
         fi
         # Repair couldn't autofix everything (likely needs venv recreate).
         # Remove the venv and let the normal install path build a fresh one
