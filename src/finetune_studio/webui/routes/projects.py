@@ -13,6 +13,7 @@ This route file covers all of that.
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 
@@ -21,6 +22,8 @@ from fastapi import APIRouter, Request
 from finetune_studio import db
 from finetune_studio.rag.manager import RAGManager
 from finetune_studio.webui.app import training_engine
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -280,6 +283,11 @@ async def run_benchmark(pid: str, rid: str, request: Request):
 
     The output model path is read from run.output_path. If empty,
     falls back to base_model. Persists results under benchmark_runs.
+
+    Load failures and suite failures are caught and surfaced to the
+    caller as 200-with-error JSON so the UI can render them inline;
+    the engine is unloaded via a try/finally so a benchmark that
+    crashes mid-run doesn't leak the loaded model.
     """
     body = await request.json()
     suite_name = body.get("suite_name", "default")
@@ -298,22 +306,76 @@ async def run_benchmark(pid: str, rid: str, request: Request):
     try:
         engine.load(target_model)
     except Exception as e:  # noqa: BLE001
-        return {"error": f"load failed: {e}"}
-
+        return {"error": f"load failed: {e}", "benchmark": None}
     if not suite_path:
-        return {"error": "suite_path required"}
+        engine.unload()
+        return {"error": "suite_path required", "benchmark": None}
     cases = load_test_suite(suite_path)
     t0 = time.time()
-    results = run_suite(engine, cases)
-    scores = score_results(results)
-    dt_ms = int((time.time() - t0) * 1000)
-    bid = db.create_benchmark(rid, suite_name, scores, dt_ms)
-    engine.unload()
-    return {"benchmark": db.get_benchmark(bid), "results": [
-        {"name": r.test_name, "passed": r.passed, "time_ms": r.time_ms,
-         "response": r.response[:300]}
-        for r in results
-    ]}
+    try:
+        results = run_suite(engine, cases)
+        scores = score_results(results)
+        dt_ms = int((time.time() - t0) * 1000)
+        bid = db.create_benchmark(rid, suite_name, scores, dt_ms)
+        return {"benchmark": db.get_benchmark(bid), "results": [
+            {"name": r.test_name, "passed": r.passed, "time_ms": r.time_ms,
+             "response": r.response[:300]}
+            for r in results
+        ]}
+    except Exception as e:  # noqa: BLE001
+        log.exception("benchmark suite failed")
+        return {"error": f"benchmark failed: {e}", "benchmark": None}
+    finally:
+        try:
+            engine.unload()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+@router.post("/{pid}/runs/{rid}/merge")
+async def merge_run(pid: str, rid: str, request: Request, force: str = "false"):
+    """Merge a persisted run's adapter on disk into a standalone model.
+
+    Loads run.base_model + <run.output_path>/adapter/, merges via
+    PEFT's merge_and_unload(), saves to <run.output_path>/merged/.
+
+    Idempotent: if <output_path>/merged/ already has files, the
+    existing merge is returned unless `?force=true`. Always re-reads
+    the run row at the end so the response carries fresh status /
+    output_path / metrics.
+    """
+    force = str(force).lower() in ("1", "true", "yes")
+    run = db.get_run(rid)
+    if not run:
+        return {"error": "run not found"}
+    # Lazy import — keeps the training/PEFT stack out of the projects module
+    # path until a merge is actually requested.
+    from finetune_studio.training.engine import merge_adapter_for_run
+    try:
+        result = merge_adapter_for_run(run, force=force)
+    except ValueError as e:
+        return {"error": str(e), "status": "skipped"}
+    except Exception as e:  # noqa: BLE001
+        log.exception("merge failed")
+        return {"error": f"merge failed: {e}", "status": "failed"}
+    # Backfill output_path on the run if it was empty before — the merge
+    # just wrote to <output_path>/merged/ so the parent must exist.
+    if not run.get("output_path"):
+        merged_path = result.get("merged_path") or ""
+        parent = os.path.dirname(merged_path.rstrip("/"))
+        if parent:
+            db.update_run(rid, output_path=parent)
+    fresh = db.get_run(rid)
+    return {
+        "ok": True,
+        "status": "skipped" if result.get("skipped") else "merged",
+        "merged_path": result.get("merged_path"),
+        "size_bytes": result.get("size_bytes", 0),
+        "size_human": result.get("size_human", "0 B"),
+        "skipped": bool(result.get("skipped")),
+        "force": force,
+        "run": fresh,
+    }
 
 
 @router.get("/{pid}/runs/{rid}/benchmarks")
