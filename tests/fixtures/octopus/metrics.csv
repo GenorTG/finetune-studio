@@ -1,0 +1,7 @@
+metric,value,project,date
+vram_steady_state_giB,18.9,OCTOPUS-7741,2026-09-10
+vram_budget_giB,22.0,OCTOPUS-7741,2026-09-10
+unload_regression_fixed,true,OCTOPUS-7741,2026-09-08
+external_api_hidden,true,OCTOPUS-7741,2026-09-09
+qa_pairs_target,30,OCTOPUS-7741,2026-09-10
+training_epochs,2,OCTOPUS-7741,2026-09-10

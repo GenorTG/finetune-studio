@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<octopus project="OCTOPUS-7741" issued="2026-09-10">
+  <summary>Q4 reliability push for the inference gateway.</summary>
+  <owner primary="genor" reviewer="platform-infra"/>
+  <milestones>
+    <milestone date="2026-09-08" id="a34c08b">Unload-VRAM regression fix</milestone>
+    <milestone date="2026-09-09" id="11d4cbc">External-API field hide fix</milestone>
+    <milestone date="2026-09-10" id="e2e-2026-09-10">E2E WebUI stress test</milestone>
+    <milestone date="2026-09-15" id="phase3-review">Phase-3 Q&amp;A parity review</milestone>
+  </milestones>
+  <needle>OCTOPUS-7741</needle>
+</octopus>
