@@ -191,3 +191,8 @@ app.include_router(_activity.router)  # type: ignore[has-type]  # /api/activity
 
 from finetune_studio.webui.routes import datasets as _datasets  # noqa: E402
 app.include_router(_datasets.router, prefix="/api", tags=["datasets"])  # type: ignore[has-type]  # /api/projects/{pid}/datasets/*
+
+# Stage 1 — File library (raw + converted dual storage, folders, dedup,
+# versioning, trash). Routes self-prefix their full path.
+from finetune_studio.webui.routes import file_library as _file_library  # noqa: E402
+app.include_router(_file_library.router, prefix="/api", tags=["file-library"])  # type: ignore[has-type]  # /api/projects/{pid}/files/* + /folders/*

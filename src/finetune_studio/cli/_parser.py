@@ -184,4 +184,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_vram_profile.add_argument("--steps", type=int, default=5)
     p_vram_profile.add_argument("--json", action="store_true")
 
+    # ── files (project file library housekeeping) ──
+    p_files = sub.add_parser("files", help="Manage the per-project file library (trash, etc.)")
+    files_sub = p_files.add_subparsers(dest="files_command")
+    p_files_trash = files_sub.add_parser("trash", help="List or purge trashed files")
+    p_files_trash.add_argument("--list", action="store_true",
+                                help="List trashed files instead of purging")
+    p_files_trash.add_argument("--older-than-days", type=int, default=7,
+                                help="Purge threshold in days (default: 7). Pass 0 with --all to skip age filter.")
+    p_files_trash.add_argument("--all", action="store_true",
+                                help="Purge everything in trash regardless of age")
+    p_files_trash.add_argument("--project-id", help="Restrict to a single project")
+    p_files_trash.add_argument("--dry-run", action="store_true",
+                                help="Show what would be purged, do not delete")
+
     return parser

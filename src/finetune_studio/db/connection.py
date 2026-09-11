@@ -209,6 +209,81 @@ CREATE TABLE IF NOT EXISTS system_updates (
     created_at    REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_updates_status ON system_updates(status);
+
+-- ── File library (Stage 1) ────────────────────────────────────────────────
+-- User-named folders, organised independently of file storage. Raw files
+-- are immutable + MIME-segregated at upload time. Converted versions are
+-- versioned per file so we can detect drift across dataset builds.
+
+CREATE TABLE IF NOT EXISTS file_folders (
+    id          TEXT PRIMARY KEY,
+    project_id  TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    kind        TEXT NOT NULL DEFAULT 'user',  -- 'user' | 'auto' (e.g. 'pdfs' under raw)
+    parent_id   TEXT,
+    created_at  REAL NOT NULL,
+    UNIQUE(project_id, parent_id, name),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_file_folders_project ON file_folders(project_id);
+
+CREATE TABLE IF NOT EXISTS project_files (
+    id              TEXT PRIMARY KEY,      -- first 16 hex of sha256(raw bytes)
+    project_id      TEXT NOT NULL,
+    original_name   TEXT NOT NULL,         -- user-visible filename, unique per project
+    mime_type       TEXT NOT NULL DEFAULT 'application/octet-stream',
+    current_version INTEGER NOT NULL DEFAULT 1,
+    size_bytes      INTEGER NOT NULL DEFAULT 0,
+    uploaded_at     REAL NOT NULL,
+    uploaded_by     TEXT NOT NULL DEFAULT 'user',
+    last_trained_at REAL,                  -- last version included in a dataset
+    deleted_at      REAL,                  -- soft-delete timestamp (NULL = live)
+    trash_kind      TEXT,                  -- 'raw' | 'converted' | NULL
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    UNIQUE(project_id, original_name)
+);
+CREATE INDEX IF NOT EXISTS idx_project_files_project ON project_files(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_files_deleted ON project_files(project_id, deleted_at);
+
+CREATE TABLE IF NOT EXISTS file_versions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id     TEXT NOT NULL,
+    version     INTEGER NOT NULL,
+    raw_path    TEXT NOT NULL,             -- absolute path on disk under files/raw/...
+    raw_hash    TEXT NOT NULL,             -- sha256 of raw bytes (== file id when stable)
+    raw_size    INTEGER NOT NULL,
+    uploaded_at REAL NOT NULL,
+    uploaded_by TEXT NOT NULL DEFAULT 'user',
+    UNIQUE(file_id, version),
+    FOREIGN KEY (file_id) REFERENCES project_files(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_file_versions_file ON file_versions(file_id);
+
+CREATE TABLE IF NOT EXISTS file_conversions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id         TEXT NOT NULL,
+    version         INTEGER NOT NULL,
+    format          TEXT NOT NULL,         -- 'md' | 'txt' | 'structured_json'
+    converted_path  TEXT NOT NULL,         -- absolute path under files/converted/...
+    converted_hash  TEXT NOT NULL,
+    converted_size  INTEGER NOT NULL,
+    converter       TEXT NOT NULL,         -- 'docling' | 'pypdf' | 'tesseract' | ...
+    converted_at    REAL NOT NULL,
+    status          TEXT NOT NULL,         -- 'ok' | 'error'
+    error_message   TEXT,
+    UNIQUE(file_id, version, format),
+    FOREIGN KEY (file_id) REFERENCES project_files(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_file_conversions_file ON file_conversions(file_id);
+
+CREATE TABLE IF NOT EXISTS folder_membership (
+    folder_id TEXT NOT NULL,
+    file_id   TEXT NOT NULL,
+    PRIMARY KEY (folder_id, file_id),
+    FOREIGN KEY (folder_id) REFERENCES file_folders(id) ON DELETE CASCADE,
+    FOREIGN KEY (file_id)   REFERENCES project_files(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_folder_membership_file ON folder_membership(file_id);
 """
 
 

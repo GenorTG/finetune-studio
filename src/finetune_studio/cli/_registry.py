@@ -18,6 +18,7 @@ from finetune_studio.cli.commands.augment import cmd_augment
 from finetune_studio.cli.commands.benchmark import cmd_benchmark
 from finetune_studio.cli.commands.compare import cmd_compare
 from finetune_studio.cli.commands.convert import cmd_convert
+from finetune_studio.cli.commands.files import cmd_files
 from finetune_studio.cli.commands.models import cmd_models
 from finetune_studio.cli.commands.optimize import cmd_optimize
 from finetune_studio.cli.commands.rag import cmd_rag
@@ -47,6 +48,7 @@ COMMANDS = {
     "validate-hallucination": cmd_validate_hallucination,
     "rag-test": cmd_rag_test,
     "vram": cmd_vram,
+    "files": cmd_files,
 }
 
 
