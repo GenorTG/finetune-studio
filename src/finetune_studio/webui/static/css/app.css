@@ -1720,7 +1720,9 @@ body::before {
 
 /* ---------- Mobile ---------- */
 @media (max-width: 700px) {
-  .app { grid-template-columns: 60px 1fr; }
+  /* Session-bar layout is top-strip + main below — the legacy 60px left
+     rail from the old drawer era crushed all content into column 1. */
+  .app { grid-template-columns: minmax(0, 1fr); }
   .nav-brand span, .nav-section, .nav-item span:not(.icon):not(.badge) { display: none; }
   .nav-item, .nav-foot { justify-content: center; }
   .content { padding: 16px; }
@@ -3391,17 +3393,24 @@ body::before {
   .run-detail .grid-2 { grid-template-columns: 1fr; }
 }
 @media (max-width: 700px) {
+  /* tmux strip stays HORIZONTAL + scrollable on mobile — no vertical rail.
+     (Previous column-stacking contradicted the session-bar design.) */
   .sb-tabs {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
     width: 100%;
+    padding-left: 46px;  /* room for the absolute FS logo only */
   }
   .sb-group {
-    flex-basis: 100% !important;
-    border-left: none !important;
-    border-top: 1px dashed var(--border);
-    padding: 4px 0;
-    flex-wrap: wrap;
+    flex: 0 0 auto;
+  }
+  .sb-group-tools {
+    flex: 0 0 auto;      /* undo the full-row wrap from the 1280/900 blocks */
+    border-top: none !important;
+    padding-top: 0;
+    margin-top: 0;
   }
   .activity { width: 100vw; max-height: calc(100vh - var(--header-h, 56px)); top: var(--header-h, 56px); }
   .content { padding: 8px; }
