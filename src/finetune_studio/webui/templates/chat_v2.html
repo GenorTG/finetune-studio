@@ -173,6 +173,72 @@
   padding: 6px;
   white-space: pre-wrap;
 }
+/* Status color for tool blocks: green ok, red error, amber partial */
+.dp-chat-tool-ok      { border-left: 3px solid var(--accent-green, #00ff66); }
+.dp-chat-tool-err     { border-left: 3px solid var(--err, #ff4444); }
+.dp-chat-tool-partial { border-left: 3px solid #ffaa00; }
+/* Header line layout: [icon] tool_name [args] → result [copy] */
+.dp-chat-tool-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 2px 0;
+}
+.dp-chat-tool-icon {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--accent-green, #00ff66);
+}
+.dp-chat-tool-err .dp-chat-tool-icon { color: var(--err, #ff4444); }
+.dp-chat-tool-partial .dp-chat-tool-icon { color: #ffaa00; }
+.dp-chat-tool-name {
+  font-weight: 700;
+  color: var(--accent-violet, #cc88ff);
+}
+.dp-chat-tool-args { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.dp-chat-tool-arg {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: var(--text-dim, #aaa);
+}
+.dp-chat-tool-result-sum {
+  font-size: 11px;
+  color: var(--text-dim, #888);
+}
+.dp-chat-tool-copy {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim, #888);
+  cursor: pointer;
+  border-radius: 3px;
+}
+.dp-chat-tool-copy:hover { color: var(--accent, #00ccff); border-color: var(--accent, #00ccff); }
+/* Structured body sections */
+.dp-chat-section { margin-top: 6px; }
+.dp-chat-section-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim, #666);
+  margin-bottom: 2px;
+}
+.dp-chat-pre {
+  font-size: 10px;
+  margin: 0;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--bg, #000);
+  padding: 6px;
+  white-space: pre-wrap;
+  border: 1px solid var(--border);
+}
+.dp-chat-pre-preview { white-space: pre-wrap; }
 </style>
 
 <script>
@@ -186,12 +252,34 @@ function _chatCurrentMode() {
 
 async function _chatCheckModel() {
   try {
-    const r = await fetch('/api/providers').then((r) => r.json());
+    // Source of truth #1: the ModelManager (registered providers +
+    // loaded-via-manager). Source of truth #2: the global inference
+    // engine loaded via /api/chat-v2/load. We accept either.
+    let active = null;
+    let niceName = null;
+    let pillKind = null;
+    let loadedModelPath = null;
+    try {
+      const r = await fetch('/api/providers').then((r) => r.json());
+      if (r.active && r.active.loaded) active = r.active;
+    } catch (_) {}
+    try {
+      const ie = await fetch('/api/chat-v2/inference/status').then((r) => r.json());
+      if (ie && ie.loaded && ie.model) {
+        loadedModelPath = ie.model;
+        if (!active) {
+          // Synthesize an active descriptor from the global engine so
+          // the pill stays accurate even when the user only loaded
+          // via /inference.
+          active = { id: '_global_inference', name: ie.model, kind: 'local_gguf', model_id: ie.model };
+        }
+      }
+    } catch (_) {}
     const pill = document.getElementById('chat-status-pill');
-    if (r.active && r.active.loaded) {
-      let nice = r.active.name || r.active.id || '?';
-      if (r.active.kind === 'local_gguf' && r.active.model_id) {
-        const base = String(r.active.model_id).split(/[\\/]/).pop() || r.active.model_id;
+    if (active && active.loaded) {
+      let nice = active.name || active.id || '?';
+      if (active.kind === 'local_gguf' && active.model_id) {
+        const base = String(active.model_id).split(/[\\/]/).pop() || active.model_id;
         const stripped = base.replace(/\.gguf$/i, '');
         if (stripped) nice = stripped;
       }
@@ -258,25 +346,150 @@ function _chatAppend(role, content, meta, sources) {
 function _chatRenderToolCalls(toolCalls) {
   const wrap = document.createElement('div');
   wrap.className = 'dp-chat-tools';
-  toolCalls.forEach((tc) => {
-    const det = document.createElement('details');
-    det.className = 'dp-chat-tool-block';
-    det.open = true;  // always expanded — users want to see what the AI did
+  toolCalls.forEach((tc, i) => {
     const ok = tc.result && !tc.result.error;
+    const status = ok ? 'ok' : (tc.result && tc.result.error) ? 'err' : 'partial';
+    const det = document.createElement('details');
+    det.className = 'dp-chat-tool-block dp-chat-tool-' + status;
+    det.open = true;  // always expanded — users want to see what the AI did
+
+    // ── Header line: [icon] tool_name(args) → result_summary [copy] ──
     const sum = document.createElement('summary');
-    sum.textContent = (ok ? '✓ ' : '✗ ') + (tc.name || 'tool');
-    if (tc.result && tc.result.error) sum.textContent += ' — ' + tc.result.error.slice(0, 120);
-    else if (tc.result && Array.isArray(tc.result.sources)) sum.textContent += ' · ' + tc.result.sources.length + ' item(s)';
-    else if (tc.result && Array.isArray(tc.result.qa_pairs)) sum.textContent += ' · ' + tc.result.qa_pairs.length + ' Q&A pair(s)';
-    else if (tc.result && Array.isArray(tc.result.pairs)) sum.textContent += ' · ' + tc.result.pairs.length + ' Q&A pair(s)';
-    else if (typeof tc.result === 'object' && tc.result && Object.keys(tc.result).length <= 2) {
-      const summary = Object.entries(tc.result).map(([k, v]) => k + '=' + (Array.isArray(v) ? '[' + v.length + ']' : String(v).slice(0, 40))).join(' · ');
-      if (summary) sum.textContent += ' · ' + summary;
+    sum.className = 'dp-chat-tool-summary';
+    sum.innerHTML = '';  // build with safe DOM nodes below
+
+    // icon + name
+    const icon = document.createElement('span');
+    icon.className = 'dp-chat-tool-icon';
+    icon.textContent = status === 'ok' ? '✓' : status === 'err' ? '✗' : '…';
+    sum.appendChild(icon);
+
+    const name = document.createElement('span');
+    name.className = 'dp-chat-tool-name';
+    name.textContent = tc.name || 'tool';
+    sum.appendChild(name);
+
+    // args summary (compact)
+    const args = tc.arguments || {};
+    const argKeys = Object.keys(args);
+    if (argKeys.length) {
+      const argsSpan = document.createElement('span');
+      argsSpan.className = 'dp-chat-tool-args';
+      argKeys.forEach((k) => {
+        const v = args[k];
+        let display;
+        if (typeof v === 'string') display = v.length > 40 ? '"' + v.slice(0, 40) + '…"' : '"' + v + '"';
+        else if (Array.isArray(v)) display = '[' + v.length + ' items]';
+        else display = JSON.stringify(v).slice(0, 60);
+        const chip = document.createElement('span');
+        chip.className = 'dp-chat-tool-arg';
+        chip.textContent = k + '=' + display;
+        argsSpan.appendChild(chip);
+      });
+      sum.appendChild(argsSpan);
     }
-    const pre = document.createElement('pre');
-    pre.textContent = JSON.stringify(tc, null, 2);
+
+    // result summary
+    const resSum = document.createElement('span');
+    resSum.className = 'dp-chat-tool-result-sum';
+    if (tc.result && tc.result.error) {
+      resSum.textContent = ' — ' + String(tc.result.error).slice(0, 120);
+    } else if (tc.result && Array.isArray(tc.result.sources)) {
+      resSum.textContent = ' → ' + tc.result.sources.length + ' source(s)';
+    } else if (tc.result && Array.isArray(tc.result.pairs)) {
+      resSum.textContent = ' → ' + tc.result.pairs.length + ' Q&A pair(s)';
+    } else if (tc.result && typeof tc.result === 'object') {
+      const ks = Object.keys(tc.result);
+      if (ks.length === 1) {
+        const v = tc.result[ks[0]];
+        if (Array.isArray(v)) resSum.textContent = ' → ' + v.length + ' ' + ks[0];
+        else resSum.textContent = ' → ' + String(v).slice(0, 60);
+      } else if (ks.length <= 3) {
+        resSum.textContent = ' → ' + ks.map((k) => {
+          const v = tc.result[k];
+          return k + '=' + (Array.isArray(v) ? '[' + v.length + ']' : String(v).slice(0, 30));
+        }).join(', ');
+      }
+    }
+    sum.appendChild(resSum);
+
+    // copy button
+    const copy = document.createElement('button');
+    copy.className = 'dp-chat-tool-copy';
+    copy.type = 'button';
+    copy.textContent = 'copy';
+    copy.title = 'Copy this tool call as JSON';
+    copy.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const blob = JSON.stringify(tc, null, 2);
+      try {
+        navigator.clipboard.writeText(blob).then(
+          () => { copy.textContent = 'copied!'; setTimeout(() => { copy.textContent = 'copy'; }, 1500); },
+          () => { copy.textContent = 'fail'; setTimeout(() => { copy.textContent = 'copy'; }, 1500); }
+        );
+      } catch (_) {
+        copy.textContent = 'fail';
+        setTimeout(() => { copy.textContent = 'copy'; }, 1500);
+      }
+    };
+    sum.appendChild(copy);
+
     det.appendChild(sum);
-    det.appendChild(pre);
+
+    // ── Body: structured args + result + result preview ──
+    if (argKeys.length) {
+      const argsBlock = document.createElement('div');
+      argsBlock.className = 'dp-chat-section';
+      const argsLabel = document.createElement('div');
+      argsLabel.className = 'dp-chat-section-label';
+      argsLabel.textContent = 'Arguments';
+      argsBlock.appendChild(argsLabel);
+      const argsPre = document.createElement('pre');
+      argsPre.className = 'dp-chat-pre';
+      argsPre.textContent = JSON.stringify(args, null, 2);
+      argsBlock.appendChild(argsPre);
+      det.appendChild(argsBlock);
+    }
+
+    // Result preview: show first few items for sources / qa_pairs
+    const previewItems = [];
+    if (tc.result && Array.isArray(tc.result.sources)) {
+      tc.result.sources.slice(0, 3).forEach((s) => {
+        previewItems.push('[' + (s.rag_name || '?') + ' · ' + (s.score || '?') + '] ' + (s.text || '').slice(0, 200));
+      });
+    } else if (tc.result && Array.isArray(tc.result.pairs)) {
+      tc.result.pairs.slice(0, 3).forEach((p, idx) => {
+        previewItems.push('Q' + (idx + 1) + ': ' + (p.question || '').slice(0, 120) + '\nA: ' + (p.answer || '').slice(0, 200));
+      });
+    }
+    if (previewItems.length) {
+      const prevBlock = document.createElement('div');
+      prevBlock.className = 'dp-chat-section';
+      const prevLabel = document.createElement('div');
+      prevLabel.className = 'dp-chat-section-label';
+      prevLabel.textContent = 'Result preview (first 3)';
+      prevBlock.appendChild(prevLabel);
+      const prevPre = document.createElement('pre');
+      prevPre.className = 'dp-chat-pre dp-chat-pre-preview';
+      prevPre.textContent = previewItems.join('\n\n');
+      prevBlock.appendChild(prevPre);
+      det.appendChild(prevBlock);
+    }
+
+    // Full result JSON
+    const resBlock = document.createElement('div');
+    resBlock.className = 'dp-chat-section';
+    const resLabel = document.createElement('div');
+    resLabel.className = 'dp-chat-section-label';
+    resLabel.textContent = 'Full result';
+    resBlock.appendChild(resLabel);
+    const resPre = document.createElement('pre');
+    resPre.className = 'dp-chat-pre';
+    resPre.textContent = JSON.stringify(tc.result || {}, null, 2);
+    resBlock.appendChild(resPre);
+    det.appendChild(resBlock);
+
     wrap.appendChild(det);
   });
   return wrap;
@@ -300,10 +513,34 @@ async function chatSend() {
       // model) or external_api (an OpenAI-compat endpoint). Fetch the active
       // model from /api/providers and send its id; the endpoint loads it via
       // the manager if not already loaded.
+      // Agent mode needs either provider_id (load/use the local manager's
+      // model) or external_api (an OpenAI-compat endpoint). The chat UI
+      // accepts both: (a) a registered provider that's currently `active`
+      // in the ModelManager, (b) the global inference engine's loaded
+      // model (loaded on /inference — finds the matching provider row by
+      // model_path), and (c) any local_gguf provider as last resort so the
+      // chat *always* has *something* to talk to.
       let provider_id = null;
       try {
         const prov = await fetch('/api/providers').then((r) => r.json());
-        if (prov.active && prov.active.id) provider_id = prov.active.id;
+        if (prov.active && prov.active.id) {
+          provider_id = prov.active.id;
+        } else {
+          // Fallback 1: match by path against the global inference engine
+          // — the model the user loaded on /inference.
+          const ie = await fetch('/api/chat-v2/inference/status').then((r) => r.json());
+          const loadedPath = ie && ie.model;
+          const match = (prov.providers || []).find((p) =>
+            p.kind === 'local_gguf' && p.model_id === loadedPath
+          );
+          if (match) provider_id = match.id;
+          // Fallback 2: any local_gguf provider — at least something
+          // responds to tool calls.
+          if (!provider_id) {
+            const anyGguf = (prov.providers || []).find((p) => p.kind === 'local_gguf');
+            if (anyGguf) provider_id = anyGguf.id;
+          }
+        }
       } catch (_) { /* ignore — endpoint will return a clear error */ }
       url = '/api/projects/' + _chatPid + '/data-prep/chat';
       body = { messages: _chatHistory, provider_id };
