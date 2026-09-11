@@ -594,7 +594,81 @@ def repair(
         ], capture_output=True, text=True, timeout=600)
         actions.append(f"pip -e .: {'ok' if r.returncode == 0 else 'FAIL'}")
 
+    if BUILD_LLAMA_CPP_CLI in by_code:
+        # Delegate to bash — install.sh owns the cmake + pip-deps logic.
+        # --llama-cpp-only skips torch / pyproject work and just builds.
+        log("[repair] building llama.cpp CLI (cmake + clone if missing)")
+        install_sh = Path(__file__).parent.parent / "install.sh"
+        r = subprocess.run(
+            ["bash", str(install_sh), "--llama-cpp-only"],
+            capture_output=True, text=True, timeout=1800,
+        )
+        actions.append(
+            f"llama.cpp CLI build: {'ok' if r.returncode == 0 else 'FAIL'}"
+        )
+        if r.returncode != 0:
+            log((r.stderr or r.stdout)[-1200:])
+
+    if INSTALL_CUDA_TOOLKIT in by_code:
+        # Detect distro + run the right package manager. The toolkit is
+        # required by the cu118/cu124/cu130 PyTorch wheels at runtime,
+        # even though we only need the driver for nvidia-smi to work.
+        log("[repair] CUDA toolkit missing on an NVIDIA host — installing")
+        distro = _detect_distro()
+        cmd_map = {
+            "debian": ["sudo", "apt-get", "install", "-y", "cuda-toolkit-12-4"],
+            "ubuntu": ["sudo", "apt-get", "install", "-y", "cuda-toolkit-12-4"],
+            "fedora": ["sudo", "dnf", "install", "-y", "cuda-toolkit-12-4"],
+            "arch":   ["sudo", "pacman", "-S", "--noconfirm", "cuda"],
+            "garuda": ["sudo", "pacman", "-S", "--noconfirm", "cuda"],
+        }
+        cmd = cmd_map.get(distro)
+        if cmd is None:
+            actions.append(
+                f"cuda toolkit: SKIP (distro '{distro}' not handled; install manually)"
+            )
+        else:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
+            actions.append(
+                f"cuda toolkit ({distro}): {'ok' if r.returncode == 0 else 'FAIL'}"
+            )
+            if r.returncode != 0:
+                log((r.stderr or r.stdout)[-1200:])
+
+    if INSTALL_SERVICE in by_code:
+        # Delegate to install-service.sh which already handles --user/--system,
+        # enable-linger, etc.
+        log("[repair] installing finetune-studio systemd service")
+        service_sh = Path(__file__).parent.parent / "install-service.sh"
+        r = subprocess.run(
+            ["bash", str(service_sh)],
+            capture_output=True, text=True, timeout=300,
+        )
+        actions.append(
+            f"systemd service: {'ok' if r.returncode == 0 else 'FAIL'}"
+        )
+        if r.returncode != 0:
+            log((r.stderr or r.stdout)[-800:])
+
     return True, actions
+
+
+def _detect_distro() -> str:
+    """Best-effort distro detection. Returns one of: debian, ubuntu,
+    fedora, arch, garuda, macos, unknown."""
+    if Path("/etc/os-release").exists():
+        try:
+            with open("/etc/os-release") as f:
+                os_release = {}
+                for line in f:
+                    if "=" in line:
+                        k, v = line.split("=", 1)
+                        os_release[k.strip()] = v.strip().strip('"').lower()
+            id_ = os_release.get("id", "")
+            return id_ if id_ in {"debian", "ubuntu", "fedora", "arch", "garuda"} else "unknown"
+        except Exception:
+            pass
+    return "unknown"
 
 
 # ── CLI (so bash can call this without imports) ────────────────────────

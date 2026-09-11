@@ -9,11 +9,15 @@
 #   5. Installs everything else from pyproject.toml
 #
 # Flags:
-#   --check     verify install, no changes
-#   --repair    diagnose broken install + auto-fix (mixed torch, missing deps, etc.)
-#   --verify    deep diagnostic, exit code = health (2=critical, 1=warn, 0=ok)
-#   --cpu       force CPU-only (skip GPU wheel selection)
-#   --no-gguf   skip llama-cpp-python entirely
+#   --check         verify install, no changes
+#   --repair        diagnose broken install + auto-fix (mixed torch, missing deps, etc.)
+#   --verify        deep diagnostic, exit code = health (2=critical, 1=warn, 0=ok)
+#   --auto-repair   like --repair but runs inline after a fresh install too
+#                   (so the post-install health check auto-fixes any GPU/torch/
+#                   llama-cpp/CUDA-toolkit/llama.cpp-CLI issue it finds instead
+#                   of just warning). Equivalent to FTS_AUTO_REPAIR=1.
+#   --cpu           force CPU-only (skip GPU wheel selection)
+#   --no-gguf       skip llama-cpp-python entirely
 #   --help      show usage
 
 set -euo pipefail
@@ -38,6 +42,7 @@ for arg in "$@"; do
         --check)          MODE="check" ;;
         --repair)         MODE="repair" ;;
         --verify)         MODE="verify" ;;
+        --auto-repair)    AUTO_REPAIR=1 ;;
         --cpu)            FORCE_CPU=1 ;;
         --no-gguf)        SKIP_GGUF=1 ;;
         --no-llama-cpp)   SKIP_LLAMA_CPP=1 ;;
@@ -379,10 +384,33 @@ if torch.cuda.is_available():
 # On a fresh install this should be a no-op; on a re-install into an
 # existing venv it surfaces problems that need --repair.
 log "Running deep health check (scripts/install_diagnose.py)..."
-if ! run_diagnose; then
+DIAG_RC=0
+run_diagnose || DIAG_RC=$?
+if [ "$DIAG_RC" = "0" ]; then
+    log "  ✓ deep health check passed."
+elif [ "${AUTO_REPAIR:-0}" = "1" ] || [ "${FTS_AUTO_REPAIR:-0}" = "1" ]; then
+    log "  Deep health check found issues (rc=$DIAG_RC). Auto-repair enabled — applying fixes..."
+    REPAIR_RC=0
+    run_diagnose --repair --no-service-check || REPAIR_RC=$?
+    if [ "$REPAIR_RC" = "0" ]; then
+        log "  Re-verifying after repair..."
+        DIAG_RC2=0
+        run_diagnose || DIAG_RC2=$?
+        if [ "$DIAG_RC2" = "0" ]; then
+            log "  ✓ install now fully healthy."
+        else
+            warn "  auto-repair applied but the system is still unhealthy (rc=$DIAG_RC2)."
+            warn "  Re-run with --verify for details."
+        fi
+    else
+        warn "  auto-repair did not fully resolve (rc=$REPAIR_RC)."
+        warn "  Try: bash install.sh --repair"
+    fi
+else
     warn "Deep health check found issues. Run  bash install.sh --repair  to autofix,"
-    warn "or  bash install.sh --verify  to see details. Common fix:"
+    warn "or  bash install.sh --verify  to see details. Quick fix:"
     warn "  bash install.sh --repair"
+    warn "Or set FTS_AUTO_REPAIR=1 to make install.sh auto-fix without prompting."
 fi
 
 echo ""
