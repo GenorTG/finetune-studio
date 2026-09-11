@@ -264,7 +264,7 @@ async function _chatCheckModel() {
       if (r.active && r.active.loaded) active = r.active;
     } catch (_) {}
     try {
-      const ie = await fetch('/api/chat-v2/inference/status').then((r) => r.json());
+      const ie = await fetch('/api/inference/status').then((r) => r.json());
       if (ie && ie.loaded && ie.model) {
         loadedModelPath = ie.model;
         if (!active) {
@@ -528,7 +528,7 @@ async function chatSend() {
         } else {
           // Fallback 1: match by path against the global inference engine
           // — the model the user loaded on /inference.
-          const ie = await fetch('/api/chat-v2/inference/status').then((r) => r.json());
+          const ie = await fetch('/api/inference/status').then((r) => r.json());
           const loadedPath = ie && ie.model;
           const match = (prov.providers || []).find((p) =>
             p.kind === 'local_gguf' && p.model_id === loadedPath
