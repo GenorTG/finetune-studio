@@ -398,8 +398,12 @@ async def data_prep_chat(pid: str, request: Request):
         if not backend["base_url"] or not backend["model_id"]:
             return {"error": "external_api.base_url and model_id required"}
     elif provider_id:
+        # Lazy imports: data_prep_chat.py is imported by app.py during
+        # router registration, so importing `inference_engine` (which is
+        # created at app.py module import time) at the top of this file
+        # would create a partial-module cycle. Import inside the handler.
         from finetune_studio.models.manager import get_manager
-        from finetune_studio.models.inference import get_engine
+        from finetune_studio.webui.app import inference_engine
 
         mgr = get_manager()
         cfg = mgr.get_provider(provider_id)
@@ -410,22 +414,25 @@ async def data_prep_chat(pid: str, request: Request):
         # Use it directly to avoid a duplicate Llama() instance racing with
         # mmap on the same GGUF file. The manager load() can wedge a busy
         # host in that scenario (CPU pinned, status API hangs).
-        engine = get_engine()
-        engine_path = getattr(engine, "model_path", None) or ""
+        engine_path = getattr(inference_engine, "model_path", None) or ""
         provider_path = cfg.get("model_path") or ""
+        # Compare paths robustly — one may be relative, the other absolute.
+        import os
+        engine_norm = os.path.normpath(engine_path) if engine_path else ""
+        provider_norm = os.path.normpath(provider_path) if provider_path else ""
         if (
-            getattr(engine, "model", None) is not None
-            and engine_path
-            and engine_path == provider_path
+            getattr(inference_engine, "model", None) is not None
+            and engine_norm
+            and engine_norm == provider_norm
         ):
             log.info(
                 "data-prep chat: using global engine for provider %s "
                 "(path=%s); skipping manager load to avoid duplicate Llama",
-                provider_id, provider_path,
+                provider_id, provider_norm,
             )
             backend = {
                 "kind": "global",
-                "engine": engine,
+                "engine": inference_engine,
                 "provider_id": provider_id,
             }
         else:
