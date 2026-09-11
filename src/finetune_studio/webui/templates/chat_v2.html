@@ -572,18 +572,14 @@ async function chatSend() {
       });
     }
 
-    console.log('[chat] Sending to', url, 'body:', body);
     const r = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    console.log('[chat] Response status:', r.status);
     const raw = await r.json();
-    console.log('[chat] Response:', raw);
     if (raw.error) throw new Error(raw.error);
     const parsed = parseFn(raw);
-    console.log('[chat] Parsed:', parsed);
 
     if (parsed.tool_calls && parsed.tool_calls.length) {
       _chatAppend('tool', _chatRenderToolCalls(parsed.tool_calls), `round ${parsed.rounds || 1} · ${parsed.tool_calls.length} tool call(s)`);
