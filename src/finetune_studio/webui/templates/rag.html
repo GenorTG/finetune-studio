@@ -57,24 +57,30 @@
   </div>
   <div class="grid grid-12 gap-3 items-end">
     <div class="col-span-4">
-      <label class="block text-xs muted mb-1">Embedder</label>
-      <select id="b-embedder" class="select">
+      <label class="block text-xs muted mb-1"
+             title="An embedder is a small ML model that converts text into a fixed-length numeric vector (e.g. 1024 numbers). Texts with similar meaning land near each other in that vector space, which lets the system find chunks semantically related to a query. multilingual-e5-large handles 100+ languages; bge-large-en is stronger for English-only corpora; all-MiniLM-L6-v2 is tiny and fast but weaker.">Embedder <span class="dim">?</span></label>
+      <select id="b-embedder" class="select"
+              title="Pick the embedding model. Larger = better retrieval quality but more disk + slower build. You can change this and rebuild to compare results.">
         <option value="intfloat/multilingual-e5-large" selected>multilingual-e5-large (1024d, multilingual, recommended)</option>
         <option value="BAAI/bge-large-en-v1.5">bge-large-en-v1.5 (1024d, English only, strong)</option>
         <option value="sentence-transformers/all-MiniLM-L6-v2">all-MiniLM-L6-v2 (384d, fast, weaker)</option>
       </select>
     </div>
     <div class="col-span-3">
-      <label class="block text-xs muted mb-1">Chunk size (words)</label>
+      <label class="block text-xs muted mb-1"
+             title="A chunk is a contiguous slice of text (in words) that gets embedded as one unit. Too small = each chunk lacks context. Too large = the embedder mixes unrelated topics and retrieval gets fuzzy. 300–500 is a good default; tune based on your documents (legal text wants bigger; chat logs want smaller).">Chunk size (words) <span class="dim">?</span></label>
       <input id="b-chunk" type="number" min="100" max="2000" value="400" class="input">
     </div>
     <div class="col-span-3">
-      <label class="block text-xs muted mb-1">Overlap (words)</label>
+      <label class="block text-xs muted mb-1"
+             title="Overlap is how many words each chunk shares with the previous chunk. Prevents a fact that straddles the chunk boundary from being split across chunks and lost. Typical: 10–25% of chunk size. Too much overlap wastes storage + slows retrieval.">Overlap (words) <span class="dim">?</span></label>
       <input id="b-overlap" type="number" min="0" max="500" value="80" class="input">
     </div>
     <div class="col-span-2 flex gap-2">
-      <button onclick="buildCorpus(false)" id="build-btn" class="btn primary" style="flex:1;">Build</button>
-      <button onclick="buildCorpus(true)" id="rebuild-btn" class="btn" title="Wipe existing corpus and rebuild from scratch">⟲</button>
+      <button onclick="buildCorpus(false)" id="build-btn" class="btn primary" style="flex:1;"
+              title="Build the RAG corpus: chunk your sources, embed each chunk, index for fast retrieval. First build downloads the embedder (~2.2 GB) which takes a few minutes.">Build</button>
+      <button onclick="buildCorpus(true)" id="rebuild-btn" class="btn"
+              title="Wipe the existing corpus and rebuild from scratch. Use this when you change chunk size, overlap, or embedder — the existing chunks are no longer valid.">⟲</button>
     </div>
   </div>
   <div id="build-status" class="mt-3 text-xs dim"></div>
@@ -94,19 +100,21 @@
   </div>
   <div class="grid grid-12 gap-3 items-end">
     <div class="col-span-5">
-      <label class="block text-xs muted mb-1">Reranker (cross-encoder)</label>
+      <label class="block text-xs muted mb-1"
+             title="A reranker is a small cross-encoder model (separate from the embedder) that reads the query AND each candidate chunk together and outputs a relevance score. More accurate than raw embedding similarity but slower.">Reranker (cross-encoder) <span class="dim">?</span></label>
       <select id="s-reranker" class="select">
         <option value="cross-encoder/ms-marco-MiniLM-L-6-v2" selected>ms-marco-MiniLM-L-6-v2 (English, fast)</option>
         <option value="BAAI/bge-reranker-v2-m3">bge-reranker-v2-m3 (multilingual, larger)</option>
       </select>
     </div>
     <div class="col-span-3">
-      <label class="block text-xs muted mb-1">Rerank top-N</label>
+      <label class="block text-xs muted mb-1"
+             title="How many candidate chunks to rerank. More = slower but possibly better precision. The reranker then returns the top-K (configured separately) of these. Typical: 30–100.">Rerank top-N <span class="dim">?</span></label>
       <input id="s-rerank-top-n" type="number" min="1" max="200" value="50" class="input">
     </div>
     <div class="col-span-2 flex items-center gap-3">
-      <label class="flex items-center gap-2 text-xs"><input id="s-rerank-enabled" type="checkbox" checked> Rerank</label>
-      <label class="flex items-center gap-2 text-xs"><input id="s-hybrid-enabled" type="checkbox" checked> Hybrid</label>
+      <label class="flex items-center gap-2 text-xs" title="Re-rank dense-vector search results with the cross-encoder. Adds latency but improves precision. Disable for fast lookup-only workflows."><input id="s-rerank-enabled" type="checkbox" checked> Rerank</label>
+      <label class="flex items-center gap-2 text-xs" title="Hybrid retrieval = combine dense (embedding) + sparse (BM25 keyword) search, then rerank. Better recall than either alone — embedding catches paraphrases, BM25 catches exact terms / code / names."><input id="s-hybrid-enabled" type="checkbox" checked> Hybrid</label>
     </div>
     <div class="col-span-2">
       <button onclick="saveSettings()" class="btn primary" style="width:100%;">Save</button>
@@ -124,8 +132,10 @@
   </div>
   <div class="flex gap-2">
     <input id="q-text" type="text" placeholder="Ask a question about this project's documents…"
-           class="input" style="flex:1;">
-    <button onclick="runQuery()" id="q-btn" class="btn primary">Search</button>
+           class="input" style="flex:1;"
+           title="Run a retrieval-only query (no LLM generation). Shows the top-K chunks the system would feed to the chat model, with their retrieval scores. Useful for tuning chunk size / overlap / embedder before training.">
+    <button onclick="runQuery()" id="q-btn" class="btn primary"
+            title="Embed your query and retrieve the top-K most similar chunks from the corpus. Doesn't call the LLM — just shows what the retriever found.">Search</button>
   </div>
   <div id="q-status" class="mt-2 text-xs dim"></div>
   <div id="q-results" class="mt-3" hidden></div>
@@ -143,8 +153,10 @@
   <div class="flex gap-2">
     <input id="chat-input" type="text" placeholder="Ask anything — model uses the retrieved documents as context…"
            class="input" style="flex:1;"
+           title="A retrieval-augmented chat: your question is embedded, top-K matching chunks are pulled from the corpus, and the model is asked to answer using those chunks as context. Reduces hallucination and lets the model cite sources."
            onkeydown="if(event.key==='Enter'){event.preventDefault();sendChat();}">
-    <button onclick="sendChat()" id="chat-btn" class="btn primary">Send</button>
+    <button onclick="sendChat()" id="chat-btn" class="btn primary"
+            title="Send your question. The system retrieves relevant chunks, prepends them to your message, and sends everything to the loaded model. Requires a model to be loaded first (top-bar pill turns green when one is).">Send</button>
   </div>
 </div>
 
@@ -169,10 +181,10 @@
       </select>
     </div>
     <div class="col-span-2 flex items-end pb-2">
-      <label class="flex items-center gap-2 text-xs"><input id="bundle-include-models" type="checkbox" checked> Include models</label>
+      <label class="flex items-center gap-2 text-xs" title="Bakes the embedder + reranker weights into the bundle (~2 GB extra) so the recipient can run the corpus offline without separately downloading the models. Uncheck for a small text-only bundle (~30 KB)."><input id="bundle-include-models" type="checkbox" checked> Include models</label>
     </div>
     <div class="col-span-2">
-      <button id="bundle-btn" onclick="startBundleDownload()" class="btn primary" style="width:100%;">Download</button>
+      <button id="bundle-btn" onclick="startBundleDownload()" class="btn primary" style="width:100%;" title="Bundle the corpus (chunks + vectors + BM25 index + optional models) into a single archive. Run 'finetune-studio serve' on the recipient machine to use it.">Download</button>
     </div>
   </div>
   <p class="text-xs dim">"Include models" bakes embedder + reranker into the bundle (~2 GB extra) so the recipient can run offline. Uncheck for a small bundle (~30 KB).</p>

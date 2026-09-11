@@ -97,12 +97,12 @@
     </div>
   </div>
   <table class="table compact">
-    <tr><td class="meta muted">Project ID</td><td class="mono">{{ pid }}</td></tr>
-    <tr data-mode="test"><td class="meta muted">System prompt</td><td class="mono">{{ project.system_prompt or '(none)' }}</td></tr>
-    <tr data-mode="agent"><td class="meta muted">Agent system prompt</td><td class="mono">Server-side. The model is instructed to call <code>list_sources</code> → <code>read_source</code> → <code>create_qa_pairs</code> before answering.</td></tr>
-    <tr><td class="meta muted">Base model</td><td class="mono">{{ project.base_model or '—' }}</td></tr>
-    <tr><td class="meta muted">Production run</td><td class="mono">{{ project.production_run or '(none)' }}</td></tr>
-    <tr><td class="meta muted">RAG corpora</td><td class="mono">{{ rags|length if rags else 0 }} attached</td></tr>
+    <tr><td class="meta muted" title="This project's stable identifier (8-hex-char). Used in all URLs and exports.">Project ID</td><td class="mono">{{ pid }}</td></tr>
+    <tr data-mode="test"><td class="meta muted" title="The instruction the model sees at the start of every conversation in Test mode. Sets its persona + behaviour. Edit it on the project overview page.">System prompt</td><td class="mono">{{ project.system_prompt or '(none)' }}</td></tr>
+    <tr data-mode="agent"><td class="meta muted" title="Server-side. In Agent mode the model is given a special system prompt that instructs it to call list_sources → read_source → create_qa_pairs before answering, so it can mine Q&A pairs from your parsed files.">Agent system prompt</td><td class="mono">Server-side. The model is instructed to call <code>list_sources</code> → <code>read_source</code> → <code>create_qa_pairs</code> before answering.</td></tr>
+    <tr><td class="meta muted" title="The base model this project is built around. The trained model is an adapter (LoRA) on top of this base. Use it on the Inference tab to chat with the un-fine-tuned version.">Base model</td><td class="mono">{{ project.base_model or '—' }}</td></tr>
+    <tr><td class="meta muted" title="The training run designated as 'production' for this project — typically the best-scoring run. Set on the project overview page; this is what the Chat page serves by default.">Production run</td><td class="mono">{{ project.production_run or '(none)' }}</td></tr>
+    <tr><td class="meta muted" title="RAG corpora built from this project's parsed sources. The chat uses them as retrieval-augmented context in Test mode. Build them on the RAG tab.">RAG corpora</td><td class="mono">{{ rags|length if rags else 0 }} attached</td></tr>
   </table>
   <div class="flex gap-2 mt-4 wrap">
     <a href="/projects/{{ pid }}" class="btn" data-link>← Back to project</a>

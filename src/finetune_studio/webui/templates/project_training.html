@@ -116,18 +116,18 @@
 
     {# ── Training Data — tabs (project datasets vs upload) ── #}
     <div class="data-source">
-      <span class="block text-xs muted mb-1">Training Data</span>
+      <span class="block text-xs muted mb-1" title="Pick or upload a JSONL file of Q&A pairs. Each line is one training example (typically {messages: [{role: 'user', content: '...'},{role: 'assistant', content: '...'}]} for chat-style datasets).">Training Data <span class="dim">?</span></span>
       <div class="data-tabs" role="tablist">
-        <button type="button" class="data-tab active" data-tab="project" role="tab">From this project</button>
-        <button type="button" class="data-tab" data-tab="upload" role="tab">Upload my own</button>
+        <button type="button" class="data-tab active" data-tab="project" role="tab" title="Datasets registered for this project — typically exported from the Data Prep page.">From this project</button>
+        <button type="button" class="data-tab" data-tab="upload" role="tab" title="Upload a JSONL file directly. It's saved to this project's datasets dir and registered for future runs.">Upload my own</button>
       </div>
 
       <div class="data-panel active" data-panel="project">
         {% if project.datasets %}
-          <select id="dataset-select" class="select mt-1">
+          <select id="dataset-select" class="select mt-1" title="Each dataset is a registered JSONL file with Q&A pairs. Selecting one sets the data path for the training run.">
             <option value="">— pick a dataset —</option>
             {% for ds in project.datasets %}
-            <option value="{{ ds.id }}" data-path="{{ ds.data_path }}">
+            <option value="{{ ds.id }}" data-path="{{ ds.data_path }}" title="A Q&A pair is one training example: a user question + an assistant answer. qa_count is how many pairs this file contains.">
               {{ ds.name }} · {{ ds.qa_count }} pairs · {{ (ds.size_bytes / 1024)|round(1) }} KB
               {% if ds.source == 'data-prep-export' %} · (from data-prep){% endif %}
             </option>
@@ -148,7 +148,7 @@
       </div>
 
       <div class="data-panel" data-panel="upload">
-        <input type="file" id="dataset-upload" accept=".jsonl,.json,.txt" class="input mt-1">
+        <input type="file" id="dataset-upload" accept=".jsonl,.json,.txt" class="input mt-1" title="Upload a JSONL file. Each line should be a JSON object representing one training example (e.g. ShareGPT / Alpaca / OpenAI chat formats).">
         <div id="dataset-upload-status" class="text-xs muted mt-1">
           Pick a jsonl file. It's saved to this project's dataset folder and added
           to the list above.
@@ -157,31 +157,31 @@
     </div>
 
     <label>
-      <span class="block text-xs muted mb-1">Output Dir</span>
+      <span class="block text-xs muted mb-1" title="Where training output (adapter, merged model, GGUF export) will be written. Relative paths resolve under this project's directory.">Output Dir <span class="dim">?</span></span>
       <input type="text" name="output_dir" value="output" class="input">
     </label>
-    <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;">
+    <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;" title="After training, merge the LoRA adapter into the base model. The merged model is a standalone file you can load directly (no need to keep the adapter separate). Larger on disk but easier to deploy.">
       <input type="checkbox" name="merge_on_save" value="1" id="merge-on-save-check">
       <span class="block text-xs muted">Also save merged model (full standalone, ~1.5 GB)</span>
     </label>
     <label>
-      <span class="block text-xs muted mb-1">LoRA Rank</span>
+      <span class="block text-xs muted mb-1" title="How many trainable parameters the LoRA adapter has. Higher rank = more expressive but slower to train and bigger adapter file. Typical range: 8–64. 64 is a good default; 8 if you're memory-constrained.">LoRA Rank <span class="dim">?</span></span>
       <input type="number" name="lora_rank" value="64" class="input">
     </label>
     <label>
-      <span class="block text-xs muted mb-1">Learning Rate</span>
+      <span class="block text-xs muted mb-1" title="Step size for each gradient update. Higher = faster learning but risk of overshooting. For LoRA, 1e-4 to 2e-4 is typical; 8e-5 is a safe default.">Learning Rate <span class="dim">?</span></span>
       <input type="text" name="learning_rate" value="8e-5" class="input">
     </label>
     <label>
-      <span class="block text-xs muted mb-1">Epochs</span>
+      <span class="block text-xs muted mb-1" title="How many times the model sees the full training dataset. 1–3 is typical for LoRA; more can cause overfitting (model memorises instead of generalising). Watch the loss curve.">Epochs <span class="dim">?</span></span>
       <input type="number" name="num_epochs" value="4" class="input">
     </label>
     <label>
-      <span class="block text-xs muted mb-1">Batch size</span>
+      <span class="block text-xs muted mb-1" title="How many training examples are processed before the model updates its weights. Bigger batches train more stably but use more VRAM. 1–4 is typical for LoRA on consumer GPUs.">Batch size <span class="dim">?</span></span>
       <input type="number" name="batch_size" value="2" class="input">
     </label>
     <label>
-      <span class="block text-xs muted mb-1">Max sequence</span>
+      <span class="block text-xs muted mb-1" title="Maximum tokens per training example (prompt + response). Longer = more context but more VRAM and slower training. Truncate examples longer than this; pad shorter ones up to it.">Max sequence <span class="dim">?</span></span>
       <input type="number" name="max_seq_length" value="2048" class="input">
     </label>
     <div class="flex gap-2 mt-4" style="grid-column: 1 / -1;">

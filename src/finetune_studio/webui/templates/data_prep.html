@@ -21,24 +21,34 @@
 
   <form id="prep-form" class="grid grid-2 gap-4 mt-4" data-api="/api/projects/{{ pid }}/data-prep/start">
     <div>
-      <label class="block text-xs muted mb-1" for="prep-source">Source file</label>
+      <label class="block text-xs muted mb-1" for="prep-source"
+             title="A parsed source is a file (PDF, DOCX, image, etc.) that has been uploaded to the Data tab and chunked into ~500-token pieces. Each chunk is a self-contained slice the model can read at once.">
+        Source file <span class="dim">?</span>
+      </label>
       <select id="prep-source" name="source_id" class="select">
         <option value="">— pick a parsed source —</option>
         {% for s in sources or [] %}
-        <option value="{{ s.id }}">{{ s.name }} · {{ s.char_count }} chars · {{ s.chunk_count }} chunks</option>
+        <option value="{{ s.id }}" title="A chunk is a contiguous slice of the source text (usually 300–800 tokens) that fits in the model's context window. The model reads chunks one at a time.">{{ s.name }} · {{ s.char_count }} chars · {{ s.chunk_count }} chunks</option>
         {% endfor %}
       </select>
       <div class="text-xs dim mt-1">Sources come from the <a href="/projects/{{ pid }}/data" data-link>Data</a> tab. Upload a file there first if this list is empty.</div>
     </div>
 
     <div>
-      <label class="block text-xs muted mb-1" for="prep-qpc">Q&amp;A per chunk</label>
+      <label class="block text-xs muted mb-1" for="prep-qpc"
+             title="A Q&A pair is a single training example: one user question paired with one assistant answer. The model learns from many such pairs. More pairs per chunk = more synthetic training data, but the AI may repeat itself or hallucinate.">
+        Q&amp;A per chunk <span class="dim">?</span>
+      </label>
       <input id="prep-qpc" name="qa_per_chunk" type="number" value="3" min="1" max="10" class="input">
     </div>
 
     <div>
-      <label class="block text-xs muted mb-1" for="prep-diff">Difficulty</label>
-      <select id="prep-diff" name="difficulty" class="select">
+      <label class="block text-xs muted mb-1" for="prep-diff"
+             title="How conceptually demanding the generated Q&A pairs should be. Easy = recall. Medium = applied. Hard = synthesis / multi-step. Expert = requires domain knowledge. Picking 'medium' is a sensible default.">
+        Difficulty <span class="dim">?</span>
+      </label>
+      <select id="prep-diff" name="difficulty" class="select"
+              title="Easy = direct factual recall from the source. Medium = applied reasoning over the source. Hard = inference / synthesis across ideas in the source. Expert = domain-expert-level analysis.">
         <option value="easy">easy</option>
         <option value="medium" selected>medium</option>
         <option value="hard">hard</option>
@@ -47,8 +57,12 @@
     </div>
 
     <div>
-      <label class="block text-xs muted mb-1" for="prep-style">Style</label>
-      <select id="prep-style" name="style" class="select">
+      <label class="block text-xs muted mb-1" for="prep-style"
+             title="The rhetorical style of the generated Q&A pairs. Different styles teach the model different conversational patterns.">
+        Style <span class="dim">?</span>
+      </label>
+      <select id="prep-style" name="style" class="select"
+              title="Socratic = leading questions that guide the student to the answer. Direct = concise Q→A. Factual = encyclopedic definitions. Eli5 = simple language, analogies. Code = programming tasks with code blocks.">
         <option value="socratic" selected>socratic</option>
         <option value="direct">direct</option>
         <option value="factual">factual</option>
@@ -73,11 +87,14 @@
     <a href="/projects/{{ pid }}/chat" class="btn primary" data-link>Open chat in Agent mode →</a>
   </div>
   <div class="mt-2 dim text-xs">
-    The chat in Agent mode has four tools wired up: <code>list_sources</code>, <code>read_source</code>,
-    <code>list_qa_pairs</code>, <code>create_qa_pairs</code>. The model runs them server-side and the
-    UI shows each call + result inline. Pairs created with <code>create_qa_pairs</code> land in
-    <code>project_datasets</code> and become selectable on the Training tab under
-    <i>From this project</i>.
+    The chat in Agent mode has four tools wired up:
+    <code title="List all parsed sources in this project. Returns source IDs, filenames, chunk counts, char counts.">list_sources</code>,
+    <code title="Read a single source's full text (or a specific chunk range). Use after list_sources to fetch the actual content.">read_source</code>,
+    <code title="List Q&A pairs already in this project's qa_pairs table. Lets the model see what's already drafted before generating duplicates.">list_qa_pairs</code>,
+    <code title="Create new Q&A pairs and persist them. Each call writes one or more pairs to disk + registers them in the project.">create_qa_pairs</code>.
+    The model runs them server-side and the UI shows each call + result inline. Pairs created with <code title="The persistent training-datasets table. Registered pairs show up on the Training tab under 'From this project'.">create_qa_pairs</code>
+    land in <code title="Persistent storage for Q&A pairs that have been approved / generated and are ready to train on.">project_datasets</code>
+    and become selectable on the Training tab under <i>From this project</i>.
   </div>
 </div>
 
@@ -134,7 +151,13 @@ async function prepRefreshResults() {
       '</tr>';
     }).join('');
     el.innerHTML = '<table class="dp-results-table">' +
-      '<thead><tr><th class="meta">status</th><th class="meta">source</th><th class="meta">question</th><th class="meta">answer</th><th class="meta">created</th></tr></thead>' +
+      '<thead><tr>' +
+        '<th class="meta" title="Lifecycle of this Q&A pair: pending (just drafted, awaiting your review), approved (good to train on), rejected (skip).">status</th>' +
+        '<th class="meta" title="The parsed file this pair was generated from. Click the file name on the Data tab to view the original.">source</th>' +
+        '<th class="meta" title="The user-style question. The model learns to answer this kind of question in a similar style after fine-tuning.">question</th>' +
+        '<th class="meta" title="The assistant-style answer the model should learn to produce. Should be grounded in the source — hallucinated answers hurt training.">answer</th>' +
+        '<th class="meta" title="When this pair was created (UTC).">created</th>' +
+      '</tr></thead>' +
       '<tbody>' + rows + '</tbody></table>' +
       (items.length > 50 ? '<div class="dim text-xs mt-2">Showing first 50 of ' + items.length + '.</div>' : '');
   } catch (e) {
