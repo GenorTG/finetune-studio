@@ -175,10 +175,21 @@ def _update_worker(uid: str, mode: str, options: dict) -> None:
         # the script exits \u2014 this runs in a FastAPI BackgroundTask,
         # not on the request thread.
         assert proc.stdout is not None
+        restart_seen = False
         for line in proc.stdout:
+            if "Restarting finetune-studio.service" in line:
+                restart_seen = True
             db.append_update_log(uid, line)
         proc.wait()
         if proc.returncode == 0:
+            db.mark_update_done(uid)
+        elif restart_seen:
+            # update.sh was SIGTERMed by the very restart it triggered —
+            # every real step (pull, deps, migrations) already succeeded.
+            # Mark done, not error: -15 here is success, not failure.
+            db.append_update_log(uid,
+                "\n[worker] update.sh ended by the service restart it "
+                "triggered (expected) → marked done\n")
             db.mark_update_done(uid)
         else:
             db.mark_update_failed(

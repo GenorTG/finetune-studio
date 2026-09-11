@@ -51,7 +51,11 @@ VENV_PY="$PWD/$VENV_DIR/bin/python"
 # ── Step 1: git pull ────────────────────────────────────────────────────
 if [ "$NO_PULL" = "0" ]; then
     log "git pull (ff-only)..."
-    if ! git pull --ff-only origin main 2>&1; then
+    # Sanitized env: the service context can carry SSH_* leftovers that
+    # make openssh reject its own config ("Bad owner or permissions"),
+    # breaking git pull only when run from the daemon. A clean HOME+PATH
+    # environment authenticates fine (verified 2026-09-11).
+    if ! env -i HOME="$HOME" PATH="$PATH" git pull --ff-only origin main 2>&1; then
         warn "git pull failed (local may be ahead or divergent). Using local code."
     fi
 else
