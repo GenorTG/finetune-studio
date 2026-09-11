@@ -507,11 +507,11 @@ Each stage is independently shippable. Stages build on each other.
 
 ### Stage 1 — File library foundation (the bedrock)
 - DB migrations for `file_folders`, `project_files`, `file_versions`, `file_conversions`, `folder_membership`
-- Disk layout: `files/raw/` + `files/converted/` + `files/folders.json`
-- Routes: `POST /api/projects/{pid}/files/upload`, `GET /api/projects/{pid}/files`, `GET /api/projects/{pid}/files/{fid}`, `PATCH /api/projects/{pid}/files/{fid}`, `DELETE /api/projects/{pid}/files/{fid}`, `POST /api/projects/{pid}/files/{fid}/convert`, `GET /api/projects/{pid}/files/{fid}/versions`
+- Disk layout: `files/raw/{pdfs,imgs,csvs,docs,code,other}/{id}_{stem}.{ext}` + `files/converted/{user_folder}/{stem} (converted {YYYY-MM-DD}).md` + trash dirs
+- Routes: `POST /api/projects/{pid}/files/upload` (with bulk-upload + dedup report), `GET /api/projects/{pid}/files`, `GET /api/projects/{pid}/files/{fid}`, `PATCH /api/projects/{pid}/files/{fid}` (metadata only; raw is immutable), `DELETE /api/projects/{pid}/files/{fid}` (soft to trash), `POST /api/projects/{pid}/files/{fid}/restore`, `POST /api/projects/{pid}/files/{fid}/convert`, `GET /api/projects/{pid}/files/{fid}/versions`, `GET /api/projects/{pid}/files/{fid}/raw?version=N` (re-download)
 - Routes: `GET/POST/PATCH/DELETE /api/projects/{pid}/folders`
 - Background conversion pipeline (reuse existing DataPrepRunner)
-- UI: file library on Data Prep page with folders, upload, viewer/editor
+- UI: file library on Data Prep page with folders, MIME-routed RAW structure, upload, viewer/editor (raw preview when supported, else converted), re-download button, dedup notification
 - **No refactor of routes yet** — old pages still work
 
 ### Stage 2 — Datasets
@@ -570,15 +570,51 @@ Stage 4 (chat harness) is the chunkiest and most disruptive — schedule it when
 
 ---
 
-## 12. Open questions for Genor
+## 12. Decisions (locked)
 
-1. **Folder nesting depth**: flat (one level) or arbitrary? Recommend flat for v1.
-2. **Hard delete vs soft delete on files**: default to soft-delete with 30-day purge?
-3. **File dedup on upload**: same sha256 already in project → reject / version-bump / allow?
-4. **JSONL format default**: ShareGPT? Alpaca? Configurable per dataset with ShareGPT as default?
-5. **External LLM judge**: which providers? Just OpenAI-compat or also Anthropic-format?
-6. **Self-eval on tiny models**: skip the option for models <1B since judge results are noise?
+1. **Folder nesting** — flat at the user-organisation level. The browser itself shows user-named folders ("Contracts", "Handbook", "Eval Sets") with drag-to-move between them.
+
+2. **Auto-separation on upload by MIME type** — at upload time, files are routed into type-segregated RAW folders:
+   - `files/raw/pdfs/`, `files/raw/imgs/`, `files/raw/csvs/`, `files/raw/docs/`, `files/raw/code/`, `files/raw/other/`
+   - Files in `raw/` are **immutable** — cannot be moved, only deleted (soft to trash). This guarantees the audit trail: a raw file at hash `abc` is the same bytes forever.
+   - Converted files live in user-named folders under `files/converted/{user_folder}/` with names like `{original_stem} (converted {YYYY-MM-DD}).md` so a CLI user can `ls` and immediately trace back to the source doc.
+
+3. **Soft delete with 7-day purge**:
+   - Files move to `files/raw/.RAW_TRASH/` or `files/converted/.CONVERTED_TRASH/`
+   - DB row gets `deleted_at` timestamp
+   - A scheduled task (cron or systemd timer, configurable) purges anything older than 7 days
+   - Manual cleanup: a `/api/projects/{pid}/files/trash/purge?older_than_days=N` endpoint + an `fts files trash` CLI subcommand for ad-hoc runs
+   - Until purged, file is restorable via UI ("Trash" view with Restore button)
+
+4. **File dedup** — sha256 hash of raw bytes:
+   - On upload, compute hash. If `project_files.raw_hash` already exists for this project, **notify** the user with the duplicate's filename + path, and **skip** (do not write a new version).
+   - On bulk upload (e.g. 100 files), defer the report until all files are processed. Final report shape:
+     ```json
+     {
+       "uploaded": 87,
+       "converted_ok": 84,
+       "converted_failed": 3,
+       "duplicates_skipped": 10,
+       "duplicates": [
+         {"filename": "...", "duplicate_of": "Q3-contracts.pdf", "raw_hash": "..."}
+       ],
+       "errors": [{"filename": "...", "stage": "upload|convert", "message": "..."}]
+     }
+     ```
+
+5. **JSONL format** (clarified with Genor): the **training data file** fed to the trainer. Each line is one Q&A pair. The exact JSON shape per line depends on the format:
+   - **ShareGPT** (default): `{"conversations": [{"from": "human", "value": "..."}, {"from": "gpt", "value": "..."}]}`
+   - **Alpaca**: `{"instruction": "...", "input": "...", "output": "..."}`
+   - **OpenAI chat**: `{"messages": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]}`
+   
+   Each saved dataset produces a `.jsonl` file with thousands of these lines + a sibling `manifest.json` with full provenance. The trainer reads this file directly.
+
+6. **External LLM judge** — anything that speaks `/v1/chat/completions` OpenAI-compat. Reuse the existing `/api/providers` row system: user adds a provider with `kind: openai_compat`, gets `base_url` + `api_key` + `model_id`, the benchmark route uses it for judging. Anthropic-format not needed for v1.
+
+7. **Self-eval on tiny models** — allowed regardless of model size. User's responsibility. Note in UI: *"Judging with the same model is biased toward the model's own style. For trustworthy eval use an external judge."*
 
 ---
 
-*This spec will live in the repo at `docs/REFACTOR-SPEC.md` and evolve as we build.*
+## 13. Implementation stages
+
+Each stage is independently shippable. Stages build on each other.
