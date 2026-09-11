@@ -12,6 +12,7 @@ run benchmarks — all from one dark-themed WebUI that lives in your browser.
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![GPU: CUDA](https://img.shields.io/badge/GPU-CUDA-76b900.svg)](#installation)
 [![WebUI](https://img.shields.io/badge/WebUI-FastAPI%20%2B%20Jinja2-009688.svg)](#how-it-works)
+[![Presentation page](https://img.shields.io/badge/%E2%9A%A1_presentation_page-live-00ff66.svg)](https://genortg.github.io/finetune-studio/)
 
 </div>
 
@@ -216,7 +217,9 @@ latest benchmark scores.
 ### Data prep (`/projects/{pid}/data-prep`)
 
 Upload files, configure chunking + difficulty, kick off a QA-generation
-job. The DataStream sprite shows bytes flowing through the parser.
+job. The DataStream sprite shows bytes flowing through the parser. The
+**file library** underneath gives you SHA-256 dedup, MIME-auto-routed
+immutable raws, your own folders, versioning, and a 7-day soft-delete trash.
 
 ![Data prep](docs/screenshots/06_data_prep.png)
 
@@ -252,7 +255,9 @@ results across runs. The BenchBars sprite fills in as scores arrive.
 ### Chat (`/projects/{pid}/chat`)
 
 Per-project chat with the trained or base model. Conversation history
-persists across sessions.
+persists across sessions. **Agent mode** hands the model tools
+(`list_sources → read_source → create_qa_pairs`) so it mines training
+pairs from your documents — every tool call rendered inline for audit.
 
 ![Project chat](docs/screenshots/10_project_chat.png)
 
@@ -261,7 +266,8 @@ persists across sessions.
 ### Settings (`/settings`)
 
 Debug info (version, GPU, packages, paths), replay the onboarding
-tutorial, hotkey reference.
+tutorial, hotkey reference — and the **Updates** card: run the self-healing
+pipeline (Check / Apply update / Repair) with a live log stream.
 
 ![Settings](docs/screenshots/11_settings.png)
 
@@ -333,12 +339,15 @@ each one from its official source.
 - **Inference:** Either HuggingFace Transformers (full precision / LoRA)
   or llama.cpp (GGUF quantized).
 - **Testing:** Playwright live-browser tests in `tests/e2e_ui_qa.py`.
+- **Updates:** self-healing pipeline — `./update.sh` or Settings → Apply
+  update (pull → venv repair → dep sync → migrations → restart), with
+  startup reconciliation of interrupted runs.
 
 ---
 
 ## Tech stack
 
-Python — `fastapi` `uvicorn` `jinja2` `aiosqlite` `pydantic`
+Python — `fastapi` `uvicorn` `jinja2` `sqlite3` (stdlib) `pydantic`
 ML — `torch` `transformers` `trl` `peft` `bitsandbytes`
 RAG — `sentence-transformers` `chromadb` `llama-cpp-python`
 Web — vanilla HTML/CSS/JS, Google Fonts (JetBrains Mono, Share Tech Mono,
@@ -352,7 +361,12 @@ Full list with versions and licenses → **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTI
 ## Documentation
 
 - **[docs/INSTALL.md](docs/INSTALL.md)** — install on Linux / macOS / Windows, prerequisites, troubleshooting
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — layers, route map, data flow, disk layout
+- **[docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)** — every dependency mapped to its consumers
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — service, update pipeline, ops runbook
+- **[docs/REFACTOR-SPEC.md](docs/REFACTOR-SPEC.md)** — the locked architecture decisions + roadmap
 - **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTIONS.md)** — every package, version, license
+- **[⚡ Presentation page](https://genortg.github.io/finetune-studio/)** — the gallery version of this README
 - **[/settings](http://localhost:7860/settings)** — live debug info on your running instance (version, GPU, packages, paths)
 - Tools → Settings → **Replay Tutorial** — built-in onboarding, always available
 
