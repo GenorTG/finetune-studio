@@ -6,22 +6,31 @@ rag_data/
 __pycache__/
 .venv/
 .env
-data/
-data/docs/
-data/*.db
-data/projects/
-data/models/
+# User data directories at the repo ROOT only (not source code under src/).
+# The previous `data/` matched src/finetune_studio/data/ and silently ignored
+# any new source files added under that path — which broke the file-library
+# build on fan-dragon. Use anchored patterns + explicit names instead.
+/data/
+/data/docs/
+/data/*.db
+/data/projects/
+/data/models/
+/projects/
+/output/
+/screenshots/
+# Build artifacts that should never enter version control. The llama.cpp
+# build lives under .llama.cpp/ at the repo root (project-local, see
+# LLAMA_CPP_DIR in install.sh) so the install scripts don't reach into
+# $HOME for binaries.
+/.llama.cpp/
+/build/
+/dist/
 *.gguf
 *.safetensors
-projects/
-output/
-screenshots/
 # Common runtime / build artifacts
 *.log
 *.tmp
 node_modules/
-dist/
-build/
 
 # Workspace-level OpenClaw files (Amy persona, handoff notes).
 # These belong in ~/.openclaw/workspace/, NEVER inside a project repo.

@@ -46,7 +46,17 @@ SUPPORTED_QUANTS = {
 DEFAULT_QUANT = "Q4_K_M"
 
 # Common install locations for llama.cpp. Searched in order.
+# Project-local first (per the "boxed in" rule) — install.sh drops a build
+# at <project-root>/.llama.cpp/. Then venv-sibling fallback, then legacy
+# external paths for users who already had a system-wide install.
+def _project_root_llama_cpp() -> str:
+    # __file__ is src/finetune_studio/webui/routes/exports.py
+    here = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(here))))
+    return os.path.join(project_root, ".llama.cpp")
+
 LLAMA_CPP_SEARCH_PATHS = [
+    _project_root_llama_cpp(),
     os.path.expanduser("~/llama.cpp"),
     "/opt/llama.cpp",
     "/usr/local/llama.cpp",

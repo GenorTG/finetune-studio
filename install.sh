@@ -27,7 +27,17 @@ PYTHON_VERSION="${PYTHON_VERSION:-}"
 USE_CONDA="${USE_CONDA:-0}"
 CONDA_ENV="${CONDA_ENV:-chris-ai}"
 VENV_DIR="${VENV_DIR:-.venv}"
-LLAMA_CPP_DIR="${LLAMA_CPP_DIR:-$HOME/llama.cpp}"
+# llama.cpp lives inside the project, NOT in $HOME. Boxed-in so the install
+# is reproducible and self-contained — nothing references external paths.
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)}"
+LLAMA_CPP_DIR="${LLAMA_CPP_DIR:-$PROJECT_ROOT/.llama.cpp}"
+# If the user still has a legacy install at $HOME/llama.cpp, warn once
+# so they know to migrate manually (we never auto-move external dirs).
+if [ -d "$HOME/llama.cpp" ] && [ "$HOME/llama.cpp" != "$LLAMA_CPP_DIR" ]; then
+    warn "Found legacy llama.cpp checkout at $HOME/llama.cpp."
+    warn "New installs use the project-local path: $LLAMA_CPP_DIR"
+    warn "To migrate:  mv $HOME/llama.cpp $LLAMA_CPP_DIR"
+fi
 FORCE_CPU=0
 SKIP_GGUF=0
 SKIP_LLAMA_CPP=0

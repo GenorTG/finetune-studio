@@ -677,8 +677,9 @@ def _main(argv: list[str]) -> int:
     import argparse
     ap = argparse.ArgumentParser(description="Finetune Studio install diagnostics.")
     ap.add_argument("--venv", default=".venv", help="venv directory (default: .venv)")
-    ap.add_argument("--llama-cpp", default=os.path.expanduser("~/llama.cpp"),
-                    help="llama.cpp checkout directory")
+    ap.add_argument("--llama-cpp", default=os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".llama.cpp"),
+                    help="llama.cpp checkout directory (project-local default)")
     ap.add_argument("--json", action="store_true", help="emit JSON")
     ap.add_argument("--check", action="store_true",
                     help="exit 0 if healthy, 1 if warnings, 2+ if broken")
