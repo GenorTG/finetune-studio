@@ -66,6 +66,10 @@
     <button class="btn small" id="chat-clear" onclick="_chatClear()" title="Forget all messages in this session">Clear</button>
   </div>
 
+  <div id="chat-model-warn" class="dp-chat-warn" hidden>
+    ⚠ No model loaded — chatting is disabled. Load one on the <a href="/inference" data-link>Inference</a> tab, then refresh this page. The status pill at the top right always shows what's online.
+  </div>
+
   <div id="chat-msgs" class="dp-chat-msgs">
     <div class="dp-chat-empty" id="chat-empty">
       <span data-empty="test">
@@ -123,6 +127,8 @@
   flex-direction: column;
   gap: 10px;
 }
+.dp-chat-warn { border:1px solid var(--amber, #f59e0b); background:rgba(245,158,11,.08); color:var(--amber-text, #fbbf24); padding:10px 12px; margin-bottom:12px; font-size:13px; line-height:1.4; }
+.dp-chat-warn a { color:inherit; text-decoration:underline; }
 .dp-chat-empty {
   color: var(--text-dim, #888);
   font-style: italic;
@@ -276,6 +282,8 @@ async function _chatCheckModel() {
       }
     } catch (_) {}
     const pill = document.getElementById('chat-status-pill');
+    const warnEl = document.getElementById('chat-model-warn');
+    if (warnEl) warnEl.hidden = !!(active && active.loaded);
     if (active && active.loaded) {
       let nice = active.name || active.id || '?';
       if (active.kind === 'local_gguf' && active.model_id) {
@@ -298,6 +306,10 @@ async function _chatCheckModel() {
 document.getElementById('chat-status-pill').addEventListener('click', () => {
   window.location.href = '/inference';
 });
+
+// Run once immediately so the warn banner + pill are correct on first paint
+// instead of waiting up to 5s for the first interval tick.
+_chatCheckModel();
 
 function _chatAppend(role, content, meta, sources) {
   const msgs = document.getElementById('chat-msgs');

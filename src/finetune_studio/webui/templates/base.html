@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="dark">
   <title>{% block title %}Finetune Studio{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/css/app.css?v=11">
+  <link rel="stylesheet" href="/static/css/app.css?v=12">
   <script>
     // Pre-paint: nothing to pre-load for the session bar.
   </script>
@@ -63,7 +63,7 @@
             <span class="sb-tab-label">testing</span>
           </a>
           <a href="/projects/{{ pid }}/benchmarks" class="sb-tab {% block nav_benchmarks %}{% endblock %}" data-link data-tab="benchmarks">
-            <span class="sb-tab-label">bench</span>
+            <span class="sb-tab-label">benchmarks</span>
           </a>
           <a href="/projects/{{ pid }}/chat" class="sb-tab {% block nav_project_chat %}{% endblock %}" data-link data-tab="project-chat">
             <span class="sb-tab-label">chat</span>
@@ -157,12 +157,12 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=11"></script>
-  <script src="/static/js/sprites.js?v=11"></script>
-  <script src="/static/js/spa.js?v=11"></script>
-  <script src="/static/js/palette.js?v=11"></script>
-  <script src="/static/js/tutorial.js?v=11"></script>
-  <script src="/static/js/activity.js?v=11"></script>
+  <script src="/static/js/app.js?v=12"></script>
+  <script src="/static/js/sprites.js?v=12"></script>
+  <script src="/static/js/spa.js?v=12"></script>
+  <script src="/static/js/palette.js?v=12"></script>
+  <script src="/static/js/tutorial.js?v=12"></script>
+  <script src="/static/js/activity.js?v=12"></script>
   <script>
     // Global "loaded model" indicator — polls /api/providers every 3s on
     // any page (data-prep, rag, inference, training, testing) so the user
@@ -198,12 +198,20 @@
         } else {
           dot.className = 'status-dot';
           lbl.textContent = '○ no model';
-          pill.title = 'No model loaded. Click to open data-prep.';
+          pill.title = 'No model loaded. Click to open Inference.';
         }
       }
       async function tick() {
         try {
-          const d = await fetch('/api/providers').then(r => r.json());
+          const [d, ie] = await Promise.all([
+            fetch('/api/providers').then(r => r.json()).catch(() => null),
+            fetch('/api/inference/status').then(r => r.json()).catch(() => null),
+          ]);
+          if (d && !(d.active && d.active.loaded) && ie && ie.loaded && ie.model) {
+            // Model is online via the global inference engine (loaded on the
+            // Inference tab) but no provider is marked active — still show it.
+            d.active = { id: '_global_inference', kind: 'local_gguf', model_id: ie.model, name: ie.model, loaded: true };
+          }
           render(d);
         } catch (e) { /* ignore */ }
       }

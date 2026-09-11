@@ -160,12 +160,14 @@
       lastTasks = d.tasks || [];
       updateBadge(d.active_count || 0);
 
+      // Keep the sub-label accurate even while the drawer is closed so the
+      // first open never shows a stale "Loading…". Body re-render stays
+      // gated on visibility (no point painting a hidden panel).
+      const kinds = Object.entries(d.by_kind || {})
+        .map(([k, n]) => `${KIND_LABEL[k] || k}: ${n}`)
+        .join(" · ");
+      subEl.textContent = kinds || (d.active_count ? `${d.active_count} active` : "idle");
       if (drawer && !drawer.hidden) {
-        // Sub-title summarises kinds of active work (or "idle").
-        const kinds = Object.entries(d.by_kind || {})
-          .map(([k, n]) => `${KIND_LABEL[k] || k}: ${n}`)
-          .join(" · ");
-        subEl.textContent = kinds || (d.active_count ? `${d.active_count} active` : "idle");
         // Re-render only if the task list changed shape (cheap pointer compare).
         renderTasks(lastTasks);
       }
