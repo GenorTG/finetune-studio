@@ -600,7 +600,7 @@ async function prepRefreshResults() {
   const el = document.getElementById('dp-results');
   el.innerHTML = 'Loading…';
   try {
-    const r = await fetch('/projects/{{ pid }}/data-prep/qa?limit=200').then((r) => r.json());
+    const r = await fetch('/api/projects/{{ pid }}/data-prep/qa?limit=200').then((r) => r.json());
     const items = (r && r.items) || r || [];
     if (!items.length) {
       el.innerHTML = '<div class="dp-empty">No Q&amp;A pairs yet. Run a prep job above, or use the Chat tab in Agent mode to mine pairs from your sources.</div>';
