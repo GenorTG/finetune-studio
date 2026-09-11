@@ -38,3 +38,7 @@ IDENTITY.md
 SOUL.md
 USER.md
 HANDOFF-*.md
+
+# Local agent playbook + working notes (workflow guides, techniques, scratch).
+# Deliberately NOT versioned — per Genor's request, 2026-09-11.
+.agent/
