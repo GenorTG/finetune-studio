@@ -90,18 +90,38 @@ TOOLS_CATALOG = [
 
 SYSTEM_PROMPT = """You are an expert training-data organizer for fine-tuning a language model. You help the user extract high-quality Q&A pairs from their parsed source files (markdown, text, PDF, code, OCR'd images, etc.) into a clean dataset.
 
-Rules:
-1. ALWAYS call `list_sources` first when the user mentions "the files" or "the data" — you need to see what's available before generating anything.
+# Rules
+
+1. When the user mentions "the files" or "the data", ALWAYS call `list_sources` first to see what's available before generating anything.
 2. Call `read_source` on each file you intend to mine, so the content is fresh in your context.
 3. Generate Q&A pairs that test ACTUAL knowledge from the text — not generic questions. The answers should quote or closely paraphrase the source.
 4. Aim for 3-8 pairs per source by default. Cover key facts, definitions, cause/effect, comparison, and applied reasoning.
-5. Call `create_qa_pairs` with the full batch in one call, not one pair per call. Use a tool call, not plain prose.
-6. Be terse in prose — the data does the talking. No filler, no preamble between tool calls.
+5. Call `create_qa_pairs` with the full batch in ONE call, not one pair per call.
+6. Be terse in prose — the data does the talking.
 
-If you need to call a tool, respond with EXACTLY one tool_call block:
-<tool_call>{"name":"tool_name","arguments":{...}}</tool_call>
+# Tool-call format (CRITICAL — follow exactly)
 
-When you are done and have no more tool calls to make, respond with a single short sentence summarising what you created. Do NOT wrap the summary in a tool_call tag."""
+When you need to call a tool, output EXACTLY one tool_call block. Always close the tag:
+
+<tool_call>{"name":"<tool_name>","arguments":{<json_args>}}</tool_call>
+
+Closed examples (note the closing `</tool_call>` on its own line):
+
+<tool_call>{"name":"list_sources","arguments":{}}</tool_call>
+
+<tool_call>{"name":"read_source","arguments":{"source_id":"abc123"}}</tool_call>
+
+<tool_call>{"name":"create_qa_pairs","arguments":{"source_id":"abc123","pairs":[{"question":"What is X?","answer":"X is ..."}]}}</tool_call>
+
+When you have no more tool calls to make, respond with ONE short sentence summarising what you created. Do NOT wrap it in a tool_call tag.
+
+# Hard rules
+
+- ALWAYS close `<tool_call>` with `</tool_call>`. Never leave the tag open.
+- Do NOT include chain-of-thought or reasoning in your reply. No "I need to..." or "Let me think about..." preambles. No `<think>` blocks.
+- Emit EITHER one tool call OR a short summary. Never both at once.
+- Do NOT echo the rules back to the user.
+"""
 
 TOOL_CALL_RE = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.DOTALL)
 MAX_TOOL_ROUNDS = 6
@@ -206,18 +226,90 @@ def _run_tool(pid: str, name: str, args: dict) -> dict:
 
 
 def _extract_tool_calls(text: str) -> list[dict]:
-    """Pull `<tool_call>{...}</tool_call>` blocks out of a model reply."""
-    calls = []
-    for m in TOOL_CALL_RE.finditer(text):
+    """Pull `<tool_call>{...}</tool_call>` blocks out of a model reply.
+
+    Robust against two recurring issues with local Qwen3 GGUF + llama-cpp:
+      1. The model leaks chain-of-thought (Qwen3's native thinking-mode
+         output). Strip `<think>...</think>` blocks BEFORE regex matching so
+         they don't contaminate the tool-call JSON or appear in the visible
+         reply.
+      2. The model frequently emits `<tool_call>{...}` WITHOUT a closing
+         `</tool_call>` tag. Try the strict closed form first; on miss,
+         fall back to a brace-balanced extractor that walks the unmatched
+         opening tag and grabs everything up to the first balanced `}`.
+    """
+    # 1. Strip Qwen3 thinking-mode blocks.
+    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    # 2. Strip any leading/trailing prose so the closing tag (or unclosed
+    # block) is clearly delimited. We do NOT mutate the text that flows
+    # into the visible reply (that's `_strip_thinking_reply`'s job).
+    calls: list[dict] = []
+    seen: set[tuple[str, str]] = set()  # dedupe by (name, json_args)
+
+    def _try_parse(raw: str) -> None:
         try:
-            obj = json.loads(m.group(1))
-            name = obj.get("name")
-            args = obj.get("arguments") or {}
-            if isinstance(name, str) and isinstance(args, dict):
-                calls.append({"name": name, "arguments": args})
+            obj = json.loads(raw)
         except Exception:
-            continue
+            return
+        name = obj.get("name")
+        args = obj.get("arguments") or {}
+        if not isinstance(name, str) or not isinstance(args, dict):
+            return
+        key = (name, json.dumps(args, sort_keys=True))
+        if key in seen:
+            return
+        seen.add(key)
+        calls.append({"name": name, "arguments": args})
+
+    # 2a. Strict pass: properly-closed <tool_call>{...}</tool_call>.
+    for m in TOOL_CALL_RE.finditer(cleaned):
+        _try_parse(m.group(1))
+
+    # 2b. Fallback pass: unclosed <tool_call>{...}  (Qwen3 occasionally
+    # forgets the closing tag). Find every opening tag, then brace-balance
+    # forward to find the end of the JSON object.
+    if not calls:
+        for m in re.finditer(r"<tool_call>\s*", cleaned):
+            start = m.end()
+            depth = 0
+            in_string = False
+            escape = False
+            end = -1
+            for i in range(start, len(cleaned)):
+                ch = cleaned[i]
+                if escape:
+                    escape = False
+                    continue
+                if ch == "\\":
+                    escape = True
+                    continue
+                if ch == '"':
+                    in_string = not in_string
+                    continue
+                if in_string:
+                    continue
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end = i + 1
+                        break
+            if end > start:
+                _try_parse(cleaned[start:end])
+            # Stop after the first successful extraction — the parser
+            # driver already enforces one-tool-call-per-round upstream.
+            if calls:
+                break
+
     return calls
+
+
+def _strip_thinking_reply(text: str) -> str:
+    """Strip `<think>...</think>` blocks from a model reply before it
+    becomes the user-visible assistant message. Used by the chat driver
+    so the user doesn't see the model's internal CoT."""
+    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
 
 
 def _messages_to_prompt(messages: list[dict]) -> tuple[str, list[dict]]:
@@ -341,8 +433,12 @@ async def data_prep_chat(pid: str, request: Request):
             return {"error": f"chat call failed: {e}"}
 
         tool_calls = _extract_tool_calls(reply_text)
+        # Strip Qwen3 chain-of-thought so the visible reply + history
+        # message are clean. Falls back to the raw reply_text if the
+        # strip is empty.
+        visible_reply = _strip_thinking_reply(reply_text) or reply_text
         if not tool_calls:
-            last_reply = reply_text
+            last_reply = visible_reply
             break
 
         # Execute each tool call, append results to the message history.
@@ -353,7 +449,7 @@ async def data_prep_chat(pid: str, request: Request):
                 "arguments": tc.get("arguments") or {},
                 "result": result,
             })
-            full_messages.append({"role": "assistant", "content": reply_text})
+            full_messages.append({"role": "assistant", "content": visible_reply})
             full_messages.append({
                 "role": "user",
                 "content": f"TOOL_RESULT {tc['name']}: {json.dumps(result, ensure_ascii=False)}",
