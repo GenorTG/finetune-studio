@@ -42,3 +42,6 @@ HANDOFF-*.md
 # Local agent playbook + working notes (workflow guides, techniques, scratch).
 # Deliberately NOT versioned — per Genor's request, 2026-09-11.
 .agent/
+
+# Session daily-notes logs (memory/YYYY-MM-DD.md) — local continuity, not project code.
+/memory/
