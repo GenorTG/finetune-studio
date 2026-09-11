@@ -107,8 +107,12 @@ detect_gpu() {
             GPU_VENDOR="nvidia"
             GPU_NAME="$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)"
             GPU_DRIVER="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1 | awk -F. '{print $1}')"
-            # Driver → CUDA mapping:  550+ → cu130, 525+ → cu124, 520+ → cu121, 470+ → cu118
-            if   [ "${GPU_DRIVER:-0}" -ge 550 ] 2>/dev/null; then CUDA_VER="cu130"
+            # Driver → CUDA wheel mapping. abetlen publishes wheels up to
+            # cu132 (latest stable as of 2026-09). For drivers on CUDA 13.x
+            # (>= 555) we want the cu132 prebuilt (saves the ~5-minute source
+            # build). cu130 / cu124 / cu121 / cu118 for older drivers.
+            if   [ "${GPU_DRIVER:-0}" -ge 555 ] 2>/dev/null; then CUDA_VER="cu132"
+            elif [ "${GPU_DRIVER:-0}" -ge 550 ] 2>/dev/null; then CUDA_VER="cu130"
             elif [ "${GPU_DRIVER:-0}" -ge 525 ] 2>/dev/null; then CUDA_VER="cu124"
             elif [ "${GPU_DRIVER:-0}" -ge 520 ] 2>/dev/null; then CUDA_VER="cu121"
             elif [ "${GPU_DRIVER:-0}" -ge 470 ] 2>/dev/null; then CUDA_VER="cu118"
