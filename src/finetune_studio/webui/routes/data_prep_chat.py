@@ -399,15 +399,41 @@ async def data_prep_chat(pid: str, request: Request):
             return {"error": "external_api.base_url and model_id required"}
     elif provider_id:
         from finetune_studio.models.manager import get_manager
+        from finetune_studio.models.inference import get_engine
+
         mgr = get_manager()
         cfg = mgr.get_provider(provider_id)
         if not cfg:
             return {"error": f"unknown provider {provider_id}"}
-        try:
-            mgr.load(provider_id)
-        except Exception as e:  # noqa: BLE001
-            return {"error": f"failed to load provider: {e}"}
-        backend = {"kind": "provider", "manager": mgr, "provider_id": provider_id}
+
+        # Fast path: the global inference engine already holds THIS model.
+        # Use it directly to avoid a duplicate Llama() instance racing with
+        # mmap on the same GGUF file. The manager load() can wedge a busy
+        # host in that scenario (CPU pinned, status API hangs).
+        engine = get_engine()
+        engine_path = getattr(engine, "model_path", None) or ""
+        provider_path = cfg.get("model_path") or ""
+        if (
+            getattr(engine, "model", None) is not None
+            and engine_path
+            and engine_path == provider_path
+        ):
+            log.info(
+                "data-prep chat: using global engine for provider %s "
+                "(path=%s); skipping manager load to avoid duplicate Llama",
+                provider_id, provider_path,
+            )
+            backend = {
+                "kind": "global",
+                "engine": engine,
+                "provider_id": provider_id,
+            }
+        else:
+            try:
+                mgr.load(provider_id)
+            except Exception as e:  # noqa: BLE001
+                return {"error": f"failed to load provider: {e}"}
+            backend = {"kind": "provider", "manager": mgr, "provider_id": provider_id}
     else:
         return {"error": "either provider_id or external_api required"}
 
@@ -426,6 +452,8 @@ async def data_prep_chat(pid: str, request: Request):
         try:
             if backend["kind"] == "external":
                 reply_text = await _chat_external(backend, full_messages, gen)
+            elif backend["kind"] == "global":
+                reply_text = _chat_global_engine(backend, full_messages, gen)
             else:
                 reply_text = _chat_local(backend, full_messages, gen)
         except Exception as e:  # noqa: BLE001
@@ -507,6 +535,45 @@ def _chat_external(backend: dict, messages: list[dict], gen: dict | None = None)
             block = json.dumps({"name": name, "arguments": args})
             return f"<tool_call>{block}</tool_call>"
     return msg.get("content") or ""
+
+
+def _chat_global_engine(backend: dict, messages: list[dict], gen: dict | None = None) -> str:
+    """One round of chat via the global inference engine (the single
+    Llama() instance the app keeps loaded at any time).
+
+    Used when the manager would otherwise create a duplicate Llama on the
+    same GGUF path — that path wedges the service in mmap. The global
+    engine already holds the model; we just call its create_chat_completion
+    with the same gen params a manager provider would.
+
+    The global engine uses llama-cpp-python's auto chat-template (chatml
+    for Qwen3, etc.), so we hand it the messages as-is including the
+    leading system prompt — no manual fold-in needed.
+    """
+    engine = backend["engine"]
+    model = getattr(engine, "model", None)
+    if model is None:
+        raise RuntimeError("global engine has no model loaded")
+
+    g = gen or {}
+    kwargs: dict = {
+        "messages": messages,
+        "temperature": g.get("temperature", 0.2),
+        "max_tokens": g.get("max_tokens", 1024),
+        "top_p": g.get("top_p", 0.9),
+    }
+    # Optional gen params that llama-cpp-python accepts.
+    for k in ("top_k", "repeat_penalty", "stop", "seed", "stream"):
+        if k in g:
+            kwargs[k] = g[k]
+
+    resp = model.create_chat_completion(**kwargs)
+    # llama-cpp-python returns a dict with 'choices': [{'message': {'content': ...}}]
+    try:
+        return resp["choices"][0]["message"]["content"] or ""
+    except (KeyError, IndexError, TypeError):
+        # Defensive: if the schema is unusual, return the raw dict string.
+        return str(resp)
 
 
 def _chat_local(backend: dict, messages: list[dict], gen: dict | None = None) -> str:
