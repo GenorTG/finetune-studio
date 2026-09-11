@@ -112,6 +112,14 @@ async def lifespan(app: FastAPI):
         restore_in_progress_downloads()
     except Exception:  # noqa: BLE001
         pass
+    # Finalize system_updates rows orphaned when the previous process was
+    # restarted (APPLY UPDATE kills its own streaming worker at step 6).
+    try:
+        n = db.reconcile_stale_updates()
+        if n:
+            print(f"Reconciled {n} stale system_updates row(s)")
+    except Exception:  # noqa: BLE001
+        pass
     yield
 
 app = FastAPI(title="Finetune Studio", version="0.1.0", lifespan=lifespan)

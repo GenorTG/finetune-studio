@@ -93,6 +93,7 @@ from finetune_studio.db.system_updates import (
     latest_in_progress as latest_update_in_progress,
     list_recent as list_updates_recent,
     mark_cancelled as mark_update_cancelled,
+    reconcile_stale as reconcile_stale_updates,
     mark_done as mark_update_done,
     mark_failed as mark_update_failed,
     mark_running as mark_update_running,

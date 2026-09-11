@@ -117,10 +117,21 @@
       const d = await (await fetch('/api/system/update/latest')).json();
       if (!d.exists) {
         // No in-progress row. After a trigger this means the run finished and
-        // left the in-progress set; on a cold page load (silent) do nothing.
+        // left the in-progress set (or was reconciled after the restart it
+        // caused) — pull the final row from history so fast runs still show
+        // their status + log. On a cold page load (silent) do nothing.
         if (silent) { updStopPoll(); return; }
         updStopPoll(); updEnable();
-        updStatus().textContent = 'Finished ✓ (final state in history below)';
+        try {
+          const rows = await (await fetch('/api/system/updates?limit=1')).json();
+          const u = Array.isArray(rows) && rows[0];
+          if (u) {
+            updStatus().textContent = `${u.mode} · ${u.status}${u.status === 'done' ? ' ✓' : ' — see log above'}`;
+            if (u.log_text) updRenderLog(String(u.log_text).slice(-4000));
+          } else {
+            updStatus().textContent = 'Finished ✓';
+          }
+        } catch (e) { updStatus().textContent = 'Finished ✓'; }
         updHistory();
         return;
       }

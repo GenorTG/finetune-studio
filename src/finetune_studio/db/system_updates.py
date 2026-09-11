@@ -118,3 +118,33 @@ def latest_in_progress() -> dict | None:
             "ORDER BY created_at DESC LIMIT 1",
         ).fetchone()
     return row_to_dict(row)
+
+
+def reconcile_stale() -> int:
+    """Finalize update rows orphaned by a service restart; returns count.
+
+    update.sh runs as a child of the service. When it reaches the restart
+    step, systemd kills BOTH the streaming worker and the script — so the
+    row is never marked done and latest_in_progress() would show it stuck
+    'running' forever. The script's own log is the source of truth: the
+    'Restarting finetune-studio.service' line (or 'Update complete.' under
+    --no-restart) means every real step succeeded → done. Anything earlier
+    is a genuine failure.
+    """
+    with cursor() as c:
+        rows = c.execute(
+            "SELECT id, log_text FROM system_updates "
+            "WHERE status IN ('queued', 'running')"
+        ).fetchall()
+    n = 0
+    for r in rows:
+        log = r["log_text"] or ""
+        if "Update complete." in log or "Restarting finetune-studio.service" in log:
+            mark_done(r["id"])
+            append_log(r["id"], "\n[startup reconcile] worker died in the service "
+                                "restart it triggered; log shows restart reached → done\n")
+        else:
+            mark_failed(r["id"], error="worker died before restart (service stop "
+                                        "mid-run) — check log_tail, then re-run")
+        n += 1
+    return n

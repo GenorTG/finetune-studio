@@ -68,15 +68,22 @@ Flags: `--check` (dry run: pull + migrations only, no pip/restart) ·
 Mechanics: FastAPI BackgroundTask spawns `update.sh` (`REPO_ROOT/update.sh`,
 override `$FTS_UPDATE_SCRIPT`), streams stdout line-by-line into
 `system_updates.log_text`. Statuses: `queued → running → done|error|cancelled`.
+**Known quirk, handled:** a full update's step-6 restart kills its own streaming
+worker — the row would be stuck `running` forever. On startup the service calls
+`db.reconcile_stale_updates()`, which finalizes orphaned rows from the script's
+own log (reached "Restarting finetune-studio.service" or "Update complete."
+→ `done`; anything earlier → `error`). APPLY UPDATE therefore reports correctly
+after the service comes back (~10 s).
 Test mode: `FTS_SKIP_UPDATE=1` emits a canned log without spawning a shell —
 used by smoke tests to assert the full lifecycle cheaply.
 
 ### 3.3 Web UI — Settings → Updates card
 
-`[ CHECK ]` (dry run) · `[ APPLY UPDATE ]` (full, confirm-gated, ~10 s downtime) ·
-`[ REPAIR ]` (venv recreate, confirm-gated). Live log tail polls
-`/api/system/update/latest` every 2 s, survives the restart (poll retries),
-resumes on page load if a run is in flight, and shows the last 5 attempts.
+`Check` (dry run) · `Apply update` (full, confirm-gated, ~10 s downtime) ·
+`Repair` (venv recreate, confirm-gated). Live log tail polls
+`/api/system/update/latest` every 2 s, survives the restart (poll retries,
+startup reconcile finalizes the row), shows the finished run's status + log
+even when it completes between polls, and lists the last 5 attempts.
 Code: `templates/settings.html` (card) + `static/js/settings.js` (logic).
 
 ## 4. Dev → deploy workflow (this project's rule)
@@ -107,7 +114,7 @@ scripts/install_diagnose.py --venv .venv           # full health report
 | Model loads but runs in RAM | VRAM too tight for `n_gpu_layers=99` | free VRAM; check `nvidia-smi` after load |
 | UI shows stale css/js | asset version not bumped | bump `?v=N` in `base.html` |
 | API 404 but route exists | catch-all registered first | move specific routes before `/{param}` |
-| Update stuck `running` | service died mid-run | read `log_tail`, re-run `[ REPAIR ]` |
+| Update stuck `running` | worker died in the restart it triggered | fixed automatically: startup `reconcile_stale_updates()` finalizes it from the log |
 
 ## 6. Rollback
 
