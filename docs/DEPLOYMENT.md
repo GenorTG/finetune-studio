@@ -115,6 +115,7 @@ scripts/install_diagnose.py --venv .venv           # full health report
 | UI shows stale css/js | asset version not bumped | bump `?v=N` in `base.html` |
 | API 404 but route exists | catch-all registered first | move specific routes before `/{param}` |
 | Update stuck `running` | worker died in the restart it triggered | fixed automatically: startup `reconcile_stale_updates()` finalizes it from the log |
+| `git pull` fails only inside the service ("Bad owner or permissions on /etc/ssh/…") | the unit's sandbox (`ProtectSystem=full`, `ProtectHome=read-only`) breaks openssh's system-config ownership check | update.sh pulls with `GIT_SSH_COMMAND="ssh -F ~/.ssh/config"` (skips system config); repro: `systemd-run --user -p ProtectSystem=full -p ProtectHome=read-only` |
 
 ## 6. Rollback
 
