@@ -37,7 +37,7 @@
       </table>
     </div>
 
-    <div class="card">
+    <div class="card mb-4">
       <div class="card-head">
         <div class="card-title">About</div>
         <div class="card-sub">Finetune Studio.</div>
@@ -54,6 +54,21 @@
           <code>docs/ATTRIBUTIONS.md</code> for package licenses.
         </p>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Updates</div>
+        <div class="card-sub">Self-healing pipeline: git pull → venv health → deps → migrations → restart.</div>
+      </div>
+      <div class="flex gap-2 wrap mb-3">
+        <button class="btn small" id="btn-update-check" title="Dry run: report drift + venv health, changes nothing">[ CHECK ]</button>
+        <button class="btn small primary" id="btn-update-apply" title="Pull main, sync deps, migrate DB, restart service (~10s downtime)">[ APPLY UPDATE ]</button>
+        <button class="btn small" id="btn-update-repair" title="Recreate the venv from scratch (slow, thorough)">[ REPAIR ]</button>
+      </div>
+      <div id="update-status" class="text-xs dim mb-2">Idle.</div>
+      <pre id="update-log" class="text-xs" style="display:none;max-height:220px;overflow-y:auto;border:1px solid var(--border);padding:8px;white-space:pre-wrap"></pre>
+      <div id="update-history" class="text-xs dim mt-2"></div>
     </div>
   </div>
 
@@ -83,5 +98,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/settings.js?v=1"></script>
+<script src="/static/js/settings.js?v=2"></script>
 {% endblock %}

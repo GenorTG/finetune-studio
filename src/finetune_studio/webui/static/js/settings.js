@@ -80,6 +80,97 @@
     } catch (e) {}
   }
 
+  // ── Updates: trigger the self-healing pipeline + live log tail ──
+  const UPD_BTN = { check: 'btn-update-check', update: 'btn-update-apply', repair: 'btn-update-repair' };
+  let pollTimer = null;
+
+  const updStatus = () => document.getElementById('update-status');
+  const updLog = () => document.getElementById('update-log');
+
+  function updEnable() { Object.values(UPD_BTN).forEach(id => { const b = document.getElementById(id); if (b) b.disabled = false; }); }
+  function updDisableAll() { Object.values(UPD_BTN).forEach(id => { const b = document.getElementById(id); if (b) b.disabled = true; }); }
+
+  function updRenderLog(text) {
+    const el = updLog();
+    if (!el) return;
+    if (!text) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    el.textContent = text;
+    el.scrollTop = el.scrollHeight;
+  }
+
+  async function updHistory() {
+    const el = document.getElementById('update-history');
+    try {
+      const rows = await (await fetch('/api/system/updates?limit=5')).json();
+      if (!Array.isArray(rows) || !rows.length) { el.innerHTML = ''; return; }
+      el.innerHTML = 'Recent: ' + rows.map(u =>
+        `${u.mode}→<b>${u.status}</b> ${new Date(((u.finished_at || u.created_at) || 0) * 1000).toLocaleString()}`
+      ).join(' · ');
+    } catch (e) { /* history is decorative — never block the page */ }
+  }
+
+  function updStopPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+  async function updTick(silent) {
+    try {
+      const d = await (await fetch('/api/system/update/latest')).json();
+      if (!d.exists) {
+        // No in-progress row. After a trigger this means the run finished and
+        // left the in-progress set; on a cold page load (silent) do nothing.
+        if (silent) { updStopPoll(); return; }
+        updStopPoll(); updEnable();
+        updStatus().textContent = 'Finished ✓ (final state in history below)';
+        updHistory();
+        return;
+      }
+      updRenderLog(d.log_tail || '');
+      if (d.status === 'queued' || d.status === 'running') {
+        updStatus().textContent = `${d.mode} · ${d.status}…`;
+        return;
+      }
+      updStopPoll(); updEnable();
+      updStatus().textContent = `${d.mode} · ${d.status}${d.status === 'done' ? ' ✓' : ' — see log above'}`;
+      updHistory();
+    } catch (e) { /* transient — the service may be mid-restart; keep polling */ }
+  }
+
+  async function updTrigger(mode) {
+    updDisableAll();
+    updStatus().textContent = mode === 'check'
+      ? 'Checking (dry run)…'
+      : mode === 'repair'
+        ? 'Repairing — recreates the venv, several minutes…'
+        : 'Updating — the service will restart shortly…';
+    try {
+      const r = await fetch('/api/system/update', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, triggered_by: 'settings-ui' }),
+      });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      updStopPoll();
+      pollTimer = setInterval(() => updTick(false), 2000);
+      updTick(false);
+    } catch (e) {
+      updStatus().textContent = 'Failed to start: ' + e.message;
+      updEnable();
+    }
+  }
+
+  const bCheck = document.getElementById(UPD_BTN.check);
+  const bApply = document.getElementById(UPD_BTN.update);
+  const bRepair = document.getElementById(UPD_BTN.repair);
+  if (bCheck) bCheck.addEventListener('click', () => updTrigger('check'));
+  if (bApply) bApply.addEventListener('click', () => {
+    if (confirm('Apply update? Pulls main, syncs deps, runs migrations and RESTARTS the service (~10s).')) updTrigger('update');
+  });
+  if (bRepair) bRepair.addEventListener('click', () => {
+    if (confirm('Repair recreates the Python venv from scratch — several minutes, then restarts the service. Continue?')) updTrigger('repair');
+  });
+  updHistory();
+  updTick(true);  // resume the live view if an update is already running
+
   wireReplay();
   await loadDebug();
 })();
