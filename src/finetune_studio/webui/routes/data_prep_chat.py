@@ -414,21 +414,33 @@ async def data_prep_chat(pid: str, request: Request):
         # Use it directly to avoid a duplicate Llama() instance racing with
         # mmap on the same GGUF file. The manager load() can wedge a busy
         # host in that scenario (CPU pinned, status API hangs).
-        engine_path = getattr(inference_engine, "model_path", None) or ""
-        provider_path = cfg.get("model_path") or ""
-        # Compare paths robustly — one may be relative, the other absolute.
+        # NOTE: provider config uses `model_id` as the field name, not
+        # `model_path`. The provider's value is usually absolute; the
+        # engine's value is whatever was passed to chat-v2/load (often
+        # relative). Normalise both to absolute before comparing.
         import os
-        engine_norm = os.path.normpath(engine_path) if engine_path else ""
-        provider_norm = os.path.normpath(provider_path) if provider_path else ""
+        engine_path = getattr(inference_engine, "model_path", None) or ""
+        provider_path = cfg.get("model_id") or cfg.get("model_path") or ""
+
+        def _abs(p):
+            if not p:
+                return ""
+            if os.path.isabs(p):
+                return os.path.normpath(p)
+            # Resolve relative to the project root (cwd of the uvicorn process).
+            return os.path.normpath(os.path.join(os.getcwd(), p))
+
+        engine_abs = _abs(engine_path)
+        provider_abs = _abs(provider_path)
         if (
             getattr(inference_engine, "model", None) is not None
-            and engine_norm
-            and engine_norm == provider_norm
+            and engine_abs
+            and engine_abs == provider_abs
         ):
             log.info(
                 "data-prep chat: using global engine for provider %s "
                 "(path=%s); skipping manager load to avoid duplicate Llama",
-                provider_id, provider_norm,
+                provider_id, engine_abs,
             )
             backend = {
                 "kind": "global",
@@ -436,6 +448,11 @@ async def data_prep_chat(pid: str, request: Request):
                 "provider_id": provider_id,
             }
         else:
+            log.info(
+                "data-prep chat: engine_path=%s != provider_path=%s; "
+                "falling through to manager.load",
+                engine_abs, provider_abs,
+            )
             try:
                 mgr.load(provider_id)
             except Exception as e:  # noqa: BLE001
