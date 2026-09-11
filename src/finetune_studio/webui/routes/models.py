@@ -1,11 +1,73 @@
 """Models tab — list, download, configure models."""
 
+import os
+import subprocess
+
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
 
 from finetune_studio.models.loader import load_model_info
 
 router = APIRouter()
+
+
+def _gpu_snapshot():
+    """Return (free_mib, top consumers) from nvidia-smi, or (None, [])."""
+    try:
+        free = int(subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout.splitlines()[0].strip())
+    except Exception:  # noqa: BLE001
+        return None, []
+    top = []
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-compute-apps=pid,used_memory",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout
+        for line in out.splitlines():
+            try:
+                pid_s, mem_s = line.split(",")
+                top.append({"pid": int(pid_s.strip()), "vram_mib": int(mem_s.strip())})
+            except ValueError:
+                continue
+    except Exception:  # noqa: BLE001
+        pass
+    top.sort(key=lambda t: -t["vram_mib"])
+    for t in top:
+        try:
+            t["name"] = subprocess.run(
+                ["ps", "-o", "comm=", "-p", str(t["pid"])],
+                capture_output=True, text=True, timeout=3,
+            ).stdout.strip() or f"pid-{t['pid']}"
+        except Exception:  # noqa: BLE001, S110
+            t["name"] = f"pid-{t['pid']}"
+    return free, top[:5]
+
+
+def _vram_hint(model_path: str) -> str:
+    """Actionable VRAM-capacity note appended to load errors, or '' if fine."""
+    free, top = _gpu_snapshot()
+    if free is None:
+        return ""
+    try:
+        need_mib = int(os.path.getsize(model_path) / (1024 * 1024) * 1.2) + 1024
+    except OSError:
+        return ""
+    if need_mib <= free:
+        return ""
+    occ = ", ".join(
+        f"{t['name']}(pid {t['pid']}) {t['vram_mib'] / 1024:.1f}GB"
+        for t in top if t["vram_mib"] > 1024
+    )
+    return (
+        f" — not enough VRAM: model needs ~{need_mib / 1024:.1f} GB but only "
+        f"{free / 1024:.1f} GB is free"
+        + (f"; top consumers: {occ}. Close them or load a smaller quant."
+           if occ else ".")
+    )
 
 @router.get("/list")
 async def list_models():
@@ -63,7 +125,7 @@ async def load_model_endpoint(request: Request):
         vision = getattr(inference_engine, "vision", False)
         return {"status": "loaded", "model": model_path, "vision": vision}
     except Exception as e:  # noqa: BLE001
-        return {"error": str(e)}
+        return {"error": str(e) + _vram_hint(model_path)}
 
 
 @router.post("/unload")
