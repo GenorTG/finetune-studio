@@ -70,6 +70,9 @@ async def run_benchmark(pid: str, rid: str, request: Request):
     body = await request.json()
     suite_name = body.get("suite_name", "default")
     suite_path = body.get("suite_path", "")
+    judge_mode = body.get("judge_mode", "none")  # none | ai | local
+    judge_model = body.get("judge_model", "")
+    max_tokens = int(body.get("max_tokens", 512))
 
     run = db.get_run(rid)
     if not run:
@@ -80,8 +83,6 @@ async def run_benchmark(pid: str, rid: str, request: Request):
     target_model = run.get("output_path") or run.get("base_model")
     if not target_model:
         return {"error": "run has no model to benchmark"}
-    # If output_path is a directory containing a 'merged/' subdirectory,
-    # benchmark the merged model directly (output/merged/ > output/).
     merged_candidate = os.path.join(target_model, "merged")
     if os.path.isdir(merged_candidate) and os.path.isfile(os.path.join(merged_candidate, "config.json")):
         target_model = merged_candidate
@@ -101,15 +102,38 @@ async def run_benchmark(pid: str, rid: str, request: Request):
     try:
         cases = load_test_suite(suite_path)
         t0 = time.time()
-        results = run_suite(engine, cases)
-        scores = score_results(results)
+        results = run_suite(engine, cases, max_tokens=max_tokens)
         dt_ms = int((time.time() - t0) * 1000)
-        benchmark = db.create_benchmark(rid, suite_name, scores, dt_ms)
+
+        # Build case dicts for DB
+        case_dicts = []
+        for r in results:
+            case_dicts.append({
+                "name": r.case_name,
+                "category": r.category,
+                "question": r.question,
+                "correct_answer": r.correct_answer,
+                "model_answer": r.model_answer,
+                "transcript": r.transcript,
+                "judge": "none",
+            })
+
+        scores = score_results(results)
+        benchmark = db.create_benchmark(rid, suite_name, scores, dt_ms, cases=case_dicts)
+
         return {
             "benchmark": benchmark,
+            "scores": scores,
             "results": [
-                {"name": r.test_name, "passed": r.passed, "time_ms": r.time_ms,
-                 "response": r.response[:300]}
+                {
+                    "name": r.case_name,
+                    "category": r.category,
+                    "question": r.question,
+                    "correct_answer": r.correct_answer,
+                    "model_answer": r.model_answer[:500],
+                    "transcript": r.transcript,
+                    "time_ms": r.time_ms,
+                }
                 for r in results
             ],
         }
@@ -148,6 +172,104 @@ async def delete_benchmark(pid: str, bid: str):
     return {"ok": True}
 
 
+@router.post("/projects/{pid}/benchmarks/{bid}/judge")
+async def judge_benchmark(pid: str, bid: str, request: Request):
+    """Run AI/human judge over all cases in a benchmark."""
+    body = await request.json()
+    judge_mode = body.get("judge_mode", "ai")  # ai | local
+    judge_model = body.get("judge_model", "")
+
+    benchmark = db.get_benchmark(bid)
+    if not benchmark:
+        return {"error": "benchmark not found"}
+
+    cases = db.list_cases(bid)
+    if not cases:
+        return {"error": "no cases in benchmark"}
+
+    # Load the judge model
+    from finetune_studio.testing.inference import InferenceEngine
+    from finetune_studio.testing.judge import judge_case_ai, judge_case_local
+
+    # For AI judge via external API
+    if judge_mode == "ai":
+        updated = 0
+        for case in cases:
+            if not case.get("model_answer"):
+                continue
+            verdict, reasoning, confidence = judge_case_ai(
+                question=case["question"],
+                correct_answer=case["correct_answer"],
+                model_answer=case["model_answer"],
+                model=judge_model or None,
+            )
+            db.update_case(
+                case["id"],
+                judge="ai",
+                judge_model=judge_model or "gpt-4o-mini",
+                verdict=verdict,
+                judge_reasoning=reasoning,
+                scored_at=time.time(),
+            )
+            updated += 1
+        return {"ok": True, "judged": updated}
+
+    # For local judge — load the specified model
+    if judge_mode == "local":
+        judge_engine = InferenceEngine()
+        try:
+            # Use the judge_model path if provided, otherwise use the run's model
+            model_path = judge_model or benchmark.get("run", {}).get("output_path", "")
+            if not model_path:
+                return {"error": "no model path for local judge"}
+            judge_engine.load(model_path)
+
+            updated = 0
+            for case in cases:
+                if not case.get("model_answer"):
+                    continue
+                verdict, reasoning, confidence = judge_case_local(
+                    judge_engine,
+                    question=case["question"],
+                    correct_answer=case["correct_answer"],
+                    model_answer=case["model_answer"],
+                )
+                db.update_case(
+                    case["id"],
+                    judge="local",
+                    judge_model=model_path,
+                    verdict=verdict,
+                    judge_reasoning=reasoning,
+                    scored_at=time.time(),
+                )
+                updated += 1
+            return {"ok": True, "judged": updated}
+        finally:
+            judge_engine.unload()
+
+    return {"error": f"unknown judge_mode: {judge_mode}"}
+
+
+@router.get("/projects/{pid}/benchmarks/{bid}/cases")
+async def list_benchmark_cases(pid: str, bid: str):
+    """List all cases + judge verdicts for a benchmark."""
+    return db.list_cases(bid)
+
+
+@router.post("/projects/{pid}/benchmarks/{bid}/cases/{cid}/verdict")
+async def set_verdict(pid: str, bid: str, cid: str, request: Request):
+    """Human overrides/sets a verdict."""
+    body = await request.json()
+    db.update_case(
+        cid,
+        verdict=body.get("verdict", ""),
+        judge="human",
+        judge_reasoning=body.get("reasoning", "human override"),
+        scored_at=time.time(),
+    )
+    return {"ok": True}
+
+
 @router.get("/projects/{pid}/compare")
 async def compare_runs(pid: str, run_a: str = "", run_b: str = ""):
     """Side-by-side comparison of latest benchmarks from two runs."""
@@ -164,7 +286,6 @@ async def compare_runs(pid: str, run_a: str = "", run_b: str = ""):
     a_scores = a.get("scores") or {}
     b_scores = b.get("scores") or {}
 
-    # Build deltas for common keys
     deltas = {}
     all_keys = sorted(set(list(a_scores.keys()) + list(b_scores.keys())))
     for k in all_keys:

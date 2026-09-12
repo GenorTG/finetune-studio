@@ -76,6 +76,27 @@ CREATE TABLE IF NOT EXISTS benchmark_runs (
 );
 CREATE INDEX IF NOT EXISTS idx_bench_run ON benchmark_runs(run_id);
 
+CREATE TABLE IF NOT EXISTS benchmark_cases (
+    id              TEXT PRIMARY KEY,
+    benchmark_id    TEXT NOT NULL,
+    run_id          TEXT NOT NULL,
+    case_name       TEXT NOT NULL,
+    category        TEXT NOT NULL DEFAULT 'general',
+    question        TEXT NOT NULL,
+    correct_answer  TEXT NOT NULL DEFAULT '',
+    model_answer    TEXT NOT NULL DEFAULT '',
+    transcript      TEXT NOT NULL DEFAULT '',   -- full chat JSON for judge context
+    judge           TEXT NOT NULL DEFAULT 'none',  -- none | ai | human
+    judge_model     TEXT NOT NULL DEFAULT '',      -- model used for AI judge
+    verdict         TEXT NOT NULL DEFAULT '',      -- pass | fail | partial
+    judge_reasoning TEXT NOT NULL DEFAULT '',      -- judge explanation
+    scored_at       REAL,
+    FOREIGN KEY (benchmark_id) REFERENCES benchmark_runs(id) ON DELETE CASCADE,
+    FOREIGN KEY (run_id) REFERENCES training_runs(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_bc_benchmark ON benchmark_cases(benchmark_id);
+CREATE INDEX IF NOT EXISTS idx_bc_run ON benchmark_cases(run_id);
+
 CREATE TABLE IF NOT EXISTS data_review (
     id          TEXT PRIMARY KEY,
     project_id  TEXT NOT NULL,

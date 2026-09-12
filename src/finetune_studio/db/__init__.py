@@ -42,6 +42,7 @@ from finetune_studio.db.datasets import (
 )
 from finetune_studio.db.benchmarks import (
     create_benchmark, get_benchmark, list_benchmarks,
+    create_case, list_cases, update_case,
 )
 from finetune_studio.db.reviews import list_review, record_review
 from finetune_studio.db.data_prep_runs import (
