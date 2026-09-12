@@ -385,7 +385,41 @@ python -m finetune_studio.data.rag rebuild-vectors /path/to/corpus [--embedder N
             vectors=vectors, idx_map=idx_map, bm25=bm25, encode=encode,
         )
 
-    def rebuild_vectors(self, embedder: Optional[str] = None, device: str = "cpu") -> dict:
+    def remove_source(self, source_id: str) -> bool:
+        """Remove a single source from the corpus by its document id."""
+        removed = False
+        sources_dir = self.dir / "sources"
+        if sources_dir.exists():
+            for f in sources_dir.glob(f"{source_id}*.txt"):
+                f.unlink()
+                removed = True
+        return removed
+
+    def clear_sources(self) -> None:
+        """Clear all sources from the corpus."""
+        sources_dir = self.dir / "sources"
+        if sources_dir.exists():
+            for f in sources_dir.glob("*.txt"):
+                f.unlink()
+        # Reset manifest
+        if self.manifest_path.exists():
+            manifest = Manifest.from_json(read_json(self.manifest_path))
+            manifest.updated_at = time.time()
+            write_json(self.manifest_path, manifest.to_json())
+
+    def list_sources(self) -> list[dict]:
+        """List all sources in the corpus."""
+        sources_dir = self.dir / "sources"
+        if not sources_dir.exists():
+            return []
+        sources = []
+        for f in sorted(sources_dir.glob("*.txt")):
+            sources.append({
+                "id": f.stem,
+                "filename": f.stem,
+                "size": f.stat().st_size,
+            })
+        return sources
         if not self.exists():
             raise FileNotFoundError(self.dir)
         pd = try_import_pandas()

@@ -99,6 +99,31 @@ class PortableRAGQuery:
             r["rank"] = rank
         return results[:top_k]
 
+    def list_sources(self) -> list[dict]:
+        """List all sources in the corpus."""
+        sources_dir = self.dir / "sources"
+        if not sources_dir.exists():
+            return []
+        sources = []
+        for f in sorted(sources_dir.glob("*.txt")):
+            try:
+                text = f.read_text(encoding="utf-8")
+                # Look up the original filename from the chunks
+                orig = None
+                for _, row in self.chunks.iterrows():
+                    if row.get("document_id") == f.stem:
+                        orig = row.get("filename", "")
+                        break
+                sources.append({
+                    "id": f.stem,
+                    "filename": orig or f.name,
+                    "chunks": sum(1 for _ in self.chunks.iterrows() if _[1].get("document_id") == f.stem),
+                    "size": f.stat().st_size,
+                })
+            except Exception:
+                continue
+        return sources
+
     def format_context(self, results: list[dict], max_chars: int = 4000) -> str:
         blocks = []
         total = 0
