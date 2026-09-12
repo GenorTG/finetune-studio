@@ -241,6 +241,20 @@
   // Auto-start connection monitoring
   connStart();
 
+  // ── Theme toggle ────────────────────────────────────────────────
+  const THEME_KEY = 'fts.theme';
+  function themeGet() { return localStorage.getItem(THEME_KEY) || 'dark'; }
+  function themeSet(t) {
+    localStorage.setItem(THEME_KEY, t);
+    document.documentElement.setAttribute('data-theme', t);
+  }
+  // Apply saved theme on load
+  themeSet(themeGet());
+  function themeToggle() {
+    themeSet(themeGet() === 'dark' ? 'light' : 'dark');
+    if (window.fts) window.fts.notify('Theme: ' + themeGet(), 'info');
+  }
+
   // ── Keyboard navigation ──────────────────────────────────────────
   const _kbShortcuts = [
     { key: 'g', action: () => { window.location.href = '/'; } },  // 'g' then 'd' pattern
@@ -264,6 +278,7 @@
   window.fts = {
     notify, api, poll, confirm: confirmDialog, init: delegate, formatJsTime,
     conn: { check: connCheck, start: connStart, stop: connStop },
+    themeToggle,
   };
 
   // Run the formatter on full load + after every SPA swap

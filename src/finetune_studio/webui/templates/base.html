@@ -4,6 +4,26 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="dark">
+  <style>
+    :root[data-theme="light"] {
+      --bg: #f5f5f5;
+      --surface: #ffffff;
+      --text: #1a1a1a;
+      --border: #d0d0d0;
+      --accent: #0066cc;
+    }
+    :root[data-theme="light"] .sb-brand,
+    :root[data-theme="light"] .sb-tab,
+    :root[data-theme="light"] .card,
+    :root[data-theme="light"] .session-bar,
+    :root[data-theme="light"] .sb-tabs {
+      background: #ffffff;
+      color: #1a1a1a;
+    }
+    :root[data-theme="light"] .logo {
+      background: #0066cc;
+    }
+  </style>
   <title>{% block title %}Finetune Studio{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/css/app.css?v=13">
@@ -29,6 +49,9 @@
         <span class="conn-dot"></span>
         <span class="conn-label">connected</span>
       </div>
+
+      {# Theme toggle #}
+      <button id="theme-toggle" class="btn small" onclick="window.ftsThemeToggle?.() || location.reload()" title="Toggle dark/light theme" style="margin-left:auto;">🌙</button>
 
       {# Tab strip — the actual navigation #}
       <nav class="sb-tabs" aria-label="Sessions">
