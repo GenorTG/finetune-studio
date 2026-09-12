@@ -291,6 +291,49 @@ async def rag_rebuild_vectors(pid: str, req: RebuildVectorsRequest):
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
 
+@router.get("/{pid}/rag/sources")
+async def rag_list_sources(pid: str):
+    """List all sources in the corpus."""
+    from finetune_studio.data.rag_portable import PortableRAG
+    rag = PortableRAG(_corpus_dir(pid))
+    if not rag.exists():
+        return JSONResponse({"error": "no corpus"}, status_code=404)
+    try:
+        q = rag.load()
+        return {"sources": q.list_sources()}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.delete("/{pid}/rag/sources/{source_id}")
+async def rag_delete_source(pid: str, source_id: str):
+    """Remove a single source from the corpus."""
+    from finetune_studio.data.rag_portable import PortableRAG
+    rag = PortableRAG(_corpus_dir(pid))
+    if not rag.exists():
+        return JSONResponse({"error": "no corpus"}, status_code=404)
+    try:
+        rag.remove_source(source_id)
+        return {"ok": True, "removed": source_id}
+    except Exception as e:
+        log.exception("remove source failed")
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@router.delete("/{pid}/rag/sources")
+async def rag_clear_sources(pid: str):
+    """Clear all sources from the corpus (requires rebuild)."""
+    from finetune_studio.data.rag_portable import PortableRAG
+    rag = PortableRAG(_corpus_dir(pid))
+    if not rag.exists():
+        return JSONResponse({"error": "no corpus"}, status_code=404)
+    try:
+        rag.clear_sources()
+        return {"ok": True}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
 @router.post("/{pid}/rag/search")
 async def rag_search(pid: str, req: SearchRequest):
     from finetune_studio.data.rag_portable import PortableRAG
