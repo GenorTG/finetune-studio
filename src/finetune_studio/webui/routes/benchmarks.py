@@ -38,6 +38,13 @@ def _latest_benchmark(run_id: str) -> dict | None:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
+@router.get("/runs/{rid}")
+async def get_benchmark_run(rid: str):
+    """Get a single benchmark run."""
+    from finetune_studio import db
+    return db.get_benchmark(rid) or {"error": "not found"}
+
+
 @router.get("/suites")
 async def list_suites():
     """List available benchmark suites."""
