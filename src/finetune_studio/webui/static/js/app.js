@@ -28,6 +28,32 @@
     }, 3500);
   }
 
+  // ── Confirm dialog ─────────────────────────────────────────────────
+  function confirmDialog(message, opts) {
+    opts = opts || {};
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "modal-overlay";
+      overlay.innerHTML = `
+        <div class="modal-dialog" role="dialog" aria-modal="true">
+          <div class="modal-head">${opts.title || "Confirm"}</div>
+          <div class="modal-body">${message}</div>
+          <div class="modal-actions">
+            <button class="btn" data-action="cancel">Cancel</button>
+            <button class="btn ${opts.danger ? "danger" : "primary"} data-action="ok">${opts.okText || "OK"}</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      const cleanup = () => overlay.remove();
+      overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) { cleanup(); resolve(false); }
+      });
+      overlay.querySelector("[data-action=cancel]").addEventListener("click", () => { cleanup(); resolve(false); });
+      overlay.querySelector("[data-action=ok]").addEventListener("click", () => { cleanup(); resolve(true); });
+    });
+  }
+
   // ── API ─────────────────────────────────────────────────────────────
   // ── Fetch helper: throw on non-2xx so callers can handle errors ──
   async function _ok(r) {
@@ -126,11 +152,32 @@
           if (btn.dataset.reload === "true") setTimeout(() => location.reload(), 600);
         });
     });
-    // data-confirm buttons — also delegated so dynamically rendered buttons work
-    document.addEventListener("click", (ev) => {
+    // data-confirm buttons — use modal dialog (delegated for dynamic buttons)
+    document.addEventListener("click", async (ev) => {
       const btn = ev.target.closest("[data-confirm]");
       if (!btn || !document.contains(btn)) return;
-      if (!confirm(btn.dataset.confirm)) ev.preventDefault();
+      ev.preventDefault();
+      const ok = await confirmDialog(btn.dataset.confirm || "Are you sure?", {
+        title: btn.dataset.confirmTitle || "Confirm",
+        danger: btn.dataset.confirmDanger === "true",
+        okText: btn.dataset.confirmOk || "OK",
+      });
+      if (!ok) return;
+      // Fire the action after confirmation
+      const url = btn.dataset.action || btn.dataset.api;
+      if (!url) return;
+      const method = (btn.dataset.method || (btn.dataset.api ? "POST" : "DELETE")).toUpperCase();
+      const body = btn.dataset.body ? JSON.parse(btn.dataset.body) : {};
+      const opts = { method };
+      if (method !== "GET") { opts.headers = { "Content-Type": "application/json" }; opts.body = JSON.stringify(body); }
+      fetch(url, opts)
+        .then((r) => r.json().catch(() => ({})))
+        .then((d) => {
+          if (d.error) notify(d.error, "error");
+          else notify(btn.dataset.done || "Done", "success");
+          if (btn.dataset.reload === "true") setTimeout(() => location.reload(), 600);
+        })
+        .catch((err) => notify(err.message || "Action failed", "error"));
     });
     // data-poll spans
     document.querySelectorAll("[data-poll]").forEach((el) => {
@@ -178,7 +225,7 @@
 
   // Page-swap hook called from spa.js after each navigation
   window.fts = {
-    notify, api, poll, init: delegate, formatJsTime,
+    notify, api, poll, confirm: confirmDialog, init: delegate, formatJsTime,
   };
 
   // Run the formatter on full load + after every SPA swap
