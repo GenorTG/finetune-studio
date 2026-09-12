@@ -134,6 +134,47 @@ function onHfQueryInput() {
   }, 3000);
 }
 
+// ── Model favorites ──────────────────────────────────────────────
+const _favCache = new Set();
+async function loadFavorites() {
+  try {
+    const r = await fetch('/api/favorites');
+    const d = await r.json();
+    _favCache.clear();
+    (d || []).forEach(f => _favCache.add(f.path));
+  } catch (_) { /* ignore */ }
+}
+function isFavorited(repoId) {
+  // Match by repo_id or by path suffix
+  for (const path of _favCache) {
+    if (path.endsWith(repoId) || repoId.endsWith(path)) return true;
+  }
+  return false;
+}
+async function toggleFavorite(repoId, btn) {
+  if (!repoId) return;
+  if (isFavorited(repoId)) {
+    // Remove
+    const path = [..._favCache].find(p => p.endsWith(repoId)) || repoId;
+    await fetch('/api/favorites/' + encodeURIComponent(path), { method: 'DELETE' });
+    _favCache.delete(path);
+    if (btn) { btn.textContent = '☆'; btn.classList.remove('fav-active'); btn.title = 'Add to favorites'; }
+    if (window.fts) window.fts.notify('Removed from favorites', 'info');
+  } else {
+    // Add
+    await fetch('/api/favorites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: repoId, name: repoId })
+    });
+    _favCache.add(repoId);
+    if (btn) { btn.textContent = '★'; btn.classList.add('fav-active'); btn.title = 'Remove from favorites'; }
+    if (window.fts) window.fts.notify('Added to favorites', 'success');
+  }
+}
+// Load favorites on page load
+document.addEventListener('DOMContentLoaded', () => loadFavorites());
+
 function renderResults(results) {
   const grid = document.getElementById('hf-grid');
   const empty = document.getElementById('hf-empty');
@@ -170,6 +211,7 @@ function renderResults(results) {
           <button class="btn sm primary" onclick="showInfo('${esc(repo)}', this)">View</button>
           <button class="btn sm" onclick="showFiles('${esc(repo)}', this)">Files</button>
           <button class="btn sm" data-confirm="Pull all files of ${esc(repo)}?" data-action="/api/hf/download" data-body='${JSON.stringify({repo_id: repo})}' data-method="POST">Pull</button>
+          <button class="btn sm fav-btn" data-repo="${esc(repo)}" onclick="toggleFavorite('${esc(repo)}', this)" title="Add to favorites">☆</button>
         </div>
       </div>`;
   }).join('');
