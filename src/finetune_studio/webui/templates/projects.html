@@ -21,10 +21,19 @@
   <div class="card-head">
     <div>
       <div class="card-title">New project</div>
-      <div class="card-sub">Pick a base model to fine-tune. You can change this later.</div>
+      <div class="card-sub">Pick a template to pre-fill common settings, or start from scratch.</div>
     </div>
   </div>
   <form id="np-form" data-api="/api/projects" data-reload="true">
+    <div class="mb-4">
+      <span class="muted text-xs">Template</span>
+      <div class="flex gap-2 mt-1" id="np-templates">
+        <button type="button" class="btn small template-btn active" data-template="blank" onclick="selectTemplate('blank')">📄 Blank</button>
+        <button type="button" class="btn small template-btn" data-template="chat" onclick="selectTemplate('chat')">💬 Chat-focused</button>
+        <button type="button" class="btn small template-btn" data-template="training" onclick="selectTemplate('training')">🎯 Training</button>
+        <button type="button" class="btn small template-btn" data-template="rag" onclick="selectTemplate('rag')">🔍 RAG</button>
+      </div>
+    </div>
     <div class="grid" style="grid-template-columns:1fr 1fr;">
       <label>
         <span class="muted text-xs">Name</span>
@@ -264,6 +273,24 @@ async function doDelete(ids) {
   _projSelected.clear();
   // Full reload so server-side counts (badge, etc.) refresh.
   location.reload();
+}
+
+// Project templates
+const _TEMPLATES = {
+  blank:      { tags: '',    system_prompt: 'You are a helpful assistant.' },
+  chat:       { tags: 'chat', system_prompt: 'You are a friendly and knowledgeable assistant. Be concise and helpful.' },
+  training:   { tags: 'training', system_prompt: 'You are an expert tutor. Explain concepts clearly with examples.' },
+  rag:        { tags: 'rag', system_prompt: 'You are a research assistant. Answer based on the provided context. If you don\'t know, say so.' },
+};
+function selectTemplate(name) {
+  document.querySelectorAll('.template-btn').forEach(b => b.classList.toggle('active', b.dataset.template === name));
+  const t = _TEMPLATES[name];
+  if (!t) return;
+  const form = document.getElementById('np-form');
+  const tags = form.querySelector('[name=tags]');
+  const sp = form.querySelector('[name=system_prompt]');
+  if (tags && !tags.value) tags.value = t.tags;
+  if (sp && !sp.value) sp.value = t.system_prompt;
 }
 
 function bulkDelete() {
