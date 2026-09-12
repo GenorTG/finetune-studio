@@ -266,8 +266,9 @@ pairs from your documents — every tool call rendered inline for audit.
 ### Settings (`/settings`)
 
 Debug info (version, GPU, packages, paths), replay the onboarding
-tutorial, hotkey reference — and the **Updates** card: run the self-healing
-pipeline (Check / Apply update / Repair) with a live log stream.
+tutorial, hotkey reference, the **Updates** card (self-healing pipeline),
+and **Server & Hosting**: configure port, bind host, CORS origins,
+trusted hosts, proxy headers, and root path for reverse-proxy deployments.
 
 ![Settings](docs/screenshots/11_settings.png)
 
@@ -338,6 +339,8 @@ each one from its official source.
   training, and benchmark runs.
 - **Inference:** Either HuggingFace Transformers (full precision / LoRA)
   or llama.cpp (GGUF quantized).
+- **Hosting:** Settings page configures port, bind host, CORS origins,
+  trusted hosts, proxy headers, and root path for reverse-proxy deployments.
 - **Testing:** Playwright live-browser tests in `tests/e2e_ui_qa.py`.
 - **Updates:** self-healing pipeline — `./update.sh` or Settings → Apply
   update (pull → venv repair → dep sync → migrations → restart), with
