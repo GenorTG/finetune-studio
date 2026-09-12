@@ -79,6 +79,11 @@ async def run_benchmark(pid: str, rid: str, request: Request):
     target_model = run.get("output_path") or run.get("base_model")
     if not target_model:
         return {"error": "run has no model to benchmark"}
+    # If output_path is a directory containing a 'merged/' subdirectory,
+    # benchmark the merged model directly (output/merged/ > output/).
+    merged_candidate = os.path.join(target_model, "merged")
+    if os.path.isdir(merged_candidate) and os.path.isfile(os.path.join(merged_candidate, "config.json")):
+        target_model = merged_candidate
 
     from finetune_studio.testing.inference import InferenceEngine
     from finetune_studio.testing.suite import load_test_suite, run_suite, score_results
