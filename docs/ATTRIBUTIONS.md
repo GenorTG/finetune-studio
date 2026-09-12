@@ -75,7 +75,7 @@ All served via Google Fonts CDN; not bundled with the app.
 
 The pixel-art sprite icons in `static/js/sprites.js` were authored for this
 project and are released under the same license as the rest of the code
-(MIT). No third-party sprite assets are used.
+(Finetune Studio Non-Commercial and Research License v1.0). No third-party sprite assets are used.
 
 ---
 
