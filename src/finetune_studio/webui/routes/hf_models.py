@@ -362,3 +362,31 @@ async def hf_local_files(repo_id: str):
 async def shared_model_stats_endpoint():
     from finetune_studio.data.shared_models import stats as sm_stats
     return sm_stats()
+
+
+# ── Model favorites ──────────────────────────────────────────────
+@router.get("/favorites")
+async def list_favorites():
+    """List favorited models."""
+    from finetune_studio import db
+    return db.list_model_favorites()
+
+@router.post("/favorites")
+async def add_favorite(request: Request):
+    """Add a model to favorites."""
+    from finetune_studio import db
+    body = await request.json() if request.headers.get('content-type') == 'application/json' else {}
+    path = body.get('path', '')
+    name = body.get('name', path.split('/')[-1] if path else '')
+    note = body.get('note', '')
+    if not path:
+        return JSONResponse({"error": "path required"}, status_code=400)
+    db.add_model_favorite(model_path=path, name=name, note=note)
+    return {"ok": True}
+
+@router.delete("/favorites/{path:path}")
+async def remove_favorite(path: str):
+    """Remove a model from favorites."""
+    from finetune_studio import db
+    db.remove_model_favorite(path)
+    return {"ok": True}
