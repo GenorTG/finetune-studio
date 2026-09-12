@@ -115,9 +115,13 @@ async def hf_models_page(request: Request):
 
 @router.get("/hf-models", response_class=HTMLResponse)
 async def hf_models_alias(request: Request):
-    """Alias for /models/explore — redirects to the HF model browser."""
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/models/explore")
+    """Alias for /models/explore — renders the same HF model browser."""
+    from finetune_studio.webui.app import discovered_models
+    return templates.TemplateResponse(
+        request,
+        "hf_models.html",
+        {"request": request, "models": discovered_models},
+    )
 
 
 @router.get("/projects/{pid}/export", response_class=HTMLResponse)
