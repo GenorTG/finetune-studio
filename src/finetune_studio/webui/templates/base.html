@@ -106,7 +106,7 @@
           <span class="status-dot {% if resources and resources.gpu %}idle{% endif %}" id="status-dot"></span>
           <span class="status-label" id="status-label">{% if resources and resources.gpu %}READY{% else %}NO_DATA{% endif %}</span>
         </span>
-        <span class="version">v0.2.0</span>
+        <span class="version">v{{ app_version }}</span>
       </div>
 
       {# Active-session indicator bar — thin strip below the tabs that

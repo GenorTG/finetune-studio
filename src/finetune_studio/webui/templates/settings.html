@@ -6,8 +6,23 @@
 {% block content %}
 <div class="grid grid-1-2" style="gap: 16px;">
 
-  {# ── Left column: Help + Tutorial ──────────────────────── #}
+  {# ── Left column: Updates + Tutorial + Quick Ref ──────── #}
   <div>
+    <div class="card mb-4">
+      <div class="card-head">
+        <div class="card-title">Updates</div>
+        <div class="card-sub">Self-healing pipeline: git pull → venv health → deps → migrations → restart.</div>
+      </div>
+      <div class="flex gap-2 wrap mb-3">
+        <button class="btn small" id="btn-update-check" title="Dry run: report drift + venv health, changes nothing">Check</button>
+        <button class="btn small primary" id="btn-update-apply" title="Pull main, sync deps, migrate DB, restart service (~10s downtime)">Apply update</button>
+        <button class="btn small" id="btn-update-repair" title="Recreate the venv from scratch (slow, thorough)">Repair</button>
+      </div>
+      <div id="update-status" class="text-xs dim mb-2">Idle.</div>
+      <pre id="update-log" class="text-xs" style="display:none;max-height:220px;overflow-y:auto;border:1px solid var(--border);padding:8px;white-space:pre-wrap"></pre>
+      <div id="update-history" class="text-xs dim mt-2"></div>
+    </div>
+
     <div class="card mb-4">
       <div class="card-head">
         <div class="card-title">Tutorial</div>
@@ -37,7 +52,7 @@
       </table>
     </div>
 
-    <div class="card mb-4">
+    <div class="card">
       <div class="card-head">
         <div class="card-title">About</div>
         <div class="card-sub">Finetune Studio.</div>
@@ -55,24 +70,9 @@
         </p>
       </div>
     </div>
-
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title">Updates</div>
-        <div class="card-sub">Self-healing pipeline: git pull → venv health → deps → migrations → restart.</div>
-      </div>
-      <div class="flex gap-2 wrap mb-3">
-        <button class="btn small" id="btn-update-check" title="Dry run: report drift + venv health, changes nothing">Check</button>
-        <button class="btn small primary" id="btn-update-apply" title="Pull main, sync deps, migrate DB, restart service (~10s downtime)">Apply update</button>
-        <button class="btn small" id="btn-update-repair" title="Recreate the venv from scratch (slow, thorough)">Repair</button>
-      </div>
-      <div id="update-status" class="text-xs dim mb-2">Idle.</div>
-      <pre id="update-log" class="text-xs" style="display:none;max-height:220px;overflow-y:auto;border:1px solid var(--border);padding:8px;white-space:pre-wrap"></pre>
-      <div id="update-history" class="text-xs dim mt-2"></div>
-    </div>
   </div>
 
-  {# ── Right column: Debug info ──────────────────────────── #}
+  {# ── Right column: Debug info + Storage Paths ────────────── #}
   <div>
     <div class="card mb-4">
       <div class="card-head">
