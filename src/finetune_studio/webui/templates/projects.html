@@ -41,6 +41,10 @@
         <textarea class="textarea" name="description" rows="2" placeholder="What is this project for?"></textarea>
       </label>
       <label style="grid-column:1 / -1;">
+        <span class="muted text-xs">Tags (comma-separated)</span>
+        <input class="input" name="tags" placeholder="e.g. rag, production, experiment">
+      </label>
+      <label style="grid-column:1 / -1;">
         <span class="muted text-xs">System prompt</span>
         <textarea class="textarea" name="system_prompt" rows="3" placeholder="You are a helpful assistant that…"></textarea>
       </label>
@@ -77,7 +81,7 @@
 {% else %}
   <div class="proj-list" id="proj-list">
     {% for p in projects %}
-    <a class="proj-card" href="/projects/{{ p.id }}" data-link data-search="{{ (p.name + ' ' + (p.description or ''))|lower }}" data-pid="{{ p.id }}" data-name="{{ p.name|e }}">
+    <a class="proj-card" href="/projects/{{ p.id }}" data-link data-search="{{ (p.name + ' ' + (p.description or '') + ' ' + (p.tags or ''))|lower }}" data-pid="{{ p.id }}" data-name="{{ p.name|e }}">
       <input type="checkbox" class="proj-select"
              onclick="event.preventDefault(); event.stopPropagation(); toggleSelect('{{ p.id }}', this.checked);"
              aria-label="Select {{ p.name|e }}">
@@ -93,6 +97,7 @@
         <div class="flex gap-2 mt-1" style="font-size:11px;">
           {% if p.base_model %}<span class="pill solid-blue">base: {{ p.base_model.split('/')[-1] }}</span>{% endif %}
           {% if p.production_run %}<span class="pill solid-green">● production</span>{% endif %}
+          {% if p.tags %}{% for t in p.tags.split(',') %}<span class="pill solid-violet">{{ t.strip() }}</span>{% endfor %}{% endif %}
           <span class="dim mono">{{ p.id[:8] }}</span>
         </div>
       </div>
