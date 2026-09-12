@@ -1,19 +1,153 @@
 {% extends "base.html" %}
 {% block title %}Training · Finetune Studio{% endblock %}
+{% block nav_training %}active{% endblock %}
+{% block crumbs_leaf %}Training{% endblock %}
+{% block sb_path %}~ / training{% endblock %}
+
 {% block content %}
 <div class="page-head">
   <h1>Training</h1>
-  <div class="sub">Start a fresh fine-tune, watch progress, and review metrics.</div>
+  <div class="sub">Choose a preset, optionally customize, and launch a real fine-tune.</div>
 </div>
 
-<div class="card mb-6">
-  <div class="card-head">
-    <div>
-      <div class="card-title">Quick start</div>
-      <div class="card-sub">Run a new training job in the background. You'll be redirected to a project view.</div>
+<div class="grid grid-1-2" style="gap: 16px; align-items: start;">
+
+  {# ── Left: Preset chooser ──────────────────────────────── #}
+  <div>
+    <div class="card mb-4">
+      <div class="card-head">
+        <div class="card-title">1. Choose a preset</div>
+        <div class="card-sub">Presets are tuned for model size and training goal. All values can be overridden.</div>
+      </div>
+      <div id="preset-list" class="grid grid-1" style="gap: 8px;">
+        <div class="text-xs dim">Loading presets…</div>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-head">
+        <div class="card-title">2. Project & model</div>
+        <div class="card-sub">Which project to train in, which base model, and which dataset.</div>
+      </div>
+      <div class="mb-3">
+        <label class="block text-xs muted mb-1" for="train-project">Project</label>
+        <select id="train-project" class="select"><option value="">Loading…</option></select>
+      </div>
+      <div class="mb-3">
+        <label class="block text-xs muted mb-1" for="train-model">Base model</label>
+        <select id="train-model" class="select"><option value="">Loading…</option></select>
+        <div class="text-xs dim mt-1" id="train-model-info"></div>
+      </div>
+      <div class="mb-3">
+        <label class="block text-xs muted mb-1" for="train-dataset">Training dataset (JSONL)</label>
+        <select id="train-dataset" class="select"><option value="">Loading…</option></select>
+        <div class="text-xs dim mt-1" id="train-dataset-info"></div>
+      </div>
+      <div class="mb-3">
+        <label class="block text-xs muted mb-1" for="train-output">Output directory</label>
+        <input id="train-output" type="text" class="input" value="output" />
+      </div>
     </div>
   </div>
-  <p class="text-sm muted">To start a training run, open a project and use its Training tab. Training uses the project's settings (base model, dataset, LoRA params).</p>
-  <a href="/projects" class="btn primary" data-link>Open Projects</a>
+
+  {# ── Right: Custom overrides + launch ────────────────────── #}
+  <div>
+    <div class="card mb-4">
+      <div class="card-head">
+        <div class="card-title">3. Parameters <span class="text-xs dim">(overrides the preset)</span></div>
+        <div class="card-sub">Fine-tune every knob. Changes here take precedence over the preset.</div>
+      </div>
+
+      <details class="mb-3">
+        <summary class="text-xs" style="cursor:pointer;padding:6px 0;">LoRA configuration</summary>
+        <div class="grid grid-2 gap-3 mt-2">
+          <div><label class="text-xs muted">LoRA rank</label><input id="ov-lora_rank" type="number" class="input" value="64" min="1" max="512"></div>
+          <div><label class="text-xs muted">LoRA alpha</label><input id="ov-lora_alpha" type="number" class="input" value="128" min="1" max="1024"></div>
+        </div>
+      </details>
+
+      <details class="mb-3">
+        <summary class="text-xs" style="cursor:pointer;padding:6px 0;">Optimization</summary>
+        <div class="grid grid-2 gap-3 mt-2">
+          <div><label class="text-xs muted">Learning rate</label><input id="ov-learning_rate" type="text" class="input" value="2e-4"></div>
+          <div><label class="text-xs muted">Weight decay</label><input id="ov-weight_decay" type="number" class="input" value="0.01" step="0.001" min="0" max="1"></div>
+          <div><label class="text-xs muted">Warmup steps</label><input id="ov-warmup_steps" type="number" class="input" value="30" min="0" max="1000"></div>
+          <div><label class="text-xs muted">Epochs</label><input id="ov-num_epochs" type="number" class="input" value="3" min="1" max="50"></div>
+        </div>
+      </details>
+
+      <details class="mb-3">
+        <summary class="text-xs" style="cursor:pointer;padding:6px 0;">Batching & sequence</summary>
+        <div class="grid grid-2 gap-3 mt-2">
+          <div><label class="text-xs muted">Batch size</label><input id="ov-batch_size" type="number" class="input" value="2" min="1" max="32"></div>
+          <div><label class="text-xs muted">Gradient accum. steps</label><input id="ov-gradient_accumulation_steps" type="number" class="input" value="4" min="1" max="64"></div>
+          <div><label class="text-xs muted">Max sequence length</label><input id="ov-max_seq_length" type="number" class="input" value="2048" min="128" max="8192" step="128"></div>
+          <div><label class="text-xs muted">Save every N steps</label><input id="ov-save_steps" type="number" class="input" value="100" min="1" max="10000"></div>
+          <div><label class="text-xs muted">Log every N steps</label><input id="ov-logging_steps" type="number" class="input" value="10" min="1" max="1000"></div>
+        </div>
+      </details>
+
+      <details class="mb-3">
+        <summary class="text-xs" style="cursor:pointer;padding:6px 0;">Precision & engine</summary>
+        <div class="grid grid-2 gap-3 mt-2">
+          <div>
+            <label class="text-xs muted">Precision</label>
+            <select id="ov-bf16" class="select"><option value="true">bf16 (recommended)</option><option value="false">fp16</option></select>
+          </div>
+          <div>
+            <label class="text-xs muted">Engine</label>
+            <select id="ov-unsloth" class="select"><option value="true">Unsloth (fast)</option><option value="false">Standard TRL</option></select>
+          </div>
+          <div>
+            <label class="flex items-center gap-2 text-xs"><input id="ov-merge_on_save" type="checkbox" checked> Merge adapter on save</label>
+          </div>
+        </div>
+      </details>
+
+      <div class="text-xs dim mt-2" id="param-summary"></div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-head">
+        <div class="card-title">4. Launch</div>
+        <div class="card-sub">Review and start the training run.</div>
+      </div>
+      <div id="launch-summary" class="text-xs mb-3 dim">Select a preset, project, model, and dataset first.</div>
+      <div class="flex gap-2">
+        <button class="btn primary" id="btn-start-training" disabled>Start training</button>
+        <button class="btn" id="btn-stop-training" disabled>Stop</button>
+      </div>
+      <div id="training-status" class="text-xs mt-3">Idle.</div>
+    </div>
+  </div>
 </div>
+
+{# ── Progress + metrics ────────────────────────────────────── #}
+<div class="card mt-4" id="progress-card" style="display:none;">
+  <div class="card-head">
+    <div class="card-title">Progress</div>
+    <div class="card-sub" id="progress-sub">Live training metrics.</div>
+  </div>
+  <div id="progress-bar" class="progress-bar"><div id="progress-fill"></div></div>
+  <div id="progress-metrics" class="grid grid-4 gap-3 text-xs mt-3">
+    <div><span class="dim">Step</span><div id="m-step">—</div></div>
+    <div><span class="dim">Loss</span><div id="m-loss">—</div></div>
+    <div><span class="dim">LR</span><div id="m-lr">—</div></div>
+    <div><span class="dim">Elapsed</span><div id="m-elapsed">—</div></div>
+  </div>
+  <pre id="training-log" class="text-xs mt-3" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);padding:8px;white-space:pre-wrap;display:none;"></pre>
+</div>
+
+{# ── Past runs ─────────────────────────────────────────────── #}
+<div class="card mt-4">
+  <div class="card-head">
+    <div class="card-title">Past runs</div>
+    <div class="card-sub">History of training runs for this project.</div>
+  </div>
+  <div id="past-runs">Loading…</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/training.js?v=1"></script>
 {% endblock %}
