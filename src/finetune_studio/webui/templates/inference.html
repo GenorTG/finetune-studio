@@ -81,8 +81,8 @@
           GPU offload layers <span id="n-gpu-val" class="mono violet">all</span>
         </label>
         <input type="range" id="n-gpu-layers" class="range" min="0" max="200" step="1" value="99"
-               oninput="document.getElementById('n-gpu-val').textContent=this.value==99?'all':this.value; updateMemEstimate()">
-        <div class="text-[10px] dim mt-0.5">0 = CPU only · 99+ = all layers offloaded to GPU</div>
+               oninput="document.getElementById('n-gpu-val').textContent=this.value>=this.max?'all':this.value; updateMemEstimate()">
+        <div class="text-[10px] dim mt-0.5">0 = CPU only · max = all layers offloaded to GPU</div>
       </div>
 
       <div class="mt-3">
@@ -270,7 +270,34 @@ function toggleAdv() {
   $('adv-toggle').textContent = p.hidden ? '▶ Advanced settings' : '▼ Advanced settings';
 }
 
-let memTimer = null;
+let modelMetaCache = {};
+async function getModelMeta(path) {
+  if (modelMetaCache[path]) return modelMetaCache[path];
+  try {
+    const r = await fts.api.post('/api/models/info', { path });
+    if (r && r.path) {
+      modelMetaCache[path] = r;
+      return r;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function applyModelMeta(meta) {
+  const slider = document.getElementById('n-gpu-layers');
+  if (!slider) return;
+  const maxLayers = meta && meta.total_layers ? meta.total_layers : 99;
+  slider.max = maxLayers;
+  if (parseInt(slider.value) >= maxLayers || slider.value === '99') {
+    slider.value = maxLayers;
+    const valEl = document.getElementById('n-gpu-val');
+    if (valEl) valEl.textContent = 'all (' + maxLayers + ')';
+  }
+  const capEl = document.getElementById('mem-label');
+  if (capEl && meta && meta.total_layers) {
+    slider.title = '0 = CPU only · ' + maxLayers + ' = all layers on GPU. This model has ' + maxLayers + ' total layers.';
+  }
+}
 function updateMemEstimate() {
   clearTimeout(memTimer);
   memTimer = setTimeout(async () => {
@@ -385,7 +412,15 @@ async function send() {
 }
 
 // Auto-refresh memory estimate when model changes
-document.getElementById('model-select').addEventListener('change', updateMemEstimate);
+document.getElementById('model-select').addEventListener('change', async function() {
+  updateMemEstimate();
+  const sel = document.getElementById('model-select');
+  const path = sel ? sel.value : '';
+  if (path) {
+    const meta = await getModelMeta(path);
+    applyModelMeta(meta);
+  }
+});
 // Run once on load if a model is already loaded (to refresh mem-bar status)
 updateMemEstimate();
 </script>

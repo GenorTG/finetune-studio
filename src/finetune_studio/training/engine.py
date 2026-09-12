@@ -284,7 +284,7 @@ class TrainingEngine:
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
         model = AutoModelForCausalLM.from_pretrained(
-            cfg.model_path, torch_dtype="auto", device_map="auto", trust_remote_code=True,
+            cfg.model_path, torch_dtype="auto", device_map={"": 0}, trust_remote_code=True,
         )
         lora_config = LoraConfig(
             r=cfg.lora_rank, lora_alpha=cfg.lora_alpha,

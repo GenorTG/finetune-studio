@@ -85,7 +85,7 @@ def profile_training(
                 tokenizer.pad_token = tokenizer.eos_token
             model = AutoModelForCausalLM.from_pretrained(
                 model_path, torch_dtype=torch.bfloat16,
-                device_map="auto", trust_remote_code=True,
+                device_map={"": 0}, trust_remote_code=True,
             )
             lora_config = LoraConfig(
                 r=lora_rank, lora_alpha=lora_rank * 2,
