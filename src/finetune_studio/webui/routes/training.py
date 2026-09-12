@@ -186,3 +186,9 @@ async def start_training(request: Request):
 async def stop_training():
     training_engine.stop()
     return {"status": "stopping"}
+
+
+@router.get("/projects/{pid}/training/runs")
+async def list_training_runs(pid: str):
+    from finetune_studio.db.runs import list_runs
+    return list_runs(pid)
