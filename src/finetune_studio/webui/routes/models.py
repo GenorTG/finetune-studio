@@ -93,6 +93,12 @@ def _vram_hint(model_path: str) -> str:
            if occ else ".")
     )
 
+@router.get("/")
+async def models_root():
+    """Root models endpoint — returns list of discovered models."""
+    return await list_models()
+
+
 @router.get("/list")
 async def list_models():
     from finetune_studio.webui.app import discovered_models

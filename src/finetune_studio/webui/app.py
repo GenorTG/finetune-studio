@@ -197,6 +197,9 @@ app.include_router(_updates.router, prefix="/api", tags=["system-updates"])  # t
 from finetune_studio.webui.routes import activity as _activity  # noqa: E402
 app.include_router(_activity.router)  # type: ignore[has-type]  # /api/activity
 
+from finetune_studio.webui.routes import settings as _settings  # noqa: E402
+app.include_router(_settings.router)  # type: ignore[has-type]  # /api/settings
+
 from finetune_studio.webui.routes import datasets as _datasets  # noqa: E402
 app.include_router(_datasets.router, prefix="/api", tags=["datasets"])  # type: ignore[has-type]  # /api/projects/{pid}/datasets/*
 
