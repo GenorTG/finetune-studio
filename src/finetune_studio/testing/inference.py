@@ -209,17 +209,17 @@ class InferenceEngine:
             return 0
         return int(time.time() - self._last_used)
 
-    def generate(self, messages, max_tokens=1024, temperature=0.7, top_p=0.9, top_k=40, repeat_penalty=1.1, stop=None):
+    def generate(self, messages, max_tokens=1024, temperature=0.7, top_p=0.9, top_k=40, repeat_penalty=1.1, stop=None, think=False):
         if self.model is None:
             raise RuntimeError("No model loaded")
         self._last_used = time.time()
         self._start_idle_timer()
         if self.is_gguf:
             return self._generate_gguf(messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop)
-        return self._generate_hf(messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop)
+        return self._generate_hf(messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop, think=think)
 
-    def _generate_hf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop):
-        text = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    def _generate_hf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop, think=False):
+        text = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True, enable_thinking=think)
         inputs = self.tokenizer(text, return_tensors="pt").to(self.model.device)
         with torch.no_grad():
             outputs = self.model.generate(
@@ -228,7 +228,13 @@ class InferenceEngine:
                 do_sample=temperature > 0, pad_token_id=self.tokenizer.pad_token_id,
             )
         generated = outputs[0][inputs["input_ids"].shape[-1]:]
-        return self.tokenizer.decode(generated, skip_special_tokens=True)
+        response = self.tokenizer.decode(generated, skip_special_tokens=True)
+        # Strip Qwen3 thinking traces: <think>...</think> blocks
+        import re
+        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+        # Also strip the trailing \n\n that follows </think>
+        response = response.lstrip("\n")
+        return response
 
     @staticmethod
     def estimate_memory(model_path, n_ctx=4096, n_gpu_layers=99):
