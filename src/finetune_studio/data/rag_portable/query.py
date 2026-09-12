@@ -104,24 +104,21 @@ class PortableRAGQuery:
         sources_dir = self.dir / "sources"
         if not sources_dir.exists():
             return []
+        # Build a map of document_id -> filename from chunks
+        doc_to_filename = {}
+        if self.chunks is not None and len(self.chunks) > 0:
+            for _, row in self.chunks.iterrows():
+                doc_id = row.get("document_id")
+                if doc_id and doc_id not in doc_to_filename:
+                    doc_to_filename[doc_id] = row.get("filename", "")
         sources = []
         for f in sorted(sources_dir.glob("*.txt")):
-            try:
-                text = f.read_text(encoding="utf-8")
-                # Look up the original filename from the chunks
-                orig = None
-                for _, row in self.chunks.iterrows():
-                    if row.get("document_id") == f.stem:
-                        orig = row.get("filename", "")
-                        break
-                sources.append({
-                    "id": f.stem,
-                    "filename": orig or f.name,
-                    "chunks": sum(1 for _ in self.chunks.iterrows() if _[1].get("document_id") == f.stem),
-                    "size": f.stat().st_size,
-                })
-            except Exception:
-                continue
+            doc_id = f.stem
+            sources.append({
+                "id": doc_id,
+                "filename": doc_to_filename.get(doc_id, doc_id),
+                "size": f.stat().st_size,
+            })
         return sources
 
     def format_context(self, results: list[dict], max_chars: int = 4000) -> str:
