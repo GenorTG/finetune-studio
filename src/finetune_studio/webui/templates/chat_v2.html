@@ -95,6 +95,15 @@
     <button id="chat-send" class="btn primary" onclick="chatSend()">Send</button>
   </div>
 
+  {# System prompt templates #}
+  <div class="flex gap-2 mt-2" style="font-size:11px;flex-wrap:wrap;">
+    <span class="dim" style="align-self:center;">Preset:</span>
+    <button type="button" class="btn small" onclick="document.querySelector('[name=system_prompt]').value='You are a helpful assistant.'" title="Reset to default">Default</button>
+    <button type="button" class="btn small" onclick="document.querySelector('[name=system_prompt]').value='You are an expert tutor. Always show your work step by step.'" title="Tutor mode">Tutor</button>
+    <button type="button" class="btn small" onclick="document.querySelector('[name=system_prompt]').value='You are a research assistant. Answer based on the provided context. If you don\'t know, say so.'" title="RAG mode">RAG</button>
+    <button type="button" class="btn small" onclick="document.querySelector('[name=system_prompt]').value='You are a creative writer. Be vivid and imaginative.'" title="Creative mode">Creative</button>
+  </div>
+
   {# Chat parameter controls #}
   <div class="flex gap-3 mt-2" style="font-size:11px;flex-wrap:wrap;">
     <label class="flex items-center gap-1" title="Higher = more creative, lower = more deterministic">
