@@ -75,11 +75,14 @@ written commercial license from the Licensor.
 You may **not** use the Software for Model Training for any Commercial Purpose
 without a separate written commercial license from the Licensor. This applies
 regardless of whether the Software itself is used directly or as part of a
-larger pipeline.
+larger pipeline, and regardless of whether the training is performed by you or
+by a third party on your behalf.
 
 ### 3.3 No Sublicensing
 You may not sublicense, sell, rent, lease, or otherwise transfer the Software
-or any rights under this license to any third party.
+or any rights under this license to any third party. You may not circumvent
+the Commercial Purpose restriction by directing a non-commercial third party
+to use the Software on your behalf for a Commercial Purpose.
 
 ### 3.4 Attribution
 You must retain all copyright, patent, and trademark notices in the Software.
@@ -144,7 +147,8 @@ your license is reinstated.
 ## 9. Governing Law
 
 This license is governed by the laws of Poland, without regard to conflict-of-
-law principles. Any disputes shall be resolved in the courts of Poland.
+law principles. Any disputes shall be resolved in the courts of Poland. The
+Parties agree that the Polish courts have exclusive jurisdiction.
 
 ---
 

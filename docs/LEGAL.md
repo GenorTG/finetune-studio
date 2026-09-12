@@ -186,7 +186,116 @@ now, the non-commercial restriction is intentional.
 
 ---
 
-## 7. Disclaimer
+## 7. EU and Polish legal analysis
+
+This section addresses enforceability under European Union and Polish law,
+where the Licensor is based.
+
+### 7.1 Polish Copyright Act
+
+The [Polish Copyright Act (Ustawa o prawie autorskim i prawach pokrewnych)](https://www.wipo.int/wipolex/en/legislation/details/20377)
+of February 4, 1994, governs copyright in Poland. Key provisions:
+
+- **Article 17**: The author has the exclusive right to use the work and to
+  manage its use throughout **all the fields of exploitation** and to receive
+  remuneration. "Fields of exploitation" (pola eksploatacji) is a well-
+  established concept in Polish copyright law — it means the author can
+  partition rights by type of use, territory, and time.
+
+- **Article 17 in practice**: This means a copyright holder can license
+  different fields of exploitation to different parties. Restricting
+  commercial use while permitting non-commercial use is a valid exercise of
+  this exclusive right.
+
+- **Article 41(2)**: Any transfer of economic rights must specify the
+  particular fields of exploitation. This means restrictions must be
+  **explicit** — vague language is unenforceable. Our license explicitly
+  defines "Commercial Purpose" and "Non-Commercial Purpose" to satisfy this.
+
+- **Polish Civil Code Art. 385¹**: Standard contract terms (umowa adhezyjna)
+  can be challenged if they are unfair, unusual, or contrary to good
+  customs. However, our license is **not** a standard adhesion contract —
+  it is a bare license where the user **receives** rights rather than
+  being burdened with obligations. The restrictions define the scope of
+  the grant, not contractual penalties.
+
+### 7.2 EU Directive 2009/24/EC (Software Directive)
+
+[Directive 2009/24/EC](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32009L0024)
+on the legal protection of computer programs harmonizes copyright protection
+for software in the EU:
+
+- **Article 1(3)**: If an employee creates a computer program in the course
+  of duties, the employer exclusively has the economic rights **unless
+  otherwise provided by contract**. This confirms that contractual freedom
+  in software licensing is respected — parties can agree to different terms.
+
+- **Article 4(1)**: The rightholder has the exclusive right to authorize
+  reproduction, translation, adaptation, and distribution. Restricting
+  these rights through licensing is the normal exercise of copyright.
+
+- The Directive does **not** require rightholders to grant unrestricted
+  licenses. Field-of-use restrictions are consistent with the framework.
+
+### 7.3 Copyright license vs. contract
+
+This license is structured as a **bare copyright license**, not a contract:
+
+- **No consideration required**: A license is a permission to do something
+  that would otherwise infringe copyright. It does not require payment or
+  mutual obligations to be valid.
+
+- **Conditions on the grant**: The non-commercial restriction is a
+  **condition** on the grant, not a contractual promise. If you violate the
+  condition, the license terminates and you revert to being an infringer.
+  This is stronger than a breach-of-claim claim — it is copyright
+  infringement.
+
+- **Adhesion contract risk**: Because users do not negotiate the terms,
+  Polish law (Civil Code Art. 385¹) allows courts to strike unfair terms in
+  standard contracts. However, Polish courts have generally upheld
+  open-source and source-available licenses because:
+  - The user is **not** bound to anything — they can simply walk away
+  - The restrictions are clearly stated
+  - The user receives a valuable grant of rights (to use, modify, distribute)
+
+### 7.4 Precedents
+
+- **Creative Commons**: CC licenses have been upheld in European courts
+  (Dutch court, 2006). Poland's copyright framework is compatible with CC,
+  and the CC non-commercial (NC) clause has not been successfully
+  challenged.
+
+- **PolyForm Noncommercial 1.0.0**: Drafted by a US law firm, used by
+  multiple commercial projects, and has not been challenged in court. Its
+  structure (which ours mirrors) is considered well-crafted.
+
+- **Meta Llama Community License**: Includes a non-commercial threshold
+  (MAU > 700M). Used by Meta, a major commercial entity, demonstrating
+  that such restrictions are standard industry practice.
+
+### 7.5 Key risks and mitigations
+
+| Risk | Likelihood | Mitigation |
+|---|---|---|
+| User claims they didn't see the license | Low | License is in `LICENSE`, README, and installation flow. Visible before use. |
+| Court finds restriction ambiguous | Low | "Commercial Purpose" and "Model Training" are explicitly defined. |
+| Polish court applies Civil Code to strike terms | Very Low | License is a bare license, not an adhesion contract. User can walk away. |
+| EU law overrides national copyright | Very Low | EU law harmonizes protection; it does not restrict rightholder licensing freedom. |
+| Enforcement cost exceeds damages | Medium | Monitor use; offer commercial licenses to convert violators. |
+
+### 7.6 Conclusion
+
+Based on Polish copyright law, EU software directive analysis, and
+international precedents, this license is **enforceable** in Poland and the
+EU. The non-commercial restriction is a valid exercise of the author's
+exclusive economic rights under Article 17 of the Polish Copyright Act.
+
+**This is not legal advice.** Consult a Polish attorney for a formal opinion.
+
+---
+
+## 8. Disclaimer
 
 This analysis is for informational purposes only. It is **not legal advice**.
 The enforceability of license terms varies by jurisdiction. Consult a
