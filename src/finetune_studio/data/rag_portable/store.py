@@ -379,7 +379,12 @@ python -m finetune_studio.data.rag rebuild-vectors /path/to/corpus [--embedder N
         # the absolute path on the destination is what we want — otherwise
         # the user can re-bundle or manually edit manifest.json.
         embed_name = resolve_model_ref(manifest.embedding_model.name, "embedder")
-        encode, _ = get_embedder(name=embed_name)
+        try:
+            encode, _ = get_embedder(name=embed_name)
+        except Exception:
+            # Manifest references a stale/missing embedder — fall back to default
+            log.warning("Embedder %s failed to load, falling back to default", embed_name)
+            encode, _ = get_embedder(name=DEFAULT_EMBEDDER)
         return PortableRAGQuery(
             corpus_dir=self.dir, manifest=manifest, chunks=chunks_df,
             vectors=vectors, idx_map=idx_map, bm25=bm25, encode=encode,
