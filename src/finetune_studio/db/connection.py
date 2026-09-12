@@ -229,6 +229,15 @@ CREATE TABLE IF NOT EXISTS file_folders (
 );
 CREATE INDEX IF NOT EXISTS idx_file_folders_project ON file_folders(project_id);
 
+CREATE TABLE IF NOT EXISTS model_favorites (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_path      TEXT NOT NULL UNIQUE,
+    name            TEXT NOT NULL DEFAULT '',
+    added_at        REAL NOT NULL,
+    note            TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_model_favorites_added ON model_favorites(added_at);
+
 CREATE TABLE IF NOT EXISTS project_files (
     id              TEXT PRIMARY KEY,      -- first 16 hex of sha256(raw bytes)
     project_id      TEXT NOT NULL,

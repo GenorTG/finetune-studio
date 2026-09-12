@@ -57,3 +57,30 @@ def delete_project(pid: str) -> bool:
     with cursor() as c:
         c.execute("DELETE FROM projects WHERE id = ?", (pid,))
     return True
+
+
+def add_model_favorite(model_path: str, name: str = '', note: str = '') -> dict:
+    fid = new_id()
+    with cursor() as c:
+        c.execute(
+            "INSERT INTO model_favorites (id, model_path, name, note, added_at) VALUES (?, ?, ?, ?, ?)"
+            " ON CONFLICT(model_path) DO UPDATE SET name=excluded.name, note=excluded.note",
+            (fid, model_path, name, note, time.time()),
+        )
+    return {"id": fid, "path": model_path, "name": name, "note": note}
+
+
+def remove_model_favorite(model_path: str) -> None:
+    with cursor() as c:
+        c.execute("DELETE FROM model_favorites WHERE model_path = ?", (model_path,))
+
+
+def list_model_favorites() -> list[dict]:
+    with cursor() as c:
+        c.execute("SELECT id, model_path, name, note, added_at FROM model_favorites ORDER BY added_at DESC")
+        return [{"id": r[0], "path": r[1], "name": r[2], "note": r[3], "added_at": r[4]} for r in c.fetchall()]
+
+
+def is_model_favorited(model_path: str) -> bool:
+    with cursor() as c:
+        return c.execute("SELECT 1 FROM model_favorites WHERE model_path = ?", (model_path,)).fetchone() is not None
