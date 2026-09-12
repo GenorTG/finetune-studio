@@ -61,6 +61,12 @@ def _on_training_update(state):
     fields: dict = {"status": state.status, "metrics": metrics}
     cfg_dir = getattr(training_engine.config, "output_dir", "") or ""
     cfg_dir_abs = os.path.abspath(cfg_dir) if cfg_dir else ""
+    # Fall back to the training engine's output_dir if _on_state_change
+    # hasn't fired yet (e.g. the very first training run).
+    if not cfg_dir_abs:
+        cfg_dir_abs = os.path.abspath(
+            getattr(training_engine.config, "output_dir", "output")
+        )
     now = __import__("time").time()
     if state.status in ("loading", "training", "running", "saving"):
         # First active transition records started_at. Read existing to avoid
