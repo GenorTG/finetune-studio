@@ -184,6 +184,30 @@
       <span class="block text-xs muted mb-1" title="Maximum tokens per training example (prompt + response). Longer = more context but more VRAM and slower training. Truncate examples longer than this; pad shorter ones up to it.">Max sequence <span class="dim">?</span></span>
       <input type="number" name="max_seq_length" value="2048" class="input">
     </label>
+    <label>
+      <span class="block text-xs muted mb-1" for="gradient-accum-steps">Gradient accumulation steps</span>
+      <input type="number" name="gradient_accumulation_steps" id="gradient-accum-steps" value="1" min="1" max="32" class="input" title="Accumulate gradients over multiple steps. Effective batch size = batch_size × this value.">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1" for="warmup-steps">Warmup steps</span>
+      <input type="number" name="warmup_steps" id="warmup-steps" value="100" min="0" class="input" title="Learning rate warmup steps. Helps stabilize early training.">
+    </label>
+    <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;" title="Save intermediate checkpoints. Allows resuming if training is interrupted.">
+      <input type="checkbox" name="save_checkpoints" value="1" id="save-checkpoints-check" checked>
+      <span class="text-xs">Save checkpoints every 500 steps</span>
+    </label>
+    <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;" title="Stop training early if validation loss stops improving for 3 evaluations.">
+      <input type="checkbox" name="early_stopping" value="1" id="early-stopping-check">
+      <span class="text-xs">Early stopping (stop if loss plateaus)</span>
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1" for="save-limit">Keep last N checkpoints</span>
+      <input type="number" name="save_limit" id="save-limit" value="3" min="1" max="10" class="input" title="Maximum checkpoints to keep. Older ones are deleted.">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1" for="eval-steps">Eval every N steps</span>
+      <input type="number" name="eval_steps" id="eval-steps" value="500" min="0" class="input" title="Run evaluation every N steps. 0 = no evaluation during training.">
+    </label>
     <div class="flex gap-2 mt-4" style="grid-column: 1 / -1;">
       <button type="submit" class="btn primary" id="start-btn">Start training</button>
       <button type="button" class="btn danger" data-action="/api/training/stop" data-reload="true">Stop</button>
