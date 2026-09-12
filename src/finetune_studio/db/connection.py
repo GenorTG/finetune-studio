@@ -243,6 +243,8 @@ CREATE TABLE IF NOT EXISTS project_files (
     project_id      TEXT NOT NULL,
     original_name   TEXT NOT NULL,         -- user-visible filename, unique per project
     mime_type       TEXT NOT NULL DEFAULT 'application/octet-stream',
+    tags            TEXT NOT NULL DEFAULT '',
+    notes           TEXT NOT NULL DEFAULT '',
     current_version INTEGER NOT NULL DEFAULT 1,
     size_bytes      INTEGER NOT NULL DEFAULT 0,
     uploaded_at     REAL NOT NULL,
