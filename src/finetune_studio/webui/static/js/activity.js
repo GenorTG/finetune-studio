@@ -52,9 +52,11 @@
   }
 
   function renderTasks(tasks) {
-    if (!tasks || tasks.length === 0) {
+    activityPopulateProjectFilter(tasks);
+    const filtered = tasks.filter(activityMatchesFilter);
+    if (!filtered || filtered.length === 0) {
       bodyEl.innerHTML =
-        '<div class="activity-empty">No activity. Upload a file or start a training run.</div>';
+        '<div class="activity-empty">' + (tasks.length ? 'No activity matches your filters.' : 'No activity. Upload a file or start a training run.') + '</div>';
       return;
     }
 
@@ -151,6 +153,38 @@
   }
 
   let lastTasks = [];
+  const _filter = { type: '', project: '', status: '' };
+
+  function activityApplyFilter() {
+    _filter.type = document.getElementById('activity-filter-type')?.value || '';
+    _filter.project = document.getElementById('activity-filter-project')?.value || '';
+    _filter.status = document.getElementById('activity-filter-status')?.value || '';
+    renderTasks(lastTasks);
+  }
+
+  function activityPopulateProjectFilter(tasks) {
+    const sel = document.getElementById('activity-filter-project');
+    if (!sel) return;
+    const current = sel.value;
+    const pids = new Set();
+    tasks.forEach(t => { if (t.project_id) pids.add(t.project_id); });
+    sel.innerHTML = '<option value="">All projects</option>';
+    [...pids].sort().forEach(pid => {
+      const opt = document.createElement('option');
+      opt.value = pid;
+      const t = tasks.find(x => x.project_id === pid);
+      opt.textContent = (t?.project_name || pid).substring(0, 24);
+      sel.appendChild(opt);
+    });
+    if (current && pids.has(current)) sel.value = current;
+  }
+
+  function activityMatchesFilter(t) {
+    if (_filter.type && t.kind !== _filter.type) return false;
+    if (_filter.project && t.project_id !== _filter.project) return false;
+    if (_filter.status && t.status !== _filter.status) return false;
+    return true;
+  }
 
   async function refresh() {
     try {
