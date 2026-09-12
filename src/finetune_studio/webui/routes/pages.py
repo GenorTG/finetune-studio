@@ -113,6 +113,27 @@ async def hf_models_page(request: Request):
     )
 
 
+@router.get("/hf-models", response_class=HTMLResponse)
+async def hf_models_alias(request: Request):
+    """Alias for /models/explore — redirects to the HF model browser."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/models/explore")
+
+
+@router.get("/projects/{pid}/export", response_class=HTMLResponse)
+async def export_page(pid: str, request: Request):
+    """Export project page — trigger + download project archive."""
+    from finetune_studio import db
+    project = db.get_project(pid)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return templates.TemplateResponse(
+        request,
+        "export.html",
+        {"request": request, "project": project, "pid": pid},
+    )
+
+
 # ── Projects list ────────────────────────────────────────────────────────
 
 @router.get("/projects", response_class=HTMLResponse)

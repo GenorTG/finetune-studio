@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Export · {{ project.name }}{% endblock %}
+{% block nav_projects %}active{% endblock %}
+{% block crumbs_leaf %}Export{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Export project</h1>
+    <p class="muted">Download <b>{{ project.name }}</b> as a portable archive.</p>
+  </div>
+  <div class="flex gap-2">
+    <button class="btn primary" onclick="doExport()">📦 Download .tar.gz</button>
+  </div>
+</div>
+
+<div class="card">
+  <p class="muted">Includes: project config, datasets, RAG corpora, chat history, and metadata. Does <b>not</b> include model weights or output checkpoints — re-download those separately.</p>
+</div>
+
+<script>
+function doExport() {
+  window.location.href = '/api/projects/{{ pid }}/export';
+  fts.notify('Export started — download will begin shortly', 'info');
+}
+</script>
+{% endblock %}
