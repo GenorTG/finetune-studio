@@ -9,7 +9,7 @@ lifecycle: build RAG corpora, fine-tune with LoRA, chat with vision models,
 run benchmarks — all from one dark-themed WebUI that lives in your browser.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License: Non-Commercial](https://img.shields.io/badge/license--source--available-ff8800.svg)](LICENSE)
 [![GPU: CUDA](https://img.shields.io/badge/GPU-CUDA-76b900.svg)](#installation)
 [![WebUI](https://img.shields.io/badge/WebUI-FastAPI%20%2B%20Jinja2-009688.svg)](#how-it-works)
 [![Presentation page](https://img.shields.io/badge/%E2%9A%A1_presentation_page-live-00ff66.svg)](https://genortg.github.io/finetune-studio/)
@@ -383,7 +383,9 @@ add at least one assertion there.
 
 ## License & attributions
 
-**MIT license.** See `LICENSE`.
+**Finetune Studio Non-Commercial and Research License v1.0.** See `LICENSE`. Personal, scientific, and non-commercial use is free. Commercial use and commercial model training require a separate paid license — see `LICENSE` §4 and `docs/LEGAL.md`.
+
+> Note: this is a *source-available* license, not an OSI-approved open-source license, because it restricts commercial use and commercial model training.
 
 Every dependency used is open source — see
 **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTIONS.md)** for the full list,

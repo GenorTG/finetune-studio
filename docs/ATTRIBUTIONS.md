@@ -81,7 +81,9 @@ project and are released under the same license as the rest of the code
 
 ## License of this project
 
-Finetune Studio itself is released under the MIT License. See `LICENSE`.
+Finetune Studio itself is released under the **Finetune Studio Non-Commercial and Research License v1.0**. See `LICENSE`.
+
+This is a *source-available* license: personal, scientific, and non-commercial use is free. Commercial use and commercial model training require a separate paid license. See `docs/LEGAL.md` for the full legal analysis.
 
 ---
 

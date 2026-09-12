@@ -1,21 +1,167 @@
-MIT License
+# Finetune Studio Non-Commercial and Research License
 
-Copyright (c) 2026 GenorTG
+**Version 1.0** — September 2026
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+**Copyright (c) 2026 GenorTG** ("Licensor")
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+> This is a **source-available** license. It is **not** an open-source license as
+> defined by the Open Source Initiative, because it restricts commercial use and
+> the use of the Software to train models for commercial purposes. The full
+> terms below govern your use of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+---
+
+## 1. Definitions
+
+**"Software"** means the Finetune Studio application, including all source code,
+templates, documentation, configuration files, and associated materials made
+available by the Licensor under this license.
+
+**"Commercial Purpose"** means any use, directly or indirectly, for the purpose
+of commercial advantage or monetary compensation. This includes but is not
+limited to:
+- Use within a for-profit company or organization to develop, train, or deploy
+  models, products, or services
+- Use to provide a paid service (SaaS, consulting, hosted inference, etc.)
+- Use to train, fine-tune, or distill models that will be used commercially
+- Use by a government or non-commercial entity where the output is used for
+  commercial purposes
+
+**"Non-Commercial Purpose"** means any use that is not a Commercial Purpose,
+including:
+- Personal use, hobby projects, and amateur pursuits
+- Academic and scientific research, including publication of results
+- Education and teaching
+- Use by charitable organizations, public research institutions, public safety
+  or health organizations, and environmental protection organizations
+
+**"Model Training"** means using the Software to fine-tune, train, distill,
+quantize, or otherwise create or modify machine-learning model weights.
+
+**"You"** means the individual or entity agreeing to these terms.
+
+---
+
+## 2. Grant of License
+
+Subject to the terms of this license, the Licensor grants you a worldwide,
+royalty-free, non-exclusive, non-transferable license to:
+
+### 2.1 Use for Non-Commercial Purposes
+Use, copy, modify, and distribute the Software for any Non-Commercial Purpose.
+
+### 2.2 Model Training for Non-Commercial Purposes
+Use the Software for Model Training for any Non-Commercial Purpose, including
+publishing the resulting weights, provided that:
+- The resulting weights are also distributed under a non-commercial license
+- You do not use the resulting weights for a Commercial Purpose
+
+### 2.3 Distribution
+Distribute copies of the Software (modified or unmodified) to others, provided
+that:
+- You include a copy of this license
+- You retain all copyright notices
+- The recipient agrees to the terms of this license
+
+---
+
+## 3. Restrictions
+
+### 3.1 Commercial Use Prohibited
+You may **not** use the Software for any Commercial Purpose without a separate
+written commercial license from the Licensor.
+
+### 3.2 Commercial Model Training Prohibited
+You may **not** use the Software for Model Training for any Commercial Purpose
+without a separate written commercial license from the Licensor. This applies
+regardless of whether the Software itself is used directly or as part of a
+larger pipeline.
+
+### 3.3 No Sublicensing
+You may not sublicense, sell, rent, lease, or otherwise transfer the Software
+or any rights under this license to any third party.
+
+### 3.4 Attribution
+You must retain all copyright, patent, and trademark notices in the Software.
+If you distribute the Software, you must include a copy of this license.
+
+---
+
+## 4. Commercial Licensing
+
+To obtain a commercial license (which permits Commercial Use and Commercial
+Model Training), contact the Licensor:
+
+- **GitHub**: https://github.com/GenorTG/finetune-studio
+- **Repository**: `GenorTG/finetune-studio`
+
+Commercial licensing terms are negotiated separately and may include fees,
+revenue sharing, or other arrangements.
+
+---
+
+## 5. Patent License
+
+The Licensor grants you a patent license for any patent claims the Licensor can
+license that are necessarily infringed by the Software, for Non-Commercial
+Purposes only. This patent license does not extend to Commercial Purposes.
+
+If you initiate any patent litigation against the Licensor or any third party
+claiming that the Software infringes a patent, your patent license under this
+agreement terminates immediately.
+
+---
+
+## 6. Disclaimer of Warranty
+
+**THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE
+USE OF THE SOFTWARE.**
+
+---
+
+## 7. Limitation of Liability
+
+**TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE LICENSOR SHALL NOT BE LIABLE FOR
+ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY
+LOSS OF PROFITS, REVENUE, DATA, OR DATA USE, ARISING FROM THIS LICENSE OR THE
+USE OF THE SOFTWARE.**
+
+---
+
+## 8. Termination
+
+This license terminates automatically if you breach any of its terms. Upon
+termination, you must cease all use of the Software and destroy all copies.
+
+If you cure the breach within 30 days of written notice from the Licensor,
+your license is reinstated.
+
+---
+
+## 9. Governing Law
+
+This license is governed by the laws of Poland, without regard to conflict-of-
+law principles. Any disputes shall be resolved in the courts of Poland.
+
+---
+
+## 10. Severability
+
+If any provision of this license is found to be unenforceable, the remaining
+provisions remain in effect.
+
+---
+
+## 11. Entire Agreement
+
+This license constitutes the entire agreement between you and the Licensor
+regarding the Software.
+
+---
+
+*This license is based on the PolyForm Noncommercial License 1.0.0 structure,
+with additional restrictions on commercial model training. It is not approved
+by the Open Source Initiative and does not meet the Open Source Definition.*
