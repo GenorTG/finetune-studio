@@ -68,7 +68,7 @@
       <tr>
         <td>{{ b._run_name }}</td>
         <td class="mono">{{ b.suite }}</td>
-        <td>{{ '%.2f'|format(b.score) }}</td>
+        <td class="mono">{{ b.scores_json[:80] if b.scores_json else '—' }}</td>
         <td class="dim">{{ b._ran_at_str }}</td>
       </tr>
       {% endfor %}
