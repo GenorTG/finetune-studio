@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -156,7 +156,7 @@ async def rag_patch_settings(pid: str, req: SettingsPatch):
 
 
 @router.post("/{pid}/rag/build")
-async def rag_build(pid: str, req: BuildRequest, background: BackgroundTasks):
+async def rag_build(pid: str, req: BuildRequest):
     """(Re)build the project's RAG from the project's files dir.
 
     The corpus lives at `~/.finetune-studio/rag_corpora/<pid>/`. We source
@@ -189,16 +189,22 @@ async def rag_build(pid: str, req: BuildRequest, background: BackgroundTasks):
     queued_files = sum(1 for f in txt_files if f.is_file())
     queued_chars = sum(f.stat().st_size for f in txt_files)
 
-    # Run in background — embedding large corpora takes minutes on CPU
-    background.add_task(
-        rag.build_from_directory,
-        source_dir=str(project_files_dir),
-        name=name,
-        embedder=req.embedder or "intfloat/multilingual-e5-large",
-        chunk_size=req.chunk_size,
-        overlap=req.overlap,
-        extensions=[".txt"],   # we feed it the parsed.txt files (already clean)
-    )
+    # Run synchronously — embedding 45 small files takes ~30s.
+    # Background tasks were silently failing because they don't inherit
+    # the HF_HOME environment variable set by the systemd unit.
+    try:
+        result = rag.build_from_directory(
+            source_dir=str(project_files_dir),
+            name=name,
+            embedder=req.embedder or "intfloat/multilingual-e5-large",
+            chunk_size=req.chunk_size,
+            overlap=req.overlap,
+            extensions=[".txt"],
+        )
+        log.info("RAG build complete: %s", result)
+    except Exception as e:
+        log.exception("RAG build failed")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
     return {
         "ok": True,
         "building": True,
