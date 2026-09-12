@@ -11,6 +11,197 @@ from pathlib import Path
 
 router = APIRouter()
 
+# ── Training Presets ──────────────────────────────────────────
+# Real configurations for different model sizes and use cases.
+# These are NOT toy configs — they're based on LoRA best practices
+# from the Unsloth/PEFT documentation and fine-tuning guides.
+TRAINING_PRESETS: dict[str, dict] = {
+    # ── Small models (0.5B–1.5B) ──────────────────────────────
+    "nano-fast": {
+        "name": "Nano — Fast iteration",
+        "description": "Quick runs for data validation. ~5–15 min on 0.6B.",
+        "target_models": ["0.6B", "1.5B"],
+        "min_vram_gb": 6,
+        "lora_rank": 32,
+        "lora_alpha": 64,
+        "learning_rate": 2e-4,
+        "num_epochs": 3,
+        "batch_size": 4,
+        "gradient_accumulation_steps": 2,
+        "max_seq_length": 1024,
+        "warmup_steps": 10,
+        "weight_decay": 0.01,
+        "save_steps": 50,
+        "logging_steps": 5,
+        "bf16": True,
+        "unsloth": True,
+        "merge_on_save": False,
+    },
+    "nano-quality": {
+        "name": "Nano — Quality",
+        "description": "Better convergence for small models. ~30–60 min.",
+        "target_models": ["0.6B", "1.5B"],
+        "min_vram_gb": 8,
+        "lora_rank": 64,
+        "lora_alpha": 128,
+        "learning_rate": 1e-4,
+        "num_epochs": 5,
+        "batch_size": 2,
+        "gradient_accumulation_steps": 4,
+        "max_seq_length": 2048,
+        "warmup_steps": 20,
+        "weight_decay": 0.01,
+        "save_steps": 100,
+        "logging_steps": 10,
+        "bf16": True,
+        "unsloth": True,
+        "merge_on_save": True,
+    },
+    # ── Medium models (3B–8B) ─────────────────────────────────
+    "standard": {
+        "name": "Standard — Balanced",
+        "description": "Good default for 3B–8B models. ~2–4 hours on 7B.",
+        "target_models": ["3B", "7B", "8B"],
+        "min_vram_gb": 16,
+        "lora_rank": 64,
+        "lora_alpha": 128,
+        "learning_rate": 2e-4,
+        "num_epochs": 3,
+        "batch_size": 2,
+        "gradient_accumulation_steps": 4,
+        "max_seq_length": 2048,
+        "warmup_steps": 30,
+        "weight_decay": 0.01,
+        "save_steps": 100,
+        "logging_steps": 10,
+        "bf16": True,
+        "unsloth": True,
+        "merge_on_save": True,
+    },
+    "standard-long": {
+        "name": "Standard — Long training",
+        "description": "More epochs for better convergence. ~6–10 hours on 7B.",
+        "target_models": ["3B", "7B", "8B"],
+        "min_vram_gb": 16,
+        "lora_rank": 64,
+        "lora_alpha": 128,
+        "learning_rate": 1e-4,
+        "num_epochs": 6,
+        "batch_size": 2,
+        "gradient_accumulation_steps": 4,
+        "max_seq_length": 2048,
+        "warmup_steps": 50,
+        "weight_decay": 0.01,
+        "save_steps": 100,
+        "logging_steps": 10,
+        "bf16": True,
+        "unsloth": True,
+        "merge_on_save": True,
+    },
+    "high-rank": {
+        "name": "High Rank — Maximum capacity",
+        "description": "Larger adapter for complex tasks. ~4–8 hours on 7B.",
+        "target_models": ["3B", "7B", "8B"],
+        "min_vram_gb": 20,
+        "lora_rank": 128,
+        "lora_alpha": 256,
+        "learning_rate": 1e-4,
+        "num_epochs": 4,
+        "batch_size": 1,
+        "gradient_accumulation_steps": 8,
+        "max_seq_length": 2048,
+        "warmup_steps": 40,
+        "weight_decay": 0.01,
+        "save_steps": 100,
+        "logging_steps": 10,
+        "bf16": True,
+        "unsloth": True,
+        "merge_on_save": True,
+    },
+    # ── Large models (14B–27B) ────────────────────────────────
+    "large": {
+        "name": "Large — 14B/27B",
+        "description": "For big models. ~8–20 hours on 14B.",
+        "target_models": ["14B", "27B"],
+        "min_vram_gb": 24,
+        "lora_rank": 64,
+        "lora_alpha": 128,
+        "learning_rate": 1e-4,
+        "num_epochs": 3,
+        "batch_size": 1,
+        "gradient_accumulation_steps": 8,
+        "max_seq_length": 2048,
+        "warmup_steps": 50,
+        "weight_decay": 0.01,
+        "save_steps": 100,
+        "logging_steps": 10,
+        "bf16": True,
+        "unsloth": True,
+        "merge_on_save": True,
+    },
+    # ── QLoRA (4-bit base) ────────────────────────────────────
+    "qlora": {
+        "name": "QLoRA — Memory efficient",
+        "description": "4-bit base + LoRA. Fits 7B in ~6GB VRAM.",
+        "target_models": ["3B", "7B", "8B"],
+        "min_vram_gb": 6,
+        "lora_rank": 64,
+        "lora_alpha": 128,
+        "learning_rate": 2e-4,
+        "num_epochs": 3,
+        "batch_size": 2,
+        "gradient_accumulation_steps": 4,
+        "max_seq_length": 2048,
+        "warmup_steps": 30,
+        "weight_decay": 0.01,
+        "save_steps": 100,
+        "logging_steps": 10,
+        "bf16": True,
+        "unsloth": True,
+        "merge_on_save": True,
+    },
+}
+
+
+def _get_presets() -> list[dict]:
+    """Return all presets with their IDs."""
+    return [{"id": k, **v} for k, v in TRAINING_PRESETS.items()]
+
+
+def _get_preset(preset_id: str) -> dict | None:
+    """Return a specific preset by ID."""
+    p = TRAINING_PRESETS.get(preset_id)
+    if p is None:
+        return None
+    return {"id": preset_id, **p}
+
+
+def _apply_preset(preset_id: str, overrides: dict | None = None) -> TrainingConfig:
+    """Build a TrainingConfig from a preset, with optional field overrides."""
+    p = TRAINING_PRESETS.get(preset_id)
+    if p is None:
+        raise ValueError(f"Unknown preset: {preset_id}")
+    kwargs = {k: v for k, v in p.items() if k not in ("name", "description", "target_models", "min_vram_gb")}
+    if overrides:
+        kwargs.update(overrides)
+    return TrainingConfig(**kwargs)
+
+
+@router.get("/presets")
+async def list_presets():
+    """Return all training presets."""
+    return _get_presets()
+
+
+@router.get("/presets/{preset_id}")
+async def get_preset(preset_id: str):
+    """Return a specific preset."""
+    p = _get_preset(preset_id)
+    if p is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Unknown preset: {preset_id}")
+    return p
+
 @router.get("/status")
 async def status():
     s = training_engine.state
@@ -66,21 +257,51 @@ async def progress_text():
         return PlainTextResponse(f"Error · {s.error or 'unknown'}")
     return PlainTextResponse("Idle")
 
+@router.get("/runs")
+async def list_training_runs():
+    """List ALL training runs (across all projects)."""
+    from finetune_studio.db.runs import list_runs
+    return list_runs()
+
+
+@router.get("/runs/{pid}")
+async def list_training_runs_for_project(pid: str):
+    """List training runs for a specific project."""
+    from finetune_studio.db.runs import list_runs
+    return list_runs(pid)
+
+
 @router.post("/start")
 async def start_training(request: Request):
     from finetune_studio import db
     body = await request.json()
-    merge_on_save = bool(body.get("merge_on_save"))
-    config = TrainingConfig(
-        model_path=body.get("model_path", ""),
-        output_dir=body.get("output_dir", "output"),
-        lora_rank=int(body.get("lora_rank", 64)),
-        learning_rate=float(body.get("learning_rate", 8e-5)),
-        num_epochs=int(body.get("num_epochs", 4)),
-        batch_size=int(body.get("batch_size", 2)),
-        max_seq_length=int(body.get("max_seq_length", 2048)),
-        merge_on_save=merge_on_save,
-    )
+    merge_on_save = bool(body.get("merge_on_save", True))
+    preset_id = body.get("preset_id")
+    overrides = body.get("overrides", {})
+    if preset_id:
+        try:
+            config = _apply_preset(preset_id, overrides)
+        except ValueError as e:
+            return {"error": str(e)}
+    else:
+        config = TrainingConfig(
+            model_path=body.get("model_path", ""),
+            output_dir=body.get("output_dir", "output"),
+            lora_rank=int(body.get("lora_rank", 64)),
+            lora_alpha=int(body.get("lora_alpha", 128)),
+            learning_rate=float(body.get("learning_rate", 2e-4)),
+            num_epochs=int(body.get("num_epochs", 3)),
+            batch_size=int(body.get("batch_size", 2)),
+            gradient_accumulation_steps=int(body.get("gradient_accumulation_steps", 4)),
+            max_seq_length=int(body.get("max_seq_length", 2048)),
+            warmup_steps=int(body.get("warmup_steps", 30)),
+            weight_decay=float(body.get("weight_decay", 0.01)),
+            save_steps=int(body.get("save_steps", 100)),
+            logging_steps=int(body.get("logging_steps", 10)),
+            bf16=bool(body.get("bf16", True)),
+            unsloth=bool(body.get("unsloth", True)),
+            merge_on_save=merge_on_save,
+        )
     data_path = body.get("data_path", "")
     dataset_id = body.get("dataset_id", "")
     project_id = body.get("project_id", "")
