@@ -24,13 +24,21 @@ from finetune_studio.data.rag_portable.constants import (
 def resolve_model_ref(name: str, kind: str) -> str:
     """Resolve a model name to one get_embedder/get_reranker understands.
 
-    - "shared:embedder:<short_id>" -> "embedder_local:<abs_path>"
-    - "shared:reranker:<short_id>" -> "reranker_local:<abs_path>"
-    - "embedder_local:<path>" / "reranker_local:<path>" -> unchanged
-    - anything else -> unchanged (treated as an HF repo id by the caller)
+    Handles both correct and historically-malformed prefixes:
+      - "shared:embedder:<short_id>" -> "embedder_local:<abs_path>"
+      - "shared:reranker:<short_id>" -> "reranker_local:<abs_path>"
+      - "sentence-transformers/shared:embedder:<short_id>" -> "embedder_local:<abs_path>"
+      - "cross-encoder/shared:reranker:<short_id>" -> "reranker_local:<abs_path>"
+      - "embedder_local:<path>" / "reranker_local:<path>" -> unchanged
+      - anything else -> unchanged (treated as an HF repo id by the caller)
     """
     if not name:
         return name
+    # Strip known library prefixes that were incorrectly saved to the manifest
+    for library_prefix in ("sentence-transformers/shared:", "cross-encoder/shared:"):
+        if name.startswith(library_prefix):
+            name = name[len(library_prefix):]
+            break
     prefix = f"shared:{kind}:"
     if name.startswith(prefix):
         short_id = name[len(prefix):]
