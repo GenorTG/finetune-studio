@@ -241,6 +241,25 @@
   // Auto-start connection monitoring
   connStart();
 
+  // ── Keyboard navigation ──────────────────────────────────────────
+  const _kbShortcuts = [
+    { key: 'g', action: () => { window.location.href = '/'; } },  // 'g' then 'd' pattern
+    { key: 'p', action: () => { window.location.href = '/projects'; } },
+    { key: 'h', action: () => { window.location.href = '/models/explore'; } },
+    { key: 'i', action: () => { window.location.href = '/inference'; } },
+    { key: 's', action: () => { window.location.href = '/settings'; } },
+    { key: '/', action: () => { const el = document.getElementById('proj-search') || document.getElementById('palette-input'); if (el) { el.focus(); el.select(); } } },
+    { key: '?', action: () => { const el = document.getElementById('kb-help'); if (el) el.hidden = !el.hidden; } },
+  ];
+  document.addEventListener('keydown', (e) => {
+    // Don't hijack when typing in inputs
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const match = _kbShortcuts.find(s => s.key === e.key);
+    if (match) { e.preventDefault(); match.action(); }
+  });
+
   // Page-swap hook called from spa.js after each navigation
   window.fts = {
     notify, api, poll, confirm: confirmDialog, init: delegate, formatJsTime,
