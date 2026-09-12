@@ -188,7 +188,15 @@ async def stop_training():
     return {"status": "stopping"}
 
 
-@router.get("/projects/{pid}/training/runs")
-async def list_training_runs(pid: str):
+@router.get("/runs")
+async def list_training_runs():
+    """List ALL training runs (across all projects)."""
+    from finetune_studio.db.runs import list_runs
+    return list_runs()
+
+
+@router.get("/runs/{pid}")
+async def list_training_runs_for_project(pid: str):
+    """List training runs for a specific project."""
     from finetune_studio.db.runs import list_runs
     return list_runs(pid)
