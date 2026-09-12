@@ -398,9 +398,17 @@ function flRenderFiles() {
   const tbody = document.getElementById('fl-files-body');
   const footer = document.getElementById('fl-footer');
   if (!tbody) return;
-  if (!_flFiles.length) {
+  const _q = _flSearchQuery.trim().toLowerCase();
+  const _visible = _flFiles.filter(f => {
+    if (_q) {
+      const hay = (f.original_name + ' ' + (f.tags||'') + ' ' + (f.mime_type||'')).toLowerCase();
+      if (!hay.includes(_q)) return false;
+    }
+    return true;
+  });
+  if (!_visible.length) {
     tbody.innerHTML = '<tr><td colspan="7" class="dim text-xs" style="text-align:center;padding:32px">' +
-      'No files yet. ' + (_flCurrentFolder ? 'Pick a different folder, or ' : '') + 'drop files above or click ⬆ Upload.' +
+      (_q ? 'No files match your search.' : 'No files yet. ' + (_flCurrentFolder ? 'Pick a different folder, or ' : '') + 'drop files above or click ⬆ Upload.') +
       '</td></tr>';
     if (footer) footer.textContent = '';
     return;
@@ -412,6 +420,8 @@ function flRenderFiles() {
     const drift = f.last_trained_at && f.uploaded_at > f.last_trained_at ? '<span class="fl-drift" title="This file changed after the last dataset that included it.">⚠ drift</span>' : '';
     const mime = (f.mime_type || '').split('/').pop() || '?';
     const actions = '<div class="fl-row-actions">' +
+      '<span class="fl-act" title="Rename" onclick="flRenameFile(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\')">✎</span>' +
+      '<span class="fl-act" title="Preview" onclick="flPreviewFile(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\', \'' + (f.mime_type||'') + '\')">👁</span>' +
       '<a class="fl-act" title="Download raw" href="/api/projects/' + _flPid + '/files/' + f.id + '/raw" download="' + escapeHtml(f.original_name) + '">↓</a>' +
       '<span class="fl-act fl-act-del" title="Delete (soft, to trash)" onclick="flDeleteFile(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\')">🗑</span>' +
     '</div>';
@@ -502,11 +512,56 @@ function flShowUploadReport(data) {
 }
 
 async function flDeleteFile(fid, name) {
-  if (!confirm('Move ' + name + ' to trash? It will be hard-deleted in 7 days.')) return;
+  const ok = await fts.confirm('Move ' + name + ' to trash?', {
+    title: 'Confirm delete', danger: true, okText: 'Move to trash'
+  });
+  if (!ok) return;
   try {
     await fetch('/api/projects/' + _flPid + '/files/' + fid, { method: 'DELETE' });
     await flInit();
-  } catch (e) { alert('Delete failed: ' + e.message); }
+    fts.notify(name + ' moved to trash', 'success');
+  } catch (e) { fts.notify('Delete failed: ' + e.message, 'error'); }
+}
+
+function flRenameFile(fid, currentName) {
+  const newName = prompt('Rename file:', currentName);
+  if (!newName || newName === currentName) return;
+  fetch('/api/projects/' + _flPid + '/files/' + fid + '/rename', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: newName })
+  }).then(() => {
+    fts.notify('Renamed to ' + newName, 'success');
+    flInit();
+  }).catch((e) => fts.notify('Rename failed: ' + e.message, 'error'));
+}
+
+function flPreviewFile(fid, name, mime) {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  let inner;
+  if (mime && mime.startsWith('image/')) {
+    inner = '<img src="/api/projects/' + _flPid + '/files/' + fid + '/raw" alt="' + name + '" style="max-width:100%;max-height:70vh;border-radius:4px;">';
+  } else if (mime === 'application/pdf') {
+    inner = '<iframe src="/api/projects/' + _flPid + '/files/' + fid + '/raw" style="width:100%;height:70vh;border:none;border-radius:4px;"></iframe>';
+  } else {
+    inner = '<pre id="fl-preview-content" style="max-height:70vh;overflow:auto;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:4px;">Loading…</pre>';
+  }
+  modal.innerHTML = '<div class="modal-dialog" style="max-width:800px;">' +
+    '<div class="modal-head">' + name + '</div>' +
+    '<div class="modal-body">' + inner + '</div>' +
+    '<div class="modal-actions"><button class="btn" data-action="close">Close</button></div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  const cleanup = () => modal.remove();
+  modal.addEventListener('click', (e) => { if (e.target === modal) cleanup(); });
+  modal.querySelector('[data-action=close]').addEventListener('click', cleanup);
+  if (mime && !mime.startsWith('image/') && mime !== 'application/pdf') {
+    fetch('/api/projects/' + _flPid + '/files/' + fid + '/raw')
+      .then((r) => r.text())
+      .then((t) => { const el = document.getElementById('fl-preview-content'); if (el) el.textContent = t; })
+      .catch(() => { const el = document.getElementById('fl-preview-content'); if (el) el.textContent = 'Failed to load'; });
+  }
 }
 
 async function flRestoreFile(fid, name) {
