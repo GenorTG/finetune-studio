@@ -381,6 +381,29 @@ def init_db() -> None:
         _safe_alter(c, "ALTER TABLE project_rags ADD COLUMN last_build_status TEXT")
         _safe_alter(c, "ALTER TABLE project_rags ADD COLUMN error TEXT NOT NULL DEFAULT ''")
         _safe_alter(c, "ALTER TABLE training_runs ADD COLUMN error TEXT NOT NULL DEFAULT ''")
+        # Create benchmark_cases if it doesn't exist (new in v2)
+        c.executescript("""
+            CREATE TABLE IF NOT EXISTS benchmark_cases (
+                id              TEXT PRIMARY KEY,
+                benchmark_id    TEXT NOT NULL,
+                run_id          TEXT NOT NULL,
+                case_name       TEXT NOT NULL,
+                category        TEXT NOT NULL DEFAULT 'general',
+                question        TEXT NOT NULL,
+                correct_answer  TEXT NOT NULL DEFAULT '',
+                model_answer    TEXT NOT NULL DEFAULT '',
+                transcript      TEXT NOT NULL DEFAULT '',
+                judge           TEXT NOT NULL DEFAULT 'none',
+                judge_model     TEXT NOT NULL DEFAULT '',
+                verdict         TEXT NOT NULL DEFAULT '',
+                judge_reasoning TEXT NOT NULL DEFAULT '',
+                scored_at       REAL,
+                FOREIGN KEY (benchmark_id) REFERENCES benchmark_runs(id) ON DELETE CASCADE,
+                FOREIGN KEY (run_id) REFERENCES training_runs(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_bc_benchmark ON benchmark_cases(benchmark_id);
+            CREATE INDEX IF NOT EXISTS idx_bc_run ON benchmark_cases(run_id);
+        """)
 
 
 def row_to_dict(row: sqlite3.Row | None) -> dict | None:
