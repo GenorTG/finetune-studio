@@ -66,7 +66,15 @@
 </div>
 
 <div class="flex mb-4">
-  <input id="proj-search" class="input" placeholder="Search projects…" style="max-width:280px;" oninput="filterProjects()">
+  <div class="flex gap-2 items-center">
+    <input id="proj-search" class="input" placeholder="Search projects…" style="max-width:280px;" oninput="filterProjects()">
+    <select id="proj-sort" class="select" style="max-width:140px;" onchange="filterProjects()" title="Sort projects">
+      <option value="updated">Last updated</option>
+      <option value="created">Newest first</option>
+      <option value="name">Name A-Z</option>
+      <option value="name-desc">Name Z-A</option>
+    </select>
+  </div>
   <button class="btn" onclick="document.getElementById('new-project').hidden=false" style="margin-left:auto;">＋ New project</button>
 </div>
 
@@ -90,7 +98,7 @@
 {% else %}
   <div class="proj-list" id="proj-list">
     {% for p in projects %}
-    <a class="proj-card" href="/projects/{{ p.id }}" data-link data-search="{{ (p.name + ' ' + (p.description or '') + ' ' + (p.tags or ''))|lower }}" data-pid="{{ p.id }}" data-name="{{ p.name|e }}">
+    <a class="proj-card" href="/projects/{{ p.id }}" data-link data-search="{{ (p.name + ' ' + (p.description or '') + ' ' + (p.tags or ''))|lower }}" data-pid="{{ p.id }}" data-name="{{ p.name|e }}" data-created="{{ p.created_at or 0 }}" data-updated="{{ p.updated_at or 0 }}">
       <input type="checkbox" class="proj-select"
              onclick="event.preventDefault(); event.stopPropagation(); toggleSelect('{{ p.id }}', this.checked);"
              aria-label="Select {{ p.name|e }}">
@@ -300,10 +308,25 @@ function bulkDelete() {
 
 function filterProjects() {
   const q = document.getElementById('proj-search').value.trim().toLowerCase();
-  document.querySelectorAll('#proj-list .proj-card').forEach(el => {
+  const sort = document.getElementById('proj-sort')?.value || 'updated';
+  const cards = [...document.querySelectorAll('#proj-list .proj-card')];
+  // Filter
+  cards.forEach(el => {
     const s = el.dataset.search || '';
     el.hidden = q && !s.includes(q);
   });
+  // Sort
+  const visible = cards.filter(c => !c.hidden);
+  const list = document.getElementById('proj-list');
+  visible.sort((a, b) => {
+    switch (sort) {
+      case 'created': return (b.dataset.created || 0) - (a.dataset.created || 0);
+      case 'name': return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+      case 'name-desc': return (b.dataset.name || '').localeCompare(a.dataset.name || '');
+      case 'updated': default: return (b.dataset.updated || 0) - (a.dataset.updated || 0);
+    }
+  });
+  visible.forEach(el => list.appendChild(el));
   updateBulkBar();
 }
 
