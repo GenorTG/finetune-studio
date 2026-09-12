@@ -113,6 +113,28 @@ async def run_history(pid: str, rid: str):
     return db.list_benchmarks(rid)
 
 
+@router.delete("/projects/{pid}/runs/{rid}")
+async def delete_run(pid: str, rid: str):
+    """Delete a training run and its benchmark results."""
+    run = db.get_run(rid)
+    if not run:
+        return JSONResponse({"error": "run not found"}, status_code=404)
+    if run["project_id"] != pid:
+        return JSONResponse({"error": "project mismatch"}, status_code=403)
+    with db.cursor() as c:
+        c.execute("DELETE FROM benchmark_runs WHERE run_id = ?", (rid,))
+        c.execute("DELETE FROM training_runs WHERE id = ?", (rid,))
+    return {"ok": True}
+
+
+@router.delete("/projects/{pid}/benchmarks/{bid}")
+async def delete_benchmark(pid: str, bid: str):
+    """Delete a specific benchmark result."""
+    with db.cursor() as c:
+        c.execute("DELETE FROM benchmark_runs WHERE id = ? AND project_id = ?", (bid, pid))
+    return {"ok": True}
+
+
 @router.get("/projects/{pid}/compare")
 async def compare_runs(pid: str, run_a: str = "", run_b: str = ""):
     """Side-by-side comparison of latest benchmarks from two runs."""
