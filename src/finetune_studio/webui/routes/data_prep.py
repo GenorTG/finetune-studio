@@ -37,11 +37,13 @@ async def data_prep_page(request: Request, pid: str):
     from fastapi.templating import Jinja2Templates
     from finetune_studio import db
     from finetune_studio.webui.app import discovered_models
+    from finetune_studio.data import project_filesystem as pfs
     templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
     project = db.get_project(pid)
     if not project:
         return HTMLResponse("Project not found", status_code=404)
-    ctx = {"request": request, "pid": pid, "project": project, "models": discovered_models}
+    sources = pfs.list_qa_sources(pid)
+    ctx = {"request": request, "pid": pid, "project": project, "models": discovered_models, "sources": sources}
     return templates.TemplateResponse(request, "data_prep.html", ctx)
 
 
