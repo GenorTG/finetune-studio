@@ -72,8 +72,72 @@
     </div>
   </div>
 
-  {# ── Right column: Debug info + Storage Paths ────────────── #}
+  {# ── Right column: Debug info + Storage Paths + Hosting ────────────── #}
   <div>
+    <div class="card mb-4">
+      <div class="card-head">
+        <div class="card-title">Server & Hosting</div>
+        <div class="card-sub">Port, CORS, trusted hosts, reverse proxy. Changes require a restart.</div>
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-xs muted mb-1" for="hosting-port"
+               title="Network port the server listens on. Default 7860.">Port</label>
+        <input id="hosting-port" type="number" class="input" style="max-width:140px"
+               value="7860" min="1" max="65535" />
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-xs muted mb-1" for="hosting-host"
+               title="0.0.0.0 = listen on all interfaces. 127.0.0.1 = localhost only.">Bind host</label>
+        <select id="hosting-host" class="select" style="max-width:200px">
+          <option value="0.0.0.0">0.0.0.0 (all interfaces — for hosting)</option>
+          <option value="127.0.0.1">127.0.0.1 (localhost only)</option>
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-xs muted mb-1" for="hosting-cors"
+               title="One origin per line (e.g. https://mydomain.com). Empty = no CORS (only same-origin requests allowed).">CORS allowed origins</label>
+        <textarea id="hosting-cors" class="input" rows="3" style="min-width:260px;font-family:monospace;font-size:12px;"
+                  placeholder="https://mydomain.com&#10;https://app.mydomain.com"></textarea>
+      </div>
+
+      <div class="mb-3">
+        <label class="flex items-center gap-2 text-xs">
+          <input id="hosting-cors-creds" type="checkbox" checked />
+          Allow credentials (cookies, authorization headers)
+        </label>
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-xs muted mb-1" for="hosting-trusted"
+               title="Optional: restrict to these hosts. Empty = accept all.">Trusted hosts (optional)</label>
+        <textarea id="hosting-trusted" class="input" rows="2" style="min-width:260px;font-family:monospace;font-size:12px;"
+                  placeholder="mydomain.com&#10;www.mydomain.com"></textarea>
+      </div>
+
+      <div class="mb-3">
+        <label class="flex items-center gap-2 text-xs">
+          <input id="hosting-proxy" type="checkbox" />
+          Enable proxy headers (for nginx / Caddy / Traefik)
+        </label>
+        <div class="text-xs dim mt-1">When on a reverse proxy, enable this so the app sees the real client IP and protocol.</div>
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-xs muted mb-1" for="hosting-rootpath"
+               title="If served under a subpath (e.g. https://mydomain.com/fts), set this to the prefix.">Root path (optional)</label>
+        <input id="hosting-rootpath" type="text" class="input" style="max-width:260px"
+               placeholder="/fts" />
+      </div>
+
+      <div class="flex gap-2 mt-3">
+        <button class="btn small primary" id="btn-hosting-save" title="Save hosting settings (restart required to take effect)">Save &amp; Restart</button>
+        <span id="hosting-status" class="text-xs dim">Idle.</span>
+      </div>
+    </div>
+
     <div class="card mb-4">
       <div class="card-head">
         <div class="card-title">Debug Info</div>

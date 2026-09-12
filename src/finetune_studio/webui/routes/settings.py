@@ -32,10 +32,29 @@ def _save(data: dict[str, Any]) -> None:
     SETTINGS_PATH.write_text(json.dumps(data, indent=2))
 
 
+# ── Default settings (used when settings.json doesn't exist) ──
+DEFAULTS: dict[str, Any] = {
+    "host": "0.0.0.0",
+    "port": 7860,
+    "cors_origins": [],
+    "cors_allow_credentials": True,
+    "trusted_hosts": [],
+    "proxy_headers": False,
+    "root_path": "",
+}
+
+
+def get_defaults() -> dict[str, Any]:
+    """Return default settings."""
+    return DEFAULTS.copy()
+
+
 @router.get("/api/settings")
 async def get_settings():
-    """Return current settings."""
-    return _load()
+    """Return current settings merged with defaults."""
+    current = _load()
+    merged = {**DEFAULTS, **current}
+    return merged
 
 
 @router.patch("/api/settings")
@@ -47,4 +66,14 @@ async def update_settings(request: Any):
     current = _load()
     current.update(body)
     _save(current)
-    return current
+    return {**DEFAULTS, **current}
+
+
+@router.post("/api/settings/reload")
+async def reload_settings():
+    """Tell the app to reload settings from disk (e.g. after port change).
+
+    Returns whether a restart is needed."""
+    current = _load()
+    needs_restart = "port" in current or "host" in current
+    return {"ok": True, "needs_restart": needs_restart, "settings": {**DEFAULTS, **current}}

@@ -184,4 +184,74 @@
 
   wireReplay();
   await loadDebug();
+  wireHosting();
 })();
+
+/* ============================================================
+   Hosting settings — port, CORS, trusted hosts, proxy
+   ============================================================ */
+function wireHosting() {
+  const $ = (id) => document.getElementById(id);
+  const statusEl = $('hosting-status');
+  const setStatus = (msg) => { if (statusEl) statusEl.textContent = msg; };
+
+  async function loadHosting() {
+    try {
+      const r = await fetch('/api/settings');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const s = await r.json();
+      if ($('hosting-port')) $('hosting-port').value = s.port || 7860;
+      if ($('hosting-host')) $('hosting-host').value = s.host || '0.0.0.0';
+      if ($('hosting-cors')) $('hosting-cors').value = (s.cors_origins || []).join('\n');
+      if ($('hosting-cors-creds')) $('hosting-cors-creds').checked = !!s.cors_allow_credentials;
+      if ($('hosting-trusted')) $('hosting-trusted').value = (s.trusted_hosts || []).join('\n');
+      if ($('hosting-proxy')) $('hosting-proxy').checked = !!s.proxy_headers;
+      if ($('hosting-rootpath')) $('hosting-rootpath').value = s.root_path || '';
+    } catch (e) {
+      setStatus('Failed to load: ' + e.message);
+    }
+  }
+
+  function parseList(ta) {
+    if (!ta) return [];
+    return ta.value.split('\n').map(s => s.trim()).filter(Boolean);
+  }
+
+  async function saveHosting() {
+    const port = parseInt($('hosting-port')?.value, 10);
+    if (!port || port < 1 || port > 65535) {
+      setStatus('Invalid port (must be 1–65535)');
+      return;
+    }
+    const body = {
+      port: port,
+      host: $('hosting-host')?.value || '0.0.0.0',
+      cors_origins: parseList($('hosting-cors')),
+      cors_allow_credentials: !!$('hosting-cors-creds')?.checked,
+      trusted_hosts: parseList($('hosting-trusted')),
+      proxy_headers: !!$('hosting-proxy')?.checked,
+      root_path: $('hosting-rootpath')?.value || '',
+    };
+    try {
+      const r = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'HTTP ' + r.status);
+      setStatus('Saved. Restarting service…');
+      // Trigger a restart via the existing update endpoint (but just restart, no pull)
+      try {
+        await fetch('/api/settings/reload', { method: 'POST' });
+      } catch (e) { /* ignore — the restart will happen via systemd */ }
+      setStatus('Saved. Service restarting…');
+    } catch (e) {
+      setStatus('Failed: ' + e.message);
+    }
+  }
+
+  const saveBtn = $('btn-hosting-save');
+  if (saveBtn) saveBtn.addEventListener('click', saveHosting);
+  loadHosting();
+}
