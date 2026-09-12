@@ -106,6 +106,68 @@ async def export_project(pid: str, name: str = None, fmt: str = "tar.gz"):
         headers={"Content-Disposition": f"attachment; filename={filename}"})
 
 
+@router.post("/import")
+async def import_project(request: Request):
+    """Import a project from an uploaded archive."""
+    import tarfile, io, json
+    from pathlib import Path
+
+    form = await request.form()
+    file = form.get('file')
+    if not file:
+        return JSONResponse({"error": "no file"}, status_code=400)
+
+    data = await file.read()
+    buf = io.BytesIO(data)
+
+    try:
+        with tarfile.open(fileobj=buf, mode='r:*') as tar:
+            # Read manifest
+            try:
+                member = tar.getmember('manifest.json')
+                f = tar.extractfile(member)
+                manifest = json.loads(f.read().decode())
+            except (KeyError, json.JSONDecodeError):
+                manifest = {"version": "1.0"}
+
+            # Extract to temp dir first
+            import tempfile
+            with tempfile.TemporaryDirectory() as tmpdir:
+                tar.extractall(tmpdir)
+
+                # Find the projects dir
+                src_projects = Path(tmpdir) / "projects"
+                if not src_projects.exists():
+                    return JSONResponse({"error": "invalid archive: no projects dir"}, status_code=400)
+
+                # Import each project found
+                results = []
+                for proj_dir in src_projects.iterdir():
+                    if not proj_dir.is_dir():
+                        continue
+                    old_id = proj_dir.name
+                    # Create new project entry
+                    proj_name = manifest.get('project_name', f'Imported {old_id[:8]}')
+                    new_proj = db.create_project(
+                        name=proj_name,
+                        description=manifest.get('description', f'Imported from archive'),
+                        base_model=manifest.get('base_model', ''),
+                        system_prompt=manifest.get('system_prompt', 'You are a helpful assistant.'),
+                        tags=manifest.get('tags', 'imported'),
+                    )
+                    new_id = new_proj['id']
+                    # Copy files
+                    dest_dir = Path.home() / ".finetune-studio" / "projects" / new_id
+                    dest_dir.mkdir(parents=True, exist_ok=True)
+                    import shutil
+                    shutil.copytree(str(proj_dir), str(dest_dir), dirs_exist_ok=True)
+                    results.append({"old_id": old_id, "new_id": new_id, "name": proj_name})
+
+                return {"ok": True, "imported": results, "count": len(results)}
+    except tarfile.TarError as e:
+        return JSONResponse({"error": f"invalid archive: {e}"}, status_code=400)
+
+
 @router.post("/{pid}/promote")
 async def promote_run(pid: str, request: Request):
     """Set a Training Run as the Project's production model."""

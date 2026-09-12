@@ -5,6 +5,7 @@
 {% block sb_path %}~ / projects{% endblock %}
 
 {% block topbar_right %}
+  <button class="btn" onclick="document.getElementById('import-project-modal').classList.remove('hidden')" title="Import project from archive">⇧ Import</button>
   <button class="btn primary" onclick="(function(){const c=document.getElementById('new-project');if(c){c.hidden=false;c.scrollIntoView({behavior:'smooth',block:'start'});}else{location.reload();}})()">＋ New project</button>
 {% endblock %}
 
@@ -174,6 +175,21 @@
 </style>
 
 {# Confirm modal. Single instance reused for both single + bulk delete. #}
+<div class="modal-back" id="import-project-modal" hidden onclick="if(event.target===this)this.hidden=true">
+  <div class="modal">
+    <h3 style="margin-top:0;">Import project</h3>
+    <p class="muted text-sm">Upload a <code>.tar.gz</code> archive exported from another Finetune Studio instance.</p>
+    <form id="import-form" enctype="multipart/form-data" class="mt-3">
+      <input type="file" id="import-file" accept=".tar.gz,.tar" class="input" required>
+      <div id="import-status" class="text-xs dim mt-2"></div>
+    </form>
+    <div class="modal-foot" style="margin-top:16px;">
+      <button class="btn ghost" onclick="document.getElementById('import-project-modal').hidden=true">Cancel</button>
+      <button class="btn primary" onclick="submitImport()">Import</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="delete-modal-bg" onclick="if(event.target===this)closeModal()">
   <div class="modal">
     <h3 id="delete-modal-title" style="margin-top:0;">Confirm delete</h3>
@@ -328,6 +344,22 @@ function filterProjects() {
   });
   visible.forEach(el => list.appendChild(el));
   updateBulkBar();
+}
+
+// Project import
+async function submitImport() {
+  const file = document.getElementById('import-file').files[0];
+  const status = document.getElementById('import-status');
+  if (!file) { status.textContent = 'Select a file first.'; return; }
+  status.textContent = 'Uploading…';
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch('/api/projects/import', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.error) { status.textContent = 'Error: ' + d.error; }
+    else { status.textContent = 'Imported ' + d.count + ' project(s). Reloading…'; setTimeout(() => location.reload(), 1000); }
+  } catch (e) { status.textContent = 'Failed: ' + e.message; }
 }
 
 // ESC closes the modal.
