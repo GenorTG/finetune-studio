@@ -3435,6 +3435,35 @@ body::before {
   .empty { padding: 14px 8px; font-size: 11px; }
 }
 
+/* ── Connection status ─────────────────────────────────────────── */
+.conn-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--text-muted, #888);
+}
+.conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #00ff66;
+  animation: connPulse 2s infinite;
+}
+.conn-status.offline .conn-dot {
+  background: #ff4444;
+  animation: none;
+}
+.conn-status.offline .conn-label::after {
+  content: ' (offline)';
+  color: #ff4444;
+}
+@keyframes connPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 /* ── Modal / Confirm dialog ─────────────────────────────────────── */
 .modal-overlay {
   position: fixed;

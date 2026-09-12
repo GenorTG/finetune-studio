@@ -223,9 +223,28 @@
     });
   }
 
+  // ── Connection status ──────────────────────────────────────────
+  const connEl = document.getElementById('conn-status');
+  const connLabel = connEl?.querySelector('.conn-label');
+  let connTimer = null;
+  function connCheck() {
+    if (!connEl) return;
+    fetch('/api/system/resources', { method: 'GET' })
+      .then(r => {
+        if (r.ok) { connEl.classList.remove('offline'); if (connLabel) connLabel.textContent = 'connected'; }
+        else { connEl.classList.add('offline'); if (connLabel) connLabel.textContent = 'offline'; }
+      })
+      .catch(() => { connEl.classList.add('offline'); if (connLabel) connLabel.textContent = 'offline'; });
+  }
+  function connStart() { if (connTimer) return; connTimer = setInterval(connCheck, 5000); connCheck(); }
+  function connStop() { if (connTimer) { clearInterval(connTimer); connTimer = null; } }
+  // Auto-start connection monitoring
+  connStart();
+
   // Page-swap hook called from spa.js after each navigation
   window.fts = {
     notify, api, poll, confirm: confirmDialog, init: delegate, formatJsTime,
+    conn: { check: connCheck, start: connStart, stop: connStop },
   };
 
   // Run the formatter on full load + after every SPA swap
