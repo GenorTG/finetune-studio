@@ -283,6 +283,9 @@ async def start_training(request: Request):
             config = _apply_preset(preset_id, overrides)
         except ValueError as e:
             return {"error": str(e)}
+        # Preset doesn't carry model_path — apply from body after preset merge
+        if not config.model_path and body.get("model_path"):
+            config.model_path = body["model_path"]
     else:
         config = TrainingConfig(
             model_path=body.get("model_path", ""),
