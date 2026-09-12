@@ -127,6 +127,7 @@
     </div>
     <div class="modal-foot">
       <button class="btn ghost" onclick="document.getElementById('settings-modal').hidden=true">Cancel</button>
+      <button class="btn" onclick="window.location.href='/api/projects/{{ project.id }}/export'" title="Download project as tar.gz">Export</button>
       <button class="btn primary" onclick="document.getElementById('settings-form').requestSubmit()">Save</button>
     </div>
   </div>

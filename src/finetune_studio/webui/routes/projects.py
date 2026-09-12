@@ -72,6 +72,40 @@ async def delete_project(pid: str):
     return {"ok": True}
 
 
+@router.get("/{pid}/export")
+async def export_project(pid: str, name: str = None, fmt: str = "tar.gz"):
+    """Export a project as a self-contained archive."""
+    import tarfile, io
+    from pathlib import Path
+    from fastapi.responses import StreamingResponse
+
+    if not db.get_project(pid):
+        return JSONResponse({"error": "not found"}, status_code=404)
+
+    def stream():
+        buf = io.BytesIO()
+        mode = 'w:gz' if fmt == 'tar.gz' else 'w'
+        with tarfile.open(fileobj=buf, mode=mode) as tar:
+            data_dir = Path.home() / ".finetune-studio" / "projects" / pid
+            if data_dir.exists():
+                tar.add(str(data_dir), arcname=f"projects/{pid}")
+            rag_dir = Path.home() / ".finetune-studio" / "rag_corpora" / pid
+            if rag_dir.exists():
+                tar.add(str(rag_dir), arcname=f"rag_corpora/{pid}")
+            import json
+            manifest = json.dumps({"project_id": pid, "exported_at": time.time(), "version": "1.0"}, indent=2)
+            info = tarfile.TarInfo(name="manifest.json")
+            info.size = len(manifest)
+            tar.addfile(info, io.BytesIO(manifest.encode()))
+        buf.seek(0)
+        yield buf.read()
+
+    filename = (name or f"project-{pid}") + "." + fmt
+    media = "application/gzip" if fmt == "tar.gz" else "application/x-tar"
+    return StreamingResponse(stream(), media_type=media,
+        headers={"Content-Disposition": f"attachment; filename={filename}"})
+
+
 @router.post("/{pid}/promote")
 async def promote_run(pid: str, request: Request):
     """Set a Training Run as the Project's production model."""
