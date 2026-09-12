@@ -20,13 +20,20 @@
 
     {# Loaded-model summary (always shown when loaded) #}
     {% if loaded %}
-    <div class="text-sm" style="margin-bottom:12px;">
-      <div class="mono truncate">{{ loaded.path }}</div>
-      <div class="text-xs dim mt-1">
-        {{ loaded.format|upper }} · {{ "%.1f"|format(loaded.size_gb) }} GB
-        {% if loaded.architecture %} · {{ loaded.architecture }}{% endif %}
-        {% if loaded.vision %} · vision{% endif %}
+    <div class="model-info-box mb-4" style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;">
+      <div class="flex items-baseline gap-2 mb-1">
+        <span class="font-bold mono">{{ loaded.name or loaded.path.split('/')[-1] }}</span>
+        <span class="pill solid-blue">{{ loaded.format|upper }}</span>
+        {% if loaded.vision %}<span class="pill solid-violet">vision</span>{% endif %}
       </div>
+      <div class="grid grid-cols-auto gap-x-4 gap-y-1 text-xs dim mt-2" style="grid-template-columns:auto 1fr;">
+        <span>Size</span><span class="mono">{{ "%.1f"|format(loaded.size_gb) }} GB</span>
+        {% if loaded.architecture %}<span>Architecture</span><span class="mono">{{ loaded.architecture }}</span>{% endif %}
+        {% if loaded.parameters %}<span>Parameters</span><span class="mono">{{ loaded.parameters }}</span>{% endif %}
+        {% if loaded.context_length %}<span>Context</span><span class="mono">{{ "%.0f"|format(loaded.context_length/1000) }}K tokens</span>{% endif %}
+        {% if loaded.quantization %}<span>Quant</span><span class="mono">{{ loaded.quantization }}</span>{% endif %}
+      </div>
+      <div class="text-[10px] dim mt-2 truncate mono">{{ loaded.path }}</div>
     </div>
     {% endif %}
 

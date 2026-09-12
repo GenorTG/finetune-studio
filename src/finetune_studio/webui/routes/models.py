@@ -107,7 +107,28 @@ async def count_models():
 
 @router.get("/info")
 async def model_info(path: str):
-    return load_model_info(path)
+    info = load_model_info(path)
+    # Enrich with context length and parameter count if available
+    if info and not info.get('context_length'):
+        info['context_length'] = _guess_context_length(info)
+    return info
+
+def _guess_context_length(info: dict) -> int:
+    """Guess context length from architecture or model name."""
+    arch = (info.get('architecture') or '').lower()
+    name = (info.get('name') or info.get('path') or '').lower()
+    # Common context lengths by architecture
+    if 'llama' in arch or 'llama' in name:
+        return 131072 if '3' in name else 8192
+    elif 'qwen' in arch or 'qwen' in name:
+        return 131072 if '2' in name or '3' in name else 8192
+    elif 'gemma' in arch or 'gemma' in name:
+        return 131072 if '2' in name else 8192
+    elif 'mistral' in arch or 'mistral' in name:
+        return 32768
+    elif 'phi' in arch or 'phi' in name:
+        return 131072 if '3' in name or '4' in name else 4096
+    return 0
 
 @router.post("/refresh")
 async def refresh_models():
