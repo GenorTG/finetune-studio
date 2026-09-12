@@ -174,7 +174,9 @@ def register(model_name: str, kind: str, src_dir: Optional[Path] = None,
         # /tmp — fan-dragon's tmpfs is 32 GB and a single 2.2 GB embedder model
         # would burn 7% of it per build.
         from tempfile import mkdtemp
-        stage_parent = Path.home() / ".cache" / "fts-stage"
+        # Derive staging dir from HF_HOME (set by systemd unit to a writable path)
+        hf_home = os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
+        stage_parent = Path(hf_home).parent / "fts-stage"
         stage_parent.mkdir(parents=True, exist_ok=True)
         stage = Path(mkdtemp(prefix=f"fts_{kind}_", dir=str(stage_parent)))
         try:
