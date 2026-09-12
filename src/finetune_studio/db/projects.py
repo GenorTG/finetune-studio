@@ -37,7 +37,7 @@ def list_projects() -> list[dict]:
 
 
 def update_project(pid: str, **fields: Any) -> dict | None:
-    allowed = {"name", "description", "base_model", "system_prompt", "production_run"}
+    allowed = {"name", "description", "base_model", "system_prompt", "production_run", "tags", "notes"}
     sets, vals = [], []
     for k, v in fields.items():
         if k in allowed:

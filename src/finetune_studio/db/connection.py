@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS projects (
     description     TEXT NOT NULL DEFAULT '',
     base_model      TEXT NOT NULL DEFAULT '',
     system_prompt   TEXT NOT NULL DEFAULT '',
+    tags            TEXT NOT NULL DEFAULT '',
+    notes           TEXT NOT NULL DEFAULT '',
     production_run  TEXT,
     created_at      REAL NOT NULL,
     updated_at      REAL NOT NULL
