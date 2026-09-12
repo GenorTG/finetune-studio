@@ -122,11 +122,26 @@
   </div>
 </div>
 
+{# Sources #}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">4. Corpus sources</div>
+      <div class="card-sub">Manage which documents are indexed. Remove individual sources or clear all.</div>
+    </div>
+    <div class="flex gap-2">
+      <button class="btn small" onclick="loadRagSources()" title="Refresh source list">⟲ Refresh</button>
+      <button class="btn small danger" onclick="clearAllSources()" title="Remove all sources (requires rebuild)">Clear all</button>
+    </div>
+  </div>
+  <div id="rag-sources-body" class="text-sm muted">Loading…</div>
+</div>
+
 {# Test #}
 <div class="card mb-4">
   <div class="card-head">
     <div>
-      <div class="card-title">4. Live test query</div>
+      <div class="card-title">5. Live test query</div>
       <div class="card-sub">Retrieve top-K without generating an answer.</div>
     </div>
   </div>
@@ -232,7 +247,46 @@
   window.buildCorpus = async function(rebuild) {
     const status = document.getElementById('build-status');
     const btn = document.getElementById('build-btn');
-    const rebuildBtn = document.getElementById('rebuild-btn');
+    // ── RAG source management ────────────────────────────────────────
+async function loadRagSources() {
+  const body = document.getElementById('rag-sources-body');
+  if (!body) return;
+  body.innerHTML = '<span class="dim">Loading…</span>';
+  try {
+    const r = await fetch('/api/projects/' + PID + '/rag/sources');
+    const d = await r.json();
+    if (d.error) { body.innerHTML = '<span class="dim">' + d.error + '</span>'; return; }
+    const sources = d.sources || [];
+    if (!sources.length) { body.innerHTML = '<span class="dim">No sources indexed. Build the corpus first.</span>'; return; }
+    body.innerHTML = '<table class="ref-table"><thead><tr><th>Source</th><th>Chunks</th><th style="width:40px;"></th></tr></thead><tbody>' +
+      sources.map(s => '<tr><td class="mono">' + (s.filename || s.source) + '</td><td class="dim">' + (s.chunks || 0) + '</td>' +
+      '<td><button class="btn small danger" onclick="removeSource(\'' + s.id + '\')" title="Remove">✕</button></td></tr>').join('') +
+      '</tbody></table>';
+  } catch (e) { body.innerHTML = '<span class="dim">Failed: ' + e.message + '</span>'; }
+}
+
+async function removeSource(id) {
+  if (!confirm('Remove this source?')) return;
+  try {
+    const r = await fetch('/api/projects/' + PID + '/rag/sources/' + encodeURIComponent(id), { method: 'DELETE' });
+    const d = await r.json();
+    if (d.error) { if (window.fts) window.fts.notify(d.error, 'error'); }
+    else { loadRagSources(); if (window.fts) window.fts.notify('Source removed', 'success'); }
+  } catch (e) { if (window.fts) window.fts.notify('Failed: ' + e.message, 'error'); }
+}
+
+async function clearAllSources() {
+  if (!confirm('Remove ALL sources? You will need to rebuild the corpus.')) return;
+  try {
+    const r = await fetch('/api/projects/' + PID + '/rag/sources', { method: 'DELETE' });
+    const d = await r.json();
+    if (d.error) { if (window.fts) window.fts.notify(d.error, 'error'); }
+    else { loadRagSources(); if (window.fts) window.fts.notify('All sources cleared', 'success'); }
+  } catch (e) { if (window.fts) window.fts.notify('Failed: ' + e.message, 'error'); }
+}
+
+// Load sources on page load
+document.addEventListener('DOMContentLoaded', () => loadRagSources());
     const chunk = parseInt((document.getElementById('b-chunk') && document.getElementById('b-chunk').value) || '400', 10);
     const overlap = parseInt((document.getElementById('b-overlap') && document.getElementById('b-overlap').value) || '80', 10);
     const embedderEl = document.getElementById('b-embedder');
