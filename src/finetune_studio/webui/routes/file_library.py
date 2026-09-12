@@ -275,7 +275,17 @@ async def list_folders_route(pid: str, include_auto: bool = Query(True)):
     return {"folders": fl.list_folders(pid, include_auto=include_auto)}
 
 
-@router.patch("/projects/{pid}/folders/{fid}")
+@router.patch("/projects/{pid}/files/{fid}/tags")
+async def update_file_tags(pid: str, fid: str, request: Request):
+    """Update tags and notes for a file."""
+    _project_or_404(pid)
+    body = await request.json()
+    tags = body.get('tags', '')
+    notes = body.get('notes', '')
+    with fl._cursor() as c:
+        c.execute("UPDATE project_files SET tags = ?, notes = ? WHERE id = ? AND project_id = ?",
+                  (tags, notes, fid, pid))
+    return {"ok": True, "tags": tags, "notes": notes}
 async def rename_folder_route(pid: str, fid: str, request: Request):
     _project_or_404(pid)
     body = await request.json()

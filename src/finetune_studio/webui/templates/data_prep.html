@@ -420,6 +420,7 @@ function flRenderFiles() {
     const drift = f.last_trained_at && f.uploaded_at > f.last_trained_at ? '<span class="fl-drift" title="This file changed after the last dataset that included it.">⚠ drift</span>' : '';
     const mime = (f.mime_type || '').split('/').pop() || '?';
     const actions = '<div class="fl-row-actions">' +
+      '<span class="fl-act" title="Tags & Notes" onclick="flEditTags(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\')">🏷</span>' +
       '<span class="fl-act" title="Rename" onclick="flRenameFile(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\')">✎</span>' +
       '<span class="fl-act" title="Preview" onclick="flPreviewFile(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\', \'' + (f.mime_type||'') + '\')">👁</span>' +
       '<a class="fl-act" title="Download raw" href="/api/projects/' + _flPid + '/files/' + f.id + '/raw" download="' + escapeHtml(f.original_name) + '">↓</a>' +
@@ -534,6 +535,41 @@ function flRenameFile(fid, currentName) {
     fts.notify('Renamed to ' + newName, 'success');
     flInit();
   }).catch((e) => fts.notify('Rename failed: ' + e.message, 'error'));
+}
+
+function flEditTags(fid, name) {
+  fetch('/api/projects/' + _flPid + '/files/' + fid)
+    .then(r => r.json())
+    .then(f => {
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = '<div class="modal-dialog" style="max-width:500px;">' +
+        '<div class="modal-head">' + name + '</div>' +
+        '<div class="modal-body">' +
+        '<label class="block mb-3"><span class="muted text-xs">Tags (comma-separated)</span>' +
+        '<input id="fl-tag-input" class="input" value="' + (f.tags || '') + '" placeholder="e.g. training, verified"></label>' +
+        '<label class="block mb-3"><span class="muted text-xs">Notes</span>' +
+        '<textarea id="fl-note-input" class="textarea" rows="4" placeholder="Notes about this file...">' + (f.notes || '') + '</textarea></label>' +
+        '<div id="fl-tag-status" class="text-xs dim"></div></div>' +
+        '<div class="modal-actions"><button class="btn" data-action="cancel">Cancel</button>' +
+        '<button class="btn primary" data-action="save">Save</button></div></div>';
+      document.body.appendChild(modal);
+      const cleanup = () => modal.remove();
+      modal.addEventListener('click', (e) => { if (e.target === modal) cleanup(); });
+      modal.querySelector('[data-action=cancel]').addEventListener('click', cleanup);
+      modal.querySelector('[data-action=save]').addEventListener('click', () => {
+        const tags = document.getElementById('fl-tag-input').value;
+        const notes = document.getElementById('fl-note-input').value;
+        fetch('/api/projects/' + _flPid + '/files/' + fid + '/tags', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tags, notes })
+        }).then(r => r.json()).then(d => {
+          if (d.error) document.getElementById('fl-tag-status').textContent = 'Error: ' + d.error;
+          else { cleanup(); flInit(); fts.notify('Tags & notes saved', 'success'); }
+        }).catch(e => { document.getElementById('fl-tag-status').textContent = 'Failed: ' + e.message; });
+      });
+    });
 }
 
 function flPreviewFile(fid, name, mime) {
