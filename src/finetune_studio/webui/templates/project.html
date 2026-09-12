@@ -112,6 +112,14 @@
           <textarea class="textarea" name="description" rows="3">{{ project.description or '' }}</textarea>
         </label>
         <label class="block mb-3">
+          <span class="muted text-xs">Tags (comma-separated)</span>
+          <input class="input" name="tags" value="{{ project.tags or '' }}" placeholder="e.g. rag, production, experiment">
+        </label>
+        <label class="block mb-3">
+          <span class="muted text-xs">Notes</span>
+          <textarea class="textarea" name="notes" rows="3" placeholder="Internal notes about this project...">{{ project.notes or '' }}</textarea>
+        </label>
+        <label class="block mb-3">
           <span class="muted text-xs">System prompt</span>
           <textarea class="textarea" name="system_prompt" rows="4">{{ project.system_prompt or '' }}</textarea>
         </label>
@@ -119,7 +127,7 @@
     </div>
     <div class="modal-foot">
       <button class="btn ghost" onclick="document.getElementById('settings-modal').hidden=true">Cancel</button>
-      <button class="btn primary" form="settings-form" type="submit">Save</button>
+      <button class="btn primary" onclick="document.getElementById('settings-form').requestSubmit()">Save</button>
     </div>
   </div>
 </div>
