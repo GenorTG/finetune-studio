@@ -173,11 +173,9 @@ def abliterate_model(
         projection = lm_head @ r_norm  # (vocab_size,)
         lm_head.sub_(strength * torch.outer(projection, r_norm))
 
-    # Save the abliterated model (safe_serialization=False avoids Unsloth weight conversion issues)
-    try:
-        model.save_pretrained(output_dir, safe_serialization=False)
-    except Exception:
-        model.save_pretrained(output_dir)
+    # Save the abliterated model
+    # Unsloth models need safe_serialization=False to avoid weight conversion errors
+    model.save_pretrained(output_dir, safe_serialization=False)
     tokenizer.save_pretrained(output_dir)
 
     # Copy chat template if it exists
