@@ -327,9 +327,6 @@ async def start_training(request: Request):
             export_gptq=bool(body.get("export_gptq", False)),
             gptq_bits=int(body.get("gptq_bits", 4)),
             gptq_group_size=int(body.get("gptq_group_size", 128)),
-            export_gptq=bool(body.get("export_gptq", False)),
-            gptq_bits=int(body.get("gptq_bits", 4)),
-            gptq_group_size=int(body.get("gptq_group_size", 128)),
             export_imatrix=bool(body.get("export_imatrix", False)),
             imatrix_calibration=body.get("imatrix_calibration", ""),
         )
