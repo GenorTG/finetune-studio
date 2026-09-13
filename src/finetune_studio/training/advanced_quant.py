@@ -246,7 +246,7 @@ def generate_imatrix(
         # Use a default calibration text
         calibration_data = _default_calibration_path()
 
-    cmd = [imatrix_bin, "-m", model_path, "-f", calibration_data, "-o output_path, "--ctx", str(n_ctx)]
+    cmd = [imatrix_bin, "-m", model_path, "-f", calibration_data, "-o", output_path, "--ctx", str(n_ctx)]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
 
     if result.returncode != 0:
