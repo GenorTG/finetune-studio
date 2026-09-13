@@ -304,6 +304,7 @@ async def start_training(request: Request):
             bf16=bool(body.get("bf16", True)),
             unsloth=bool(body.get("unsloth", True)),
             merge_on_save=merge_on_save,
+            export_gguf=bool(body.get("export_gguf", False)),
         )
     data_path = body.get("data_path", "")
     dataset_id = body.get("dataset_id", "")

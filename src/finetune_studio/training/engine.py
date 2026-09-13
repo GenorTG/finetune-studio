@@ -20,6 +20,9 @@ KEY CONCEPTS
 - Checkpointing: save the model periodically so we can resume if
   training crashes.
 - Progress notification: callbacks to update the UI as training progresses.
+- Mixed VRAM/RAM: if the model doesn't fit entirely in VRAM, we fall
+  back to device_map="auto" which layers between GPU and CPU memory.
+  Slower, but lets you train larger models than your GPU could hold.
 """
 
 import os
@@ -43,7 +46,7 @@ def _dir_size(path: str) -> int:
     return total
 
 
-def _human_size(n: int) -> str:
+def _human_size(n: int) -> int:
     """1.4 GB / 235 MB / 12 KB style."""
     for unit in ("B", "KB", "MB", "GB", "TB"):
         if n < 1024:
@@ -69,7 +72,8 @@ class TrainingConfig:
     logging_steps: int = 10
     bf16: bool = True
     unsloth: bool = True
-    merge_on_save: bool = False  # also save a full standalone model at <output_dir>/merged/
+    merge_on_save: bool = False
+    export_gguf: bool = False  # also export GGUF at <output_dir>/gguf/
     lora_target_modules: list = field(default_factory=lambda: [
         "q_proj", "k_proj", "v_proj", "o_proj",
         "gate_proj", "up_proj", "down_proj",
@@ -93,7 +97,7 @@ class TrainingEngine:
     def __init__(self):
         self.state = TrainingState()
         self.config = TrainingConfig()
-        self.current_run_id: str | None = None  # Project-Run id when active
+        self.current_run_id: str | None = None
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._callbacks: list = []
@@ -105,7 +109,7 @@ class TrainingEngine:
         for cb in self._callbacks:
             try:
                 cb(self.state)
-            except Exception:  # noqa: BLE001, S110
+            except Exception:
                 pass
 
     def start(self, config, training_data, system_prompt=""):
@@ -139,18 +143,71 @@ class TrainingEngine:
                 try:
                     self._train_unsloth(train_data)
                 except ImportError:
-                    # unsloth not installed — fall back to standard transformers
                     self._train_standard(train_data)
             else:
                 self._train_standard(train_data)
             self.state.status = "done"
             self.state.message = "Training complete!"
             self._notify()
-        except Exception as e:  # noqa: BLE001
+            self._persist_run_output()
+        except Exception as e:
             self.state.status = "error"
             self.state.error = str(e)
             self.state.message = f"Error: {e}"
             self._notify()
+
+    def _persist_run_output(self):
+        """Update the DB run record with the output path so the merge
+        endpoint can find the adapter after training completes."""
+        if not self.current_run_id or not self.config.output_dir:
+            return
+        try:
+            from finetune_studio.db.runs import update_run
+            run_id = self.current_run_id.split("-")[-1] if "-" in self.current_run_id else self.current_run_id
+            update_run(run_id, output_path=self.config.output_dir, status="done")
+        except Exception:
+            pass
+
+    def _load_model_with_fallback(self, model_path, tokenizer):
+        """Load model with mixed VRAM/RAM fallback.
+
+        Strategy:
+        1. Try full GPU offload (device_map={"": 0}) — fastest.
+        2. If OOM, retry with device_map="auto" — mixes RAM + VRAM, slower.
+        3. If still failing, raise the original error.
+        """
+        from transformers import AutoModelForCausalLM
+        import torch
+        # Attempt 1: Full GPU
+        try:
+            self.state.message = "Loading model on GPU..."
+            self._notify()
+            model = AutoModelForCausalLM.from_pretrained(
+                model_path, torch_dtype="auto", device_map={"": 0},
+                trust_remote_code=True,
+            )
+            return model
+        except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
+            if "out of memory" not in str(e).lower() and "CUDA" not in str(e):
+                raise
+            self.state.message = (
+                f"GPU OOM — retrying with mixed RAM+VRAM (slower)..."
+            )
+            self._notify()
+            try:
+                import gc
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:
+                pass
+        # Attempt 2: Mixed device map
+        self.state.message = "Loading model with CPU offload (RAM+VRAM mix)..."
+        self._notify()
+        return AutoModelForCausalLM.from_pretrained(
+            model_path, torch_dtype="auto", device_map="auto",
+            trust_remote_code=True,
+        )
 
     def _train_unsloth(self, train_data):
         import sys
@@ -178,38 +235,22 @@ class TrainingEngine:
         sys.modules["trl.trainer.sft_trainer"].SFTTrainer = _sft_trainer_mod.SFTTrainer
         sys.modules["trl.trainer.sft_config"].SFTConfig = _sft_config_mod.SFTConfig
 
-        # Import SFTTrainer AFTER patching sys.modules
         from trl import SFTTrainer
 
         # Monkey-patch Trainer._save to avoid PicklingError when saving
         # training args. Unsloth's class replacement chain breaks pickle.
         import json as _json
-        from transformers.trainer import TRAINING_ARGS_NAME
         def _patched_save(self_trainer, output_dir, _internal_call=False):
             import os as _os
-            # Save model weights only (skip torch.save(self.args) which pickle-breaks)
             if hasattr(self_trainer.model, 'save_pretrained'):
                 self_trainer.model.save_pretrained(output_dir)
             if hasattr(self_trainer, 'tokenizer') and self_trainer.tokenizer is not None:
                 self_trainer.tokenizer.save_pretrained(output_dir)
-            # Save training_args as JSON (avoids pickle entirely)
             args_path = _os.path.join(output_dir, "training_args.json")
             with open(args_path, "w") as f:
                 _json.dump(self_trainer.args.to_dict(), f, indent=2, default=str)
         SFTTrainer._save = _patched_save
 
-        cfg = self.config
-        self.state.message = "Loading model with Unsloth..."
-        self._notify()
-        model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name=cfg.model_path, max_seq_length=cfg.max_seq_length,
-            dtype=None, load_in_4bit=True,
-        )
-        model = FastLanguageModel.get_peft_model(
-            model, r=cfg.lora_rank, target_modules=cfg.lora_target_modules,
-            lora_alpha=cfg.lora_alpha, lora_dropout=0, bias="none",
-            use_gradient_checkpointing="unsloth", random_state=3407,
-        )
         def format_chat(example):
             text = tokenizer.apply_chat_template(example["messages"], tokenize=False, add_generation_prompt=False)
             return {"text": text}
@@ -217,7 +258,6 @@ class TrainingEngine:
         steps_per_epoch = len(dataset) // (cfg.batch_size * cfg.gradient_accumulation_steps)
         total = steps_per_epoch * cfg.num_epochs
         self.state.total_steps = total
-        # Use save_safetensors=False as safety net for pickle compat
         args = TrainingArguments(
             output_dir=cfg.output_dir, num_train_epochs=cfg.num_epochs,
             per_device_train_batch_size=cfg.batch_size,
@@ -259,15 +299,16 @@ class TrainingEngine:
         adapter_dir = os.path.join(cfg.output_dir, "adapter")
         model.save_pretrained(adapter_dir)
         tokenizer.save_pretrained(adapter_dir)
-        # Persist chat template alongside adapter so the merged model has it.
         if hasattr(tokenizer, "chat_template") and tokenizer.chat_template:
             try:
                 with open(os.path.join(adapter_dir, "chat_template.jinja"), "w") as f:
                     f.write(tokenizer.chat_template)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         if cfg.merge_on_save:
             self._do_merge(model, tokenizer, cfg.output_dir)
+        if cfg.export_gguf:
+            self._do_export_gguf(cfg.output_dir)
         self.state.status = "done"
         self.state.message = "Training complete!"
         self._notify()
@@ -283,9 +324,7 @@ class TrainingEngine:
         tokenizer = AutoTokenizer.from_pretrained(cfg.model_path, trust_remote_code=True)
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
-        model = AutoModelForCausalLM.from_pretrained(
-            cfg.model_path, torch_dtype="auto", device_map={"": 0}, trust_remote_code=True,
-        )
+        model = self._load_model_with_fallback(cfg.model_path, tokenizer)
         lora_config = LoraConfig(
             r=cfg.lora_rank, lora_alpha=cfg.lora_alpha,
             target_modules=cfg.lora_target_modules, lora_dropout=0,
@@ -347,10 +386,12 @@ class TrainingEngine:
             try:
                 with open(os.path.join(adapter_dir, "chat_template.jinja"), "w") as f:
                     f.write(tokenizer.chat_template)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         if cfg.merge_on_save:
             self._do_merge(model, tokenizer, cfg.output_dir)
+        if cfg.export_gguf:
+            self._do_export_gguf(cfg.output_dir)
         self.state.status = "done"
         self.state.message = "Training complete!"
         self._notify()
@@ -393,6 +434,57 @@ class TrainingEngine:
         return {"merged_path": merged_dir, "size_bytes": size,
                 "size_human": _human_size(size), "skipped": False}
 
+    def _do_export_gguf(self, output_dir: str) -> dict:
+        """Export the merged model to GGUF format for llama.cpp.
+
+        Saves to `<output_dir>/gguf/` using llama.cpp's convert.py script.
+        If llama.cpp is not available, sets a warning message and returns.
+        """
+        gguf_dir = os.path.join(output_dir, "gguf")
+        merged_dir = os.path.join(output_dir, "merged")
+        if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
+            return {"gguf_path": "", "skipped": True,
+                    "reason": "no merged model to convert"}
+        os.makedirs(gguf_dir, exist_ok=True)
+        # Find llama.cpp convert script
+        convert_script = None
+        candidates = [
+            os.path.expanduser("~/llama.cpp/convert.py"),
+            os.path.expanduser("~/llama.cpp/convert-hf-to-gguf.py"),
+            "/usr/local/bin/convert-hf-to-gguf.py",
+        ]
+        for c in candidates:
+            if os.path.isfile(c):
+                convert_script = c
+                break
+        if not convert_script:
+            self.state.message = "GGUF export: llama.cpp not found. Install llama.cpp to enable GGUF export."
+            self._notify()
+            return {"gguf_path": gguf_dir, "skipped": True,
+                    "reason": "llama.cpp not found"}
+        self.state.message = "Exporting GGUF (this may take a while)..."
+        self._notify()
+        try:
+            import subprocess
+            out_file = os.path.join(gguf_dir, "model-f16.gguf")
+            cmd = ["python3", convert_script, merged_dir, "--outfile", out_file,
+                   "--outtype", "f16"]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            if result.returncode != 0:
+                self.state.message = f"GGUF export failed: {result.stderr[:200]}"
+                self._notify()
+                return {"gguf_path": gguf_dir, "skipped": True,
+                        "reason": result.stderr[:200]}
+            size = _dir_size(gguf_dir)
+            self.state.message = f"GGUF exported ({_human_size(size)})."
+            self._notify()
+            return {"gguf_path": gguf_dir, "size_bytes": size,
+                    "size_human": _human_size(size), "skipped": False}
+        except Exception as e:
+            self.state.message = f"GGUF export error: {e}"
+            self._notify()
+            return {"gguf_path": gguf_dir, "skipped": True, "reason": str(e)}
+
 
 def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
     """Merge a persisted run's adapter on disk into a standalone model.
@@ -423,7 +515,6 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
                 "size_human": _human_size(size), "skipped": True, "run": run}
     if os.environ.get("FTS_SKIP_MERGE") == "1":
         os.makedirs(merged_dir, exist_ok=True)
-        # Touch a marker so the caller can tell the merge ran.
         with open(os.path.join(merged_dir, "SKIPPED_BY_TEST"), "w") as f:
             f.write("FTS_SKIP_MERGE=1\n")
         return {"merged_path": merged_dir, "size_bytes": 0,
@@ -444,16 +535,15 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
         if os.path.exists(src):
             shutil.copy(src, os.path.join(merged_dir, "chat_template.jinja"))
     finally:
-        # Free GPU memory before returning.
         try:
-            del base, model, merged  # noqa: F821
-        except Exception:  # noqa: BLE001
+            del base, model, merged
+        except Exception:
             pass
         try:
             import torch
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
     size = _dir_size(merged_dir)
     return {"merged_path": merged_dir, "size_bytes": size,
