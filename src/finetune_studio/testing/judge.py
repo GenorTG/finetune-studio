@@ -45,9 +45,11 @@ RULES FOR JUDGING:
 4. ONLY check: Does the model answer contain the KEY FACTS? Is the knowledge ACCURATE?
 
 SCORING:
-- "pass": The model answer contains all the key facts and knowledge from the correct answer. Even if the model adds extra details or is very verbose, it still passes. Even if the answer is extremely brief but hits the key points, it passes.
-- "partial": The model answer has some correct facts but is missing important ones, or is slightly inaccurate. A vague or generic answer that hints at the right topic but doesn't give specifics = partial.
-- "fail": The model answer is factually wrong, completely misses the point, hallucinates incorrect information, or refuses to answer.
+- "pass": The model answer contains all the key facts AND does NOT introduce any incorrect or fabricated information. Even if the model adds extra correct details or is very verbose, it still passes. Even if the answer is extremely brief but hits the key points and adds nothing wrong, it passes.
+- "partial": The model answer has some correct facts but is missing important ones, OR includes a minor inaccuracy alongside correct information. A vague or generic answer that hints at the right topic but doesn't give specifics = partial.
+- "fail": The model answer contains misinformation, hallucinated facts, or factually incorrect claims. Even if the correct facts are present, adding fabricated details = fail. Completely wrong or irrelevant = fail.
+
+CRITICAL RULE: If the model adds any fact, name, number, or claim that is NOT in the correct answer and is NOT common knowledge (like Paris being a city in France), it must be penalized. Correct facts + made-up facts = partial or fail depending on severity.
 
 DO NOT penalize for:
 - Being too short
