@@ -380,6 +380,26 @@ uv pip install --python "$PYTHON_CMD" -e .
 mkdir -p data
 install_llama_cpp_cli
 
+# ── Install optional but recommended packages ──
+# These are used by advanced features (abliteration, AWQ/GPTQ export, Unsloth).
+# They're installed silently — if they fail, the app still works.
+install_optional_packages() {
+    log "Installing optional packages (unsloth, autoawq, auto-gptq, numpy, scipy)..."
+    # numpy and scipy are needed for abliteration (always useful)
+    uv pip install --python "$PYTHON_CMD" "numpy>=1.24.0" "scipy>=1.10.0" 2>&1 | tail -1 \
+        || warn "numpy/scipy install failed — abliteration may not work."
+    # unsloth for faster training
+    uv pip install --python "$PYTHON_CMD" "unsloth>=2024.10.0" 2>&1 | tail -1 \
+        || warn "unsloth install failed — will use standard training."
+    # autoawq for AWQ quantization
+    uv pip install --python "$PYTHON_CMD" "autoawq>=0.2.0" 2>&1 | tail -1 \
+        || warn "autoawq install failed — AWQ export unavailable."
+    # auto-gptq for GPTQ quantization
+    uv pip install --python "$PYTHON_CMD" "auto-gptq>=0.7.0" 2>&1 | tail -1 \
+        || warn "auto-gptq install failed — GPTQ export unavailable."
+}
+install_optional_packages
+
 # ── Verify ──
 log "Verifying..."
 "$PYTHON_CMD" -c "import fastapi, jinja2; print(f'  fastapi={fastapi.__version__} jinja2={jinja2.__version__}')" || die "Install failed."

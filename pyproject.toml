@@ -36,7 +36,12 @@ dependencies = [
 # builds the llama.cpp CLI binaries (~/llama.cpp) for the export endpoint.
 # Optional extras below add bitsandbytes for 4-bit base-model loading.
 bitsandbytes = ["bitsandbytes>=0.43.0"]
+unsloth = ["unsloth>=2024.10.0"]
+awq = ["autoawq>=0.2.0"]
+gptq = ["auto-gptq>=0.7.0"]
+abliteration = ["numpy>=1.24.0", "scipy>=1.10.0"]
 dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "ruff>=0.6.0"]
+all = ["bitsandbytes>=0.43.0", "unsloth>=2024.10.0", "autoawq>=0.2.0", "auto-gptq>=0.7.0", "numpy>=1.24.0", "scipy>=1.10.0"]
 
 [project.scripts]
 finetune-studio = "finetune_studio.cli:main"
