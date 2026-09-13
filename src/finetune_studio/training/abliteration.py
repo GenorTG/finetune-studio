@@ -174,8 +174,13 @@ def abliterate_model(
         lm_head.sub_(strength * torch.outer(projection, r_norm))
 
     # Save the abliterated model
-    # Unsloth models need safe_serialization=False to avoid weight conversion errors
-    model.save_pretrained(output_dir, safe_serialization=False)
+    # Unsloth models have weight conversions that can't be reversed on save,
+    # so we save the state dict directly as safetensors to bypass this.
+    from safetensors.torch import save_file
+    import torch
+    os.makedirs(output_dir, exist_ok=True)
+    state_dict = model.state_dict()
+    save_file(state_dict, os.path.join(output_dir, "model.safetensors"))
     tokenizer.save_pretrained(output_dir)
 
     # Copy chat template if it exists
