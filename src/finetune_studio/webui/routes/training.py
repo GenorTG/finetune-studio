@@ -414,6 +414,80 @@ async def stop_training():
     return {"status": "stopping"}
 
 
+@router.post("/runs/{run_id}/export")
+async def export_run(run_id: str, request: Request):
+    """Export a trained run to GGUF (standalone, post-training).
+
+    Body:
+        quants: list of quant types to export (default: ["f16", "q8_0", "q4_k_m", "q5_k_m"])
+        force: overwrite existing exports (default: false)
+    """
+    from finetune_studio import db
+    body = await request.json()
+    quants = body.get("quants", ["f16", "q8_0", "q4_k_m", "q5_k_m"])
+    force = bool(body.get("force", False))
+
+    run = db.get_run(run_id)
+    if not run:
+        return {"error": "run not found"}
+
+    output_path = (run.get("output_path") or "").strip()
+    if not output_path:
+        return {"error": "run has no output_path"}
+
+    merged_dir = os.path.join(output_path, "merged")
+    if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
+        return {"error": "no merged model to export — run merge first"}
+
+    # Check if already exported
+    gguf_dir = os.path.join(output_path, "gguf")
+    if os.path.isdir(gguf_dir) and os.listdir(gguf_dir) and not force:
+        return {
+            "ok": True,
+            "status": "skipped",
+            "gguf_path": gguf_dir,
+            "message": "GGUF already exists. Use force=true to overwrite.",
+        }
+
+    # Build a temp config with the requested quants
+    from finetune_studio.training.engine import TrainingConfig
+    cfg = TrainingConfig(output_dir=output_path, gguf_quants=quants)
+    from finetune_studio.training.engine import TrainingEngine
+    engine = TrainingEngine()
+    engine.config = cfg
+    result = engine._do_export_gguf(output_path)
+    return {"ok": True, "status": "exported" if not result.get("skipped") else "skipped", **result}
+
+
+@router.get("/runs/{run_id}/exports")
+async def list_exports(run_id: str):
+    """List all exports (merged, gguf, adapter) for a training run."""
+    from finetune_studio import db
+    run = db.get_run(run_id)
+    if not run:
+        return {"error": "run not found"}
+
+    output_path = (run.get("output_path") or "").strip()
+    exports = {"run_id": run_id, "output_path": output_path, "formats": {}}
+
+    if output_path:
+        merged_dir = os.path.join(output_path, "merged")
+        if os.path.isdir(merged_dir) and os.listdir(merged_dir):
+            exports["formats"]["merged"] = {"path": merged_dir, "files": os.listdir(merged_dir)}
+
+        adapter_dir = os.path.join(output_path, "adapter")
+        if os.path.isdir(adapter_dir) and os.listdir(adapter_dir):
+            exports["formats"]["adapter"] = {"path": adapter_dir, "files": os.listdir(adapter_dir)}
+
+        gguf_dir = os.path.join(output_path, "gguf")
+        if os.path.isdir(gguf_dir):
+            gguf_files = [f for f in os.listdir(gguf_dir) if f.endswith(".gguf")]
+            if gguf_files:
+                exports["formats"]["gguf"] = {"path": gguf_dir, "files": gguf_files}
+
+    return exports
+
+
 @router.get("/runs")
 async def list_training_runs():
     """List ALL training runs (across all projects)."""
