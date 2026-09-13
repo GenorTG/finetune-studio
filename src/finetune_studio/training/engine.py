@@ -81,9 +81,9 @@ class TrainingConfig:
     abliterate: bool = False  # remove refusals after training
     abliteration_strength: float = 1.0  # 0.0 = no change, 1.0 = full removal
     # Advanced quantization
-    export_awq: bool = False
-    awq_bits: int = 4
-    awq_group_size: int = 128
+    export_gptq: bool = False
+    gptq_bits: int = 4
+    gptq_group_size: int = 128
     export_gptq: bool = False
     gptq_bits: int = 4
     gptq_group_size: int = 128
@@ -324,8 +324,8 @@ class TrainingEngine:
             self._do_merge(model, tokenizer, cfg.output_dir)
         if cfg.export_gguf:
             self._do_export_gguf(cfg.output_dir)
-        if cfg.export_awq:
-            self._do_export_awq(cfg.output_dir)
+        if cfg.export_gptq:
+            self._do_export_gptq(cfg.output_dir)
         if cfg.export_gptq:
             self._do_export_gptq(cfg.output_dir)
         if cfg.export_imatrix:
@@ -479,30 +479,6 @@ class TrainingEngine:
             return result
         except Exception as e:
             self.state.message = f"Abliteration failed: {e}"
-            self._notify()
-            return {"error": str(e)}
-
-    def _do_export_awq(self, output_dir: str) -> dict:
-        """Export the merged model using AWQ quantization."""
-        merged_dir = os.path.join(output_dir, "merged")
-        if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
-            return {"skipped": True, "reason": "no merged model"}
-        awq_dir = os.path.join(output_dir, "awq")
-        self.state.message = "Exporting AWQ..."
-        self._notify()
-        try:
-            from finetune_studio.training.advanced_quant import quantize_awq
-            result = quantize_awq(
-                model_path=merged_dir,
-                output_dir=awq_dir,
-                bits=getattr(self.config, 'awq_bits', 4),
-                group_size=getattr(self.config, 'awq_group_size', 128),
-            )
-            self.state.message = f"AWQ exported: {result.get('size_human', 'unknown')}."
-            self._notify()
-            return result
-        except Exception as e:
-            self.state.message = f"AWQ export failed: {e}"
             self._notify()
             return {"error": str(e)}
 

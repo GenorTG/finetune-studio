@@ -102,7 +102,7 @@ async def export_run(pid: str, rid: str, request: Request,
     """Queue a GGUF export of a run's merged model.
 
     Body:
-      format: "gguf" (default; future: "awq", "mlx", ...)
+      format: "gguf" (default; future: "gptq", "mlx", ...)
       quant:  "Q4_K_M" (default). See SUPPORTED_QUANTS for the full set.
       auto_merge: bool (default true). If merged/ is missing, run /merge
                   first; otherwise return 400.

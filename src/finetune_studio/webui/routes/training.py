@@ -324,9 +324,9 @@ async def start_training(request: Request):
             project_id=project_id,
             abliterate=bool(body.get("abliterate", False)),
             abliteration_strength=float(body.get("abliteration_strength", 1.0)),
-            export_awq=bool(body.get("export_awq", False)),
-            awq_bits=int(body.get("awq_bits", 4)),
-            awq_group_size=int(body.get("awq_group_size", 128)),
+            export_gptq=bool(body.get("export_gptq", False)),
+            gptq_bits=int(body.get("gptq_bits", 4)),
+            gptq_group_size=int(body.get("gptq_group_size", 128)),
             export_gptq=bool(body.get("export_gptq", False)),
             gptq_bits=int(body.get("gptq_bits", 4)),
             gptq_group_size=int(body.get("gptq_group_size", 128)),
@@ -561,7 +561,7 @@ async def quantize_run(run_id: str, request: Request):
     """Export a trained model using advanced quantization."""
     from finetune_studio import db
     body = await request.json()
-    method = body.get("method", "awq")
+    method = body.get("method", "gptq")
     run = db.get_run(run_id)
     if not run:
         return {"error": "run not found"}
@@ -571,16 +571,7 @@ async def quantize_run(run_id: str, request: Request):
     merged_dir = os.path.join(output_path, "merged")
     if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
         return {"error": "no merged model to quantize"}
-    if method == "awq":
-        output_dir = os.path.join(output_path, "awq")
-        from finetune_studio.training.advanced_quant import quantize_awq
-        result = quantize_awq(
-            model_path=merged_dir,
-            output_dir=output_dir,
-            bits=int(body.get("bits", 4)),
-            group_size=int(body.get("group_size", 128)),
-        )
-    elif method == "gptq":
+    if method == "gptq":
         output_dir = os.path.join(output_path, "gptq")
         from finetune_studio.training.advanced_quant import quantize_gptq
         result = quantize_gptq(

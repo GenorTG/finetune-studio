@@ -1,7 +1,6 @@
-"""Advanced quantization — AWQ, GPTQ, and imatrix-based GGUF.
+"""Advanced quantization — GPTQ and imatrix-based GGUF.
 
 Provides multiple quantization backends beyond basic llama.cpp quantize:
-- AWQ: Activation-aware quantization, better for GPU inference
 - GPTQ: Post-training quantization with group quantization
 - imatrix GGUF: Uses importance matrix for higher quality quantization
 """
@@ -12,15 +11,6 @@ import os
 import subprocess
 
 
-def is_awq_available() -> bool:
-    """Check if autoawq is installed."""
-    try:
-        import awq  # noqa: F401
-        return True
-    except ImportError:
-        return False
-
-
 def is_gptq_available() -> bool:
     """Check if auto-gptq is installed."""
     try:
@@ -28,55 +18,6 @@ def is_gptq_available() -> bool:
         return True
     except ImportError:
         return False
-
-
-def quantize_awq(
-    model_path: str,
-    output_dir: str,
-    bits: int = 4,
-    group_size: int = 128,
-    version: str = "GEMM",
-) -> dict:
-    """Quantize a model using AWQ (Activation-aware Weight Quantization).
-
-    Args:
-        model_path: Path to the model (safetensors)
-        output_dir: Where to save the quantized model
-        bits: Bit width (4 is standard)
-        group_size: Quantization group size
-        version: AWQ kernel version (GEMM or GEMV)
-
-    Returns:
-        {output_dir, size_bytes, size_human, bits, group_size}
-    """
-    from awq import AutoAWQForCausalLM
-    from transformers import AutoTokenizer
-
-    os.makedirs(output_dir, exist_ok=True)
-
-    model = AutoAWQForCausalLM.from_pretrained(model_path, safetensors=True)
-    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-
-    quant_config = {
-        "zero_point": True,
-        "q_group_size": group_size,
-        "w_bit": bits,
-        "version": version,
-    }
-
-    model.quantize(tokenizer, quant_config=quant_config)
-    model.save_quantized(output_dir)
-    tokenizer.save_pretrained(output_dir)
-
-    size = _dir_size(output_dir)
-    return {
-        "output_dir": output_dir,
-        "size_bytes": size,
-        "size_human": _human_size(size),
-        "bits": bits,
-        "group_size": group_size,
-        "method": "awq",
-    }
 
 
 def quantize_gptq(
