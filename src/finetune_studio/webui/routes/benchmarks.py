@@ -234,9 +234,11 @@ async def judge_benchmark(pid: str, bid: str, request: Request):
 
         judge_engine = InferenceEngine()
         try:
-            # Use the judge_model path if provided, otherwise use the run's merged model
+            # Use the judge_model path if provided, otherwise use the base model
+            # (the judge evaluates answer quality — it doesn't need fine-tuned weights,
+            # and the base model always has a complete tokenizer)
             run = db.get_run(benchmark["run_id"])
-            model_path = judge_model or (run.get("output_path", "") if run else "")
+            model_path = judge_model or (run.get("base_model", "") if run else "")
             if not model_path:
                 return {"error": "no model path for local judge"}
             judge_engine.load(model_path)
