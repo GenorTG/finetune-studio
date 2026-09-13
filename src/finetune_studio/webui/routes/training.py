@@ -629,6 +629,18 @@ async def list_quant_exports(run_id: str):
     return [{"id": r[0], "model_path": r[1], "output_path": r[2], "method": r[3], "bits": r[4], "group_size": r[5], "size_bytes": r[6], "status": r[7], "created_at": r[8]} for r in rows]
 
 
+@router.post("/runs/{run_id}/set-output")
+async def set_run_output(run_id: str, request: Request):
+    """Update a run's output_path."""
+    from finetune_studio import db
+    body = await request.json()
+    output_path = body.get("output_path", "").strip()
+    if not output_path:
+        return {"error": "no output_path"}
+    db.update_run(run_id, output_path=output_path)
+    return {"ok": True, "run_id": run_id, "output_path": output_path}
+
+
 @router.get("/runs/{run_id}/exports")
 async def list_exports(run_id: str):
     """List all exports (merged, gguf, adapter) for a training run."""
