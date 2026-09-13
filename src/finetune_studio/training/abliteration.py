@@ -146,12 +146,13 @@ def abliterate_model(
         {output_dir, refusal_magnitude, layers_modified, strength}
     """
     from transformers import AutoModelForCausalLM, AutoTokenizer
+    import torch
 
     os.makedirs(output_dir, exist_ok=True)
 
     # Load model
     model = AutoModelForCausalLM.from_pretrained(
-        model_path, torch_dtype=torch.float16, device_map=device, trust_remote_code=True,
+        model_path, dtype=torch.float16, device_map=device, trust_remote_code=True,
     )
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
 
