@@ -539,6 +539,15 @@ async def abliterate_run(run_id: str):
     )
     if result.get("error"):
         return result
+    # Convert numpy arrays to lists for JSON serialization
+    clean_result = {}
+    for k, v in result.items():
+        if hasattr(v, 'tolist'):
+            clean_result[k] = v.tolist()
+        elif isinstance(v, (list, tuple)):
+            clean_result[k] = [float(x) if hasattr(x, 'item') else x for x in v]
+        else:
+            clean_result[k] = v
     from finetune_studio.db.connection import cursor, new_id
     from time import time as _time
     abl_id = new_id()
@@ -549,10 +558,10 @@ async def abliterate_run(run_id: str):
             (abl_id, run_id, run.get("project_id", ""),
              merged_dir, abliterated_dir,
              float(run.get("abliteration_strength", 1.0)),
-             result.get("refusal_magnitude", 0.0),
+             float(clean_result.get("refusal_magnitude", 0.0)),
              "done", _time()),
         )
-    return {"ok": True, "abliteration_id": abl_id, **result}
+    return {"ok": True, "abliteration_id": abl_id, **clean_result}
 
 
 @router.get("/runs/{run_id}/abliteration")
