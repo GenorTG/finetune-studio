@@ -15,7 +15,7 @@ import subprocess
 def is_awq_available() -> bool:
     """Check if autoawq is installed."""
     try:
-        import autoawq  # noqa: F401
+        import awq  # noqa: F401
         return True
     except ImportError:
         return False
@@ -49,7 +49,7 @@ def quantize_awq(
     Returns:
         {output_dir, size_bytes, size_human, bits, group_size}
     """
-    from autoawq import AutoAWQForCausalLM
+    from awq import AutoAWQForCausalLM
     from transformers import AutoTokenizer
 
     os.makedirs(output_dir, exist_ok=True)
