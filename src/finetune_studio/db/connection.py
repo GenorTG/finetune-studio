@@ -98,6 +98,20 @@ CREATE TABLE IF NOT EXISTS benchmark_cases (
 CREATE INDEX IF NOT EXISTS idx_bc_benchmark ON benchmark_cases(benchmark_id);
 CREATE INDEX IF NOT EXISTS idx_bc_run ON benchmark_cases(run_id);
 
+CREATE TABLE IF NOT EXISTS auto_suites (
+    id              TEXT PRIMARY KEY,
+    run_id          TEXT NOT NULL,
+    project_id      TEXT NOT NULL,
+    suite_name      TEXT NOT NULL,
+    suite_path      TEXT NOT NULL,
+    case_count      INTEGER NOT NULL DEFAULT 0,
+    categories_json TEXT NOT NULL DEFAULT '{}',
+    created_at      REAL NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES training_runs(id) ON DELETE CASCADE,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_auto_suites_run ON auto_suites(run_id);
+
 CREATE TABLE IF NOT EXISTS data_review (
     id          TEXT PRIMARY KEY,
     project_id  TEXT NOT NULL,

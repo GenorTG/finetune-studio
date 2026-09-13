@@ -306,6 +306,8 @@ async def start_training(request: Request):
             merge_on_save=merge_on_save,
             export_gguf=bool(body.get("export_gguf", False)),
             gguf_quants=body.get("gguf_quants", ["f16", "q8_0", "q4_k_m", "q5_k_m"]),
+            data_path=data_path,
+            project_id=project_id,
         )
     data_path = body.get("data_path", "")
     dataset_id = body.get("dataset_id", "")
@@ -457,6 +459,48 @@ async def export_run(run_id: str, request: Request):
     engine.config = cfg
     result = engine._do_export_gguf(output_path)
     return {"ok": True, "status": "exported" if not result.get("skipped") else "skipped", **result}
+
+
+@router.get("/runs/{run_id}/auto-suites")
+async def list_auto_suites(run_id: str):
+    """List all auto-generated suites for a training run."""
+    from finetune_studio.db.connection import cursor
+    with cursor() as c:
+        rows = c.execute("SELECT id, suite_name, suite_path, case_count, categories_json, created_at FROM auto_suites WHERE run_id = ? ORDER BY created_at DESC", (run_id,)).fetchall()
+    return [{"id": r[0], "suite_name": r[1], "suite_path": r[2], "case_count": r[3], "categories": json.loads(r[4]) if r[4] else {}, "created_at": r[5]} for r in rows]
+
+
+@router.post("/runs/{run_id}/auto-suites/generate")
+async def trigger_auto_suite(run_id: str):
+    """Trigger auto-generation of a benchmark suite from training data."""
+    from finetune_studio import db
+    run = db.get_run(run_id)
+    if not run:
+        return {"error": "run not found"}
+    data_path = (run.get("data_path") or "").strip()
+    if not data_path:
+        return {"error": "run has no data_path"}
+    output_path = (run.get("output_path") or "").strip()
+    if not output_path:
+        return {"error": "run has no output_path"}
+    from finetune_studio.testing.generate_suite import generate_suite_from_training_data
+    result = generate_suite_from_training_data(data_path, output_path)
+    if result.get("error"):
+        return result
+    # Record in DB
+    from finetune_studio.db.connection import cursor, new_id
+    from time import time as _time
+    suite_id = new_id()
+    with cursor() as c:
+        c.execute(
+            "INSERT INTO auto_suites (id, run_id, project_id, suite_name, suite_path, case_count, categories_json, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (suite_id, run_id, run.get("project_id", ""),
+             result.get("suite_name", "auto"), result.get("suite_path", ""),
+             result.get("case_count", 0),
+             json.dumps(result.get("categories", {})), _time()),
+        )
+    return {"ok": True, "suite_id": suite_id, **result}
 
 
 @router.get("/runs/{run_id}/exports")
