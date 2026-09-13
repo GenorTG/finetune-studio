@@ -644,6 +644,7 @@ class TrainingEngine:
         # Find llama.cpp convert script
         convert_script = None
         candidates = [
+            os.path.expanduser("~/llama.cpp/convert_hf_to_gguf.py"),
             os.path.expanduser("~/llama.cpp/convert.py"),
             os.path.expanduser("~/llama.cpp/convert-hf-to-gguf.py"),
             "/usr/local/bin/convert-hf-to-gguf.py",
@@ -657,8 +658,18 @@ class TrainingEngine:
             self._notify()
             return {"gguf_path": gguf_dir, "skipped": True,
                     "reason": "llama.cpp not found"}
-        self.state.message = "Exporting GGUF (this may take a while)..."
-        self._notify()
+        # Find llama.cpp quantize binary
+        quant_bin = None
+        quant_candidates = [
+            os.path.join(os.path.dirname(convert_script), "..", "build", "bin", "llama-quantize"),
+            os.path.join(os.path.expanduser("~"), "llama.cpp", "build", "bin", "llama-quantize"),
+            os.path.join(os.path.expanduser("~"), "llama.cpp", "build-RPC", "bin", "llama-quantize"),
+            "llama-quantize",
+        ]
+        for q in quant_candidates:
+            if os.path.isfile(q):
+                quant_bin = q
+                break
         try:
             import subprocess
             # Step 1: Convert to F16 GGUF first
