@@ -112,6 +112,38 @@ CREATE TABLE IF NOT EXISTS auto_suites (
 );
 CREATE INDEX IF NOT EXISTS idx_auto_suites_run ON auto_suites(run_id);
 
+CREATE TABLE IF NOT EXISTS abliteration_runs (
+    id              TEXT PRIMARY KEY,
+    run_id          TEXT NOT NULL,
+    project_id      TEXT NOT NULL,
+    model_path      TEXT NOT NULL,
+    output_path     TEXT NOT NULL,
+    strength        REAL NOT NULL DEFAULT 1.0,
+    magnitude       REAL NOT NULL DEFAULT 0.0,
+    status          TEXT NOT NULL DEFAULT 'pending',
+    created_at      REAL NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES training_runs(id) ON DELETE CASCADE,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_abliteration_run ON abliteration_runs(run_id);
+
+CREATE TABLE IF NOT EXISTS quant_exports (
+    id              TEXT PRIMARY KEY,
+    run_id          TEXT NOT NULL,
+    project_id      TEXT NOT NULL,
+    model_path      TEXT NOT NULL,
+    output_path     TEXT NOT NULL,
+    method          TEXT NOT NULL,  -- awq, gptq, imatrix
+    bits            INTEGER NOT NULL DEFAULT 4,
+    group_size      INTEGER NOT NULL DEFAULT 128,
+    size_bytes      INTEGER NOT NULL DEFAULT 0,
+    status          TEXT NOT NULL DEFAULT 'pending',
+    created_at      REAL NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES training_runs(id) ON DELETE CASCADE,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_quant_exports_run ON quant_exports(run_id);
+
 CREATE TABLE IF NOT EXISTS data_review (
     id          TEXT PRIMARY KEY,
     project_id  TEXT NOT NULL,

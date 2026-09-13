@@ -77,6 +77,18 @@ class TrainingConfig:
     gguf_quants: list = field(default_factory=lambda: ["f16", "q8_0", "q4_k_m", "q5_k_m"])
     data_path: str = ""  # training data path (for auto-suite generation)
     project_id: str = ""  # project ID (for DB recording)
+    # Abliteration settings
+    abliterate: bool = False  # remove refusals after training
+    abliteration_strength: float = 1.0  # 0.0 = no change, 1.0 = full removal
+    # Advanced quantization
+    export_awq: bool = False
+    awq_bits: int = 4
+    awq_group_size: int = 128
+    export_gptq: bool = False
+    gptq_bits: int = 4
+    gptq_group_size: int = 128
+    export_imatrix: bool = False
+    imatrix_calibration: str = ""
     lora_target_modules: list = field(default_factory=lambda: [
         "q_proj", "k_proj", "v_proj", "o_proj",
         "gate_proj", "up_proj", "down_proj",
@@ -312,7 +324,16 @@ class TrainingEngine:
             self._do_merge(model, tokenizer, cfg.output_dir)
         if cfg.export_gguf:
             self._do_export_gguf(cfg.output_dir)
+        if cfg.export_awq:
+            self._do_export_awq(cfg.output_dir)
+        if cfg.export_gptq:
+            self._do_export_gptq(cfg.output_dir)
+        if cfg.export_imatrix:
+            self._do_export_imatrix(cfg.output_dir)
         self._auto_generate_suite()
+        # Optional: Abliteration (de-censor)
+        if getattr(cfg, 'abliterate', False):
+            self._do_abliteration()
         self.state.status = "done"
         self.state.message = "Training complete!"
         self._notify()
@@ -438,7 +459,100 @@ class TrainingEngine:
         return {"merged_path": merged_dir, "size_bytes": size,
                 "size_human": _human_size(size), "skipped": False}
 
-    def _auto_generate_suite(self) -> dict:
+    def _do_abliteration(self) -> dict:
+        """Optional: Remove refusal direction from the merged model."""
+        merged_dir = os.path.join(self.config.output_dir, "merged")
+        if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
+            return {"skipped": True, "reason": "no merged model"}
+        abliterated_dir = os.path.join(self.config.output_dir, "abliterated")
+        self.state.message = "Abliterating (de-censoring) model..."
+        self._notify()
+        try:
+            from finetune_studio.training.abliteration import abliterate_model
+            result = abliterate_model(
+                model_path=merged_dir,
+                output_dir=abliterated_dir,
+                strength=getattr(self.config, 'abliteration_strength', 1.0),
+            )
+            self.state.message = f"Abliteration complete (magnitude: {result.get('refusal_magnitude', 0):.4f})."
+            self._notify()
+            return result
+        except Exception as e:
+            self.state.message = f"Abliteration failed: {e}"
+            self._notify()
+            return {"error": str(e)}
+
+    def _do_export_awq(self, output_dir: str) -> dict:
+        """Export the merged model using AWQ quantization."""
+        merged_dir = os.path.join(output_dir, "merged")
+        if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
+            return {"skipped": True, "reason": "no merged model"}
+        awq_dir = os.path.join(output_dir, "awq")
+        self.state.message = "Exporting AWQ..."
+        self._notify()
+        try:
+            from finetune_studio.training.advanced_quant import quantize_awq
+            result = quantize_awq(
+                model_path=merged_dir,
+                output_dir=awq_dir,
+                bits=getattr(self.config, 'awq_bits', 4),
+                group_size=getattr(self.config, 'awq_group_size', 128),
+            )
+            self.state.message = f"AWQ exported: {result.get('size_human', 'unknown')}."
+            self._notify()
+            return result
+        except Exception as e:
+            self.state.message = f"AWQ export failed: {e}"
+            self._notify()
+            return {"error": str(e)}
+
+    def _do_export_gptq(self, output_dir: str) -> dict:
+        """Export the merged model using GPTQ quantization."""
+        merged_dir = os.path.join(output_dir, "merged")
+        if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
+            return {"skipped": True, "reason": "no merged model"}
+        gptq_dir = os.path.join(output_dir, "gptq")
+        self.state.message = "Exporting GPTQ..."
+        self._notify()
+        try:
+            from finetune_studio.training.advanced_quant import quantize_gptq
+            result = quantize_gptq(
+                model_path=merged_dir,
+                output_dir=gptq_dir,
+                bits=getattr(self.config, 'gptq_bits', 4),
+                group_size=getattr(self.config, 'gptq_group_size', 128),
+            )
+            self.state.message = f"GPTQ exported: {result.get('size_human', 'unknown')}."
+            self._notify()
+            return result
+        except Exception as e:
+            self.state.message = f"GPTQ export failed: {e}"
+            self._notify()
+            return {"error": str(e)}
+
+    def _do_export_imatrix(self, output_dir: str) -> dict:
+        """Export the merged model using imatrix-based GGUF quantization."""
+        merged_dir = os.path.join(output_dir, "merged")
+        if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
+            return {"skipped": True, "reason": "no merged model"}
+        imatrix_dir = os.path.join(output_dir, "imatrix")
+        self.state.message = "Exporting imatrix GGUF..."
+        self._notify()
+        try:
+            from finetune_studio.training.advanced_quant import quantize_gguf_imatrix
+            result = quantize_gguf_imatrix(
+                model_path=merged_dir,
+                output_dir=imatrix_dir,
+                imatrix_path=getattr(self.config, 'imatrix_calibration', ''),
+                quants=getattr(self.config, 'gguf_quants', ['q4_k_m', 'q5_k_m', 'q8_0']),
+            )
+            self.state.message = f"Imatrix GGUF exported."
+            self._notify()
+            return result
+        except Exception as e:
+            self.state.message = f"Imatrix GGUF export failed: {e}"
+            self._notify()
+            return {"error": str(e)}
         """Auto-generate a benchmark suite from the training data.
 
         Saves to `<output_dir>/suite_<name>.json` and records in DB.

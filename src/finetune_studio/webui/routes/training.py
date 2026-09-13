@@ -309,6 +309,18 @@ async def start_training(request: Request):
             gguf_quants=body.get("gguf_quants", ["f16", "q8_0", "q4_k_m", "q5_k_m"]),
             data_path=data_path,
             project_id=project_id,
+            # Abliteration
+            abliterate=bool(body.get("abliterate", False)),
+            abliteration_strength=float(body.get("abliteration_strength", 1.0)),
+            # Advanced quantization
+            export_awq=bool(body.get("export_awq", False)),
+            awq_bits=int(body.get("awq_bits", 4)),
+            awq_group_size=int(body.get("awq_group_size", 128)),
+            export_gptq=bool(body.get("export_gptq", False)),
+            gptq_bits=int(body.get("gptq_bits", 4)),
+            gptq_group_size=int(body.get("gptq_group_size", 128)),
+            export_imatrix=bool(body.get("export_imatrix", False)),
+            imatrix_calibration=body.get("imatrix_calibration", ""),
         )
     data_path = body.get("data_path", "")
     dataset_id = body.get("dataset_id", "")
@@ -502,6 +514,126 @@ async def trigger_auto_suite(run_id: str):
              json.dumps(result.get("categories", {})), _time()),
         )
     return {"ok": True, "suite_id": suite_id, **result}
+
+
+@router.post("/runs/{run_id}/abliterate")
+async def abliterate_run(run_id: str):
+    """Abliterate (de-censor) a trained model."""
+    from finetune_studio import db
+    run = db.get_run(run_id)
+    if not run:
+        return {"error": "run not found"}
+    output_path = (run.get("output_path") or "").strip()
+    if not output_path:
+        return {"error": "run has no output_path"}
+    merged_dir = os.path.join(output_path, "merged")
+    if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
+        return {"error": "no merged model to abliterate"}
+    abliterated_dir = os.path.join(output_path, "abliterated")
+    from finetune_studio.training.abliteration import abliterate_model
+    result = abliterate_model(
+        model_path=merged_dir,
+        output_dir=abliterated_dir,
+        strength=float(run.get("abliteration_strength", 1.0)),
+    )
+    if result.get("error"):
+        return result
+    from finetune_studio.db.connection import cursor, new_id
+    from time import time as _time
+    abl_id = new_id()
+    with cursor() as c:
+        c.execute(
+            "INSERT INTO abliteration_runs (id, run_id, project_id, model_path, output_path, strength, magnitude, status, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (abl_id, run_id, run.get("project_id", ""),
+             merged_dir, abliterated_dir,
+             float(run.get("abliteration_strength", 1.0)),
+             result.get("refusal_magnitude", 0.0),
+             "done", _time()),
+        )
+    return {"ok": True, "abliteration_id": abl_id, **result}
+
+
+@router.get("/runs/{run_id}/abliteration")
+async def get_abliteration(run_id: str):
+    """Get abliteration status for a run."""
+    from finetune_studio.db.connection import cursor
+    with cursor() as c:
+        rows = c.execute("SELECT id, model_path, output_path, strength, magnitude, status, created_at FROM abliteration_runs WHERE run_id = ? ORDER BY created_at DESC", (run_id,)).fetchall()
+    return [{"id": r[0], "model_path": r[1], "output_path": r[2], "strength": r[3], "magnitude": r[4], "status": r[5], "created_at": r[6]} for r in rows]
+
+
+@router.post("/runs/{run_id}/quantize")
+async def quantize_run(run_id: str, request: Request):
+    """Export a trained model using advanced quantization."""
+    from finetune_studio import db
+    body = await request.json()
+    method = body.get("method", "awq")
+    run = db.get_run(run_id)
+    if not run:
+        return {"error": "run not found"}
+    output_path = (run.get("output_path") or "").strip()
+    if not output_path:
+        return {"error": "run has no output_path"}
+    merged_dir = os.path.join(output_path, "merged")
+    if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
+        return {"error": "no merged model to quantize"}
+    if method == "awq":
+        output_dir = os.path.join(output_path, "awq")
+        from finetune_studio.training.advanced_quant import quantize_awq
+        result = quantize_awq(
+            model_path=merged_dir,
+            output_dir=output_dir,
+            bits=int(body.get("bits", 4)),
+            group_size=int(body.get("group_size", 128)),
+        )
+    elif method == "gptq":
+        output_dir = os.path.join(output_path, "gptq")
+        from finetune_studio.training.advanced_quant import quantize_gptq
+        result = quantize_gptq(
+            model_path=merged_dir,
+            output_dir=output_dir,
+            bits=int(body.get("bits", 4)),
+            group_size=int(body.get("group_size", 128)),
+        )
+    elif method == "imatrix":
+        output_dir = os.path.join(output_path, "imatrix")
+        from finetune_studio.training.advanced_quant import quantize_gguf_imatrix
+        result = quantize_gguf_imatrix(
+            model_path=merged_dir,
+            output_dir=output_dir,
+            imatrix_path=body.get("imatrix_path", ""),
+            quants=body.get("quants", ["q4_k_m", "q5_k_m", "q8_0"]),
+        )
+    else:
+        return {"error": f"unknown method: {method}"}
+    if result.get("error"):
+        return result
+    from finetune_studio.db.connection import cursor, new_id
+    from time import time as _time
+    q_id = new_id()
+    with cursor() as c:
+        c.execute(
+            "INSERT INTO quant_exports (id, run_id, project_id, model_path, output_path, method, bits, group_size, size_bytes, status, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (q_id, run_id, run.get("project_id", ""),
+             merged_dir, output_dir,
+             method,
+             int(body.get("bits", 4)),
+             int(body.get("group_size", 128)),
+             result.get("size_bytes", 0),
+             "done", _time()),
+        )
+    return {"ok": True, "quantize_id": q_id, **result}
+
+
+@router.get("/runs/{run_id}/quant-exports")
+async def list_quant_exports(run_id: str):
+    """List all quantization exports for a run."""
+    from finetune_studio.db.connection import cursor
+    with cursor() as c:
+        rows = c.execute("SELECT id, model_path, output_path, method, bits, group_size, size_bytes, status, created_at FROM quant_exports WHERE run_id = ? ORDER BY created_at DESC", (run_id,)).fetchall()
+    return [{"id": r[0], "model_path": r[1], "output_path": r[2], "method": r[3], "bits": r[4], "group_size": r[5], "size_bytes": r[6], "status": r[7], "created_at": r[8]} for r in rows]
 
 
 @router.get("/runs/{run_id}/exports")
