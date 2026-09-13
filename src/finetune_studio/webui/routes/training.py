@@ -278,6 +278,19 @@ async def start_training(request: Request):
     from finetune_studio import db
     body = await request.json()
     merge_on_save = bool(body.get("merge_on_save", True))
+
+    # Extract data_path and project_id FIRST
+    data_path = body.get("data_path", "")
+    dataset_id = body.get("dataset_id", "")
+    project_id = body.get("project_id", "")
+    if dataset_id and not data_path:
+        ds = db.get_dataset(dataset_id)
+        if not ds or ds.get("project_id") != project_id:
+            return {"error": f"dataset {dataset_id!r} not found in this project"}
+        data_path = ds["data_path"]
+    if not data_path:
+        return {"error": "No data_path / dataset_id provided"}
+
     preset_id = body.get("preset_id")
     overrides = body.get("overrides", {})
     if preset_id:
@@ -285,7 +298,6 @@ async def start_training(request: Request):
             config = _apply_preset(preset_id, overrides)
         except ValueError as e:
             return {"error": str(e)}
-        # Preset doesn't carry model_path — apply from body after preset merge
         if not config.model_path and body.get("model_path"):
             config.model_path = body["model_path"]
     else:
@@ -310,10 +322,8 @@ async def start_training(request: Request):
             gguf_quants=body.get("gguf_quants", ["f16", "q8_0", "q4_k_m", "q5_k_m"]),
             data_path=data_path,
             project_id=project_id,
-            # Abliteration
             abliterate=bool(body.get("abliterate", False)),
             abliteration_strength=float(body.get("abliteration_strength", 1.0)),
-            # Advanced quantization
             export_awq=bool(body.get("export_awq", False)),
             awq_bits=int(body.get("awq_bits", 4)),
             awq_group_size=int(body.get("awq_group_size", 128)),
@@ -323,30 +333,13 @@ async def start_training(request: Request):
             export_imatrix=bool(body.get("export_imatrix", False)),
             imatrix_calibration=body.get("imatrix_calibration", ""),
         )
-    data_path = body.get("data_path", "")
-    dataset_id = body.get("dataset_id", "")
-    project_id = body.get("project_id", "")
-    if dataset_id and not data_path:
-        # Resolve dataset_id → data_path so the rest of the pipeline stays path-based.
-        from finetune_studio import db
-        ds = db.get_dataset(dataset_id)
-        if not ds or ds.get("project_id") != project_id:
-            return {"error": f"dataset {dataset_id!r} not found in this project"}
-        data_path = ds["data_path"]
-        # Track that the dataset was used (for "last used" sorting in the UI).
-        try:
-            db.update_dataset(dataset_id, last_used_at=__import__("time").time())
-        except Exception:
-            pass
-    if not data_path:
-        return {"error": "No data_path / dataset_id provided"}
+
     if not config.model_path:
         return {"error": "No model_path provided"}
     training_data = load_jsonl(data_path)
     system_prompt = body.get("system_prompt", "")
 
-    # Create a run record so it shows up in the project's "Past runs" list.
-    # Also lets the activity feed's "GO TO →" deep-link to the right page.
+    # Create a run record
     import time as _time
     run = db.create_run(
         project_id=project_id,
@@ -366,23 +359,15 @@ async def start_training(request: Request):
         system_prompt=system_prompt,
     )
     run_id = run["id"]
-    run_started_at = _time.time()  # wall-clock for this run; written on first transition
-    # Encode project_id into current_run_id so the activity feed can
-    # derive the URL without needing an extra DB lookup.
+    run_started_at = _time.time()
     training_engine.current_run_id = f"{project_id}-{run_id}" if project_id else run_id
     training_engine.current_project_id = project_id
     training_engine.current_db_run_id = run_id
 
-    # Push state changes (loss, status, final_loss) into the run row.
-    # Captures started_at on the first training-state transition and
-    # finished_at (+ duration) on every terminal state so the past-runs
-    # table can render human time without re-computing from the engine.
-    state_started_logged = {"value": False}  # closure-shared flag
+    state_started_logged = {"value": False}
     def _on_state_change(state):
         update: dict = {}
-        # First transition into an active training state → stamp started_at.
         active_states = ("running", "training", "loading", "saving")
-        terminal_states = ("done", "error")
         if state.status in active_states and not state_started_logged["value"]:
             state_started_logged["value"] = True
             update["started_at"] = run_started_at
@@ -396,14 +381,13 @@ async def start_training(request: Request):
             update["duration"] = max(0.0, finished - run_started_at)
             if state.loss:
                 update["final_loss"] = state.loss
-            metrics = {
+            update["metrics"] = {
                 "total_steps": state.total_steps,
                 "current_step": state.current_step,
                 "loss": state.loss,
                 "epoch": state.epoch,
                 "elapsed": state.elapsed,
             }
-            update["metrics"] = metrics
         elif state.status == "saving":
             update["status"] = "saving"
         elif state.status == "error":
@@ -420,7 +404,6 @@ async def start_training(request: Request):
             pass
 
     training_engine.on_update(_on_state_change)
-
     training_engine.start(config, training_data, system_prompt)
     return {"status": "started", "steps": training_engine.state.total_steps, "run_id": run_id}
 
