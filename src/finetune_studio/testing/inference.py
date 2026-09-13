@@ -58,12 +58,31 @@ class InferenceEngine:
 
     def _load_hf(self, model_path, device):
         from transformers import AutoModelForCausalLM, AutoTokenizer
+        import torch
         self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_path, torch_dtype=torch.float16, device_map=device, trust_remote_code=True,
-        )
+        # Try full GPU first, fall back to mixed RAM/VRAM
+        try:
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_path, torch_dtype=torch.float16, device_map={"": 0},
+                trust_remote_code=True,
+            )
+        except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
+            if "out of memory" not in str(e).lower() and "CUDA" not in str(e):
+                raise
+            # Mixed fallback — slower but fits
+            try:
+                import gc
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:
+                pass
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_path, torch_dtype=torch.float16, device_map="auto",
+                trust_remote_code=True,
+            )
         self.is_gguf = False
 
     def _load_gguf(self, gguf_path, n_ctx=4096, n_gpu_layers=99, n_batch=512, mmap=True, mlock=False,

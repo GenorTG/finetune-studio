@@ -93,6 +93,14 @@ async def run_benchmark(pid: str, rid: str, request: Request):
     if not suite_path:
         return {"error": "suite_path required"}
 
+    # Unload the global inference engine first — it may hold a model from the UI.
+    try:
+        from finetune_studio.webui.app import inference_engine as _global_ie
+        if _global_ie is not None and getattr(_global_ie, "model", None) is not None:
+            _global_ie.unload()
+    except Exception:
+        pass
+
     engine = InferenceEngine()
     try:
         engine.load(target_model)
@@ -216,6 +224,14 @@ async def judge_benchmark(pid: str, bid: str, request: Request):
 
     # For local judge — load the specified model
     if judge_mode == "local":
+        # Unload the global inference engine first — it may hold a model from the UI.
+        try:
+            from finetune_studio.webui.app import inference_engine as _global_ie
+            if _global_ie is not None and getattr(_global_ie, "model", None) is not None:
+                _global_ie.unload()
+        except Exception:
+            pass
+
         judge_engine = InferenceEngine()
         try:
             # Use the judge_model path if provided, otherwise use the run's model
