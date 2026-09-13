@@ -1,12 +1,20 @@
 """AI judge — evaluates model answers against correct answers.
 
-Uses an external model (configurable) to score each transcript:
-- pass: model answered correctly and completely
-- partial: model answered partially or with minor inaccuracies
-- fail: model answered incorrectly or not at all
+THE JUDGE'S ONLY JOB: Does the model know the right information?
 
-The judge prompt is designed to be fair: it gives the judge the question,
-the correct answer, and the model's answer, then asks for a verdict.
+It does NOT care about:
+- Verbosity (a 5-word answer can pass if correct)
+- Brevity (a 500-word answer can fail if it's wrong)
+- Speaking style (formal, casual, poetic, terse — all fine)
+- Word choice or phrasing (paraphrases are fine)
+- Length of response (short and long are both fine)
+
+It ONLY checks:
+- Are the KEY FACTS present? (entities, names, numbers, relationships)
+- Is the knowledge ACCURATE? (no hallucinated facts)
+- Is the answer COMPLETE? (covers what the question asks)
+
+If the model knows the right things → pass. If it's missing things → partial. If it's wrong → fail.
 """
 
 from __future__ import annotations
@@ -23,24 +31,53 @@ DEFAULT_JUDGE_MODEL = os.environ.get("FTS_JUDGE_MODEL", "gpt-4o-mini")
 DEFAULT_JUDGE_API = os.environ.get("FTS_JUDGE_API", "https://api.openai.com/v1")
 DEFAULT_JUDGE_KEY = os.environ.get("FTS_JUDGE_API_KEY", "")
 
-JUDGE_PROMPT = """You are an expert evaluator. Your task is to judge whether a model's answer to a question is correct.
+JUDGE_PROMPT = """You are an expert knowledge evaluator. Your ONLY job is to check whether a model's answer contains the correct information.
 
 You will be given:
 - QUESTION: what the model was asked
-- CORRECT ANSWER: the ground truth answer (from the training data or test author)
+- CORRECT ANSWER: the ground truth answer (from the training data)
 - MODEL ANSWER: what the model under test responded
 
-Score the model answer as:
-- "pass": the answer is correct, complete, and accurate
-- "partial": the answer is mostly correct but incomplete, slightly inaccurate, or verbose
-- "fail": the answer is wrong, irrelevant, or the model refused to answer
+RULES FOR JUDGING:
+1. IGNORE speaking style, tone, length, and verbosity. A model can answer in 5 words or 500 words — both are fine.
+2. IGNORE word choice and phrasing. Paraphrases are correct if they mean the same thing.
+3. IGNORE whether the answer is formal, casual, poetic, or terse.
+4. ONLY check: Does the model answer contain the KEY FACTS? Is the knowledge ACCURATE?
 
-Be fair: the model answer doesn't need to match the correct answer word-for-word. It just needs to convey the same correct information. Minor phrasing differences are fine. Missing important details = partial. Hallucinated facts = fail.
+SCORING:
+- "pass": The model answer contains all the key facts and knowledge from the correct answer. Even if the model adds extra details or is very verbose, it still passes. Even if the answer is extremely brief but hits the key points, it passes.
+- "partial": The model answer has some correct facts but is missing important ones, or is slightly inaccurate. A vague or generic answer that hints at the right topic but doesn't give specifics = partial.
+- "fail": The model answer is factually wrong, completely misses the point, hallucinates incorrect information, or refuses to answer.
+
+DO NOT penalize for:
+- Being too short
+- Being too long
+- Using different words than the correct answer
+- Adding extra details (even unrelated ones, as long as the required facts are there)
+- Different sentence structure
+
+Example 1:
+Q: What is the capital of France?
+Correct: Paris
+Model: The capital of France is Paris, a city known for the Eiffel Tower.
+→ PASS (extra details are fine, key fact "Paris" is there)
+
+Example 2:
+Q: What is the capital of France?
+Correct: Paris
+Model: The capital of France is London.
+→ FAIL (wrong fact)
+
+Example 3:
+Q: What is the capital of France?
+Correct: Paris
+Model: A major European city.
+→ PARTIAL (vague, doesn't give the specific fact)
 
 Respond in JSON:
 {
   "verdict": "pass" | "partial" | "fail",
-  "reasoning": "brief explanation of your judgment",
+  "reasoning": "brief explanation focusing on what facts were present/missing/wrong",
   "confidence": 0.0 to 1.0
 }
 """
