@@ -748,12 +748,16 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
     from peft import PeftModel
     from transformers import AutoModelForCausalLM, AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained(adapter_dir, trust_remote_code=True)
+    # Load base in full precision (strip any quantization config)
     base = AutoModelForCausalLM.from_pretrained(
         base_model, torch_dtype="auto", trust_remote_code=True,
     )
     try:
         model = PeftModel.from_pretrained(base, adapter_dir)
         merged = model.merge_and_unload()
+        # Strip quantization config from merged model
+        if hasattr(merged, 'config') and hasattr(merged.config, 'quantization_config'):
+            merged.config.quantization_config = None
         merged.save_pretrained(merged_dir)
         tokenizer.save_pretrained(merged_dir)
         src = os.path.join(adapter_dir, "chat_template.jinja")
