@@ -234,9 +234,7 @@ async def judge_benchmark(pid: str, bid: str, request: Request):
 
         judge_engine = InferenceEngine()
         try:
-            # Use the judge_model path if provided, otherwise use the base model
-            # (the judge evaluates answer quality — it doesn't need fine-tuned weights,
-            # and the base model always has a complete tokenizer)
+            # Use the base model as judge — an unbiased evaluator
             run = db.get_run(benchmark["run_id"])
             model_path = judge_model or (run.get("base_model", "") if run else "")
             if not model_path:
