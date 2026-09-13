@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
+import json
 
 from finetune_studio.training.data import load_jsonl
 from finetune_studio.training.engine import TrainingConfig
