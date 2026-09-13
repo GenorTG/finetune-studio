@@ -191,6 +191,11 @@ def abliterate_model(
     if os.path.exists(src_template):
         import shutil
         shutil.copy(src_template, os.path.join(output_dir, "chat_template.jinja"))
+    # Copy runtime system prompt if it exists
+    src_prompt = os.path.join(model_path, "system_prompt.txt")
+    if os.path.exists(src_prompt):
+        import shutil
+        shutil.copy(src_prompt, os.path.join(output_dir, "system_prompt.txt"))
 
     result["output_dir"] = output_dir
     result["layers_modified"] = result["layer_indices"]

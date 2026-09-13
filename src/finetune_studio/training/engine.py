@@ -80,10 +80,12 @@ class TrainingConfig:
     # Abliteration settings
     abliterate: bool = False  # remove refusals after training
     abliteration_strength: float = 1.0  # 0.0 = no change, 1.0 = full removal
+    # System prompt handling
+    # "bake" = prepend to every training example (current behavior)
+    # "runtime" = don't bake, save separately for inference-time use
+    # "none" = no system prompt at all
+    system_prompt_mode: str = "bake"
     # Advanced quantization
-    export_gptq: bool = False
-    gptq_bits: int = 4
-    gptq_group_size: int = 128
     export_gptq: bool = False
     gptq_bits: int = 4
     gptq_group_size: int = 128
@@ -150,7 +152,23 @@ class TrainingEngine:
             self.state.status = "loading"
             self.state.message = "Loading model..."
             self._notify()
-            formatted = format_for_sft(training_data, system_prompt)
+            mode = getattr(self.config, 'system_prompt_mode', 'bake')
+            if mode == "none":
+                system_prompt = ""
+            elif mode == "runtime":
+                # Don't bake into training data, but save for later use
+                bake_prompt = ""
+            else:
+                # "bake" — prepend to every training example (current behavior)
+                bake_prompt = system_prompt
+            formatted = format_for_sft(training_data, bake_prompt if mode != "runtime" else "")
+            if mode == "runtime" and system_prompt:
+                # Save system prompt to a file alongside the output for later use
+                import os
+                prompt_path = os.path.join(self.config.output_dir, "system_prompt.txt")
+                os.makedirs(os.path.dirname(prompt_path), exist_ok=True)
+                with open(prompt_path, "w") as f:
+                    f.write(system_prompt)
             train_data, _val_data = split_data(formatted)
             self.state.message = f"Training on {len(train_data)} examples..."
             self._notify()
@@ -453,6 +471,10 @@ class TrainingEngine:
         src = os.path.join(output_dir, "adapter", "chat_template.jinja")
         if os.path.exists(src):
             shutil.copy(src, os.path.join(merged_dir, "chat_template.jinja"))
+        # Copy system prompt file if runtime mode was used
+        prompt_src = os.path.join(output_dir, "system_prompt.txt")
+        if os.path.exists(prompt_src):
+            shutil.copy(prompt_src, os.path.join(merged_dir, "system_prompt.txt"))
         size = _dir_size(merged_dir)
         self.state.message = f"Saved merged model ({_human_size(size)})."
         self._notify()
@@ -687,6 +709,11 @@ class TrainingEngine:
                 else:
                     exported[quant] = {"error": result.stderr[:100]}
             size = _dir_size(gguf_dir)
+            # Copy runtime system prompt file if present
+            prompt_src = os.path.join(output_dir, "merged", "system_prompt.txt")
+            if os.path.exists(prompt_src):
+                import shutil
+                shutil.copy(prompt_src, os.path.join(gguf_dir, "system_prompt.txt"))
             self.state.message = f"GGUF exported ({_human_size(size)}, {len(exported)} formats)."
             self._notify()
             return {"gguf_path": gguf_dir, "size_bytes": size,
@@ -750,6 +777,10 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
         src = os.path.join(adapter_dir, "chat_template.jinja")
         if os.path.exists(src):
             shutil.copy(src, os.path.join(merged_dir, "chat_template.jinja"))
+        # Also carry runtime system prompt file if it exists
+        prompt_src = os.path.join(os.path.dirname(adapter_dir), "system_prompt.txt")
+        if os.path.exists(prompt_src):
+            shutil.copy(prompt_src, os.path.join(merged_dir, "system_prompt.txt"))
     finally:
         try:
             del base, model, merged

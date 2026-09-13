@@ -164,6 +164,15 @@
       <input type="checkbox" name="merge_on_save" value="1" id="merge-on-save-check">
       <span class="block text-xs muted">Also save merged model (full standalone, ~1.5 GB)</span>
     </label>
+    <label style="grid-column: 1 / -1;">
+      <span class="block text-xs muted mb-1" title="How the system prompt is handled during training and export.">System Prompt Mode <span class="dim">?</span></span>
+      <select name="system_prompt_mode" id="system-prompt-mode" class="select">
+        <option value="bake">Bake into training (default)</option>
+        <option value="runtime">Runtime (saved separately)</option>
+        <option value="none">None</option>
+      </select>
+      <span class="block text-xs muted mt-1" id="system-prompt-help">Bake: model always behaves this way. Runtime: export includes a system_prompt.txt for inference engines. None: no system prompt.</span>
+    </label>
     <label>
       <span class="block text-xs muted mb-1" title="How many trainable parameters the LoRA adapter has. Higher rank = more expressive but slower to train and bigger adapter file. Typical range: 8–64. 64 is a good default; 8 if you're memory-constrained.">LoRA Rank <span class="dim">?</span></span>
       <input type="number" name="lora_rank" value="64" class="input">

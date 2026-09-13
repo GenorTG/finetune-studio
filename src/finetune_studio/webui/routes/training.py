@@ -335,6 +335,7 @@ async def start_training(request: Request):
         return {"error": "No model_path provided"}
     training_data = load_jsonl(data_path)
     system_prompt = body.get("system_prompt", "")
+    system_prompt_mode = body.get("system_prompt_mode", "bake")
 
     # Create a run record
     import time as _time
@@ -352,8 +353,10 @@ async def start_training(request: Request):
             "max_seq_length": config.max_seq_length,
             "merge_on_save": merge_on_save,
             "system_prompt": system_prompt,
+            "system_prompt_mode": system_prompt_mode,
         },
         system_prompt=system_prompt,
+        system_prompt_mode=system_prompt_mode,
     )
     run_id = run["id"]
     run_started_at = _time.time()

@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS training_runs (
     rag_ids_json  TEXT NOT NULL DEFAULT '[]',
     settings_json TEXT NOT NULL DEFAULT '{}',
     system_prompt TEXT NOT NULL DEFAULT '',
+    system_prompt_mode TEXT NOT NULL DEFAULT 'bake',
     status        TEXT NOT NULL DEFAULT 'created',
     started_at    REAL,
     finished_at   REAL,

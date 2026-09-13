@@ -66,6 +66,16 @@ def quantize_gptq(
     model.quantize(examples)
     model.save_quantized(output_dir)
     tokenizer.save_pretrained(output_dir)
+    # Copy runtime system prompt if it exists
+    src_prompt = os.path.join(model_path, "system_prompt.txt")
+    if os.path.exists(src_prompt):
+        import shutil
+        shutil.copy(src_prompt, os.path.join(output_dir, "system_prompt.txt"))
+    # Copy chat template if it exists
+    src_template = os.path.join(model_path, "chat_template.jinja")
+    if os.path.exists(src_template):
+        import shutil
+        shutil.copy(src_template, os.path.join(output_dir, "chat_template.jinja"))
 
     size = _dir_size(output_dir)
     return {

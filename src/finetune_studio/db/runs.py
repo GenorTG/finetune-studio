@@ -17,17 +17,18 @@ def _get(rid: str) -> dict | None:
 def create_run(project_id: str, name: str, base_model: str = "",
                data_path: str = "", rag_ids: list | None = None,
                settings_obj: dict | None = None, system_prompt: str = "",
+               system_prompt_mode: str = "bake",
                parent_run_id: str | None = None, notes: str = "") -> dict:
     rid = new_id()
     now = time.time()
     with cursor() as c:
         c.execute(
             "INSERT INTO training_runs (id, project_id, name, base_model, data_path, "
-            "rag_ids_json, settings_json, system_prompt, parent_run_id, notes, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "rag_ids_json, settings_json, system_prompt, system_prompt_mode, parent_run_id, notes, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (rid, project_id, name, base_model, data_path,
              json.dumps(rag_ids or []), json.dumps(settings_obj or {}),
-             system_prompt, parent_run_id, notes, now),
+             system_prompt, system_prompt_mode, parent_run_id, notes, now),
         )
     return _get(rid)  # type: ignore[return-value]
 
