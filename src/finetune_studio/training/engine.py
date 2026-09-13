@@ -74,6 +74,7 @@ class TrainingConfig:
     unsloth: bool = True
     merge_on_save: bool = False
     export_gguf: bool = False  # also export GGUF at <output_dir>/gguf/
+    gguf_quants: list = field(default_factory=lambda: ["f16", "q8_0", "q4_k_m", "q5_k_m"])
     lora_target_modules: list = field(default_factory=lambda: [
         "q_proj", "k_proj", "v_proj", "o_proj",
         "gate_proj", "up_proj", "down_proj",
@@ -439,6 +440,11 @@ class TrainingEngine:
 
         Saves to `<output_dir>/gguf/` using llama.cpp's convert.py script.
         If llama.cpp is not available, sets a warning message and returns.
+
+        Quantization types supported: f16, bf16, q8_0, q4_k_m, q5_k_m, q4_0,
+        q4_1, q5_0, q5_1, q2_k, q3_k_m, q3_k_l, q3_k_s, q4_k_s, q5_k_s,
+        q6_k, iq2_xxs, iq2_xs, iq2_s, iq2_m, iq3_xxs, iq3_xs, iq3_s,
+        iq3_m, iq4_nl, iq4_xs, q4_0_4_4, q4_0_4_8, q4_0_8_8.
         """
         gguf_dir = os.path.join(output_dir, "gguf")
         merged_dir = os.path.join(output_dir, "merged")
@@ -466,8 +472,9 @@ class TrainingEngine:
         self._notify()
         try:
             import subprocess
-            out_file = os.path.join(gguf_dir, "model-f16.gguf")
-            cmd = ["python3", convert_script, merged_dir, "--outfile", out_file,
+            # Step 1: Convert to F16 GGUF first
+            f16_file = os.path.join(gguf_dir, "model-f16.gguf")
+            cmd = ["python3", convert_script, merged_dir, "--outfile", f16_file,
                    "--outtype", "f16"]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
             if result.returncode != 0:
@@ -475,11 +482,40 @@ class TrainingEngine:
                 self._notify()
                 return {"gguf_path": gguf_dir, "skipped": True,
                         "reason": result.stderr[:200]}
+            # Step 2: Quantize to all requested formats
+            quants = self.config.gguf_quants if hasattr(self.config, 'gguf_quants') else ["f16"]
+            exported = {}
+            for quant in quants:
+                quant = quant.lower().replace("-", "_").replace(".", "_")
+                if quant in ("f16", "bf16"):
+                    # Already exported as f16
+                    src = f16_file
+                    dst = os.path.join(gguf_dir, f"model-{quant}.gguf")
+                    if quant == "f16":
+                        exported[quant] = {"path": f16_file, "size": os.path.getsize(f16_file)}
+                    else:
+                        import shutil
+                        shutil.copy(f16_file, dst)
+                        exported[quant] = {"path": dst, "size": os.path.getsize(dst)}
+                    continue
+                # Use llama.cpp quantize binary
+                quant_bin = os.path.join(os.path.dirname(convert_script), "quantize")
+                if not os.path.isfile(quant_bin):
+                    # Try system-wide
+                    quant_bin = "quantize"
+                out_file = os.path.join(gguf_dir, f"model-{quant}.gguf")
+                cmd = [quant_bin, f16_file, out_file, quant]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=1200)
+                if result.returncode == 0 and os.path.isfile(out_file):
+                    exported[quant] = {"path": out_file, "size": os.path.getsize(out_file)}
+                else:
+                    exported[quant] = {"error": result.stderr[:100]}
             size = _dir_size(gguf_dir)
-            self.state.message = f"GGUF exported ({_human_size(size)})."
+            self.state.message = f"GGUF exported ({_human_size(size)}, {len(exported)} formats)."
             self._notify()
             return {"gguf_path": gguf_dir, "size_bytes": size,
-                    "size_human": _human_size(size), "skipped": False}
+                    "size_human": _human_size(size), "skipped": False,
+                    "exported": exported}
         except Exception as e:
             self.state.message = f"GGUF export error: {e}"
             self._notify()

@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS benchmark_runs (
     id          TEXT PRIMARY KEY,
     run_id      TEXT NOT NULL,
     suite_name  TEXT NOT NULL,
+    model_path  TEXT NOT NULL DEFAULT '',
     scores_json TEXT NOT NULL DEFAULT '{}',
     time_ms     INTEGER NOT NULL DEFAULT 0,
     ran_at      REAL NOT NULL,
