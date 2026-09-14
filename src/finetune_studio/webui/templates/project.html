@@ -30,58 +30,51 @@
   </div>
 </div>
 
-{# Quick stats #}
-<div class="grid grid-4 mb-6">
+{# Quick stats — compact counts #}
+<div class="grid grid-4 gap-3 mb-4">
   <a class="stat hover" href="/projects/{{ pid }}/data" data-link>
     <div class="label">RAGs</div>
     <div class="value violet">{{ project.rags|length }}</div>
-    <div class="delta dim">knowledge bases</div>
   </a>
   <a class="stat hover" href="/projects/{{ pid }}/training" data-link>
-    <div class="label">Training runs</div>
+    <div class="label">Runs</div>
     <div class="value cyan">{{ project.runs|length }}</div>
-    <div class="delta dim">{% set running = project.runs|selectattr('status','equalto','running')|list %}{{ running|length }} running</div>
   </a>
   <a class="stat hover" href="/projects/{{ pid }}/models" data-link>
     <div class="label">Models</div>
-    <div class="value" style="color: var(--ok);">—</div>
-    <div class="delta dim">from training runs</div>
+    <div class="value" style="color: var(--ok);">{{ project.models|length or '—' }}</div>
   </a>
   <a class="stat hover" href="/projects/{{ pid }}/testing" data-link>
-    <div class="label">Benchmarks</div>
-    <div class="value">—</div>
-    <div class="delta dim">coming soon</div>
+    <div class="label">Tests</div>
+    <div class="value">{{ project.runs|sum(attribute='benchmarks|length') or '—' }}</div>
   </a>
 </div>
 
-{# Quick links #}
-<div class="card mb-6">
-  <div class="card-head">
-    <div>
-      <div class="card-title">Open a section</div>
-      <div class="card-sub">Everything for this project lives in one place.</div>
-    </div>
+{# Quick links — compact icon grid #}
+<div class="card mb-4">
+  <div class="card-head py-2">
+    <div class="card-sub">Sections</div>
   </div>
-  <div class="grid grid-3">
-    <a class="card flat hover" href="/projects/{{ pid }}/data" data-link style="display:flex;align-items:center;gap:10px;">
+  <div class="grid grid-5 gap-2 p-2">
+    <a class="card flat hover" href="/projects/{{ pid }}/data" data-link style="padding:8px 10px;display:flex;align-items:center;gap:8px;">
       <span class="ph-icon">📁</span>
-      <span><b>Data</b><br><span class="dim text-xs">upload, parse, browse</span></span>
+      <span class="text-sm">Data</span>
     </a>
-    <a class="card flat hover" href="/projects/{{ pid }}/data-prep" data-link style="display:flex;align-items:center;gap:10px;">
+    <a class="card flat hover" href="/projects/{{ pid }}/data-prep" data-link style="padding:8px 10px;display:flex;align-items:center;gap:8px;">
       <span class="ph-icon">✂︎</span>
-      <span><b>Data Prep</b><br><span class="dim text-xs">chunk, embed, export</span></span>
+      <span class="text-sm">Prep</span>
     </a>
-    <a class="card flat hover" href="/projects/{{ pid }}/rag" data-link style="display:flex;align-items:center;gap:10px;">
+    <a class="card flat hover" href="/projects/{{ pid }}/rag" data-link style="padding:8px 10px;display:flex;align-items:center;gap:8px;">
       <span class="ph-icon">🔍</span>
-      <span><b>RAG</b><br><span class="dim text-xs">build index, search</span></span>
+      <span class="text-sm">RAG</span>
     </a>
-    <a class="card flat hover" href="/projects/{{ pid }}/training" data-link style="display:flex;align-items:center;gap:10px;">
+    <a class="card flat hover" href="/projects/{{ pid }}/training" data-link style="padding:8px 10px;display:flex;align-items:center;gap:8px;">
       <span class="ph-icon">🔥</span>
-      <span><b>Training</b><br><span class="dim text-xs">LoRA / QLoRA / full</span></span>
+      <span class="text-sm">Train</span>
     </a>
-    <a class="card flat hover" href="/projects/{{ pid }}/chat" data-link style="display:flex;align-items:center;gap:10px;">
+    <a class="card flat hover" href="/projects/{{ pid }}/chat" data-link style="padding:8px 10px;display:flex;align-items:center;gap:8px;">
       <span class="ph-icon">💬</span>
-      <span><b>Chat</b><br><span class="dim text-xs">test the model</span></span>
+      <span class="text-sm">Chat</span>
     </a>
   </div>
 </div>

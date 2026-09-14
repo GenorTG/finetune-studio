@@ -70,7 +70,16 @@
   </div>
 
   <div id="chat-model-warn" class="dp-chat-warn" hidden>
-    ⚠ No model loaded — chatting is disabled. Load one on the <a href="/inference" data-link>Inference</a> tab, then refresh this page. The status pill at the top right always shows what's online.
+    <div class="dp-chat-warn-box">
+      <div class="dp-chat-warn-title">⚠ No model loaded</div>
+      <div class="dp-chat-warn-body">
+        <p>Load a model here to start chatting — or switch the global one on the <a href="/inference" data-link>Inference</a> tab.</p>
+        <div class="dp-chat-warn-load" id="chat-inline-load" hidden>
+          <select id="chat-inline-model" class="select"></select>
+          <button class="btn small" id="chat-inline-load-btn" onclick="chatInlineLoad()">Load</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="chat-msgs" class="dp-chat-msgs">
@@ -350,7 +359,11 @@ async function _chatCheckModel() {
     } catch (_) {}
     const pill = document.getElementById('chat-status-pill');
     const warnEl = document.getElementById('chat-model-warn');
-    if (warnEl) warnEl.hidden = !!(active && active.loaded);
+    if (warnEl) {
+      warnEl.hidden = !!(active && active.loaded);
+      // Populate inline loader if no model is loaded
+      if (!(active && active.loaded)) chatPopulateInlineLoad();
+    }
     if (active && active.loaded) {
       let nice = active.name || active.id || '?';
       if (active.kind === 'local_gguf' && active.model_id) {
@@ -680,6 +693,54 @@ function _chatStop() {
   if (_chatAbort) { _chatAbort.abort(); _chatAbort = null; }
   const stopBtn = document.getElementById('chat-stop');
   if (stopBtn) stopBtn.disabled = true;
+}
+
+async function chatInlineLoad() {
+  const sel = document.getElementById('chat-inline-model');
+  const btn = document.getElementById('chat-inline-load-btn');
+  if (!sel || !sel.value) return;
+  btn.disabled = true;
+  btn.textContent = 'Loading…';
+  try {
+    const r = await fetch('/api/chat-v2/load', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model_path: sel.value }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      location.reload();
+    } else {
+      alert('Failed to load model: ' + (d.error || 'unknown error'));
+    }
+  } catch (e) {
+    alert('Failed to load model: ' + e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Load';
+  }
+}
+
+// Populate inline model selector when warning is shown
+async function chatPopulateInlineLoad() {
+  const loadEl = document.getElementById('chat-inline-load');
+  const sel = document.getElementById('chat-inline-model');
+  if (!loadEl || !sel) return;
+  try {
+    const r = await fetch('/api/hf/local');
+    if (!r.ok) return;
+    const d = await r.json();
+    const models = d.models || [];
+    if (models.length === 0) return;
+    sel.innerHTML = '';
+    models.forEach((m) => {
+      const opt = document.createElement('option');
+      opt.value = m.path;
+      opt.textContent = m.name + ' (' + m.size_gb + ' GB)';
+      sel.appendChild(opt);
+    });
+    loadEl.hidden = false;
+  } catch (_) { /* ignore */ }
 }
 
 function _chatCopyAll() {

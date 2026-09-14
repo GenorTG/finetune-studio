@@ -3443,6 +3443,7 @@ body::before {
   padding: 4px 10px;
   font-size: 11px;
   color: var(--text-muted, #888);
+  margin-left: auto;
 }
 .conn-dot {
   width: 8px;
@@ -3458,6 +3459,9 @@ body::before {
 .conn-status.offline .conn-label::after {
   content: ' (offline)';
   color: #ff4444;
+}
+@media (max-width: 768px) {
+  .conn-status { display: none; }
 }
 @keyframes connPulse {
   0%, 100% { opacity: 1; }
