@@ -957,14 +957,16 @@ def rename_file(pid: str, file_id: str, new_name: str) -> dict:
             # layout may differ from raw_path_for() (flat vs mime-kind subdir).
             from finetune_studio.data.fs.paths import project_dir as _project_dir
             _root = Path(_project_dir(pid)) / "files"
-            matches = list(_root.glob(f"{file_id}*"))
-            matches = [p for p in matches if p.is_file()]
-            if not matches:
+            # File may live directly under _root or inside an ID-named
+            # directory (flat vs nested layout); search both.
+            candidates = list(_root.glob(f"{file_id}*/*")) + list(_root.glob(f"{file_id}*"))
+            file_matches = [p for p in candidates if p.is_file()]
+            if not file_matches:
                 raise HTTPException(
                     status_code=404,
                     detail="file missing on disk",
                 )
-            old_path = matches[0]
+            old_path = file_matches[0]
             log.info(
                 "rename: no file_versions row for %s; using %s",
                 file_id, old_path,
