@@ -181,6 +181,20 @@ async def hf_models_page(request: Request):
     )
 
 
+@router.get("/models", response_class=HTMLResponse)
+async def models_index(request: Request):
+    """Local model library — all discovered models with categories."""
+    from finetune_studio.webui.app import discovered_models
+    from finetune_studio import db
+    # Enrich with project names for trained exports
+    projects = {p["id"]: p["name"] for p in db.list_projects()}
+    return templates.TemplateResponse(
+        request,
+        "models_index.html",
+        {"request": request, "models": discovered_models, "projects": projects},
+    )
+
+
 @router.get("/hf-models", response_class=HTMLResponse)
 async def hf_models_alias(request: Request):
     """Alias for /models/explore — renders the same HF model browser."""

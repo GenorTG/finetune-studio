@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Models — Finetune Studio{% endblock %}
+
+{% block content %}
+{% include "_resources.html" %}
+
+<div class="page-head">
+  <h1>Local models</h1>
+  <div class="sub">All models discovered on disk — trained exports, base models, downloaded HF repos, local helpers.</div>
+</div>
+
+{# Category filter pills #}
+<div class="flex flex-wrap gap-2 mb-4">
+  <button class="btn sm active" data-filter="all" onclick="filterModels('all', this)">All ({{ models|length }})</button>
+  <button class="btn sm" data-filter="trained_export" onclick="filterModels('trained_export', this)">Trained exports ({{ models|selectattr('category','equalto','trained_export')|list|length }})</button>
+  <button class="btn sm" data-filter="base_model" onclick="filterModels('base_model', this)">Base models ({{ models|selectattr('category','equalto','base_model')|list|length }})</button>
+  <button class="btn sm" data-filter="local_helper" onclick="filterModels('local_helper', this)">Local helpers ({{ models|selectattr('category','equalto','local_helper')|list|length }})</button>
+  <button class="btn sm" data-filter="discovered" onclick="filterModels('discovered', this)">Discovered ({{ models|selectattr('category','equalto','discovered')|list|length }})</button>
+</div>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Category</th>
+      <th>Format</th>
+      <th>Size</th>
+      <th>Architecture</th>
+      <th>Project</th>
+      <th>Path</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for m in models %}
+    <tr class="row-hover" data-category="{{ m.category }}">
+      <td class="name">
+        {{ m.name }}
+        {% if m.vision %}<span class="pill outline" title="Vision model">👁</span>{% endif %}
+      </td>
+      <td><span class="pill {{ {
+        'trained_export': 'solid-green',
+        'base_model': 'solid-amber',
+        'local_helper': 'outline',
+        'downloaded': 'outline',
+        'discovered': 'outline'
+      }.get(m.category, 'outline') }}">{{ m.category|replace('_',' ') }}</span></td>
+      <td><span class="pill outline">{{ m.format }}</span></td>
+      <td class="num mono">{{ m.size_gb }} GB</td>
+      <td class="meta">{{ m.architecture or '—' }}</td>
+      <td class="meta">
+        {% if m.project_id %}
+          <a href="/projects/{{ m.project_id }}" data-link>{{ projects.get(m.project_id, m.project_id[:8]) }}</a>
+        {% else %}—{% endif %}
+      </td>
+      <td class="meta mono text-xs" title="{{ m.path }}">{{ m.path[-40:] if m.path|length > 40 else m.path }}</td>
+      <td><button class="btn sm" onclick="navigator.clipboard.writeText('{{ m.path }}');fts.notify('Path copied','success')">Copy</button></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<script>
+function filterModels(cat, btn) {
+  document.querySelectorAll('.btn[data-filter]').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.querySelectorAll('tr[data-category]').forEach(tr => {
+    tr.style.display = (cat === 'all' || tr.dataset.category === cat) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}
