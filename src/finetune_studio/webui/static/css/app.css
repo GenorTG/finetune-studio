@@ -2308,20 +2308,26 @@ body::before {
   transition: color var(--t-fast) var(--ease);
 }
 
-/* The tab strip itself */
+/* The tab strip itself — must be horizontally scrollable so the 9 project
+   tabs never get cut off by the absolute .sb-right cluster on the right. */
 .sb-tabs {
   display: flex;
   align-items: stretch;
   gap: 0;
-  padding: 8px 8px 0 130px;  /* leave room for absolute brand */
-  /* leave room for absolute .sb-right cluster (palette + 2 status pills + version ≈ 440px) */
-  padding-right: 440px;
+  padding: 8px 0 0 130px;  /* leave room for absolute brand */
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
   min-height: 42px;
+  margin-right: 460px;  /* leave room for absolute .sb-right cluster */
+  scroll-behavior: smooth;
 }
+.sb-tabs::-webkit-scrollbar { height: 3px; }
+.sb-tabs::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+.sb-tabs::-webkit-scrollbar-track { background: transparent; }
+/* Tighter tabs so all 9 fit and stay scrollable */
+.sb-tabs .sb-tab { padding: 4px 8px; font-size: 12px; flex-shrink: 0; }
 
 .sb-group {
   display: inline-flex;
