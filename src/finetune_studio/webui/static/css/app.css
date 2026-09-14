@@ -840,7 +840,8 @@ body::before {
   color: var(--accent);
   text-shadow: 0 0 12px var(--accent-glow);
 }
-.page-head h1::before { content: "root@fan-dragon:~# "; color: var(--text-dim); font-size: 18px; }
+/* HIDE terminal prefix — was "root@fan-dragon:~#" injected before every page heading. Looks like debug console. */
+.page-head h1::before { display: none; }
 .page-head .sub {
   color: var(--text-muted);
   font-size: 12.5px;
@@ -2313,6 +2314,8 @@ body::before {
   align-items: stretch;
   gap: 0;
   padding: 8px 8px 0 130px;  /* leave room for absolute brand */
+  /* leave room for absolute .sb-right cluster (palette + 2 status pills + version ≈ 440px) */
+  padding-right: 440px;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;

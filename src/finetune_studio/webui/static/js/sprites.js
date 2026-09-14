@@ -525,7 +525,11 @@
       if (target && !target.querySelector('.robot-sprite')) {
         const cap = document.createElement('div');
         cap.className = 'sprite-mount-caption';
-        cap.textContent = 'MODEL ONLINE';
+        cap.textContent = 'NO MODEL LOADED'; // start honest; updated after fetch
+        const sub = document.createElement('div');
+        sub.className = 'sprite-mount-sub';
+        sub.style.cssText = 'font-size:11px;color:var(--text-dim);margin-top:2px;';
+        sub.textContent = 'checking status…';
         const host = document.createElement('div');
         host.className = 'sprite-mount';
         host.style.flexDirection = 'row';
@@ -533,13 +537,42 @@
         host.style.gap = '14px';
         host.style.padding = '10px 14px';
         host.style.marginBottom = '10px';
+        const textWrap = document.createElement('div');
+        textWrap.style.display = 'flex';
+        textWrap.style.flexDirection = 'column';
+        textWrap.appendChild(cap);
+        textWrap.appendChild(sub);
         host.appendChild(spriteRobotHead(64));
-        host.appendChild(cap);
+        host.appendChild(textWrap);
         target.prepend(host);
 
         document.addEventListener('fts:token', () => {
           robotFeed(host.querySelector('.robot-sprite'));
         });
+
+        // Poll real model state — don't lie about MODEL ONLINE
+        async function refreshModelState() {
+          try {
+            const [d, ie] = await Promise.all([
+              fetch('/api/providers').then(r => r.json()).catch(() => null),
+              fetch('/api/inference/status').then(r => r.json()).catch(() => null),
+            ]);
+            const active = d && d.active && d.active.loaded ? d.active : null;
+            const infLoaded = ie && ie.loaded ? ie : null;
+            if (active || infLoaded) {
+              cap.textContent = '● MODEL ONLINE';
+              cap.style.color = 'var(--accent)';
+              const name = active ? (active.model_id || active.name || active.id) : (infLoaded.model || infLoaded.id);
+              sub.textContent = String(name || '').split(/[\\/]/).pop();
+            } else {
+              cap.textContent = '○ NO MODEL LOADED';
+              cap.style.color = 'var(--text-dim)';
+              sub.innerHTML = '<a href="/inference" data-link style="color:var(--accent);">load one in Inference →</a>';
+            }
+          } catch (e) { /* ignore */ }
+        }
+        refreshModelState();
+        setInterval(refreshModelState, 5000);
       }
     }
 
