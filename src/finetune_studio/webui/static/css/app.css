@@ -265,7 +265,8 @@ body::before {
   min-width: 0;
   width: 100%;
   max-width: 100%;
-  overflow: visible;  /* was auto — inner scroll was clipping the 989px file library; window scrolls instead */
+  overflow-x: hidden;
+  overflow-y: auto;  /* scroll within main when content (e.g. file library with 22 rows) exceeds viewport */
   position: relative;
 }
 
@@ -301,11 +302,10 @@ body::before {
 .topbar .nav-toggle:hover { background: var(--bg-panel); border-color: var(--accent); }
 
 .content {
-  flex: 0 0 auto;
+  flex: 1 1 0;
   min-width: 0;
   max-width: 100%;
-  min-height: calc(100vh - 76px);  /* fill the visible viewport minus the topbar row, but allow growth past it for tall pages like data-prep (989px file library) */
-  overflow-y: visible;
+  overflow-y: visible;  /* was auto — inner scroll was hiding the 989px file library below the fold; let .main scroll instead */
   overflow-x: hidden;
   padding: 28px 32px 48px;
   position: relative;
@@ -2212,7 +2212,8 @@ body::before {
   min-width: 0;
   width: 100%;
   max-width: 100%;
-  overflow: visible;  /* was auto — the inner scroll was clipping the 989px file library on data-prep; let <main> grow and the window scroll instead */
+  overflow-x: hidden;
+  overflow: auto;
   display: flex;
   flex-direction: column;
 }
