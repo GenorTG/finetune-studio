@@ -374,15 +374,16 @@ async def project_testing_page(request: Request, pid: str):
 
 @router.get("/projects/{pid}/models", response_class=HTMLResponse)
 async def project_models_page(request: Request, pid: str):
-    """Model browser for a project."""
+    """Model browser for a project — trained exports with expand-row detail."""
     from finetune_studio.webui.app import discovered_models
     ctx = _project_ctx(pid)
     if not ctx:
         return RedirectResponse(url="/projects", status_code=302)
+    runs_by_id = {r["id"]: r for r in ctx["project"].get("runs", [])}
     return templates.TemplateResponse(
         request,
         "project_models.html",
-        {**ctx, "models": discovered_models},
+        {**ctx, "models": discovered_models, "runs_by_id": runs_by_id},
     )
 
 
