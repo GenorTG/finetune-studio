@@ -313,17 +313,62 @@ async def project_training_page(request: Request, pid: str):
     )
 
 
+def _recent_suite_runs(pid: str, limit: int = 5) -> list[dict]:
+    """Return the most recent benchmark suite runs for a project (newest first)."""
+    import json
+    import time as _time
+
+    from finetune_studio import db
+
+    runs = db.list_runs(pid)
+    run_name_map = {r["id"]: r["name"] for r in runs}
+    rows: list[dict] = []
+    for run in runs:
+        for b in db.list_benchmarks(run["id"]):
+            scores = b.get("scores") or {}
+            if isinstance(scores, str):
+                try:
+                    scores = json.loads(scores)
+                except Exception:  # noqa: BLE001
+                    scores = {}
+            pass_rate = scores.get("pass_rate") if isinstance(scores, dict) else None
+            rows.append(
+                {
+                    "suite_name": b.get("suite_name") or b.get("suite") or "—",
+                    "run_name": run_name_map.get(run["id"], run["id"]),
+                    "pass_rate": pass_rate,
+                    "ran_at": b.get("ran_at") or 0,
+                    "ran_at_str": _time.strftime(
+                        "%Y-%m-%d %H:%M",
+                        _time.localtime(b.get("ran_at") or 0),
+                    ),
+                }
+            )
+    rows.sort(key=lambda x: x["ran_at"], reverse=True)
+    return rows[:limit]
+
+
 @router.get("/projects/{pid}/testing", response_class=HTMLResponse)
 async def project_testing_page(request: Request, pid: str):
     """Testing / inference playground for a project."""
     from finetune_studio.webui.app import discovered_models, inference_engine
+    from finetune_studio.webui.routes.benchmarks import _discover_suites
+
     ctx = _project_ctx(pid)
     if not ctx:
         return RedirectResponse(url="/projects", status_code=302)
+    suites = _discover_suites()
+    recent_runs = _recent_suite_runs(pid, limit=5)
     return templates.TemplateResponse(
         request,
         "project_testing.html",
-        {**ctx, "models": discovered_models, "inference_engine": inference_engine},
+        {
+            **ctx,
+            "models": discovered_models,
+            "inference_engine": inference_engine,
+            "suites": suites,
+            "recent_suite_runs": recent_runs,
+        },
     )
 
 

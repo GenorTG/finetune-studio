@@ -35,7 +35,16 @@
     </div>
     <div class="col-span-5">
       <label class="block text-xs muted mb-1">Test suite (JSON)</label>
-      <input id="t-suite" type="text" placeholder="path/to/suite.json" class="input">
+      <select id="t-suite" class="select" onchange="onSuitePicked()">
+        <option value="">— pick a suite —</option>
+        {% for s in suites %}
+        <option value="{{ s.path }}">{% if s.path %}{{ s.path.rsplit('/', 1)[-1] }}{% else %}{{ s.name }}{% endif %}</option>
+        {% endfor %}
+      </select>
+      {% if not suites %}
+      <div class="text-xs dim mt-1">No suites discovered. Add suites under projects/{{ pid }}/data/ (or data/benchmarks/).</div>
+      {% endif %}
+      <div id="t-suite-hint" class="text-xs dim mt-1" style="display:none;"></div>
     </div>
     <div class="col-span-2">
       <button onclick="runSuite()" class="btn primary" style="width:100%;">Run</button>
@@ -43,6 +52,30 @@
   </div>
   <div id="t-status" class="mt-3 text-xs dim"></div>
 </div>
+
+{% if recent_suite_runs %}
+<div class="card mb-6">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Recent runs</div>
+      <div class="card-sub">Last {{ recent_suite_runs|length }} suite run{{ '' if (recent_suite_runs|length == 1) else 's' }} for this project.</div>
+    </div>
+  </div>
+  <table class="data-table w-full text-xs">
+    <thead><tr><th>Suite</th><th>Run</th><th>Pass rate</th><th>When</th></tr></thead>
+    <tbody>
+      {% for r in recent_suite_runs %}
+      <tr>
+        <td class="mono">{{ r.suite_name }}</td>
+        <td>{{ r.run_name }}</td>
+        <td class="mono">{% if r.pass_rate is not none %}{{ '%.1f'|format(r.pass_rate) }}%{% else %}—{% endif %}</td>
+        <td class="dim">{{ r.ran_at_str }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 
 <div class="card">
   <div class="card-head">
@@ -63,21 +96,40 @@
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
+  function suiteLabel(path) {
+    if (!path) return '';
+    const parts = path.split('/');
+    return parts[parts.length - 1] || path;
+  }
+
+  window.onSuitePicked = function() {
+    const hint = document.getElementById('t-suite-hint');
+    const suite = document.getElementById('t-suite').value;
+    if (!hint) return;
+    if (!suite) {
+      hint.style.display = 'none';
+      hint.textContent = '';
+      return;
+    }
+    hint.style.display = '';
+    hint.textContent = '✓ Using suite: ' + suiteLabel(suite);
+  };
+
   window.runSuite = async function() {
     const status = document.getElementById('t-status');
     const results = document.getElementById('t-results');
     const model = document.getElementById('t-model').value;
     const suite = document.getElementById('t-suite').value.trim();
     if (!suite) {
-      status.textContent = 'Please enter a test suite path.';
+      status.textContent = 'Please pick a test suite.';
       return;
     }
-    status.textContent = 'Loading model…';
+    status.textContent = '✓ Using suite: ' + suiteLabel(suite) + ' — Loading model…';
     results.innerHTML = '<span class="muted">Loading model and running suite…</span>';
     try {
       // 1. Load selected model (so the global inference engine is ready)
       await api.post('/api/models/load', { path: model });
-      status.textContent = 'Running suite…';
+      status.textContent = '✓ Using suite: ' + suiteLabel(suite) + ' — Running…';
       // 2. Run the suite
       const r = await api.post('/api/testing/run-suite', { suite_path: suite });
       if (r.error) {
