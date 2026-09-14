@@ -955,7 +955,8 @@ def rename_file(pid: str, file_id: str, new_name: str) -> dict:
             # No file_versions row (e.g. files created before the versions
             # table existed). Find the file on disk by ID prefix — storage
             # layout may differ from raw_path_for() (flat vs mime-kind subdir).
-            _root = Path(project_dir(pid)) / "files"
+            from finetune_studio.data.fs.paths import project_dir as _project_dir
+            _root = Path(_project_dir(pid)) / "files"
             matches = list(_root.glob(f"{file_id}*"))
             matches = [p for p in matches if p.is_file()]
             if not matches:
