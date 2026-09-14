@@ -246,10 +246,10 @@ async def judge_benchmark(pid: str, bid: str, request: Request):
             ))
         new_scores = score_results(rebuilt)
         db.update_benchmark_scores(bid, new_scores)
-        return {"ok": True, "judged": updated, "judge_mode": "heuristic", "scores": new_scores}}
+        return {"ok": True, "judged": updated, "judge_mode": "heuristic", "scores": new_scores}
 
-    # For AI judge via external API
     if judge_mode == "ai":
+        # For AI judge via external API
         updated = 0
         for case in cases:
             if not case.get("model_answer"):
