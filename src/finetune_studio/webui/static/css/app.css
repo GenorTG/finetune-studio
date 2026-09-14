@@ -2310,11 +2310,11 @@ body::before {
 
 /* The tab strip itself — horizontally scrollable so the 9 project tabs
    never get cut off by the absolute .sb-right cluster on the right.
-   Single-line, never wrap. */
+   Single-line, never wrap at any level (sb-tabs, sb-group, sb-tab). */
 .sb-tabs {
   display: flex;
   align-items: stretch;
-  gap: 0;
+  gap: 12px;  /* gap between sb-group blocks */
   padding: 8px 0 0 130px;  /* leave room for absolute brand */
   overflow-x: auto;
   overflow-y: hidden;
@@ -2330,6 +2330,8 @@ body::before {
 .sb-tabs::-webkit-scrollbar { height: 3px; }
 .sb-tabs::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
 .sb-tabs::-webkit-scrollbar-track { background: transparent; }
+/* Each group block must not wrap either — it holds several tabs. */
+.sb-group { display: flex; align-items: stretch; flex-shrink: 0; white-space: nowrap; flex-wrap: nowrap; }
 /* Tighter tabs so more fit and stay scrollable */
 .sb-tabs .sb-tab { padding: 4px 9px; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
 
