@@ -1990,10 +1990,13 @@ body::before {
   padding: 4px 10px;
   background: var(--bg-panel);
   border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
   font-family: "VT323", monospace;
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.06em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .status-pill .status-dot {
   width: 8px; height: 8px;
