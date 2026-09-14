@@ -242,7 +242,7 @@
   border: 1px solid var(--border, #222);
   border-radius: 4px;
   min-height: 180px;
-  max-height: calc(100vh - 280px);  /* leave room for header + footer; scroll inside */
+  max-height: 60vh;  /* use viewport-relative max so the 22 files scroll inside without being clipped to ~150px */
   overflow: auto;
 }
 .fl-drop-hover { border-color: var(--accent, #00ccff); background: rgba(0, 204, 255, 0.04); }
