@@ -1,171 +1,206 @@
-# Finetune Studio Non-Commercial and Research License
+# Finetune Studio License
 
-**Version 1.0** — September 2026
+Copyright (c) 2026 GenorTG / Smart Samurai
 
-**Copyright (c) 2026 GenorTG** ("Licensor")
+This software is licensed under the **PolyForm Noncommercial License 1.0.0**,
+plus the **Additional Terms** below. The PolyForm text is the standard public
+license from the PolyForm Project; the Additional Terms preserve the commercial
+and model-training rules that apply specifically to Finetune Studio.
 
-> This is a **source-available** license. It is **not** an open-source license as
-> defined by the Open Source Initiative, because it restricts commercial use and
-> the use of the Software to train models for commercial purposes. The full
-> terms below govern your use of the Software.
-
----
-
-## 1. Definitions
-
-**"Software"** means the Finetune Studio application, including all source code,
-templates, documentation, configuration files, and associated materials made
-available by the Licensor under this license.
-
-**"Commercial Purpose"** means any use, directly or indirectly, for the purpose
-of commercial advantage or monetary compensation. This includes but is not
-limited to:
-- Use within a for-profit company or organization to develop, train, or deploy
-  models, products, or services
-- Use to provide a paid service (SaaS, consulting, hosted inference, etc.)
-- Use to train, fine-tune, or distill models that will be used commercially
-- Use by a government or non-commercial entity where the output is used for
-  commercial purposes
-
-**"Non-Commercial Purpose"** means any use that is not a Commercial Purpose,
-including:
-- Personal use, hobby projects, and amateur pursuits
-- Academic and scientific research, including publication of results
-- Education and teaching
-- Use by charitable organizations, public research institutions, public safety
-  or health organizations, and environmental protection organizations
-
-**"Model Training"** means using the Software to fine-tune, train, distill,
-quantize, or otherwise create or modify machine-learning model weights.
-
-**"You"** means the individual or entity agreeing to these terms.
+Required Notice: Copyright 2026 GenorTG / Smart Samurai (https://github.com/GenorTG/finetune-studio)
 
 ---
 
-## 2. Grant of License
+# PolyForm Noncommercial License 1.0.0
 
-Subject to the terms of this license, the Licensor grants you a worldwide,
-royalty-free, non-exclusive, non-transferable license to:
+<https://polyformproject.org/licenses/noncommercial/1.0.0>
 
-### 2.1 Use for Non-Commercial Purposes
-Use, copy, modify, and distribute the Software for any Non-Commercial Purpose.
+## Acceptance
 
-### 2.2 Model Training for Non-Commercial Purposes
-Use the Software for Model Training for any Non-Commercial Purpose, including
-publishing the resulting weights, provided that:
-- The resulting weights are also distributed under a non-commercial license
-- You do not use the resulting weights for a Commercial Purpose
+In order to get any license under these terms, you must agree
+to them as both strict obligations and conditions to all
+your licenses.
 
-### 2.3 Distribution
-Distribute copies of the Software (modified or unmodified) to others, provided
-that:
-- You include a copy of this license
-- You retain all copyright notices
-- The recipient agrees to the terms of this license
+## Copyright License
+
+The licensor grants you a copyright license for the
+software to do everything you might do with the software
+that would otherwise infringe the licensor's copyright
+in it for any permitted purpose.  However, you may
+only distribute the software according to [Distribution
+License](#distribution-license) and make changes or new works
+based on the software according to [Changes and New Works
+License](#changes-and-new-works-license).
+
+## Distribution License
+
+The licensor grants you an additional copyright license
+to distribute copies of the software.  Your license
+to distribute covers distributing the software with
+changes and new works permitted by [Changes and New Works
+License](#changes-and-new-works-license).
+
+## Notices
+
+You must ensure that anyone who gets a copy of any part of
+the software from you also gets a copy of these terms or the
+URL for them above, as well as copies of any plain-text lines
+beginning with `Required Notice:` that the licensor provided
+with the software.  For example:
+
+> Required Notice: Copyright Yoyodyne, Inc. (http://example.com)
+
+## Changes and New Works License
+
+The licensor grants you an additional copyright license to
+make changes and new works based on the software for any
+permitted purpose.
+
+## Patent License
+
+The licensor grants you a patent license for the software that
+covers patent claims the licensor can license, or becomes able
+to license, that you would infringe by using the software.
+
+## Noncommercial Purposes
+
+Any noncommercial purpose is a permitted purpose.
+
+## Personal Uses
+
+Personal use for research, experiment, and testing for
+the benefit of public knowledge, personal study, private
+entertainment, hobby projects, amateur pursuits, or religious
+observance, without any anticipated commercial application,
+is use for a permitted purpose.
+
+## Noncommercial Organizations
+
+Use by any charitable organization, educational institution,
+public research organization, public safety or health
+organization, environmental protection organization,
+or government institution is use for a permitted purpose
+regardless of the source of funding or obligations resulting
+from the funding.
+
+## Fair Use
+
+You may have "fair use" rights for the software under the
+law. These terms do not limit them.
+
+## No Other Rights
+
+These terms do not allow you to sublicense or transfer any of
+your licenses to anyone else, or prevent the licensor from
+granting licenses to anyone else.  These terms do not imply
+any other licenses.
+
+## Patent Defense
+
+If you make any written claim that the software infringes or
+contributes to infringement of any patent, your patent license
+for the software granted under these terms ends immediately. If
+your company makes such a claim, your patent license ends
+immediately for work on behalf of your company.
+
+## Violations
+
+The first time you are notified in writing that you have
+violated any of these terms, or done anything with the software
+not covered by your licenses, your licenses can nonetheless
+continue if you come into full compliance with these terms,
+and take practical steps to correct past violations, within
+32 days of receiving notice.  Otherwise, all your licenses
+end immediately.
+
+## No Liability
+
+***As far as the law allows, the software comes as is, without
+any warranty or condition, and the licensor will not be liable
+to you for any damages arising out of these terms or the use
+or nature of the software, under any kind of legal claim.***
+
+## Definitions
+
+The **licensor** is the individual or entity offering these
+terms, and the **software** is the software the licensor makes
+available under these terms.
+
+**You** refers to the individual or entity agreeing to these
+terms.
+
+**Your company** is any legal entity, sole proprietorship,
+or other kind of organization that you work for, plus all
+organizations that have control over, are under the control of,
+or are under common control with that organization.  **Control**
+means ownership of substantially all the assets of an entity,
+or the power to direct its management and policies by vote,
+contract, or otherwise.  Control can be direct or indirect.
+
+**Your licenses** are all the licenses granted to you for the
+software under these terms.
+
+**Use** means anything you do with the software requiring one
+of your licenses.
 
 ---
 
-## 3. Restrictions
+# Additional Terms (Finetune Studio)
 
-### 3.1 Commercial Use Prohibited
-You may **not** use the Software for any Commercial Purpose without a separate
+These Additional Terms apply in addition to the PolyForm Noncommercial
+License 1.0.0 above. If there is a conflict, these Additional Terms control
+for Finetune Studio.
+
+## 1. Clarifications of permitted purpose
+
+For this Software, the following are **not** permitted purposes under the
+PolyForm Noncommercial License (and therefore require a separate commercial
+license from the Licensor):
+
+- Use within a for-profit company or organization to develop, train, deploy,
+  or operate models, products, or services
+- Use to provide a paid service (including SaaS, consulting, hosted inference,
+  or managed training)
+- Use to fine-tune, train, distill, quantize, or otherwise create or modify
+  machine-learning model weights for any commercial purpose
+- Use by a government or non-commercial entity where the output is used for a
+  commercial purpose
+
+Personal, hobby, academic, scientific, educational, and other noncommercial
+uses remain permitted under PolyForm Noncommercial 1.0.0.
+
+## 2. Model outputs
+
+If you use the Software to create or modify model weights for a permitted
+(noncommercial) purpose:
+
+- You may publish or distribute those weights only under terms that also
+  prohibit commercial use; and
+- You may not use those weights for a commercial purpose without a separate
+  commercial license from the Licensor.
+
+## 3. Commercial licensing
+
+Commercial use and commercial model training are available under a separate
 written commercial license from the Licensor.
 
-### 3.2 Commercial Model Training Prohibited
-You may **not** use the Software for Model Training for any Commercial Purpose
-without a separate written commercial license from the Licensor. This applies
-regardless of whether the Software itself is used directly or as part of a
-larger pipeline, and regardless of whether the training is performed by you or
-by a third party on your behalf.
+Contact:
 
-### 3.3 No Sublicensing
-You may not sublicense, sell, rent, lease, or otherwise transfer the Software
-or any rights under this license to any third party. You may not circumvent
-the Commercial Purpose restriction by directing a non-commercial third party
-to use the Software on your behalf for a Commercial Purpose.
+- GitHub: https://github.com/GenorTG/finetune-studio
+- Repository: `GenorTG/finetune-studio`
 
-### 3.4 Attribution
-You must retain all copyright, patent, and trademark notices in the Software.
-If you distribute the Software, you must include a copy of this license.
+Commercial terms are negotiated separately and may include fees, revenue
+sharing, or other arrangements.
 
----
+## 4. Governing law
 
-## 4. Commercial Licensing
+These Additional Terms, and any dispute relating to commercial licensing of
+the Software, are governed by the laws of Poland, without regard to conflict-
+of-law principles. The courts of Poland have exclusive jurisdiction.
 
-To obtain a commercial license (which permits Commercial Use and Commercial
-Model Training), contact the Licensor:
+## 5. Entire agreement
 
-- **GitHub**: https://github.com/GenorTG/finetune-studio
-- **Repository**: `GenorTG/finetune-studio`
-
-Commercial licensing terms are negotiated separately and may include fees,
-revenue sharing, or other arrangements.
-
----
-
-## 5. Patent License
-
-The Licensor grants you a patent license for any patent claims the Licensor can
-license that are necessarily infringed by the Software, for Non-Commercial
-Purposes only. This patent license does not extend to Commercial Purposes.
-
-If you initiate any patent litigation against the Licensor or any third party
-claiming that the Software infringes a patent, your patent license under this
-agreement terminates immediately.
-
----
-
-## 6. Disclaimer of Warranty
-
-**THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE
-USE OF THE SOFTWARE.**
-
----
-
-## 7. Limitation of Liability
-
-**TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE LICENSOR SHALL NOT BE LIABLE FOR
-ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY
-LOSS OF PROFITS, REVENUE, DATA, OR DATA USE, ARISING FROM THIS LICENSE OR THE
-USE OF THE SOFTWARE.**
-
----
-
-## 8. Termination
-
-This license terminates automatically if you breach any of its terms. Upon
-termination, you must cease all use of the Software and destroy all copies.
-
-If you cure the breach within 30 days of written notice from the Licensor,
-your license is reinstated.
-
----
-
-## 9. Governing Law
-
-This license is governed by the laws of Poland, without regard to conflict-of-
-law principles. Any disputes shall be resolved in the courts of Poland. The
-Parties agree that the Polish courts have exclusive jurisdiction.
-
----
-
-## 10. Severability
-
-If any provision of this license is found to be unenforceable, the remaining
-provisions remain in effect.
-
----
-
-## 11. Entire Agreement
-
-This license constitutes the entire agreement between you and the Licensor
-regarding the Software.
-
----
-
-*This license is based on the PolyForm Noncommercial License 1.0.0 structure,
-with additional restrictions on commercial model training. It is not approved
-by the Open Source Initiative and does not meet the Open Source Definition.*
+The PolyForm Noncommercial License 1.0.0 together with these Additional Terms
+constitute the entire license grant for the Software. This is source-available
+software; it is not an OSI-approved open-source license because it restricts
+commercial use.

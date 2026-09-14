@@ -1,7 +1,7 @@
 # Legal Analysis: License Choice & Dependency Compatibility
 
 **Last updated:** September 2026  
-**License:** `LICENSE` (Finetune Studio Non-Commercial and Research License v1.0)
+**License:** `LICENSE` — [PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0) + Finetune Studio Additional Terms
 
 This document explains why this license was chosen, how it interacts with our
 dependencies, and what it means for you. **It is not legal advice.** Consult a
@@ -45,9 +45,11 @@ We chose this deliberately. The goal is:
   commercial model-training products without contributing back
 - Reserve the right to charge for commercial use (which funds development)
 
-**This is "source-available" software**, in the same family as:
-- [PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/)
-- [Meta Llama Community License](https://www.llama.com/llama3_2/license/) (non-commercial clause for large-scale commercial users)
+**This is "source-available" software.** The base grant is the standard
+[PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/)
+text, with Additional Terms that clarify commercial model training and model-
+output rules. Same family as:
+- [Meta Llama Community License](https://www.llama.com/llama3_2/license/) (use restrictions for large-scale commercial users)
 - [BigCode OpenRAIL-M](https://huggingface.co/spaces/bigcode/openrail-license) (use restrictions)
 
 ---
@@ -170,10 +172,11 @@ A: Yes, if the use is genuinely non-commercial. If the non-profit generates
 revenue from the model, contact us about a commercial license.
 
 **Q: Is this legally enforceable?**  
-A: We believe so, based on established copyright licensing principles and
-precedents (e.g., the PolyForm licenses, the Meta Llama Community License,
-the MIT/Apache families). However, no court has tested this specific license.
-Consult a lawyer for certainty.
+A: We believe so. The base text is the standard PolyForm Noncommercial 1.0.0
+license (drafted for public reuse), plus narrow Additional Terms. Precedents
+in the same family include Creative Commons NC clauses and other source-
+available licenses. No court has tested every combination — consult a lawyer
+for certainty.
 
 **Q: Why not just use MIT?**  
 A: MIT would allow anyone (including large commercial entities) to use the
@@ -209,8 +212,9 @@ of February 4, 1994, governs copyright in Poland. Key provisions:
 
 - **Article 41(2)**: Any transfer of economic rights must specify the
   particular fields of exploitation. This means restrictions must be
-  **explicit** — vague language is unenforceable. Our license explicitly
-  defines "Commercial Purpose" and "Non-Commercial Purpose" to satisfy this.
+  **explicit** — vague language is unenforceable. PolyForm Noncommercial
+  plus our Additional Terms explicitly scope commercial vs noncommercial
+  use (including commercial model training) to satisfy this.
 
 - **Polish Civil Code Art. 385¹**: Standard contract terms (umowa adhezyjna)
   can be challenged if they are unfair, unusual, or contrary to good
@@ -279,7 +283,7 @@ This license is structured as a **bare copyright license**, not a contract:
 | Risk | Likelihood | Mitigation |
 |---|---|---|
 | User claims they didn't see the license | Low | License is in `LICENSE`, README, and installation flow. Visible before use. |
-| Court finds restriction ambiguous | Low | "Commercial Purpose" and "Model Training" are explicitly defined. |
+| Court finds restriction ambiguous | Low | PolyForm defines noncommercial purposes; Additional Terms clarify commercial model training and outputs. |
 | Polish court applies Civil Code to strike terms | Very Low | License is a bare license, not an adhesion contract. User can walk away. |
 | EU law overrides national copyright | Very Low | EU law harmonizes protection; it does not restrict rightholder licensing freedom. |
 | Enforcement cost exceeds damages | Medium | Monitor use; offer commercial licenses to convert violators. |

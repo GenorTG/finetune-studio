@@ -9,7 +9,7 @@ lifecycle: build RAG corpora, fine-tune with LoRA, chat with vision models,
 run benchmarks — all from one dark-themed WebUI that lives in your browser.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![License: Non-Commercial](https://img.shields.io/badge/license--source--available-ff8800.svg)](LICENSE)
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-ff8800.svg)](LICENSE)
 [![GPU: CUDA](https://img.shields.io/badge/GPU-CUDA-76b900.svg)](#installation)
 [![WebUI](https://img.shields.io/badge/WebUI-FastAPI%20%2B%20Jinja2-009688.svg)](#how-it-works)
 [![Presentation page](https://img.shields.io/badge/%E2%9A%A1_presentation_page-live-00ff66.svg)](https://genortg.github.io/finetune-studio/)
@@ -386,9 +386,9 @@ add at least one assertion there.
 
 ## License & attributions
 
-**Finetune Studio Non-Commercial and Research License v1.0.** See `LICENSE`. Personal, scientific, and non-commercial use is free. Commercial use and commercial model training require a separate paid license — see `LICENSE` §4 and `docs/LEGAL.md`.
+**[PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0)** plus Finetune Studio Additional Terms. See `LICENSE`. Personal, scientific, and non-commercial use is free. Commercial use and commercial model training require a separate paid license — see `LICENSE` (Additional Terms) and `docs/LEGAL.md`.
 
-> Note: this is a *source-available* license, not an OSI-approved open-source license, because it restricts commercial use and commercial model training.
+> Note: this is *source-available* software, not an OSI-approved open-source license, because it restricts commercial use.
 
 Every dependency used is open source — see
 **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTIONS.md)** for the full list,
