@@ -44,15 +44,6 @@
         <span class="sb-prompt">root@fts:~$</span>
       </a>
 
-      {# Theme toggle + connection status — grouped to avoid overlap #}
-      <div class="sb-right-actions">
-        <div id="conn-status" class="conn-status" title="Connection status" data-hide-mobile>
-          <span class="conn-dot"></span>
-          <span class="conn-label">connected</span>
-        </div>
-        <button id="theme-toggle" class="btn small" onclick="window.ftsThemeToggle?.() || location.reload()" title="Toggle dark/light theme">🌙</button>
-      </div>
-
       {# Tab strip — the actual navigation #}
       <nav class="sb-tabs" aria-label="Sessions">
 
@@ -118,8 +109,13 @@
         </div>
       </nav>
 
-      {# Right cluster — status + command palette launcher #}
+      {# Right cluster — all top-bar buttons on one visible line #}
       <div class="sb-right">
+        <button id="theme-toggle" class="btn small" onclick="window.ftsThemeToggle?.() || location.reload()" title="Toggle dark/light theme">🌙</button>
+        <div id="conn-status" class="conn-status" title="Connection status" data-hide-mobile>
+          <span class="conn-dot"></span>
+          <span class="conn-label">connected</span>
+        </div>
         <button class="sb-activity" id="sb-activity" title="Activity feed — running tasks" aria-label="Open activity feed">
           <span class="sb-activity-icon">⚙</span>
           <span class="sb-activity-count" id="sb-activity-count" hidden>0</span>
@@ -130,10 +126,6 @@
         <span class="status-pill" id="model-status-pill" title="Loaded model">
           <span class="status-dot" id="model-status-dot"></span>
           <span class="status-label" id="model-status-label">no model</span>
-        </span>
-        <span class="status-pill" id="status-pill" title="System status">
-          <span class="status-dot {% if resources and resources.gpu %}idle{% endif %}" id="status-dot"></span>
-          <span class="status-label" id="status-label">{% if resources and resources.gpu %}READY{% else %}NO_DATA{% endif %}</span>
         </span>
         <span class="version">v{{ app_version }}</span>
       </div>

@@ -2454,10 +2454,10 @@ body::before {
 /* Right cluster: command palette, status, version */
 .sb-right {
   position: absolute;
-  top: 8px; right: 16px;
+  top: 8px; right: 20px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
   z-index: 2;
   flex-wrap: nowrap;
   justify-content: flex-end;
@@ -2469,6 +2469,8 @@ body::before {
 }
 .sb-right .sb-palette,
 .sb-right .sb-activity,
+.sb-right #theme-toggle,
+.sb-right .conn-status,
 .sb-right .status-pill,
 .sb-right .version {
   margin-right: 0;
@@ -2481,7 +2483,12 @@ body::before {
   padding: 5px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 11px;
+  color: var(--text-dim);
 }
+#theme-toggle { cursor: pointer; font-size: 13px; line-height: 1; }
+#theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
 .sb-palette {
   display: inline-flex;
   align-items: center;
