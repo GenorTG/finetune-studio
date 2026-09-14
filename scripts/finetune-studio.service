@@ -1,0 +1,22 @@
+[Unit]
+Description=finetune-studio WebUI (FastAPI on :7860)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=genortg
+WorkingDirectory=/home/genortg/finetune-studio
+ExecStart=/home/genortg/finetune-studio/.venv/bin/python -m uvicorn finetune_studio.webui.app:app --host 0.0.0.0 --port 7860 --no-access-log
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/var/log/finetune-studio/uvicorn.log
+StandardError=append:/var/log/finetune-studio/uvicorn.log
+
+# Hardening (relax for GPU hosts where /dev/dri and /dev/nvidia* must be reachable)
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
