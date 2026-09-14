@@ -177,10 +177,13 @@ async def promote_run(pid: str, request: Request):
     """Set a Training Run as the Project's production model."""
     body = await request.json()
     run_id = body.get("run_id", "")
-    if not db.get_run(run_id):
+    run = db.get_run(run_id)
+    if not run:
         return {"error": "run not found"}
+    if run.get("project_id") and run.get("project_id") != pid:
+        return {"error": "run does not belong to this project"}
     db.update_project(pid, production_run=run_id)
-    return db.get_project(pid)
+    return {"ok": True, "run": run}
 
 
 # ── RAGs ─────────────────────────────────────────────────────────────────

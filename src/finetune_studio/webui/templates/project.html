@@ -29,9 +29,11 @@
     </div>
   </div>
   <div class="actions">
-    {% if project.production_run %}
-    <span class="pill solid-green">● production</span>
-    {% endif %}
+    <span class="pill solid-green" id="production-run-pill"
+          {% if not production_run %}hidden{% endif %}
+          data-run-id="{{ production_run.id if production_run else '' }}">
+      ● production{% if production_run %} · {{ production_run.name }}{% endif %}
+    </span>
     <span class="pill outline mono">{{ project.id[:8] }}</span>
     <button class="btn sm" type="button" onclick="document.getElementById('settings-modal').hidden=false">Settings</button>
     <button class="btn sm danger" data-confirm="Delete this project and ALL its RAGs and Runs?" data-action="/api/projects/{{ project.id }}" data-method="DELETE" data-reload="true">Delete</button>
@@ -324,8 +326,18 @@
             body: JSON.stringify({ run_id: runId }),
           }).then((x) => x.json());
       if (r && r.error) { notify(r.error, 'error'); return; }
+      const run = r && r.run ? r.run : null;
+      const name = run ? (run.name || run.id || runId) : runId;
+      const pill = document.getElementById('production-run-pill');
+      if (pill) {
+        pill.hidden = false;
+        pill.dataset.runId = run ? run.id : runId;
+        pill.textContent = '● production · ' + name;
+      }
+      window.dispatchEvent(new CustomEvent('production_run_changed', {
+        detail: { run_id: run ? run.id : runId, name: name, run: run },
+      }));
       notify('Production run updated', 'success');
-      location.reload();
     } catch (e) {
       notify('Promote failed: ' + (e.message || e), 'error');
     }

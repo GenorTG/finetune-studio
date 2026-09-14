@@ -228,6 +228,25 @@ def build_activity(
     return out
 
 
+def resolve_production_run(
+    project: dict,
+    runs: list[dict] | None = None,
+) -> dict[str, str] | None:
+    """Resolve the project's production run to ``{id, name}`` for header pills.
+
+    Returns ``None`` when no production run is set or the run cannot be found
+    in the provided ``runs`` list (or via a name already on the project).
+    """
+    run_id = (project.get("production_run") or "").strip()
+    if not run_id:
+        return None
+    for run in runs or project.get("runs") or []:
+        if run.get("id") == run_id:
+            name = (run.get("name") or "").strip() or run_id[:8]
+            return {"id": run_id, "name": name}
+    return {"id": run_id, "name": run_id[:8]}
+
+
 def build_dashboard_ctx(
     project: dict,
     pid: str,
@@ -243,6 +262,7 @@ def build_dashboard_ctx(
     status = run_status_counts(runs)
     size_gb = models_size_gb(models)
     desc = truncate_description(project.get("description"))
+    production = resolve_production_run(project, runs)
 
     started_vals: list[float] = []
     for run in runs:
@@ -259,6 +279,7 @@ def build_dashboard_ctx(
         "desc_short": desc["short"],
         "desc_long": desc["long"],
         "desc_full": desc["full"],
+        "production_run": production,
         "stats": {
             "files": len(file_rows),
             "datasets": len(datasets),

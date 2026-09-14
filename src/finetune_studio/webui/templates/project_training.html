@@ -14,9 +14,18 @@
 {% block content %}
 {% include "_resources.html" %}
 
-<div class="page-head">
-  <h1>Training</h1>
-  <div class="sub">LoRA / QLoRA / full fine-tune. Pick a base model + dataset, configure, start.</div>
+<div class="page-head row">
+  <div>
+    <h1>Training</h1>
+    <div class="sub">LoRA / QLoRA / full fine-tune. Pick a base model + dataset, configure, start.</div>
+  </div>
+  <div class="actions">
+    <span class="pill solid-green" id="production-run-pill"
+          {% if not production_run %}hidden{% endif %}
+          data-run-id="{{ production_run.id if production_run else '' }}">
+      ● production{% if production_run %} · {{ production_run.name }}{% endif %}
+    </span>
+  </div>
 </div>
 
 {% if detail_run %}
@@ -249,23 +258,44 @@
     </div>
   </div>
   {% if project.runs %}
-  <table class="table">
-    <thead><tr><th>Name</th><th>Status</th><th>Started</th><th>Duration</th><th>Loss</th><th></th></tr></thead>
-    <tbody>
+  <table class="table" id="past-runs-table">
+    <thead><tr><th>Name</th><th>Status</th><th>Started</th><th>Duration</th><th>Loss</th><th></th><th>Actions</th></tr></thead>
+    <tbody id="past-runs-body">
       {% for run in project.runs %}
-      <tr class="row-hover {% if detail_run and detail_run.id == run.id %}row-active{% endif %}">
-        <td class="name">{{ run.name }}</td>
+      <tr class="row-hover {% if detail_run and detail_run.id == run.id %}row-active{% endif %}"
+          data-run-id="{{ run.id }}"
+          data-run-name="{{ run.name }}"
+          data-status="{{ run.status }}"
+          data-output-path="{{ run.output_path or '' }}"
+          data-started="{{ run.started_at or '' }}"
+          data-duration="{{ run.duration or '' }}"
+          data-loss="{{ run.final_loss if run.final_loss is not none else '' }}">
+        <td class="name">
+          {{ run.name }}
+          {% if project.production_run == run.id %}
+          <span class="pill solid-green prod-pill">⭐ production</span>
+          {% endif %}
+        </td>
         <td><span class="pill {{ {'running':'solid-amber','done':'solid-green','failed':'solid-rose','stopped':'outline'}.get(run.status, 'outline') }}">{{ run.status }}</span></td>
         <td class="meta mono js-time" data-ts="{{ run.started_at or '' }}">—</td>
         <td class="meta mono js-duration" data-secs="{{ run.duration or '' }}">—</td>
         <td class="num mono">{{ '%.4f'|format(run.final_loss) if run.final_loss else '—' }}</td>
         <td><a class="btn sm" href="/projects/{{ pid }}/training?run={{ run.id }}" data-link>Details</a></td>
+        <td class="flex gap-1 wrap">
+          <button type="button" class="btn sm js-set-prod"
+                  data-run-id="{{ run.id }}" data-run-name="{{ run.name }}"
+                  {% if run.status != 'done' %}disabled title="Only finished runs can be production"{% else %}title="Set as production run"{% endif %}>⭐ Set production</button>
+          <button type="button" class="btn sm js-open-inf"
+                  data-path="{{ run.output_path or '' }}"
+                  {% if not run.output_path %}disabled title="No output path yet"{% else %}title="Load adapter in inference"{% endif %}>▶ Open in inference</button>
+          <a class="btn sm" href="/projects/{{ pid }}/export?run={{ run.id }}" data-link title="Export this run">⬇ Export</a>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <div class="empty">No runs yet. Configure above and hit "Start training".</div>
+  <div class="empty" id="past-runs-empty">No runs yet. Configure above and hit "Start training".</div>
   {% endif %}
 </div>
 
@@ -406,6 +436,217 @@
     if (!ts || isNaN(ts)) { el.textContent = "—"; return; }
     const d = new Date(ts * 1000);
     el.textContent = d.toLocaleString();
+  });
+
+  // ── Past-runs Actions: Set production / Open in inference / refresh ──
+  const PID = {{ pid|tojson }};
+  const DETAIL_RUN_ID = {{ (detail_run_id or '')|tojson }};
+  let productionRunId = {{ (production_run.id if production_run else '')|tojson }};
+
+  function notify(msg, type) {
+    if (window.fts && window.fts.notify) window.fts.notify(msg, type || "info");
+    else console.log(msg);
+  }
+
+  function statusPillClass(status) {
+    const map = { running: "solid-amber", done: "solid-green", failed: "solid-rose", stopped: "outline" };
+    return map[status] || "outline";
+  }
+
+  function formatLoss(v) {
+    if (v == null || v === "") return "—";
+    const n = Number(v);
+    return Number.isFinite(n) ? n.toFixed(4) : "—";
+  }
+
+  function formatDuration(secs) {
+    if (secs == null || secs === "") return "—";
+    const s = Number(secs);
+    if (!Number.isFinite(s) || s < 0) return "—";
+    const m = Math.floor(s / 60);
+    const r = Math.floor(s % 60);
+    if (m <= 0) return r + "s";
+    return m + "m " + r + "s";
+  }
+
+  function formatStarted(ts) {
+    if (ts == null || ts === "") return "—";
+    const n = Number(ts);
+    if (!Number.isFinite(n) || n <= 0) return "—";
+    return new Date(n * 1000).toLocaleString();
+  }
+
+  function updateProductionPill(runId, name) {
+    productionRunId = runId || "";
+    const pill = document.getElementById("production-run-pill");
+    if (!pill) return;
+    if (!runId) {
+      pill.hidden = true;
+      pill.dataset.runId = "";
+      pill.textContent = "● production";
+      return;
+    }
+    pill.hidden = false;
+    pill.dataset.runId = runId;
+    pill.textContent = "● production · " + (name || runId.slice(0, 8));
+  }
+
+  function confirmModal(message) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "modal-overlay";
+      overlay.innerHTML =
+        '<div class="modal-dialog" style="max-width:420px;">' +
+        '<div class="modal-head">Confirm</div>' +
+        '<div class="modal-body"><p class="text-sm">' + message + "</p></div>" +
+        '<div class="modal-actions">' +
+        '<button type="button" class="btn" data-act="cancel">Cancel</button>' +
+        '<button type="button" class="btn primary" data-act="ok">Confirm</button>' +
+        "</div></div>";
+      document.body.appendChild(overlay);
+      const done = (val) => { overlay.remove(); resolve(val); };
+      overlay.addEventListener("click", (e) => { if (e.target === overlay) done(false); });
+      overlay.querySelector('[data-act="cancel"]').addEventListener("click", () => done(false));
+      overlay.querySelector('[data-act="ok"]').addEventListener("click", () => done(true));
+    });
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function renderRunsTable(runs) {
+    let tbody = document.getElementById("past-runs-body");
+    const empty = document.getElementById("past-runs-empty");
+    if (!runs || runs.length === 0) {
+      if (tbody) tbody.innerHTML = "";
+      if (empty) empty.hidden = false;
+      return;
+    }
+    if (empty) empty.hidden = true;
+    if (!tbody) {
+      const card = document.querySelector("#past-runs-table") || document.querySelector(".card:last-of-type");
+      // Table may be missing if page started empty — rebuild wrapper.
+      const host = document.getElementById("past-runs-table");
+      if (!host) return;
+      tbody = host.querySelector("tbody") || host;
+    }
+    tbody.innerHTML = runs.map((run) => {
+      const id = run.id || "";
+      const name = run.name || id.slice(0, 8);
+      const status = run.status || "";
+      const out = run.output_path || "";
+      const isProd = productionRunId && productionRunId === id;
+      const done = status === "done";
+      const prodMark = isProd ? ' <span class="pill solid-green prod-pill">⭐ production</span>' : "";
+      const setProdDisabled = done ? "" : " disabled title=\"Only finished runs can be production\"";
+      const infDisabled = out ? "" : " disabled title=\"No output path yet\"";
+      const active = DETAIL_RUN_ID && DETAIL_RUN_ID === id ? " row-active" : "";
+      return (
+        '<tr class="row-hover' + active + '" data-run-id="' + esc(id) + '" data-run-name="' + esc(name) + '"' +
+        ' data-status="' + esc(status) + '" data-output-path="' + esc(out) + '">' +
+        '<td class="name">' + esc(name) + prodMark + "</td>" +
+        '<td><span class="pill ' + statusPillClass(status) + '">' + esc(status) + "</span></td>" +
+        '<td class="meta mono">' + esc(formatStarted(run.started_at)) + "</td>" +
+        '<td class="meta mono">' + esc(formatDuration(run.duration)) + "</td>" +
+        '<td class="num mono">' + esc(formatLoss(run.final_loss)) + "</td>" +
+        '<td><a class="btn sm" href="/projects/' + esc(PID) + "/training?run=" + esc(id) + '" data-link>Details</a></td>' +
+        '<td class="flex gap-1 wrap">' +
+        '<button type="button" class="btn sm js-set-prod" data-run-id="' + esc(id) +
+        '" data-run-name="' + esc(name) + '"' + setProdDisabled +
+        (done ? ' title="Set as production run"' : "") + ">⭐ Set production</button>" +
+        '<button type="button" class="btn sm js-open-inf" data-path="' + esc(out) + '"' +
+        infDisabled + (out ? ' title="Load adapter in inference"' : "") + ">▶ Open in inference</button>" +
+        '<a class="btn sm" href="/projects/' + esc(PID) + "/export?run=" + esc(id) +
+        '" data-link title="Export this run">⬇ Export</a>' +
+        "</td></tr>"
+      );
+    }).join("");
+  }
+
+  async function refreshPastRuns() {
+    try {
+      const r = await fetch("/api/projects/" + PID + "/runs", { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const runs = await r.json();
+      renderRunsTable(Array.isArray(runs) ? runs : []);
+    } catch (e) {
+      notify("Failed to refresh runs: " + (e.message || e), "error");
+    }
+  }
+
+  async function setProduction(runId, runName, btn) {
+    const ok = await confirmModal(
+      "Set <strong>" + esc(runName || runId) +
+      "</strong> as production run? This will replace the current production adapter used by the Chat tab."
+    );
+    if (!ok) return;
+    try {
+      const api = window.fts && window.fts.api;
+      const r = api
+        ? await api.post("/api/projects/" + PID + "/promote", { run_id: runId })
+        : await fetch("/api/projects/" + PID + "/promote", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ run_id: runId }),
+          }).then((x) => x.json());
+      if (r && r.error) { notify(r.error, "error"); return; }
+      const run = r && r.run ? r.run : null;
+      const name = run ? (run.name || run.id) : runName;
+      updateProductionPill(run ? run.id : runId, name);
+      window.dispatchEvent(new CustomEvent("production_run_changed", {
+        detail: { run_id: run ? run.id : runId, name: name, run: run },
+      }));
+      if (btn) {
+        const prev = btn.textContent;
+        btn.textContent = "⭐ ✓";
+        setTimeout(() => { btn.textContent = prev; }, 1500);
+      }
+      notify("Production run updated", "success");
+      await refreshPastRuns();
+    } catch (e) {
+      notify("Promote failed: " + (e.message || e), "error");
+    }
+  }
+
+  async function openInInference(path) {
+    if (!path) { notify("No output path for this run", "error"); return; }
+    try {
+      const api = window.fts && window.fts.api;
+      const r = api
+        ? await api.post("/api/models/load", { path })
+        : await fetch("/api/models/load", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path }),
+          }).then((x) => x.json());
+      if (r && r.error) { notify(r.error, "error"); return; }
+      notify("Model loaded", "success");
+      location.href = "/inference";
+    } catch (e) {
+      notify("Load failed: " + (e.message || e), "error");
+    }
+  }
+
+  document.addEventListener("click", (ev) => {
+    const prodBtn = ev.target.closest(".js-set-prod");
+    if (prodBtn && !prodBtn.disabled) {
+      ev.preventDefault();
+      setProduction(prodBtn.dataset.runId, prodBtn.dataset.runName, prodBtn);
+      return;
+    }
+    const infBtn = ev.target.closest(".js-open-inf");
+    if (infBtn && !infBtn.disabled) {
+      ev.preventDefault();
+      openInInference(infBtn.dataset.path || "");
+    }
+  });
+
+  window.addEventListener("production_run_changed", (ev) => {
+    const d = ev.detail || {};
+    updateProductionPill(d.run_id, d.name);
   });
 })();
 </script>

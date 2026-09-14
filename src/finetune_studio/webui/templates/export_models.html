@@ -193,5 +193,21 @@ async function startExport() {
     btn.disabled = false;
   }
 }
+
+// Pre-select a run when navigated with ?run=<id> (e.g. from training Actions).
+(function () {
+  const params = new URLSearchParams(location.search);
+  const runId = params.get("run");
+  if (!runId) return;
+  const radio = document.querySelector(
+    '.export-run-radio[value="' + CSS.escape(runId) + '"]'
+  );
+  if (radio) {
+    radio.checked = true;
+    radio.dispatchEvent(new Event("change", { bubbles: true }));
+    const row = radio.closest(".export-run-row");
+    if (row) row.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+})();
 </script>
 {% endblock %}

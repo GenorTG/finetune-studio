@@ -77,6 +77,7 @@ def test_build_activity_and_dashboard_ctx() -> None:
 
     project = {
         "description": "short",
+        "production_run": "r1",
         "runs": runs,
         "models": models,
         "datasets": [{"id": "d1"}],
@@ -88,3 +89,4 @@ def test_build_activity_and_dashboard_ctx() -> None:
     assert ctx["stats"]["models"] == 1
     assert ctx["runs_started_max"] == 100.0
     assert ctx["desc_long"] is False
+    assert ctx["production_run"] == {"id": "r1", "name": "run-one"}

@@ -284,6 +284,7 @@ async def project_training_page(request: Request, pid: str):
     """Training config + progress for a project."""
     from finetune_studio import db
     from finetune_studio.webui.app import discovered_models, training_engine
+    from finetune_studio.webui.project_dashboard import resolve_production_run
     ctx = _project_ctx(pid)
     if not ctx:
         return RedirectResponse(url="/projects", status_code=302)
@@ -295,6 +296,9 @@ async def project_training_page(request: Request, pid: str):
         # Only show runs for this project (don't leak cross-project data).
         if candidate and candidate.get("project_id") == pid:
             detail_run = candidate
+    production = resolve_production_run(
+        ctx["project"], ctx["project"].get("runs") or [],
+    )
     return templates.TemplateResponse(
         request,
         "project_training.html",
@@ -304,6 +308,7 @@ async def project_training_page(request: Request, pid: str):
             "training_state": training_engine.state,
             "detail_run": detail_run,
             "detail_run_id": run_id or "",
+            "production_run": production,
         },
     )
 
