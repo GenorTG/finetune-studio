@@ -263,7 +263,7 @@
 }
 .fl-table tr:hover td { background: rgba(255, 255, 255, 0.03); }
 .fl-col-check { width: 24px; }
-.fl-col-ver { width: 36px; text-align: center; }
+.fl-col-ver { width: 56px; text-align: center; white-space: nowrap; }
 .fl-col-size { width: 60px; text-align: right; }
 .fl-col-actions { width: 60px; text-align: right; }
 .fl-version {
@@ -274,6 +274,45 @@
   font-size: 10px;
   color: var(--text-dim, #aaa);
 }
+.fl-parsed-ind {
+  display: inline-block;
+  margin-left: 2px;
+  font-size: 10px;
+  cursor: help;
+  opacity: 0.85;
+}
+.fl-parsed-ind.no { opacity: 0.35; }
+.fl-preview-banner {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border, #333);
+  background: var(--bg-elev, #0a0a0a);
+  color: var(--text-dim, #aaa);
+  font-size: 12px;
+  border-radius: 4px;
+}
+.fl-conv-timeline { list-style: none; margin: 0; padding: 0; }
+.fl-conv-step {
+  position: relative;
+  padding: 10px 12px 10px 28px;
+  border-left: 2px solid var(--border, #333);
+  margin-left: 8px;
+}
+.fl-conv-step::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 14px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-dim, #888);
+}
+.fl-conv-step.ok::before { background: var(--accent-green, #00ff66); }
+.fl-conv-step.err::before { background: var(--err, #ff6666); }
+.fl-conv-step .fl-conv-title { font-weight: 600; font-size: 12px; }
+.fl-conv-step .fl-conv-meta { font-size: 11px; color: var(--text-dim, #888); margin-top: 2px; }
+.fl-ver-current { outline: 1px solid var(--accent, #00ccff); background: rgba(0, 204, 255, 0.06); }
 .fl-name { max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fl-name-text { font-weight: 500; }
 .fl-mime { color: var(--text-dim, #888); font-size: 10px; font-family: monospace; }
@@ -315,9 +354,11 @@ let _flCurrentFolder = null;     // null = all
 let _flSelected = new Set();     // checked file ids
 let _flSearchQuery = '';
 let _flTrashVisible = false;
+let _flConvCache = {};           // fid -> conversions[]
+let _flSources = [];             // data-prep sources (parsed.txt pipeline)
 
 async function flInit() {
-  await Promise.all([flLoadFolders(), flLoadFiles(), flLoadTrash()]);
+  await Promise.all([flLoadFolders(), flLoadFiles(), flLoadTrash(), flLoadSources()]);
 }
 
 async function flLoadFolders() {
@@ -328,6 +369,30 @@ async function flLoadFolders() {
   } catch (e) { console.error('flLoadFolders', e); }
 }
 
+async function flLoadSources() {
+  try {
+    const r = await fetch('/api/projects/' + _flPid + '/data-prep/sources').then((r) => r.json());
+    _flSources = r.sources || [];
+  } catch (e) {
+    console.error('flLoadSources', e);
+    _flSources = [];
+  }
+}
+
+async function flPrefetchConversions(files) {
+  const list = (files || []).filter((f) => f && f.id);
+  if (!list.length) return;
+  await Promise.all(list.map(async (f) => {
+    try {
+      const r = await fetch('/api/projects/' + _flPid + '/files/' + f.id + '/conversions');
+      const d = await r.json();
+      _flConvCache[f.id] = d.conversions || [];
+    } catch (_) {
+      _flConvCache[f.id] = [];
+    }
+  }));
+}
+
 async function flLoadFiles() {
   try {
     const params = new URLSearchParams();
@@ -335,6 +400,7 @@ async function flLoadFiles() {
     if (_flSearchQuery) params.set('search', _flSearchQuery);
     const r = await fetch('/api/projects/' + _flPid + '/files?' + params).then((r) => r.json());
     _flFiles = r.files || [];
+    await flPrefetchConversions(_flFiles);
     flRenderFiles();
   } catch (e) { console.error('flLoadFiles', e); }
 }
@@ -420,6 +486,10 @@ function flRenderFiles() {
     const size = flFormatBytes(f.size_bytes || 0);
     const drift = f.last_trained_at && f.uploaded_at > f.last_trained_at ? '<span class="fl-drift" title="This file changed after the last dataset that included it.">⚠ drift</span>' : '';
     const mime = (f.mime_type || '').split('/').pop() || '?';
+    const hasParsed = flHasParsedMd(f);
+    const parsedInd = hasParsed
+      ? '<span class="fl-parsed-ind" title="Parsed MD ready">📝</span>'
+      : '<span class="fl-parsed-ind no" title="No parsed output yet">·</span>';
     const actions = '<div class="fl-row-actions">' +
       '<span class="fl-act" title="Tags & Notes" onclick="flEditTags(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\')">🏷</span>' +
       '<span class="fl-act" title="Rename" onclick="flRenameFile(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\')">✎</span>' +
@@ -432,7 +502,7 @@ function flRenderFiles() {
       '<td class="fl-name" title="' + escapeHtml(f.original_name) + '">' +
         '<span class="fl-name-text">' + escapeHtml(f.original_name) + '</span>' + drift +
       '</td>' +
-      '<td class="fl-col-ver"><span class="fl-version">v' + version + '</span></td>' +
+      '<td class="fl-col-ver"><span class="fl-version">v' + version + '</span>' + parsedInd + '</td>' +
       '<td class="fl-mime">' + escapeHtml(mime) + '</td>' +
       '<td class="fl-col-size">' + size + '</td>' +
       '<td><span class="fl-status-ok">✓</span></td>' +
@@ -573,32 +643,334 @@ function flEditTags(fid, name) {
     });
 }
 
+function flRelativeTime(ts) {
+  if (ts == null || ts === '') return '—';
+  const t = Number(ts);
+  if (!Number.isFinite(t) || t <= 0) return '—';
+  const diff = Math.max(0, Date.now() / 1000 - t);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  if (diff < 86400 * 30) return Math.floor(diff / 86400) + 'd ago';
+  if (diff < 86400 * 365) return Math.floor(diff / (86400 * 30)) + 'mo ago';
+  return Math.floor(diff / (86400 * 365)) + 'y ago';
+}
+
+function flFileStem(name) {
+  const base = String(name || '').split(/[/\\]/).pop() || '';
+  const i = base.lastIndexOf('.');
+  return i > 0 ? base.slice(0, i) : base;
+}
+
+function flFindSiblingMd(fid, name) {
+  const stem = flFileStem(name).toLowerCase();
+  if (!stem) return null;
+  return (_flFiles || []).find((f) => {
+    if (!f || f.id === fid) return false;
+    const n = (f.original_name || '').toLowerCase();
+    return n === stem + '.md' || flFileStem(n) === stem && /\.md$/i.test(n);
+  }) || null;
+}
+
+function flMatchSource(name) {
+  const stem = flFileStem(name).toLowerCase();
+  const lower = String(name || '').toLowerCase();
+  return (_flSources || []).find((s) => {
+    const fn = String(s.filename || '').toLowerCase();
+    return fn === lower || flFileStem(fn) === stem;
+  }) || null;
+}
+
+function flHasParsedMd(f) {
+  if (!f) return false;
+  const name = f.original_name || '';
+  if (/\.md$/i.test(name)) return true;
+  if (flFindSiblingMd(f.id, name)) return true;
+  if (flMatchSource(name)) return true;
+  const convs = _flConvCache[f.id] || [];
+  return convs.some((c) => {
+    const fmt = String(c.format || '').toLowerCase();
+    return (fmt === 'md' || fmt === 'txt' || fmt === 'markdown') &&
+      String(c.status || '').toLowerCase() !== 'error';
+  });
+}
+
+function flBuildRawInner(fid, name, mime) {
+  if (mime && mime.startsWith('image/')) {
+    return '<img src="/api/projects/' + _flPid + '/files/' + fid + '/raw" alt="' + escapeHtml(name) +
+      '" style="max-width:100%;max-height:70vh;border-radius:4px;">';
+  }
+  if (mime === 'application/pdf') {
+    return '<iframe src="/api/projects/' + _flPid + '/files/' + fid + '/raw" style="width:100%;height:70vh;border:none;border-radius:4px;"></iframe>';
+  }
+  if (mime && (mime.startsWith('text/') || mime === 'application/json' || mime === 'application/xml' ||
+      mime === 'application/javascript' || mime.endsWith('+json') || mime.endsWith('+xml') ||
+      /\.(md|txt|csv|json|xml|yaml|yml|log|py|js|ts|html|css)$/i.test(name))) {
+    return '<pre id="fl-preview-content" class="mono text-xs" style="max-height:70vh;overflow:auto;padding:12px;background:var(--surface,var(--bg-panel));border:1px solid var(--border);border-radius:4px;">Loading…</pre>';
+  }
+  const size = ((_flFiles || []).find((x) => x.id === fid) || {}).size_bytes;
+  return '<div class="dim" style="padding:24px;text-align:center">' +
+    'No inline preview for this type.<br><br>' +
+    '<a class="btn primary" href="/api/projects/' + _flPid + '/files/' + encodeURIComponent(fid) +
+    '/raw" download="' + escapeHtml(name) + '">⬇ Download raw</a>' +
+    '<div class="text-xs mt-2 mono">' + flFormatBytes(size || 0) + ' · ' + escapeHtml(mime || 'unknown') + '</div></div>';
+}
+
+function flLoadRawTextIfNeeded(fid, name, mime) {
+  const needsText = !(mime && mime.startsWith('image/')) && mime !== 'application/pdf' &&
+    document.getElementById('fl-preview-content');
+  if (!needsText) return;
+  fetch('/api/projects/' + _flPid + '/files/' + fid + '/raw')
+    .then((r) => r.text())
+    .then((t) => { const el = document.getElementById('fl-preview-content'); if (el) el.textContent = t; })
+    .catch(() => { const el = document.getElementById('fl-preview-content'); if (el) el.textContent = 'Failed to load'; });
+}
+
+async function flFillParsedPanel(panel, fid, name) {
+  // TODO: file-library has no GET /files/{fid}/parsed (or /converted) endpoint.
+  // Parsed bytes live at file_conversions.converted_path or legacy files/<sha>/parsed.txt.
+  // Until an endpoint exists, try a sibling .md in the library, else show the banner.
+  console.warn(
+    '[flPreview] Parsed MD endpoint not available for file', fid,
+    '— using sibling-.md heuristic / banner fallback'
+  );
+  const bannerHtml =
+    '<div class="fl-preview-banner">Parsed MD preview not yet available for this file. ' +
+    'Use Data Prep → Prep job to generate one.</div>';
+
+  const sibling = flFindSiblingMd(fid, name);
+  if (sibling) {
+    panel.innerHTML =
+      '<div class="text-xs dim mb-2">Sibling markdown heuristic: showing <code>' +
+      escapeHtml(sibling.original_name) +
+      '</code> (TODO: add GET /files/{fid}/parsed to serve converted MD).</div>' +
+      '<pre id="fl-parsed-content" class="mono text-xs" style="max-height:60vh;overflow:auto;padding:12px;background:var(--surface,var(--bg-panel));border:1px solid var(--border);border-radius:4px;">Loading…</pre>';
+    try {
+      const t = await fetch('/api/projects/' + _flPid + '/files/' + sibling.id + '/raw').then((r) => r.text());
+      const el = document.getElementById('fl-parsed-content');
+      if (el) el.textContent = t;
+    } catch (_) {
+      const el = document.getElementById('fl-parsed-content');
+      if (el) el.textContent = 'Failed to load sibling markdown.';
+    }
+    return;
+  }
+
+  if (/\.md$/i.test(name)) {
+    panel.innerHTML = '<div class="text-xs dim mb-2">This file is already markdown — showing raw as parsed.</div>' +
+      '<pre id="fl-parsed-content" class="mono text-xs" style="max-height:60vh;overflow:auto;padding:12px;background:var(--surface,var(--bg-panel));border:1px solid var(--border);border-radius:4px;">Loading…</pre>';
+    try {
+      const t = await fetch('/api/projects/' + _flPid + '/files/' + fid + '/raw').then((r) => r.text());
+      const el = document.getElementById('fl-parsed-content');
+      if (el) el.textContent = t;
+    } catch (_) {
+      const el = document.getElementById('fl-parsed-content');
+      if (el) el.textContent = 'Failed to load';
+    }
+    return;
+  }
+
+  let convs = _flConvCache[fid];
+  if (!convs) {
+    try {
+      const d = await fetch('/api/projects/' + _flPid + '/files/' + fid + '/conversions').then((r) => r.json());
+      convs = d.conversions || [];
+      _flConvCache[fid] = convs;
+    } catch (_) { convs = []; }
+  }
+  const mdConv = (convs || []).find((c) => {
+    const fmt = String(c.format || '').toLowerCase();
+    return (fmt === 'md' || fmt === 'txt' || fmt === 'markdown') &&
+      String(c.status || '').toLowerCase() !== 'error';
+  });
+  const src = flMatchSource(name);
+  let meta = '';
+  if (mdConv) {
+    meta += '<div class="text-xs mono dim mb-2">Conversion record found: format=' +
+      escapeHtml(mdConv.format || '') + ' · converter=' + escapeHtml(mdConv.converter || '—') +
+      ' · size=' + flFormatBytes(mdConv.converted_size || 0) +
+      ' — content not fetchable without a parsed endpoint.</div>';
+  }
+  if (src) {
+    meta += '<div class="text-xs mono dim mb-2">Prep source match: ' +
+      escapeHtml(src.filename || '') + ' · ' + (src.chunk_count || 0) + ' chunks · parser=' +
+      escapeHtml(src.parser || '—') + '</div>';
+  }
+  panel.innerHTML = bannerHtml + meta;
+}
+
+async function flFillVersionsPanel(panel, fid, currentVersion) {
+  panel.innerHTML = '<div class="dim text-xs">Loading versions…</div>';
+  try {
+    const d = await fetch('/api/projects/' + _flPid + '/files/' + fid + '/versions').then((r) => r.json());
+    const vers = d.versions || [];
+    if (!vers.length) {
+      panel.innerHTML = '<div class="dim">No versions recorded.</div>';
+      return;
+    }
+    const cur = currentVersion != null ? Number(currentVersion) : null;
+    let html = '<table class="fl-table"><thead><tr>' +
+      '<th>Ver</th><th>Uploaded</th><th>Size</th><th>Hash</th><th></th></tr></thead><tbody>';
+    html += vers.map((v) => {
+      const hash = (v.raw_hash || '').slice(0, 12);
+      const isCur = cur != null && Number(v.version) === cur;
+      const parser = v.parser || v.converter || '';
+      return '<tr class="' + (isCur ? 'fl-ver-current' : '') + '">' +
+        '<td class="mono">v' + escapeHtml(v.version) + (isCur ? ' · current' : '') + '</td>' +
+        '<td class="mono dim" title="' + escapeHtml(v.uploaded_at || '') + '">' + flRelativeTime(v.uploaded_at) + '</td>' +
+        '<td class="mono">' + flFormatBytes(v.raw_size || 0) + '</td>' +
+        '<td class="mono text-xs" title="' + escapeHtml(v.raw_hash || '') + '">' + escapeHtml(hash || '—') +
+          (parser ? '<div class="dim">' + escapeHtml(parser) + '</div>' : '') + '</td>' +
+        '<td><a class="btn small" href="/api/projects/' + _flPid + '/files/' + encodeURIComponent(fid) +
+          '/raw?version=' + encodeURIComponent(v.version) + '" download>Download</a></td></tr>';
+    }).join('');
+    html += '</tbody></table>';
+    panel.innerHTML = html;
+  } catch (e) {
+    panel.innerHTML = '<div class="err text-xs">Failed to load versions: ' + escapeHtml(e.message || String(e)) + '</div>';
+  }
+}
+
+async function flFillConversionsPanel(panel, fid, name, switchToRaw) {
+  panel.innerHTML = '<div class="dim text-xs">Loading conversions…</div>';
+  try {
+    const d = await fetch('/api/projects/' + _flPid + '/files/' + fid + '/conversions').then((r) => r.json());
+    const convs = d.conversions || [];
+    _flConvCache[fid] = convs;
+    const src = flMatchSource(name);
+    const steps = [];
+    steps.push({
+      key: 'raw',
+      title: 'raw',
+      ok: true,
+      meta: 'Original upload',
+      linkRaw: true,
+    });
+    const byFmt = {};
+    (convs || []).forEach((c) => {
+      const fmt = String(c.format || 'converted').toLowerCase();
+      if (!byFmt[fmt] || (c.converted_at || 0) > (byFmt[fmt].converted_at || 0)) byFmt[fmt] = c;
+    });
+    ['md', 'txt', 'markdown', 'structured_json'].forEach((fmt) => {
+      if (!byFmt[fmt]) return;
+      const c = byFmt[fmt];
+      const ok = String(c.status || '').toLowerCase() !== 'error';
+      const label = (fmt === 'md' || fmt === 'markdown') ? 'markdown' : fmt;
+      steps.push({
+        key: label,
+        title: label,
+        ok: ok,
+        meta: 'parser: ' + (c.converter || '—') +
+          ' · v' + (c.version != null ? c.version : '?') +
+          ' · ' + flFormatBytes(c.converted_size || 0) +
+          (c.error_message ? ' · error: ' + c.error_message : '') +
+          (ok ? ' · status: ' + (c.status || 'ok') : ' · status: error'),
+      });
+      delete byFmt[fmt];
+    });
+    Object.keys(byFmt).forEach((fmt) => {
+      const c = byFmt[fmt];
+      const ok = String(c.status || '').toLowerCase() !== 'error';
+      steps.push({
+        key: fmt,
+        title: fmt,
+        ok: ok,
+        meta: 'parser: ' + (c.converter || '—') +
+          (c.error_message ? ' · error: ' + c.error_message : '') +
+          ' · status: ' + (c.status || (ok ? 'ok' : 'error')),
+      });
+    });
+    const chunkCount = src && src.chunk_count != null ? src.chunk_count : null;
+    steps.push({
+      key: 'chunks',
+      title: 'chunks',
+      ok: chunkCount != null && chunkCount > 0,
+      meta: chunkCount != null
+        ? ('chunk_count: ' + chunkCount + (src.parser ? ' · parser: ' + src.parser : ''))
+        : 'No chunk count yet (run a prep job / parse pipeline).',
+    });
+
+    let html = '<ul class="fl-conv-timeline">';
+    steps.forEach((s) => {
+      const cls = s.ok ? 'ok' : (s.key === 'chunks' && chunkCount == null ? '' : 'err');
+      const link = s.linkRaw
+        ? ' <a href="#" class="fl-act" data-goto-raw="1">open RAW tab</a>'
+        : '';
+      html += '<li class="fl-conv-step ' + cls + '">' +
+        '<div class="fl-conv-title">' + escapeHtml(s.title) + link + '</div>' +
+        '<div class="fl-conv-meta">' + escapeHtml(s.meta) + '</div></li>';
+    });
+    html += '</ul>';
+    if (!convs.length && chunkCount == null) {
+      html = '<div class="dim text-xs mb-2">No conversion records for this file yet.</div>' + html;
+    }
+    panel.innerHTML = html;
+    panel.querySelectorAll('[data-goto-raw]').forEach((a) => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (typeof switchToRaw === 'function') switchToRaw();
+      });
+    });
+  } catch (e) {
+    panel.innerHTML = '<div class="err text-xs">Failed to load conversions: ' + escapeHtml(e.message || String(e)) + '</div>';
+  }
+}
+
 function flPreviewFile(fid, name, mime) {
+  const fileMeta = (_flFiles || []).find((x) => x.id === fid) || {};
+  const currentVersion = fileMeta.current_version || 1;
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
-  let inner;
-  if (mime && mime.startsWith('image/')) {
-    inner = '<img src="/api/projects/' + _flPid + '/files/' + fid + '/raw" alt="' + name + '" style="max-width:100%;max-height:70vh;border-radius:4px;">';
-  } else if (mime === 'application/pdf') {
-    inner = '<iframe src="/api/projects/' + _flPid + '/files/' + fid + '/raw" style="width:100%;height:70vh;border:none;border-radius:4px;"></iframe>';
-  } else {
-    inner = '<pre id="fl-preview-content" style="max-height:70vh;overflow:auto;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:4px;">Loading…</pre>';
-  }
-  modal.innerHTML = '<div class="modal-dialog" style="max-width:800px;">' +
-    '<div class="modal-head">' + name + '</div>' +
-    '<div class="modal-body">' + inner + '</div>' +
+  const rawInner = flBuildRawInner(fid, name, mime);
+  modal.innerHTML = '<div class="modal-dialog" style="max-width:860px;">' +
+    '<div class="modal-head">' + escapeHtml(name) + '</div>' +
+    '<div class="modal-body">' +
+      '<div class="data-tabs" role="tablist">' +
+        '<button type="button" class="data-tab active" data-fl-tab="raw" role="tab">RAW</button>' +
+        '<button type="button" class="data-tab" data-fl-tab="parsed" role="tab">PARSED</button>' +
+        '<button type="button" class="data-tab" data-fl-tab="versions" role="tab">VERSIONS</button>' +
+        '<button type="button" class="data-tab" data-fl-tab="conversions" role="tab">CONVERSIONS</button>' +
+      '</div>' +
+      '<div class="data-panel active" data-fl-panel="raw">' + rawInner + '</div>' +
+      '<div class="data-panel" data-fl-panel="parsed"><div class="dim text-xs">Open this tab to load parsed preview…</div></div>' +
+      '<div class="data-panel" data-fl-panel="versions"><div class="dim text-xs">Open this tab to load versions…</div></div>' +
+      '<div class="data-panel" data-fl-panel="conversions"><div class="dim text-xs">Open this tab to load conversions…</div></div>' +
+    '</div>' +
     '<div class="modal-actions"><button class="btn" data-action="close">Close</button></div>' +
-    '</div>';
+  '</div>';
   document.body.appendChild(modal);
   const cleanup = () => modal.remove();
   modal.addEventListener('click', (e) => { if (e.target === modal) cleanup(); });
   modal.querySelector('[data-action=close]').addEventListener('click', cleanup);
-  if (mime && !mime.startsWith('image/') && mime !== 'application/pdf') {
-    fetch('/api/projects/' + _flPid + '/files/' + fid + '/raw')
-      .then((r) => r.text())
-      .then((t) => { const el = document.getElementById('fl-preview-content'); if (el) el.textContent = t; })
-      .catch(() => { const el = document.getElementById('fl-preview-content'); if (el) el.textContent = 'Failed to load'; });
+
+  const loaded = { raw: true, parsed: false, versions: false, conversions: false };
+
+  function switchTab(tab) {
+    modal.querySelectorAll('[data-fl-tab]').forEach((btn) => {
+      btn.classList.toggle('active', btn.getAttribute('data-fl-tab') === tab);
+    });
+    modal.querySelectorAll('[data-fl-panel]').forEach((panel) => {
+      panel.classList.toggle('active', panel.getAttribute('data-fl-panel') === tab);
+    });
+    const panel = modal.querySelector('[data-fl-panel="' + tab + '"]');
+    if (!panel) return;
+    if (tab === 'parsed' && !loaded.parsed) {
+      loaded.parsed = true;
+      flFillParsedPanel(panel, fid, name);
+    } else if (tab === 'versions' && !loaded.versions) {
+      loaded.versions = true;
+      flFillVersionsPanel(panel, fid, currentVersion);
+    } else if (tab === 'conversions' && !loaded.conversions) {
+      loaded.conversions = true;
+      flFillConversionsPanel(panel, fid, name, () => switchTab('raw'));
+    }
   }
+
+  modal.querySelectorAll('[data-fl-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => switchTab(btn.getAttribute('data-fl-tab')));
+  });
+
+  flLoadRawTextIfNeeded(fid, name, mime);
 }
 
 async function flRestoreFile(fid, name) {
