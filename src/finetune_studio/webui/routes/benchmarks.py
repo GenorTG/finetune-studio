@@ -230,8 +230,7 @@ async def judge_benchmark(pid: str, bid: str, request: Request):
             updated += 1
         # Recalculate scores after judging
         cases_updated = db.list_cases(bid)
-        from finetune_studio.testing.suite import score_results
-        from finetune_studio.testing.judge import CaseResult
+        from finetune_studio.testing.suite import score_results, CaseResult
         rebuilt = []
         for c in cases_updated:
             rebuilt.append(CaseResult(
