@@ -997,10 +997,11 @@ def rename_file(pid: str, file_id: str, new_name: str) -> dict:
                         status_code=500,
                         detail=f"disk rename failed: {e}",
                     ) from e
-            c.execute(
-                "UPDATE file_versions SET raw_path = ? WHERE id = ?",
-                (str(new_path), ver["id"]),
-            )
+            if ver:
+                c.execute(
+                    "UPDATE file_versions SET raw_path = ? WHERE id = ?",
+                    (str(new_path), ver["id"]),
+                )
         else:
             log.warning(
                 "rename: raw missing on disk for %s (%s)",
