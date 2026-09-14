@@ -949,12 +949,26 @@ def rename_file(pid: str, file_id: str, new_name: str) -> dict:
             "WHERE file_id = ? AND version = ?",
             (file_id, f["current_version"]),
         ).fetchone()
-        if not ver:
-            raise HTTPException(
-                status_code=404, detail="file version missing"
+        if ver:
+            old_path = Path(ver["raw_path"])
+        else:
+            # No file_versions row (e.g. files created before the versions
+            # table existed). Rebuild the expected path from project_files.
+            kind = auto_kind_for(
+                f["mime_type"] or "application/octet-stream"
             )
-
-        old_path = Path(ver["raw_path"])
+            old_path = raw_path_for(
+                pid, file_id, f["original_name"], kind
+            )
+            if not old_path.exists():
+                raise HTTPException(
+                    status_code=404,
+                    detail="file missing on disk",
+                )
+            log.info(
+                "rename: no file_versions row for %s; using %s",
+                file_id, old_path,
+            )
         kind = auto_kind_for(
             f["mime_type"] or "application/octet-stream"
         )
