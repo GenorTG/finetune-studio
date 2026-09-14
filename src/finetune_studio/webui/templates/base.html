@@ -44,8 +44,8 @@
         <span class="sb-prompt">root@fts:~$</span>
       </a>
 
-      {# Connection status indicator #}
-      <div id="conn-status" class="conn-status" title="Connection status">
+      {# Connection status indicator — hidden on small screens to avoid overlap #}
+      <div id="conn-status" class="conn-status" title="Connection status" data-hide-mobile>
         <span class="conn-dot"></span>
         <span class="conn-label">connected</span>
       </div>
@@ -96,9 +96,6 @@
           </a>
           <a href="/projects/{{ pid }}/chat" class="sb-tab {% block nav_project_chat %}{% endblock %}" data-link data-tab="project-chat">
             <span class="sb-tab-label">chat</span>
-          </a>
-          <a href="/projects/{{ pid }}/agentic" class="sb-tab {% block nav_agentic %}{% endblock %}" data-link data-tab="agentic">
-            <span class="sb-tab-label">agentic</span>
           </a>
         </div>
         {% endif %}

@@ -33,6 +33,65 @@ def _require_project(pid: str):
     return db.get_project(pid)
 
 
+# Export subdirectories a training run may produce under its output_path.
+_EXPORT_FORMATS = {
+    "merged": "safetensors",
+    "abliterated": "safetensors",
+    "gguf": "gguf",
+    "gptq": "gptq",
+}
+
+
+def _dir_size_gb(path: str) -> float:
+    """Total size of a directory tree in GB, rounded to 2 decimals."""
+    import os
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(root, f))
+            except OSError:
+                continue
+    return round(total / (1024 ** 3), 2)
+
+
+def _scan_run_models(runs: list[dict]) -> list[dict]:
+    """Find exported models on disk for a project's training runs.
+
+    Each run writes its exports into subdirectories of its output_path
+    (merged/, gguf/, gptq/, abliterated/). Only non-empty directories that
+    exist are reported.
+    """
+    import os
+    import time as _time
+
+    models: list[dict] = []
+    for run in runs:
+        output_path = (run.get("output_path") or "").strip()
+        if not output_path or not os.path.isdir(output_path):
+            continue
+        for subdir, fmt in _EXPORT_FORMATS.items():
+            path = os.path.join(output_path, subdir)
+            if not os.path.isdir(path):
+                continue
+            try:
+                if not os.listdir(path):
+                    continue
+                created = os.path.getmtime(path)
+            except OSError:
+                continue
+            models.append({
+                "name": f"{run.get('name') or run.get('id', '')}/{subdir}",
+                "format": fmt,
+                "size_gb": _dir_size_gb(path),
+                "run_id": run.get("id", ""),
+                "run_name": run.get("name", ""),
+                "path": path,
+                "created_at": _time.strftime("%Y-%m-%d %H:%M", _time.localtime(created)),
+            })
+    return models
+
+
 def _project_ctx(pid: str) -> dict:
     """Build common template context for project pages."""
     from finetune_studio import db
@@ -44,6 +103,7 @@ def _project_ctx(pid: str) -> dict:
     project["datasets"] = db.list_datasets(pid)
     for run in project["runs"]:
         run["benchmarks"] = db.list_benchmarks(run["id"])
+    project["models"] = _scan_run_models(project["runs"])
     return {"project": project, "pid": pid}
 
 
@@ -324,27 +384,6 @@ async def project_chat_page(request: Request, pid: str):
         request,
         "chat_v2.html",
         {"request": request, "project": project, "pid": pid, "rags": rags},
-    )
-
-
-@router.get("/projects/{pid}/agentic", response_class=HTMLResponse)
-async def agentic_page(request: Request, pid: str):
-    """Agentic Tools playground page."""
-    from finetune_studio import db
-    from finetune_studio.webui.app import discovered_models
-    project = db.get_project(pid)
-    if not project:
-        return RedirectResponse(url="/projects", status_code=302)
-    project["rags"] = db.list_rags(pid)
-    return templates.TemplateResponse(
-        request,
-        "agentic.html",
-        {
-            "request": request,
-            "project": project,
-            "pid": pid,
-            "models": discovered_models,
-        },
     )
 
 

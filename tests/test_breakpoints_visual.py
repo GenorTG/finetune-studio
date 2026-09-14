@@ -44,7 +44,6 @@ PAGES_1200 = [
     ("rag", "/projects/264f8765/rag"),
     ("testing", "/projects/264f8765/testing"),
     ("chat", "/projects/264f8765/chat"),
-    ("agentic", "/projects/264f8765/agentic"),
     ("benchmarks", "/projects/264f8765/benchmarks"),
     ("dashboard", "/"),
 ]

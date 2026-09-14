@@ -85,6 +85,66 @@ Respond in JSON:
 """
 
 
+_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "been", "but", "by", "can", "did", "do",
+    "does", "for", "from", "had", "has", "have", "how", "in", "into", "is", "it", "its",
+    "of", "on", "or", "that", "the", "their", "them", "then", "there", "these", "they",
+    "this", "to", "was", "were", "what", "when", "where", "which", "who", "why", "will",
+    "with", "you", "your",
+}
+
+# Fraction of the correct answer's key words that must appear in the model answer.
+_PASS_RATIO = 0.6
+_PARTIAL_RATIO = 0.3
+
+
+def _key_words(text: str) -> set[str]:
+    """Content words of a text: lowercased, punctuation-stripped, stopwords removed."""
+    import re
+
+    words = re.findall(r"[\w']+", text.lower())
+    return {w for w in words if len(w) > 2 and w not in _STOPWORDS}
+
+
+def judge_case_heuristic(
+    question: str,
+    correct_answer: str,
+    model_answer: str,
+) -> tuple[Verdict, str, float]:
+    """Judge locally with no API key and no model — key-word overlap.
+
+    Checks how many of the correct answer's content words appear in the model
+    answer. Crude compared to an AI judge (it cannot detect hallucinated extras
+    or credit true paraphrases that share no vocabulary), but it always returns
+    a verdict, so scores never stay stuck at judged: 0.
+    """
+    expected = _key_words(correct_answer)
+    answer = model_answer.strip()
+
+    if not answer:
+        return "fail", "model gave no answer", 1.0
+    if not expected:
+        # Nothing to match against — cannot say anything meaningful.
+        return "", "no correct_answer to compare against", 0.0
+
+    found = expected & _key_words(model_answer)
+    ratio = len(found) / len(expected)
+    missing = sorted(expected - found)
+
+    detail = (
+        f"matched {len(found)}/{len(expected)} key words from the correct answer"
+        f" ({ratio:.0%})"
+    )
+    if missing:
+        detail += f"; missing: {', '.join(missing[:8])}"
+
+    if ratio >= _PASS_RATIO:
+        return "pass", detail, min(0.5 + ratio / 2, 1.0)
+    if ratio >= _PARTIAL_RATIO:
+        return "partial", detail, 0.5
+    return "fail", detail, min(0.5 + (1 - ratio) / 2, 1.0)
+
+
 def build_judge_messages(question: str, correct_answer: str, model_answer: str) -> list[dict]:
     """Build the chat messages for the judge prompt."""
     user_content = (

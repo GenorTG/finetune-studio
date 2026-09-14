@@ -228,7 +228,6 @@ def main() -> int:
                 ("rag",        f"/projects/{PROJECT_ID}/rag"),
                 ("testing",    f"/projects/{PROJECT_ID}/testing"),
                 ("chat",       f"/projects/{PROJECT_ID}/chat"),
-                ("agentic",    f"/projects/{PROJECT_ID}/agentic"),
                 ("benchmarks", f"/projects/{PROJECT_ID}/benchmarks"),
             ]:
                 try:

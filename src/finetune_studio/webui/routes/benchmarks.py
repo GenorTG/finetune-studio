@@ -70,7 +70,7 @@ async def run_benchmark(pid: str, rid: str, request: Request):
     body = await request.json()
     suite_name = body.get("suite_name", "default")
     suite_path = body.get("suite_path", "")
-    judge_mode = body.get("judge_mode", "none")  # none | ai | local
+    judge_mode = body.get("judge_mode", "heuristic")  # heuristic | ai | local | none
     judge_model = body.get("judge_model", "")
     max_tokens = int(body.get("max_tokens", 512))
 
@@ -184,7 +184,12 @@ async def delete_benchmark(pid: str, bid: str):
 async def judge_benchmark(pid: str, bid: str, request: Request):
     """Run AI/human judge over all cases in a benchmark."""
     body = await request.json()
-    judge_mode = body.get("judge_mode", "ai")  # ai | local
+    # Default to the heuristic judge: it needs no API key and no model, so
+    # scores never stay stuck at judged: 0 on a fresh install. Only prefer the
+    # external AI judge when a key is actually configured.
+    from finetune_studio.testing.judge import DEFAULT_JUDGE_KEY
+
+    judge_mode = body.get("judge_mode") or ("ai" if DEFAULT_JUDGE_KEY else "heuristic")
     judge_model = body.get("judge_model", "")
 
     benchmark = db.get_benchmark(bid)
@@ -197,7 +202,33 @@ async def judge_benchmark(pid: str, bid: str, request: Request):
 
     # Load the judge model
     from finetune_studio.testing.inference import InferenceEngine
-    from finetune_studio.testing.judge import judge_case_ai, judge_case_local
+    from finetune_studio.testing.judge import (
+        judge_case_ai,
+        judge_case_heuristic,
+        judge_case_local,
+    )
+
+    # Heuristic judge — no API key, no model, always returns a verdict.
+    if judge_mode == "heuristic":
+        updated = 0
+        for case in cases:
+            if not case.get("model_answer"):
+                continue
+            verdict, reasoning, confidence = judge_case_heuristic(
+                question=case["question"],
+                correct_answer=case["correct_answer"],
+                model_answer=case["model_answer"],
+            )
+            db.update_case(
+                case["id"],
+                judge="heuristic",
+                judge_model="heuristic",
+                verdict=verdict,
+                judge_reasoning=reasoning,
+                scored_at=time.time(),
+            )
+            updated += 1
+        return {"ok": True, "judged": updated, "judge_mode": "heuristic"}
 
     # For AI judge via external API
     if judge_mode == "ai":

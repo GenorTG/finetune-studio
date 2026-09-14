@@ -46,7 +46,6 @@
     { label: "testing",     href_suffix: "/testing",    keywords: "tests eval suite" },
     { label: "benchmarks",  href_suffix: "/benchmarks", keywords: "bench perf stats" },
     { label: "chat",        href_suffix: "/chat",       keywords: "talk conversation" },
-    { label: "agentic",     href_suffix: "/agentic",    keywords: "agent tools autonomous" },
   ];
 
   /* ── Cache for project list ───────────────────────────────── */
@@ -205,7 +204,7 @@
     const m = {
       dashboard: "▦", projects: "▤", overview: "◉", data: "▤",
       "data-prep": "▥", rag: "⌗", training: "▣", testing: "✓",
-      benchmarks: "▲", chat: "◊", agentic: "✶",
+      benchmarks: "▲", chat: "◊",
       hf: "◈", inference: "◉",
     };
     return m[label] || "›";
