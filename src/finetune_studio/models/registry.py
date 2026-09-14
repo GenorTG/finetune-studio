@@ -178,32 +178,36 @@ def scan_models(directories: list) -> list:
                     dirs.clear()
                     continue
                 name = _safe_model_name(root, cfg)
-                # Look up project name from DB for trained exports
-                proj_name = ""
-                if cat == "trained_export":
-                    _, proj_name = _lookup_project_name(root)
                 # Determine category from path
                 cat = "discovered"
                 proj_id = ""
                 run_id = ""
+                proj_name = ""
                 p = root.lower()
-                if "/output" in p or "output_" in p:
+                if "/output" in p or "output_" in p or "/models/safetensors/" in p:
                     cat = "trained_export"
-                    # Try to find project_id from training_runs DB
-                    try:
-                        import sqlite3 as _sql
-                        db_path = os.path.join(os.path.expanduser("~"), ".finetune-studio", "finetune_studio.db")
-                        if not os.path.exists(db_path):
-                            db_path = os.path.join(os.path.expanduser("~"), ".finetune-studio", "fts.db")
-                        if os.path.exists(db_path):
-                            with _sql.connect(db_path) as conn:
-                                row = conn.execute(
-                                    "SELECT project_id FROM training_runs WHERE output_path = ? LIMIT 1", (root,)
-                                ).fetchone()
-                                if row:
-                                    proj_id = row[0]
-                    except Exception:
-                        pass
+                    # Look up project from training_runs DB (walks up path hierarchy)
+                    proj_id, proj_name = _lookup_project_name(root)
+                    # Find run_id if possible
+                    if proj_id:
+                        try:
+                            import sqlite3 as _sql
+                            db_path = os.path.join(os.path.expanduser("~"), ".finetune-studio", "finetune_studio.db")
+                            if not os.path.exists(db_path):
+                                db_path = os.path.join(os.path.expanduser("~"), ".finetune-studio", "fts.db")
+                            if os.path.exists(db_path):
+                                with _sql.connect(db_path) as conn:
+                                    row = conn.execute(
+                                        "SELECT id FROM training_runs WHERE output_path = ? OR ? LIKE output_path || '%' LIMIT 1",
+                                        (root, root),
+                                    ).fetchone()
+                                    if row:
+                                        run_id = row[0]
+                        except Exception:
+                            pass
+                    # Re-derive name with project context if generic
+                    if proj_name and (name.lower() in ("merged", "abliterated", "gguf", "adapter", "gptq", "awq") or "/" in name):
+                        name = f"{proj_name} ({name})"
                 elif "shared_models" in p:
                     cat = "local_helper"
                 elif "hf_models" in p:
