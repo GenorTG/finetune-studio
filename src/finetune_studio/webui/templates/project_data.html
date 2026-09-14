@@ -14,74 +14,675 @@
 {% block content %}
 {% include "_resources.html" %}
 
-<div class="page-head">
-  <h1>Data</h1>
-  <div class="sub">Upload files, browse the parsed corpus, and check what training data exists.</div>
+{# ── A. Header ── #}
+<div class="page-head row">
+  <div>
+    <h1>Data — {{ project.name }}</h1>
+    <div class="sub">
+      {{ desc_short }}
+      {% if desc_long %}
+      <a href="#" class="muted" id="fb-desc-details" title="{{ desc_full }}">details</a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="actions">
+    <span class="pill outline" id="fb-bulk-label" hidden>0 selected</span>
+    <button class="btn sm danger" type="button" id="fb-bulk-delete" disabled>Delete selected</button>
+    <button class="btn sm" type="button" id="fb-bulk-move" disabled>Move to folder</button>
+    <button class="btn sm primary" type="button" id="fb-upload-toggle">⬆ Upload</button>
+  </div>
 </div>
 
-<div class="card mb-6">
+{# ── B. Stats ── #}
+<div class="grid grid-4 gap-3 mb-4" id="fb-stats">
+  <a class="stat hover" href="#fb-table" data-view="all" onclick="return fbStatClick(event,'all')">
+    <div class="label">Files</div>
+    <div class="value cyan" id="fb-stat-total">{{ fb_stats.total }}</div>
+    <div class="delta">active + trash</div>
+  </a>
+  <a class="stat hover" href="#fb-table" data-view="active" onclick="return fbStatClick(event,'active')">
+    <div class="label">In library</div>
+    <div class="value" id="fb-stat-library">{{ fb_stats.library }}</div>
+    <div class="delta">deleted_at IS NULL</div>
+  </a>
+  <a class="stat hover" href="#fb-table" data-view="trash" onclick="return fbStatClick(event,'trash')">
+    <div class="label">In trash</div>
+    <div class="value" style="color:var(--warn);" id="fb-stat-trash">{{ fb_stats.trash }}</div>
+    <div class="delta">soft-deleted</div>
+  </a>
+  <a class="stat hover" href="#fb-table" data-view="active" onclick="return fbStatClick(event,'active')">
+    <div class="label">Storage</div>
+    <div class="value violet" id="fb-stat-storage">{{ fb_stats.storage_label }}</div>
+    <div class="delta">sum of size_bytes</div>
+  </a>
+</div>
+
+{# ── C. Toolbar ── #}
+<div class="card mb-4">
+  <div class="flex gap-2 wrap items-center" style="padding:12px 16px;">
+    <input class="input" type="search" id="fb-search" placeholder="Search filename / tag…" style="max-width:220px;">
+    <select class="input" id="fb-folder" style="max-width:180px;">
+      <option value="">All folders</option>
+    </select>
+    <select class="input" id="fb-mime" style="max-width:160px;">
+      <option value="">All types</option>
+      <option value="image/">image/*</option>
+      <option value="text/">text/*</option>
+      <option value="application/pdf">application/pdf</option>
+      <option value="application/json">application/json</option>
+      <option value="application/">application/*</option>
+    </select>
+    <div class="flex gap-1" role="group" aria-label="View">
+      <button class="btn sm" type="button" data-fb-view="active" id="fb-view-active">Active</button>
+      <button class="btn sm" type="button" data-fb-view="trash" id="fb-view-trash">Trash</button>
+      <button class="btn sm" type="button" data-fb-view="all" id="fb-view-all">All</button>
+    </div>
+    <button class="btn sm danger" type="button" id="fb-empty-trash" hidden>Empty trash</button>
+    <span class="flex-1"></span>
+    <span class="text-xs dim mono" id="fb-footer-count"></span>
+  </div>
+</div>
+
+{# ── G. Upload (collapsible) ── #}
+<div class="card mb-4" id="fb-upload-card" hidden>
   <div class="card-head">
     <div>
       <div class="card-title">Upload</div>
-      <div class="card-sub">Drag &amp; drop or pick files. They'll be content-hashed, parsed, and chunked.</div>
+      <div class="card-sub">Drag &amp; drop or pick files. Content-hashed into the file library.</div>
     </div>
+    <button class="btn sm ghost" type="button" id="fb-upload-hide">Hide</button>
   </div>
-  <form id="upload-form" data-api="/api/projects/{{ pid }}/data-prep/upload" data-reload="true" enctype="multipart/form-data" data-drop class="dropzone">
+  <form id="fb-upload-form" enctype="multipart/form-data" data-drop class="dropzone" style="padding:12px 16px 16px;">
     <div class="flex gap-3 items-center">
       <div class="bin-host"></div>
       <div class="flex-1">
-        <input type="file" name="file" class="input" style="padding:8px;">
-        <div class="text-xs dim mt-1 mono">// drag &amp; drop a file here to feed the bin</div>
+        <input type="file" name="files" id="fb-upload-input" class="input" style="padding:8px;" multiple>
+        <div class="text-xs dim mt-1 mono">// drag &amp; drop files here</div>
       </div>
     </div>
     <div class="flex gap-2 mt-3">
       <button type="submit" class="btn primary">Upload</button>
-      <span id="upload-status" class="text-xs dim self-center"></span>
+      <span id="fb-upload-status" class="text-xs dim self-center"></span>
     </div>
   </form>
 </div>
 
-<div class="card">
+{# ── D. Files table ── #}
+<div class="card mb-4" id="fb-table">
   <div class="card-head">
     <div>
       <div class="card-title">Files</div>
-      <div class="card-sub">All uploaded files in this project.</div>
+      <div class="card-sub">Browse, preview, tag, and delete every file in this project.</div>
     </div>
-    <span class="pill outline" id="file-count">0 files</span>
   </div>
-  <div id="file-list" class="text-sm muted">Loading…</div>
+  <table class="table compact">
+    <thead>
+      <tr>
+        <th style="width:2.5em"><input type="checkbox" id="fb-select-all" title="Select all visible"></th>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Size</th>
+        <th>Version</th>
+        <th>Uploaded</th>
+        <th>Drift</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="fb-tbody">
+      <tr><td colspan="8" class="dim text-xs" style="text-align:center;padding:24px">Loading…</td></tr>
+    </tbody>
+  </table>
 </div>
 
 <script>
-// Populate the file list from /projects/{pid}/data-prep/sources
-(async function() {
-  const list = document.getElementById('file-list');
-  const count = document.getElementById('file-count');
-  if (!list) return;
-  try {
-    const r = await fetch('/api/projects/{{ pid }}/data-prep/sources');
-    const d = await r.json();
-    const sources = d.sources || [];
-    if (sources.length === 0) {
-      list.innerHTML = '<div class="dim">No files yet. Upload one above to get started.</div>';
-      count.textContent = '0 files';
+(function () {
+  const PID = {{ pid|tojson }};
+  const RUN_STARTED_MAX = {{ runs_started_max|tojson }};
+
+  let files = [];
+  let folders = [];
+  let view = 'active';
+  let selected = new Set();
+  let searchQ = '';
+  let folderId = '';
+  let mimePrefix = '';
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function formatBytes(n) {
+    n = Number(n) || 0;
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+    return (n / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+  }
+
+  function relativeTime(ts) {
+    if (ts == null || ts === '') return '—';
+    const t = Number(ts);
+    if (!Number.isFinite(t) || t <= 0) return '—';
+    const diff = Math.max(0, Date.now() / 1000 - t);
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    if (diff < 86400 * 30) return Math.floor(diff / 86400) + 'd ago';
+    if (diff < 86400 * 365) return Math.floor(diff / (86400 * 30)) + 'mo ago';
+    return Math.floor(diff / (86400 * 365)) + 'y ago';
+  }
+
+  function mimeBadge(mime) {
+    if (!mime) return '?';
+    const parts = String(mime).split('/');
+    return parts[1] || parts[0] || '?';
+  }
+
+  function notify(msg, type) {
+    if (window.fts && window.fts.notify) window.fts.notify(msg, type || 'info');
+    else console.log(msg);
+  }
+
+  async function confirmDanger(msg, opts) {
+    if (window.fts && window.fts.confirm) return window.fts.confirm(msg, opts || {});
+    return confirm(msg);
+  }
+
+  function isTextish(mime) {
+    if (!mime) return false;
+    return mime.startsWith('text/') ||
+      mime === 'application/json' ||
+      mime === 'application/xml' ||
+      mime === 'application/javascript' ||
+      mime.endsWith('+json') ||
+      mime.endsWith('+xml') ||
+      /markdown|md/.test(mime);
+  }
+
+  function isMarkdown(mime, name) {
+    const n = (name || '').toLowerCase();
+    return (mime && /markdown|md/.test(mime)) || n.endsWith('.md') || n.endsWith('.markdown');
+  }
+
+  function driftBadge(f) {
+    let last = f.last_trained_at;
+    if (!last && RUN_STARTED_MAX != null) last = RUN_STARTED_MAX;
+    if (last && f.uploaded_at && Number(f.uploaded_at) > Number(last)) {
+      return '<span class="pill solid-amber" title="Changed after last training">⚠ drift</span>';
+    }
+    return '<span class="dim">—</span>';
+  }
+
+  function updateStats() {
+    let library = 0, trash = 0, storage = 0;
+    files.forEach((f) => {
+      storage += Number(f.size_bytes) || 0;
+      if (f.deleted_at) trash += 1; else library += 1;
+    });
+    const el = (id, v) => { const n = document.getElementById(id); if (n) n.textContent = v; };
+    el('fb-stat-total', library + trash);
+    el('fb-stat-library', library);
+    el('fb-stat-trash', trash);
+    el('fb-stat-storage', formatBytes(storage));
+  }
+
+  function updateViewButtons() {
+    ['active', 'trash', 'all'].forEach((v) => {
+      const btn = document.getElementById('fb-view-' + v);
+      if (!btn) return;
+      btn.classList.toggle('primary', view === v);
+    });
+    const emptyBtn = document.getElementById('fb-empty-trash');
+    if (emptyBtn) emptyBtn.hidden = view !== 'trash';
+  }
+
+  function updateBulkBar() {
+    const n = selected.size;
+    const label = document.getElementById('fb-bulk-label');
+    const del = document.getElementById('fb-bulk-delete');
+    const move = document.getElementById('fb-bulk-move');
+    if (label) {
+      label.hidden = n === 0;
+      label.textContent = n + ' selected';
+    }
+    if (del) del.disabled = n === 0 || view === 'trash';
+    if (move) move.disabled = n === 0 || view === 'trash';
+  }
+
+  function visibleFiles() {
+    const q = searchQ.trim().toLowerCase();
+    return files.filter((f) => {
+      const deleted = !!f.deleted_at;
+      if (view === 'active' && deleted) return false;
+      if (view === 'trash' && !deleted) return false;
+      if (folderId && String(f.folder_id || '') !== folderId) return false;
+      if (mimePrefix) {
+        const m = f.mime_type || '';
+        if (mimePrefix.endsWith('/') ? !m.startsWith(mimePrefix) : m !== mimePrefix) return false;
+      }
+      if (q) {
+        const hay = (f.original_name + ' ' + (f.tags || '') + ' ' + (f.mime_type || '')).toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderFolders() {
+    const sel = document.getElementById('fb-folder');
+    if (!sel) return;
+    const cur = folderId;
+    sel.innerHTML = '<option value="">All folders</option>' +
+      folders.map((f) =>
+        '<option value="' + esc(f.id) + '"' + (f.id === cur ? ' selected' : '') + '>' +
+        esc((f.kind === 'auto' ? '🗂️ ' : '📁 ') + f.name) + '</option>'
+      ).join('');
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('fb-tbody');
+    const footer = document.getElementById('fb-footer-count');
+    if (!tbody) return;
+    const rows = visibleFiles();
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty" style="border:0">No files in this view.</td></tr>';
+      if (footer) footer.textContent = '0 files';
+      updateBulkBar();
       return;
     }
-    list.innerHTML = sources.map(s => `
-      <div class="file-row" data-sha="${s.sha256 || ''}"
-           style="display:flex;gap:14px;padding:5px 8px;border-bottom:1px dashed var(--border);align-items:baseline;">
-        <span class="file-name mono" style="flex:1;color:var(--accent);">${s.filename}</span>
-        <span class="file-meta text-xs dim">
-          ${(s.char_count || 0).toLocaleString()} chars
-          · ${s.chunk_count || 0} chunks
-          · ${s.parser || 'parser'}
-        </span>
-      </div>
-    `).join('');
-    count.textContent = sources.length + ' file' + (sources.length === 1 ? '' : 's');
-  } catch (e) {
-    list.innerHTML = '<div class="dim">Failed to load files: ' + e.message + '</div>';
+    tbody.innerHTML = rows.map((f) => {
+      const deleted = !!f.deleted_at;
+      const checked = selected.has(f.id) ? 'checked' : '';
+      const folderIcon = f.first_folder ? '📁' : '📄';
+      let actions;
+      if (deleted) {
+        actions =
+          '<div class="flex gap-1 wrap">' +
+          '<button class="btn sm" type="button" onclick="fbRestore(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">Restore</button>' +
+          '<button class="btn sm danger" type="button" title="Purges entire trash (no per-file purge API)" onclick="fbEmptyTrash()">Purge</button>' +
+          '</div>';
+      } else {
+        const mime = f.mime_type || '';
+        actions =
+          '<div class="flex gap-1 wrap">' +
+          '<button class="btn sm" type="button" title="Preview" onclick="fbPreview(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\',\'' + esc(mime) + '\')">👁</button>' +
+          '<a class="btn sm" title="Download raw" href="/api/projects/' + PID + '/files/' + encodeURIComponent(f.id) + '/raw" download="' + esc(f.original_name) + '">⬇</a>' +
+          '<button class="btn sm" type="button" title="Tags &amp; notes" onclick="fbEditTags(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">🏷</button>' +
+          '<button class="btn sm" type="button" title="Rename (API not available)" onclick="fbRename(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">✎</button>' +
+          '<button class="btn sm danger" type="button" title="Delete" onclick="fbDelete(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">🗑</button>' +
+          '</div>';
+      }
+      return '<tr class="row-hover' + (deleted ? ' dim' : '') + '">' +
+        '<td><input type="checkbox" ' + checked + ' onchange="fbToggleSelect(\'' + esc(f.id) + '\',this.checked)"></td>' +
+        '<td class="name" title="' + esc(f.original_name) + '">' +
+          '<span class="mono" style="margin-right:6px">' + folderIcon + '</span>' + esc(f.original_name) +
+          (f.first_folder ? ' <span class="text-xs dim">· ' + esc(f.first_folder) + '</span>' : '') +
+        '</td>' +
+        '<td><span class="pill outline mono">' + esc(mimeBadge(f.mime_type)) + '</span></td>' +
+        '<td class="num mono">' + formatBytes(f.size_bytes) + '</td>' +
+        '<td class="meta mono">v' + (f.current_version || 1) + '</td>' +
+        '<td class="meta mono" title="' + esc(f.uploaded_at || '') + '">' + relativeTime(f.uploaded_at) + '</td>' +
+        '<td>' + (deleted ? '<span class="dim">—</span>' : driftBadge(f)) + '</td>' +
+        '<td>' + actions + '</td>' +
+      '</tr>';
+    }).join('');
+    if (footer) footer.textContent = rows.length + ' file' + (rows.length === 1 ? '' : 's');
+    const selectAll = document.getElementById('fb-select-all');
+    if (selectAll) {
+      selectAll.checked = rows.length > 0 && rows.every((f) => selected.has(f.id));
+    }
+    updateBulkBar();
   }
+
+  async function loadFolders() {
+    try {
+      const r = await fetch('/api/projects/' + PID + '/folders');
+      const d = await r.json();
+      folders = d.folders || [];
+      renderFolders();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function loadFiles() {
+    try {
+      const r = await fetch('/api/projects/' + PID + '/files?include_deleted=true');
+      const d = await r.json();
+      files = d.files || [];
+      updateStats();
+      renderTable();
+    } catch (e) {
+      const tbody = document.getElementById('fb-tbody');
+      if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="8" class="err text-xs" style="text-align:center;padding:20px">Failed: ' + esc(e.message) + '</td></tr>';
+      }
+    }
+  }
+
+  window.fbStatClick = function (ev, v) {
+    ev.preventDefault();
+    setView(v);
+    document.getElementById('fb-table').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return false;
+  };
+
+  function setView(v) {
+    view = v;
+    selected.clear();
+    updateViewButtons();
+    renderTable();
+  }
+
+  window.fbToggleSelect = function (fid, checked) {
+    if (checked) selected.add(fid); else selected.delete(fid);
+    updateBulkBar();
+    const selectAll = document.getElementById('fb-select-all');
+    const rows = visibleFiles();
+    if (selectAll) selectAll.checked = rows.length > 0 && rows.every((f) => selected.has(f.id));
+  };
+
+  window.fbPreview = function (fid, name, mime) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    let inner;
+    if (mime && mime.startsWith('image/')) {
+      inner = '<img src="/api/projects/' + PID + '/files/' + fid + '/raw" alt="' + esc(name) + '" style="max-width:100%;max-height:70vh;border-radius:4px;">';
+    } else if (mime === 'application/pdf') {
+      inner = '<iframe src="/api/projects/' + PID + '/files/' + fid + '/raw" style="width:100%;height:70vh;border:none;border-radius:4px;"></iframe>';
+    } else if (isTextish(mime) || isMarkdown(mime, name)) {
+      const cls = isMarkdown(mime, name) ? 'lang-md mono text-xs' : 'mono text-xs';
+      inner = '<pre id="fb-preview-content" class="' + cls + '" style="max-height:70vh;overflow:auto;padding:12px;background:var(--bg-panel);border:1px solid var(--border);">Loading…</pre>';
+    } else {
+      const size = (files.find((x) => x.id === fid) || {}).size_bytes;
+      inner = '<div class="dim" style="padding:24px;text-align:center">' +
+        'No inline preview for this type.<br><br>' +
+        '<a class="btn primary" href="/api/projects/' + PID + '/files/' + encodeURIComponent(fid) + '/raw" download="' + esc(name) + '">⬇ Download raw</a>' +
+        '<div class="text-xs mt-2 mono">' + formatBytes(size) + ' · ' + esc(mime || 'unknown') + '</div></div>';
+    }
+    modal.innerHTML = '<div class="modal-dialog" style="max-width:860px;">' +
+      '<div class="modal-head">' + esc(name) + '</div>' +
+      '<div class="modal-body">' + inner + '</div>' +
+      '<div class="modal-actions">' +
+      '<button class="btn" type="button" data-action="versions">Versions</button>' +
+      '<button class="btn" type="button" data-action="close">Close</button></div></div>';
+    document.body.appendChild(modal);
+    const cleanup = () => modal.remove();
+    modal.addEventListener('click', (e) => { if (e.target === modal) cleanup(); });
+    modal.querySelector('[data-action=close]').addEventListener('click', cleanup);
+    modal.querySelector('[data-action=versions]').addEventListener('click', () => {
+      cleanup();
+      fbShowVersions(fid, name);
+    });
+    if (isTextish(mime) || isMarkdown(mime, name)) {
+      if (!(mime && mime.startsWith('image/')) && mime !== 'application/pdf') {
+        fetch('/api/projects/' + PID + '/files/' + fid + '/raw')
+          .then((r) => r.text())
+          .then((t) => {
+            const el = document.getElementById('fb-preview-content');
+            if (el) el.textContent = t;
+          })
+          .catch(() => {
+            const el = document.getElementById('fb-preview-content');
+            if (el) el.textContent = 'Failed to load';
+          });
+      }
+    }
+  };
+
+  window.fbShowVersions = function (fid, name) {
+    fetch('/api/projects/' + PID + '/files/' + fid + '/versions')
+      .then((r) => r.json())
+      .then((d) => {
+        const vers = d.versions || [];
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        let body;
+        if (!vers.length) {
+          body = '<div class="dim">No versions recorded.</div>';
+        } else {
+          body = '<table class="table compact"><thead><tr>' +
+            '<th>Ver</th><th>Uploaded</th><th>Size</th><th>Hash</th><th></th></tr></thead><tbody>' +
+            vers.map((v) => {
+              const hash = (v.raw_hash || '').slice(0, 12);
+              return '<tr>' +
+                '<td class="mono">v' + esc(v.version) + '</td>' +
+                '<td class="meta mono">' + relativeTime(v.uploaded_at) + '</td>' +
+                '<td class="num mono">' + formatBytes(v.raw_size) + '</td>' +
+                '<td class="mono text-xs" title="' + esc(v.raw_hash || '') + '">' + esc(hash || '—') + '</td>' +
+                '<td><a class="btn sm" href="/api/projects/' + PID + '/files/' + encodeURIComponent(fid) +
+                  '/raw?version=' + encodeURIComponent(v.version) + '" download>Download</a></td></tr>';
+            }).join('') + '</tbody></table>';
+        }
+        modal.innerHTML = '<div class="modal-dialog" style="max-width:720px;">' +
+          '<div class="modal-head">Versions — ' + esc(name) + '</div>' +
+          '<div class="modal-body">' + body + '</div>' +
+          '<div class="modal-actions"><button class="btn" data-action="close">Close</button></div></div>';
+        document.body.appendChild(modal);
+        const cleanup = () => modal.remove();
+        modal.addEventListener('click', (e) => { if (e.target === modal) cleanup(); });
+        modal.querySelector('[data-action=close]').addEventListener('click', cleanup);
+      })
+      .catch((e) => notify('Versions failed: ' + e.message, 'error'));
+  };
+
+  window.fbEditTags = function (fid, name) {
+    fetch('/api/projects/' + PID + '/files/' + fid)
+      .then((r) => r.json())
+      .then((f) => {
+        const convCount = (f.conversions || []).length;
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = '<div class="modal-dialog" style="max-width:520px;">' +
+          '<div class="modal-head">' + esc(name) + '</div>' +
+          '<div class="modal-body">' +
+          '<label class="block mb-3"><span class="muted text-xs">Tags (comma-separated)</span>' +
+          '<input id="fb-tag-input" class="input" value="' + esc(f.tags || '') + '"></label>' +
+          '<label class="block mb-3"><span class="muted text-xs">Notes</span>' +
+          '<textarea id="fb-note-input" class="textarea" rows="4">' + esc(f.notes || '') + '</textarea></label>' +
+          '<div class="text-xs dim mono" style="padding:10px;border:1px solid var(--border);background:var(--bg-panel);">' +
+          'uploaded: ' + relativeTime(f.uploaded_at) + '<br>' +
+          'by: ' + esc(f.uploaded_by || '—') + '<br>' +
+          'mime: ' + esc(f.mime_type || '—') + '<br>' +
+          'size: ' + formatBytes(f.size_bytes) + '<br>' +
+          'version: v' + (f.current_version || 1) + '<br>' +
+          'last_trained: ' + relativeTime(f.last_trained_at) + '<br>' +
+          'conversions: ' + convCount +
+          '</div>' +
+          '<div id="fb-tag-status" class="text-xs dim mt-2"></div></div>' +
+          '<div class="modal-actions">' +
+          '<button class="btn" data-action="cancel">Cancel</button>' +
+          '<button class="btn primary" data-action="save">Save</button></div></div>';
+        document.body.appendChild(modal);
+        const cleanup = () => modal.remove();
+        modal.addEventListener('click', (e) => { if (e.target === modal) cleanup(); });
+        modal.querySelector('[data-action=cancel]').addEventListener('click', cleanup);
+        modal.querySelector('[data-action=save]').addEventListener('click', () => {
+          const tags = document.getElementById('fb-tag-input').value;
+          const notes = document.getElementById('fb-note-input').value;
+          fetch('/api/projects/' + PID + '/files/' + fid + '/tags', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tags, notes }),
+          }).then((r) => r.json()).then((d) => {
+            if (d.error) {
+              document.getElementById('fb-tag-status').textContent = 'Error: ' + d.error;
+            } else {
+              cleanup();
+              notify('Tags & notes saved', 'success');
+              loadFiles();
+            }
+          }).catch((e) => {
+            document.getElementById('fb-tag-status').textContent = 'Failed: ' + e.message;
+          });
+        });
+      })
+      .catch((e) => notify('Failed to load file: ' + e.message, 'error'));
+  };
+
+  window.fbRename = function (_fid, _name) {
+    notify('Rename API is not available yet (no PATCH /files/{fid}/rename).', 'error');
+  };
+
+  window.fbDelete = async function (fid, name) {
+    const ok = await confirmDanger('Move ' + name + ' to trash?', {
+      title: 'Confirm delete', danger: true, okText: 'Move to trash',
+    });
+    if (!ok) return;
+    try {
+      await fetch('/api/projects/' + PID + '/files/' + fid, { method: 'DELETE' });
+      notify(name + ' moved to trash', 'success');
+      selected.delete(fid);
+      await loadFiles();
+    } catch (e) {
+      notify('Delete failed: ' + e.message, 'error');
+    }
+  };
+
+  window.fbRestore = async function (fid, name) {
+    try {
+      await fetch('/api/projects/' + PID + '/files/' + fid + '/restore', { method: 'POST' });
+      notify(name + ' restored', 'success');
+      await loadFiles();
+    } catch (e) {
+      notify('Restore failed: ' + e.message, 'error');
+    }
+  };
+
+  window.fbEmptyTrash = async function () {
+    const ok = await confirmDanger('Permanently delete ALL files in trash?', {
+      title: 'Empty trash', danger: true, okText: 'Purge all',
+    });
+    if (!ok) return;
+    try {
+      await fetch('/api/projects/' + PID + '/files/trash/purge?older_than_days=0', { method: 'POST' });
+      notify('Trash emptied', 'success');
+      selected.clear();
+      await loadFiles();
+    } catch (e) {
+      notify('Purge failed: ' + e.message, 'error');
+    }
+  };
+
+  async function bulkDelete() {
+    if (!selected.size) return;
+    const ok = await confirmDanger('Move ' + selected.size + ' file(s) to trash?', {
+      title: 'Bulk delete', danger: true, okText: 'Move to trash',
+    });
+    if (!ok) return;
+    for (const fid of [...selected]) {
+      await fetch('/api/projects/' + PID + '/files/' + fid, { method: 'DELETE' });
+    }
+    selected.clear();
+    notify('Moved to trash', 'success');
+    await loadFiles();
+  }
+
+  async function bulkMove() {
+    if (!selected.size) return;
+    const userFolders = folders.filter((f) => f.kind === 'user');
+    if (!userFolders.length) {
+      notify('Create a user folder in Data Prep first.', 'error');
+      return;
+    }
+    const names = userFolders.map((f, i) => (i + 1) + '. ' + f.name).join('\n');
+    const pick = prompt('Move to folder number:\n' + names);
+    if (!pick) return;
+    const idx = parseInt(pick, 10) - 1;
+    if (!Number.isFinite(idx) || idx < 0 || idx >= userFolders.length) {
+      notify('Invalid folder choice', 'error');
+      return;
+    }
+    const dest = userFolders[idx].id;
+    for (const fid of [...selected]) {
+      await fetch('/api/projects/' + PID + '/files/' + fid + '/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder_id: dest }),
+      });
+    }
+    selected.clear();
+    notify('Moved to ' + userFolders[idx].name, 'success');
+    await loadFiles();
+  }
+
+  async function uploadFiles(fileList) {
+    if (!fileList || !fileList.length) return;
+    const status = document.getElementById('fb-upload-status');
+    const input = document.getElementById('fb-upload-input');
+    const fd = new FormData();
+    for (const f of fileList) fd.append('files', f, f.name);
+    if (input) input.disabled = true;
+    if (status) status.textContent = 'Uploading…';
+    try {
+      const r = await fetch('/api/projects/' + PID + '/files/upload', { method: 'POST', body: fd });
+      const data = await r.json();
+      const c = data.counts || {};
+      if (status) {
+        status.textContent = 'Uploaded ' + (c.uploaded || 0) +
+          (c.duplicates_skipped ? ', ' + c.duplicates_skipped + ' dup' : '') +
+          (c.errors ? ', ' + c.errors + ' err' : '');
+      }
+      await loadFiles();
+    } catch (e) {
+      if (status) status.textContent = 'Failed: ' + e.message;
+      notify('Upload failed: ' + e.message, 'error');
+    } finally {
+      if (input) { input.disabled = false; input.value = ''; }
+    }
+  }
+
+  function wireUi() {
+    document.querySelectorAll('[data-fb-view]').forEach((btn) => {
+      btn.addEventListener('click', () => setView(btn.getAttribute('data-fb-view')));
+    });
+    const search = document.getElementById('fb-search');
+    if (search) search.addEventListener('input', () => { searchQ = search.value; renderTable(); });
+    const folder = document.getElementById('fb-folder');
+    if (folder) folder.addEventListener('change', () => { folderId = folder.value; renderTable(); });
+    const mime = document.getElementById('fb-mime');
+    if (mime) mime.addEventListener('change', () => { mimePrefix = mime.value; renderTable(); });
+    const selectAll = document.getElementById('fb-select-all');
+    if (selectAll) {
+      selectAll.addEventListener('change', () => {
+        const rows = visibleFiles();
+        rows.forEach((f) => { if (selectAll.checked) selected.add(f.id); else selected.delete(f.id); });
+        renderTable();
+      });
+    }
+    const bulkDel = document.getElementById('fb-bulk-delete');
+    if (bulkDel) bulkDel.addEventListener('click', bulkDelete);
+    const bulkMoveBtn = document.getElementById('fb-bulk-move');
+    if (bulkMoveBtn) bulkMoveBtn.addEventListener('click', bulkMove);
+    const empty = document.getElementById('fb-empty-trash');
+    if (empty) empty.addEventListener('click', fbEmptyTrash);
+    const toggle = document.getElementById('fb-upload-toggle');
+    const hide = document.getElementById('fb-upload-hide');
+    const card = document.getElementById('fb-upload-card');
+    if (toggle && card) toggle.addEventListener('click', () => { card.hidden = !card.hidden; });
+    if (hide && card) hide.addEventListener('click', () => { card.hidden = true; });
+    const form = document.getElementById('fb-upload-form');
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = document.getElementById('fb-upload-input');
+        uploadFiles(input && input.files);
+      });
+    }
+    const details = document.getElementById('fb-desc-details');
+    if (details) {
+      details.addEventListener('click', (e) => {
+        e.preventDefault();
+        alert(details.getAttribute('title') || '');
+      });
+    }
+  }
+
+  updateViewButtons();
+  wireUi();
+  Promise.all([loadFolders(), loadFiles()]);
 })();
 </script>
 {% endblock %}

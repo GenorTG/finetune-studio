@@ -430,6 +430,14 @@ def init_db() -> None:
         _safe_alter(c, "ALTER TABLE project_rags ADD COLUMN last_build_status TEXT")
         _safe_alter(c, "ALTER TABLE project_rags ADD COLUMN error TEXT NOT NULL DEFAULT ''")
         _safe_alter(c, "ALTER TABLE training_runs ADD COLUMN error TEXT NOT NULL DEFAULT ''")
+        _safe_alter(
+            c,
+            "ALTER TABLE project_files ADD COLUMN tags TEXT NOT NULL DEFAULT ''",
+        )
+        _safe_alter(
+            c,
+            "ALTER TABLE project_files ADD COLUMN notes TEXT NOT NULL DEFAULT ''",
+        )
         # Create benchmark_cases if it doesn't exist (new in v2)
         c.executescript("""
             CREATE TABLE IF NOT EXISTS benchmark_cases (

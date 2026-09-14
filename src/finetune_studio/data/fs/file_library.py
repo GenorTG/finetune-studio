@@ -316,9 +316,10 @@ def list_files(
         params.append("%" + search + "%")
     sql = f"""SELECT pf.id, pf.original_name, pf.mime_type, pf.current_version,
                      pf.size_bytes, pf.uploaded_at, pf.uploaded_by,
-                     pf.last_trained_at, pf.deleted_at,
+                     pf.last_trained_at, pf.deleted_at, pf.tags, pf.notes,
                      (SELECT name FROM file_folders WHERE id IN
-                        (SELECT folder_id FROM folder_membership WHERE file_id = pf.id)) AS first_folder
+                        (SELECT folder_id FROM folder_membership WHERE file_id = pf.id)) AS first_folder,
+                     (SELECT folder_id FROM folder_membership WHERE file_id = pf.id LIMIT 1) AS folder_id
                 FROM project_files pf
                 WHERE {' AND '.join(clauses)}
                 ORDER BY pf.uploaded_at DESC"""

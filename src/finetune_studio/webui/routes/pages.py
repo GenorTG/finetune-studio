@@ -263,17 +263,19 @@ async def project_detail_page(request: Request, pid: str):
 
 @router.get("/projects/{pid}/data", response_class=HTMLResponse)
 async def project_data_page(request: Request, pid: str):
-    """Data files for a project."""
-    from finetune_studio.config import settings
-    from finetune_studio.data.organizer import scan_data_files
+    """File browser for a project (library + trash + upload)."""
+    from finetune_studio.data.fs import file_library as fl
+    from finetune_studio.webui.project_data_browser import build_file_browser_ctx
+
     ctx = _project_ctx(pid)
     if not ctx:
         return RedirectResponse(url="/projects", status_code=302)
-    files = scan_data_files(settings.data_dir)
+    files = fl.list_files(pid, include_deleted=True)
+    browser = build_file_browser_ctx(ctx["project"], files=files)
     return templates.TemplateResponse(
         request,
         "project_data.html",
-        {**ctx, "files": files},
+        {**ctx, **browser, "request": request},
     )
 
 
