@@ -2442,12 +2442,14 @@ body::before {
   top: 8px; right: 12px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   z-index: 2;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
-  max-width: 75%;
+  max-width: 80%;
+  min-width: 0;
 }
+.sb-right > * { flex-shrink: 0; }
 .sb-palette {
   display: inline-flex;
   align-items: center;
