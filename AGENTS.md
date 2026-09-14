@@ -26,7 +26,7 @@ Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **ge
 ## Session protocol
 - Start: `create_goal` (objective + acceptance command), `progress_card` ≤7 steps. Clear any stale card first.
 - Every ~10 tool calls: `get_goal`, update the card. Same fix failed twice → stop and change approach.
-- Heavy work (multi-file, long test loops): `sessions_spawn` with `cwd` = this repo; default model `opencode-go/glm-5.3-flash`.
+- Heavy work (implementation, refactors, test loops): `sessions_spawn` with `runtime: "acp"`, `agentId: "cursor"`, `streamTo: "parent"`, `cwd` = this repo (Cursor Auto, flat subscription). Cheap research/triage only: `runtime: "subagent"`, `model: "opencode-go/deepseek-v4-flash"`.
 - End: goal complete/blocked, card cleared, `HANDOFF.md` rewritten, commit + push.
 
 ## HANDOFF rules
