@@ -345,6 +345,7 @@ async def data_editor_page(request: Request, pid: str, dataset_path: str):
     project = _db.get_project(pid)
     if not project:
         return RedirectResponse(url="/projects", status_code=302)
+    filename = Path(dataset_path).name or dataset_path
     return templates.TemplateResponse(
         request,
         "data_editor.html",
@@ -353,6 +354,7 @@ async def data_editor_page(request: Request, pid: str, dataset_path: str):
             "project": project,
             "pid": pid,
             "dataset": dataset_path,
+            "filename": filename,
         },
     )
 
