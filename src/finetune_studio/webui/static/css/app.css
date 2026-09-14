@@ -3400,18 +3400,20 @@ body::before {
   /* Hide long project nav labels at this width — leave short labels visible. */
   .sb-tab-label { font-size: 11px; }
   .sb-group-label { font-size: 10px; }
-  /* Tools always on its own row below project nav. */
-  .sb-tabs { flex-wrap: wrap; overflow-x: hidden; }
-  /* Force system + project items to NOT shrink — they keep their
-     natural width so the tools row (flex-basis:100%) has no room
-     and wraps to row 2 instead of everyone cramming onto row 1. */
+  /* Tabs scroll horizontally on one line — never wrap (was causing cut-off tabs). */
+  .sb-tabs {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden;
+  }
   .sb-group:not(.sb-group-tools) { flex-shrink: 0; }
   .sb-group-tools {
-    flex: 0 0 100%;       /* grow:0 shrink:0 basis:100% — take full row, never shrink */
-    border-top: 1px dashed var(--border);
-    border-left: none !important;
-    padding-top: 4px;
-    margin-top: 4px;
+    flex: 0 0 auto;       /* stay inline, don't take full row */
+    border-left: 1px dashed var(--border) !important;
+    border-top: none !important;
+    padding-top: 0;
+    margin-top: 0;
+    padding-left: 8px;
   }
 }
 @media (max-width: 1100px) {
@@ -3419,13 +3421,19 @@ body::before {
   .sb-active-bar .sb-active-prefix { font-size: 11px; }
 }
 @media (max-width: 900px) {
-  .sb-tabs { flex-wrap: wrap; overflow-x: hidden; }
+  /* Tabs stay on one horizontal scrollable line. */
+  .sb-tabs {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden;
+  }
   .sb-group-tools {
-    flex-basis: 100%;
-    border-top: 1px dashed var(--border);
-    border-left: none !important;
-    padding-top: 4px;
-    margin-top: 4px;
+    flex-basis: auto;
+    border-left: 1px dashed var(--border) !important;
+    border-top: none !important;
+    padding-top: 0;
+    margin-top: 0;
+    padding-left: 8px;
   }
   .content { padding: 12px; }
   .grid.grid-2 { grid-template-columns: 1fr; }
