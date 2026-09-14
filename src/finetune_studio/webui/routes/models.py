@@ -102,9 +102,20 @@ async def models_root():
 @router.get("/list")
 async def list_models():
     from finetune_studio.webui.app import discovered_models
-    return [{"name": m.name, "path": m.path, "format": m.format,
-            "size_gb": m.size_gb, "architecture": m.architecture,
-            "vision": getattr(m, "vision", False)} for m in discovered_models]
+    return [
+        {
+            "name": m.name,
+            "path": m.path,
+            "format": m.format,
+            "size_gb": m.size_gb,
+            "architecture": m.architecture,
+            "vision": getattr(m, "vision", False),
+            "category": getattr(m, "category", "discovered"),
+            "project_id": getattr(m, "project_id", ""),
+            "run_id": getattr(m, "run_id", ""),
+        }
+        for m in discovered_models
+    ]
 
 @router.get("/count")
 async def count_models():
