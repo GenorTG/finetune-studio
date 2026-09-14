@@ -12,14 +12,18 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-import shutil
 from pathlib import Path
 
 from fastapi import APIRouter, File, Request, UploadFile
 from fastapi.responses import JSONResponse
 
 from finetune_studio import db
-from finetune_studio.db.datasets import count_qa_pairs, datasets_dir
+from finetune_studio.data.fs import file_library as fl
+from finetune_studio.db.datasets import (
+    count_qa_pairs,
+    datasets_dir,
+    get_dataset_by_path,
+)
 
 log = logging.getLogger(__name__)
 
@@ -29,7 +33,9 @@ router = APIRouter()
 @router.get("/projects/{pid}/datasets")
 async def list_datasets_route(pid: str):
     """List all registered datasets for a project."""
-    proj = db.get_project(pid)
+    proj = (
+        db.get_project(pid)
+    )
     if not proj:
         return JSONResponse({"error": "project not found"}, status_code=404)
     return {"datasets": db.list_datasets(pid)}
@@ -49,23 +55,52 @@ async def get_dataset_route(pid: str, did: str):
                 qa_now = count_qa_pairs(str(p))
                 db.update_dataset(did, size_bytes=size_now, qa_count=qa_now)
                 ds = db.get_dataset(did) or ds
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.warning("dataset stat refresh failed", exc_info=True)
     return ds
 
 
 @router.post("/projects/{pid}/datasets")
 async def register_existing_route(pid: str, request: Request):
-    """Register an existing file on disk (e.g. written by data-prep export)."""
+    """Register an existing file on disk (e.g. written by data-prep export).
+
+    Body accepts either ``data_path`` (absolute path) **or** ``file_id``
+    (a row id from ``project_files``; we resolve to ``stored_path``).
+    """
     body = await request.json()
-    data_path = body.get("data_path", "")
+    data_path = body.get("data_path") or ""
+    # Fallback: WebUI data-prep sends {file_id}; resolve via project_files.
     if not data_path:
-        return JSONResponse({"error": "data_path required"}, status_code=400)
+        fid = body.get("file_id")
+        if fid:
+            # Look up the file's actual project_id directly (bypasses
+            # fl.get_file's pid filter so we can return 403 for cross-project).
+            owner_pid: str | None = None
+            with db.cursor() as _c:
+                _row = _c.execute(
+                    "SELECT project_id FROM project_files WHERE id = ?", (fid,)
+                ).fetchone()
+            if _row:
+                owner_pid = _row["project_id"]
+            if owner_pid and owner_pid != pid:
+                return JSONResponse(
+                    {"error": f"file {fid} belongs to another project"},
+                    status_code=403,
+                )
+            if owner_pid == pid:
+                # The on-disk path lives in file_versions (not project_files).
+                versions = fl.list_versions(pid, fid)
+                if versions:
+                    data_path = versions[0].get("raw_path") or ""
+    if not data_path:
+        return JSONResponse(
+            {"error": "data_path or file_id required"}, status_code=400
+        )
     p = Path(data_path)
     if not p.exists():
         return JSONResponse({"error": f"file not found: {data_path}"}, status_code=404)
     # Dedup by path
-    existing = db.get_dataset_by_path(pid, str(p))
+    existing = get_dataset_by_path(pid, str(p))
     if existing:
         return existing
     name = body.get("name") or p.stem
@@ -82,7 +117,7 @@ async def register_existing_route(pid: str, request: Request):
 
 
 @router.post("/projects/{pid}/datasets/upload")
-async def upload_dataset_route(pid: str, file: UploadFile = File(...)):
+async def upload_dataset_route(pid: str, file: UploadFile = File(...)):  # noqa: B008
     """Multipart upload: save to the project's datasets dir and register."""
     proj = db.get_project(pid)
     if not proj:
