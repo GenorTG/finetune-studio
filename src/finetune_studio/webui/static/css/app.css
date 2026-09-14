@@ -2439,14 +2439,14 @@ body::before {
 /* Right cluster: command palette, status, version */
 .sb-right {
   position: absolute;
-  top: 8px; right: 12px;
+  top: 8px; right: 16px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   z-index: 2;
   flex-wrap: nowrap;
   justify-content: flex-end;
-  max-width: 80%;
+  max-width: 70%;
   min-width: 0;
 }
 .sb-right > * {
@@ -2456,11 +2456,14 @@ body::before {
 .sb-right .sb-activity,
 .sb-right .status-pill,
 .sb-right .version {
-  margin-right: 4px;
+  margin-right: 0;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
 }
 .sb-right .version {
-  margin-right: 0;
-  padding: 4px 8px;
+  padding: 5px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
