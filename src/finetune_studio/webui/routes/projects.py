@@ -55,6 +55,7 @@ async def get_project(pid: str):
     p["rags"] = db.list_rags(pid)
     p["runs"] = db.list_runs(pid)
     # Attach model exports found on disk for each run.
+    from finetune_studio.webui.routes.pages import _scan_run_models
     p["models"] = _scan_run_models(p["runs"])
     # Attach benchmark summaries to runs.
     for run in p["runs"]:
