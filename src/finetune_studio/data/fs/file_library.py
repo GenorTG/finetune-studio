@@ -21,7 +21,6 @@ import hashlib
 import logging
 import mimetypes
 import os
-import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -707,7 +706,6 @@ def write_uploaded_file(pid: str, data: bytes, original_name: str, *, mime_hint:
     Dedup is NOT applied here — the caller (route handler) checks for an
     existing hash first and decides whether to call this.
     """
-    from finetune_studio import db
     ensure_dirs(pid)
     mime = _sniff_mime(original_name, mime_hint)
     kind = auto_kind_for(mime)
@@ -742,3 +740,471 @@ def write_uploaded_file(pid: str, data: bytes, original_name: str, *, mime_hint:
         auto_kind=kind,
         version=row["current_version"],
     )
+
+
+# ── Rename / per-file purge / parsed MD ───────────────────────────────────
+
+# Process-lifetime cache for GET .../parsed. Keyed by "pid:fid".
+_PARSED_CACHE: dict[str, dict] = {}
+
+_BINARY_EXTS = frozenset({
+    "pdf", "docx", "doc", "pptx", "ppt", "xlsx", "xls",
+    "png", "jpg", "jpeg", "gif", "webp", "bmp", "tiff", "tif",
+    "zip", "gz", "bz2", "7z", "rar", "bin", "exe", "dll",
+    "woff", "woff2", "ttf", "otf", "ico",
+})
+_CONVERTIBLE_EXTS = frozenset({"txt", "csv", "json", "md", "markdown", "tsv", "log"})
+
+
+def _cache_key(pid: str, file_id: str) -> str:
+    return f"{pid}:{file_id}"
+
+
+def invalidate_parsed_cache(pid: str, file_id: str) -> None:
+    """Drop any in-memory parsed-MD cache entry for this file."""
+    _PARSED_CACHE.pop(_cache_key(pid, file_id), None)
+
+
+def _project_files_columns() -> set[str]:
+    """Return the live column names on project_files (for optional parsed_* cols)."""
+    from finetune_studio import db
+    with db.cursor() as c:
+        rows = c.execute("PRAGMA table_info(project_files)").fetchall()
+    names: set[str] = set()
+    for r in rows:
+        # sqlite3.Row supports both index and name access
+        try:
+            names.add(str(r["name"]))
+        except (KeyError, IndexError, TypeError):
+            names.add(str(r[1]))
+    return names
+
+
+def _validate_rename_name(new_name: str) -> str:
+    """Validate a user-facing rename target. Returns the stripped name.
+
+    Rejects empty names, path separators, and unsafe (non-alnum) extensions.
+    """
+    name = (new_name or "").strip()
+    if not name:
+        raise HTTPException(
+            status_code=400, detail="new_name must be non-empty"
+        )
+    if "/" in name or "\\" in name or name in {".", ".."} or ".." in name:
+        raise HTTPException(
+            status_code=400,
+            detail="path separators not allowed in new_name",
+        )
+    # Basename only — reject absolute / drive-like names
+    if os.path.basename(name) != name:
+        raise HTTPException(
+            status_code=400,
+            detail="path separators not allowed in new_name",
+        )
+    ext = _ext_for_filename(name)
+    if ext and not ext.replace("_", "").isalnum():
+        raise HTTPException(
+            status_code=400, detail=f"unsafe extension: .{ext}"
+        )
+    return name
+
+
+def _csv_to_md_table(text: str) -> str:
+    """Convert CSV/TSV text to a simple GitHub-flavoured markdown table."""
+    import csv
+    from io import StringIO
+
+    sample = text[:4096]
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=",\t;")
+    except csv.Error:
+        dialect = csv.excel
+    reader = csv.reader(StringIO(text), dialect)
+    rows = [list(r) for r in reader]
+    if not rows:
+        return ""
+    width = max(len(r) for r in rows)
+    normalized: list[list[str]] = []
+    for r in rows:
+        cells = [c.replace("|", "\\|").replace("\n", " ") for c in r]
+        if len(cells) < width:
+            cells.extend([""] * (width - len(cells)))
+        normalized.append(cells[:width])
+    header = normalized[0]
+    lines = [
+        "| " + " | ".join(header) + " |",
+        "| " + " | ".join("---" for _ in header) + " |",
+    ]
+    for row in normalized[1:]:
+        lines.append("| " + " | ".join(row) + " |")
+    return "\n".join(lines) + "\n"
+
+
+def _convert_raw_to_md(path: Path, original_name: str) -> str:
+    """Convert a text-like file on disk into markdown. Raises HTTPException 422
+    for binary / unsupported formats."""
+    ext = _ext_for_filename(original_name)
+    if ext in _BINARY_EXTS:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"cannot convert binary format '.{ext}' to markdown inline — "
+                "run Data Prep → Prep job (or upload a sibling .md) first"
+            ),
+        )
+    if ext not in _CONVERTIBLE_EXTS and ext not in {"", "text"}:
+        # Unknown extension: try UTF-8 read; if it looks binary, 422
+        raw = path.read_bytes()
+        if b"\x00" in raw[:8192]:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"file looks binary (extension '.{ext or '?'}'); "
+                    "cannot convert to markdown"
+                ),
+            )
+        text = raw.decode("utf-8", errors="replace")
+        return f"```\n{text}\n```\n"
+
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if ext in {"md", "markdown"}:
+        return text
+    if ext == "json":
+        return f"```json\n{text.strip()}\n```\n"
+    if ext in {"csv", "tsv"}:
+        return _csv_to_md_table(text)
+    # txt / log / plain
+    return f"```\n{text}\n```\n"
+
+
+def _current_raw_path(pid: str, file_id: str, current_version: int) -> Optional[Path]:
+    """Resolve the on-disk path for the file's current version.
+
+    Soft-delete moves bytes into .RAW_TRASH without always updating raw_path,
+    so we fall back to a trash glob when the recorded path is missing.
+    """
+    from finetune_studio import db
+    with db.cursor() as c:
+        row = c.execute(
+            "SELECT raw_path FROM file_versions WHERE file_id = ? AND version = ?",
+            (file_id, current_version),
+        ).fetchone()
+    if not row:
+        return None
+    p = Path(row["raw_path"])
+    if p.exists():
+        return p
+    # Soft-deleted: look in trash for {file_id}_*
+    trash = raw_trash_dir(pid)
+    if trash.exists():
+        for cand in trash.glob(f"{file_id}_*"):
+            if cand.is_file():
+                return cand
+    return p if p.exists() else None
+
+
+def rename_file(pid: str, file_id: str, new_name: str) -> dict:
+    """Rename a live file: update project_files.original_name and rename on disk.
+
+    Returns ``{ok: True, file: {...}}``. Raises 404 / 409 / 400 via HTTPException.
+    """
+    from finetune_studio import db
+
+    safe_name = _validate_rename_name(new_name)
+    with db.cursor() as c:
+        f = c.execute(
+            """SELECT id, original_name, mime_type, current_version, size_bytes,
+                      uploaded_at, uploaded_by, deleted_at, tags, notes
+                 FROM project_files
+                WHERE id = ? AND project_id = ?""",
+            (file_id, pid),
+        ).fetchone()
+        if not f:
+            raise HTTPException(status_code=404, detail="file not found")
+        if f["deleted_at"] is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="cannot rename a trashed file; restore it first",
+            )
+        if f["original_name"] == safe_name:
+            return {"ok": True, "file": get_file(pid, file_id)}
+
+        clash = c.execute(
+            """SELECT id FROM project_files
+                WHERE project_id = ? AND original_name = ?
+                  AND id != ? AND deleted_at IS NULL""",
+            (pid, safe_name, file_id),
+        ).fetchone()
+        if clash:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"a file named '{safe_name}' already exists "
+                    "in this project"
+                ),
+            )
+
+        ver = c.execute(
+            "SELECT id, raw_path FROM file_versions "
+            "WHERE file_id = ? AND version = ?",
+            (file_id, f["current_version"]),
+        ).fetchone()
+        if not ver:
+            raise HTTPException(
+                status_code=404, detail="file version missing"
+            )
+
+        old_path = Path(ver["raw_path"])
+        kind = auto_kind_for(
+            f["mime_type"] or "application/octet-stream"
+        )
+        # Prefer keeping the file in its current directory (may differ from
+        # MIME auto-folder after a move); only rebuild the filename.
+        if old_path.exists():
+            new_name_on_disk = raw_path_for(
+                pid, file_id, safe_name, kind
+            ).name
+            new_path = old_path.parent / new_name_on_disk
+            if new_path != old_path:
+                if new_path.exists():
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            "target path already exists on disk: "
+                            f"{new_path.name}"
+                        ),
+                    )
+                try:
+                    old_path.rename(new_path)
+                except OSError as e:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"disk rename failed: {e}",
+                    ) from e
+            c.execute(
+                "UPDATE file_versions SET raw_path = ? WHERE id = ?",
+                (str(new_path), ver["id"]),
+            )
+        else:
+            log.warning(
+                "rename: raw missing on disk for %s (%s)",
+                file_id,
+                old_path,
+            )
+
+        c.execute(
+            "UPDATE project_files SET original_name = ? WHERE id = ?",
+            (safe_name, file_id),
+        )
+
+    invalidate_parsed_cache(pid, file_id)
+    updated = get_file(pid, file_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="file not found after rename")
+    return {"ok": True, "file": updated}
+
+
+def purge_file(pid: str, file_id: str) -> dict:
+    """Hard-delete a single trashed file (disk + DB rows).
+
+    File must already be soft-deleted (``deleted_at IS NOT NULL``). Returns
+    ``{ok: True, fid: '...'}``.
+    """
+    from finetune_studio import db
+
+    with db.cursor() as c:
+        f = c.execute(
+            """SELECT id, original_name, deleted_at FROM project_files
+                WHERE id = ? AND project_id = ?""",
+            (file_id, pid),
+        ).fetchone()
+        if not f:
+            raise HTTPException(status_code=404, detail="file not found")
+        if f["deleted_at"] is None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "file is not in trash — soft-delete it first "
+                    "(DELETE /files/{fid})"
+                ),
+            )
+
+        versions = c.execute(
+            "SELECT raw_path FROM file_versions WHERE file_id = ?", (file_id,)
+        ).fetchall()
+        for v in versions:
+            p = Path(v["raw_path"])
+            if p.exists():
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
+        # Soft-delete may have moved bytes to trash without updating raw_path
+        trash = raw_trash_dir(pid)
+        if trash.exists():
+            for cand in trash.glob(f"{file_id}_*"):
+                try:
+                    cand.unlink()
+                except OSError:
+                    pass
+
+        convs = c.execute(
+            "SELECT converted_path FROM file_conversions WHERE file_id = ?", (file_id,)
+        ).fetchall()
+        for cv in convs:
+            p = Path(cv["converted_path"])
+            if p.exists():
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
+        conv_trash = converted_trash_dir(pid)
+        if conv_trash.exists():
+            for cand in conv_trash.iterdir():
+                # Best-effort: converted trash names don't always include file_id
+                if cand.is_file() and file_id in cand.name:
+                    try:
+                        cand.unlink()
+                    except OSError:
+                        pass
+
+        c.execute("DELETE FROM file_conversions WHERE file_id = ?", (file_id,))
+        c.execute("DELETE FROM file_versions WHERE file_id = ?", (file_id,))
+        c.execute("DELETE FROM folder_membership WHERE file_id = ?", (file_id,))
+        c.execute("DELETE FROM project_files WHERE id = ?", (file_id,))
+
+    invalidate_parsed_cache(pid, file_id)
+    return {"ok": True, "fid": file_id}
+
+
+def get_parsed_markdown(pid: str, file_id: str) -> dict:
+    """Resolve a file's parsed-markdown representation.
+
+    Resolution order:
+      1. Optional ``parsed_md`` / ``parsed_path`` columns on project_files (source=db)
+      2. ``file_conversions`` row with format md/txt and status ok (source=db)
+      3. Sibling ``.md`` next to the stored raw file (source=sibling)
+      4. Legacy ``files/<sha>/parsed.txt`` (source=sibling)
+      5. On-the-fly conversion of .txt / .csv / .json / .md (source=converted)
+      6. 422 for binary / unsupported formats
+
+    Results are cached in-process for the lifetime of the server.
+    """
+    from finetune_studio import db
+
+    cache_k = _cache_key(pid, file_id)
+    if cache_k in _PARSED_CACHE:
+        return _PARSED_CACHE[cache_k]
+
+    f = get_file(pid, file_id, include_deleted=True)
+    if not f:
+        raise HTTPException(status_code=404, detail="file not found")
+
+    cols = _project_files_columns()
+    raw_path_obj = _current_raw_path(pid, file_id, int(f["current_version"] or 1))
+    path_str = str(raw_path_obj) if raw_path_obj else ""
+
+    # 1) Optional DB columns (not present in current schema — checked live)
+    if "parsed_md" in cols or "parsed_path" in cols:
+        with db.cursor() as c:
+            row = c.execute(
+                "SELECT * FROM project_files WHERE id = ? AND project_id = ?",
+                (file_id, pid),
+            ).fetchone()
+        if row:
+            if "parsed_md" in cols and row["parsed_md"]:
+                result = {
+                    "fid": file_id,
+                    "path": path_str,
+                    "parsed_md": str(row["parsed_md"]),
+                    "source": "db",
+                }
+                _PARSED_CACHE[cache_k] = result
+                return result
+            if "parsed_path" in cols and row["parsed_path"]:
+                p = Path(str(row["parsed_path"]))
+                if p.exists():
+                    result = {
+                        "fid": file_id,
+                        "path": str(p),
+                        "parsed_md": p.read_text(encoding="utf-8", errors="replace"),
+                        "source": "db",
+                    }
+                    _PARSED_CACHE[cache_k] = result
+                    return result
+
+    # 2) file_conversions table (converted MD/txt written by prep pipeline)
+    with db.cursor() as c:
+        conv = c.execute(
+            """SELECT converted_path, format, status FROM file_conversions
+                WHERE file_id = ?
+                  AND lower(format) IN ('md', 'txt', 'markdown')
+                  AND lower(status) != 'error'
+                ORDER BY converted_at DESC LIMIT 1""",
+            (file_id,),
+        ).fetchone()
+    if conv:
+        cp = Path(conv["converted_path"])
+        if cp.exists():
+            result = {
+                "fid": file_id,
+                "path": str(cp),
+                "parsed_md": cp.read_text(encoding="utf-8", errors="replace"),
+                "source": "db",
+            }
+            _PARSED_CACHE[cache_k] = result
+            return result
+
+    # 3) Sibling .md next to stored raw
+    if raw_path_obj is not None:
+        sibling = raw_path_obj.with_suffix(".md")
+        if sibling.exists() and sibling.is_file() and sibling != raw_path_obj:
+            result = {
+                "fid": file_id,
+                "path": str(sibling),
+                "parsed_md": sibling.read_text(encoding="utf-8", errors="replace"),
+                "source": "sibling",
+            }
+            _PARSED_CACHE[cache_k] = result
+            return result
+        # Also accept same-stem .md without the file_id_ prefix in the same dir
+        stem = _safe_stem(f["original_name"])
+        alt = raw_path_obj.parent / f"{stem}.md"
+        if alt.exists() and alt.is_file():
+            result = {
+                "fid": file_id,
+                "path": str(alt),
+                "parsed_md": alt.read_text(encoding="utf-8", errors="replace"),
+                "source": "sibling",
+            }
+            _PARSED_CACHE[cache_k] = result
+            return result
+
+    # 4) Legacy data-prep path: files/<sha12>/parsed.txt (do NOT call file_dir —
+    # it mkdir's as a side effect).
+    root = project_files_root(pid)
+    for short in (file_id[:12], file_id[:16], file_id):
+        legacy = root / short / "parsed.txt"
+        if legacy.exists() and legacy.is_file():
+            result = {
+                "fid": file_id,
+                "path": str(legacy),
+                "parsed_md": legacy.read_text(encoding="utf-8", errors="replace"),
+                "source": "sibling",
+            }
+            _PARSED_CACHE[cache_k] = result
+            return result
+
+    # 5) On-the-fly conversion from raw
+    if raw_path_obj is None or not raw_path_obj.exists():
+        raise HTTPException(status_code=410, detail="file missing on disk")
+
+    md = _convert_raw_to_md(raw_path_obj, f["original_name"])
+    result = {
+        "fid": file_id,
+        "path": str(raw_path_obj),
+        "parsed_md": md,
+        "source": "converted",
+    }
+    _PARSED_CACHE[cache_k] = result
+    return result

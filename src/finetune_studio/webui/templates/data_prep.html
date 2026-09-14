@@ -601,8 +601,13 @@ function flRenameFile(fid, currentName) {
   fetch('/api/projects/' + _flPid + '/files/' + fid + '/rename', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: newName })
-  }).then(() => {
+    body: JSON.stringify({ new_name: newName, name: newName })
+  }).then(async (r) => {
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const detail = (d && d.detail) ? d.detail : ('HTTP ' + r.status);
+      throw new Error(detail);
+    }
     fts.notify('Renamed to ' + newName, 'success');
     flInit();
   }).catch((e) => fts.notify('Rename failed: ' + e.message, 'error'));
@@ -727,13 +732,32 @@ function flLoadRawTextIfNeeded(fid, name, mime) {
 }
 
 async function flFillParsedPanel(panel, fid, name) {
-  // TODO: file-library has no GET /files/{fid}/parsed (or /converted) endpoint.
-  // Parsed bytes live at file_conversions.converted_path or legacy files/<sha>/parsed.txt.
-  // Until an endpoint exists, try a sibling .md in the library, else show the banner.
-  console.warn(
-    '[flPreview] Parsed MD endpoint not available for file', fid,
-    '— using sibling-.md heuristic / banner fallback'
-  );
+  // Prefer the real GET /files/{fid}/parsed endpoint; keep sibling-/banner
+  // heuristics as fallback when the endpoint is unavailable or returns 422.
+  try {
+    const r = await fetch('/api/projects/' + _flPid + '/files/' + fid + '/parsed');
+    if (r.ok) {
+      const d = await r.json();
+      const src = d.source || 'unknown';
+      panel.innerHTML =
+        '<div class="text-xs dim mb-2">Parsed MD · source=<code>' +
+        escapeHtml(src) + '</code></div>' +
+        '<pre id="fl-parsed-content" class="mono text-xs" style="max-height:60vh;overflow:auto;padding:12px;background:var(--surface,var(--bg-panel));border:1px solid var(--border);border-radius:4px;"></pre>';
+      const el = document.getElementById('fl-parsed-content');
+      if (el) el.textContent = d.parsed_md || '';
+      return;
+    }
+    if (r.status === 422) {
+      const d = await r.json().catch(() => ({}));
+      const detail = (d && d.detail) ? String(d.detail) : 'binary / unsupported format';
+      panel.innerHTML =
+        '<div class="fl-preview-banner">' + escapeHtml(detail) + '</div>';
+      // Fall through to heuristics below for any sibling / prep-source hints.
+    }
+  } catch (_) {
+    console.warn('[flPreview] GET /parsed failed — using heuristic fallback for', fid);
+  }
+
   const bannerHtml =
     '<div class="fl-preview-banner">Parsed MD preview not yet available for this file. ' +
     'Use Data Prep → Prep job to generate one.</div>';
@@ -743,7 +767,7 @@ async function flFillParsedPanel(panel, fid, name) {
     panel.innerHTML =
       '<div class="text-xs dim mb-2">Sibling markdown heuristic: showing <code>' +
       escapeHtml(sibling.original_name) +
-      '</code> (TODO: add GET /files/{fid}/parsed to serve converted MD).</div>' +
+      '</code>.</div>' +
       '<pre id="fl-parsed-content" class="mono text-xs" style="max-height:60vh;overflow:auto;padding:12px;background:var(--surface,var(--bg-panel));border:1px solid var(--border);border-radius:4px;">Loading…</pre>';
     try {
       const t = await fetch('/api/projects/' + _flPid + '/files/' + sibling.id + '/raw').then((r) => r.text());
@@ -982,10 +1006,15 @@ async function flRestoreFile(fid, name) {
 
 async function flPurgeOne(fid) {
   if (!confirm('Hard-delete this file from trash now?')) return;
-  await fetch('/api/projects/' + _flPid + '/files/trash/purge?older_than_days=99999', { method: 'POST' });
-  // Simpler: re-implement as single-file purge by iterating. For now,
-  // run a full trash purge that ignores age — safe since user confirmed.
-  await flInit();
+  try {
+    const r = await fetch('/api/projects/' + _flPid + '/files/' + fid + '/purge', { method: 'POST' });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const detail = (d && d.detail) ? d.detail : ('HTTP ' + r.status);
+      throw new Error(detail);
+    }
+    await flInit();
+  } catch (e) { alert('Purge failed: ' + e.message); }
 }
 
 function flToggleTrash() {

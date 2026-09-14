@@ -301,7 +301,7 @@
         actions =
           '<div class="flex gap-1 wrap">' +
           '<button class="btn sm" type="button" onclick="fbRestore(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">Restore</button>' +
-          '<button class="btn sm danger" type="button" title="Purges entire trash (no per-file purge API)" onclick="fbEmptyTrash()">Purge</button>' +
+          '<button class="btn sm danger" type="button" title="Hard-delete this file" onclick="fbPurgeOne(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">Purge</button>' +
           '</div>';
       } else {
         const mime = f.mime_type || '';
@@ -310,7 +310,7 @@
           '<button class="btn sm" type="button" title="Preview" onclick="fbPreview(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\',\'' + esc(mime) + '\')">👁</button>' +
           '<a class="btn sm" title="Download raw" href="/api/projects/' + PID + '/files/' + encodeURIComponent(f.id) + '/raw" download="' + esc(f.original_name) + '">⬇</a>' +
           '<button class="btn sm" type="button" title="Tags &amp; notes" onclick="fbEditTags(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">🏷</button>' +
-          '<button class="btn sm" type="button" title="Rename (API not available)" onclick="fbRename(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">✎</button>' +
+          '<button class="btn sm" type="button" title="Rename" onclick="fbRename(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">✎</button>' +
           '<button class="btn sm danger" type="button" title="Delete" onclick="fbDelete(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">🗑</button>' +
           '</div>';
       }
@@ -522,8 +522,45 @@
       .catch((e) => notify('Failed to load file: ' + e.message, 'error'));
   };
 
-  window.fbRename = function (_fid, _name) {
-    notify('Rename API is not available yet (no PATCH /files/{fid}/rename).', 'error');
+  window.fbRename = async function (fid, name) {
+    const newName = prompt('Rename file:', name);
+    if (!newName || newName === name) return;
+    try {
+      const r = await fetch('/api/projects/' + PID + '/files/' + fid + '/rename', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_name: newName }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const detail = (d && d.detail) ? d.detail : ('HTTP ' + r.status);
+        throw new Error(detail);
+      }
+      notify('Renamed to ' + newName, 'success');
+      await loadFiles();
+    } catch (e) {
+      notify('Rename failed: ' + e.message, 'error');
+    }
+  };
+
+  window.fbPurgeOne = async function (fid, name) {
+    const ok = await confirmDanger('Permanently delete ' + name + ' from trash?', {
+      title: 'Hard-delete file', danger: true, okText: 'Purge',
+    });
+    if (!ok) return;
+    try {
+      const r = await fetch('/api/projects/' + PID + '/files/' + fid + '/purge', { method: 'POST' });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const detail = (d && d.detail) ? d.detail : ('HTTP ' + r.status);
+        throw new Error(detail);
+      }
+      notify(name + ' purged', 'success');
+      selected.delete(fid);
+      await loadFiles();
+    } catch (e) {
+      notify('Purge failed: ' + e.message, 'error');
+    }
   };
 
   window.fbDelete = async function (fid, name) {

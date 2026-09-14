@@ -7,8 +7,11 @@ Endpoints:
   POST   /api/projects/{pid}/files/trash/purge    — hard-delete old trashed files
   GET    /api/projects/{pid}/files/{fid}          — get one file's metadata
   GET    /api/projects/{pid}/files/{fid}/raw      — download raw bytes (?version=N)
+  GET    /api/projects/{pid}/files/{fid}/parsed   — stream parsed markdown preview
   GET    /api/projects/{pid}/files/{fid}/versions — list all raw versions
   GET    /api/projects/{pid}/files/{fid}/conversions — list converted versions
+  PATCH  /api/projects/{pid}/files/{fid}/rename   — rename file (DB + disk)
+  POST   /api/projects/{pid}/files/{fid}/purge    — hard-delete one trashed file
   POST   /api/projects/{pid}/files/{fid}/move     — move file to folder
   DELETE /api/projects/{pid}/files/{fid}          — soft-delete (moves to trash)
   POST   /api/projects/{pid}/files/{fid}/restore  — restore from trash
@@ -79,12 +82,20 @@ async def upload_files(
         try:
             data = await up.read()
         except Exception as e:
-            report.append({"filename": name, "status": "error", "error": f"read failed: {e}"})
+            report.append({
+                "filename": name,
+                "status": "error",
+                "error": f"read failed: {e}",
+            })
             counts["errors"] += 1
             continue
 
         if not data:
-            report.append({"filename": name, "status": "error", "error": "empty upload"})
+            report.append({
+                "filename": name,
+                "status": "error",
+                "error": "empty upload",
+            })
             counts["errors"] += 1
             continue
 
@@ -212,7 +223,10 @@ async def download_raw_route(
     target_version = version if version is not None else f["current_version"]
     match = next((v for v in versions if v["version"] == target_version), None)
     if not match:
-        raise HTTPException(status_code=404, detail=f"version {target_version} not found")
+        raise HTTPException(
+            status_code=404,
+            detail=f"version {target_version} not found",
+        )
     path = Path(match["raw_path"])
     if not path.exists():
         raise HTTPException(status_code=410, detail="file missing on disk")
@@ -221,6 +235,18 @@ async def download_raw_route(
         filename=f["original_name"],
         media_type=f.get("mime_type") or "application/octet-stream",
     )
+
+
+@router.get("/projects/{pid}/files/{fid}/parsed")
+async def get_parsed_route(pid: str, fid: str):
+    """Return the file's parsed-markdown representation.
+
+    Response: ``{fid, path, parsed_md, source}`` where source is one of
+    ``db`` | ``sibling`` | ``converted``. Binary formats without a stored
+    conversion return HTTP 422.
+    """
+    _project_or_404(pid)
+    return fl.get_parsed_markdown(pid, fid)
 
 
 @router.get("/projects/{pid}/files/{fid}/versions")
@@ -233,6 +259,29 @@ async def list_versions_route(pid: str, fid: str):
 async def list_conversions_route(pid: str, fid: str):
     _project_or_404(pid)
     return {"conversions": fl.list_conversions(pid, fid)}
+
+
+@router.patch("/projects/{pid}/files/{fid}/rename")
+async def rename_file_route(pid: str, fid: str, request: Request):
+    """Rename a live file (DB original_name + on-disk path).
+
+    Body accepts ``new_name`` (preferred) or ``name`` (data-prep UI compat).
+    """
+    _project_or_404(pid)
+    body = await request.json()
+    new_name = body.get("new_name")
+    if new_name is None:
+        new_name = body.get("name")
+    if new_name is None:
+        raise HTTPException(status_code=400, detail="new_name required")
+    return fl.rename_file(pid, fid, str(new_name))
+
+
+@router.post("/projects/{pid}/files/{fid}/purge")
+async def purge_file_route(pid: str, fid: str):
+    """Hard-delete one trashed file (disk + DB). Must already be in trash."""
+    _project_or_404(pid)
+    return fl.purge_file(pid, fid)
 
 
 @router.post("/projects/{pid}/files/{fid}/move")
