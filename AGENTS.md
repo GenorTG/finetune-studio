@@ -26,7 +26,7 @@ Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **ge
 
 ## Session protocol
 - Start: `create_goal` (objective + acceptance command), `progress_card` ≤7 steps. Clear any stale card first.
-- Every new instruction from Genor = new task: `get_goal` first; re-point the objective (`update_goal`, or `create_goal` if complete) and reset the card before any other call. Every ~10 tool calls: `get_goal`, update the card. Same fix failed twice → stop and change approach.
+- Every new instruction from Genor = new task: `get_goal` first; if objective mismatches, ask Genor for `/goal edit …` (model cannot rewrite objective — only complete/blocked) and reset the `progress_card` before any other call. Every ~10 tool calls: `get_goal`, update the card. Same fix failed twice → stop and change approach.
 - Implementation is Cursor's, mechanically: hand-edit only one-file fixes ≤30 lines, docs, config. New feature / new file, scene or test / ≥2 code files / a fix that already failed once → `sessions_spawn` with `runtime: "acp"`, `agentId: "cursor"`, `streamTo: "parent"`, `label`, `cwd` = this repo (Cursor Auto, flat subscription); then `sessions_yield`. You reproduce, review the diff, verify, commit, push. Cheap research/triage only: `runtime: "subagent"`, `model: "opencode-go/deepseek-v4-flash"`.
 - End: goal complete/blocked, card cleared, `HANDOFF.md` rewritten, commit + push.
 
