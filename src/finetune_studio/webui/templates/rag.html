@@ -122,19 +122,77 @@
   </div>
 </div>
 
-{# Sources #}
-<div class="card mb-4">
+{# Documents indexed #}
+<div class="card mb-4" id="rag-docs-panel">
   <div class="card-head">
     <div>
-      <div class="card-title">4. Corpus sources</div>
-      <div class="card-sub">Manage which documents are indexed. Remove individual sources or clear all.</div>
+      <div class="card-title">4. Documents indexed</div>
+      <div class="card-sub" id="rag-docs-summary">
+        {{ indexed_doc_count | default(0) }} document{{ '' if (indexed_doc_count | default(0)) == 1 else 's' }}
+        · {{ indexed_chunk_count | default(0) }} chunk{{ '' if (indexed_chunk_count | default(0)) == 1 else 's' }}
+      </div>
     </div>
     <div class="flex gap-2">
-      <button class="btn small" onclick="loadRagSources()" title="Refresh source list">⟲ Refresh</button>
+      <button class="btn small" onclick="loadIndexedDocs()" title="Refresh inventory">⟲ Refresh</button>
       <button class="btn small danger" onclick="clearAllSources()" title="Remove all sources (requires rebuild)">Clear all</button>
     </div>
   </div>
-  <div id="rag-sources-body" class="text-sm muted">Loading…</div>
+  <div id="rag-docs-body">
+    {% set docs = indexed_docs | default([]) %}
+    {% if docs %}
+    <table class="ref-table" id="rag-docs-table">
+      <thead>
+        <tr>
+          <th>Doc name</th>
+          <th>Type</th>
+          <th>Chunks</th>
+          <th>Status</th>
+          <th>Last indexed</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in docs %}
+        <tr data-doc-id="{{ d.id }}">
+          <td class="mono">{{ d.name }}</td>
+          <td class="dim text-xs">{{ d.mime }}</td>
+          <td>{{ d.chunks }}</td>
+          <td>
+            {% if d.status == 'indexed' %}
+            <span class="pill solid-green">indexed</span>
+            {% elif d.status == 'pending' %}
+            <span class="pill solid-amber">pending</span>
+            {% else %}
+            <span class="pill solid-rose">error</span>
+            {% endif %}
+          </td>
+          <td class="dim text-xs">{{ d.last_indexed or '—' }}</td>
+          <td class="flex gap-1">
+            <button class="btn small" data-rebuild="{{ d.id }}" onclick="rebuildDoc(this)" title="Rebuild corpus (whole project)">Rebuild</button>
+            <button class="btn small ghost" data-view="{{ d.id }}" onclick="viewDocChunks('{{ d.id }}', {{ d.name | tojson }})" title="View chunks">View chunks</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-sm muted" id="rag-docs-empty">No documents indexed yet. Upload files via the data page or chat to populate the RAG store.</p>
+    {% endif %}
+  </div>
+</div>
+
+{# Chunks modal #}
+<div id="rag-chunks-modal" class="modal-back" hidden onclick="if(event.target===this)this.hidden=true">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head">
+      <span id="rag-chunks-title">Chunks</span>
+      <button class="btn ghost icon" onclick="document.getElementById('rag-chunks-modal').hidden=true" style="margin-left:auto;">✕</button>
+    </div>
+    <div class="modal-body" id="rag-chunks-body" style="max-height:420px;overflow-y:auto;"></div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="document.getElementById('rag-chunks-modal').hidden=true">Close</button>
+    </div>
+  </div>
 </div>
 
 {# Test #}
@@ -243,56 +301,153 @@
     if (n) n(msg, type); else console.log(msg);
   };
   const PID = {{ pid | tojson }};
+  const esc = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+  function statusPill(status) {
+    if (status === 'indexed') return '<span class="pill solid-green">indexed</span>';
+    if (status === 'pending') return '<span class="pill solid-amber">pending</span>';
+    return '<span class="pill solid-rose">' + esc(status || 'error') + '</span>';
+  }
+
+  function renderDocsTable(docs) {
+    const body = document.getElementById('rag-docs-body');
+    const summary = document.getElementById('rag-docs-summary');
+    if (!body) return;
+    const list = docs || [];
+    const totalChunks = list.reduce((n, d) => n + (d.chunks || 0), 0);
+    if (summary) {
+      summary.textContent = list.length + ' document' + (list.length === 1 ? '' : 's')
+        + ' · ' + totalChunks + ' chunk' + (totalChunks === 1 ? '' : 's');
+    }
+    if (!list.length) {
+      body.innerHTML = '<p class="text-sm muted" id="rag-docs-empty">'
+        + 'No documents indexed yet. Upload files via the data page or chat to populate the RAG store.</p>';
+      return;
+    }
+    body.innerHTML = '<table class="ref-table" id="rag-docs-table"><thead><tr>'
+      + '<th>Doc name</th><th>Type</th><th>Chunks</th><th>Status</th><th>Last indexed</th><th>Actions</th>'
+      + '</tr></thead><tbody>'
+      + list.map(function(d) {
+          const id = esc(d.id);
+          const nameJson = JSON.stringify(d.name || d.id);
+          return '<tr data-doc-id="' + id + '">'
+            + '<td class="mono">' + esc(d.name) + '</td>'
+            + '<td class="dim text-xs">' + esc(d.mime || 'text/plain') + '</td>'
+            + '<td>' + (d.chunks || 0) + '</td>'
+            + '<td>' + statusPill(d.status) + '</td>'
+            + '<td class="dim text-xs">' + esc(d.last_indexed || '—') + '</td>'
+            + '<td class="flex gap-1">'
+            + '<button class="btn small" data-rebuild="' + id + '" onclick="rebuildDoc(this)" title="Rebuild corpus (whole project)">Rebuild</button>'
+            + '<button class="btn small ghost" onclick=\'viewDocChunks(' + JSON.stringify(d.id) + ', ' + nameJson + ')\' title="View chunks">View chunks</button>'
+            + '</td></tr>';
+        }).join('')
+      + '</tbody></table>';
+  }
+
+  window.loadIndexedDocs = async function() {
+    const body = document.getElementById('rag-docs-body');
+    if (!body) return;
+    try {
+      const r = await fetch('/api/projects/' + PID + '/rag/docs');
+      const d = await r.json();
+      if (!r.ok) {
+        body.innerHTML = '<span class="dim">' + esc(d.detail || d.error || 'Failed to load') + '</span>';
+        return;
+      }
+      renderDocsTable(d.docs || []);
+    } catch (e) {
+      body.innerHTML = '<span class="dim">Failed: ' + esc(e.message) + '</span>';
+    }
+  };
+
+  window.rebuildDoc = async function(btn) {
+    const docId = btn && btn.getAttribute('data-rebuild');
+    const row = btn && btn.closest('tr');
+    const pillCell = row && row.querySelector('td:nth-child(4)');
+    btn.disabled = true;
+    if (pillCell) pillCell.innerHTML = statusPill('pending');
+    try {
+      const r = await fetch('/api/projects/' + PID + '/rag/rebuild', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doc_id: docId || null, reset: true }),
+      });
+      const d = await r.json().catch(function() { return {}; });
+      if (!r.ok) {
+        const msg = d.detail || d.error || ('HTTP ' + r.status);
+        notify(msg, 'error');
+        if (pillCell) pillCell.innerHTML = statusPill('error');
+        return;
+      }
+      notify('Corpus rebuilt' + (docId ? ' (full rebuild; doc ' + docId + ')' : ''), 'success');
+      renderDocsTable(d.docs || []);
+      if (typeof window.loadRagStatus === 'function') window.loadRagStatus();
+    } catch (e) {
+      notify('Rebuild failed: ' + e.message, 'error');
+      if (pillCell) pillCell.innerHTML = statusPill('error');
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  window.viewDocChunks = async function(docId, docName) {
+    const modal = document.getElementById('rag-chunks-modal');
+    const title = document.getElementById('rag-chunks-title');
+    const body = document.getElementById('rag-chunks-body');
+    if (!modal || !body) return;
+    title.textContent = 'Chunks — ' + (docName || docId);
+    body.innerHTML = '<span class="dim">Loading…</span>';
+    modal.hidden = false;
+    try {
+      const r = await fetch('/api/projects/' + PID + '/rag/docs/' + encodeURIComponent(docId) + '/chunks');
+      const d = await r.json();
+      if (!r.ok) {
+        body.innerHTML = '<span class="dim">' + esc(d.detail || d.error || 'Failed') + '</span>';
+        return;
+      }
+      const chunks = d.chunks || [];
+      if (!chunks.length) {
+        body.innerHTML = '<p class="text-sm muted">No chunks for this document.</p>';
+        return;
+      }
+      body.innerHTML = '<table class="ref-table"><thead><tr><th>chunk_id</th><th>Preview</th></tr></thead><tbody>'
+        + chunks.map(function(c) {
+            return '<tr><td class="mono text-xs">' + esc(c.chunk_id) + '</td>'
+              + '<td class="text-xs">' + esc(c.preview || '') + '</td></tr>';
+          }).join('')
+        + '</tbody></table>';
+    } catch (e) {
+      body.innerHTML = '<span class="dim">Failed: ' + esc(e.message) + '</span>';
+    }
+  };
+
+  window.clearAllSources = async function() {
+    if (!confirm('Remove ALL sources? You will need to rebuild the corpus.')) return;
+    try {
+      const r = await fetch('/api/projects/' + PID + '/rag/sources', { method: 'DELETE' });
+      const d = await r.json();
+      if (d.error) { notify(d.error, 'error'); }
+      else { loadIndexedDocs(); notify('All sources cleared', 'success'); }
+    } catch (e) { notify('Failed: ' + e.message, 'error'); }
+  };
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Refresh from API so counts stay current after SPA navigations.
+    if (typeof loadIndexedDocs === 'function') loadIndexedDocs();
+  });
 
   window.buildCorpus = async function(rebuild) {
     const status = document.getElementById('build-status');
     const btn = document.getElementById('build-btn');
-    // ── RAG source management ────────────────────────────────────────
-async function loadRagSources() {
-  const body = document.getElementById('rag-sources-body');
-  if (!body) return;
-  body.innerHTML = '<span class="dim">Loading…</span>';
-  try {
-    const r = await fetch('/api/projects/' + PID + '/rag/sources');
-    const d = await r.json();
-    if (d.error) { body.innerHTML = '<span class="dim">' + d.error + '</span>'; return; }
-    const sources = d.sources || [];
-    if (!sources.length) { body.innerHTML = '<span class="dim">No sources indexed. Build the corpus first.</span>'; return; }
-    body.innerHTML = '<table class="ref-table"><thead><tr><th>Source</th><th>Chunks</th><th style="width:40px;"></th></tr></thead><tbody>' +
-      sources.map(s => '<tr><td class="mono">' + (s.filename || s.source) + '</td><td class="dim">' + (s.chunks || 0) + '</td>' +
-      '<td><button class="btn small danger" onclick="removeSource(\'' + s.id + '\')" title="Remove">✕</button></td></tr>').join('') +
-      '</tbody></table>';
-  } catch (e) { body.innerHTML = '<span class="dim">Failed: ' + e.message + '</span>'; }
-}
-
-async function removeSource(id) {
-  if (!confirm('Remove this source?')) return;
-  try {
-    const r = await fetch('/api/projects/' + PID + '/rag/sources/' + encodeURIComponent(id), { method: 'DELETE' });
-    const d = await r.json();
-    if (d.error) { if (window.fts) window.fts.notify(d.error, 'error'); }
-    else { loadRagSources(); if (window.fts) window.fts.notify('Source removed', 'success'); }
-  } catch (e) { if (window.fts) window.fts.notify('Failed: ' + e.message, 'error'); }
-}
-
-async function clearAllSources() {
-  if (!confirm('Remove ALL sources? You will need to rebuild the corpus.')) return;
-  try {
-    const r = await fetch('/api/projects/' + PID + '/rag/sources', { method: 'DELETE' });
-    const d = await r.json();
-    if (d.error) { if (window.fts) window.fts.notify(d.error, 'error'); }
-    else { loadRagSources(); if (window.fts) window.fts.notify('All sources cleared', 'success'); }
-  } catch (e) { if (window.fts) window.fts.notify('Failed: ' + e.message, 'error'); }
-}
-
-// Load sources on page load
-document.addEventListener('DOMContentLoaded', () => loadRagSources());
+    const rebuildBtn = document.getElementById('rebuild-btn');
     const chunk = parseInt((document.getElementById('b-chunk') && document.getElementById('b-chunk').value) || '400', 10);
     const overlap = parseInt((document.getElementById('b-overlap') && document.getElementById('b-overlap').value) || '80', 10);
     const embedderEl = document.getElementById('b-embedder');
     const embedder = embedderEl ? embedderEl.value : '';
     btn.disabled = true;
-    rebuildBtn.disabled = true;
+    if (rebuildBtn) rebuildBtn.disabled = true;
     status.textContent = (rebuild ? 'Rebuilding' : 'Building') + ' corpus…';
     try {
       const body = {
@@ -307,10 +462,6 @@ document.addEventListener('DOMContentLoaded', () => loadRagSources());
         notify(r.error, 'error');
         return;
       }
-      // Backend kicks off embedding in the background, so the immediate
-      // response carries only the queued file count. Show that now, then
-      // open an SSE stream to /rag/build/progress for live chunking/embedding
-      // feedback, and replace with the final chunk count when done.
       const q = r.queued_files != null ? r.queued_files : '?';
       status.textContent = 'Queued ' + q + ' file' + (q === 1 ? '' : 's') + ' — embedding…';
       notify('Corpus build started: ' + q + ' files queued', 'info');
@@ -341,6 +492,7 @@ document.addEventListener('DOMContentLoaded', () => loadRagSources());
             notify('Corpus built: ' + m + ' chunks', 'success');
             es.close();
             wrap.hidden = true;
+            if (typeof window.loadIndexedDocs === 'function') window.loadIndexedDocs();
             if (typeof window.loadRagStatus === 'function') window.loadRagStatus();
             else if (typeof loadRagStatus === 'function') loadRagStatus();
           } else if (p.phase === 'timeout') {
@@ -350,7 +502,6 @@ document.addEventListener('DOMContentLoaded', () => loadRagSources());
         };
         es.onerror = () => { /* let onmessage drive the rest */ };
       } catch (e) {
-        // SSE not available — fall back to status polling.
         let polls = 0;
         const maxPolls = 240;
         const pollHandle = setInterval(async () => {
@@ -363,6 +514,7 @@ document.addEventListener('DOMContentLoaded', () => loadRagSources());
               notify('Corpus built: ' + m + ' chunks', 'success');
               wrap.hidden = true;
               clearInterval(pollHandle);
+              if (typeof window.loadIndexedDocs === 'function') window.loadIndexedDocs();
               if (typeof window.loadRagStatus === 'function') window.loadRagStatus();
               else if (typeof loadRagStatus === 'function') loadRagStatus();
               return;
@@ -380,7 +532,7 @@ document.addEventListener('DOMContentLoaded', () => loadRagSources());
       notify(msg, 'error');
     } finally {
       btn.disabled = false;
-      rebuildBtn.disabled = false;
+      if (rebuildBtn) rebuildBtn.disabled = false;
     }
   };
 })();

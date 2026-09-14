@@ -387,6 +387,30 @@ async def project_models_page(request: Request, pid: str):
     )
 
 
+@router.get("/projects/{pid}/rag", response_class=HTMLResponse)
+async def project_rag_page(request: Request, pid: str):
+    """RAG page — corpus build/chat plus docs-indexed inventory panel."""
+    from finetune_studio.webui.routes.project_rag import (
+        list_indexed_docs,
+        total_chunk_count,
+    )
+
+    ctx = _project_ctx(pid)
+    if not ctx:
+        return RedirectResponse(url="/projects", status_code=302)
+    indexed_docs = list_indexed_docs(pid)
+    return templates.TemplateResponse(
+        request,
+        "rag.html",
+        {
+            **ctx,
+            "indexed_docs": indexed_docs,
+            "indexed_doc_count": len(indexed_docs),
+            "indexed_chunk_count": total_chunk_count(indexed_docs),
+        },
+    )
+
+
 # ── Other project-scoped pages ──────────────────────────────────────────
 
 @router.get("/projects/{pid}/data/{dataset_path:path}", response_class=HTMLResponse)

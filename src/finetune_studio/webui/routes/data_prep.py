@@ -47,15 +47,7 @@ async def data_prep_page(request: Request, pid: str):
     return templates.TemplateResponse(request, "data_prep.html", ctx)
 
 
-@_pages.get("/projects/{pid}/rag", response_class=HTMLResponse)
-async def rag_page(request: Request, pid: str):
-    from fastapi.templating import Jinja2Templates
-    from finetune_studio import db
-    templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
-    project = db.get_project(pid)
-    if not project:
-        return HTMLResponse("Project not found", status_code=404)
-    return templates.TemplateResponse(request, "rag.html", {"request": request, "pid": pid, "project": project})
+# RAG page lives in pages.project_rag_page (passes indexed_docs).
 
 
 # ── Provider CRUD ───────────────────────────────────────────────────────

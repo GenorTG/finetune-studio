@@ -242,3 +242,6 @@ app.include_router(_file_library.router, prefix="/api", tags=["file-library"])  
 
 from finetune_studio.webui.routes import project_models as _project_models  # noqa: E402
 app.include_router(_project_models.router, prefix="/api", tags=["project-models"])  # type: ignore[has-type]  # /api/projects/{pid}/models/.../contents
+
+from finetune_studio.webui.routes import project_rag as _project_rag  # noqa: E402
+app.include_router(_project_rag.router, prefix="/api", tags=["project-rag"])  # type: ignore[has-type]  # /api/projects/{pid}/rag/docs* + /rebuild
