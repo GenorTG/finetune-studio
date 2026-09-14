@@ -54,6 +54,8 @@ async def get_project(pid: str):
         return {"error": "not found"}
     p["rags"] = db.list_rags(pid)
     p["runs"] = db.list_runs(pid)
+    # Attach model exports found on disk for each run.
+    p["models"] = _scan_run_models(p["runs"])
     # Attach benchmark summaries to runs.
     for run in p["runs"]:
         run["benchmarks"] = db.list_benchmarks(run["id"])
