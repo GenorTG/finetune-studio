@@ -953,18 +953,17 @@ def rename_file(pid: str, file_id: str, new_name: str) -> dict:
             old_path = Path(ver["raw_path"])
         else:
             # No file_versions row (e.g. files created before the versions
-            # table existed). Rebuild the expected path from project_files.
-            kind = auto_kind_for(
-                f["mime_type"] or "application/octet-stream"
-            )
-            old_path = raw_path_for(
-                pid, file_id, f["original_name"], kind
-            )
-            if not old_path.exists():
+            # table existed). Find the file on disk by ID prefix — storage
+            # layout may differ from raw_path_for() (flat vs mime-kind subdir).
+            _root = Path(project_dir(pid)) / "files"
+            matches = list(_root.glob(f"{file_id}*"))
+            matches = [p for p in matches if p.is_file()]
+            if not matches:
                 raise HTTPException(
                     status_code=404,
                     detail="file missing on disk",
                 )
+            old_path = matches[0]
             log.info(
                 "rename: no file_versions row for %s; using %s",
                 file_id, old_path,
