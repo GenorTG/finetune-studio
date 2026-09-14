@@ -12,7 +12,6 @@ import mimetypes
 import time
 import uuid
 from pathlib import Path
-from typing import Optional
 
 from finetune_studio.data.fs.paths import project_dir
 
@@ -83,11 +82,11 @@ def read_qa_source(pid: str, source_id: str) -> dict:
         return {}
     try:
         return json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
+    except Exception:  # noqa: BLE001
         return {}
 
 
-def list_qa_pairs(pid: str, source_id: Optional[str] = None, status: Optional[str] = None) -> list[dict]:
+def list_qa_pairs(pid: str, source_id: str | None = None, status: str | None = None) -> list[dict]:
     pairs_dir = project_dir(pid) / "qa" / "pairs"
     if not pairs_dir.exists():
         return []
@@ -95,7 +94,7 @@ def list_qa_pairs(pid: str, source_id: Optional[str] = None, status: Optional[st
     for p in sorted(pairs_dir.glob("*.json")):
         try:
             qa = json.loads(p.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception:  # noqa: BLE001, S112
             continue
         if source_id and qa.get("source_id") != source_id:
             continue
@@ -113,18 +112,18 @@ def list_qa_sources(pid: str) -> list[dict]:
     for p in src_dir.glob("*.json"):
         try:
             out.append(json.loads(p.read_text(encoding="utf-8")))
-        except Exception:
+        except Exception:  # noqa: BLE001, S112
             continue
     return sorted(out, key=lambda x: x.get("uploaded_at", 0), reverse=True)
 
 
-def update_qa_pair(pid: str, qa_id: str, **fields) -> Optional[dict]:
+def update_qa_pair(pid: str, qa_id: str, **fields) -> dict | None:
     p = project_dir(pid) / "qa" / "pairs" / f"{qa_id}.json"
     if not p.exists():
         return None
     try:
         qa = json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
+    except Exception:  # noqa: BLE001
         return None
     for k, v in fields.items():
         qa[k] = v
@@ -143,7 +142,7 @@ def delete_qa_source(pid: str, source_id: str) -> bool:
                 qa = json.loads(p.read_text(encoding="utf-8"))
                 if qa.get("source_id") == source_id:
                     p.unlink()
-            except Exception:
+            except Exception:  # noqa: BLE001, S112
                 continue
     if src.exists():
         src.unlink()

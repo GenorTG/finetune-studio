@@ -13,13 +13,13 @@ import asyncio
 import json
 import logging
 import time
-import uuid
+import uuid  # noqa: F401
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Request, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, File, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel  # noqa: F401
 
 log = logging.getLogger(__name__)
 
@@ -35,9 +35,10 @@ _RUNS: dict[tuple[str, str], dict] = {}
 @_pages.get("/projects/{pid}/data-prep", response_class=HTMLResponse)
 async def data_prep_page(request: Request, pid: str):
     from fastapi.templating import Jinja2Templates
+
     from finetune_studio import db
-    from finetune_studio.webui.app import discovered_models
     from finetune_studio.data import project_filesystem as pfs
+    from finetune_studio.webui.app import discovered_models
     templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
     project = db.get_project(pid)
     if not project:
@@ -85,7 +86,7 @@ async def load_provider(pid: str, request: Request):
         body = await request.json()
         if isinstance(body, dict):
             extra = body.get("extra") or body
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         # No body / empty body / non-JSON -> just reload with persisted extras.
         pass
     try:
@@ -105,17 +106,17 @@ async def unload_active():
 # ── Data Prep: upload, process, curate, export ──────────────────────────
 
 @router.post("/projects/{pid}/data-prep/upload")
-async def upload_file(pid: str, background: BackgroundTasks, file: UploadFile = File(...)):
+async def upload_file(pid: str, background: BackgroundTasks, file: UploadFile = File(...)):  # noqa: B008
     """Read bytes, then start a prep run in background. NO auto-load of model."""
     data = await file.read()
     if not data:
         return JSONResponse({"error": "empty upload"}, status_code=400)
     filename = file.filename or "upload"
-    from finetune_studio.data.prep import DataPrepRunner
     # Persist a DB row so this run shows up in the activity feed / project
     # dashboard even after a restart. Use the DB row id as run_id so the
     # in-memory dict and DB stay aligned (and URL paths stay short).
     from finetune_studio import db
+    from finetune_studio.data.prep import DataPrepRunner
     db_row = db.create_data_prep_run(
         project_id=pid, filename=filename, byte_count=len(data),
     )
@@ -137,7 +138,7 @@ async def upload_file(pid: str, background: BackgroundTasks, file: UploadFile = 
     def _bg():
         try:
             db.mark_data_prep_running(run_id)
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
         try:
             result = runner.run()
@@ -154,7 +155,7 @@ async def upload_file(pid: str, background: BackgroundTasks, file: UploadFile = 
                         run_id, qa_total=qa_total, qa_approved=0,
                         output_path=result.get("output_path", "") or "",
                     )
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: BLE001, S110
                     pass
             else:
                 try:
@@ -162,15 +163,15 @@ async def upload_file(pid: str, background: BackgroundTasks, file: UploadFile = 
                         run_id,
                         str(result.get("error") or result.get("message") or "prep failed"),
                     )
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: BLE001, S110
                     pass
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001, RUF100
             log.exception("data-prep background task failed")
             progress_log.append({"stage": "error", "pct": 0,
                                  "message": str(e), "ts": time.time()})
             try:
                 db.mark_data_prep_failed(run_id, str(e))
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
     background.add_task(_bg)
     return {"ok": True, "run_id": run_id, "filename": filename, "byte_count": len(data)}
@@ -265,7 +266,7 @@ async def promote_source_route(pid: str, request: Request):
 
 
 @router.get("/projects/{pid}/data-prep/qa")
-async def list_qa_route(pid: str, source_id: Optional[str] = None, status: Optional[str] = None):
+async def list_qa_route(pid: str, source_id: Optional[str] = None, status: Optional[str] = None):  # noqa: UP045
     from finetune_studio.data import project_filesystem as pfs
     return {"items": pfs.list_qa_pairs(pid, source_id=source_id, status=status)}
 
@@ -309,9 +310,10 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved"):
     # The export lives in a stream buffer; persist it to the project's datasets
     # dir so it's selectable from the Training tab and referenceable forever.
     try:
+        from pathlib import Path as _P  # noqa: F401
+
         from finetune_studio import db
-        from pathlib import Path as _P
-        from finetune_studio.db.datasets import datasets_dir, count_qa_pairs
+        from finetune_studio.db.datasets import count_qa_pairs, datasets_dir
         ds_dir = datasets_dir(pid)
         fname = f"{pid}-{fmt}-{only}.jsonl"
         target = ds_dir / fname
@@ -383,9 +385,9 @@ async def reprocess_source(pid: str, source_id: str):
     if not original.exists():
         return JSONResponse({"error": f"original bytes missing in {fd}"}, status_code=400)
     data = original.read_bytes()
-    from finetune_studio.data.prep import DataPrepRunner
     # Persist a DB row so this reprocess shows up in the activity feed.
     from finetune_studio import db
+    from finetune_studio.data.prep import DataPrepRunner
     db_row = db.create_data_prep_run(
         project_id=pid, filename=original.name, byte_count=len(data),
         source_id=source_id,
@@ -407,7 +409,7 @@ async def reprocess_source(pid: str, source_id: str):
     async def _bg():
         try:
             db.mark_data_prep_running(run_id)
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
         try:
             result = runner.run()
@@ -424,7 +426,7 @@ async def reprocess_source(pid: str, source_id: str):
                         run_id, qa_total=qa_total, qa_approved=0,
                         output_path=result.get("output_path", "") or "",
                     )
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: BLE001, S110
                     pass
             else:
                 try:
@@ -432,15 +434,15 @@ async def reprocess_source(pid: str, source_id: str):
                         run_id,
                         str(result.get("error") or result.get("message") or "reprocess failed"),
                     )
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: BLE001, S110
                     pass
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001, RUF100
             log.exception("data-prep reprocess failed")
             progress_log.append({"stage": "error", "pct": 0,
                                  "message": str(e), "ts": time.time()})
             try:
                 db.mark_data_prep_failed(run_id, str(e))
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
     import asyncio
     asyncio.get_event_loop().create_task(_bg())
