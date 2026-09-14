@@ -86,22 +86,34 @@ def _safe_model_name(root: str, cfg: dict, project_name: str = "") -> str:
 
 
 def _lookup_project_name(output_path: str) -> tuple[str, str]:
-    """Look up (project_id, project_name) from training_runs DB by output_path."""
+    """Look up (project_id, project_name) from training_runs DB by output_path.
+    
+    Matches both exact paths (e.g. /home/user/output) and paths inside output
+    subdirectories (e.g. /home/user/output/merged).
+    """
     try:
         import sqlite3 as _sql
         db_path = os.path.join(os.path.expanduser("~"), ".finetune-studio", "finetune_studio.db")
         if not os.path.exists(db_path):
             db_path = os.path.join(os.path.expanduser("~"), ".finetune-studio", "fts.db")
-        if os.path.exists(db_path):
-            with _sql.connect(db_path) as conn:
+        if not os.path.exists(db_path):
+            return ("", "")
+        with _sql.connect(db_path) as conn:
+            # Walk up the path hierarchy to find a matching output_path
+            check = output_path
+            for _ in range(5):
                 row = conn.execute(
                     "SELECT tr.project_id, p.name FROM training_runs tr "
                     "LEFT JOIN projects p ON p.id = tr.project_id "
-                    "WHERE tr.output_path LIKE ? LIMIT 1",
-                    (f"{output_path}%",),
+                    "WHERE tr.output_path = ? OR tr.output_path LIKE ? LIMIT 1",
+                    (check, f"{check}/%"),
                 ).fetchone()
                 if row:
                     return (row[0] or "", row[1] or "")
+                parent = os.path.dirname(check)
+                if parent == check:
+                    break
+                check = parent
     except Exception:
         pass
     return ("", "")
@@ -166,6 +178,10 @@ def scan_models(directories: list) -> list:
                     dirs.clear()
                     continue
                 name = _safe_model_name(root, cfg)
+                # Look up project name from DB for trained exports
+                proj_name = ""
+                if cat == "trained_export":
+                    _, proj_name = _lookup_project_name(root)
                 # Determine category from path
                 cat = "discovered"
                 proj_id = ""
