@@ -36,3 +36,6 @@ Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **ge
 <!-- Append one line per learned rule. Format: "- <date> <rule> (<why/commit>)". -->
 - 2026-09-10 `make lint` swallows failures with `|| true`; run ruff directly.
 - 2026-09-10 37 tests in `test_vram_profiler.py` are GPU/env dependent — not a regression on genorbox1.
+- 2026-09-14 genorbox1 is dev-only: pure pytest + ruff here (`uv pip install --python .venv/bin/python -e .[dev]` — the venv is uv-managed, `python -m pip` does not exist); anything needing GPU, Playwright or the running app → fan-dragon.
+- 2026-09-14 fan-dragon has no `finetune-studio.service`; the app is a bare `uvicorn` process — check `ss -ltnp | grep 7860` before claiming a restart worked.
+- 2026-09-14 Ruff `F821` (undefined name) in this repo = real `NameError` on error paths (missing imports); treat as bugs, not style.
