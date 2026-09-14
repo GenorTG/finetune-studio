@@ -7,7 +7,7 @@ Genor edits on genorbox1 and pushes to GitHub; fan-dragon pulls and runs it as a
 ## State (verified 2026-09-14 14:00)
 | Area | Status |
 |------|--------|
-| Git | pending push — `/projects/{pid}/data` file browser |
+| Git | `main` @ `ade32f0`, in sync with `origin/main` — `/projects/{pid}/data` file browser |
 | Project data `/projects/{pid}/data` | ✅ Real file browser: stats (files/library/trash/storage), search/folder/MIME filters, Active/Trash/All, bulk delete+move, preview/versions/tags modals, collapsible upload, restore + empty trash. Helper: `webui/project_data_browser.py`. |
 | `list_files` | ✅ Now returns `tags`, `notes`, `folder_id` (was missing vs documented contract) |
 | DB migration | ✅ Additive `project_files.tags` + `notes` via `_safe_alter` (existing DBs lacked columns; tags PATCH was broken) |
