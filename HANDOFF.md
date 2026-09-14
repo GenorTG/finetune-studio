@@ -7,7 +7,7 @@ Genor edits on genorbox1 and pushes to GitHub; fan-dragon pulls and runs it as a
 ## State (verified 2026-09-14 14:30)
 | Area | Status |
 |------|--------|
-| Git | `main` — data editor UI wired (pending push) |
+| Git | `main` @ `24cf1a1`, in sync with `origin/main` — data editor UI |
 | Data editor `/projects/{pid}/data/{dataset_path}` | ✅ Real editor: stats, filter pills (default Pending), search, bulk approve/reject, paginated review table (50/page), row modal with Save/Approve/Reject. Template: `data_editor.html`. Calls `/api/data-editor/...` |
 | API contract note | Existing API uses `dataset`+`index` (not `path`+`row_id`); prefix `/api/data-editor`. Save = `PATCH /row` (single) or `POST /save` (batch). Status from `GET /review` decisions table. |
 | Project data browser | ✅ Prior (`ade32f0`) |
