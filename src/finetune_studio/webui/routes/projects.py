@@ -18,6 +18,7 @@ import os
 import time
 
 from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 
 from finetune_studio import db
 from finetune_studio.rag.manager import RAGManager

@@ -8,6 +8,7 @@ import logging
 import os
 import shutil
 import time
+from pathlib import Path
 
 from finetune_studio.training.vram.constants import MODEL_PRESETS
 from finetune_studio.training.vram.estimate import estimate_vram

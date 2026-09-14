@@ -15,7 +15,7 @@ PROJECT-SCOPED PAGES (/projects/{pid}/...)
 
 from pathlib import Path
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from finetune_studio import __version__ as APP_VERSION

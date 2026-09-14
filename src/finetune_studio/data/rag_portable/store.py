@@ -425,6 +425,8 @@ python -m finetune_studio.data.rag rebuild-vectors /path/to/corpus [--embedder N
                 "size": f.stat().st_size,
             })
         return sources
+
+    def rebuild_vectors(self, embedder: Optional[str] = None, device: str = "cpu") -> dict:
         if not self.exists():
             raise FileNotFoundError(self.dir)
         pd = try_import_pandas()

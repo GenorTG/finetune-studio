@@ -4,6 +4,9 @@ Returned by PortableRAG.load(). Owns the in-memory vectors + BM25 and the search
 """
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Optional
+
 import numpy as np
 
 from finetune_studio.data.rag_portable.bm25 import BM25Index

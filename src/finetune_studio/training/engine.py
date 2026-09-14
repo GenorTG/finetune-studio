@@ -25,6 +25,7 @@ KEY CONCEPTS
   Slower, but lets you train larger models than your GPU could hold.
 """
 
+import json
 import os
 import shutil
 import threading

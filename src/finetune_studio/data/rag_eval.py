@@ -24,6 +24,8 @@ from typing import Optional
 
 import numpy as np
 
+from finetune_studio.data.rag_portable import PortableRAG
+
 
 @dataclass
 class QAEntry:
