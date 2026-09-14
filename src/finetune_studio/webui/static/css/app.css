@@ -2437,10 +2437,13 @@ body::before {
 .sb-right {
   position: absolute;
   top: 8px; right: 12px;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   z-index: 2;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 75%;
 }
 .sb-palette {
   display: inline-flex;

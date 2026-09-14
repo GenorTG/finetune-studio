@@ -46,7 +46,7 @@
   </a>
   <a class="stat hover" href="/projects/{{ pid }}/testing" data-link>
     <div class="label">Tests</div>
-    <div class="value">{{ project.runs|sum(attribute='benchmarks|length') or '—' }}</div>
+    <div class="value">{{ project.runs|sum_benchmarks or '—' }}</div>
   </a>
 </div>
 

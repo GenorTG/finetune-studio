@@ -29,6 +29,9 @@ class ModelInfo:
     parameters: str = ""
     modified: str = ""
     vision: bool = False
+    category: str = "discovered"   # discovered | base_model | trained_export | local_helper | downloaded
+    project_id: str = ""           # which project produced this (for trained_export)
+    run_id: str = ""               # which training run produced this
 
 # Non-chat model architectures to skip
 _SKIP_ARCHES = {"BertModel", "BertForMaskedLM", "ClipVisionModel", "CLIPVisionModel",
@@ -38,7 +41,12 @@ _SKIP_GGUF_PATTERNS = ("mmproj", "projector", "vision")
 
 
 def _safe_model_name(root: str, cfg: dict) -> str:
-    """Extract a human-readable model name from config or directory path."""
+    """Extract a human-readable model name from config or directory path.
+    
+    Returns the most descriptive name available, preferring the directory name
+    over architecture fields when the dir is meaningful (e.g. "merged", "abliterated"
+    are NOT meaningful — those need parent context).
+    """
     # Try config.json fields
     for key in ("name", "model_name"):
         if cfg.get(key):
@@ -57,6 +65,14 @@ def _safe_model_name(root: str, cfg: dict) -> str:
         # e.g. "models--unsloth--gemma-4-E4B-it-unsloth-bnb-4bit" → "gemma-4-E4B-it-unsloth-bnb-4bit"
         if dirname.startswith("models--"):
             dirname = dirname.split("--", 2)[-1] if "--" in dirname else dirname
+    # If dirname is a generic export dir, use parent + dirname for context
+    generic_dirs = {"merged", "abliterated", "gguf", "gptq", "awq", "adapter", "checkpoint-0", "checkpoint-1"}
+    if dirname.lower() in generic_dirs:
+        parent = os.path.basename(os.path.dirname(root))
+        # Use parent context: e.g. "output_aethermere_hq/merged" → "Aethermere HQ (merged)"
+        if parent and parent not in ("output", "models", "output_aethermere_hq", "output_aethermere"):
+            return f"{parent}/{dirname}"
+        return dirname
     # Use the directory name (which is usually descriptive) as the primary name
     # Only fall back to arch+model_type if dirname is generic or missing
     if dirname and dirname not in ("export", "model", "snapshots"):
@@ -88,9 +104,22 @@ def scan_models(directories: list) -> list:
                         continue
                     fp = os.path.join(root, f)
                     size = os.path.getsize(fp) / (1024**3)
+                    # Determine category from path
+                    cat = "discovered"
+                    proj_id = ""
+                    run_id = ""
+                    p = root.lower()
+                    if "/output" in p or "output_" in p:
+                        cat = "trained_export"
+                    elif "shared_models" in p:
+                        cat = "local_helper"
+                    elif "hf_models" in p:
+                        cat = "downloaded"
+                    elif "huggingface/hub" in p:
+                        cat = "base_model"
                     models.append(ModelInfo(
                         name=f, path=fp, format="gguf", size_gb=round(size, 2),
-                        vision=has_mmproj,
+                        vision=has_mmproj, category=cat, project_id=proj_id, run_id=run_id,
                     ))
             has_st = any(f.endswith(".safetensors") for f in files)
             has_cfg = "config.json" in files
@@ -116,9 +145,38 @@ def scan_models(directories: list) -> list:
                     dirs.clear()
                     continue
                 name = _safe_model_name(root, cfg)
+                # Determine category from path
+                cat = "discovered"
+                proj_id = ""
+                run_id = ""
+                p = root.lower()
+                if "/output" in p or "output_" in p:
+                    cat = "trained_export"
+                    # Try to find project_id from training_runs DB
+                    try:
+                        import sqlite3 as _sql
+                        db_path = os.path.join(os.path.expanduser("~"), ".finetune-studio", "finetune_studio.db")
+                        if not os.path.exists(db_path):
+                            db_path = os.path.join(os.path.expanduser("~"), ".finetune-studio", "fts.db")
+                        if os.path.exists(db_path):
+                            with _sql.connect(db_path) as conn:
+                                row = conn.execute(
+                                    "SELECT project_id FROM training_runs WHERE output_path = ? LIMIT 1", (root,)
+                                ).fetchone()
+                                if row:
+                                    proj_id = row[0]
+                    except Exception:
+                        pass
+                elif "shared_models" in p:
+                    cat = "local_helper"
+                elif "hf_models" in p:
+                    cat = "downloaded"
+                elif "huggingface/hub" in p:
+                    cat = "base_model"
                 models.append(ModelInfo(
                     name=name, path=root, format="safetensors",
                     size_gb=round(total, 2), architecture=arch, parameters=params,
+                    category=cat, project_id=proj_id, run_id=run_id,
                 ))
                 dirs.clear()
     return models

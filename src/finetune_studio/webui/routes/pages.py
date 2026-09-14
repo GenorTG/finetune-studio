@@ -22,6 +22,14 @@ from finetune_studio import __version__ as APP_VERSION
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 templates.env.globals["app_version"] = APP_VERSION
+
+# Custom Jinja2 filters for project stats
+def _sum_benchmarks(runs):
+    """Sum total benchmark count across all runs."""
+    return sum(len(r.get("benchmarks", [])) for r in runs)
+
+templates.env.filters["sum_benchmarks"] = _sum_benchmarks
+
 router = APIRouter()
 
 
