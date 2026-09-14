@@ -186,14 +186,16 @@ async def hf_models_alias(request: Request):
 
 @router.get("/projects/{pid}/export", response_class=HTMLResponse)
 async def export_page(pid: str, request: Request):
-    """Export project page — trigger + download project archive."""
+    """Model export page — choose format, quant, and export trained runs."""
     from finetune_studio import db
     project = db.get_project(pid)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    project["runs"] = db.list_runs(pid)
+    project["models"] = _scan_run_models(project["runs"])
     return templates.TemplateResponse(
         request,
-        "export.html",
+        "export_models.html",
         {"request": request, "project": project, "pid": pid},
     )
 

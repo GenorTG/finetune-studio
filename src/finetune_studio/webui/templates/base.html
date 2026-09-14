@@ -44,14 +44,14 @@
         <span class="sb-prompt">root@fts:~$</span>
       </a>
 
-      {# Connection status indicator — hidden on small screens to avoid overlap #}
-      <div id="conn-status" class="conn-status" title="Connection status" data-hide-mobile>
-        <span class="conn-dot"></span>
-        <span class="conn-label">connected</span>
+      {# Theme toggle + connection status — grouped to avoid overlap #}
+      <div class="sb-right-actions">
+        <div id="conn-status" class="conn-status" title="Connection status" data-hide-mobile>
+          <span class="conn-dot"></span>
+          <span class="conn-label">connected</span>
+        </div>
+        <button id="theme-toggle" class="btn small" onclick="window.ftsThemeToggle?.() || location.reload()" title="Toggle dark/light theme">🌙</button>
       </div>
-
-      {# Theme toggle #}
-      <button id="theme-toggle" class="btn small" onclick="window.ftsThemeToggle?.() || location.reload()" title="Toggle dark/light theme" style="margin-left:auto;">🌙</button>
 
       {# Tab strip — the actual navigation #}
       <nav class="sb-tabs" aria-label="Sessions">
@@ -96,6 +96,9 @@
           </a>
           <a href="/projects/{{ pid }}/chat" class="sb-tab {% block nav_project_chat %}{% endblock %}" data-link data-tab="project-chat">
             <span class="sb-tab-label">chat</span>
+          </a>
+          <a href="/projects/{{ pid }}/export" class="sb-tab {% block nav_project_export %}{% endblock %}" data-link data-tab="export">
+            <span class="sb-tab-label">export</span>
           </a>
         </div>
         {% endif %}

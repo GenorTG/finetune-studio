@@ -3460,6 +3460,12 @@ body::before {
   content: ' (offline)';
   color: #ff4444;
 }
+.sb-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
 @media (max-width: 768px) {
   .conn-status { display: none; }
 }

@@ -46,14 +46,32 @@ def list_runs(project_id: str | None = None) -> list[dict]:
             ).fetchall()
         else:
             rows = c.execute("SELECT * FROM training_runs ORDER BY created_at DESC").fetchall()
-    return [row_to_dict(r) for r in rows]
+    runs = [row_to_dict(r) for r in rows]
+    # Compute duration from started_at/finished_at if not set
+    for run in runs:
+        started = run.get("started_at")
+        finished = run.get("finished_at")
+        if started and finished:
+            run["duration"] = finished - started
+        else:
+            run["duration"] = None
+        # Extract final_loss from metrics_json if present
+        metrics = run.get("metrics_json", {})
+        if isinstance(metrics, str):
+            import json as _json
+            try:
+                metrics = _json.loads(metrics)
+            except Exception:
+                metrics = {}
+        run["final_loss"] = metrics.get("final_loss") if isinstance(metrics, dict) else None
+    return runs
 
 
 def update_run(rid: str, **fields: Any) -> dict | None:
     allowed = {
         "name", "base_model", "data_path", "system_prompt",
         "status", "started_at", "finished_at", "output_path",
-        "metrics_json", "notes", "error", "parent_run_id",
+        "metrics_json", "notes", "error", "parent_run_id", "final_loss",
     }
     sets, vals = [], []
     for k, v in fields.items():

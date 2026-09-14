@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS training_runs (
     finished_at   REAL,
     output_path   TEXT NOT NULL DEFAULT '',
     metrics_json  TEXT NOT NULL DEFAULT '{}',
+    final_loss    REAL,
     notes         TEXT NOT NULL DEFAULT '',
     error         TEXT NOT NULL DEFAULT '',
     parent_run_id TEXT,

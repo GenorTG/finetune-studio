@@ -197,7 +197,7 @@ class TrainingEngine:
         try:
             from finetune_studio.db.runs import update_run
             run_id = self.current_run_id.split("-")[-1] if "-" in self.current_run_id else self.current_run_id
-            update_run(run_id, output_path=self.config.output_dir, status="done")
+            update_run(run_id, output_path=self.config.output_dir, status="done", final_loss=self.state.final_loss)
         except Exception:
             pass
 

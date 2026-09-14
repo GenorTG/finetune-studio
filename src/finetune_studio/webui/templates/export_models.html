@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Export — {{ project.name }}{% endblock %}
+{% block nav_project_export %}active{% endblock %}
+{% block sb_path %}~ / projects / {{ project.name }} / export{% endblock %}
+
+{% block crumbs %}
+  <a href="/projects" data-link>Projects</a>
+  <span class="sep">/</span>
+  <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a>
+  <span class="sep">/</span>
+  <span class="here">Export</span>
+{% endblock %}
+
+{% block content %}
+{% include "_resources.html" %}
+
+<div class="page-head">
+  <h1>Export models</h1>
+  <div class="sub">Convert trained runs to deployable formats — GGUF, GPTQ, AWQ, or abliterated.</div>
+</div>
+
+{# ── Available runs to export ─────────────────────────────────────── #}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Training runs</div>
+      <div class="card-sub">Pick a run to export. Only completed runs with a merged model are exportable.</div>
+    </div>
+  </div>
+  <div id="export-runs" class="p-2">
+    {% set exportable = project.runs|selectattr('status','in',['done','completed','failed'])|list %}
+    {% if exportable %}
+      <div class="grid grid-1 gap-2">
+        {% for run in exportable %}
+        <div class="export-run-row" data-run-id="{{ run.id }}" data-output-path="{{ run.output_path }}">
+          <div class="row items-center gap-3 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);">
+            <input type="radio" name="export-run" value="{{ run.id }}" class="export-run-radio">
+            <div class="flex-1">
+              <div class="text-sm font-bold">{{ run.name or run.id[:8] }}</div>
+              <div class="text-xs dim">
+                {% if run.final_loss %}loss: {{ '%.4f'|format(run.final_loss) }} · {% endif %}
+                {% if run.duration %}{{ '%.0f'|format(run.duration // 60) }}m {{ '%.0f'|format(run.duration % 60) }}s · {% endif %}
+                {{ run.status }}
+              </div>
+            </div>
+            <div class="text-xs mono dim">{{ run.output_path }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty">No completed runs to export. Finish a training run first.</div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Export options ───────────────────────────────────────────────── #}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Export format</div>
+      <div class="card-sub">Choose the output format and quantization level.</div>
+    </div>
+  </div>
+  <div class="grid grid-2 gap-3 p-2">
+    <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
+      <input type="checkbox" name="export-format" value="gguf" checked class="mt-1">
+      <div>
+        <div class="text-sm font-bold">GGUF</div>
+        <div class="text-xs dim">For llama.cpp, Ollama, LM Studio. Most compatible.</div>
+      </div>
+    </label>
+    <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
+      <input type="checkbox" name="export-format" value="abliterated" class="mt-1">
+      <div>
+        <div class="text-sm font-bold">Abliterated</div>
+        <div class="text-xs dim">Refusal-removed merged model (safetensors).</div>
+      </div>
+    </label>
+    <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
+      <input type="checkbox" name="export-format" value="gptq" class="mt-1">
+      <div>
+        <div class="text-sm font-bold">GPTQ</div>
+        <div class="text-xs dim">Quantized for vLLM / HuggingFace inference.</div>
+      </div>
+    </label>
+    <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
+      <input type="checkbox" name="export-format" value="awq" class="mt-1">
+      <div>
+        <div class="text-sm font-bold">AWQ</div>
+        <div class="text-xs dim">Activation-aware quantization. Fast inference.</div>
+      </div>
+    </label>
+  </div>
+
+  {# GGUF quant options — only shown when GGUF is selected #}
+  <div id="gguf-quants" class="p-2 pt-0">
+    <div class="text-xs muted mb-1">GGUF quantizations (select at least one):</div>
+    <div class="flex flex-wrap gap-2 text-xs">
+      {% for q in ['f16', 'q8_0', 'q6_k', 'q5_k_m', 'q4_k_m', 'q3_k_m', 'q2_k'] %}
+      <label class="flex items-center gap-1">
+        <input type="checkbox" name="gguf-quant" value="{{ q }}" {% if q in ['f16','q8_0','q4_k_m','q5_k_m'] %}checked{% endif %}>
+        {{ q }}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="p-2 pt-0 flex items-center gap-2">
+    <button class="btn primary" id="export-btn" onclick="startExport()" disabled>Export selected</button>
+    <label class="flex items-center gap-1 text-xs">
+      <input type="checkbox" id="export-force" value="1">
+      Overwrite existing
+    </label>
+    <span id="export-status" class="text-xs dim"></span>
+  </div>
+</div>
+
+{# ── Existing exports ─────────────────────────────────────────────── #}
+{% if project.models %}
+<div class="card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Existing exports</div>
+      <div class="card-sub">Already-exported models from this project.</div>
+    </div>
+  </div>
+  <table class="table">
+    <thead><tr><th>Name</th><th>Format</th><th>Size</th><th>Source run</th><th>Created</th><th></th></tr></thead>
+    <tbody>
+      {% for m in project.models %}
+      <tr class="row-hover">
+        <td class="name">{{ m.name }}</td>
+        <td><span class="pill outline">{{ m.format }}</span></td>
+        <td class="num mono">{{ m.size_gb }} GB</td>
+        <td class="meta">{{ m.run_id[:8] if m.run_id else '—' }}</td>
+        <td class="meta">{{ m.created_at }}</td>
+        <td>
+          <button class="btn sm" onclick="navigator.clipboard.writeText('{{ m.path }}');fts.notify('Path copied','success')">Copy path</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<script>
+// Enable export button only when a run is selected
+document.querySelectorAll('.export-run-radio').forEach(r => {
+  r.addEventListener('change', () => {
+    document.getElementById('export-btn').disabled = false;
+  });
+});
+
+async function startExport() {
+  const runRadio = document.querySelector('input[name="export-run"]:checked');
+  if (!runRadio) return alert('Select a run first');
+  const runId = runRadio.value;
+
+  const formats = Array.from(document.querySelectorAll('input[name="export-format"]:checked')).map(cb => cb.value);
+  if (formats.length === 0) return alert('Select at least one export format');
+
+  const quants = Array.from(document.querySelectorAll('input[name="gguf-quant"]:checked')).map(cb => cb.value);
+  const force = document.getElementById('export-force').checked;
+
+  const btn = document.getElementById('export-btn');
+  const status = document.getElementById('export-status');
+  btn.disabled = true;
+  status.textContent = 'Exporting…';
+
+  try {
+    for (const fmt of formats) {
+      status.textContent = `Exporting ${fmt}…`;
+      let body = { format: fmt, force };
+      if (fmt === 'gguf') body.quants = quants;
+      const r = await fetch(`/api/projects/{{ pid }}/runs/${runId}/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        status.textContent = `✗ ${fmt}: ${d.error || 'failed'}`;
+        btn.disabled = false;
+        return;
+      }
+    }
+    status.textContent = '✓ Done — refresh to see new exports';
+    setTimeout(() => location.reload(), 1500);
+  } catch (e) {
+    status.textContent = `✗ ${e}`;
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}
