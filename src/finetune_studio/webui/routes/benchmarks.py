@@ -38,6 +38,31 @@ def _latest_benchmark(run_id: str) -> dict | None:
     return bs[0] if bs else None
 
 
+def _primary_score(scores: dict | None) -> float | None:
+    """Pick a comparable numeric score from a benchmark scores dict."""
+    if not scores or not isinstance(scores, dict):
+        return None
+    for key in ("pass_rate", "score", "accuracy", "overall"):
+        val = scores.get(key)
+        if isinstance(val, (int, float)):
+            return float(val)
+    for val in scores.values():
+        if isinstance(val, (int, float)):
+            return float(val)
+    return None
+
+
+def _suite_scores_for_run(run_id: str) -> dict[str, float | None]:
+    """Latest primary score per suite_name for a training run."""
+    out: dict[str, float | None] = {}
+    for bench in db.list_benchmarks(run_id):  # already ran_at DESC
+        suite = str(bench.get("suite_name") or "unknown")
+        if suite in out:
+            continue
+        out[suite] = _primary_score(bench.get("scores"))
+    return out
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
 @router.get("/runs/{rid}")
@@ -338,34 +363,66 @@ async def set_verdict(pid: str, bid: str, cid: str, request: Request):
 
 @router.get("/projects/{pid}/compare")
 async def compare_runs(pid: str, run_a: str = "", run_b: str = ""):
-    """Side-by-side comparison of latest benchmarks from two runs."""
+    """Side-by-side per-suite score comparison of two training runs.
+
+    Baseline is run_a; delta is run_b − run_a. Uses each run's latest
+    benchmark per suite_name and the primary numeric score (pass_rate, etc.).
+    """
     if not run_a or not run_b:
-        return {"error": "run_a and run_b required"}
+        return JSONResponse(
+            {"error": "run_a and run_b required"},
+            status_code=400,
+        )
+
+    run_a_row = db.get_run(run_a)
+    run_b_row = db.get_run(run_b)
+    if not run_a_row:
+        return JSONResponse({"error": f"run not found: {run_a}"}, status_code=404)
+    if not run_b_row:
+        return JSONResponse({"error": f"run not found: {run_b}"}, status_code=404)
+    if run_a_row.get("project_id") != pid or run_b_row.get("project_id") != pid:
+        return JSONResponse(
+            {"error": "runs do not belong to this project"},
+            status_code=400,
+        )
+
+    a_by_suite = _suite_scores_for_run(run_a)
+    b_by_suite = _suite_scores_for_run(run_b)
+    if not a_by_suite and not b_by_suite:
+        return JSONResponse(
+            {"error": "no benchmarks for either run"},
+            status_code=404,
+        )
+
+    suites: list[dict] = []
+    deltas: dict[str, dict] = {}
+    for suite in sorted(set(a_by_suite) | set(b_by_suite)):
+        av = a_by_suite.get(suite)
+        bv = b_by_suite.get(suite)
+        if isinstance(av, (int, float)) and isinstance(bv, (int, float)):
+            diff = float(bv) - float(av)
+            delta_str = f"+{diff:.1f}" if diff >= 0 else f"{diff:.1f}"
+            suites.append({
+                "suite": suite,
+                "run_a": float(av),
+                "run_b": float(bv),
+                "delta": diff,
+            })
+            deltas[suite] = {"run_a": float(av), "run_b": float(bv), "delta": delta_str}
+        else:
+            suites.append({
+                "suite": suite,
+                "run_a": av,
+                "run_b": bv,
+                "delta": None,
+            })
+            deltas[suite] = {"run_a": av, "run_b": bv, "delta": "—"}
 
     a = _latest_benchmark(run_a)
     b = _latest_benchmark(run_b)
-    if not a:
-        return {"error": f"no benchmarks for run {run_a}"}
-    if not b:
-        return {"error": f"no benchmarks for run {run_b}"}
-
-    a_scores = a.get("scores") or {}
-    b_scores = b.get("scores") or {}
-
-    deltas = {}
-    all_keys = sorted(set(list(a_scores.keys()) + list(b_scores.keys())))
-    for k in all_keys:
-        av = a_scores.get(k, 0)
-        bv = b_scores.get(k, 0)
-        if isinstance(av, (int, float)) and isinstance(bv, (int, float)):
-            diff = bv - av
-            pct = f"+{diff:.1f}%" if diff >= 0 else f"{diff:.1f}%"
-            deltas[k] = {"run_a": av, "run_b": bv, "delta": pct}
-        else:
-            deltas[k] = {"run_a": av, "run_b": bv, "delta": "—"}
-
     return {
-        "run_a": {"id": run_a, "benchmark": a},
-        "run_b": {"id": run_b, "benchmark": b},
+        "run_a": {"id": run_a, "name": run_a_row.get("name", ""), "benchmark": a},
+        "run_b": {"id": run_b, "name": run_b_row.get("name", ""), "benchmark": b},
+        "suites": suites,
         "deltas": deltas,
     }

@@ -436,6 +436,21 @@ async def benchmarks_page(request: Request, pid: str):
             all_benchmarks.append(b)
     all_benchmarks.sort(key=lambda x: x["ran_at"], reverse=True)
     comparison_runs = [runs[0]["id"], runs[1]["id"]] if len(runs) >= 2 else []
+    done_runs = [r for r in runs if r.get("status") == "done"]
+    # runs are newest-first: A = oldest done (baseline), B = most-recent done
+    cmp_default_a = ""
+    cmp_default_b = ""
+    if len(done_runs) >= 2:
+        cmp_default_a = done_runs[-1]["id"]
+        cmp_default_b = done_runs[0]["id"]
+    elif len(done_runs) == 1:
+        cmp_default_a = done_runs[0]["id"]
+        cmp_default_b = next(
+            (r["id"] for r in runs if r["id"] != cmp_default_a),
+            "",
+        )
+    elif len(comparison_runs) == 2:
+        cmp_default_a, cmp_default_b = comparison_runs[0], comparison_runs[1]
     return templates.TemplateResponse(
         request,
         "benchmarks.html",
@@ -447,6 +462,8 @@ async def benchmarks_page(request: Request, pid: str):
             "suites": suites,
             "all_benchmarks": all_benchmarks,
             "comparison_runs": comparison_runs,
+            "cmp_default_a": cmp_default_a,
+            "cmp_default_b": cmp_default_b,
         },
     )
 
