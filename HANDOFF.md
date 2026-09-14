@@ -7,7 +7,7 @@ Genor edits on genorbox1 and pushes to GitHub; fan-dragon pulls and runs it as a
 ## State (verified 2026-09-14 13:30)
 | Area | Status |
 |------|--------|
-| Git | `main` @ (this commit) — project overview dashboard redesign |
+| Git | `main` @ `249de9f`, in sync with `origin/main` — project overview dashboard redesign |
 | Project dashboard `/projects/{pid}` | ✅ Real dashboard: stats (files/datasets/runs/models), quick actions, recent runs/models/files, activity timeline. Helper: `webui/project_dashboard.py`. Smoke TestClient 200 OK. |
 | File tags PATCH | ✅ Fixed broken `fl._cursor` + restored missing `@router.patch` on folder rename; `get_file` now returns `tags`/`notes` |
 | Ruff (touched Python) | ✅ `ruff check …/pages.py …/project_dashboard.py --select F821,F401,E,W` → All checks passed |
