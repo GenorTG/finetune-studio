@@ -228,7 +228,25 @@ async def judge_benchmark(pid: str, bid: str, request: Request):
                 scored_at=time.time(),
             )
             updated += 1
-        return {"ok": True, "judged": updated, "judge_mode": "heuristic"}
+        # Recalculate scores after judging
+        cases_updated = db.list_cases(bid)
+        from finetune_studio.testing.suite import score_results
+        from finetune_studio.testing.judge import CaseResult
+        rebuilt = []
+        for c in cases_updated:
+            rebuilt.append(CaseResult(
+                case_name=c.get('name', ''),
+                category=c.get('category', ''),
+                question=c.get('question', ''),
+                correct_answer=c.get('correct_answer', ''),
+                model_answer=c.get('model_answer', ''),
+                transcript=c.get('transcript', ''),
+                verdict=c.get('verdict', ''),
+                time_ms=c.get('time_ms', 0),
+            ))
+        new_scores = score_results(rebuilt)
+        db.update_benchmark_scores(bid, new_scores)
+        return {"ok": True, "judged": updated, "judge_mode": "heuristic", "scores": new_scores}}
 
     # For AI judge via external API
     if judge_mode == "ai":

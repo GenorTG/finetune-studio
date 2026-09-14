@@ -124,3 +124,12 @@ def update_case(cid: str, **kwargs) -> None:
     vals = list(kwargs.values()) + [cid]
     with cursor() as c:
         c.execute(f"UPDATE benchmark_cases SET {sets} WHERE id = ?", vals)
+
+
+def update_benchmark_scores(bid: str, scores: dict) -> None:
+    """Update the scores_json for a benchmark run (used after judging)."""
+    with cursor() as c:
+        c.execute(
+            "UPDATE benchmark_runs SET scores_json = ? WHERE id = ?",
+            (json.dumps(scores), bid),
+        )
