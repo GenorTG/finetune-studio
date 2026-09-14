@@ -2449,7 +2449,21 @@ body::before {
   max-width: 80%;
   min-width: 0;
 }
-.sb-right > * { flex-shrink: 0; }
+.sb-right > * {
+  flex-shrink: 0;
+}
+.sb-right .sb-palette,
+.sb-right .sb-activity,
+.sb-right .status-pill,
+.sb-right .version {
+  margin-right: 4px;
+}
+.sb-right .version {
+  margin-right: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
 .sb-palette {
   display: inline-flex;
   align-items: center;
