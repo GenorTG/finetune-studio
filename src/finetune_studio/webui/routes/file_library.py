@@ -278,14 +278,21 @@ async def list_folders_route(pid: str, include_auto: bool = Query(True)):
 @router.patch("/projects/{pid}/files/{fid}/tags")
 async def update_file_tags(pid: str, fid: str, request: Request):
     """Update tags and notes for a file."""
+    from finetune_studio import db
     _project_or_404(pid)
     body = await request.json()
-    tags = body.get('tags', '')
-    notes = body.get('notes', '')
-    with fl._cursor() as c:
-        c.execute("UPDATE project_files SET tags = ?, notes = ? WHERE id = ? AND project_id = ?",
-                  (tags, notes, fid, pid))
+    tags = body.get("tags", "")
+    notes = body.get("notes", "")
+    with db.cursor() as c:
+        c.execute(
+            "UPDATE project_files SET tags = ?, notes = ? "
+            "WHERE id = ? AND project_id = ?",
+            (tags, notes, fid, pid),
+        )
     return {"ok": True, "tags": tags, "notes": notes}
+
+
+@router.patch("/projects/{pid}/folders/{fid}")
 async def rename_folder_route(pid: str, fid: str, request: Request):
     _project_or_404(pid)
     body = await request.json()

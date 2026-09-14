@@ -351,7 +351,8 @@ def get_file(pid: str, file_id: str, *, include_deleted: bool = False) -> Option
         clauses.append("pf.deleted_at IS NULL")
     sql = f"""SELECT pf.id, pf.project_id, pf.original_name, pf.mime_type,
                      pf.current_version, pf.size_bytes, pf.uploaded_at,
-                     pf.uploaded_by, pf.last_trained_at, pf.deleted_at
+                     pf.uploaded_by, pf.last_trained_at, pf.deleted_at,
+                     pf.tags, pf.notes
                 FROM project_files pf
                 WHERE {' AND '.join(clauses)}
                 LIMIT 1"""

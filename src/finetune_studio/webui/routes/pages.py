@@ -95,7 +95,10 @@ def _scan_run_models(runs: list[dict]) -> list[dict]:
                 "run_id": run.get("id", ""),
                 "run_name": run.get("name", ""),
                 "path": path,
-                "created_at": _time.strftime("%Y-%m-%d %H:%M", _time.localtime(created)),
+                "mtime": created,
+                "created_at": _time.strftime(
+                    "%Y-%m-%d %H:%M", _time.localtime(created)
+                ),
             })
     return models
 
@@ -240,25 +243,19 @@ async def projects_page(request: Request):
 
 @router.get("/projects/{pid}", response_class=HTMLResponse)
 async def project_detail_page(request: Request, pid: str):
-    """Project detail — RAGs + Runs."""
-    from finetune_studio import db
-    from finetune_studio.webui.app import discovered_models
-    project = db.get_project(pid)
-    if not project:
+    """Project overview dashboard — stats, recent runs/models/files, activity."""
+    from finetune_studio.data.fs import file_library as fl
+    from finetune_studio.webui.project_dashboard import build_dashboard_ctx
+
+    ctx = _project_ctx(pid)
+    if not ctx:
         return RedirectResponse(url="/projects", status_code=302)
-    project["rags"] = db.list_rags(pid)
-    project["runs"] = db.list_runs(pid)
-    for run in project["runs"]:
-        run["benchmarks"] = db.list_benchmarks(run["id"])
+    files = fl.list_files(pid)
+    dash = build_dashboard_ctx(ctx["project"], pid, files=files)
     return templates.TemplateResponse(
         request,
         "project.html",
-        {
-            "request": request,
-            "pid": pid,
-            "project": project,
-            "models": discovered_models,
-        },
+        {**ctx, **dash, "request": request},
     )
 
 
@@ -362,7 +359,10 @@ async def data_editor_page(request: Request, pid: str, dataset_path: str):
 async def benchmarks_page(request: Request, pid: str):
     """Benchmarks tab — run suites, view scores, compare runs."""
     from finetune_studio import db
-    from finetune_studio.webui.routes.benchmarks import _discover_suites, _latest_benchmark
+    from finetune_studio.webui.routes.benchmarks import (
+        _discover_suites,
+        _latest_benchmark,
+    )
     project = db.get_project(pid)
     if not project:
         return RedirectResponse(url="/projects", status_code=302)
@@ -376,7 +376,9 @@ async def benchmarks_page(request: Request, pid: str):
     for run in runs:
         for b in db.list_benchmarks(run["id"]):
             b["_run_name"] = run_name_map.get(run["id"], run["id"])
-            b["_ran_at_str"] = _time.strftime("%Y-%m-%d %H:%M", _time.localtime(b["ran_at"]))
+            b["_ran_at_str"] = _time.strftime(
+                "%Y-%m-%d %H:%M", _time.localtime(b["ran_at"])
+            )
             all_benchmarks.append(b)
     all_benchmarks.sort(key=lambda x: x["ran_at"], reverse=True)
     comparison_runs = [runs[0]["id"], runs[1]["id"]] if len(runs) >= 2 else []

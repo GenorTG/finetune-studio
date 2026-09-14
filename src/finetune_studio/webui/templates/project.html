@@ -10,76 +10,217 @@
 {% endblock %}
 
 {% block topbar_right %}
-  <button class="btn" onclick="document.getElementById('settings-modal').classList.remove('hidden')">Settings</button>
+  <button class="btn" type="button" onclick="document.getElementById('settings-modal').hidden=false">Settings</button>
   <button class="btn danger" data-confirm="Delete this project and ALL its RAGs and Runs?" data-action="/api/projects/{{ project.id }}" data-method="DELETE" data-reload="true">Delete</button>
 {% endblock %}
 
 {% block content %}
 {% include "_resources.html" %}
 
+{# ── A. Header ── #}
 <div class="page-head row">
   <div>
     <h1>{{ project.name }}</h1>
-    <div class="sub">{{ project.description or 'No description yet — add one in Settings.' }}</div>
+    <div class="sub">
+      {{ desc_short }}
+      {% if desc_long %}
+      <a href="#" class="muted" onclick="document.getElementById('settings-modal').hidden=false;return false" title="{{ desc_full }}">details</a>
+      {% endif %}
+    </div>
   </div>
   <div class="actions">
     {% if project.production_run %}
     <span class="pill solid-green">● production</span>
     {% endif %}
     <span class="pill outline mono">{{ project.id[:8] }}</span>
+    <button class="btn sm" type="button" onclick="document.getElementById('settings-modal').hidden=false">Settings</button>
+    <button class="btn sm danger" data-confirm="Delete this project and ALL its RAGs and Runs?" data-action="/api/projects/{{ project.id }}" data-method="DELETE" data-reload="true">Delete</button>
   </div>
 </div>
 
-{# Quick stats — compact counts #}
+{# ── B. Top-row stats ── #}
 <div class="grid grid-4 gap-3 mb-4">
+  <a class="stat hover" href="/projects/{{ pid }}/data-prep" data-link>
+    <div class="label">Files</div>
+    <div class="value cyan">{{ stats.files }}</div>
+    <div class="delta">in library</div>
+  </a>
   <a class="stat hover" href="/projects/{{ pid }}/data" data-link>
-    <div class="label">RAGs</div>
-    <div class="value violet">{{ project.rags|length }}</div>
+    <div class="label">Datasets</div>
+    <div class="value violet">{{ stats.datasets }}</div>
+    <div class="delta">registered</div>
   </a>
   <a class="stat hover" href="/projects/{{ pid }}/training" data-link>
     <div class="label">Runs</div>
-    <div class="value cyan">{{ project.runs|length }}</div>
+    <div class="value">{{ stats.runs }}</div>
+    <div class="delta">{{ stats.runs_done }} done · {{ stats.runs_running }} running · {{ stats.runs_failed }} failed</div>
   </a>
   <a class="stat hover" href="/projects/{{ pid }}/models" data-link>
     <div class="label">Models</div>
-    <div class="value" style="color: var(--ok);">{{ project.models|length or '—' }}</div>
-  </a>
-  <a class="stat hover" href="/projects/{{ pid }}/testing" data-link>
-    <div class="label">Tests</div>
-    <div class="value">{{ project.runs|sum_benchmarks or '—' }}</div>
+    <div class="value" style="color: var(--ok);">{{ stats.models }}</div>
+    <div class="delta">{{ stats.models }} exports · {{ stats.models_size_gb }} GB total</div>
   </a>
 </div>
 
-{# Quick links — compact icon grid #}
+{# ── C. Quick actions ── #}
+<div class="flex gap-2 wrap mb-4">
+  <a class="btn primary" href="/projects/{{ pid }}/training" data-link>▶ Start training</a>
+  <a class="btn" href="/projects/{{ pid }}/chat" data-link>💬 Open chat</a>
+  <a class="btn" href="/projects/{{ pid }}/data-prep#upload" data-link>＋ New file</a>
+  <a class="btn" href="/projects/{{ pid }}/export" data-link>📦 Export project</a>
+  <button class="btn" type="button" onclick="document.getElementById('settings-modal').hidden=false">⚙ Settings</button>
+</div>
+
+{# ── D. Recent training ── #}
 <div class="card mb-4">
-  <div class="card-head py-2">
-    <div class="card-sub">Sections</div>
+  <div class="card-head">
+    <div>
+      <div class="card-title">Recent training</div>
+      <div class="card-sub">Last 5 runs by start time.</div>
+    </div>
+    <a class="btn sm ghost" href="/projects/{{ pid }}/training" data-link>All runs →</a>
   </div>
-  <div class="grid grid-5 gap-2 p-2">
-    <a class="card flat hover" href="/projects/{{ pid }}/data" data-link style="padding:8px 10px;display:flex;align-items:center;gap:8px;">
-      <span class="ph-icon">📁</span>
-      <span class="text-sm">Data</span>
-    </a>
-    <a class="card flat hover" href="/projects/{{ pid }}/data-prep" data-link style="padding:8px 10px;display:flex;align-items:center;gap:8px;">
-      <span class="ph-icon">✂︎</span>
-      <span class="text-sm">Prep</span>
-    </a>
-    <a class="card flat hover" href="/projects/{{ pid }}/rag" data-link style="padding:8px 10px;display:flex;align-items:center;gap:8px;">
-      <span class="ph-icon">🔍</span>
-      <span class="text-sm">RAG</span>
-    </a>
-    <a class="card flat hover" href="/projects/{{ pid }}/training" data-link style="padding:8px 10px;display:flex;align-items:center;gap:8px;">
-      <span class="ph-icon">🔥</span>
-      <span class="text-sm">Train</span>
-    </a>
-    <a class="card flat hover" href="/projects/{{ pid }}/chat" data-link style="padding:8px 10px;display:flex;align-items:center;gap:8px;">
-      <span class="ph-icon">💬</span>
-      <span class="text-sm">Chat</span>
-    </a>
-  </div>
+  {% if recent_runs %}
+  <table class="table compact">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Status</th>
+        <th>Started</th>
+        <th>Duration</th>
+        <th>Loss</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for run in recent_runs %}
+      <tr class="row-hover">
+        <td class="name">{{ run.name }}</td>
+        <td>
+          <span class="pill {{ {'running':'solid-amber','done':'solid-green','failed':'solid-rose','stopped':'outline'}.get(run.status, 'outline') }}">
+            {{ run.status }}
+          </span>
+        </td>
+        <td class="meta mono" title="{{ run.started_at or '' }}">{{ format_relative(run.started_at or run.created_at) }}</td>
+        <td class="meta mono js-duration" data-secs="{{ run.duration or '' }}">—</td>
+        <td class="num mono">{% if run.final_loss %}{{ '%.4f'|format(run.final_loss) }}{% else %}—{% endif %}</td>
+        <td class="flex gap-1 wrap">
+          <a class="btn sm" href="/projects/{{ pid }}/training?run={{ run.id }}" data-link>Details</a>
+          <button class="btn sm"
+                  type="button"
+                  {% if run.status != 'done' %}disabled title="Only finished runs can be production"{% endif %}
+                  onclick="dashPromote('{{ run.id }}')">Set production</button>
+          <button class="btn sm danger"
+                  data-action="/api/projects/{{ pid }}/runs/{{ run.id }}"
+                  data-method="DELETE"
+                  data-confirm="Delete this run? Output files on disk will be kept."
+                  data-reload="true">Delete</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No training runs yet. Start one from Training.</div>
+  {% endif %}
 </div>
 
-{# Settings modal #}
+{# ── E. Models ── #}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Models</div>
+      <div class="card-sub">Last 5 trained exports.</div>
+    </div>
+    <a class="btn sm ghost" href="/projects/{{ pid }}/models" data-link>All models →</a>
+  </div>
+  {% if recent_models %}
+  <table class="table compact">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Format</th>
+        <th>Size</th>
+        <th>Source run</th>
+        <th>Created</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in recent_models %}
+      <tr class="row-hover">
+        <td class="name">{{ m.name }}</td>
+        <td><span class="pill outline">{{ m.format }}</span></td>
+        <td class="num mono">{{ m.size_gb }} GB</td>
+        <td class="meta mono" title="{{ m.run_name or '' }}">{{ m.run_id[:8] if m.run_id else '—' }}</td>
+        <td class="meta mono">{{ format_relative(m.mtime) }}</td>
+        <td class="flex gap-1 wrap">
+          <button class="btn sm" type="button" onclick="dashCopyPath({{ m.path|tojson }})">Copy path</button>
+          <button class="btn sm primary" type="button" onclick="dashOpenInference({{ m.path|tojson }})">Open in inference</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No exports yet. Finish a training run to produce adapters / GGUF / merged checkpoints.</div>
+  {% endif %}
+</div>
+
+{# ── F. Recent files ── #}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Recent files</div>
+      <div class="card-sub">Last 5 uploads from the file library.</div>
+    </div>
+    <a class="btn sm ghost" href="/projects/{{ pid }}/data-prep" data-link>All files →</a>
+  </div>
+  <table class="table compact">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Size</th>
+        <th>Version</th>
+        <th>Uploaded</th>
+        <th>Drift</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="dash-files-body">
+      <tr><td colspan="7" class="dim text-xs" style="text-align:center;padding:20px">Loading files…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+{# ── G. Recent activity ── #}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Recent activity</div>
+      <div class="card-sub">Last 10 events across runs, benchmarks, exports, and uploads.</div>
+    </div>
+  </div>
+  {% if activity %}
+  <ul class="dash-activity" style="list-style:none;margin:0;padding:8px 16px 16px;">
+    {% for ev in activity %}
+    <li style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border);">
+      <span class="mono" style="width:1.5em;text-align:center;color:var(--accent);flex-shrink:0;" title="{{ ev.kind }}">{{ ev.icon }}</span>
+      <div style="flex:1;min-width:0;">
+        <div>{{ ev.message }}</div>
+        <div class="dim text-xs mono">{{ ev.when }}</div>
+      </div>
+      <a class="btn sm ghost" href="{{ ev.href }}" data-link>Open</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="empty">No activity yet.</div>
+  {% endif %}
+</div>
+
+{# ── H. Settings modal (kept) ── #}
 <div id="settings-modal" class="modal-back" hidden onclick="if(event.target===this)this.hidden=true">
   <div class="modal">
     <div class="modal-head">
@@ -121,4 +262,235 @@
     </div>
   </div>
 </div>
+
+<script>
+(function () {
+  const PID = {{ pid|tojson }};
+  const RUN_STARTED_MAX = {{ runs_started_max|tojson }};
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function formatBytes(n) {
+    n = Number(n) || 0;
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+    return (n / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+  }
+
+  function relativeTime(ts) {
+    if (ts == null || ts === '') return '—';
+    const t = Number(ts);
+    if (!Number.isFinite(t) || t <= 0) return '—';
+    const diff = Math.max(0, Date.now() / 1000 - t);
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    if (diff < 86400 * 30) return Math.floor(diff / 86400) + 'd ago';
+    if (diff < 86400 * 365) return Math.floor(diff / (86400 * 30)) + 'mo ago';
+    return Math.floor(diff / (86400 * 365)) + 'y ago';
+  }
+
+  function mimeSubtype(mime) {
+    if (!mime) return '?';
+    const parts = String(mime).split('/');
+    return parts[1] || parts[0] || '?';
+  }
+
+  function notify(msg, type) {
+    if (window.fts && window.fts.notify) window.fts.notify(msg, type || 'info');
+    else console.log(msg);
+  }
+
+  window.dashCopyPath = function (path) {
+    navigator.clipboard.writeText(path).then(
+      () => notify('Path copied', 'success'),
+      () => notify('Copy failed', 'error')
+    );
+  };
+
+  window.dashPromote = async function (runId) {
+    try {
+      const api = window.fts && window.fts.api;
+      const r = api
+        ? await api.post('/api/projects/' + PID + '/promote', { run_id: runId })
+        : await fetch('/api/projects/' + PID + '/promote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ run_id: runId }),
+          }).then((x) => x.json());
+      if (r && r.error) { notify(r.error, 'error'); return; }
+      notify('Production run updated', 'success');
+      location.reload();
+    } catch (e) {
+      notify('Promote failed: ' + (e.message || e), 'error');
+    }
+  };
+
+  window.dashOpenInference = async function (path) {
+    try {
+      const api = window.fts && window.fts.api;
+      const r = api
+        ? await api.post('/api/models/load', { path })
+        : await fetch('/api/models/load', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path }),
+          }).then((x) => x.json());
+      if (r && r.error) { notify(r.error, 'error'); return; }
+      notify('Model loaded', 'success');
+      location.href = '/inference';
+    } catch (e) {
+      notify('Load failed: ' + (e.message || e), 'error');
+    }
+  };
+
+  window.dashPreviewFile = function (fid, name, mime) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    let inner;
+    if (mime && mime.startsWith('image/')) {
+      inner = '<img src="/api/projects/' + PID + '/files/' + fid + '/raw" alt="' + esc(name) + '" style="max-width:100%;max-height:70vh;border-radius:4px;">';
+    } else if (mime === 'application/pdf') {
+      inner = '<iframe src="/api/projects/' + PID + '/files/' + fid + '/raw" style="width:100%;height:70vh;border:none;border-radius:4px;"></iframe>';
+    } else {
+      inner = '<pre id="dash-preview-content" class="mono text-xs" style="max-height:70vh;overflow:auto;padding:12px;background:var(--bg-panel);border:1px solid var(--border);">Loading…</pre>';
+    }
+    modal.innerHTML = '<div class="modal-dialog" style="max-width:800px;">' +
+      '<div class="modal-head">' + esc(name) + '</div>' +
+      '<div class="modal-body">' + inner + '</div>' +
+      '<div class="modal-actions"><button class="btn" data-action="close">Close</button></div></div>';
+    document.body.appendChild(modal);
+    const cleanup = () => modal.remove();
+    modal.addEventListener('click', (e) => { if (e.target === modal) cleanup(); });
+    modal.querySelector('[data-action=close]').addEventListener('click', cleanup);
+    if (mime && !mime.startsWith('image/') && mime !== 'application/pdf') {
+      fetch('/api/projects/' + PID + '/files/' + fid + '/raw')
+        .then((r) => r.text())
+        .then((t) => {
+          const el = document.getElementById('dash-preview-content');
+          if (el) el.textContent = t;
+        })
+        .catch(() => {
+          const el = document.getElementById('dash-preview-content');
+          if (el) el.textContent = 'Failed to load';
+        });
+    }
+  };
+
+  window.dashEditTags = function (fid, name) {
+    fetch('/api/projects/' + PID + '/files/' + fid)
+      .then((r) => r.json())
+      .then((f) => {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = '<div class="modal-dialog" style="max-width:500px;">' +
+          '<div class="modal-head">' + esc(name) + '</div>' +
+          '<div class="modal-body">' +
+          '<label class="block mb-3"><span class="muted text-xs">Tags (comma-separated)</span>' +
+          '<input id="dash-tag-input" class="input" value="' + esc(f.tags || '') + '"></label>' +
+          '<label class="block mb-3"><span class="muted text-xs">Notes</span>' +
+          '<textarea id="dash-note-input" class="textarea" rows="4">' + esc(f.notes || '') + '</textarea></label>' +
+          '<div id="dash-tag-status" class="text-xs dim"></div></div>' +
+          '<div class="modal-actions">' +
+          '<button class="btn" data-action="cancel">Cancel</button>' +
+          '<button class="btn primary" data-action="save">Save</button></div></div>';
+        document.body.appendChild(modal);
+        const cleanup = () => modal.remove();
+        modal.addEventListener('click', (e) => { if (e.target === modal) cleanup(); });
+        modal.querySelector('[data-action=cancel]').addEventListener('click', cleanup);
+        modal.querySelector('[data-action=save]').addEventListener('click', () => {
+          const tags = document.getElementById('dash-tag-input').value;
+          const notes = document.getElementById('dash-note-input').value;
+          fetch('/api/projects/' + PID + '/files/' + fid + '/tags', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tags, notes }),
+          }).then((r) => r.json()).then((d) => {
+            if (d.error) {
+              document.getElementById('dash-tag-status').textContent = 'Error: ' + d.error;
+            } else {
+              cleanup();
+              notify('Tags & notes saved', 'success');
+              loadFiles();
+            }
+          }).catch((e) => {
+            document.getElementById('dash-tag-status').textContent = 'Failed: ' + e.message;
+          });
+        });
+      })
+      .catch((e) => notify('Failed to load file: ' + e.message, 'error'));
+  };
+
+  window.dashDeleteFile = async function (fid, name) {
+    const ok = window.fts && window.fts.confirm
+      ? await window.fts.confirm('Move ' + name + ' to trash?', {
+          title: 'Confirm delete', danger: true, okText: 'Move to trash',
+        })
+      : confirm('Move ' + name + ' to trash?');
+    if (!ok) return;
+    try {
+      await fetch('/api/projects/' + PID + '/files/' + fid, { method: 'DELETE' });
+      notify(name + ' moved to trash', 'success');
+      location.reload();
+    } catch (e) {
+      notify('Delete failed: ' + e.message, 'error');
+    }
+  };
+
+  function driftBadge(f) {
+    let lastTrained = f.last_trained_at;
+    if (!lastTrained && RUN_STARTED_MAX != null) lastTrained = RUN_STARTED_MAX;
+    if (lastTrained && f.uploaded_at && Number(f.uploaded_at) > Number(lastTrained)) {
+      return '<span class="pill solid-amber" title="Changed after last training">⚠ drift</span>';
+    }
+    return '<span class="dim">—</span>';
+  }
+
+  async function loadFiles() {
+    const tbody = document.getElementById('dash-files-body');
+    if (!tbody) return;
+    try {
+      const r = await fetch('/api/projects/' + PID + '/files');
+      const data = await r.json();
+      const files = (data.files || []).slice().sort((a, b) => (Number(b.uploaded_at) || 0) - (Number(a.uploaded_at) || 0)).slice(0, 5);
+      if (!files.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty" style="border:0">No files yet. Upload from Data Prep.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = files.map((f) => {
+        const mime = f.mime_type || '';
+        const actions =
+          '<div class="flex gap-1 wrap">' +
+          '<button class="btn sm" type="button" onclick="dashPreviewFile(\'' + esc(f.id) + '\', \'' + esc(f.original_name) + '\', \'' + esc(mime) + '\')">Preview</button>' +
+          '<a class="btn sm" href="/api/projects/' + PID + '/files/' + encodeURIComponent(f.id) + '/raw" download="' + esc(f.original_name) + '">↓</a>' +
+          '<button class="btn sm" type="button" onclick="dashEditTags(\'' + esc(f.id) + '\', \'' + esc(f.original_name) + '\')">Tags &amp; notes</button>' +
+          '<button class="btn sm danger" type="button" onclick="dashDeleteFile(\'' + esc(f.id) + '\', \'' + esc(f.original_name) + '\')">Delete</button>' +
+          '</div>';
+        return '<tr class="row-hover">' +
+          '<td class="name" title="' + esc(f.original_name) + '">' + esc(f.original_name) + '</td>' +
+          '<td class="meta mono">' + esc(mimeSubtype(mime)) + '</td>' +
+          '<td class="num mono">' + formatBytes(f.size_bytes) + '</td>' +
+          '<td class="meta mono">v' + (f.current_version || 1) + '</td>' +
+          '<td class="meta mono">' + relativeTime(f.uploaded_at) + '</td>' +
+          '<td>' + driftBadge(f) + '</td>' +
+          '<td>' + actions + '</td>' +
+          '</tr>';
+      }).join('');
+    } catch (e) {
+      tbody.innerHTML = '<tr><td colspan="7" class="err text-xs" style="text-align:center;padding:20px">Failed to load files: ' + esc(e.message) + '</td></tr>';
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadFiles);
+  } else {
+    loadFiles();
+  }
+})();
+</script>
 {% endblock %}
