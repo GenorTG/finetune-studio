@@ -2322,7 +2322,7 @@ body::before {
   scrollbar-color: var(--border-strong) transparent;
   min-height: 42px;
   flex: 1;
-  margin-right: 460px;  /* leave room for absolute .sb-right cluster */
+  margin-right: 490px;  /* leave room for the wider .sb-right cluster (theme + conn + activity + palette + status + version ≈ 467px + 20px gap) */
   scroll-behavior: smooth;
   flex-wrap: nowrap;
   white-space: nowrap;
