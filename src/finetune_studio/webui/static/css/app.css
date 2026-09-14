@@ -2225,7 +2225,7 @@ body::before {
   max-width: 100%;
   padding: 22px 28px;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: visible;  /* was auto — the inner scroll was clipping the 989px file library on data-prep page; let .main handle scrolling */
   position: relative;
 }
 
