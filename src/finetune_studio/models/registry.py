@@ -40,12 +40,11 @@ _SKIP_ARCHES = {"BertModel", "BertForMaskedLM", "ClipVisionModel", "CLIPVisionMo
 _SKIP_GGUF_PATTERNS = ("mmproj", "projector", "vision")
 
 
-def _safe_model_name(root: str, cfg: dict) -> str:
+def _safe_model_name(root: str, cfg: dict, project_name: str = "") -> str:
     """Extract a human-readable model name from config or directory path.
-    
-    Returns the most descriptive name available, preferring the directory name
-    over architecture fields when the dir is meaningful (e.g. "merged", "abliterated"
-    are NOT meaningful — those need parent context).
+
+    Returns the most descriptive name available. For trained exports in generic
+    dirs ("merged", "abliterated"), uses the project name for context.
     """
     # Try config.json fields
     for key in ("name", "model_name"):
@@ -65,16 +64,16 @@ def _safe_model_name(root: str, cfg: dict) -> str:
         # e.g. "models--unsloth--gemma-4-E4B-it-unsloth-bnb-4bit" → "gemma-4-E4B-it-unsloth-bnb-4bit"
         if dirname.startswith("models--"):
             dirname = dirname.split("--", 2)[-1] if "--" in dirname else dirname
-    # If dirname is a generic export dir, use parent + dirname for context
+    # If dirname is a generic export dir, use project name + dirname for context
     generic_dirs = {"merged", "abliterated", "gguf", "gptq", "awq", "adapter", "checkpoint-0", "checkpoint-1"}
     if dirname.lower() in generic_dirs:
+        if project_name:
+            return f"{project_name} ({dirname})"
         parent = os.path.basename(os.path.dirname(root))
-        # Use parent context: e.g. "output_aethermere_hq/merged" → "Aethermere HQ (merged)"
-        if parent and parent not in ("output", "models", "output_aethermere_hq", "output_aethermere"):
+        if parent and parent not in ("output", "models"):
             return f"{parent}/{dirname}"
         return dirname
     # Use the directory name (which is usually descriptive) as the primary name
-    # Only fall back to arch+model_type if dirname is generic or missing
     if dirname and dirname not in ("export", "model", "snapshots"):
         return dirname
     if arch and model_type:
@@ -84,6 +83,28 @@ def _safe_model_name(root: str, cfg: dict) -> str:
     if model_type:
         return model_type
     return dirname
+
+
+def _lookup_project_name(output_path: str) -> tuple[str, str]:
+    """Look up (project_id, project_name) from training_runs DB by output_path."""
+    try:
+        import sqlite3 as _sql
+        db_path = os.path.join(os.path.expanduser("~"), ".finetune-studio", "finetune_studio.db")
+        if not os.path.exists(db_path):
+            db_path = os.path.join(os.path.expanduser("~"), ".finetune-studio", "fts.db")
+        if os.path.exists(db_path):
+            with _sql.connect(db_path) as conn:
+                row = conn.execute(
+                    "SELECT tr.project_id, p.name FROM training_runs tr "
+                    "LEFT JOIN projects p ON p.id = tr.project_id "
+                    "WHERE tr.output_path LIKE ? LIMIT 1",
+                    (f"{output_path}%",),
+                ).fetchone()
+                if row:
+                    return (row[0] or "", row[1] or "")
+    except Exception:
+        pass
+    return ("", "")
 
 
 def scan_models(directories: list) -> list:
