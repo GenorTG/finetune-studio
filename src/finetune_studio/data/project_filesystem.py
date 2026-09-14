@@ -19,6 +19,7 @@ from finetune_studio.data.fs import (  # noqa: F401
     read_ingestion_log,
     read_project_json,
     read_qa_source,
+    register_qa_source,
     root,
     store_file,
     update_file_metadata,

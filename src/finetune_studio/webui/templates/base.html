@@ -100,7 +100,10 @@
           <a href="/models/explore" class="sb-tab {% block nav_models_explore %}{% endblock %}" data-link data-tab="hf">
             <span class="sb-tab-label">hf</span>
           </a>
-          <a href="/inference" class="sb-tab {% block nav_inference %}{% endblock %}" data-link data-tab="inference">
+          {# QABUG-004: project-scoped chat is the real inference surface;
+             global /inference remains when no project is active. #}
+          <a href="{% if pid is defined and pid %}/projects/{{ pid }}/chat{% else %}/inference{% endif %}"
+             class="sb-tab {% block nav_inference %}{% endblock %}" data-link data-tab="inference">
             <span class="sb-tab-label">inference</span>
           </a>
           <a href="/settings" class="sb-tab {% block nav_settings %}{% endblock %}" data-link data-tab="settings">
@@ -259,7 +262,8 @@
       }
       pill.addEventListener('click', () => {
         // Soft navigation: don't break the SPA if it's running.
-        const target = document.querySelector('a[href="/inference"]') ? '/inference' : '/projects';
+        const infLink = document.querySelector('a[data-tab="inference"]');
+        const target = infLink ? (infLink.getAttribute('href') || '/inference') : '/projects';
         window.location.href = target;
       });
       tick();

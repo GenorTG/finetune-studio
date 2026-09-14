@@ -373,6 +373,7 @@ async function flLoadSources() {
   try {
     const r = await fetch('/api/projects/' + _flPid + '/data-prep/sources').then((r) => r.json());
     _flSources = r.sources || [];
+    flRefreshSourceSelect();
   } catch (e) {
     console.error('flLoadSources', e);
     _flSources = [];
@@ -540,6 +541,41 @@ function flRenderTrash() {
 function flToggleSelect(fid, checked) { if (checked) _flSelected.add(fid); else _flSelected.delete(fid); flRenderFiles(); }
 function flSelectAll(checked) { _flFiles.forEach(f => { if (checked) _flSelected.add(f.id); else _flSelected.delete(f.id); }); flRenderFiles(); }
 
+async function flPromoteToDataPrep(fileId) {
+  // QABUG-003: file-library uploads land in project_files, not qa/sources.
+  // Promote so the Source file picker sees them without a second upload.
+  try {
+    const r = await fetch('/api/projects/' + _flPid + '/data-prep/sources', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_id: fileId }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      console.warn('promote source failed', d);
+      return null;
+    }
+    return d.source || null;
+  } catch (e) {
+    console.warn('promote source failed', e);
+    return null;
+  }
+}
+
+function flRefreshSourceSelect() {
+  const sel = document.getElementById('prep-source');
+  if (!sel) return;
+  const prev = sel.value;
+  const opts = ['<option value="">— pick a parsed source —</option>'];
+  for (const s of (_flSources || [])) {
+    const label = (s.name || s.filename || s.id) +
+      ' · ' + (s.char_count || 0) + ' chars · ' + (s.chunk_count || 0) + ' chunks';
+    opts.push('<option value="' + escapeHtml(s.id) + '">' + escapeHtml(label) + '</option>');
+  }
+  sel.innerHTML = opts.join('');
+  if (prev) sel.value = prev;
+}
+
 async function flUploadFiles(files) {
   if (!files || !files.length) return;
   const fd = new FormData();
@@ -551,7 +587,16 @@ async function flUploadFiles(files) {
     const r = await fetch('/api/projects/' + _flPid + '/files/upload', { method: 'POST', body: fd });
     const data = await r.json();
     flShowUploadReport(data);
+    // Promote each newly uploaded (or duplicate) file into the source picker.
+    const report = data.report || [];
+    for (const item of report) {
+      const fid = item.file_id || item.duplicate_file_id;
+      if (fid && (item.status === 'uploaded' || item.status === 'duplicate')) {
+        await flPromoteToDataPrep(fid);
+      }
+    }
     await flInit();
+    flRefreshSourceSelect();
   } catch (e) {
     alert('Upload failed: ' + e.message);
   } finally {

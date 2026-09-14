@@ -61,6 +61,7 @@ from finetune_studio.data.fs.qa import (
     list_qa_pairs,
     list_qa_sources,
     read_qa_source,
+    register_qa_source,
     update_qa_pair,
     write_qa_pair,
     write_qa_source,

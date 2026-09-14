@@ -206,8 +206,62 @@ async def list_sources_route(pid: str):
         "char_count": s.get("char_count", 0), "chunk_count": s.get("chunk_count", 0),
         "uploaded_at": s.get("uploaded_at", 0), "sha256": s.get("sha256", ""),
         "parser": s.get("parser", ""),
+        "data_path": s.get("data_path") or s.get("path") or "",
     } for s in sources]
     return {"sources": out}
+
+
+@router.post("/projects/{pid}/data-prep/sources")
+async def promote_source_route(pid: str, request: Request):
+    """Promote a file-library upload into the data-prep source picker (QABUG-003).
+
+    Body accepts either ``file_id`` (resolved via ``project_files`` +
+    ``file_versions``) or ``data_path`` (absolute path on disk).
+    Idempotent on (pid, path): re-posting returns the existing source row.
+    """
+    from finetune_studio import db
+    from finetune_studio.data import project_filesystem as pfs
+    from finetune_studio.data.fs import file_library as fl
+
+    body = await request.json()
+    data_path = body.get("data_path") or ""
+    mime_type = body.get("mime_type") or ""
+    filename = body.get("filename") or None
+    if not data_path:
+        fid = body.get("file_id")
+        if fid:
+            owner_pid: str | None = None
+            with db.cursor() as _c:
+                _row = _c.execute(
+                    "SELECT project_id FROM project_files WHERE id = ?", (fid,)
+                ).fetchone()
+            if _row:
+                owner_pid = _row["project_id"]
+            if owner_pid and owner_pid != pid:
+                return JSONResponse(
+                    {"error": f"file {fid} belongs to another project"},
+                    status_code=403,
+                )
+            if owner_pid == pid:
+                versions = fl.list_versions(pid, fid)
+                if versions:
+                    data_path = versions[0].get("raw_path") or ""
+                meta = fl.get_file(pid, fid)
+                if meta:
+                    mime_type = mime_type or meta.get("mime_type") or ""
+                    filename = filename or meta.get("original_name")
+    if not data_path:
+        return JSONResponse(
+            {"error": "data_path or file_id required"}, status_code=400
+        )
+    try:
+        source = pfs.register_qa_source(
+            pid, data_path, mime_type=mime_type, filename=filename
+        )
+    except OSError as e:
+        log.exception("promote source failed")
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return {"ok": True, "source": source}
 
 
 @router.get("/projects/{pid}/data-prep/qa")

@@ -6,12 +6,63 @@ LAYOUT (per project):
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import mimetypes
 import time
+import uuid
 from pathlib import Path
 from typing import Optional
 
 from finetune_studio.data.fs.paths import project_dir
+
+
+def register_qa_source(
+    pid: str,
+    path: str,
+    *,
+    mime_type: str = "",
+    filename: str | None = None,
+) -> dict:
+    """Register a file path as a QA source (idempotent on ``pid`` + path).
+
+    Used by ``POST /api/projects/{pid}/data-prep/sources`` to promote a
+    file-library upload into the data-prep source picker without re-uploading.
+    """
+    p = Path(path)
+    abs_path = str(p.resolve()) if p.exists() else str(p)
+    for existing in list_qa_sources(pid):
+        if existing.get("data_path") == abs_path or existing.get("path") == abs_path:
+            return existing
+
+    name = filename or (p.name if p.name else "upload")
+    mime = mime_type or (mimetypes.guess_type(name)[0] or "")
+    sha256 = ""
+    char_count = 0
+    size_bytes = 0
+    if p.is_file():
+        raw = p.read_bytes()
+        sha256 = hashlib.sha256(raw).hexdigest()
+        size_bytes = len(raw)
+        char_count = len(raw.decode("utf-8", errors="ignore"))
+    source_id = (sha256[:12] if sha256 else uuid.uuid4().hex[:12])
+    source: dict = {
+        "id": source_id,
+        "sha256": sha256,
+        "filename": name,
+        "name": name,
+        "mime_type": mime,
+        "char_count": char_count,
+        "chunk_count": 0,
+        "parser": "",
+        "uploaded_at": time.time(),
+        "status": "registered",
+        "data_path": abs_path,
+        "path": abs_path,
+        "size_bytes": size_bytes,
+    }
+    write_qa_source(pid, source)
+    return source
 
 
 def write_qa_pair(pid: str, qa: dict) -> None:
