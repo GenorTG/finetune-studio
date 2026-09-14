@@ -7,8 +7,8 @@ Genor edits on genorbox1 and pushes to GitHub; fan-dragon pulls and runs it as a
 ## State (verified 2026-09-14 15:40)
 | Area | Status |
 |------|--------|
-| Git | `main` — testing suite dropdown (pending push this session) |
-| Testing suite dropdown (`/projects/{pid}/testing`) | ✅ Done: free-text path → `<select id="t-suite">` from `_discover_suites()`; empty hint; "✓ Using suite" indicator; optional Recent runs card (top 5) |
+| Git | `main` @ `7ec9ad4` — testing suite dropdown (pushed) |
+| Testing suite dropdown (`/projects/{pid}/testing`) | ✅ Done (`7ec9ad4`): free-text path → `<select id="t-suite">` from `_discover_suites()`; empty hint; "✓ Using suite" indicator; Recent runs card (top 5) |
 | Training Actions (`/projects/{pid}/training`) | ✅ Done (`b691173`): Set production / Open in inference / Export |
 | Data-prep parsed-preview | ✅ Done (`115c127`): 4-tab preview modal |
 | Pytest (genorbox1) | ✅ 23 passed (`test_project_testing` + training + data_editor + data_browser + dashboard) |
