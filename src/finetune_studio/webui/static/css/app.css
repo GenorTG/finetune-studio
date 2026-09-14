@@ -305,7 +305,7 @@ body::before {
   flex: 1 1 0;
   min-width: 0;
   max-width: 100%;
-  overflow-y: auto;
+  overflow-y: visible;  /* was auto — inner scroll was hiding the 989px file library below the fold; let .main scroll instead */
   overflow-x: hidden;
   padding: 28px 32px 48px;
   position: relative;
