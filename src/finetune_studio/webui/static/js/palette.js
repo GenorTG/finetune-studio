@@ -87,10 +87,23 @@
     navIndex = items;
   }
 
+  /* ── Query tokenizer (supports "quoted multi-word" phrases) ─ */
+  function parseQuery(query) {
+    if (!query) return [];
+    const tokens = [];
+    const re = /"([^"]+)"|(\S+)/g;
+    let m;
+    while ((m = re.exec(query)) !== null) {
+      const tok = (m[1] != null ? m[1] : m[2] || "").trim().toLowerCase();
+      if (tok) tokens.push(tok);
+    }
+    return tokens;
+  }
+
   /* ── Multi-token fuzzy match ──────────────────────────────── */
   function fuzzyScore(query, item) {
     if (!query) return 1;
-    const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const tokens = parseQuery(query);
     if (tokens.length === 0) return 1;
 
     const haystack = [
@@ -98,6 +111,8 @@
       item.group,
       item.href,
       item.keywords || "",
+      item.projectName || "",
+      item.projectId || "",
     ].join(" ").toLowerCase();
 
     let total = 0;
@@ -123,8 +138,8 @@
         total += 3;
       }
     }
-    // Boost exact matches
-    if (item.label.toLowerCase() === query.toLowerCase()) total += 200;
+    // Boost exact label matches (unquoted single-token queries)
+    if (tokens.length === 1 && item.label.toLowerCase() === tokens[0]) total += 200;
     return total;
   }
 

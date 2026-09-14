@@ -29,6 +29,8 @@ db/
 from finetune_studio.db.connection import cursor, init_db, row_to_dict
 from finetune_studio.db.projects import (
     create_project, delete_project, get_project, list_projects, update_project,
+    add_model_favorite, list_model_favorites, remove_model_favorite,
+    is_model_favorited,
 )
 from finetune_studio.db.rags import (
     create_rag, delete_rag, get_rag, list_rags, update_rag,

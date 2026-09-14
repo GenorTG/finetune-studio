@@ -22,7 +22,7 @@ if ! curl -fsS --max-time 5 "$WEBUI/" >/dev/null 2>&1; then
 fi
 
 cd "$REPO"
-FTS_BASE="$WEBUI" python tests/e2e_ui_qa.py \
+FTS_BASE="$WEBUI" .venv/bin/python tests/e2e_ui_qa.py \
     >> "$LOG" 2>&1 \
     || true  # don't crash on non-zero; we report from results
 

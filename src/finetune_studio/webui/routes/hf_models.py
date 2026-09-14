@@ -9,16 +9,9 @@ HF hub cache, because we want a single user-facing directory listing).
 
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
 import os
 import shutil
-import subprocess
-import threading
-import time
-import uuid
-from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -367,9 +360,13 @@ async def shared_model_stats_endpoint():
 # ── Model favorites ──────────────────────────────────────────────
 @router.get("/favorites")
 async def list_favorites():
-    """List favorited models."""
+    """List favorited models. Never 500 the page — empty list on error."""
     from finetune_studio import db
-    return db.list_model_favorites()
+    try:
+        return db.list_model_favorites()
+    except Exception:  # noqa: BLE001
+        log.exception("list_model_favorites failed")
+        return []
 
 @router.post("/favorites")
 async def add_favorite(request: Request):

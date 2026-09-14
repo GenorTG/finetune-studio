@@ -298,6 +298,7 @@ function applyModelMeta(meta) {
     slider.title = '0 = CPU only · ' + maxLayers + ' = all layers on GPU. This model has ' + maxLayers + ' total layers.';
   }
 }
+let memTimer = null;
 function updateMemEstimate() {
   clearTimeout(memTimer);
   memTimer = setTimeout(async () => {
