@@ -516,6 +516,19 @@ async def project_chat_page(request: Request, pid: str):
     )
 
 
+@router.get("/projects/{pid}/settings", response_class=HTMLResponse)
+async def project_settings_page(request: Request, pid: str):
+    """Project settings + WebUI log tail (no SSH needed for uvicorn.log)."""
+    ctx = _project_ctx(pid)
+    if not ctx:
+        return RedirectResponse(url="/projects", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "project_settings.html",
+        {**ctx, "request": request},
+    )
+
+
 # ── Settings & Debug Info ───────────────────────────────────────────
 
 @router.get("/settings", response_class=HTMLResponse)

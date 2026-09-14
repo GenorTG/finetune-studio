@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Settings — {{ project.name }}{% endblock %}
+{% block nav_project_overview %}active{% endblock %}
+{% block sb_path %}~ / projects / {{ project.name }} / settings{% endblock %}
+
+{% block crumbs %}
+  <a href="/projects" data-link>Projects</a>
+  <span class="sep">/</span>
+  <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a>
+  <span class="sep">/</span>
+  <span class="here">Settings</span>
+{% endblock %}
+
+{% block content %}
+{% include "_resources.html" %}
+
+<div class="page-head">
+  <h1>Settings</h1>
+  <div class="sub">Project metadata and a live tail of the WebUI process log.</div>
+</div>
+
+{# ── WebUI log tail ── #}
+<div class="card mb-4" id="log-tail-card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">WebUI log tail</div>
+      <div class="card-sub text-dim">
+        <span class="mono" id="log-path">—</span>
+        · updated <span id="log-updated">—</span>
+      </div>
+    </div>
+    <div class="flex gap-2 wrap">
+      <button class="btn sm" type="button" id="log-refresh-btn" onclick="flRefreshLogs()">Refresh</button>
+      <button class="btn sm" type="button" id="log-auto-btn" onclick="flToggleAutoRefresh()">Auto-refresh</button>
+    </div>
+  </div>
+  <pre id="log-tail"
+       class="mono log bg-elev"
+       style="max-height:320px;overflow-y:auto;margin:0;padding:12px;font-size:12px;line-height:1.45;white-space:pre-wrap;word-break:break-word;background:var(--bg-elev, #0a0a0a);border:1px solid var(--border);color:var(--text);">Loading…</pre>
+</div>
+
+{# ── Project settings form (same fields as the overview modal) ── #}
+<div class="card mb-4" id="project-settings-card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Project settings</div>
+      <div class="card-sub text-dim">Name, base model, description, tags, notes, and system prompt.</div>
+    </div>
+  </div>
+  <form id="settings-form" data-api="/api/projects/{{ project.id }}" data-reload="true">
+    <label class="block mb-3">
+      <span class="muted text-xs">Name</span>
+      <input class="input" name="name" value="{{ project.name }}">
+    </label>
+    <label class="block mb-3">
+      <span class="muted text-xs">Base model</span>
+      <input class="input" name="base_model" value="{{ project.base_model or '' }}" placeholder="intfloat/multilingual-e5-large">
+    </label>
+    <label class="block mb-3">
+      <span class="muted text-xs">Description</span>
+      <textarea class="textarea" name="description" rows="3">{{ project.description or '' }}</textarea>
+    </label>
+    <label class="block mb-3">
+      <span class="muted text-xs">Tags (comma-separated)</span>
+      <input class="input" name="tags" value="{{ project.tags or '' }}" placeholder="e.g. rag, production, experiment">
+    </label>
+    <label class="block mb-3">
+      <span class="muted text-xs">Notes</span>
+      <textarea class="textarea" name="notes" rows="3" placeholder="Internal notes about this project...">{{ project.notes or '' }}</textarea>
+    </label>
+    <label class="block mb-3">
+      <span class="muted text-xs">System prompt</span>
+      <textarea class="textarea" name="system_prompt" rows="4">{{ project.system_prompt or '' }}</textarea>
+    </label>
+    <div class="flex gap-2 wrap mt-3">
+      <button class="btn primary" type="submit">Save</button>
+      <a class="btn" href="/api/projects/{{ project.id }}/export" title="Download project as tar.gz">Export</a>
+      <a class="btn ghost" href="/projects/{{ pid }}" data-link>Back to overview</a>
+    </div>
+  </form>
+</div>
+
+<script>
+(function () {
+  const PID = {{ pid|tojson }};
+  const LOG_URL = "/api/projects/" + PID + "/logs?lines=80";
+  let _autoTimer = null;
+
+  function flRefreshLogs() {
+    const pre = document.getElementById("log-tail");
+    const pathEl = document.getElementById("log-path");
+    const updEl = document.getElementById("log-updated");
+    fetch(LOG_URL)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        const lines = (data && data.lines) ? data.lines : [];
+        if (pre) pre.textContent = lines.join("\n") || "(empty)";
+        if (pathEl) pathEl.textContent = (data && data.path) ? data.path : "—";
+        if (updEl) updEl.textContent = (data && data.updated_at) ? data.updated_at : "—";
+      })
+      .catch(function (err) {
+        if (pre) pre.textContent = "(failed to load log: " + err + ")";
+      });
+  }
+
+  function flToggleAutoRefresh() {
+    const btn = document.getElementById("log-auto-btn");
+    if (_autoTimer) {
+      clearInterval(_autoTimer);
+      _autoTimer = null;
+      if (btn) btn.textContent = "Auto-refresh";
+      return;
+    }
+    flRefreshLogs();
+    _autoTimer = setInterval(flRefreshLogs, 5000);
+    if (btn) btn.textContent = "Auto-refresh: on";
+  }
+
+  window.flRefreshLogs = flRefreshLogs;
+  window.flToggleAutoRefresh = flToggleAutoRefresh;
+
+  document.addEventListener("DOMContentLoaded", function () {
+    flRefreshLogs();
+  });
+})();
+</script>
+{% endblock %}
