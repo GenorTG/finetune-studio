@@ -116,34 +116,148 @@
   </div>
 </div>
 
-{# ── Existing exports ─────────────────────────────────────────────── #}
-{% if project.models %}
+{# ── Existing / trained exports (expand-row) ──────────────────────── #}
+<style>
+  tr.export-detail { display: none; }
+  tr.export-row.expanded + tr.export-detail { display: table-row; }
+  tr.export-row.expanded td.name { color: var(--accent); }
+  tr.export-row .name-btn {
+    background: none; border: none; padding: 0; margin: 0;
+    font: inherit; color: inherit; cursor: pointer; text-align: left;
+  }
+  tr.export-row .name-btn:hover { color: var(--accent); text-decoration: underline; }
+  .export-detail-inner { padding: 12px 16px 16px; background: var(--bg-app); }
+  .export-detail-inner .detail-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  @media (max-width: 900px) {
+    .export-detail-inner .detail-grid { grid-template-columns: 1fr; }
+  }
+  .export-detail-inner .detail-block h4 {
+    margin: 0 0 8px; font-size: 12px; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--muted);
+  }
+  .export-detail-inner table.kv td { padding: 2px 8px 2px 0; vertical-align: top; }
+  .export-detail-inner table.kv td.k { color: var(--muted); white-space: nowrap; }
+  .export-detail-inner .files-list { list-style: none; margin: 0; padding: 0; }
+  .export-detail-inner .files-list li {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 2px 0; font-family: var(--mono, ui-monospace, monospace); font-size: 12px;
+  }
+  .export-detail-inner .files-list .sz { color: var(--muted); }
+</style>
+
 <div class="card">
   <div class="card-head">
     <div>
-      <div class="card-title">Existing exports</div>
-      <div class="card-sub">Already-exported models from this project.</div>
+      <div class="card-title">Trained exports</div>
+      <div class="card-sub">Already-exported models from this project. Click a name to expand.</div>
     </div>
   </div>
-  <table class="table">
-    <thead><tr><th>Name</th><th>Format</th><th>Size</th><th>Source run</th><th>Created</th><th></th></tr></thead>
+  {% if project.models %}
+  <table class="table" id="trained-exports-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Format</th>
+        <th>Size</th>
+        <th>Source run</th>
+        <th>Created</th>
+        <th>Copy path</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
     <tbody>
       {% for m in project.models %}
-      <tr class="row-hover">
-        <td class="name">{{ m.name }}</td>
+      {% set run = runs_by_id.get(m.run_id) if runs_by_id is defined else none %}
+      {% set settings = (run.settings if run and run.settings else {}) %}
+      {% set row_id = 'm-' ~ (m.path | replace('/', '-') | replace(' ', '_') | replace('.', '_')) %}
+      <tr class="row-hover export-row"
+          id="{{ row_id }}"
+          data-row-id="{{ row_id }}"
+          data-model-path="{{ m.path }}"
+          data-run-id="{{ m.run_id }}">
+        <td class="name">
+          <button type="button" class="name-btn" onclick="flToggleExportRow({{ m.path|tojson }})">{{ m.name }}</button>
+        </td>
         <td><span class="pill outline">{{ m.format }}</span></td>
         <td class="num mono">{{ m.size_gb }} GB</td>
-        <td class="meta">{{ m.run_id[:8] if m.run_id else '—' }}</td>
+        <td class="meta" title="{{ m.run_name or '' }}">{{ m.run_name or (m.run_id[:8] if m.run_id else '—') }}</td>
         <td class="meta">{{ m.created_at }}</td>
         <td>
-          <button class="btn sm" onclick="navigator.clipboard.writeText('{{ m.path }}');fts.notify('Path copied','success')">Copy path</button>
+          <button class="btn sm" type="button"
+                  onclick="navigator.clipboard.writeText({{ m.path|tojson }});fts.notify('Path copied','success')">Copy path</button>
+        </td>
+        <td>
+          <button type="button" class="btn sm primary"
+                  onclick="flOpenInInference({{ m.path|tojson }})">▶ Open in inference</button>
+        </td>
+      </tr>
+      <tr class="export-detail" data-for="{{ row_id }}" data-model-path="{{ m.path }}">
+        <td colspan="7">
+          <div class="export-detail-inner">
+            <div class="detail-grid">
+              <div class="detail-block">
+                <h4>Source run</h4>
+                {% if run %}
+                <table class="kv">
+                  <tr>
+                    <td class="k">Name</td>
+                    <td>
+                      <a href="/projects/{{ pid }}/training?run={{ run.id }}" data-link>{{ run.name }}</a>
+                      <span class="pill {{ {'running':'solid-amber','done':'solid-green','failed':'solid-rose','stopped':'outline'}.get(run.status, 'outline') }}">{{ run.status }}</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="k">Started</td>
+                    <td class="mono js-time" data-ts="{{ run.started_at or '' }}">—</td>
+                  </tr>
+                  <tr>
+                    <td class="k">Finished</td>
+                    <td class="mono js-time" data-ts="{{ run.finished_at or '' }}">—</td>
+                  </tr>
+                  <tr>
+                    <td class="k">Duration</td>
+                    <td class="mono js-duration" data-secs="{{ run.duration or '' }}">—</td>
+                  </tr>
+                </table>
+                {% else %}
+                <div class="dim text-xs">No run metadata available.</div>
+                {% endif %}
+              </div>
+              <div class="detail-block">
+                <h4>Training settings</h4>
+                <table class="kv">
+                  <tr><td class="k">Learning rate</td><td class="mono">{{ settings.get('learning_rate', '—') }}</td></tr>
+                  <tr><td class="k">LoRA rank</td><td class="mono">{{ settings.get('lora_rank', '—') }}</td></tr>
+                  <tr><td class="k">Batch size</td><td class="mono">{{ settings.get('batch_size', '—') }}</td></tr>
+                  <tr><td class="k">Num epochs</td><td class="mono">{{ settings.get('num_epochs', '—') }}</td></tr>
+                  <tr><td class="k">Max seq length</td><td class="mono">{{ settings.get('max_seq_length', '—') }}</td></tr>
+                  <tr><td class="k">Merge on save</td><td class="mono">{{ settings.get('merge_on_save', '—') }}</td></tr>
+                </table>
+              </div>
+              <div class="detail-block" style="grid-column: 1 / -1;">
+                <h4>Output dir contents</h4>
+                <ul class="files-list js-export-files" data-path="{{ m.path }}">
+                  <li class="dim">Expand to load…</li>
+                </ul>
+              </div>
+            </div>
+            <div class="flex gap-1 wrap" style="margin-top:12px;">
+              <button type="button" class="btn sm primary"
+                      onclick="flOpenInInference({{ m.path|tojson }})">▶ Open in inference</button>
+              <a class="btn sm" href="/projects/{{ pid }}/training?run={{ m.run_id }}" data-link>View run →</a>
+            </div>
+          </div>
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  {% else %}
+  <div class="empty">No exports yet. Finish a training run and export above, or wait for a run that writes merged/GGUF output.</div>
+  {% endif %}
 </div>
-{% endif %}
 
 <script>
 // Enable export button only when a run is selected
@@ -207,6 +321,121 @@ async function startExport() {
     radio.dispatchEvent(new Event("change", { bubbles: true }));
     const row = radio.closest(".export-run-row");
     if (row) row.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+})();
+
+// Expand-row + Open in inference (same pattern as project_models.html).
+(function () {
+  const PID = {{ pid|tojson }};
+
+  function notify(msg, kind) {
+    if (window.fts && window.fts.notify) window.fts.notify(msg, kind || "info");
+    else console.log(kind || "info", msg);
+  }
+
+  function pathToRowId(modelPath) {
+    return "m-" + String(modelPath || "").replace(/[\/\s.]/g, function (ch) {
+      if (ch === "/") return "-";
+      if (ch === " ") return "_";
+      return "_";
+    });
+  }
+
+  function contentsUrl(modelPath) {
+    const rel = String(modelPath || "").replace(/^\/+/, "");
+    return "/api/projects/" + encodeURIComponent(PID) + "/models/" +
+      rel.split("/").map(encodeURIComponent).join("/") + "/contents";
+  }
+
+  function formatBytes(n) {
+    const b = Number(n) || 0;
+    if (b < 1024) return b + " B";
+    if (b < 1024 * 1024) return (b / 1024).toFixed(1) + " KB";
+    if (b < 1024 * 1024 * 1024) return (b / (1024 * 1024)).toFixed(1) + " MB";
+    return (b / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+  }
+
+  async function loadContents(detailTr) {
+    const list = detailTr.querySelector(".js-export-files");
+    if (!list || list.dataset.loaded === "1") return;
+    const path = list.dataset.path || detailTr.dataset.modelPath || "";
+    list.innerHTML = '<li class="dim">Loading…</li>';
+    try {
+      const r = await fetch(contentsUrl(path));
+      const data = await r.json().catch(function () { return {}; });
+      if (!r.ok) {
+        list.innerHTML = '<li class="dim">' + (data.detail || data.error || ("HTTP " + r.status)) + "</li>";
+        return;
+      }
+      const files = data.files || [];
+      if (!files.length) {
+        list.innerHTML = '<li class="dim">Empty directory</li>';
+      } else {
+        list.innerHTML = files.map(function (f) {
+          const label = f.is_dir ? (f.name + "/") : f.name;
+          const sz = f.is_dir ? "dir" : formatBytes(f.size_bytes);
+          return "<li><span>" + label.replace(/</g, "&lt;") +
+            '</span><span class="sz">' + sz + "</span></li>";
+        }).join("");
+        if (data.truncated) {
+          list.innerHTML += '<li class="dim">…truncated</li>';
+        }
+      }
+      list.dataset.loaded = "1";
+    } catch (e) {
+      list.innerHTML = '<li class="dim">Failed to load: ' + (e.message || e) + "</li>";
+    }
+  }
+
+  window.flToggleExportRow = function (modelPath) {
+    const rowId = pathToRowId(modelPath);
+    const row = document.querySelector('tr.export-row[data-row-id="' + rowId + '"]') ||
+      document.getElementById(rowId);
+    if (!row) return;
+    const opening = !row.classList.contains("expanded");
+    document.querySelectorAll("tr.export-row.expanded").forEach(function (el) {
+      el.classList.remove("expanded");
+    });
+    if (opening) {
+      row.classList.add("expanded");
+      const detail = document.querySelector('tr.export-detail[data-for="' + rowId + '"]');
+      if (detail) loadContents(detail);
+      try {
+        history.replaceState(null, "", "#" + rowId);
+      } catch (_) { /* ignore */ }
+    } else {
+      try {
+        history.replaceState(null, "", location.pathname + location.search);
+      } catch (_) { /* ignore */ }
+    }
+  };
+
+  window.flOpenInInference = async function (modelPath) {
+    if (!modelPath) { notify("No model path", "error"); return; }
+    try {
+      const api = window.fts && window.fts.api;
+      const r = api
+        ? await api.post("/api/models/load", { path: modelPath })
+        : await fetch("/api/models/load", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path: modelPath }),
+          }).then(function (x) { return x.json(); });
+      if (r && r.error) { notify(r.error, "error"); return; }
+      notify("Model loaded", "success");
+      location.href = "/inference";
+    } catch (e) {
+      notify("Load failed: " + (e.message || e), "error");
+    }
+  };
+
+  const hash = (location.hash || "").replace(/^#/, "");
+  if (hash && hash.indexOf("m-") === 0) {
+    const row = document.getElementById(hash);
+    if (row && row.classList.contains("export-row")) {
+      const path = row.dataset.modelPath;
+      if (path) flToggleExportRow(path);
+    }
   }
 })();
 </script>
