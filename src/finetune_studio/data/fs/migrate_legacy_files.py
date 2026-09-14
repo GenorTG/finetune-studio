@@ -50,7 +50,12 @@ def migrate_project(pid: str, db_path: Path) -> tuple[int, int, int]:
 
     with sqlite3.connect(db_path) as conn:
         for hash_dir in sorted(files_dir.iterdir()):
-            if not hash_dir.is_dir() or len(hash_dir.name) < 16:
+            # On-disk dir names are first 12 hex of sha256 (12-char hash prefix).
+            # The project_files.id schema column accepts any length TEXT.
+            if not hash_dir.is_dir():
+                continue
+            # Skip hidden / non-hash dirs
+            if not all(c in "0123456789abcdef" for c in hash_dir.name):
                 continue
 
             metadata_path = hash_dir / "metadata.json"
@@ -65,8 +70,8 @@ def migrate_project(pid: str, db_path: Path) -> tuple[int, int, int]:
                 errors += 1
                 continue
 
-            # Use the 12-char dir name as the file id (matches project_files.id pattern)
-            file_id = hash_dir.name[:12]
+            # Use the directory name directly as the file id (it's already a unique hash prefix)
+            file_id = hash_dir.name
             original_name = meta.get("original_filename") or meta.get("filename") or f"{hash_dir.name}.bin"
             mime_type = meta.get("mime_type") or "application/octet-stream"
             size_bytes = int(meta.get("byte_count") or 0)
