@@ -266,7 +266,7 @@ body::before {
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
-  overflow-y: hidden;
+  overflow-y: auto;  /* scroll within main when content (e.g. file library with 22 rows) exceeds viewport */
   position: relative;
 }
 
