@@ -92,8 +92,8 @@ body::before {
   display: grid;
   grid-template-rows: auto 1fr;
   grid-template-columns: minmax(0, 1fr);
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;  /* was height:100vh — let content grow beyond viewport so the file library (989px) renders */
+  overflow: visible;
 }
 /* Legacy sidebar rules retained for back-compat but the nav element is
    no longer rendered. Drawer + header live elsewhere. */
