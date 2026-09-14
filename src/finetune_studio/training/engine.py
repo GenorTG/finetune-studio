@@ -188,6 +188,26 @@ class TrainingEngine:
             self.state.error = str(e)
             self.state.message = f"Error: {e}"
             self._notify()
+            # Persist the error to the DB so the UI can surface it on the run row
+            try:
+                self._persist_run_error(str(e))
+            except Exception:
+                pass
+
+    def _persist_run_error(self, error_msg: str):
+        """Write the failure reason to the training_runs.error column.
+
+        Called from the except branch in start() so failed runs show the
+        real exception in the UI instead of a bare `failed` status.
+        """
+        if not self.current_run_id:
+            return
+        try:
+            from finetune_studio.db.runs import update_run
+            # current_run_id is the full 8-char hex like "bdc217b1" — use it as-is
+            update_run(self.current_run_id, status="failed", error=error_msg[:2000])
+        except Exception:
+            pass
 
     def _persist_run_output(self):
         """Update the DB run record with the output path so the merge
