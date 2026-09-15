@@ -34,13 +34,18 @@
     return new Promise((resolve) => {
       const overlay = document.createElement("div");
       overlay.className = "modal-overlay";
+      // Use data-fts-modal (not data-action): global [data-action] delegation
+      // would otherwise treat "ok"/"cancel" as API URLs. Close the class="…"
+      // quote after the interpolated variant or the browser parses
+      // class="btn primary data-action=" and breaks the OK handler.
+      const variant = opts.danger ? "danger" : "primary";
       overlay.innerHTML = `
         <div class="modal-dialog" role="dialog" aria-modal="true">
           <div class="modal-head">${opts.title || "Confirm"}</div>
           <div class="modal-body">${message}</div>
           <div class="modal-actions">
-            <button class="btn" data-action="cancel">Cancel</button>
-            <button class="btn ${opts.danger ? "danger" : "primary"} data-action="ok">${opts.okText || "OK"}</button>
+            <button type="button" class="btn" data-fts-modal="cancel">Cancel</button>
+            <button type="button" class="btn ${variant}" data-fts-modal="ok">${opts.okText || "OK"}</button>
           </div>
         </div>
       `;
@@ -49,8 +54,16 @@
       overlay.addEventListener("click", (e) => {
         if (e.target === overlay) { cleanup(); resolve(false); }
       });
-      overlay.querySelector("[data-action=cancel]").addEventListener("click", () => { cleanup(); resolve(false); });
-      overlay.querySelector("[data-action=ok]").addEventListener("click", () => { cleanup(); resolve(true); });
+      overlay.querySelector("[data-fts-modal=cancel]").addEventListener("click", (e) => {
+        e.stopPropagation();
+        cleanup();
+        resolve(false);
+      });
+      overlay.querySelector("[data-fts-modal=ok]").addEventListener("click", (e) => {
+        e.stopPropagation();
+        cleanup();
+        resolve(true);
+      });
     });
   }
 
@@ -238,6 +251,8 @@
       document.addEventListener("click", (ev) => {
         const btn = ev.target.closest("[data-action]");
         if (!btn || !document.contains(btn)) return;
+        // Modal chrome must never hit the API action path
+        if (btn.closest(".modal-overlay")) return;
         // data-confirm buttons are handled by the confirm listener below
         if (btn.hasAttribute("data-confirm")) return;
         ev.preventDefault();

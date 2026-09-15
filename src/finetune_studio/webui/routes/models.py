@@ -94,14 +94,16 @@ def _vram_hint(model_path: str) -> str:
     )
 
 @router.get("/")
-async def models_root():
+async def models_root(for_selector: bool = False):
     """Root models endpoint — returns list of discovered models."""
-    return await list_models()
+    return await list_models(for_selector=for_selector)
 
 
 @router.get("/list")
-async def list_models():
+async def list_models(for_selector: bool = False):
+    from finetune_studio.models.registry import models_for_selectors
     from finetune_studio.webui.app import discovered_models
+    models = models_for_selectors(discovered_models) if for_selector else discovered_models
     return [
         {
             "name": m.name,
@@ -114,7 +116,7 @@ async def list_models():
             "project_id": getattr(m, "project_id", ""),
             "run_id": getattr(m, "run_id", ""),
         }
-        for m in discovered_models
+        for m in models
     ]
 
 @router.get("/count")

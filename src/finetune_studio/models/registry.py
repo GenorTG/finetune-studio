@@ -14,6 +14,8 @@ KEY CONCEPTS
 - Caching: don't re-scan every time; cache the results.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -37,11 +39,71 @@ class ModelInfo:
     project_id: str = ""           # which project produced this (for trained_export)
     run_id: str = ""               # which training run produced this
 
-# Non-chat model architectures to skip
-_SKIP_ARCHES = {"BertModel", "BertForMaskedLM", "ClipVisionModel", "CLIPVisionModel",
-                "SiglipVisionModel", "MultiModalProjector"}
+# Non-chat model architectures to skip (embeddings, vision encoders, projectors)
+_SKIP_ARCHES = {
+    "BertModel", "BertForMaskedLM",
+    "RobertaModel", "RobertaForMaskedLM",
+    "XLMRobertaModel", "XLMRobertaForMaskedLM",
+    "MPNetModel",
+    "ClipVisionModel", "CLIPVisionModel",
+    "SiglipVisionModel", "MultiModalProjector",
+}
 # File patterns that indicate non-model files
 _SKIP_GGUF_PATTERNS = ("mmproj", "projector", "vision")
+
+# Categories suitable for Inference / Training base-model selectors.
+# local_helper GGUFs (e.g. 27B helper) stay selectable; shared_models
+# embedders/rerankers are dropped via path check in models_for_selectors.
+_SELECTOR_CATEGORIES = frozenset({
+    "discovered", "base_model", "trained_export", "downloaded", "local_helper",
+})
+
+
+def _readable_file_size(path: str) -> int | None:
+    """Return byte size, or None when the path is missing / a broken symlink."""
+    try:
+        if not os.path.exists(path):
+            return None
+        return os.path.getsize(path)
+    except OSError:
+        return None
+
+
+def _weight_bytes(root: str, files: list[str]) -> int:
+    """Sum readable weight-file sizes; ignore dangling HF hub symlinks."""
+    total = 0
+    for name in files:
+        if not name.endswith((".safetensors", ".bin", ".pt")):
+            continue
+        size = _readable_file_size(os.path.join(root, name))
+        if size is None or size <= 0:
+            continue
+        total += size
+    return total
+
+
+def models_for_selectors(models: list) -> list:
+    """Filter discovered models for Inference / Training dropdowns.
+
+    Keeps installed chat / fine-tune weights. Drops shared_models embedder
+    and reranker caches that are not valid base models for those pages.
+    """
+    out = []
+    for m in models:
+        path = getattr(m, "path", None)
+        cat = getattr(m, "category", None)
+        if isinstance(m, dict):
+            path = m.get("path", path)
+            cat = m.get("category", cat)
+        path_l = (path or "").replace("\\", "/").lower()
+        if "shared_models/" in path_l or path_l.rstrip("/").endswith("shared_models"):
+            continue
+        if cat is None:
+            cat = "discovered"
+        if cat not in _SELECTOR_CATEGORIES:
+            continue
+        out.append(m)
+    return out
 
 
 def _safe_model_name(root: str, cfg: dict, project_name: str = "") -> str:
@@ -72,6 +134,13 @@ def _safe_model_name(root: str, cfg: dict, project_name: str = "") -> str:
         # e.g. "models--unsloth--gemma-4-E4B-it-unsloth-bnb-4bit" → "gemma-4-E4B-it-unsloth-bnb-4bit"
         if dirname.startswith("models--"):
             dirname = dirname.split("--", 2)[-1] if "--" in dirname else dirname
+    # App HF Explorer cache: Org__Repo → Org/Repo (strip optional @rev)
+    elif "__" in dirname:
+        bare = dirname.split("@", 1)[0]
+        if "__" in bare:
+            org, repo = bare.split("__", 1)
+            if org and repo:
+                dirname = f"{org}/{repo}"
     # If dirname is a generic export dir, use project name + dirname for context
     generic_dirs = {
         "merged", "abliterated", "gguf", "gptq", "adapter",
@@ -147,7 +216,10 @@ def scan_models(directories: list) -> list:
                     if any(p in fl for p in _SKIP_GGUF_PATTERNS):
                         continue
                     fp = os.path.join(root, f)
-                    size = os.path.getsize(fp) / (1024**3)
+                    size_b = _readable_file_size(fp)
+                    if size_b is None or size_b <= 0:
+                        continue
+                    size = size_b / (1024**3)
                     # Determine category from path
                     cat = "discovered"
                     proj_id = ""
@@ -187,11 +259,12 @@ def scan_models(directories: list) -> list:
                 if arch in _SKIP_ARCHES:
                     dirs.clear()
                     continue
-                # Skip tiny models (< 0.5GB) — likely projectors or adapters
-                total = sum(
-                    os.path.getsize(os.path.join(root, f))
-                    for f in files if f.endswith((".safetensors", ".bin", ".pt"))
-                ) / (1024**3)
+                # Readable weights only — dangling hub symlinks must not abort
+                # the whole scan (which would omit later retained models).
+                total_bytes = _weight_bytes(root, files)
+                total = total_bytes / (1024**3)
+                # Skip tiny / incomplete installs (< 0.5GB) — projectors, adapters,
+                # config-only hub leftovers after a cache reset.
                 if total < 0.5:
                     dirs.clear()
                     continue

@@ -159,8 +159,9 @@
         {% else %}
           <div class="empty small">
             No datasets yet.
-            <a href="/projects/{{ pid }}/data-prep" data-link>Use Data Prep</a>
-            to generate one, or switch to <strong>Upload my own</strong>.
+            In <a href="/projects/{{ pid }}/data-prep" data-link>Data Prep</a>,
+            approve pending Q&amp;A then click <strong>Export approved → Training</strong>,
+            or switch to <strong>Upload my own</strong>.
           </div>
         {% endif %}
       </div>
@@ -782,15 +783,21 @@
     if (local.length === 0) return;
     // Merge HF downloads into the server-rendered list (all local models, with
     // the project's base_model preselected) — never wipe it (E2E-19).
+    // Skip incomplete pulls (no weight files) so stale stubs don't crowd out
+    // retained installs in the Training selector.
     const known = new Set([...sel.options].map(o => o.value));
     for (const m of local) {
       if (known.has(m.path)) continue;
+      const files = m.files || [];
+      const hasWeights = files.some(f => {
+        const p = (f.path || f || '').toLowerCase();
+        return p.endsWith('.safetensors') || p.endsWith('.bin') || p.endsWith('.gguf');
+      });
+      if (!hasWeights) continue;
       const opt = document.createElement('option');
       opt.value = m.path;
       const gb = (m.size_bytes / 1e9).toFixed(2);
-      const hasWeights = (m.files || []).some(f => f.path.endsWith('.safetensors'));
-      const tag = hasWeights ? '' : ' (incomplete — no .safetensors)';
-      opt.textContent = `${m.repo_id.replace(/__/g, '/')} (${gb} GB)${tag}`;
+      opt.textContent = `${m.repo_id.replace(/__/g, '/')} (${gb} GB)`;
       sel.appendChild(opt);
     }
   } catch (e) {

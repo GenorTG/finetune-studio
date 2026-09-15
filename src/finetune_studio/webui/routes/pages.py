@@ -145,7 +145,9 @@ async def index(request: Request):
 @router.get("/inference", response_class=HTMLResponse)
 async def inference_page(request: Request):
     """Global inference page — load any model, chat, run benchmarks."""
+    from finetune_studio.models.registry import models_for_selectors
     from finetune_studio.webui.app import discovered_models, inference_engine
+    selector_models = models_for_selectors(discovered_models)
     loaded = None
     if inference_engine.model is not None:
         # Find matching discovered model for metadata
@@ -172,7 +174,7 @@ async def inference_page(request: Request):
     return templates.TemplateResponse(
         request,
         "inference.html",
-        {"request": request, "models": discovered_models, "loaded": loaded},
+        {"request": request, "models": selector_models, "loaded": loaded},
     )
 
 
@@ -302,6 +304,7 @@ async def project_data_page(request: Request, pid: str):
 async def project_training_page(request: Request, pid: str):
     """Training config + progress for a project."""
     from finetune_studio import db
+    from finetune_studio.models.registry import models_for_selectors
     from finetune_studio.webui.app import discovered_models, training_engine
     from finetune_studio.webui.project_dashboard import resolve_production_run
     ctx = _project_ctx(pid)
@@ -323,7 +326,7 @@ async def project_training_page(request: Request, pid: str):
         "project_training.html",
         {
             **ctx,
-            "models": discovered_models,
+            "models": models_for_selectors(discovered_models),
             "training_state": training_engine.state,
             "detail_run": detail_run,
             "detail_run_id": run_id or "",

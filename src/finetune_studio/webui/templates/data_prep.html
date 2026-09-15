@@ -1355,6 +1355,7 @@ function flFormatBytes(n) {
 })();
 
 // Load + render the prepped Q&A pairs for this project (review → approve → export).
+var _prepPid = {{ pid | tojson }};
 var _dpQaItems = [];
 var _dpFilter = 'pending';
 
@@ -1364,7 +1365,9 @@ function dpBridgeStatus(msg, state) {
   el.textContent = msg || '';
   el.dataset.state = state || 'info';
   el.hidden = !msg;
-  if (msg && window.fts && fts.notify) fts.notify(msg, state === 'error' ? 'error' : (state === 'success' ? 'success' : 'info'));
+  if (msg && (state === 'error' || state === 'success') && window.fts && fts.notify) {
+    fts.notify(msg, state === 'error' ? 'error' : 'success');
+  }
 }
 
 function dpSetFilter(next) {
@@ -1660,7 +1663,6 @@ function prepRefresh() {
 
 // Wire the form: fetch /start, show inline status, subscribe to SSE progress.
 const _prepForm = document.getElementById('prep-form');
-const _prepPid = {{ pid | tojson }};
 let _prepUnsub = null;
 
 function prepSetStatus(msg, state) {

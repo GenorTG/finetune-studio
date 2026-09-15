@@ -483,19 +483,30 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved"):
     # The export lives in a stream buffer; persist it to the project's datasets
     # dir so it's selectable from the Training tab and referenceable forever.
     try:
-        from finetune_studio import db
-        from finetune_studio.db.datasets import count_qa_pairs, datasets_dir
+        from finetune_studio.db.datasets import (
+            count_qa_pairs,
+            create_dataset,
+            datasets_dir,
+            get_dataset_by_path,
+            update_dataset,
+        )
         ds_dir = datasets_dir(pid)
         fname = f"{pid}-{fmt}-{only}.jsonl"
         target = ds_dir / fname
         target.write_text(body, encoding="utf-8")
-        existing = db.get_dataset_by_path(pid, str(target))
+        existing = get_dataset_by_path(pid, str(target))
         if not existing:
-            db.create_dataset(
+            create_dataset(
                 project_id=pid,
                 name=target.stem,
                 data_path=str(target),
                 source="data-prep-export",
+                qa_count=count_qa_pairs(str(target)),
+                size_bytes=target.stat().st_size,
+            )
+        else:
+            update_dataset(
+                existing["id"],
                 qa_count=count_qa_pairs(str(target)),
                 size_bytes=target.stat().st_size,
             )
