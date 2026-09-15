@@ -336,6 +336,10 @@ async def start_training(request: Request):
     training_data = load_jsonl(data_path)
     system_prompt = body.get("system_prompt", "")
     system_prompt_mode = body.get("system_prompt_mode", "bake")
+    # The project training form sends only the mode; bake/runtime without a
+    # prompt used to silently train with none (E2E-26). Use the project's.
+    if not system_prompt and system_prompt_mode != "none" and project_id:
+        system_prompt = (db.get_project(project_id) or {}).get("system_prompt", "") or ""
 
     # Create a run record
     import time as _time
@@ -359,6 +363,12 @@ async def start_training(request: Request):
         system_prompt_mode=system_prompt_mode,
     )
     run_id = run["id"]
+    # A bare "output" default is shared by every project and run, so each new
+    # run silently overwrote the previous run's adapter/merged model (E2E-25).
+    if (config.output_dir or "output").rstrip("/") == "output":
+        config.output_dir = (
+            f"output/projects/{project_id}/runs/{run_id}" if project_id else f"output/runs/{run_id}"
+        )
     run_started_at = _time.time()
     training_engine.current_run_id = f"{project_id}-{run_id}" if project_id else run_id
     training_engine.current_project_id = project_id
