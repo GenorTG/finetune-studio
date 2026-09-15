@@ -7,23 +7,24 @@ Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :786
 ## State (verified 2026-09-15 Europe/Warsaw)
 | Area | Status |
 |------|--------|
-| Review UI | Landed in `0fa134a` (`data_prep.html`: filter/stats, Approve/Reject, Export approved → Training) |
-| Export registry | **Uncommitted fix** in `data_prep.py`: import `get_dataset_by_path` from `db.datasets` (was silent `AttributeError` → Training empty) |
-| Training empty copy | **Uncommitted**: points at approve + export |
-| Tests | **Uncommitted** `tests/test_data_prep_review_export_ui.py` (5 passed); Ruff clean on touched Python |
-| Note | Working tree also has unrelated dirty files (models registry / app.js modal / training selector) — do not mix into this fix |
+| Abliterated export 500 | **Fixed (uncommitted)**: sync export returns JSON-safe `ExportResult`; numpy `refusal_direction` no longer hits `jsonable_encoder` |
+| Export registry | Sync success for merged/abliterated/gptq/gguf creates a `model_exports` row (`done` + path/size) |
+| Export UI | Readable non-JSON / `detail` errors; shows `output_path` / size / export_id |
+| GGUF | Still fails truthfully (400 + converter/artifact message) when tools missing |
+| Tests | `tests/test_export_response.py` + related export suites: 51 passed; Ruff clean on touched Python |
 
 ## Next steps
-1. Commit only bridge files: `data_prep.py`, `project_training.html` (empty-state hunk), `tests/test_data_prep_review_export_ui.py`, `HANDOFF.md`, `AGENTS.md` — exclude unrelated dirt.
-2. `git push`; fan-dragon: `git pull --ff-only && systemctl --user restart finetune-studio`.
-3. Browser: pending → **Approve all pending** → **Export approved → Training** → Training lists dataset.
-4. Confirm exported panel links: Review in Data Editor / Select in Training.
+1. Commit export fix files (list below), then `git push`.
+2. Fan-dragon: `cd /home/genortg/finetune-studio && git pull --ff-only && systemctl --user restart finetune-studio`.
+3. Browser: Export → format=abliterated on a merged run → expect HTTP 200, path card, reload lists artifact (not HTTP 500).
+4. Confirm GGUF without llama.cpp still shows readable 400 / converter message.
+5. Truth check: `ss -ltnp \| grep 7860` pid cgroup contains `finetune-studio.service`.
 
 ## Commands
-- Tests: `.venv/bin/python -m pytest tests/test_data_prep_review_export_ui.py -v --tb=short`
-- Lint: `.venv/bin/python -m ruff check src/finetune_studio/webui/routes/data_prep.py tests/test_data_prep_review_export_ui.py`
+- Tests: `.venv/bin/python -m pytest tests/test_export_response.py tests/test_run_export.py tests/test_readable_results.py tests/test_export.py -v --tb=short`
+- Lint: `.venv/bin/python -m ruff check src/finetune_studio/training/export_response.py src/finetune_studio/training/run_export.py src/finetune_studio/webui/routes/exports.py tests/test_export_response.py tests/test_readable_results.py`
 - Deploy: `git push`; fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`
 
 ## Blockers
 - GGUF conversion still needs llama.cpp tooling on the GPU host.
-- Unrelated local edits in registry/models/app.js — park or separate commit.
+- Live fan-dragon still has prior incomplete HF trees under reset-backup — ops restore, not this checkout.

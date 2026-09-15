@@ -157,19 +157,72 @@ async def export_run(pid: str, rid: str, request: Request,
         or bool(body.get("force")) and "quant" not in body
     )
     if use_sync:
+        from finetune_studio.training.export_response import (
+            ExportResult,
+            dir_size_bytes,
+            human_size,
+        )
         from finetune_studio.training.run_export import export_trained_run
+
         quants = body.get("quants")
-        result = export_trained_run(
+        raw = export_trained_run(
             run,
             fmt=fmt,
             quants=list(quants) if isinstance(quants, list) else None,
             force=bool(body.get("force", False)),
             base_model=base_model,
         )
-        if result.get("error") or result.get("ok") is False:
+        # Always coerce through ExportResult so numpy/tensors cannot 500 the
+        # response encoder after a successful GPU merge/abliteration.
+        payload = ExportResult.from_raw(raw)
+        if not payload.ok or payload.error or payload.status == "failed":
             # Never report format failures as HTTP 200 success.
-            return JSONResponse(result, status_code=400)
-        return result
+            return JSONResponse(
+                payload.model_dump(exclude_none=False),
+                status_code=400,
+            )
+
+        # Register successful sync artifacts (merged / abliterated / gptq /
+        # verified GGUF) so Export + Models pages list them after reload.
+        if payload.status in ("exported", "skipped") and fmt in (
+            "merged", "abliterated", "gptq", "gguf",
+        ):
+            art = payload.artifact_path()
+            if art:
+                size = dir_size_bytes(art)
+                quant_label = (
+                    (payload.quants[0] if payload.quants else None)
+                    or payload.quant
+                    or ("safetensors" if fmt != "gguf" else DEFAULT_QUANT)
+                )
+                try:
+                    row = db.create_export(
+                        project_id=pid,
+                        run_id=rid,
+                        format=fmt,
+                        quant=str(quant_label),
+                    )
+                    db.mark_export_done(
+                        row["id"],
+                        output_path=art,
+                        size_bytes=size,
+                        size_human=human_size(size),
+                    )
+                    payload = payload.model_copy(
+                        update={
+                            "export_id": row["id"],
+                            "output_path": payload.output_path or art,
+                            "size_bytes": size,
+                            "size_human": human_size(size),
+                        }
+                    )
+                except Exception:
+                    log.exception(
+                        "failed to register sync export row for %s/%s",
+                        pid, rid,
+                    )
+
+        return JSONResponse(payload.model_dump(exclude_none=False))
 
     if fmt != "gguf":
         return _err(f"unsupported format: {fmt}", format=fmt)

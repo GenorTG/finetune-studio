@@ -387,10 +387,26 @@ async function startExport() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const d = await r.json();
+      let d = {};
+      try {
+        d = await r.json();
+      } catch (_parseErr) {
+        const text = 'Export returned a non-JSON response (HTTP ' + r.status + ')';
+        status.textContent = `✗ ${fmt}: ${text}`;
+        status.classList.add('err');
+        showResultCard([
+          ['Format', fmt],
+          ['Status', 'failed'],
+          ['Error', text],
+        ]);
+        if (window.fts && window.fts.notify) fts.notify(`${fmt} export failed: ${text}`, 'error');
+        btn.disabled = false;
+        return;
+      }
       const failed = !r.ok || d.ok === false || d.status === 'failed' || !!d.error;
       if (failed) {
-        const text = d.error || d.reason || d.message || (`HTTP ${r.status}`);
+        const text = d.error || d.reason || d.message || d.detail
+          || (`HTTP ${r.status}`);
         status.textContent = `✗ ${fmt}: ${text}`;
         status.classList.add('err');
         showResultCard([
@@ -437,7 +453,8 @@ async function startExport() {
         }
         summaries.push([fmt, artPath]);
       } else {
-        const artPath = d.merged_path || d.output_path || d.gguf_path || d.gguf_dir || d.path || '';
+        const artPath = d.output_path || d.merged_path || d.output_dir
+          || d.gguf_path || d.gguf_dir || d.path || '';
         const files = Array.isArray(d.files) ? d.files : [];
         if (fmt === 'gguf' && !artPath && files.length === 0) {
           const text = 'GGUF export reported success without artifacts';
@@ -457,6 +474,8 @@ async function startExport() {
           ['Format', fmt],
           ['Status', d.status || 'done'],
           ['Path', artPath || '—'],
+          ['Size', d.size_human || d.size_bytes || '—'],
+          ['Export id', d.export_id || '—'],
           ['Files', files.length ? files.join(', ') : '—'],
           ['Quants', Array.isArray(d.quants) ? d.quants.join(', ') : (d.quant || '—')],
         ]);

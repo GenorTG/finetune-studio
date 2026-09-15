@@ -464,6 +464,7 @@ def export_trained_run(
                 "ok": True,
                 "status": "skipped",
                 "format": "abliterated",
+                "output_path": abl_dir,
                 "message": (
                     "Abliterated model already exists. "
                     "Use force=true to overwrite."
@@ -471,10 +472,28 @@ def export_trained_run(
             }
         result = engine._do_abliteration()
         if result.get("error"):
+            # Never spread raw engine keys — may contain numpy arrays.
             return _export_failure(
-                str(result["error"]), format="abliterated", **result
+                str(result["error"]),
+                format="abliterated",
+                reason=result.get("reason"),
             )
-        return {"ok": True, "status": "exported", "format": "abliterated", **result}
+        if result.get("skipped"):
+            return _export_failure(
+                str(result.get("reason") or "abliteration skipped"),
+                format="abliterated",
+            )
+        out_dir = str(result.get("output_dir") or abl_dir)
+        layers = result.get("layers_modified") or result.get("layer_indices") or []
+        return {
+            "ok": True,
+            "status": "exported",
+            "format": "abliterated",
+            "output_path": out_dir,
+            "refusal_magnitude": float(result.get("refusal_magnitude") or 0.0),
+            "layers_modified": [int(x) for x in layers],
+            "strength": float(result.get("strength") or 1.0),
+        }
 
     # gptq — fail fast when auto_gptq is missing (common host gap)
     from finetune_studio.training.advanced_quant import is_gptq_available
