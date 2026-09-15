@@ -92,3 +92,7 @@ def test_export_result_panel_is_field_grid() -> None:
     # Readable handling when the API returns HTML/500 instead of JSON.
     assert "non-JSON response" in html
     assert "d.detail" in html
+    # Unavailable converters are disabled in the UI (not advertised as ready).
+    assert 'id="export-caps"' in html
+    assert "export-gguf-unavailable" in html
+    assert "checked:not(:disabled)" in html

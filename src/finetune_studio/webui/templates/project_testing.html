@@ -53,10 +53,19 @@
       <div id="t-suite-hint" class="text-xs dim mt-1" style="display:none;"></div>
     </div>
     <div class="col-span-2">
-      <button onclick="runSuite()" class="btn primary" style="width:100%;">Run</button>
+      <button id="t-run-btn" onclick="runSuite()" class="btn primary" style="width:100%;" disabled
+              title="Pick a test suite first">Run</button>
     </div>
   </div>
-  <div id="t-status" class="mt-3 text-xs" aria-live="polite"></div>
+  <div id="t-status" class="mt-3 text-xs" aria-live="polite" role="status">
+    {% if not models %}
+    No project merged/GGUF exports yet — Export a completed run first, then pick a suite.
+    {% elif not suites %}
+    No suites discovered — add JSON under data/benchmarks/ or use industry smoke fixtures.
+    {% else %}
+    Pick a suite to enable Run.
+    {% endif %}
+  </div>
   <pre id="t-live-log" class="text-xs mono mt-2" role="log" aria-live="polite" style="display:none;max-height:120px;overflow-y:auto;border:1px solid var(--border);padding:8px;white-space:pre-wrap;margin:0;background:var(--bg-app);"></pre>
 </div>
 
@@ -166,10 +175,19 @@
   window.onSuitePicked = function() {
     const hint = document.getElementById('t-suite-hint');
     const sel = document.getElementById('t-suite');
+    const runBtn = document.getElementById('t-run-btn');
+    const status = document.getElementById('t-status');
     if (!hint || !sel) return;
     if (!sel.value) {
       hint.style.display = 'none';
       hint.textContent = '';
+      if (runBtn) {
+        runBtn.disabled = true;
+        runBtn.title = 'Pick a test suite first';
+      }
+      if (status && !status.dataset.busy) {
+        status.textContent = 'Pick a suite to enable Run.';
+      }
       return;
     }
     const opt = sel.options[sel.selectedIndex];
@@ -178,6 +196,13 @@
     const label = suiteLabelFromSelect();
     hint.style.display = '';
     hint.textContent = '✓ ' + label + (source ? ' · source: ' + source : '') + ' · type: ' + type;
+    if (runBtn) {
+      runBtn.disabled = false;
+      runBtn.title = 'Run suite: ' + label;
+    }
+    if (status && !status.dataset.busy) {
+      status.textContent = 'Ready — ' + label;
+    }
   };
 
   // QABUG-011 / QABUG-013: do NOT call /api/testing/load first — the
@@ -186,12 +211,16 @@
     const status = document.getElementById('t-status');
     const liveLog = document.getElementById('t-live-log');
     const results = document.getElementById('t-results');
+    const runBtn = document.getElementById('t-run-btn');
     const suite = document.getElementById('t-suite').value.trim();
     if (!suite) {
       status.textContent = 'Please pick a test suite.';
+      if (runBtn) runBtn.disabled = true;
       return;
     }
     const suiteName = suiteLabelFromSelect() || suiteLabel(suite);
+    if (status) status.dataset.busy = '1';
+    if (runBtn) runBtn.disabled = true;
     status.textContent = '✓ Using suite: ' + suiteName + ' — Running…';
     results.innerHTML = '<span class="muted">Running suite (auto-loading model if needed)…</span>';
     if (liveLog) {
@@ -289,8 +318,17 @@
       notify(msg, 'error');
     } finally {
       stopAll();
+      if (status) delete status.dataset.busy;
+      if (runBtn) {
+        const sel = document.getElementById('t-suite');
+        runBtn.disabled = !(sel && sel.value);
+        runBtn.title = runBtn.disabled ? 'Pick a test suite first' : ('Run suite: ' + suiteName);
+      }
     }
   };
+
+  // Sync Run button if a suite was pre-selected.
+  if (typeof window.onSuitePicked === 'function') window.onSuitePicked();
 })();
 </script>
 {% endblock %}

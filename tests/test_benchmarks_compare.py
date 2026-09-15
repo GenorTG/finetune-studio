@@ -49,8 +49,9 @@ def test_compare_tab_default_shows_pickers_no_results(client) -> None:
     assert 'id="cmp-tbody"' in body
     # Results table wrap hidden until JS fills it
     assert 'id="cmp-table-wrap"' in body
-    assert 'style="display:none;"' in body
+    assert "hidden" in body
     assert "runComparison" in body
+    assert "hideCmpEmpty" in body
 
 
 def test_compare_load_returns_per_suite_shape(client) -> None:
@@ -153,7 +154,7 @@ def test_compare_defaults_prefer_done_runs(client) -> None:
     assert f'value="{older["id"]}" selected' in body or (
         f'value="{older["id"]}"' in body and "selected" in body
     )
-    assert f'id="cmp-run-a"' in body
+    assert 'id="cmp-run-a"' in body
     # Parse roughly: option for older is selected in cmp-run-a
     a_block = body.split('id="cmp-run-a"')[1].split("</select>")[0]
     b_block = body.split('id="cmp-run-b"')[1].split("</select>")[0]
