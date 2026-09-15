@@ -243,7 +243,7 @@
 
   <script src="/static/js/app.js?v=14"></script>
   <script src="/static/js/sprites.js?v=12"></script>
-  <script src="/static/js/spa.js?v=12"></script>
+  <script src="/static/js/spa.js?v=13"></script>
   <script src="/static/js/palette.js?v=13"></script>
   <script src="/static/js/tutorial.js?v=12"></script>
   <script src="/static/js/activity.js?v=12"></script>
@@ -309,6 +309,6 @@
       setInterval(tick, 3000);
     })();
   </script>
-  {% block scripts %}{% endblock %}
+  <div id="page-scripts" hidden>{% block scripts %}{% endblock %}</div>
 </body>
 </html>
