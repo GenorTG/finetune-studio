@@ -37,12 +37,22 @@ def _resolve_merged_model(pid: str) -> str | None:
 
 @router.post("/load")
 async def load_model(request: Request):
+    """Load a model into the global inference engine.
+
+    Accepts ``{"model_path": "..."}`` or ``{"path": "..."}`` (same keys as
+    ``/api/models/load`` / chat-v2) so UI callers don't get ``No model_path``.
+    """
     body = await request.json()
-    model_path = body.get("model_path", "")
+    model_path = body.get("model_path") or body.get("path") or ""
     if not model_path:
         return {"error": "No model_path"}
     try:
-        inference_engine.load(model_path)
+        kwargs: dict = {}
+        if "max_seq_length" in body:
+            kwargs["max_seq_length"] = int(body["max_seq_length"])
+        if "load_in_4bit" in body:
+            kwargs["load_in_4bit"] = bool(body["load_in_4bit"])
+        inference_engine.load(model_path, **kwargs)
         return {"status": "loaded", "model": model_path}
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}

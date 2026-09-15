@@ -26,7 +26,7 @@ _GGUF_META_CACHE: "OrderedDict[tuple, dict]" = OrderedDict()
 _GGUF_META_CACHE_MAX = 32
 
 # Auto-unload after idle (configurable via FTS_IDLE_TIMEOUT env, default 30 min)
-IDLE_TIMEOUT = int(os.environ.get("FTS_IDLE_TIMEOUT", 1800))
+IDLE_TIMEOUT = int(os.environ.get("FTS_IDLE_TIMEOUT", "1800"))
 
 
 class InferenceEngine:
@@ -42,7 +42,8 @@ class InferenceEngine:
         self._idle_timer = None
 
     def load(self, model_path, device="auto", n_ctx=4096, n_gpu_layers=99, n_batch=512, mmap=True, mlock=False,
-              n_threads=None, flash_attn=True, seed=None, rope_freq_base=0.0, rope_freq_scale=0.0):
+              n_threads=None, flash_attn=True, seed=None, rope_freq_base=0.0, rope_freq_scale=0.0,
+              max_seq_length=None, load_in_4bit=True):
         from pathlib import Path
         self.unload()
         path = Path(model_path)
@@ -51,25 +52,90 @@ class InferenceEngine:
                             mmap=mmap, mlock=mlock, n_threads=n_threads, flash_attn=flash_attn,
                             seed=seed, rope_freq_base=rope_freq_base, rope_freq_scale=rope_freq_scale)
         else:
-            self._load_hf(model_path, device)
+            self._load_hf(
+                model_path,
+                device,
+                max_seq_length=max_seq_length,
+                load_in_4bit=load_in_4bit,
+            )
         self.model_path = model_path
         self._last_used = time.time()
         self._start_idle_timer()
 
-    def _load_hf(self, model_path, device):
-        # IMPORTANT: import unsloth BEFORE transformers.AutoModelForCausalLM
-        # so Unsloth's Qwen3 monkey-patches (apply_qkv proxy etc.) register
-        # BEFORE the model class is instantiated. Without this, loading a
-        # Unsloth-trained checkpoint with vanilla transformers raises
-        # "'Qwen3Attention' object has no attribute 'apply_qkv'" at first
-        # forward pass. See QABUG-014 in AGENTS.md.
-        try:
-            import unsloth  # noqa: F401
-        except Exception:  # noqa: BLE001
-            pass  # unsloth not installed (vanilla transformers path is fine)
+    @staticmethod
+    def _looks_like_qwen3(model_path: str) -> bool:
+        """True when path/config indicates a Qwen3 (or Qwen3.5) checkpoint."""
+        import json
+        from pathlib import Path
 
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        lowered = model_path.lower().replace("\\", "/")
+        if "qwen3" in lowered:
+            return True
+        cfg_path = Path(model_path) / "config.json"
+        if not cfg_path.is_file():
+            return False
+        try:
+            with open(cfg_path, encoding="utf-8") as f:
+                cfg = json.load(f)
+            model_type = str(cfg.get("model_type", "")).lower()
+            architectures = [str(a).lower() for a in (cfg.get("architectures") or [])]
+            return model_type.startswith("qwen3") or any("qwen3" in a for a in architectures)
+        except Exception:  # noqa: BLE001
+            return False
+
+    def _load_hf_unsloth(self, model_path: str, max_seq_length: int, load_in_4bit: bool) -> bool:
+        """Load via Unsloth so Qwen3Attention patches (apply_qkv) are active.
+
+        QABUG-014-runtime: importing ``unsloth`` alone is not enough — the
+        model must be constructed through FastQwen3Model / FastLanguageModel
+        so unsloth_zoo patches bind before the first forward pass.
+        Returns True on success, False if Unsloth is not installed.
+        """
+        try:
+            from unsloth import FastLanguageModel
+        except ImportError:
+            return False
+
+        loader = FastLanguageModel
+        if self._looks_like_qwen3(model_path):
+            try:
+                from unsloth.models.qwen3 import FastQwen3Model
+                loader = FastQwen3Model
+            except Exception:  # noqa: BLE001
+                loader = FastLanguageModel
+
+        model, tokenizer = loader.from_pretrained(
+            model_name=model_path,
+            max_seq_length=max_seq_length,
+            dtype=None,
+            load_in_4bit=load_in_4bit,
+        )
+        # Enable Unsloth's 2x inference path (KV / generate wrappers).
+        if hasattr(loader, "for_inference"):
+            loader.for_inference(model)
+        elif hasattr(FastLanguageModel, "for_inference"):
+            FastLanguageModel.for_inference(model)
+
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        self.model = model
+        self.tokenizer = tokenizer
+        self.is_gguf = False
+        return True
+
+    def _load_hf(self, model_path, device, max_seq_length=None, load_in_4bit=True):
+        from finetune_studio.config import settings
+
+        seq = max_seq_length if max_seq_length is not None else settings.default_max_seq_length
+
+        # Prefer Unsloth for HF checkpoints (required for Unsloth-trained Qwen3).
+        if self._load_hf_unsloth(model_path, max_seq_length=seq, load_in_4bit=load_in_4bit):
+            return
+
+        # Vanilla transformers fallback (no Unsloth on this host).
         import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
         self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -88,7 +154,7 @@ class InferenceEngine:
                 gc.collect()
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
-            except Exception:
+            except Exception:  # noqa: BLE001,S110
                 pass
             self.model = AutoModelForCausalLM.from_pretrained(
                 model_path, torch_dtype=torch.float16, device_map="auto",
@@ -99,6 +165,7 @@ class InferenceEngine:
     def _load_gguf(self, gguf_path, n_ctx=4096, n_gpu_layers=99, n_batch=512, mmap=True, mlock=False,
                    n_threads=None, flash_attn=True, seed=None, rope_freq_base=0.0, rope_freq_scale=0.0):
         from pathlib import Path
+
         from llama_cpp import Llama
         self.is_gguf = True
         self.vision = False
@@ -131,12 +198,12 @@ class InferenceEngine:
         if n_threads is None or n_threads <= 0:
             n_threads = multiprocessing.cpu_count()
 
-        kwargs = dict(
-            model_path=gguf_path, n_ctx=n_ctx, n_gpu_layers=n_gpu_layers,
-            n_batch=n_batch, mmap=mmap, mlock=mlock,
-            chat_handler=chat_handler, verbose=False,
-            n_threads=n_threads,
-        )
+        kwargs = {
+            "model_path": gguf_path, "n_ctx": n_ctx, "n_gpu_layers": n_gpu_layers,
+            "n_batch": n_batch, "mmap": mmap, "mlock": mlock,
+            "chat_handler": chat_handler, "verbose": False,
+            "n_threads": n_threads,
+        }
         if flash_attn:
             kwargs["flash_attn"] = True
         if seed is not None and seed >= 0:
@@ -151,7 +218,7 @@ class InferenceEngine:
         try:
             from finetune_studio.templates.renderer import extract_template_from_gguf
             self._gguf_template = extract_template_from_gguf(gguf_path)
-        except Exception:
+        except Exception:  # noqa: BLE001
             self._gguf_template = None
 
     def _start_idle_timer(self):
@@ -197,7 +264,7 @@ class InferenceEngine:
         if self._idle_timer is not None:
             try:
                 self._idle_timer.cancel()
-            except Exception:
+            except Exception:  # noqa: BLE001,S110
                 pass
         self._idle_timer = None
 
@@ -218,18 +285,18 @@ class InferenceEngine:
         if _model is not None:
             try:
                 del _model
-            except Exception:
+            except Exception:  # noqa: BLE001,S110
                 pass
         try:
             gc.collect()
-        except Exception:
+        except Exception:  # noqa: BLE001,S110
             pass
 
         try:
             import torch
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-        except Exception:
+        except Exception:  # noqa: BLE001,S110
             pass
 
     @property
@@ -328,9 +395,8 @@ class InferenceEngine:
         same file are O(1). Reads only the GGUF header (first few KB) by hand
         so we never walk the whole file just to peek at layer counts.
         """
-        from pathlib import Path
         import json
-        import time as _time
+        from pathlib import Path
         path = Path(model_path)
         try:
             st = path.stat()
@@ -369,7 +435,6 @@ class InferenceEngine:
                     # Collect every KV (cheap — small header), match the arch-prefixed
                     # ones after we know the architecture.
                     found_arch = None
-                    found = {}
                     for _ in range(500):  # safety cap
                         raw = f.read(8)
                         if len(raw) < 8:
@@ -448,9 +513,9 @@ class InferenceEngine:
                                         val = field.parts[field.data[0]]
                                         result[result_key] = int(val[0]) if len(val) else fallback
                             del reader
-                        except Exception:
+                        except Exception:  # noqa: BLE001,S110
                             pass
-            except Exception:
+            except Exception:  # noqa: BLE001,S110
                 pass
 
 
@@ -462,7 +527,7 @@ class InferenceEngine:
                 result["num_kv_heads"] = cfg.get("num_key_value_heads", cfg.get("num_attention_heads", 0))
                 result["head_dim"] = cfg.get("hidden_size", 0) // max(cfg.get("num_attention_heads", 1), 1)
                 result["n_ctx_default"] = cfg.get("max_position_embeddings", 4096)
-            except Exception:
+            except Exception:  # noqa: BLE001,S110
                 pass
         # Cache the result (even partial) so next call is O(1)
         _GGUF_META_CACHE[cache_key] = result

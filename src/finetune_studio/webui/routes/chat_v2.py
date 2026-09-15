@@ -104,7 +104,8 @@ async def load_model(request: Request):
     """Load a model into the inference engine."""
     from finetune_studio.webui.app import inference_engine
     body = await request.json()
-    model_path = body.get("model_path", "")
+    # Accept path|model_path (QABUG-014-runtime — UI sometimes sends path only).
+    model_path = body.get("model_path") or body.get("path") or ""
     if not model_path:
         return {"error": "No model_path"}
     try:
@@ -120,6 +121,8 @@ async def load_model(request: Request):
             seed=body.get("seed"),
             rope_freq_base=body.get("rope_freq_base", 0.0),
             rope_freq_scale=body.get("rope_freq_scale", 0.0),
+            max_seq_length=body.get("max_seq_length"),
+            load_in_4bit=body.get("load_in_4bit", True),
         )
         vision = getattr(inference_engine, "vision", False)
         return {"status": "loaded", "model": model_path, "vision": vision}
@@ -130,8 +133,8 @@ async def load_model(request: Request):
 @router.get("/status")
 async def inference_status():
     """Current inference engine status."""
-    from finetune_studio.webui.app import inference_engine
     from finetune_studio.testing.inference import IDLE_TIMEOUT
+    from finetune_studio.webui.app import inference_engine
     loaded = inference_engine.model is not None
     return {
         "loaded": loaded,
@@ -188,10 +191,9 @@ async def memory_estimate(request: Request):
 @router.post("/inference/benchmark")
 async def inference_benchmark(request: Request):
     """Run quick benchmarks on the loaded model."""
-    from finetune_studio.webui.app import inference_engine
     from finetune_studio.benchmarks.real_benchmarks import RealBenchmarkSuite
-    body = await request.json()
-    model_path = body.get("model_path", "")
+    from finetune_studio.webui.app import inference_engine
+    await request.json()  # consume body (reserved for future knobs)
     if inference_engine.model is None:
         return {"error": "No model loaded. Load a model first."}
     try:
@@ -212,8 +214,8 @@ async def chat(request: Request, pid: str):
     prepend to system prompt, then generate.
     """
     from finetune_studio import db
-    from finetune_studio.webui.app import inference_engine
     from finetune_studio.rag.store import VectorStore
+    from finetune_studio.webui.app import inference_engine
 
     body = await request.json()
     messages = body.get("messages", [])
@@ -260,7 +262,7 @@ async def chat(request: Request, pid: str):
                         "rag_name": rag["name"],
                         "chunk_id": r.chunk_id,
                     })
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001,S112
                 continue
 
     # Deduplicate by chunk_id, sort by score desc, take top 8
