@@ -9,7 +9,6 @@ from __future__ import annotations
 import os
 import sys
 import time
-from dataclasses import dataclass
 
 
 def is_unsloth_available() -> bool:
@@ -43,9 +42,9 @@ def train_with_unsloth(
         {adapter_dir, size_bytes, size_human}
     """
     from datasets import Dataset
-    from transformers import TrainingArguments
     from unsloth import FastLanguageModel
-    import torch
+
+    from finetune_studio.training.sft_args import build_sft_training_args
 
     state.message = "Loading model with Unsloth (4-bit quantized)..."
     _notify_state(state)
@@ -92,7 +91,8 @@ def train_with_unsloth(
     total_steps = steps_per_epoch * config.num_epochs
     state.total_steps = total_steps
 
-    args = TrainingArguments(
+    # SFTConfig (not TrainingArguments): avoids TRL KeyError push_to_hub_token.
+    args = build_sft_training_args(
         output_dir=output_dir,
         num_train_epochs=config.num_epochs,
         per_device_train_batch_size=config.batch_size,
@@ -102,11 +102,7 @@ def train_with_unsloth(
         weight_decay=config.weight_decay,
         logging_steps=config.logging_steps,
         save_steps=config.save_steps,
-        fp16=not config.bf16,
         bf16=config.bf16,
-        optim="adamw_torch",
-        seed=3407,
-        report_to="none",
     )
 
     start_time = time.time()

@@ -128,8 +128,6 @@ def profile_training(
             format_chat, remove_columns=list(synthetic_data[0].keys())
         )
 
-        from transformers import TrainingArguments
-
         # Fix PicklingError: unsloth monkey-patches SFTTrainer but pickle
         # looks up the original class. Re-patch sys.modules.
         import sys as _sys
@@ -142,7 +140,10 @@ def profile_training(
             pass
         from trl import SFTTrainer
 
-        args = TrainingArguments(
+        from finetune_studio.training.sft_args import build_sft_training_args
+
+        # SFTConfig (not TrainingArguments): avoids TRL KeyError push_to_hub_token.
+        args = build_sft_training_args(
             output_dir=output_dir,
             max_steps=num_steps,
             per_device_train_batch_size=batch_size,
@@ -151,10 +152,9 @@ def profile_training(
             warmup_steps=2,
             logging_steps=1,
             save_steps=999999,  # Don't save during profiling
-            fp16=False, bf16=True,
+            bf16=True,
             optim="adamw_8bit",
             seed=3407,
-            report_to="none",
             gradient_checkpointing=True,
         )
 

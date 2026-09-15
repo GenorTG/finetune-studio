@@ -550,8 +550,9 @@ class TrainingEngine:
     def _train_unsloth(self, train_data):
         import sys
         from datasets import Dataset
-        from transformers import TrainingArguments
         from unsloth import FastLanguageModel
+
+        from finetune_studio.training.sft_args import build_sft_args_from_config
         cfg = self.config
         self.state.message = "Loading model with Unsloth..."
         self._notify()
@@ -603,15 +604,8 @@ class TrainingEngine:
         steps_per_epoch = max(1, math.ceil(len(dataset) / denom))
         total = steps_per_epoch * cfg.num_epochs
         self.state.total_steps = total
-        args = TrainingArguments(
-            output_dir=cfg.output_dir, num_train_epochs=cfg.num_epochs,
-            per_device_train_batch_size=cfg.batch_size,
-            gradient_accumulation_steps=cfg.gradient_accumulation_steps,
-            learning_rate=cfg.learning_rate, warmup_steps=cfg.warmup_steps,
-            weight_decay=cfg.weight_decay, logging_steps=cfg.logging_steps,
-            save_steps=cfg.save_steps, fp16=not cfg.bf16, bf16=cfg.bf16,
-            optim="adamw_torch", seed=3407, report_to="none",
-        )
+        # SFTConfig (not TrainingArguments): avoids TRL KeyError push_to_hub_token.
+        args = build_sft_args_from_config(cfg)
         start_time = time.time()
         engine = self
         from transformers import TrainerCallback
@@ -708,7 +702,9 @@ class TrainingEngine:
         import sys
         from datasets import Dataset
         from peft import LoraConfig, get_peft_model
-        from transformers import AutoTokenizer, TrainingArguments
+        from transformers import AutoTokenizer
+
+        from finetune_studio.training.sft_args import build_sft_args_from_config
         cfg = self.config
         self.state.message = "Loading model..."
         self._notify()
@@ -743,15 +739,8 @@ class TrainingEngine:
         sys.modules["trl.trainer.sft_config"].SFTConfig = _sft_config_mod.SFTConfig
 
         from trl import SFTTrainer
-        args = TrainingArguments(
-            output_dir=cfg.output_dir, num_train_epochs=cfg.num_epochs,
-            per_device_train_batch_size=cfg.batch_size,
-            gradient_accumulation_steps=cfg.gradient_accumulation_steps,
-            learning_rate=cfg.learning_rate, warmup_steps=cfg.warmup_steps,
-            weight_decay=cfg.weight_decay, logging_steps=cfg.logging_steps,
-            save_steps=cfg.save_steps, fp16=not cfg.bf16, bf16=cfg.bf16,
-            optim="adamw_torch", seed=3407, report_to="none",
-        )
+        # SFTConfig (not TrainingArguments): avoids TRL KeyError push_to_hub_token.
+        args = build_sft_args_from_config(cfg)
         start_time = time.time()
         engine = self
         from transformers import TrainerCallback
