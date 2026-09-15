@@ -166,24 +166,53 @@
   </form>
 </div>
 
-<div class="card mb-6">
+<div class="card mb-6" id="dp-review-card">
   <div class="card-head">
     <div>
       <div class="card-title">Prepped Q&amp;A</div>
-      <div class="card-sub">All Q&amp;A pairs this project has ever drafted. Pending pairs can be approved or rejected; approved pairs export to <code>project_datasets</code>.</div>
+      <div class="card-sub">Review pending pairs → approve → export to project datasets so Training can select them.</div>
     </div>
-    <button class="btn small" id="prep-results-refresh" onclick="prepRefreshResults()">Refresh</button>
+    <button class="btn small" type="button" id="prep-results-refresh" onclick="prepRefreshResults()">Refresh</button>
   </div>
+
+  <div id="dp-review-toolbar" class="dp-review-toolbar">
+    <div class="flex gap-2 wrap items-center" style="margin-bottom:8px;">
+      <span class="pill outline" id="dp-stat-total">0 total</span>
+      <span class="pill solid-amber" id="dp-stat-pending">0 pending</span>
+      <span class="pill solid-green" id="dp-stat-approved">0 approved</span>
+      <span class="pill solid-rose" id="dp-stat-rejected">0 rejected</span>
+      <span style="flex:1 1 auto;"></span>
+      <div class="flex gap-1" role="group" aria-label="Status filter">
+        <button class="btn sm" type="button" data-dp-filter="all" id="dp-filter-all">All</button>
+        <button class="btn sm primary" type="button" data-dp-filter="pending" id="dp-filter-pending">Pending</button>
+        <button class="btn sm" type="button" data-dp-filter="approved" id="dp-filter-approved">Approved</button>
+        <button class="btn sm" type="button" data-dp-filter="rejected" id="dp-filter-rejected">Rejected</button>
+      </div>
+    </div>
+    <div class="flex gap-2 wrap items-center" style="margin-bottom:8px;">
+      <button class="btn sm success" type="button" id="dp-bulk-approve" title="Approve checked rows (or all visible pending if none checked)">Approve selected</button>
+      <button class="btn sm danger" type="button" id="dp-bulk-reject" title="Reject checked rows">Reject selected</button>
+      <button class="btn sm success" type="button" id="dp-approve-all-pending" title="Mark every pending pair approved">Approve all pending</button>
+      <button class="btn sm primary" type="button" id="dp-export-approved" title="Write approved pairs as ShareGPT JSONL and register it for Training">Export approved → Training</button>
+      <a class="btn sm" href="/projects/{{ pid }}/training" data-link id="dp-open-training">Open Training</a>
+    </div>
+    <pre id="dp-bridge-status" role="status" aria-live="polite" hidden
+         style="margin:0 0 8px;font-size:12px;white-space:pre-wrap;"></pre>
+    <div id="dp-exported-datasets" class="dp-exported-panel text-sm" hidden></div>
+  </div>
+
   <div id="dp-results" class="text-sm muted">Loading…</div>
 </div>
 
 <style>
+.dp-review-toolbar { padding: 0 4px 4px; }
 .dp-results-table { width: 100%; font-size: 12px; }
 .dp-results-table td { padding: 6px 8px; vertical-align: top; }
 .dp-results-table tr:nth-child(even) td { background: var(--bg-elev, #0a0a0a); }
 .dp-results-table .q { color: var(--accent-cyan, #66ddff); }
 .dp-results-table .a { color: var(--text, #ccc); }
 .dp-results-table .meta { color: var(--text-dim, #666); font-size: 10px; }
+.dp-results-table .dp-acts { white-space: nowrap; }
 .dp-status-pending  { color: var(--accent-amber, #ffaa00); }
 .dp-status-approved { color: var(--accent-green, #00ff66); }
 .dp-status-rejected { color: var(--accent-rose, #ff6666); }
@@ -193,6 +222,21 @@
   color: var(--text-dim, #888);
   font-style: italic;
 }
+.dp-exported-panel {
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  background: var(--bg-elev, #0a0a0a);
+}
+.dp-exported-panel .dp-ds-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 0;
+}
+.dp-filter-active { /* marker class; primary btn already highlights */ }
 
 /* ── File library (Stage 1B) ── */
 .fl-grid { align-items: start; }
@@ -1310,52 +1354,296 @@ function flFormatBytes(n) {
   else flInit();
 })();
 
-// Load + render the prepped Q&A pairs for this project.
-async function prepRefreshResults() {
-  const el = document.getElementById('dp-results');
+// Load + render the prepped Q&A pairs for this project (review → approve → export).
+var _dpQaItems = [];
+var _dpFilter = 'pending';
+
+function dpBridgeStatus(msg, state) {
+  var el = document.getElementById('dp-bridge-status');
   if (!el) return;
-  // Soft refresh: keep existing table visible (no "Loading…" full redraw).
-  const prev = el.dataset.ready === '1' ? el.innerHTML : '';
-  if (!prev) el.innerHTML = 'Loading…';
+  el.textContent = msg || '';
+  el.dataset.state = state || 'info';
+  el.hidden = !msg;
+  if (msg && window.fts && fts.notify) fts.notify(msg, state === 'error' ? 'error' : (state === 'success' ? 'success' : 'info'));
+}
+
+function dpSetFilter(next) {
+  _dpFilter = next || 'all';
+  document.querySelectorAll('[data-dp-filter]').forEach(function (btn) {
+    var on = btn.getAttribute('data-dp-filter') === _dpFilter;
+    btn.classList.toggle('primary', on);
+  });
+  dpRenderResults();
+}
+
+function dpUpdateStats(items) {
+  var pending = 0, approved = 0, rejected = 0;
+  (items || []).forEach(function (q) {
+    var st = q.status || 'pending';
+    if (st === 'approved') approved++;
+    else if (st === 'rejected') rejected++;
+    else pending++;
+  });
+  var set = function (id, text) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = text;
+  };
+  set('dp-stat-total', (items || []).length + ' total');
+  set('dp-stat-pending', pending + ' pending');
+  set('dp-stat-approved', approved + ' approved');
+  set('dp-stat-rejected', rejected + ' rejected');
+  return { pending: pending, approved: approved, rejected: rejected };
+}
+
+function dpFilteredItems() {
+  if (_dpFilter === 'all') return _dpQaItems.slice();
+  return _dpQaItems.filter(function (q) {
+    return (q.status || 'pending') === _dpFilter;
+  });
+}
+
+function dpSelectedIds() {
+  var boxes = document.querySelectorAll('#dp-results input.dp-qa-check:checked');
+  var ids = [];
+  boxes.forEach(function (b) { if (b.value) ids.push(b.value); });
+  return ids;
+}
+
+function dpDataEditorHref(dataPath) {
+  // Single path segment so absolute paths survive (/tmp/... → %2Ftmp%2F...).
+  return '/projects/' + encodeURIComponent(_prepPid) + '/data/' + encodeURIComponent(String(dataPath || ''));
+}
+
+async function dpRefreshExportedDatasets() {
+  var panel = document.getElementById('dp-exported-datasets');
+  if (!panel) return;
   try {
-    const r = await fetch('/api/projects/{{ pid }}/data-prep/qa?limit=200').then((r) => r.json());
-    const items = (r && r.items) || r || [];
-    if (!items.length) {
-      el.innerHTML = '<div class="dp-empty">No Q&amp;A pairs yet. Run a prep job above, or use the Chat tab in Agent mode to mine pairs from your sources.</div>';
-      el.dataset.ready = '1';
+    var r = await fetch('/api/projects/' + encodeURIComponent(_prepPid) + '/datasets', { cache: 'no-store' });
+    var data = r.ok ? await r.json().catch(function () { return {}; }) : {};
+    var datasets = (data && data.datasets) || [];
+    var fromPrep = datasets.filter(function (d) {
+      return (d.source || '') === 'data-prep-export' || String(d.name || '').indexOf('sharegpt') >= 0;
+    });
+    var show = fromPrep.length ? fromPrep : datasets.slice(0, 5);
+    if (!show.length) {
+      panel.hidden = true;
+      panel.innerHTML = '';
       return;
     }
-    const rows = items.slice(0, 50).map((q) => {
-      const status = (q.status || 'pending');
-      const statusClass = 'dp-status-' + status;
-      return '<tr>' +
-        '<td class="meta"><span class="' + statusClass + '">' + status + '</span></td>' +
-        '<td class="meta">' + (q.source_filename || q.source_id || '') + '</td>' +
-        '<td class="q">' + escapeHtml((q.question || '').slice(0, 200)) + '</td>' +
-        '<td class="a">' + escapeHtml((q.answer || '').slice(0, 200)) + '</td>' +
-        '<td class="meta">' + (q.created_at ? new Date(q.created_at * 1000).toISOString().slice(0, 16).replace('T', ' ') : '') + '</td>' +
-      '</tr>';
+    var rows = show.map(function (d) {
+      var name = escapeHtml(d.name || 'dataset');
+      var n = (d.qa_count != null) ? d.qa_count : '?';
+      var path = d.data_path || '';
+      var editor = path ? ('<a class="btn sm" href="' + dpDataEditorHref(path) + '" data-link>Review in Data Editor</a>') : '';
+      return '<div class="dp-ds-row">' +
+        '<span><strong>' + name + '</strong> · ' + n + ' pairs' +
+        (d.source ? ' · <span class="dim">' + escapeHtml(d.source) + '</span>' : '') +
+        '</span>' +
+        editor +
+        '<a class="btn sm primary" href="/projects/' + encodeURIComponent(_prepPid) + '/training" data-link>Select in Training</a>' +
+        '</div>';
     }).join('');
-    el.innerHTML = '<table class="dp-results-table">' +
+    panel.innerHTML = '<div class="text-xs muted mb-1">Project datasets ready for Training</div>' + rows;
+    panel.hidden = false;
+  } catch (e) {
+    panel.hidden = true;
+  }
+}
+
+function dpRenderResults() {
+  var el = document.getElementById('dp-results');
+  if (!el) return;
+  var stats = dpUpdateStats(_dpQaItems);
+  if (!_dpQaItems.length) {
+    el.innerHTML = '<div class="dp-empty">No Q&amp;A pairs yet. Run a prep job above, or use the Chat tab in Agent mode to mine pairs from your sources. Then approve and export here so Training can pick the dataset.</div>';
+    el.dataset.ready = '1';
+    return;
+  }
+  var items = dpFilteredItems();
+  if (!items.length) {
+    el.innerHTML = '<div class="dp-empty">No ' + escapeHtml(_dpFilter) + ' pairs. Switch filter or approve pending rows (' + stats.pending + ' pending, ' + stats.approved + ' approved).</div>';
+    el.dataset.ready = '1';
+    return;
+  }
+  var rows = items.slice(0, 100).map(function (q) {
+    var status = (q.status || 'pending');
+    var statusClass = 'dp-status-' + status;
+    var id = q.id || '';
+    var acts = '';
+    if (status === 'pending' || status === 'rejected') {
+      acts += '<button class="btn sm success" type="button" data-dp-act="approve" data-id="' + escapeHtml(id) + '" title="Approve">Approve</button> ';
+    }
+    if (status === 'pending' || status === 'approved') {
+      acts += '<button class="btn sm danger" type="button" data-dp-act="reject" data-id="' + escapeHtml(id) + '" title="Reject">Reject</button>';
+    }
+    return '<tr>' +
+      '<td class="meta"><input type="checkbox" class="dp-qa-check" value="' + escapeHtml(id) + '" aria-label="Select pair"></td>' +
+      '<td class="meta"><span class="' + statusClass + '">' + status + '</span></td>' +
+      '<td class="meta">' + escapeHtml(q.source_filename || q.source_id || '') + '</td>' +
+      '<td class="q">' + escapeHtml((q.question || '').slice(0, 200)) + '</td>' +
+      '<td class="a">' + escapeHtml((q.answer || '').slice(0, 200)) + '</td>' +
+      '<td class="meta">' + (q.created_at ? new Date(q.created_at * 1000).toISOString().slice(0, 16).replace('T', ' ') : '') + '</td>' +
+      '<td class="dp-acts">' + acts + '</td>' +
+      '</tr>';
+  }).join('');
+  el.innerHTML =
+    '<div class="text-xs muted mb-2">Step: review pending → Approve → <strong>Export approved → Training</strong>. Training lists exported datasets under “From this project”.</div>' +
+    '<table class="dp-results-table">' +
       '<thead><tr>' +
-        '<th class="meta" title="Lifecycle of this Q&A pair: pending (just drafted, awaiting your review), approved (good to train on), rejected (skip).">status</th>' +
-        '<th class="meta" title="The parsed file this pair was generated from. Click the file name on the Data tab to view the original.">source</th>' +
-        '<th class="meta" title="The user-style question. The model learns to answer this kind of question in a similar style after fine-tuning.">question</th>' +
-        '<th class="meta" title="The assistant-style answer the model should learn to produce. Should be grounded in the source — hallucinated answers hurt training.">answer</th>' +
-        '<th class="meta" title="When this pair was created (UTC).">created</th>' +
+        '<th class="meta" style="width:2em"><input type="checkbox" id="dp-check-all" title="Select all visible" aria-label="Select all visible"></th>' +
+        '<th class="meta" title="Lifecycle: pending (awaiting review), approved (ready to export), rejected (skip).">status</th>' +
+        '<th class="meta" title="Source file this pair was generated from.">source</th>' +
+        '<th class="meta" title="User-style question.">question</th>' +
+        '<th class="meta" title="Assistant-style answer.">answer</th>' +
+        '<th class="meta" title="Created (UTC).">created</th>' +
+        '<th class="meta">actions</th>' +
       '</tr></thead>' +
       '<tbody>' + rows + '</tbody></table>' +
-      (items.length > 50 ? '<div class="dim text-xs mt-2">Showing first 50 of ' + items.length + '.</div>' : '') +
+      (items.length > 100 ? '<div class="dim text-xs mt-2">Showing first 100 of ' + items.length + '.</div>' : '') +
       '<details class="mt-2"><summary class="text-xs muted">Debug JSON (first row)</summary>' +
       '<pre class="mono text-xs" style="max-height:160px;overflow:auto;white-space:pre-wrap;margin:6px 0 0;">' +
       escapeHtml(JSON.stringify(items[0] || {}, null, 2)) + '</pre></details>';
-    el.dataset.ready = '1';
+  el.dataset.ready = '1';
+
+  var checkAll = document.getElementById('dp-check-all');
+  if (checkAll) {
+    checkAll.addEventListener('change', function () {
+      document.querySelectorAll('#dp-results input.dp-qa-check').forEach(function (b) {
+        b.checked = checkAll.checked;
+      });
+    });
+  }
+  el.querySelectorAll('[data-dp-act]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var act = btn.getAttribute('data-dp-act');
+      var id = btn.getAttribute('data-id');
+      if (id && (act === 'approve' || act === 'reject')) dpBulkAction([id], act);
+    });
+  });
+}
+
+async function prepRefreshResults() {
+  var el = document.getElementById('dp-results');
+  if (!el) return;
+  var prev = el.dataset.ready === '1' ? el.innerHTML : '';
+  if (!prev) el.innerHTML = 'Loading…';
+  try {
+    var r = await fetch('/api/projects/' + encodeURIComponent(_prepPid) + '/data-prep/qa').then(function (res) { return res.json(); });
+    _dpQaItems = (r && r.items) || (Array.isArray(r) ? r : []) || [];
+    dpRenderResults();
+    dpRefreshExportedDatasets();
   } catch (e) {
     if (!prev) {
       el.innerHTML = '<div class="dp-empty">Failed to load: ' + escapeHtml((e && e.message) || String(e)) + '</div>';
     }
   }
 }
+
+async function dpBulkAction(ids, action) {
+  if (!ids || !ids.length) {
+    dpBridgeStatus('Select at least one pair, or use Approve all pending.', 'error');
+    return;
+  }
+  try {
+    var r = await fetch('/api/projects/' + encodeURIComponent(_prepPid) + '/data-prep/qa/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ids, action: action }),
+    });
+    var data = await r.json().catch(function () { return {}; });
+    if (!r.ok) {
+      dpBridgeStatus(String((data && (data.error || data.detail)) || ('HTTP ' + r.status)), 'error');
+      return;
+    }
+    var n = (data && data.updated != null) ? data.updated : ids.length;
+    dpBridgeStatus((action === 'approve' ? 'Approved ' : 'Rejected ') + n + ' pair(s).', 'success');
+    await prepRefreshResults();
+  } catch (e) {
+    dpBridgeStatus('Bulk ' + action + ' failed: ' + ((e && e.message) || e), 'error');
+  }
+}
+
+async function dpApproveSelected() {
+  var ids = dpSelectedIds();
+  if (!ids.length) {
+    // Default: approve all *visible* pending when nothing checked.
+    ids = dpFilteredItems().filter(function (q) {
+      return (q.status || 'pending') === 'pending' && q.id;
+    }).map(function (q) { return q.id; });
+  }
+  await dpBulkAction(ids, 'approve');
+}
+
+async function dpRejectSelected() {
+  await dpBulkAction(dpSelectedIds(), 'reject');
+}
+
+async function dpApproveAllPending() {
+  var ids = _dpQaItems.filter(function (q) {
+    return (q.status || 'pending') === 'pending' && q.id;
+  }).map(function (q) { return q.id; });
+  if (!ids.length) {
+    dpBridgeStatus('No pending pairs to approve.', 'info');
+    return;
+  }
+  await dpBulkAction(ids, 'approve');
+}
+
+async function dpExportApproved() {
+  var approved = _dpQaItems.filter(function (q) {
+    return (q.status || '') === 'approved';
+  }).length;
+  if (!approved) {
+    dpBridgeStatus('No approved pairs yet. Approve pending rows first, then export.', 'error');
+    return;
+  }
+  dpBridgeStatus('Exporting ' + approved + ' approved pair(s)…', 'info');
+  try {
+    var url = '/api/projects/' + encodeURIComponent(_prepPid) +
+      '/data-prep/export?fmt=sharegpt&only=approved';
+    var r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) {
+      var err = {};
+      try { err = await r.json(); } catch (e2) { /* ignore */ }
+      dpBridgeStatus(String((err && (err.error || err.detail)) || ('Export failed (HTTP ' + r.status + ')')), 'error');
+      return;
+    }
+    // Side effect on the server registers project_datasets; also offer a local download.
+    var blob = await r.blob();
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = _prepPid + '-sharegpt-approved.jsonl';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    await dpRefreshExportedDatasets();
+    dpBridgeStatus(
+      'Exported ' + approved + ' approved pair(s) into project datasets. Open Training → “From this project” to select it, or review the JSONL in Data Editor.',
+      'success'
+    );
+  } catch (e) {
+    dpBridgeStatus('Export failed: ' + ((e && e.message) || e), 'error');
+  }
+}
+
+(function dpWireReviewControls() {
+  document.querySelectorAll('[data-dp-filter]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      dpSetFilter(btn.getAttribute('data-dp-filter'));
+    });
+  });
+  var map = [
+    ['dp-bulk-approve', dpApproveSelected],
+    ['dp-bulk-reject', dpRejectSelected],
+    ['dp-approve-all-pending', dpApproveAllPending],
+    ['dp-export-approved', dpExportApproved],
+  ];
+  map.forEach(function (pair) {
+    var el = document.getElementById(pair[0]);
+    if (el) el.addEventListener('click', pair[1]);
+  });
+})();
 
 function escapeHtml(s) {
   return String(s)
