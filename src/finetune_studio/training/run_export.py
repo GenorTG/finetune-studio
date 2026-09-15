@@ -386,16 +386,16 @@ def export_trained_run(
             "strength": float(result.get("strength") or 1.0),
         }
 
-    # gptq — fail fast when auto_gptq is missing; verify artifacts on success
+    # gptq — fail fast when no backend; verify artifacts on success
     from finetune_studio.training.advanced_quant import (
+        gptq_missing_backend_message,
         is_gptq_available,
         verify_gptq_artifacts,
     )
 
     if not is_gptq_available():
         return _export_failure(
-            "No module named 'auto_gptq' — install auto-gptq to export GPTQ, "
-            "or choose format=merged / gguf instead.",
+            gptq_missing_backend_message(),
             format="gptq",
         )
 

@@ -10,16 +10,17 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from finetune_studio.training.advanced_quant import is_gptq_available
+from finetune_studio.training.advanced_quant import (
+    gptq_missing_backend_message,
+    is_gptq_available,
+)
 from finetune_studio.training.run_export import (
     GGUF_CONVERTER_MISSING_MSG,
     find_gguf_convert_script,
 )
 
-GPTQ_CONVERTER_MISSING_MSG = (
-    "auto_gptq is not installed. Install auto-gptq on this host to export "
-    "GPTQ, or choose format=merged / abliterated until then."
-)
+GPTQ_CONVERTER_MISSING_MSG = gptq_missing_backend_message()
+
 
 
 @dataclass(frozen=True)

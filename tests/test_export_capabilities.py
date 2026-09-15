@@ -32,7 +32,7 @@ def test_probe_export_capabilities_shape() -> None:
     if not data["gguf"]:
         assert "convert_hf_to_gguf" in data["gguf_hint"]
     if not data["gptq"]:
-        assert "auto_gptq" in data["gptq_hint"]
+        assert "gptqmodel" in data["gptq_hint"] or "auto_gptq" in data["gptq_hint"]
 
 
 def test_export_template_disables_unavailable_formats() -> None:
@@ -67,7 +67,7 @@ def test_export_page_marks_gguf_gptq_unavailable(client) -> None:
     assert 'id="export-gguf-unavailable"' in body
     assert 'id="export-gptq-unavailable"' in body
     assert "convert_hf_to_gguf" in body
-    assert "auto_gptq" in body or "auto-gptq" in body
+    assert "gptqmodel" in body or "auto_gptq" in body or "auto-gptq" in body
     assert 'value="gguf"' in body
     assert "disabled" in body
     # GGUF must not be the default checked choice when unavailable.

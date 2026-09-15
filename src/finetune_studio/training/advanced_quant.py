@@ -2,17 +2,33 @@
 
 Provides multiple quantization backends beyond basic llama.cpp quantize:
 - GPTQ: Post-training quantization with group quantization
+  (prefers modern ``gptqmodel``, falls back to ``auto_gptq``)
 - imatrix GGUF: Uses importance matrix for higher quality quantization
 """
 
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
+from typing import Any, Literal
+
+GptqBackendName = Literal["gptqmodel", "auto_gptq"]
+
+_CALIBRATION_EXAMPLE_COUNT = 128
 
 
-def is_gptq_available() -> bool:
-    """Check if auto-gptq is installed."""
+def is_gptqmodel_available() -> bool:
+    """Return True when the modern ``gptqmodel`` package imports."""
+    try:
+        import gptqmodel  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def is_auto_gptq_available() -> bool:
+    """Return True when legacy ``auto_gptq`` imports."""
     try:
         import auto_gptq  # noqa: F401
         return True
@@ -20,7 +36,30 @@ def is_gptq_available() -> bool:
         return False
 
 
-def verify_gptq_artifacts(gptq_dir: str) -> dict:
+def is_gptq_available() -> bool:
+    """Return True when any supported GPTQ backend is importable."""
+    return is_gptqmodel_available() or is_auto_gptq_available()
+
+
+def preferred_gptq_backend() -> GptqBackendName | None:
+    """Prefer ``gptqmodel``; fall back to ``auto_gptq``; else None."""
+    if is_gptqmodel_available():
+        return "gptqmodel"
+    if is_auto_gptq_available():
+        return "auto_gptq"
+    return None
+
+
+def gptq_missing_backend_message() -> str:
+    """Actionable error when neither GPTQ backend is installed."""
+    return (
+        "Neither gptqmodel nor auto_gptq is installed. "
+        "Install gptqmodel (preferred) or auto-gptq to export GPTQ, "
+        "or choose format=merged / gguf instead."
+    )
+
+
+def verify_gptq_artifacts(gptq_dir: str) -> dict[str, Any]:
     """Require a non-empty GPTQ export dir (config + weight file).
 
     Returns ``ok``, ``files``, ``output_dir``, ``size_bytes``, ``error``.
@@ -67,7 +106,8 @@ def verify_gptq_artifacts(gptq_dir: str) -> dict:
             "error": (
                 "No non-empty GPTQ artifacts found (need config.json / "
                 "quantize_config.json and at least one weight file). "
-                "Install auto-gptq and retry, or choose format=merged."
+                "Install gptqmodel or auto-gptq and retry, or choose "
+                "format=merged."
             ),
         }
     return {
@@ -79,14 +119,28 @@ def verify_gptq_artifacts(gptq_dir: str) -> dict:
     }
 
 
+def calibration_example_texts(
+    count: int = _CALIBRATION_EXAMPLE_COUNT,
+) -> list[str]:
+    """Default GPTQ calibration sentences (shared across backends)."""
+    n = max(1, int(count))
+    return [
+        f"This is calibration example number {i} for GPTQ quantization."
+        for i in range(n)
+    ]
+
+
 def quantize_gptq(
     model_path: str,
     output_dir: str,
     bits: int = 4,
     group_size: int = 128,
     damp_percent: float = 0.01,
-) -> dict:
+) -> dict[str, Any]:
     """Quantize a model using GPTQ (Post-training Quantization).
+
+    Prefers the modern ``gptqmodel`` backend when installed; otherwise uses
+    ``auto_gptq``. Both paths share the same calibration example texts.
 
     Args:
         model_path: Path to the model (safetensors)
@@ -96,12 +150,110 @@ def quantize_gptq(
         damp_percent: Damping percentage for numerical stability
 
     Returns:
-        {output_dir, size_bytes, size_human, bits, group_size}
+        {output_dir, size_bytes, size_human, bits, group_size, method, backend}
     """
-    from auto_gptq import AutoGPTQForCausalLM, BaseQuantizeConfig
-    from transformers import AutoTokenizer
+    backend = preferred_gptq_backend()
+    if backend is None:
+        raise ImportError(gptq_missing_backend_message())
 
     os.makedirs(output_dir, exist_ok=True)
+    texts = calibration_example_texts()
+
+    if backend == "gptqmodel":
+        result = _quantize_with_gptqmodel(
+            model_path=model_path,
+            output_dir=output_dir,
+            bits=bits,
+            group_size=group_size,
+            damp_percent=damp_percent,
+            calibration_texts=texts,
+        )
+    else:
+        result = _quantize_with_auto_gptq(
+            model_path=model_path,
+            output_dir=output_dir,
+            bits=bits,
+            group_size=group_size,
+            damp_percent=damp_percent,
+            calibration_texts=texts,
+        )
+
+    _copy_runtime_sidecars(model_path, output_dir)
+    size = _dir_size(output_dir)
+    result.update(
+        {
+            "output_dir": output_dir,
+            "size_bytes": size,
+            "size_human": _human_size(size),
+            "bits": bits,
+            "group_size": group_size,
+            "method": "gptq",
+            "backend": backend,
+        }
+    )
+    return result
+
+
+def _quantize_with_gptqmodel(
+    model_path: str,
+    output_dir: str,
+    bits: int,
+    group_size: int,
+    damp_percent: float,
+    calibration_texts: list[str],
+) -> dict[str, Any]:
+    """Run GPTQ via ``gptqmodel`` (GPTQModel + GPTQConfig/QuantizeConfig)."""
+    import inspect
+
+    from gptqmodel import GPTQModel
+
+    try:
+        from gptqmodel import GPTQConfig as _Config
+    except ImportError:  # older gptqmodel
+        from gptqmodel import QuantizeConfig as _Config
+
+    wanted: dict[str, Any] = {
+        "bits": bits,
+        "group_size": group_size,
+        "damp_percent": damp_percent,
+        "desc_act": False,
+        "static_groups": True,
+        "sym": True,
+        "true_sequential": True,
+    }
+    accepted = set(inspect.signature(_Config).parameters)
+    quantize_config = _Config(
+        **{k: v for k, v in wanted.items() if k in accepted}
+    )
+    model = GPTQModel.load(
+        model_path,
+        quantize_config,
+        trust_remote_code=True,
+    )
+    quantize_kwargs: dict[str, Any] = {
+        "batch_size": 1,
+        "calibration_data_min_length": 1,
+    }
+    quantize_params = set(inspect.signature(model.quantize).parameters)
+    model.quantize(
+        calibration_texts,
+        **{k: v for k, v in quantize_kwargs.items() if k in quantize_params},
+    )
+    model.save(output_dir)
+    return {}
+
+
+def _quantize_with_auto_gptq(
+    model_path: str,
+    output_dir: str,
+    bits: int,
+    group_size: int,
+    damp_percent: float,
+    calibration_texts: list[str],
+) -> dict[str, Any]:
+    """Run GPTQ via legacy ``auto_gptq``."""
+    from auto_gptq import AutoGPTQForCausalLM, BaseQuantizeConfig
+    from transformers import AutoTokenizer
 
     quantize_config = BaseQuantizeConfig(
         bits=bits,
@@ -113,38 +265,25 @@ def quantize_gptq(
         true_sequential=True,
     )
 
-    model = AutoGPTQForCausalLM.from_pretrained(model_path, quantize_config, trust_remote_code=True)
-    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-
-    # Use calibration data (simple default)
-    examples = []
-    for i in range(128):
-        text = f"This is calibration example number {i} for GPTQ quantization."
-        examples.append(tokenizer(text))
-
+    model = AutoGPTQForCausalLM.from_pretrained(
+        model_path, quantize_config, trust_remote_code=True,
+    )
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_path, trust_remote_code=True,
+    )
+    examples = [tokenizer(text) for text in calibration_texts]
     model.quantize(examples)
     model.save_quantized(output_dir)
     tokenizer.save_pretrained(output_dir)
-    # Copy runtime system prompt if it exists
-    src_prompt = os.path.join(model_path, "system_prompt.txt")
-    if os.path.exists(src_prompt):
-        import shutil
-        shutil.copy(src_prompt, os.path.join(output_dir, "system_prompt.txt"))
-    # Copy chat template if it exists
-    src_template = os.path.join(model_path, "chat_template.jinja")
-    if os.path.exists(src_template):
-        import shutil
-        shutil.copy(src_template, os.path.join(output_dir, "chat_template.jinja"))
+    return {}
 
-    size = _dir_size(output_dir)
-    return {
-        "output_dir": output_dir,
-        "size_bytes": size,
-        "size_human": _human_size(size),
-        "bits": bits,
-        "group_size": group_size,
-        "method": "gptq",
-    }
+
+def _copy_runtime_sidecars(model_path: str, output_dir: str) -> None:
+    """Copy optional prompt / chat-template files next to the GPTQ weights."""
+    for name in ("system_prompt.txt", "chat_template.jinja"):
+        src = os.path.join(model_path, name)
+        if os.path.exists(src):
+            shutil.copy(src, os.path.join(output_dir, name))
 
 
 def quantize_gguf_imatrix(

@@ -127,7 +127,7 @@ class TestExportTrainedRun:
         assert "AWQ" in result["error"]
         assert "gptq" in result["error"].lower()
 
-    def test_gptq_missing_auto_gptq_is_structured_failure(
+    def test_gptq_missing_backend_is_structured_failure(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from finetune_studio.training import run_export as re
@@ -141,7 +141,8 @@ class TestExportTrainedRun:
         assert result.get("ok") is False
         assert result.get("status") == "failed"
         assert result.get("format") == "gptq"
-        assert "auto_gptq" in result["error"]
+        err = result["error"].lower()
+        assert "gptqmodel" in err or "auto_gptq" in err
 
     def test_merged_format_returns_path(self, tmp_path: Path) -> None:
         from finetune_studio.training.run_export import export_trained_run
@@ -412,5 +413,6 @@ class TestExportApiAdapterOnly:
         assert body.get("ok") is False
         assert body.get("status") == "failed"
         assert body.get("format") == "gptq"
-        assert "auto_gptq" in body["error"]
+        err = body["error"].lower()
+        assert "gptqmodel" in err or "auto_gptq" in err
         assert body.get("ok") is not True
