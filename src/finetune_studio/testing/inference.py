@@ -107,11 +107,18 @@ class InferenceEngine:
         Prefer bf16 on GPU; use bitsandbytes 4-bit only when ``load_in_4bit`` is
         True or a full-precision load OOMs. Never import Unsloth — it monkey-patches
         transformers globally and poisons all later inference in this process.
+
+        Local GPTQ dirs are loaded via gptqmodel ``BACKEND.GPTQ_TORCH`` (not
+        Marlin JIT / plain Transformers) — see ``testing.gptq_load``.
         """
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         from finetune_studio.config import settings
+        from finetune_studio.testing.gptq_load import (
+            is_local_gptq_checkpoint,
+            load_gptq_model_torch,
+        )
 
         # max_seq_length kept for API compatibility with callers / Unsloth era.
         _ = max_seq_length if max_seq_length is not None else settings.default_max_seq_length
@@ -122,6 +129,11 @@ class InferenceEngine:
 
         dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
         device_map: str | dict = {"": 0} if torch.cuda.is_available() else "cpu"
+
+        if is_local_gptq_checkpoint(model_path):
+            self.model = load_gptq_model_torch(model_path, device_map=device_map)
+            self.is_gguf = False
+            return
 
         if load_in_4bit and torch.cuda.is_available():
             self.model = self._load_hf_bnb_4bit(model_path, device_map={"": 0})
