@@ -102,7 +102,7 @@
     },
   };
 
-  // ── Polling helper ─────────────────────────────────────────────────
+  // ── Polling helper (dashboard tiles / legacy data-poll) ────────────
   function poll(url, el, field, interval) {
     interval = interval || 3000;
     const fn = () => api.get(url).then((d) => {
@@ -115,6 +115,84 @@
     });
     fn();
     return setInterval(fn, interval);
+  }
+
+  /**
+   * Live updates via EventSource (SSE). Falls back to silent polling only
+   * when EventSource is unavailable or the stream errors repeatedly.
+   *
+   * @param {string} url SSE endpoint
+   * @param {(data: object) => void} onEvent called with parsed JSON payloads
+   * @param {{ pollUrl?: string, fallbackMs?: number, onError?: Function }} [opts]
+   * @returns {() => void} unsubscribe / close
+   */
+  function subscribe(url, onEvent, opts) {
+    opts = opts || {};
+    const fallbackMs = opts.fallbackMs || 5000;
+    const pollUrl = opts.pollUrl || "";
+    let es = null;
+    let timer = null;
+    let closed = false;
+    let failCount = 0;
+
+    function deliver(raw) {
+      if (raw == null || raw === "") return;
+      try {
+        const data = typeof raw === "string" ? JSON.parse(raw) : raw;
+        onEvent(data);
+      } catch (_e) { /* ignore malformed frames */ }
+    }
+
+    function stopFallback() {
+      if (timer) { clearInterval(timer); timer = null; }
+    }
+
+    function startFallback() {
+      if (closed || timer || !pollUrl) return;
+      const tick = () => {
+        fetch(pollUrl, { cache: "no-store" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => { if (d) onEvent(d); })
+          .catch(() => { /* ignore */ });
+      };
+      tick();
+      timer = setInterval(tick, fallbackMs);
+    }
+
+    function closeEs() {
+      if (es) {
+        try { es.close(); } catch (_e) { /* ignore */ }
+        es = null;
+      }
+    }
+
+    if (typeof EventSource !== "undefined") {
+      try {
+        es = new EventSource(url);
+        es.onmessage = (ev) => {
+          failCount = 0;
+          deliver(ev.data);
+        };
+        es.onerror = () => {
+          failCount += 1;
+          // After a few consecutive errors, fall back to silent poll.
+          if (failCount >= 3) {
+            closeEs();
+            startFallback();
+          }
+        };
+      } catch (_e) {
+        startFallback();
+      }
+    } else {
+      startFallback();
+    }
+
+    return function unsubscribe() {
+      closed = true;
+      closeEs();
+      stopFallback();
+    };
   }
 
   // ── Delegation: form data-api / button data-action / data-confirm ──
@@ -314,7 +392,7 @@
 
   // Page-swap hook called from spa.js after each navigation
   window.fts = {
-    notify, api, poll, confirm: confirmDialog, init: delegate, formatJsTime,
+    notify, api, poll, subscribe, confirm: confirmDialog, init: delegate, formatJsTime,
     conn: { check: connCheck, start: connStart, stop: connStop },
     themeToggle,
   };

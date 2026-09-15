@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Request
@@ -14,6 +15,7 @@ from finetune_studio.testing.suite import (
     score_results,
 )
 from finetune_studio.webui.app import inference_engine
+from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
 from finetune_studio.webui.testing_models import resolve_latest_merged_model
 
 router = APIRouter()
@@ -54,13 +56,36 @@ async def unload_model():
     return {"status": "unloaded"}
 
 
-@router.get("/status")
-async def model_status():
+def _testing_status_payload() -> dict:
     return {
         "loaded": inference_engine.model is not None,
         "model_path": inference_engine.model_path,
         "is_gguf": inference_engine.is_gguf,
     }
+
+
+@router.get("/status")
+async def model_status():
+    """One-shot testing/inference load status (fallback for non-SSE clients)."""
+    return _testing_status_payload()
+
+
+@router.get("/events")
+async def testing_events():
+    """SSE stream of testing model-load status for live suite progress."""
+    async def gen():
+        last: str | None = None
+        while True:
+            payload = _testing_status_payload()
+            key = f"{payload['loaded']}|{payload.get('model_path') or ''}"
+            if key != last:
+                last = key
+                yield sse_data(payload)
+            else:
+                yield sse_comment()
+            await asyncio.sleep(1.0)
+
+    return sse_response(gen())
 
 
 @router.post("/chat")

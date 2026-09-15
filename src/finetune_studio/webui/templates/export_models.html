@@ -84,7 +84,7 @@
   <div class="card-head">
     <div>
       <div class="card-title">Export format</div>
-      <div class="card-sub">Choose one or more outputs. AWQ is not available (use GPTQ).</div>
+      <div class="card-sub">Choose one or more outputs (GGUF, GPTQ, or abliterated).</div>
     </div>
   </div>
   <div class="grid grid-2 gap-3 p-2">
@@ -130,8 +130,9 @@
       <input type="checkbox" id="export-force" value="1">
       Overwrite existing
     </label>
-    <span id="export-status" class="text-xs dim"></span>
+    <span id="export-status" class="text-xs dim" role="status"></span>
   </div>
+  <div id="export-result" class="p-2 pt-0" style="display:none;"></div>
 </div>
 
 {# ── Existing / trained exports (expand-row) ──────────────────────── #}
@@ -324,10 +325,57 @@ async function startExport() {
 
   const btn = document.getElementById('export-btn');
   const status = document.getElementById('export-status');
+  const resultEl = document.getElementById('export-result');
+  const esc = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  function showResultCard(rows) {
+    if (!resultEl) return;
+    const body = rows.map(([k, v]) =>
+      '<tr><td class="meta muted">' + esc(k) + '</td><td class="mono">' + esc(v) + '</td></tr>'
+    ).join('');
+    resultEl.style.display = '';
+    resultEl.innerHTML = '<table class="table text-xs run-kv-table"><tbody>' + body + '</tbody></table>';
+  }
+
+  function watchExport(eid) {
+    return new Promise((resolve) => {
+      const sub = window.fts && window.fts.subscribe;
+      const url = `/api/projects/{{ pid }}/exports/${eid}/events`;
+      const pollUrl = `/api/projects/{{ pid }}/exports/${eid}`;
+      if (!sub) {
+        resolve({ id: eid, status: 'queued' });
+        return;
+      }
+      const stop = sub(url, (row) => {
+        if (!row) return;
+        status.textContent = `Export ${row.status || '…'}` +
+          (row.quant ? ` · ${row.quant}` : '');
+        showResultCard([
+          ['Export id', row.id || eid],
+          ['Status', row.status || ''],
+          ['Format', row.format || ''],
+          ['Quant', row.quant || '—'],
+          ['Path', row.output_path || '—'],
+          ['Size', row.size_human || row.size_bytes || '—'],
+          ['Error', row.error || '—'],
+        ]);
+        const st = row.status || '';
+        if (st === 'done' || st === 'failed' || st === 'error' || st === 'cancelled') {
+          stop();
+          resolve(row);
+        }
+      }, { pollUrl, fallbackMs: 5000 });
+    });
+  }
+
   btn.disabled = true;
   status.textContent = 'Exporting…';
+  status.classList.remove('err');
+  if (resultEl) { resultEl.style.display = 'none'; resultEl.innerHTML = ''; }
 
   try {
+    const summaries = [];
     for (const fmt of formats) {
       status.textContent = `Exporting ${fmt}…`;
       let body = { format: fmt, force };
@@ -344,14 +392,42 @@ async function startExport() {
         const errMsg = d.error || d.message || (`HTTP ${r.status}`);
         status.textContent = `✗ ${fmt}: ${errMsg}`;
         status.classList.add('err');
-        status.setAttribute('role', 'status');
+        showResultCard([
+          ['Format', fmt],
+          ['Status', 'failed'],
+          ['Error', errMsg],
+        ]);
         if (window.fts && window.fts.notify) fts.notify(`${fmt} export failed: ${errMsg}`, 'error');
         btn.disabled = false;
         return;
       }
+      if (d.export_id) {
+        const finalRow = await watchExport(d.export_id);
+        if ((finalRow.status || '') === 'failed' || finalRow.error) {
+          status.textContent = `✗ ${fmt}: ${finalRow.error || finalRow.status}`;
+          status.classList.add('err');
+          btn.disabled = false;
+          return;
+        }
+        summaries.push([fmt, finalRow.output_path || d.output_path || 'queued']);
+      } else {
+        summaries.push([
+          fmt,
+          d.merged_path || d.output_path || d.gguf_dir || d.path || 'ok',
+        ]);
+        showResultCard([
+          ['Format', fmt],
+          ['Status', d.status || 'done'],
+          ['Path', d.merged_path || d.output_path || d.gguf_dir || d.path || '—'],
+          ['Quants', Array.isArray(d.quants) ? d.quants.join(', ') : (d.quant || '—')],
+        ]);
+      }
     }
     status.textContent = '✓ Done — refresh to see new exports';
     status.classList.remove('err');
+    if (summaries.length) {
+      showResultCard(summaries.map(([fmt, path]) => [fmt, path]));
+    }
     if (window.fts && window.fts.notify) fts.notify('Export finished', 'success');
     setTimeout(() => location.reload(), 1500);
   } catch (e) {

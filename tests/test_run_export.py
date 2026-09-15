@@ -189,7 +189,7 @@ class TestExportApiAdapterOnly:
         assert "adapter only — merge at export" in body
         assert "Compatible base model" in body
         assert 'value="awq"' not in body
-        assert "AWQ is not available" in body
+        assert "AWQ is not available" not in body
         assert run["id"] in body
 
     def test_post_export_merged_with_base_override(

@@ -3,10 +3,15 @@
 Aggregates: training runs, data-prep parsers, RAG builds, HF downloads,
 and the currently-loaded inference model. Each task includes a deep link
 back to the relevant page so users can jump from the activity panel.
+
+Live updates use SSE at ``GET /api/activity/events`` (JSON snapshots).
+``GET /api/activity`` remains the one-shot snapshot for fallback clients.
 """
 
 from __future__ import annotations
 
+import asyncio
+import json
 import time
 from pathlib import Path
 from typing import Any
@@ -14,6 +19,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from finetune_studio import db
+from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
 
 router = APIRouter()
 
@@ -22,9 +28,8 @@ def _now() -> float:
     return time.time()
 
 
-@router.get("/api/activity")
-async def activity() -> dict:
-    """Aggregate live tasks across all subsystems."""
+def collect_activity() -> dict[str, Any]:
+    """Aggregate live tasks across all subsystems (sync snapshot)."""
     tasks: list[dict[str, Any]] = []
 
     # ── Training engine state ──────────────────────────────────────
@@ -50,8 +55,9 @@ async def activity() -> dict:
                 "message": f"step {s.current_step}/{s.total_steps} · loss {s.loss:.4f} · {s.message or ''}",
                 "started_at": _now() - int(s.elapsed or 0),
                 "url": f"/projects/{pid}/training" if pid else "/projects",
+                "run_id": run_id or None,
             })
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         tasks.append({"kind": "_error", "message": f"training: {e}"})
 
     # ── Inference engine loaded model ───────────────────────────────
@@ -69,7 +75,7 @@ async def activity() -> dict:
                 "started_at": _now() - 3600,  # approximate
                 "url": "/inference",
             })
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         tasks.append({"kind": "_error", "message": f"inference: {e}"})
 
     # ── Data-prep active runs ──────────────────────────────────────
@@ -93,7 +99,7 @@ async def activity() -> dict:
                 "url": f"/projects/{pid}/data-prep",
                 "run_id": run_id,
             })
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         tasks.append({"kind": "_error", "message": f"data_prep: {e}"})
 
     # ── RAG corpora on disk ────────────────────────────────────────
@@ -136,9 +142,9 @@ async def activity() -> dict:
                             "started_at": built_at,
                             "url": f"/projects/{pid}/rag",
                         })
-                    except Exception:
+                    except Exception:  # noqa: BLE001, S110
                         pass
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         tasks.append({"kind": "_error", "message": f"rag: {e}"})
 
     # ── HF downloads ──────────────────────────────────────
@@ -164,7 +170,7 @@ async def activity() -> dict:
                 msg = f"failed: {(entry.get('error') or '')[:60]}"
                 prog = 0
             else:
-                msg = f"{done/1e9:.2f}GB / {total/1e9:.2f}GB" if total else f"starting…"
+                msg = f"{done/1e9:.2f}GB / {total/1e9:.2f}GB" if total else "starting…"
                 prog = (done / total) if total > 0 else 0
             tasks.append({
                 "kind": "download",
@@ -175,8 +181,9 @@ async def activity() -> dict:
                 "message": msg,
                 "started_at": entry.get("started_at", _now()),
                 "url": f"/models/explore#repo={repo}",
+                "id": jid,
             })
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         tasks.append({"kind": "_error", "message": f"downloads: {e}"})
 
     # Sort: running first, then by started_at desc
@@ -193,3 +200,47 @@ async def activity() -> dict:
             counts[k] = counts.get(k, 0) + 1
 
     return {"tasks": tasks, "active_count": sum(counts.values()), "by_kind": counts}
+
+
+@router.get("/api/activity")
+async def activity() -> dict[str, Any]:
+    """One-shot activity snapshot (fallback for non-SSE clients)."""
+    return collect_activity()
+
+
+@router.get("/api/activity/events")
+async def activity_events():
+    """SSE stream of activity snapshots.
+
+    Emits a JSON payload whenever the aggregated task list changes.
+    Keepalive comments are sent otherwise so the connection stays open.
+    """
+    async def gen():
+        last: str | None = None
+        while True:
+            payload = collect_activity()
+            # Fingerprint without volatile started_at drift on training rows.
+            stable = []
+            for t in payload.get("tasks") or []:
+                stable.append({
+                    "kind": t.get("kind"),
+                    "project_id": t.get("project_id"),
+                    "status": t.get("status"),
+                    "progress": round(float(t.get("progress") or 0), 3),
+                    "message": t.get("message"),
+                    "run_id": t.get("run_id"),
+                    "id": t.get("id"),
+                    "url": t.get("url"),
+                })
+            fingerprint = json.dumps(
+                {"tasks": stable, "active_count": payload.get("active_count")},
+                sort_keys=True,
+            )
+            if fingerprint != last:
+                last = fingerprint
+                yield sse_data(payload)
+            else:
+                yield sse_comment()
+            await asyncio.sleep(1.0)
+
+    return sse_response(gen())

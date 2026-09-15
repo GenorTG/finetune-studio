@@ -15,6 +15,7 @@ Tool discovery looks in PATH first, then in ~/llama.cpp, /opt/llama.cpp,
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import shutil
@@ -25,6 +26,7 @@ from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 
 from finetune_studio import db
+from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -109,7 +111,7 @@ async def export_run(pid: str, rid: str, request: Request,
        without ``quants``. Queues a background job and returns an export_id.
 
     Body (common):
-      format: gguf | gptq | abliterated | merged (default gguf). AWQ removed.
+      format: gguf | gptq | abliterated | merged (default gguf).
       force: overwrite existing outputs (sync path)
       base_model: optional compatible 16-bit base for merge-at-export
       auto_merge: bool (default true; legacy async path)
@@ -147,6 +149,8 @@ async def export_run(pid: str, rid: str, request: Request,
         return JSONResponse(payload, status_code=status_code)
 
     # Sync multi-format path used by the Export page (quants list / non-gguf).
+    # AWQ is not a supported format; route it through export_trained_run so the
+    # response carries the clear removal message (not a generic unsupported).
     use_sync = (
         "quants" in body
         or fmt in ("gptq", "abliterated", "merged", "awq")
@@ -226,6 +230,34 @@ async def get_export(pid: str, eid: str):
     if not row:
         return JSONResponse({"error": "not found"}, status_code=404)
     return row
+
+
+@router.get("/projects/{pid}/exports/{eid}/events")
+async def export_events(pid: str, eid: str):
+    """SSE stream of a single export row until it reaches a terminal status."""
+    async def gen():
+        last: str | None = None
+        while True:
+            row = db.get_export(eid)
+            if not row:
+                yield sse_data({"error": "not found", "status": "failed", "id": eid})
+                return
+            # Ignore project mismatches quietly — row still streams.
+            status = row.get("status") or ""
+            fingerprint = (
+                f"{status}|{row.get('output_path') or ''}|"
+                f"{row.get('error') or ''}|{row.get('size_bytes') or 0}"
+            )
+            if fingerprint != last:
+                last = fingerprint
+                yield sse_data(row)
+            else:
+                yield sse_comment()
+            if status in ("done", "failed", "error", "cancelled"):
+                return
+            await asyncio.sleep(0.75)
+
+    return sse_response(gen())
 
 
 @router.get("/projects/{pid}/runs/{rid}/exports")

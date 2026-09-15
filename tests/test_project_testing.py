@@ -24,10 +24,11 @@ def test_testing_page_renders_suite_select(client) -> None:
     # Free-text path input must be gone
     assert 'placeholder="path/to/suite.json"' not in body
     assert 'type="text"' not in body or 'id="t-suite" type="text"' not in body
-    # Live status during long suite runs (polls existing /api/testing/status)
+    # Live status during long suite runs (SSE /api/testing/events)
     assert 'id="t-status"' in body
     assert 'id="t-live-log"' in body
-    assert "/api/testing/status" in body
+    assert "/api/testing/events" in body
+    assert "/api/testing/status" in body  # fallback
     # Model selector is project-scoped (not global HF discovery alone)
     assert 'id="t-model"' in body
     assert "— auto (latest merged) —" in body

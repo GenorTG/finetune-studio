@@ -5,12 +5,13 @@ import os
 from pathlib import Path
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from finetune_studio.training.data import load_jsonl
 from finetune_studio.training.engine import TrainingConfig
 from finetune_studio.training.monitor import training_events
 from finetune_studio.webui.app import training_engine
+from finetune_studio.webui.live_sse import sse_response
 
 router = APIRouter()
 
@@ -265,7 +266,8 @@ async def status_text():
 
 @router.get("/progress")
 async def progress():
-    return StreamingResponse(training_events(training_engine), media_type="text/event-stream")
+    """SSE live training status (preferred over polling ``/status``)."""
+    return sse_response(training_events(training_engine))
 
 
 @router.get("/progress-text")
@@ -475,7 +477,7 @@ async def export_run(run_id: str, request: Request):
 
     Body:
         format: gguf | gptq | abliterated | merged (default: gguf).
-                AWQ is removed — use gptq instead.
+                Use gptq / gguf / merged / abliterated.
         quants: GGUF quant list (default: f16, q8_0, q4_k_m, q5_k_m)
         force: overwrite existing exports (default: false)
         base_model: optional 16-bit base path/id for merge-at-export when

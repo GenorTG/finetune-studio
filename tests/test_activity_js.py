@@ -1,9 +1,10 @@
-"""Regression: activity drawer keeps expanded rows + filters across poll re-render.
+"""Regression: activity drawer keeps expanded rows + filters across live re-render.
 
-The 2s /api/activity poll used to wipe body.innerHTML and reset every row to
-aria-expanded=false / no .open class. Expansion must be keyed by a stable
-task identity (run_id / id / kind+project+url+name), not array index, and
-filter selects must remain the source of truth across re-renders.
+Live /api/activity snapshots (SSE, with silent poll fallback) used to wipe
+body.innerHTML and reset every row to aria-expanded=false / no .open class.
+Expansion must be keyed by a stable task identity (run_id / id /
+kind+project+url+name), not array index, and filter selects must remain the
+source of truth across re-renders.
 """
 from __future__ import annotations
 
@@ -29,7 +30,7 @@ def test_task_identity_helper_exists() -> None:
         "function fmtTimeAgo(", 1
     )[0]
     # Strip comments before asserting — a "don't use started_at" note is fine.
-    code_only = re.sub(r"//.*?$", "", identity_block, flags=re.M)
+    code_only = re.sub(r"//.*?$", "", identity_block, flags=re.MULTILINE)
     assert "started_at" not in code_only
     assert ".join(" in code_only
 
@@ -70,3 +71,9 @@ def test_filter_state_synced_from_dom_and_exported() -> None:
     )[0]
     assert "sel.value = current" in populate
     assert "window.activityApplyFilter" in src
+
+
+def test_activity_prefers_sse_events() -> None:
+    src = _src()
+    assert "/api/activity/events" in src
+    assert "setInterval(refresh, 2000)" not in src

@@ -175,38 +175,49 @@
       liveLog.style.display = 'block';
       liveLog.textContent = 'suite: ' + suiteName + '\nwaiting for /api/testing/status…';
     }
-    // Smallest live visibility: poll existing model status while the
-    // synchronous run-suite request is in flight (no fake progress).
+    // Live model status via SSE while the suite request is in flight.
     const started = Date.now();
-    let liveTimer = null;
-    const tickLive = async () => {
+    let stopLive = null;
+    let elapsedTimer = null;
+    let lastModelLine = 'model: (checking…)';
+    const paintLive = () => {
       const elapsed = Math.round((Date.now() - started) / 1000);
-      let modelLine = 'model: (checking…)';
-      try {
-        const resp = await fetch('/api/testing/status', { cache: 'no-store' });
-        if (resp.ok) {
-          const s = await resp.json();
-          if (s.loaded) {
-            modelLine = 'model loaded: ' + (s.model_path || '(path unknown)');
-          } else {
-            modelLine = 'model: not loaded yet (auto-load on suite start)';
-          }
-        }
-      } catch (_e) {
-        modelLine = 'model: status unreachable';
-      }
       status.textContent = '✓ Using suite: ' + suiteName + ' — Running… ' + elapsed + 's';
       if (liveLog) {
         liveLog.textContent = [
           'suite: ' + suiteName,
           'elapsed: ' + elapsed + 's',
-          modelLine,
+          lastModelLine,
           'awaiting /api/testing/run-suite response…',
         ].join('\n');
       }
     };
-    liveTimer = setInterval(tickLive, 2000);
-    tickLive();
+    const applyLive = (s) => {
+      if (s && typeof s === 'object') {
+        if (s.loaded) {
+          lastModelLine = 'model loaded: ' + (s.model_path || '(path unknown)');
+        } else {
+          lastModelLine = 'model: not loaded yet (auto-load on suite start)';
+        }
+      }
+      paintLive();
+    };
+    elapsedTimer = setInterval(paintLive, 1000);
+    const sub = window.fts && window.fts.subscribe;
+    if (sub) {
+      stopLive = sub('/api/testing/events', applyLive, {
+        pollUrl: '/api/testing/status',
+        fallbackMs: 5000,
+      });
+    } else {
+      applyLive({});
+      const t = setInterval(() => applyLive({}), 5000);
+      stopLive = () => clearInterval(t);
+    }
+    const stopAll = () => {
+      if (stopLive) { stopLive(); stopLive = null; }
+      if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
+    };
     try {
       const modelSel = document.getElementById('t-model');
       const modelPath = modelSel ? (modelSel.value || '').trim() : '';
@@ -224,6 +235,7 @@
         r = await resp.json();
         if (!resp.ok && r.error) throw new Error(r.error);
       }
+      if (stopAll) stopAll();
       if (r.error) {
         status.textContent = 'Error: ' + r.error;
         results.innerHTML = '<span class="err">' + escapeHtml(r.error) + '</span>';
@@ -246,13 +258,14 @@
       results.innerHTML = renderResults(scores, cases);
       notify('Suite finished: ' + (scores.passed || 0) + '/' + cases.length + ' passed', 'success');
     } catch (e) {
+      stopAll();
       const msg = (e && e.message) || String(e);
       status.textContent = 'Error: ' + msg;
       results.innerHTML = '<span class="err">' + escapeHtml(msg) + '</span>';
       if (liveLog) liveLog.textContent = 'error: ' + msg;
       notify(msg, 'error');
     } finally {
-      if (liveTimer) clearInterval(liveTimer);
+      stopAll();
     }
   };
 })();

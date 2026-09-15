@@ -23,7 +23,8 @@ def test_monitor_polls_training_status_and_updates_bar_log() -> None:
     assert 'id="train-log"' in html
     assert "Step log" in html
     assert "(no log lines yet)" in html or "waiting for step logs" in html
-    assert "/api/training/status" in html
+    assert "/api/training/progress" in html
+    assert "/api/training/status" in html  # fallback pollUrl
     assert "train-progress-bar" in html
     assert "log_lines" in html or "s.log_lines" in html
     assert "Step " in html and "loss" in html
@@ -34,6 +35,8 @@ def test_monitor_polls_training_status_and_updates_bar_log() -> None:
     live = html.split("Live status")[1].split("Past runs")[0]
     assert "display:none" not in live
     assert 'class="text-xs mt-3 mono dim"' not in live
+    assert "Updated every 2s" not in live
+    assert "setInterval(tick, 2000)" not in html
 
 
 def test_past_run_actions_require_output_path_and_done() -> None:

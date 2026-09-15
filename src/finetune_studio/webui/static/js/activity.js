@@ -6,9 +6,9 @@
    full message, project_id, started/elapsed, and a prominent
    "GO TO →" button. Multiple rows can be expanded at once;
    expansion pushes siblings down (no overlay).
-   Polls /api/activity every 2s.
-   Expanded rows and filter selects survive re-render, keyed by
-   stable task identity (not array index).
+   Live updates via SSE (/api/activity/events); silent poll
+   fallback only if EventSource fails. Expanded rows and filter
+   selects survive re-render, keyed by stable task identity.
    ============================================================ */
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -224,25 +224,29 @@
     return true;
   }
 
+  function applySnapshot(d) {
+    if (!d || typeof d !== "object") return;
+    lastTasks = d.tasks || [];
+    updateBadge(d.active_count || 0);
+
+    // Keep the sub-label accurate even while the drawer is closed so the
+    // first open never shows a stale "Loading…". Body re-render stays
+    // gated on visibility (no point painting a hidden panel).
+    const kinds = Object.entries(d.by_kind || {})
+      .map(([k, n]) => `${KIND_LABEL[k] || k}: ${n}`)
+      .join(" · ");
+    subEl.textContent = kinds || (d.active_count ? `${d.active_count} active` : "idle");
+    if (drawer && !drawer.hidden) {
+      // Re-render restores expanded rows + filter selects via _expanded / DOM.
+      renderTasks(lastTasks);
+    }
+  }
+
   async function refresh() {
     try {
       const r = await fetch("/api/activity");
       if (!r.ok) return;
-      const d = await r.json();
-      lastTasks = d.tasks || [];
-      updateBadge(d.active_count || 0);
-
-      // Keep the sub-label accurate even while the drawer is closed so the
-      // first open never shows a stale "Loading…". Body re-render stays
-      // gated on visibility (no point painting a hidden panel).
-      const kinds = Object.entries(d.by_kind || {})
-        .map(([k, n]) => `${KIND_LABEL[k] || k}: ${n}`)
-        .join(" · ");
-      subEl.textContent = kinds || (d.active_count ? `${d.active_count} active` : "idle");
-      if (drawer && !drawer.hidden) {
-        // Re-render restores expanded rows + filter selects via _expanded / DOM.
-        renderTasks(lastTasks);
-      }
+      applySnapshot(await r.json());
     } catch (e) {
       console.warn("[activity] refresh failed:", e);
     }
@@ -282,8 +286,18 @@
     }
   });
 
-  setInterval(refresh, 2000);
-  refresh();
+  // Prefer SSE; fall back to silent /api/activity poll only if needed.
+  const subscribe = (window.fts && window.fts.subscribe) || null;
+  if (subscribe) {
+    subscribe("/api/activity/events", applySnapshot, {
+      pollUrl: "/api/activity",
+      fallbackMs: 5000,
+    });
+  } else {
+    refresh();
+    // Last-resort path when app.js has not loaded yet.
+    setInterval(refresh, 5000);
+  }
 
   // base.html filter <select onchange="activityApplyFilter()">
   window.activityApplyFilter = activityApplyFilter;
