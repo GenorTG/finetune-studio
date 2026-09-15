@@ -224,15 +224,32 @@
     try {
       const r = await fetch("/api/training/status");
       const s = await r.json();
-      $("m-step").textContent = s.current_step ? `${s.current_step}/${s.total_steps}` : "—";
-      $("m-loss").textContent = s.loss ? s.loss.toFixed(4) : "—";
-      $("m-lr").textContent = s.learning_rate ? s.learning_rate.toExponential(2) : "—";
-      $("m-elapsed").textContent = s.elapsed ? `${s.elapsed.toFixed(0)}s` : "—";
+      const step = s.step ?? s.current_step ?? 0;
+      const total = s.total_steps || 0;
+      $("m-step").textContent = total ? `${step}/${total}` : "—";
+      $("m-loss").textContent = s.loss != null ? Number(s.loss).toFixed(4) : "—";
+      $("m-lr").textContent = s.learning_rate ? Number(s.learning_rate).toExponential(2) : "—";
+      $("m-elapsed").textContent = s.elapsed != null ? `${Number(s.elapsed).toFixed(0)}s` : "—";
 
-      if (s.total_steps > 0) {
-        const pct = Math.min(100, (s.current_step / s.total_steps) * 100).toFixed(1);
+      const msg = s.message || "";
+      if (total > 0) {
+        const pct = Math.min(100, (step / total) * 100).toFixed(1);
         $("progress-fill").style.width = `${pct}%`;
-        $("progress-sub").textContent = `${s.message || "Training"} · ${pct}%`;
+        $("progress-sub").textContent = `Step ${step}/${total}` +
+          (s.loss != null ? ` · loss ${Number(s.loss).toFixed(4)}` : "") +
+          (msg ? ` · ${msg}` : "") +
+          ` · ${pct}%`;
+      } else if (msg) {
+        $("progress-sub").textContent = msg;
+      }
+
+      const logEl = $("training-log");
+      if (logEl) {
+        const lines = Array.isArray(s.log_lines) ? s.log_lines : [];
+        logEl.style.display = "block";
+        logEl.textContent = lines.length
+          ? lines.slice(-40).join("\n")
+          : (msg || "(waiting for step logs…)");
       }
 
       if (s.status === "done" || s.status === "error") {

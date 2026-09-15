@@ -242,9 +242,10 @@
     </div>
     <span class="pill solid-amber" id="train-status-badge">idle</span>
   </div>
-  <div id="train-status" class="text-sm muted">No run in progress.</div>
+  <div id="train-status" class="text-sm" aria-live="polite">No run in progress.</div>
   <div class="bar mt-3"><div class="fill" id="train-progress-bar" style="width:0%"></div></div>
-  <div id="train-log" class="text-xs mt-3 mono dim" style="font-size:11px;line-height:1.5;white-space:pre-wrap;background:var(--bg-app);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);max-height:180px;overflow-y:auto;"></div>
+  <div class="text-xs muted mt-3 mb-1">Step log</div>
+  <pre id="train-log" class="text-xs mono" role="log" aria-live="polite" style="font-size:11px;line-height:1.5;white-space:pre-wrap;background:var(--bg-app);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);max-height:220px;min-height:3.5em;overflow-y:auto;margin:0;">(no log lines yet)</pre>
 </div>
 
 <div class="card">
@@ -702,8 +703,9 @@
           let line = msg || st;
           if (st === "training" && total > 0) {
             line = "Step " + step + "/" + total;
-            if (loss) line += " · loss " + Number(loss).toFixed(4);
+            if (loss != null && loss !== "") line += " · loss " + Number(loss).toFixed(4);
             if (eta) line += " · ETA " + fmtEta(eta);
+            if (msg) line += " · " + msg;
           }
           if (statusEl) statusEl.textContent = line;
           if (bar && total > 0) {
@@ -713,11 +715,16 @@
           } else if (bar) {
             bar.style.width = "0%";
           }
-          if (logEl) logEl.textContent = lines.slice(-30).join("\n");
+          if (logEl) {
+            logEl.textContent = lines.length
+              ? lines.slice(-40).join("\n")
+              : (msg ? msg : "(waiting for step logs…)");
+          }
         } else {
           if (statusEl && wasActive) {
             statusEl.textContent = msg || (st === "done" ? "Training complete!" : st);
           }
+          if (logEl && lines.length) logEl.textContent = lines.slice(-40).join("\n");
           if (bar && st === "done") bar.style.width = "100%";
           if (wasActive && (st === "done" || st === "error" || st === "stopped" || st === "idle")) {
             wasActive = false;

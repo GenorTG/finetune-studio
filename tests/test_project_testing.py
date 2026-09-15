@@ -24,6 +24,10 @@ def test_testing_page_renders_suite_select(client) -> None:
     # Free-text path input must be gone
     assert 'placeholder="path/to/suite.json"' not in body
     assert 'type="text"' not in body or 'id="t-suite" type="text"' not in body
+    # Live status during long suite runs (polls existing /api/testing/status)
+    assert 'id="t-status"' in body
+    assert 'id="t-live-log"' in body
+    assert "/api/testing/status" in body
 
 
 def test_testing_page_suite_options_match_discover(client) -> None:

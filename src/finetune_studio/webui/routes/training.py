@@ -1,17 +1,42 @@
 """Training tab — start/stop training, monitor progress."""
 
-from fastapi import APIRouter, Request
-from fastapi.responses import PlainTextResponse, StreamingResponse
 import json
 import os
+from pathlib import Path
+
+from fastapi import APIRouter, Request
+from fastapi.responses import PlainTextResponse, StreamingResponse
 
 from finetune_studio.training.data import load_jsonl
 from finetune_studio.training.engine import TrainingConfig
 from finetune_studio.training.monitor import training_events
 from finetune_studio.webui.app import training_engine
-from pathlib import Path
 
 router = APIRouter()
+
+
+def _coerce_bool(value: object) -> bool:
+    """Parse JSON/FormData bool-ish values (``"1"``, ``"true"``, ``true``, …)."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    s = str(value).strip().lower()
+    if s in ("1", "true", "yes", "on"):
+        return True
+    if s in ("0", "false", "no", "off", ""):
+        return False
+    return bool(value)
+
+
+def _optional_body_bool(body: dict, key: str, overrides: dict | None = None) -> bool | None:
+    """Return coerced bool when ``key`` is present on body or overrides; else None."""
+    if key in body:
+        return _coerce_bool(body[key])
+    if overrides is not None and key in overrides:
+        return _coerce_bool(overrides[key])
+    return None
+
 
 # ── Training Presets ──────────────────────────────────────────
 # Real configurations for different model sizes and use cases.
@@ -287,7 +312,6 @@ async def list_training_runs_for_project(pid: str):
 async def start_training(request: Request):
     from finetune_studio import db
     body = await request.json()
-    merge_on_save = bool(body.get("merge_on_save", True))
 
     # Extract data_path and project_id FIRST
     data_path = body.get("data_path", "")
@@ -302,7 +326,10 @@ async def start_training(request: Request):
         return {"error": "No data_path / dataset_id provided"}
 
     preset_id = body.get("preset_id")
-    overrides = body.get("overrides", {})
+    overrides = body.get("overrides") or {}
+    # Project training form omits unchecked boxes; default false (not true).
+    merge_flag = _optional_body_bool(body, "merge_on_save", overrides)
+    unsloth_flag = _optional_body_bool(body, "unsloth", overrides)
     if preset_id:
         try:
             config = _apply_preset(preset_id, overrides)
@@ -310,6 +337,10 @@ async def start_training(request: Request):
             return {"error": str(e)}
         if not config.model_path and body.get("model_path"):
             config.model_path = body["model_path"]
+        if merge_flag is not None:
+            config.merge_on_save = merge_flag
+        if unsloth_flag is not None:
+            config.unsloth = unsloth_flag
     else:
         config = TrainingConfig(
             model_path=body.get("model_path", ""),
@@ -326,8 +357,9 @@ async def start_training(request: Request):
             save_steps=int(body.get("save_steps", 100)),
             logging_steps=int(body.get("logging_steps", 10)),
             bf16=bool(body.get("bf16", True)),
-            unsloth=bool(body.get("unsloth", True)),
-            merge_on_save=merge_on_save,
+            # Omitted → standard TRL (no Unsloth status wording) for stock Qwen3-4B flow.
+            unsloth=False if unsloth_flag is None else unsloth_flag,
+            merge_on_save=False if merge_flag is None else merge_flag,
             export_gguf=bool(body.get("export_gguf", False)),
             gguf_quants=body.get("gguf_quants", ["f16", "q8_0", "q4_k_m", "q5_k_m"]),
             data_path=data_path,
@@ -340,6 +372,7 @@ async def start_training(request: Request):
             export_imatrix=bool(body.get("export_imatrix", False)),
             imatrix_calibration=body.get("imatrix_calibration", ""),
         )
+    merge_on_save = config.merge_on_save
 
     if not config.model_path:
         return {"error": "No model_path provided"}
@@ -420,7 +453,7 @@ async def start_training(request: Request):
             return
         try:
             db.update_run(run_id, **update)
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
     training_engine.on_update(_on_state_change)
@@ -522,8 +555,9 @@ async def trigger_auto_suite(run_id: str):
     if result.get("error"):
         return result
     # Record in DB
-    from finetune_studio.db.connection import cursor, new_id
     from time import time as _time
+
+    from finetune_studio.db.connection import cursor, new_id
     suite_id = new_id()
     with cursor() as c:
         c.execute(
@@ -568,8 +602,9 @@ async def abliterate_run(run_id: str):
             clean_result[k] = [float(x) if hasattr(x, 'item') else x for x in v]
         else:
             clean_result[k] = v
-    from finetune_studio.db.connection import cursor, new_id
     from time import time as _time
+
+    from finetune_studio.db.connection import cursor, new_id
     abl_id = new_id()
     with cursor() as c:
         c.execute(
@@ -630,8 +665,9 @@ async def quantize_run(run_id: str, request: Request):
         return {"error": f"unknown method: {method}"}
     if result.get("error"):
         return result
-    from finetune_studio.db.connection import cursor, new_id
     from time import time as _time
+
+    from finetune_studio.db.connection import cursor, new_id
     q_id = new_id()
     with cursor() as c:
         c.execute(
@@ -696,17 +732,3 @@ async def list_exports(run_id: str):
                 exports["formats"]["gguf"] = {"path": gguf_dir, "files": gguf_files}
 
     return exports
-
-
-@router.get("/runs")
-async def list_training_runs():
-    """List ALL training runs (across all projects)."""
-    from finetune_studio.db.runs import list_runs
-    return list_runs()
-
-
-@router.get("/runs/{pid}")
-async def list_training_runs_for_project(pid: str):
-    """List training runs for a specific project."""
-    from finetune_studio.db.runs import list_runs
-    return list_runs(pid)

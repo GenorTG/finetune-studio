@@ -44,7 +44,8 @@
       <button onclick="runSuite()" class="btn primary" style="width:100%;">Run</button>
     </div>
   </div>
-  <div id="t-status" class="mt-3 text-xs dim"></div>
+  <div id="t-status" class="mt-3 text-xs" aria-live="polite"></div>
+  <pre id="t-live-log" class="text-xs mono mt-2" role="log" aria-live="polite" style="display:none;max-height:120px;overflow-y:auto;border:1px solid var(--border);padding:8px;white-space:pre-wrap;margin:0;background:var(--bg-app);"></pre>
 </div>
 
 {% if recent_suite_runs %}
@@ -155,14 +156,52 @@
   // run-suite handler auto-loads the project's latest merged model.
   window.runSuite = async function() {
     const status = document.getElementById('t-status');
+    const liveLog = document.getElementById('t-live-log');
     const results = document.getElementById('t-results');
     const suite = document.getElementById('t-suite').value.trim();
     if (!suite) {
       status.textContent = 'Please pick a test suite.';
       return;
     }
-    status.textContent = '✓ Using suite: ' + suiteLabel(suite) + ' — Running…';
+    const suiteName = suiteLabel(suite);
+    status.textContent = '✓ Using suite: ' + suiteName + ' — Running…';
     results.innerHTML = '<span class="muted">Running suite (auto-loading model if needed)…</span>';
+    if (liveLog) {
+      liveLog.style.display = 'block';
+      liveLog.textContent = 'suite: ' + suiteName + '\nwaiting for /api/testing/status…';
+    }
+    // Smallest live visibility: poll existing model status while the
+    // synchronous run-suite request is in flight (no fake progress).
+    const started = Date.now();
+    let liveTimer = null;
+    const tickLive = async () => {
+      const elapsed = Math.round((Date.now() - started) / 1000);
+      let modelLine = 'model: (checking…)';
+      try {
+        const resp = await fetch('/api/testing/status', { cache: 'no-store' });
+        if (resp.ok) {
+          const s = await resp.json();
+          if (s.loaded) {
+            modelLine = 'model loaded: ' + (s.model_path || '(path unknown)');
+          } else {
+            modelLine = 'model: not loaded yet (auto-load on suite start)';
+          }
+        }
+      } catch (_e) {
+        modelLine = 'model: status unreachable';
+      }
+      status.textContent = '✓ Using suite: ' + suiteName + ' — Running… ' + elapsed + 's';
+      if (liveLog) {
+        liveLog.textContent = [
+          'suite: ' + suiteName,
+          'elapsed: ' + elapsed + 's',
+          modelLine,
+          'awaiting /api/testing/run-suite response…',
+        ].join('\n');
+      }
+    };
+    liveTimer = setInterval(tickLive, 2000);
+    tickLive();
     try {
       const body = { suite_path: suite, project_id: PID, max_tokens: 512 };
       let r;
@@ -180,19 +219,32 @@
       if (r.error) {
         status.textContent = 'Error: ' + r.error;
         results.innerHTML = '<span class="err">' + escapeHtml(r.error) + '</span>';
+        if (liveLog) liveLog.textContent = 'error: ' + r.error;
         notify(r.error, 'error');
         return;
       }
       const scores = r.scores || {};
       const cases = r.results || [];
-      status.textContent = 'Done — pass rate ' + (scores.pass_rate || 0) + '%';
+      const elapsed = Math.round((Date.now() - started) / 1000);
+      status.textContent = 'Done — pass rate ' + (scores.pass_rate || 0) + '% · ' + elapsed + 's';
+      if (liveLog) {
+        liveLog.textContent = [
+          'suite: ' + suiteName,
+          'elapsed: ' + elapsed + 's',
+          'cases: ' + cases.length,
+          'pass_rate: ' + (scores.pass_rate != null ? scores.pass_rate : '—'),
+        ].join('\n');
+      }
       results.innerHTML = renderResults(scores, cases);
       notify('Suite finished: ' + (scores.passed || 0) + '/' + cases.length + ' passed', 'success');
     } catch (e) {
       const msg = (e && e.message) || String(e);
       status.textContent = 'Error: ' + msg;
       results.innerHTML = '<span class="err">' + escapeHtml(msg) + '</span>';
+      if (liveLog) liveLog.textContent = 'error: ' + msg;
       notify(msg, 'error');
+    } finally {
+      if (liveTimer) clearInterval(liveTimer);
     }
   };
 })();

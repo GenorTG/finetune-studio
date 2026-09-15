@@ -91,3 +91,64 @@ def test_mode_none_keeps_prompt_empty(client, fake_engine: _FakeEngine, tmp_path
     })
     assert r.status_code == 200, r.text
     assert fake_engine.started["system_prompt"] == ""
+
+
+def test_merge_on_save_defaults_false_when_omitted(
+    client, fake_engine: _FakeEngine, tmp_path: Path,
+) -> None:
+    """Unchecked project form checkbox omits the key — must not force merge."""
+    pid = _project(client, "")
+    r = client.post("/api/training/start", json={
+        "project_id": pid, "data_path": _jsonl(tmp_path), "model_path": "m",
+    })
+    assert r.status_code == 200, r.text
+    assert fake_engine.started["config"].merge_on_save is False
+
+
+def test_merge_on_save_explicit_true_preserved(
+    client, fake_engine: _FakeEngine, tmp_path: Path,
+) -> None:
+    pid = _project(client, "")
+    r = client.post("/api/training/start", json={
+        "project_id": pid, "data_path": _jsonl(tmp_path), "model_path": "m",
+        "merge_on_save": True,
+    })
+    assert r.status_code == 200, r.text
+    assert fake_engine.started["config"].merge_on_save is True
+
+
+def test_merge_on_save_form_string_one_is_true(
+    client, fake_engine: _FakeEngine, tmp_path: Path,
+) -> None:
+    """HTML checkbox FormData sends value \"1\" as a string."""
+    pid = _project(client, "")
+    r = client.post("/api/training/start", json={
+        "project_id": pid, "data_path": _jsonl(tmp_path), "model_path": "m",
+        "merge_on_save": "1",
+    })
+    assert r.status_code == 200, r.text
+    assert fake_engine.started["config"].merge_on_save is True
+
+
+def test_unsloth_defaults_false_when_omitted(
+    client, fake_engine: _FakeEngine, tmp_path: Path,
+) -> None:
+    """Project training form has no unsloth field — use standard TRL (no Unsloth status)."""
+    pid = _project(client, "")
+    r = client.post("/api/training/start", json={
+        "project_id": pid, "data_path": _jsonl(tmp_path), "model_path": "m",
+    })
+    assert r.status_code == 200, r.text
+    assert fake_engine.started["config"].unsloth is False
+
+
+def test_unsloth_explicit_true_preserved(
+    client, fake_engine: _FakeEngine, tmp_path: Path,
+) -> None:
+    pid = _project(client, "")
+    r = client.post("/api/training/start", json={
+        "project_id": pid, "data_path": _jsonl(tmp_path), "model_path": "m",
+        "unsloth": True,
+    })
+    assert r.status_code == 200, r.text
+    assert fake_engine.started["config"].unsloth is True
