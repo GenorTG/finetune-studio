@@ -57,6 +57,17 @@ class InferenceEngine:
         self._start_idle_timer()
 
     def _load_hf(self, model_path, device):
+        # IMPORTANT: import unsloth BEFORE transformers.AutoModelForCausalLM
+        # so Unsloth's Qwen3 monkey-patches (apply_qkv proxy etc.) register
+        # BEFORE the model class is instantiated. Without this, loading a
+        # Unsloth-trained checkpoint with vanilla transformers raises
+        # "'Qwen3Attention' object has no attribute 'apply_qkv'" at first
+        # forward pass. See QABUG-014 in AGENTS.md.
+        try:
+            import unsloth  # noqa: F401
+        except Exception:  # noqa: BLE001
+            pass  # unsloth not installed (vanilla transformers path is fine)
+
         from transformers import AutoModelForCausalLM, AutoTokenizer
         import torch
         self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
