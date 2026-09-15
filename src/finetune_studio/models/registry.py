@@ -60,7 +60,11 @@ def _safe_model_name(root: str, cfg: dict, project_name: str = "") -> str:
     dirname = os.path.basename(root)
     if len(dirname) == 40 and all(c in "0123456789abcdef" for c in dirname):
         # HuggingFace cache hash — use parent dir name
-        dirname = os.path.basename(os.path.dirname(root))
+        parent = os.path.dirname(root)
+        dirname = os.path.basename(parent)
+        # HF hub layout is models--<org>--<repo>/snapshots/<hash> — skip "snapshots"
+        if dirname == "snapshots":
+            dirname = os.path.basename(os.path.dirname(parent))
         # e.g. "models--unsloth--gemma-4-E4B-it-unsloth-bnb-4bit" → "gemma-4-E4B-it-unsloth-bnb-4bit"
         if dirname.startswith("models--"):
             dirname = dirname.split("--", 2)[-1] if "--" in dirname else dirname
