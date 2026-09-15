@@ -663,16 +663,17 @@
     const d = await r.json();
     const local = d.models || [];
     if (local.length === 0) return;
-    const current = sel.value;
-    sel.innerHTML = '';
+    // Merge HF downloads into the server-rendered list (all local models, with
+    // the project's base_model preselected) — never wipe it (E2E-19).
+    const known = new Set([...sel.options].map(o => o.value));
     for (const m of local) {
+      if (known.has(m.path)) continue;
       const opt = document.createElement('option');
       opt.value = m.path;
       const gb = (m.size_bytes / 1e9).toFixed(2);
       const hasWeights = (m.files || []).some(f => f.path.endsWith('.safetensors'));
       const tag = hasWeights ? '' : ' (incomplete — no .safetensors)';
       opt.textContent = `${m.repo_id.replace(/__/g, '/')} (${gb} GB)${tag}`;
-      if (m.path === current) opt.selected = true;
       sel.appendChild(opt);
     }
   } catch (e) {

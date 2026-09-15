@@ -196,6 +196,10 @@ async def unload_model_endpoint():
     from finetune_studio.webui.app import inference_engine
     try:
         inference_engine.unload()
+        # Agent chat / data-prep can load a provider into the model manager too;
+        # there is no separate UI for it, so "Unload" frees both (E2E-22).
+        from finetune_studio.models.manager import get_manager
+        get_manager().unload()
         return {"status": "unloaded"}
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
