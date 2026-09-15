@@ -28,13 +28,13 @@ git clone https://github.com/GenorTG/finetune-studio && cd finetune-studio
 
 | Thing | Location |
 |---|---|
-| Repo + venv | `/home/<user>/finetune-studio/` (fan-dragon: `/home/genortg/finetune-studio`) |
+| Repo + venv | `~/finetune-studio/` (or wherever you clone) |
 | Service | `systemctl --user {status,restart} finetune-studio` |
 | Logs | `journalctl --user -u finetune-studio -n 50` |
 | Project data | `$FTS_ROOT` = `~/.finetune-studio/projects/<pid>/` |
 | SQLite | `data/finetune_studio.db` (WAL) |
 | Models | `models/gguf/`, HF cache `~/.cache/huggingface` |
-| URL | `http://<host>:7860/` |
+| URL | `http://localhost:7860/` (or your host) |
 
 ## 3. The update pipeline
 
@@ -86,18 +86,21 @@ startup reconcile finalizes the row), shows the finished run's status + log
 even when it completes between polls, and lists the last 5 attempts.
 Code: `templates/settings.html` (card) + `static/js/settings.js` (logic).
 
-## 4. Dev → deploy workflow (this project's rule)
+## 4. Dev → deploy workflow (generic)
+
+A common two-machine pattern:
 
 ```
-edit ONLY on genorbox1 (/home/genorbox1/work/finetune-studio)
+edit + commit on the development machine
   → syntax check (py_compile / node --check)
-  → git commit + push origin main
-  → on fan-dragon: git pull + systemctl --user restart finetune-studio
-  → reload the model  → verify live (API + browser)
+  → git push origin main
+  → on the GPU host: git pull --ff-only
+  → systemctl --user restart finetune-studio   # if using the user unit
+  → reload the model → verify live (API + browser)
 ```
 
-Never SSH-edit fan-dragon files. fan-dragon's login shell is **fish** — wrap bash
-one-liners: `ssh fan-dragon "bash -c '…'"`.
+Prefer editing only on the development machine and deploying via git pull on
+the GPU host, so the running checkout stays a clean pull of `main`.
 
 ## 5. Health & troubleshooting
 
@@ -110,7 +113,7 @@ scripts/install_diagnose.py --venv .venv           # full health report
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `Failed to load model … not enough VRAM … top consumers: comfyui(pid …)` | another process holds VRAM (load errors name it since `23807b3`) | close/pause that process or use a smaller quant |
+| `Failed to load model … not enough VRAM … top consumers: <process>(pid …)` | another process holds VRAM (load errors name consumers) | close/pause that process or use a smaller quant |
 | Model loads but runs in RAM | VRAM too tight for `n_gpu_layers=99` | free VRAM; check `nvidia-smi` after load |
 | UI shows stale css/js | asset version not bumped | bump `?v=N` in `base.html` |
 | API 404 but route exists | catch-all registered first | move specific routes before `/{param}` |

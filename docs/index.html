@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>⚡ Finetune Studio — self-hosted LLM workshop</title>
-<meta name="description" content="Train, run, and evaluate large language models — entirely on your own hardware. RAG, LoRA fine-tuning, benchmarks, settings log tail, and local inference in one terminal-styled WebUI. No cloud, no telemetry, no lock-in.">
+<meta name="description" content="Train, run, and evaluate large language models — entirely on your own hardware. RAG, LoRA fine-tuning, offline benchmarks, settings log tail, and local inference in one terminal-styled WebUI. No cloud, no telemetry, no lock-in.">
 <meta property="og:title" content="⚡ Finetune Studio">
-<meta property="og:description" content="A self-hosted workshop for the whole local-LLM lifecycle: documents → datasets → LoRA training → GGUF → benchmarks → chat. Single repo, terminal-styled UI, end-to-end Playwright suite.">
+<meta property="og:description" content="A self-hosted workshop for the whole local-LLM lifecycle: documents → datasets → LoRA training → merge/export → benchmarks → chat. Single repo, terminal-styled UI, Playwright smoke suite.">
 <meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -126,8 +126,9 @@
   <p class="tagline">Train, run, and evaluate large language models —
   <b>entirely on your own hardware.</b></p>
   <p class="sub">A self-hosted workshop for the whole lifecycle: documents →
-  datasets → LoRA training → GGUF → benchmarks → chat. One dark-themed
-  WebUI that lives in your browser. No cloud, no telemetry, no lock-in.</p>
+  datasets → LoRA training → merge/export → offline benchmarks → chat. One
+  dark-themed WebUI that lives in your browser. No cloud, no telemetry, no
+  lock-in.</p>
   <div class="cta">
     <a class="btn primary" href="https://github.com/GenorTG/finetune-studio">[ CLONE THE REPO ]</a>
     <a class="btn" href="#quickstart">[ QUICKSTART ↓ ]</a>
@@ -137,7 +138,7 @@
     <img alt="polyform noncommercial" src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-ff8800.svg">
     <img alt="cuda" src="https://img.shields.io/badge/GPU-CUDA-76b900.svg">
     <img alt="fastapi" src="https://img.shields.io/badge/WebUI-FastAPI%20%2B%20Jinja2-009688.svg">
-    <img alt="e2e" src="https://img.shields.io/badge/E2E_QA-70%2F70-green.svg">
+    <img alt="playwright" src="https://img.shields.io/badge/E2E-Playwright_smoke-green.svg">
   </div>
 </div></header>
 
@@ -162,45 +163,49 @@
       <h4>2 · FINE-TUNE A MODEL</h4>
       <blockquote>"I want to teach a small open model how my company talks."</blockquote>
       <p>Point at a JSONL or your mined dataset, pick a base model, run
-      LoRA / QLoRA. Live loss curves, VRAM profiles, adapter merge, GGUF
-      bake. Per past-run Actions (⭐ Set Production, ▶ Inference, ⬇
+      LoRA / QLoRA. Live loss curves, VRAM profiles, adapter merge, then
+      export (merged / abliterated; GGUF and GPTQ when host tools are
+      installed). Per past-run Actions (⭐ Set Production, ▶ Inference, ⬇
       Download).</p>
-      <div class="pillbox"><span class="pill">LoRA</span><span class="pill">QLoRA</span><span class="pill">MERGE</span><span class="pill">GGUF</span></div>
+      <div class="pillbox"><span class="pill">LoRA</span><span class="pill">QLoRA</span><span class="pill">MERGE</span><span class="pill">EXPORT</span></div>
     </div>
 
     <div class="usecase">
       <h4>3 · BENCHMARK BEFORE SHIP</h4>
       <blockquote>"I trained two variants. Which one is actually better?"</blockquote>
-      <p>Standard suites (MMLU, HellaSwag, ARC, TruthfulQA, GSM8K, Winogrande). Two tabs: <b>Recent scores</b> (rolling history) and <b>Compare two runs</b> (per-suite Δ = B − A, colored).</p>
-      <div class="pillbox"><span class="pill">MMLU</span><span class="pill">HellaSwag</span><span class="pill">ARC</span><span class="pill">GSM8K</span></div>
+      <p>Offline smoke suites styled after MMLU / GSM8K / HellaSwag (not the
+      full HuggingFace dataset downloads), plus project-local suites. Two
+      tabs: <b>Recent scores</b> and <b>Compare two runs</b> (per-suite Δ =
+      B − A, colored).</p>
+      <div class="pillbox"><span class="pill">MMLU-style</span><span class="pill">GSM8K-style</span><span class="pill">HellaSwag-style</span></div>
     </div>
 
     <div class="usecase">
       <h4>4 · JUST CHAT LOCALLY</h4>
       <blockquote>"I want to run Llama 3 locally with my own chat history
       and image support."</blockquote>
-      <p>Pick a GGUF or safetensors model, load with auto-unload-on-idle
+      <p>Pick a safetensors or GGUF model, load with auto-unload-on-idle
       to free VRAM. Image input for multimodal. Per-session
       temperature / top-p / system prompt. Conversation persists.</p>
-      <div class="pillbox"><span class="pill">GGUF</span><span class="pill">llama.cpp</span><span class="pill">VISION</span></div>
+      <div class="pillbox"><span class="pill">safetensors</span><span class="pill">GGUF</span><span class="pill">VISION</span></div>
     </div>
   </div>
 </div></section>
 
 <section id="new"><div class="wrap">
   <h2>NEW IN v2</h2>
-  <p class="lead">Since the public v1 release, ten new UI audit items, four
-  file-library APIs, an end-to-end Playwright test suite, and a settings
-  log tail. Quick highlights:</p>
+  <p class="lead">Since the public v1 release, UI audit items, file-library
+  APIs, a Playwright smoke suite, and a settings log tail. Quick
+  highlights:</p>
   <ul style="color:var(--fg);font-size:13px;line-height:1.8;list-style:none;padding:0">
     <li>· <b style="color:var(--accent)">Benchmarks compare tab</b> — pick any two trained exports, get the per-suite Δ table</li>
     <li>· <b style="color:var(--accent)">Documents-indexed panel</b> in RAG — PortableRAG corpus (parquet + sources), per-doc Rebuild</li>
     <li>· <b style="color:var(--accent)">Per-export expand rows</b> on Models + Export — see parent run, training settings, dir contents, plus ▶ Open in inference</li>
     <li>· <b style="color:var(--accent)">Per-file rename + hard-purge</b> APIs on the data library (buttons have always been there — the endpoints are real now)</li>
     <li>· <b style="color:var(--accent)">Parsed MD preview</b> on the data library — <code style="color:var(--amber)">GET /api/projects/{pid}/files/{fid}/parsed</code></li>
-    <li>· <b style="color:var(--accent)">Per-project Settings page</b> with a WebUI log tail card reading <code style="color:var(--amber)">/tmp/uvicorn.log</code> (Refresh + 5s Auto-refresh)</li>
-    <li>· <b style="color:var(--accent)">70/70 green</b> Playwright E2E regression suite — <code style="color:var(--amber)">tests/run_qa.sh</code></li>
-    <li>· <b style="color:var(--accent)">Data-prep</b> 4-tab modal preview + 📝 icon, parsed MD instead of heuristic-only</li>
+    <li>· <b style="color:var(--accent)">Per-project Settings page</b> with a WebUI log tail card (Refresh + Auto-refresh)</li>
+    <li>· <b style="color:var(--accent)">Playwright E2E smoke suite</b> — <code style="color:var(--amber)">tests/e2e_ui_qa.py</code> / <code style="color:var(--amber)">tests/run_qa.sh</code></li>
+    <li>· <b style="color:var(--accent)">Self-update pipeline</b> — <code style="color:var(--amber)">./update.sh</code> or Settings → Apply update</li>
     <li>· <b style="color:var(--accent)">Training Actions</b> per past-run row (⭐ Set Production / ▶ Inference / ⬇ Download)</li>
     <li>· <b style="color:var(--accent)">Testing</b> suite dropdown replaces free-text input</li>
   </ul>
@@ -209,9 +214,8 @@
 <section id="gallery"><div class="wrap">
   <h2>SCREENSHOTS</h2>
   <p class="lead">Terminal-grade UI: tmux-style session bar, phosphor-green
-  notches, animated sprites, command palette on Ctrl+K. Live at
-  <span class="dim">:7860</span>. Screenshots taken from project
-  <code style="color:var(--amber)">b08426e3</code> on fan-dragon (RTX 3090).</p>
+  notches, animated sprites, command palette on Ctrl+K. Default listen
+  port <span class="dim">:7860</span>.</p>
 
   <figure class="gallery-hero">
     <img src="screenshots/01_dashboard.png" alt="Dashboard with host resources and project cards" loading="lazy">
@@ -231,11 +235,11 @@
     <figure><img src="screenshots/07_benchmarks.png" alt="Benchmarks with Recent scores and Compare two runs tabs" loading="lazy">
       <figcaption><b>BENCHMARKS</b> — Recent scores + Compare two runs tabs; per-suite Δ table colored.</figcaption></figure>
     <figure><img src="screenshots/08_export.png" alt="Export with expand rows for each trained export" loading="lazy">
-      <figcaption><b>EXPORT</b> — same expand-row pattern as Models; radio/format picker preserved.</figcaption></figure>
+      <figcaption><b>EXPORT</b> — merged / abliterated first-class; GGUF + GPTQ when host tools are present; same expand-row pattern as Models.</figcaption></figure>
     <figure><img src="screenshots/09_testing.png" alt="Testing with suite dropdown" loading="lazy">
       <figcaption><b>TESTING</b> — generate QA pairs from a trained model; suite dropdown picks from available.</figcaption></figure>
     <figure><img src="screenshots/10_settings.png" alt="Settings with WebUI log tail card" loading="lazy">
-      <figcaption><b>SETTINGS</b> — per-project config + WebUI log tail card (<code style="color:var(--amber)">/tmp/uvicorn.log</code>, Refresh + Auto-refresh).</figcaption></figure>
+      <figcaption><b>SETTINGS</b> — per-project config + WebUI log tail + Apply update controls.</figcaption></figure>
   </div>
 </div></section>
 
@@ -249,8 +253,8 @@
              └─► <span class="g">Q&amp;A mining</span>      batch prep job  OR  <span class="a">agentic tool-calling chat</span>
                   └─► <span class="g">review</span>           approve / reject / edit pairs ──► JSONL datasets
                        └─► <span class="a">train</span>           LoRA / QLoRA / full · live loss · VRAM profiles · per-run Actions
-                            └─► <span class="a">merge + bake</span>   adapter → merged → <span class="a">GGUF</span> (quantized)
-                                 └─► <span class="g">benchmark</span>     MMLU · GSM8K · ... · compare tab (Δ = B − A, colored)
+                            └─► <span class="a">merge + export</span> adapter → merged → optional GGUF/GPTQ when tools installed
+                                 └─► <span class="g">benchmark</span>     offline smoke suites · compare tab (Δ = B − A, colored)
                                       └─► <span class="g">chat</span>          single-model engine · vision · RAG context · log tail</pre>
 </div></section>
 
@@ -263,11 +267,11 @@
     <tr><th>What you'd do manually</th><th>What Finetune Studio does</th></tr>
     <tr><td>Five terminal windows + a Notion page of "things to remember"</td><td>One browser tab, one project concept</td></tr>
     <tr><td>Hand-craft chunking + embedding loops</td><td>Click Build — SSE progress the whole way</td></tr>
-    <tr><td>Write your own MMLU eval harness</td><td>Pick the suite, click Run, get a comparison table</td></tr>
+    <tr><td>Write your own eval harness</td><td>Pick a suite, click Run, get a comparison table</td></tr>
     <tr><td>Lose an afternoon to CUDA install issues</td><td>One ./install.sh — GPU-aware wheels, self-repair</td></tr>
-    <tr><td>"Failed to load model from file" (useless)</td><td>Actionable: needs ~19.8 GB, 10.3 free, comfyui is holding it</td></tr>
+    <tr><td>"Failed to load model from file" (useless)</td><td>Actionable: VRAM needed vs free, plus other GPU consumers by name</td></tr>
     <tr><td>Compare two trained runs by hand</td><td>Compare tab — pick run A + B, get the Δ table</td></tr>
-    <tr><td>SSH in to grep uvicorn.log</td><td>Settings → WebUI log tail, Refresh + 5s Auto-refresh</td></tr>
+    <tr><td>SSH in to grep server logs</td><td>Settings → WebUI log tail, Refresh + Auto-refresh</td></tr>
   </table>
 </div></section>
 
@@ -277,7 +281,7 @@
   picks the right CUDA wheels.</p>
 <pre class="codeblock"><span class="p">$</span> git clone https://github.com/GenorTG/finetune-studio.git
 <span class="p">$</span> cd finetune-studio
-<span class="p">$</span> ./install.sh                    <span class="c"># GPU detection, venv, wheels, llama.cpp CLI</span>
+<span class="p">$</span> ./install.sh                    <span class="c"># GPU detection, venv, wheels</span>
 <span class="p">$</span> source .venv/bin/activate
 <span class="p">$</span> fts web --host 0.0.0.0 --port 7860
 <span class="c"># open http://localhost:7860 — an 8-step tour walks you through it</span></pre>
@@ -289,7 +293,7 @@
     <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/INSTALL.md"><b>INSTALL.md</b>install on Linux / macOS / Windows, prerequisites, troubleshooting</a>
     <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/ARCHITECTURE.md"><b>ARCHITECTURE.md</b>layers, route map, data flow, disk layout</a>
     <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/DEPENDENCIES.md"><b>DEPENDENCIES.md</b>every dep → where it's used, GPU-wheel story</a>
-    <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/DEPLOYMENT.md"><b>DEPLOYMENT.md</b>service, update pipeline, ops runbook</a>
+    <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/DEPLOYMENT.md"><b>DEPLOYMENT.md</b>service, update pipeline, generic ops notes</a>
     <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/REFACTOR-SPEC.md"><b>REFACTOR-SPEC.md</b>the locked architecture decisions + roadmap</a>
     <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/ATTRIBUTIONS.md"><b>ATTRIBUTIONS.md</b>packages, versions, licenses</a>
     <a href="https://genortg.github.io/finetune-studio/"><b>PRESENTATION PAGE</b>you're reading it</a>

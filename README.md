@@ -3,17 +3,16 @@
 **Train, run, and evaluate large language models — entirely on your own hardware.**
 
 A self-hosted workshop that gives you full control over the model training
-lifecycle: build RAG corpora, fine-tune with LoRA, chat with vision models,
-run benchmarks, compare runs side-by-side — all from one dark-themed WebUI
-that lives in your browser. The UI, the data pipeline, the settings log tail,
-and the E2E regression suite all live in one repo.
+lifecycle: build RAG corpora, fine-tune with LoRA, chat with local models,
+run evaluation suites, compare runs side-by-side — all from one dark-themed
+WebUI that lives in your browser. The UI, the data pipeline, and the test
+suite all live in one repo.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-ff8800.svg)](LICENSE)
 [![GPU: CUDA](https://img.shields.io/badge/GPU-CUDA-76b900.svg)](#installation)
 [![WebUI](https://img.shields.io/badge/WebUI-FastAPI%20%2B%20Jinja2-009688.svg)](#how-it-works)
 [![Presentation page](https://img.shields.io/badge/%E2%9A%A1_presentation_page-live-00ff66.svg)](https://genortg.github.io/finetune-studio/)
-[![E2E QA](https://img.shields.io/badge/E2E_QA-70%2F70-green.svg)](#how-it-works)
 
 ---
 
@@ -30,6 +29,7 @@ and the E2E regression suite all live in one repo.
 - [How it works](#how-it-works)
 - [Tech stack](#tech-stack)
 - [Documentation](#documentation)
+- [Contributing](#contributing)
 - [License & attributions](#license--attributions)
 
 ---
@@ -43,12 +43,12 @@ finding a benchmark suite, monitoring loss curves, packaging the result,
 serving it, comparing it against the base model…
 
 There are great point-solutions for each piece (HuggingFace TRL, LM Studio,
-ChromaDB, llama.cpp, MMLU…) but **no single workshop that wraps the whole
+PortableRAG, llama.cpp, MMLU…) but **no single workshop that wraps the whole
 lifecycle in one coherent interface**. You end up with five tools open,
 three terminal windows, and a Notion page of "things to remember."
 
 Finetune Studio exists to fix that. It is a **browser-based control room**
-for everything between *raw documents* and *a chat-ready, benchmarked,
+for everything between *raw documents* and *a chat-ready, evaluated,
 fine-tuned model* — running entirely on your hardware, with no cloud
 dependency.
 
@@ -111,8 +111,8 @@ supervised fine-tune (SFT) with LoRA or QLoRA. The studio handles:
 - Adapter merging, model export, VRAM profile checkpoints
 - Real-time loss + step counter, gradient norm, learning rate
 - Configurable LoRA rank, target modules, batch size
-- A "bake" step that produces a self-contained model you can load in
-  inference
+- A merge step that produces a self-contained checkpoint you can load in
+  chat
 - Per past-run Actions (⭐ Set Production, ▶ Inference, ⬇ Download) so
   you can promote / inspect / pull down any of your previous runs
 
@@ -123,12 +123,14 @@ training runs.
 
 > *"I trained two variants. Which one is actually better?"*
 
-The **Benchmarks** workflow runs standard evaluations (MMLU, HellaSwag,
-ARC, TruthfulQA, GSM8K, Winogrande) and gives you a **single comparison
-table**. Two tabs: **Recent scores** (the rolling history of every scored
-run) and **Compare two runs** (pick any two trained exports, get the
-per-suite Δ table so you can see at a glance which one is better at
-what).
+The **Benchmarks** workflow runs offline evaluation suites (built-in
+MMLU-/GSM8K-/HellaSwag-style smoke fixtures, plus project-local suites) and
+gives you a **comparison table**. Two tabs: **Recent scores** (rolling
+history) and **Compare two runs** (pick any two trained exports, get the
+per-suite Δ table).
+
+These are local smoke suites styled after well-known benchmarks — not the
+full HuggingFace dataset downloads — so they stay offline and fast.
 
 📸 **See:** the Benchmarks page with the live score bars and the compare
 results panel.
@@ -138,45 +140,42 @@ results panel.
 > *"I want to run Llama 3 locally with my own chat history, image support,
 > and a clean UI."*
 
-The **Inference** page is a polished chat client. Pick any GGUF or
-safetensors model on disk, load it (with auto-unload on idle to free
-VRAM), and chat. Image input for multimodal models. Per-session
-temperature / top-p / system prompt. Conversation persists across reloads.
+The **Chat** page is a polished client. Pick a safetensors or GGUF model on
+disk, load it (with auto-unload on idle to free VRAM), and chat. Image
+input for multimodal models. Per-session temperature / top-p / system
+prompt. Conversation persists across reloads.
 
-📸 **See:** the Inference page with the RobotHead sprite that pulses its
-mouth as tokens stream in.
+📸 **See:** the Chat page with the RobotHead sprite that pulses its mouth
+as tokens stream in.
 
 ---
 
 ## What's new vs v1
 
-The studio has grown up. Eight UI audit + eight file-library items shipped
-between Sept and today, on top of the Phase 1 dashboard/file-browser/
-data-editor foundation. Highlights:
+The studio has grown up. Highlights since the public v1 release:
 
 - **Benchmarks compare tab** — pick any two trained exports, get the
   per-suite score diff (Δ = B − A, colored).
 - **Documents-indexed panel in RAG** — see every indexed chunk, status,
   and a per-doc Rebuild button (PortableRAG corpus backed by parquet +
-  sources, no SQLite).
+  sources).
 - **Per-export expand rows** on Models and Export pages — click the
   export name to see the parent training run, the training settings, and
   the top-level directory contents (file sizes + names). Same row carries a
-  **▶ Open in inference** button that loads the model and jumps to
-  inference.
-- **Per-file rename + hard-purge** on the data library — the buttons
-  have always been there but the APIs are real now (`PATCH .../rename`,
-  `POST .../purge`). The rename endpoint handles files without
-  `file_versions` rows (created before the versions table existed) by
-  globbing the storage tree.
+  **▶ Open in inference** button that loads the model and jumps to chat.
+- **Per-file rename + hard-purge** on the data library — real APIs
+  (`PATCH .../rename`, `POST .../purge`), including files created before
+  the versions table existed.
 - **Parsed MD preview** on the data library — click 📝 on any converted
-  file to see the actual converted MD streamed from the server
+  file to stream the converted MD
   (`GET /api/projects/{pid}/files/{fid}/parsed`).
 - **Per-project Settings page** — including a **WebUI log tail** card
-  that reads `/tmp/uvicorn.log` with Refresh + 5-second Auto-refresh
-  (`GET /api/projects/{pid}/logs?lines=N`).
-- **70/70 green** Playwright E2E suite in CI — the whole app
-  smoke-tested end-to-end on `http://fan-dragon:7860`, every nightly.
+  (Refresh + Auto-refresh) for debugging long-running jobs.
+- **Playwright E2E suite** — live-browser smoke coverage across the
+  public routes (`tests/e2e_ui_qa.py`, `tests/run_qa.sh`).
+- **Self-update pipeline** — `./update.sh` or Settings → Apply update
+  (pull → venv repair → dep sync → migrations → restart), with startup
+  reconciliation of interrupted runs.
 
 ---
 
@@ -188,12 +187,12 @@ data-editor foundation. Highlights:
 | Configure transformers + accelerator + trl + peft + bitsandbytes | Pick base model + LoRA rank + batch size in a form |
 | Write your own chunking + embedding loop | Click "Build" — chunking, embedding, indexing all wired |
 | Open 4 terminal windows to monitor training | Watch the live progress bar in one panel |
-| Hand-craft an MMLU eval script from scratch | Pick "MMLU", click Run, get a score table |
+| Hand-craft an eval script from scratch | Pick a suite, click Run, get a score table |
 | Open a second tab to compare two trained runs | Pick run A + run B, click Run comparison, get the diff |
 | Lather / rinse / repeat for every file rename | Click rename, type new name, ⏎ |
 | Lose an afternoon to CUDA install issues | One `./install.sh` does it |
 | Re-discover package version conflicts every 3 months | Pinned dependencies, versioned upgrades |
-| Debug a model load failure from "ENOMEM" | Actionable error: "needs ~19.8 GB, only 10.3 free; top consumers: comfyui(pid 2063394)" |
+| Debug a model load failure from "ENOMEM" | Actionable error: how much VRAM is needed vs free, and which other GPU processes are holding it |
 
 The point isn't that any single piece is impossible. The point is that
 **all of it is now in one place**, with a shared project concept that ties
@@ -231,7 +230,7 @@ real APIs.
 
 ### RAG (`/projects/{pid}/rag`)
 
-Build a corpus, search it, tune retrieval parameters. A new
+Build a corpus, search it, tune retrieval parameters. A
 **Documents-indexed panel** at the bottom of the page lists every indexed
 chunk with status, last-indexed timestamp, and a per-doc Rebuild button +
 View-chunks modal. Corpus is persisted on disk as `~/.finetune-studio/
@@ -262,18 +261,25 @@ flickers as the GPU accelerates.
 
 ### Benchmarks (`/projects/{pid}/benchmarks`)
 
-Run MMLU / HellaSwag / ARC / TruthfulQA / GSM8K / Winogrande. Two tabs:
-**Recent scores** (live history) and **Compare two runs** (pickers + a
-per-suite Δ table). The BenchBars sprite fills in as scores arrive.
+Run offline smoke suites (MMLU-/GSM8K-/HellaSwag-style) plus project-local
+suites. Two tabs: **Recent scores** (live history) and **Compare two runs**
+(pickers + a per-suite Δ table). The BenchBars sprite fills in as scores
+arrive.
 
 ![Benchmarks](docs/screenshots/07_benchmarks.png)
 
 ### Export (`/projects/{pid}/export`)
 
-Pick a run, pick a format, hit RUN. The trained-exports table uses the
-same expand-row pattern as Models — click a row to inspect its contents,
-then ▶ Open in inference. The radio/format picker is preserved exactly
-as before.
+Pick a run, pick a format, hit RUN. Supported formats today:
+
+- **merged** — adapter merged onto a compatible base (safetensors)
+- **abliterated** — refusal-direction edit of a merged checkpoint
+- **GGUF** — when llama.cpp conversion tools are installed on the host;
+  otherwise the API fails with a clear install hint
+- **GPTQ** — when `auto-gptq` is installed; otherwise fails honestly
+
+The trained-exports table uses the same expand-row pattern as Models —
+click a row to inspect its contents, then ▶ Open in inference.
 
 ![Export](docs/screenshots/08_export.png)
 
@@ -287,9 +293,10 @@ from the available suites.
 
 ### Settings (`/projects/{pid}/settings`)
 
-Per-project settings including a **WebUI log tail** card that reads
-`/tmp/uvicorn.log` with Refresh + 5-second Auto-refresh. Handy for
-debugging long-running jobs without SSH-ing into the box.
+Per-project settings including a **WebUI log tail** card (Refresh +
+Auto-refresh) for debugging long-running jobs without leaving the browser.
+Also hosts the in-app **Apply update** controls for the self-update
+pipeline.
 
 ![Settings](docs/screenshots/10_settings.png)
 
@@ -336,7 +343,7 @@ each one from its official source.
 │   ┌──────────────────────────────┐  ┌────────────────────────┐ │
 │   │ FastAPI + Jinja2 templates   │  │ Live SSE for progress  │ │
 │   │ Vanilla JS / CSS (no build)  │  │ Chat streaming         │ │
-│   │ Playwright-driven E2E 70/70  │  │ Tail /api/logs         │ │
+│   │ Playwright E2E smoke suite   │  │ Tail /api/…/logs       │ │
 │   └──────────────────────────────┘  └────────────────────────┘ │
 └────────────────────────────────────────────────────────────────┘
                               │  HTTP + Server-Sent Events
@@ -345,8 +352,8 @@ each one from its official source.
 │                                                                │
 │   FastAPI app ── projects API ── RAG pipeline                  │
 │               ── training runner (trl+peft)                    │
-│               ── inference (transformers OR llama.cpp)         │
-│               ── benchmarks (MMLU/HellaSwag/...)               │
+│               ── inference (transformers and/or llama.cpp)     │
+│               ── benchmarks (offline smoke + local suites)     │
 │                                                                │
 │   Storage: SQLite for project metadata                         │
 │            + ~/.cache/huggingface for model weights             │
@@ -361,12 +368,15 @@ each one from its official source.
   per-project sources dir) for RAG vectors, HuggingFace `~/.cache/`
   for model weights.
 - **Streaming:** Server-Sent Events for live progress on RAG build,
-  training, and benchmark runs; `/api/logs` for on-demand log tail
-  reading from `/tmp/uvicorn.log`.
-- **Inference:** Either HuggingFace Transformers (full precision / LoRA)
-  or llama.cpp (GGUF quantized).
-- **Testing:** Playwright live-browser tests in `tests/e2e_ui_qa.py` —
-  70/70 green, runs headless on `fan-dragon:7860` from `tests/run_qa.sh`.
+  training, activity, and related long-running jobs; project log tail
+  for on-demand server logs.
+- **Inference:** HuggingFace Transformers for safetensors / LoRA merges;
+  llama.cpp (via `llama-cpp-python`) for GGUF when available.
+- **Export:** merged and abliterated are first-class; GGUF needs llama.cpp
+  conversion tools on the host; GPTQ needs `auto-gptq`. Missing tools
+  return clear errors instead of fake success.
+- **Testing:** Playwright live-browser smoke in `tests/e2e_ui_qa.py`
+  (override target with `FTS_BASE`).
 - **Updates:** self-healing pipeline — `./update.sh` or Settings → Apply
   update (pull → venv repair → dep sync → migrations → restart), with
   startup reconciliation of interrupted runs.
@@ -380,7 +390,7 @@ ML — `torch` `transformers` `trl` `peft` `bitsandbytes`
 RAG — `sentence-transformers` `PortableRAG` (parquet + sources) `llama-cpp-python`
 Web — vanilla HTML/CSS/JS, Google Fonts (JetBrains Mono, Share Tech Mono,
 VT323, Press Start 2P)
-Tests — `playwright`
+Tests — `playwright` `pytest`
 
 Full list with versions and licenses → **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTIONS.md)**
 
@@ -391,7 +401,7 @@ Full list with versions and licenses → **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTI
 - **[docs/INSTALL.md](docs/INSTALL.md)** — install on Linux / macOS / Windows, prerequisites, troubleshooting
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — layers, route map, data flow, disk layout
 - **[docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)** — every dependency mapped to its consumers
-- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — service, update pipeline, ops runbook
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — service, update pipeline, generic ops notes
 - **[docs/REFACTOR-SPEC.md](docs/REFACTOR-SPEC.md)** — the locked architecture decisions + roadmap
 - **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTIONS.md)** — every package, version, license
 - **[⚡ Presentation page](https://genortg.github.io/finetune-studio/)** — the gallery version of this README
@@ -403,9 +413,9 @@ Full list with versions and licenses → **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTI
 ## Contributing
 
 PRs welcome. Open an issue first if the change is large — this codebase
-prefers clear minimal patches over sweeping refactors. The studio tests
-itself via live browser (`tests/e2e_ui_qa.py`) and we ask new features
-add at least one assertion there. The current bar is **70/70 green**.
+prefers clear minimal patches over sweeping refactors. New features should
+add a focused unit/regression test under `tests/`, and browser-visible
+changes should extend the Playwright smoke suite when practical.
 
 ---
 

@@ -55,12 +55,18 @@
     <thead><tr><th>Training run</th><th>Base model</th><th>Status</th><th>Suite</th><th></th></tr></thead>
     <tbody>
       {% for run in runs %}
-      {% set can_bench = run.status == 'done' and run.output_path %}
+      {% set st = (run.status or '')|lower %}
+      {% set can_bench = st in ('done', 'completed') and run.output_path %}
       <tr>
         <td class="mono">{{ run.name }}</td>
         <td class="mono text-xs dim" title="{{ run.base_model or '' }}">{{ (run.base_model or '')|model_label }}</td>
         <td>
           <span class="pill outline">{{ run.status }}</span>
+          {% if not can_bench %}
+          <div class="dim text-xs mt-1">
+            {% if st not in ('done', 'completed') %}Needs a finished run (status done/completed){% elif not run.output_path %}No output path yet{% endif %}
+          </div>
+          {% endif %}
           {% if run.error %}
           <div class="dim text-xs mt-1" title="{{ run.error }}">{{ run.error[:80] }}{% if run.error|length > 80 %}…{% endif %}</div>
           {% endif %}
@@ -110,12 +116,15 @@
     </tbody>
   </table>
 
-  {# QABUG-012: per-case detail table #}
+  {# QABUG-012: per-case detail table — empty placeholder must leave the DOM
+     when cases exist so NO_DATA markers cannot linger beside results. #}
   <h3 class="mt-6 mb-2">Latest case results</h3>
-  {% include "_case_results.html" %}
-  {% if not cases %}
-  <div class="empty small">No case results yet. Run a suite above.</div>
-  {% endif %}
+  <div id="bench-cases-panel">
+    {% include "_case_results.html" %}
+    {% if not cases %}
+    <div class="empty small" id="bench-cases-empty">No case results yet. Run a suite above.</div>
+    {% endif %}
+  </div>
 
   <div class="data-tabs mt-6" role="tablist" id="bench-tabs">
     <button type="button" class="data-tab active" data-tab="recent" role="tab" id="tab-recent">Recent scores</button>
@@ -125,7 +134,7 @@
   <div class="data-panel active" data-panel="recent" id="panel-recent">
     {% if all_benchmarks %}
     <h3 class="mt-2 text-md">Recent scores</h3>
-    <table class="table">
+    <table class="table" id="bench-scores-table">
       <thead><tr><th>Run</th><th>Suite</th><th>Pass rate</th><th>When</th></tr></thead>
       <tbody>
         {% for b in all_benchmarks[:10] %}
@@ -139,7 +148,7 @@
       </tbody>
     </table>
     {% else %}
-    <div class="empty small mt-2">No benchmark scores yet. Run a suite above.</div>
+    <div class="empty small mt-2" id="bench-scores-empty">No benchmark scores yet. Run a suite above.</div>
     {% endif %}
   </div>
 
@@ -171,8 +180,8 @@
     <button type="button" id="cmp-run-btn" onclick="runComparison()" class="btn primary" disabled>Run comparison</button>
 
     <div id="cmp-results" class="mt-4">
-      <div id="cmp-empty" class="empty small">Pick two runs and click Run comparison to see per-suite score diff</div>
-      <div id="cmp-table-wrap" style="display:none;">
+      <div id="cmp-empty" class="empty small" data-empty-placeholder="1">Pick two runs and click Run comparison to see per-suite score diff</div>
+      <div id="cmp-table-wrap" hidden>
         <div class="text-xs muted mb-2" id="cmp-baseline-note">Baseline is Run A · diff is Run B − Run A</div>
         <table class="table" id="cmp-table">
           <thead>
@@ -222,6 +231,8 @@
   var selA = document.getElementById("cmp-run-a");
   var selB = document.getElementById("cmp-run-b");
   var btn = document.getElementById("cmp-run-btn");
+  var empty = document.getElementById("cmp-empty");
+  var wrap = document.getElementById("cmp-table-wrap");
 
   function syncBtn() {
     if (!btn) return;
@@ -288,12 +299,33 @@
     }
   };
 
+  function showCmpEmpty(msg) {
+    if (!empty) return;
+    empty.hidden = false;
+    empty.classList.add("empty");
+    empty.classList.remove("is-filled");
+    empty.setAttribute("data-empty-placeholder", "1");
+    empty.removeAttribute("aria-hidden");
+    empty.textContent = msg || "Pick two runs and click Run comparison to see per-suite score diff";
+    if (wrap) wrap.hidden = true;
+  }
+
+  function hideCmpEmpty() {
+    if (!empty) return;
+    // Strip empty chrome so NO_DATA ::before/::after cannot linger beside results.
+    empty.hidden = true;
+    empty.classList.remove("empty");
+    empty.classList.add("is-filled");
+    empty.removeAttribute("data-empty-placeholder");
+    empty.setAttribute("aria-hidden", "true");
+    empty.textContent = "";
+    if (wrap) wrap.hidden = false;
+  }
+
   window.runComparison = async function runComparison() {
     var a = selA && selA.value;
     var b = selB && selB.value;
     if (!a || !b) return;
-    var empty = document.getElementById("cmp-empty");
-    var wrap = document.getElementById("cmp-table-wrap");
     var tbody = document.getElementById("cmp-tbody");
     var note = document.getElementById("cmp-baseline-note");
     var prev = btn.textContent;
@@ -319,12 +351,9 @@
           });
       tbody.innerHTML = "";
       if (!rows.length) {
-        empty.style.display = "";
-        empty.textContent = "No overlapping suite scores for these runs.";
-        wrap.style.display = "none";
+        showCmpEmpty("No overlapping suite scores for these runs.");
       } else {
-        empty.style.display = "none";
-        wrap.style.display = "";
+        hideCmpEmpty();
         var aName = (data.run_a && data.run_a.name) || "Run A";
         var bName = (data.run_b && data.run_b.name) || "Run B";
         note.textContent = "Baseline is Run A (" + aName + ") · diff is Run B (" + bName + ") − Run A";
@@ -340,6 +369,7 @@
         });
       }
     } catch (e) {
+      showCmpEmpty("Comparison failed — pick two runs and try again.");
       if (window.fts && window.fts.notify) {
         window.fts.notify("Comparison failed: " + (e.message || e), "error");
       }

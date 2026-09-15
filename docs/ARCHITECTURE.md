@@ -10,7 +10,7 @@
 | Entry | Command | What it does |
 |---|---|---|
 | CLI | `fts …` / `finetune-studio …` (`pyproject [project.scripts]` → `finetune_studio.cli:main`) | 19 subcommands: `webui`, `train`, `convert`, `benchmark`, `rag`, `files`, `analyze`, `augment`, `compare`, `models`, `optimize`, `test`, `suite`, `validate`, `validate_hallucination`, `vram`, `analyze`… (`cli/commands/*.py`, registered in `cli/_registry.py`) |
-| Web | `fts webui` → `uvicorn finetune_studio.webui.app:app --host 0.0.0.0 --port 7860` | The studio itself (systemd user service on fan-dragon) |
+| Web | `fts webui` → `uvicorn finetune_studio.webui.app:app --host 0.0.0.0 --port 7860` | The studio itself (optional systemd user service) |
 
 ## 2. Layer map
 

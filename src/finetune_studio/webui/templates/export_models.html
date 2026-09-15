@@ -81,44 +81,67 @@
 </div>
 
 {# ── Export options ───────────────────────────────────────────────── #}
+{% set caps = export_caps if export_caps is defined else {'gguf': false, 'gptq': false, 'gguf_hint': '', 'gptq_hint': ''} %}
 <div class="card mb-4">
   <div class="card-head">
     <div>
       <div class="card-title">Export format</div>
-      <div class="card-sub">Choose one or more outputs (GGUF, GPTQ, or abliterated).</div>
+      <div class="card-sub">Choose one or more outputs. Unavailable converters are disabled — the API also refuses fake success.</div>
     </div>
   </div>
+  <div id="export-caps" class="p-2 pt-0 text-xs"
+       data-gguf="{{ '1' if caps.gguf else '0' }}"
+       data-gptq="{{ '1' if caps.gptq else '0' }}"
+       {% if not caps.gguf or not caps.gptq %}role="status"{% endif %}>
+    {% if not caps.gguf %}
+    <div class="err mb-1" id="export-gguf-unavailable">GGUF unavailable — {{ caps.gguf_hint }}</div>
+    {% endif %}
+    {% if not caps.gptq %}
+    <div class="err mb-1" id="export-gptq-unavailable">GPTQ unavailable — {{ caps.gptq_hint }}</div>
+    {% endif %}
+  </div>
   <div class="grid grid-2 gap-3 p-2">
-    <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
-      <input type="checkbox" name="export-format" value="gguf" checked class="mt-1">
+    <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);{% if not caps.gguf %}opacity:0.55;cursor:not-allowed;{% else %}cursor:pointer;{% endif %}">
+      <input type="checkbox" name="export-format" value="gguf" class="mt-1"
+             {% if caps.gguf %}checked{% else %}disabled title="{{ caps.gguf_hint }}"{% endif %}>
       <div>
-        <div class="text-sm font-bold">GGUF</div>
+        <div class="text-sm font-bold">GGUF{% if not caps.gguf %} <span class="pill outline">unavailable</span>{% endif %}</div>
         <div class="text-xs dim">For llama.cpp, Ollama, LM Studio. Most compatible.</div>
       </div>
     </label>
-    <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
-      <input type="checkbox" name="export-format" value="gptq" class="mt-1">
+    <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);{% if not caps.gptq %}opacity:0.55;cursor:not-allowed;{% else %}cursor:pointer;{% endif %}">
+      <input type="checkbox" name="export-format" value="gptq" class="mt-1"
+             {% if not caps.gptq %}disabled title="{{ caps.gptq_hint }}"{% endif %}>
       <div>
-        <div class="text-sm font-bold">GPTQ</div>
+        <div class="text-sm font-bold">GPTQ{% if not caps.gptq %} <span class="pill outline">unavailable</span>{% endif %}</div>
         <div class="text-xs dim">Quantized for vLLM / HuggingFace inference.</div>
       </div>
     </label>
     <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
-      <input type="checkbox" name="export-format" value="abliterated" class="mt-1">
+      <input type="checkbox" name="export-format" value="abliterated" class="mt-1"
+             {% if not caps.gguf %}checked{% endif %}>
       <div>
         <div class="text-sm font-bold">Abliterated</div>
         <div class="text-xs dim">Refusal-removed merged model (safetensors).</div>
       </div>
     </label>
+    <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
+      <input type="checkbox" name="export-format" value="merged" class="mt-1">
+      <div>
+        <div class="text-sm font-bold">Merged</div>
+        <div class="text-xs dim">Full safetensors merge (no quantization).</div>
+      </div>
+    </label>
   </div>
 
-  {# GGUF quant options — only shown when GGUF is selected #}
-  <div id="gguf-quants" class="p-2 pt-0">
+  {# GGUF quant options — only shown when GGUF is selected and available #}
+  <div id="gguf-quants" class="p-2 pt-0" {% if not caps.gguf %}hidden{% endif %}>
     <div class="text-xs muted mb-1">GGUF quantizations (select at least one):</div>
     <div class="flex flex-wrap gap-2 text-xs">
       {% for q in ['f16', 'q8_0', 'q6_k', 'q5_k_m', 'q4_k_m', 'q3_k_m', 'q2_k'] %}
       <label class="flex items-center gap-1">
-        <input type="checkbox" name="gguf-quant" value="{{ q }}" {% if q in ['f16','q8_0','q4_k_m','q5_k_m'] %}checked{% endif %}>
+        <input type="checkbox" name="gguf-quant" value="{{ q }}"
+               {% if not caps.gguf %}disabled{% elif q in ['f16','q8_0','q4_k_m','q5_k_m'] %}checked{% endif %}>
         {{ q }}
       </label>
       {% endfor %}
@@ -314,10 +337,28 @@ async function startExport() {
     return;
   }
 
-  const formats = Array.from(document.querySelectorAll('input[name="export-format"]:checked')).map(cb => cb.value);
+  const formats = Array.from(document.querySelectorAll('input[name="export-format"]:checked:not(:disabled)'))
+    .map(cb => cb.value);
   if (formats.length === 0) {
-    if (window.fts && window.fts.notify) fts.notify('Select at least one export format', 'error');
-    else alert('Select at least one export format');
+    const msg = 'Select at least one available export format (GGUF/GPTQ stay disabled until converters are installed)';
+    if (window.fts && window.fts.notify) fts.notify(msg, 'error');
+    else alert(msg);
+    return;
+  }
+  // Never POST disabled formats even if the DOM was tampered with.
+  const capsEl = document.getElementById('export-caps');
+  const ggufOk = !capsEl || capsEl.getAttribute('data-gguf') === '1';
+  const gptqOk = !capsEl || capsEl.getAttribute('data-gptq') === '1';
+  if (formats.includes('gguf') && !ggufOk) {
+    const msg = (document.getElementById('export-gguf-unavailable') || {}).textContent
+      || 'GGUF converter unavailable';
+    if (window.fts && window.fts.notify) fts.notify(msg, 'error');
+    return;
+  }
+  if (formats.includes('gptq') && !gptqOk) {
+    const msg = (document.getElementById('export-gptq-unavailable') || {}).textContent
+      || 'GPTQ converter unavailable';
+    if (window.fts && window.fts.notify) fts.notify(msg, 'error');
     return;
   }
 

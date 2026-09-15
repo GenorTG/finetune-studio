@@ -47,7 +47,7 @@ pip install -e '.[dev]'            # pytest, pytest-asyncio, ruff
 
 ## Python floor
 
-- Developed/tested on **Python 3.13** (venv on fan-dragon is 3.13).
+- Developed/tested on **Python 3.13**.
 - `requires-python` per `pyproject.toml`; TRL 0.12+ and transformers 4.40+ pin the floor.
 
 ## Cleanup summary (when you touch pyproject)

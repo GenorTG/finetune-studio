@@ -822,6 +822,20 @@ body::before {
 .empty::before { content: "┌── NO_DATA ──┐"; display: block; opacity: 0.5; }
 .empty::after  { content: "└──────────────┘"; display: block; opacity: 0.5; }
 .empty .icon { width: 32px; height: 32px; margin: 0 auto 12px; opacity: 0.4; }
+/* Stale markers: once results load, placeholders must not keep NO_DATA chrome
+   in the accessibility tree or painted overlay (display:none alone is enough
+   visually, but strip ::before/::after when hidden / filled). */
+.empty[hidden],
+.empty.is-filled {
+  display: none !important;
+}
+.empty[hidden]::before,
+.empty[hidden]::after,
+.empty.is-filled::before,
+.empty.is-filled::after {
+  content: none !important;
+  display: none !important;
+}
 
 /* ===== Sparkline ===== */
 .spark { height: 36px; display: flex; align-items: flex-end; gap: 2px; }

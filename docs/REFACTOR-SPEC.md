@@ -555,7 +555,7 @@ Each stage is independently shippable. Stages build on each other.
 - Promote status pill to every page
 
 ### Stage 9 — Polish + verify
-- End-to-end test with Qwen3-8B on fan-dragon
+- End-to-end test with Qwen3-8B on a GPU host
 - Cleanup, performance pass, docs
 
 ---

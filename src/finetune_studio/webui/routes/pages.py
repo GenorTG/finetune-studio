@@ -218,6 +218,9 @@ async def hf_models_alias(request: Request):
 async def export_page(pid: str, request: Request):
     """Model export page — choose format, quant, and browse trained exports."""
     from finetune_studio import db
+    from finetune_studio.training.export_capabilities import (
+        probe_export_capabilities,
+    )
     from finetune_studio.webui.routes.project_export import (
         annotate_runs_for_export,
         runs_by_id,
@@ -228,6 +231,7 @@ async def export_page(pid: str, request: Request):
         raise HTTPException(status_code=404, detail="Project not found")
     project["runs"] = annotate_runs_for_export(db.list_runs(pid))
     project["models"] = _scan_run_models(project["runs"])
+    caps = probe_export_capabilities()
     return templates.TemplateResponse(
         request,
         "export_models.html",
@@ -236,6 +240,7 @@ async def export_page(pid: str, request: Request):
             "project": project,
             "pid": pid,
             "runs_by_id": runs_by_id(project["runs"]),
+            "export_caps": caps.as_dict(),
         },
     )
 
@@ -503,7 +508,10 @@ async def benchmarks_page(request: Request, pid: str):
             all_benchmarks.append(b)
     all_benchmarks.sort(key=lambda x: x["ran_at"], reverse=True)
     comparison_runs = [runs[0]["id"], runs[1]["id"]] if len(runs) >= 2 else []
-    done_runs = [r for r in runs if r.get("status") == "done"]
+    done_runs = [
+        r for r in runs
+        if (r.get("status") or "").lower() in ("done", "completed")
+    ]
     # runs are newest-first: A = oldest done (baseline), B = most-recent done
     cmp_default_a = ""
     cmp_default_b = ""
