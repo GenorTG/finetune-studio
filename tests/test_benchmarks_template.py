@@ -77,6 +77,51 @@ def test_benchmarks_template_shows_scores_summary() -> None:
     assert "0.67" in html or "pass_rate: 0.67" in html
 
 
+def test_case_results_table_is_horizontally_scrollable() -> None:
+    """Long question/expected must not clip verdict/time at ~930px viewports."""
+    long_q = "Q" * 400
+    long_exp = "E" * 400
+    html = _render_cases(
+        [
+            {
+                "name": "wide_case",
+                "category": "geo",
+                "question": long_q,
+                "correct_answer": long_exp,
+                "model_answer": "Paris",
+                "verdict": "pass",
+                "judge_reasoning": "ok",
+                "time_ms": 42,
+            },
+        ]
+    )
+    assert 'class="case-results-scroll"' in html
+    assert 'role="region"' in html
+    assert 'aria-label="Case results"' in html
+    assert "case-col-text" in html
+    assert "case-col-verdict" in html
+    assert "case-col-time" in html
+    assert long_q in html
+    assert long_exp in html
+    assert "verdict-badge verdict-pass" in html
+    assert "42" in html
+
+    css = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "finetune_studio"
+        / "webui"
+        / "static"
+        / "css"
+        / "app.css"
+    ).read_text(encoding="utf-8")
+    assert ".case-results-scroll" in css
+    assert "overflow-x: auto" in css
+    assert "table-layout: fixed" in css
+    assert "overflow-wrap: anywhere" in css
+    assert "min-width: 64rem" in css
+
+
 def test_benchmarks_template_suite_catalog_not_raw_json() -> None:
     body = _BENCH.read_text(encoding="utf-8")
     assert 'id="suite-catalog"' in body

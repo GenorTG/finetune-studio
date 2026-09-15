@@ -47,6 +47,7 @@ def test_kv_grid_renders_fields() -> None:
 def test_case_results_is_table_not_json_dump() -> None:
     html = _CASE.read_text(encoding="utf-8")
     assert "case-results-table" in html
+    assert "case-results-scroll" in html
     assert "verdict-badge" in html
     assert "tojson(indent" not in html
 
@@ -54,6 +55,7 @@ def test_case_results_is_table_not_json_dump() -> None:
 def test_testing_results_render_table() -> None:
     html = _TESTING.read_text(encoding="utf-8")
     assert "case-results-table" in html
+    assert "case-results-scroll" in html
     assert "renderResults" in html
     assert "JSON.stringify(scores" not in html
     assert "t-results-debug" in html

@@ -13,19 +13,22 @@
 </div>
 {% endif %}
 {% if cases %}
+{# Scroll wrapper: parent .content uses overflow-x:hidden, so long Q/A cells
+   must scroll inside this box or verdict/time columns disappear off-screen. #}
+<div class="case-results-scroll" role="region" aria-label="Case results" tabindex="0">
 <table class="table case-results-table" id="case-results-table">
   <thead>
     <tr>
-      <th>#</th>
-      <th>Case name</th>
-      <th>Category</th>
-      <th>Question</th>
-      <th>Expected</th>
-      <th>Model answer</th>
-      <th>Verdict</th>
-      <th>Judge reasoning</th>
-      <th>Time (ms)</th>
-      <th>Ran at</th>
+      <th class="case-col-idx">#</th>
+      <th class="case-col-name">Case name</th>
+      <th class="case-col-cat">Category</th>
+      <th class="case-col-text">Question</th>
+      <th class="case-col-text">Expected</th>
+      <th class="case-col-answer">Model answer</th>
+      <th class="case-col-verdict">Verdict</th>
+      <th class="case-col-judge">Judge reasoning</th>
+      <th class="case-col-time">Time (ms)</th>
+      <th class="case-col-ran">Ran at</th>
     </tr>
   </thead>
   <tbody>
@@ -33,22 +36,23 @@
     {% set v = c.verdict or '' %}
     {% set vclass = 'verdict-pass' if v == 'pass' else ('verdict-partial' if v == 'partial' else ('verdict-fail' if v == 'fail' else 'verdict-none')) %}
     <tr>
-      <td>{{ loop.index }}</td>
-      <td class="mono">{{ c.name or c.case_name or '' }}</td>
-      <td>{{ c.category or '—' }}</td>
-      <td class="case-col-fixed">{{ c.question or '' }}</td>
-      <td class="case-col-fixed">{{ c.correct_answer or c.expected or '' }}</td>
-      <td><pre class="case-answer-pre">{{ c.model_answer or c.response or '' }}</pre></td>
-      <td><span class="verdict-badge {{ vclass }}">{{ v or 'none' }}</span></td>
-      <td class="judge-reasoning">
+      <td class="case-col-idx">{{ loop.index }}</td>
+      <td class="mono case-col-name">{{ c.name or c.case_name or '' }}</td>
+      <td class="case-col-cat">{{ c.category or '—' }}</td>
+      <td class="case-col-text case-col-fixed">{{ c.question or '' }}</td>
+      <td class="case-col-text case-col-fixed">{{ c.correct_answer or c.expected or '' }}</td>
+      <td class="case-col-answer"><pre class="case-answer-pre">{{ c.model_answer or c.response or '' }}</pre></td>
+      <td class="case-col-verdict"><span class="verdict-badge {{ vclass }}">{{ v or 'none' }}</span></td>
+      <td class="judge-reasoning case-col-judge">
         {% if c.judge_reasoning %}
         <details><summary>reasoning</summary><div class="text-xs">{{ c.judge_reasoning }}</div></details>
         {% else %}—{% endif %}
       </td>
-      <td class="mono">{{ c.time_ms if c.time_ms is defined else '—' }}</td>
-      <td class="dim">{{ c.ran_at or c._ran_at_str or '—' }}</td>
+      <td class="mono case-col-time">{{ c.time_ms if c.time_ms is defined else '—' }}</td>
+      <td class="dim case-col-ran">{{ c.ran_at or c._ran_at_str or '—' }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+</div>
 {% endif %}
