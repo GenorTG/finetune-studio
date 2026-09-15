@@ -12,99 +12,39 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from finetune_studio import db
+from finetune_studio.benchmarks.suite_defs import (
+    discover_suites,
+    is_selectable_suite,
+)
 from finetune_studio.testing.suite import BenchmarkCase, load_test_suite
 
 router = APIRouter()
 _log = logging.getLogger(__name__)
 
-_KNOWN_SUITES: list[dict[str, str]] = [
-    {
-        "name": "default",
-        "path": "data/benchmarks/default.json",
-        "description": "General-purpose benchmark",
-    },
-    {
-        "name": "tool_calling",
-        "path": "data/benchmarks/tool_calling.json",
-        "description": "Tool-calling accuracy",
-    },
-    {
-        "name": "chris_ai_v21",
-        "path": "data/benchmarks/chris_ai_v21.json",
-        "description": "Chris AI v21 suite",
-    },
-]
-
-
-def _suite_entry(
-    name: str,
-    path: str,
-    description: str = "",
-    *,
-    label: str | None = None,
-) -> dict[str, Any]:
-    """Build a suite dict for discovery / template rendering."""
-    return {
-        "name": name,
-        "path": path,
-        "description": description,
-        "label": label or name,
-    }
-
 
 def _discover_suites(project_id: str | None = None) -> list[dict[str, Any]]:
-    """Return suites whose JSON file exists, plus project auto-suites.
+    """Return selectable suites (industry smoke + local JSON + auto-suites)."""
+    return discover_suites(project_id)
 
-    Known / discovered files under ``data/benchmarks/`` are included only when
-    the path is present on disk. When ``project_id`` is set, rows from
-    ``auto_suites`` for that project are appended (labelled
-    ``auto · <name> (<n> cases)``).
+
+def _validate_suite_file(
+    suite_path: str,
+    *,
+    project_id: str | None = None,
+    require_selectable: bool = False,
+) -> tuple[list[BenchmarkCase] | None, JSONResponse | None]:
+    """Ensure suite_path exists, parses, and has ≥1 case. Returns (cases, error).
+
+    When ``require_selectable`` is True, the path must also appear in
+    ``discover_suites`` for the project (UI selection validation).
     """
-    found: dict[str, dict[str, Any]] = {}
-
-    for s in _KNOWN_SUITES:
-        path = s["path"]
-        if Path(path).is_file():
-            found[s["name"]] = _suite_entry(
-                s["name"], path, s.get("description", "")
-            )
-
-    bench_dir = Path("data/benchmarks")
-    if bench_dir.is_dir():
-        for f in sorted(bench_dir.glob("*.json")):
-            name = f.stem
-            if name not in found:
-                found[name] = _suite_entry(
-                    name, str(f), f"Discovered: {f.name}"
-                )
-
-    if project_id:
-        with db.cursor() as c:
-            rows = c.execute(
-                "SELECT suite_name, suite_path, case_count FROM auto_suites "
-                "WHERE project_id = ? ORDER BY created_at DESC",
-                (project_id,),
-            ).fetchall()
-        for row in rows:
-            suite_name = str(row["suite_name"])
-            suite_path = str(row["suite_path"])
-            case_count = int(row["case_count"] or 0)
-            label = f"auto · {suite_name} ({case_count} cases)"
-            key = f"auto:{suite_name}:{suite_path}"
-            found[key] = _suite_entry(
-                suite_name,
-                suite_path,
-                label,
-                label=label,
-            )
-
-    return sorted(found.values(), key=lambda s: (s.get("label") or s["name"]))
-
-
-def _validate_suite_file(suite_path: str) -> tuple[list[BenchmarkCase] | None, JSONResponse | None]:
-    """Ensure suite_path exists, parses, and has ≥1 case. Returns (cases, error)."""
     if not suite_path or not str(suite_path).strip():
         return None, JSONResponse({"error": "suite_path required"}, status_code=400)
+    if require_selectable and not is_selectable_suite(suite_path, project_id):
+        return None, JSONResponse(
+            {"error": f"suite not selectable: {suite_path}"},
+            status_code=400,
+        )
     path = Path(suite_path)
     if not path.is_file():
         return None, JSONResponse(

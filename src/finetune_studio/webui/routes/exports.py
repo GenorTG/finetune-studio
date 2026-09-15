@@ -376,6 +376,11 @@ def _export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None
         if not os.path.isfile(out_path):
             raise RuntimeError(f"output GGUF not found after conversion: {out_path}")
         size = os.path.getsize(out_path)
+        if size <= 0:
+            raise RuntimeError(
+                f"output GGUF is empty after conversion: {out_path}. "
+                "Refuse to mark export done without a non-empty artifact."
+            )
         db.mark_export_done(eid, output_path=out_path, size_bytes=size,
                             size_human=_human_size(size),
                             intermediate_path=intermediate_path)

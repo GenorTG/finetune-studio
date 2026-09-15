@@ -33,15 +33,19 @@
       {% endif %}
     </div>
     <div class="col-span-5">
-      <label class="block text-xs muted mb-1">Test suite (JSON)</label>
+      <label class="block text-xs muted mb-1">Test suite</label>
       <select id="t-suite" class="select" onchange="onSuitePicked()">
         <option value="">— pick a suite —</option>
         {% for s in suites %}
-        <option value="{{ s.path }}">{% if s.path %}{{ s.path.rsplit('/', 1)[-1] }}{% else %}{{ s.name }}{% endif %}</option>
+        <option value="{{ s.path }}"
+                data-name="{{ s.name }}"
+                data-type="{{ s.suite_type if s.suite_type is defined else 'local' }}"
+                data-source="{{ s.source if s.source is defined else '' }}"
+                data-label="{{ s.label if s.label is defined else s.name }}">{{ s.label if s.label is defined else s.name }}</option>
         {% endfor %}
       </select>
       {% if not suites %}
-      <div class="text-xs dim mt-1">No suites discovered. Add suites under projects/{{ pid }}/data/ (or data/benchmarks/).</div>
+      <div class="text-xs dim mt-1">No suites discovered. Industry smoke fixtures should ship with the install; you can also add JSON under data/benchmarks/.</div>
       {% endif %}
       <div id="t-suite-hint" class="text-xs dim mt-1" style="display:none;"></div>
     </div>
@@ -97,6 +101,13 @@
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
+  function suiteLabelFromSelect() {
+    const sel = document.getElementById('t-suite');
+    if (!sel || !sel.value) return '';
+    const opt = sel.options[sel.selectedIndex];
+    return (opt && opt.getAttribute('data-label')) || suiteLabel(sel.value);
+  }
+
   function suiteLabel(path) {
     if (!path) return '';
     const parts = path.split('/');
@@ -146,15 +157,19 @@
 
   window.onSuitePicked = function() {
     const hint = document.getElementById('t-suite-hint');
-    const suite = document.getElementById('t-suite').value;
-    if (!hint) return;
-    if (!suite) {
+    const sel = document.getElementById('t-suite');
+    if (!hint || !sel) return;
+    if (!sel.value) {
       hint.style.display = 'none';
       hint.textContent = '';
       return;
     }
+    const opt = sel.options[sel.selectedIndex];
+    const type = (opt && opt.getAttribute('data-type')) || 'local';
+    const source = (opt && opt.getAttribute('data-source')) || '';
+    const label = suiteLabelFromSelect();
     hint.style.display = '';
-    hint.textContent = '✓ Using suite: ' + suiteLabel(suite);
+    hint.textContent = '✓ ' + label + (source ? ' · source: ' + source : '') + ' · type: ' + type;
   };
 
   // QABUG-011 / QABUG-013: do NOT call /api/testing/load first — the
@@ -168,7 +183,7 @@
       status.textContent = 'Please pick a test suite.';
       return;
     }
-    const suiteName = suiteLabel(suite);
+    const suiteName = suiteLabelFromSelect() || suiteLabel(suite);
     status.textContent = '✓ Using suite: ' + suiteName + ' — Running…';
     results.innerHTML = '<span class="muted">Running suite (auto-loading model if needed)…</span>';
     if (liveLog) {

@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "id": "gsm8k_smoke",
+  "version": 1,
+  "family": "gsm8k",
+  "suite_type": "industry_smoke",
+  "title": "GSM8K-style arithmetic",
+  "description": "Local smoke suite styled after GSM8K grade-school math. Not the HuggingFace GSM8K dataset — offline only.",
+  "cases": [
+    {
+      "name": "gsm8k_apples_left",
+      "category": "math",
+      "question": "If a store has 15 apples and sells 7, how many are left? Give only the final number.",
+      "correct_answer": "8",
+      "keywords": ["8"]
+    },
+    {
+      "name": "gsm8k_train_distance",
+      "category": "math",
+      "question": "A train travels 60 mph for 2 hours. How far does it go? Give only the final number.",
+      "correct_answer": "120",
+      "keywords": ["120"]
+    },
+    {
+      "name": "gsm8k_books_total",
+      "category": "math",
+      "question": "If you buy 3 books at $12 each, what is the total cost in dollars? Give only the final number.",
+      "correct_answer": "36",
+      "keywords": ["36"]
+    },
+    {
+      "name": "gsm8k_pizza_slices",
+      "category": "math",
+      "question": "A pizza has 8 slices. If you eat 3, how many are left? Give only the final number.",
+      "correct_answer": "5",
+      "keywords": ["5"]
+    },
+    {
+      "name": "gsm8k_percent_of",
+      "category": "math",
+      "question": "What is 15% of 200? Give only the final number.",
+      "correct_answer": "30",
+      "keywords": ["30"]
+    },
+    {
+      "name": "gsm8k_split_evenly",
+      "category": "math",
+      "question": "Four friends share 28 stickers equally. How many stickers does each friend get? Give only the final number.",
+      "correct_answer": "7",
+      "keywords": ["7"]
+    }
+  ]
+}

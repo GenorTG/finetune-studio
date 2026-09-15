@@ -75,9 +75,22 @@ class CaseResult:
 
 
 def load_test_suite(path: str) -> list[BenchmarkCase]:
-    """Load a v2 Q&A benchmark suite from JSON."""
+    """Load a v2 Q&A benchmark suite from JSON.
+
+    Accepts either a bare case list, or a versioned suite definition object
+    with a ``cases`` array (industry smoke fixtures).
+    """
     with open(path) as f:
         data = json.load(f)
+    if isinstance(data, dict):
+        raw_cases = data.get("cases")
+        if not isinstance(raw_cases, list):
+            raise TypeError(
+                f"suite definition at {path!r} must contain a 'cases' list"
+            )
+        data = raw_cases
+    if not isinstance(data, list):
+        raise TypeError(f"suite at {path!r} must be a JSON list or definition")
     cases = []
     for item in data:
         # Support both v2 (question/correct_answer) and v1 (messages/expected_keywords)

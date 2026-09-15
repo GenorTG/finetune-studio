@@ -242,6 +242,44 @@ class TestExportWorkerSkip:
             assert "convert_hf_to_gguf" in r["error"]
             assert "llama.cpp" in r["error"]
 
+    def test_failure_when_converter_writes_empty_gguf(
+        self, mock_settings, monkeypatch, tmp_path
+    ):
+        """Refuse to mark done when the .gguf exists but is empty."""
+        from unittest.mock import patch
+
+        from finetune_studio import db
+        from finetune_studio.webui.routes.exports import _export_worker
+
+        monkeypatch.delenv("FTS_SKIP_EXPORT", raising=False)
+        pid = db.create_project(name="E", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        eid = db.create_export(project_id=pid, run_id=rid, quant="Q8_0")["id"]
+
+        fake_convert = tmp_path / "convert_hf_to_gguf.py"
+        fake_convert.write_text("# fake\n", encoding="utf-8")
+        merged_dir = tmp_path / "merged"
+        merged_dir.mkdir()
+        out_path = tmp_path / "model-Q8_0.gguf"
+
+        def fake_run(cmd, **_kw):
+            # Simulate convert creating a zero-byte outfile.
+            out_path.write_bytes(b"")
+            return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        with patch("finetune_studio.webui.routes.exports._find_convert_script",
+                   return_value=str(fake_convert)), \
+             patch("finetune_studio.webui.routes.exports._find_llama_tool",
+                   return_value="/bin/true"), \
+             patch("finetune_studio.webui.routes.exports.subprocess.run",
+                   side_effect=fake_run):
+            _export_worker(eid, merged_dir=str(merged_dir),
+                           out_path=str(out_path), quant="Q8_0")
+        r = db.get_export(eid)
+        assert r["status"] == "error"
+        assert "empty" in (r.get("error") or "").lower()
+
     def test_failure_when_only_convert_present_but_quant_needs_binary(
         self, mock_settings, monkeypatch
     ):

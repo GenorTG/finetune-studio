@@ -4,6 +4,9 @@ Supports raw adapter-only runs by merging onto a compatible 16-bit base at
 export time (``base_model`` override or the run's stored base). AWQ was
 removed (unmaintained); supported formats are ``gguf``, ``gptq``,
 ``abliterated``, and ``merged`` (safetensors only).
+
+GGUF exports only report success when the requested ``.gguf`` artifact(s)
+exist on disk and are non-empty — never on HTTP 200 / empty dirs alone.
 """
 
 from __future__ import annotations
@@ -17,6 +20,150 @@ SUPPORTED_EXPORT_FORMATS: frozenset[str] = frozenset(
 )
 
 DEFAULT_GGUF_QUANTS: list[str] = ["f16", "q8_0", "q4_k_m", "q5_k_m"]
+
+GGUF_CONVERTER_MISSING_MSG: str = (
+    "convert_hf_to_gguf.py not found. Install llama.cpp on this host: "
+    "git clone https://github.com/ggerganov/llama.cpp && "
+    "pip install -r llama.cpp/requirements/"
+    "requirements-convert_hf_to_gguf.txt. "
+    "Project-local .llama.cpp/ is also searched. "
+    "Or choose format=merged until the converter is installed."
+)
+
+
+def _project_root() -> str:
+    """Repo root containing ``.llama.cpp/`` (``src/finetune_studio/training/``)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    return os.path.dirname(os.path.dirname(os.path.dirname(here)))
+
+
+def llama_cpp_search_paths() -> list[str]:
+    """Ordered roots where ``convert_hf_to_gguf.py`` may live."""
+    return [
+        os.path.join(_project_root(), ".llama.cpp"),
+        os.path.expanduser("~/llama.cpp"),
+        "/opt/llama.cpp",
+        "/usr/local/llama.cpp",
+    ]
+
+
+def find_gguf_convert_script() -> str | None:
+    """Locate llama.cpp ``convert_hf_to_gguf.py``, or None if missing."""
+    for base in llama_cpp_search_paths():
+        candidate = os.path.join(base, "convert_hf_to_gguf.py")
+        if os.path.isfile(candidate):
+            return candidate
+    # Legacy filenames / PATH-adjacent installs
+    for candidate in (
+        os.path.expanduser("~/llama.cpp/convert.py"),
+        os.path.expanduser("~/llama.cpp/convert-hf-to-gguf.py"),
+        "/usr/local/bin/convert-hf-to-gguf.py",
+    ):
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
+def normalize_gguf_quant(quant: str) -> str:
+    """Normalize a quant label for filename matching (``Q4_K_M`` → ``q4_k_m``)."""
+    return (quant or "").strip().lower().replace("-", "_").replace(".", "_")
+
+
+def gguf_filename_matches_quant(filename: str, quant: str) -> bool:
+    """True when ``filename`` is a ``.gguf`` whose stem ends with the quant."""
+    name = os.path.basename(filename).lower()
+    if not name.endswith(".gguf"):
+        return False
+    stem = name[:-5]
+    nq = normalize_gguf_quant(quant)
+    if not nq:
+        return False
+    if stem == nq or stem == f"model-{nq}":
+        return True
+    return stem.endswith((f"-{nq}", f"_{nq}"))
+
+
+def verify_gguf_artifacts(
+    gguf_dir: str,
+    quants: list[str] | None = None,
+) -> dict[str, Any]:
+    """Require non-empty ``.gguf`` files for ``quants`` (or any if unset).
+
+    Returns ``ok``, ``files``, ``missing``, ``error``. Never raises.
+    """
+    wanted = [normalize_gguf_quant(q) for q in (quants or []) if str(q).strip()]
+    if not os.path.isdir(gguf_dir):
+        return {
+            "ok": False,
+            "files": [],
+            "missing": wanted,
+            "error": f"GGUF directory missing: {gguf_dir}",
+        }
+    try:
+        names = os.listdir(gguf_dir)
+    except OSError as e:
+        return {
+            "ok": False,
+            "files": [],
+            "missing": wanted,
+            "error": f"Cannot read GGUF directory {gguf_dir}: {e}",
+        }
+
+    nonempty: list[str] = []
+    for name in names:
+        if not name.lower().endswith(".gguf"):
+            continue
+        path = os.path.join(gguf_dir, name)
+        try:
+            if os.path.isfile(path) and os.path.getsize(path) > 0:
+                nonempty.append(path)
+        except OSError:
+            continue
+
+    if not nonempty:
+        return {
+            "ok": False,
+            "files": [],
+            "missing": wanted,
+            "error": (
+                "No non-empty .gguf files found after export. "
+                "Install llama.cpp (convert_hf_to_gguf.py + llama-quantize) "
+                "and retry, or choose format=merged."
+            ),
+        }
+
+    if not wanted:
+        return {
+            "ok": True,
+            "files": nonempty,
+            "missing": [],
+            "error": None,
+        }
+
+    matched: list[str] = []
+    missing: list[str] = []
+    for nq in wanted:
+        hit = next(
+            (p for p in nonempty if gguf_filename_matches_quant(p, nq)),
+            None,
+        )
+        if hit is None:
+            missing.append(nq)
+        else:
+            matched.append(hit)
+
+    if missing:
+        return {
+            "ok": False,
+            "files": matched,
+            "missing": missing,
+            "error": (
+                "Missing non-empty GGUF artifact(s) for: "
+                + ", ".join(missing)
+                + ". Conversion may have failed or llama.cpp tools are incomplete."
+            ),
+        }
+    return {"ok": True, "files": matched, "missing": [], "error": None}
 
 
 def validate_base_model(base_model: str) -> str:
@@ -151,6 +298,102 @@ def _export_failure(
     return out
 
 
+def _export_gguf(
+    engine: Any,
+    *,
+    output_path: str,
+    quant_list: list[str],
+    force: bool,
+) -> dict[str, Any]:
+    """Run GGUF conversion and only succeed when artifacts verify non-empty."""
+    gguf_dir = os.path.join(output_path, "gguf")
+    existing = verify_gguf_artifacts(gguf_dir, quant_list)
+    if existing["ok"] and not force:
+        return {
+            "ok": True,
+            "status": "skipped",
+            "format": "gguf",
+            "gguf_path": gguf_dir,
+            "files": existing["files"],
+            "quants": quant_list,
+            "message": (
+                "GGUF already exists. Use force=true to overwrite."
+            ),
+        }
+
+    if find_gguf_convert_script() is None:
+        return _export_failure(
+            GGUF_CONVERTER_MISSING_MSG,
+            format="gguf",
+            gguf_path=gguf_dir,
+            quants=quant_list,
+            missing=quant_list,
+        )
+
+    result = engine._do_export_gguf(output_path)
+    # Engine historically returned skipped/reason without error — treat as fail
+    # unless non-empty artifacts for the requested quants are on disk.
+    engine_error = result.get("error") or result.get("reason")
+    if result.get("error"):
+        return _export_failure(
+            str(result["error"]),
+            format="gguf",
+            quants=quant_list,
+            **{k: v for k, v in result.items() if k not in ("ok", "status")},
+        )
+
+    verified = verify_gguf_artifacts(gguf_dir, quant_list)
+    if not verified["ok"]:
+        detail = verified.get("error") or "GGUF artifacts missing or empty"
+        if engine_error and str(engine_error) not in detail:
+            detail = f"{engine_error}. {detail}"
+        return _export_failure(
+            detail,
+            format="gguf",
+            gguf_path=gguf_dir,
+            quants=quant_list,
+            files=verified.get("files") or [],
+            missing=verified.get("missing") or quant_list,
+            **{
+                k: v
+                for k, v in result.items()
+                if k
+                not in (
+                    "ok",
+                    "status",
+                    "error",
+                    "gguf_path",
+                    "quants",
+                    "files",
+                    "missing",
+                )
+            },
+        )
+
+    return {
+        "ok": True,
+        "status": "exported" if not result.get("skipped") else "skipped",
+        "format": "gguf",
+        "gguf_path": gguf_dir,
+        "files": verified["files"],
+        "quants": quant_list,
+        **{
+            k: v
+            for k, v in result.items()
+            if k
+            not in (
+                "ok",
+                "status",
+                "format",
+                "gguf_path",
+                "files",
+                "quants",
+                "error",
+            )
+        },
+    }
+
+
 def export_trained_run(
     run: dict[str, Any],
     *,
@@ -207,28 +450,12 @@ def export_trained_run(
     engine.config = cfg
 
     if fmt_norm == "gguf":
-        gguf_dir = os.path.join(output_path, "gguf")
-        if os.path.isdir(gguf_dir) and os.listdir(gguf_dir) and not force:
-            return {
-                "ok": True,
-                "status": "skipped",
-                "format": "gguf",
-                "gguf_path": gguf_dir,
-                "message": (
-                    "GGUF already exists. Use force=true to overwrite."
-                ),
-            }
-        result = engine._do_export_gguf(output_path)
-        if result.get("error"):
-            return _export_failure(
-                str(result["error"]), format="gguf", **result
-            )
-        return {
-            "ok": True,
-            "status": "exported" if not result.get("skipped") else "skipped",
-            "format": "gguf",
-            **result,
-        }
+        return _export_gguf(
+            engine,
+            output_path=output_path,
+            quant_list=quant_list,
+            force=force,
+        )
 
     if fmt_norm == "abliterated":
         abl_dir = os.path.join(output_path, "abliterated")

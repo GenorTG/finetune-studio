@@ -7,7 +7,7 @@
 {% block content %}
 <div class="page-head">
   <h1>Benchmarks — {{ project.name }}</h1>
-  <div class="sub">Run project Q&amp;A suites against trained models (or the untrained base), then score answers with heuristic or AI judging.</div>
+  <div class="sub">Run industry smoke suites or project Q&amp;A suites against trained models (or the untrained base), then score answers with heuristic or AI judging.</div>
 </div>
 
 <div class="card">
@@ -29,16 +29,26 @@
   </div>
   {% elif not suites %}
   <div class="empty">
-    <p>No benchmark suites yet — train a run (auto-suite) or add a JSON suite under data/benchmarks/</p>
+    <p>No benchmark suites available — industry smoke fixtures missing from the install.</p>
     <a href="/projects/{{ pid }}/training" class="btn primary" data-link>Open Training</a>
   </div>
   {% else %}
-  <div class="text-sm dim mb-2">Available test suites:</div>
-  <ul class="text-sm mb-4">
-    {% for s in suites %}
-    <li class="mono">› {{ s.label if s.label is defined else (s.name if s.name is defined else s) }}</li>
-    {% endfor %}
-  </ul>
+  <div class="text-sm dim mb-2">Available suites (industry smoke · local JSON · project auto):</div>
+  <table class="table text-sm mb-4" id="suite-catalog">
+    <thead>
+      <tr><th>Suite</th><th>Type</th><th>Source</th><th>Cases</th></tr>
+    </thead>
+    <tbody>
+      {% for s in suites %}
+      <tr>
+        <td>{{ s.label if s.label is defined else s.name }}</td>
+        <td><span class="pill outline">{{ s.suite_type if s.suite_type is defined else 'local' }}</span></td>
+        <td class="dim">{{ s.source if s.source is defined else '—' }}</td>
+        <td class="mono">{% if s.case_count is defined and s.case_count is not none %}{{ s.case_count }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 
   <h3 class="mt-4 mb-2">Run a benchmark</h3>
   <table class="table">
@@ -59,11 +69,13 @@
           <form data-api="/api/benchmarks/projects/{{ pid }}/runs/{{ run.id }}/run"
                 data-reload="true" style="display:inline;">
             <input type="hidden" name="suite_name" value="{{ suites[0].name if suites else 'default' }}">
-            <select name="suite_path" class="select" style="min-width:140px;font-size:11px;"
+            <select name="suite_path" class="select" style="min-width:220px;font-size:11px;"
                     onchange="var o=this.options[this.selectedIndex]; this.form.elements.suite_name.value=o.getAttribute('data-name')||o.text;">
               {% for s in suites %}
               <option value="{{ s.path if s.path is defined else s }}"
-                      data-name="{{ s.name if s.name is defined else s }}">{{ s.label if s.label is defined else (s.name if s.name is defined else s) }}</option>
+                      data-name="{{ s.name if s.name is defined else s }}"
+                      data-type="{{ s.suite_type if s.suite_type is defined else 'local' }}"
+                      data-source="{{ s.source if s.source is defined else '' }}">{{ s.label if s.label is defined else (s.name if s.name is defined else s) }}</option>
               {% endfor %}
             </select>
             <button type="submit" class="btn primary" style="font-size:11px;padding:4px 10px;"
@@ -81,11 +93,13 @@
           <form data-api="/api/benchmarks/projects/{{ pid }}/base/run"
                 data-reload="true" style="display:inline;">
             <input type="hidden" name="suite_name" value="{{ suites[0].name if suites else 'default' }}">
-            <select name="suite_path" class="select" style="min-width:140px;font-size:11px;"
+            <select name="suite_path" class="select" style="min-width:220px;font-size:11px;"
                     onchange="var o=this.options[this.selectedIndex]; this.form.elements.suite_name.value=o.getAttribute('data-name')||o.text;">
               {% for s in suites %}
               <option value="{{ s.path if s.path is defined else s }}"
-                      data-name="{{ s.name if s.name is defined else s }}">{{ s.label if s.label is defined else (s.name if s.name is defined else s) }}</option>
+                      data-name="{{ s.name if s.name is defined else s }}"
+                      data-type="{{ s.suite_type if s.suite_type is defined else 'local' }}"
+                      data-source="{{ s.source if s.source is defined else '' }}">{{ s.label if s.label is defined else (s.name if s.name is defined else s) }}</option>
               {% endfor %}
             </select>
             <button type="submit" class="btn" style="font-size:11px;padding:4px 10px;"

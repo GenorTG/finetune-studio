@@ -20,7 +20,9 @@ def test_testing_page_renders_suite_select(client) -> None:
     assert "— pick a suite —" in body
     # Known suites from _discover_suites always present
     assert 'value="data/benchmarks/default.json"' in body
-    assert "default.json" in body
+    assert "default.json" in body or "local ·" in body
+    assert "industry ·" in body
+    assert "MMLU-style" in body
     # Free-text path input must be gone
     assert 'placeholder="path/to/suite.json"' not in body
     assert 'type="text"' not in body or 'id="t-suite" type="text"' not in body
@@ -32,7 +34,8 @@ def test_testing_page_renders_suite_select(client) -> None:
     # Model selector is project-scoped (not global HF discovery alone)
     assert 'id="t-model"' in body
     assert "— auto (latest merged) —" in body
-
+    # Readable labels, not raw suite JSON blobs in the select
+    assert "<pre>" not in body.split('id="t-suite"')[1].split("</select>")[0]
 
 def test_testing_page_lists_project_merged_export(client, tmp_path) -> None:
     """After merge-at-export, the merged path must appear in the selector."""
@@ -62,11 +65,13 @@ def test_testing_page_suite_options_match_discover(client) -> None:
     from finetune_studio.webui.routes.benchmarks import _discover_suites
 
     pid = _project(client)
-    suites = _discover_suites()
+    suites = _discover_suites(pid)
     r = client.get(f"/projects/{pid}/testing")
     assert r.status_code == 200
     for s in suites:
         assert f'value="{s["path"]}"' in r.text
+        if s.get("label"):
+            assert s["label"] in r.text
 
 
 def test_recent_suite_runs_helper() -> None:

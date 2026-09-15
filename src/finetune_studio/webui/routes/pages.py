@@ -380,7 +380,7 @@ async def project_testing_page(request: Request, pid: str):
     ctx = _project_ctx(pid)
     if not ctx:
         return RedirectResponse(url="/projects", status_code=302)
-    suites = _discover_suites()
+    suites = _discover_suites(pid)
     recent_runs = _recent_suite_runs(pid, limit=5)
     # Project-scoped exports only (not global HF discovery) so merge-at-export
     # results appear in the selector and match auto-load.

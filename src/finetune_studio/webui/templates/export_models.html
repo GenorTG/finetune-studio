@@ -387,38 +387,76 @@ async function startExport() {
         body: JSON.stringify(body),
       });
       const d = await r.json();
-      const failed = !r.ok || d.ok === false || d.status === 'failed' || d.error;
+      const failed = !r.ok || d.ok === false || d.status === 'failed' || !!d.error;
       if (failed) {
-        const errMsg = d.error || d.message || (`HTTP ${r.status}`);
-        status.textContent = `✗ ${fmt}: ${errMsg}`;
+        const text = d.error || d.reason || d.message || (`HTTP ${r.status}`);
+        status.textContent = `✗ ${fmt}: ${text}`;
         status.classList.add('err');
         showResultCard([
           ['Format', fmt],
           ['Status', 'failed'],
-          ['Error', errMsg],
+          ['Error', text],
+          ['Missing', Array.isArray(d.missing) ? d.missing.join(', ') : '—'],
         ]);
-        if (window.fts && window.fts.notify) fts.notify(`${fmt} export failed: ${errMsg}`, 'error');
+        if (window.fts && window.fts.notify) fts.notify(`${fmt} export failed: ${text}`, 'error');
         btn.disabled = false;
         return;
       }
       if (d.export_id) {
         const finalRow = await watchExport(d.export_id);
         if ((finalRow.status || '') === 'failed' || finalRow.error) {
-          status.textContent = `✗ ${fmt}: ${finalRow.error || finalRow.status}`;
+          const text = finalRow.error || finalRow.status || 'export failed';
+          status.textContent = `✗ ${fmt}: ${text}`;
           status.classList.add('err');
+          showResultCard([
+            ['Format', fmt],
+            ['Status', 'failed'],
+            ['Error', text],
+            ['Path', finalRow.output_path || d.output_path || '—'],
+          ]);
+          if (window.fts && window.fts.notify) fts.notify(`${fmt} export failed: ${text}`, 'error');
           btn.disabled = false;
           return;
         }
-        summaries.push([fmt, finalRow.output_path || d.output_path || 'queued']);
+        // Async GGUF must land a non-empty path — never celebrate a bare queue ack.
+        const artPath = finalRow.output_path || d.output_path || '';
+        if (!artPath || (finalRow.size_bytes != null && Number(finalRow.size_bytes) <= 0)) {
+          const text = 'Export finished without a non-empty GGUF artifact';
+          status.textContent = `✗ ${fmt}: ${text}`;
+          status.classList.add('err');
+          showResultCard([
+            ['Format', fmt],
+            ['Status', 'failed'],
+            ['Error', text],
+            ['Path', artPath || '—'],
+          ]);
+          if (window.fts && window.fts.notify) fts.notify(`${fmt} export failed: ${text}`, 'error');
+          btn.disabled = false;
+          return;
+        }
+        summaries.push([fmt, artPath]);
       } else {
-        summaries.push([
-          fmt,
-          d.merged_path || d.output_path || d.gguf_dir || d.path || 'ok',
-        ]);
+        const artPath = d.merged_path || d.output_path || d.gguf_path || d.gguf_dir || d.path || '';
+        const files = Array.isArray(d.files) ? d.files : [];
+        if (fmt === 'gguf' && !artPath && files.length === 0) {
+          const text = 'GGUF export reported success without artifacts';
+          status.textContent = `✗ ${fmt}: ${text}`;
+          status.classList.add('err');
+          showResultCard([
+            ['Format', fmt],
+            ['Status', 'failed'],
+            ['Error', text],
+          ]);
+          if (window.fts && window.fts.notify) fts.notify(`${fmt} export failed: ${text}`, 'error');
+          btn.disabled = false;
+          return;
+        }
+        summaries.push([fmt, artPath || (files[0] || 'ok')]);
         showResultCard([
           ['Format', fmt],
           ['Status', d.status || 'done'],
-          ['Path', d.merged_path || d.output_path || d.gguf_dir || d.path || '—'],
+          ['Path', artPath || '—'],
+          ['Files', files.length ? files.join(', ') : '—'],
           ['Quants', Array.isArray(d.quants) ? d.quants.join(', ') : (d.quant || '—')],
         ]);
       }

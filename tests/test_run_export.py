@@ -161,6 +161,124 @@ class TestExportTrainedRun:
         assert "gguf" in result["supported"]
 
 
+class TestGgufArtifactVerification:
+    """GGUF must not report success without non-empty artifacts."""
+
+    def test_verify_requires_nonempty_matching_files(
+        self, tmp_path: Path
+    ) -> None:
+        from finetune_studio.training.run_export import verify_gguf_artifacts
+
+        gguf = tmp_path / "gguf"
+        gguf.mkdir()
+        (gguf / "model-q8_0.gguf").write_bytes(b"")  # empty — ignore
+        (gguf / "notes.txt").write_text("nope", encoding="utf-8")
+        bad = verify_gguf_artifacts(str(gguf), ["q8_0"])
+        assert bad["ok"] is False
+        assert "q8_0" in bad["missing"]
+
+        (gguf / "model-q8_0.gguf").write_bytes(b"gguf-bytes")
+        ok = verify_gguf_artifacts(str(gguf), ["q8_0"])
+        assert ok["ok"] is True
+        assert len(ok["files"]) == 1
+        assert ok["files"][0].endswith("model-q8_0.gguf")
+
+    def test_missing_converter_is_structured_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from finetune_studio.training import run_export as re
+
+        monkeypatch.setattr(re, "find_gguf_convert_script", lambda: None)
+        run = _merged_run(tmp_path)
+        result = re.export_trained_run(run, fmt="gguf", quants=["q8_0"])
+        assert result.get("ok") is False
+        assert result.get("status") == "failed"
+        assert result.get("format") == "gguf"
+        assert "convert_hf_to_gguf" in result["error"]
+        assert "llama.cpp" in result["error"].lower()
+        # Must not leave a false "success" footprint for the UI.
+        assert result.get("ok") is not True
+
+    def test_engine_false_success_without_artifacts_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: browser saw HTTP 200 with no GGUF on disk."""
+        from finetune_studio.training import run_export as re
+        from finetune_studio.training.engine import TrainingEngine
+
+        monkeypatch.setattr(
+            re, "find_gguf_convert_script", lambda: "/fake/convert_hf_to_gguf.py"
+        )
+
+        def _fake_export(self: TrainingEngine, output_dir: str) -> dict:
+            gguf_dir = os.path.join(output_dir, "gguf")
+            os.makedirs(gguf_dir, exist_ok=True)
+            # Historical bug shape: skipped/reason, no error, empty dir.
+            return {
+                "gguf_path": gguf_dir,
+                "skipped": True,
+                "reason": "llama.cpp not found",
+            }
+
+        monkeypatch.setattr(TrainingEngine, "_do_export_gguf", _fake_export)
+        run = _merged_run(tmp_path)
+        result = re.export_trained_run(run, fmt="gguf", quants=["q8_0"])
+        assert result.get("ok") is False
+        assert result.get("status") == "failed"
+        assert "q8_0" in (result.get("missing") or [])
+        err = (result.get("error") or "").lower()
+        assert "gguf" in err or "llama.cpp" in err or "artifact" in err
+
+    def test_existing_artifacts_skip_as_success(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from finetune_studio.training import run_export as re
+
+        # Converter absent must not matter when verified artifacts already exist.
+        monkeypatch.setattr(re, "find_gguf_convert_script", lambda: None)
+        run = _merged_run(tmp_path)
+        gguf = Path(run["output_path"]) / "gguf"
+        gguf.mkdir()
+        (gguf / "model-q8_0.gguf").write_bytes(b"real-gguf")
+        result = re.export_trained_run(
+            run, fmt="gguf", quants=["q8_0"], force=False
+        )
+        assert result.get("ok") is True
+        assert result.get("status") == "skipped"
+        assert result.get("format") == "gguf"
+        assert any(p.endswith("model-q8_0.gguf") for p in result["files"])
+
+    def test_post_gguf_missing_converter_returns_400(
+        self, client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from finetune_studio import db
+        from finetune_studio.training import run_export as re
+
+        monkeypatch.setattr(re, "find_gguf_convert_script", lambda: None)
+        pid = client.post(
+            "/api/projects", json={"name": "No GGUF Converter"}
+        ).json()["id"]
+        run = _merged_run(tmp_path)
+        created = db.create_run(
+            project_id=pid,
+            name="m",
+            base_model=run["base_model"],
+            data_path="/d",
+        )
+        db.update_run(
+            created["id"], status="done", output_path=run["output_path"]
+        )
+        r = client.post(
+            f"/api/projects/{pid}/runs/{created['id']}/export",
+            json={"format": "gguf", "quants": ["q8_0"]},
+        )
+        assert r.status_code == 400, r.text
+        body = r.json()
+        assert body.get("ok") is False
+        assert body.get("status") == "failed"
+        assert "convert_hf_to_gguf" in body["error"]
+
+
 class TestExportApiAdapterOnly:
     """HTTP: adapter-only run is exportable via projects export + base_model."""
 

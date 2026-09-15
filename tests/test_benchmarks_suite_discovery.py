@@ -21,6 +21,14 @@ def isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return db_path
 
 
+def _industry_names(suites: list[dict]) -> set[str]:
+    return {
+        s["name"]
+        for s in suites
+        if s.get("suite_type") == "industry_smoke"
+    }
+
+
 def test_missing_known_suite_files_not_listed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path
 ) -> None:
@@ -33,7 +41,13 @@ def test_missing_known_suite_files_not_listed(
     assert "default" not in names
     assert "tool_calling" not in names
     assert "chris_ai_v21" not in names
-    assert suites == []
+    # Industry smoke fixtures are package-local and always discoverable.
+    assert _industry_names(suites) == {
+        "mmlu_smoke",
+        "gsm8k_smoke",
+        "hellaswag_smoke",
+    }
+    assert all(s.get("suite_type") == "industry_smoke" for s in suites)
 
 
 def test_existing_json_file_is_listed(
@@ -49,9 +63,16 @@ def test_existing_json_file_is_listed(
     monkeypatch.chdir(tmp_path)
 
     suites = _discover_suites()
-    assert len(suites) == 1
-    assert suites[0]["name"] == "default"
-    assert suites[0]["path"] == "data/benchmarks/default.json"
+    by_name = {s["name"]: s for s in suites}
+    assert "default" in by_name
+    assert by_name["default"]["path"] == "data/benchmarks/default.json"
+    assert by_name["default"]["suite_type"] == "local"
+    assert by_name["default"]["label"].startswith("local ·")
+    assert _industry_names(suites) == {
+        "mmlu_smoke",
+        "gsm8k_smoke",
+        "hellaswag_smoke",
+    }
 
 
 def test_auto_suites_rows_listed_for_project(
@@ -85,10 +106,12 @@ def test_auto_suites_rows_listed_for_project(
         )
 
     suites = _discover_suites(proj["id"])
-    assert len(suites) == 1
-    assert suites[0]["name"] == "held_out"
-    assert suites[0]["path"] == str(auto_path)
-    assert suites[0]["label"] == "auto · held_out (3 cases)"
+    auto = [s for s in suites if s.get("suite_type") == "auto"]
+    assert len(auto) == 1
+    assert auto[0]["name"] == "held_out"
+    assert auto[0]["path"] == str(auto_path)
+    assert auto[0]["label"] == "auto · held_out (3 cases)"
+    assert _industry_names(suites)
 
 
 def test_auto_suites_not_listed_without_project_id(
@@ -106,5 +129,7 @@ def test_auto_suites_not_listed_without_project_id(
             ("as2", run["id"], proj["id"], "held_out", "/tmp/x.json", 1, "{}", time.time()),
         )
 
-    assert _discover_suites() == []
-    assert _discover_suites(None) == []
+    suites = _discover_suites()
+    assert all(s.get("suite_type") != "auto" for s in suites)
+    assert all(s.get("suite_type") != "auto" for s in _discover_suites(None))
+    assert _industry_names(suites)

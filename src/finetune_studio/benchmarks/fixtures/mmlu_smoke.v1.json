@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "id": "mmlu_smoke",
+  "version": 1,
+  "family": "mmlu",
+  "suite_type": "industry_smoke",
+  "title": "MMLU-style knowledge",
+  "description": "Local smoke suite styled after MMLU multiple-choice knowledge. Not the HuggingFace MMLU dataset — offline only.",
+  "cases": [
+    {
+      "name": "mmlu_capital_france",
+      "category": "knowledge",
+      "question": "What is the capital of France?\nA) Berlin\nB) Madrid\nC) Paris\nD) Rome\nReply with the letter and the answer.",
+      "correct_answer": "C) Paris",
+      "keywords": ["Paris", "C"]
+    },
+    {
+      "name": "mmlu_gold_symbol",
+      "category": "knowledge",
+      "question": "What is the chemical symbol for gold?\nA) Go\nB) Gd\nC) Au\nD) Ag\nReply with the letter and the answer.",
+      "correct_answer": "C) Au",
+      "keywords": ["Au", "C"]
+    },
+    {
+      "name": "mmlu_mitochondria",
+      "category": "knowledge",
+      "question": "What is the primary function of mitochondria?\nA) Protein synthesis\nB) Energy production\nC) DNA replication\nD) Cell division\nReply with the letter and the answer.",
+      "correct_answer": "B) Energy production",
+      "keywords": ["Energy", "B"]
+    },
+    {
+      "name": "mmlu_orwell_1984",
+      "category": "knowledge",
+      "question": "Who wrote '1984'?\nA) Aldous Huxley\nB) George Orwell\nC) Ray Bradbury\nD) H.G. Wells\nReply with the letter and the answer.",
+      "correct_answer": "B) George Orwell",
+      "keywords": ["Orwell", "B"]
+    },
+    {
+      "name": "mmlu_binary_search",
+      "category": "knowledge",
+      "question": "What is the time complexity of binary search?\nA) O(n)\nB) O(log n)\nC) O(n²)\nD) O(1)\nReply with the letter and the answer.",
+      "correct_answer": "B) O(log n)",
+      "keywords": ["log", "B"]
+    },
+    {
+      "name": "mmlu_fifo",
+      "category": "knowledge",
+      "question": "Which data structure uses FIFO ordering?\nA) Stack\nB) Queue\nC) Tree\nD) Graph\nReply with the letter and the answer.",
+      "correct_answer": "B) Queue",
+      "keywords": ["Queue", "B"]
+    }
+  ]
+}

@@ -63,3 +63,7 @@ def test_export_result_panel_is_field_grid() -> None:
     assert 'id="export-result"' in html
     assert "run-kv-table" in html
     assert "showResultCard" in html
+    # Failures must surface actionable text (not a silent 200).
+    assert "export failed" in html
+    assert "Missing" in html
+    assert "non-empty GGUF" in html or "without artifacts" in html
