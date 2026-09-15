@@ -1,0 +1,54 @@
+{# Shared per-case results table — used by benchmarks.html + testing.html.
+   Context: scores (dict), cases (list of dicts with name/case_name, category,
+   question, correct_answer/expected, model_answer, verdict, judge_reasoning,
+   time_ms, ran_at). #}
+{% if scores %}
+<div class="case-results-summary" id="case-scores-summary">
+  <span>total: {{ scores.total | default(0) }}</span>
+  <span>judged: {{ scores.judged | default(0) }}</span>
+  <span>passed: {{ scores.passed | default(0) }}</span>
+  <span>partial: {{ scores.partial | default(0) }}</span>
+  <span>failed: {{ scores.failed | default(0) }}</span>
+  <span class="pass-rate">pass_rate: {{ scores.pass_rate }}</span>
+</div>
+{% endif %}
+{% if cases %}
+<table class="table case-results-table" id="case-results-table">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Case name</th>
+      <th>Category</th>
+      <th>Question</th>
+      <th>Expected</th>
+      <th>Model answer</th>
+      <th>Verdict</th>
+      <th>Judge reasoning</th>
+      <th>Time (ms)</th>
+      <th>Ran at</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in cases %}
+    {% set v = c.verdict or '' %}
+    {% set vclass = 'verdict-pass' if v == 'pass' else ('verdict-partial' if v == 'partial' else ('verdict-fail' if v == 'fail' else 'verdict-none')) %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td class="mono">{{ c.name or c.case_name or '' }}</td>
+      <td>{{ c.category or '—' }}</td>
+      <td class="case-col-fixed">{{ c.question or '' }}</td>
+      <td class="case-col-fixed">{{ c.correct_answer or c.expected or '' }}</td>
+      <td><pre class="case-answer-pre">{{ c.model_answer or c.response or '' }}</pre></td>
+      <td><span class="verdict-badge {{ vclass }}">{{ v or 'none' }}</span></td>
+      <td class="judge-reasoning">
+        {% if c.judge_reasoning %}
+        <details><summary>reasoning</summary><div class="text-xs">{{ c.judge_reasoning }}</div></details>
+        {% else %}—{% endif %}
+      </td>
+      <td class="mono">{{ c.time_ms if c.time_ms is defined else '—' }}</td>
+      <td class="dim">{{ c.ran_at or c._ran_at_str or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}

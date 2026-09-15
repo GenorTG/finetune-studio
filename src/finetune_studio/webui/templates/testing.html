@@ -1,11 +1,27 @@
 {% extends "base.html" %}
 {% block title %}Testing · Finetune Studio{% endblock %}
+{% block breadcrumb_tab %}testing{% endblock %}
 {% block content %}
+{# Standalone /testing stub + shared results markup for QABUG-013 template tests.
+   Project-scoped UI lives in project_testing.html; this file keeps the same
+   per-case table so regression tests can render it with from_string / include. #}
 <div class="page-head">
   <h1>Testing</h1>
   <div class="sub">Run saved test suites against a model and inspect pass/fail per case.</div>
 </div>
 
+{% if results is defined or scores is defined %}
+<div class="card mb-6">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Results</div>
+      <div class="card-sub">Pass rate and per-case breakdown.</div>
+    </div>
+  </div>
+  {% set cases = results if results is defined else cases %}
+  {% include "_case_results.html" %}
+</div>
+{% else %}
 <div class="card mb-6">
   <div class="card-head">
     <div>
@@ -16,4 +32,5 @@
   <p class="text-sm muted">Open a project to run a test suite against that project's models.</p>
   <a href="/projects" class="btn primary" data-link>Open Projects</a>
 </div>
+{% endif %}
 {% endblock %}

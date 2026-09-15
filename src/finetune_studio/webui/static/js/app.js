@@ -242,18 +242,28 @@
   connStart();
 
   // ── Theme toggle ────────────────────────────────────────────────
-  const THEME_KEY = 'fts.theme';
-  function themeGet() { return localStorage.getItem(THEME_KEY) || 'dark'; }
-  function themeSet(t) {
-    localStorage.setItem(THEME_KEY, t);
-    document.documentElement.setAttribute('data-theme', t);
+  // QABUG-008: persist under localStorage key `fts-theme`, swap data-theme
+  // on <html> so the CSS palette actually changes.
+  const THEME_KEY = 'fts-theme';
+  function themeGet() {
+    try { return localStorage.getItem(THEME_KEY) || 'dark'; }
+    catch (e) { return 'dark'; }
   }
-  // Apply saved theme on load
+  function themeSet(t) {
+    if (t !== 'light' && t !== 'dark') t = 'dark';
+    try { localStorage.setItem(THEME_KEY, t); } catch (e) { /* ignore */ }
+    document.documentElement.setAttribute('data-theme', t);
+    const btn = document.getElementById('theme-toggle');
+    if (btn) btn.textContent = t === 'light' ? '☀️' : '🌙';
+  }
+  // Apply saved theme on load (pre-paint script in <head> already set it;
+  // this keeps the toggle button icon in sync after SPA swaps).
   themeSet(themeGet());
   function themeToggle() {
     themeSet(themeGet() === 'dark' ? 'light' : 'dark');
     if (window.fts) window.fts.notify('Theme: ' + themeGet(), 'info');
   }
+  window.ftsThemeToggle = themeToggle;
 
   // ── Keyboard navigation ──────────────────────────────────────────
   const _kbShortcuts = [

@@ -41,7 +41,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Literal
 
-JudgeType = Literal["none", "ai", "human"]
+JudgeType = Literal["none", "ai", "human", "heuristic", "local"]
 Verdict = Literal["pass", "fail", "partial", ""]
 
 
@@ -53,6 +53,7 @@ class BenchmarkCase:
     correct_answer: str
     category: str = "general"
     context: str = ""  # optional extra context for the judge
+    keywords: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -70,6 +71,7 @@ class CaseResult:
     judge_reasoning: str = ""
     time_ms: float = 0.0
     error: str = ""
+    keywords: list[str] = field(default_factory=list)
 
 
 def load_test_suite(path: str) -> list[BenchmarkCase]:
@@ -80,12 +82,16 @@ def load_test_suite(path: str) -> list[BenchmarkCase]:
     for item in data:
         # Support both v2 (question/correct_answer) and v1 (messages/expected_keywords)
         if "question" in item:
+            kws = item.get("keywords") or item.get("expected_keywords") or []
+            if not isinstance(kws, list):
+                kws = []
             cases.append(BenchmarkCase(
                 name=item["name"],
                 question=item["question"],
                 correct_answer=item.get("correct_answer", ""),
                 category=item.get("category", "general"),
                 context=item.get("context", ""),
+                keywords=[str(k) for k in kws],
             ))
         elif "messages" in item:
             # v1 fallback: extract from messages format
@@ -93,12 +99,16 @@ def load_test_suite(path: str) -> list[BenchmarkCase]:
             user_msg = next((m for m in msgs if m.get("role") == "user"), None)
             assistant_msg = next((m for m in msgs if m.get("role") == "assistant"), None)
             question = user_msg["content"] if user_msg else ""
-            correct = assistant_msg["content"] if assistant_msg else item.get("expected_keywords", [""])[0] if item.get("expected_keywords") else ""
+            kws = item.get("expected_keywords") or item.get("keywords") or []
+            if not isinstance(kws, list):
+                kws = []
+            correct = assistant_msg["content"] if assistant_msg else (kws[0] if kws else "")
             cases.append(BenchmarkCase(
                 name=item["name"],
                 question=question,
                 correct_answer=correct,
                 category=item.get("category", "general"),
+                keywords=[str(k) for k in kws],
             ))
     return cases
 
@@ -132,8 +142,9 @@ def run_suite(engine, cases: list[BenchmarkCase], max_tokens: int = 512,
                 model_answer=response,
                 transcript=transcript,
                 time_ms=round(elapsed_ms, 1),
+                keywords=list(case.keywords),
             ))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             elapsed_ms = (time.time() - start) * 1000
             results.append(CaseResult(
                 case_name=case.name,
@@ -145,8 +156,54 @@ def run_suite(engine, cases: list[BenchmarkCase], max_tokens: int = 512,
                            {"role": "assistant", "content": ""}],
                 error=str(e),
                 time_ms=round(elapsed_ms, 1),
+                keywords=list(case.keywords),
             ))
     return results
+
+
+def apply_heuristic_judging(results: list[CaseResult]) -> None:
+    """Mutate results in place: set verdict/judge via keywords or answer overlap.
+
+    Keyword path (preferred when ``keywords`` is non-empty): every keyword must
+    appear (case-insensitive) in ``model_answer`` for pass; any hit → partial;
+    none → fail.
+
+    Otherwise falls back to ``judge_case_heuristic`` against ``correct_answer``.
+    Skips cases that already have a verdict or that errored with an empty answer.
+    """
+    from finetune_studio.testing.judge import judge_case_heuristic
+
+    for r in results:
+        if r.verdict:
+            continue
+        if r.error and not r.model_answer:
+            continue
+        if r.keywords:
+            lower = (r.model_answer or "").lower()
+            hits = [k for k in r.keywords if k.lower() in lower]
+            n = len(r.keywords)
+            n_hits = len(hits)
+            if n_hits == n and n > 0:
+                r.verdict = "pass"
+            elif n_hits > 0:
+                r.verdict = "partial"
+            else:
+                r.verdict = "fail"
+            r.judge = "heuristic"
+            r.judge_model = "heuristic"
+            r.judge_reasoning = f"keywords matched {n_hits}/{n}"
+            continue
+        verdict, reasoning, _conf = judge_case_heuristic(
+            question=r.question,
+            correct_answer=r.correct_answer,
+            model_answer=r.model_answer,
+        )
+        if not verdict:
+            continue
+        r.verdict = verdict
+        r.judge = "heuristic"
+        r.judge_model = "heuristic"
+        r.judge_reasoning = reasoning
 
 
 def score_results(results: list[CaseResult]) -> dict:

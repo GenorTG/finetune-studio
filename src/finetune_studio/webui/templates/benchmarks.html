@@ -1,10 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Benchmarks · {{ project.name }} · Finetune Studio{% endblock %}
 {% block nav_projects %}active{% endblock %}
+{% block nav_benchmarks %}active{% endblock %}
+{% block breadcrumb_tab %}benchmarks{% endblock %}
 {% block sb_path %}~ / projects / {{ project.name }} / bench{% endblock %}
-{% block crumb %}
-<a href="/projects" data-link>Projects</a> <span class="sep">/</span> <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a> <span class="sep">/</span> <span>Benchmarks</span>
-{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>Benchmarks — {{ project.name }}</h1>
@@ -17,6 +16,10 @@
       <div class="card-title">Run a benchmark</div>
       <div class="card-sub">Project <span class="mono">{{ pid[:8] }}</span> · {{ runs|length }} run{{ '' if (runs|length == 1) else 's' }} · {{ suites|length }} suite{{ '' if (suites|length == 1) else 's' }} available</div>
     </div>
+    {% if runs and suites and latest_run_id %}
+    <button type="button" class="btn primary" id="bench-run-latest"
+            onclick="runLatestBenchmark()">Run a new benchmark</button>
+    {% endif %}
   </div>
 
   {% if not runs %}
@@ -32,7 +35,7 @@
   {% else %}
   <div class="text-sm dim mb-2">Available test suites:</div>
   <ul class="text-sm mb-4">
-    {% for s in suites %}<li class="mono">› {{ s }}</li>{% endfor %}
+    {% for s in suites %}<li class="mono">› {{ s.name if s.name is defined else s }}</li>{% endfor %}
   </ul>
 
   <h3 class="mt-4 mb-2">Run a benchmark</h3>
@@ -45,11 +48,13 @@
         <td class="mono text-xs dim">{{ (run.base_model or '')[-40:] }}</td>
         <td><span class="pill outline">{{ run.status }}</span></td>
         <td>
-          <form data-api="/api/projects/{{ pid }}/runs/{{ run.id }}/run"
+          <form data-api="/api/benchmarks/projects/{{ pid }}/runs/{{ run.id }}/run"
                 data-reload="true" style="display:inline;">
             <input type="hidden" name="suite_name" value="default">
             <select name="suite_path" class="select" style="min-width:140px;font-size:11px;">
-              {% for s in suites %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+              {% for s in suites %}
+              <option value="{{ s.path if s.path is defined else s }}">{{ s.name if s.name is defined else s }}</option>
+              {% endfor %}
             </select>
             <button type="submit" class="btn primary" style="font-size:11px;padding:4px 10px;">RUN</button>
           </form>
@@ -58,6 +63,13 @@
       {% endfor %}
     </tbody>
   </table>
+
+  {# QABUG-012: per-case detail table #}
+  <h3 class="mt-6 mb-2">Latest case results</h3>
+  {% include "_case_results.html" %}
+  {% if not cases %}
+  <div class="empty small">No case results yet. Run a suite above.</div>
+  {% endif %}
 
   <div class="data-tabs mt-6" role="tablist" id="bench-tabs">
     <button type="button" class="data-tab active" data-tab="recent" role="tab" id="tab-recent">Recent scores</button>
@@ -68,13 +80,13 @@
     {% if all_benchmarks %}
     <h3 class="mt-2 text-md">Recent scores</h3>
     <table class="table">
-      <thead><tr><th>Run</th><th>Suite</th><th>Score</th><th>When</th></tr></thead>
+      <thead><tr><th>Run</th><th>Suite</th><th>Pass rate</th><th>When</th></tr></thead>
       <tbody>
         {% for b in all_benchmarks[:10] %}
         <tr>
           <td>{{ b._run_name }}</td>
           <td class="mono">{{ b.suite_name or b.suite or '—' }}</td>
-          <td class="mono">{% if b.scores %}{{ b.scores }}{% elif b.scores_json %}{{ b.scores_json[:80] }}{% else %}—{% endif %}</td>
+          <td class="mono">{% if b.scores and b.scores.pass_rate is defined %}{{ b.scores.pass_rate }}{% else %}—{% endif %}</td>
           <td class="dim">{{ b._ran_at_str }}</td>
         </tr>
         {% endfor %}
@@ -136,6 +148,8 @@
 <script>
 (function () {
   const PID = {{ pid|tojson }};
+  const LATEST_RID = {{ (latest_run_id or '')|tojson }};
+  const SUITES = {{ suites|tojson }};
   const tabs = document.querySelectorAll("#bench-tabs .data-tab");
   const panels = document.querySelectorAll(".data-panel[data-panel]");
 
@@ -188,6 +202,41 @@
     if (n < 0) return "err";
     return "";
   }
+
+  window.runLatestBenchmark = async function runLatestBenchmark() {
+    if (!LATEST_RID) return;
+    const suite = (Array.isArray(SUITES) && SUITES[0]) ? SUITES[0] : null;
+    const suitePath = suite && (suite.path || suite);
+    if (!suitePath) return;
+    const api = (window.fts && window.fts.api) || null;
+    const notify = (window.fts && window.fts.notify) || (m => console.log(m));
+    try {
+      const body = {
+        suite_path: suitePath,
+        suite_name: (suite && suite.name) || "default",
+        judge_mode: "heuristic",
+        max_tokens: 128,
+      };
+      let data;
+      if (api && api.post) {
+        data = await api.post("/api/benchmarks/projects/" + encodeURIComponent(PID)
+          + "/runs/" + encodeURIComponent(LATEST_RID) + "/run", body);
+      } else {
+        const r = await fetch("/api/benchmarks/projects/" + encodeURIComponent(PID)
+          + "/runs/" + encodeURIComponent(LATEST_RID) + "/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        data = await r.json();
+      }
+      if (data && data.error) throw new Error(data.error);
+      notify("Benchmark finished", "success");
+      location.reload();
+    } catch (e) {
+      notify("Benchmark failed: " + (e.message || e), "error");
+    }
+  };
 
   window.runComparison = async function runComparison() {
     const a = selA && selA.value;

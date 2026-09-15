@@ -1,15 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Testing — {{ project.name }}{% endblock %}
 {% block nav_testing %}active{% endblock %}
+{% block breadcrumb_tab %}testing{% endblock %}
 {% block sb_path %}~ / projects / {{ project.name }} / testing{% endblock %}
-
-{% block crumbs %}
-  <a href="/projects" data-link>Projects</a>
-  <span class="sep">/</span>
-  <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a>
-  <span class="sep">/</span>
-  <span class="here">Testing</span>
-{% endblock %}
 
 {% block content %}
 {% include "_resources.html" %}
@@ -23,13 +16,14 @@
   <div class="card-head">
     <div>
       <div class="card-title">Run a suite</div>
-      <div class="card-sub">Pick a model + suite, then watch results stream in.</div>
+      <div class="card-sub">Pick a suite — the backend auto-loads the project's latest merged model.</div>
     </div>
   </div>
   <div class="grid grid-12 gap-3 items-end">
     <div class="col-span-5">
-      <label class="block text-xs muted mb-1">Model</label>
+      <label class="block text-xs muted mb-1">Model (optional override)</label>
       <select id="t-model" class="select">
+        <option value="">— auto (latest merged) —</option>
         {% for m in models %}<option value="{{ m.path }}">{{ m.name }} ({{ m.size_gb }} GB)</option>{% endfor %}
       </select>
     </div>
@@ -89,6 +83,7 @@
 
 <script>
 (function() {
+  const PID = {{ pid|tojson }};
   const fts = window.fts || {};
   const api = fts.api || {};
   const notify = fts.notify || function(msg) { console.log(msg); };
@@ -100,6 +95,47 @@
     if (!path) return '';
     const parts = path.split('/');
     return parts[parts.length - 1] || path;
+  }
+
+  function verdictClass(v) {
+    if (v === 'pass') return 'verdict-pass';
+    if (v === 'partial') return 'verdict-partial';
+    if (v === 'fail') return 'verdict-fail';
+    return 'verdict-none';
+  }
+
+  function renderResults(scores, cases) {
+    let html = '<div class="case-results-summary" id="case-scores-summary">'
+      + '<span>total: ' + (scores.total || 0) + '</span>'
+      + '<span>judged: ' + (scores.judged || 0) + '</span>'
+      + '<span>passed: ' + (scores.passed || 0) + '</span>'
+      + '<span>partial: ' + (scores.partial || 0) + '</span>'
+      + '<span>failed: ' + (scores.failed || 0) + '</span>'
+      + '<span class="pass-rate">pass_rate: ' + (scores.pass_rate != null ? scores.pass_rate : '—') + '</span>'
+      + '</div>';
+    html += '<table class="table case-results-table" id="case-results-table"><thead><tr>'
+      + '<th>#</th><th>Case name</th><th>Category</th><th>Question</th><th>Expected</th>'
+      + '<th>Model answer</th><th>Verdict</th><th>Judge reasoning</th><th>Time (ms)</th>'
+      + '</tr></thead><tbody>';
+    cases.forEach((c, i) => {
+      const v = c.verdict || '';
+      const answer = c.model_answer || c.response || '';
+      html += '<tr>'
+        + '<td>' + (i + 1) + '</td>'
+        + '<td class="mono">' + escapeHtml(c.name || '') + '</td>'
+        + '<td>' + escapeHtml(c.category || '') + '</td>'
+        + '<td class="case-col-fixed">' + escapeHtml(c.question || '') + '</td>'
+        + '<td class="case-col-fixed">' + escapeHtml(c.correct_answer || '') + '</td>'
+        + '<td><pre class="case-answer-pre">' + escapeHtml(answer) + '</pre></td>'
+        + '<td><span class="verdict-badge ' + verdictClass(v) + '">' + escapeHtml(v || 'none') + '</span></td>'
+        + '<td class="judge-reasoning">' + (c.judge_reasoning
+            ? '<details><summary>reasoning</summary><div class="text-xs">' + escapeHtml(c.judge_reasoning) + '</div></details>'
+            : '—') + '</td>'
+        + '<td class="mono">' + Math.round(c.time_ms || 0) + '</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    return html;
   }
 
   window.onSuitePicked = function() {
@@ -115,23 +151,32 @@
     hint.textContent = '✓ Using suite: ' + suiteLabel(suite);
   };
 
+  // QABUG-011 / QABUG-013: do NOT call /api/testing/load first — the
+  // run-suite handler auto-loads the project's latest merged model.
   window.runSuite = async function() {
     const status = document.getElementById('t-status');
     const results = document.getElementById('t-results');
-    const model = document.getElementById('t-model').value;
     const suite = document.getElementById('t-suite').value.trim();
     if (!suite) {
       status.textContent = 'Please pick a test suite.';
       return;
     }
-    status.textContent = '✓ Using suite: ' + suiteLabel(suite) + ' — Loading model…';
-    results.innerHTML = '<span class="muted">Loading model and running suite…</span>';
+    status.textContent = '✓ Using suite: ' + suiteLabel(suite) + ' — Running…';
+    results.innerHTML = '<span class="muted">Running suite (auto-loading model if needed)…</span>';
     try {
-      // 1. Load selected model (so the global inference engine is ready)
-      await api.post('/api/models/load', { path: model });
-      status.textContent = '✓ Using suite: ' + suiteLabel(suite) + ' — Running…';
-      // 2. Run the suite
-      const r = await api.post('/api/testing/run-suite', { suite_path: suite });
+      const body = { suite_path: suite, project_id: PID, max_tokens: 512 };
+      let r;
+      if (api.post) {
+        r = await api.post('/api/testing/run-suite', body);
+      } else {
+        const resp = await fetch('/api/testing/run-suite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        r = await resp.json();
+        if (!resp.ok && r.error) throw new Error(r.error);
+      }
       if (r.error) {
         status.textContent = 'Error: ' + r.error;
         results.innerHTML = '<span class="err">' + escapeHtml(r.error) + '</span>';
@@ -140,22 +185,8 @@
       }
       const scores = r.scores || {};
       const cases = r.results || [];
-      status.textContent = 'Done — pass rate ' + (scores.pass_rate || 0).toFixed(1) + '%';
-      let html = '<div class="mb-2"><b>' + (cases.length) + '</b> cases — passed <b>' + (scores.passed || 0) + '</b>, failed <b>' + (scores.failed || 0) + '</b></div>';
-      html += '<table class="data-table w-full text-xs"><thead><tr><th>Name</th><th>Pass</th><th>Hits/Miss</th><th>Forbidden</th><th>Time</th></tr></thead><tbody>';
-      for (const c of cases) {
-        html += '<tr>'
-          + '<td>' + escapeHtml(c.name || '') + '</td>'
-          + '<td>' + (c.passed ? '<span class="ok">✓</span>' : '<span class="err">✗</span>') + '</td>'
-          + '<td>' + (c.keyword_hits || 0) + ' / ' + (c.keyword_misses || 0) + '</td>'
-          + '<td>' + (c.forbidden_hits || 0) + '</td>'
-          + '<td>' + Math.round(c.time_ms || 0) + ' ms</td>'
-          + '</tr>';
-        if (c.error) html += '<tr><td colspan="5" class="err text-xs">' + escapeHtml(c.error) + '</td></tr>';
-        if (c.response) html += '<tr><td colspan="5" class="dim text-xs"><pre class="m-0">' + escapeHtml(c.response.slice(0, 400)) + '</pre></td></tr>';
-      }
-      html += '</tbody></table>';
-      results.innerHTML = html;
+      status.textContent = 'Done — pass rate ' + (scores.pass_rate || 0) + '%';
+      results.innerHTML = renderResults(scores, cases);
       notify('Suite finished: ' + (scores.passed || 0) + '/' + cases.length + ' passed', 'success');
     } catch (e) {
       const msg = (e && e.message) || String(e);

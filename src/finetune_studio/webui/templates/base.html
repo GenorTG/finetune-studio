@@ -3,33 +3,57 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="dark light">
+  <script>
+    /* Pre-paint theme — must run before CSS paints to avoid flash. */
+    (function () {
+      try {
+        var t = localStorage.getItem('fts-theme');
+        if (t !== 'light' && t !== 'dark') t = 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
   <style>
+    /* Light palette — remaps the app.css :root tokens. */
     :root[data-theme="light"] {
-      --bg: #f5f5f5;
-      --surface: #ffffff;
-      --text: #1a1a1a;
-      --border: #d0d0d0;
-      --accent: #0066cc;
+      --bg-app:        #f4f6f4;
+      --bg-nav:        #e8ece8;
+      --bg-panel:      #ffffff;
+      --bg-panel-2:    #f0f3f0;
+      --bg-elevated:   #e4ebe4;
+      --bg:            #f4f6f4;
+      --fg:            #1a2a1a;
+      --card:          #ffffff;
+
+      --border:        #b8c8b8;
+      --border-strong: #7a9a7a;
+      --border-hot:    #006633;
+
+      --text:          #1a2a1a;
+      --text-muted:    #4a6a4a;
+      --text-dim:      #6a8a6a;
+
+      --accent:        #006633;
+      --accent-2:      #338855;
+      --accent-glow:   rgba(0,102,51,0.25);
+      --warn:          #b86e00;
+      --err:           #c62828;
+      --ok:            #1b7a3d;
+      --cyan:          #007a8a;
+      --magenta:       #a01880;
     }
-    :root[data-theme="light"] .sb-brand,
-    :root[data-theme="light"] .sb-tab,
-    :root[data-theme="light"] .card,
-    :root[data-theme="light"] .session-bar,
-    :root[data-theme="light"] .sb-tabs {
-      background: #ffffff;
-      color: #1a1a1a;
-    }
-    :root[data-theme="light"] .logo {
-      background: #0066cc;
+    :root[data-theme="dark"] {
+      --bg:   #060a07;
+      --fg:   #d2ffda;
+      --card: #0c1810;
     }
   </style>
   <title>{% block title %}Finetune Studio{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/css/app.css?v=13">
-  <script>
-    // Pre-paint: nothing to pre-load for the session bar.
-  </script>
+  <link rel="stylesheet" href="/static/css/app.css?v=14">
 </head>
 <body>
   <div id="toasts" class="toasts" aria-live="polite"></div>
@@ -114,7 +138,9 @@
 
       {# Right cluster — all top-bar buttons on one visible line #}
       <div class="sb-right">
-        <button id="theme-toggle" class="btn small" onclick="window.ftsThemeToggle?.() || location.reload()" title="Toggle dark/light theme">🌙</button>
+        <button id="theme-toggle" class="btn small" type="button"
+                onclick="window.ftsThemeToggle && window.ftsThemeToggle()"
+                title="Toggle dark/light theme" aria-label="Toggle dark/light theme">🌙</button>
         <div id="conn-status" class="conn-status" title="Connection status" data-hide-mobile>
           <span class="conn-dot"></span>
           <span class="conn-label">connected</span>
@@ -140,6 +166,19 @@
         <span class="sb-active-cursor">█</span>
       </div>
     </header>
+
+    {# QABUG-009: sticky breadcrumb on every project tab #}
+    {% if pid is defined and pid %}
+    <nav id="project-breadcrumb" class="project-breadcrumb" aria-label="Breadcrumb">
+      <span class="bc-brand">FS</span>
+      <span class="bc-prompt">root@fts:~$</span>
+      <a href="/" data-link>dashboard</a>
+      <span class="bc-sep">▮</span>
+      <span>projects</span>
+      <a href="/projects/{{ pid }}/overview" data-link>{{ (project.name if project is defined and project else pid) }}</a>
+      <span class="bc-tab">{% block breadcrumb_tab %}overview{% endblock %}</span>
+    </nav>
+    {% endif %}
 
     {# ── Command palette (Ctrl+K) — stub for now, real impl in palette.js ── #}
     <div class="palette-backdrop" id="palette-backdrop" hidden></div>
@@ -202,7 +241,7 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=12"></script>
+  <script src="/static/js/app.js?v=14"></script>
   <script src="/static/js/sprites.js?v=12"></script>
   <script src="/static/js/spa.js?v=12"></script>
   <script src="/static/js/palette.js?v=13"></script>

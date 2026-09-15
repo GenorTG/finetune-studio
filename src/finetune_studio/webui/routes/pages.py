@@ -18,6 +18,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+
 from finetune_studio import __version__ as APP_VERSION
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
@@ -187,8 +188,8 @@ async def hf_models_page(request: Request):
 @router.get("/models", response_class=HTMLResponse)
 async def models_index(request: Request):
     """Local model library — all discovered models with categories."""
-    from finetune_studio.webui.app import discovered_models
     from finetune_studio import db
+    from finetune_studio.webui.app import discovered_models
     # Enrich with project names for trained exports
     projects = {p["id"]: p["name"] for p in db.list_projects()}
     return templates.TemplateResponse(
@@ -247,6 +248,12 @@ async def projects_page(request: Request):
 
 
 # ── Project detail ───────────────────────────────────────────────────────
+
+@router.get("/projects/{pid}/overview", response_class=HTMLResponse)
+async def project_overview_alias(request: Request, pid: str):
+    """Alias used by the sticky breadcrumb (QABUG-009)."""
+    return RedirectResponse(url=f"/projects/{pid}", status_code=302)
+
 
 @router.get("/projects/{pid}", response_class=HTMLResponse)
 async def project_detail_page(request: Request, pid: str):
@@ -483,6 +490,26 @@ async def benchmarks_page(request: Request, pid: str):
         )
     elif len(comparison_runs) == 2:
         cmp_default_a, cmp_default_b = comparison_runs[0], comparison_runs[1]
+
+    # Latest benchmark detail for the per-case table (QABUG-012).
+    latest_cases: list = []
+    latest_scores: dict = {}
+    latest_bench = all_benchmarks[0] if all_benchmarks else None
+    latest_rid = ""
+    if latest_bench:
+        latest_cases = db.list_cases(latest_bench["id"])
+        for c in latest_cases:
+            c["name"] = c.get("case_name") or c.get("name") or ""
+        raw_scores = latest_bench.get("scores") or latest_bench.get("scores_json") or {}
+        if isinstance(raw_scores, str):
+            import json as _json
+            try:
+                raw_scores = _json.loads(raw_scores)
+            except Exception:  # noqa: BLE001
+                raw_scores = {}
+        latest_scores = raw_scores if isinstance(raw_scores, dict) else {}
+        latest_rid = latest_bench.get("run_id") or ""
+
     return templates.TemplateResponse(
         request,
         "benchmarks.html",
@@ -496,6 +523,9 @@ async def benchmarks_page(request: Request, pid: str):
             "comparison_runs": comparison_runs,
             "cmp_default_a": cmp_default_a,
             "cmp_default_b": cmp_default_b,
+            "cases": latest_cases,
+            "scores": latest_scores,
+            "latest_run_id": latest_rid,
         },
     )
 
@@ -548,10 +578,11 @@ async def settings_page(request: Request):
 @router.get("/api/debug/info")
 async def debug_info():
     """Return system debug info for the Settings page."""
+    import os
     import platform
     import sys
-    import os
     from pathlib import Path
+
     from finetune_studio import __version__ as APP_VERSION
 
     info = {
@@ -572,10 +603,10 @@ async def debug_info():
     # GPU info via nvidia-smi
     try:
         import subprocess
-        r = subprocess.run(
+        r = subprocess.run(  # noqa: ASYNC221
             ["nvidia-smi", "--query-gpu=name,memory.total,memory.free,driver_version",
              "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, text=True, timeout=5, check=False,
         )
         if r.returncode == 0:
             gpus = []
@@ -591,7 +622,7 @@ async def debug_info():
             info["gpus"] = gpus
         else:
             info["gpus"] = []
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         info["gpus"] = []
         info["gpu_error"] = str(e)
 
@@ -606,7 +637,7 @@ async def debug_info():
             versions[pkg] = v
         except ImportError:
             versions[pkg] = "(not installed)"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             versions[pkg] = f"(error: {e})"
     info["packages"] = versions
 

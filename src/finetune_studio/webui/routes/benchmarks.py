@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import time
 import os
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, Request
@@ -97,7 +97,7 @@ async def run_benchmark(pid: str, rid: str, request: Request):
     suite_name = body.get("suite_name", "default")
     suite_path = body.get("suite_path", "")
     judge_mode = body.get("judge_mode", "heuristic")  # heuristic | ai | local | none
-    judge_model = body.get("judge_model", "")
+    body.get("judge_model", "")
     max_tokens = int(body.get("max_tokens", 512))
 
     run = db.get_run(rid)
@@ -114,7 +114,12 @@ async def run_benchmark(pid: str, rid: str, request: Request):
         target_model = merged_candidate
 
     from finetune_studio.testing.inference import InferenceEngine
-    from finetune_studio.testing.suite import load_test_suite, run_suite, score_results
+    from finetune_studio.testing.suite import (
+        apply_heuristic_judging,
+        load_test_suite,
+        run_suite,
+        score_results,
+    )
 
     if not suite_path:
         return {"error": "suite_path required"}
@@ -124,7 +129,7 @@ async def run_benchmark(pid: str, rid: str, request: Request):
         from finetune_studio.webui.app import inference_engine as _global_ie
         if _global_ie is not None and getattr(_global_ie, "model", None) is not None:
             _global_ie.unload()
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
 
     engine = InferenceEngine()
@@ -139,7 +144,26 @@ async def run_benchmark(pid: str, rid: str, request: Request):
         results = run_suite(engine, cases, max_tokens=max_tokens)
         dt_ms = int((time.time() - t0) * 1000)
 
-        # Build case dicts for DB
+        # QABUG-006 / QABUG-008: actually judge before scoring + DB write.
+        if judge_mode == "none":
+            pass
+        elif judge_mode == "heuristic":
+            apply_heuristic_judging(results)
+        elif judge_mode in ("ai", "local"):
+            # Runtime AI/local judging is handled by the separate /judge endpoint.
+            # Fall back to heuristic so rows are never left unjudged.
+            import logging
+            logging.getLogger(__name__).warning(
+                "judge_mode=%s not applied during run; falling back to heuristic",
+                judge_mode,
+            )
+            apply_heuristic_judging(results)
+        else:
+            apply_heuristic_judging(results)
+
+        scores = score_results(results)
+
+        # Build case dicts for DB — include verdicts from the judge step.
         case_dicts = []
         for r in results:
             case_dicts.append({
@@ -149,10 +173,13 @@ async def run_benchmark(pid: str, rid: str, request: Request):
                 "correct_answer": r.correct_answer,
                 "model_answer": r.model_answer,
                 "transcript": r.transcript,
-                "judge": "none",
+                "judge": r.judge or "none",
+                "judge_model": r.judge_model,
+                "verdict": r.verdict,
+                "judge_reasoning": r.judge_reasoning,
+                "scored_at": time.time() if r.verdict else None,
             })
 
-        scores = score_results(results)
         benchmark = db.create_benchmark(rid, suite_name, scores, dt_ms, cases=case_dicts)
 
         return {
@@ -167,6 +194,10 @@ async def run_benchmark(pid: str, rid: str, request: Request):
                     "model_answer": r.model_answer[:500],
                     "transcript": r.transcript,
                     "time_ms": r.time_ms,
+                    "verdict": r.verdict,
+                    "judge": r.judge,
+                    "judge_model": r.judge_model,
+                    "judge_reasoning": r.judge_reasoning,
                 }
                 for r in results
             ],
@@ -240,7 +271,7 @@ async def judge_benchmark(pid: str, bid: str, request: Request):
         for case in cases:
             if not case.get("model_answer"):
                 continue
-            verdict, reasoning, confidence = judge_case_heuristic(
+            verdict, reasoning, _confidence = judge_case_heuristic(
                 question=case["question"],
                 correct_answer=case["correct_answer"],
                 model_answer=case["model_answer"],
@@ -256,7 +287,7 @@ async def judge_benchmark(pid: str, bid: str, request: Request):
             updated += 1
         # Recalculate scores after judging
         cases_updated = db.list_cases(bid)
-        from finetune_studio.testing.suite import score_results, CaseResult
+        from finetune_studio.testing.suite import CaseResult, score_results
         rebuilt = []
         for c in cases_updated:
             rebuilt.append(CaseResult(
@@ -279,7 +310,7 @@ async def judge_benchmark(pid: str, bid: str, request: Request):
         for case in cases:
             if not case.get("model_answer"):
                 continue
-            verdict, reasoning, confidence = judge_case_ai(
+            verdict, reasoning, _confidence = judge_case_ai(
                 question=case["question"],
                 correct_answer=case["correct_answer"],
                 model_answer=case["model_answer"],
@@ -303,7 +334,7 @@ async def judge_benchmark(pid: str, bid: str, request: Request):
             from finetune_studio.webui.app import inference_engine as _global_ie
             if _global_ie is not None and getattr(_global_ie, "model", None) is not None:
                 _global_ie.unload()
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
         judge_engine = InferenceEngine()
@@ -319,7 +350,7 @@ async def judge_benchmark(pid: str, bid: str, request: Request):
             for case in cases:
                 if not case.get("model_answer"):
                     continue
-                verdict, reasoning, confidence = judge_case_local(
+                verdict, reasoning, _confidence = judge_case_local(
                     judge_engine,
                     question=case["question"],
                     correct_answer=case["correct_answer"],

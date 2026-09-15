@@ -3572,3 +3572,91 @@ body::before {
 .modal-actions .btn {
   min-width: 80px;
 }
+
+/* ── Project breadcrumb (QABUG-009) ─────────────────────────────── */
+.project-breadcrumb {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 1rem;
+  background: var(--bg-nav);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 12px;
+}
+.project-breadcrumb a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.project-breadcrumb a:hover { text-decoration: underline; }
+.project-breadcrumb .bc-brand {
+  font-weight: 700;
+  color: var(--accent);
+}
+.project-breadcrumb .bc-prompt { color: var(--text-dim); }
+.project-breadcrumb .bc-sep { color: var(--accent); }
+.project-breadcrumb .bc-tab { color: var(--text); }
+
+/* ── Verdict badges (bench / testing case tables) ───────────────── */
+.verdict-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.verdict-badge.verdict-pass {
+  color: var(--ok);
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+.verdict-badge.verdict-partial {
+  color: var(--warn);
+  border-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+}
+.verdict-badge.verdict-fail {
+  color: var(--err);
+  border-color: var(--err);
+  background: color-mix(in srgb, var(--err) 12%, transparent);
+}
+.verdict-badge.verdict-none {
+  color: var(--text-dim);
+  border-color: var(--border);
+}
+.case-results-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.case-results-summary .pass-rate {
+  color: var(--accent);
+  font-weight: 600;
+}
+.case-answer-pre {
+  max-height: 200px;
+  overflow: auto;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11px;
+}
+.case-col-fixed {
+  max-width: 220px;
+  word-break: break-word;
+}
+.judge-reasoning details summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 11px;
+}
