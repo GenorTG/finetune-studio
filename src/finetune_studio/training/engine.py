@@ -28,6 +28,13 @@ KEY CONCEPTS
 import json
 import os
 import shutil
+
+# Training runs inside the threaded uvicorn server with CUDA initialised, so
+# any forked Dataset.map / tokenizer pool deadlocks (E2E-27: 8 workers stuck in
+# futex/pipe_read, run frozen at "Loading model…"). Unsloth's own escape hatch
+# "0" forces in-process tokenization; users can still override via env.
+os.environ.setdefault("UNSLOTH_DATASET_NUM_PROC", "0")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 import threading
 import time
 from dataclasses import dataclass, field
