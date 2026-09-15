@@ -84,7 +84,8 @@
     </div>
   </div>
 
-  <form id="prep-form" class="grid grid-2 gap-4 mt-4" data-api="/api/projects/{{ pid }}/data-prep/start">
+  <form id="prep-form" class="grid grid-2 gap-4 mt-4"
+        data-start-url="/api/projects/{{ pid }}/data-prep/start">
     <div>
       <label class="block text-xs muted mb-1" for="prep-source"
              title="A parsed source is a file (PDF, DOCX, image, etc.) that has been uploaded to the Data tab and chunked into ~500-token pieces. Each chunk is a self-contained slice the model can read at once.">
@@ -136,9 +137,11 @@
       </select>
     </div>
 
-    <div class="flex gap-2 mt-4" style="grid-column: 1 / -1;">
+    <div class="flex gap-2 mt-4" style="grid-column: 1 / -1; align-items: center; flex-wrap: wrap;">
       <button type="submit" class="btn primary" id="prep-start-btn">Start prep</button>
       <button type="button" class="btn" id="prep-refresh-btn" onclick="prepRefresh()">Refresh list</button>
+      <pre id="prep-status" role="status" aria-live="polite" hidden
+           style="margin:0; font-size:12px; white-space:pre-wrap; flex:1 1 12rem;"></pre>
     </div>
   </form>
 </div>
@@ -1197,20 +1200,107 @@ function prepRefresh() {
   location.reload();
 }
 
-// Wire the form: on submit, fire a toast + reset the button + reload results.
+// Wire the form: fetch /start, show inline status, subscribe to SSE progress.
 const _prepForm = document.getElementById('prep-form');
-if (_prepForm) {
-  const _origHandler = _prepForm.onsubmit;
-  _prepForm.addEventListener('submit', () => {
-    const btn = document.getElementById('prep-start-btn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
-    setTimeout(() => {
-      // After ~5s, reset the button regardless of outcome — the activity feed
-      // + the Prepped Q&A table below will reflect the actual status.
-      if (btn) { btn.disabled = false; btn.textContent = 'Start prep'; }
+const _prepPid = {{ pid | tojson }};
+let _prepEs = null;
+
+function prepSetStatus(msg, state) {
+  const el = document.getElementById('prep-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.dataset.state = state || 'info';
+  el.hidden = false;
+}
+
+function prepSetBusy(busy) {
+  const btn = document.getElementById('prep-start-btn');
+  if (!btn) return;
+  btn.disabled = !!busy;
+  btn.textContent = busy ? 'Running…' : 'Start prep';
+}
+
+function prepSubscribe(runId) {
+  if (_prepEs) { try { _prepEs.close(); } catch (e) { /* ignore */ } _prepEs = null; }
+  const url = '/api/projects/' + _prepPid + '/data-prep/runs/' + runId + '/events';
+  const es = new EventSource(url);
+  _prepEs = es;
+  es.onmessage = (ev) => {
+    let d = {};
+    try { d = JSON.parse(ev.data || '{}'); } catch (e) { d = { message: ev.data }; }
+    const stage = d.stage || '';
+    const pct = (d.pct != null) ? Math.round(Number(d.pct)) : null;
+    const qa = (d.qa_total != null) ? d.qa_total : null;
+    const parts = ['Prep ' + runId, stage || '…'];
+    if (pct != null) parts.push(pct + '%');
+    if (qa != null) parts.push('qa=' + qa);
+    if (d.message) parts.push(String(d.message).slice(0, 200));
+    if (stage === 'error') {
+      prepSetStatus(parts.join(' · '), 'error');
+      prepSetBusy(false);
+      try { es.close(); } catch (e) { /* ignore */ }
+      _prepEs = null;
+      return;
+    }
+    prepSetStatus(parts.join(' · '), stage === 'done' ? 'success' : 'info');
+    if (stage === 'done') {
+      prepSetBusy(false);
+      try { es.close(); } catch (e) { /* ignore */ }
+      _prepEs = null;
       prepRefreshResults();
-    }, 5000);
-  }, true);  // capture phase
+    }
+  };
+  es.onerror = () => {
+    // EventSource retries; if the run already finished the stream closes cleanly.
+    // Leave button state to onmessage (done/error). Only surface a soft note.
+    if (es.readyState === EventSource.CLOSED) {
+      prepSetBusy(false);
+      _prepEs = null;
+    }
+  };
+}
+
+if (_prepForm) {
+  _prepForm.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const sourceId = (document.getElementById('prep-source') || {}).value || '';
+    if (!sourceId) {
+      prepSetStatus('Pick a source file first.', 'error');
+      return;
+    }
+    const body = {
+      source_id: sourceId,
+      qa_per_chunk: parseInt((document.getElementById('prep-qpc') || {}).value || '3', 10) || 3,
+      difficulty: (document.getElementById('prep-diff') || {}).value || 'medium',
+      style: (document.getElementById('prep-style') || {}).value || 'socratic',
+    };
+    prepSetBusy(true);
+    prepSetStatus('Starting…', 'info');
+    try {
+      const r = await fetch(_prepForm.dataset.startUrl || ('/api/projects/' + _prepPid + '/data-prep/start'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const ct = r.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await r.json().catch(() => ({})) : {};
+      if (!r.ok) {
+        const msg = (data && (data.error || data.detail)) || ('HTTP ' + r.status);
+        prepSetStatus(String(msg), 'error');
+        prepSetBusy(false);
+        if (window.fts && fts.notify) fts.notify(String(msg), 'error');
+        return;
+      }
+      const runId = data.run_id;
+      prepSetStatus('Prep started (run ' + runId + ')', 'success');
+      if (window.fts && fts.notify) fts.notify('Prep started (run ' + runId + ')', 'success');
+      prepSubscribe(runId);
+    } catch (e) {
+      prepSetStatus('Start failed: ' + (e.message || e), 'error');
+      prepSetBusy(false);
+      if (window.fts && fts.notify) fts.notify('Start failed: ' + (e.message || e), 'error');
+    }
+  });
 }
 
 // Initial load

@@ -15,11 +15,13 @@ import logging
 import time
 import uuid  # noqa: F401
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
-from fastapi import APIRouter, BackgroundTasks, File, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response
-from pydantic import BaseModel  # noqa: F401
+from pydantic import BaseModel, Field
+
+from finetune_studio.data.prep.generator import NO_MODEL_MSG as _NO_MODEL_MSG
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +30,114 @@ _pages = APIRouter()
 
 # In-memory run registry. Keyed by (pid, run_id).
 _RUNS: dict[tuple[str, str], dict] = {}
+
+Difficulty = Literal["easy", "medium", "hard", "expert"]
+Style = Literal["socratic", "direct", "factual", "eli5", "code"]
+
+
+class StartPrepBody(BaseModel):
+    source_id: str
+    qa_per_chunk: int = Field(default=3, ge=1, le=10)
+    difficulty: Difficulty = "medium"
+    style: Style = "socratic"
+
+
+def _progress_cb(progress_log: list[dict]) -> object:
+    """Build a PrepProgress callback that appends to ``progress_log``."""
+
+    def _cb(p: object) -> None:
+        progress_log.append({
+            "stage": p.stage, "pct": p.pct, "message": p.message,  # type: ignore[attr-defined]
+            "source_id": p.source_id, "sha256": p.sha256,  # type: ignore[attr-defined]
+            "chunks_total": p.chunks_total, "chunks_done": p.chunks_done,  # type: ignore[attr-defined]
+            "qa_total": p.qa_total, "ts": time.time(),  # type: ignore[attr-defined]
+        })
+
+    return _cb
+
+
+def _run_prep_background(run_id: str, runner: object, progress_log: list[dict]) -> None:
+    """Shared background body for upload / start / reprocess prep runs."""
+    from finetune_studio import db
+
+    try:
+        db.mark_data_prep_running(run_id)
+    except Exception:  # noqa: BLE001, S110
+        pass
+    try:
+        result = runner.run()  # type: ignore[attr-defined]
+        progress_log.append({
+            "stage": "done" if result.get("ok") else "error",
+            "pct": 100 if result.get("ok") else 0,
+            "message": json.dumps(result), "ts": time.time(),
+        })
+        qa_total = 0
+        for entry in progress_log:
+            if isinstance(entry.get("qa_total"), int):
+                qa_total = max(qa_total, entry["qa_total"])
+        if result.get("ok"):
+            try:
+                db.mark_data_prep_done(
+                    run_id, qa_total=qa_total, qa_approved=0,
+                    output_path=result.get("output_path", "") or "",
+                )
+            except Exception:  # noqa: BLE001, S110
+                pass
+        else:
+            try:
+                db.mark_data_prep_failed(
+                    run_id,
+                    str(result.get("error") or result.get("message") or "prep failed"),
+                )
+            except Exception:  # noqa: BLE001, S110
+                pass
+    except Exception as e:  # noqa: BLE001, RUF100
+        log.exception("data-prep background task failed")
+        progress_log.append({"stage": "error", "pct": 0,
+                             "message": str(e), "ts": time.time()})
+        try:
+            db.mark_data_prep_failed(run_id, str(e))
+        except Exception:  # noqa: BLE001, S110
+            pass
+
+
+def enqueue_prep_run(
+    pid: str,
+    background: BackgroundTasks,
+    *,
+    data: bytes,
+    filename: str,
+    qa_per_chunk: int = 3,
+    difficulty: str = "medium",
+    style: str = "socratic",
+    uploaded_by: str = "webui",
+    source_id: str = "",
+    settings_obj: dict | None = None,
+) -> str:
+    """Create a DB run row, register the runner, queue background work.
+
+    Returns the run_id. Shared by ``/upload`` and ``/start``.
+    """
+    from finetune_studio import db
+    from finetune_studio.data.prep import DataPrepRunner
+
+    db_row = db.create_data_prep_run(
+        project_id=pid, filename=filename, byte_count=len(data),
+        source_id=source_id, settings_obj=settings_obj,
+    )
+    run_id = db_row["id"]
+    progress_log: list[dict] = []
+    runner = DataPrepRunner(
+        pid=pid, data=data, filename=filename,
+        qa_per_chunk=qa_per_chunk, difficulty=difficulty, style=style,
+        uploaded_by=uploaded_by, progress_cb=_progress_cb(progress_log),
+    )
+    _RUNS[(pid, run_id)] = {
+        "runner": runner, "log": progress_log,
+        "filename": filename, "byte_count": len(data),
+    }
+    background.add_task(_run_prep_background, run_id, runner, progress_log)
+    return run_id
 
 
 # ── HTML page ────────────────────────────────────────────────────────────
@@ -105,76 +215,75 @@ async def unload_active():
 
 # ── Data Prep: upload, process, curate, export ──────────────────────────
 
-@router.post("/projects/{pid}/data-prep/upload")
-async def upload_file(pid: str, background: BackgroundTasks, file: UploadFile = File(...)):  # noqa: B008
+@router.post("/projects/{pid}/data-prep/upload", response_model=None)
+async def upload_file(
+    pid: str,
+    background: BackgroundTasks,
+    file: UploadFile = File(...),  # noqa: B008
+    qa_per_chunk: int = Form(3),
+    difficulty: str = Form("medium"),
+    style: str = Form("socratic"),
+):
     """Read bytes, then start a prep run in background. NO auto-load of model."""
     data = await file.read()
     if not data:
         return JSONResponse({"error": "empty upload"}, status_code=400)
     filename = file.filename or "upload"
-    # Persist a DB row so this run shows up in the activity feed / project
-    # dashboard even after a restart. Use the DB row id as run_id so the
-    # in-memory dict and DB stay aligned (and URL paths stay short).
-    from finetune_studio import db
-    from finetune_studio.data.prep import DataPrepRunner
-    db_row = db.create_data_prep_run(
-        project_id=pid, filename=filename, byte_count=len(data),
+    run_id = enqueue_prep_run(
+        pid, background,
+        data=data, filename=filename,
+        qa_per_chunk=qa_per_chunk, difficulty=difficulty, style=style,
+        uploaded_by="webui",
     )
-    run_id = db_row["id"]
-    progress_log: list[dict] = []
-    def _cb(p):
-        progress_log.append({
-            "stage": p.stage, "pct": p.pct, "message": p.message,
-            "source_id": p.source_id, "sha256": p.sha256,
-            "chunks_total": p.chunks_total, "chunks_done": p.chunks_done,
-            "qa_total": p.qa_total, "ts": time.time(),
-        })
-    runner = DataPrepRunner(
-        pid=pid, data=data, filename=filename,
-        uploaded_by="webui", progress_cb=_cb,
-    )
-    _RUNS[(pid, run_id)] = {"runner": runner, "log": progress_log,
-                              "filename": filename, "byte_count": len(data)}
-    def _bg():
-        try:
-            db.mark_data_prep_running(run_id)
-        except Exception:  # noqa: BLE001, S110
-            pass
-        try:
-            result = runner.run()
-            progress_log.append({"stage": "done" if result.get("ok") else "error",
-                                 "pct": 100 if result.get("ok") else 0,
-                                 "message": json.dumps(result), "ts": time.time()})
-            qa_total = 0
-            for entry in progress_log:
-                if isinstance(entry.get("qa_total"), int):
-                    qa_total = max(qa_total, entry["qa_total"])
-            if result.get("ok"):
-                try:
-                    db.mark_data_prep_done(
-                        run_id, qa_total=qa_total, qa_approved=0,
-                        output_path=result.get("output_path", "") or "",
-                    )
-                except Exception:  # noqa: BLE001, S110
-                    pass
-            else:
-                try:
-                    db.mark_data_prep_failed(
-                        run_id,
-                        str(result.get("error") or result.get("message") or "prep failed"),
-                    )
-                except Exception:  # noqa: BLE001, S110
-                    pass
-        except Exception as e:  # noqa: BLE001, RUF100
-            log.exception("data-prep background task failed")
-            progress_log.append({"stage": "error", "pct": 0,
-                                 "message": str(e), "ts": time.time()})
-            try:
-                db.mark_data_prep_failed(run_id, str(e))
-            except Exception:  # noqa: BLE001, S110
-                pass
-    background.add_task(_bg)
     return {"ok": True, "run_id": run_id, "filename": filename, "byte_count": len(data)}
+
+
+@router.post("/projects/{pid}/data-prep/start", response_model=None)
+async def start_prep(
+    pid: str,
+    body: StartPrepBody,
+    background: BackgroundTasks,
+):
+    """Start prep from an existing QA source (source picker → Start prep)."""
+    from finetune_studio.data import project_filesystem as pfs
+    from finetune_studio.data.prep.generator import resolve_generator
+
+    sources = pfs.list_qa_sources(pid)
+    src = next((s for s in sources if s.get("id") == body.source_id), None)
+    if src is None:
+        return JSONResponse(
+            {"error": f"unknown source_id: {body.source_id}"},
+            status_code=404,
+        )
+    path_str = src.get("data_path") or src.get("path") or ""
+    path = Path(path_str)
+    if not path_str or not path.is_file():
+        return JSONResponse(
+            {"error": f"source file missing: {path_str or body.source_id}"},
+            status_code=404,
+        )
+    if resolve_generator() is None:
+        return JSONResponse({"error": _NO_MODEL_MSG}, status_code=409)
+
+    data = path.read_bytes()
+    filename = src.get("filename") or src.get("name") or path.name
+    run_id = enqueue_prep_run(
+        pid, background,
+        data=data, filename=filename,
+        qa_per_chunk=body.qa_per_chunk,
+        difficulty=body.difficulty,
+        style=body.style,
+        uploaded_by="webui",
+        source_id=body.source_id,
+        settings_obj={
+            "source": "start",
+            "source_id": body.source_id,
+            "qa_per_chunk": body.qa_per_chunk,
+            "difficulty": body.difficulty,
+            "style": body.style,
+        },
+    )
+    return {"ok": True, "run_id": run_id, "source_id": body.source_id}
 
 
 @router.get("/projects/{pid}/data-prep/runs/{run_id}/events")
@@ -386,8 +495,10 @@ async def reprocess_source(pid: str, source_id: str):
         return JSONResponse({"error": f"original bytes missing in {fd}"}, status_code=400)
     data = original.read_bytes()
     # Persist a DB row so this reprocess shows up in the activity feed.
+    # Schedule via asyncio (historical behaviour) rather than BackgroundTasks.
     from finetune_studio import db
     from finetune_studio.data.prep import DataPrepRunner
+
     db_row = db.create_data_prep_run(
         project_id=pid, filename=original.name, byte_count=len(data),
         source_id=source_id,
@@ -395,55 +506,17 @@ async def reprocess_source(pid: str, source_id: str):
     )
     run_id = db_row["id"]
     progress_log: list[dict] = []
-    def _cb(p):
-        progress_log.append({
-            "stage": p.stage, "pct": p.pct, "message": p.message,
-            "source_id": p.source_id, "sha256": p.sha256,
-            "chunks_total": p.chunks_total, "chunks_done": p.chunks_done,
-            "qa_total": p.qa_total, "ts": time.time(),
-        })
-    runner = DataPrepRunner(pid=pid, data=data, filename=original.name,
-                              uploaded_by="reprocess", progress_cb=_cb)
-    _RUNS[(pid, run_id)] = {"runner": runner, "log": progress_log,
-                              "filename": original.name, "byte_count": len(data)}
-    async def _bg():
-        try:
-            db.mark_data_prep_running(run_id)
-        except Exception:  # noqa: BLE001, S110
-            pass
-        try:
-            result = runner.run()
-            progress_log.append({"stage": "done" if result.get("ok") else "error",
-                                 "pct": 100 if result.get("ok") else 0,
-                                 "message": json.dumps(result), "ts": time.time()})
-            qa_total = 0
-            for entry in progress_log:
-                if isinstance(entry.get("qa_total"), int):
-                    qa_total = max(qa_total, entry["qa_total"])
-            if result.get("ok"):
-                try:
-                    db.mark_data_prep_done(
-                        run_id, qa_total=qa_total, qa_approved=0,
-                        output_path=result.get("output_path", "") or "",
-                    )
-                except Exception:  # noqa: BLE001, S110
-                    pass
-            else:
-                try:
-                    db.mark_data_prep_failed(
-                        run_id,
-                        str(result.get("error") or result.get("message") or "reprocess failed"),
-                    )
-                except Exception:  # noqa: BLE001, S110
-                    pass
-        except Exception as e:  # noqa: BLE001, RUF100
-            log.exception("data-prep reprocess failed")
-            progress_log.append({"stage": "error", "pct": 0,
-                                 "message": str(e), "ts": time.time()})
-            try:
-                db.mark_data_prep_failed(run_id, str(e))
-            except Exception:  # noqa: BLE001, S110
-                pass
-    import asyncio
+    runner = DataPrepRunner(
+        pid=pid, data=data, filename=original.name,
+        uploaded_by="reprocess", progress_cb=_progress_cb(progress_log),
+    )
+    _RUNS[(pid, run_id)] = {
+        "runner": runner, "log": progress_log,
+        "filename": original.name, "byte_count": len(data),
+    }
+
+    async def _bg() -> None:
+        await asyncio.to_thread(_run_prep_background, run_id, runner, progress_log)
+
     asyncio.get_event_loop().create_task(_bg())
     return {"ok": True, "run_id": run_id, "filename": original.name}

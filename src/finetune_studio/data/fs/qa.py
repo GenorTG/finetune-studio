@@ -27,12 +27,23 @@ def register_qa_source(
 
     Used by ``POST /api/projects/{pid}/data-prep/sources`` to promote a
     file-library upload into the data-prep source picker without re-uploading.
+
+    Always runs parse+chunk (shared with DataPrepRunner) so ``read_source``
+    finds ``files/<sha12>/parsed.txt``. Existing ready sources are returned
+    as-is; existing-but-unparsed sources are re-ingested.
     """
+    from finetune_studio.data.prep.ingest import ensure_qa_source_parsed
+
     p = Path(path)
     abs_path = str(p.resolve()) if p.exists() else str(p)
     for existing in list_qa_sources(pid):
         if existing.get("data_path") == abs_path or existing.get("path") == abs_path:
-            return existing
+            if (
+                existing.get("status") == "ready"
+                and int(existing.get("chunk_count") or 0) > 0
+            ):
+                return existing
+            return ensure_qa_source_parsed(pid, existing)
 
     name = filename or (p.name if p.name else "upload")
     mime = mime_type or (mimetypes.guess_type(name)[0] or "")
@@ -44,7 +55,7 @@ def register_qa_source(
         sha256 = hashlib.sha256(raw).hexdigest()
         size_bytes = len(raw)
         char_count = len(raw.decode("utf-8", errors="ignore"))
-    source_id = (sha256[:12] if sha256 else uuid.uuid4().hex[:12])
+    source_id = sha256[:12] if sha256 else uuid.uuid4().hex[:12]
     source: dict = {
         "id": source_id,
         "sha256": sha256,
@@ -61,7 +72,7 @@ def register_qa_source(
         "size_bytes": size_bytes,
     }
     write_qa_source(pid, source)
-    return source
+    return ensure_qa_source_parsed(pid, source)
 
 
 def write_qa_pair(pid: str, qa: dict) -> None:

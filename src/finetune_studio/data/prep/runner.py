@@ -21,7 +21,6 @@ import uuid
 from dataclasses import dataclass
 
 from finetune_studio.data import project_filesystem as pfs
-from finetune_studio.data.prep.chunker import chunk_text
 from finetune_studio.data.prep.parsers import parse_qa_json
 from finetune_studio.data.prep.prompts import (
     QA_SYSTEM_PROMPT,
@@ -87,7 +86,7 @@ class DataPrepRunner:
         # 1) Store content-addressed
         self._emit(stage="storing", pct=3, message=f"Storing {self.filename}…")
         mime, _ = mimetypes.guess_type(self.filename)
-        fd, meta = pfs.store_file(
+        _, meta = pfs.store_file(
             self.pid, self.data,
             original_filename=self.filename, mime_type=mime or "",
             uploaded_by=self.uploaded_by, source_kind="upload",
@@ -99,65 +98,68 @@ class DataPrepRunner:
             "byte_count": meta.byte_count, "uploaded_by": self.uploaded_by,
         })
         self._emit(stage="parsing", pct=10, sha256=meta.sha256,
-                   message=f"Parsing with dedicated parser script…")
-        # 2) Parse using the dedicated parser script
-        from finetune_studio.data.parsers import parse_bytes
-        result = parse_bytes(self.filename, self.data)
-        text = result.get("text", "")
-        result_meta = result.get("metadata", {})
-        if not text or len(text.strip()) < 10:
-            pfs.log_ingestion(self.pid, {
-                "event": "parse_empty", "sha256": meta.sha256, "filename": self.filename,
-                "parser": result_meta.get("parser", "?"),
-            })
-            self._emit(stage="error", message="Parser returned empty text. Unsupported format?")
-            return {"ok": False, "error": "empty parse", "sha256": meta.sha256}
-        # 3) Write parsed outputs
-        pfs.write_parsed_outputs(self.pid, meta.sha256, text, result)
-        pfs.update_file_metadata(
-            self.pid, meta.sha256,
+                   message="Parsing with dedicated parser script…")
+        # 2–5) Shared parse + chunk (also used by promote-from-library)
+        from finetune_studio.data.prep.ingest import parse_and_chunk
+
+        ingest = parse_and_chunk(
+            self.pid,
+            self.data,
+            self.filename,
+            sha256=meta.sha256,
+            max_chunks=self.max_chunks,
             mime_type=mime or "",
-            char_count=len(text),
-            parser=result_meta.get("parser", ""),
-            parser_version=result_meta.get("version", ""),
-            warnings=result_meta.get("warnings", []),
+            reuse_if_parsed=True,
         )
-        pfs.log_ingestion(self.pid, {
-            "event": "parsed", "sha256": meta.sha256, "filename": self.filename,
-            "parser": result_meta.get("parser", "?"),
-            "char_count": len(text), "warnings": result_meta.get("warnings", []),
-        })
-        # 4) Chunk
+        if not ingest.ok:
+            if ingest.error == "empty parse":
+                pfs.log_ingestion(self.pid, {
+                    "event": "parse_empty", "sha256": meta.sha256,
+                    "filename": self.filename, "parser": ingest.parser or "?",
+                })
+                self._emit(stage="error",
+                           message="Parser returned empty text. Unsupported format?")
+            else:
+                self._emit(stage="error", message="No chunks produced.")
+            return {"ok": False, "error": ingest.error or "parse failed",
+                    "sha256": meta.sha256}
+
+        chunks = ingest.chunks
+        if ingest.reused:
+            pfs.log_ingestion(self.pid, {
+                "event": "parsed_reused", "sha256": meta.sha256,
+                "filename": self.filename, "parser": ingest.parser or "?",
+                "char_count": ingest.char_count,
+            })
+        else:
+            pfs.log_ingestion(self.pid, {
+                "event": "parsed", "sha256": meta.sha256, "filename": self.filename,
+                "parser": ingest.parser or "?",
+                "char_count": ingest.char_count, "warnings": ingest.warnings,
+            })
         self._emit(stage="chunking", pct=20, message="Splitting into semantic chunks…")
-        chunks = chunk_text(text)
-        if self.max_chunks and len(chunks) > self.max_chunks:
-            chunks = chunks[:self.max_chunks]
-        if not chunks:
-            self._emit(stage="error", message="No chunks produced.")
-            return {"ok": False, "error": "no chunks", "sha256": meta.sha256}
-        pfs.write_chunks(self.pid, meta.sha256, chunks)
-        pfs.update_file_metadata(self.pid, meta.sha256, chunk_count=len(chunks))
-        # 5) Q&A source manifest (filesystem-side)
+        # Q&A source manifest (filesystem-side)
         pfs.write_qa_source(self.pid, {
             "id": self.source_id,
             "sha256": meta.sha256,
             "filename": self.filename,
             "mime_type": mime or "",
-            "char_count": len(text),
-            "chunk_count": len(chunks),
-            "parser": result_meta.get("parser", ""),
+            "char_count": ingest.char_count,
+            "chunk_count": ingest.chunk_count,
+            "parser": ingest.parser,
             "uploaded_at": meta.uploaded_at,
             "status": "ready",
         })
         pfs.log_ingestion(self.pid, {
             "event": "chunked", "sha256": meta.sha256, "filename": self.filename,
-            "chunk_count": len(chunks),
+            "chunk_count": ingest.chunk_count,
         })
         # 6) Q&A generation per chunk
-        from finetune_studio.models.manager import get_manager
-        mgr = get_manager()
-        if mgr.active() is None:
-            self._emit(stage="error", message="No model loaded. Load a model first (provider section).")
+        from finetune_studio.data.prep.generator import NO_MODEL_MSG, resolve_generator
+
+        chat = resolve_generator()
+        if chat is None:
+            self._emit(stage="error", message=NO_MODEL_MSG)
             return {"ok": False, "error": "no model loaded", "sha256": meta.sha256}
         self._emit(stage="generating", pct=30, source_id=self.source_id,
                    chunks_total=len(chunks), chunks_done=0, qa_total=0,
@@ -171,7 +173,7 @@ class DataPrepRunner:
             prompt = QA_USER_TEMPLATE.format(chunk=chunk[:6000], n=self.qa_per_chunk,
                                              difficulty=self.difficulty, style_hint=style_hint(self.style))
             try:
-                raw = mgr.chat(
+                raw = chat(
                     [{"role": "system", "content": QA_SYSTEM_PROMPT},
                      {"role": "user", "content": prompt}],
                     max_tokens=1200, temperature=0.7, top_p=0.9,
