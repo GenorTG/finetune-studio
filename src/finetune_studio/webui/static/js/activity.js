@@ -7,6 +7,8 @@
    "GO TO →" button. Multiple rows can be expanded at once;
    expansion pushes siblings down (no overlay).
    Polls /api/activity every 2s.
+   Expanded rows and filter selects survive re-render, keyed by
+   stable task identity (not array index).
    ============================================================ */
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -35,6 +37,20 @@
     download:   "Download",
   };
 
+  /** Stable identity for a task across poll re-renders (not array index). */
+  function taskIdentity(t) {
+    if (!t || typeof t !== "object") return "";
+    if (t.run_id) return String(t.kind || "") + ":run:" + String(t.run_id);
+    if (t.id) return String(t.kind || "") + ":id:" + String(t.id);
+    // Avoid started_at: training recomputes it every poll from elapsed.
+    return [
+      t.kind || "",
+      t.project_id || "",
+      t.url || "",
+      t.project_name || "",
+    ].join("|");
+  }
+
   function fmtTimeAgo(ts) {
     if (!ts) return "";
     const dt = Math.max(0, Date.now() / 1000 - ts);
@@ -51,17 +67,39 @@
     }[c]));
   }
 
+  let lastTasks = [];
+  const _filter = { type: "", project: "", status: "" };
+  /** @type {Set<string>} taskIdentity keys the user has expanded */
+  const _expanded = new Set();
+
+  function syncFilterFromDom() {
+    _filter.type = document.getElementById("activity-filter-type")?.value || "";
+    _filter.project = document.getElementById("activity-filter-project")?.value || "";
+    _filter.status = document.getElementById("activity-filter-status")?.value || "";
+  }
+
   function renderTasks(tasks) {
+    // DOM selects are the source of truth across poll re-renders.
+    syncFilterFromDom();
     activityPopulateProjectFilter(tasks);
+    syncFilterFromDom();
+
     const filtered = tasks.filter(activityMatchesFilter);
     if (!filtered || filtered.length === 0) {
       bodyEl.innerHTML =
-        '<div class="activity-empty">' + (tasks.length ? 'No activity matches your filters.' : 'No activity. Upload a file or start a training run.') + '</div>';
+        '<div class="activity-empty">' + (tasks.length ? "No activity matches your filters." : "No activity. Upload a file or start a training run.") + "</div>";
       return;
     }
 
-    bodyEl.innerHTML = tasks
-      .map((t, idx) => {
+    const liveKeys = new Set(filtered.map(taskIdentity));
+    for (const key of [..._expanded]) {
+      if (!liveKeys.has(key)) _expanded.delete(key);
+    }
+
+    bodyEl.innerHTML = filtered
+      .map((t) => {
+        const key = taskIdentity(t);
+        const isOpen = _expanded.has(key);
         const icon = KIND_ICON[t.kind] || "›";
         const label = KIND_LABEL[t.kind] || t.kind;
         const pct = Math.round((t.progress || 0) * 100);
@@ -73,9 +111,9 @@
           : "";
         const shortMsg = (t.message || "").split("·")[0].trim().slice(0, 80);
         return `
-        <div class="activity-row ${isDone ? "done" : ""} ${isErr ? "err" : ""}"
-             data-url="${escapeHtml(t.url || "")}" data-idx="${idx}">
-          <div class="activity-row-head" aria-expanded="false">
+        <div class="activity-row ${isDone ? "done" : ""} ${isErr ? "err" : ""} ${isOpen ? "open" : ""}"
+             data-url="${escapeHtml(t.url || "")}" data-task-key="${escapeHtml(key)}">
+          <div class="activity-row-head" aria-expanded="${isOpen ? "true" : "false"}">
             <span class="ki">${icon}</span>
             <span class="activity-label">${escapeHtml(label)}</span>
             ${projectBadge}
@@ -130,8 +168,13 @@
       head.addEventListener("click", (ev) => {
         // Don't toggle when the user clicks the GO TO link.
         if (ev.target.closest(".activity-goto")) return;
+        const key = row.getAttribute("data-task-key") || "";
         const open = row.classList.toggle("open");
         head.setAttribute("aria-expanded", open ? "true" : "false");
+        if (key) {
+          if (open) _expanded.add(key);
+          else _expanded.delete(key);
+        }
       });
       // The GO TO link itself — stop propagation so click doesn't toggle.
       const goto = row.querySelector(".activity-goto");
@@ -152,27 +195,22 @@
     }
   }
 
-  let lastTasks = [];
-  const _filter = { type: '', project: '', status: '' };
-
   function activityApplyFilter() {
-    _filter.type = document.getElementById('activity-filter-type')?.value || '';
-    _filter.project = document.getElementById('activity-filter-project')?.value || '';
-    _filter.status = document.getElementById('activity-filter-status')?.value || '';
+    syncFilterFromDom();
     renderTasks(lastTasks);
   }
 
   function activityPopulateProjectFilter(tasks) {
-    const sel = document.getElementById('activity-filter-project');
+    const sel = document.getElementById("activity-filter-project");
     if (!sel) return;
-    const current = sel.value;
+    const current = sel.value || _filter.project;
     const pids = new Set();
-    tasks.forEach(t => { if (t.project_id) pids.add(t.project_id); });
+    tasks.forEach((t) => { if (t.project_id) pids.add(t.project_id); });
     sel.innerHTML = '<option value="">All projects</option>';
-    [...pids].sort().forEach(pid => {
-      const opt = document.createElement('option');
+    [...pids].sort().forEach((pid) => {
+      const opt = document.createElement("option");
       opt.value = pid;
-      const t = tasks.find(x => x.project_id === pid);
+      const t = tasks.find((x) => x.project_id === pid);
       opt.textContent = (t?.project_name || pid).substring(0, 24);
       sel.appendChild(opt);
     });
@@ -202,7 +240,7 @@
         .join(" · ");
       subEl.textContent = kinds || (d.active_count ? `${d.active_count} active` : "idle");
       if (drawer && !drawer.hidden) {
-        // Re-render only if the task list changed shape (cheap pointer compare).
+        // Re-render restores expanded rows + filter selects via _expanded / DOM.
         renderTasks(lastTasks);
       }
     } catch (e) {
@@ -247,5 +285,7 @@
   setInterval(refresh, 2000);
   refresh();
 
-  window.ftsActivity = { open, close, refresh };
+  // base.html filter <select onchange="activityApplyFilter()">
+  window.activityApplyFilter = activityApplyFilter;
+  window.ftsActivity = { open, close, refresh, applyFilter: activityApplyFilter };
 })();
