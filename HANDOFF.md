@@ -4,32 +4,30 @@
 Local fine-tune + data-prep WebUI (FastAPI, `src/finetune_studio/`).
 Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :7860.
 
-## State (verified 2026-09-15 ~15:12 Europe/Warsaw)
+## State (verified 2026-09-15 ~15:40 Europe/Warsaw)
 | Area | Status |
 |------|--------|
-| Git | `17544f1` pushed; activity-state fix `32fe913` and training observability `cc57f94` are ancestors |
-| Training startup | ✅ Browser-started Qwen3-4B run `38867d1b` reached `done` in 49.27s; settings show `merge_on_save: false` |
-| Hub-token bug | ✅ `SFTConfig` fix prevents TRL 0.24 / transformers 5.5 `push_to_hub_token` KeyError |
-| Browser | ✅ fan-dragon HTTP 200; service MainPID is in `finetune-studio.service` cgroup |
-| Export UI | ✅ Browser confirms GGUF, GPTQ, AWQ; GGUF `q8_0` option visible |
-| Model cleanup | ✅ Retained Qwen3-4B cache and local Qwen3.8-27B safetensors/GGUF; removed old 0.6B/Unsloth/other HF model caches and stale 0.6B project artifacts |
-| Testing UI | ✅ Browser shows retained 4B/27B choices and a visible Run button; auxiliary embedder retained for RAG |
-| Tests | ✅ `13 passed`; targeted Ruff checks clean. Broader legacy Ruff has pre-existing warnings in `engine.py` and related modules |
+| Git | Export-flow fix committed (see latest hash); ancestors include activity `32fe913` + training observability `cc57f94` |
+| Export API | ✅ Adapter-only runs merge at export via `base_model`; formats: gguf / gptq / abliterated / merged. AWQ removed (clear error) |
+| Export UI | ✅ Raw completed runs selectable; “adapter only — merge at export” badge; compatible base input; no AWQ checkbox |
+| Training run | ✅ Browser-started Qwen3-4B run `38867d1b` is `done`, `merge_on_save: false` — now exportable |
+| Tests | ✅ `37 passed` (`test_run_export` + `test_project_export` + `test_export`); ruff clean on touched files |
 
 ## Next steps
-1. In browser, select the completed 4B run on Export and export safetensors/AWQ plus GGUF `q8_0`.
-   `http://fan-dragon:7860/projects/04954e70/export`
-2. Prepare/select the project test suite, then run it against each exported 4B format in Testing.
+1. On fan-dragon: `cd /home/genortg/finetune-studio && git pull --ff-only && systemctl --user restart finetune-studio`
+2. Export run `38867d1b` as GGUF `q8_0` + GPTQ (+ optional abliterated) with a 16-bit Qwen3-4B base.
+   `http://fan-dragon:7860/projects/04954e70/export?run=38867d1b`
+3. Run the project test suite against each exported 4B format on Testing.
    `http://fan-dragon:7860/projects/04954e70/testing`
-3. Verify per-case results, model output/log visibility, and unload/load transitions with screenshots.
-4. If activity drawer has a live item, expand it and wait through one 2-second poll; confirm expansion persists.
+4. Verify per-case results and unload/load transitions with screenshots.
+5. If activity drawer has a live item, expand it through one 2s poll; confirm expansion persists.
 
 ## Commands
-- Focused: `.venv/bin/python -m pytest tests/test_sft_args.py tests/test_training_start_defaults.py -q --tb=short`
-- Targeted lint: `.venv/bin/python -m ruff check src/finetune_studio/training/sft_args.py tests/test_sft_args.py`
+- Focused: `.venv/bin/python -m pytest tests/test_run_export.py tests/test_project_export.py tests/test_export.py -q --tb=short`
+- Lint: `.venv/bin/python -m ruff check src/finetune_studio/training/run_export.py src/finetune_studio/webui/routes/exports.py src/finetune_studio/webui/routes/training.py src/finetune_studio/webui/routes/project_export.py`
 - Deploy: `git push`; on fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`
 - Service truth check: `systemctl --user show -p MainPID --value finetune-studio; grep finetune-studio.service /proc/<pid>/cgroup`
 
 ## Blockers
-- Export/test execution is not yet complete; no exported 4B variants or final per-format benchmark evidence yet.
-- Activity persistence has focused coverage, but a live expanded-row browser check needs an activity item to exist.
+- Export/test execution on fan-dragon not yet re-run after this fix.
+- Activity persistence still needs a live expanded-row browser check when an activity item exists.

@@ -14,9 +14,6 @@ import os
 import tempfile
 from pathlib import Path
 
-import pytest
-
-
 # ── Pure helpers (no DB / no FastAPI) ────────────────────────────────────
 
 
@@ -37,7 +34,8 @@ class TestExportHelpers:
 
     def test_supported_quants_include_mainstream(self):
         from finetune_studio.webui.routes.exports import (
-            DEFAULT_QUANT, SUPPORTED_QUANTS,
+            DEFAULT_QUANT,
+            SUPPORTED_QUANTS,
         )
         assert DEFAULT_QUANT == "Q4_K_M"
         for q in ("f16", "bf16", "f32", "Q8_0",
@@ -96,6 +94,7 @@ class TestExportWorkerSkip:
         CLI rejected with 'unrecognized arguments: /path/...'. Capture
         the subprocess.run argv so we lock in the right flag layout."""
         from unittest.mock import patch
+
         from finetune_studio import db
         from finetune_studio.webui.routes.exports import _export_worker
 
@@ -169,6 +168,7 @@ class TestExportWorkerSkip:
         The worker MUST use sys.executable so it inherits the venv."""
         import sys
         from unittest.mock import patch
+
         from finetune_studio import db
         from finetune_studio.webui.routes.exports import _export_worker
 
@@ -298,8 +298,9 @@ class TestExportRoute:
                         json={"format": "awq", "quant": "Q4_K_M"})
         assert r.status_code == 200
         body = r.json()
-        assert "unsupported format" in body["error"]
-
+        # AWQ is explicitly removed; message must steer to gptq/gguf/merged.
+        assert "AWQ" in body["error"]
+        assert "gptq" in body["error"].lower()
     def test_unknown_quant_returns_400(self, client, mock_settings):
         from finetune_studio import db
         pid = db.create_project(name="R", description="")["id"]

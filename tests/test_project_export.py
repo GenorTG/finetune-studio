@@ -144,3 +144,39 @@ def test_project_export_helpers() -> None:
     indexed = runs_by_id([{"id": "r1", "name": "n"}, {"id": "", "name": "x"}])
     assert list(indexed.keys()) == ["r1"]
     assert indexed["r1"]["name"] == "n"
+
+
+def test_annotate_runs_marks_adapter_only(tmp_path: Path) -> None:
+    from finetune_studio.webui.routes.project_export import (
+        annotate_runs_for_export,
+    )
+
+    out = tmp_path / "r"
+    adapter = out / "adapter"
+    adapter.mkdir(parents=True)
+    (adapter / "a.json").write_text("{}", encoding="utf-8")
+    rows = annotate_runs_for_export([
+        {
+            "id": "1",
+            "status": "done",
+            "output_path": str(out),
+            "base_model": "Qwen/Qwen3-4B",
+        }
+    ])
+    assert rows[0]["has_adapter"] is True
+    assert rows[0]["has_merged"] is False
+    assert rows[0]["exportable"] is True
+
+
+def test_export_page_shows_adapter_merge_copy(
+    client, tmp_path: Path
+) -> None:
+    pid = _project(client)
+    _run_with_export(pid, tmp_path)
+    body = client.get(f"/projects/{pid}/export").text
+    assert "merge at export" in body.lower() or "adapter-only" in body.lower()
+    assert "Compatible base model" in body
+    assert 'value="awq"' not in body
+    assert "GGUF" in body
+    assert "GPTQ" in body
+    assert "Abliterated" in body

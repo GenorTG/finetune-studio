@@ -468,65 +468,38 @@ async def stop_training():
 
 @router.post("/runs/{run_id}/export")
 async def export_run(run_id: str, request: Request):
-    """Export a trained run to various formats (standalone, post-training).
+    """Export a trained run to deployable formats (standalone, post-training).
 
     Body:
-        format: export format — gguf, abliterated, gptq, awq (default: gguf)
-        quants: list of quant types for GGUF (default: ["f16", "q8_0", "q4_k_m", "q5_k_m"])
+        format: gguf | gptq | abliterated | merged (default: gguf).
+                AWQ is removed — use gptq instead.
+        quants: GGUF quant list (default: f16, q8_0, q4_k_m, q5_k_m)
         force: overwrite existing exports (default: false)
+        base_model: optional 16-bit base path/id for merge-at-export when
+                    the run only has an adapter (merge_on_save=false)
     """
     from finetune_studio import db
+    from finetune_studio.training.run_export import export_trained_run
+
     body = await request.json()
     fmt = body.get("format", "gguf")
     quants = body.get("quants", ["f16", "q8_0", "q4_k_m", "q5_k_m"])
     force = bool(body.get("force", False))
+    base_model = body.get("base_model")
+    if base_model is not None:
+        base_model = str(base_model).strip() or None
 
     run = db.get_run(run_id)
     if not run:
         return {"error": "run not found"}
 
-    output_path = (run.get("output_path") or "").strip()
-    if not output_path:
-        return {"error": "run has no output_path"}
-
-    from finetune_studio.training.engine import TrainingConfig, TrainingEngine
-    cfg = TrainingConfig(output_dir=output_path, gguf_quants=quants)
-    engine = TrainingEngine()
-    engine.config = cfg
-
-    if fmt == "gguf":
-        merged_dir = os.path.join(output_path, "merged")
-        if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
-            return {"error": "no merged model to export — run merge first"}
-        gguf_dir = os.path.join(output_path, "gguf")
-        if os.path.isdir(gguf_dir) and os.listdir(gguf_dir) and not force:
-            return {"ok": True, "status": "skipped", "gguf_path": gguf_dir, "message": "GGUF already exists. Use force=true to overwrite."}
-        result = engine._do_export_gguf(output_path)
-        return {"ok": True, "status": "exported" if not result.get("skipped") else "skipped", **result}
-    elif fmt == "abliterated":
-        merged_dir = os.path.join(output_path, "merged")
-        if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
-            return {"error": "no merged model to export — run merge first"}
-        abl_dir = os.path.join(output_path, "abliterated")
-        if os.path.isdir(abl_dir) and os.listdir(abl_dir) and not force:
-            return {"ok": True, "status": "skipped", "message": "Abliterated model already exists. Use force=true to overwrite."}
-        result = engine._do_abliteration()
-        return {"ok": True, "status": "exported", **result}
-    elif fmt == "gptq":
-        merged_dir = os.path.join(output_path, "merged")
-        if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
-            return {"error": "no merged model to export — run merge first"}
-        result = engine._do_export_gptq(output_path)
-        return {"ok": True, "status": "exported", **result}
-    elif fmt == "awq":
-        merged_dir = os.path.join(output_path, "merged")
-        if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
-            return {"error": "no merged model to export — run merge first"}
-        # AWQ export not yet implemented in engine
-        return {"error": "AWQ export not yet implemented"}
-    else:
-        return {"error": f"unknown format: {fmt}"}
-
+    return export_trained_run(
+        run,
+        fmt=str(fmt),
+        quants=list(quants) if isinstance(quants, list) else None,
+        force=force,
+        base_model=base_model,
+    )
 
 @router.get("/runs/{run_id}/auto-suites")
 async def list_auto_suites(run_id: str):

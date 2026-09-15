@@ -16,7 +16,7 @@
 
 <div class="page-head">
   <h1>Export models</h1>
-  <div class="sub">Convert trained runs to deployable formats — GGUF, GPTQ, AWQ, or abliterated.</div>
+  <div class="sub">Convert trained runs to deployable formats — GGUF, GPTQ, or abliterated. Raw adapter runs are merged onto a compatible base at export time.</div>
 </div>
 
 {# ── Available runs to export ─────────────────────────────────────── #}
@@ -24,15 +24,20 @@
   <div class="card-head">
     <div>
       <div class="card-title">Training runs</div>
-      <div class="card-sub">Pick a run to export. Only completed runs with a merged model are exportable.</div>
+      <div class="card-sub">Pick a completed run. Merged models export directly; adapter-only runs (merge_on_save=false) are merged onto the base below first.</div>
     </div>
   </div>
   <div id="export-runs" class="p-2">
-    {% set exportable = project.runs|selectattr('status','in',['done','completed','failed'])|list %}
+    {% set exportable = project.runs|selectattr('exportable')|list %}
     {% if exportable %}
       <div class="grid grid-1 gap-2">
         {% for run in exportable %}
-        <div class="export-run-row" data-run-id="{{ run.id }}" data-output-path="{{ run.output_path }}">
+        <div class="export-run-row"
+             data-run-id="{{ run.id }}"
+             data-output-path="{{ run.output_path }}"
+             data-base-model="{{ run.base_model or '' }}"
+             data-has-merged="{{ '1' if run.has_merged else '0' }}"
+             data-has-adapter="{{ '1' if run.has_adapter else '0' }}">
           <div class="row items-center gap-3 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);">
             <input type="radio" name="export-run" value="{{ run.id }}" class="export-run-radio">
             <div class="flex-1">
@@ -41,6 +46,11 @@
                 {% if run.final_loss %}loss: {{ '%.4f'|format(run.final_loss) }} · {% endif %}
                 {% if run.duration %}{{ '%.0f'|format(run.duration // 60) }}m {{ '%.0f'|format(run.duration % 60) }}s · {% endif %}
                 {{ run.status }}
+                {% if run.has_merged %}
+                  · <span class="pill outline">merged</span>
+                {% elif run.has_adapter %}
+                  · <span class="pill outline">adapter only — merge at export</span>
+                {% endif %}
               </div>
             </div>
             <div class="text-xs mono dim">{{ run.output_path }}</div>
@@ -49,8 +59,23 @@
         {% endfor %}
       </div>
     {% else %}
-      <div class="empty">No completed runs to export. Finish a training run first.</div>
+      <div class="empty">No exportable runs. Finish a training run that writes an adapter or merged model first.</div>
     {% endif %}
+  </div>
+</div>
+
+{# ── Compatible base for adapter-only merge ───────────────────────── #}
+<div class="card mb-4" id="export-base-card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Compatible base model</div>
+      <div class="card-sub">Required when the selected run is adapter-only (no merged/). Use a local 16-bit sibling of the training base (not the bnb-4bit/nf4 path).</div>
+    </div>
+  </div>
+  <div class="p-2">
+    <input class="input w-full mono text-sm" type="text" id="export-base-model"
+           placeholder="e.g. Qwen/Qwen3-4B or /path/to/16bit/snapshot"
+           value="">
   </div>
 </div>
 
@@ -59,7 +84,7 @@
   <div class="card-head">
     <div>
       <div class="card-title">Export format</div>
-      <div class="card-sub">Choose the output format and quantization level.</div>
+      <div class="card-sub">Choose one or more outputs. AWQ is not available (use GPTQ).</div>
     </div>
   </div>
   <div class="grid grid-2 gap-3 p-2">
@@ -71,13 +96,6 @@
       </div>
     </label>
     <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
-      <input type="checkbox" name="export-format" value="abliterated" class="mt-1">
-      <div>
-        <div class="text-sm font-bold">Abliterated</div>
-        <div class="text-xs dim">Refusal-removed merged model (safetensors).</div>
-      </div>
-    </label>
-    <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
       <input type="checkbox" name="export-format" value="gptq" class="mt-1">
       <div>
         <div class="text-sm font-bold">GPTQ</div>
@@ -85,10 +103,10 @@
       </div>
     </label>
     <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
-      <input type="checkbox" name="export-format" value="awq" class="mt-1">
+      <input type="checkbox" name="export-format" value="abliterated" class="mt-1">
       <div>
-        <div class="text-sm font-bold">AWQ</div>
-        <div class="text-xs dim">Activation-aware quantization. Fast inference.</div>
+        <div class="text-sm font-bold">Abliterated</div>
+        <div class="text-xs dim">Refusal-removed merged model (safetensors).</div>
       </div>
     </label>
   </div>
@@ -260,20 +278,46 @@
 </div>
 
 <script>
-// Enable export button only when a run is selected
+// Enable export button when a run is selected; prefill base_model.
 document.querySelectorAll('.export-run-radio').forEach(r => {
   r.addEventListener('change', () => {
     document.getElementById('export-btn').disabled = false;
+    const row = r.closest('.export-run-row');
+    const baseInput = document.getElementById('export-base-model');
+    if (row && baseInput) {
+      const fromRun = row.getAttribute('data-base-model') || '';
+      if (!baseInput.value || baseInput.dataset.fromRun === '1') {
+        baseInput.value = fromRun;
+        baseInput.dataset.fromRun = '1';
+      }
+    }
   });
 });
 
 async function startExport() {
   const runRadio = document.querySelector('input[name="export-run"]:checked');
-  if (!runRadio) return alert('Select a run first');
+  if (!runRadio) {
+    if (window.fts && window.fts.notify) fts.notify('Select a run first', 'error');
+    else alert('Select a run first');
+    return;
+  }
   const runId = runRadio.value;
+  const row = runRadio.closest('.export-run-row');
+  const needsMerge = row && row.getAttribute('data-has-merged') !== '1';
+  const baseModel = (document.getElementById('export-base-model').value || '').trim();
+  if (needsMerge && !baseModel) {
+    const msg = 'Adapter-only run: set a compatible 16-bit base model before export';
+    if (window.fts && window.fts.notify) fts.notify(msg, 'error');
+    else alert(msg);
+    return;
+  }
 
   const formats = Array.from(document.querySelectorAll('input[name="export-format"]:checked')).map(cb => cb.value);
-  if (formats.length === 0) return alert('Select at least one export format');
+  if (formats.length === 0) {
+    if (window.fts && window.fts.notify) fts.notify('Select at least one export format', 'error');
+    else alert('Select at least one export format');
+    return;
+  }
 
   const quants = Array.from(document.querySelectorAll('input[name="gguf-quant"]:checked')).map(cb => cb.value);
   const force = document.getElementById('export-force').checked;
@@ -288,13 +332,14 @@ async function startExport() {
       status.textContent = `Exporting ${fmt}…`;
       let body = { format: fmt, force };
       if (fmt === 'gguf') body.quants = quants;
+      if (baseModel) body.base_model = baseModel;
       const r = await fetch(`/api/projects/{{ pid }}/runs/${runId}/export`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       const d = await r.json();
-      if (!r.ok) {
+      if (!r.ok || d.error) {
         status.textContent = `✗ ${fmt}: ${d.error || 'failed'}`;
         btn.disabled = false;
         return;

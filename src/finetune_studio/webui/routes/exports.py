@@ -20,8 +20,6 @@ import os
 import shutil
 import subprocess
 import sys
-import time
-from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
@@ -75,7 +73,7 @@ def _safe_name(s: str) -> str:
     return "".join(c if c.isalnum() or c in "-_." else "_" for c in s)
 
 
-def _find_llama_tool(name: str) -> Optional[str]:
+def _find_llama_tool(name: str) -> str | None:
     """Find an executable in PATH or common llama.cpp install locations."""
     p = shutil.which(name)
     if p:
@@ -87,7 +85,7 @@ def _find_llama_tool(name: str) -> Optional[str]:
     return None
 
 
-def _find_convert_script() -> Optional[str]:
+def _find_convert_script() -> str | None:
     """Find llama.cpp's convert_hf_to_gguf.py script."""
     for base in LLAMA_CPP_SEARCH_PATHS:
         candidate = os.path.join(base, "convert_hf_to_gguf.py")
@@ -99,29 +97,61 @@ def _find_convert_script() -> Optional[str]:
 @router.post("/projects/{pid}/runs/{rid}/export")
 async def export_run(pid: str, rid: str, request: Request,
                      background: BackgroundTasks):
-    """Queue a GGUF export of a run's merged model.
+    """Export a run to GGUF / GPTQ / abliterated / merged safetensors.
 
-    Body:
-      format: "gguf" (default; future: "gptq", "mlx", ...)
-      quant:  "Q4_K_M" (default). See SUPPORTED_QUANTS for the full set.
-      auto_merge: bool (default true). If merged/ is missing, run /merge
-                  first; otherwise return 400.
+    Two modes:
 
-    Returns:
-      {ok, export_id, status, quant, output_path} on success.
-      {error, ...} with status="skipped" when prerequisites are missing.
+    1. **UI / multi-format (sync)** — body includes ``quants`` (list) and/or
+       ``format`` in {gptq, abliterated, merged}. Merges the adapter onto
+       ``base_model`` (optional override) when ``merged/`` is missing.
+
+    2. **Legacy async GGUF** — body uses singular ``quant`` (default Q4_K_M)
+       without ``quants``. Queues a background job and returns an export_id.
+
+    Body (common):
+      format: gguf | gptq | abliterated | merged (default gguf). AWQ removed.
+      force: overwrite existing outputs (sync path)
+      base_model: optional compatible 16-bit base for merge-at-export
+      auto_merge: bool (default true; legacy async path)
+      quants: list of GGUF quants (sync UI path)
+      quant: single GGUF quant (legacy async path)
     """
     body = await request.json() if request.headers.get(
         "content-type", "").startswith("application/json") else {}
     fmt = (body.get("format") or "gguf").lower()
-    quant = (body.get("quant") or DEFAULT_QUANT).upper()
     auto_merge = bool(body.get("auto_merge", True))
+    base_model_raw = body.get("base_model")
+    base_model = (
+        str(base_model_raw).strip() or None
+        if base_model_raw is not None else None
+    )
 
     run = db.get_run(rid)
     if not run:
         return {"error": "run not found"}
+    if run.get("project_id") and pid and run["project_id"] != pid:
+        return {"error": "run does not belong to this project"}
+
+    # Sync multi-format path used by the Export page (quants list / non-gguf).
+    use_sync = (
+        "quants" in body
+        or fmt in ("gptq", "abliterated", "merged", "awq")
+        or bool(body.get("force")) and "quant" not in body
+    )
+    if use_sync:
+        from finetune_studio.training.run_export import export_trained_run
+        quants = body.get("quants")
+        return export_trained_run(
+            run,
+            fmt=fmt,
+            quants=list(quants) if isinstance(quants, list) else None,
+            force=bool(body.get("force", False)),
+            base_model=base_model,
+        )
+
     if fmt != "gguf":
         return {"error": f"unsupported format: {fmt}"}
+    quant = (body.get("quant") or DEFAULT_QUANT).upper()
     if quant not in SUPPORTED_QUANTS:
         return {"error": f"unsupported quant: {quant}",
                 "supported": sorted(SUPPORTED_QUANTS)}
@@ -136,13 +166,17 @@ async def export_run(pid: str, rid: str, request: Request,
             return {"error": "run has not been merged; POST /merge first, "
                              "or set auto_merge=true in the request body"}
         try:
-            from finetune_studio.training.engine import merge_adapter_for_run
-            merge_result = merge_adapter_for_run(run, force=False)
+            from finetune_studio.training.run_export import (
+                ensure_merged_for_export,
+            )
+            merge_result = ensure_merged_for_export(
+                run, base_model=base_model, force=False,
+            )
             merged_dir = merge_result.get("merged_path") or merged_dir
             log.info("auto-merge for export: %s", merged_dir)
         except ValueError as e:
             return {"error": f"auto-merge failed: {e}", "status": "skipped"}
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             log.exception("auto-merge failed")
             return {"error": f"auto-merge failed: {e}", "status": "skipped"}
 
@@ -150,7 +184,9 @@ async def export_run(pid: str, rid: str, request: Request,
     export_row = db.create_export(project_id=pid, run_id=rid,
                                   format=fmt, quant=quant)
 
-    base = os.path.basename(run.get("base_model") or "model").replace("/", "__")
+    base = os.path.basename(
+        base_model or run.get("base_model") or "model"
+    ).replace("/", "__")
     gguf_dir = os.path.join(output_path, "gguf")
     os.makedirs(gguf_dir, exist_ok=True)
     out_filename = f"{_safe_name(base)}-{quant}.gguf"
@@ -234,13 +270,9 @@ def _export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None
                    "--outfile", out_path,
                    "--outtype", outtype]
             log.info("export single-step: %s", " ".join(cmd))
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
-            if r.returncode != 0:
-                err_tail = (r.stderr or r.stdout or "")[-1000:]
-                raise RuntimeError(
-                    f"convert_hf_to_gguf failed (rc={r.returncode}): {err_tail}"
-                )
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+            r = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=3600, check=False,
+            )
             if r.returncode != 0:
                 err_tail = (r.stderr or r.stdout or "")[-1000:]
                 raise RuntimeError(
@@ -259,8 +291,9 @@ def _export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None
                     "--outfile", fp16_path,
                     "--outtype", "f16"]
             log.info("export step 1 (HF -> fp16): %s", " ".join(cmd1))
-            r1 = subprocess.run(cmd1, capture_output=True, text=True,
-                                timeout=3600)
+            r1 = subprocess.run(
+                cmd1, capture_output=True, text=True, timeout=3600, check=False,
+            )
             if r1.returncode != 0:
                 err_tail = (r1.stderr or r1.stdout or "")[-1000:]
                 raise RuntimeError(
@@ -272,8 +305,9 @@ def _export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None
             cmd2 = [quantize_bin, fp16_path, out_path, quant]
             log.info("export step 2 (quantize -> %s): %s", quant,
                      " ".join(cmd2))
-            r2 = subprocess.run(cmd2, capture_output=True, text=True,
-                                timeout=3600)
+            r2 = subprocess.run(
+                cmd2, capture_output=True, text=True, timeout=3600, check=False,
+            )
             if r2.returncode != 0:
                 err_tail = (r2.stderr or r2.stdout or "")[-1000:]
                 # Best-effort cleanup of the intermediate
@@ -291,9 +325,9 @@ def _export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None
         db.mark_export_done(eid, output_path=out_path, size_bytes=size,
                             size_human=_human_size(size),
                             intermediate_path=intermediate_path)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         log.exception("export failed")
         try:
             db.mark_export_failed(eid, str(e))
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception:
+            log.debug("mark_export_failed secondary failure", exc_info=True)
