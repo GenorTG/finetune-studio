@@ -134,6 +134,18 @@ else
     ENV_BLOCK="Environment=FTS_ROOT=%h/.finetune-studio"
 fi
 
+# User units get no filesystem sandboxing: ProtectHome=read-only breaks the
+# HF / triton / torch caches under ~ (Errno 30 on first model load), and a
+# user unit can't protect anything the user couldn't already touch.
+if [ "$INSTALL_MODE" = "system" ]; then
+    HARDENING_BLOCK="# Hardening (relaxed for dev: write to project dir + ~/.finetune-studio)
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=$REPO_DIR $HOME/.finetune-studio $HOME/.cache /tmp"
+else
+    HARDENING_BLOCK="# No sandboxing for user units (see install-service.sh)"
+fi
+
 mkdir -p "$UNIT_DIR"
 cat > "$UNIT_FILE" <<EOF
 # Finetune Studio — systemd unit (managed by install-service.sh)
@@ -151,11 +163,9 @@ RestartSec=5
 TimeoutStopSec=20
 StandardOutput=journal
 StandardError=journal
+Environment=PYTHONUNBUFFERED=1
 $ENV_BLOCK
-# Hardening (relaxed for dev: write to project dir + ~/.finetune-studio)
-ProtectSystem=full
-ProtectHome=read-only
-ReadWritePaths=$REPO_DIR $HOME/.finetune-studio
+$HARDENING_BLOCK
 
 [Install]
 WantedBy=default.target
@@ -188,9 +198,32 @@ if [ "$NO_START" = "1" ]; then
     exit 0
 fi
 
+# Legacy duplicate unit from older installs — also WantedBy=default.target on
+# the same port, so it would race this one on reboot.
+LEGACY_UNIT="$UNIT_DIR/finetune-studio-webui.service"
+if [ "$INSTALL_MODE" = "user" ] && [ -f "$LEGACY_UNIT" ]; then
+    log "Disabling + removing legacy $LEGACY_UNIT"
+    "${SYSTEMCTL[@]}" disable --now finetune-studio-webui 2>/dev/null || true
+    rm -f "$LEGACY_UNIT"
+    "${SYSTEMCTL[@]}" daemon-reload
+fi
+
+# Take over the port from a bare nohup/uvicorn (not ours if it's not in our cgroup)
+if command -v ss >/dev/null 2>&1; then
+    BARE_PID="$(ss -ltnpH "sport = :$PORT" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | head -1 || true)"
+    if [ -n "$BARE_PID" ] && ! grep -q "$UNIT_NAME.service" "/proc/$BARE_PID/cgroup" 2>/dev/null; then
+        log "Stopping bare process pid $BARE_PID on :$PORT so the unit can bind"
+        kill "$BARE_PID" 2>/dev/null || true
+        for _ in $(seq 1 20); do
+            kill -0 "$BARE_PID" 2>/dev/null || break
+            sleep 0.5
+        done
+    fi
+fi
+
 # Start + verify
 log "Starting $UNIT_NAME..."
-"${SYSTEMCTL[@]}" start "$UNIT_NAME" || die "systemctl start failed."
+"${SYSTEMCTL[@]}" restart "$UNIT_NAME" || die "systemctl start failed."
 
 # Poll the health endpoint for up to 20 seconds
 log "Waiting for webui to come up on :$PORT..."
