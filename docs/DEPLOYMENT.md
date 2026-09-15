@@ -20,9 +20,27 @@ git clone https://github.com/GenorTG/finetune-studio && cd finetune-studio
    unless no wheel exists).
 4. llama.cpp CLI build into `LLAMA_CPP_DIR` (default project-local `.llama.cpp/`) —
    `llama-quantize` + `convert_hf_to_gguf.py` for the GGUF export endpoint.
+   Legacy checkouts at `~/llama.cpp` are still discovered. Override with
+   `LLAMA_CPP_DIR=/path/to/llama.cpp`.
 5. systemd **user** service `finetune-studio.service` (port 7860, `--no-access-log`).
 6. `scripts/install_diagnose.py` — deep health check (mixed installs, missing deps,
    broken torchaudio, service status); `--repair` autofixes.
+
+### Optional: GPTQ export (`auto-gptq`)
+
+GPTQ is **gated**: the Export UI disables the format until `auto_gptq` imports.
+Install into the app venv on the GPU host (example for fan-dragon):
+
+```bash
+cd /home/genortg/finetune-studio
+uv pip install --python .venv/bin/python -e '.[gptq]'
+# equivalent: uv pip install --python .venv/bin/python 'auto-gptq>=0.7.0'
+systemctl --user restart finetune-studio
+```
+
+If the wheel build fails against the host CUDA/torch pair, leave GPTQ disabled —
+merged / GGUF / abliterated remain available. Do not commit secrets or HF tokens
+into this doc; use the host login / `huggingface-cli login` as usual.
 
 ## 2. Runtime layout
 

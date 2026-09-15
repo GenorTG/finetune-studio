@@ -1036,107 +1036,47 @@ class TrainingEngine:
         self._notify()
         return result
 
-    def _do_export_gguf(self, output_dir: str) -> dict:
-        """Export the merged model to GGUF format for llama.cpp.
+    def _do_export_gguf(self, output_dir: str, force: bool = False) -> dict:
+        """Export the merged model to GGUF via llama.cpp (shared converter).
 
-        Saves to `<output_dir>/gguf/` using llama.cpp's convert.py script.
-        If llama.cpp is not available, sets a warning message and returns.
-
-        Quantization types supported: f16, bf16, q8_0, q4_k_m, q5_k_m, q4_0,
-        q4_1, q5_0, q5_1, q2_k, q3_k_m, q3_k_l, q3_k_s, q4_k_s, q5_k_s,
-        q6_k, iq2_xxs, iq2_xs, iq2_s, iq2_m, iq3_xxs, iq3_xs, iq3_s,
-        iq3_m, iq4_nl, iq4_xs, q4_0_4_4, q4_0_4_8, q4_0_8_8.
+        Saves to ``<output_dir>/gguf/``. Success only when requested quants
+        produce non-empty ``.gguf`` files. Uses ``convert_hf_to_gguf.py`` and
+        ``llama-quantize`` discovered via ``gguf_convert``.
         """
+        from finetune_studio.training.gguf_convert import convert_merged_to_gguf
+
         gguf_dir = os.path.join(output_dir, "gguf")
         merged_dir = os.path.join(output_dir, "merged")
         if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
-            return {"gguf_path": "", "skipped": True,
-                    "reason": "no merged model to convert"}
-        os.makedirs(gguf_dir, exist_ok=True)
-        # Find llama.cpp convert script
-        convert_script = None
-        candidates = [
-            os.path.expanduser("~/llama.cpp/convert_hf_to_gguf.py"),
-            os.path.expanduser("~/llama.cpp/convert.py"),
-            os.path.expanduser("~/llama.cpp/convert-hf-to-gguf.py"),
-            "/usr/local/bin/convert-hf-to-gguf.py",
-        ]
-        for c in candidates:
-            if os.path.isfile(c):
-                convert_script = c
-                break
-        if not convert_script:
-            self.state.message = "GGUF export: llama.cpp not found. Install llama.cpp to enable GGUF export."
+            return {
+                "ok": False,
+                "gguf_path": gguf_dir,
+                "skipped": True,
+                "reason": "no merged model to convert",
+                "error": "no merged model to convert",
+            }
+        quants = (
+            list(self.config.gguf_quants)
+            if hasattr(self.config, "gguf_quants") and self.config.gguf_quants
+            else ["f16", "q8_0"]
+        )
+        self.state.message = f"Exporting GGUF ({', '.join(quants)})..."
+        self._notify()
+        result = convert_merged_to_gguf(
+            merged_dir, gguf_dir, quants, force=force,
+        )
+        if result.get("ok"):
+            size_h = result.get("size_human") or _human_size(
+                int(result.get("size_bytes") or 0)
+            )
+            n = len(result.get("files") or [])
+            self.state.message = f"GGUF exported ({size_h}, {n} file(s))."
             self._notify()
-            return {"gguf_path": gguf_dir, "skipped": True,
-                    "reason": "llama.cpp not found"}
-        # Find llama.cpp quantize binary
-        quant_bin = None
-        quant_candidates = [
-            os.path.join(os.path.dirname(convert_script), "..", "build", "bin", "llama-quantize"),
-            os.path.join(os.path.expanduser("~"), "llama.cpp", "build", "bin", "llama-quantize"),
-            os.path.join(os.path.expanduser("~"), "llama.cpp", "build-RPC", "bin", "llama-quantize"),
-            "llama-quantize",
-        ]
-        for q in quant_candidates:
-            if os.path.isfile(q):
-                quant_bin = q
-                break
-        try:
-            import subprocess
-            # Step 1: Convert to F16 GGUF first
-            f16_file = os.path.join(gguf_dir, "model-f16.gguf")
-            cmd = ["python3", convert_script, merged_dir, "--outfile", f16_file,
-                   "--outtype", "f16"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-            if result.returncode != 0:
-                self.state.message = f"GGUF export failed: {result.stderr[:200]}"
-                self._notify()
-                return {"gguf_path": gguf_dir, "skipped": True,
-                        "reason": result.stderr[:200]}
-            # Step 2: Quantize to all requested formats
-            quants = self.config.gguf_quants if hasattr(self.config, 'gguf_quants') else ["f16"]
-            exported = {}
-            for quant in quants:
-                quant = quant.lower().replace("-", "_").replace(".", "_")
-                if quant in ("f16", "bf16"):
-                    # Already exported as f16
-                    src = f16_file
-                    dst = os.path.join(gguf_dir, f"model-{quant}.gguf")
-                    if quant == "f16":
-                        exported[quant] = {"path": f16_file, "size": os.path.getsize(f16_file)}
-                    else:
-                        import shutil
-                        shutil.copy(f16_file, dst)
-                        exported[quant] = {"path": dst, "size": os.path.getsize(dst)}
-                    continue
-                # Use llama.cpp quantize binary
-                quant_bin = os.path.join(os.path.dirname(convert_script), "quantize")
-                if not os.path.isfile(quant_bin):
-                    # Try system-wide
-                    quant_bin = "quantize"
-                out_file = os.path.join(gguf_dir, f"model-{quant}.gguf")
-                cmd = [quant_bin, f16_file, out_file, quant]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=1200)
-                if result.returncode == 0 and os.path.isfile(out_file):
-                    exported[quant] = {"path": out_file, "size": os.path.getsize(out_file)}
-                else:
-                    exported[quant] = {"error": result.stderr[:100]}
-            size = _dir_size(gguf_dir)
-            # Copy runtime system prompt file if present
-            prompt_src = os.path.join(output_dir, "merged", "system_prompt.txt")
-            if os.path.exists(prompt_src):
-                import shutil
-                shutil.copy(prompt_src, os.path.join(gguf_dir, "system_prompt.txt"))
-            self.state.message = f"GGUF exported ({_human_size(size)}, {len(exported)} formats)."
-            self._notify()
-            return {"gguf_path": gguf_dir, "size_bytes": size,
-                    "size_human": _human_size(size), "skipped": False,
-                    "exported": exported}
-        except Exception as e:
-            self.state.message = f"GGUF export error: {e}"
-            self._notify()
-            return {"gguf_path": gguf_dir, "skipped": True, "reason": str(e)}
+            return result
+        err = result.get("error") or result.get("reason") or "GGUF failed"
+        self.state.message = f"GGUF export failed: {err}"
+        self._notify()
+        return result
 
 
 def merge_adapter_for_run(run: dict, force: bool = False) -> dict:

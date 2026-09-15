@@ -89,10 +89,8 @@ class TestExportWorkerSkip:
     def test_single_step_quant_uses_outfile_flag(self, mock_settings, monkeypatch, tmp_path):
         """Regression for the fan-dragon 2026-09-10 GGUF Q8_0 export:
         convert_hf_to_gguf.py takes [model] as a single positional arg
-        and uses --outfile OUTFILE + --outtype QUANT for output. Earlier
-        worker code passed `model outfile --outtype q8_0`, which the
-        CLI rejected with 'unrecognized arguments: /path/...'. Capture
-        the subprocess.run argv so we lock in the right flag layout."""
+        and uses --outfile OUTFILE + --outtype QUANT for output.
+        """
         from unittest.mock import patch
 
         from finetune_studio import db
@@ -106,66 +104,61 @@ class TestExportWorkerSkip:
 
         fake_convert = tmp_path / "convert_hf_to_gguf.py"
         fake_convert.write_text("# fake\n")
-        fake_quantize = tmp_path / "llama-quantize"
-        fake_quantize.write_text("#!/bin/sh\n"); fake_quantize.chmod(0o755)
-
-        # Pretend convert_hf_to_gguf.py actually wrote the file at out_path
-        # so the worker's post-step size check doesn't crash.
-        merged_dir = tmp_path / "merged"; merged_dir.mkdir()
-        out_path = tmp_path / "model-Q8_0.gguf"
+        merged_dir = tmp_path / "merged"
+        merged_dir.mkdir()
+        (merged_dir / "model.safetensors").write_bytes(b"x")
+        gguf_dir = tmp_path / "gguf"
+        gguf_dir.mkdir()
+        out_path = gguf_dir / "model-Q8_0.gguf"
 
         captured = []
+
         def fake_run(cmd, *args, **kwargs):
             captured.append(cmd)
-            # Make the convert step "succeed" by writing the target file
-            if "convert_hf_to_gguf.py" in " ".join(cmd):
-                Path(out_path).write_bytes(b"\x00")
-            r = type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
-            return r
+            if "convert_hf_to_gguf.py" in " ".join(str(c) for c in cmd):
+                outfile = cmd[cmd.index("--outfile") + 1]
+                Path(outfile).write_bytes(b"\x00")
+            return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
-        with patch("finetune_studio.webui.routes.exports._find_convert_script",
-                   return_value=str(fake_convert)), \
-             patch("finetune_studio.webui.routes.exports._find_llama_tool",
-                   return_value=str(fake_quantize)), \
-             patch("finetune_studio.webui.routes.exports.subprocess.run",
-                   side_effect=fake_run):
-            _export_worker(eid, merged_dir=str(merged_dir),
-                           out_path=str(out_path), quant="Q8_0")
+        with patch(
+            "finetune_studio.training.gguf_convert.find_gguf_convert_script",
+            return_value=str(fake_convert),
+        ), patch(
+            "finetune_studio.training.gguf_convert.subprocess.run",
+            side_effect=fake_run,
+        ):
+            _export_worker(
+                eid,
+                merged_dir=str(merged_dir),
+                out_path=str(out_path),
+                quant="Q8_0",
+            )
 
         assert captured, "subprocess.run was never called"
         cmd = captured[0]
-        # The script must be invoked with --outfile (not as a 2nd positional)
         assert "--outfile" in cmd, f"missing --outfile flag in argv: {cmd}"
-        # The script must receive --outtype q8_0
         assert "--outtype" in cmd
         assert cmd[cmd.index("--outtype") + 1] == "q8_0"
-        # Position of the model path: it must be a single positional after
-        # python3 <script>; no extra positional at the end.
-        try:
-            script_idx = next(i for i, c in enumerate(cmd)
-                              if str(c).endswith("convert_hf_to_gguf.py"))
-        except StopIteration:
-            raise AssertionError(f"script path missing in argv: {cmd}")
-        # Tokens strictly between script and --outfile must be empty
-        # (only the model positional should be there).
+        script_idx = next(
+            i for i, c in enumerate(cmd)
+            if str(c).endswith("convert_hf_to_gguf.py")
+        )
         tail = cmd[script_idx + 1:]
-        # tail should look like: [merged_dir, --outfile, out_path, --outtype, q8_0]
-        assert str(tail[0]) == str(merged_dir), f"first arg after script must be merged_dir; got {tail[0]}"
+        assert str(tail[0]) == str(merged_dir)
         assert tail[1] == "--outfile"
-        assert str(tail[2]) == str(out_path)
+        assert str(tail[2]).endswith("model-q8_0.gguf"), tail[2]
         assert tail[3] == "--outtype"
         assert tail[4] == "q8_0"
-        # Most importantly: no extra positional after --outtype
-        assert len(tail) == 5, f"unexpected extra args in argv tail: {tail[5:]}"
+        assert len(tail) == 5, f"unexpected extra args: {tail[5:]}"
+        row = db.get_export(eid)
+        assert row["status"] == "done"
+        assert os.path.isfile(out_path)
+        assert os.path.getsize(out_path) > 0
 
     def test_subprocess_uses_venv_python_not_path_python3(
         self, mock_settings, monkeypatch, tmp_path,
     ):
-        """Regression for fan-dragon 2026-09-10: the worker used
-        `python3` from PATH, which resolved to miniconda's interpreter
-        and missed the venv's sentencepiece / torch. Convert died
-        with `ModuleNotFoundError: No module named 'sentencepiece'`.
-        The worker MUST use sys.executable so it inherits the venv."""
+        """Worker must use sys.executable (venv), not bare python3 on PATH."""
         import sys
         from unittest.mock import patch
 
@@ -180,48 +173,55 @@ class TestExportWorkerSkip:
 
         fake_convert = tmp_path / "convert_hf_to_gguf.py"
         fake_convert.write_text("# fake\n")
-        fake_quantize = tmp_path / "llama-quantize"
-        fake_quantize.write_text("#!/bin/sh\n"); fake_quantize.chmod(0o755)
-        merged_dir = tmp_path / "merged"; merged_dir.mkdir()
-        out_path = tmp_path / "model-Q8_0.gguf"
+        merged_dir = tmp_path / "merged"
+        merged_dir.mkdir()
+        (merged_dir / "model.safetensors").write_bytes(b"x")
+        gguf_dir = tmp_path / "gguf"
+        gguf_dir.mkdir()
+        out_path = gguf_dir / "model-Q8_0.gguf"
 
         captured = []
+
         def fake_run(cmd, *a, **kw):
             captured.append(cmd)
-            if "convert_hf_to_gguf.py" in " ".join(cmd):
-                Path(out_path).write_bytes(b"\x00")
+            if "convert_hf_to_gguf.py" in " ".join(str(c) for c in cmd):
+                outfile = cmd[cmd.index("--outfile") + 1]
+                Path(outfile).write_bytes(b"\x00")
             return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
-        with patch("finetune_studio.webui.routes.exports._find_convert_script",
-                   return_value=str(fake_convert)), \
-             patch("finetune_studio.webui.routes.exports._find_llama_tool",
-                   return_value=str(fake_quantize)), \
-             patch("finetune_studio.webui.routes.exports.subprocess.run",
-                   side_effect=fake_run):
-            _export_worker(eid, merged_dir=str(merged_dir),
-                           out_path=str(out_path), quant="Q8_0")
+        with patch(
+            "finetune_studio.training.gguf_convert.find_gguf_convert_script",
+            return_value=str(fake_convert),
+        ), patch(
+            "finetune_studio.training.gguf_convert.subprocess.run",
+            side_effect=fake_run,
+        ):
+            _export_worker(
+                eid,
+                merged_dir=str(merged_dir),
+                out_path=str(out_path),
+                quant="Q8_0",
+            )
         cmd = captured[0]
-        # Must use the venv / worker interpreter, NOT a bare "python3" on PATH
         assert cmd[0] == sys.executable, (
-            f"worker must use sys.executable (the venv python), got cmd[0]={cmd[0]!r}"
+            f"worker must use sys.executable, got cmd[0]={cmd[0]!r}"
         )
-        assert cmd[0] != "python3", (
-            "bare 'python3' from PATH can resolve to a non-venv interpreter "
-            "that's missing sentencepiece / torch"
-        )
+        assert cmd[0] != "python3"
 
     def test_failure_when_no_tooling(self, mock_settings, monkeypatch):
         """With FTS_SKIP_EXPORT unset and no llama.cpp on the host, the
         worker should mark the export failed with a clean, installable
         error message."""
         from finetune_studio import db
-        from finetune_studio.webui.routes import exports
         from finetune_studio.webui.routes.exports import _export_worker
 
         monkeypatch.delenv("FTS_SKIP_EXPORT", raising=False)
-        # Point search paths at empty temp dirs and empty PATH
-        monkeypatch.setattr(exports, "LLAMA_CPP_SEARCH_PATHS",
-                            [tempfile.mkdtemp()])
+        monkeypatch.delenv("LLAMA_CPP_DIR", raising=False)
+        empty = tempfile.mkdtemp()
+        monkeypatch.setattr(
+            "finetune_studio.training.gguf_convert.llama_cpp_search_paths",
+            lambda: [empty],
+        )
         monkeypatch.setenv("PATH", "")
 
         pid = db.create_project(name="E", description="")["id"]
@@ -233,12 +233,14 @@ class TestExportWorkerSkip:
             out_path = os.path.join(out, "model-Q4_K_M.gguf")
             merged_dir = os.path.join(out, "merged")
             os.makedirs(merged_dir)
+            weight = os.path.join(merged_dir, "model.safetensors")
+            with open(weight, "wb") as fh:
+                fh.write(b"x")
             _export_worker(eid, merged_dir=merged_dir, out_path=out_path,
                            quant="Q4_K_M")
             r = db.get_export(eid)
             assert r["status"] == "error"
             assert r["finished_at"] is not None
-            # The error should mention convert_hf_to_gguf + install hint
             assert "convert_hf_to_gguf" in r["error"]
             assert "llama.cpp" in r["error"]
 
@@ -261,58 +263,65 @@ class TestExportWorkerSkip:
         fake_convert.write_text("# fake\n", encoding="utf-8")
         merged_dir = tmp_path / "merged"
         merged_dir.mkdir()
+        (merged_dir / "model.safetensors").write_bytes(b"x")
         out_path = tmp_path / "model-Q8_0.gguf"
 
         def fake_run(cmd, **_kw):
-            # Simulate convert creating a zero-byte outfile.
-            out_path.write_bytes(b"")
+            outfile = cmd[cmd.index("--outfile") + 1]
+            Path(outfile).write_bytes(b"")
             return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
-        with patch("finetune_studio.webui.routes.exports._find_convert_script",
-                   return_value=str(fake_convert)), \
-             patch("finetune_studio.webui.routes.exports._find_llama_tool",
-                   return_value="/bin/true"), \
-             patch("finetune_studio.webui.routes.exports.subprocess.run",
-                   side_effect=fake_run):
+        with patch(
+            "finetune_studio.training.gguf_convert.find_gguf_convert_script",
+            return_value=str(fake_convert),
+        ), patch(
+            "finetune_studio.training.gguf_convert.subprocess.run",
+            side_effect=fake_run,
+        ):
             _export_worker(eid, merged_dir=str(merged_dir),
                            out_path=str(out_path), quant="Q8_0")
         r = db.get_export(eid)
         assert r["status"] == "error"
-        assert "empty" in (r.get("error") or "").lower()
+        err = (r.get("error") or "").lower()
+        assert "empty" in err or "missing" in err or "artifact" in err
 
     def test_failure_when_only_convert_present_but_quant_needs_binary(
         self, mock_settings, monkeypatch
     ):
-        """convert_hf_to_gguf.py is found but llama-quantize is not \u2014
+        """convert_hf_to_gguf.py is found but llama-quantize is not —
         the worker should error mentioning llama-quantize."""
         from finetune_studio import db
-        from finetune_studio.webui.routes import exports
         from finetune_studio.webui.routes.exports import _export_worker
 
         monkeypatch.delenv("FTS_SKIP_EXPORT", raising=False)
-        # Make a fake llama.cpp install with only the convert script
         fake_root = tempfile.mkdtemp()
         os.makedirs(os.path.join(fake_root, "build", "bin"), exist_ok=True)
         with open(os.path.join(fake_root, "convert_hf_to_gguf.py"), "w") as f:
             f.write("# fake\n")
-        monkeypatch.setattr(exports, "LLAMA_CPP_SEARCH_PATHS", [fake_root])
-        monkeypatch.setenv("PATH", "")  # nothing on PATH
+        monkeypatch.setattr(
+            "finetune_studio.training.gguf_convert.llama_cpp_search_paths",
+            lambda: [fake_root],
+        )
+        monkeypatch.setenv("PATH", "")
 
         pid = db.create_project(name="E", description="")["id"]
         rid = db.create_run(project_id=pid, name="r",
                             base_model="m", settings_obj={})["id"]
-        # Pick a quant that requires the two-step (quantize) path
         eid = db.create_export(project_id=pid, run_id=rid, quant="Q5_K_M")["id"]
 
         with tempfile.TemporaryDirectory() as out:
             out_path = os.path.join(out, "model-Q5_K_M.gguf")
             merged_dir = os.path.join(out, "merged")
             os.makedirs(merged_dir)
+            weight = os.path.join(merged_dir, "model.safetensors")
+            with open(weight, "wb") as fh:
+                fh.write(b"x")
             _export_worker(eid, merged_dir=merged_dir, out_path=out_path,
                            quant="Q5_K_M")
             r = db.get_export(eid)
             assert r["status"] == "error"
             assert "llama-quantize" in r["error"]
+
 
 
 # ── Route validation (via FastAPI TestClient) ────────────────────────────

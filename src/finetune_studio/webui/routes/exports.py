@@ -19,8 +19,6 @@ import asyncio
 import logging
 import os
 import shutil
-import subprocess
-import sys
 
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
@@ -77,6 +75,9 @@ def _safe_name(s: str) -> str:
 
 def _find_llama_tool(name: str) -> str | None:
     """Find an executable in PATH or common llama.cpp install locations."""
+    if name == "llama-quantize":
+        from finetune_studio.training.gguf_convert import find_llama_quantize
+        return find_llama_quantize()
     p = shutil.which(name)
     if p:
         return p
@@ -89,11 +90,8 @@ def _find_llama_tool(name: str) -> str | None:
 
 def _find_convert_script() -> str | None:
     """Find llama.cpp's convert_hf_to_gguf.py script."""
-    for base in LLAMA_CPP_SEARCH_PATHS:
-        candidate = os.path.join(base, "convert_hf_to_gguf.py")
-        if os.path.isfile(candidate):
-            return candidate
-    return None
+    from finetune_studio.training.gguf_convert import find_gguf_convert_script
+    return find_gguf_convert_script()
 
 
 @router.post("/projects/{pid}/runs/{rid}/export")
@@ -326,117 +324,49 @@ async def list_project_exports(pid: str, limit: int = 100):
 def _export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None:
     """Background GGUF export worker.
 
-    Workflow:
-    - f16 / bf16 / f32 / Q8_0: one step via convert_hf_to_gguf.py --outtype.
-    - everything else: two steps:
-        1. convert HF merged dir -> fp16 GGUF
-        2. llama-quantize fp16 -> target quant
-
-    FTS_SKIP_EXPORT=1 short-circuits with a 1-byte marker so tests can
-    assert the workflow end-to-end without spinning up a real conversion.
+    Delegates to ``convert_merged_to_gguf`` (llama.cpp convert + quantize).
+    ``FTS_SKIP_EXPORT=1`` short-circuits with a 1-byte marker for tests.
     """
-    intermediate_path = ""
     try:
         db.mark_export_running(eid)
-        # Test / CI short-circuit
-        if os.environ.get("FTS_SKIP_EXPORT") == "1":
-            os.makedirs(os.path.dirname(out_path), exist_ok=True)
-            with open(out_path, "wb") as f:
-                f.write(b"\x00")
-            size = os.path.getsize(out_path)
-            db.mark_export_done(eid, output_path=out_path, size_bytes=size,
-                                size_human=_human_size(size),
-                                intermediate_path="")
-            return
+        from finetune_studio.training.gguf_convert import (
+            convert_merged_to_gguf,
+            normalize_gguf_quant,
+        )
 
-        convert_script = _find_convert_script()
-        if not convert_script:
+        gguf_dir = os.path.dirname(out_path)
+        nq = normalize_gguf_quant(quant)
+        result = convert_merged_to_gguf(
+            merged_dir, gguf_dir, [nq], force=True,
+        )
+        if not result.get("ok"):
             raise RuntimeError(
-                "convert_hf_to_gguf.py not found. Install llama.cpp on this "
-                "host: git clone https://github.com/ggerganov/llama.cpp && "
-                "pip install -r llama.cpp/requirements/"
-                "requirements-convert_hf_to_gguf.txt"
+                result.get("error") or "GGUF conversion failed"
             )
-
-        os.makedirs(os.path.dirname(out_path), exist_ok=True)
-
-        single_step_quants = {"f16": "f16", "bf16": "bf16",
-                              "f32": "f32", "Q8_0": "q8_0"}
-        if quant in single_step_quants:
-            outtype = single_step_quants[quant]
-            # convert_hf_to_gguf.py takes the model dir as a positional
-            # `[model]` and the output path via `--outfile OUTFILE`. Earlier
-            # code passed outfile as a 2nd positional which the CLI rejected
-            # with 'unrecognized arguments'.
-            # Use sys.executable (the venv python the worker is running in)
-            # — `python3` on PATH might be a different interpreter that's
-            # missing sentencepiece / torch / etc. (caught on fan-dragon
-            # 2026-09-10 when Qwen export died with ModuleNotFoundError
-            # on `from sentencepiece import SentencePieceProcessor`).
-            cmd = [sys.executable, convert_script, merged_dir,
-                   "--outfile", out_path,
-                   "--outtype", outtype]
-            log.info("export single-step: %s", " ".join(cmd))
-            r = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=3600, check=False,
-            )
-            if r.returncode != 0:
-                err_tail = (r.stderr or r.stdout or "")[-1000:]
-                raise RuntimeError(
-                    f"convert_hf_to_gguf failed (rc={r.returncode}): {err_tail}"
-                )
-        else:
-            quantize_bin = _find_llama_tool("llama-quantize")
-            if not quantize_bin:
-                raise RuntimeError(
-                    f"llama-quantize binary not found (needed for quant={quant}). "
-                    "Build llama.cpp: cd llama.cpp && cmake -B build && "
-                    "cmake --build build --config Release"
-                )
-            fp16_path = out_path.replace(f"-{quant}.gguf", "-fp16.gguf")
-            cmd1 = [sys.executable, convert_script, merged_dir,
-                    "--outfile", fp16_path,
-                    "--outtype", "f16"]
-            log.info("export step 1 (HF -> fp16): %s", " ".join(cmd1))
-            r1 = subprocess.run(
-                cmd1, capture_output=True, text=True, timeout=3600, check=False,
-            )
-            if r1.returncode != 0:
-                err_tail = (r1.stderr or r1.stdout or "")[-1000:]
-                raise RuntimeError(
-                    f"convert_hf_to_gguf to fp16 failed (rc={r1.returncode}): "
-                    f"{err_tail}"
-                )
-            intermediate_path = fp16_path
-
-            cmd2 = [quantize_bin, fp16_path, out_path, quant]
-            log.info("export step 2 (quantize -> %s): %s", quant,
-                     " ".join(cmd2))
-            r2 = subprocess.run(
-                cmd2, capture_output=True, text=True, timeout=3600, check=False,
-            )
-            if r2.returncode != 0:
-                err_tail = (r2.stderr or r2.stdout or "")[-1000:]
-                # Best-effort cleanup of the intermediate
-                try:
-                    os.unlink(fp16_path)
-                except OSError:
-                    pass
-                raise RuntimeError(
-                    f"llama-quantize failed (rc={r2.returncode}): {err_tail}"
-                )
-
-        if not os.path.isfile(out_path):
-            raise RuntimeError(f"output GGUF not found after conversion: {out_path}")
-        size = os.path.getsize(out_path)
-        if size <= 0:
+        # Prefer the exact outfile the caller queued; fall back to converter path.
+        final_path = out_path
+        files = result.get("files") or []
+        if files:
+            # Converter writes model-{quant}.gguf; rename/copy if needed.
+            produced = files[0]
+            if os.path.abspath(produced) != os.path.abspath(out_path):
+                os.makedirs(os.path.dirname(out_path), exist_ok=True)
+                if not os.path.isfile(out_path):
+                    shutil.copy2(produced, out_path)
+            final_path = out_path if os.path.isfile(out_path) else produced
+        if not os.path.isfile(final_path) or os.path.getsize(final_path) <= 0:
             raise RuntimeError(
-                f"output GGUF is empty after conversion: {out_path}. "
+                f"output GGUF missing or empty after conversion: {final_path}. "
                 "Refuse to mark export done without a non-empty artifact."
             )
-        db.mark_export_done(eid, output_path=out_path, size_bytes=size,
-                            size_human=_human_size(size),
-                            intermediate_path=intermediate_path)
+        size = os.path.getsize(final_path)
+        db.mark_export_done(
+            eid,
+            output_path=final_path,
+            size_bytes=size,
+            size_human=_human_size(size),
+            intermediate_path=result.get("intermediate_path") or "",
+        )
     except Exception as e:
         log.exception("export failed")
         try:

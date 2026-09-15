@@ -7,6 +7,7 @@ removed (unmaintained); supported formats are ``gguf``, ``gptq``,
 
 GGUF exports only report success when the requested ``.gguf`` artifact(s)
 exist on disk and are non-empty — never on HTTP 200 / empty dirs alone.
+GPTQ success requires a non-empty quantized directory (config + weights).
 """
 
 from __future__ import annotations
@@ -15,155 +16,22 @@ import os
 from pathlib import Path
 from typing import Any
 
+from finetune_studio.training.gguf_convert import (  # noqa: F401 — re-export
+    GGUF_CONVERTER_MISSING_MSG,
+    convert_merged_to_gguf,
+    find_gguf_convert_script,
+    find_llama_quantize,
+    gguf_filename_matches_quant,
+    llama_cpp_search_paths,
+    normalize_gguf_quant,
+    verify_gguf_artifacts,
+)
+
 SUPPORTED_EXPORT_FORMATS: frozenset[str] = frozenset(
     {"gguf", "gptq", "abliterated", "merged"}
 )
 
 DEFAULT_GGUF_QUANTS: list[str] = ["f16", "q8_0", "q4_k_m", "q5_k_m"]
-
-GGUF_CONVERTER_MISSING_MSG: str = (
-    "convert_hf_to_gguf.py not found. Install llama.cpp on this host: "
-    "git clone https://github.com/ggerganov/llama.cpp && "
-    "pip install -r llama.cpp/requirements/"
-    "requirements-convert_hf_to_gguf.txt. "
-    "Project-local .llama.cpp/ is also searched. "
-    "Or choose format=merged until the converter is installed."
-)
-
-
-def _project_root() -> str:
-    """Repo root containing ``.llama.cpp/`` (``src/finetune_studio/training/``)."""
-    here = os.path.dirname(os.path.abspath(__file__))
-    return os.path.dirname(os.path.dirname(os.path.dirname(here)))
-
-
-def llama_cpp_search_paths() -> list[str]:
-    """Ordered roots where ``convert_hf_to_gguf.py`` may live."""
-    return [
-        os.path.join(_project_root(), ".llama.cpp"),
-        os.path.expanduser("~/llama.cpp"),
-        "/opt/llama.cpp",
-        "/usr/local/llama.cpp",
-    ]
-
-
-def find_gguf_convert_script() -> str | None:
-    """Locate llama.cpp ``convert_hf_to_gguf.py``, or None if missing."""
-    for base in llama_cpp_search_paths():
-        candidate = os.path.join(base, "convert_hf_to_gguf.py")
-        if os.path.isfile(candidate):
-            return candidate
-    # Legacy filenames / PATH-adjacent installs
-    for candidate in (
-        os.path.expanduser("~/llama.cpp/convert.py"),
-        os.path.expanduser("~/llama.cpp/convert-hf-to-gguf.py"),
-        "/usr/local/bin/convert-hf-to-gguf.py",
-    ):
-        if os.path.isfile(candidate):
-            return candidate
-    return None
-
-
-def normalize_gguf_quant(quant: str) -> str:
-    """Normalize a quant label for filename matching (``Q4_K_M`` → ``q4_k_m``)."""
-    return (quant or "").strip().lower().replace("-", "_").replace(".", "_")
-
-
-def gguf_filename_matches_quant(filename: str, quant: str) -> bool:
-    """True when ``filename`` is a ``.gguf`` whose stem ends with the quant."""
-    name = os.path.basename(filename).lower()
-    if not name.endswith(".gguf"):
-        return False
-    stem = name[:-5]
-    nq = normalize_gguf_quant(quant)
-    if not nq:
-        return False
-    if stem == nq or stem == f"model-{nq}":
-        return True
-    return stem.endswith((f"-{nq}", f"_{nq}"))
-
-
-def verify_gguf_artifacts(
-    gguf_dir: str,
-    quants: list[str] | None = None,
-) -> dict[str, Any]:
-    """Require non-empty ``.gguf`` files for ``quants`` (or any if unset).
-
-    Returns ``ok``, ``files``, ``missing``, ``error``. Never raises.
-    """
-    wanted = [normalize_gguf_quant(q) for q in (quants or []) if str(q).strip()]
-    if not os.path.isdir(gguf_dir):
-        return {
-            "ok": False,
-            "files": [],
-            "missing": wanted,
-            "error": f"GGUF directory missing: {gguf_dir}",
-        }
-    try:
-        names = os.listdir(gguf_dir)
-    except OSError as e:
-        return {
-            "ok": False,
-            "files": [],
-            "missing": wanted,
-            "error": f"Cannot read GGUF directory {gguf_dir}: {e}",
-        }
-
-    nonempty: list[str] = []
-    for name in names:
-        if not name.lower().endswith(".gguf"):
-            continue
-        path = os.path.join(gguf_dir, name)
-        try:
-            if os.path.isfile(path) and os.path.getsize(path) > 0:
-                nonempty.append(path)
-        except OSError:
-            continue
-
-    if not nonempty:
-        return {
-            "ok": False,
-            "files": [],
-            "missing": wanted,
-            "error": (
-                "No non-empty .gguf files found after export. "
-                "Install llama.cpp (convert_hf_to_gguf.py + llama-quantize) "
-                "and retry, or choose format=merged."
-            ),
-        }
-
-    if not wanted:
-        return {
-            "ok": True,
-            "files": nonempty,
-            "missing": [],
-            "error": None,
-        }
-
-    matched: list[str] = []
-    missing: list[str] = []
-    for nq in wanted:
-        hit = next(
-            (p for p in nonempty if gguf_filename_matches_quant(p, nq)),
-            None,
-        )
-        if hit is None:
-            missing.append(nq)
-        else:
-            matched.append(hit)
-
-    if missing:
-        return {
-            "ok": False,
-            "files": matched,
-            "missing": missing,
-            "error": (
-                "Missing non-empty GGUF artifact(s) for: "
-                + ", ".join(missing)
-                + ". Conversion may have failed or llama.cpp tools are incomplete."
-            ),
-        }
-    return {"ok": True, "files": matched, "missing": [], "error": None}
 
 
 def validate_base_model(base_model: str) -> str:
@@ -321,7 +189,10 @@ def _export_gguf(
             ),
         }
 
-    if find_gguf_convert_script() is None:
+    if (
+        find_gguf_convert_script() is None
+        and os.environ.get("FTS_SKIP_EXPORT") != "1"
+    ):
         return _export_failure(
             GGUF_CONVERTER_MISSING_MSG,
             format="gguf",
@@ -330,18 +201,52 @@ def _export_gguf(
             missing=quant_list,
         )
 
-    result = engine._do_export_gguf(output_path)
-    # Engine historically returned skipped/reason without error — treat as fail
-    # unless non-empty artifacts for the requested quants are on disk.
+    # TrainingEngine._do_export_gguf uses convert_merged_to_gguf; tests may patch it.
+    try:
+        result = engine._do_export_gguf(output_path, force=force)
+    except TypeError:
+        result = engine._do_export_gguf(output_path)
+
+    if result.get("ok") is True and result.get("files"):
+        return {
+            "ok": True,
+            "status": result.get("status")
+            or ("skipped" if result.get("skipped") else "exported"),
+            "format": "gguf",
+            "gguf_path": result.get("gguf_path") or gguf_dir,
+            "files": list(result["files"]),
+            "quants": quant_list,
+            **{
+                k: v
+                for k, v in result.items()
+                if k
+                not in (
+                    "ok",
+                    "status",
+                    "format",
+                    "gguf_path",
+                    "files",
+                    "quants",
+                    "error",
+                )
+            },
+        }
+
     engine_error = result.get("error") or result.get("reason")
-    if result.get("error"):
+    if result.get("ok") is False or result.get("error"):
         return _export_failure(
-            str(result["error"]),
+            str(result.get("error") or engine_error or "GGUF failed"),
             format="gguf",
             quants=quant_list,
-            **{k: v for k, v in result.items() if k not in ("ok", "status")},
+            gguf_path=gguf_dir,
+            **{
+                k: v
+                for k, v in result.items()
+                if k not in ("ok", "status", "error", "format")
+            },
         )
 
+    # Legacy / patched engine shapes — require verified artifacts on disk.
     verified = verify_gguf_artifacts(gguf_dir, quant_list)
     if not verified["ok"]:
         detail = verified.get("error") or "GGUF artifacts missing or empty"
@@ -354,20 +259,6 @@ def _export_gguf(
             quants=quant_list,
             files=verified.get("files") or [],
             missing=verified.get("missing") or quant_list,
-            **{
-                k: v
-                for k, v in result.items()
-                if k
-                not in (
-                    "ok",
-                    "status",
-                    "error",
-                    "gguf_path",
-                    "quants",
-                    "files",
-                    "missing",
-                )
-            },
         )
 
     return {
@@ -495,8 +386,11 @@ def export_trained_run(
             "strength": float(result.get("strength") or 1.0),
         }
 
-    # gptq — fail fast when auto_gptq is missing (common host gap)
-    from finetune_studio.training.advanced_quant import is_gptq_available
+    # gptq — fail fast when auto_gptq is missing; verify artifacts on success
+    from finetune_studio.training.advanced_quant import (
+        is_gptq_available,
+        verify_gptq_artifacts,
+    )
 
     if not is_gptq_available():
         return _export_failure(
@@ -505,13 +399,51 @@ def export_trained_run(
             format="gptq",
         )
 
+    gptq_dir = os.path.join(output_path, "gptq")
+    existing_gptq = verify_gptq_artifacts(gptq_dir)
+    if existing_gptq["ok"] and not force:
+        return {
+            "ok": True,
+            "status": "skipped",
+            "format": "gptq",
+            "output_path": gptq_dir,
+            "files": existing_gptq.get("files") or [],
+            "size_bytes": existing_gptq.get("size_bytes", 0),
+            "message": "GPTQ already exists. Use force=true to overwrite.",
+        }
+
     result = engine._do_export_gptq(output_path)
     if result.get("error"):
-        return _export_failure(str(result["error"]), format="gptq", **result)
+        return _export_failure(
+            str(result["error"]),
+            format="gptq",
+            output_path=gptq_dir,
+        )
     if result.get("skipped"):
         return _export_failure(
             str(result.get("reason", "gptq skipped")),
             format="gptq",
-            **result,
+            output_path=gptq_dir,
         )
-    return {"ok": True, "status": "exported", "format": "gptq", **result}
+
+    verified = verify_gptq_artifacts(
+        str(result.get("output_dir") or result.get("output_path") or gptq_dir)
+    )
+    if not verified["ok"]:
+        return _export_failure(
+            str(verified.get("error") or "GPTQ artifacts missing or empty"),
+            format="gptq",
+            output_path=gptq_dir,
+            files=verified.get("files") or [],
+        )
+    return {
+        "ok": True,
+        "status": "exported",
+        "format": "gptq",
+        "output_path": verified.get("output_dir") or gptq_dir,
+        "files": verified.get("files") or [],
+        "size_bytes": verified.get("size_bytes") or result.get("size_bytes"),
+        "size_human": result.get("size_human"),
+        "bits": result.get("bits"),
+        "group_size": result.get("group_size"),
+    }

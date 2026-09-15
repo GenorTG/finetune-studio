@@ -20,6 +20,65 @@ def is_gptq_available() -> bool:
         return False
 
 
+def verify_gptq_artifacts(gptq_dir: str) -> dict:
+    """Require a non-empty GPTQ export dir (config + weight file).
+
+    Returns ``ok``, ``files``, ``output_dir``, ``size_bytes``, ``error``.
+    """
+    if not os.path.isdir(gptq_dir):
+        return {
+            "ok": False,
+            "files": [],
+            "output_dir": gptq_dir,
+            "size_bytes": 0,
+            "error": f"GPTQ directory missing: {gptq_dir}",
+        }
+    weight_suffixes = (".safetensors", ".bin")
+    files: list[str] = []
+    try:
+        names = os.listdir(gptq_dir)
+    except OSError as e:
+        return {
+            "ok": False,
+            "files": [],
+            "output_dir": gptq_dir,
+            "size_bytes": 0,
+            "error": f"Cannot read GPTQ directory {gptq_dir}: {e}",
+        }
+
+    has_config = "config.json" in names or "quantize_config.json" in names
+    for name in names:
+        path = os.path.join(gptq_dir, name)
+        try:
+            if not os.path.isfile(path) or os.path.getsize(path) <= 0:
+                continue
+        except OSError:
+            continue
+        lower = name.lower()
+        if lower.endswith(weight_suffixes):
+            files.append(path)
+
+    if not has_config or not files:
+        return {
+            "ok": False,
+            "files": files,
+            "output_dir": gptq_dir,
+            "size_bytes": _dir_size(gptq_dir),
+            "error": (
+                "No non-empty GPTQ artifacts found (need config.json / "
+                "quantize_config.json and at least one weight file). "
+                "Install auto-gptq and retry, or choose format=merged."
+            ),
+        }
+    return {
+        "ok": True,
+        "files": files,
+        "output_dir": gptq_dir,
+        "size_bytes": _dir_size(gptq_dir),
+        "error": None,
+    }
+
+
 def quantize_gptq(
     model_path: str,
     output_dir: str,
@@ -132,7 +191,9 @@ def quantize_gguf_imatrix(
     # Step 1: Convert to F16 GGUF
     f16_file = os.path.join(gguf_dir, "model-f16.gguf")
     cmd = ["python3", convert_script, model_path, "--outfile", f16_file, "--outtype", "f16"]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=600, check=False,
+    )
     if result.returncode != 0:
         return {"error": f"convert failed: {result.stderr[:200]}"}
 
@@ -146,7 +207,9 @@ def quantize_gguf_imatrix(
         quant_clean = quant.lower().replace("-", "_").replace(".", "_")
         out_file = os.path.join(gguf_dir, f"model-{quant_clean}.gguf")
         cmd = [quant_bin, f16_file, out_file, quant_clean, "--imatrix", imatrix_path]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1200)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=1200, check=False,
+        )
         if result.returncode == 0 and os.path.isfile(out_file):
             exported[quant] = {"path": out_file, "size": os.path.getsize(out_file)}
         else:
@@ -198,7 +261,9 @@ def generate_imatrix(
         calibration_data = _default_calibration_path()
 
     cmd = [imatrix_bin, "-m", model_path, "-f", calibration_data, "-o", output_path, "--ctx", str(n_ctx)]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=1800, check=False,
+    )
 
     if result.returncode != 0:
         return {"error": f"imatrix failed: {result.stderr[:200]}"}
@@ -213,8 +278,10 @@ def _default_calibration_path() -> str:
     if not os.path.isfile(path):
         # Write a simple calibration text
         with open(path, "w") as f:
-            for i in range(200):
-                f.write(f"This is calibration sentence number {i}. " * 20 + "\n")
+            f.writelines(
+                f"This is calibration sentence number {i}. " * 20 + "\n"
+                for i in range(200)
+            )
     return path
 
 
