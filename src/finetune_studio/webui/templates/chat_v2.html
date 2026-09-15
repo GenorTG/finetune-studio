@@ -135,7 +135,7 @@
     </label>
     <label class="flex items-center gap-1" title="Max tokens to generate">
       <span class="dim">Max</span>
-      <input type="number" id="chat-max-tokens" value="1024" min="1" max="16384" style="width:56px;" class="input">
+      <input type="number" id="chat-max-tokens" value="4096" min="1" max="16384" style="width:56px;" class="input">
     </label>
   </div>
 </div>
@@ -611,30 +611,27 @@ async function chatSend() {
   try {
     let url, body, parseFn;
     if (mode === 'agent') {
-      // Agent mode needs either provider_id (load/use the local manager's
-      // model) or external_api (an OpenAI-compat endpoint). Fetch the active
-      // model from /api/providers and send its id; the endpoint loads it via
-      // the manager if not already loaded.
+      // Agent mode: if Inference already has a model, omit provider_id so the
+      // server reuses that engine (never auto-load a second GGUF — E2E-21).
+      // Only send provider_id when nothing is loaded and the manager already
+      // has an active provider the user picked.
       let provider_id = null;
+      let inferenceLoaded = false;
       try {
-        const prov = await fetch('/api/providers').then((r) => r.json());
-        if (prov.active && prov.active.id) {
-          provider_id = prov.active.id;
-        } else {
-          const ie = await fetch('/api/inference/status').then((r) => r.json());
-          const loadedPath = ie && ie.model;
-          const match = (prov.providers || []).find((p) =>
-            p.kind === 'local_gguf' && p.model_id === loadedPath
-          );
-          if (match) provider_id = match.id;
-          if (!provider_id) {
-            const anyGguf = (prov.providers || []).find((p) => p.kind === 'local_gguf');
-            if (anyGguf) provider_id = anyGguf.id;
+        const ie = await fetch('/api/inference/status').then((r) => r.json());
+        if (ie && ie.loaded) inferenceLoaded = true;
+      } catch (_) { /* ignore — server returns a clear 409 */ }
+      if (!inferenceLoaded) {
+        try {
+          const prov = await fetch('/api/providers').then((r) => r.json());
+          if (prov.active && prov.active.loaded && prov.active.id) {
+            provider_id = prov.active.id;
           }
-        }
-      } catch (_) { /* ignore — endpoint will return a clear error */ }
+        } catch (_) { /* ignore */ }
+      }
       url = '/api/projects/' + _chatPid + '/data-prep/chat';
-      body = { messages: _chatHistory, provider_id, temperature: parseFloat(document.getElementById('chat-temperature').value), top_p: parseFloat(document.getElementById('chat-top-p').value), top_k: parseInt(document.getElementById('chat-top-k').value) || 0, max_tokens: parseInt(document.getElementById('chat-max-tokens').value) || 1024 };
+      body = { messages: _chatHistory, temperature: parseFloat(document.getElementById('chat-temperature').value), top_p: parseFloat(document.getElementById('chat-top-p').value), top_k: parseInt(document.getElementById('chat-top-k').value) || 0, max_tokens: parseInt(document.getElementById('chat-max-tokens').value) || 4096 };
+      if (provider_id) body.provider_id = provider_id;
       parseFn = (b) => ({
         reply: b.reply || '',
         tool_calls: b.tool_calls || [],

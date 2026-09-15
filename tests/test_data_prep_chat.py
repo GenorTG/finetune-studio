@@ -233,13 +233,31 @@ class TestChatRouteSmoke:
         # Either 422 (validation) or 200-with-error; both are acceptable
         assert "error" in body or r.status_code in (200, 422)
 
-    def test_missing_backend_returns_error(self, client, monkeypatch):
-        monkeypatch.setenv("FTS_SKIP_CHAT", "1")
-        r = client.post("/api/projects/test/data-prep/chat",
-                        json={"messages": [{"role": "user", "content": "hi"}]})
-        assert r.status_code == 200
+    def test_missing_backend_returns_409(self, client, monkeypatch):
+        """No provider_id / external_api and nothing loaded → 409."""
+        from unittest.mock import MagicMock
+
+        from finetune_studio.data.prep.generator import NO_MODEL_MSG
+
+        mgr = MagicMock()
+        mgr.active.return_value = None
+        eng = MagicMock()
+        eng.model = None
+        monkeypatch.setattr(
+            "finetune_studio.models.manager.get_manager",
+            lambda: mgr,
+        )
+        monkeypatch.setattr(
+            "finetune_studio.webui.app.inference_engine",
+            eng,
+        )
+        r = client.post(
+            "/api/projects/test/data-prep/chat",
+            json={"messages": [{"role": "user", "content": "hi"}]},
+        )
+        assert r.status_code == 409
         body = r.json()
-        assert "either provider_id or external_api required" in body.get("error", "")
+        assert body.get("error") == NO_MODEL_MSG
 
     def test_external_api_skips_to_canned_reply(self, client, monkeypatch):
         """With FTS_SKIP_CHAT=1, external_api still goes through the loop

@@ -225,6 +225,19 @@ def _run_tool(pid: str, name: str, args: dict) -> dict:
         return {"error": f"tool {name} failed: {e}"}
 
 
+def _strip_thinking(text: str) -> str:
+    """Remove Qwen3 thinking blocks from model output.
+
+    Handles both paired ``<think>…</think>`` and the common chat-template
+    leak where only a bare closing ``</think>`` appears (opening tag was
+    injected into the prompt, so the model never emits it).
+    """
+    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    if "</think>" in cleaned:
+        cleaned = cleaned.split("</think>", 1)[1]
+    return cleaned
+
+
 def _extract_tool_calls(text: str) -> list[dict]:
     """Pull `<tool_call>{...}</tool_call>` blocks out of a model reply.
 
@@ -232,14 +245,14 @@ def _extract_tool_calls(text: str) -> list[dict]:
       1. The model leaks chain-of-thought (Qwen3's native thinking-mode
          output). Strip `<think>...</think>` blocks BEFORE regex matching so
          they don't contaminate the tool-call JSON or appear in the visible
-         reply.
+         reply. Also drop everything up to a bare ``</think>``.
       2. The model frequently emits `<tool_call>{...}` WITHOUT a closing
          `</tool_call>` tag. Try the strict closed form first; on miss,
          fall back to a brace-balanced extractor that walks the unmatched
          opening tag and grabs everything up to the first balanced `}`.
     """
-    # 1. Strip Qwen3 thinking-mode blocks.
-    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    # 1. Strip Qwen3 thinking-mode blocks (paired + bare closing tag).
+    cleaned = _strip_thinking(text)
     # 2. Strip any leading/trailing prose so the closing tag (or unclosed
     # block) is clearly delimited. We do NOT mutate the text that flows
     # into the visible reply (that's `_strip_thinking_reply`'s job).
@@ -306,10 +319,25 @@ def _extract_tool_calls(text: str) -> list[dict]:
 
 
 def _strip_thinking_reply(text: str) -> str:
-    """Strip `<think>...</think>` blocks from a model reply before it
-    becomes the user-visible assistant message. Used by the chat driver
-    so the user doesn't see the model's internal CoT."""
-    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+    """Strip thinking blocks from a model reply before it becomes the
+    user-visible assistant message."""
+    return _strip_thinking(text).strip()
+
+
+_TRUNCATION_MSG = (
+    "Response was cut off at max_tokens={n} — raise Max tokens and retry"
+)
+
+
+def _looks_truncated(text: str) -> bool:
+    """True when generation likely hit max_tokens mid-tool-call or think."""
+    if not text:
+        return False
+    # Unclosed think block (opening present, no closer).
+    if "<think>" in text and "</think>" not in text:
+        return True
+    # Truncated tool call: opening tag present but we couldn't parse a call.
+    return "<tool_call>" in text and not _extract_tool_calls(text)
 
 
 def _messages_to_prompt(messages: list[dict]) -> tuple[str, list[dict]]:
@@ -335,14 +363,18 @@ async def data_prep_chat(pid: str, request: Request):
 
     Body:
       messages: list[dict]  — OpenAI-style [{role, content}, ...]
-      provider_id: str      — use the active ModelManager provider (mutually
-                              exclusive with external_api)
+      provider_id: str      — optional; when set, load/use that ModelManager
+                              provider (mutually exclusive with external_api).
+                              When omitted, reuse an already-loaded model
+                              (Inference engine preferred, else manager active).
+                              Never auto-loads a second model.
       external_api: dict    — {base_url, api_key, model_id, name?} for
                               OpenAI-compatible endpoints
       max_rounds: int       — cap tool-call loop iterations (default 6)
       gen: dict             — generation kwargs merged with sensible defaults
                               (temperature, max_tokens, top_p, top_k,
                               repeat_penalty). Used for both backend paths.
+      Top-level temperature/max_tokens/top_p/top_k also accepted (chat UI).
 
     Returns:
       {ok, reply, tool_calls, rounds}
@@ -357,10 +389,13 @@ async def data_prep_chat(pid: str, request: Request):
     max_rounds = max(1, min(int(body.get("max_rounds") or MAX_TOOL_ROUNDS), 12))
 
     # Generation kwargs — allow per-request override. Anything not supplied
-    # falls back to sane defaults for tool-calling (low temperature, modest
-    # max_tokens). We clamp types here so junk from the frontend doesn't
-    # crash llama_cpp.
-    gen_raw = body.get("gen") or {}
+    # falls back to sane defaults for tool-calling (low temperature, roomy
+    # max_tokens for thinking models). Clamp so junk from the frontend
+    # doesn't crash llama_cpp. Chat UI sends top-level keys; also accept gen{}.
+    gen_raw: dict[str, Any] = dict(body.get("gen") or {})
+    for k in ("temperature", "max_tokens", "top_p", "top_k", "repeat_penalty"):
+        if k in body and k not in gen_raw:
+            gen_raw[k] = body[k]
     gen: dict[str, Any] = {}
     if "temperature" in gen_raw:
         try: gen["temperature"] = max(0.0, min(2.0, float(gen_raw["temperature"])))
@@ -378,11 +413,11 @@ async def data_prep_chat(pid: str, request: Request):
         try: gen["repeat_penalty"] = max(0.5, min(2.0, float(gen_raw["repeat_penalty"])))
         except Exception: pass
     gen.setdefault("temperature", 0.2)
-    gen.setdefault("max_tokens", 1024)
+    gen.setdefault("max_tokens", 4096)
 
-    # Resolve the chat backend (provider OR external API). Validate this
-    # before touching the filesystem so a missing project doesn't mask a
-    # backend-config error (and vice versa).
+    # Resolve the chat backend (provider OR external API OR already-loaded
+    # model). Validate this before touching the filesystem so a missing
+    # project doesn't mask a backend-config error (and vice versa).
     backend: Optional[dict] = None
     if external:
         try:
@@ -398,6 +433,7 @@ async def data_prep_chat(pid: str, request: Request):
         if not backend["base_url"] or not backend["model_id"]:
             return {"error": "external_api.base_url and model_id required"}
     elif provider_id:
+        # Explicit provider_id — only path that may call manager.load().
         # Lazy imports: data_prep_chat.py is imported by app.py during
         # router registration, so importing `inference_engine` (which is
         # created at app.py module import time) at the top of this file
@@ -422,7 +458,7 @@ async def data_prep_chat(pid: str, request: Request):
         engine_path = getattr(inference_engine, "model_path", None) or ""
         provider_path = cfg.get("model_id") or cfg.get("model_path") or ""
 
-        def _abs(p):
+        def _abs(p: str) -> str:
             if not p:
                 return ""
             if os.path.isabs(p):
@@ -459,7 +495,22 @@ async def data_prep_chat(pid: str, request: Request):
                 return {"error": f"failed to load provider: {e}"}
             backend = {"kind": "provider", "manager": mgr, "provider_id": provider_id}
     else:
-        return {"error": "either provider_id or external_api required"}
+        # No provider_id: reuse whatever is already loaded. Never auto-load.
+        # Prefer Inference-page engine so a leftover manager active GGUF does
+        # not steal the reply (E2E-21 dual-VRAM).
+        from finetune_studio.data.prep.generator import (
+            NO_MODEL_MSG,
+            resolve_loaded_backend,
+        )
+
+        loaded = resolve_loaded_backend(prefer_inference=True)
+        if loaded is None:
+            return JSONResponse({"error": NO_MODEL_MSG}, status_code=409)
+        backend = dict(loaded)
+        log.info(
+            "data-prep chat: provider_id omitted; using already-loaded %s backend",
+            backend.get("kind"),
+        )
 
     # Now check the project directory exists.
     if not project_dir(pid).exists():
@@ -489,6 +540,16 @@ async def data_prep_chat(pid: str, request: Request):
         # message are clean. Falls back to the raw reply_text if the
         # strip is empty.
         visible_reply = _strip_thinking_reply(reply_text) or reply_text
+        if _looks_truncated(reply_text):
+            cut_msg = _TRUNCATION_MSG.format(n=gen.get("max_tokens", 4096))
+            return {
+                "ok": False,
+                "error": cut_msg,
+                "reply": cut_msg,
+                "tool_calls": all_tool_calls,
+                "rounds": rounds,
+                "backend": "external" if backend["kind"] == "external" else "provider",
+            }
         if not tool_calls:
             last_reply = visible_reply
             break
@@ -534,7 +595,7 @@ def _chat_external(backend: dict, messages: list[dict], gen: dict | None = None)
         "tools": [{"type": "function", "function": t} for t in TOOLS_CATALOG],
         "tool_choice": "auto",
         "temperature": g.get("temperature", 0.2),
-        "max_tokens": g.get("max_tokens", 1024),
+        "max_tokens": g.get("max_tokens", 4096),
         "top_p": g.get("top_p", 0.9),
     }
     headers = {"Content-Type": "application/json"}
@@ -583,7 +644,7 @@ def _chat_global_engine(backend: dict, messages: list[dict], gen: dict | None = 
     kwargs: dict = {
         "messages": messages,
         "temperature": g.get("temperature", 0.2),
-        "max_tokens": g.get("max_tokens", 1024),
+        "max_tokens": g.get("max_tokens", 4096),
         "top_p": g.get("top_p", 0.9),
     }
     # Optional gen params that llama-cpp-python accepts.
@@ -612,7 +673,7 @@ def _chat_local(backend: dict, messages: list[dict], gen: dict | None = None) ->
     mgr = backend["manager"]
     g = gen or {}
     _temp = g.get("temperature", 0.2)
-    _max  = g.get("max_tokens", 1024)
+    _max  = g.get("max_tokens", 4096)
     _topp = g.get("top_p", 0.9)
     # Build the messages list we send to llama_cpp: drop the leading system
     # message because llama_cpp.create_chat_completion takes it via the
