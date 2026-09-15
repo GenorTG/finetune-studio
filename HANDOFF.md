@@ -7,7 +7,7 @@ Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :786
 ## State (verified 2026-09-15 ~15:40 Europe/Warsaw)
 | Area | Status |
 |------|--------|
-| Git | Export-flow fix committed (see latest hash); ancestors include activity `32fe913` + training observability `cc57f94` |
+| Git | `6a5e5f8` pushed; ancestors include activity `32fe913` + training observability `cc57f94` |
 | Export API | ✅ Adapter-only runs merge at export via `base_model`; formats: gguf / gptq / abliterated / merged. AWQ removed (clear error) |
 | Export UI | ✅ Raw completed runs selectable; “adapter only — merge at export” badge; compatible base input; no AWQ checkbox |
 | Training run | ✅ Browser-started Qwen3-4B run `38867d1b` is `done`, `merge_on_save: false` — now exportable |
