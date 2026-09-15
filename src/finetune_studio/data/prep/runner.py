@@ -71,8 +71,9 @@ class DataPrepRunner:
             setattr(self.progress, k, v)
         try:
             self.cb(self.progress)
-        except Exception:  # noqa: BLE001, S110
-            pass
+        except Exception:
+            # Progress UI callback must never abort prep; log and continue.
+            log.exception("prep progress callback failed")
 
     def run(self) -> dict:
         try:
@@ -182,8 +183,8 @@ class DataPrepRunner:
                      {"role": "user", "content": prompt}],
                     max_tokens=1200, temperature=0.7, top_p=0.9,
                 )
-            except Exception as e:  # noqa: BLE001
-                log.warning("model call failed on chunk %d: %s", i, e)
+            except Exception as e:
+                log.exception("model call failed on chunk %d", i)
                 pfs.log_ingestion(self.pid, {
                     "event": "qa_chunk_error", "sha256": meta.sha256, "chunk_index": i,
                     "error": str(e),

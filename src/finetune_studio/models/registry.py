@@ -15,8 +15,12 @@ KEY CONCEPTS
 """
 
 import json
+import logging
 import os
+import sqlite3
 from dataclasses import dataclass
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -121,8 +125,8 @@ def _lookup_project_name(output_path: str) -> tuple[str, str]:
                 if parent == check:
                     break
                 check = parent
-    except Exception:  # noqa: BLE001, S110
-        pass
+    except Exception:
+        log.exception("project lookup for %s failed", output_path)
     return ("", "")
 
 
@@ -177,7 +181,7 @@ def scan_models(directories: list) -> list:
                         cfg = json.load(cf)
                     arch = cfg.get("architectures", [""])[0] if cfg.get("architectures") else ""
                     params = cfg.get("model_type", "")
-                except Exception:  # noqa: BLE001
+                except (json.JSONDecodeError, OSError):
                     arch, params = "", ""
                 # Skip non-chat models (embeddings, vision encoders, projectors)
                 if arch in _SKIP_ARCHES:
@@ -205,20 +209,19 @@ def scan_models(directories: list) -> list:
                     # Find run_id if possible
                     if proj_id:
                         try:
-                            import sqlite3 as _sql
                             db_path = os.path.join(os.path.expanduser("~"), ".finetune-studio", "finetune_studio.db")
                             if not os.path.exists(db_path):
                                 db_path = os.path.join(os.path.expanduser("~"), ".finetune-studio", "fts.db")
                             if os.path.exists(db_path):
-                                with _sql.connect(db_path) as conn:
+                                with sqlite3.connect(db_path) as conn:
                                     row = conn.execute(
                                         "SELECT id FROM training_runs WHERE output_path = ? OR ? LIKE output_path || '%' LIMIT 1",
                                         (root, root),
                                     ).fetchone()
                                     if row:
                                         run_id = row[0]
-                        except Exception:  # noqa: BLE001, S110
-                            pass
+                        except (sqlite3.Error, OSError):
+                            log.exception("run_id lookup failed for %s", root)
                     # Re-derive name with project context if generic
                     if proj_name and (
                         name.lower() in ("merged", "abliterated", "gguf", "adapter", "gptq")

@@ -348,7 +348,7 @@ def _recent_suite_runs(pid: str, limit: int = 5) -> list[dict]:
             if isinstance(scores, str):
                 try:
                     scores = json.loads(scores)
-                except Exception:  # noqa: BLE001
+                except json.JSONDecodeError:
                     scores = {}
             pass_rate = scores.get("pass_rate") if isinstance(scores, dict) else None
             rows.append(
@@ -530,7 +530,7 @@ async def benchmarks_page(request: Request, pid: str):
             import json as _json
             try:
                 raw_scores = _json.loads(raw_scores)
-            except Exception:  # noqa: BLE001
+            except _json.JSONDecodeError:
                 raw_scores = {}
         latest_scores = raw_scores if isinstance(raw_scores, dict) else {}
         latest_rid = latest_bench.get("run_id") or ""
@@ -626,9 +626,9 @@ async def debug_info():
     }
 
     # GPU info via nvidia-smi
+    import subprocess
     try:
-        import subprocess
-        r = subprocess.run(  # noqa: ASYNC221
+        r = subprocess.run(  # noqa: ASYNC221  # sync probe; debug endpoint is best-effort
             ["nvidia-smi", "--query-gpu=name,memory.total,memory.free,driver_version",
              "--format=csv,noheader,nounits"],
             capture_output=True, text=True, timeout=5, check=False,
@@ -647,7 +647,7 @@ async def debug_info():
             info["gpus"] = gpus
         else:
             info["gpus"] = []
-    except Exception as e:  # noqa: BLE001
+    except (FileNotFoundError, subprocess.SubprocessError, OSError, ValueError) as e:
         info["gpus"] = []
         info["gpu_error"] = str(e)
 
@@ -662,7 +662,7 @@ async def debug_info():
             versions[pkg] = v
         except ImportError:
             versions[pkg] = "(not installed)"
-        except Exception as e:  # noqa: BLE001
+        except (OSError, RuntimeError, AttributeError) as e:
             versions[pkg] = f"(error: {e})"
     info["packages"] = versions
 

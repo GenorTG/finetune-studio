@@ -436,7 +436,194 @@
   document.addEventListener('DOMContentLoaded', function() {
     // Refresh from API so counts stay current after SPA navigations.
     if (typeof loadIndexedDocs === 'function') loadIndexedDocs();
+    if (typeof loadRagStatus === 'function') loadRagStatus();
+    if (typeof loadSharedModels === 'function') loadSharedModels();
   });
+
+  // ── Corpus status card (readable fields, not JSON) ─────────────────
+  window.loadRagStatus = async function() {
+    const el = document.getElementById('rag-status');
+    const badge = document.getElementById('rag-summary-badge');
+    if (!el) return;
+    try {
+      const d = await api().get('/api/projects/' + PID + '/rag');
+      if (!d || d.error) {
+        el.innerHTML = '<span class="dim">' + esc((d && (d.detail || d.error)) || 'Failed') + '</span>';
+        return;
+      }
+      if (!d.exists) {
+        el.innerHTML = '<p class="text-sm muted">No corpus yet. Configure chunking below and click Build.</p>'
+          + '<div class="text-xs dim mono mt-1">' + esc(d.corpus_dir || '') + '</div>';
+        if (badge) badge.hidden = true;
+        return;
+      }
+      if (badge) {
+        badge.hidden = false;
+        badge.textContent = (d.chunks || 0) + ' chunks';
+      }
+      el.innerHTML = '<table class="table text-xs run-kv-table"><tbody>'
+        + '<tr><td class="meta muted">Name</td><td class="mono">' + esc(d.name || '—') + '</td></tr>'
+        + '<tr><td class="meta muted">Documents</td><td class="mono">' + esc(d.documents) + '</td></tr>'
+        + '<tr><td class="meta muted">Chunks</td><td class="mono">' + esc(d.chunks) + '</td></tr>'
+        + '<tr><td class="meta muted">Embedder</td><td class="mono">' + esc(d.embedder || '—') + '</td></tr>'
+        + '<tr><td class="meta muted">Path</td><td class="mono text-xs">' + esc(d.corpus_dir || '') + '</td></tr>'
+        + '</tbody></table>'
+        + '<details class="mt-2"><summary class="text-xs muted">Debug JSON</summary>'
+        + '<pre class="mono text-xs" style="max-height:160px;overflow:auto;white-space:pre-wrap;margin:6px 0 0;">'
+        + esc(JSON.stringify(d, null, 2)) + '</pre></details>';
+    } catch (e) {
+      el.innerHTML = '<span class="dim">Failed: ' + esc(e.message) + '</span>';
+    }
+  };
+
+  // ── Live test query — hits table + Debug JSON ─────────────────────
+  window.runQuery = async function() {
+    const qEl = document.getElementById('q-text');
+    const status = document.getElementById('q-status');
+    const results = document.getElementById('q-results');
+    const btn = document.getElementById('q-btn');
+    const q = (qEl && qEl.value || '').trim();
+    if (!q) { if (status) status.textContent = 'Enter a query first.'; return; }
+    if (btn) btn.disabled = true;
+    if (status) status.textContent = 'Searching…';
+    if (results) { results.hidden = false; results.innerHTML = '<span class="muted">Searching…</span>'; }
+    try {
+      const d = await api().post('/api/projects/' + PID + '/rag/search', { query: q, top_k: 5 });
+      if (d.error) {
+        if (status) status.textContent = 'Error: ' + d.error;
+        if (results) results.innerHTML = '<span class="err">' + esc(d.error) + '</span>';
+        notify(d.error, 'error');
+        return;
+      }
+      const hits = d.hits || [];
+      if (status) status.textContent = hits.length + ' hit' + (hits.length === 1 ? '' : 's');
+      if (!hits.length) {
+        results.innerHTML = '<p class="text-sm muted">No matching chunks.</p>';
+        return;
+      }
+      let html = '<table class="ref-table"><thead><tr>'
+        + '<th>#</th><th>Score</th><th>Source</th><th>Preview</th></tr></thead><tbody>';
+      hits.forEach(function(h, i) {
+        html += '<tr>'
+          + '<td class="mono">' + (h.rank != null ? h.rank : (i + 1)) + '</td>'
+          + '<td class="mono">' + (h.score != null ? Number(h.score).toFixed(3) : '—') + '</td>'
+          + '<td class="mono text-xs">' + esc(h.filename || h.source || '—') + '</td>'
+          + '<td class="text-xs">' + esc((h.text || h.preview || '').slice(0, 280)) + '</td>'
+          + '</tr>';
+      });
+      html += '</tbody></table>';
+      html += '<details class="mt-2"><summary class="text-xs muted">Debug JSON</summary>'
+        + '<pre class="mono text-xs" style="max-height:200px;overflow:auto;white-space:pre-wrap;margin:6px 0 0;">'
+        + esc(JSON.stringify(d, null, 2)) + '</pre></details>';
+      results.innerHTML = html;
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      if (status) status.textContent = 'Error: ' + msg;
+      if (results) results.innerHTML = '<span class="err">' + esc(msg) + '</span>';
+      notify(msg, 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
+
+  window.sendChat = async function() {
+    const input = document.getElementById('chat-input');
+    const box = document.getElementById('chat-messages');
+    const btn = document.getElementById('chat-btn');
+    const text = (input && input.value || '').trim();
+    if (!text || !box) return;
+    if (btn) btn.disabled = true;
+    box.insertAdjacentHTML('beforeend',
+      '<div class="text-xs"><b>You</b>: ' + esc(text) + '</div>');
+    if (input) input.value = '';
+    try {
+      const d = await api().post('/api/projects/' + PID + '/rag/chat', {
+        messages: [{ role: 'user', content: text }],
+        top_k: 5,
+      });
+      if (d.error) {
+        box.insertAdjacentHTML('beforeend',
+          '<div class="text-xs err">' + esc(d.error) + '</div>');
+        notify(d.error, 'error');
+        return;
+      }
+      const reply = d.reply || d.response || '';
+      box.insertAdjacentHTML('beforeend',
+        '<div class="text-xs"><b>Assistant</b>: ' + esc(reply) + '</div>');
+      if (d.sources && d.sources.length) {
+        box.insertAdjacentHTML('beforeend',
+          '<div class="text-xs dim">Sources: ' + esc(d.sources.map(function(s) {
+            return s.filename || s.source || s;
+          }).join(', ')) + '</div>');
+      }
+      box.scrollTop = box.scrollHeight;
+    } catch (e) {
+      box.insertAdjacentHTML('beforeend',
+        '<div class="text-xs err">' + esc(e.message || e) + '</div>');
+      notify(String(e.message || e), 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
+
+  window.startBundleDownload = function() {
+    const name = (document.getElementById('bundle-name') || {}).value || '';
+    const fmt = (document.getElementById('bundle-fmt') || {}).value || 'tar';
+    const inc = document.getElementById('bundle-include-models');
+    const status = document.getElementById('bundle-status');
+    const qs = new URLSearchParams({
+      fmt: fmt,
+      include_models: (inc && inc.checked) ? 'true' : 'false',
+    });
+    if (name) qs.set('name', name);
+    if (status) status.textContent = 'Starting download…';
+    window.location.href = '/api/projects/' + PID + '/rag/bundle?' + qs.toString();
+  };
+
+  window.loadSharedModels = async function() {
+    const el = document.getElementById('shared-models-list');
+    if (!el) return;
+    try {
+      const r = await fetch('/api/shared-models/stats');
+      const d = await r.json();
+      if (!r.ok || d.error) {
+        el.innerHTML = '<span class="dim">' + esc(d.detail || d.error || 'Unavailable') + '</span>';
+        return;
+      }
+      const models = d.models || d.items || [];
+      if (!models.length) {
+        el.innerHTML = '<span class="dim">No shared models cached yet.</span>';
+        return;
+      }
+      el.innerHTML = '<table class="ref-table"><thead><tr><th>Model</th><th>Size</th></tr></thead><tbody>'
+        + models.map(function(m) {
+            return '<tr><td class="mono text-xs">' + esc(m.name || m.id || m.path || '') + '</td>'
+              + '<td class="mono">' + esc(m.size_human || m.size || '—') + '</td></tr>';
+          }).join('')
+        + '</tbody></table>';
+    } catch (e) {
+      el.innerHTML = '<span class="dim">Failed: ' + esc(e.message) + '</span>';
+    }
+  };
+
+  window.wipeCorpus = async function() {
+    if (!confirm('Delete the entire RAG corpus for this project?')) return;
+    try {
+      // rebuild with reset=true wipes the corpus dir; we only need the wipe
+      // when there are no files — fall back to clearing sources.
+      const r = await fetch('/api/projects/' + PID + '/rag/sources', { method: 'DELETE' });
+      const d = await r.json().catch(function() { return {}; });
+      if (!r.ok || d.error) {
+        notify(d.error || d.detail || ('HTTP ' + r.status), 'error');
+        return;
+      }
+      notify('Corpus sources cleared — rebuild to re-index', 'success');
+      loadRagStatus();
+      loadIndexedDocs();
+    } catch (e) {
+      notify('Failed: ' + e.message, 'error');
+    }
+  };
 
   window.buildCorpus = async function(rebuild) {
     const status = document.getElementById('build-status');
@@ -449,6 +636,7 @@
     btn.disabled = true;
     if (rebuildBtn) rebuildBtn.disabled = true;
     status.textContent = (rebuild ? 'Rebuilding' : 'Building') + ' corpus…';
+    let stopLive = null;
     try {
       const body = {
         chunk_size: chunk,
@@ -473,58 +661,49 @@
       fill.style.width = '0%';
       progText.textContent = 'INIT…';
 
-      let es;
-      try {
-        es = new EventSource('/api/projects/' + PID + '/rag/build/progress');
-        es.onmessage = (ev) => {
-          let p;
-          try { p = JSON.parse(ev.data); } catch (_) { return; }
-          const total = p.files_total || 1;
-          const done = p.files_done || 0;
-          const pct = Math.min(100, Math.round((done / total) * 100));
-          fill.style.width = pct + '%';
-          const phaseTag = (p.phase || '').toUpperCase();
-          progText.textContent = phaseTag + ' ' + done + '/' + total +
-            ' files  ' + pct + '%  ' + p.elapsed_s + 's';
-          if (p.phase === 'done') {
-            const m = p.chunks || '?';
-            status.textContent = 'Done — ' + m + ' chunks indexed.';
-            notify('Corpus built: ' + m + ' chunks', 'success');
-            es.close();
-            wrap.hidden = true;
-            if (typeof window.loadIndexedDocs === 'function') window.loadIndexedDocs();
-            if (typeof window.loadRagStatus === 'function') window.loadRagStatus();
-            else if (typeof loadRagStatus === 'function') loadRagStatus();
-          } else if (p.phase === 'timeout') {
-            status.textContent = 'Build still running — see status panel.';
-            es.close();
-          }
-        };
-        es.onerror = () => { /* let onmessage drive the rest */ };
-      } catch (e) {
-        let polls = 0;
-        const maxPolls = 240;
-        const pollHandle = setInterval(async () => {
-          polls++;
+      // SSE-first via fts.subscribe. Silent poll of /build/status
+      // (fallbackMs 5s) only when EventSource is unavailable/broken.
+      const applyProgress = (p) => {
+        if (!p || typeof p !== 'object') return;
+        const total = p.files_total || 1;
+        const done = p.files_done || 0;
+        const pct = Math.min(100, Math.round((done / total) * 100));
+        fill.style.width = pct + '%';
+        const phaseTag = (p.phase || '').toUpperCase();
+        progText.textContent = phaseTag + ' ' + done + '/' + total +
+          ' files  ' + pct + '%  ' + (p.elapsed_s != null ? p.elapsed_s + 's' : '');
+        if (p.phase === 'done') {
+          const m = p.chunks || '?';
+          status.textContent = 'Done — ' + m + ' chunks indexed.';
+          notify('Corpus built: ' + m + ' chunks', 'success');
+          if (stopLive) { stopLive(); stopLive = null; }
+          wrap.hidden = true;
+          if (typeof window.loadIndexedDocs === 'function') window.loadIndexedDocs();
+          if (typeof window.loadRagStatus === 'function') window.loadRagStatus();
+        } else if (p.phase === 'timeout' || p.phase === 'error') {
+          status.textContent = p.phase === 'timeout'
+            ? 'Build still running — see status panel.'
+            : ('Build error' + (p.message ? ': ' + p.message : ''));
+          if (stopLive) { stopLive(); stopLive = null; }
+        }
+      };
+
+      const sseUrl = '/api/projects/' + PID + '/rag/build/progress';
+      const pollUrl = '/api/projects/' + PID + '/rag/build/status';
+      const sub = window.fts && window.fts.subscribe;
+      if (sub) {
+        stopLive = sub(sseUrl, applyProgress, { pollUrl: pollUrl, fallbackMs: 5000 });
+      } else {
+        // Slow fallback only — never a 2s full redraw.
+        const tick = async () => {
           try {
-            const s = await api().get('/api/projects/' + PID + '/rag/status');
-            if (s && s.exists) {
-              const m = s.chunks || s.chunk_count || '?';
-              status.textContent = 'Done — ' + m + ' chunks indexed.';
-              notify('Corpus built: ' + m + ' chunks', 'success');
-              wrap.hidden = true;
-              clearInterval(pollHandle);
-              if (typeof window.loadIndexedDocs === 'function') window.loadIndexedDocs();
-              if (typeof window.loadRagStatus === 'function') window.loadRagStatus();
-              else if (typeof loadRagStatus === 'function') loadRagStatus();
-              return;
-            }
-          } catch (_) {}
-          if (polls >= maxPolls) {
-            status.textContent = 'Build still running.';
-            clearInterval(pollHandle);
-          }
-        }, 1500);
+            const s = await api().get(pollUrl);
+            applyProgress(s);
+          } catch (_e) { /* ignore */ }
+        };
+        tick();
+        const t = setInterval(tick, 5000);
+        stopLive = () => clearInterval(t);
       }
     } catch (e) {
       const msg = (e && e.message) || String(e);

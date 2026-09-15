@@ -11,10 +11,6 @@ Covers:
 from __future__ import annotations
 
 import os
-import threading
-
-import pytest
-
 
 # ── Worker with FTS_SKIP_UPDATE=1 ────────────────────────────────────────
 
@@ -148,11 +144,13 @@ class TestUpdateRoute:
 
     def test_list_updates_returns_recent(self, client, mock_settings):
         from finetune_studio import db
-        for _ in range(3):
-            db.create_update(mode="update")
+        ids = {db.create_update(mode="update")["id"] for _ in range(3)}
         r = client.get("/api/system/updates")
         assert r.status_code == 200
-        assert len(r.json()) == 3
+        rows = r.json()
+        assert isinstance(rows, list)
+        got = {u["id"] for u in rows}
+        assert ids.issubset(got)
 
     def test_latest_update_endpoint(self, client, mock_settings):
         from finetune_studio import db

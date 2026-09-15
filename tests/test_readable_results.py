@@ -56,6 +56,28 @@ def test_testing_results_render_table() -> None:
     assert "case-results-table" in html
     assert "renderResults" in html
     assert "JSON.stringify(scores" not in html
+    assert "t-results-debug" in html
+    assert "Debug JSON" in html
+
+
+def test_training_detail_debug_is_collapsed() -> None:
+    html = _TRAINING.read_text(encoding="utf-8")
+    assert "Debug JSON" in html
+    assert "<details" in html
+    # Primary panels stay as kv grids, not open JSON dumps.
+    assert '_kv_grid.html' in html
+
+
+def test_rag_and_data_prep_results_are_tables() -> None:
+    rag = (_TEMPLATES / "rag.html").read_text(encoding="utf-8")
+    assert "run-kv-table" in rag
+    assert "runQuery" in rag
+    assert "Debug JSON" in rag
+    # Primary query view builds a table, not a bare JSON.stringify dump.
+    assert "ref-table" in rag
+    dp = (_TEMPLATES / "data_prep.html").read_text(encoding="utf-8")
+    assert "dp-results-table" in dp
+    assert "Debug JSON" in dp
 
 
 def test_export_result_panel_is_field_grid() -> None:

@@ -242,8 +242,8 @@ class ModelManager:
             return
         try:
             self._provider.unload()
-        except Exception as e:  # noqa: BLE001
-            log.warning("unload failed: %s", e)
+        except Exception:
+            log.exception("unload failed")
         self._provider = None
 
     def chat(self, messages: list[dict], **gen) -> str:

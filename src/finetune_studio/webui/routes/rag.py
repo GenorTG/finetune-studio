@@ -18,11 +18,12 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Optional
 
-from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
+from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+from finetune_studio.webui.live_sse import sse_data, sse_response
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -44,9 +45,9 @@ def _build_meta(pid: str, name: str) -> dict:
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 5
-    hybrid: Optional[bool] = None
-    rerank: Optional[bool] = None
-    rerank_top_n: Optional[int] = None
+    hybrid: bool | None = None
+    rerank: bool | None = None
+    rerank_top_n: int | None = None
 
 
 class ChatRequest(BaseModel):
@@ -60,21 +61,21 @@ class ChatRequest(BaseModel):
 class BuildRequest(BaseModel):
     chunk_size: int = 400
     overlap: int = 80
-    embedder: Optional[str] = None
+    embedder: str | None = None
     reset: bool = False
 
 
 class RebuildVectorsRequest(BaseModel):
-    embedder: Optional[str] = None
+    embedder: str | None = None
 
 
 class SettingsPatch(BaseModel):
-    embedder: Optional[str] = None
-    reranker: Optional[str] = None
-    rerank_enabled: Optional[bool] = None
-    rerank_top_n: Optional[int] = None
-    hybrid_enabled: Optional[bool] = None
-    rrf_k: Optional[int] = None
+    embedder: str | None = None
+    reranker: str | None = None
+    rerank_enabled: bool | None = None
+    rerank_top_n: int | None = None
+    hybrid_enabled: bool | None = None
+    rrf_k: int | None = None
 
 
 # ── Routes ──────────────────────────────────────────────────────────────
@@ -132,7 +133,9 @@ async def rag_patch_settings(pid: str, req: SettingsPatch):
     but changing embedder will make existing vectors invalid → caller must
     rebuild vectors afterwards."""
     from finetune_studio.data.rag_portable import (
-        PortableRAG, Manifest, RagSettings, write_json,
+        Manifest,
+        PortableRAG,
+        write_json,
     )
     rag = PortableRAG(_corpus_dir(pid))
     if not rag.exists():
@@ -214,72 +217,87 @@ async def rag_build(pid: str, req: BuildRequest):
     }
 
 
+def _rag_build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
+    """One progress snapshot for SSE frames and the /build/status poll."""
+    corpus = _corpus_dir(pid)
+    project_files_dir = (
+        Path.home() / ".finetune-studio" / "projects" / pid / "files"
+    )
+    total_files = (
+        sum(1 for f in project_files_dir.rglob("*.txt") if f.is_file())
+        if project_files_dir.exists() else 0
+    )
+    sources_dir = corpus / "sources"
+    files_done = (
+        sum(1 for _ in sources_dir.glob("*.txt")) if sources_dir.exists() else 0
+    )
+    manifest_exists = (corpus / "manifest.json").exists()
+    chunks_path = corpus / "chunks.parquet"
+    if manifest_exists:
+        phase = "done"
+    elif chunks_path.exists():
+        phase = "embedding"
+    elif files_done > 0:
+        phase = "chunking"
+    else:
+        phase = "queued"
+    chunks_count = 0
+    if manifest_exists:
+        try:
+            m = json.loads((corpus / "manifest.json").read_text())
+            chunks_count = int(m.get("chunks", 0) or 0)
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            chunks_count = 0
+    return {
+        "phase": phase,
+        "files_done": files_done,
+        "files_total": total_files,
+        "chunks": chunks_count,
+        "elapsed_s": elapsed_s,
+    }
+
+
+@router.get("/{pid}/rag/build/status")
+async def rag_build_status(pid: str):
+    """One-shot corpus-build progress (SSE silent fallback for /build/progress)."""
+    return _rag_build_snapshot(pid)
+
+
 @router.get("/{pid}/rag/build/progress")
 async def rag_build_progress(pid: str):
     """Server-Sent Events stream that reports corpus build progress.
 
-    The background build writes one .txt per source under
-    `<corpus>/sources/` and finally a `manifest.json`. This stream polls
-    those files every second and emits a JSON event:
-        {"phase":"queued|chunking|embedding|done|error",
-         "files_done":N,"files_total":M,"chunks":K}
-    Stream terminates once `phase` is `done` or `error`, or after 10 min.
+    Emits JSON events:
+        {"phase":"queued|chunking|embedding|done|error|timeout",
+         "files_done":N,"files_total":M,"chunks":K,"elapsed_s":S}
+    Stream terminates once ``phase`` is ``done``/``error``/``timeout``,
+    or after 10 min. Prefer this over polling; clients may fall back to
+    ``GET .../rag/build/status`` via fts.subscribe (fallbackMs ≥ 5s).
     """
     import asyncio
-    import json as _json
-
-    corpus = _corpus_dir(pid)
-    project_files_dir = Path.home() / ".finetune-studio" / "projects" / pid / "files"
-    total_files = sum(1 for f in project_files_dir.rglob("*.txt") if f.is_file()) \
-        if project_files_dir.exists() else 0
 
     async def gen():
         start = asyncio.get_event_loop().time()
         deadline = start + 600  # 10 min
-        last_phase = "queued"
         try:
             while asyncio.get_event_loop().time() < deadline:
-                # Sources written so far
-                sources_dir = corpus / "sources"
-                files_done = sum(1 for _ in sources_dir.glob("*.txt")) \
-                    if sources_dir.exists() else 0
-                # Phase inference
-                manifest_exists = (corpus / "manifest.json").exists()
-                chunks_path = corpus / "chunks.parquet"
-                if manifest_exists:
-                    phase = "done"
-                elif chunks_path.exists():
-                    phase = "embedding"
-                elif files_done > 0:
-                    phase = "chunking"
-                else:
-                    phase = "queued"
-                chunks_count = 0
-                if manifest_exists:
-                    try:
-                        m = _json.loads((corpus / "manifest.json").read_text())
-                        chunks_count = m.get("chunks", 0)
-                    except Exception:
-                        pass
-                payload = _json.dumps({
-                    "phase": phase,
-                    "files_done": files_done,
-                    "files_total": total_files,
-                    "chunks": chunks_count,
-                    "elapsed_s": int(asyncio.get_event_loop().time() - start),
-                })
-                yield f"data: {payload}\n\n"
-                if phase == "done":
+                elapsed = int(asyncio.get_event_loop().time() - start)
+                payload = _rag_build_snapshot(pid, elapsed_s=elapsed)
+                yield sse_data(payload)
+                if payload["phase"] == "done":
                     return
-                if phase != last_phase:
-                    last_phase = phase
                 await asyncio.sleep(1.0)
-            # Timed out
-            yield 'data: {"phase":"timeout","files_total":' + str(total_files) + '}\n\n'
+            yield sse_data({
+                "phase": "timeout",
+                "files_total": _rag_build_snapshot(pid).get("files_total", 0),
+                "files_done": 0,
+                "chunks": 0,
+                "elapsed_s": 600,
+            })
         except asyncio.CancelledError:
             return
 
-    return StreamingResponse(gen(), media_type="text/event-stream")
+    return sse_response(gen())
 
 
 @router.post("/{pid}/rag/rebuild-vectors")
@@ -307,7 +325,7 @@ async def rag_list_sources(pid: str):
     try:
         q = rag.load()
         return {"sources": q.list_sources()}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
@@ -336,7 +354,7 @@ async def rag_clear_sources(pid: str):
     try:
         rag.clear_sources()
         return {"ok": True}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": str(e)}, status_code=400)
 
 
@@ -348,7 +366,7 @@ async def rag_search(pid: str, req: SearchRequest):
         return JSONResponse({"error": "no corpus — build first"}, status_code=400)
     try:
         q = rag.load()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": f"load failed: {e}"}, status_code=500)
     hits = q.search(req.query, top_k=req.top_k,
                     hybrid=req.hybrid, rerank=req.rerank,
@@ -357,7 +375,7 @@ async def rag_search(pid: str, req: SearchRequest):
 
 
 @router.get("/{pid}/rag/bundle")
-async def rag_bundle(pid: str, name: str = None,
+async def rag_bundle(pid: str, name: str | None = None,
                      fmt: str = "tar",
                      include_models: str = "true"):
     """Download a self-contained archive of the corpus.
@@ -375,6 +393,7 @@ async def rag_bundle(pid: str, name: str = None,
     have a model at the same shared path OR have network to fetch it.
     """
     from fastapi.responses import FileResponse
+
     from finetune_studio.data.rag_portable import PortableRAG
     rag = PortableRAG(_corpus_dir(pid))
     if not rag.exists():
@@ -417,7 +436,7 @@ async def rag_chat(pid: str, req: ChatRequest):
         return JSONResponse({"error": "no corpus — build first"}, status_code=400)
     try:
         q = rag.load()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": f"load failed: {e}"}, status_code=500)
 
     # Use the last user message as the search query

@@ -1,6 +1,7 @@
 """Training tab — start/stop training, monitor progress."""
 
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from finetune_studio.training.monitor import training_events
 from finetune_studio.webui.app import training_engine
 from finetune_studio.webui.live_sse import sse_response
 
+log = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -458,8 +460,9 @@ async def start_training(request: Request):
             return
         try:
             db.update_run(run_id, **update)
-        except Exception:  # noqa: BLE001, S110
-            pass
+        except Exception:
+            # Training callback must not die on DB hiccups; engine keeps running.
+            log.exception("db.update_run failed for %s", run_id)
 
     training_engine.on_update(_on_state_change)
     training_engine.start(config, training_data, system_prompt)

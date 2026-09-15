@@ -121,6 +121,9 @@
    * Live updates via EventSource (SSE). Falls back to silent polling only
    * when EventSource is unavailable or the stream errors repeatedly.
    *
+   * Long-task UIs must prefer an SSE endpoint; use pollUrl + fallbackMs
+   * (≥ 5000) as a documented slow fallback — never a 2s full-panel redraw.
+   *
    * @param {string} url SSE endpoint
    * @param {(data: object) => void} onEvent called with parsed JSON payloads
    * @param {{ pollUrl?: string, fallbackMs?: number, onError?: Function }} [opts]

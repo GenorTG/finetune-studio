@@ -81,8 +81,10 @@
   }
 
   // ── Updates: trigger the self-healing pipeline + live log tail ──
+  // Progress is SSE-first via /api/system/update/events. Silent poll of
+  // /api/system/update/latest (fallbackMs ≥ 5s) only when EventSource fails.
   const UPD_BTN = { check: 'btn-update-check', update: 'btn-update-apply', repair: 'btn-update-repair' };
-  let pollTimer = null;
+  let stopLive = null;
 
   const updStatus = () => document.getElementById('update-status');
   const updLog = () => document.getElementById('update-log');
@@ -110,40 +112,73 @@
     } catch (e) { /* history is decorative — never block the page */ }
   }
 
-  function updStopPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+  function updStopLive() {
+    if (stopLive) { try { stopLive(); } catch (_e) { /* ignore */ } stopLive = null; }
+  }
 
-  async function updTick(silent) {
+  async function updShowFinished() {
+    updStopLive();
+    updEnable();
+    try {
+      const rows = await (await fetch('/api/system/updates?limit=1')).json();
+      const u = Array.isArray(rows) && rows[0];
+      if (u) {
+        updStatus().textContent = `${u.mode} · ${u.status}${u.status === 'done' ? ' ✓' : ' — see log above'}`;
+        if (u.log_text) updRenderLog(String(u.log_text).slice(-4000));
+      } else {
+        updStatus().textContent = 'Finished ✓';
+      }
+    } catch (e) { updStatus().textContent = 'Finished ✓'; }
+    updHistory();
+  }
+
+  function updApplySnapshot(d) {
+    if (!d || !d.exists) {
+      // No in-progress row — pull final history (covers fast runs + post-restart).
+      updShowFinished();
+      return;
+    }
+    updRenderLog(d.log_tail || '');
+    if (d.status === 'queued' || d.status === 'running') {
+      updStatus().textContent = `${d.mode} · ${d.status}…`;
+      return;
+    }
+    updStopLive();
+    updEnable();
+    updStatus().textContent = `${d.mode} · ${d.status}${d.status === 'done' ? ' ✓' : ' — see log above'}`;
+    updHistory();
+  }
+
+  function updStartLive() {
+    updStopLive();
+    const sub = window.fts && window.fts.subscribe;
+    if (sub) {
+      stopLive = sub('/api/system/update/events', updApplySnapshot, {
+        pollUrl: '/api/system/update/latest',
+        fallbackMs: 5000,
+      });
+      return;
+    }
+    // No fts.subscribe (very old page load) — slow poll only, never 2s redraw.
+    const tick = async () => {
+      try {
+        const d = await (await fetch('/api/system/update/latest', { cache: 'no-store' })).json();
+        updApplySnapshot(d);
+      } catch (e) { /* mid-restart */ }
+    };
+    tick();
+    const t = setInterval(tick, 5000);
+    stopLive = () => clearInterval(t);
+  }
+
+  async function updTickSilent() {
     try {
       const d = await (await fetch('/api/system/update/latest')).json();
-      if (!d.exists) {
-        // No in-progress row. After a trigger this means the run finished and
-        // left the in-progress set (or was reconciled after the restart it
-        // caused) — pull the final row from history so fast runs still show
-        // their status + log. On a cold page load (silent) do nothing.
-        if (silent) { updStopPoll(); return; }
-        updStopPoll(); updEnable();
-        try {
-          const rows = await (await fetch('/api/system/updates?limit=1')).json();
-          const u = Array.isArray(rows) && rows[0];
-          if (u) {
-            updStatus().textContent = `${u.mode} · ${u.status}${u.status === 'done' ? ' ✓' : ' — see log above'}`;
-            if (u.log_text) updRenderLog(String(u.log_text).slice(-4000));
-          } else {
-            updStatus().textContent = 'Finished ✓';
-          }
-        } catch (e) { updStatus().textContent = 'Finished ✓'; }
-        updHistory();
-        return;
-      }
-      updRenderLog(d.log_tail || '');
-      if (d.status === 'queued' || d.status === 'running') {
-        updStatus().textContent = `${d.mode} · ${d.status}…`;
-        return;
-      }
-      updStopPoll(); updEnable();
-      updStatus().textContent = `${d.mode} · ${d.status}${d.status === 'done' ? ' ✓' : ' — see log above'}`;
-      updHistory();
-    } catch (e) { /* transient — the service may be mid-restart; keep polling */ }
+      if (!d.exists) return;
+      updDisableAll();
+      updApplySnapshot(d);
+      updStartLive();
+    } catch (e) { /* ignore cold-load errors */ }
   }
 
   async function updTrigger(mode) {
@@ -160,9 +195,7 @@
       });
       const d = await r.json();
       if (d.error) throw new Error(d.error);
-      updStopPoll();
-      pollTimer = setInterval(() => updTick(false), 2000);
-      updTick(false);
+      updStartLive();
     } catch (e) {
       updStatus().textContent = 'Failed to start: ' + e.message;
       updEnable();
@@ -180,7 +213,7 @@
     if (confirm('Repair recreates the Python venv from scratch — several minutes, then restarts the service. Continue?')) updTrigger('repair');
   });
   updHistory();
-  updTick(true);  // resume the live view if an update is already running
+  updTickSilent();  // resume the live view if an update is already running
 
   wireReplay();
   await loadDebug();

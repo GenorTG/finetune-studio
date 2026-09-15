@@ -186,10 +186,11 @@ def collect_activity() -> dict[str, Any]:
     except Exception as e:  # noqa: BLE001
         tasks.append({"kind": "_error", "message": f"downloads: {e}"})
 
-    # Sort: running first, then by started_at desc
+    # Sort: running first, then by started_at desc.
+    # Coerce missing/None started_at — `.get(..., 0)` still returns None when the key is present.
     tasks.sort(key=lambda t: (
         0 if t.get("status") in ("running", "queued") else 1,
-        -t.get("started_at", 0),
+        -float(t.get("started_at") or 0),
     ))
 
     # Count by kind for the badge

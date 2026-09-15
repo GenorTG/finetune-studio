@@ -13,9 +13,8 @@ import asyncio
 import json
 import logging
 import time
-import uuid  # noqa: F401
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response
@@ -60,8 +59,8 @@ def _run_prep_background(run_id: str, runner: object, progress_log: list[dict]) 
 
     try:
         db.mark_data_prep_running(run_id)
-    except Exception:  # noqa: BLE001, S110
-        pass
+    except Exception:
+        log.exception("mark_data_prep_running failed for %s", run_id)
     try:
         result = runner.run()  # type: ignore[attr-defined]
         progress_log.append({
@@ -79,25 +78,24 @@ def _run_prep_background(run_id: str, runner: object, progress_log: list[dict]) 
                     run_id, qa_total=qa_total, qa_approved=0,
                     output_path=result.get("output_path", "") or "",
                 )
-            except Exception:  # noqa: BLE001, S110
-                pass
+            except Exception:
+                log.exception("mark_data_prep_done failed for %s", run_id)
         else:
             try:
                 db.mark_data_prep_failed(
                     run_id,
                     str(result.get("error") or result.get("message") or "prep failed"),
                 )
-            except Exception:  # noqa: BLE001, S110
-                pass
-    except Exception as e:  # noqa: BLE001, RUF100
+            except Exception:
+                log.exception("mark_data_prep_failed failed for %s", run_id)
+    except Exception as e:
         log.exception("data-prep background task failed")
         progress_log.append({"stage": "error", "pct": 0,
                              "message": str(e), "ts": time.time()})
         try:
             db.mark_data_prep_failed(run_id, str(e))
-        except Exception:  # noqa: BLE001, S110
-            pass
-
+        except Exception:
+            log.exception("mark_data_prep_failed after crash failed for %s", run_id)
 
 def enqueue_prep_run(
     pid: str,
@@ -220,9 +218,9 @@ async def load_provider(pid: str, request: Request):
         body = await request.json()
         if isinstance(body, dict):
             extra = body.get("extra") or body
-    except Exception:  # noqa: BLE001, S110
+    except (json.JSONDecodeError, ValueError, TypeError) as e:
         # No body / empty body / non-JSON -> just reload with persisted extras.
-        pass
+        log.debug("load_provider body ignored: %s", e)
     try:
         return {"ok": True, "active": get_manager().load(pid, extra=extra)}
     except Exception as e:
@@ -243,7 +241,7 @@ async def unload_active():
 async def upload_file(
     pid: str,
     background: BackgroundTasks,
-    file: UploadFile = File(...),  # noqa: B008
+    file: UploadFile = File(...),  # noqa: B008  # FastAPI requires File() default at def site
     qa_per_chunk: int = Form(3),
     difficulty: str = Form("medium"),
     style: str = Form("socratic"),
@@ -333,6 +331,43 @@ async def stream_events(pid: str, run_id: str):
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+@router.get("/projects/{pid}/data-prep/runs/{run_id}")
+async def get_prep_run(pid: str, run_id: str):
+    """One-shot prep-run progress (SSE silent fallback for /events)."""
+    run = _RUNS.get((pid, run_id))
+    if not run:
+        from finetune_studio import db
+        row = db.get_data_prep_run(run_id)
+        if not row or row.get("project_id") != pid:
+            return JSONResponse(
+                {"error": "unknown run", "stage": "error"}, status_code=404,
+            )
+        status = str(row.get("status") or "unknown")
+        stage = "done" if status in ("done", "completed") else (
+            "error" if status in ("error", "failed") else status
+        )
+        return {
+            "run_id": run_id,
+            "stage": stage,
+            "pct": 100 if stage == "done" else 0,
+            "qa_total": row.get("qa_count") or row.get("pair_count") or 0,
+            "message": row.get("error") or "",
+            "filename": row.get("filename") or "",
+        }
+    runner = run["runner"]
+    prog = runner.progress
+    log_list = run["log"]
+    last = log_list[-1] if log_list else {}
+    return {
+        "run_id": run_id,
+        "stage": prog.stage or last.get("stage") or "running",
+        "pct": prog.pct if prog.pct is not None else last.get("pct"),
+        "qa_total": prog.qa_total if prog.qa_total is not None else last.get("qa_total"),
+        "message": last.get("message") or "",
+        "filename": run.get("filename") or "",
+    }
+
+
 @router.get("/projects/{pid}/data-prep/sources")
 async def list_sources_route(pid: str):
     from finetune_studio.data import project_filesystem as pfs
@@ -401,7 +436,7 @@ async def promote_source_route(pid: str, request: Request):
 
 
 @router.get("/projects/{pid}/data-prep/qa")
-async def list_qa_route(pid: str, source_id: Optional[str] = None, status: Optional[str] = None):  # noqa: UP045
+async def list_qa_route(pid: str, source_id: str | None = None, status: str | None = None):
     from finetune_studio.data import project_filesystem as pfs
     return {"items": pfs.list_qa_pairs(pid, source_id=source_id, status=status)}
 
@@ -445,8 +480,6 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved"):
     # The export lives in a stream buffer; persist it to the project's datasets
     # dir so it's selectable from the Training tab and referenceable forever.
     try:
-        from pathlib import Path as _P  # noqa: F401
-
         from finetune_studio import db
         from finetune_studio.db.datasets import count_qa_pairs, datasets_dir
         ds_dir = datasets_dir(pid)
@@ -463,9 +496,9 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved"):
                 qa_count=count_qa_pairs(str(target)),
                 size_bytes=target.stat().st_size,
             )
-    except Exception as e:  # noqa: BLE001
+    except Exception:
         # Don't fail the export if the registry step fails — payload still ships.
-        log.warning("dataset registry failed: %s", e)
+        log.exception("dataset registry failed")
     return Response(
         body.encode("utf-8"),
         media_type="application/x-ndjson",

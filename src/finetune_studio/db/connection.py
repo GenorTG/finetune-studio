@@ -480,7 +480,7 @@ def row_to_dict(row: sqlite3.Row | None) -> dict | None:
         if col in d and isinstance(d[col], str) and d[col]:
             try:
                 d[col.removesuffix("_json")] = json.loads(d[col])
-            except Exception:  # noqa: BLE001
+            except json.JSONDecodeError:
                 d[col.removesuffix("_json")] = None
             d.pop(col, None)
     return d

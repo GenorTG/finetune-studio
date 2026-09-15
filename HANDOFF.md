@@ -4,16 +4,15 @@
 Local fine-tune + data-prep WebUI (FastAPI, `src/finetune_studio/`).
 Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :7860.
 
-## State (verified 2026-09-15 17:03 Europe/Warsaw)
+## State (verified 2026-09-15 17:20 Europe/Warsaw)
 | Area | Status |
 |------|--------|
-| Git | 27B GGUF helper defaults + AWQ/SSE doc cleanup uncommitted (no push yet) |
-| Helper | `models/helper.py` + manager seed rename; data-prep / agent chat require helper only |
-| UI | Data-prep + Testing pages show `Helper · Qwen3.8-27B GGUF`; `/api/providers` exposes helper fields |
-| Suite gen | `/api/training/runs/{id}/auto-suites/generate` returns `helper_*` + `generation_mode=deterministic` |
-| AWQ | Removed from registry generic dirs + user-facing audit; reject path + archive history kept |
-| Docs | `ARCHITECTURE.md` activity feed documented as SSE (`/api/activity/events`) |
-| Regression | 69 focused helper/data-prep/agent/SSE tests + 8 AWQ rejection tests passed; Ruff clean on all touched Python files |
+| Git | Helper defaults + Ruff cleanup uncommitted (no push yet) |
+| Helper | 27B GGUF-only routing preserved (data-prep / agent chat) |
+| AWQ | Reject path + registry/UI exclusion preserved |
+| SSE | Activity/training/export live updates unchanged |
+| Lint | Ruff clean on all parent-task touched Python files |
+| Regression | 69 focused + 8 AWQ tests passed |
 
 ## Next steps
 1. Review + commit: `git status` / `git diff` (include `src/finetune_studio/models/helper.py`).

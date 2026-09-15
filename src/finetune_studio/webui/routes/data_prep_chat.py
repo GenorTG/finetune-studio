@@ -139,7 +139,7 @@ def _run_tool(pid: str, name: str, args: dict) -> dict:
             for p in sorted(sources_dir.glob("*.json")):
                 try:
                     src = json.loads(p.read_text(encoding="utf-8"))
-                except Exception:  # noqa: BLE001, S112
+                except (json.JSONDecodeError, OSError, UnicodeDecodeError):
                     continue
                 out.append({
                     "id": src.get("id", p.stem),
@@ -500,7 +500,8 @@ async def data_prep_chat(pid: str, request: Request):
             )
             try:
                 mgr.load(provider_id)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
+                log.exception("failed to load provider %s", provider_id)
                 return {"error": f"failed to load provider: {e}"}
             backend = {"kind": "provider", "manager": mgr, "provider_id": provider_id}
     else:
@@ -745,9 +746,10 @@ def _chat_local(backend: dict, messages: list[dict], gen: dict | None = None) ->
             temperature=_temp,
             top_p=_topp,
         )
-    except Exception:  # noqa: BLE001
+    except Exception:
         # Fall back to generate() with a flattened prompt for providers that
         # only support raw text-completion (rare).
+        log.exception("manager.chat failed; falling back to generate()")
         sys_prefix, rendered = _messages_to_prompt(messages)
         parts = []
         if sys_prefix:
@@ -763,7 +765,8 @@ def _chat_local(backend: dict, messages: list[dict], gen: dict | None = None) ->
                 temperature=_temp,
                 top_p=_topp,
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
+            log.exception("manager.generate fallback also failed")
             text = ""
     return text or ""
 

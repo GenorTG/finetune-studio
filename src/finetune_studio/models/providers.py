@@ -12,6 +12,7 @@ API keys live in that table (or env vars for server-side use).
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 import time
@@ -132,17 +133,14 @@ class LocalGGUFProvider(ModelProvider):
     def unload(self) -> None:
         with self._lock:
             if self._llama is not None:
-                try:
+                # llama-cpp free can raise on a partially-init handle; drop ref anyway.
+                with contextlib.suppress(Exception):
                     del self._llama
-                except Exception:  # noqa: BLE001, S110
-                    pass
                 self._llama = None
-        try:
+        with contextlib.suppress(ImportError, AttributeError, RuntimeError):
             import torch
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-        except Exception:  # noqa: BLE001, S110
-            pass
         self._loaded_at = 0.0
         log.info("LocalGGUFProvider unloaded")
 
@@ -231,8 +229,9 @@ class OpenAICompatProvider(ModelProvider):
             r = self._client().post(url, json=body, timeout=300)
             r.raise_for_status()
             return r.json()["choices"][0]["text"].strip()
-        except Exception:  # noqa: BLE001
-            # Fallback to chat mode
+        except Exception:
+            # Many OpenAI-compat hosts lack /completions; fall back to chat.
+            log.exception("completions failed; falling back to chat")
             return self.chat([{"role": "user", "content": prompt}], **gen)
 
 

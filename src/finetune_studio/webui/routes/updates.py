@@ -1,8 +1,10 @@
 """Routes for the self-healing /api/system/update endpoint.
 
-POST /api/system/update       \u2014 queue a background update.sh run
-GET  /api/system/update/{uid}  \u2014 poll status + log tail
-GET  /api/system/updates       \u2014 list recent update attempts
+POST /api/system/update              — queue a background update.sh run
+GET  /api/system/update/events       — SSE live progress (UI primary path)
+GET  /api/system/update/latest       — one-shot snapshot (SSE silent fallback)
+GET  /api/system/update/{uid}        — poll status + log tail
+GET  /api/system/updates             — list recent update attempts
 
 The worker spawns the update.sh script as a subprocess and streams
 each stdout line into the system_updates.log_text DB field via
@@ -16,17 +18,18 @@ real shell process.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import subprocess
-import threading
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 
 from finetune_studio import db
+from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -41,7 +44,7 @@ router = APIRouter()
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
-def _find_update_script() -> Optional[Path]:
+def _find_update_script() -> Path | None:
     """Locate update.sh. Prefers the path next to the package; falls
     back to $FTS_UPDATE_SCRIPT, then CWD/update.sh."""
     candidates = [
@@ -89,6 +92,76 @@ async def trigger_update(request: Request, background: BackgroundTasks):
             "mode": mode, "options": options}
 
 
+def _latest_update_payload() -> dict[str, Any]:
+    """Compact snapshot for SSE frames and the one-shot /latest poll."""
+    row = db.latest_update_in_progress()
+    if not row:
+        return {"exists": False}
+    log_text = row.get("log_text") or ""
+    out = dict(row)
+    out["exists"] = True
+    out["log_tail"] = log_text[-4000:]
+    out["log_length"] = len(log_text)
+    return out
+
+
+@router.get("/system/updates")
+async def list_updates(limit: int = 50):
+    return db.list_updates_recent(limit=limit)
+
+
+@router.get("/system/update/latest")
+async def latest_update():
+    """One-shot snapshot of the in-progress update.
+
+    Silent poll fallback when EventSource is unavailable
+    (settings.js + fts.subscribe). Prefer /system/update/events.
+    """
+    return _latest_update_payload()
+
+
+@router.get("/system/update/events")
+async def update_events():
+    """SSE stream of the latest in-progress update until it finishes.
+
+    Emits JSON snapshots ``{exists, status, mode, log_tail, ...}``.
+    When no update is running, emits ``{exists: false}`` once and exits
+    so the client can pull history. Keepalive comments while status is
+    unchanged avoid a 2s full-panel redraw.
+    """
+
+    async def gen():
+        last: str | None = None
+        idle_frames = 0
+        while True:
+            payload = _latest_update_payload()
+            if not payload.get("exists"):
+                yield sse_data(payload)
+                return
+            fingerprint = (
+                f"{payload.get('status')}|{payload.get('log_length')}|"
+                f"{payload.get('error')}"
+            )
+            if fingerprint != last:
+                last = fingerprint
+                idle_frames = 0
+                yield sse_data(payload)
+            else:
+                idle_frames += 1
+                yield sse_comment()
+            status = str(payload.get("status") or "")
+            if status not in ("queued", "running"):
+                yield sse_data(payload)
+                return
+            # Cap runaway streams (e.g. stuck queued) at ~30 min.
+            if idle_frames > 1800:
+                yield sse_data(payload)
+                return
+            await asyncio.sleep(1.0)
+
+    return sse_response(gen())
+
+
 @router.get("/system/update/{uid}")
 async def get_update_status(uid: str):
     """Status + log tail for one update attempt."""
@@ -101,24 +174,6 @@ async def get_update_status(uid: str):
     full = False  # parsed from query in real route; static here for clarity
     log_text = row.get("log_text") or ""
     row["log_tail"] = log_text[-4000:] if not full else log_text
-    row["log_length"] = len(log_text)
-    return row
-
-
-@router.get("/system/updates")
-async def list_updates(limit: int = 50):
-    return db.list_updates_recent(limit=limit)
-
-
-@router.get("/system/update/latest")
-async def latest_update():
-    """The most recent in-progress (queued or running) update \u2014 what
-    a dashboard would poll for a live progress bar."""
-    row = db.latest_update_in_progress()
-    if not row:
-        return {"exists": False}
-    log_text = row.get("log_text") or ""
-    row["log_tail"] = log_text[-4000:]
     row["log_length"] = len(log_text)
     return row
 
@@ -196,6 +251,6 @@ def _update_worker(uid: str, mode: str, options: dict) -> None:
                 uid,
                 error=f"update.sh exited with code {proc.returncode}",
             )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         log.exception("update worker failed")
         db.mark_update_failed(uid, error=str(e))
