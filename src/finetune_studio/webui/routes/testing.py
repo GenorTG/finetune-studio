@@ -46,7 +46,19 @@ async def run_test_suite(request: Request):
     cases = load_test_suite(suite_path)
     results = run_suite(inference_engine, cases, max_tokens=max_tokens)
     scores = score_results(results)
-    return {"results": [{"name": r.test_name, "response": r.response, "passed": r.passed,
-            "keyword_hits": r.keyword_hits, "keyword_misses": r.keyword_misses,
-            "forbidden_hits": r.forbidden_hits, "time_ms": r.time_ms, "error": r.error}
-            for r in results], "scores": scores}
+    # v2 schema (CaseResult): case_name / model_answer / verdict (pass|partial|fail|"") /
+    # judge / judge_model / judge_reasoning / time_ms / error.
+    return {"results": [{
+            "name": r.case_name,
+            "category": r.category,
+            "question": r.question,
+            "correct_answer": r.correct_answer,
+            "response": r.model_answer,
+            "passed": r.verdict == "pass",
+            "verdict": r.verdict,
+            "judge": r.judge,
+            "judge_model": r.judge_model,
+            "judge_reasoning": r.judge_reasoning,
+            "time_ms": r.time_ms,
+            "error": r.error,
+        } for r in results], "scores": scores}
