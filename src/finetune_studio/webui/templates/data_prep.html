@@ -69,6 +69,7 @@
         </table>
         <div id="fl-drop-hint" class="fl-drop-hint">Drop files here to upload</div>
       </div>
+      <pre id="fl-upload-status" class="fl-upload-status text-xs mt-2" role="status" aria-live="polite" hidden style="white-space:pre-wrap;margin:8px 0 0"></pre>
       <div class="fl-footer text-xs dim mt-2" id="fl-footer"></div>
     </div>
   </div>
@@ -598,7 +599,7 @@ async function flUploadFiles(files) {
     await flInit();
     flRefreshSourceSelect();
   } catch (e) {
-    alert('Upload failed: ' + e.message);
+    flReport('Upload failed: ' + e.message, 'error');
   } finally {
     if (input) { input.disabled = false; input.value = ''; }
   }
@@ -625,7 +626,20 @@ function flShowUploadReport(data) {
       errs.slice(0, 5).forEach(d => lines.push('  · ' + d.filename + ' — ' + d.error));
     }
   }
-  alert(lines.join('\n'));
+  const bad = (counts.errors || 0) > 0;
+  flReport(lines.join('\n'), bad ? 'error' : 'success');
+}
+
+// Non-blocking status: inline role=status line + toast. No native alert —
+// a native modal freezes the page for users and browser automation alike.
+function flReport(msg, type) {
+  const el = document.getElementById('fl-upload-status');
+  if (el) {
+    el.textContent = msg;
+    el.dataset.state = type || 'info';
+    el.hidden = false;
+  }
+  if (window.fts && fts.notify) fts.notify(msg.split('\n').slice(0, 3).join(' · '), type || 'info');
 }
 
 async function flDeleteFile(fid, name) {
@@ -1046,7 +1060,7 @@ async function flRestoreFile(fid, name) {
   try {
     await fetch('/api/projects/' + _flPid + '/files/' + fid + '/restore', { method: 'POST' });
     await flInit();
-  } catch (e) { alert('Restore failed: ' + e.message); }
+  } catch (e) { flReport('Restore failed: ' + e.message, 'error'); }
 }
 
 async function flPurgeOne(fid) {
@@ -1059,7 +1073,7 @@ async function flPurgeOne(fid) {
       throw new Error(detail);
     }
     await flInit();
-  } catch (e) { alert('Purge failed: ' + e.message); }
+  } catch (e) { flReport('Purge failed: ' + e.message, 'error'); }
 }
 
 function flToggleTrash() {
@@ -1080,7 +1094,7 @@ async function flPromptCreateFolder() {
       body: JSON.stringify({ name: name.trim() }),
     });
     await flLoadFolders();
-  } catch (e) { alert('Create failed: ' + e.message); }
+  } catch (e) { flReport('Create failed: ' + e.message, 'error'); }
 }
 
 async function flPromptRenameFolder(fid, oldName) {
@@ -1093,7 +1107,7 @@ async function flPromptRenameFolder(fid, oldName) {
       body: JSON.stringify({ name: name.trim() }),
     });
     await flLoadFolders();
-  } catch (e) { alert('Rename failed: ' + e.message); }
+  } catch (e) { flReport('Rename failed: ' + e.message, 'error'); }
 }
 
 async function flDeleteFolder(fid, name) {
@@ -1102,7 +1116,7 @@ async function flDeleteFolder(fid, name) {
     await fetch('/api/projects/' + _flPid + '/folders/' + fid, { method: 'DELETE' });
     if (_flCurrentFolder === fid) _flCurrentFolder = null;
     await flInit();
-  } catch (e) { alert('Delete failed: ' + e.message); }
+  } catch (e) { flReport('Delete failed: ' + e.message, 'error'); }
 }
 
 function flFormatBytes(n) {
