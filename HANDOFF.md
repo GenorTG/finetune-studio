@@ -14,7 +14,7 @@ Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :786
 | Regression | 50 focused tests passed; Ruff passed on touched Python files |
 | Runtime reset | Fan-dragon project DB, provider DBs, project data, and generated output reset to zero |
 | Fresh browser state | Dashboard shows 0 projects; exactly one provider: retained 27B Qwen GGUF helper |
-| Retained models | Qwen3-4B HF safetensors cache for training; Qwen3.8-27B Q4_K_M GGUF + projector for inference help |
+| Retained models | Gemma 4B safetensors for training; Qwen3.8-27B Q4_K_M GGUF + projector for inference help |
 | Reset backup | `/home/genortg/finetune-studio-reset-backups/20260915-163033` on fan-dragon |
 | Repo hygiene | DB, SQLite, runtime data, models, output, projects, and private artifacts are gitignored |
 
