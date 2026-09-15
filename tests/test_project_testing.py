@@ -18,11 +18,13 @@ def test_testing_page_renders_suite_select(client) -> None:
     assert 'id="t-suite"' in body
     assert "<select id=\"t-suite\"" in body or "<select id='t-suite'" in body
     assert "— pick a suite —" in body
-    # Known suites from _discover_suites always present
+    # Local known suite + built-in industry smoke suites
     assert 'value="data/benchmarks/default.json"' in body
     assert "default.json" in body or "local ·" in body
     assert "industry ·" in body
     assert "MMLU-style" in body
+    assert "GSM8K-style" in body
+    assert "HellaSwag-style" in body
     # Free-text path input must be gone
     assert 'placeholder="path/to/suite.json"' not in body
     assert 'type="text"' not in body or 'id="t-suite" type="text"' not in body
