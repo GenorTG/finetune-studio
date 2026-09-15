@@ -432,6 +432,14 @@ def init_db() -> None:
         _safe_alter(c, "ALTER TABLE training_runs ADD COLUMN error TEXT NOT NULL DEFAULT ''")
         _safe_alter(
             c,
+            "ALTER TABLE training_runs ADD COLUMN system_prompt_mode TEXT NOT NULL DEFAULT 'bake'",
+        )
+        _safe_alter(c, "ALTER TABLE training_runs ADD COLUMN metrics_json TEXT NOT NULL DEFAULT '{}'")
+        _safe_alter(c, "ALTER TABLE training_runs ADD COLUMN final_loss REAL")
+        _safe_alter(c, "ALTER TABLE training_runs ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+        _safe_alter(c, "ALTER TABLE training_runs ADD COLUMN parent_run_id TEXT")
+        _safe_alter(
+            c,
             "ALTER TABLE project_files ADD COLUMN tags TEXT NOT NULL DEFAULT ''",
         )
         _safe_alter(

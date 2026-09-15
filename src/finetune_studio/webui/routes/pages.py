@@ -20,6 +20,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from finetune_studio import __version__ as APP_VERSION
+from finetune_studio.webui.model_labels import model_label as _model_label
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 templates.env.globals["app_version"] = APP_VERSION
@@ -30,6 +31,7 @@ def _sum_benchmarks(runs):
     return sum(len(r.get("benchmarks", [])) for r in runs)
 
 templates.env.filters["sum_benchmarks"] = _sum_benchmarks
+templates.env.filters["model_label"] = _model_label
 
 router = APIRouter()
 
@@ -459,8 +461,11 @@ async def benchmarks_page(request: Request, pid: str):
     project = db.get_project(pid)
     if not project:
         return RedirectResponse(url="/projects", status_code=302)
-    runs = db.list_runs(pid)
-    suites = _discover_suites()
+    runs = [
+        r for r in db.list_runs(pid)
+        if r.get("name") != "__base_model__"
+    ]
+    suites = _discover_suites(pid)
     for run in runs:
         run["latest_benchmark"] = _latest_benchmark(run["id"])
     all_benchmarks = []

@@ -28,3 +28,13 @@ def test_explicit_user_override_is_kept(monkeypatch: pytest.MonkeyPatch) -> None
 
     importlib.reload(engine)
     assert os.environ["UNSLOTH_DATASET_NUM_PROC"] == "4"
+
+
+def test_worker_module_pins_serial_tokenization(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("UNSLOTH_DATASET_NUM_PROC", raising=False)
+    monkeypatch.delenv("TOKENIZERS_PARALLELISM", raising=False)
+    from finetune_studio.training import worker
+
+    importlib.reload(worker)
+    assert os.environ["UNSLOTH_DATASET_NUM_PROC"] == "0"
+    assert os.environ["TOKENIZERS_PARALLELISM"] == "false"

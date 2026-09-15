@@ -92,3 +92,32 @@ def delete_run(rid: str) -> bool:
     with cursor() as c:
         c.execute("DELETE FROM training_runs WHERE id = ?", (rid,))
     return True
+
+
+_STALE_RUN_STATUSES: tuple[str, ...] = (
+    "queued", "loading", "training", "saving", "running",
+)
+_STALE_RUN_ERROR = "Interrupted: server restarted during this run"
+
+
+def reconcile_stale_runs() -> int:
+    """Mark in-flight training_runs as failed after a process restart.
+
+    Any row still in queued/loading/training/saving/running cannot still be
+    running after the server process died — mark them failed so the UI does
+    not show forever-spinning orphans. Returns the number of rows updated.
+    """
+    placeholders = ", ".join("?" for _ in _STALE_RUN_STATUSES)
+    now = time.time()
+    with cursor() as c:
+        rows = c.execute(
+            f"SELECT id FROM training_runs WHERE status IN ({placeholders})",
+            _STALE_RUN_STATUSES,
+        ).fetchall()
+        for r in rows:
+            c.execute(
+                "UPDATE training_runs SET status = ?, error = ?, finished_at = ? "
+                "WHERE id = ?",
+                ("failed", _STALE_RUN_ERROR, now, r["id"]),
+            )
+    return len(rows)

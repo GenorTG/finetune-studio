@@ -43,7 +43,7 @@ class InferenceEngine:
 
     def load(self, model_path, device="auto", n_ctx=4096, n_gpu_layers=99, n_batch=512, mmap=True, mlock=False,
               n_threads=None, flash_attn=True, seed=None, rope_freq_base=0.0, rope_freq_scale=0.0,
-              max_seq_length=None, load_in_4bit=True):
+              max_seq_length=None, load_in_4bit=False):
         from pathlib import Path
         self.unload()
         path = Path(model_path)
@@ -83,72 +83,62 @@ class InferenceEngine:
         except Exception:  # noqa: BLE001
             return False
 
-    def _load_hf_unsloth(self, model_path: str, max_seq_length: int, load_in_4bit: bool) -> bool:
-        """Load via Unsloth so Qwen3Attention patches (apply_qkv) are active.
+    def _load_hf_bnb_4bit(self, model_path: str, device_map: str | dict):
+        """Load with bitsandbytes 4-bit (never Unsloth — E2E-40)."""
+        import torch
+        from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
-        QABUG-014-runtime: importing ``unsloth`` alone is not enough — the
-        model must be constructed through FastQwen3Model / FastLanguageModel
-        so unsloth_zoo patches bind before the first forward pass.
-        Returns True on success, False if Unsloth is not installed.
-        """
-        try:
-            from unsloth import FastLanguageModel
-        except ImportError:
-            return False
-
-        loader = FastLanguageModel
-        if self._looks_like_qwen3(model_path):
-            try:
-                from unsloth.models.qwen3 import FastQwen3Model
-                loader = FastQwen3Model
-            except Exception:  # noqa: BLE001
-                loader = FastLanguageModel
-
-        model, tokenizer = loader.from_pretrained(
-            model_name=model_path,
-            max_seq_length=max_seq_length,
-            dtype=None,
-            load_in_4bit=load_in_4bit,
+        quant = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
         )
-        # Enable Unsloth's 2x inference path (KV / generate wrappers).
-        if hasattr(loader, "for_inference"):
-            loader.for_inference(model)
-        elif hasattr(FastLanguageModel, "for_inference"):
-            FastLanguageModel.for_inference(model)
+        return AutoModelForCausalLM.from_pretrained(
+            model_path,
+            quantization_config=quant,
+            device_map=device_map,
+            trust_remote_code=True,
+        )
 
-        if tokenizer.pad_token is None:
-            tokenizer.pad_token = tokenizer.eos_token
-        self.model = model
-        self.tokenizer = tokenizer
-        self.is_gguf = False
-        return True
+    def _load_hf(self, model_path, device, max_seq_length=None, load_in_4bit=False):
+        """Load HF checkpoints with plain transformers (E2E-40).
 
-    def _load_hf(self, model_path, device, max_seq_length=None, load_in_4bit=True):
-        from finetune_studio.config import settings
-
-        seq = max_seq_length if max_seq_length is not None else settings.default_max_seq_length
-
-        # Prefer Unsloth for HF checkpoints (required for Unsloth-trained Qwen3).
-        if self._load_hf_unsloth(model_path, max_seq_length=seq, load_in_4bit=load_in_4bit):
-            return
-
-        # Vanilla transformers fallback (no Unsloth on this host).
+        Prefer bf16 on GPU; use bitsandbytes 4-bit only when ``load_in_4bit`` is
+        True or a full-precision load OOMs. Never import Unsloth — it monkey-patches
+        transformers globally and poisons all later inference in this process.
+        """
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        from finetune_studio.config import settings
+
+        # max_seq_length kept for API compatibility with callers / Unsloth era.
+        _ = max_seq_length if max_seq_length is not None else settings.default_max_seq_length
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
-        # Try full GPU first, fall back to mixed RAM/VRAM
+
+        dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
+        device_map: str | dict = {"": 0} if torch.cuda.is_available() else "cpu"
+
+        if load_in_4bit and torch.cuda.is_available():
+            self.model = self._load_hf_bnb_4bit(model_path, device_map={"": 0})
+            self.is_gguf = False
+            return
+
         try:
             self.model = AutoModelForCausalLM.from_pretrained(
-                model_path, torch_dtype=torch.float16, device_map={"": 0},
+                model_path,
+                torch_dtype=dtype,
+                device_map=device_map,
                 trust_remote_code=True,
             )
         except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
-            if "out of memory" not in str(e).lower() and "CUDA" not in str(e):
+            err = str(e).lower()
+            if "out of memory" not in err and "cuda" not in err:
                 raise
-            # Mixed fallback — slower but fits
             try:
                 import gc
                 gc.collect()
@@ -156,8 +146,23 @@ class InferenceEngine:
                     torch.cuda.empty_cache()
             except Exception:  # noqa: BLE001,S110
                 pass
+            # Prefer 4-bit when VRAM is insufficient; then mixed device_map.
+            if torch.cuda.is_available():
+                try:
+                    self.model = self._load_hf_bnb_4bit(model_path, device_map={"": 0})
+                    self.is_gguf = False
+                    return
+                except Exception:  # noqa: BLE001
+                    try:
+                        import gc
+                        gc.collect()
+                        torch.cuda.empty_cache()
+                    except Exception:  # noqa: BLE001,S110
+                        pass
             self.model = AutoModelForCausalLM.from_pretrained(
-                model_path, torch_dtype=torch.float16, device_map="auto",
+                model_path,
+                torch_dtype=dtype,
+                device_map="auto",
                 trust_remote_code=True,
             )
         self.is_gguf = False
@@ -316,7 +321,15 @@ class InferenceEngine:
         return self._generate_hf(messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop, think=think)
 
     def _generate_hf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop, think=False):
-        text = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True, enable_thinking=think)
+        # Qwen3 chat templates honour enable_thinking; keep the kwarg when present.
+        try:
+            text = self.tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True, enable_thinking=think,
+            )
+        except TypeError:
+            text = self.tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True,
+            )
         inputs = self.tokenizer(text, return_tensors="pt").to(self.model.device)
         with torch.no_grad():
             outputs = self.model.generate(
@@ -329,7 +342,8 @@ class InferenceEngine:
         # Strip Qwen3 thinking traces: <think>...</think> blocks
         import re
         response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
-        # Also strip the trailing \n\n that follows </think>
+        # Bare </think> preambles (thinking disabled but model still emits the closer)
+        response = re.sub(r"^</think>\s*", "", response).strip()
         response = response.lstrip("\n")
         return response
 

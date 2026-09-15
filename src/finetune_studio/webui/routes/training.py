@@ -207,9 +207,19 @@ async def get_preset(preset_id: str):
 @router.get("/status")
 async def status():
     s = training_engine.state
-    return {"status": s.status, "step": s.current_step, "total_steps": s.total_steps,
-            "loss": s.loss, "learning_rate": s.learning_rate, "epoch": s.epoch,
-            "elapsed": s.elapsed, "eta": s.eta, "message": s.message, "error": s.error}
+    return {
+        "status": s.status,
+        "step": s.current_step,
+        "total_steps": s.total_steps,
+        "loss": s.loss,
+        "learning_rate": s.learning_rate,
+        "epoch": s.epoch,
+        "elapsed": s.elapsed,
+        "eta": s.eta,
+        "message": s.message,
+        "error": s.error,
+        "log_lines": list(s.log_lines[-30:]),
+    }
 
 @router.get("/status-text")
 async def status_text():

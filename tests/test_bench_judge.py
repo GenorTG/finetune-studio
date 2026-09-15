@@ -37,7 +37,7 @@ def _create_project_and_run(client: TestClient, tmp_path: Path) -> tuple[str, st
     (out / "merged").mkdir()
     (out / "merged" / "config.json").write_text("{}", encoding="utf-8")
     run = db.create_run(pid, "train-1", base_model="x/test")
-    db.update_run(run["id"], status="completed", output_path=str(out))
+    db.update_run(run["id"], status="done", output_path=str(out))
     return pid, run["id"]
 
 

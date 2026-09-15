@@ -2,34 +2,157 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from finetune_studio import db
+from finetune_studio.testing.suite import BenchmarkCase, load_test_suite
 
 router = APIRouter()
+_log = logging.getLogger(__name__)
 
-_KNOWN_SUITES = [
-    {"name": "default", "path": "data/benchmarks/default.json", "description": "General-purpose benchmark"},
-    {"name": "tool_calling", "path": "data/benchmarks/tool_calling.json", "description": "Tool-calling accuracy"},
-    {"name": "chris_ai_v21", "path": "data/benchmarks/chris_ai_v21.json", "description": "Chris AI v21 suite"},
+_KNOWN_SUITES: list[dict[str, str]] = [
+    {
+        "name": "default",
+        "path": "data/benchmarks/default.json",
+        "description": "General-purpose benchmark",
+    },
+    {
+        "name": "tool_calling",
+        "path": "data/benchmarks/tool_calling.json",
+        "description": "Tool-calling accuracy",
+    },
+    {
+        "name": "chris_ai_v21",
+        "path": "data/benchmarks/chris_ai_v21.json",
+        "description": "Chris AI v21 suite",
+    },
 ]
 
 
-def _discover_suites() -> list[dict]:
-    """Return known suites plus any .json files in data/benchmarks/."""
-    found: dict[str, dict] = {s["name"]: s for s in _KNOWN_SUITES}
+def _suite_entry(
+    name: str,
+    path: str,
+    description: str = "",
+    *,
+    label: str | None = None,
+) -> dict[str, Any]:
+    """Build a suite dict for discovery / template rendering."""
+    return {
+        "name": name,
+        "path": path,
+        "description": description,
+        "label": label or name,
+    }
+
+
+def _discover_suites(project_id: str | None = None) -> list[dict[str, Any]]:
+    """Return suites whose JSON file exists, plus project auto-suites.
+
+    Known / discovered files under ``data/benchmarks/`` are included only when
+    the path is present on disk. When ``project_id`` is set, rows from
+    ``auto_suites`` for that project are appended (labelled
+    ``auto · <name> (<n> cases)``).
+    """
+    found: dict[str, dict[str, Any]] = {}
+
+    for s in _KNOWN_SUITES:
+        path = s["path"]
+        if Path(path).is_file():
+            found[s["name"]] = _suite_entry(
+                s["name"], path, s.get("description", "")
+            )
+
     bench_dir = Path("data/benchmarks")
     if bench_dir.is_dir():
-        for f in bench_dir.glob("*.json"):
+        for f in sorted(bench_dir.glob("*.json")):
             name = f.stem
             if name not in found:
-                found[name] = {"name": name, "path": str(f), "description": f"Discovered: {f.name}"}
-    return sorted(found.values(), key=lambda s: s["name"])
+                found[name] = _suite_entry(
+                    name, str(f), f"Discovered: {f.name}"
+                )
+
+    if project_id:
+        with db.cursor() as c:
+            rows = c.execute(
+                "SELECT suite_name, suite_path, case_count FROM auto_suites "
+                "WHERE project_id = ? ORDER BY created_at DESC",
+                (project_id,),
+            ).fetchall()
+        for row in rows:
+            suite_name = str(row["suite_name"])
+            suite_path = str(row["suite_path"])
+            case_count = int(row["case_count"] or 0)
+            label = f"auto · {suite_name} ({case_count} cases)"
+            key = f"auto:{suite_name}:{suite_path}"
+            found[key] = _suite_entry(
+                suite_name,
+                suite_path,
+                label,
+                label=label,
+            )
+
+    return sorted(found.values(), key=lambda s: (s.get("label") or s["name"]))
+
+
+def _validate_suite_file(suite_path: str) -> tuple[list[BenchmarkCase] | None, JSONResponse | None]:
+    """Ensure suite_path exists, parses, and has ≥1 case. Returns (cases, error)."""
+    if not suite_path or not str(suite_path).strip():
+        return None, JSONResponse({"error": "suite_path required"}, status_code=400)
+    path = Path(suite_path)
+    if not path.is_file():
+        return None, JSONResponse(
+            {"error": f"suite not found: {suite_path}"},
+            status_code=404,
+        )
+    try:
+        cases = load_test_suite(str(path))
+    except Exception as exc:  # noqa: BLE001
+        return None, JSONResponse(
+            {"error": f"suite parse failed: {exc}"},
+            status_code=400,
+        )
+    if len(cases) < 1:
+        return None, JSONResponse(
+            {"error": "suite has no cases"},
+            status_code=400,
+        )
+    return cases, None
+
+
+def _run_is_benchmarkable(run: dict[str, Any]) -> bool:
+    """True when the run finished successfully and has a trained artifact path."""
+    status = str(run.get("status") or "")
+    output = (run.get("output_path") or "").strip()
+    return status == "done" and bool(output)
+
+
+def _resolve_trained_target(run: dict[str, Any]) -> str:
+    """Prefer merged/ under output_path when present."""
+    target_model = str(run.get("output_path") or "").strip()
+    merged_candidate = os.path.join(target_model, "merged")
+    if os.path.isdir(merged_candidate) and os.path.isfile(
+        os.path.join(merged_candidate, "config.json")
+    ):
+        return merged_candidate
+    return target_model
+
+
+def _unload_global_inference() -> None:
+    """Unload the UI global InferenceEngine if it holds a model."""
+    try:
+        from finetune_studio.webui.app import inference_engine as _global_ie
+
+        if _global_ie is not None and getattr(_global_ie, "model", None) is not None:
+            _global_ie.unload()
+    except Exception:  # noqa: BLE001, S110
+        pass
 
 
 def _latest_benchmark(run_id: str) -> dict | None:
@@ -63,97 +186,42 @@ def _suite_scores_for_run(run_id: str) -> dict[str, float | None]:
     return out
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────
-
-@router.get("/runs/{rid}")
-async def get_benchmark_run(rid: str):
-    """Get a single benchmark run."""
-    from finetune_studio import db
-    return db.get_benchmark(rid) or {"error": "not found"}
-
-
-@router.get("/suites")
-async def list_suites():
-    """List available benchmark suites."""
-    return _discover_suites()
-
-
-@router.get("/projects/{pid}/runs")
-async def list_runs_with_benchmarks(pid: str):
-    """List training runs for a project, augmented with latest benchmark score."""
-    runs = db.list_runs(pid)
-    out = []
-    for run in runs:
-        b = _latest_benchmark(run["id"])
-        run["latest_benchmark"] = b
-        out.append(run)
-    return out
-
-
-@router.post("/projects/{pid}/runs/{rid}/run")
-async def run_benchmark(pid: str, rid: str, request: Request):
-    """Run a benchmark suite against a run's output model."""
-    body = await request.json()
-    suite_name = body.get("suite_name", "default")
-    suite_path = body.get("suite_path", "")
-    judge_mode = body.get("judge_mode", "heuristic")  # heuristic | ai | local | none
-    body.get("judge_model", "")
-    max_tokens = int(body.get("max_tokens", 512))
-
-    run = db.get_run(rid)
-    if not run:
-        return {"error": "run not found"}
-    if run["project_id"] != pid:
-        return {"error": "run does not belong to project"}
-
-    target_model = run.get("output_path") or run.get("base_model")
-    if not target_model:
-        return {"error": "run has no model to benchmark"}
-    merged_candidate = os.path.join(target_model, "merged")
-    if os.path.isdir(merged_candidate) and os.path.isfile(os.path.join(merged_candidate, "config.json")):
-        target_model = merged_candidate
-
+async def _execute_benchmark(
+    *,
+    rid: str,
+    suite_name: str,
+    suite_path: str,
+    judge_mode: str,
+    max_tokens: int,
+    target_model: str,
+    cases: list[BenchmarkCase],
+) -> dict[str, Any] | JSONResponse:
+    """Load model, run suite, judge, persist. Always unloads the bench engine."""
     from finetune_studio.testing.inference import InferenceEngine
     from finetune_studio.testing.suite import (
         apply_heuristic_judging,
-        load_test_suite,
         run_suite,
         score_results,
     )
 
-    if not suite_path:
-        return {"error": "suite_path required"}
-
-    # Unload the global inference engine first — it may hold a model from the UI.
-    try:
-        from finetune_studio.webui.app import inference_engine as _global_ie
-        if _global_ie is not None and getattr(_global_ie, "model", None) is not None:
-            _global_ie.unload()
-    except Exception:  # noqa: BLE001, S110
-        pass
-
     engine = InferenceEngine()
     try:
-        engine.load(target_model)
-    except Exception as e:  # noqa: BLE001
-        return {"error": f"load failed: {e}"}
+        _unload_global_inference()
+        try:
+            engine.load(target_model)
+        except Exception as exc:  # noqa: BLE001
+            return JSONResponse({"error": f"load failed: {exc}"}, status_code=500)
 
-    try:
-        cases = load_test_suite(suite_path)
         t0 = time.time()
         results = run_suite(engine, cases, max_tokens=max_tokens)
         dt_ms = int((time.time() - t0) * 1000)
 
-        # QABUG-006 / QABUG-008: actually judge before scoring + DB write.
         if judge_mode == "none":
             pass
         elif judge_mode == "heuristic":
             apply_heuristic_judging(results)
         elif judge_mode in ("ai", "local"):
-            # Runtime AI/local judging is handled by the separate /judge endpoint.
-            # Fall back to heuristic so rows are never left unjudged.
-            import logging
-            logging.getLogger(__name__).warning(
+            _log.warning(
                 "judge_mode=%s not applied during run; falling back to heuristic",
                 judge_mode,
             )
@@ -163,8 +231,7 @@ async def run_benchmark(pid: str, rid: str, request: Request):
 
         scores = score_results(results)
 
-        # Build case dicts for DB — include verdicts from the judge step.
-        case_dicts = []
+        case_dicts: list[dict[str, Any]] = []
         for r in results:
             case_dicts.append({
                 "name": r.case_name,
@@ -180,7 +247,9 @@ async def run_benchmark(pid: str, rid: str, request: Request):
                 "scored_at": time.time() if r.verdict else None,
             })
 
-        benchmark = db.create_benchmark(rid, suite_name, scores, dt_ms, cases=case_dicts)
+        benchmark = db.create_benchmark(
+            rid, suite_name, scores, dt_ms, cases=case_dicts
+        )
 
         return {
             "benchmark": benchmark,
@@ -206,8 +275,149 @@ async def run_benchmark(pid: str, rid: str, request: Request):
         engine.unload()
 
 
+# ── Endpoints ─────────────────────────────────────────────────────────────
+
+@router.get("/runs/{rid}")
+async def get_benchmark_run(rid: str) -> dict[str, Any]:
+    """Get a single benchmark run."""
+    return db.get_benchmark(rid) or {"error": "not found"}
+
+
+@router.get("/suites")
+async def list_suites(project_id: str | None = None) -> list[dict[str, Any]]:
+    """List available benchmark suites (files that exist + optional auto-suites)."""
+    return _discover_suites(project_id)
+
+
+@router.get("/projects/{pid}/runs")
+async def list_runs_with_benchmarks(pid: str) -> list[dict[str, Any]]:
+    """List training runs for a project, augmented with latest benchmark score."""
+    runs = db.list_runs(pid)
+    out: list[dict[str, Any]] = []
+    for run in runs:
+        b = _latest_benchmark(run["id"])
+        run["latest_benchmark"] = b
+        out.append(run)
+    return out
+
+
+@router.post("/projects/{pid}/runs/{rid}/run", response_model=None)
+async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] | JSONResponse:
+    """Run a benchmark suite against a run's trained output model."""
+    body = await request.json()
+    suite_name = body.get("suite_name", "default")
+    suite_path = body.get("suite_path", "")
+    judge_mode = body.get("judge_mode", "heuristic")
+    max_tokens = int(body.get("max_tokens", 512))
+
+    run = db.get_run(rid)
+    if not run:
+        return JSONResponse({"error": "run not found"}, status_code=404)
+    if run["project_id"] != pid:
+        return JSONResponse(
+            {"error": "run does not belong to project"},
+            status_code=400,
+        )
+
+    if not _run_is_benchmarkable(run):
+        status = run.get("status") or "unknown"
+        return JSONResponse(
+            {
+                "error": (
+                    f"Run {rid} has no trained model (status: {status})"
+                ),
+            },
+            status_code=409,
+        )
+
+    cases, suite_err = _validate_suite_file(suite_path)
+    if suite_err is not None:
+        return suite_err
+    assert cases is not None
+
+    target_model = _resolve_trained_target(run)
+    if not target_model:
+        return JSONResponse(
+            {"error": f"Run {rid} has no trained model (status: {run.get('status')})"},
+            status_code=409,
+        )
+
+    try:
+        return await _execute_benchmark(
+            rid=rid,
+            suite_name=str(suite_name),
+            suite_path=str(suite_path),
+            judge_mode=str(judge_mode),
+            max_tokens=max_tokens,
+            target_model=target_model,
+            cases=cases,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@router.post("/projects/{pid}/base/run", response_model=None)
+async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSONResponse:
+    """Benchmark the project's untrained base model (explicit, never a silent fallback)."""
+    body = await request.json()
+    suite_name = body.get("suite_name", "default")
+    suite_path = body.get("suite_path", "")
+    judge_mode = body.get("judge_mode", "heuristic")
+    max_tokens = int(body.get("max_tokens", 512))
+
+    project = db.get_project(pid)
+    if not project:
+        return JSONResponse({"error": "project not found"}, status_code=404)
+
+    target_model = (project.get("base_model") or "").strip()
+    if not target_model:
+        return JSONResponse(
+            {"error": "project has no base_model configured"},
+            status_code=400,
+        )
+
+    cases, suite_err = _validate_suite_file(suite_path)
+    if suite_err is not None:
+        return suite_err
+    assert cases is not None
+
+    # Persist results against a synthetic "base" context: create or reuse a
+    # placeholder run so create_benchmark has a run_id FK. Prefer an existing
+    # run whose name marks it as the base-model probe.
+    runs = db.list_runs(pid)
+    base_run = next(
+        (r for r in runs if r.get("name") == "__base_model__"),
+        None,
+    )
+    if base_run is None:
+        base_run = db.create_run(
+            pid,
+            "__base_model__",
+            base_model=target_model,
+        )
+        db.update_run(
+            base_run["id"],
+            status="done",
+            output_path="",
+            notes="Placeholder for explicit base-model (untrained) benchmarks",
+        )
+
+    try:
+        return await _execute_benchmark(
+            rid=base_run["id"],
+            suite_name=str(suite_name),
+            suite_path=str(suite_path),
+            judge_mode=str(judge_mode),
+            max_tokens=max_tokens,
+            target_model=target_model,
+            cases=cases,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
 @router.get("/projects/{pid}/runs/{rid}/history")
-async def run_history(pid: str, rid: str):
+async def run_history(pid: str, rid: str) -> list[dict[str, Any]] | dict[str, str]:
     """List all benchmarks for a specific run."""
     run = db.get_run(rid)
     if not run or run["project_id"] != pid:
@@ -215,8 +425,8 @@ async def run_history(pid: str, rid: str):
     return db.list_benchmarks(rid)
 
 
-@router.delete("/projects/{pid}/runs/{rid}")
-async def delete_run(pid: str, rid: str):
+@router.delete("/projects/{pid}/runs/{rid}", response_model=None)
+async def delete_run(pid: str, rid: str) -> dict[str, Any] | JSONResponse:
     """Delete a training run and its benchmark results."""
     run = db.get_run(rid)
     if not run:
@@ -230,20 +440,20 @@ async def delete_run(pid: str, rid: str):
 
 
 @router.delete("/projects/{pid}/benchmarks/{bid}")
-async def delete_benchmark(pid: str, bid: str):
+async def delete_benchmark(pid: str, bid: str) -> dict[str, bool]:
     """Delete a specific benchmark result."""
     with db.cursor() as c:
-        c.execute("DELETE FROM benchmark_runs WHERE id = ? AND project_id = ?", (bid, pid))
+        c.execute(
+            "DELETE FROM benchmark_runs WHERE id = ? AND project_id = ?",
+            (bid, pid),
+        )
     return {"ok": True}
 
 
-@router.post("/projects/{pid}/benchmarks/{bid}/judge")
-async def judge_benchmark(pid: str, bid: str, request: Request):
+@router.post("/projects/{pid}/benchmarks/{bid}/judge", response_model=None)
+async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any] | JSONResponse:
     """Run AI/human judge over all cases in a benchmark."""
     body = await request.json()
-    # Default to the heuristic judge: it needs no API key and no model, so
-    # scores never stay stuck at judged: 0 on a fresh install. Only prefer the
-    # external AI judge when a key is actually configured.
     from finetune_studio.testing.judge import DEFAULT_JUDGE_KEY
 
     judge_mode = body.get("judge_mode") or ("ai" if DEFAULT_JUDGE_KEY else "heuristic")
@@ -251,13 +461,12 @@ async def judge_benchmark(pid: str, bid: str, request: Request):
 
     benchmark = db.get_benchmark(bid)
     if not benchmark:
-        return {"error": "benchmark not found"}
+        return JSONResponse({"error": "benchmark not found"}, status_code=404)
 
     cases = db.list_cases(bid)
     if not cases:
-        return {"error": "no cases in benchmark"}
+        return JSONResponse({"error": "no cases in benchmark"}, status_code=400)
 
-    # Load the judge model
     from finetune_studio.testing.inference import InferenceEngine
     from finetune_studio.testing.judge import (
         judge_case_ai,
@@ -265,7 +474,6 @@ async def judge_benchmark(pid: str, bid: str, request: Request):
         judge_case_local,
     )
 
-    # Heuristic judge — no API key, no model, always returns a verdict.
     if judge_mode == "heuristic":
         updated = 0
         for case in cases:
@@ -285,27 +493,31 @@ async def judge_benchmark(pid: str, bid: str, request: Request):
                 scored_at=time.time(),
             )
             updated += 1
-        # Recalculate scores after judging
         cases_updated = db.list_cases(bid)
         from finetune_studio.testing.suite import CaseResult, score_results
+
         rebuilt = []
         for c in cases_updated:
             rebuilt.append(CaseResult(
-                case_name=c.get('name', ''),
-                category=c.get('category', ''),
-                question=c.get('question', ''),
-                correct_answer=c.get('correct_answer', ''),
-                model_answer=c.get('model_answer', ''),
-                transcript=c.get('transcript', ''),
-                verdict=c.get('verdict', ''),
-                time_ms=c.get('time_ms', 0),
+                case_name=c.get("name", ""),
+                category=c.get("category", ""),
+                question=c.get("question", ""),
+                correct_answer=c.get("correct_answer", ""),
+                model_answer=c.get("model_answer", ""),
+                transcript=c.get("transcript", ""),
+                verdict=c.get("verdict", ""),
+                time_ms=c.get("time_ms", 0),
             ))
         new_scores = score_results(rebuilt)
         db.update_benchmark_scores(bid, new_scores)
-        return {"ok": True, "judged": updated, "judge_mode": "heuristic", "scores": new_scores}
+        return {
+            "ok": True,
+            "judged": updated,
+            "judge_mode": "heuristic",
+            "scores": new_scores,
+        }
 
     if judge_mode == "ai":
-        # For AI judge via external API
         updated = 0
         for case in cases:
             if not case.get("model_answer"):
@@ -327,23 +539,17 @@ async def judge_benchmark(pid: str, bid: str, request: Request):
             updated += 1
         return {"ok": True, "judged": updated}
 
-    # For local judge — load the specified model
     if judge_mode == "local":
-        # Unload the global inference engine first — it may hold a model from the UI.
-        try:
-            from finetune_studio.webui.app import inference_engine as _global_ie
-            if _global_ie is not None and getattr(_global_ie, "model", None) is not None:
-                _global_ie.unload()
-        except Exception:  # noqa: BLE001, S110
-            pass
-
         judge_engine = InferenceEngine()
         try:
-            # Use the base model as judge — an unbiased evaluator
+            _unload_global_inference()
             run = db.get_run(benchmark["run_id"])
             model_path = judge_model or (run.get("base_model", "") if run else "")
             if not model_path:
-                return {"error": "no model path for local judge"}
+                return JSONResponse(
+                    {"error": "no model path for local judge"},
+                    status_code=400,
+                )
             judge_engine.load(model_path)
 
             updated = 0
@@ -369,17 +575,22 @@ async def judge_benchmark(pid: str, bid: str, request: Request):
         finally:
             judge_engine.unload()
 
-    return {"error": f"unknown judge_mode: {judge_mode}"}
+    return JSONResponse(
+        {"error": f"unknown judge_mode: {judge_mode}"},
+        status_code=400,
+    )
 
 
 @router.get("/projects/{pid}/benchmarks/{bid}/cases")
-async def list_benchmark_cases(pid: str, bid: str):
+async def list_benchmark_cases(pid: str, bid: str) -> list[dict[str, Any]]:
     """List all cases + judge verdicts for a benchmark."""
     return db.list_cases(bid)
 
 
 @router.post("/projects/{pid}/benchmarks/{bid}/cases/{cid}/verdict")
-async def set_verdict(pid: str, bid: str, cid: str, request: Request):
+async def set_verdict(
+    pid: str, bid: str, cid: str, request: Request
+) -> dict[str, bool]:
     """Human overrides/sets a verdict."""
     body = await request.json()
     db.update_case(
@@ -392,8 +603,8 @@ async def set_verdict(pid: str, bid: str, cid: str, request: Request):
     return {"ok": True}
 
 
-@router.get("/projects/{pid}/compare")
-async def compare_runs(pid: str, run_a: str = "", run_b: str = ""):
+@router.get("/projects/{pid}/compare", response_model=None)
+async def compare_runs(pid: str, run_a: str = "", run_b: str = "") -> dict[str, Any] | JSONResponse:
     """Side-by-side per-suite score comparison of two training runs.
 
     Baseline is run_a; delta is run_b − run_a. Uses each run's latest
@@ -425,8 +636,8 @@ async def compare_runs(pid: str, run_a: str = "", run_b: str = ""):
             status_code=404,
         )
 
-    suites: list[dict] = []
-    deltas: dict[str, dict] = {}
+    suites: list[dict[str, Any]] = []
+    deltas: dict[str, dict[str, Any]] = {}
     for suite in sorted(set(a_by_suite) | set(b_by_suite)):
         av = a_by_suite.get(suite)
         bv = b_by_suite.get(suite)
@@ -439,7 +650,11 @@ async def compare_runs(pid: str, run_a: str = "", run_b: str = ""):
                 "run_b": float(bv),
                 "delta": diff,
             })
-            deltas[suite] = {"run_a": float(av), "run_b": float(bv), "delta": delta_str}
+            deltas[suite] = {
+                "run_a": float(av),
+                "run_b": float(bv),
+                "delta": delta_str,
+            }
         else:
             suites.append({
                 "suite": suite,

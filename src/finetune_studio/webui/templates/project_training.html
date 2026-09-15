@@ -238,15 +238,12 @@
   <div class="card-head">
     <div>
       <div class="card-title">Live status</div>
-      <div class="card-sub">Updated every 3s while training is running.</div>
+      <div class="card-sub">Updated every 2s while training is running.</div>
     </div>
-    <span class="pill solid-amber" id="train-status-badge"
-          data-poll="/api/training/status-text">idle</span>
+    <span class="pill solid-amber" id="train-status-badge">idle</span>
   </div>
-  <div id="train-status" class="text-sm muted"
-       data-poll="/api/training/status-text"
-       data-poll-mode="text">No run in progress.</div>
-  <div class="bar mt-3"><div class="fill indeterminate" id="train-progress-bar" style="width:0%"></div></div>
+  <div id="train-status" class="text-sm muted">No run in progress.</div>
+  <div class="bar mt-3"><div class="fill" id="train-progress-bar" style="width:0%"></div></div>
   <div id="train-log" class="text-xs mt-3 mono dim" style="font-size:11px;line-height:1.5;white-space:pre-wrap;background:var(--bg-app);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);max-height:180px;overflow-y:auto;"></div>
 </div>
 
@@ -275,20 +272,29 @@
           {% if project.production_run == run.id %}
           <span class="pill solid-green prod-pill">⭐ production</span>
           {% endif %}
+          {% if run.status == 'failed' and run.error %}
+          <div class="text-xs solid-rose" style="color:var(--rose, #e11);max-width:28ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+               title="{{ run.error }}">{{ run.error[:120] }}{% if run.error|length > 120 %}…{% endif %}</div>
+          {% endif %}
         </td>
-        <td><span class="pill {{ {'running':'solid-amber','done':'solid-green','failed':'solid-rose','stopped':'outline'}.get(run.status, 'outline') }}">{{ run.status }}</span></td>
+        <td><span class="pill {{ {'running':'solid-amber','loading':'solid-amber','training':'solid-amber','saving':'solid-amber','done':'solid-green','failed':'solid-rose','error':'solid-rose','stopped':'outline'}.get(run.status, 'outline') }}">{{ run.status }}</span></td>
         <td class="meta mono js-time" data-ts="{{ run.started_at or '' }}">—</td>
         <td class="meta mono js-duration" data-secs="{{ run.duration or '' }}">—</td>
         <td class="num mono">{{ '%.4f'|format(run.final_loss) if run.final_loss else '—' }}</td>
         <td><a class="btn sm" href="/projects/{{ pid }}/training?run={{ run.id }}" data-link>Details</a></td>
         <td class="flex gap-1 wrap">
+          {% set can_act = run.status == 'done' and run.output_path %}
           <button type="button" class="btn sm js-set-prod"
                   data-run-id="{{ run.id }}" data-run-name="{{ run.name }}"
-                  {% if run.status != 'done' %}disabled title="Only finished runs can be production"{% else %}title="Set as production run"{% endif %}>⭐ Set production</button>
+                  {% if not can_act %}disabled title="Only finished runs with an output path can be production"{% else %}title="Set as production run"{% endif %}>⭐ Set production</button>
           <button type="button" class="btn sm js-open-inf"
                   data-path="{{ run.output_path or '' }}"
-                  {% if not run.output_path %}disabled title="No output path yet"{% else %}title="Load adapter in inference"{% endif %}>▶ Open in inference</button>
+                  {% if not can_act %}disabled title="No finished output path"{% else %}title="Load adapter in inference"{% endif %}>▶ Open in inference</button>
+          {% if can_act %}
           <a class="btn sm" href="/projects/{{ pid }}/export?run={{ run.id }}" data-link title="Export this run">⬇ Export</a>
+          {% else %}
+          <a class="btn sm" href="#" aria-disabled="true" tabindex="-1" style="pointer-events:none;opacity:0.5;" title="Export requires a finished run with output">⬇ Export</a>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -449,7 +455,11 @@
   }
 
   function statusPillClass(status) {
-    const map = { running: "solid-amber", done: "solid-green", failed: "solid-rose", stopped: "outline" };
+    const map = {
+      running: "solid-amber", loading: "solid-amber", training: "solid-amber",
+      saving: "solid-amber", done: "solid-green", failed: "solid-rose",
+      error: "solid-rose", stopped: "outline",
+    };
     return map[status] || "outline";
   }
 
@@ -538,16 +548,25 @@
       const name = run.name || id.slice(0, 8);
       const status = run.status || "";
       const out = run.output_path || "";
+      const err = run.error || "";
       const isProd = productionRunId && productionRunId === id;
-      const done = status === "done";
+      const canAct = status === "done" && !!out;
       const prodMark = isProd ? ' <span class="pill solid-green prod-pill">⭐ production</span>' : "";
-      const setProdDisabled = done ? "" : " disabled title=\"Only finished runs can be production\"";
-      const infDisabled = out ? "" : " disabled title=\"No output path yet\"";
+      const errLine = (status === "failed" && err)
+        ? '<div class="text-xs" style="color:var(--rose, #e11);max-width:28ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' +
+          esc(err) + '">' + esc(err.length > 120 ? err.slice(0, 120) + "…" : err) + "</div>"
+        : "";
+      const setProdDisabled = canAct ? "" : " disabled title=\"Only finished runs with an output path can be production\"";
+      const infDisabled = canAct ? "" : " disabled title=\"No finished output path\"";
+      const exportBtn = canAct
+        ? '<a class="btn sm" href="/projects/' + esc(PID) + "/export?run=" + esc(id) +
+          '" data-link title="Export this run">⬇ Export</a>'
+        : '<a class="btn sm" href="#" aria-disabled="true" tabindex="-1" style="pointer-events:none;opacity:0.5;" title="Export requires a finished run with output">⬇ Export</a>';
       const active = DETAIL_RUN_ID && DETAIL_RUN_ID === id ? " row-active" : "";
       return (
         '<tr class="row-hover' + active + '" data-run-id="' + esc(id) + '" data-run-name="' + esc(name) + '"' +
         ' data-status="' + esc(status) + '" data-output-path="' + esc(out) + '">' +
-        '<td class="name">' + esc(name) + prodMark + "</td>" +
+        '<td class="name">' + esc(name) + prodMark + errLine + "</td>" +
         '<td><span class="pill ' + statusPillClass(status) + '">' + esc(status) + "</span></td>" +
         '<td class="meta mono">' + esc(formatStarted(run.started_at)) + "</td>" +
         '<td class="meta mono">' + esc(formatDuration(run.duration)) + "</td>" +
@@ -556,11 +575,10 @@
         '<td class="flex gap-1 wrap">' +
         '<button type="button" class="btn sm js-set-prod" data-run-id="' + esc(id) +
         '" data-run-name="' + esc(name) + '"' + setProdDisabled +
-        (done ? ' title="Set as production run"' : "") + ">⭐ Set production</button>" +
+        (canAct ? ' title="Set as production run"' : "") + ">⭐ Set production</button>" +
         '<button type="button" class="btn sm js-open-inf" data-path="' + esc(out) + '"' +
-        infDisabled + (out ? ' title="Load adapter in inference"' : "") + ">▶ Open in inference</button>" +
-        '<a class="btn sm" href="/projects/' + esc(PID) + "/export?run=" + esc(id) +
-        '" data-link title="Export this run">⬇ Export</a>' +
+        infDisabled + (canAct ? ' title="Load adapter in inference"' : "") + ">▶ Open in inference</button>" +
+        exportBtn +
         "</td></tr>"
       );
     }).join("");
@@ -648,6 +666,74 @@
     const d = ev.detail || {};
     updateProductionPill(d.run_id, d.name);
   });
+
+  // ── Live training monitor (E2E-31): poll /api/training/status while active ──
+  (function trainMonitor() {
+    const badge = document.getElementById("train-status-badge");
+    const statusEl = document.getElementById("train-status");
+    const bar = document.getElementById("train-progress-bar");
+    const logEl = document.getElementById("train-log");
+    const ACTIVE = { loading: 1, training: 1, saving: 1 };
+    let timer = null;
+    let wasActive = false;
+
+    function fmtEta(sec) {
+      if (!sec || sec <= 0) return "";
+      if (sec < 60) return Math.round(sec) + "s";
+      return Math.floor(sec / 60) + "m " + Math.round(sec % 60) + "s";
+    }
+
+    async function tick() {
+      try {
+        const r = await fetch("/api/training/status", { cache: "no-store" });
+        if (!r.ok) return;
+        const s = await r.json();
+        const st = s.status || "idle";
+        const step = s.step || 0;
+        const total = s.total_steps || 0;
+        const loss = s.loss;
+        const eta = s.eta;
+        const msg = s.message || "";
+        const lines = Array.isArray(s.log_lines) ? s.log_lines : [];
+
+        if (badge) badge.textContent = st;
+        if (ACTIVE[st]) {
+          wasActive = true;
+          let line = msg || st;
+          if (st === "training" && total > 0) {
+            line = "Step " + step + "/" + total;
+            if (loss) line += " · loss " + Number(loss).toFixed(4);
+            if (eta) line += " · ETA " + fmtEta(eta);
+          }
+          if (statusEl) statusEl.textContent = line;
+          if (bar && total > 0) {
+            const pct = Math.min(100, (step / total) * 100);
+            bar.style.width = pct.toFixed(1) + "%";
+            bar.classList.remove("indeterminate");
+          } else if (bar) {
+            bar.style.width = "0%";
+          }
+          if (logEl) logEl.textContent = lines.slice(-30).join("\n");
+        } else {
+          if (statusEl && wasActive) {
+            statusEl.textContent = msg || (st === "done" ? "Training complete!" : st);
+          }
+          if (bar && st === "done") bar.style.width = "100%";
+          if (wasActive && (st === "done" || st === "error" || st === "stopped" || st === "idle")) {
+            wasActive = false;
+            if (typeof refreshPastRuns === "function") refreshPastRuns();
+          }
+        }
+      } catch (_e) { /* ignore poll errors */ }
+    }
+
+    function arm() {
+      if (timer) return;
+      timer = setInterval(tick, 2000);
+      tick();
+    }
+    arm();
+  })();
 })();
 </script>
 

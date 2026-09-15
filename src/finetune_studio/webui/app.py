@@ -81,6 +81,15 @@ def _on_training_update(state):
         fields["finished_at"] = now
         if cfg_dir_abs:
             fields["output_path"] = cfg_dir_abs
+        # Soft post-train failures (merge/GGUF) leave status=done but set error.
+        if state.error:
+            fields["error"] = (state.error or "")[:2000]
+            fields["notes"] = (state.error or "")[:2000]
+    elif state.status == "stopped":
+        fields["finished_at"] = now
+        fields["notes"] = "Stopped by user"
+        if cfg_dir_abs and os.path.isdir(os.path.join(cfg_dir_abs, "adapter")):
+            fields["output_path"] = cfg_dir_abs
     elif state.status == "error":
         fields["finished_at"] = now
         fields["error"] = (state.error or state.message or "training failed")[:500]
@@ -120,12 +129,16 @@ async def lifespan(app: FastAPI):
         restore_in_progress_downloads()
     except Exception:  # noqa: BLE001
         pass
-    # Finalize system_updates rows orphaned when the previous process was
-    # restarted (APPLY UPDATE kills its own streaming worker at step 6).
+    # Finalize system_updates / training_runs orphaned when the previous
+    # process was restarted (APPLY UPDATE kills its streaming worker; a hard
+    # kill leaves training rows in loading/training/saving).
     try:
         n = db.reconcile_stale_updates()
         if n:
             print(f"Reconciled {n} stale system_updates row(s)")
+        n_runs = db.reconcile_stale_runs()
+        if n_runs:
+            print(f"Reconciled {n_runs} stale training_runs row(s)")
     except Exception:  # noqa: BLE001
         pass
     yield

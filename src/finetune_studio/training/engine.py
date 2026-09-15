@@ -26,6 +26,8 @@ KEY CONCEPTS
 """
 
 import json
+import logging
+import math
 import os
 import shutil
 
@@ -38,6 +40,38 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 import threading
 import time
 from dataclasses import dataclass, field
+
+log = logging.getLogger(__name__)
+
+
+def _format_exc(exc: BaseException) -> str:
+    """``Type: msg`` without a trailing empty ``: `` when msg is blank."""
+    return f"{type(exc).__name__}: {exc}".rstrip(": ")
+
+
+def _merged_dir_complete(merged_dir: str) -> bool:
+    """True when merged/ has weight files (not just a partial config dump)."""
+    if not os.path.isdir(merged_dir):
+        return False
+    for name in os.listdir(merged_dir):
+        if name.endswith((".safetensors", ".bin")):
+            return True
+    return False
+
+
+def _free_cuda() -> None:
+    """Drop refs the caller already deleted and clear the CUDA cache."""
+    try:
+        import gc
+        gc.collect()
+    except Exception:  # noqa: BLE001, S110
+        pass
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:  # noqa: BLE001, S110
+        pass
 
 
 def _dir_size(path: str) -> int:
@@ -118,6 +152,29 @@ class TrainingState:
     error: str = ""
     log_lines: list = field(default_factory=list)
 
+class _ThreadChild:
+    """Duck-typed process handle wrapping a thread (test hook only)."""
+
+    def __init__(self, thread: threading.Thread) -> None:
+        self._thread = thread
+        self.exitcode: int | None = None
+
+    def is_alive(self) -> bool:
+        return self._thread.is_alive()
+
+    def join(self, timeout: float | None = None) -> None:
+        self._thread.join(timeout=timeout)
+        if not self._thread.is_alive():
+            self.exitcode = 0
+
+    def terminate(self) -> None:
+        # Threads cannot be hard-killed; cooperative stop + join is the test path.
+        self.exitcode = -15
+
+    def kill(self) -> None:
+        self.exitcode = -9
+
+
 class TrainingEngine:
     def __init__(self):
         self.state = TrainingState()
@@ -126,6 +183,11 @@ class TrainingEngine:
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._callbacks: list = []
+        # E2E-40: training runs in a spawn child so uvicorn never imports unsloth.
+        self._process: object | None = None
+        self._mp_stop: object | None = None
+        self._out_queue: object | None = None
+        self._listener: threading.Thread | None = None
 
     def on_update(self, callback):
         self._callbacks.append(callback)
@@ -137,22 +199,216 @@ class TrainingEngine:
             except Exception:
                 pass
 
-    def start(self, config, training_data, system_prompt=""):
-        if self.state.status in ("training", "loading"):
+    def start(self, config, training_data, system_prompt="", *, _worker_target=None):
+        """Start training in a spawn child process (never in the uvicorn process).
+
+        ``_worker_target`` is a test hook: when set, the target runs in a daemon
+        thread (same Queue protocol) so callables need not be picklable. Production
+        always uses ``multiprocessing`` spawn + ``training.worker.training_worker``.
+        """
+        if self.state.status in ("training", "loading", "saving"):
             raise RuntimeError("Training already in progress")
+        if self._process is not None and getattr(self._process, "is_alive", lambda: False)():
+            raise RuntimeError("Training already in progress")
+
+        import multiprocessing as mp
+        import queue as queue_mod
+
+        from finetune_studio.training.worker import config_to_dict, training_worker
+
         self.config = config
         self._stop_event.clear()
-        self.state = TrainingState(status="loading")
+        self.state = TrainingState(status="loading", message="Starting training worker...")
         self._notify()
-        self._thread = threading.Thread(
-            target=self._train, args=(training_data, system_prompt), daemon=True
-        )
-        self._thread.start()
 
-    def stop(self):
+        cfg_dict = config_to_dict(config)
+        if _worker_target is not None:
+            # In-process fake child for unit tests (identical message protocol).
+            self._out_queue = queue_mod.Queue()
+            self._mp_stop = threading.Event()
+            target = _worker_target
+            thread = threading.Thread(
+                target=target,
+                args=(cfg_dict, training_data, system_prompt, self._out_queue, self._mp_stop),
+                daemon=True,
+                name="fts-training-worker-test",
+            )
+            self._process = _ThreadChild(thread)
+            thread.start()
+        else:
+            ctx = mp.get_context("spawn")
+            self._out_queue = ctx.Queue()
+            self._mp_stop = ctx.Event()
+            self._process = ctx.Process(
+                target=training_worker,
+                args=(
+                    cfg_dict,
+                    training_data,
+                    system_prompt,
+                    self._out_queue,
+                    self._mp_stop,
+                ),
+                daemon=True,
+                name="fts-training-worker",
+            )
+            self._process.start()
+        self._listener = threading.Thread(
+            target=self._listen_child, daemon=True, name="fts-training-listener",
+        )
+        self._listener.start()
+
+    def _apply_state_dict(self, payload: dict) -> None:
+        """Copy a child state snapshot onto ``self.state`` and notify parents."""
+        for key in (
+            "status", "current_step", "total_steps", "loss", "learning_rate",
+            "epoch", "elapsed", "eta", "message", "error",
+        ):
+            if key in payload:
+                setattr(self.state, key, payload[key])
+        if "log_lines" in payload and isinstance(payload["log_lines"], list):
+            self.state.log_lines = list(payload["log_lines"])
+        self._notify()
+
+    def _listen_child(self) -> None:
+        """Drain the child queue until ``op=done`` or the process exits."""
+        import queue as queue_mod
+
+        q = self._out_queue
+        proc = self._process
+        if q is None:
+            return
+        while True:
+            try:
+                msg = q.get(timeout=0.5)
+            except queue_mod.Empty:
+                if proc is not None and not getattr(proc, "is_alive", lambda: False)():
+                    break
+                continue
+            except Exception:  # noqa: BLE001
+                if proc is not None and not getattr(proc, "is_alive", lambda: False)():
+                    break
+                continue
+            if not isinstance(msg, dict):
+                continue
+            op = msg.get("op")
+            if op == "state":
+                payload = msg.get("state") or {}
+                if isinstance(payload, dict):
+                    self._apply_state_dict(payload)
+            elif op == "done":
+                break
+        # If the child died without a clean terminal status, surface it.
+        if self.state.status in ("loading", "training", "saving", "running"):
+            exitcode = getattr(proc, "exitcode", None) if proc is not None else None
+            if self._stop_event.is_set() or (
+                self._mp_stop is not None and getattr(self._mp_stop, "is_set", lambda: False)()
+            ):
+                self.state.status = "stopped"
+                self.state.message = "Stopped by user"
+                self._notify()
+            elif exitcode not in (0, None):
+                self.state.status = "error"
+                self.state.error = self.state.error or f"Training worker exited with code {exitcode}"
+                self.state.message = self.state.error
+                self._notify()
+        self._cleanup_child_handles()
+
+    def _cleanup_child_handles(self) -> None:
+        proc = self._process
+        if proc is not None:
+            try:
+                if getattr(proc, "is_alive", lambda: False)():
+                    proc.join(timeout=0.1)
+            except Exception:  # noqa: BLE001, S110
+                pass
+        self._process = None
+        self._mp_stop = None
+        self._out_queue = None
+        self._listener = None
+
+    def stop(self) -> None:
+        """Request cooperative stop, then terminate the child if it hangs."""
         self._stop_event.set()
+        if self._mp_stop is not None:
+            try:
+                self._mp_stop.set()  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001, S110
+                pass
         self.state.message = "Stopping..."
         self._notify()
+
+        proc = self._process
+        if proc is None:
+            if self.state.status not in ("done", "error", "stopped", "idle"):
+                self._mark_stopped()
+            return
+
+        # Cooperative window for TrainerCallback / phase gates.
+        try:
+            proc.join(timeout=3.0)  # type: ignore[union-attr]
+        except Exception:  # noqa: BLE001, S110
+            pass
+        if getattr(proc, "is_alive", lambda: False)():
+            try:
+                proc.terminate()  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001, S110
+                pass
+            try:
+                proc.join(timeout=3.0)  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001, S110
+                pass
+        if getattr(proc, "is_alive", lambda: False)():
+            try:
+                proc.kill()  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001, S110
+                pass
+            try:
+                proc.join(timeout=1.0)  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001, S110
+                pass
+
+        if self.state.status not in ("done", "error", "stopped"):
+            self._mark_stopped()
+
+    def _stop_requested(self) -> bool:
+        if self._stop_event.is_set():
+            return True
+        if self._mp_stop is not None and getattr(self._mp_stop, "is_set", lambda: False)():
+            return True
+        return False
+
+    def _mark_stopped(self) -> None:
+        """Terminal state when the user hits Stop (adapter may still be valid)."""
+        self.state.status = "stopped"
+        self.state.message = "Stopped by user"
+        self._notify()
+        if not self.current_run_id:
+            return
+        try:
+            from finetune_studio.db.runs import update_run
+            fields: dict = {
+                "status": "stopped",
+                "notes": "Stopped by user",
+            }
+            if self.config.output_dir and os.path.isdir(
+                os.path.join(self.config.output_dir, "adapter")
+            ):
+                fields["output_path"] = self.config.output_dir
+            update_run(self.current_run_id, **fields)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _maybe_merge(self, model: object, tokenizer: object, output_dir: str) -> None:
+        """Run merge; failures are non-fatal (adapter on disk is still valid)."""
+        try:
+            self._do_merge(model, tokenizer, output_dir)
+        except Exception as e:
+            merge_msg = _format_exc(e)
+            note = f"Training complete — merge failed: {merge_msg}"
+            log.exception("Merge failed after training; adapter remains at %s", output_dir)
+            self.state.message = note
+            self.state.error = note
+            self._notify()
 
     def _train(self, training_data, system_prompt):
         try:
@@ -172,12 +428,15 @@ class TrainingEngine:
             formatted = format_for_sft(training_data, bake_prompt if mode != "runtime" else "")
             if mode == "runtime" and system_prompt:
                 # Save system prompt to a file alongside the output for later use
-                import os
                 prompt_path = os.path.join(self.config.output_dir, "system_prompt.txt")
-                os.makedirs(os.path.dirname(prompt_path), exist_ok=True)
+                os.makedirs(os.path.dirname(prompt_path) or ".", exist_ok=True)
+                os.makedirs(self.config.output_dir, exist_ok=True)
                 with open(prompt_path, "w") as f:
                     f.write(system_prompt)
             train_data, _val_data = split_data(formatted)
+            if self._stop_requested():
+                self._mark_stopped()
+                return
             self.state.message = f"Training on {len(train_data)} examples..."
             self._notify()
             if self.config.unsloth:
@@ -187,22 +446,28 @@ class TrainingEngine:
                     self._train_standard(train_data)
             else:
                 self._train_standard(train_data)
-            self.state.status = "done"
-            self.state.message = "Training complete!"
-            self._notify()
-            self._persist_run_output()
+            if self.state.status == "stopped":
+                return
+            if self.state.status not in ("error",):
+                self.state.status = "done"
+                if not (self.state.message or "").startswith("Training complete — merge failed"):
+                    self.state.message = "Training complete!"
+                self._notify()
+                self._persist_run_output()
         except Exception as e:
+            msg = _format_exc(e)
+            log.exception("Training failed: %s", msg)
             self.state.status = "error"
-            self.state.error = str(e)
-            self.state.message = f"Error: {e}"
+            self.state.error = msg
+            self.state.message = msg
             self._notify()
             # Persist the error to the DB so the UI can surface it on the run row
             try:
-                self._persist_run_error(str(e))
+                self._persist_run_error(msg)
             except Exception:
                 pass
 
-    def _persist_run_error(self, error_msg: str):
+    def _persist_run_error(self, error_msg: str) -> None:
         """Write the failure reason to the training_runs.error column.
 
         Called from the except branch in start() so failed runs show the
@@ -217,7 +482,7 @@ class TrainingEngine:
         except Exception:
             pass
 
-    def _persist_run_output(self):
+    def _persist_run_output(self) -> None:
         """Update the DB run record with the output path so the merge
         endpoint can find the adapter after training completes."""
         if not self.current_run_id or not self.config.output_dir:
@@ -225,7 +490,19 @@ class TrainingEngine:
         try:
             from finetune_studio.db.runs import update_run
             run_id = self.current_run_id.split("-")[-1] if "-" in self.current_run_id else self.current_run_id
-            update_run(run_id, output_path=self.config.output_dir, status="done", final_loss=self.state.final_loss)
+            fields: dict = {
+                "output_path": self.config.output_dir,
+                "status": "done",
+            }
+            final_loss = getattr(self.state, "final_loss", None)
+            if final_loss is not None:
+                fields["final_loss"] = final_loss
+            # Merge (or post-train export) failed soft — keep status done, surface note.
+            err = (self.state.error or "").strip()
+            if err:
+                fields["error"] = err[:2000]
+                fields["notes"] = err[:2000]
+            update_run(run_id, **fields)
         except Exception:
             pass
 
@@ -282,6 +559,9 @@ class TrainingEngine:
             model_name=cfg.model_path, max_seq_length=cfg.max_seq_length,
             dtype=None, load_in_4bit=True,
         )
+        if self._stop_requested():
+            self._mark_stopped()
+            return
         model = FastLanguageModel.get_peft_model(
             model, r=cfg.lora_rank, target_modules=cfg.lora_target_modules,
             lora_alpha=cfg.lora_alpha, lora_dropout=0, bias="none",
@@ -316,7 +596,11 @@ class TrainingEngine:
             text = tokenizer.apply_chat_template(example["messages"], tokenize=False, add_generation_prompt=False)
             return {"text": text}
         dataset = Dataset.from_list(train_data).map(format_chat, remove_columns=list(train_data[0].keys()))
-        steps_per_epoch = len(dataset) // (cfg.batch_size * cfg.gradient_accumulation_steps)
+        if self._stop_requested():
+            self._mark_stopped()
+            return
+        denom = max(1, cfg.batch_size * cfg.gradient_accumulation_steps)
+        steps_per_epoch = max(1, math.ceil(len(dataset) / denom))
         total = steps_per_epoch * cfg.num_epochs
         self.state.total_steps = total
         args = TrainingArguments(
@@ -346,13 +630,30 @@ class TrainingEngine:
                         f"Step {state.global_step}/{total} | loss={engine.state.loss} | lr={engine.state.learning_rate}"
                     )
                     engine._notify()
+        class StopCallback(TrainerCallback):
+            def on_step_end(self2, args, state, control, **kwargs):
+                if engine._stop_requested():
+                    control.should_training_stop = True
+                return control
         trainer = SFTTrainer(
             model=model, processing_class=tokenizer, train_dataset=dataset,
-            args=args, callbacks=[ProgressCallback()],
+            args=args, callbacks=[ProgressCallback(), StopCallback()],
         )
         self.state.status = "training"
+        self.state.message = "Training…"
         self._notify()
         trainer.train()
+        if self._stop_requested():
+            # Persist partial adapter so the work is not lost, then stop.
+            try:
+                os.makedirs(cfg.output_dir, exist_ok=True)
+                adapter_dir = os.path.join(cfg.output_dir, "adapter")
+                model.save_pretrained(adapter_dir)
+                tokenizer.save_pretrained(adapter_dir)
+            except Exception:
+                log.exception("Failed to save adapter after stop")
+            self._mark_stopped()
+            return
         self.state.status = "saving"
         self.state.message = "Saving model..."
         self._notify()
@@ -366,29 +667,48 @@ class TrainingEngine:
                     f.write(tokenizer.chat_template)
             except Exception:
                 pass
+        if self._stop_requested():
+            self._mark_stopped()
+            return
         if cfg.merge_on_save:
-            self._do_merge(model, tokenizer, cfg.output_dir)
+            self._maybe_merge(model, tokenizer, cfg.output_dir)
         if cfg.export_gguf:
-            self._do_export_gguf(cfg.output_dir)
-        if cfg.export_gptq:
-            self._do_export_gptq(cfg.output_dir)
+            try:
+                self._do_export_gguf(cfg.output_dir)
+            except Exception as e:
+                log.exception("GGUF export failed (non-fatal)")
+                self.state.message = (
+                    f"Training complete — GGUF export failed: {_format_exc(e)}"
+                )
+                self.state.error = self.state.message
+                self._notify()
         if cfg.export_gptq:
             self._do_export_gptq(cfg.output_dir)
         if cfg.export_imatrix:
             self._do_export_imatrix(cfg.output_dir)
-        self._auto_generate_suite()
+        try:
+            self._auto_generate_suite()
+        except Exception as e:
+            log.exception("Auto-suite failed (non-fatal)")
+            if not (self.state.message or "").startswith("Training complete —"):
+                self.state.message = (
+                    f"Training complete — auto-suite failed: {_format_exc(e)}"
+                )
+                self.state.error = self.state.message
+                self._notify()
         # Optional: Abliteration (de-censor)
         if getattr(cfg, 'abliterate', False):
             self._do_abliteration()
         self.state.status = "done"
-        self.state.message = "Training complete!"
+        if not (self.state.message or "").startswith("Training complete —"):
+            self.state.message = "Training complete!"
         self._notify()
 
     def _train_standard(self, train_data):
         import sys
         from datasets import Dataset
         from peft import LoraConfig, get_peft_model
-        from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
+        from transformers import AutoTokenizer, TrainingArguments
         cfg = self.config
         self.state.message = "Loading model..."
         self._notify()
@@ -396,6 +716,9 @@ class TrainingEngine:
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
         model = self._load_model_with_fallback(cfg.model_path, tokenizer)
+        if self._stop_requested():
+            self._mark_stopped()
+            return
         lora_config = LoraConfig(
             r=cfg.lora_rank, lora_alpha=cfg.lora_alpha,
             target_modules=cfg.lora_target_modules, lora_dropout=0,
@@ -406,7 +729,11 @@ class TrainingEngine:
             text = tokenizer.apply_chat_template(example["messages"], tokenize=False, add_generation_prompt=False)
             return {"text": text}
         dataset = Dataset.from_list(train_data).map(format_chat, remove_columns=list(train_data[0].keys()))
-        steps_per_epoch = len(dataset) // (cfg.batch_size * cfg.gradient_accumulation_steps)
+        if self._stop_requested():
+            self._mark_stopped()
+            return
+        denom = max(1, cfg.batch_size * cfg.gradient_accumulation_steps)
+        steps_per_epoch = max(1, math.ceil(len(dataset) / denom))
         total = steps_per_epoch * cfg.num_epochs
         self.state.total_steps = total
         # Fix PicklingError: re-patch sys.modules after any unsloth/trl patches
@@ -439,15 +766,35 @@ class TrainingEngine:
                     if state.global_step > 0:
                         rate = engine.state.elapsed / state.global_step
                         engine.state.eta = round(rate * (total - state.global_step), 1)
+                    engine.state.log_lines.append(
+                        f"Step {state.global_step}/{total} | loss={engine.state.loss} | lr={engine.state.learning_rate}"
+                    )
                     engine._notify()
+        class StopCallback(TrainerCallback):
+            def on_step_end(self2, args, state, control, **kwargs):
+                if engine._stop_requested():
+                    control.should_training_stop = True
+                return control
         trainer = SFTTrainer(
             model=model, processing_class=tokenizer, train_dataset=dataset,
-            args=args, callbacks=[ProgressCallback()],
+            args=args, callbacks=[ProgressCallback(), StopCallback()],
         )
         self.state.status = "training"
+        self.state.message = "Training…"
         self._notify()
         trainer.train()
+        if self._stop_requested():
+            try:
+                os.makedirs(cfg.output_dir, exist_ok=True)
+                adapter_dir = os.path.join(cfg.output_dir, "adapter")
+                model.save_pretrained(adapter_dir)
+                tokenizer.save_pretrained(adapter_dir)
+            except Exception:
+                log.exception("Failed to save adapter after stop")
+            self._mark_stopped()
+            return
         self.state.status = "saving"
+        self.state.message = "Saving model..."
         self._notify()
         os.makedirs(cfg.output_dir, exist_ok=True)
         adapter_dir = os.path.join(cfg.output_dir, "adapter")
@@ -459,31 +806,44 @@ class TrainingEngine:
                     f.write(tokenizer.chat_template)
             except Exception:
                 pass
+        if self._stop_requested():
+            self._mark_stopped()
+            return
         if cfg.merge_on_save:
-            self._do_merge(model, tokenizer, cfg.output_dir)
+            self._maybe_merge(model, tokenizer, cfg.output_dir)
         if cfg.export_gguf:
-            self._do_export_gguf(cfg.output_dir)
+            try:
+                self._do_export_gguf(cfg.output_dir)
+            except Exception as e:
+                log.exception("GGUF export failed (non-fatal)")
+                self.state.message = (
+                    f"Training complete — GGUF export failed: {_format_exc(e)}"
+                )
+                self.state.error = self.state.message
+                self._notify()
         self.state.status = "done"
-        self.state.message = "Training complete!"
+        if not (self.state.message or "").startswith("Training complete —"):
+            self.state.message = "Training complete!"
         self._notify()
 
     def _do_merge(self, model, tokenizer, output_dir: str) -> dict:
-        """Merge the in-memory PEFT adapter into the base model and save to
-        `<output_dir>/merged/`. Returns {merged_path, size_bytes, size_human,
-        skipped}.
+        """Merge the PEFT adapter onto a 16-bit base and save to ``merged/``.
 
-        Sets engine state messages so the UI shows a 'Merging…' step. Idempotent
-        by default: if `<output_dir>/merged/` already has files, we skip and
-        report the existing size. Test environments can opt out via
-        `FTS_SKIP_MERGE=1`.
+        Frees the training model first, resolves a non-quantized base via
+        ``resolve_merge_base``, loads it in bfloat16, then
+        ``PeftModel.from_pretrained`` + ``merge_and_unload``. Partial
+        ``merged/`` dirs are removed on failure.
         """
         merged_dir = os.path.join(output_dir, "merged")
-        if os.path.isdir(merged_dir) and os.listdir(merged_dir):
+        if _merged_dir_complete(merged_dir):
             size = _dir_size(merged_dir)
             self.state.message = "Merged model already exists; skipping."
             self._notify()
             return {"merged_path": merged_dir, "size_bytes": size,
                     "size_human": _human_size(size), "skipped": True}
+        # Stale partial merge (config-only) — wipe before retrying.
+        if os.path.isdir(merged_dir):
+            shutil.rmtree(merged_dir, ignore_errors=True)
         os.makedirs(merged_dir, exist_ok=True)
         if os.environ.get("FTS_SKIP_MERGE") == "1":
             self.state.message = "FTS_SKIP_MERGE=1 — skipping merge."
@@ -492,17 +852,54 @@ class TrainingEngine:
                     "size_human": "0 B", "skipped": True}
         self.state.message = "Merging adapter into full model..."
         self._notify()
-        merged = model.merge_and_unload()
-        merged.save_pretrained(merged_dir)
-        tokenizer.save_pretrained(merged_dir)
-        # Copy chat template if it lives in the adapter dir (Unsloth case).
-        src = os.path.join(output_dir, "adapter", "chat_template.jinja")
-        if os.path.exists(src):
-            shutil.copy(src, os.path.join(merged_dir, "chat_template.jinja"))
-        # Copy system prompt file if runtime mode was used
-        prompt_src = os.path.join(output_dir, "system_prompt.txt")
-        if os.path.exists(prompt_src):
-            shutil.copy(prompt_src, os.path.join(merged_dir, "system_prompt.txt"))
+
+        # Free the in-memory QLoRA training model before loading a 16-bit base.
+        try:
+            del model
+        except Exception:  # noqa: BLE001, S110
+            pass
+        _free_cuda()
+
+        import torch
+        from peft import PeftModel
+        from transformers import AutoModelForCausalLM
+
+        from finetune_studio.training.merge_base import resolve_merge_base
+
+        adapter_dir = os.path.join(output_dir, "adapter")
+        base_path = resolve_merge_base(self.config.model_path)
+        base = None
+        peft_model = None
+        merged = None
+        try:
+            base = AutoModelForCausalLM.from_pretrained(
+                base_path,
+                torch_dtype=torch.bfloat16,
+                trust_remote_code=True,
+            )
+            peft_model = PeftModel.from_pretrained(base, adapter_dir)
+            merged = peft_model.merge_and_unload()
+            if hasattr(merged, "config") and hasattr(merged.config, "quantization_config"):
+                merged.config.quantization_config = None
+            merged.save_pretrained(merged_dir)
+            tokenizer.save_pretrained(merged_dir)
+            src = os.path.join(adapter_dir, "chat_template.jinja")
+            if os.path.exists(src):
+                shutil.copy(src, os.path.join(merged_dir, "chat_template.jinja"))
+            prompt_src = os.path.join(output_dir, "system_prompt.txt")
+            if os.path.exists(prompt_src):
+                shutil.copy(prompt_src, os.path.join(merged_dir, "system_prompt.txt"))
+        except Exception:
+            if os.path.isdir(merged_dir):
+                shutil.rmtree(merged_dir, ignore_errors=True)
+            raise
+        finally:
+            try:
+                del base, peft_model, merged
+            except Exception:  # noqa: BLE001, S110
+                pass
+            _free_cuda()
+
         size = _dir_size(merged_dir)
         self.state.message = f"Saved merged model ({_human_size(size)})."
         self._notify()
@@ -776,10 +1173,12 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
     if not os.path.isdir(adapter_dir):
         raise ValueError(f"adapter dir not found on disk: {adapter_dir}")
     merged_dir = os.path.join(output_path, "merged")
-    if os.path.isdir(merged_dir) and os.listdir(merged_dir) and not force:
+    if _merged_dir_complete(merged_dir) and not force:
         size = _dir_size(merged_dir)
         return {"merged_path": merged_dir, "size_bytes": size,
                 "size_human": _human_size(size), "skipped": True, "run": run}
+    if os.path.isdir(merged_dir) and (force or not _merged_dir_complete(merged_dir)):
+        shutil.rmtree(merged_dir, ignore_errors=True)
     if os.environ.get("FTS_SKIP_MERGE") == "1":
         os.makedirs(merged_dir, exist_ok=True)
         with open(os.path.join(merged_dir, "SKIPPED_BY_TEST"), "w") as f:
@@ -787,18 +1186,26 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
         return {"merged_path": merged_dir, "size_bytes": 0,
                 "size_human": "0 B", "skipped": True, "run": run}
     os.makedirs(merged_dir, exist_ok=True)
+    import torch
     from peft import PeftModel
     from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    from finetune_studio.training.merge_base import resolve_merge_base
+
     tokenizer = AutoTokenizer.from_pretrained(adapter_dir, trust_remote_code=True)
-    # Load base in full precision (strip any quantization config)
-    base = AutoModelForCausalLM.from_pretrained(
-        base_model, torch_dtype="auto", trust_remote_code=True,
-    )
+    base_path = resolve_merge_base(base_model)
+    _free_cuda()
+    base = None
+    model = None
+    merged = None
     try:
+        base = AutoModelForCausalLM.from_pretrained(
+            base_path, torch_dtype=torch.bfloat16, trust_remote_code=True,
+        )
         model = PeftModel.from_pretrained(base, adapter_dir)
         merged = model.merge_and_unload()
         # Strip quantization config from merged model
-        if hasattr(merged, 'config') and hasattr(merged.config, 'quantization_config'):
+        if hasattr(merged, "config") and hasattr(merged.config, "quantization_config"):
             merged.config.quantization_config = None
         merged.save_pretrained(merged_dir)
         tokenizer.save_pretrained(merged_dir)
@@ -809,17 +1216,16 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
         prompt_src = os.path.join(os.path.dirname(adapter_dir), "system_prompt.txt")
         if os.path.exists(prompt_src):
             shutil.copy(prompt_src, os.path.join(merged_dir, "system_prompt.txt"))
+    except Exception:
+        if os.path.isdir(merged_dir) and not _merged_dir_complete(merged_dir):
+            shutil.rmtree(merged_dir, ignore_errors=True)
+        raise
     finally:
         try:
             del base, model, merged
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
-        try:
-            import torch
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-        except Exception:
-            pass
+        _free_cuda()
     size = _dir_size(merged_dir)
     return {"merged_path": merged_dir, "size_bytes": size,
             "size_human": _human_size(size), "skipped": False, "run": run}

@@ -10,7 +10,6 @@ import shutil
 import time
 from pathlib import Path
 
-from finetune_studio.training.vram.constants import MODEL_PRESETS
 from finetune_studio.training.vram.estimate import estimate_vram
 from finetune_studio.training.vram.gpu import detect as detect_gpu
 from finetune_studio.training.vram.report import _parse_size
@@ -62,22 +61,36 @@ def profile_training(
 
     try:
         if method == "qlora":
-            from unsloth import FastLanguageModel
-            model, tokenizer = FastLanguageModel.from_pretrained(
-                model_name=model_path,
-                max_seq_length=seq_length,
-                dtype=None,
-                load_in_4bit=True,
+            # E2E-40: never import unsloth in this process — use bitsandbytes + PEFT.
+            from peft import LoraConfig, get_peft_model
+            from transformers import (
+                AutoModelForCausalLM,
+                AutoTokenizer,
+                BitsAndBytesConfig,
             )
-            model = FastLanguageModel.get_peft_model(
-                model, r=lora_rank,
+
+            bnb = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+            )
+            tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+            if tokenizer.pad_token is None:
+                tokenizer.pad_token = tokenizer.eos_token
+            model = AutoModelForCausalLM.from_pretrained(
+                model_path,
+                quantization_config=bnb,
+                device_map={"": 0},
+                trust_remote_code=True,
+            )
+            lora_config = LoraConfig(
+                r=lora_rank, lora_alpha=lora_rank * 2,
                 target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
                                  "gate_proj", "up_proj", "down_proj"],
-                lora_alpha=lora_rank * 2,
-                lora_dropout=0, bias="none",
-                use_gradient_checkpointing="unsloth",
-                random_state=3407,
+                lora_dropout=0, bias="none", task_type="CAUSAL_LM",
             )
+            model = get_peft_model(model, lora_config)
         else:
             from peft import LoraConfig, get_peft_model
             from transformers import AutoModelForCausalLM, AutoTokenizer

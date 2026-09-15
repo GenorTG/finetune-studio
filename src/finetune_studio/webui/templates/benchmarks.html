@@ -7,7 +7,7 @@
 {% block content %}
 <div class="page-head">
   <h1>Benchmarks — {{ project.name }}</h1>
-  <div class="sub">Compare models on standard industry benchmarks (MMLU, HellaSwag, ARC, etc.).</div>
+  <div class="sub">Run project Q&amp;A suites against trained models (or the untrained base), then score answers with heuristic or AI judging.</div>
 </div>
 
 <div class="card">
@@ -29,13 +29,15 @@
   </div>
   {% elif not suites %}
   <div class="empty">
-    <p>No test suites discovered. Add JSON suites under the project's data dir.</p>
-    <a href="/projects/{{ pid }}" class="btn" data-link>← Back to project</a>
+    <p>No benchmark suites yet — train a run (auto-suite) or add a JSON suite under data/benchmarks/</p>
+    <a href="/projects/{{ pid }}/training" class="btn primary" data-link>Open Training</a>
   </div>
   {% else %}
   <div class="text-sm dim mb-2">Available test suites:</div>
   <ul class="text-sm mb-4">
-    {% for s in suites %}<li class="mono">› {{ s.name if s.name is defined else s }}</li>{% endfor %}
+    {% for s in suites %}
+    <li class="mono">› {{ s.label if s.label is defined else (s.name if s.name is defined else s) }}</li>
+    {% endfor %}
   </ul>
 
   <h3 class="mt-4 mb-2">Run a benchmark</h3>
@@ -43,24 +45,54 @@
     <thead><tr><th>Training run</th><th>Base model</th><th>Status</th><th>Suite</th><th></th></tr></thead>
     <tbody>
       {% for run in runs %}
+      {% set can_bench = run.status == 'done' and run.output_path %}
       <tr>
         <td class="mono">{{ run.name }}</td>
-        <td class="mono text-xs dim">{{ (run.base_model or '')[-40:] }}</td>
-        <td><span class="pill outline">{{ run.status }}</span></td>
+        <td class="mono text-xs dim" title="{{ run.base_model or '' }}">{{ (run.base_model or '')|model_label }}</td>
+        <td>
+          <span class="pill outline">{{ run.status }}</span>
+          {% if run.error %}
+          <div class="dim text-xs mt-1" title="{{ run.error }}">{{ run.error[:80] }}{% if run.error|length > 80 %}…{% endif %}</div>
+          {% endif %}
+        </td>
         <td>
           <form data-api="/api/benchmarks/projects/{{ pid }}/runs/{{ run.id }}/run"
                 data-reload="true" style="display:inline;">
-            <input type="hidden" name="suite_name" value="default">
-            <select name="suite_path" class="select" style="min-width:140px;font-size:11px;">
+            <input type="hidden" name="suite_name" value="{{ suites[0].name if suites else 'default' }}">
+            <select name="suite_path" class="select" style="min-width:140px;font-size:11px;"
+                    onchange="var o=this.options[this.selectedIndex]; this.form.elements.suite_name.value=o.getAttribute('data-name')||o.text;">
               {% for s in suites %}
-              <option value="{{ s.path if s.path is defined else s }}">{{ s.name if s.name is defined else s }}</option>
+              <option value="{{ s.path if s.path is defined else s }}"
+                      data-name="{{ s.name if s.name is defined else s }}">{{ s.label if s.label is defined else (s.name if s.name is defined else s) }}</option>
               {% endfor %}
             </select>
-            <button type="submit" class="btn primary" style="font-size:11px;padding:4px 10px;">RUN</button>
+            <button type="submit" class="btn primary" style="font-size:11px;padding:4px 10px;"
+                    {% if not can_bench %}disabled title="Only completed runs with a trained model can be benchmarked"{% endif %}>RUN</button>
           </form>
         </td>
       </tr>
       {% endfor %}
+      {# Explicit base-model probe — never a silent fallback for failed runs #}
+      <tr>
+        <td class="mono">base model (untrained)</td>
+        <td class="mono text-xs dim" title="{{ project.base_model or '' }}">{{ (project.base_model or '')|model_label }}</td>
+        <td><span class="pill outline">base</span></td>
+        <td>
+          <form data-api="/api/benchmarks/projects/{{ pid }}/base/run"
+                data-reload="true" style="display:inline;">
+            <input type="hidden" name="suite_name" value="{{ suites[0].name if suites else 'default' }}">
+            <select name="suite_path" class="select" style="min-width:140px;font-size:11px;"
+                    onchange="var o=this.options[this.selectedIndex]; this.form.elements.suite_name.value=o.getAttribute('data-name')||o.text;">
+              {% for s in suites %}
+              <option value="{{ s.path if s.path is defined else s }}"
+                      data-name="{{ s.name if s.name is defined else s }}">{{ s.label if s.label is defined else (s.name if s.name is defined else s) }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn" style="font-size:11px;padding:4px 10px;"
+                    {% if not project.base_model %}disabled title="Project has no base_model configured"{% endif %}>RUN</button>
+          </form>
+        </td>
+      </tr>
     </tbody>
   </table>
 
@@ -147,15 +179,19 @@
 {% if runs and suites %}
 <script>
 (function () {
-  const PID = {{ pid|tojson }};
-  const LATEST_RID = {{ (latest_run_id or '')|tojson }};
-  const SUITES = {{ suites|tojson }};
-  const tabs = document.querySelectorAll("#bench-tabs .data-tab");
-  const panels = document.querySelectorAll(".data-panel[data-panel]");
+  var PID = {{ pid|tojson }};
+  var LATEST_RID = {{ (latest_run_id or '')|tojson }};
+  var SUITES = {{ suites|tojson }};
+  var tabs = document.querySelectorAll("#bench-tabs .data-tab");
+  var panels = document.querySelectorAll(".data-panel[data-panel]");
 
   function activateTab(name) {
-    tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
-    panels.forEach((p) => p.classList.toggle("active", p.dataset.panel === name));
+    tabs.forEach(function (t) {
+      t.classList.toggle("active", t.dataset.tab === name);
+    });
+    panels.forEach(function (p) {
+      p.classList.toggle("active", p.dataset.panel === name);
+    });
     if (name === "compare" && location.hash !== "#compare") {
       history.replaceState(null, "", "#compare");
     } else if (name === "recent" && location.hash === "#compare") {
@@ -163,15 +199,15 @@
     }
   }
 
-  tabs.forEach((t) => {
-    t.addEventListener("click", () => activateTab(t.dataset.tab));
+  tabs.forEach(function (t) {
+    t.addEventListener("click", function () { activateTab(t.dataset.tab); });
   });
 
   if (location.hash === "#compare") activateTab("compare");
 
-  const selA = document.getElementById("cmp-run-a");
-  const selB = document.getElementById("cmp-run-b");
-  const btn = document.getElementById("cmp-run-btn");
+  var selA = document.getElementById("cmp-run-a");
+  var selB = document.getElementById("cmp-run-b");
+  var btn = document.getElementById("cmp-run-btn");
 
   function syncBtn() {
     if (!btn) return;
@@ -189,15 +225,14 @@
 
   function fmtDelta(d) {
     if (d === null || d === undefined) return "—";
-    const n = Number(d);
+    var n = Number(d);
     if (Number.isNaN(n)) return "—";
-    const s = (n >= 0 ? "+" : "") + (Number.isInteger(n) ? String(n) : n.toFixed(1));
-    return s;
+    return (n >= 0 ? "+" : "") + (Number.isInteger(n) ? String(n) : n.toFixed(1));
   }
 
   function deltaClass(d) {
     if (d === null || d === undefined || Number.isNaN(Number(d))) return "";
-    const n = Number(d);
+    var n = Number(d);
     if (n > 0) return "ok";
     if (n < 0) return "err";
     return "";
@@ -205,30 +240,31 @@
 
   window.runLatestBenchmark = async function runLatestBenchmark() {
     if (!LATEST_RID) return;
-    const suite = (Array.isArray(SUITES) && SUITES[0]) ? SUITES[0] : null;
-    const suitePath = suite && (suite.path || suite);
+    var suite = (Array.isArray(SUITES) && SUITES[0]) ? SUITES[0] : null;
+    var suitePath = suite && (suite.path || suite);
     if (!suitePath) return;
-    const api = (window.fts && window.fts.api) || null;
-    const notify = (window.fts && window.fts.notify) || (m => console.log(m));
+    var api = (window.fts && window.fts.api) || null;
+    var notify = (window.fts && window.fts.notify) || function (m) { console.log(m); };
     try {
-      const body = {
+      var body = {
         suite_path: suitePath,
         suite_name: (suite && suite.name) || "default",
         judge_mode: "heuristic",
         max_tokens: 128,
       };
-      let data;
+      var data;
       if (api && api.post) {
         data = await api.post("/api/benchmarks/projects/" + encodeURIComponent(PID)
           + "/runs/" + encodeURIComponent(LATEST_RID) + "/run", body);
       } else {
-        const r = await fetch("/api/benchmarks/projects/" + encodeURIComponent(PID)
+        var r = await fetch("/api/benchmarks/projects/" + encodeURIComponent(PID)
           + "/runs/" + encodeURIComponent(LATEST_RID) + "/run", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
         data = await r.json();
+        if (!r.ok) throw new Error((data && data.error) || ("HTTP " + r.status));
       }
       if (data && data.error) throw new Error(data.error);
       notify("Benchmark finished", "success");
@@ -239,32 +275,34 @@
   };
 
   window.runComparison = async function runComparison() {
-    const a = selA && selA.value;
-    const b = selB && selB.value;
+    var a = selA && selA.value;
+    var b = selB && selB.value;
     if (!a || !b) return;
-    const empty = document.getElementById("cmp-empty");
-    const wrap = document.getElementById("cmp-table-wrap");
-    const tbody = document.getElementById("cmp-tbody");
-    const note = document.getElementById("cmp-baseline-note");
-    const prev = btn.textContent;
+    var empty = document.getElementById("cmp-empty");
+    var wrap = document.getElementById("cmp-table-wrap");
+    var tbody = document.getElementById("cmp-tbody");
+    var note = document.getElementById("cmp-baseline-note");
+    var prev = btn.textContent;
     btn.disabled = true;
     btn.textContent = "Running…";
     try {
-      const url = "/api/benchmarks/projects/" + encodeURIComponent(PID)
+      var url = "/api/benchmarks/projects/" + encodeURIComponent(PID)
         + "/compare?run_a=" + encodeURIComponent(a)
         + "&run_b=" + encodeURIComponent(b);
-      const r = await fetch(url, { cache: "no-store" });
-      const data = await r.json().catch(() => ({}));
+      var r = await fetch(url, { cache: "no-store" });
+      var data = await r.json().catch(function () { return {}; });
       if (!r.ok || data.error) {
         throw new Error(data.error || ("HTTP " + r.status));
       }
-      const rows = Array.isArray(data.suites) ? data.suites
-        : Object.keys(data.deltas || {}).map((k) => ({
-            suite: k,
-            run_a: data.deltas[k].run_a,
-            run_b: data.deltas[k].run_b,
-            delta: data.deltas[k].delta,
-          }));
+      var rows = Array.isArray(data.suites) ? data.suites
+        : Object.keys(data.deltas || {}).map(function (k) {
+            return {
+              suite: k,
+              run_a: data.deltas[k].run_a,
+              run_b: data.deltas[k].run_b,
+              delta: data.deltas[k].delta,
+            };
+          });
       tbody.innerHTML = "";
       if (!rows.length) {
         empty.style.display = "";
@@ -273,12 +311,12 @@
       } else {
         empty.style.display = "none";
         wrap.style.display = "";
-        const aName = (data.run_a && data.run_a.name) || "Run A";
-        const bName = (data.run_b && data.run_b.name) || "Run B";
+        var aName = (data.run_a && data.run_a.name) || "Run A";
+        var bName = (data.run_b && data.run_b.name) || "Run B";
         note.textContent = "Baseline is Run A (" + aName + ") · diff is Run B (" + bName + ") − Run A";
-        rows.forEach((row) => {
-          const tr = document.createElement("tr");
-          const dCls = deltaClass(row.delta);
+        rows.forEach(function (row) {
+          var tr = document.createElement("tr");
+          var dCls = deltaClass(row.delta);
           tr.innerHTML =
             '<td class="mono">' + (row.suite || "—") + "</td>" +
             '<td class="mono">' + fmtScore(row.run_a) + "</td>" +
