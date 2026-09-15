@@ -8,12 +8,70 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import mimetypes
 import time
 import uuid
 from pathlib import Path
 
 from finetune_studio.data.fs.paths import project_dir
+
+log = logging.getLogger(__name__)
+
+# Text formats with a built-in parser — auto-promoted on file-library upload
+# so the data-prep source picker sees them without a second POST.
+AUTO_PROMOTE_EXTENSIONS: frozenset[str] = frozenset({
+    ".txt", ".md", ".markdown", ".log",
+})
+
+
+def should_auto_promote(filename: str) -> bool:
+    """True when *filename* should become a parsed QA source on upload."""
+    return Path(filename or "").suffix.lower() in AUTO_PROMOTE_EXTENSIONS
+
+
+def promote_file_library_upload(
+    pid: str,
+    file_id: str,
+    *,
+    mime_type: str = "",
+    filename: str | None = None,
+) -> dict:
+    """Resolve a project_files row to a disk path and register+parse as QA source.
+
+    Raises ``OSError`` / ``ValueError`` on missing file or empty path.
+    """
+    from finetune_studio.data.fs import file_library as fl
+
+    versions = fl.list_versions(pid, file_id)
+    if not versions:
+        raise ValueError(f"file {file_id} has no versions")
+    data_path = versions[0].get("raw_path") or ""
+    if not data_path:
+        raise ValueError(f"file {file_id} has no raw_path")
+    meta = fl.get_file(pid, file_id) or {}
+    mime = mime_type or meta.get("mime_type") or ""
+    name = filename or meta.get("original_name")
+    return register_qa_source(pid, data_path, mime_type=mime, filename=name)
+
+
+def maybe_auto_promote_upload(
+    pid: str,
+    file_id: str,
+    filename: str,
+    *,
+    mime_type: str = "",
+) -> dict | None:
+    """Promote text uploads into the source picker; return source or None."""
+    if not should_auto_promote(filename):
+        return None
+    try:
+        return promote_file_library_upload(
+            pid, file_id, mime_type=mime_type, filename=filename
+        )
+    except Exception as e:  # noqa: BLE001
+        log.warning("auto-promote failed for %s (%s): %s", filename, file_id, e)
+        return None
 
 
 def register_qa_source(

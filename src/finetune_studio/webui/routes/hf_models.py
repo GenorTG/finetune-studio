@@ -13,7 +13,6 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
@@ -30,8 +29,8 @@ _DOWNLOADS: dict[str, dict] = {}  # job_id -> progress dict (process-wide)
 
 class SearchRequest(BaseModel):
     query: str = ""
-    task: Optional[str] = "text-generation"  # text-generation, image-text-to-text, ...
-    library: Optional[str] = None           # transformers, sentence-transformers, ...
+    task: str | None = "text-generation"  # text-generation, image-text-to-text, ...
+    library: str | None = None           # transformers, sentence-transformers, ...
     sort: str = "downloads"                  # downloads | likes | trending
     limit: int = 24
     full: bool = False                       # if True, no client-side filtering
@@ -99,12 +98,12 @@ def _search_hf(req: SearchRequest) -> list[dict]:
             if len(out) >= req.limit:
                 break
         return out
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         log.warning("HF search failed: %s", e)
         return []
 
 
-def _model_info(repo_id: str) -> Optional[dict]:
+def _model_info(repo_id: str) -> dict | None:
     from huggingface_hub import HfApi
     api = HfApi()
     try:
@@ -112,7 +111,7 @@ def _model_info(repo_id: str) -> Optional[dict]:
         files = []
         try:
             siblings = api.list_repo_files(repo_id, repo_type="model")
-        except Exception:
+        except Exception:  # noqa: BLE001
             siblings = []
         for s in siblings:
             files.append({"path": s, "size": None})
@@ -132,7 +131,7 @@ def _model_info(repo_id: str) -> Optional[dict]:
             } if getattr(info, "card_data", None) else {},
             "files": files,
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         log.warning("HF model_info failed: %s", e)
         return None
 
@@ -141,7 +140,7 @@ def _model_info(repo_id: str) -> Optional[dict]:
 
 @router.get("/hf/search")
 async def hf_search(q: str = "", task: str = "text-generation",
-                   library: Optional[str] = None,
+                   library: str | None = None,
                    sort: str = "downloads", limit: int = 24):
     req = SearchRequest(query=q, task=task, library=library, sort=sort, limit=limit)
     return {"results": _search_hf(req), "task": task, "query": q}
@@ -157,7 +156,7 @@ async def hf_info(repo_id: str):
 
 class DownloadRequest(BaseModel):
     repo_id: str
-    filename: Optional[str] = None  # if set, download just that file; else full repo
+    filename: str | None = None  # if set, download just that file; else full repo
     revision: str = "main"
 
 
@@ -215,16 +214,32 @@ async def hf_download_cancel(job_id: str):
     try:
         from finetune_studio import db
         db.mark_hf_download_cancelled(job_id)
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001, S110
         pass
     return {"ok": True, "job_id": job_id, "status": "cancelled"}
 
 
-def _download_worker(job_id: str, repo_id: str, filename: Optional[str], revision: str):
+def _refresh_model_registry() -> int:
+    """Rescan model dirs (incl. HF Explorer cache) into ``discovered_models``."""
+    from finetune_studio.config import settings
+    from finetune_studio.models.registry import scan_models
+    from finetune_studio.webui import app as webui_app
+
+    dirs = list(settings.model_dirs)
+    for d in settings.model_dirs_extra:
+        if d not in dirs:
+            dirs.append(d)
+    discovered = scan_models(dirs)
+    webui_app.discovered_models.clear()
+    webui_app.discovered_models.extend(discovered)
+    return len(discovered)
+
+
+def _download_worker(job_id: str, repo_id: str, filename: str | None, revision: str):
     """Background download via huggingface_hub.snapshot_download or hf_hub_download."""
     from finetune_studio import db
     try:
-        from huggingface_hub import snapshot_download, hf_hub_download
+        from huggingface_hub import hf_hub_download, snapshot_download
         db.mark_hf_download_running(job_id)
         if job_id in _DOWNLOADS:
             _DOWNLOADS[job_id].update({"status": "downloading", "bytes_done": 0})
@@ -264,11 +279,20 @@ def _download_worker(job_id: str, repo_id: str, filename: Optional[str], revisio
                     "bytes_total": total, "bytes_done": total,
                     "path": local_path,
                 })
-    except Exception as e:  # noqa: BLE001
+        try:
+            n = _refresh_model_registry()
+            log.info(
+                "HF download %s complete — registry now has %d model(s)",
+                job_id,
+                n,
+            )
+        except Exception:
+            log.exception("registry refresh after HF download failed")
+    except Exception as e:
         log.exception("download failed")
         try:
             db.mark_hf_download_failed(job_id, str(e))
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
         if job_id in _DOWNLOADS:
             _DOWNLOADS[job_id].update({"status": "error", "error": str(e)})
@@ -364,7 +388,7 @@ async def list_favorites():
     from finetune_studio import db
     try:
         return db.list_model_favorites()
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.exception("list_model_favorites failed")
         return []
 

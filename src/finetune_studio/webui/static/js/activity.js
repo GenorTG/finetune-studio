@@ -103,7 +103,7 @@
         const icon = KIND_ICON[t.kind] || "›";
         const label = KIND_LABEL[t.kind] || t.kind;
         const pct = Math.round((t.progress || 0) * 100);
-        const isDone = t.status === "done" || t.status === "ready";
+        const isDone = t.status === "done" || t.status === "ready" || t.status === "completed";
         const isErr = t.status === "error";
         const isActive = !isDone && !isErr;
         const projectBadge = t.project_name

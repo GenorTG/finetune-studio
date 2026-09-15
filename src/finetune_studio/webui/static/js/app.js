@@ -253,6 +253,16 @@
           .then(_ok)
           .then((d) => {
             if (d && d.error) notify(d.error, "error");
+            else if (d && d.job_id) {
+              // HF Pull / background jobs — surface in the activity drawer.
+              notify("Download queued · job " + String(d.job_id).slice(0, 8), "success");
+              if (window.ftsActivity && typeof window.ftsActivity.open === "function") {
+                window.ftsActivity.open();
+              }
+              if (window.ftsActivity && typeof window.ftsActivity.refresh === "function") {
+                window.ftsActivity.refresh();
+              }
+            }
             else notify("Done", "success");
             if (btn.dataset.reload === "true") setTimeout(() => location.reload(), 600);
           })
@@ -280,6 +290,18 @@
           .then(_ok)
           .then((d) => {
             if (d && d.error) notify(d.error, "error");
+            else if (d && d.job_id) {
+              notify(
+                (btn.dataset.done || "Download queued") + " · job " + String(d.job_id).slice(0, 8),
+                "success"
+              );
+              if (window.ftsActivity && typeof window.ftsActivity.open === "function") {
+                window.ftsActivity.open();
+              }
+              if (window.ftsActivity && typeof window.ftsActivity.refresh === "function") {
+                window.ftsActivity.refresh();
+              }
+            }
             else notify(btn.dataset.done || "Done", "success");
             if (btn.dataset.reload === "true") setTimeout(() => location.reload(), 600);
           })

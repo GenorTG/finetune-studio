@@ -39,7 +39,7 @@ def _gpu_snapshot():
     try:
         free = int(subprocess.run(
             ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, text=True, timeout=5, check=False,
         ).stdout.splitlines()[0].strip())
     except Exception:  # noqa: BLE001
         return None, []
@@ -48,7 +48,7 @@ def _gpu_snapshot():
         out = subprocess.run(
             ["nvidia-smi", "--query-compute-apps=pid,used_memory",
              "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, text=True, timeout=5, check=False,
         ).stdout
         for line in out.splitlines():
             try:
@@ -56,17 +56,17 @@ def _gpu_snapshot():
                 top.append({"pid": int(pid_s.strip()), "vram_mib": int(mem_s.strip())})
             except ValueError:
                 continue
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001, S110
         pass
     top.sort(key=lambda t: -t["vram_mib"])
     for t in top:
         try:
             cmd = subprocess.run(
                 ["ps", "-o", "args=", "-p", str(t["pid"])],
-                capture_output=True, text=True, timeout=3,
+                capture_output=True, text=True, timeout=3, check=False,
             ).stdout.strip()
             t["name"] = _identify_process(cmd, t["pid"]) if cmd else f"pid-{t['pid']}"
-        except Exception:  # noqa: BLE001, S110
+        except Exception:  # noqa: BLE001
             t["name"] = f"pid-{t['pid']}"
     return free, top[:5]
 
@@ -152,8 +152,12 @@ async def refresh_models():
     from finetune_studio.config import settings
     from finetune_studio.models.registry import scan_models
     from finetune_studio.webui.app import discovered_models
+    dirs = list(settings.model_dirs)
+    for d in settings.model_dirs_extra:
+        if d not in dirs:
+            dirs.append(d)
     discovered_models.clear()
-    discovered_models.extend(scan_models(settings.model_dirs))
+    discovered_models.extend(scan_models(dirs))
     return {"count": len(discovered_models)}
 
 
@@ -215,8 +219,8 @@ inference_router = APIRouter()
 
 @inference_router.get("/status")
 async def inference_status():
-    from finetune_studio.webui.app import inference_engine
     from finetune_studio.testing.inference import IDLE_TIMEOUT
+    from finetune_studio.webui.app import inference_engine
     loaded = inference_engine.model is not None
     return {
         "loaded": loaded,
@@ -248,9 +252,10 @@ async def inference_unload():
 @inference_router.post("/chat")
 async def inference_chat(request: Request):
     """Generate a chat completion using the global inference engine."""
+    from fastapi.responses import JSONResponse
+
     from finetune_studio.webui.app import inference_engine
     from finetune_studio.webui.thinking import split_thinking
-    from fastapi.responses import JSONResponse
 
     if inference_engine.model is None:
         return JSONResponse(

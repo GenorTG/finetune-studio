@@ -2,6 +2,7 @@
 {% block title %}Chat · {{ project.name }} · Finetune Studio{% endblock %}
 {% block nav_project_chat %}active{% endblock %}
 {% block sb_path %}~ / projects / {{ project.name }} / chat{% endblock %}
+{% block breadcrumb_tab %}chat{% endblock %}
 {% block crumb %}
 <a href="/projects" data-link>Projects</a> <span class="sep">/</span> <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a> <span class="sep">/</span> <span>Chat</span>
 {% endblock %}
@@ -261,6 +262,45 @@
   font-size: 11px;
   color: var(--text-dim, #888);
 }
+.dp-chat-tool-card {
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 6px 0;
+  background: rgba(255, 255, 255, 0.02);
+}
+.dp-chat-tool-status {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text, #ddd);
+}
+.dp-chat-tool-status-err { color: var(--err, #ff6666); }
+.dp-chat-tool-table {
+  width: 100%;
+  margin-top: 6px;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.dp-chat-tool-table th,
+.dp-chat-tool-table td {
+  text-align: left;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border, #333);
+}
+.dp-chat-tool-list {
+  margin: 6px 0 0 1.1em;
+  padding: 0;
+  font-size: 11px;
+}
+.dp-chat-tool-debug {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-dim, #888);
+}
+.dp-chat-tool-debug summary {
+  cursor: pointer;
+  user-select: none;
+}
 .dp-chat-tool-copy {
   margin-left: auto;
   font-size: 10px;
@@ -413,19 +453,39 @@ function _chatAppend(role, content, meta, sources) {
   }
   div.appendChild(label);
   div.appendChild(body);
-  if (sources && sources.length) {
+  if (Array.isArray(sources)) {
     const det = document.createElement('details');
     det.className = 'dp-chat-sources';
     const sum = document.createElement('summary');
-    sum.textContent = '▾ ' + sources.length + ' source chunk(s) used as context';
-    det.appendChild(sum);
-    sources.forEach((s) => {
-      const src = document.createElement('div');
-      src.className = 'dp-chat-source';
-      const truncated = (s.text || '').slice(0, 300);
-      src.textContent = '[' + (s.rag_name || '?') + ' · score ' + (s.score || '?') + '] ' + truncated + (s.text && s.text.length > 300 ? '…' : '');
-      det.appendChild(src);
-    });
+    if (sources.length) {
+      sum.textContent = '▾ ' + sources.length + ' source chunk(s) used as context';
+      det.appendChild(sum);
+      sources.forEach((s) => {
+        const src = document.createElement('div');
+        src.className = 'dp-chat-source';
+        const truncated = (s.text || '').slice(0, 300);
+        src.textContent = '[' + (s.rag_name || '?') + ' · score ' + (s.score || '?') + '] ' + truncated + (s.text && s.text.length > 300 ? '…' : '');
+        det.appendChild(src);
+      });
+    } else {
+      sum.textContent = 'No source chunks retrieved';
+      det.appendChild(sum);
+      const empty = document.createElement('div');
+      empty.className = 'dp-chat-tool-status';
+      empty.setAttribute('role', 'status');
+      empty.textContent = 'No sources found';
+      det.appendChild(empty);
+      const dbg = document.createElement('details');
+      dbg.className = 'dp-chat-tool-debug';
+      const dbgSum = document.createElement('summary');
+      dbgSum.textContent = 'Debug · raw JSON';
+      dbg.appendChild(dbgSum);
+      const pre = document.createElement('pre');
+      pre.className = 'dp-chat-pre';
+      pre.textContent = JSON.stringify({ sources: [] }, null, 2);
+      dbg.appendChild(pre);
+      det.appendChild(dbg);
+    }
     div.appendChild(det);
   }
   if (meta) {
@@ -442,30 +502,28 @@ function _chatAppend(role, content, meta, sources) {
 function _chatRenderToolCalls(toolCalls) {
   const wrap = document.createElement('div');
   wrap.className = 'dp-chat-tools';
-  toolCalls.forEach((tc, i) => {
+  toolCalls.forEach((tc) => {
+    const result = (tc && tc.result && typeof tc.result === 'object') ? tc.result : {};
     const ok = tc.result && !tc.result.error;
     const status = ok ? 'ok' : (tc.result && tc.result.error) ? 'err' : 'partial';
-    const det = document.createElement('details');
-    det.className = 'dp-chat-tool-block dp-chat-tool-' + status;
-    det.open = true;  // always expanded — users want to see what the AI did
 
-    // ── Header line: [icon] tool_name(args) → result_summary [copy] ──
-    const sum = document.createElement('summary');
-    sum.className = 'dp-chat-tool-summary';
-    sum.innerHTML = '';  // build with safe DOM nodes below
+    const card = document.createElement('div');
+    card.className = 'dp-chat-tool-block dp-chat-tool-card dp-chat-tool-' + status;
 
-    // icon + name
+    // ── Header: icon + tool name + args chips + copy ──
+    const head = document.createElement('div');
+    head.className = 'dp-chat-tool-summary';
+
     const icon = document.createElement('span');
     icon.className = 'dp-chat-tool-icon';
     icon.textContent = status === 'ok' ? '✓' : status === 'err' ? '✗' : '…';
-    sum.appendChild(icon);
+    head.appendChild(icon);
 
     const name = document.createElement('span');
     name.className = 'dp-chat-tool-name';
     name.textContent = tc.name || 'tool';
-    sum.appendChild(name);
+    head.appendChild(name);
 
-    // args summary (compact)
     const args = tc.arguments || {};
     const argKeys = Object.keys(args);
     if (argKeys.length) {
@@ -482,34 +540,9 @@ function _chatRenderToolCalls(toolCalls) {
         chip.textContent = k + '=' + display;
         argsSpan.appendChild(chip);
       });
-      sum.appendChild(argsSpan);
+      head.appendChild(argsSpan);
     }
 
-    // result summary
-    const resSum = document.createElement('span');
-    resSum.className = 'dp-chat-tool-result-sum';
-    if (tc.result && tc.result.error) {
-      resSum.textContent = ' — ' + String(tc.result.error).slice(0, 120);
-    } else if (tc.result && Array.isArray(tc.result.sources)) {
-      resSum.textContent = ' → ' + tc.result.sources.length + ' source(s)';
-    } else if (tc.result && Array.isArray(tc.result.pairs)) {
-      resSum.textContent = ' → ' + tc.result.pairs.length + ' Q&A pair(s)';
-    } else if (tc.result && typeof tc.result === 'object') {
-      const ks = Object.keys(tc.result);
-      if (ks.length === 1) {
-        const v = tc.result[ks[0]];
-        if (Array.isArray(v)) resSum.textContent = ' → ' + v.length + ' ' + ks[0];
-        else resSum.textContent = ' → ' + String(v).slice(0, 60);
-      } else if (ks.length <= 3) {
-        resSum.textContent = ' → ' + ks.map((k) => {
-          const v = tc.result[k];
-          return k + '=' + (Array.isArray(v) ? '[' + v.length + ']' : String(v).slice(0, 30));
-        }).join(', ');
-      }
-    }
-    sum.appendChild(resSum);
-
-    // copy button
     const copy = document.createElement('button');
     copy.className = 'dp-chat-tool-copy';
     copy.type = 'button';
@@ -529,64 +562,110 @@ function _chatRenderToolCalls(toolCalls) {
         setTimeout(() => { copy.textContent = 'copy'; }, 1500);
       }
     };
-    sum.appendChild(copy);
+    head.appendChild(copy);
+    card.appendChild(head);
 
-    det.appendChild(sum);
+    // ── Readable status / table (never dump raw JSON in the open body) ──
+    const statusEl = document.createElement('div');
+    statusEl.className = 'dp-chat-tool-status';
+    statusEl.setAttribute('role', 'status');
 
-    // ── Body: structured args + result + result preview ──
+    if (result.error) {
+      statusEl.textContent = 'Error: ' + String(result.error);
+      statusEl.classList.add('dp-chat-tool-status-err');
+    } else if (Array.isArray(result.sources)) {
+      const n = result.sources.length;
+      statusEl.textContent = n === 0
+        ? 'No sources found'
+        : n + ' source' + (n === 1 ? '' : 's') + ' returned';
+      if (n > 0) {
+        const table = document.createElement('table');
+        table.className = 'dp-chat-tool-table';
+        const thead = document.createElement('thead');
+        thead.innerHTML = '<tr><th>#</th><th>Name / id</th><th>Chars</th><th>Chunks</th></tr>';
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        result.sources.slice(0, 12).forEach((s, i) => {
+          const tr = document.createElement('tr');
+          const label = s.filename || s.name || s.id || s.rag_name || '—';
+          const chars = s.char_count != null ? s.char_count : (s.text ? s.text.length : '—');
+          const chunks = s.chunk_count != null ? s.chunk_count : '—';
+          tr.innerHTML = '<td>' + (i + 1) + '</td><td class="mono">' +
+            String(label).replace(/[<>&]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])) +
+            '</td><td>' + chars + '</td><td>' + chunks + '</td>';
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        statusEl.appendChild(table);
+      }
+    } else if (Array.isArray(result.pairs)) {
+      const n = result.pairs.length;
+      statusEl.textContent = n === 0
+        ? 'No Q&A pairs created'
+        : n + ' Q&A pair' + (n === 1 ? '' : 's') + ' created';
+      if (n > 0) {
+        const list = document.createElement('ul');
+        list.className = 'dp-chat-tool-list';
+        result.pairs.slice(0, 5).forEach((p, i) => {
+          const li = document.createElement('li');
+          li.textContent = 'Q' + (i + 1) + ': ' + String(p.question || '').slice(0, 120);
+          list.appendChild(li);
+        });
+        statusEl.appendChild(list);
+      }
+    } else if (result.text != null) {
+      const preview = String(result.text);
+      statusEl.textContent = preview
+        ? ('Read ' + preview.length + ' chars')
+        : 'Empty text';
+      if (preview) {
+        const pre = document.createElement('pre');
+        pre.className = 'dp-chat-pre dp-chat-pre-preview';
+        pre.textContent = preview.slice(0, 400) + (preview.length > 400 ? '…' : '');
+        statusEl.appendChild(pre);
+      }
+    } else {
+      const keys = Object.keys(result);
+      if (!keys.length) {
+        statusEl.textContent = 'Empty result';
+      } else {
+        statusEl.textContent = keys.map((k) => {
+          const v = result[k];
+          if (Array.isArray(v)) return k + ': ' + v.length + ' item(s)';
+          if (v && typeof v === 'object') return k + ': {…}';
+          return k + ': ' + String(v).slice(0, 40);
+        }).join(' · ');
+      }
+    }
+    card.appendChild(statusEl);
+
+    // ── Debug: raw JSON behind an explicit closed details ──
+    const dbg = document.createElement('details');
+    dbg.className = 'dp-chat-tool-debug';
+    const dbgSum = document.createElement('summary');
+    dbgSum.textContent = 'Debug · raw JSON';
+    dbg.appendChild(dbgSum);
     if (argKeys.length) {
-      const argsBlock = document.createElement('div');
-      argsBlock.className = 'dp-chat-section';
       const argsLabel = document.createElement('div');
       argsLabel.className = 'dp-chat-section-label';
       argsLabel.textContent = 'Arguments';
-      argsBlock.appendChild(argsLabel);
+      dbg.appendChild(argsLabel);
       const argsPre = document.createElement('pre');
       argsPre.className = 'dp-chat-pre';
       argsPre.textContent = JSON.stringify(args, null, 2);
-      argsBlock.appendChild(argsPre);
-      det.appendChild(argsBlock);
+      dbg.appendChild(argsPre);
     }
-
-    // Result preview: show first few items for sources / qa_pairs
-    const previewItems = [];
-    if (tc.result && Array.isArray(tc.result.sources)) {
-      tc.result.sources.slice(0, 3).forEach((s) => {
-        previewItems.push('[' + (s.rag_name || '?') + ' · ' + (s.score || '?') + '] ' + (s.text || '').slice(0, 200));
-      });
-    } else if (tc.result && Array.isArray(tc.result.pairs)) {
-      tc.result.pairs.slice(0, 3).forEach((p, idx) => {
-        previewItems.push('Q' + (idx + 1) + ': ' + (p.question || '').slice(0, 120) + '\nA: ' + (p.answer || '').slice(0, 200));
-      });
-    }
-    if (previewItems.length) {
-      const prevBlock = document.createElement('div');
-      prevBlock.className = 'dp-chat-section';
-      const prevLabel = document.createElement('div');
-      prevLabel.className = 'dp-chat-section-label';
-      prevLabel.textContent = 'Result preview (first 3)';
-      prevBlock.appendChild(prevLabel);
-      const prevPre = document.createElement('pre');
-      prevPre.className = 'dp-chat-pre dp-chat-pre-preview';
-      prevPre.textContent = previewItems.join('\n\n');
-      prevBlock.appendChild(prevPre);
-      det.appendChild(prevBlock);
-    }
-
-    // Full result JSON
-    const resBlock = document.createElement('div');
-    resBlock.className = 'dp-chat-section';
     const resLabel = document.createElement('div');
     resLabel.className = 'dp-chat-section-label';
-    resLabel.textContent = 'Full result';
-    resBlock.appendChild(resLabel);
+    resLabel.textContent = 'Result';
+    dbg.appendChild(resLabel);
     const resPre = document.createElement('pre');
     resPre.className = 'dp-chat-pre';
-    resPre.textContent = JSON.stringify(tc.result || {}, null, 2);
-    resBlock.appendChild(resPre);
-    det.appendChild(resBlock);
+    resPre.textContent = JSON.stringify(tc.result != null ? tc.result : {}, null, 2);
+    dbg.appendChild(resPre);
+    card.appendChild(dbg);
 
-    wrap.appendChild(det);
+    wrap.appendChild(card);
   });
   return wrap;
 }

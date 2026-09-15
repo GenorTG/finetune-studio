@@ -392,35 +392,35 @@ async def promote_source_route(pid: str, request: Request):
     """
     from finetune_studio import db
     from finetune_studio.data import project_filesystem as pfs
-    from finetune_studio.data.fs import file_library as fl
+    from finetune_studio.data.fs.qa import promote_file_library_upload
 
     body = await request.json()
     data_path = body.get("data_path") or ""
     mime_type = body.get("mime_type") or ""
     filename = body.get("filename") or None
-    if not data_path:
-        fid = body.get("file_id")
-        if fid:
-            owner_pid: str | None = None
-            with db.cursor() as _c:
-                _row = _c.execute(
-                    "SELECT project_id FROM project_files WHERE id = ?", (fid,)
-                ).fetchone()
-            if _row:
-                owner_pid = _row["project_id"]
-            if owner_pid and owner_pid != pid:
-                return JSONResponse(
-                    {"error": f"file {fid} belongs to another project"},
-                    status_code=403,
+    fid = body.get("file_id")
+    if fid and not data_path:
+        owner_pid: str | None = None
+        with db.cursor() as _c:
+            _row = _c.execute(
+                "SELECT project_id FROM project_files WHERE id = ?", (fid,)
+            ).fetchone()
+        if _row:
+            owner_pid = _row["project_id"]
+        if owner_pid and owner_pid != pid:
+            return JSONResponse(
+                {"error": f"file {fid} belongs to another project"},
+                status_code=403,
+            )
+        if owner_pid == pid:
+            try:
+                source = promote_file_library_upload(
+                    pid, fid, mime_type=mime_type, filename=filename
                 )
-            if owner_pid == pid:
-                versions = fl.list_versions(pid, fid)
-                if versions:
-                    data_path = versions[0].get("raw_path") or ""
-                meta = fl.get_file(pid, fid)
-                if meta:
-                    mime_type = mime_type or meta.get("mime_type") or ""
-                    filename = filename or meta.get("original_name")
+            except (OSError, ValueError) as e:
+                log.exception("promote source failed")
+                return JSONResponse({"error": str(e)}, status_code=400)
+            return {"ok": True, "source": source}
     if not data_path:
         return JSONResponse(
             {"error": "data_path or file_id required"}, status_code=400

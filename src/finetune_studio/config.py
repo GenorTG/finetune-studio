@@ -17,7 +17,6 @@ KEY CONCEPTS
 - Frozen dataclass: immutable config that can't be accidentally modified.
 """
 
-import os
 from dataclasses import dataclass, field
 
 
@@ -47,7 +46,8 @@ class Settings:
         "output",           # training output directory
     ])
     model_dirs_extra: list = field(default_factory=lambda: [
-        "~/.cache/huggingface/hub",  # models downloaded via HF Explorer
+        "~/.cache/huggingface/hub",  # default HF hub cache
+        "~/.finetune-studio/hf_models",  # HF Explorer Pull destination
         "~/.finetune-studio/shared_models",  # embedder/reranker cache
     ])  # user-added via env or config
     default_lora_rank: int = 64

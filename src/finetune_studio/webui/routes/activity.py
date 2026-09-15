@@ -152,21 +152,31 @@ def collect_activity() -> dict[str, Any]:
         from finetune_studio.webui.routes.hf_models import _DOWNLOADS
         for jid, entry in _DOWNLOADS.items():
             status = entry.get("status", "queued")
-            if status not in ("queued", "downloading", "completed", "error"):
+            if status not in ("queued", "downloading", "completed", "error", "cancelled"):
                 continue
             # Don't accumulate stale finished entries forever
-            if status in ("completed", "error"):
-                age = _now() - (entry.get("started_at", 0) or 0)
-                if age > 600:
+            if status in ("completed", "error", "cancelled"):
+                started = entry.get("started_at") or entry.get("created_at") or 0
+                age = _now() - float(started or 0)
+                # Missing timestamps → treat as fresh (still show briefly).
+                if started and age > 600:
                     continue
             repo = entry.get("repo_id", "?")
             done = entry.get("bytes_done", 0) or 0
             total = entry.get("bytes_total", 0) or 0
-            is_done = status == "completed"
-            if is_done:
+            # Normalize to activity status vocabulary (done/running/queued/error).
+            if status == "completed":
+                ui_status = "done"
+            elif status == "downloading":
+                ui_status = "running"
+            elif status == "cancelled":
+                ui_status = "error"
+            else:
+                ui_status = status
+            if ui_status == "done":
                 msg = f"completed → {entry.get('path','')}"
                 prog = 1.0
-            elif status == "error":
+            elif ui_status == "error":
                 msg = f"failed: {(entry.get('error') or '')[:60]}"
                 prog = 0
             else:
@@ -176,7 +186,7 @@ def collect_activity() -> dict[str, Any]:
                 "kind": "download",
                 "project_id": "",
                 "project_name": repo.split("/")[-1],
-                "status": status,
+                "status": ui_status,
                 "progress": prog,
                 "message": msg,
                 "started_at": entry.get("started_at", _now()),

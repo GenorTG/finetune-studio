@@ -2,6 +2,7 @@
 {% block title %}Data Prep · {{ project.name }} · Finetune Studio{% endblock %}
 {% block nav_data_prep %}active{% endblock %}
 {% block sb_path %}~ / projects / {{ project.name }} / data-prep{% endblock %}
+{% block breadcrumb_tab %}data-prep{% endblock %}
 {% block crumb %}
 <a href="/projects" data-link>Projects</a> <span class="sep">/</span> <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a> <span class="sep">/</span> <span>Data Prep</span>
 {% endblock %}
@@ -601,8 +602,11 @@ async function flUploadFiles(files) {
     const data = await r.json();
     flShowUploadReport(data);
     // Promote each newly uploaded (or duplicate) file into the source picker.
+    // Server already auto-promotes .txt/.md/.markdown/.log; this covers other
+    // formats and is idempotent when the upload response already includes source.
     const report = data.report || [];
     for (const item of report) {
+      if (item.source_id || item.source) continue;
       const fid = item.file_id || item.duplicate_file_id;
       if (fid && (item.status === 'uploaded' || item.status === 'duplicate')) {
         await flPromoteToDataPrep(fid);
@@ -623,6 +627,15 @@ function flShowUploadReport(data) {
   lines.push('Uploaded:    ' + (counts.uploaded || 0));
   lines.push('Duplicates:  ' + (counts.duplicates_skipped || 0));
   lines.push('Errors:      ' + (counts.errors || 0));
+  const promoted = (data.report || []).filter((r) => r.source_id || r.source);
+  if (promoted.length) {
+    lines.push('Parsed sources: ' + promoted.length);
+    promoted.slice(0, 8).forEach((r) => {
+      const src = r.source || {};
+      lines.push('  · ' + (r.filename || src.filename || r.source_id) +
+        ' → ' + (src.chunk_count || 0) + ' chunks');
+    });
+  }
   if (data.report) {
     const dups = data.report.filter(r => r.status === 'duplicate');
     const errs = data.report.filter(r => r.status === 'error');

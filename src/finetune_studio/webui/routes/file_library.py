@@ -29,7 +29,6 @@ them as a fid='trash' lookup.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
@@ -54,8 +53,8 @@ def _project_or_404(pid: str) -> None:
 async def upload_files(
     pid: str,
     request: Request,
-    files: list[UploadFile] = File(...),
-    folder_id: Optional[str] = Form(None),
+    files: list[UploadFile] = File(...),  # noqa: B008  # FastAPI requires File() default at def site
+    folder_id: str | None = Form(None),
     uploaded_by: str = Form("user"),
 ):
     """Upload one or more files. Supports both single-file (curl -F file=@x)
@@ -81,7 +80,7 @@ async def upload_files(
         name = up.filename or "unnamed"
         try:
             data = await up.read()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             report.append({
                 "filename": name,
                 "status": "error",
@@ -103,12 +102,24 @@ async def upload_files(
         h = fl.sha256_of_bytes(data)
         existing = fl.find_existing_hash(pid, h)
         if existing:
-            report.append({
+            item: dict = {
                 "filename": name,
                 "status": "duplicate",
                 "duplicate_of": existing["original_name"],
                 "duplicate_file_id": existing["id"],
-            })
+            }
+            # Still ensure text duplicates are selectable as parsed sources.
+            from finetune_studio.data.fs.qa import maybe_auto_promote_upload
+            source = maybe_auto_promote_upload(
+                pid,
+                existing["id"],
+                name,
+                mime_type=up.content_type or existing.get("mime_type") or "",
+            )
+            if source:
+                item["source"] = source
+                item["source_id"] = source.get("id")
+            report.append(item)
             counts["duplicates_skipped"] += 1
             continue
 
@@ -138,7 +149,7 @@ async def upload_files(
                 if row and row["kind"] == "user":
                     fl.move_file_to_folder(pid, meta.file_id, folder_id)
 
-        report.append({
+        item = {
             "filename": name,
             "status": "uploaded",
             "file_id": meta.file_id,
@@ -146,7 +157,16 @@ async def upload_files(
             "size_bytes": meta.size_bytes,
             "raw_hash": meta.raw_hash,
             "auto_kind": meta.auto_kind,
-        })
+        }
+        # Auto-promote .txt/.md/.markdown/.log into the data-prep source picker.
+        from finetune_studio.data.fs.qa import maybe_auto_promote_upload
+        source = maybe_auto_promote_upload(
+            pid, meta.file_id, name, mime_type=meta.mime_type or ""
+        )
+        if source:
+            item["source"] = source
+            item["source_id"] = source.get("id")
+        report.append(item)
         counts["uploaded"] += 1
 
     return JSONResponse({
@@ -161,10 +181,10 @@ async def upload_files(
 @router.get("/projects/{pid}/files")
 async def list_files_route(
     pid: str,
-    folder_id: Optional[str] = None,
+    folder_id: str | None = None,
     include_deleted: bool = False,
-    mime_prefix: Optional[str] = None,
-    search: Optional[str] = None,
+    mime_prefix: str | None = None,
+    search: str | None = None,
 ):
     _project_or_404(pid)
     files = fl.list_files(
@@ -208,7 +228,7 @@ async def get_file_route(pid: str, fid: str):
 async def download_raw_route(
     pid: str,
     fid: str,
-    version: Optional[int] = None,
+    version: int | None = None,
 ):
     """Download raw bytes. If version is None, serves the current version.
     Also works for files in trash (so the user can recover + inspect)."""

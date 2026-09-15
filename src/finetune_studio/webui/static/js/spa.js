@@ -43,10 +43,13 @@
     const newPageScripts = doc.getElementById("page-scripts");
     const newActive  = doc.querySelector(".sb-active-bar");
     const newTitle   = doc.querySelector("title");
+    const newCrumb   = doc.getElementById("project-breadcrumb");
     return {
       contentHTML: newContent ? newContent.innerHTML : null,
       pageScriptsHTML: newPageScripts ? newPageScripts.innerHTML : "",
       activeHTML:  newActive  ? newActive.innerHTML  : null,
+      breadcrumbHTML: newCrumb ? newCrumb.innerHTML : null,
+      breadcrumbPresent: !!newCrumb,
       title:       newTitle   ? newTitle.textContent : null,
       fullHTML:    !newContent,
     };
@@ -133,6 +136,14 @@
       if (ps) ps.innerHTML = ext.pageScriptsHTML;
       const activeBar = document.querySelector(".sb-active-bar");
       if (ext.activeHTML && activeBar) activeBar.innerHTML = ext.activeHTML;
+      // QABUG-009: keep sticky breadcrumb in sync on SPA nav (not only #content).
+      const crumb = document.getElementById("project-breadcrumb");
+      if (ext.breadcrumbPresent && crumb && ext.breadcrumbHTML != null) {
+        crumb.innerHTML = ext.breadcrumbHTML;
+        crumb.hidden = false;
+      } else if (crumb && !ext.breadcrumbPresent) {
+        crumb.hidden = true;
+      }
       if (window.ftsPalette && window.ftsPalette.refresh) window.ftsPalette.refresh();
       if (ext.title) document.title = ext.title;
       // Highlight nav
