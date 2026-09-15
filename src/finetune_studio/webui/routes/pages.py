@@ -370,20 +370,29 @@ def _recent_suite_runs(pid: str, limit: int = 5) -> list[dict]:
 @router.get("/projects/{pid}/testing", response_class=HTMLResponse)
 async def project_testing_page(request: Request, pid: str):
     """Testing / inference playground for a project."""
-    from finetune_studio.webui.app import discovered_models, inference_engine
+    from finetune_studio.webui.app import inference_engine
     from finetune_studio.webui.routes.benchmarks import _discover_suites
+    from finetune_studio.webui.testing_models import (
+        default_model_path_for_testing,
+        models_for_testing_page,
+    )
 
     ctx = _project_ctx(pid)
     if not ctx:
         return RedirectResponse(url="/projects", status_code=302)
     suites = _discover_suites()
     recent_runs = _recent_suite_runs(pid, limit=5)
+    # Project-scoped exports only (not global HF discovery) so merge-at-export
+    # results appear in the selector and match auto-load.
+    models = models_for_testing_page(ctx["project"].get("models") or [])
+    default_path = default_model_path_for_testing(models)
     return templates.TemplateResponse(
         request,
         "project_testing.html",
         {
             **ctx,
-            "models": discovered_models,
+            "models": models,
+            "default_model_path": default_path,
             "inference_engine": inference_engine,
             "suites": suites,
             "recent_suite_runs": recent_runs,

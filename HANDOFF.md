@@ -4,29 +4,28 @@
 Local fine-tune + data-prep WebUI (FastAPI, `src/finetune_studio/`).
 Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :7860.
 
-## State (verified 2026-09-15 ~15:45 Europe/Warsaw)
+## State (verified 2026-09-15 ~16:00 Europe/Warsaw)
 | Area | Status |
 |------|--------|
-| Git | output_path persist fix ready to push (training start → DB) |
-| Training start | ✅ After scoping `output_dir`, `db.update_run(..., output_path=…)` runs immediately |
-| Regression | ✅ `tests/test_training_start_defaults.py` asserts DB keeps scoped + explicit paths |
-| Export API | ✅ Adapter-only merge-at-export still in place (prior `6a5e5f8`) |
-| Run `38867d1b` | ⚠ Live row still has empty `output_path` until backfilled or re-trained under new code |
+| Git | Testing+Export fixes ready to push |
+| Testing auto-load | ✅ Accepts status `done`/`completed`; requires ready `merged/` weights |
+| Testing model list | ✅ Project-scoped exports from `_scan_run_models` (not global HF list); latest merged pre-selected |
+| Export failures | ✅ Sync path returns HTTP 400 + `{ok:false,status:failed,error}`; UI notifies + `role=status` |
+| GPTQ missing dep | ✅ Fail-fast when `auto_gptq` absent (no fake success) |
+| Regression | ✅ 46 focused tests green; ruff clean on touched files |
 
 ## Next steps
 1. On fan-dragon: `cd /home/genortg/finetune-studio && git pull --ff-only && systemctl --user restart finetune-studio`
-2. Backfill run `38867d1b` if artifacts exist on disk (typical path):  
-   `curl -s -X POST http://127.0.0.1:7860/api/training/runs/38867d1b/set-output -H 'Content-Type: application/json' -d '{"output_path":"output/projects/04954e70/runs/38867d1b"}'`
-3. Export that run as GGUF `q8_0` (+ optional GPTQ) with a 16-bit Qwen3-4B base:  
-   `http://fan-dragon:7860/projects/04954e70/export?run=38867d1b`
-4. Confirm Training detail shows Output path (not `—`) for a newly started run.
-5. Run project Testing against each exported format.
+2. Browser: open `http://fan-dragon:7860/projects/04954e70/testing` — model selector must list the merge-at-export path for run `598d9d14` (pre-selected); Run suite must not say “no completed training run”.
+3. Browser: Export GPTQ for that run — status must show `✗ gptq: …auto_gptq…` (not “✓ Done”); toast error via `fts.notify`.
+4. Optional successful path: Export `merged` (or GGUF) only, then re-check Testing selector.
+5. Service truth check: `ss -ltnp | grep 7860` → `/proc/<pid>/cgroup` contains `finetune-studio.service`.
 
 ## Commands
-- Focused: `.venv/bin/python -m pytest tests/test_training_start_defaults.py -q --tb=short`
-- Lint: `.venv/bin/python -m ruff check src/finetune_studio/webui/routes/training.py tests/test_training_start_defaults.py`
-- Deploy: `git push`; on fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`
-- Service truth check: `systemctl --user show -p MainPID --value finetune-studio; grep finetune-studio.service /proc/<pid>/cgroup`
+- Focused: `.venv/bin/python -m pytest tests/test_testing_auto_load.py tests/test_testing_models.py tests/test_project_testing.py tests/test_run_export.py tests/test_export.py -q --tb=short`
+- Lint: `.venv/bin/python -m ruff check src/finetune_studio/webui/testing_models.py src/finetune_studio/webui/routes/testing.py src/finetune_studio/training/run_export.py`
+- Deploy: `git push`; fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`
 
 ## Blockers
-- Existing completed runs created before this fix still need a one-shot `set-output` (or retrain) before Export can see them.
+- Parent verifies browser on fan-dragon after pull/restart (no CLI substitute).
+- GPTQ still needs `auto-gptq` installed on fan-dragon for a successful GPTQ export; failure is now correctly surfaced.

@@ -28,6 +28,33 @@ def test_testing_page_renders_suite_select(client) -> None:
     assert 'id="t-status"' in body
     assert 'id="t-live-log"' in body
     assert "/api/testing/status" in body
+    # Model selector is project-scoped (not global HF discovery alone)
+    assert 'id="t-model"' in body
+    assert "— auto (latest merged) —" in body
+
+
+def test_testing_page_lists_project_merged_export(client, tmp_path) -> None:
+    """After merge-at-export, the merged path must appear in the selector."""
+    from finetune_studio import db
+
+    pid = _project(client)
+    out = tmp_path / "run-out"
+    merged = out / "merged"
+    merged.mkdir(parents=True)
+    (merged / "model.safetensors").write_bytes(b"x" * 64)
+    (merged / "config.json").write_text("{}", encoding="utf-8")
+    run = db.create_run(
+        project_id=pid, name="merged-run", base_model="/m", data_path="/d"
+    )
+    db.update_run(run["id"], status="done", output_path=str(out))
+
+    r = client.get(f"/projects/{pid}/testing")
+    assert r.status_code == 200
+    body = r.text
+    assert str(merged) in body
+    assert "merged-run/merged" in body
+    assert "selected" in body  # default_model_path pre-selects latest merged
+    assert "No project merged/GGUF exports yet" not in body
 
 
 def test_testing_page_suite_options_match_discover(client) -> None:

@@ -339,16 +339,25 @@ async function startExport() {
         body: JSON.stringify(body),
       });
       const d = await r.json();
-      if (!r.ok || d.error) {
-        status.textContent = `✗ ${fmt}: ${d.error || 'failed'}`;
+      const failed = !r.ok || d.ok === false || d.status === 'failed' || d.error;
+      if (failed) {
+        const errMsg = d.error || d.message || (`HTTP ${r.status}`);
+        status.textContent = `✗ ${fmt}: ${errMsg}`;
+        status.classList.add('err');
+        status.setAttribute('role', 'status');
+        if (window.fts && window.fts.notify) fts.notify(`${fmt} export failed: ${errMsg}`, 'error');
         btn.disabled = false;
         return;
       }
     }
     status.textContent = '✓ Done — refresh to see new exports';
+    status.classList.remove('err');
+    if (window.fts && window.fts.notify) fts.notify('Export finished', 'success');
     setTimeout(() => location.reload(), 1500);
   } catch (e) {
     status.textContent = `✗ ${e}`;
+    status.classList.add('err');
+    if (window.fts && window.fts.notify) fts.notify(String(e), 'error');
     btn.disabled = false;
   }
 }

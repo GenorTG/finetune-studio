@@ -1,4 +1,8 @@
-"""Regression tests for testing-page auto-load (QABUG-007 / QABUG-011)."""
+"""Regression tests for testing-page auto-load (QABUG-007 / QABUG-011).
+
+Training runs use status ``done`` (not ``completed``). Merge-at-export
+leaves ``merged/`` under the run output — Testing must find those.
+"""
 
 from __future__ import annotations
 
@@ -25,27 +29,7 @@ def client_and_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return TestClient(app), db_path
 
 
-def test_testing_auto_loads_merged_model(
-    client_and_db: tuple[TestClient, Path],
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    client, _db_path = client_and_db
-    r = client.post(
-        "/api/projects",
-        json={"name": f"auto-{uuid.uuid4().hex[:6]}", "base_model": "x/test"},
-    )
-    assert r.status_code == 200, r.text
-    pid = r.json()["id"]
-
-    out = tmp_path / "some" / "path"
-    merged = out / "merged"
-    merged.mkdir(parents=True)
-    (merged / "config.json").write_text("{}", encoding="utf-8")
-
-    run = db.create_run(pid, "done-run", base_model="x/test")
-    db.update_run(run["id"], status="completed", output_path=str(out))
-
+def _fake_engine(monkeypatch: pytest.MonkeyPatch) -> tuple[Any, list[str]]:
     load_calls: list[str] = []
 
     class FakeEngine:
@@ -61,6 +45,7 @@ def test_testing_auto_loads_merged_model(
 
         def unload(self) -> None:
             self.model = None
+            self.model_path = None
 
         def generate(self, messages: list, **_kwargs: Any) -> str:
             return "Paris"
@@ -71,7 +56,10 @@ def test_testing_auto_loads_merged_model(
         "finetune_studio.webui.routes.testing.inference_engine",
         fake,
     )
+    return fake, load_calls
 
+
+def _suite(tmp_path: Path) -> Path:
     suite = [
         {
             "name": "q1",
@@ -83,6 +71,34 @@ def test_testing_auto_loads_merged_model(
     ]
     suite_path = tmp_path / "suite.json"
     suite_path.write_text(json.dumps(suite), encoding="utf-8")
+    return suite_path
+
+
+def test_testing_auto_loads_merged_model_status_done(
+    client_and_db: tuple[TestClient, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Live training writes status=done; auto-load must accept it."""
+    client, _db_path = client_and_db
+    r = client.post(
+        "/api/projects",
+        json={"name": f"auto-{uuid.uuid4().hex[:6]}", "base_model": "x/test"},
+    )
+    assert r.status_code == 200, r.text
+    pid = r.json()["id"]
+
+    out = tmp_path / "some" / "path"
+    merged = out / "merged"
+    merged.mkdir(parents=True)
+    (merged / "model.safetensors").write_bytes(b"x" * 32)
+    (merged / "config.json").write_text("{}", encoding="utf-8")
+
+    run = db.create_run(pid, "done-run", base_model="x/test")
+    db.update_run(run["id"], status="done", output_path=str(out))
+
+    _fake, load_calls = _fake_engine(monkeypatch)
+    suite_path = _suite(tmp_path)
 
     resp = client.post(
         "/api/testing/run-suite",
@@ -95,6 +111,83 @@ def test_testing_auto_loads_merged_model(
     assert resp.status_code == 200, resp.text
     assert load_calls, "expected inference_engine.load to be called"
     assert load_calls[0] == str(merged)
+    assert resp.json().get("model_path") == str(merged)
+
+
+def test_testing_auto_loads_merged_model_status_completed_compat(
+    client_and_db: tuple[TestClient, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Older fixtures used status=completed — keep accepting it."""
+    client, _db_path = client_and_db
+    r = client.post(
+        "/api/projects",
+        json={"name": f"auto-{uuid.uuid4().hex[:6]}", "base_model": "x/test"},
+    )
+    assert r.status_code == 200, r.text
+    pid = r.json()["id"]
+
+    out = tmp_path / "compat" / "path"
+    merged = out / "merged"
+    merged.mkdir(parents=True)
+    (merged / "model.safetensors").write_bytes(b"x" * 32)
+
+    run = db.create_run(pid, "compat-run", base_model="x/test")
+    db.update_run(run["id"], status="completed", output_path=str(out))
+
+    _fake, load_calls = _fake_engine(monkeypatch)
+    suite_path = _suite(tmp_path)
+
+    resp = client.post(
+        "/api/testing/run-suite",
+        json={"suite_path": str(suite_path), "project_id": pid},
+    )
+    assert resp.status_code == 200, resp.text
+    assert load_calls[0] == str(merged)
+
+
+def test_testing_skips_done_run_without_merged_weights(
+    client_and_db: tuple[TestClient, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, _db_path = client_and_db
+    r = client.post(
+        "/api/projects",
+        json={"name": f"nomerged-{uuid.uuid4().hex[:6]}", "base_model": "x/test"},
+    )
+    assert r.status_code == 200, r.text
+    pid = r.json()["id"]
+
+    out = tmp_path / "adapter-only"
+    adapter = out / "adapter"
+    adapter.mkdir(parents=True)
+    (adapter / "adapter_config.json").write_text("{}", encoding="utf-8")
+
+    run = db.create_run(pid, "adapter-run", base_model="x/test")
+    db.update_run(run["id"], status="done", output_path=str(out))
+
+    fake = MagicMock()
+    fake.model = None
+    fake.model_path = None
+    fake.is_gguf = False
+    monkeypatch.setattr(app_module, "inference_engine", fake)
+    monkeypatch.setattr(
+        "finetune_studio.webui.routes.testing.inference_engine",
+        fake,
+    )
+
+    suite_path = tmp_path / "suite.json"
+    suite_path.write_text("[]", encoding="utf-8")
+
+    resp = client.post(
+        "/api/testing/run-suite",
+        json={"suite_path": str(suite_path), "project_id": pid},
+    )
+    assert resp.status_code == 400, resp.text
+    assert "no completed training run" in resp.json()["error"]
+    fake.load.assert_not_called()
 
 
 def test_testing_returns_400_when_no_completed_run(
@@ -129,3 +222,35 @@ def test_testing_returns_400_when_no_completed_run(
     )
     assert resp.status_code == 400, resp.text
     assert "no completed training run" in resp.json()["error"]
+
+
+def test_testing_override_model_path(
+    client_and_db: tuple[TestClient, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, _db_path = client_and_db
+    r = client.post(
+        "/api/projects",
+        json={"name": f"ovr-{uuid.uuid4().hex[:6]}", "base_model": "x/test"},
+    )
+    assert r.status_code == 200, r.text
+    pid = r.json()["id"]
+
+    override = tmp_path / "override-merged"
+    override.mkdir()
+    (override / "config.json").write_text("{}", encoding="utf-8")
+
+    _fake, load_calls = _fake_engine(monkeypatch)
+    suite_path = _suite(tmp_path)
+
+    resp = client.post(
+        "/api/testing/run-suite",
+        json={
+            "suite_path": str(suite_path),
+            "project_id": pid,
+            "model_path": str(override),
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    assert load_calls == [str(override)]

@@ -134,6 +134,23 @@ def ensure_merged_for_export(
     }
 
 
+def _export_failure(
+    error: str,
+    *,
+    format: str | None = None,
+    **extra: Any,
+) -> dict[str, Any]:
+    """Structured failure payload for sync export (never look like success)."""
+    out: dict[str, Any] = dict(extra)
+    out.pop("ok", None)
+    out["ok"] = False
+    out["status"] = "failed"
+    out["error"] = error
+    if format is not None:
+        out["format"] = format
+    return out
+
+
 def export_trained_run(
     run: dict[str, Any],
     *,
@@ -144,32 +161,33 @@ def export_trained_run(
 ) -> dict[str, Any]:
     """Merge if needed, then export ``run`` to ``fmt``.
 
-    Returns a dict with ``ok`` / ``error`` plus format-specific fields.
+    Returns a dict with ``ok`` / ``status`` / ``error`` plus format fields.
+    Failures always set ``ok=False`` and ``status="failed"``.
     """
     fmt_norm = (fmt or "gguf").strip().lower()
     if fmt_norm == "awq":
-        return {
-            "error": (
-                "AWQ export was removed (autoawq unmaintained). "
-                "Use format=gptq, gguf, or merged instead."
-            ),
-        }
+        return _export_failure(
+            "AWQ export was removed (autoawq unmaintained). "
+            "Use format=gptq, gguf, or merged instead.",
+            format="awq",
+        )
     if fmt_norm not in SUPPORTED_EXPORT_FORMATS:
-        return {
-            "error": f"unknown format: {fmt_norm}",
-            "supported": sorted(SUPPORTED_EXPORT_FORMATS),
-        }
+        return _export_failure(
+            f"unknown format: {fmt_norm}",
+            format=fmt_norm,
+            supported=sorted(SUPPORTED_EXPORT_FORMATS),
+        )
 
     output_path = (run.get("output_path") or "").strip()
     if not output_path:
-        return {"error": "run has no output_path"}
+        return _export_failure("run has no output_path", format=fmt_norm)
 
     try:
         merge_info = ensure_merged_for_export(
             run, base_model=base_model, force=False,
         )
     except ValueError as e:
-        return {"error": str(e)}
+        return _export_failure(str(e), format=fmt_norm)
 
     if fmt_norm == "merged":
         return {
@@ -194,6 +212,7 @@ def export_trained_run(
             return {
                 "ok": True,
                 "status": "skipped",
+                "format": "gguf",
                 "gguf_path": gguf_dir,
                 "message": (
                     "GGUF already exists. Use force=true to overwrite."
@@ -201,10 +220,13 @@ def export_trained_run(
             }
         result = engine._do_export_gguf(output_path)
         if result.get("error"):
-            return {"error": result["error"], **result}
+            return _export_failure(
+                str(result["error"]), format="gguf", **result
+            )
         return {
             "ok": True,
             "status": "exported" if not result.get("skipped") else "skipped",
+            "format": "gguf",
             **result,
         }
 
@@ -214,6 +236,7 @@ def export_trained_run(
             return {
                 "ok": True,
                 "status": "skipped",
+                "format": "abliterated",
                 "message": (
                     "Abliterated model already exists. "
                     "Use force=true to overwrite."
@@ -221,13 +244,28 @@ def export_trained_run(
             }
         result = engine._do_abliteration()
         if result.get("error"):
-            return {"error": result["error"], **result}
-        return {"ok": True, "status": "exported", **result}
+            return _export_failure(
+                str(result["error"]), format="abliterated", **result
+            )
+        return {"ok": True, "status": "exported", "format": "abliterated", **result}
 
-    # gptq
+    # gptq — fail fast when auto_gptq is missing (common host gap)
+    from finetune_studio.training.advanced_quant import is_gptq_available
+
+    if not is_gptq_available():
+        return _export_failure(
+            "No module named 'auto_gptq' — install auto-gptq to export GPTQ, "
+            "or choose format=merged / gguf instead.",
+            format="gptq",
+        )
+
     result = engine._do_export_gptq(output_path)
     if result.get("error"):
-        return {"error": result["error"], **result}
+        return _export_failure(str(result["error"]), format="gptq", **result)
     if result.get("skipped"):
-        return {"error": result.get("reason", "gptq skipped"), **result}
-    return {"ok": True, "status": "exported", **result}
+        return _export_failure(
+            str(result.get("reason", "gptq skipped")),
+            format="gptq",
+            **result,
+        )
+    return {"ok": True, "status": "exported", "format": "gptq", **result}

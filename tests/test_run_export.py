@@ -122,9 +122,26 @@ class TestExportTrainedRun:
 
         run = _merged_run(tmp_path)
         result = export_trained_run(run, fmt="awq")
-        assert "error" in result
+        assert result.get("ok") is False
+        assert result.get("status") == "failed"
         assert "AWQ" in result["error"]
         assert "gptq" in result["error"].lower()
+
+    def test_gptq_missing_auto_gptq_is_structured_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from finetune_studio.training import run_export as re
+
+        monkeypatch.setattr(
+            "finetune_studio.training.advanced_quant.is_gptq_available",
+            lambda: False,
+        )
+        run = _merged_run(tmp_path)
+        result = re.export_trained_run(run, fmt="gptq")
+        assert result.get("ok") is False
+        assert result.get("status") == "failed"
+        assert result.get("format") == "gptq"
+        assert "auto_gptq" in result["error"]
 
     def test_merged_format_returns_path(self, tmp_path: Path) -> None:
         from finetune_studio.training.run_export import export_trained_run
@@ -240,5 +257,42 @@ class TestExportApiAdapterOnly:
             f"/api/projects/{pid}/runs/{created['id']}/export",
             json={"format": "awq", "quants": ["q8_0"]},
         )
+        assert r.status_code == 400, r.text
         body = r.json()
+        assert body.get("ok") is False
+        assert body.get("status") == "failed"
         assert "AWQ" in body["error"]
+
+    def test_post_gptq_missing_module_returns_400(
+        self, client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from finetune_studio import db
+
+        monkeypatch.setattr(
+            "finetune_studio.training.advanced_quant.is_gptq_available",
+            lambda: False,
+        )
+        pid = client.post(
+            "/api/projects", json={"name": "No GPTQ"}
+        ).json()["id"]
+        run = _merged_run(tmp_path)
+        created = db.create_run(
+            project_id=pid,
+            name="m",
+            base_model=run["base_model"],
+            data_path="/d",
+        )
+        db.update_run(
+            created["id"], status="done", output_path=run["output_path"]
+        )
+        r = client.post(
+            f"/api/projects/{pid}/runs/{created['id']}/export",
+            json={"format": "gptq", "force": True},
+        )
+        assert r.status_code == 400, r.text
+        body = r.json()
+        assert body.get("ok") is False
+        assert body.get("status") == "failed"
+        assert body.get("format") == "gptq"
+        assert "auto_gptq" in body["error"]
+        assert body.get("ok") is not True

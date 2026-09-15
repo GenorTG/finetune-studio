@@ -21,11 +21,16 @@
   </div>
   <div class="grid grid-12 gap-3 items-end">
     <div class="col-span-5">
-      <label class="block text-xs muted mb-1">Model (optional override)</label>
+      <label class="block text-xs muted mb-1">Model</label>
       <select id="t-model" class="select">
         <option value="">— auto (latest merged) —</option>
-        {% for m in models %}<option value="{{ m.path }}">{{ m.name }} ({{ m.size_gb }} GB)</option>{% endfor %}
+        {% for m in models %}
+        <option value="{{ m.path }}"{% if default_model_path and m.path == default_model_path %} selected{% endif %}>{{ m.name }} · {{ m.format }} ({{ m.size_gb }} GB)</option>
+        {% endfor %}
       </select>
+      {% if not models %}
+      <div class="text-xs dim mt-1">No project merged/GGUF exports yet. Export a completed run (merged) first.</div>
+      {% endif %}
     </div>
     <div class="col-span-5">
       <label class="block text-xs muted mb-1">Test suite (JSON)</label>
@@ -203,7 +208,10 @@
     liveTimer = setInterval(tickLive, 2000);
     tickLive();
     try {
+      const modelSel = document.getElementById('t-model');
+      const modelPath = modelSel ? (modelSel.value || '').trim() : '';
       const body = { suite_path: suite, project_id: PID, max_tokens: 512 };
+      if (modelPath) body.model_path = modelPath;
       let r;
       if (api.post) {
         r = await api.post('/api/testing/run-suite', body);

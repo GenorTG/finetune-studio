@@ -296,11 +296,14 @@ class TestExportRoute:
         db.update_run(rid, output_path="/tmp/nope")
         r = client.post(f"/api/projects/{pid}/runs/{rid}/export",
                         json={"format": "awq", "quant": "Q4_K_M"})
-        assert r.status_code == 200
+        assert r.status_code == 400
         body = r.json()
+        assert body.get("ok") is False
+        assert body.get("status") == "failed"
         # AWQ is explicitly removed; message must steer to gptq/gguf/merged.
         assert "AWQ" in body["error"]
         assert "gptq" in body["error"].lower()
+
     def test_unknown_quant_returns_400(self, client, mock_settings):
         from finetune_studio import db
         pid = db.create_project(name="R", description="")["id"]
@@ -309,15 +312,19 @@ class TestExportRoute:
         db.update_run(rid, output_path="/tmp/nope")
         r = client.post(f"/api/projects/{pid}/runs/{rid}/export",
                         json={"format": "gguf", "quant": "QQQQQQQ"})
+        assert r.status_code == 400
         body = r.json()
+        assert body.get("ok") is False
         assert "unsupported quant" in body["error"]
         assert "Q4_K_M" in body["supported"]
 
     def test_missing_run_returns_error(self, client, mock_settings):
         r = client.post("/api/projects/p/runs/nonexistent/export",
                         json={"format": "gguf", "quant": "Q4_K_M"})
+        assert r.status_code == 404
         body = r.json()
         assert "run not found" in body["error"]
+        assert body.get("ok") is False
 
     def test_run_with_no_output_path_returns_error(self, client, mock_settings):
         from finetune_studio import db
@@ -326,8 +333,10 @@ class TestExportRoute:
                             settings_obj={})["id"]
         r = client.post(f"/api/projects/{pid}/runs/{rid}/export",
                         json={"format": "gguf", "quant": "Q4_K_M"})
+        assert r.status_code == 400
         body = r.json()
         assert "no output_path" in body["error"]
+        assert body.get("status") == "failed"
 
     def test_no_merged_dir_and_no_auto_merge_returns_error(
         self, client, mock_settings
@@ -341,8 +350,10 @@ class TestExportRoute:
             r = client.post(f"/api/projects/{pid}/runs/{rid}/export",
                             json={"format": "gguf", "quant": "Q4_K_M",
                                   "auto_merge": False})
+            assert r.status_code == 400
             body = r.json()
             assert "/merge first" in body["error"]
+            assert body.get("ok") is False
 
     def test_get_export_unknown_returns_404(self, client, mock_settings):
         r = client.get("/api/projects/p/exports/nonexistent")

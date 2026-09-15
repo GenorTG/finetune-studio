@@ -128,9 +128,23 @@ async def export_run(pid: str, rid: str, request: Request,
 
     run = db.get_run(rid)
     if not run:
-        return {"error": "run not found"}
+        return JSONResponse(
+            {"ok": False, "status": "failed", "error": "run not found"},
+            status_code=404,
+        )
     if run.get("project_id") and pid and run["project_id"] != pid:
-        return {"error": "run does not belong to this project"}
+        return JSONResponse(
+            {
+                "ok": False,
+                "status": "failed",
+                "error": "run does not belong to this project",
+            },
+            status_code=400,
+        )
+
+    def _err(msg: str, *, status_code: int = 400, **extra: object):
+        payload = {"ok": False, "status": "failed", "error": msg, **extra}
+        return JSONResponse(payload, status_code=status_code)
 
     # Sync multi-format path used by the Export page (quants list / non-gguf).
     use_sync = (
@@ -141,30 +155,38 @@ async def export_run(pid: str, rid: str, request: Request,
     if use_sync:
         from finetune_studio.training.run_export import export_trained_run
         quants = body.get("quants")
-        return export_trained_run(
+        result = export_trained_run(
             run,
             fmt=fmt,
             quants=list(quants) if isinstance(quants, list) else None,
             force=bool(body.get("force", False)),
             base_model=base_model,
         )
+        if result.get("error") or result.get("ok") is False:
+            # Never report format failures as HTTP 200 success.
+            return JSONResponse(result, status_code=400)
+        return result
 
     if fmt != "gguf":
-        return {"error": f"unsupported format: {fmt}"}
+        return _err(f"unsupported format: {fmt}", format=fmt)
     quant = (body.get("quant") or DEFAULT_QUANT).upper()
     if quant not in SUPPORTED_QUANTS:
-        return {"error": f"unsupported quant: {quant}",
-                "supported": sorted(SUPPORTED_QUANTS)}
+        return _err(
+            f"unsupported quant: {quant}",
+            supported=sorted(SUPPORTED_QUANTS),
+        )
 
     output_path = (run.get("output_path") or "").strip()
     if not output_path:
-        return {"error": "run has no output_path; training did not finish"}
+        return _err("run has no output_path; training did not finish")
 
     merged_dir = os.path.join(output_path, "merged")
     if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
         if not auto_merge:
-            return {"error": "run has not been merged; POST /merge first, "
-                             "or set auto_merge=true in the request body"}
+            return _err(
+                "run has not been merged; POST /merge first, "
+                "or set auto_merge=true in the request body",
+            )
         try:
             from finetune_studio.training.run_export import (
                 ensure_merged_for_export,
@@ -175,10 +197,10 @@ async def export_run(pid: str, rid: str, request: Request,
             merged_dir = merge_result.get("merged_path") or merged_dir
             log.info("auto-merge for export: %s", merged_dir)
         except ValueError as e:
-            return {"error": f"auto-merge failed: {e}", "status": "skipped"}
+            return _err(f"auto-merge failed: {e}")
         except Exception as e:
             log.exception("auto-merge failed")
-            return {"error": f"auto-merge failed: {e}", "status": "skipped"}
+            return _err(f"auto-merge failed: {e}", status_code=500)
 
     # Persist the export row up front so the caller can poll it.
     export_row = db.create_export(project_id=pid, run_id=rid,

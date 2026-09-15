@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import logging
-import os
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from finetune_studio import db
 from finetune_studio.testing.suite import (
     apply_heuristic_judging,
     load_test_suite,
@@ -16,6 +14,7 @@ from finetune_studio.testing.suite import (
     score_results,
 )
 from finetune_studio.webui.app import inference_engine
+from finetune_studio.webui.testing_models import resolve_latest_merged_model
 
 router = APIRouter()
 _log = logging.getLogger(__name__)
@@ -23,16 +22,7 @@ _log = logging.getLogger(__name__)
 
 def _resolve_merged_model(pid: str) -> str | None:
     """Return path to the most-recent completed run's merged model, or None."""
-    runs = db.list_runs(pid)
-    for run in runs:  # already newest-first
-        if run.get("status") != "completed":
-            continue
-        output_path = (run.get("output_path") or "").strip()
-        if not output_path:
-            continue
-        merged = os.path.join(output_path, "merged")
-        return merged
-    return None
+    return resolve_latest_merged_model(pid)
 
 
 @router.post("/load")
@@ -91,9 +81,23 @@ async def run_test_suite(request: Request):
     suite_path = body.get("suite_path", "")
     max_tokens = body.get("max_tokens", 512)
     project_id = body.get("project_id") or body.get("pid") or ""
+    override_path = (
+        body.get("model_path") or body.get("path") or ""
+    ).strip()
 
-    # QABUG-007 / QABUG-011: auto-load merged model when none is loaded.
-    if inference_engine.model is None:
+    # QABUG-007 / QABUG-011: auto-load merged model when none is loaded,
+    # or when the UI sends an explicit project-scoped override.
+    if override_path:
+        try:
+            if inference_engine.model_path != override_path:
+                inference_engine.load(override_path)
+        except Exception as e:  # noqa: BLE001
+            _log.warning("override load failed for %s: %s", override_path, e)
+            return JSONResponse(
+                {"error": f"auto-load failed: {e}"},
+                status_code=400,
+            )
+    elif inference_engine.model is None:
         if not project_id:
             return JSONResponse(
                 {"error": "No model loaded"},
@@ -145,4 +149,5 @@ async def run_test_suite(request: Request):
             for r in results
         ],
         "scores": scores,
+        "model_path": inference_engine.model_path,
     }

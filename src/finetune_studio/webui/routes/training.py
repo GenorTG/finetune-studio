@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 from fastapi import APIRouter, Request
-from fastapi.responses import PlainTextResponse, StreamingResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 
 from finetune_studio.training.data import load_jsonl
 from finetune_studio.training.engine import TrainingConfig
@@ -494,15 +494,21 @@ async def export_run(run_id: str, request: Request):
 
     run = db.get_run(run_id)
     if not run:
-        return {"error": "run not found"}
+        return JSONResponse(
+            {"ok": False, "status": "failed", "error": "run not found"},
+            status_code=404,
+        )
 
-    return export_trained_run(
+    result = export_trained_run(
         run,
         fmt=str(fmt),
         quants=list(quants) if isinstance(quants, list) else None,
         force=force,
         base_model=base_model,
     )
+    if result.get("error") or result.get("ok") is False:
+        return JSONResponse(result, status_code=400)
+    return result
 
 @router.get("/runs/{run_id}/auto-suites")
 async def list_auto_suites(run_id: str):
