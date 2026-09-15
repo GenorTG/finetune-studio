@@ -107,7 +107,17 @@
         <option value="{{ s.id }}" title="A chunk is a contiguous slice of the source text (usually 300–800 tokens) that fits in the model's context window. The model reads chunks one at a time.">{{ s.name }} · {{ s.char_count }} chars · {{ s.chunk_count }} chunks</option>
         {% endfor %}
       </select>
-      <div class="text-xs dim mt-1">Sources come from the <a href="/projects/{{ pid }}/data" data-link>Data</a> tab. Upload a file there first if this list is empty.</div>
+      <div class="text-xs dim mt-1" id="prep-source-hint">
+        Parsed sources appear here after upload (text/markdown) or when you click
+        <b>Use as source</b> on an existing library file.
+      </div>
+      <div id="prep-promote-panel" class="prep-promote-panel mt-2" hidden>
+        <button type="button" class="btn small" id="prep-promote-library-btn"
+                onclick="flPromoteEligibleFromLibrary()">
+          Use text/markdown from file library
+        </button>
+        <span id="prep-promote-status" class="text-xs dim" role="status" aria-live="polite"></span>
+      </div>
     </div>
 
     <div>
@@ -279,7 +289,23 @@
 .fl-col-check { width: 24px; }
 .fl-col-ver { width: 56px; text-align: center; white-space: nowrap; }
 .fl-col-size { width: 60px; text-align: right; }
-.fl-col-actions { width: 60px; text-align: right; }
+.fl-col-actions { width: 140px; text-align: right; }
+.fl-use-source {
+  font-size: 10px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+.fl-act-source-ok {
+  font-size: 10px;
+  color: var(--accent-green, #00ff66);
+  white-space: nowrap;
+}
+.prep-promote-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
 .fl-version {
   display: inline-block;
   padding: 1px 6px;
@@ -361,6 +387,8 @@
 <script>
 // ── File library (Stage 1B) ───────────────────────────────────────────────
 const _flPid = "{{ pid }}";
+// Keep in sync with finetune_studio.data.fs.qa.AUTO_PROMOTE_EXTENSIONS (injected).
+const _FL_PROMOTE_EXTS = {{ auto_promote_extensions | default(['.txt', '.md', '.markdown', '.log']) | tojson }};
 let _flFolders = [];
 let _flFiles = [];
 let _flTrash = [];
@@ -371,8 +399,46 @@ let _flTrashVisible = false;
 let _flConvCache = {};           // fid -> conversions[]
 let _flSources = [];             // data-prep sources (parsed.txt pipeline)
 
+function flIsPromotableText(name) {
+  const lower = String(name || '').toLowerCase();
+  const i = lower.lastIndexOf('.');
+  if (i < 0) return false;
+  return _FL_PROMOTE_EXTS.indexOf(lower.slice(i)) >= 0;
+}
+
+function flEligibleLibraryFiles() {
+  return (_flFiles || []).filter((f) =>
+    flIsPromotableText(f.original_name) && !flMatchSource(f.original_name)
+  );
+}
+
+function flUpdatePromotePanel() {
+  const panel = document.getElementById('prep-promote-panel');
+  const hint = document.getElementById('prep-source-hint');
+  if (!panel) return;
+  const eligible = flEligibleLibraryFiles();
+  const hasSources = (_flSources || []).length > 0;
+  panel.hidden = !(eligible.length > 0);
+  if (hint) {
+    if (!hasSources && eligible.length) {
+      hint.innerHTML =
+        'Source file is empty, but the library has ' + eligible.length +
+        ' text/markdown file(s) not yet added. Click <b>Use as source</b> on a row, or use the button below.';
+    } else if (!hasSources) {
+      hint.innerHTML =
+        'No parsed sources yet. Upload a .txt/.md file above, or promote an existing library file with <b>Use as source</b>.';
+    } else {
+      hint.innerHTML =
+        'Parsed sources appear here after upload (text/markdown) or when you click <b>Use as source</b> on an existing library file.';
+    }
+  }
+}
+
 async function flInit() {
   await Promise.all([flLoadFolders(), flLoadFiles(), flLoadTrash(), flLoadSources()]);
+  // Re-render after sources land so "Use as source" vs "✓ source" is accurate.
+  flRenderFiles();
+  flRefreshSourceSelect();
 }
 
 async function flLoadFolders() {
@@ -493,9 +559,10 @@ function flRenderFiles() {
       (_q ? 'No files match your search.' : 'No files yet. ' + (_flCurrentFolder ? 'Pick a different folder, or ' : '') + 'drop files above or click ⬆ Upload.') +
       '</td></tr>';
     if (footer) footer.textContent = '';
+    flUpdatePromotePanel();
     return;
   }
-  const html = _flFiles.map(f => {
+  const html = _visible.map(f => {
     const checked = _flSelected.has(f.id) ? 'checked' : '';
     const version = f.current_version || 1;
     const size = flFormatBytes(f.size_bytes || 0);
@@ -505,7 +572,22 @@ function flRenderFiles() {
     const parsedInd = hasParsed
       ? '<span class="fl-parsed-ind" title="Parsed MD ready">📝</span>'
       : '<span class="fl-parsed-ind no" title="No parsed output yet">·</span>';
+    const promotable = flIsPromotableText(f.original_name);
+    const alreadySource = !!flMatchSource(f.original_name);
+    let promoteAct = '';
+    if (promotable) {
+      if (alreadySource) {
+        promoteAct = '<span class="fl-act-source-ok" title="Already in the Source file picker">✓ source</span>';
+      } else {
+        promoteAct =
+          '<button type="button" class="btn small fl-use-source" data-file-id="' + f.id + '"' +
+          ' title="Parse and add this file to the Source file picker"' +
+          ' onclick="flUseAsSource(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\')">' +
+          'Use as source</button>';
+      }
+    }
     const actions = '<div class="fl-row-actions">' +
+      promoteAct +
       '<span class="fl-act" title="Tags & Notes" onclick="flEditTags(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\')">🏷</span>' +
       '<span class="fl-act" title="Rename" onclick="flRenameFile(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\')">✎</span>' +
       '<span class="fl-act" title="Preview" onclick="flPreviewFile(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\', \'' + (f.mime_type||'') + '\')">👁</span>' +
@@ -527,10 +609,11 @@ function flRenderFiles() {
   tbody.innerHTML = html;
   if (footer) {
     const selCount = _flSelected.size;
-    footer.textContent = _flFiles.length + ' file(s) in this view' + (selCount ? ' · ' + selCount + ' selected' : '');
+    footer.textContent = _visible.length + ' file(s) in this view' + (selCount ? ' · ' + selCount + ' selected' : '');
   }
   const selectAll = document.getElementById('fl-select-all');
-  if (selectAll) selectAll.checked = _flFiles.length > 0 && _flSelected.size === _flFiles.length;
+  if (selectAll) selectAll.checked = _visible.length > 0 && _flSelected.size === _visible.length;
+  flUpdatePromotePanel();
 }
 
 function flRenderTrash() {
@@ -566,14 +649,68 @@ async function flPromoteToDataPrep(fileId) {
     });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) {
-      console.warn('promote source failed', d);
-      return null;
+      const msg = (d && typeof d.error === 'string') ? d.error : ('HTTP ' + r.status);
+      console.warn('promote source failed', msg);
+      return { ok: false, error: msg };
     }
-    return d.source || null;
+    return { ok: true, source: d.source || null };
   } catch (e) {
     console.warn('promote source failed', e);
-    return null;
+    return { ok: false, error: (e && e.message) || 'network error' };
   }
+}
+
+async function flUseAsSource(fileId, name) {
+  const label = name || fileId;
+  flReport('Adding "' + label + '" to Source file…', 'info');
+  const statusEl = document.getElementById('prep-promote-status');
+  if (statusEl) statusEl.textContent = 'Adding…';
+  const result = await flPromoteToDataPrep(fileId);
+  if (!result.ok || !result.source) {
+    const err = (result && result.error) || 'promote failed';
+    flReport('Could not add "' + label + '" as a source: ' + err, 'error');
+    if (statusEl) statusEl.textContent = err;
+    return;
+  }
+  await flLoadSources();
+  flRenderFiles();
+  const src = result.source;
+  const chunks = src.chunk_count || 0;
+  const srcName = src.name || src.filename || label;
+  flReport('Added to Source file: ' + srcName + ' · ' + chunks + ' chunks', 'success');
+  if (statusEl) statusEl.textContent = 'Added ' + srcName;
+  const sel = document.getElementById('prep-source');
+  if (sel && src.id) sel.value = src.id;
+}
+
+async function flPromoteEligibleFromLibrary() {
+  const eligible = flEligibleLibraryFiles();
+  const statusEl = document.getElementById('prep-promote-status');
+  if (!eligible.length) {
+    if (statusEl) statusEl.textContent = 'Nothing to add';
+    flReport('No text/markdown library files need promoting.', 'info');
+    return;
+  }
+  if (statusEl) statusEl.textContent = 'Adding ' + eligible.length + '…';
+  let ok = 0;
+  let fail = 0;
+  let lastId = '';
+  for (const f of eligible) {
+    const result = await flPromoteToDataPrep(f.id);
+    if (result.ok && result.source) {
+      ok += 1;
+      lastId = result.source.id || lastId;
+    } else {
+      fail += 1;
+    }
+  }
+  await flLoadSources();
+  flRenderFiles();
+  const msg = 'Added ' + ok + ' source(s)' + (fail ? '; ' + fail + ' failed' : '') + '.';
+  flReport(msg, fail ? 'error' : 'success');
+  if (statusEl) statusEl.textContent = msg;
+  const sel = document.getElementById('prep-source');
+  if (sel && lastId) sel.value = lastId;
 }
 
 function flRefreshSourceSelect() {
@@ -588,6 +725,7 @@ function flRefreshSourceSelect() {
   }
   sel.innerHTML = opts.join('');
   if (prev) sel.value = prev;
+  flUpdatePromotePanel();
 }
 
 async function flUploadFiles(files) {

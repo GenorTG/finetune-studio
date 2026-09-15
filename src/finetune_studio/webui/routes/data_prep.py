@@ -150,6 +150,7 @@ async def data_prep_page(request: Request, pid: str):
     if not project:
         return HTMLResponse("Project not found", status_code=404)
     sources = pfs.list_qa_sources(pid)
+    from finetune_studio.data.fs.qa import AUTO_PROMOTE_EXTENSIONS
     from finetune_studio.models.helper import (
         DEFAULT_HELPER_LABEL,
         DEFAULT_HELPER_PROVIDER_ID,
@@ -164,6 +165,8 @@ async def data_prep_page(request: Request, pid: str):
         "sources": sources,
         "helper_label": (helper or {}).get("label") or DEFAULT_HELPER_LABEL,
         "helper_provider_id": DEFAULT_HELPER_PROVIDER_ID,
+        # Keep the "Use as source" UI in sync with upload auto-promote.
+        "auto_promote_extensions": sorted(AUTO_PROMOTE_EXTENSIONS),
     }
     return templates.TemplateResponse(request, "data_prep.html", ctx)
 
