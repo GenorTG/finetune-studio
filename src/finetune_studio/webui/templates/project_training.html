@@ -250,7 +250,7 @@
       <div class="card-title">Live status</div>
       <div class="card-sub">Streaming while training is running.</div>
     </div>
-    <span class="pill solid-amber" id="train-status-badge">idle</span>
+    <span class="pill outline" id="train-status-badge">idle</span>
   </div>
   <div id="train-status" class="text-sm" aria-live="polite">No run in progress.</div>
   <div class="bar mt-3"><div class="fill" id="train-progress-bar" style="width:0%"></div></div>
@@ -704,7 +704,10 @@
       const msg = s.message || "";
       const lines = Array.isArray(s.log_lines) ? s.log_lines : [];
 
-      if (badge) badge.textContent = st;
+      if (badge) {
+        badge.textContent = st;
+        badge.className = "pill " + statusPillClass(st === "idle" ? "stopped" : st);
+      }
       if (ACTIVE[st]) {
         wasActive = true;
         let line = msg || st;

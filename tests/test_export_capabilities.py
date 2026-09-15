@@ -26,13 +26,30 @@ def test_probe_export_capabilities_shape() -> None:
     caps = probe_export_capabilities()
     assert isinstance(caps, ExportCapabilities)
     data = caps.as_dict()
-    assert set(data) >= {"gguf", "gptq", "gguf_hint", "gptq_hint", "gguf_script"}
+    assert set(data) >= {
+        "gguf",
+        "gptq",
+        "gguf_hint",
+        "gptq_hint",
+        "gguf_script",
+        "optimum",
+        "gptq_inference_hf",
+    }
     assert isinstance(data["gguf"], bool)
     assert isinstance(data["gptq"], bool)
+    assert isinstance(data["optimum"], bool)
     if not data["gguf"]:
         assert "convert_hf_to_gguf" in data["gguf_hint"]
     if not data["gptq"]:
         assert "gptqmodel" in data["gptq_hint"] or "auto_gptq" in data["gptq_hint"]
+
+
+def test_export_template_surfaces_optimum_hint() -> None:
+    html = _EXPORT_TMPL.read_text(encoding="utf-8")
+    assert "export-gptq-optimum-hint" in html
+    assert "export only" in html
+    assert "optimum" in html.lower()
+    assert '.[gptq]' in html or "optimum" in html
 
 
 def test_export_template_disables_unavailable_formats() -> None:
@@ -55,6 +72,8 @@ def test_export_page_marks_gguf_gptq_unavailable(client) -> None:
         gguf_script=None,
         gguf_hint=GGUF_CONVERTER_MISSING_MSG,
         gptq_hint=GPTQ_CONVERTER_MISSING_MSG,
+        optimum=False,
+        gptq_inference_hf=False,
     )
     pid = client.post(
         "/api/projects", json={"name": "Caps Unavailable"}
@@ -81,6 +100,8 @@ def test_export_page_enables_gguf_when_converter_present(client) -> None:
         gguf_script="/opt/llama.cpp/convert_hf_to_gguf.py",
         gguf_hint="",
         gptq_hint="",
+        optimum=True,
+        gptq_inference_hf=True,
     )
     pid = client.post(
         "/api/projects", json={"name": "Caps Available"}

@@ -98,6 +98,8 @@
     {% endif %}
     {% if not caps.gptq %}
     <div class="err mb-1" id="export-gptq-unavailable">GPTQ unavailable — {{ caps.gptq_hint }}</div>
+    {% elif caps.gptq_hint %}
+    <div class="warn mb-1" id="export-gptq-optimum-hint" role="status">{{ caps.gptq_hint }}</div>
     {% endif %}
   </div>
   <div class="grid grid-2 gap-3 p-2">
@@ -113,8 +115,8 @@
       <input type="checkbox" name="export-format" value="gptq" class="mt-1"
              {% if not caps.gptq %}disabled title="{{ caps.gptq_hint }}"{% endif %}>
       <div>
-        <div class="text-sm font-bold">GPTQ{% if not caps.gptq %} <span class="pill outline">unavailable</span>{% endif %}</div>
-        <div class="text-xs dim">Quantized for vLLM / HuggingFace inference.</div>
+        <div class="text-sm font-bold">GPTQ{% if not caps.gptq %} <span class="pill outline">unavailable</span>{% elif not caps.gptq_inference_hf %} <span class="pill outline" title="{{ caps.gptq_hint }}">export only</span>{% endif %}</div>
+        <div class="text-xs dim">Quantized export (gptqmodel/auto_gptq). HF Transformers load also needs optimum.</div>
       </div>
     </label>
     <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">

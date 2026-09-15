@@ -1,0 +1,415 @@
+{
+  "schema_version": 1,
+  "id": "hellaswag_offline",
+  "version": 1,
+  "family": "hellaswag",
+  "suite_type": "industry_offline",
+  "title": "HellaSwag-style completion",
+  "description": "Synthetic offline sentence-completion suite styled after HellaSwag. Not the HuggingFace HellaSwag dataset \u2014 synthetic/offline only; no licensed external data is bundled.",
+  "synthetic": true,
+  "offline": true,
+  "licensed_external_data": false,
+  "scoring": "deterministic_keywords",
+  "cases": [
+    {
+      "name": "hellaswag_off_eating",
+      "category": "commonsense",
+      "question": "A person sits down to eat dinner. They are most likely to:\nA) Put on swim fins\nB) Use a fork or spoon\nC) Open a parachute\nD) Tune a piano\nReply with the letter and the ending.",
+      "correct_answer": "B) Use a fork or spoon",
+      "keywords": [
+        "B",
+        "fork"
+      ]
+    },
+    {
+      "name": "hellaswag_off_red_light",
+      "category": "commonsense",
+      "question": "A driver approaches a red traffic light. They should:\nA) Speed up\nB) Stop\nC) Honk continuously\nD) Close their eyes\nReply with the letter and the ending.",
+      "correct_answer": "B) Stop",
+      "keywords": [
+        "B",
+        "Stop"
+      ]
+    },
+    {
+      "name": "hellaswag_off_umbrella",
+      "category": "commonsense",
+      "question": "It starts raining hard outdoors. A pedestrian without a coat is likely to:\nA) Open an umbrella or seek cover\nB) Start a campfire\nC) Put on sunglasses for glare\nD) Water houseplants outdoors\nReply with the letter and the ending.",
+      "correct_answer": "A) Open an umbrella or seek cover",
+      "keywords": [
+        "A",
+        "umbrella"
+      ]
+    },
+    {
+      "name": "hellaswag_off_library",
+      "category": "commonsense",
+      "question": "In a quiet library, people usually:\nA) Shout across tables\nB) Speak softly or stay quiet\nC) Play drums\nD) Rev motorcycle engines\nReply with the letter and the ending.",
+      "correct_answer": "B) Speak softly or stay quiet",
+      "keywords": [
+        "B",
+        "quiet"
+      ]
+    },
+    {
+      "name": "hellaswag_off_toothbrush",
+      "category": "commonsense",
+      "question": "After brushing teeth at night, people commonly:\nA) Rinse and put the brush away\nB) Deep-fry the toothbrush\nC) Plant it in soil\nD) Use it as a hammer\nReply with the letter and the ending.",
+      "correct_answer": "A) Rinse and put the brush away",
+      "keywords": [
+        "A",
+        "Rinse"
+      ]
+    },
+    {
+      "name": "hellaswag_off_stove",
+      "category": "commonsense",
+      "question": "When finished cooking on a stove, a careful cook will:\nA) Leave burners on overnight\nB) Turn the burners off\nC) Cover burners with paper\nD) Pour gasoline nearby\nReply with the letter and the ending.",
+      "correct_answer": "B) Turn the burners off",
+      "keywords": [
+        "B",
+        "off"
+      ]
+    },
+    {
+      "name": "hellaswag_off_sleep",
+      "category": "commonsense",
+      "question": "Someone who is very tired at bedtime is likely to:\nA) Go to sleep\nB) Start marathon training immediately\nC) Climb a radio tower\nD) Paint the ceiling\nReply with the letter and the ending.",
+      "correct_answer": "A) Go to sleep",
+      "keywords": [
+        "A",
+        "sleep"
+      ]
+    },
+    {
+      "name": "hellaswag_off_ice",
+      "category": "commonsense",
+      "question": "Ice left on a warm counter will typically:\nA) Melt\nB) Freeze harder\nC) Turn into wood\nD) Evaporate into helium\nReply with the letter and the ending.",
+      "correct_answer": "A) Melt",
+      "keywords": [
+        "A",
+        "Melt"
+      ]
+    },
+    {
+      "name": "hellaswag_off_email",
+      "category": "commonsense",
+      "question": "To reply to an email, a user usually:\nA) Types a response and sends it\nB) Throws the monitor away\nC) Rewires the power grid\nD) Digs a trench\nReply with the letter and the ending.",
+      "correct_answer": "A) Types a response and sends it",
+      "keywords": [
+        "A",
+        "response"
+      ]
+    },
+    {
+      "name": "hellaswag_off_shoes",
+      "category": "commonsense",
+      "question": "Before leaving home for a walk, people often:\nA) Put on shoes\nB) Wear scuba tanks indoors only\nC) Glue socks to the ceiling\nD) Fill shoes with soup\nReply with the letter and the ending.",
+      "correct_answer": "A) Put on shoes",
+      "keywords": [
+        "A",
+        "shoes"
+      ]
+    },
+    {
+      "name": "hellaswag_off_phone_ring",
+      "category": "commonsense",
+      "question": "When a phone rings and someone wants to talk, they typically:\nA) Answer the call\nB) Microwave the phone\nC) Hide under a rug forever\nD) Eat the SIM card\nReply with the letter and the ending.",
+      "correct_answer": "A) Answer the call",
+      "keywords": [
+        "A",
+        "Answer"
+      ]
+    },
+    {
+      "name": "hellaswag_off_grocery",
+      "category": "commonsense",
+      "question": "At a grocery checkout with items in a cart, a shopper usually:\nA) Pays for the items\nB) Abandons physics\nC) Launches the cart into orbit\nD) Reads the cart to sleep\nReply with the letter and the ending.",
+      "correct_answer": "A) Pays for the items",
+      "keywords": [
+        "A",
+        "Pays"
+      ]
+    },
+    {
+      "name": "hellaswag_off_seatbelt",
+      "category": "commonsense",
+      "question": "Before driving, safety guidance says occupants should:\nA) Buckle seatbelts\nB) Remove all mirrors\nC) Disable brakes\nD) Cover windows with foil permanently\nReply with the letter and the ending.",
+      "correct_answer": "A) Buckle seatbelts",
+      "keywords": [
+        "A",
+        "seatbelt"
+      ]
+    },
+    {
+      "name": "hellaswag_off_plant_water",
+      "category": "commonsense",
+      "question": "A dry houseplant often needs:\nA) Water\nB) Concrete poured on leaves\nC) Salt instead of soil always\nD) Absolute darkness forever\nReply with the letter and the ending.",
+      "correct_answer": "A) Water",
+      "keywords": [
+        "A",
+        "Water"
+      ]
+    },
+    {
+      "name": "hellaswag_off_birthday",
+      "category": "commonsense",
+      "question": "At a birthday party with a cake, guests often:\nA) Sing and eat cake\nB) File tax forms on the frosting\nC) Vacuum the candles into space\nD) Replace cake with gravel\nReply with the letter and the ending.",
+      "correct_answer": "A) Sing and eat cake",
+      "keywords": [
+        "A",
+        "cake"
+      ]
+    },
+    {
+      "name": "hellaswag_off_doctor",
+      "category": "commonsense",
+      "question": "A person with a high fever may:\nA) See a doctor or rest and hydrate\nB) Juggle chainsaws\nC) Swim across an ocean immediately\nD) Eat only rocks\nReply with the letter and the ending.",
+      "correct_answer": "A) See a doctor or rest and hydrate",
+      "keywords": [
+        "A",
+        "doctor"
+      ]
+    },
+    {
+      "name": "hellaswag_off_password",
+      "category": "commonsense",
+      "question": "To keep an account secure, users should:\nA) Keep passwords private\nB) Post passwords on billboards\nC) Share passwords in chat groups freely\nD) Tattoo passwords on strangers\nReply with the letter and the ending.",
+      "correct_answer": "A) Keep passwords private",
+      "keywords": [
+        "A",
+        "private"
+      ]
+    },
+    {
+      "name": "hellaswag_off_crosswalk",
+      "category": "commonsense",
+      "question": "Pedestrians crossing a busy street should:\nA) Use a crosswalk and watch traffic\nB) Sprint blindfolded between trucks\nC) Lie down in the lane\nD) Ignore all signals always\nReply with the letter and the ending.",
+      "correct_answer": "A) Use a crosswalk and watch traffic",
+      "keywords": [
+        "A",
+        "crosswalk"
+      ]
+    },
+    {
+      "name": "hellaswag_off_fridge",
+      "category": "commonsense",
+      "question": "Milk is usually stored in a:\nA) Refrigerator\nB) Oven at 200\u00b0C\nC) Fireplace\nD) Dishwasher on sanitize\nReply with the letter and the ending.",
+      "correct_answer": "A) Refrigerator",
+      "keywords": [
+        "A",
+        "Refrigerator"
+      ]
+    },
+    {
+      "name": "hellaswag_off_handshake",
+      "category": "commonsense",
+      "question": "When greeting someone professionally in many cultures, people may:\nA) Shake hands\nB) Throw chairs\nC) Unplug servers randomly\nD) Eat the business cards\nReply with the letter and the ending.",
+      "correct_answer": "A) Shake hands",
+      "keywords": [
+        "A",
+        "Shake"
+      ]
+    },
+    {
+      "name": "hellaswag_off_battery",
+      "category": "commonsense",
+      "question": "A phone at 1% battery is likely to:\nA) Need charging soon\nB) Become a satellite\nC) Grow leaves\nD) Print newspapers\nReply with the letter and the ending.",
+      "correct_answer": "A) Need charging soon",
+      "keywords": [
+        "A",
+        "charging"
+      ]
+    },
+    {
+      "name": "hellaswag_off_alarm",
+      "category": "commonsense",
+      "question": "When an alarm clock rings in the morning, people often:\nA) Turn it off or snooze\nB) Swallow the clock\nC) Paint the sound\nD) Mail the alarm to the moon\nReply with the letter and the ending.",
+      "correct_answer": "A) Turn it off or snooze",
+      "keywords": [
+        "A",
+        "off"
+      ]
+    },
+    {
+      "name": "hellaswag_off_washing",
+      "category": "commonsense",
+      "question": "Dirty laundry is typically cleaned in a:\nA) Washing machine\nB) Toaster\nC) Blender set to puree clothes\nD) Freezer permanently\nReply with the letter and the ending.",
+      "correct_answer": "A) Washing machine",
+      "keywords": [
+        "A",
+        "Washing"
+      ]
+    },
+    {
+      "name": "hellaswag_off_map",
+      "category": "commonsense",
+      "question": "Someone lost in a new city might:\nA) Check a map or navigation app\nB) Dig a tunnel home immediately\nC) Invent a new language first\nD) Throw away their phone always\nReply with the letter and the ending.",
+      "correct_answer": "A) Check a map or navigation app",
+      "keywords": [
+        "A",
+        "map"
+      ]
+    },
+    {
+      "name": "hellaswag_off_helmet",
+      "category": "commonsense",
+      "question": "Before riding a bicycle in traffic, riders often:\nA) Wear a helmet\nB) Blindfold themselves\nC) Remove the brakes\nD) Attach a sail for highway speeds\nReply with the letter and the ending.",
+      "correct_answer": "A) Wear a helmet",
+      "keywords": [
+        "A",
+        "helmet"
+      ]
+    },
+    {
+      "name": "hellaswag_off_meeting",
+      "category": "commonsense",
+      "question": "Arriving late to a meeting, a polite person may:\nA) Apologize quietly and join\nB) Slam doors repeatedly\nC) Cancel gravity\nD) Shred the agenda for fun\nReply with the letter and the ending.",
+      "correct_answer": "A) Apologize quietly and join",
+      "keywords": [
+        "A",
+        "Apologize"
+      ]
+    },
+    {
+      "name": "hellaswag_off_candle",
+      "category": "commonsense",
+      "question": "Before leaving a room with a lit candle, a careful person should:\nA) Blow it out or extinguish it\nB) Add more paper nearby\nC) Point a fan of gasoline at it\nD) Hide it under curtains\nReply with the letter and the ending.",
+      "correct_answer": "A) Blow it out or extinguish it",
+      "keywords": [
+        "A",
+        "extinguish"
+      ]
+    },
+    {
+      "name": "hellaswag_off_soup",
+      "category": "commonsense",
+      "question": "Hot soup is usually eaten with a:\nA) Spoon\nB) Chainsaw\nC) Leaf blower\nD) Measuring tape\nReply with the letter and the ending.",
+      "correct_answer": "A) Spoon",
+      "keywords": [
+        "A",
+        "Spoon"
+      ]
+    },
+    {
+      "name": "hellaswag_off_exam",
+      "category": "commonsense",
+      "question": "During a closed-book exam, students should:\nA) Rely on their own knowledge\nB) Phone a friend mid-test openly\nC) Copy from neighbors loudly\nD) Rewrite the school charter\nReply with the letter and the ending.",
+      "correct_answer": "A) Rely on their own knowledge",
+      "keywords": [
+        "A",
+        "knowledge"
+      ]
+    },
+    {
+      "name": "hellaswag_off_trash",
+      "category": "commonsense",
+      "question": "Household trash is typically put in a:\nA) Trash bin / bag\nB) Clean pillowcase permanently\nC) Computer USB port\nD) Aquarium filter\nReply with the letter and the ending.",
+      "correct_answer": "A) Trash bin / bag",
+      "keywords": [
+        "A",
+        "Trash"
+      ]
+    },
+    {
+      "name": "hellaswag_off_glasses",
+      "category": "commonsense",
+      "question": "Someone who needs clearer distance vision may wear:\nA) Prescription glasses or contacts\nB) Oven mitts on their eyes\nC) Opaque paint on lenses always\nD) Earplugs on their eyes\nReply with the letter and the ending.",
+      "correct_answer": "A) Prescription glasses or contacts",
+      "keywords": [
+        "A",
+        "glasses"
+      ]
+    },
+    {
+      "name": "hellaswag_off_queue",
+      "category": "commonsense",
+      "question": "In a line at a ticket counter, people usually:\nA) Wait their turn\nB) Leap over the counter as policy\nC) Delete the queue physically\nD) Replace tickets with rocks\nReply with the letter and the ending.",
+      "correct_answer": "A) Wait their turn",
+      "keywords": [
+        "A",
+        "Wait"
+      ]
+    },
+    {
+      "name": "hellaswag_off_sunset",
+      "category": "commonsense",
+      "question": "After sunset outdoors without lights, it generally becomes:\nA) Darker\nB) Noon-bright automatically\nC) Underwater\nD) Magnetic north only\nReply with the letter and the ending.",
+      "correct_answer": "A) Darker",
+      "keywords": [
+        "A",
+        "Darker"
+      ]
+    },
+    {
+      "name": "hellaswag_off_backpack",
+      "category": "commonsense",
+      "question": "Students carrying books to class often use a:\nA) Backpack or bag\nB) Wheelbarrow of lava\nC) Shopping cart of bees\nD) Satellite dish hat\nReply with the letter and the ending.",
+      "correct_answer": "A) Backpack or bag",
+      "keywords": [
+        "A",
+        "Backpack"
+      ]
+    },
+    {
+      "name": "hellaswag_off_sneeze",
+      "category": "commonsense",
+      "question": "When someone sneezes nearby, etiquette often includes:\nA) Saying 'bless you' / covering coughs\nB) Starting a lawnmower indoors\nC) Spraying paint\nD) Unplugging the building\nReply with the letter and the ending.",
+      "correct_answer": "A) Saying 'bless you' / covering coughs",
+      "keywords": [
+        "A",
+        "bless"
+      ]
+    },
+    {
+      "name": "hellaswag_off_lock",
+      "category": "commonsense",
+      "question": "Leaving an apartment for vacation, people often:\nA) Lock the door\nB) Prop the door open with cash\nC) Remove all locks permanently\nD) Invite strangers via billboard\nReply with the letter and the ending.",
+      "correct_answer": "A) Lock the door",
+      "keywords": [
+        "A",
+        "Lock"
+      ]
+    },
+    {
+      "name": "hellaswag_off_recipe",
+      "category": "commonsense",
+      "question": "Following a cake recipe, bakers usually:\nA) Measure ingredients as directed\nB) Swap flour for gravel always\nC) Bake at absolute zero\nD) Skip ovens and freeze batter as cake\nReply with the letter and the ending.",
+      "correct_answer": "A) Measure ingredients as directed",
+      "keywords": [
+        "A",
+        "Measure"
+      ]
+    },
+    {
+      "name": "hellaswag_off_wifi",
+      "category": "commonsense",
+      "question": "To join a home Wi-Fi network, a device typically needs:\nA) The correct password / credentials\nB) A submarine\nC) A notarized poem only\nD) Physical teleportation\nReply with the letter and the ending.",
+      "correct_answer": "A) The correct password / credentials",
+      "keywords": [
+        "A",
+        "password"
+      ]
+    },
+    {
+      "name": "hellaswag_off_stairs",
+      "category": "commonsense",
+      "question": "To go up one floor without an elevator, people often:\nA) Take the stairs\nB) Dig through the foundation\nC) Wait for rain to lift them\nD) Invent antigravity first\nReply with the letter and the ending.",
+      "correct_answer": "A) Take the stairs",
+      "keywords": [
+        "A",
+        "stairs"
+      ]
+    },
+    {
+      "name": "hellaswag_off_recycle",
+      "category": "commonsense",
+      "question": "Clean cardboard is often placed in:\nA) Recycling\nB) The oven\nC) A fish tank as food\nD) A running blender as default storage\nReply with the letter and the ending.",
+      "correct_answer": "A) Recycling",
+      "keywords": [
+        "A",
+        "Recycling"
+      ]
+    }
+  ]
+}

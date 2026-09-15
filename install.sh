@@ -384,19 +384,16 @@ install_llama_cpp_cli
 # These are used by advanced features (abliteration, GPTQ export, Unsloth).
 # They're installed silently — if they fail, the app still works.
 install_optional_packages() {
-    log "Installing optional packages (unsloth, auto-gptq, numpy, scipy)...""
+    log "Installing optional packages (unsloth, gptq extra, numpy, scipy)..."
     # numpy and scipy are needed for abliteration (always useful)
     uv pip install --python "$PYTHON_CMD" "numpy>=1.24.0" "scipy>=1.10.0" 2>&1 | tail -1 \
         || warn "numpy/scipy install failed — abliteration may not work."
     # unsloth for faster training
     uv pip install --python "$PYTHON_CMD" "unsloth>=2024.10.0" 2>&1 | tail -1 \
         || warn "unsloth install failed — will use standard training."
-    # auto-gptq for GPTQ quantization
-    uv pip install --python "$PYTHON_CMD" "auto-gptq>=0.7.0" 2>&1 | tail -1 \
-        || warn "auto-gptq install failed — GPTQ export unavailable."
-    # auto-gptq for GPTQ quantization
-    uv pip install --python "$PYTHON_CMD" "auto-gptq>=0.7.0" 2>&1 | tail -1 \
-        || warn "auto-gptq install failed — GPTQ export unavailable."
+    # GPTQ export (gptqmodel) + Transformers GPTQ load (optimum) via pyproject extra
+    uv pip install --python "$PYTHON_CMD" -e '.[gptq]' 2>&1 | tail -1 \
+        || warn "gptq extra install failed — try: uv pip install -e '.[gptq]' (gptqmodel + optimum)."
 }
 install_optional_packages
 

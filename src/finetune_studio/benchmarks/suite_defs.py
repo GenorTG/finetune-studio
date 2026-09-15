@@ -1,8 +1,9 @@
 """Versioned built-in benchmark suite definitions and discovery.
 
-Industry-style smoke suites ship as JSON under ``fixtures/``. They are
-data-agnostic (no HuggingFace / network), clearly labeled, and selectable
-alongside project auto-suites and ``data/benchmarks/*.json`` files.
+Industry-style smoke suites and larger synthetic offline suites ship as JSON
+under ``fixtures/``. They are data-agnostic (no HuggingFace / network), clearly
+labeled as synthetic/offline, and selectable alongside project auto-suites and
+``data/benchmarks/*.json`` files.
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-SuiteType = Literal["industry_smoke", "local", "auto"]
+SuiteType = Literal["industry_smoke", "industry_offline", "local", "auto"]
 SuiteSource = Literal["builtin", "data_benchmarks", "auto_suites"]
 
 _FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
@@ -43,7 +44,7 @@ _BUILTIN_SMOKE: tuple[dict[str, Any], ...] = (
         "title": "MMLU-style knowledge",
         "description": (
             "Local smoke suite styled after MMLU multiple-choice knowledge. "
-            "Not the HuggingFace MMLU dataset — offline only."
+            "Not the HuggingFace MMLU dataset — synthetic/offline only."
         ),
         "version": 1,
     },
@@ -54,7 +55,7 @@ _BUILTIN_SMOKE: tuple[dict[str, Any], ...] = (
         "title": "GSM8K-style arithmetic",
         "description": (
             "Local smoke suite styled after GSM8K grade-school math. "
-            "Not the HuggingFace GSM8K dataset — offline only."
+            "Not the HuggingFace GSM8K dataset — synthetic/offline only."
         ),
         "version": 1,
     },
@@ -65,7 +66,7 @@ _BUILTIN_SMOKE: tuple[dict[str, Any], ...] = (
         "title": "HellaSwag-style completion",
         "description": (
             "Local smoke suite styled after HellaSwag sentence completion. "
-            "Not the HuggingFace HellaSwag dataset — offline only."
+            "Not the HuggingFace HellaSwag dataset — synthetic/offline only."
         ),
         "version": 1,
     },
@@ -92,7 +93,15 @@ class SuiteDefinition:
             ver = f" v{self.version}" if self.version is not None else ""
             n = self.case_count
             count = f" · {n} cases" if n is not None else ""
-            return f"industry · {self.title} (smoke{ver}){count}"
+            return f"industry · {self.title} (smoke{ver} · synthetic/offline){count}"
+        if self.suite_type == "industry_offline":
+            ver = f" v{self.version}" if self.version is not None else ""
+            n = self.case_count
+            count = f" · {n} cases" if n is not None else ""
+            return (
+                f"industry · {self.title} "
+                f"(offline synthetic{ver}){count}"
+            )
         if self.suite_type == "auto":
             n = self.case_count or 0
             return f"auto · {self.name} ({n} cases)"
@@ -157,30 +166,69 @@ def list_builtin_smoke_suites() -> list[SuiteDefinition]:
     return out
 
 
+def list_builtin_offline_suites() -> list[SuiteDefinition]:
+    """Return substantive synthetic offline suites (ensure fixtures on disk)."""
+    from finetune_studio.benchmarks.offline_suites import (
+        ensure_offline_fixtures,
+        offline_suite_metas,
+    )
+
+    ensure_offline_fixtures()
+    out: list[SuiteDefinition] = []
+    for meta in offline_suite_metas():
+        path = _FIXTURES_DIR / str(meta["filename"])
+        if not path.is_file():
+            continue
+        out.append(
+            SuiteDefinition(
+                name=str(meta["name"]),
+                path=str(path),
+                title=str(meta["title"]),
+                description=str(meta["description"]),
+                suite_type="industry_offline",
+                source="builtin",
+                version=int(meta["version"]),
+                family=str(meta["family"]),
+                case_count=_case_count_from_file(path),
+            )
+        )
+    return out
+
+
+def list_builtin_industry_suites() -> list[SuiteDefinition]:
+    """Smoke + substantive offline built-ins."""
+    return list_builtin_smoke_suites() + list_builtin_offline_suites()
+
+
 def format_auto_suite_label(suite_name: str, case_count: int) -> str:
     """Label for a project auto-generated suite."""
     return f"auto · {suite_name} ({case_count} cases)"
 
 
 def _sort_key(entry: dict[str, Any]) -> tuple[int, str]:
-    """Industry smoke first, then local, then auto; alpha within group."""
+    """Offline first (substantive), then smoke, then local, then auto."""
     st = str(entry.get("suite_type") or "")
-    order = {"industry_smoke": 0, "local": 1, "auto": 2}.get(st, 9)
+    order = {
+        "industry_offline": 0,
+        "industry_smoke": 1,
+        "local": 2,
+        "auto": 3,
+    }.get(st, 9)
     return (order, str(entry.get("label") or entry.get("name") or ""))
 
 
 def discover_suites(project_id: str | None = None) -> list[dict[str, Any]]:
-    """Discover selectable suites: industry smoke, local JSON, project auto.
+    """Discover selectable suites: offline, smoke, local JSON, project auto.
 
     Known / discovered files under ``data/benchmarks/`` are included only when
-    the path is present on disk. Built-in smoke fixtures are always listed when
+    the path is present on disk. Built-in fixtures are always listed when
     their package files exist. When ``project_id`` is set, rows from
     ``auto_suites`` for that project are appended.
     """
     found: dict[str, dict[str, Any]] = {}
 
-    for smoke in list_builtin_smoke_suites():
-        found[f"builtin:{smoke.name}"] = smoke.as_dict()
+    for industry in list_builtin_industry_suites():
+        found[f"builtin:{industry.name}"] = industry.as_dict()
 
     for s in _KNOWN_LOCAL_SUITES:
         path = s["path"]

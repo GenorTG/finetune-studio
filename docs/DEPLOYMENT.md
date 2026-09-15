@@ -26,15 +26,16 @@ git clone https://github.com/GenorTG/finetune-studio && cd finetune-studio
 6. `scripts/install_diagnose.py` — deep health check (mixed installs, missing deps,
    broken torchaudio, service status); `--repair` autofixes.
 
-### Optional: GPTQ export (`auto-gptq`)
+### Optional: GPTQ export + Transformers load (`.[gptq]`)
 
-GPTQ is **gated**: the Export UI disables the format until `auto_gptq` imports.
-Install into the app venv on the GPU host:
+GPTQ **export** is gated until `gptqmodel` (preferred) or `auto_gptq` imports.
+Loading GPTQ checkpoints with Transformers also needs **`optimum`** (included in
+the `gptq` extra). Install into the app venv on the GPU host:
 
 ```bash
 cd /path/to/finetune-studio
 uv pip install --python .venv/bin/python -e '.[gptq]'
-# equivalent: uv pip install --python .venv/bin/python 'auto-gptq>=0.7.0'
+# installs gptqmodel + optimum; legacy fallback: auto-gptq separately
 systemctl --user restart finetune-studio
 ```
 

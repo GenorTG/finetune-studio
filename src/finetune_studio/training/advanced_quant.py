@@ -41,6 +41,15 @@ def is_gptq_available() -> bool:
     return is_gptqmodel_available() or is_auto_gptq_available()
 
 
+def is_optimum_available() -> bool:
+    """Return True when ``optimum`` imports (needed for HF GPTQ inference)."""
+    try:
+        import optimum  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def preferred_gptq_backend() -> GptqBackendName | None:
     """Prefer ``gptqmodel``; fall back to ``auto_gptq``; else None."""
     if is_gptqmodel_available():
@@ -54,9 +63,38 @@ def gptq_missing_backend_message() -> str:
     """Actionable error when neither GPTQ backend is installed."""
     return (
         "Neither gptqmodel nor auto_gptq is installed. "
-        "Install gptqmodel (preferred) or auto-gptq to export GPTQ, "
+        "Install with: uv pip install -e '.[gptq]' "
+        "(gptqmodel + optimum for Transformers load), "
         "or choose format=merged / gguf instead."
     )
+
+
+def gptq_optimum_inference_hint() -> str:
+    """Hint when export backend is present but HF GPTQ load needs optimum."""
+    return (
+        "GPTQ export backend is installed, but Transformers GPTQ loading "
+        "needs optimum. Install with: uv pip install -e '.[gptq]' "
+        "(includes optimum)."
+    )
+
+
+def gptq_dependency_hints() -> dict[str, Any]:
+    """Capability flags + actionable hints for export vs inference deps."""
+    export_ok = is_gptq_available()
+    optimum_ok = is_optimum_available()
+    hints: list[str] = []
+    if not export_ok:
+        hints.append(gptq_missing_backend_message())
+    elif not optimum_ok:
+        hints.append(gptq_optimum_inference_hint())
+    return {
+        "gptq_export": export_ok,
+        "optimum": optimum_ok,
+        "gptq_inference_hf": export_ok and optimum_ok,
+        "backend": preferred_gptq_backend(),
+        "hints": hints,
+        "hint": hints[0] if hints else "",
+    }
 
 
 def verify_gptq_artifacts(gptq_dir: str) -> dict[str, Any]:

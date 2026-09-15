@@ -1,0 +1,376 @@
+{
+  "schema_version": 1,
+  "id": "gsm8k_offline",
+  "version": 1,
+  "family": "gsm8k",
+  "suite_type": "industry_offline",
+  "title": "GSM8K-style arithmetic",
+  "description": "Synthetic offline grade-school math suite styled after GSM8K. Not the HuggingFace GSM8K dataset \u2014 synthetic/offline only; no licensed external data is bundled.",
+  "synthetic": true,
+  "offline": true,
+  "licensed_external_data": false,
+  "scoring": "deterministic_keywords",
+  "cases": [
+    {
+      "name": "gsm8k_off_apples",
+      "category": "arithmetic",
+      "question": "Mia has 12 apples and gives away 5. How many does she have left? Reply with the final number only.",
+      "correct_answer": "7",
+      "keywords": [
+        "7"
+      ]
+    },
+    {
+      "name": "gsm8k_off_double",
+      "category": "arithmetic",
+      "question": "A number is 9. What is double that number? Reply with the final number only.",
+      "correct_answer": "18",
+      "keywords": [
+        "18"
+      ]
+    },
+    {
+      "name": "gsm8k_off_half_20",
+      "category": "arithmetic",
+      "question": "What is half of 20? Reply with the final number only.",
+      "correct_answer": "10",
+      "keywords": [
+        "10"
+      ]
+    },
+    {
+      "name": "gsm8k_off_sum_3_5",
+      "category": "arithmetic",
+      "question": "What is 3 + 5? Reply with the final number only.",
+      "correct_answer": "8",
+      "keywords": [
+        "8"
+      ]
+    },
+    {
+      "name": "gsm8k_off_diff_15_4",
+      "category": "arithmetic",
+      "question": "What is 15 \u2212 4? Reply with the final number only.",
+      "correct_answer": "11",
+      "keywords": [
+        "11"
+      ]
+    },
+    {
+      "name": "gsm8k_off_prod_6_7",
+      "category": "arithmetic",
+      "question": "What is 6 \u00d7 7? Reply with the final number only.",
+      "correct_answer": "42",
+      "keywords": [
+        "42"
+      ]
+    },
+    {
+      "name": "gsm8k_off_div_81_9",
+      "category": "arithmetic",
+      "question": "What is 81 \u00f7 9? Reply with the final number only.",
+      "correct_answer": "9",
+      "keywords": [
+        "9"
+      ]
+    },
+    {
+      "name": "gsm8k_off_train_tickets",
+      "category": "word_problem",
+      "question": "Tickets cost $8 each. Sam buys 4 tickets. How many dollars does Sam spend? Reply with the final number only.",
+      "correct_answer": "32",
+      "keywords": [
+        "32"
+      ]
+    },
+    {
+      "name": "gsm8k_off_cookies",
+      "category": "word_problem",
+      "question": "A jar has 40 cookies. 15 are eaten. How many remain? Reply with the final number only.",
+      "correct_answer": "25",
+      "keywords": [
+        "25"
+      ]
+    },
+    {
+      "name": "gsm8k_off_pages",
+      "category": "word_problem",
+      "question": "Alex reads 12 pages on Monday and 18 on Tuesday. How many pages total? Reply with the final number only.",
+      "correct_answer": "30",
+      "keywords": [
+        "30"
+      ]
+    },
+    {
+      "name": "gsm8k_off_perimeter_rect",
+      "category": "geometry",
+      "question": "A rectangle is 5 by 3. What is its perimeter? Reply with the final number only.",
+      "correct_answer": "16",
+      "keywords": [
+        "16"
+      ]
+    },
+    {
+      "name": "gsm8k_off_area_square",
+      "category": "geometry",
+      "question": "A square has side length 7. What is its area? Reply with the final number only.",
+      "correct_answer": "49",
+      "keywords": [
+        "49"
+      ]
+    },
+    {
+      "name": "gsm8k_off_percent_10",
+      "category": "percent",
+      "question": "What is 10% of 200? Reply with the final number only.",
+      "correct_answer": "20",
+      "keywords": [
+        "20"
+      ]
+    },
+    {
+      "name": "gsm8k_off_percent_25",
+      "category": "percent",
+      "question": "What is 25% of 80? Reply with the final number only.",
+      "correct_answer": "20",
+      "keywords": [
+        "20"
+      ]
+    },
+    {
+      "name": "gsm8k_off_avg_3",
+      "category": "statistics",
+      "question": "The average of 4, 6, and 8 is? Reply with the final number only.",
+      "correct_answer": "6",
+      "keywords": [
+        "6"
+      ]
+    },
+    {
+      "name": "gsm8k_off_remaining_money",
+      "category": "word_problem",
+      "question": "Nora has $50. She spends $17. How many dollars remain? Reply with the final number only.",
+      "correct_answer": "33",
+      "keywords": [
+        "33"
+      ]
+    },
+    {
+      "name": "gsm8k_off_buses",
+      "category": "word_problem",
+      "question": "Each bus seats 40 students. How many seats do 3 buses have? Reply with the final number only.",
+      "correct_answer": "120",
+      "keywords": [
+        "120"
+      ]
+    },
+    {
+      "name": "gsm8k_off_hours_min",
+      "category": "units",
+      "question": "How many minutes are in 3 hours? Reply with the final number only.",
+      "correct_answer": "180",
+      "keywords": [
+        "180"
+      ]
+    },
+    {
+      "name": "gsm8k_off_dozen",
+      "category": "units",
+      "question": "How many eggs are in 2 dozen? Reply with the final number only.",
+      "correct_answer": "24",
+      "keywords": [
+        "24"
+      ]
+    },
+    {
+      "name": "gsm8k_off_triangle_angles",
+      "category": "geometry",
+      "question": "Two angles of a triangle are 40\u00b0 and 60\u00b0. What is the third angle in degrees? Reply with the final number only.",
+      "correct_answer": "80",
+      "keywords": [
+        "80"
+      ]
+    },
+    {
+      "name": "gsm8k_off_seq_next",
+      "category": "patterns",
+      "question": "Sequence: 2, 4, 6, 8, \u2026 What is the next number? Reply with the final number only.",
+      "correct_answer": "10",
+      "keywords": [
+        "10"
+      ]
+    },
+    {
+      "name": "gsm8k_off_power_2_5",
+      "category": "arithmetic",
+      "question": "What is 2^5? Reply with the final number only.",
+      "correct_answer": "32",
+      "keywords": [
+        "32"
+      ]
+    },
+    {
+      "name": "gsm8k_off_neg_plus",
+      "category": "arithmetic",
+      "question": "What is \u22123 + 10? Reply with the final number only.",
+      "correct_answer": "7",
+      "keywords": [
+        "7"
+      ]
+    },
+    {
+      "name": "gsm8k_off_abs",
+      "category": "arithmetic",
+      "question": "What is the absolute value of \u221215? Reply with the final number only.",
+      "correct_answer": "15",
+      "keywords": [
+        "15"
+      ]
+    },
+    {
+      "name": "gsm8k_off_lcm_hint",
+      "category": "arithmetic",
+      "question": "What is the least common multiple of 4 and 6? Reply with the final number only.",
+      "correct_answer": "12",
+      "keywords": [
+        "12"
+      ]
+    },
+    {
+      "name": "gsm8k_off_gcf",
+      "category": "arithmetic",
+      "question": "What is the greatest common factor of 12 and 18? Reply with the final number only.",
+      "correct_answer": "6",
+      "keywords": [
+        "6"
+      ]
+    },
+    {
+      "name": "gsm8k_off_fraction_half",
+      "category": "fractions",
+      "question": "What is 1/2 of 18? Reply with the final number only.",
+      "correct_answer": "9",
+      "keywords": [
+        "9"
+      ]
+    },
+    {
+      "name": "gsm8k_off_fraction_add",
+      "category": "fractions",
+      "question": "What is 1/4 + 1/4? Reply as a simplified fraction or decimal. Prefer fraction a/b.",
+      "correct_answer": "1/2",
+      "keywords": [
+        "1/2",
+        "0.5"
+      ]
+    },
+    {
+      "name": "gsm8k_off_ratio",
+      "category": "ratios",
+      "question": "A recipe uses sugar:flour = 1:3. If sugar is 2 cups, how many cups of flour? Reply with the final number only.",
+      "correct_answer": "6",
+      "keywords": [
+        "6"
+      ]
+    },
+    {
+      "name": "gsm8k_off_speed",
+      "category": "word_problem",
+      "question": "A car travels 120 km in 2 hours at constant speed. What is the speed in km/h? Reply with the final number only.",
+      "correct_answer": "60",
+      "keywords": [
+        "60"
+      ]
+    },
+    {
+      "name": "gsm8k_off_work_days",
+      "category": "word_problem",
+      "question": "A project needs 40 hours. Working 8 hours/day, how many days are needed? Reply with the final number only.",
+      "correct_answer": "5",
+      "keywords": [
+        "5"
+      ]
+    },
+    {
+      "name": "gsm8k_off_discount",
+      "category": "percent",
+      "question": "A $40 item is 50% off. What is the sale price in dollars? Reply with the final number only.",
+      "correct_answer": "20",
+      "keywords": [
+        "20"
+      ]
+    },
+    {
+      "name": "gsm8k_off_tax_simple",
+      "category": "percent",
+      "question": "An item costs $100 before 10% tax. What is the total with tax in dollars? Reply with the final number only.",
+      "correct_answer": "110",
+      "keywords": [
+        "110"
+      ]
+    },
+    {
+      "name": "gsm8k_off_volume_cube",
+      "category": "geometry",
+      "question": "A cube has side 3. What is its volume? Reply with the final number only.",
+      "correct_answer": "27",
+      "keywords": [
+        "27"
+      ]
+    },
+    {
+      "name": "gsm8k_off_mod",
+      "category": "arithmetic",
+      "question": "What is 17 mod 5 (remainder when 17 is divided by 5)? Reply with the final number only.",
+      "correct_answer": "2",
+      "keywords": [
+        "2"
+      ]
+    },
+    {
+      "name": "gsm8k_off_round",
+      "category": "arithmetic",
+      "question": "Round 3.6 to the nearest integer. Reply with the final number only.",
+      "correct_answer": "4",
+      "keywords": [
+        "4"
+      ]
+    },
+    {
+      "name": "gsm8k_off_combo",
+      "category": "word_problem",
+      "question": "Boxes hold 6 pens each. You need 30 pens. How many boxes? Reply with the final number only.",
+      "correct_answer": "5",
+      "keywords": [
+        "5"
+      ]
+    },
+    {
+      "name": "gsm8k_off_age",
+      "category": "word_problem",
+      "question": "Sam is 10. In 7 years, how old will Sam be? Reply with the final number only.",
+      "correct_answer": "17",
+      "keywords": [
+        "17"
+      ]
+    },
+    {
+      "name": "gsm8k_off_temp_diff",
+      "category": "word_problem",
+      "question": "Morning temperature is 12\u00b0C and afternoon is 19\u00b0C. How many degrees did it rise? Reply with the final number only.",
+      "correct_answer": "7",
+      "keywords": [
+        "7"
+      ]
+    },
+    {
+      "name": "gsm8k_off_chain",
+      "category": "arithmetic",
+      "question": "Start with 5. Multiply by 3, then add 4. What is the result? Reply with the final number only.",
+      "correct_answer": "19",
+      "keywords": [
+        "19"
+      ]
+    }
+  ]
+}

@@ -46,6 +46,7 @@ def test_smoke_labels_are_readable() -> None:
     assert "industry ·" in by_name["mmlu_smoke"].label()
     assert "MMLU-style" in by_name["mmlu_smoke"].label()
     assert "smoke v1" in by_name["mmlu_smoke"].label()
+    assert "synthetic/offline" in by_name["mmlu_smoke"].label()
     assert "GSM8K-style" in by_name["gsm8k_smoke"].label()
     assert "HellaSwag-style" in by_name["hellaswag_smoke"].label()
 
@@ -57,11 +58,13 @@ def test_discover_includes_industry_without_data_dir(
     suites = discover_suites()
     types = {s["suite_type"] for s in suites}
     assert "industry_smoke" in types
+    assert "industry_offline" in types
     assert "local" not in types
     names = {s["name"] for s in suites}
     assert {"mmlu_smoke", "gsm8k_smoke", "hellaswag_smoke"} <= names
+    assert {"mmlu_offline", "gsm8k_offline", "hellaswag_offline"} <= names
     for s in suites:
-        if s["suite_type"] == "industry_smoke":
+        if s["suite_type"] in {"industry_smoke", "industry_offline"}:
             assert s["label"].startswith("industry ·")
             assert s["source"] == "builtin"
 
@@ -98,6 +101,7 @@ def test_discover_keeps_local_and_auto_alongside_industry(
         by_type.setdefault(s["suite_type"], []).append(s)
 
     assert len(by_type["industry_smoke"]) == 3
+    assert len(by_type.get("industry_offline", [])) == 3
     assert any(s["name"] == "default" for s in by_type["local"])
     assert any(s["name"] == "held_out" for s in by_type["auto"])
     assert by_type["auto"][0]["label"].startswith("auto ·")

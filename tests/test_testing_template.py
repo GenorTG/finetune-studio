@@ -74,4 +74,5 @@ def test_testing_template_shows_scores_summary() -> None:
         },
     )
     assert "case-scores-summary" in html
-    assert "0.67" in html
+    assert "judged: 0" in html
+    assert "pass_rate: —" in html

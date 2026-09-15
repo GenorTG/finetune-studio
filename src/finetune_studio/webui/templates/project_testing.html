@@ -69,6 +69,43 @@
   <pre id="t-live-log" class="text-xs mono mt-2" role="log" aria-live="polite" style="display:none;max-height:120px;overflow-y:auto;border:1px solid var(--border);padding:8px;white-space:pre-wrap;margin:0;background:var(--bg-app);"></pre>
 </div>
 
+<div class="card mb-6">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Training-data evaluation</div>
+      <div class="card-sub">Score the model on the project's approved training dataset.
+        High scores measure memorization / leakage risk — not held-out generalization.</div>
+    </div>
+  </div>
+  <div class="grid grid-12 gap-3 items-end">
+    <div class="col-span-7">
+      <label class="block text-xs muted mb-1">Training dataset</label>
+      <select id="t-train-ds" class="select">
+        <option value="">— latest project dataset —</option>
+        {% for d in training_datasets %}
+        <option value="{{ d.id }}">{{ d.name }} · {{ d.qa_count or 0 }} pairs · {{ d.source or 'dataset' }}</option>
+        {% endfor %}
+      </select>
+      {% if not training_datasets %}
+      <div class="text-xs dim mt-1">No registered datasets yet. Approve + export from Data Prep first.</div>
+      {% endif %}
+    </div>
+    <div class="col-span-3">
+      <label class="block text-xs muted mb-1">Max cases</label>
+      <input id="t-train-max" class="input" type="number" min="1" max="500" value="100">
+    </div>
+    <div class="col-span-2">
+      <button id="t-train-eval-btn" type="button" onclick="runTrainingEval()" class="btn"
+              style="width:100%;" {% if not models %}disabled title="Export a merged model first"{% endif %}>
+        Eval train set
+      </button>
+    </div>
+  </div>
+  <div id="t-train-hint" class="text-xs dim mt-2" role="status">
+    Uses the same per-case table as suite runs. Labelled <span class="mono">training_leakage</span>.
+  </div>
+</div>
+
 {% if recent_suite_runs %}
 <div class="card mb-6">
   <div class="card-head">
@@ -134,14 +171,26 @@
   }
 
   function renderResults(scores, cases) {
+    const judged = scores.judged || 0;
+    const passRate = judged === 0
+      ? '—'
+      : (scores.pass_rate != null ? scores.pass_rate + '%' : '—');
     let html = '<div class="case-results-summary" id="case-scores-summary">'
       + '<span>total: ' + (scores.total || 0) + '</span>'
-      + '<span>judged: ' + (scores.judged || 0) + '</span>'
+      + '<span>judged: ' + judged + '</span>'
+      + '<span>unjudged: ' + (scores.unjudged || 0) + '</span>'
       + '<span>passed: ' + (scores.passed || 0) + '</span>'
       + '<span>partial: ' + (scores.partial || 0) + '</span>'
       + '<span>failed: ' + (scores.failed || 0) + '</span>'
-      + '<span class="pass-rate">pass_rate: ' + (scores.pass_rate != null ? scores.pass_rate : '—') + '</span>'
+      + '<span class="pass-rate">pass_rate: ' + passRate + '</span>'
+      + (scores.eval_kind
+          ? ' <span class="pill outline">' + escapeHtml(scores.eval_kind) + '</span>'
+          : '')
       + '</div>';
+    if (scores.leakage_warning) {
+      html += '<div class="text-xs dim mt-1" role="status">'
+        + escapeHtml(scores.leakage_warning) + '</div>';
+    }
     html += '<div class="case-results-scroll" role="region" aria-label="Case results" tabindex="0">'
       + '<table class="table case-results-table" id="case-results-table"><thead><tr>'
       + '<th class="case-col-idx">#</th><th class="case-col-name">Case name</th>'
@@ -329,6 +378,77 @@
         runBtn.disabled = !(sel && sel.value);
         runBtn.title = runBtn.disabled ? 'Pick a test suite first' : ('Run suite: ' + suiteName);
       }
+    }
+  };
+
+  window.runTrainingEval = async function() {
+    const status = document.getElementById('t-status');
+    const hint = document.getElementById('t-train-hint');
+    const results = document.getElementById('t-results');
+    const btn = document.getElementById('t-train-eval-btn');
+    const dsSel = document.getElementById('t-train-ds');
+    const maxEl = document.getElementById('t-train-max');
+    const modelSel = document.getElementById('t-model');
+    const datasetId = dsSel ? (dsSel.value || '').trim() : '';
+    const maxCases = maxEl ? Math.max(1, parseInt(maxEl.value || '100', 10) || 100) : 100;
+    const modelPath = modelSel ? (modelSel.value || '').trim() : '';
+    if (btn) btn.disabled = true;
+    if (status) {
+      status.dataset.busy = '1';
+      status.textContent = 'Running training-data (leakage) evaluation…';
+    }
+    if (hint) {
+      hint.textContent = 'Leakage eval in progress — high pass rates mean memorization, not generalization.';
+    }
+    if (results) {
+      results.innerHTML = '<span class="muted">Evaluating training dataset…</span>';
+    }
+    try {
+      const body = {
+        project_id: PID,
+        max_cases: maxCases,
+        max_tokens: 512,
+      };
+      if (datasetId) body.dataset_id = datasetId;
+      if (modelPath) body.model_path = modelPath;
+      let r;
+      if (api.post) {
+        r = await api.post('/api/testing/evaluate-training', body);
+      } else {
+        const resp = await fetch('/api/testing/evaluate-training', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        r = await resp.json();
+        if (!resp.ok && r.error) throw new Error(r.error);
+      }
+      if (r.error) {
+        if (status) status.textContent = 'Error: ' + r.error;
+        if (results) results.innerHTML = '<span class="err">' + escapeHtml(r.error) + '</span>';
+        notify(r.error, 'error');
+        return;
+      }
+      const scores = r.scores || {};
+      const cases = r.results || [];
+      if (status) {
+        status.textContent = 'Training-data eval done — '
+          + (scores.pass_rate != null ? scores.pass_rate + '%' : '—')
+          + ' pass · ' + cases.length + ' cases (leakage check)';
+      }
+      if (hint && scores.leakage_warning) {
+        hint.textContent = scores.leakage_warning;
+      }
+      if (results) results.innerHTML = renderResults(scores, cases);
+      notify('Training-data eval finished (' + cases.length + ' cases)', 'success');
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      if (status) status.textContent = 'Error: ' + msg;
+      if (results) results.innerHTML = '<span class="err">' + escapeHtml(msg) + '</span>';
+      notify(msg, 'error');
+    } finally {
+      if (status) delete status.dataset.busy;
+      if (btn) btn.disabled = false;
     }
   };
 

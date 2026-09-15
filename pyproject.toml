@@ -40,10 +40,18 @@ unsloth = ["unsloth>=2024.10.0"]
 
 # Prefer modern gptqmodel (fan-dragon); auto-gptq remains a supported fallback
 # when installed separately — capability detection accepts either import.
-gptq = ["gptqmodel>=2.0.0"]
+# ``optimum`` is required for Transformers to load GPTQ checkpoints for inference.
+gptq = ["gptqmodel>=2.0.0", "optimum>=1.20.0"]
 abliteration = ["numpy>=1.24.0", "scipy>=1.10.0"]
 dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "ruff>=0.6.0"]
-all = ["bitsandbytes>=0.43.0", "unsloth>=2024.10.0", "gptqmodel>=2.0.0", "numpy>=1.24.0", "scipy>=1.10.0"]
+all = [
+    "bitsandbytes>=0.43.0",
+    "unsloth>=2024.10.0",
+    "gptqmodel>=2.0.0",
+    "optimum>=1.20.0",
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+]
 
 [project.scripts]
 finetune-studio = "finetune_studio.cli:main"

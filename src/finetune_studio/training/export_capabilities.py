@@ -11,8 +11,10 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from finetune_studio.training.advanced_quant import (
+    gptq_dependency_hints,
     gptq_missing_backend_message,
     is_gptq_available,
+    is_optimum_available,
 )
 from finetune_studio.training.run_export import (
     GGUF_CONVERTER_MISSING_MSG,
@@ -20,7 +22,6 @@ from finetune_studio.training.run_export import (
 )
 
 GPTQ_CONVERTER_MISSING_MSG = gptq_missing_backend_message()
-
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,8 @@ class ExportCapabilities:
     gguf_script: str | None
     gguf_hint: str
     gptq_hint: str
+    optimum: bool = False
+    gptq_inference_hf: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         """JSON-serializable view for templates / API."""
@@ -43,10 +46,21 @@ def probe_export_capabilities() -> ExportCapabilities:
     script = find_gguf_convert_script()
     gguf_ok = script is not None
     gptq_ok = is_gptq_available()
+    deps = gptq_dependency_hints()
+    optimum_ok = bool(deps["optimum"])
+    if not gptq_ok:
+        gptq_hint = GPTQ_CONVERTER_MISSING_MSG
+    elif not optimum_ok:
+        # Export can proceed; surface inference-gap so the UI is not silent.
+        gptq_hint = str(deps["hint"])
+    else:
+        gptq_hint = ""
     return ExportCapabilities(
         gguf=gguf_ok,
         gptq=gptq_ok,
         gguf_script=script,
         gguf_hint="" if gguf_ok else GGUF_CONVERTER_MISSING_MSG,
-        gptq_hint="" if gptq_ok else GPTQ_CONVERTER_MISSING_MSG,
+        gptq_hint=gptq_hint,
+        optimum=optimum_ok if gptq_ok else is_optimum_available(),
+        gptq_inference_hf=bool(deps["gptq_inference_hf"]),
     )

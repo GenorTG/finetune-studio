@@ -7,7 +7,7 @@
 {% block content %}
 <div class="page-head">
   <h1>Benchmarks — {{ project.name }}</h1>
-  <div class="sub">Run industry smoke suites or project Q&amp;A suites against trained models (or the untrained base), then score answers with heuristic or AI judging.</div>
+  <div class="sub">Run synthetic/offline industry suites (smoke or substantive) or project Q&amp;A suites against trained models (or the untrained base), then score answers with heuristic or AI judging. Suites are labeled synthetic/offline — no licensed external datasets are bundled.</div>
 </div>
 
 <div class="card">
@@ -33,7 +33,7 @@
     <a href="/projects/{{ pid }}/training" class="btn primary" data-link>Open Training</a>
   </div>
   {% else %}
-  <div class="text-sm dim mb-2">Available suites (industry smoke · local JSON · project auto):</div>
+  <div class="text-sm dim mb-2">Available suites (offline synthetic · smoke · local JSON · project auto):</div>
   <table class="table text-sm mb-4" id="suite-catalog">
     <thead>
       <tr><th>Suite</th><th>Type</th><th>Source</th><th>Cases</th></tr>
@@ -87,6 +87,12 @@
             <button type="submit" class="btn primary" style="font-size:11px;padding:4px 10px;"
                     {% if not can_bench %}disabled title="Only completed runs with a trained model can be benchmarked"{% endif %}>RUN</button>
           </form>
+          <form data-api="/api/benchmarks/projects/{{ pid }}/runs/{{ run.id }}/evaluate-training"
+                data-reload="true" style="display:inline;margin-left:6px;"
+                title="Evaluate on the project's approved training dataset (leakage / memorization check)">
+            <button type="submit" class="btn" style="font-size:11px;padding:4px 10px;"
+                    {% if not can_bench %}disabled{% endif %}>Train-set eval</button>
+          </form>
         </td>
       </tr>
       {% endfor %}
@@ -135,13 +141,14 @@
     {% if all_benchmarks %}
     <h3 class="mt-2 text-md">Recent scores</h3>
     <table class="table" id="bench-scores-table">
-      <thead><tr><th>Run</th><th>Suite</th><th>Pass rate</th><th>When</th></tr></thead>
+      <thead><tr><th>Run</th><th>Suite</th><th>Pass rate</th><th>Judged</th><th>When</th></tr></thead>
       <tbody>
         {% for b in all_benchmarks[:10] %}
         <tr>
           <td>{{ b._run_name }}</td>
           <td class="mono">{{ b.suite_name or b.suite or '—' }}</td>
-          <td class="mono">{% if b.scores and b.scores.pass_rate is defined %}{{ b.scores.pass_rate }}{% else %}—{% endif %}</td>
+          <td class="mono">{% if b.scores and b.scores.judged is defined and (b.scores.judged | int) == 0 %}—{% elif b.scores and b.scores.pass_rate is defined %}{{ b.scores.pass_rate }}%{% else %}—{% endif %}{% if b.scores and b.scores.eval_kind is defined and b.scores.eval_kind %} <span class="pill outline" title="{{ b.scores.leakage_warning | default('training-set eval') }}">leakage</span>{% endif %}</td>
+          <td class="mono dim">{% if b.scores and b.scores.judged is defined %}{{ b.scores.judged }}/{{ b.scores.total | default('?') }}{% else %}—{% endif %}</td>
           <td class="dim">{{ b._ran_at_str }}</td>
         </tr>
         {% endfor %}

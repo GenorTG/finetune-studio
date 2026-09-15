@@ -39,6 +39,35 @@ class TestGptqCapabilityDetection:
         monkeypatch.setattr(aq, "is_auto_gptq_available", lambda: True)
         assert aq.preferred_gptq_backend() == "auto_gptq"
 
+    def test_optimum_inference_hint_when_export_ok(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from finetune_studio.training import advanced_quant as aq
+
+        monkeypatch.setattr(aq, "is_gptqmodel_available", lambda: True)
+        monkeypatch.setattr(aq, "is_auto_gptq_available", lambda: False)
+        monkeypatch.setattr(aq, "is_optimum_available", lambda: False)
+        hints = aq.gptq_dependency_hints()
+        assert hints["gptq_export"] is True
+        assert hints["optimum"] is False
+        assert hints["gptq_inference_hf"] is False
+        assert "optimum" in hints["hint"].lower()
+        assert ".[gptq]" in hints["hint"] or "optimum" in hints["hint"]
+
+    def test_pyproject_gptq_extra_includes_optimum(self) -> None:
+        import tomllib
+        from pathlib import Path
+
+        raw = (
+            Path(__file__).resolve().parents[1] / "pyproject.toml"
+        ).read_text(encoding="utf-8")
+        data = tomllib.loads(raw)
+        gptq = data["project"]["optional-dependencies"]["gptq"]
+        assert any("gptqmodel" in x for x in gptq)
+        assert any("optimum" in x for x in gptq)
+        all_extra = data["project"]["optional-dependencies"]["all"]
+        assert any("optimum" in x for x in all_extra)
+
 
 class TestCalibrationExamples:
     def test_shared_calibration_texts(self) -> None:

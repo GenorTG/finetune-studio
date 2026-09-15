@@ -1,0 +1,495 @@
+{
+  "schema_version": 1,
+  "id": "mmlu_offline",
+  "version": 1,
+  "family": "mmlu",
+  "suite_type": "industry_offline",
+  "title": "MMLU-style knowledge",
+  "description": "Synthetic offline knowledge suite styled after MMLU multiple-choice. Not the HuggingFace MMLU dataset \u2014 synthetic/offline only; no licensed external data is bundled.",
+  "synthetic": true,
+  "offline": true,
+  "licensed_external_data": false,
+  "scoring": "deterministic_keywords",
+  "cases": [
+    {
+      "name": "mmlu_off_capital_france",
+      "category": "geography",
+      "question": "What is the capital of France?\nA) Berlin\nB) Madrid\nC) Paris\nD) Rome\nReply with the letter and the answer.",
+      "correct_answer": "C) Paris",
+      "keywords": [
+        "C",
+        "Paris"
+      ]
+    },
+    {
+      "name": "mmlu_off_gold_symbol",
+      "category": "chemistry",
+      "question": "What is the chemical symbol for gold?\nA) Go\nB) Gd\nC) Au\nD) Ag\nReply with the letter and the answer.",
+      "correct_answer": "C) Au",
+      "keywords": [
+        "C",
+        "Au"
+      ]
+    },
+    {
+      "name": "mmlu_off_mitochondria",
+      "category": "biology",
+      "question": "What is the primary function of mitochondria?\nA) Protein synthesis\nB) Energy production\nC) DNA replication\nD) Cell division\nReply with the letter and the answer.",
+      "correct_answer": "B) Energy production",
+      "keywords": [
+        "B",
+        "Energy production"
+      ]
+    },
+    {
+      "name": "mmlu_off_orwell_1984",
+      "category": "literature",
+      "question": "Who wrote '1984'?\nA) Aldous Huxley\nB) George Orwell\nC) Ray Bradbury\nD) H.G. Wells\nReply with the letter and the answer.",
+      "correct_answer": "B) George Orwell",
+      "keywords": [
+        "B",
+        "George Orwell"
+      ]
+    },
+    {
+      "name": "mmlu_off_binary_search",
+      "category": "cs",
+      "question": "Binary search on a sorted array of n elements has average time complexity:\nA) O(n)\nB) O(log n)\nC) O(n log n)\nD) O(1)\nReply with the letter and the answer.",
+      "correct_answer": "B) O(log n)",
+      "keywords": [
+        "B",
+        "O(log n)"
+      ]
+    },
+    {
+      "name": "mmlu_off_water_formula",
+      "category": "chemistry",
+      "question": "The chemical formula for water is:\nA) CO2\nB) H2O\nC) NaCl\nD) O2\nReply with the letter and the answer.",
+      "correct_answer": "B) H2O",
+      "keywords": [
+        "B",
+        "H2O"
+      ]
+    },
+    {
+      "name": "mmlu_off_pi_approx",
+      "category": "math",
+      "question": "Which is the best common approximation of \u03c0?\nA) 2.14\nB) 3.14\nC) 4.13\nD) 1.41\nReply with the letter and the answer.",
+      "correct_answer": "B) 3.14",
+      "keywords": [
+        "B",
+        "3.14"
+      ]
+    },
+    {
+      "name": "mmlu_off_earth_moon",
+      "category": "astronomy",
+      "question": "Earth's natural satellite is the:\nA) Sun\nB) Mars\nC) Moon\nD) Venus\nReply with the letter and the answer.",
+      "correct_answer": "C) Moon",
+      "keywords": [
+        "C",
+        "Moon"
+      ]
+    },
+    {
+      "name": "mmlu_off_dna_base_pairs",
+      "category": "biology",
+      "question": "In DNA, adenine typically pairs with:\nA) Guanine\nB) Cytosine\nC) Thymine\nD) Uracil\nReply with the letter and the answer.",
+      "correct_answer": "C) Thymine",
+      "keywords": [
+        "C",
+        "Thymine"
+      ]
+    },
+    {
+      "name": "mmlu_off_speed_light",
+      "category": "physics",
+      "question": "Approximate speed of light in vacuum:\nA) 3\u00d710^5 m/s\nB) 3\u00d710^8 m/s\nC) 3\u00d710^3 m/s\nD) 3\u00d710^10 m/s\nReply with the letter and the answer.",
+      "correct_answer": "B) 3\u00d710^8 m/s",
+      "keywords": [
+        "B",
+        "3\u00d710^8 m/s"
+      ]
+    },
+    {
+      "name": "mmlu_off_python_list",
+      "category": "cs",
+      "question": "In Python, which type is mutable?\nA) tuple\nB) str\nC) list\nD) frozenset\nReply with the letter and the answer.",
+      "correct_answer": "C) list",
+      "keywords": [
+        "C",
+        "list"
+      ]
+    },
+    {
+      "name": "mmlu_off_http_get",
+      "category": "cs",
+      "question": "HTTP method typically used to retrieve a resource without a body:\nA) POST\nB) PUT\nC) GET\nD) PATCH\nReply with the letter and the answer.",
+      "correct_answer": "C) GET",
+      "keywords": [
+        "C",
+        "GET"
+      ]
+    },
+    {
+      "name": "mmlu_off_newton_law",
+      "category": "physics",
+      "question": "Newton's second law relates force to:\nA) mass and acceleration\nB) velocity only\nC) temperature\nD) charge\nReply with the letter and the answer.",
+      "correct_answer": "A) mass and acceleration",
+      "keywords": [
+        "A",
+        "mass and acceleration"
+      ]
+    },
+    {
+      "name": "mmlu_off_photosynthesis",
+      "category": "biology",
+      "question": "Photosynthesis primarily occurs in which organelle?\nA) Mitochondria\nB) Chloroplast\nC) Nucleus\nD) Ribosome\nReply with the letter and the answer.",
+      "correct_answer": "B) Chloroplast",
+      "keywords": [
+        "B",
+        "Chloroplast"
+      ]
+    },
+    {
+      "name": "mmlu_off_shakespeare_hamlet",
+      "category": "literature",
+      "question": "Who wrote Hamlet?\nA) Chaucer\nB) Shakespeare\nC) Milton\nD) Dickens\nReply with the letter and the answer.",
+      "correct_answer": "B) Shakespeare",
+      "keywords": [
+        "B",
+        "Shakespeare"
+      ]
+    },
+    {
+      "name": "mmlu_off_japan_capital",
+      "category": "geography",
+      "question": "Capital of Japan?\nA) Kyoto\nB) Osaka\nC) Tokyo\nD) Nagoya\nReply with the letter and the answer.",
+      "correct_answer": "C) Tokyo",
+      "keywords": [
+        "C",
+        "Tokyo"
+      ]
+    },
+    {
+      "name": "mmlu_off_prime_7",
+      "category": "math",
+      "question": "Which number is prime?\nA) 9\nB) 15\nC) 7\nD) 21\nReply with the letter and the answer.",
+      "correct_answer": "C) 7",
+      "keywords": [
+        "C",
+        "7"
+      ]
+    },
+    {
+      "name": "mmlu_off_boiling_water",
+      "category": "chemistry",
+      "question": "At standard pressure, water boils at approximately:\nA) 0 \u00b0C\nB) 50 \u00b0C\nC) 100 \u00b0C\nD) 200 \u00b0C\nReply with the letter and the answer.",
+      "correct_answer": "C) 100 \u00b0C",
+      "keywords": [
+        "C",
+        "100 \u00b0C"
+      ]
+    },
+    {
+      "name": "mmlu_off_cpu_stands",
+      "category": "cs",
+      "question": "CPU stands for:\nA) Central Processing Unit\nB) Computer Personal Utility\nC) Core Program Utility\nD) Central Program User\nReply with the letter and the answer.",
+      "correct_answer": "A) Central Processing Unit",
+      "keywords": [
+        "A",
+        "Central Processing Unit"
+      ]
+    },
+    {
+      "name": "mmlu_off_gravity_earth",
+      "category": "physics",
+      "question": "Approximate gravitational acceleration on Earth:\nA) 1.6 m/s\u00b2\nB) 9.8 m/s\u00b2\nC) 98 m/s\u00b2\nD) 0.98 m/s\u00b2\nReply with the letter and the answer.",
+      "correct_answer": "B) 9.8 m/s\u00b2",
+      "keywords": [
+        "B",
+        "9.8 m/s\u00b2"
+      ]
+    },
+    {
+      "name": "mmlu_off_rome_empire",
+      "category": "history",
+      "question": "Ancient Rome's language of administration was primarily:\nA) Greek\nB) Latin\nC) Arabic\nD) Sanskrit\nReply with the letter and the answer.",
+      "correct_answer": "B) Latin",
+      "keywords": [
+        "B",
+        "Latin"
+      ]
+    },
+    {
+      "name": "mmlu_off_evaporation",
+      "category": "science",
+      "question": "Liquid becoming gas at the surface below boiling point is:\nA) Condensation\nB) Sublimation\nC) Evaporation\nD) Freezing\nReply with the letter and the answer.",
+      "correct_answer": "C) Evaporation",
+      "keywords": [
+        "C",
+        "Evaporation"
+      ]
+    },
+    {
+      "name": "mmlu_off_square_root_144",
+      "category": "math",
+      "question": "\u221a144 equals:\nA) 10\nB) 11\nC) 12\nD) 14\nReply with the letter and the answer.",
+      "correct_answer": "C) 12",
+      "keywords": [
+        "C",
+        "12"
+      ]
+    },
+    {
+      "name": "mmlu_off_html_markup",
+      "category": "cs",
+      "question": "HTML is primarily a:\nA) Markup language\nB) Database\nC) Operating system\nD) Compiler\nReply with the letter and the answer.",
+      "correct_answer": "A) Markup language",
+      "keywords": [
+        "A",
+        "Markup language"
+      ]
+    },
+    {
+      "name": "mmlu_off_ozone",
+      "category": "chemistry",
+      "question": "Ozone's chemical formula is:\nA) O2\nB) O3\nC) CO2\nD) NO2\nReply with the letter and the answer.",
+      "correct_answer": "B) O3",
+      "keywords": [
+        "B",
+        "O3"
+      ]
+    },
+    {
+      "name": "mmlu_off_continent_count",
+      "category": "geography",
+      "question": "How many continents are commonly taught (school model)?\nA) 5\nB) 6\nC) 7\nD) 8\nReply with the letter and the answer.",
+      "correct_answer": "C) 7",
+      "keywords": [
+        "C",
+        "7"
+      ]
+    },
+    {
+      "name": "mmlu_off_sorting_stable",
+      "category": "cs",
+      "question": "Which sort is typically stable?\nA) QuickSort (classic)\nB) HeapSort\nC) MergeSort\nD) Selection sort\nReply with the letter and the answer.",
+      "correct_answer": "C) MergeSort",
+      "keywords": [
+        "C",
+        "MergeSort"
+      ]
+    },
+    {
+      "name": "mmlu_off_red_blood",
+      "category": "biology",
+      "question": "Red blood cells primarily transport:\nA) Oxygen\nB) Bile\nC) Insulin\nD) Keratin\nReply with the letter and the answer.",
+      "correct_answer": "A) Oxygen",
+      "keywords": [
+        "A",
+        "Oxygen"
+      ]
+    },
+    {
+      "name": "mmlu_off_fahrenheit_freeze",
+      "category": "science",
+      "question": "Water freezes at what Fahrenheit temperature (approx)?\nA) 0\nB) 32\nC) 100\nD) 212\nReply with the letter and the answer.",
+      "correct_answer": "B) 32",
+      "keywords": [
+        "B",
+        "32"
+      ]
+    },
+    {
+      "name": "mmlu_off_voltage_unit",
+      "category": "physics",
+      "question": "SI unit of electric potential difference:\nA) Ampere\nB) Ohm\nC) Volt\nD) Watt\nReply with the letter and the answer.",
+      "correct_answer": "C) Volt",
+      "keywords": [
+        "C",
+        "Volt"
+      ]
+    },
+    {
+      "name": "mmlu_off_python_dict",
+      "category": "cs",
+      "question": "Python dict keys must be:\nA) Always strings\nB) Hashable\nC) Lists\nD) Mutable sets\nReply with the letter and the answer.",
+      "correct_answer": "B) Hashable",
+      "keywords": [
+        "B",
+        "Hashable"
+      ]
+    },
+    {
+      "name": "mmlu_off_ww2_end_europe",
+      "category": "history",
+      "question": "In Europe, WWII is commonly said to have ended in:\nA) 1939\nB) 1941\nC) 1945\nD) 1950\nReply with the letter and the answer.",
+      "correct_answer": "C) 1945",
+      "keywords": [
+        "C",
+        "1945"
+      ]
+    },
+    {
+      "name": "mmlu_off_insect_legs",
+      "category": "biology",
+      "question": "Insects typically have how many legs?\nA) 4\nB) 6\nC) 8\nD) 10\nReply with the letter and the answer.",
+      "correct_answer": "B) 6",
+      "keywords": [
+        "B",
+        "6"
+      ]
+    },
+    {
+      "name": "mmlu_off_json_format",
+      "category": "cs",
+      "question": "JSON stands for:\nA) Java Script Object Notation\nB) JavaScript Object Notation\nC) Joint System Output Network\nD) Java Serialized Object Network\nReply with the letter and the answer.",
+      "correct_answer": "B) JavaScript Object Notation",
+      "keywords": [
+        "B",
+        "JavaScript Object Notation"
+      ]
+    },
+    {
+      "name": "mmlu_off_acid_ph",
+      "category": "chemistry",
+      "question": "A solution with pH 2 is:\nA) Neutral\nB) Basic\nC) Acidic\nD) Pure water\nReply with the letter and the answer.",
+      "correct_answer": "C) Acidic",
+      "keywords": [
+        "C",
+        "Acidic"
+      ]
+    },
+    {
+      "name": "mmlu_off_equator",
+      "category": "geography",
+      "question": "The equator is a line of:\nA) Longitude\nB) Latitude\nC) Altitude\nD) Declination\nReply with the letter and the answer.",
+      "correct_answer": "B) Latitude",
+      "keywords": [
+        "B",
+        "Latitude"
+      ]
+    },
+    {
+      "name": "mmlu_off_power_unit",
+      "category": "physics",
+      "question": "SI unit of power:\nA) Joule\nB) Newton\nC) Watt\nD) Pascal\nReply with the letter and the answer.",
+      "correct_answer": "C) Watt",
+      "keywords": [
+        "C",
+        "Watt"
+      ]
+    },
+    {
+      "name": "mmlu_off_tcp_reliable",
+      "category": "cs",
+      "question": "Which protocol provides reliable ordered delivery?\nA) UDP\nB) TCP\nC) ICMP\nD) ARP\nReply with the letter and the answer.",
+      "correct_answer": "B) TCP",
+      "keywords": [
+        "B",
+        "TCP"
+      ]
+    },
+    {
+      "name": "mmlu_off_cell_nucleus",
+      "category": "biology",
+      "question": "The nucleus of a eukaryotic cell primarily stores:\nA) ATP only\nB) Genetic material\nC) Digestive enzymes\nD) Chlorophyll\nReply with the letter and the answer.",
+      "correct_answer": "B) Genetic material",
+      "keywords": [
+        "B",
+        "Genetic material"
+      ]
+    },
+    {
+      "name": "mmlu_off_pyramid_egypt",
+      "category": "history",
+      "question": "The Great Pyramid of Giza is located in:\nA) Mexico\nB) Egypt\nC) Peru\nD) India\nReply with the letter and the answer.",
+      "correct_answer": "B) Egypt",
+      "keywords": [
+        "B",
+        "Egypt"
+      ]
+    },
+    {
+      "name": "mmlu_off_mean_avg",
+      "category": "math",
+      "question": "The arithmetic mean of 2, 4, and 6 is:\nA) 3\nB) 4\nC) 5\nD) 6\nReply with the letter and the answer.",
+      "correct_answer": "B) 4",
+      "keywords": [
+        "B",
+        "4"
+      ]
+    },
+    {
+      "name": "mmlu_off_ram_volatile",
+      "category": "cs",
+      "question": "RAM is typically:\nA) Non-volatile permanent storage\nB) Volatile working memory\nC) Optical media\nD) A CPU register only\nReply with the letter and the answer.",
+      "correct_answer": "B) Volatile working memory",
+      "keywords": [
+        "B",
+        "Volatile working memory"
+      ]
+    },
+    {
+      "name": "mmlu_off_sound_medium",
+      "category": "physics",
+      "question": "Sound waves in air are primarily:\nA) Transverse electromagnetic\nB) Longitudinal mechanical\nC) Nuclear radiation\nD) Static fields\nReply with the letter and the answer.",
+      "correct_answer": "B) Longitudinal mechanical",
+      "keywords": [
+        "B",
+        "Longitudinal mechanical"
+      ]
+    },
+    {
+      "name": "mmlu_off_verb_tense",
+      "category": "language",
+      "question": "In English, 'walked' is typically:\nA) Present participle\nB) Past tense / past participle form\nC) Infinitive\nD) Future perfect only\nReply with the letter and the answer.",
+      "correct_answer": "B) Past tense",
+      "keywords": [
+        "B",
+        "Past tense"
+      ]
+    },
+    {
+      "name": "mmlu_off_carbon_atomic",
+      "category": "chemistry",
+      "question": "Atomic number of carbon:\nA) 4\nB) 6\nC) 8\nD) 12\nReply with the letter and the answer.",
+      "correct_answer": "B) 6",
+      "keywords": [
+        "B",
+        "6"
+      ]
+    },
+    {
+      "name": "mmlu_off_stack_lifo",
+      "category": "cs",
+      "question": "A stack data structure is:\nA) FIFO\nB) LIFO\nC) Random access only\nD) Priority-only\nReply with the letter and the answer.",
+      "correct_answer": "B) LIFO",
+      "keywords": [
+        "B",
+        "LIFO"
+      ]
+    },
+    {
+      "name": "mmlu_off_amazon_river",
+      "category": "geography",
+      "question": "The Amazon River is primarily associated with which continent?\nA) Africa\nB) Asia\nC) South America\nD) Europe\nReply with the letter and the answer.",
+      "correct_answer": "C) South America",
+      "keywords": [
+        "C",
+        "South America"
+      ]
+    },
+    {
+      "name": "mmlu_off_entropy_info",
+      "category": "cs",
+      "question": "In information theory, entropy measures:\nA) Temperature only\nB) Uncertainty / information content\nC) Voltage\nD) File size on disk always\nReply with the letter and the answer.",
+      "correct_answer": "B) Uncertainty",
+      "keywords": [
+        "B",
+        "Uncertainty"
+      ]
+    }
+  ]
+}

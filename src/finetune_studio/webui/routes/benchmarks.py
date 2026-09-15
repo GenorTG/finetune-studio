@@ -612,3 +612,74 @@ async def compare_runs(pid: str, run_a: str = "", run_b: str = "") -> dict[str, 
         "suites": suites,
         "deltas": deltas,
     }
+
+
+@router.post("/projects/{pid}/runs/{rid}/evaluate-training", response_model=None)
+async def evaluate_training_for_run(
+    pid: str, rid: str, request: Request
+) -> dict[str, Any] | JSONResponse:
+    """Benchmark a trained run against the project's training dataset.
+
+    Persists a benchmark row with ``eval_kind=training_leakage`` in scores and
+    full per-case results (same table pattern as industry suites).
+    """
+    body = await request.json()
+    dataset_id = (body.get("dataset_id") or "").strip() or None
+    max_cases = int(body.get("max_cases", 200))
+    max_tokens = int(body.get("max_tokens", 512))
+    judge_mode = str(body.get("judge_mode", "heuristic"))
+
+    run = db.get_run(rid)
+    if not run:
+        return JSONResponse({"error": "run not found"}, status_code=404)
+    if run["project_id"] != pid:
+        return JSONResponse(
+            {"error": "run does not belong to project"},
+            status_code=400,
+        )
+    if not _run_is_benchmarkable(run):
+        status = run.get("status") or "unknown"
+        return JSONResponse(
+            {"error": f"Run {rid} has no trained model (status: {status})"},
+            status_code=409,
+        )
+
+    from finetune_studio.testing.training_eval import (
+        build_training_eval,
+        suite_label_for_training_eval,
+    )
+
+    try:
+        cases, meta = build_training_eval(
+            pid, dataset_id=dataset_id, max_cases=max_cases
+        )
+    except LookupError as e:
+        return JSONResponse({"error": str(e)}, status_code=404)
+    except (FileNotFoundError, ValueError) as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+    target_model = _resolve_trained_target(run)
+    result = await _execute_benchmark(
+        rid=rid,
+        suite_name=suite_label_for_training_eval(meta),
+        suite_path=meta.dataset_path,
+        judge_mode=judge_mode,
+        max_tokens=max_tokens,
+        target_model=target_model,
+        cases=cases,
+    )
+    if isinstance(result, JSONResponse):
+        return result
+
+    scores = dict(result.get("scores") or {})
+    scores["eval_kind"] = meta.eval_kind
+    scores["leakage_warning"] = meta.leakage_warning
+    scores["dataset_id"] = meta.dataset_id
+    scores["dataset_name"] = meta.dataset_name
+    bid = (result.get("benchmark") or {}).get("id")
+    if bid:
+        db.update_benchmark_scores(bid, scores)
+        result["benchmark"] = db.get_benchmark(bid) or result.get("benchmark")
+    result["scores"] = scores
+    result["eval"] = meta.as_dict()
+    return result

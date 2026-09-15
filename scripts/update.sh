@@ -140,8 +140,9 @@ if [[ -d "$VENV" ]] && { [[ "$DEPS_CHANGED" -eq 1 ]] || [[ "$FORCE_DEPS" -eq 1 ]
     echo "→ Reinstalling Python dependencies..."
     "$VENV/bin/pip" install -e "${FTS_HOME}[all]" --quiet 2>&1 | tail -3
     # Also install optional packages that may be new
-    echo "→ Installing optional packages (unsloth, awq, gptq, numpy, scipy)..."
-    "$VENV/bin/pip" install "numpy>=1.24.0" "scipy>=1.10.0" "unsloth>=2024.10.0" "autoawq>=0.2.0" "auto-gptq>=0.7.0" --quiet 2>&1 | tail -3 || true
+    echo "→ Installing optional packages (unsloth, gptq+optimum, numpy, scipy)..."
+    "$VENV/bin/pip" install "numpy>=1.24.0" "scipy>=1.10.0" "unsloth>=2024.10.0" --quiet 2>&1 | tail -3 || true
+    "$VENV/bin/pip" install -e "${FTS_HOME}[gptq]" --quiet 2>&1 | tail -3 || true
 fi
 
 # ── DB migrations (non-destructive) ───────────────────────────────

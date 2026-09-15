@@ -110,43 +110,9 @@ async def run_test_suite(request: Request):
         body.get("model_path") or body.get("path") or ""
     ).strip()
 
-    # QABUG-007 / QABUG-011: auto-load merged model when none is loaded,
-    # or when the UI sends an explicit project-scoped override.
-    if override_path:
-        try:
-            if inference_engine.model_path != override_path:
-                inference_engine.load(override_path)
-        except Exception as e:  # noqa: BLE001
-            _log.warning("override load failed for %s: %s", override_path, e)
-            return JSONResponse(
-                {"error": f"auto-load failed: {e}"},
-                status_code=400,
-            )
-    elif inference_engine.model is None:
-        if not project_id:
-            return JSONResponse(
-                {"error": "No model loaded"},
-                status_code=400,
-            )
-        merged = _resolve_merged_model(project_id)
-        if not merged:
-            return JSONResponse(
-                {
-                    "error": (
-                        "no completed training run found for this project; "
-                        "run training + merge first"
-                    )
-                },
-                status_code=400,
-            )
-        try:
-            inference_engine.load(merged)
-        except Exception as e:  # noqa: BLE001
-            _log.warning("auto-load failed for %s: %s", merged, e)
-            return JSONResponse(
-                {"error": f"auto-load failed: {e}"},
-                status_code=400,
-            )
+    load_err = _ensure_model_loaded(str(project_id or ""), override_path)
+    if load_err is not None:
+        return load_err
 
     cases = load_test_suite(suite_path)
     results = run_suite(inference_engine, cases, max_tokens=max_tokens)
@@ -174,5 +140,136 @@ async def run_test_suite(request: Request):
             for r in results
         ],
         "scores": scores,
+        "model_path": inference_engine.model_path,
+    }
+
+
+def _ensure_model_loaded(project_id: str, override_path: str) -> JSONResponse | None:
+    """Load override or latest merged model; return error response or None."""
+    if override_path:
+        try:
+            if inference_engine.model_path != override_path:
+                inference_engine.load(override_path)
+        except Exception as e:  # noqa: BLE001
+            _log.warning("override load failed for %s: %s", override_path, e)
+            return JSONResponse(
+                {"error": f"auto-load failed: {e}"},
+                status_code=400,
+            )
+        return None
+    if inference_engine.model is not None:
+        return None
+    if not project_id:
+        return JSONResponse({"error": "No model loaded"}, status_code=400)
+    merged = _resolve_merged_model(project_id)
+    if not merged:
+        return JSONResponse(
+            {
+                "error": (
+                    "no completed training run found for this project; "
+                    "run training + merge first"
+                )
+            },
+            status_code=400,
+        )
+    try:
+        inference_engine.load(merged)
+    except Exception as e:  # noqa: BLE001
+        _log.warning("auto-load failed for %s: %s", merged, e)
+        return JSONResponse(
+            {"error": f"auto-load failed: {e}"},
+            status_code=400,
+        )
+    return None
+
+
+@router.get("/projects/{pid}/training-datasets")
+async def list_training_datasets_for_eval(pid: str):
+    """List project datasets that can be used for training-data evaluation."""
+    from finetune_studio.db import datasets as datasets_db
+
+    rows = datasets_db.list_datasets(pid)
+    return {
+        "datasets": [
+            {
+                "id": d["id"],
+                "name": d.get("name"),
+                "source": d.get("source"),
+                "qa_count": d.get("qa_count"),
+                "data_path": d.get("data_path"),
+            }
+            for d in rows
+        ],
+        "leakage_warning": (
+            "Evaluating the training set measures memorization / leakage risk, "
+            "not held-out generalization."
+        ),
+    }
+
+
+@router.post("/evaluate-training")
+async def evaluate_training_dataset(request: Request):
+    """Run heuristic evaluation against a project's approved training dataset.
+
+    Results are labeled ``eval_kind=training_leakage`` — high scores reflect
+    in-distribution recall, not generalization.
+    """
+    body = await request.json()
+    project_id = str(body.get("project_id") or body.get("pid") or "").strip()
+    if not project_id:
+        return JSONResponse({"error": "project_id required"}, status_code=400)
+    dataset_id = (body.get("dataset_id") or "").strip() or None
+    max_cases = int(body.get("max_cases", 200))
+    max_tokens = int(body.get("max_tokens", 512))
+    override_path = (body.get("model_path") or body.get("path") or "").strip()
+
+    from finetune_studio.testing.training_eval import (
+        build_training_eval,
+        suite_label_for_training_eval,
+    )
+
+    try:
+        cases, meta = build_training_eval(
+            project_id, dataset_id=dataset_id, max_cases=max_cases
+        )
+    except LookupError as e:
+        return JSONResponse({"error": str(e)}, status_code=404)
+    except (FileNotFoundError, ValueError) as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+    load_err = _ensure_model_loaded(project_id, override_path)
+    if load_err is not None:
+        return load_err
+
+    results = run_suite(inference_engine, cases, max_tokens=max_tokens)
+    apply_heuristic_judging(results)
+    scores = score_results(results)
+    scores = {
+        **scores,
+        "eval_kind": meta.eval_kind,
+        "leakage_warning": meta.leakage_warning,
+    }
+    return {
+        "suite_name": suite_label_for_training_eval(meta),
+        "eval": meta.as_dict(),
+        "scores": scores,
+        "results": [
+            {
+                "name": r.case_name,
+                "category": r.category,
+                "question": r.question,
+                "correct_answer": r.correct_answer,
+                "response": r.model_answer,
+                "model_answer": r.model_answer,
+                "passed": r.verdict == "pass",
+                "verdict": r.verdict,
+                "judge": r.judge,
+                "judge_model": r.judge_model,
+                "judge_reasoning": r.judge_reasoning,
+                "time_ms": r.time_ms,
+                "error": r.error,
+            }
+            for r in results
+        ],
         "model_path": inference_engine.model_path,
     }

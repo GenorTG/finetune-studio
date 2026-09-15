@@ -6,11 +6,22 @@
 <div class="case-results-summary" id="case-scores-summary">
   <span>total: {{ scores.total | default(0) }}</span>
   <span>judged: {{ scores.judged | default(0) }}</span>
+  <span>unjudged: {{ scores.unjudged | default(0) }}</span>
   <span>passed: {{ scores.passed | default(0) }}</span>
   <span>partial: {{ scores.partial | default(0) }}</span>
   <span>failed: {{ scores.failed | default(0) }}</span>
-  <span class="pass-rate">pass_rate: {{ scores.pass_rate }}</span>
+  {% if (scores.judged | default(0)) == 0 %}
+  <span class="pass-rate" title="No cases judged yet — pass_rate is not meaningful">pass_rate: —</span>
+  {% else %}
+  <span class="pass-rate">pass_rate: {{ scores.pass_rate }}%</span>
+  {% endif %}
+  {% if scores.eval_kind is defined and scores.eval_kind %}
+  <span class="pill outline" title="{{ scores.leakage_warning | default('') }}">{{ scores.eval_kind }}</span>
+  {% endif %}
 </div>
+{% if scores.leakage_warning is defined and scores.leakage_warning %}
+<div class="text-xs dim mt-1" role="status" id="case-leakage-warning">{{ scores.leakage_warning }}</div>
+{% endif %}
 {% endif %}
 {% if cases %}
 {# Scroll wrapper: parent .content uses overflow-x:hidden, so long Q/A cells
