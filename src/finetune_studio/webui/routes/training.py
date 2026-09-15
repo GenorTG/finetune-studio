@@ -412,6 +412,9 @@ async def start_training(request: Request):
         config.output_dir = (
             f"output/projects/{project_id}/runs/{run_id}" if project_id else f"output/runs/{run_id}"
         )
+    # Persist immediately so Export / Training UI can locate the run even when
+    # later status callbacks omit output_path or use a composite engine run id.
+    db.update_run(run_id, output_path=config.output_dir)
     run_started_at = _time.time()
     training_engine.current_run_id = f"{project_id}-{run_id}" if project_id else run_id
     training_engine.current_project_id = project_id

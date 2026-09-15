@@ -4,6 +4,8 @@ E2E-25  output_dir defaulted to the shared "output" dir, so every run in every
         project overwrote the previous run's adapter + merged model.
 E2E-26  the project training form sends system_prompt_mode=bake but no prompt,
         so the project's system prompt was never baked in.
+Also: after path normalization, the DB run row must retain output_path so
+Export / Training UI can find the artifacts (run 38867d1b showed Output —).
 """
 from __future__ import annotations
 
@@ -55,22 +57,34 @@ def _jsonl(tmp_path: Path) -> str:
 
 
 def test_default_output_dir_is_scoped_per_run(client, fake_engine: _FakeEngine, tmp_path: Path) -> None:
+    from finetune_studio import db
+
     pid = _project(client, "")
     r = client.post("/api/training/start", json={
         "project_id": pid, "data_path": _jsonl(tmp_path), "model_path": "m", "output_dir": "output",
     })
     assert r.status_code == 200, r.text
     run_id = r.json()["run_id"]
-    assert fake_engine.started["config"].output_dir == f"output/projects/{pid}/runs/{run_id}"
+    expected = f"output/projects/{pid}/runs/{run_id}"
+    assert fake_engine.started["config"].output_dir == expected
+    run = db.get_run(run_id)
+    assert run is not None
+    assert run["output_path"] == expected
 
 
 def test_explicit_output_dir_is_kept(client, fake_engine: _FakeEngine, tmp_path: Path) -> None:
+    from finetune_studio import db
+
     pid = _project(client, "")
     r = client.post("/api/training/start", json={
         "project_id": pid, "data_path": _jsonl(tmp_path), "model_path": "m", "output_dir": "output/mine",
     })
     assert r.status_code == 200, r.text
     assert fake_engine.started["config"].output_dir == "output/mine"
+    run_id = r.json()["run_id"]
+    run = db.get_run(run_id)
+    assert run is not None
+    assert run["output_path"] == "output/mine"
 
 
 def test_bake_uses_project_system_prompt_when_form_sends_none(
