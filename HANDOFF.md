@@ -4,36 +4,34 @@
 Local fine-tune + data-prep WebUI (FastAPI, `src/finetune_studio/`).
 Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :7860.
 
-## State (verified 2026-09-15 ~16:20 Europe/Warsaw)
+## State (verified 2026-09-15 16:36 Europe/Warsaw)
 | Area | Status |
 |------|--------|
-| Git | `dec5d10` deployed; service active under `finetune-studio.service` |
-| 4B training | ✅ Browser run `598d9d14`: Qwen3-4B safetensors, raw LoRA, 172/172, live logs, DONE |
-| Activity drawer | ✅ Expanded task survives the 2-second refresh; browser verified |
-| Merge/export | ✅ Browser merge-at-export produced 7.5 GB safetensors; raw adapter remains separate |
-| Testing auto-load | ✅ Accepts status `done`/`completed`; requires ready `merged/` weights |
-| Testing model list | ✅ Project-scoped exports from `_scan_run_models` (not global HF list); latest merged pre-selected |
-| Testing suite | ✅ Browser run: 10 judged, 8 passed, 1 partial, 1 failed (80%) with per-case table/logs |
-| Project benchmark | ✅ Browser run: 10 judged, 8 passed, 1 partial, 1 failed (80%); results and scores rendered |
-| Export failures | ✅ Sync path returns HTTP 400 + `{ok:false,status:failed,error}`; UI notifies + `role=status` |
-| GPTQ missing dep | ✅ Fail-fast when `auto_gptq` absent (no fake success) |
-| Regression | ✅ 46 focused tests green; ruff clean on touched files |
-| Model cleanup | ✅ Old 0.6B/Unsloth/Gemma caches and artifacts removed; 4B/27B plus RAG embedder retained |
+| Git | `5e634a8` deployed; service active under `finetune-studio.service` |
+| UI updates | SSE live events replace 2s full-panel redraws; browser saw `200 eventsource` |
+| Results UI | Main testing/export result surfaces use readable grids/cards; raw JSON is debug-only |
+| Export formats | AWQ removed; unsupported GPTQ fails honestly; supported choices are not over-advertised |
+| Regression | 50 focused tests passed; Ruff passed on touched Python files |
+| Runtime reset | Fan-dragon project DB, provider DBs, project data, and generated output reset to zero |
+| Fresh browser state | Dashboard shows 0 projects; exactly one provider: retained 27B Qwen GGUF helper |
+| Retained models | Qwen3-4B HF safetensors cache for training; Qwen3.8-27B Q4_K_M GGUF + projector for inference help |
+| Reset backup | `/home/genortg/finetune-studio-reset-backups/20260915-163033` on fan-dragon |
+| Repo hygiene | DB, SQLite, runtime data, models, output, projects, and private artifacts are gitignored |
 
 ## Next steps
-1. Browser: investigate GGUF `q8_0`; POST returned 200 but no artifact row appeared after refresh, so it is not verified.
-2. Browser: confirm GPTQ failure is now shown as an error notification, not success; install `auto-gptq` only if a real GPTQ artifact is required.
-3. Implement a real AWQ backend before advertising AWQ; current UI correctly omits/marks unsupported paths.
-4. Add/import industry-standard suites (only project `default.json` exists currently) and generate a fresh 27B-assisted testing suite rather than reusing the existing fixture.
-5. Service truth check: `ss -ltnp | grep 7860` → `/proc/<pid>/cgroup` contains `finetune-studio.service`.
+1. Create a new project in the browser: open `http://fan-dragon:7860/` and click `CREATE YOUR FIRST PROJECT`.
+2. Verify data-prep SSE: use the project Data Prep page and confirm the live activity stream stays connected at `/api/activity/events`.
+3. Run a fresh 4B training flow only after selecting the prepared dataset in the browser; verify live logs and final status in the UI.
+4. Add a real GGUF converter before exposing GGUF export as successful; never trust an HTTP 200 without an artifact row.
+5. Add industry suites and a 27B-assisted project suite through browser-visible workflows before benchmarking.
 
 ## Commands
-- Focused: `.venv/bin/python -m pytest tests/test_testing_auto_load.py tests/test_testing_models.py tests/test_project_testing.py tests/test_run_export.py tests/test_export.py -q --tb=short`
-- Lint: `.venv/bin/python -m ruff check src/finetune_studio/webui/testing_models.py src/finetune_studio/webui/routes/testing.py src/finetune_studio/training/run_export.py`
+- Tests: `.venv/bin/python -m pytest tests/ -v --tb=short`
+- Lint: `.venv/bin/python -m ruff check src/`
 - Deploy: `git push`; fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`
+- Service truth: `systemctl --user show -p MainPID --value finetune-studio` then `grep finetune-studio.service /proc/<pid>/cgroup`
 
 ## Blockers
-- GGUF conversion is still unproven: browser POST returned HTTP 200 but no artifact appeared.
-- GPTQ needs `auto-gptq` on fan-dragon for a successful export.
-- AWQ has no working backend in this environment.
-- Industry-standard benchmark suites and a fresh 27B-generated test suite are not yet wired into this project flow.
+- No project/data/training artifacts remain after the authorized fan-dragon reset.
+- GGUF conversion and GPTQ require backend work; AWQ is intentionally not advertised.
+- Industry-standard suites and fresh 27B-generated test-suite preparation remain to be implemented.
