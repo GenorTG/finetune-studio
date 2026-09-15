@@ -29,10 +29,10 @@ git clone https://github.com/GenorTG/finetune-studio && cd finetune-studio
 ### Optional: GPTQ export (`auto-gptq`)
 
 GPTQ is **gated**: the Export UI disables the format until `auto_gptq` imports.
-Install into the app venv on the GPU host (example for fan-dragon):
+Install into the app venv on the GPU host:
 
 ```bash
-cd /home/genortg/finetune-studio
+cd /path/to/finetune-studio
 uv pip install --python .venv/bin/python -e '.[gptq]'
 # equivalent: uv pip install --python .venv/bin/python 'auto-gptq>=0.7.0'
 systemctl --user restart finetune-studio
