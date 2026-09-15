@@ -11,7 +11,7 @@ Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **ge
 - Lint: `.venv/bin/python -m ruff check src/` (the Makefile `lint` target hides failures with `|| true` — run ruff directly and fix every warning).
 - Run: `make run` (= `bash run.sh`). E2E browser suite: `tests/run_qa.sh` (see `tests/README_E2E.md`). GPU-dependent tests (`test_vram_profiler.py`) only pass on fan-dragon.
 - Verify before "done": the test file for the module you changed passes locally; GPU-path changes need a fan-dragon run noted in HANDOFF.
-- Deploy: `git push`, then on fan-dragon: `cd /home/genortg/finetune-studio && git pull --ff-only`. Restart the bare uvicorn per `RESTART.md` "Start / restart the WebUI on :7860" (start new → kill old pid → `ss -ltnp | grep 7860` proves new pid). **fan-dragon has no `finetune-studio.service` by default**; to create one, `bash scripts/install-service.sh` on fan-dragon (requires sudo). Never `make run` on genorbox1 (dev-only box, no models/GPU).
+- Deploy: `git push`, then on fan-dragon: `cd /home/genortg/finetune-studio && git pull --ff-only`. Restart with `systemctl --user restart finetune-studio` (user unit, no sudo; `journalctl --user -u finetune-studio -f` for logs). (Re)install the unit with `bash install-service.sh` on fan-dragon — it also stops a stray bare uvicorn on :7860. Truth check: `ss -ltnp | grep 7860` pid's `/proc/<pid>/cgroup` contains `finetune-studio.service`. Never `make run` on genorbox1 (dev-only box, no models/GPU).
 
 ## Layout
 - `src/finetune_studio/` — app code, one concern per module (api, ui, training, data-prep). `tests/` mirrors it.
@@ -38,7 +38,8 @@ Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **ge
 - 2026-09-10 `make lint` swallows failures with `|| true`; run ruff directly.
 - 2026-09-10 37 tests in `test_vram_profiler.py` are GPU/env dependent — not a regression on genorbox1.
 - 2026-09-14 genorbox1 is dev-only: pure pytest + ruff here (`uv pip install --python .venv/bin/python -e .[dev]` — the venv is uv-managed, `python -m pip` does not exist); anything needing GPU, Playwright or the running app → fan-dragon.
-- 2026-09-14 fan-dragon has no `finetune-studio.service`; the app is a bare `uvicorn` process — check `ss -ltnp | grep 7860` before claiming a restart worked.
+- 2026-09-15 fan-dragon runs the WebUI as `systemctl --user` unit `finetune-studio` (no sudo). Check the :7860 pid's `/proc/<pid>/cgroup` contains `finetune-studio.service` before claiming a restart worked — a bare uvicorn squatting the port looks identical in `ss` (626a48b).
+- 2026-09-15 Browser-tool uploads: put the file under `/tmp/openclaw/uploads/` (other paths are rejected), then `browser upload` with the Upload trigger `ref`. Any native `alert()`/`confirm()` fired after upload freezes the page and the tool call "times out" even though the upload landed — never use native dialogs in the WebUI; use `fts.notify` / inline `role=status` (8ff9fb0).
 - 2026-09-14 Ruff `F821` (undefined name) in this repo = real `NameError` on error paths (missing imports); treat as bugs, not style.
 - 2026-09-14 fan-dragon restart: `pkill -f "uvicorn finetune_studio"` *before* spawning the new process will match the child's argv and race-kill the parent bash (exit 255). Start the new process first, wait 3s for it to bind, then `kill $OLD_PID` explicitly. Truth check is `ss -ltnp | grep 7860` — new pid must differ from old.
 - 2026-09-14 Data-prep file library was clipped by `<main class="content">` (`flex:1 1 0` + `overflow:hidden auto` in a 361px grid row). Fix landed in `4bebc37`; ancestor walk via browser `page.evaluate` is the diagnostic pattern for any future "page stuck at 437px" symptom — not more CSS guesses.
