@@ -65,6 +65,10 @@ def parse_qa_json(raw: str, n_expected: int) -> list[dict]:
     s = re.sub(r"<think>.*?</think>", "", s, flags=re.DOTALL).strip()
     # Also strip unterminated trailing <think>... blocks (model forgot to close)
     s = re.sub(r"<think>.*$", "", s, flags=re.DOTALL).strip()
+    # Qwen3's chat template puts the opening <think> in the prompt, so replies
+    # can start with reasoning then a bare </think> — drop that preamble too.
+    if "</think>" in s:
+        s = s.split("</think>", 1)[1].strip()
 
     # 2. Strip markdown fences
     fence = re.search(r"```(?:json)?\s*(\[.*?\]|\{.*?\})\s*```", s, re.DOTALL)
