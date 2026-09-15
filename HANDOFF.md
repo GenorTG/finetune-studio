@@ -2,30 +2,34 @@
 
 ## Mission
 Local fine-tune + data-prep WebUI (FastAPI, `src/finetune_studio/`).
-Edit on genorbox1 → push → fan-dragon pulls and runs `systemctl --user` unit `finetune-studio` on :7860.
+Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :7860.
 
-## State (verified 2026-09-15 ~14:55 genorbox1)
+## State (verified 2026-09-15 ~15:12 Europe/Warsaw)
 | Area | Status |
 |------|--------|
-| Git | Uncommitted: SFT Hub-token KeyError fix + prior WebUI defaults (no commit per request) |
-| push_to_hub_token | ✅ Fixed: build `SFTConfig` via `training/sft_args.py` (TRL 0.24 no longer pops missing key) |
-| merge_on_save | ✅ Omitted → false |
-| unsloth omitted | ✅ Omitted → false (standard TRL) |
-| Tests | ✅ 13 passed: `test_sft_args.py` + `test_training_start_defaults.py` |
-| Ruff | ✅ F821/F401 clean on touched training modules + new test |
+| Git | `17544f1` pushed; activity-state fix `32fe913` and training observability `cc57f94` are ancestors |
+| Training startup | ✅ Browser-started Qwen3-4B run `38867d1b` reached `done` in 49.27s; settings show `merge_on_save: false` |
+| Hub-token bug | ✅ `SFTConfig` fix prevents TRL 0.24 / transformers 5.5 `push_to_hub_token` KeyError |
+| Browser | ✅ fan-dragon HTTP 200; service MainPID is in `finetune-studio.service` cgroup |
+| Export UI | ✅ Browser confirms GGUF, GPTQ, AWQ; GGUF `q8_0` option visible |
+| Model cleanup | ✅ Retained Qwen3-4B cache and local Qwen3.8-27B safetensors/GGUF; removed old 0.6B/Unsloth/other HF model caches and stale 0.6B project artifacts |
+| Testing UI | ✅ Browser shows retained 4B/27B choices and a visible Run button; auxiliary embedder retained for RAG |
+| Tests | ✅ `13 passed`; targeted Ruff checks clean. Broader legacy Ruff has pre-existing warnings in `engine.py` and related modules |
 
 ## Next steps
-1. Commit + push when Genor asks (include `sft_args.py`, engine/unsloth/profile wiring, `test_sft_args.py`).
-2. On fan-dragon: pull + restart; confirm cgroup.
-   `ssh fan-dragon 'bash -lc "cd ~/finetune-studio && git pull --ff-only && systemctl --user restart finetune-studio"'`
-3. Browser: Qwen3-4B project Training → start (no Hub token) — must pass SFTTrainer init (no KeyError in ~8s).
-4. Confirm Live status is not Unsloth; merge unchecked; step log visible.
-5. Optional: Unsloth preset path still trains after SFTConfig switch.
+1. In browser, select the completed 4B run on Export and export safetensors/AWQ plus GGUF `q8_0`.
+   `http://fan-dragon:7860/projects/04954e70/export`
+2. Prepare/select the project test suite, then run it against each exported 4B format in Testing.
+   `http://fan-dragon:7860/projects/04954e70/testing`
+3. Verify per-case results, model output/log visibility, and unload/load transitions with screenshots.
+4. If activity drawer has a live item, expand it and wait through one 2-second poll; confirm expansion persists.
 
 ## Commands
-- Focused: `.venv/bin/python -m pytest tests/test_sft_args.py tests/test_training_start_defaults.py -v`
-- Lint: `.venv/bin/python -m ruff check src/finetune_studio/training/sft_args.py src/finetune_studio/training/engine.py src/finetune_studio/training/unsloth_engine.py src/finetune_studio/training/vram/profile.py tests/test_sft_args.py --select F821,F401`
-- Deploy: push then fan-dragon pull + `systemctl --user restart finetune-studio`
+- Focused: `.venv/bin/python -m pytest tests/test_sft_args.py tests/test_training_start_defaults.py -q --tb=short`
+- Targeted lint: `.venv/bin/python -m ruff check src/finetune_studio/training/sft_args.py tests/test_sft_args.py`
+- Deploy: `git push`; on fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`
+- Service truth check: `systemctl --user show -p MainPID --value finetune-studio; grep finetune-studio.service /proc/<pid>/cgroup`
 
 ## Blockers
-None for code. Live fix not on fan-dragon until commit/push + restart.
+- Export/test execution is not yet complete; no exported 4B variants or final per-format benchmark evidence yet.
+- Activity persistence has focused coverage, but a live expanded-row browser check needs an activity item to exist.
