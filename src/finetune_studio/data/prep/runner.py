@@ -71,7 +71,7 @@ class DataPrepRunner:
             setattr(self.progress, k, v)
         try:
             self.cb(self.progress)
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
     def run(self) -> dict:
@@ -155,12 +155,16 @@ class DataPrepRunner:
             "chunk_count": ingest.chunk_count,
         })
         # 6) Q&A generation per chunk
-        from finetune_studio.data.prep.generator import NO_MODEL_MSG, resolve_generator
+        from finetune_studio.data.prep.generator import (
+            helper_resolution_error,
+            resolve_generator,
+        )
 
         chat = resolve_generator()
         if chat is None:
-            self._emit(stage="error", message=NO_MODEL_MSG)
-            return {"ok": False, "error": "no model loaded", "sha256": meta.sha256}
+            err = helper_resolution_error()
+            self._emit(stage="error", message=err)
+            return {"ok": False, "error": err, "sha256": meta.sha256}
         self._emit(stage="generating", pct=30, source_id=self.source_id,
                    chunks_total=len(chunks), chunks_done=0, qa_total=0,
                    message=f"Model generating Q&A from {len(chunks)} chunks…")
@@ -178,7 +182,7 @@ class DataPrepRunner:
                      {"role": "user", "content": prompt}],
                     max_tokens=1200, temperature=0.7, top_p=0.9,
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 log.warning("model call failed on chunk %d: %s", i, e)
                 pfs.log_ingestion(self.pid, {
                     "event": "qa_chunk_error", "sha256": meta.sha256, "chunk_index": i,

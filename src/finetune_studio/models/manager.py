@@ -13,14 +13,12 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
-from typing import Optional
 
 from finetune_studio.models.providers import (
-    OpenAICompatProvider,
+    ModelProvider,
     ProviderConfig,
     build_provider,
 )
-from finetune_studio.models.providers import ModelProvider
 
 log = logging.getLogger(__name__)
 
@@ -46,19 +44,37 @@ def _ensure_db() -> None:
             value TEXT NOT NULL
         );
         """)
-        # Default local provider pointing at fan-dragon's Qwen3.8 if not configured
+        # Default local helper (27B GGUF) if no providers configured yet.
+        from finetune_studio.models.helper import (
+            DEFAULT_HELPER_EXTRA,
+            DEFAULT_HELPER_LABEL,
+            DEFAULT_HELPER_PROVIDER_ID,
+            default_helper_gguf_path,
+        )
+
         cur = c.execute("SELECT COUNT(*) FROM model_providers").fetchone()
         if cur[0] == 0:
             now = time.time()
             c.execute(
                 "INSERT INTO model_providers (id, name, kind, model_id, base_url, api_key, extra_json, created_at) "
                 "VALUES (?,?,?,?,?,?,?,?)",
-                ("local-default", "Local GGUF", "local_gguf",
-                 str(Path.home() / "finetune-studio" / "models" / "gguf" / "Qwen3.8-27B-abliterated-Q4_K_M.gguf"),
-                 "", "", json_dumps({"n_ctx": 16384, "n_gpu_layers": 99, "n_batch": 512,
-                                     "n_threads": 0, "seed": -1,
-                                     "rope_freq_base": 0.0, "rope_freq_scale": 0.0,
-                                     "flash_attn": True, "mmap": True, "mlock": False}), now),
+                (
+                    DEFAULT_HELPER_PROVIDER_ID,
+                    DEFAULT_HELPER_LABEL,
+                    "local_gguf",
+                    default_helper_gguf_path(),
+                    "",
+                    "",
+                    json_dumps(dict(DEFAULT_HELPER_EXTRA)),
+                    now,
+                ),
+            )
+        else:
+            # Rename legacy "Local GGUF" label to the explicit helper name.
+            c.execute(
+                "UPDATE model_providers SET name = ? "
+                "WHERE id = ? AND (name = '' OR name = 'Local GGUF' OR name = 'local')",
+                (DEFAULT_HELPER_LABEL, DEFAULT_HELPER_PROVIDER_ID),
             )
 
 
@@ -83,7 +99,7 @@ def json_loads(s: str) -> dict:
     import json
     try:
         return json.loads(s) if s else {}
-    except Exception:
+    except (TypeError, json.JSONDecodeError):
         return {}
 
 
@@ -101,13 +117,15 @@ class ModelManager:
         # so concurrent chat/generate calls must be serialized. Remote providers are
         # safe either way, so we always go through this lock; cost is negligible.
         self._invoke_lock = threading.Lock()
-        self._provider: Optional[ModelProvider] = None
+        self._provider: ModelProvider | None = None
         self._active_id: str = ""
         _ensure_db()
 
     # ── provider CRUD (DB) ─────────────────────────────────────
 
     def list_providers(self) -> list[dict]:
+        from finetune_studio.models.helper import annotate_provider
+
         with sqlite3.connect(_DB_PATH) as c:
             rows = c.execute("SELECT id, name, kind, model_id, base_url, api_key, extra_json, created_at FROM model_providers ORDER BY created_at").fetchall()
         out = []
@@ -120,10 +138,10 @@ class ModelManager:
                 "extra": json_loads(r[6]),
                 "created_at": r[7],
             }
-            out.append(d)
+            out.append(annotate_provider(d))
         return out
 
-    def get_provider(self, pid: str) -> Optional[dict]:
+    def get_provider(self, pid: str) -> dict | None:
         for p in self.list_providers():
             if p["id"] == pid:
                 return p
@@ -156,7 +174,7 @@ class ModelManager:
 
     # ── active model management ──────────────────────────────────
 
-    def active(self) -> Optional[dict]:
+    def active(self) -> dict | None:
         with self._lock:
             if self._provider is None:
                 return None
@@ -164,7 +182,7 @@ class ModelManager:
             d["idle_seconds"] = int(time.time() - self._provider._loaded_at) if self._provider._loaded_at else 0
             return d
 
-    def load(self, pid: str, extra: Optional[dict] = None) -> dict:
+    def load(self, pid: str, extra: dict | None = None) -> dict:
         cfg_row = self.get_provider(pid)
         if not cfg_row:
             raise ValueError(f"Unknown provider: {pid}")
@@ -224,7 +242,7 @@ class ModelManager:
             return
         try:
             self._provider.unload()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.warning("unload failed: %s", e)
         self._provider = None
 
@@ -246,7 +264,7 @@ class ModelManager:
 
 
 # Singleton (process-wide)
-_manager: Optional[ModelManager] = None
+_manager: ModelManager | None = None
 _manager_lock = threading.Lock()
 
 

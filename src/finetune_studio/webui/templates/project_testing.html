@@ -9,7 +9,10 @@
 
 <div class="page-head">
   <h1>Testing</h1>
-  <div class="sub">Run a saved test suite against a model and inspect pass/fail per case.</div>
+  <div class="sub">Run a saved test suite against a model and inspect pass/fail per case.
+    Auto-suites from training JSONL are deterministic; LLM-assisted suite generation
+    (when enabled) uses <span class="mono">{{ helper_label }}</span> only — never a silent
+    fallback to another loaded model.</div>
 </div>
 
 <div class="card mb-6">

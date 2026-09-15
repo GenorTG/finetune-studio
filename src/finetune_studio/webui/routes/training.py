@@ -523,8 +523,18 @@ async def list_auto_suites(run_id: str):
 
 @router.post("/runs/{run_id}/auto-suites/generate")
 async def trigger_auto_suite(run_id: str):
-    """Trigger auto-generation of a benchmark suite from training data."""
+    """Trigger auto-generation of a benchmark suite from training data.
+
+    JSONL→suite conversion is deterministic (no LLM). The response still
+    names the configured helper so UI / future LLM-assisted generation
+    paths share one explicit default with no silent model fallback.
+    """
     from finetune_studio import db
+    from finetune_studio.models.helper import (
+        DEFAULT_HELPER_LABEL,
+        DEFAULT_HELPER_PROVIDER_ID,
+        get_configured_helper_provider,
+    )
     run = db.get_run(run_id)
     if not run:
         return {"error": "run not found"}
@@ -552,7 +562,15 @@ async def trigger_auto_suite(run_id: str):
              result.get("case_count", 0),
              json.dumps(result.get("categories", {})), _time()),
         )
-    return {"ok": True, "suite_id": suite_id, **result}
+    helper = get_configured_helper_provider()
+    return {
+        "ok": True,
+        "suite_id": suite_id,
+        "generation_mode": "deterministic",
+        "helper_provider_id": DEFAULT_HELPER_PROVIDER_ID,
+        "helper_label": (helper or {}).get("label") or DEFAULT_HELPER_LABEL,
+        **result,
+    }
 
 
 @router.post("/runs/{run_id}/abliterate")

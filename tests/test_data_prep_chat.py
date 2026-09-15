@@ -5,13 +5,6 @@ without a loaded model or external API key.
 """
 from __future__ import annotations
 
-import os
-import tempfile
-from pathlib import Path
-
-import pytest
-
-
 # ── Tool implementations ────────────────────────────────────────────────
 
 
@@ -237,7 +230,7 @@ class TestChatRouteSmoke:
         """No provider_id / external_api and nothing loaded → 409."""
         from unittest.mock import MagicMock
 
-        from finetune_studio.data.prep.generator import NO_MODEL_MSG
+        from finetune_studio.data.prep.generator import HELPER_NO_MODEL_MSG
 
         mgr = MagicMock()
         mgr.active.return_value = None
@@ -257,7 +250,7 @@ class TestChatRouteSmoke:
         )
         assert r.status_code == 409
         body = r.json()
-        assert body.get("error") == NO_MODEL_MSG
+        assert body.get("error") == HELPER_NO_MODEL_MSG
 
     def test_external_api_skips_to_canned_reply(self, client, monkeypatch):
         """With FTS_SKIP_CHAT=1, external_api still goes through the loop

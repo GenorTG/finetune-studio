@@ -12,12 +12,11 @@ API keys live in that table (or env vars for server-side use).
 
 from __future__ import annotations
 
-import json
 import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -107,15 +106,15 @@ class LocalGGUFProvider(ModelProvider):
             self._rope_freq_base, self._rope_freq_scale,
             self._flash_attn, self._mmap, self._mlock,
         )
-        kwargs = dict(
-            model_path=self.config.model_id,
-            n_ctx=self._n_ctx,
-            n_gpu_layers=self._n_gpu_layers,
-            n_batch=self._n_batch,
-            mmap=self._mmap,
-            flash_attn=self._flash_attn,
-            verbose=False,
-        )
+        kwargs = {
+            "model_path": self.config.model_id,
+            "n_ctx": self._n_ctx,
+            "n_gpu_layers": self._n_gpu_layers,
+            "n_batch": self._n_batch,
+            "mmap": self._mmap,
+            "flash_attn": self._flash_attn,
+            "verbose": False,
+        }
         if self._n_threads > 0:
             kwargs["n_threads"] = self._n_threads
         if self._seed >= 0:
@@ -135,14 +134,14 @@ class LocalGGUFProvider(ModelProvider):
             if self._llama is not None:
                 try:
                     del self._llama
-                except Exception:
+                except Exception:  # noqa: BLE001, S110
                     pass
                 self._llama = None
         try:
             import torch
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
         self._loaded_at = 0.0
         log.info("LocalGGUFProvider unloaded")
@@ -151,13 +150,13 @@ class LocalGGUFProvider(ModelProvider):
         return self._llama is not None
 
     def _gen_kwargs(self, gen: dict) -> dict:
-        return dict(
-            max_tokens=int(gen.get("max_tokens", 1024)),
-            temperature=float(gen.get("temperature", 0.7)),
-            top_p=float(gen.get("top_p", 0.9)),
-            top_k=int(gen.get("top_k", 40)),
-            repeat_penalty=float(gen.get("repeat_penalty", 1.1)),
-        )
+        return {
+            "max_tokens": int(gen.get("max_tokens", 1024)),
+            "temperature": float(gen.get("temperature", 0.7)),
+            "top_p": float(gen.get("top_p", 0.9)),
+            "top_k": int(gen.get("top_k", 40)),
+            "repeat_penalty": float(gen.get("repeat_penalty", 1.1)),
+        }
 
     def chat(self, messages: list[dict], **gen) -> str:
         if self._llama is None:
@@ -232,7 +231,7 @@ class OpenAICompatProvider(ModelProvider):
             r = self._client().post(url, json=body, timeout=300)
             r.raise_for_status()
             return r.json()["choices"][0]["text"].strip()
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Fallback to chat mode
             return self.chat([{"role": "user", "content": prompt}], **gen)
 
@@ -247,8 +246,25 @@ def build_provider(config: ProviderConfig) -> ModelProvider:
 
 # ── Catalog of well-known providers (used to populate the picker UI) ────
 
+def _local_helper_preset() -> dict:
+    from finetune_studio.models.helper import (
+        DEFAULT_HELPER_LABEL,
+        DEFAULT_HELPER_PROVIDER_ID,
+        default_helper_gguf_path,
+    )
+
+    return {
+        "id": DEFAULT_HELPER_PROVIDER_ID,
+        "name": DEFAULT_HELPER_LABEL,
+        "kind": "local_gguf",
+        "model_id": default_helper_gguf_path(),
+        "base_url": "",
+        "api_key": "",
+    }
+
+
 PROVIDER_PRESETS: list[dict] = [
-    {"id": "local", "name": "Local GGUF", "kind": "local_gguf", "model_id": "", "base_url": "", "api_key": ""},
+    _local_helper_preset(),
     {"id": "openai", "name": "OpenAI", "kind": "openai_compat", "base_url": "https://api.openai.com/v1", "model_id": "gpt-4o-mini", "api_key": ""},
     {"id": "openrouter", "name": "OpenRouter", "kind": "openai_compat", "base_url": "https://openrouter.ai/api/v1", "model_id": "anthropic/claude-3.5-sonnet", "api_key": ""},
     {"id": "opencode-go", "name": "opencode-go", "kind": "openai_compat", "base_url": "https://api.opencode.ai/v1", "model_id": "default", "api_key": ""},

@@ -78,7 +78,7 @@ src/finetune_studio/
 | `/api/projects` | `projects.py`, `rag.py` | CRUD + RAG corpora |
 | `/api/agentic` | `agentic.py` | tool-using agent (legacy surface, Stage 5 absorbs) |
 | `/api/system` | `system.py` | resources (RAM/VRAM), update endpoints via updates |
-| `/api/activity` | `activity.py` | live task feed (drawer polls every 2s) |
+| `/api/activity` | `activity.py` | live task feed via SSE (`GET /api/activity/events`); `GET /api/activity` is the one-shot snapshot fallback |
 | `/api/data*` | `data.py`, `data_editor.py`, `quality.py` | uploads, editor, quality scoring |
 
 **Route-ordering rule:** specific paths (`/files/trash`) must register BEFORE
@@ -131,8 +131,9 @@ Soft delete everywhere: `files/.RAW_TRASH/`, `.CONVERTED_TRASH/`, 7-day purge
 
 - `base.html`: session bar (horizontal tmux-style tab strip — **never** a vertical
   rail; mobile keeps it horizontal + scrollable), global model pill (polls
-  `/api/providers` **and** `/api/inference/status` every 3s), activity drawer,
-  command palette (Ctrl-K), SPA link interception (`data-link`).
+  `/api/providers` **and** `/api/inference/status` every 3s), activity drawer
+  (live via SSE `/api/activity/events`, silent poll fallback only if EventSource
+  fails), command palette (Ctrl-K), SPA link interception (`data-link`).
 - Cache-bust: static assets carry `?v=N` in base.html — bump N on every css/js change.
 - Terminal aesthetic is intentional: `▐` section markers, `[ BUTTON ]` labels,
   `┌── NO_DATA ──┐` boxes. Not debug artifacts.

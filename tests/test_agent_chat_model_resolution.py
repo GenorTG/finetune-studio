@@ -1,9 +1,8 @@
-"""E2E-21: agent chat must reuse the Inference-loaded model.
+"""Data-prep chat requires the configured 27B GGUF helper.
 
-When provider_id is omitted, POST /data-prep/chat must use the already-loaded
-inference_engine (even if the manager has a different inactive/active
-provider registered) and must NEVER call manager.load — that was dual-loading
-a 15+ GB GGUF beside the Inference model and answering with the wrong one.
+When ``provider_id`` is omitted, the route must use the helper already loaded
+in ModelManager or on ``inference_engine`` — never a project's merged 4B (or
+any other non-helper) and never call ``manager.load``.
 """
 
 from __future__ import annotations
@@ -14,7 +13,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from finetune_studio.data.prep.generator import NO_MODEL_MSG
+from finetune_studio.models.helper import (
+    DEFAULT_HELPER_GGUF_BASENAME,
+    DEFAULT_HELPER_PROVIDER_ID,
+    no_helper_message,
+    wrong_model_message,
+)
+
+_HELPER_PATH = f"/models/gguf/{DEFAULT_HELPER_GGUF_BASENAME}"
 
 
 @pytest.fixture
@@ -34,25 +40,28 @@ def _project(client: Any) -> str:
     return r.json()["id"]
 
 
-def _loaded_engine(reply: str = "ok from inference engine") -> MagicMock:
+def _loaded_engine(
+    path: str = _HELPER_PATH,
+    reply: str = "ok from inference engine",
+) -> MagicMock:
     eng = MagicMock()
     eng.model = MagicMock()
-    eng.model_path = "/models/Qwen3-4B"
+    eng.model_path = path
     eng.model.create_chat_completion.return_value = {
         "choices": [{"message": {"content": reply}}],
     }
     return eng
 
 
-def _manager_with_other_provider(*, active: dict[str, Any] | None) -> MagicMock:
-    """Manager that knows about a different GGUF provider; load must not run."""
+def _manager_helper(*, active: dict[str, Any] | None) -> MagicMock:
+    """Manager that knows the helper provider; load must not run when omitted."""
     mgr = MagicMock()
     mgr.active.return_value = active
     mgr.get_provider.return_value = {
-        "id": "local-default",
+        "id": DEFAULT_HELPER_PROVIDER_ID,
         "kind": "local_gguf",
-        "model_id": "/models/gguf/Qwen3.8-27B-abliterated-Q4_K_M.gguf",
-        "name": "local-default",
+        "model_id": _HELPER_PATH,
+        "name": "Helper · Qwen3.8-27B GGUF",
     }
     mgr.load = MagicMock(
         side_effect=AssertionError("manager.load must not be called"),
@@ -61,29 +70,15 @@ def _manager_with_other_provider(*, active: dict[str, Any] | None) -> MagicMock:
     return mgr
 
 
-@pytest.mark.parametrize(
-    "mgr_active",
-    [
-        None,  # inactive — provider registered but not loaded
-        {  # active — different provider already resident in manager
-            "id": "local-default",
-            "kind": "local_gguf",
-            "model_id": "/models/gguf/Qwen3.8-27B-abliterated-Q4_K_M.gguf",
-            "loaded": True,
-        },
-    ],
-    ids=["inactive", "active"],
-)
-def test_omitted_provider_id_uses_inference_engine_not_manager_load(
+def test_omitted_provider_id_uses_helper_on_inference(
     client: Any,
     fts_root: Path,
     monkeypatch: pytest.MonkeyPatch,
-    mgr_active: dict[str, Any] | None,
 ) -> None:
-    """Inference loaded + other provider inactive/active → engine, no load."""
+    """Helper GGUF on Inference + manager inactive → engine, no load."""
     pid = _project(client)
     eng = _loaded_engine()
-    mgr = _manager_with_other_provider(active=mgr_active)
+    mgr = _manager_helper(active=None)
 
     monkeypatch.setattr(
         "finetune_studio.models.manager.get_manager",
@@ -99,29 +94,55 @@ def test_omitted_provider_id_uses_inference_engine_not_manager_load(
         json={"messages": [{"role": "user", "content": "hi"}]},
     )
     assert r.status_code == 200, r.text
-    body = r.json()
-    assert body.get("ok") is True
-    assert body.get("reply") == "ok from inference engine"
-    eng.model.create_chat_completion.assert_called()
+    assert "ok from inference engine" in (r.json().get("reply") or "")
     mgr.load.assert_not_called()
-    # Prefer inference even when manager.active() is set (E2E-21).
-    mgr.chat.assert_not_called()
 
 
-def test_omitted_provider_id_409_when_nothing_loaded(
+def test_omitted_provider_id_uses_helper_manager_when_active(
     client: Any,
     fts_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Helper already active in manager → manager chat, no load."""
     pid = _project(client)
-    mgr = MagicMock()
-    mgr.active.return_value = None
-    mgr.load = MagicMock(
-        side_effect=AssertionError("manager.load must not be called"),
+    eng = _loaded_engine(path="/models/Qwen3-4B")  # non-helper on Inference
+    mgr = _manager_helper(
+        active={
+            "id": DEFAULT_HELPER_PROVIDER_ID,
+            "kind": "local_gguf",
+            "model_id": _HELPER_PATH,
+            "loaded": True,
+        },
     )
-    eng = MagicMock()
-    eng.model = None
-    eng.model_path = None
+
+    monkeypatch.setattr(
+        "finetune_studio.models.manager.get_manager",
+        lambda: mgr,
+    )
+    monkeypatch.setattr(
+        "finetune_studio.webui.app.inference_engine",
+        eng,
+    )
+
+    r = client.post(
+        f"/api/projects/{pid}/data-prep/chat",
+        json={"messages": [{"role": "user", "content": "hi"}]},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json().get("reply") == "ok from manager"
+    mgr.load.assert_not_called()
+    mgr.chat.assert_called()
+
+
+def test_omitted_provider_id_rejects_non_helper_inference(
+    client: Any,
+    fts_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Merged 4B on Inference is not a silent fallback — clear 409."""
+    pid = _project(client)
+    eng = _loaded_engine(path="/models/Qwen3-4B")
+    mgr = _manager_helper(active=None)
 
     monkeypatch.setattr(
         "finetune_studio.models.manager.get_manager",
@@ -137,18 +158,54 @@ def test_omitted_provider_id_409_when_nothing_loaded(
         json={"messages": [{"role": "user", "content": "hi"}]},
     )
     assert r.status_code == 409, r.text
-    assert r.json().get("error") == NO_MODEL_MSG
+    err = r.json().get("error") or ""
+    assert err == wrong_model_message("/models/Qwen3-4B")
     mgr.load.assert_not_called()
 
 
-def test_resolve_loaded_backend_prefer_inference(
+def test_omitted_provider_id_409_when_nothing_loaded(
+    client: Any,
+    fts_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    pid = _project(client)
+    eng = MagicMock()
+    eng.model = None
+    eng.model_path = None
+    mgr = _manager_helper(active=None)
+
+    monkeypatch.setattr(
+        "finetune_studio.models.manager.get_manager",
+        lambda: mgr,
+    )
+    monkeypatch.setattr(
+        "finetune_studio.webui.app.inference_engine",
+        eng,
+    )
+
+    r = client.post(
+        f"/api/projects/{pid}/data-prep/chat",
+        json={"messages": [{"role": "user", "content": "hi"}]},
+    )
+    assert r.status_code == 409, r.text
+    assert r.json().get("error") == no_helper_message()
+    mgr.load.assert_not_called()
+
+
+def test_resolve_loaded_backend_is_helper_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """resolve_loaded_backend never returns a non-helper Inference load."""
     from finetune_studio.data.prep import generator as gen_mod
 
-    eng = _loaded_engine()
-    mgr = _manager_with_other_provider(
-        active={"id": "local-default", "loaded": True},
+    eng = _loaded_engine(path="/models/Qwen3-4B")
+    mgr = _manager_helper(
+        active={
+            "id": DEFAULT_HELPER_PROVIDER_ID,
+            "kind": "local_gguf",
+            "model_id": _HELPER_PATH,
+            "loaded": True,
+        },
     )
     monkeypatch.setattr(
         "finetune_studio.models.manager.get_manager",
@@ -159,12 +216,12 @@ def test_resolve_loaded_backend_prefer_inference(
         eng,
     )
 
+    # prefer_inference ignored — helper manager wins; 4B engine is not used.
     both = gen_mod.resolve_loaded_backend(prefer_inference=True)
     assert both is not None
-    assert both["kind"] == "global"
-    assert both["engine"] is eng
+    assert both["kind"] == "provider"
+    assert both["manager"] is mgr
 
-    mgr_first = gen_mod.resolve_loaded_backend(prefer_inference=False)
-    assert mgr_first is not None
-    assert mgr_first["kind"] == "provider"
-    assert mgr_first["manager"] is mgr
+    only_other = gen_mod.resolve_loaded_backend(prefer_inference=False)
+    assert only_other is not None
+    assert only_other["kind"] == "provider"

@@ -25,7 +25,7 @@ import json
 import logging
 import re
 import time
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
@@ -139,7 +139,7 @@ def _run_tool(pid: str, name: str, args: dict) -> dict:
             for p in sorted(sources_dir.glob("*.json")):
                 try:
                     src = json.loads(p.read_text(encoding="utf-8"))
-                except Exception:
+                except Exception:  # noqa: BLE001, S112
                     continue
                 out.append({
                     "id": src.get("id", p.stem),
@@ -168,7 +168,7 @@ def _run_tool(pid: str, name: str, args: dict) -> dict:
                 if parsed_path.exists():
                     try:
                         text = parsed_path.read_text(encoding="utf-8", errors="replace")
-                    except Exception:
+                    except OSError:
                         text = ""
             return {
                 "id": src.get("id", sid),
@@ -220,7 +220,7 @@ def _run_tool(pid: str, name: str, args: dict) -> dict:
                 written += 1
             return {"written": written, "source_id": sid}
         return {"error": f"unknown tool: {name}"}
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         log.exception("tool %s failed", name)
         return {"error": f"tool {name} failed: {e}"}
 
@@ -262,7 +262,7 @@ def _extract_tool_calls(text: str) -> list[dict]:
     def _try_parse(raw: str) -> None:
         try:
             obj = json.loads(raw)
-        except Exception:
+        except json.JSONDecodeError:
             return
         name = obj.get("name")
         args = obj.get("arguments") or {}
@@ -380,12 +380,11 @@ async def data_prep_chat(pid: str, request: Request):
       {ok, reply, tool_calls, rounds}
     """
     body = await request.json()
-    project_id: str = body.get("project_id") or pid
     messages: list[dict] = body.get("messages") or []
     if not messages:
         return {"error": "messages required"}
-    provider_id: Optional[str] = body.get("provider_id")
-    external: Optional[dict] = body.get("external_api")
+    provider_id: str | None = body.get("provider_id")
+    external: dict | None = body.get("external_api")
     max_rounds = max(1, min(int(body.get("max_rounds") or MAX_TOOL_ROUNDS), 12))
 
     # Generation kwargs — allow per-request override. Anything not supplied
@@ -398,31 +397,41 @@ async def data_prep_chat(pid: str, request: Request):
             gen_raw[k] = body[k]
     gen: dict[str, Any] = {}
     if "temperature" in gen_raw:
-        try: gen["temperature"] = max(0.0, min(2.0, float(gen_raw["temperature"])))
-        except Exception: pass
+        try:
+            gen["temperature"] = max(0.0, min(2.0, float(gen_raw["temperature"])))
+        except (TypeError, ValueError):
+            pass
     if "max_tokens" in gen_raw:
-        try: gen["max_tokens"] = max(32, min(8192, int(gen_raw["max_tokens"])))
-        except Exception: pass
+        try:
+            gen["max_tokens"] = max(32, min(8192, int(gen_raw["max_tokens"])))
+        except (TypeError, ValueError):
+            pass
     if "top_p" in gen_raw:
-        try: gen["top_p"] = max(0.0, min(1.0, float(gen_raw["top_p"])))
-        except Exception: pass
+        try:
+            gen["top_p"] = max(0.0, min(1.0, float(gen_raw["top_p"])))
+        except (TypeError, ValueError):
+            pass
     if "top_k" in gen_raw:
-        try: gen["top_k"] = max(0, int(gen_raw["top_k"]))
-        except Exception: pass
+        try:
+            gen["top_k"] = max(0, int(gen_raw["top_k"]))
+        except (TypeError, ValueError):
+            pass
     if "repeat_penalty" in gen_raw:
-        try: gen["repeat_penalty"] = max(0.5, min(2.0, float(gen_raw["repeat_penalty"])))
-        except Exception: pass
+        try:
+            gen["repeat_penalty"] = max(0.5, min(2.0, float(gen_raw["repeat_penalty"])))
+        except (TypeError, ValueError):
+            pass
     gen.setdefault("temperature", 0.2)
     gen.setdefault("max_tokens", 4096)
 
     # Resolve the chat backend (provider OR external API OR already-loaded
     # model). Validate this before touching the filesystem so a missing
     # project doesn't mask a backend-config error (and vice versa).
-    backend: Optional[dict] = None
+    backend: dict | None = None
     if external:
         try:
             import httpx  # noqa: F401
-        except Exception:
+        except ImportError:
             return {"error": "external_api requires httpx (install httpx)"}
         backend = {
             "kind": "external",
@@ -495,20 +504,21 @@ async def data_prep_chat(pid: str, request: Request):
                 return {"error": f"failed to load provider: {e}"}
             backend = {"kind": "provider", "manager": mgr, "provider_id": provider_id}
     else:
-        # No provider_id: reuse whatever is already loaded. Never auto-load.
-        # Prefer Inference-page engine so a leftover manager active GGUF does
-        # not steal the reply (E2E-21 dual-VRAM).
+        # No provider_id: require the configured 27B GGUF helper — never
+        # silently reuse a different Inference/manager model (e.g. a merged
+        # project LoRA). Explicit provider_id / external_api remain allowed.
         from finetune_studio.data.prep.generator import (
-            NO_MODEL_MSG,
-            resolve_loaded_backend,
+            helper_resolution_error,
+            resolve_helper_backend,
         )
 
-        loaded = resolve_loaded_backend(prefer_inference=True)
+        loaded = resolve_helper_backend()
         if loaded is None:
-            return JSONResponse({"error": NO_MODEL_MSG}, status_code=409)
+            return JSONResponse({"error": helper_resolution_error()}, status_code=409)
         backend = dict(loaded)
         log.info(
-            "data-prep chat: provider_id omitted; using already-loaded %s backend",
+            "data-prep chat: provider_id omitted; using helper %s backend (%s)",
+            backend.get("helper_label"),
             backend.get("kind"),
         )
 
@@ -531,7 +541,7 @@ async def data_prep_chat(pid: str, request: Request):
                 reply_text = _chat_global_engine(backend, full_messages, gen)
             else:
                 reply_text = _chat_local(backend, full_messages, gen)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             log.exception("chat call failed")
             return {"error": f"chat call failed: {e}"}
 
@@ -615,7 +625,7 @@ def _chat_external(backend: dict, messages: list[dict], gen: dict | None = None)
             name = fn.get("name", "")
             try:
                 args = json.loads(fn.get("arguments") or "{}")
-            except Exception:
+            except json.JSONDecodeError:
                 args = {}
             block = json.dumps({"name": name, "arguments": args})
             return f"<tool_call>{block}</tool_call>"
@@ -735,7 +745,7 @@ def _chat_local(backend: dict, messages: list[dict], gen: dict | None = None) ->
             temperature=_temp,
             top_p=_topp,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001
         # Fall back to generate() with a flattened prompt for providers that
         # only support raw text-completion (rare).
         sys_prefix, rendered = _messages_to_prompt(messages)
@@ -753,7 +763,7 @@ def _chat_local(backend: dict, messages: list[dict], gen: dict | None = None) ->
                 temperature=_temp,
                 top_p=_topp,
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             text = ""
     return text or ""
 

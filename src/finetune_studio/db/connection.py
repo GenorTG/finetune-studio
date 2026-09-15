@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 import secrets
+import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator
 
 from finetune_studio.config import settings
 
@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS quant_exports (
     project_id      TEXT NOT NULL,
     model_path      TEXT NOT NULL,
     output_path     TEXT NOT NULL,
-    method          TEXT NOT NULL,  -- awq, gptq, imatrix
+    method          TEXT NOT NULL,  -- gptq, imatrix (legacy awq rows may remain)
     bits            INTEGER NOT NULL DEFAULT 4,
     group_size      INTEGER NOT NULL DEFAULT 128,
     size_bytes      INTEGER NOT NULL DEFAULT 0,

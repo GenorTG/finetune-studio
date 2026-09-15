@@ -1,7 +1,7 @@
 """Tests for POST /api/projects/{pid}/data-prep/start (E2E-9).
 
-Covers generator resolution: manager active, inference_engine fallback,
-and none-loaded 409.
+Covers generator resolution: configured helper on manager / Inference,
+rejection of non-helper loads, and none-loaded 409.
 """
 from __future__ import annotations
 
@@ -12,7 +12,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from finetune_studio.data.fs import file_library as fl
-from finetune_studio.data.prep.generator import NO_MODEL_MSG
+from finetune_studio.data.prep.generator import HELPER_NO_MODEL_MSG
+from finetune_studio.models.helper import (
+    DEFAULT_HELPER_GGUF_BASENAME,
+    DEFAULT_HELPER_LABEL,
+    DEFAULT_HELPER_PROVIDER_ID,
+)
 
 
 @pytest.fixture
@@ -76,22 +81,36 @@ def _empty_manager() -> MagicMock:
     return mgr
 
 
-def _active_manager() -> MagicMock:
+def _helper_manager() -> MagicMock:
     mgr = MagicMock()
-    mgr.active.return_value = {"id": "fake-gen"}
+    mgr.active.return_value = {
+        "id": DEFAULT_HELPER_PROVIDER_ID,
+        "kind": "local_gguf",
+        "model_id": f"/models/gguf/{DEFAULT_HELPER_GGUF_BASENAME}",
+        "name": DEFAULT_HELPER_LABEL,
+        "loaded": True,
+    }
     mgr.chat.return_value = (
         '[{"q":"What is the capital of Velmaris?","a":"Eldrathane"}]'
     )
     return mgr
 
 
-def _loaded_engine() -> MagicMock:
+def _loaded_helper_engine() -> MagicMock:
     eng = MagicMock()
-    eng.model = object()  # truthy = loaded
-    eng.model_path = "/fake/model.gguf"
+    eng.model = object()
+    eng.model_path = f"/models/gguf/{DEFAULT_HELPER_GGUF_BASENAME}"
     eng.generate.return_value = (
         '[{"q":"What is the capital of Velmaris?","a":"Eldrathane"}]'
     )
+    return eng
+
+
+def _loaded_other_engine() -> MagicMock:
+    eng = MagicMock()
+    eng.model = object()
+    eng.model_path = "/fake/other-model.gguf"
+    eng.generate.return_value = "should not be used"
     return eng
 
 
@@ -115,7 +134,7 @@ def test_start_unknown_source_404(client: Any, fts_root: Path) -> None:
 def test_start_no_model_409(
     client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Neither manager nor inference_engine loaded → 409 with Inference hint."""
+    """Neither manager nor inference_engine loaded → 409 naming the helper."""
     pid = _project(client)
     source_id = _upload_and_promote(client, pid)
 
@@ -133,21 +152,47 @@ def test_start_no_model_409(
     )
     assert r.status_code == 409, r.text
     err = r.json()["error"]
-    assert err == NO_MODEL_MSG
-    assert "Inference page" in err
+    assert err == HELPER_NO_MODEL_MSG
+    assert DEFAULT_HELPER_LABEL in err
+    assert DEFAULT_HELPER_PROVIDER_ID in err
     assert "provider section" not in err
 
 
-def test_start_ok_when_manager_active(
+def test_start_rejects_non_helper_model(
     client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Manager active is enough even if inference_engine is empty."""
+    """A loaded non-helper model must 409 — no silent fallback."""
     pid = _project(client)
     source_id = _upload_and_promote(client, pid)
 
     monkeypatch.setattr(
         "finetune_studio.models.manager.get_manager",
-        lambda: _active_manager(),
+        lambda: _empty_manager(),
+    )
+    monkeypatch.setattr(
+        "finetune_studio.webui.app.inference_engine",
+        _loaded_other_engine(),
+    )
+    r = client.post(
+        f"/api/projects/{pid}/data-prep/start",
+        json=_start_body(source_id),
+    )
+    assert r.status_code == 409, r.text
+    err = r.json()["error"]
+    assert "helper" in err.lower()
+    assert "other-model" in err or "not" in err.lower()
+
+
+def test_start_ok_when_helper_manager_active(
+    client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Helper active on manager is enough even if inference_engine is empty."""
+    pid = _project(client)
+    source_id = _upload_and_promote(client, pid)
+
+    monkeypatch.setattr(
+        "finetune_studio.models.manager.get_manager",
+        lambda: _helper_manager(),
     )
     monkeypatch.setattr(
         "finetune_studio.webui.app.inference_engine",
@@ -179,10 +224,10 @@ def test_start_ok_when_manager_active(
     assert runner.style == "factual"
 
 
-def test_start_ok_when_inference_engine_loaded(
+def test_start_ok_when_helper_on_inference(
     client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Manager inactive + inference_engine loaded (Inference page) → 200."""
+    """Manager inactive + helper GGUF on inference_engine → 200."""
     pid = _project(client)
     source_id = _upload_and_promote(client, pid)
 
@@ -192,7 +237,7 @@ def test_start_ok_when_inference_engine_loaded(
     )
     monkeypatch.setattr(
         "finetune_studio.webui.app.inference_engine",
-        _loaded_engine(),
+        _loaded_helper_engine(),
     )
     monkeypatch.setattr(
         "finetune_studio.webui.routes.data_prep._run_prep_background",
@@ -219,13 +264,13 @@ def test_start_invalid_difficulty_422(client: Any, fts_root: Path) -> None:
     assert r.status_code == 422, r.text
 
 
-def test_resolve_generator_manager_preferred(
+def test_resolve_generator_helper_manager(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from finetune_studio.data.prep import generator as gen_mod
 
-    mgr = _active_manager()
-    eng = _loaded_engine()
+    mgr = _helper_manager()
+    eng = _loaded_other_engine()
     monkeypatch.setattr(
         "finetune_studio.models.manager.get_manager",
         lambda: mgr,
@@ -248,13 +293,13 @@ def test_resolve_generator_manager_preferred(
     eng.generate.assert_not_called()
 
 
-def test_resolve_generator_falls_back_to_engine(
+def test_resolve_generator_helper_on_engine(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from finetune_studio.data.prep import generator as gen_mod
 
     mgr = _empty_manager()
-    eng = _loaded_engine()
+    eng = _loaded_helper_engine()
     monkeypatch.setattr(
         "finetune_studio.models.manager.get_manager",
         lambda: mgr,

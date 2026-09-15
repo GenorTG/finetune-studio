@@ -386,6 +386,12 @@ async def project_testing_page(request: Request, pid: str):
     # results appear in the selector and match auto-load.
     models = models_for_testing_page(ctx["project"].get("models") or [])
     default_path = default_model_path_for_testing(models)
+    from finetune_studio.models.helper import (
+        DEFAULT_HELPER_LABEL,
+        DEFAULT_HELPER_PROVIDER_ID,
+        get_configured_helper_provider,
+    )
+    helper = get_configured_helper_provider()
     return templates.TemplateResponse(
         request,
         "project_testing.html",
@@ -396,6 +402,8 @@ async def project_testing_page(request: Request, pid: str):
             "inference_engine": inference_engine,
             "suites": suites,
             "recent_suite_runs": recent_runs,
+            "helper_label": (helper or {}).get("label") or DEFAULT_HELPER_LABEL,
+            "helper_provider_id": DEFAULT_HELPER_PROVIDER_ID,
         },
     )
 

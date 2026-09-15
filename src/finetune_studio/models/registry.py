@@ -69,7 +69,10 @@ def _safe_model_name(root: str, cfg: dict, project_name: str = "") -> str:
         if dirname.startswith("models--"):
             dirname = dirname.split("--", 2)[-1] if "--" in dirname else dirname
     # If dirname is a generic export dir, use project name + dirname for context
-    generic_dirs = {"merged", "abliterated", "gguf", "gptq", "awq", "adapter", "checkpoint-0", "checkpoint-1"}
+    generic_dirs = {
+        "merged", "abliterated", "gguf", "gptq", "adapter",
+        "checkpoint-0", "checkpoint-1",
+    }
     if dirname.lower() in generic_dirs:
         if project_name:
             return f"{project_name} ({dirname})"
@@ -118,7 +121,7 @@ def _lookup_project_name(output_path: str) -> tuple[str, str]:
                 if parent == check:
                     break
                 check = parent
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
     return ("", "")
 
@@ -146,16 +149,23 @@ def scan_models(directories: list) -> list:
                     proj_id = ""
                     run_id = ""
                     p = root.lower()
+                    display_name = f
                     if "/output" in p or "output_" in p:
                         cat = "trained_export"
-                    elif "shared_models" in p:
+                    elif "shared_models" in p or "/models/gguf" in p.replace("\\", "/"):
                         cat = "local_helper"
+                        from finetune_studio.models.helper import (
+                            helper_display_label,
+                            is_helper_gguf_path,
+                        )
+                        if is_helper_gguf_path(fp):
+                            display_name = helper_display_label(model_id=fp)
                     elif "hf_models" in p:
                         cat = "downloaded"
                     elif "huggingface/hub" in p:
                         cat = "base_model"
                     models.append(ModelInfo(
-                        name=f, path=fp, format="gguf", size_gb=round(size, 2),
+                        name=display_name, path=fp, format="gguf", size_gb=round(size, 2),
                         vision=has_mmproj, category=cat, project_id=proj_id, run_id=run_id,
                     ))
             has_st = any(f.endswith(".safetensors") for f in files)
@@ -207,10 +217,13 @@ def scan_models(directories: list) -> list:
                                     ).fetchone()
                                     if row:
                                         run_id = row[0]
-                        except Exception:
+                        except Exception:  # noqa: BLE001, S110
                             pass
                     # Re-derive name with project context if generic
-                    if proj_name and (name.lower() in ("merged", "abliterated", "gguf", "adapter", "gptq", "awq") or "/" in name):
+                    if proj_name and (
+                        name.lower() in ("merged", "abliterated", "gguf", "adapter", "gptq")
+                        or "/" in name
+                    ):
                         name = f"{proj_name} ({name})"
                 elif "shared_models" in p:
                     cat = "local_helper"

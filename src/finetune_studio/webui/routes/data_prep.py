@@ -21,8 +21,6 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
-from finetune_studio.data.prep.generator import NO_MODEL_MSG as _NO_MODEL_MSG
-
 log = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -154,7 +152,21 @@ async def data_prep_page(request: Request, pid: str):
     if not project:
         return HTMLResponse("Project not found", status_code=404)
     sources = pfs.list_qa_sources(pid)
-    ctx = {"request": request, "pid": pid, "project": project, "models": discovered_models, "sources": sources}
+    from finetune_studio.models.helper import (
+        DEFAULT_HELPER_LABEL,
+        DEFAULT_HELPER_PROVIDER_ID,
+        get_configured_helper_provider,
+    )
+    helper = get_configured_helper_provider()
+    ctx = {
+        "request": request,
+        "pid": pid,
+        "project": project,
+        "models": discovered_models,
+        "sources": sources,
+        "helper_label": (helper or {}).get("label") or DEFAULT_HELPER_LABEL,
+        "helper_provider_id": DEFAULT_HELPER_PROVIDER_ID,
+    }
     return templates.TemplateResponse(request, "data_prep.html", ctx)
 
 
@@ -165,9 +177,21 @@ async def data_prep_page(request: Request, pid: str):
 
 @router.get("/providers")
 async def list_providers():
+    from finetune_studio.models.helper import (
+        DEFAULT_HELPER_LABEL,
+        DEFAULT_HELPER_PROVIDER_ID,
+        get_configured_helper_provider,
+    )
     from finetune_studio.models.manager import get_manager
     mgr = get_manager()
-    return {"providers": mgr.list_providers(), "active": mgr.active()}
+    helper = get_configured_helper_provider()
+    return {
+        "providers": mgr.list_providers(),
+        "active": mgr.active(),
+        "helper": helper,
+        "helper_provider_id": DEFAULT_HELPER_PROVIDER_ID,
+        "helper_label": (helper or {}).get("label") or DEFAULT_HELPER_LABEL,
+    }
 
 
 @router.post("/providers")
@@ -263,7 +287,9 @@ async def start_prep(
             status_code=404,
         )
     if resolve_generator() is None:
-        return JSONResponse({"error": _NO_MODEL_MSG}, status_code=409)
+        from finetune_studio.data.prep.generator import helper_resolution_error
+
+        return JSONResponse({"error": helper_resolution_error()}, status_code=409)
 
     data = path.read_bytes()
     filename = src.get("filename") or src.get("name") or path.name

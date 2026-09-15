@@ -8,7 +8,13 @@
 {% block content %}
 <div class="page-head">
   <h1>Data Prep — {{ project.name }}</h1>
-  <div class="sub">Files you upload here are chunked + indexed, then mined by the agentic chat on the <a href="/projects/{{ pid }}/chat" data-link>Chat</a> tab into a final <code>.jsonl</code> training file. RAW uploads are immutable per-MIME; converted outputs land in your own folders.</div>
+  <div class="sub">Files you upload here are chunked + indexed, then mined by
+    <span class="mono" id="dp-helper-label">{{ helper_label }}</span>
+    (provider <code>{{ helper_provider_id }}</code>) via the agentic chat on the
+    <a href="/projects/{{ pid }}/chat?mode=agent" data-link>Chat</a> tab into a final
+    <code>.jsonl</code> training file. Prep jobs require that helper — they will not
+    silently use a different loaded model. RAW uploads are immutable per-MIME;
+    converted outputs land in your own folders.</div>
 </div>
 
 <!-- ── File library (Stage 1B) ──────────────────────────────────────────── -->
@@ -80,7 +86,10 @@
   <div class="card-head">
     <div>
       <div class="card-title">Run a prep job</div>
-      <div class="card-sub">Pick a source, choose chunking + difficulty, hit start. Drafts land in <i>Prepped Q&amp;A</i> below — then take them to the Chat tab in Agent mode to curate + persist.</div>
+      <div class="card-sub">Pick a source, choose chunking + difficulty, hit start.
+        Uses <b>{{ helper_label }}</b> only — load that provider first (Inference or
+        <code>/api/providers/{{ helper_provider_id }}/load</code>). Drafts land in
+        <i>Prepped Q&amp;A</i> below — then take them to the Chat tab in Agent mode to curate + persist.</div>
     </div>
   </div>
 
