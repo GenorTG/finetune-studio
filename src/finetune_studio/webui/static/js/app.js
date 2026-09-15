@@ -56,12 +56,26 @@
 
   // ── API ─────────────────────────────────────────────────────────────
   // ── Fetch helper: throw on non-2xx so callers can handle errors ──
+  function _errorMessage(body, status) {
+    if (body && typeof body === "object") {
+      let detail = body.error || body.detail || "";
+      if (Array.isArray(detail)) {
+        detail = detail.map((d) => (d && d.msg) || JSON.stringify(d)).join("; ");
+      } else if (detail && typeof detail === "object") {
+        detail = JSON.stringify(detail);
+      }
+      if (detail) return String(detail);
+    } else if (typeof body === "string" && body) {
+      return body;
+    }
+    return status ? `HTTP ${status}` : "Request failed";
+  }
+
   async function _ok(r) {
     const ct = r.headers.get("content-type") || "";
     let body = ct.includes("application/json") ? await r.json().catch(() => ({})) : await r.text();
     if (!r.ok) {
-      const detail = (body && typeof body === "object" && body.detail) || (typeof body === "string" ? body : "");
-      const err = new Error(detail || `HTTP ${r.status}`);
+      const err = new Error(_errorMessage(body, r.status));
       err.status = r.status;
       err.body = body;
       throw err;
@@ -104,9 +118,15 @@
   }
 
   // ── Delegation: form data-api / button data-action / data-confirm ──
+  // Document-level click listeners must register exactly once; SPA calls
+  // fts.init() (= delegate) on every navigation.
+  let _docClickListenersBound = false;
+
   function delegate() {
-    // Forms
+    // Forms — re-wire per SPA swap, but never double-bind the same element
     document.querySelectorAll("form[data-api]").forEach((form) => {
+      if (form.dataset.ftsBound === "1") return;
+      form.dataset.ftsBound = "1";
       form.addEventListener("submit", (ev) => {
         ev.preventDefault();
         const url = form.getAttribute("data-api");
@@ -125,62 +145,70 @@
             if (d.error) notify(d.error, "error");
             else notify("Done", "success");
             if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
-          });
+          }).catch((err) => notify(err.message || "Request failed", "error"));
         }
       });
     });
     // Buttons — use event delegation on document so dynamically rendered
     // buttons (e.g. HF Explorer cards loaded async after doSearch) still
     // fire data-action handlers.
-    document.addEventListener("click", (ev) => {
-      const btn = ev.target.closest("[data-action]");
-      if (!btn || !document.contains(btn)) return;
-      ev.preventDefault();
-      const url = btn.dataset.action;
-      const method = (btn.dataset.method || "POST").toUpperCase();
-      const body = btn.dataset.body ? JSON.parse(btn.dataset.body) : {};
-      const opts = { method };
-      if (method !== "GET") {
-        opts.headers = { "Content-Type": "application/json" };
-        opts.body = JSON.stringify(body);
-      }
-      fetch(url, opts)
-        .then((r) => r.json().catch(() => ({})))
-        .then((d) => {
-          if (d.error) notify(d.error, "error");
-          else notify("Done", "success");
-          if (btn.dataset.reload === "true") setTimeout(() => location.reload(), 600);
-        });
-    });
-    // data-confirm buttons — use modal dialog (delegated for dynamic buttons)
-    document.addEventListener("click", async (ev) => {
-      const btn = ev.target.closest("[data-confirm]");
-      if (!btn || !document.contains(btn)) return;
-      ev.preventDefault();
-      const ok = await confirmDialog(btn.dataset.confirm || "Are you sure?", {
-        title: btn.dataset.confirmTitle || "Confirm",
-        danger: btn.dataset.confirmDanger === "true",
-        okText: btn.dataset.confirmOk || "OK",
+    if (!_docClickListenersBound) {
+      _docClickListenersBound = true;
+      document.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-action]");
+        if (!btn || !document.contains(btn)) return;
+        // data-confirm buttons are handled by the confirm listener below
+        if (btn.hasAttribute("data-confirm")) return;
+        ev.preventDefault();
+        const url = btn.dataset.action;
+        const method = (btn.dataset.method || "POST").toUpperCase();
+        const body = btn.dataset.body ? JSON.parse(btn.dataset.body) : {};
+        const opts = { method };
+        if (method !== "GET") {
+          opts.headers = { "Content-Type": "application/json" };
+          opts.body = JSON.stringify(body);
+        }
+        fetch(url, opts)
+          .then(_ok)
+          .then((d) => {
+            if (d && d.error) notify(d.error, "error");
+            else notify("Done", "success");
+            if (btn.dataset.reload === "true") setTimeout(() => location.reload(), 600);
+          })
+          .catch((err) => notify(err.message || "Request failed", "error"));
       });
-      if (!ok) return;
-      // Fire the action after confirmation
-      const url = btn.dataset.action || btn.dataset.api;
-      if (!url) return;
-      const method = (btn.dataset.method || (btn.dataset.api ? "POST" : "DELETE")).toUpperCase();
-      const body = btn.dataset.body ? JSON.parse(btn.dataset.body) : {};
-      const opts = { method };
-      if (method !== "GET") { opts.headers = { "Content-Type": "application/json" }; opts.body = JSON.stringify(body); }
-      fetch(url, opts)
-        .then((r) => r.json().catch(() => ({})))
-        .then((d) => {
-          if (d.error) notify(d.error, "error");
-          else notify(btn.dataset.done || "Done", "success");
-          if (btn.dataset.reload === "true") setTimeout(() => location.reload(), 600);
-        })
-        .catch((err) => notify(err.message || "Action failed", "error"));
-    });
+      // data-confirm buttons — use modal dialog (delegated for dynamic buttons)
+      document.addEventListener("click", async (ev) => {
+        const btn = ev.target.closest("[data-confirm]");
+        if (!btn || !document.contains(btn)) return;
+        ev.preventDefault();
+        const ok = await confirmDialog(btn.dataset.confirm || "Are you sure?", {
+          title: btn.dataset.confirmTitle || "Confirm",
+          danger: btn.dataset.confirmDanger === "true",
+          okText: btn.dataset.confirmOk || "OK",
+        });
+        if (!ok) return;
+        // Fire the action after confirmation
+        const url = btn.dataset.action || btn.dataset.api;
+        if (!url) return;
+        const method = (btn.dataset.method || (btn.dataset.api ? "POST" : "DELETE")).toUpperCase();
+        const body = btn.dataset.body ? JSON.parse(btn.dataset.body) : {};
+        const opts = { method };
+        if (method !== "GET") { opts.headers = { "Content-Type": "application/json" }; opts.body = JSON.stringify(body); }
+        fetch(url, opts)
+          .then(_ok)
+          .then((d) => {
+            if (d && d.error) notify(d.error, "error");
+            else notify(btn.dataset.done || "Done", "success");
+            if (btn.dataset.reload === "true") setTimeout(() => location.reload(), 600);
+          })
+          .catch((err) => notify(err.message || "Action failed", "error"));
+      });
+    }
     // data-poll spans
     document.querySelectorAll("[data-poll]").forEach((el) => {
+      if (el.dataset.ftsBound === "1") return;
+      el.dataset.ftsBound = "1";
       const url = el.getAttribute("data-poll");
       const field = el.getAttribute("data-field");
       const interval = parseInt(el.getAttribute("data-interval") || "3000", 10);
