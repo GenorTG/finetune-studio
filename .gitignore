@@ -13,6 +13,9 @@ __pycache__/
 /data/
 /data/docs/
 /data/*.db
+/.finetune-studio.db
+*.sqlite
+*.sqlite3
 /data/projects/
 /data/models/
 /projects/
