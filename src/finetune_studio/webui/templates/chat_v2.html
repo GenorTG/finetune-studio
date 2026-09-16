@@ -87,14 +87,14 @@
     <div class="dp-chat-empty" id="chat-empty">
       <span data-empty="test">
         {% if rags %}
-        Send a message — RAG context will be retrieved from your enabled corpora.
+        Load a model above to start chatting. RAG context will be retrieved from your enabled corpora when a model is loaded.
         {% else %}
         No RAG corpora yet. You can still chat — answers won't have retrieval-augmented context. Build a corpus on the <a href="/projects/{{ pid }}/rag" data-link>RAG</a> tab.
         {% endif %}
         <div class="dim mt-2">Tip: Switch to <b>Agent</b> mode above to let the AI organize your files into training pairs.</div>
       </span>
       <span data-empty="agent" hidden>
-        In Agent mode the AI can <b>list_sources</b>, <b>read_source</b>, <b>list_qa_pairs</b>, and <b>create_qa_pairs</b> against the parsed files in this project.
+        Once a model is loaded, Agent mode can <b>list_sources</b>, <b>read_source</b>, <b>list_qa_pairs</b>, and <b>create_qa_pairs</b> against the parsed files in this project.
         <div class="dim mt-2">Example (not a live result): <i>"List my sources, then generate 5 socratic Q&amp;A pairs from the first one."</i></div>
       </span>
     </div>
