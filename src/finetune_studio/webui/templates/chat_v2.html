@@ -929,11 +929,13 @@ function _chatClear() {
   _chatHistory.length = 0;
   _chatSaveHistory();
   const msgs = document.getElementById('chat-msgs');
+  if (!msgs) return;
   msgs.innerHTML = '';
   const empty = document.createElement('div');
   empty.className = 'dp-chat-empty';
   empty.id = 'chat-empty';
-  empty.innerHTML = document.querySelector('[data-empty="' + _chatCurrentMode() + '"]').innerHTML;
+  const emptyTemplate = document.querySelector('[data-empty="' + _chatCurrentMode() + '"]');
+  empty.innerHTML = emptyTemplate ? emptyTemplate.innerHTML : 'Conversation cleared.';
   msgs.appendChild(empty);
   const panel = document.getElementById('chat-prev-session');
   if (panel) panel.hidden = true;
