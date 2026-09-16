@@ -3,6 +3,7 @@
 {% block nav_rag %}active{% endblock %}
 {% block sb_path %}~ / projects / {{ project.name }} / rag{% endblock %}
 {% block breadcrumb_tab %}rag{% endblock %}
+{% block workspace %}rag{% endblock %}
 
 {% block crumbs %}
   <a href="/projects" data-link>Projects</a>
@@ -36,7 +37,7 @@
 </div>
 
 {# Status #}
-<div class="card mb-4">
+<div class="card mb-4" id="rag-dashboard">
   <div class="card-head">
     <div>
       <div class="card-title">1. Corpus status</div>
@@ -49,7 +50,7 @@
 </div>
 
 {# Build #}
-<div class="card mb-4">
+<div class="card mb-4" id="rag-ingest">
   <div class="card-head">
     <div>
       <div class="card-title">2. Build &amp; rebuild</div>
@@ -197,7 +198,7 @@
 </div>
 
 {# Test #}
-<div class="card mb-4">
+<div class="card mb-4" id="rag-search">
   <div class="card-head">
     <div>
       <div class="card-title">5. Live test query</div>
@@ -216,7 +217,7 @@
 </div>
 
 {# Chat #}
-<div class="card mb-4">
+<div class="card mb-4" id="rag-tests">
   <div class="card-head">
     <div>
       <div class="card-title">5. Chat with RAG</div>

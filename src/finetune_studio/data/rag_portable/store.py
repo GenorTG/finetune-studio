@@ -379,12 +379,28 @@ python -m finetune_studio.data.rag rebuild-vectors /path/to/corpus [--embedder N
         # the absolute path on the destination is what we want — otherwise
         # the user can re-bundle or manually edit manifest.json.
         embed_name = resolve_model_ref(manifest.embedding_model.name, "embedder")
+        corpus_dim = int(vectors.shape[1]) if getattr(vectors, "ndim", 0) == 2 else 0
         try:
-            encode, _ = get_embedder(name=embed_name)
-        except Exception:
-            # Manifest references a stale/missing embedder — fall back to default
-            log.warning("Embedder %s failed to load, falling back to default", embed_name)
-            encode, _ = get_embedder(name=DEFAULT_EMBEDDER)
+            encode, embed_info = get_embedder(name=embed_name)
+        except Exception as e:
+            # Never silently fall back to a different embedder — a dim mismatch
+            # (e.g. 384-d MiniLM corpus + 1024-d DEFAULT_EMBEDDER) crashes search.
+            raise RuntimeError(
+                f"Failed to load corpus embedder {embed_name!r} "
+                f"(manifest dim={manifest.embedding_model.dim}, "
+                f"vectors.npy dim={corpus_dim}). "
+                f"Fix the shared/local embedder path or rebuild the corpus with "
+                f"a matching embedder. Original error: {e}"
+            ) from e
+        loaded_dim = int(embed_info.dim)
+        if corpus_dim and loaded_dim != corpus_dim:
+            raise ValueError(
+                f"Embedder dimension mismatch: {embed_name!r} produces "
+                f"{loaded_dim}-d vectors but corpus vectors.npy is {corpus_dim}-d "
+                f"(manifest recorded {manifest.embedding_model.dim}). "
+                f"Rebuild with this embedder, or restore the original "
+                f"{manifest.embedding_model.name!r} model."
+            )
         return PortableRAGQuery(
             corpus_dir=self.dir, manifest=manifest, chunks=chunks_df,
             vectors=vectors, idx_map=idx_map, bm25=bm25, encode=encode,

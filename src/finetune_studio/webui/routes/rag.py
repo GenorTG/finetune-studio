@@ -205,6 +205,17 @@ async def rag_build(pid: str, req: BuildRequest):
             extensions=[".txt"],
         )
         log.info("RAG build complete: %s", result)
+        # Register/update project_rags so chat attachments point at this corpus.
+        try:
+            db.ensure_portable_rag(
+                pid,
+                str(corpus),
+                name=name,
+                doc_count=int(result.get("documents") or 0),
+                chunk_count=int(result.get("chunks") or 0),
+            )
+        except Exception:
+            log.exception("Failed to register project_rags for PortableRAG corpus")
     except Exception as e:
         log.exception("RAG build failed")
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)

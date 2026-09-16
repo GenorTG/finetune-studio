@@ -178,6 +178,28 @@
       <a href="/projects/{{ pid }}/overview" data-link>{{ (project.name if project is defined and project else pid) }}</a>
       <span class="bc-tab">{% block breadcrumb_tab %}overview{% endblock %}</span>
     </nav>
+    {# Child templates set workspace to "model" or "rag" for the subnav. #}
+    {% set ws %}{% block workspace %}{% endblock %}{% endset %}
+    {% set ws = ws|trim %}
+    {% if ws %}
+    <nav id="workspace-subnav" class="workspace-subnav" aria-label="Workspace">
+      <a href="/projects/{{ pid }}" data-link class="ws-switch {% if ws == 'model' %}active{% endif %}"
+         title="Model fine-tune workspace">Model workspace</a>
+      <a href="/projects/{{ pid }}/rag" data-link class="ws-switch {% if ws == 'rag' %}active{% endif %}"
+         title="RAG retrieval workspace">RAG workspace</a>
+      <span class="ws-sep" aria-hidden="true">|</span>
+      {% if ws == 'model' %}
+      <a href="/projects/{{ pid }}" data-link class="ws-link {% if self.breadcrumb_tab()|trim in ('overview', 'models') %}here{% endif %}">dashboard</a>
+      <a href="/projects/{{ pid }}/training" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'training' %}here{% endif %}">training</a>
+      <a href="/projects/{{ pid }}/testing" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'testing' %}here{% endif %}">testing</a>
+      {% elif ws == 'rag' %}
+      <a href="/projects/{{ pid }}/rag" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'rag' %}here{% endif %}">dashboard</a>
+      <a href="/projects/{{ pid }}/rag#rag-ingest" data-link class="ws-link">ingest</a>
+      <a href="/projects/{{ pid }}/rag#rag-search" data-link class="ws-link">search</a>
+      <a href="/projects/{{ pid }}/rag#rag-tests" data-link class="ws-link">tests</a>
+      {% endif %}
+    </nav>
+    {% endif %}
     {% endif %}
 
     {# ── Command palette (Ctrl+K) — stub for now, real impl in palette.js ── #}

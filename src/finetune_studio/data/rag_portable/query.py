@@ -5,7 +5,6 @@ Returned by PortableRAG.load(). Owns the in-memory vectors + BM25 and the search
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 
@@ -40,9 +39,9 @@ class PortableRAGQuery:
         return self._reranker
 
     def search(self, query: str, top_k: int = 5,
-               hybrid: Optional[bool] = None,
-               rerank: Optional[bool] = None,
-               rerank_top_n: Optional[int] = None) -> list[dict]:
+               hybrid: bool | None = None,
+               rerank: bool | None = None,
+               rerank_top_n: int | None = None) -> list[dict]:
         """Top-k hits. hybrid/rerank default to manifest settings."""
         if not query.strip():
             return []
@@ -52,6 +51,15 @@ class PortableRAGQuery:
         n_before_rerank = rerank_top_n or s.rerank_top_n
 
         q = self.encode(query)
+        q_dim = int(q.shape[0]) if getattr(q, "ndim", 0) == 1 else int(q.shape[-1])
+        corpus_dim = int(self.vectors.shape[1]) if self.vectors.ndim == 2 else 0
+        if corpus_dim and q_dim != corpus_dim:
+            raise ValueError(
+                f"Query embedding dimension {q_dim} does not match corpus "
+                f"vectors.npy dimension {corpus_dim} "
+                f"(embedder={self.manifest.embedding_model.name!r}). "
+                f"Rebuild the corpus or reload with the manifest embedder."
+            )
         dense_scores = self.vectors @ q
 
         # Build rankings

@@ -1,8 +1,53 @@
 """Chat v2 — project-scoped inference chat with multi-RAG support."""
 
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
 from fastapi import APIRouter, Request
 
 router = APIRouter()
+
+
+def _is_portable_corpus(store_path: str) -> bool:
+    """True when ``store_path`` is a PortableRAG directory (manifest + vectors)."""
+    root = Path(store_path)
+    return (root / "manifest.json").is_file() and (root / "vectors.npy").is_file()
+
+
+def _search_rag_attachment(
+    store_path: str,
+    query: str,
+    *,
+    top_k: int = 5,
+) -> list[dict[str, Any]]:
+    """Search a project_rags store — PortableRAG when present, else Chroma VectorStore."""
+    if _is_portable_corpus(store_path):
+        from finetune_studio.data.rag_portable import PortableRAG
+
+        hits = PortableRAG(store_path).load().search(query, top_k=top_k)
+        out: list[dict[str, Any]] = []
+        for h in hits:
+            out.append({
+                "text": str(h.get("text") or ""),
+                "score": float(h.get("score") or 0.0),
+                "chunk_id": str(h.get("chunk_id") or ""),
+            })
+        return out
+
+    from finetune_studio.rag.store import VectorStore
+
+    store = VectorStore(store_path)
+    results = store.search(query, top_k=top_k)
+    return [
+        {
+            "text": r.text,
+            "score": float(r.score),
+            "chunk_id": r.chunk_id,
+        }
+        for r in results
+    ]
 
 
 @router.get("/projects")
@@ -238,7 +283,6 @@ async def chat(request: Request, pid: str):
     prepend to system prompt, then generate.
     """
     from finetune_studio import db
-    from finetune_studio.rag.store import VectorStore
     from finetune_studio.webui.app import inference_engine
 
     body = await request.json()
@@ -276,15 +320,16 @@ async def chat(request: Request, pid: str):
             if not rag:
                 continue
             try:
-                store = VectorStore(rag["store_path"])
-                results = store.search(user_msg, top_k=5)
+                results = _search_rag_attachment(
+                    rag["store_path"], user_msg, top_k=5
+                )
                 for r in results:
                     all_sources.append({
-                        "text": r.text,
-                        "score": round(r.score, 4),
+                        "text": r["text"],
+                        "score": round(float(r["score"]), 4),
                         "rag_id": rag_id,
                         "rag_name": rag["name"],
-                        "chunk_id": r.chunk_id,
+                        "chunk_id": r["chunk_id"],
                     })
             except Exception:  # noqa: BLE001,S112
                 continue

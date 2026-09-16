@@ -3616,6 +3616,41 @@ body::before {
 .project-breadcrumb .bc-sep { color: var(--accent); }
 .project-breadcrumb .bc-tab { color: var(--text); }
 
+/* ── Model / RAG workspace subnav ───────────────────────────────── */
+.workspace-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.35rem 1rem 0.5rem;
+  background: var(--bg-nav);
+  border-bottom: 1px solid var(--border);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.workspace-subnav .ws-switch {
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid transparent;
+}
+.workspace-subnav .ws-switch:hover { color: var(--accent); }
+.workspace-subnav .ws-switch.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.workspace-subnav .ws-sep { color: var(--text-dim); }
+.workspace-subnav .ws-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+.workspace-subnav .ws-link:hover { text-decoration: underline; }
+.workspace-subnav .ws-link.here {
+  color: var(--text);
+  text-decoration: underline;
+}
+
 /* ── Verdict badges (bench / testing case tables) ───────────────── */
 .verdict-badge {
   display: inline-block;

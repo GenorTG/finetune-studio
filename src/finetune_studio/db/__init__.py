@@ -33,7 +33,7 @@ from finetune_studio.db.projects import (
     is_model_favorited,
 )
 from finetune_studio.db.rags import (
-    create_rag, delete_rag, get_rag, list_rags, update_rag,
+    create_rag, delete_rag, ensure_portable_rag, get_rag, list_rags, update_rag,
 )
 from finetune_studio.db.runs import (
     create_run, delete_run, get_run, list_runs, update_run,

@@ -11,7 +11,7 @@ import logging
 import mimetypes
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -101,7 +101,7 @@ def list_indexed_docs(pid: str) -> list[dict[str, Any]]:
                         fname = str(group["filename"].iloc[0] or "")
                     by_doc[did] = {
                         "filename": fname or did,
-                        "chunks": int(len(group)),
+                        "chunks": len(group),
                     }
         except Exception as e:  # noqa: BLE001
             log.warning("list_indexed_docs: parquet read failed for %s: %s", pid, e)
@@ -189,10 +189,10 @@ class RebuildRequest(BaseModel):
     and logged, then the full project files dir is rebuilt.
     """
 
-    doc_id: Optional[str] = Field(default=None, description="Optional source doc id")
+    doc_id: str | None = Field(default=None, description="Optional source doc id")
     chunk_size: int = 400
     overlap: int = 80
-    embedder: Optional[str] = None
+    embedder: str | None = None
     reset: bool = True
 
 
@@ -269,6 +269,18 @@ async def rag_rebuild(pid: str, req: RebuildRequest | None = None) -> dict[str, 
     except Exception as e:
         log.exception("RAG rebuild failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+    # Keep chat attachments + RAG page on the same corpus directory.
+    try:
+        db.ensure_portable_rag(
+            pid,
+            str(corpus),
+            name=name,
+            doc_count=int(result.get("documents") or 0),
+            chunk_count=int(result.get("chunks") or 0),
+        )
+    except Exception:
+        log.exception("Failed to register project_rags for PortableRAG corpus")
 
     docs = list_indexed_docs(pid)
     return {

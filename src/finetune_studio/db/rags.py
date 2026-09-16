@@ -66,6 +66,55 @@ def delete_rag(rid: str) -> bool:
     return True
 
 
+def ensure_portable_rag(
+    project_id: str,
+    store_path: str,
+    *,
+    name: str | None = None,
+    doc_count: int = 0,
+    chunk_count: int = 0,
+) -> dict:
+    """Create or update the ``project_rags`` row for a PortableRAG corpus path.
+
+    Chat and the RAG page both key off ``project_rags.store_path``. The
+    canonical PortableRAG build writes under ``rag_corpora/<pid>/``; this
+    helper keeps a DB row pointing at that same directory so attachments
+    stay in sync after every build/rebuild.
+    """
+    store_path = os.path.abspath(store_path)
+    now = time_now()
+    for rag in list_rags(project_id):
+        existing = os.path.abspath(str(rag.get("store_path") or ""))
+        if existing == store_path:
+            updated = update_rag(
+                rag["id"],
+                doc_count=int(doc_count),
+                chunk_count=int(chunk_count),
+                status="ready",
+                last_build_at=now,
+                last_build_status="ok",
+                error="",
+            )
+            return updated or rag
+    display = name or f"{project_id} corpus"
+    created = create_rag(
+        project_id=project_id,
+        name=display,
+        description="PortableRAG corpus",
+        store_path=store_path,
+    )
+    updated = update_rag(
+        created["id"],
+        doc_count=int(doc_count),
+        chunk_count=int(chunk_count),
+        status="ready",
+        last_build_at=now,
+        last_build_status="ok",
+        error="",
+    )
+    return updated or created
+
+
 def time_now() -> float:
     import time as _t
     return _t.time()
