@@ -64,16 +64,22 @@ def test_discover_includes_synthetic_without_data_dir(
     types = {s["suite_type"] for s in suites}
     assert "synthetic_smoke" in types
     assert "synthetic_offline" in types
+    assert "real" in types
     assert "local" not in types
     names = {s["name"] for s in suites}
     assert {"mmlu_smoke", "gsm8k_smoke", "hellaswag_smoke"} <= names
     assert {"mmlu_offline", "gsm8k_offline", "hellaswag_offline"} <= names
+    assert {"mmlu_real", "gsm8k_real", "hellaswag_real"} <= names
     for s in suites:
         if s["suite_type"] in {"synthetic_smoke", "synthetic_offline"}:
             assert s["label"].startswith("synthetic ·")
             assert "not industry" in s["label"]
             assert s["source"] == "builtin"
             assert s.get("is_industry_benchmark") is False
+        if s["suite_type"] == "real":
+            assert s["label"].startswith("real ·")
+            assert s.get("is_real_benchmark") is True
+            assert s.get("source") == "huggingface"
 
 
 def test_discover_keeps_local_and_auto_alongside_synthetic(
@@ -131,7 +137,7 @@ def test_selection_validation_accepts_synthetic_rejects_unknown(
     assert is_selectable_suite(smoke.path) is True
     assert is_selectable_suite(str(tmp_path / "nope.json")) is False
 
-    cases, err = _validate_suite_file(
+    cases, _meta, err = _validate_suite_file(
         smoke.path, require_selectable=True, project_id=None
     )
     assert err is None
@@ -143,7 +149,7 @@ def test_selection_validation_accepts_synthetic_rejects_unknown(
         json.dumps([{"name": "x", "question": "q", "correct_answer": "a"}]),
         encoding="utf-8",
     )
-    _, err2 = _validate_suite_file(
+    _, _meta2, err2 = _validate_suite_file(
         str(rogue), require_selectable=True, project_id=None
     )
     assert err2 is not None
@@ -168,8 +174,13 @@ def test_api_suites_lists_synthetic_labels(
     assert any("GSM8K-shaped" in lb for lb in labels)
     assert any("HellaSwag-shaped" in lb for lb in labels)
     assert all("industry ·" not in lb for lb in labels)
+    assert any(lb.startswith("real ·") for lb in labels)
+    assert any("synthetic ·" in lb for lb in labels)
     for s in suites:
         if s.get("suite_type") == "synthetic_smoke":
             assert s.get("source") == "builtin"
             assert s.get("is_industry_benchmark") is False
             assert "{" not in s["label"]
+        if s.get("suite_type") == "real":
+            assert s.get("is_real_benchmark") is True
+            assert s.get("source") == "huggingface"

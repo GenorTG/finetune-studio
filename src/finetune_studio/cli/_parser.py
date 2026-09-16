@@ -112,8 +112,22 @@ def build_parser() -> argparse.ArgumentParser:
     # ── benchmark ──
     p_bench = sub.add_parser("benchmark", help="Run industry-standard benchmarks")
     p_bench.add_argument("model", help="Path to model (GGUF or safetensors)")
-    p_bench.add_argument("--suite", default="all", help="Benchmark suite: all, mmlu, hellaswag, arc, truthfulqa, gsm8k, winogrande (or comma-separated)")
-    p_bench.add_argument("--num-samples", type=int, default=100, help="Number of samples per benchmark (default: 100)")
+    p_bench.add_argument(
+        "--suite",
+        default="all",
+        help="Real suite: all, mmlu, gsm8k, hellaswag (or comma-separated)",
+    )
+    p_bench.add_argument(
+        "--num-samples",
+        type=int,
+        default=100,
+        help="Bounded samples per suite (ignored with --full-run)",
+    )
+    p_bench.add_argument(
+        "--full-run",
+        action="store_true",
+        help="Evaluate the entire official split (can be very slow)",
+    )
     p_bench.add_argument("--max-tokens", type=int, default=10)
     p_bench.add_argument("--temperature", type=float, default=0.0)
     p_bench.add_argument("--json", action="store_true", help="Output as JSON")

@@ -1,4 +1,4 @@
-"""`fts benchmark` — run industry-standard benchmarks (MMLU, HellaSwag, etc.)."""
+"""`fts benchmark` — run official HuggingFace benchmarks (MMLU, GSM8K, HellaSwag)."""
 from __future__ import annotations
 
 import json as json_mod
@@ -22,25 +22,30 @@ def cmd_benchmark(args) -> None:
     suite = RealBenchmarkSuite()
 
     if args.suite == "all":
-        benchmarks = ["mmlu", "hellaswag", "arc_challenge", "truthfulqa", "gsm8k", "winogrande"]
+        benchmarks = ["mmlu", "hellaswag", "gsm8k"]
     else:
         benchmarks = [b.strip() for b in args.suite.split(",")]
 
-    print(f"\nRunning {len(benchmarks)} benchmarks with {args.num_samples} samples each...")
+    full_run = bool(getattr(args, "full_run", False))
+    num_samples = None if full_run else args.num_samples
+    print(
+        f"\nRunning {len(benchmarks)} real benchmarks "
+        f"({'full split' if full_run else f'{num_samples} samples each'})..."
+    )
     print("This may take a while depending on model speed.\n")
 
     result = suite.run_all(
         engine,
-        num_samples=args.num_samples,
+        num_samples=num_samples,
         benchmarks=benchmarks,
+        full_run=full_run,
     )
 
-    # Print summary
     print(f"\n{'='*60}")
-    print("BENCHMARK RESULTS")
+    print("BENCHMARK RESULTS (real / HuggingFace)")
     print(f"{'='*60}")
     print(f"Model: {os.path.basename(args.model)}")
-    print(f"Samples per benchmark: {args.num_samples}")
+    print(f"Samples per benchmark: {'full' if full_run else args.num_samples}")
     print(f"Temperature: {args.temperature}")
     print()
 
@@ -49,9 +54,19 @@ def cmd_benchmark(args) -> None:
             print(f"  {name}: ERROR - {data['error']}")
         else:
             print(f"  {name}: {data['accuracy']}% ({data['correct']}/{data['total']})")
+            meta = data.get("metadata") or {}
+            if meta:
+                print(
+                    f"       dataset={meta.get('dataset_id')} "
+                    f"config={meta.get('dataset_config')} split={meta.get('split')} "
+                    f"scoring={meta.get('scoring_method')}"
+                )
 
     summary = result["summary"]
-    print(f"\nOverall: {summary['total_correct']}/{summary['total_questions']} = {summary['overall_accuracy']}%")
+    print(
+        f"\nOverall: {summary['total_correct']}/{summary['total_questions']} "
+        f"= {summary['overall_accuracy']}%"
+    )
 
     if args.json:
         print(f"\n{json_mod.dumps(result, indent=2)}")

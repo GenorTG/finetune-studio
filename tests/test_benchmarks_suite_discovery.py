@@ -56,12 +56,23 @@ def test_missing_known_suite_files_not_listed(
     # Built-in fixtures are package-local and always discoverable.
     assert _names_of_type(suites, "synthetic_smoke") == set(_EXPECTED_SMOKE)
     assert _names_of_type(suites, "synthetic_offline") == set(_EXPECTED_OFFLINE)
+    assert _names_of_type(suites, "real") == {
+        "mmlu_real",
+        "gsm8k_real",
+        "hellaswag_real",
+    }
     assert all(
-        s.get("suite_type") in {"synthetic_smoke", "synthetic_offline"}
+        s.get("suite_type")
+        in {"synthetic_smoke", "synthetic_offline", "real"}
         for s in suites
     )
-    assert all(str(s.get("label", "")).startswith("synthetic ·") for s in suites)
-    assert all("not industry" in str(s.get("label", "")) for s in suites)
+    for s in suites:
+        if s.get("suite_type") == "real":
+            assert str(s.get("label", "")).startswith("real ·")
+            assert s.get("is_real_benchmark") is True
+        else:
+            assert str(s.get("label", "")).startswith("synthetic ·")
+            assert "not industry" in str(s.get("label", ""))
 
 
 def test_existing_json_file_is_listed(
@@ -84,10 +95,10 @@ def test_existing_json_file_is_listed(
     assert by_name["default"]["label"].startswith("local ·")
     assert _names_of_type(suites, "synthetic_smoke") == set(_EXPECTED_SMOKE)
     assert _names_of_type(suites, "synthetic_offline") == set(_EXPECTED_OFFLINE)
-    # Substantive offline sorts before smoke; both before local.
-    assert suites[0]["suite_type"] == "synthetic_offline"
+    # Real HF suites sort before synthetic offline; both before local.
+    assert suites[0]["suite_type"] == "real"
     local_idx = next(i for i, s in enumerate(suites) if s["name"] == "default")
-    assert local_idx >= len(_EXPECTED_SMOKE) + len(_EXPECTED_OFFLINE)
+    assert local_idx >= 3 + len(_EXPECTED_SMOKE) + len(_EXPECTED_OFFLINE)
 
 
 def test_auto_suites_rows_listed_for_project(

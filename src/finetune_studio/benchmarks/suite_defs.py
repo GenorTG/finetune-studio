@@ -4,6 +4,9 @@ Synthetic offline / smoke suites ship as JSON under ``fixtures/``. They are
 data-agnostic (no HuggingFace / network), clearly labeled as synthetic — not
 industry MMLU/GSM8K/HellaSwag scores — and selectable alongside project
 auto-suites and ``data/benchmarks/*.json`` files.
+
+Real suites (``suite_type=real``) use official HuggingFace splits via
+``real://…`` virtual paths; they require a datasets cache on first run.
 """
 
 from __future__ import annotations
@@ -13,8 +16,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-SuiteType = Literal["synthetic_smoke", "synthetic_offline", "local", "auto"]
-SuiteSource = Literal["builtin", "data_benchmarks", "auto_suites"]
+SuiteType = Literal[
+    "synthetic_smoke",
+    "synthetic_offline",
+    "real",
+    "local",
+    "auto",
+]
+SuiteSource = Literal["builtin", "data_benchmarks", "auto_suites", "huggingface"]
 
 _FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
@@ -90,9 +99,20 @@ class SuiteDefinition:
     family: str = ""
     case_count: int | None = None
     is_industry_benchmark: bool = False
+    is_real_benchmark: bool = False
+    dataset_id: str = ""
+    dataset_config: str | None = None
+    split: str = ""
+    prompt_protocol: str = ""
+    scoring_method: str = ""
+    default_sample_limit: int | None = None
 
     def label(self) -> str:
         """Human-readable label for dropdowns and lists."""
+        if self.suite_type == "real":
+            n = self.case_count
+            count = f" · {n} official cases" if n is not None else ""
+            return f"real · {self.title} (HuggingFace · industry){count}"
         if self.suite_type == "synthetic_smoke":
             ver = f" v{self.version}" if self.version is not None else ""
             n = self.case_count
@@ -129,7 +149,14 @@ class SuiteDefinition:
             "family": self.family,
             "case_count": self.case_count,
             "is_industry_benchmark": self.is_industry_benchmark,
-            "industry_benchmark": False,
+            "is_real_benchmark": self.is_real_benchmark,
+            "industry_benchmark": self.is_real_benchmark,
+            "dataset_id": self.dataset_id,
+            "dataset_config": self.dataset_config,
+            "split": self.split,
+            "prompt_protocol": self.prompt_protocol,
+            "scoring_method": self.scoring_method,
+            "default_sample_limit": self.default_sample_limit,
         }
 
 
@@ -211,35 +238,76 @@ def list_builtin_industry_suites() -> list[SuiteDefinition]:
     return list_builtin_smoke_suites() + list_builtin_offline_suites()
 
 
+def list_builtin_real_suites() -> list[SuiteDefinition]:
+    """Official HuggingFace MMLU / GSM8K / HellaSwag suites (virtual paths)."""
+    from finetune_studio.benchmarks.real_benchmarks import (
+        DEFAULT_SAMPLE_LIMIT,
+        REAL_SPECS,
+        list_real_families,
+        real_suite_path,
+    )
+
+    out: list[SuiteDefinition] = []
+    for family in list_real_families():
+        spec = REAL_SPECS[family]
+        out.append(
+            SuiteDefinition(
+                name=spec.name,
+                path=real_suite_path(family),
+                title=spec.title,
+                description=spec.description,
+                suite_type="real",
+                source="huggingface",
+                version=1,
+                family=family,
+                case_count=spec.official_case_count,
+                is_industry_benchmark=True,
+                is_real_benchmark=True,
+                dataset_id=spec.dataset_id,
+                dataset_config=spec.dataset_config,
+                split=spec.split,
+                prompt_protocol=spec.prompt_protocol,
+                scoring_method=spec.scoring_method,
+                default_sample_limit=DEFAULT_SAMPLE_LIMIT,
+            )
+        )
+    return out
+
+
 def format_auto_suite_label(suite_name: str, case_count: int) -> str:
     """Label for a project auto-generated suite."""
     return f"auto · {suite_name} ({case_count} cases)"
 
 
 def _sort_key(entry: dict[str, Any]) -> tuple[int, str]:
-    """Offline first (substantive), then smoke, then local, then auto."""
+    """Real first, then offline, smoke, local, auto."""
     st = str(entry.get("suite_type") or "")
     order = {
-        "synthetic_offline": 0,
-        "synthetic_smoke": 1,
+        "real": 0,
+        "synthetic_offline": 1,
+        "synthetic_smoke": 2,
         # Accept legacy keys if old fixtures linger in-memory.
-        "industry_offline": 0,
-        "industry_smoke": 1,
-        "local": 2,
-        "auto": 3,
+        "industry_offline": 1,
+        "industry_smoke": 2,
+        "local": 3,
+        "auto": 4,
     }.get(st, 9)
     return (order, str(entry.get("label") or entry.get("name") or ""))
 
 
 def discover_suites(project_id: str | None = None) -> list[dict[str, Any]]:
-    """Discover selectable suites: offline, smoke, local JSON, project auto.
+    """Discover selectable suites: real HF, offline, smoke, local JSON, auto.
 
     Known / discovered files under ``data/benchmarks/`` are included only when
     the path is present on disk. Built-in fixtures are always listed when
-    their package files exist. When ``project_id`` is set, rows from
-    ``auto_suites`` for that project are appended.
+    their package files exist. Real suites use ``real://`` virtual paths.
+    When ``project_id`` is set, rows from ``auto_suites`` for that project
+    are appended.
     """
     found: dict[str, dict[str, Any]] = {}
+
+    for real in list_builtin_real_suites():
+        found[f"real:{real.name}"] = real.as_dict()
 
     for industry in list_builtin_industry_suites():
         found[f"builtin:{industry.name}"] = industry.as_dict()
@@ -318,8 +386,12 @@ def is_selectable_suite(
     """True when suite_path is among discovered selectable suites."""
     if not suite_path or not str(suite_path).strip():
         return False
-    allowed = selectable_paths(project_id)
+    from finetune_studio.benchmarks.real_benchmarks import is_real_suite_path
+
     raw = str(suite_path)
+    if is_real_suite_path(raw):
+        return raw in selectable_paths(project_id)
+    allowed = selectable_paths(project_id)
     if raw in allowed:
         return True
     try:
@@ -328,6 +400,8 @@ def is_selectable_suite(
         return False
     resolved_allowed = set()
     for p in allowed:
+        if is_real_suite_path(p):
+            continue
         try:
             resolved_allowed.add(str(Path(p).resolve()))
         except OSError:

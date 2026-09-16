@@ -7,20 +7,22 @@ Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :786
 ## State (verified 2026-09-16 Europe/Warsaw)
 | Area | Status |
 |------|--------|
-| Synthetic benches | Suite types `synthetic_smoke` / `synthetic_offline`; labels `synthetic · … (not industry)`; fixtures flag `is_industry_benchmark: false` |
-| Scoring | MCQ/numeric use `strict_scoring` (exact option / normalized final); records `scoring_method` + `validity`; keyword substring only for open-ended |
-| Dashboard hero | Fake CPU/MEM/nodes/last-scan removed; `{% include "_resources.html" %}` polls `/api/system/resources` |
-| Tests | Reliability suite 30 passed; full suite 662 passed, 2 unrelated legacy failures; changed-file Ruff clean |
-| Deployment | `0bc4bf7` pulled on fan-dragon; `finetune-studio.service` active on :7860 |
+| Real benches | `real://mmlu|gsm8k|hellaswag` via `real_benchmarks.py`; `is_real_benchmark=true` + HF metadata; default sample 50, `full_run` / `num_samples` knobs |
+| Synthetic benches | Unchanged smoke/offline; labels `synthetic · … (not industry)` |
+| Scoring | Strict MCQ / GSM8K #### finals; no substring credit on real suites |
+| Inference endpoint | `/api/chat-v2/inference/benchmark` returns nested results + scalar `overall` (no sum-of-dicts) |
+| Tests | Real-bench suite + discovery/smoke/offline/template: 44 passed; Ruff clean on touched files |
+| Deployment | Needs `git push` + fan-dragon pull/restart; first real run downloads HF datasets into `data/benchmarks/hf_cache` |
 
 ## Next steps
-1. Browser-check dashboard hero RAM/VRAM bars (`curl -s http://127.0.0.1:7860/api/system/resources`).
-2. Keep reporting synthetic suite scores as local synthetic — never as industry MMLU/GSM8K/HellaSwag.
-3. Fix the two unrelated legacy failures, then rerun `make test`.
+1. Deploy: `git push`; on fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`.
+2. Smoke a bounded real suite on fan-dragon (`num_samples=20`) after cache warm.
+3. Browser-check benchmarks page labels (`real ·` vs `synthetic ·`).
+4. Fix two unrelated legacy failures (`test_db_lifecycle`, `test_parsed_converts_txt`), then `make test`.
 
 ## Commands
-- Reliability tests: `.venv/bin/python -m pytest tests/test_strict_scoring.py tests/test_dashboard_template.py tests/test_benchmarks_offline_suites.py tests/test_benchmarks_industry_smoke.py tests/test_benchmarks_suite_discovery.py tests/test_benchmarks_template.py tests/test_project_testing.py tests/test_status_badge_honesty.py tests/test_bench_judge.py -v --tb=short`
-- Lint: `.venv/bin/ruff check src/finetune_studio/testing/strict_scoring.py src/finetune_studio/testing/suite.py src/finetune_studio/benchmarks/suite_defs.py src/finetune_studio/benchmarks/offline_suites.py src/finetune_studio/webui/routes/benchmarks.py src/finetune_studio/webui/routes/testing.py tests/test_strict_scoring.py tests/test_dashboard_template.py`
+- Real + synthetic bench tests: `.venv/bin/python -m pytest tests/test_real_benchmarks.py tests/test_benchmarks_suite_discovery.py tests/test_benchmarks_industry_smoke.py tests/test_benchmarks_offline_suites.py tests/test_project_testing.py tests/test_strict_scoring.py tests/test_benchmarks_template.py -v --tb=short`
+- Lint: `.venv/bin/ruff check src/finetune_studio/benchmarks/real_benchmarks.py src/finetune_studio/benchmarks/suite_defs.py src/finetune_studio/webui/routes/benchmarks.py src/finetune_studio/webui/routes/chat_v2.py`
 - Deploy: `git push`; fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`
 
 ## Blockers

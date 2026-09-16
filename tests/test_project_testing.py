@@ -23,7 +23,8 @@ def test_testing_page_renders_suite_select(client) -> None:
     assert "default.json" in body or "local ·" in body
     assert "synthetic ·" in body
     assert "not industry" in body
-    assert "industry ·" not in body
+    assert "real ·" in body
+    assert "MMLU (official)" in body or "mmlu_real" in body or "real ·" in body
     assert "MMLU-shaped" in body
     assert "GSM8K-shaped" in body
     assert "HellaSwag-shaped" in body

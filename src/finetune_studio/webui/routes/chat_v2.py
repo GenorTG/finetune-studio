@@ -190,16 +190,40 @@ async def memory_estimate(request: Request):
 
 @router.post("/inference/benchmark")
 async def inference_benchmark(request: Request):
-    """Run quick benchmarks on the loaded model."""
-    from finetune_studio.benchmarks.real_benchmarks import RealBenchmarkSuite
+    """Run quick real benchmarks on the loaded model.
+
+    Returns nested per-suite results plus a scalar ``overall`` accuracy.
+    Does not treat the nested ``benchmarks`` map as a list of scalars.
+    """
+    from finetune_studio.benchmarks.real_benchmarks import (
+        RealBenchmarkSuite,
+        overall_accuracy_from_run_all,
+    )
     from finetune_studio.webui.app import inference_engine
-    await request.json()  # consume body (reserved for future knobs)
+
+    body = await request.json()
     if inference_engine.model is None:
         return {"error": "No model loaded. Load a model first."}
+
+    num_samples = int(body.get("num_samples", 20))
+    full_run = bool(body.get("full_run", False))
+    benchmarks = body.get("benchmarks")
+    if isinstance(benchmarks, str):
+        bench_list = [b.strip() for b in benchmarks.split(",") if b.strip()]
+    elif isinstance(benchmarks, list):
+        bench_list = [str(b) for b in benchmarks]
+    else:
+        bench_list = ["mmlu", "gsm8k", "hellaswag"]
+
     try:
         suite = RealBenchmarkSuite()
-        results = suite.run_all(inference_engine, num_samples=20)
-        overall = sum(results.values()) / len(results) if results else 0
+        results = suite.run_all(
+            inference_engine,
+            num_samples=None if full_run else num_samples,
+            benchmarks=bench_list,
+            full_run=full_run,
+        )
+        overall = overall_accuracy_from_run_all(results)
         return {"results": results, "overall": overall}
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}

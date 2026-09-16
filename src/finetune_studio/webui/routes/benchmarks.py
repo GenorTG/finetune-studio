@@ -12,6 +12,13 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from finetune_studio import db
+from finetune_studio.benchmarks.real_benchmarks import (
+    DEFAULT_SAMPLE_LIMIT,
+    DEFAULT_SEED,
+    RealBenchmarkSuite,
+    is_real_suite_path,
+    parse_real_suite_path,
+)
 from finetune_studio.benchmarks.suite_defs import (
     discover_suites,
     is_selectable_suite,
@@ -23,47 +30,88 @@ _log = logging.getLogger(__name__)
 
 
 def _discover_suites(project_id: str | None = None) -> list[dict[str, Any]]:
-    """Return selectable suites (synthetic smoke/offline + local JSON + auto)."""
+    """Return selectable suites (real HF + synthetic + local JSON + auto)."""
     return discover_suites(project_id)
 
+
+def _parse_sample_knobs(body: dict[str, Any]) -> tuple[int | None, bool, int, str]:
+    """Parse num_samples / full_run / seed / order from a run request body."""
+    full_run = bool(body.get("full_run", False))
+    seed = int(body.get("seed", DEFAULT_SEED))
+    order_raw = str(body.get("order") or "dataset").strip().lower()
+    order = order_raw if order_raw in {"dataset", "seeded_shuffle"} else "dataset"
+    if full_run:
+        return None, True, seed, order
+    if "num_samples" not in body or body.get("num_samples") in (None, "", "full"):
+        return DEFAULT_SAMPLE_LIMIT, False, seed, order
+    num = int(body["num_samples"])
+    return num, False, seed, order
 
 def _validate_suite_file(
     suite_path: str,
     *,
     project_id: str | None = None,
     require_selectable: bool = False,
-) -> tuple[list[BenchmarkCase] | None, JSONResponse | None]:
-    """Ensure suite_path exists, parses, and has ≥1 case. Returns (cases, error).
+    num_samples: int | None = DEFAULT_SAMPLE_LIMIT,
+    full_run: bool = False,
+    seed: int = DEFAULT_SEED,
+    order: str = "dataset",
+) -> tuple[list[BenchmarkCase] | None, dict[str, Any] | None, JSONResponse | None]:
+    """Ensure suite_path is usable. Returns (cases, real_meta, error).
 
-    When ``require_selectable`` is True, the path must also appear in
-    ``discover_suites`` for the project (UI selection validation).
+    Real ``real://`` suites load HuggingFace rows (injectable in tests via
+    RealBenchmarkSuite). File suites load JSON as before.
     """
     if not suite_path or not str(suite_path).strip():
-        return None, JSONResponse({"error": "suite_path required"}, status_code=400)
+        return None, None, JSONResponse({"error": "suite_path required"}, status_code=400)
     if require_selectable and not is_selectable_suite(suite_path, project_id):
-        return None, JSONResponse(
+        return None, None, JSONResponse(
             {"error": f"suite not selectable: {suite_path}"},
             status_code=400,
         )
+
+    family = parse_real_suite_path(suite_path)
+    if family is not None:
+        try:
+            suite = RealBenchmarkSuite()
+            cases, meta = suite.load_cases(
+                family,
+                num_samples=num_samples,
+                full_run=full_run,
+                seed=seed,
+                order=order,  # type: ignore[arg-type]
+            )
+        except Exception as exc:  # noqa: BLE001
+            return None, None, JSONResponse(
+                {"error": f"real suite load failed: {exc}"},
+                status_code=400,
+            )
+        if len(cases) < 1:
+            return None, None, JSONResponse(
+                {"error": "suite has no cases"},
+                status_code=400,
+            )
+        return cases, meta.as_dict(), None
+
     path = Path(suite_path)
     if not path.is_file():
-        return None, JSONResponse(
+        return None, None, JSONResponse(
             {"error": f"suite not found: {suite_path}"},
             status_code=404,
         )
     try:
         cases = load_test_suite(str(path))
     except Exception as exc:  # noqa: BLE001
-        return None, JSONResponse(
+        return None, None, JSONResponse(
             {"error": f"suite parse failed: {exc}"},
             status_code=400,
         )
     if len(cases) < 1:
-        return None, JSONResponse(
+        return None, None, JSONResponse(
             {"error": "suite has no cases"},
             status_code=400,
         )
-    return cases, None
+    return cases, None, None
 
 
 def _run_is_benchmarkable(run: dict[str, Any]) -> bool:
@@ -135,6 +183,7 @@ async def _execute_benchmark(
     max_tokens: int,
     target_model: str,
     cases: list[BenchmarkCase],
+    real_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any] | JSONResponse:
     """Load model, run suite, judge, persist. Always unloads the bench engine."""
     from finetune_studio.testing.inference import InferenceEngine
@@ -143,6 +192,16 @@ async def _execute_benchmark(
         run_suite,
         score_results,
     )
+
+    # Real MCQ/GSM8K prompts need short generations; keep caller max_tokens
+    # but default cooler sampling for strict extraction.
+    run_temperature = 0.0 if real_meta else 0.3
+    if real_meta and real_meta.get("family") == "gsm8k":
+        eff_max_tokens = max(max_tokens, 256)
+    elif real_meta:
+        eff_max_tokens = min(max_tokens, 32)
+    else:
+        eff_max_tokens = max_tokens
 
     engine = InferenceEngine()
     try:
@@ -153,7 +212,12 @@ async def _execute_benchmark(
             return JSONResponse({"error": f"load failed: {exc}"}, status_code=500)
 
         t0 = time.time()
-        results = run_suite(engine, cases, max_tokens=max_tokens)
+        results = run_suite(
+            engine,
+            cases,
+            max_tokens=eff_max_tokens,
+            temperature=run_temperature,
+        )
         dt_ms = int((time.time() - t0) * 1000)
 
         if judge_mode == "none":
@@ -170,6 +234,10 @@ async def _execute_benchmark(
             apply_heuristic_judging(results)
 
         scores = score_results(results)
+        if real_meta:
+            scores["is_real_benchmark"] = True
+            scores["benchmark_metadata"] = real_meta
+            scores["accuracy"] = scores.get("pass_rate")
 
         case_dicts: list[dict[str, Any]] = []
         for r in results:
@@ -218,7 +286,6 @@ async def _execute_benchmark(
     finally:
         engine.unload()
 
-
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
 @router.get("/runs/{rid}")
@@ -253,6 +320,7 @@ async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] 
     suite_path = body.get("suite_path", "")
     judge_mode = body.get("judge_mode", "heuristic")
     max_tokens = int(body.get("max_tokens", 512))
+    num_samples, full_run, seed, order = _parse_sample_knobs(body)
 
     run = db.get_run(rid)
     if not run:
@@ -274,7 +342,13 @@ async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] 
             status_code=409,
         )
 
-    cases, suite_err = _validate_suite_file(suite_path)
+    cases, real_meta, suite_err = _validate_suite_file(
+        suite_path,
+        num_samples=num_samples if is_real_suite_path(str(suite_path)) else DEFAULT_SAMPLE_LIMIT,
+        full_run=full_run if is_real_suite_path(str(suite_path)) else False,
+        seed=seed,
+        order=order,
+    )
     if suite_err is not None:
         return suite_err
     assert cases is not None
@@ -295,6 +369,7 @@ async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] 
             max_tokens=max_tokens,
             target_model=target_model,
             cases=cases,
+            real_meta=real_meta,
         )
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -308,6 +383,7 @@ async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSO
     suite_path = body.get("suite_path", "")
     judge_mode = body.get("judge_mode", "heuristic")
     max_tokens = int(body.get("max_tokens", 512))
+    num_samples, full_run, seed, order = _parse_sample_knobs(body)
 
     project = db.get_project(pid)
     if not project:
@@ -320,7 +396,13 @@ async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSO
             status_code=400,
         )
 
-    cases, suite_err = _validate_suite_file(suite_path)
+    cases, real_meta, suite_err = _validate_suite_file(
+        suite_path,
+        num_samples=num_samples if is_real_suite_path(str(suite_path)) else DEFAULT_SAMPLE_LIMIT,
+        full_run=full_run if is_real_suite_path(str(suite_path)) else False,
+        seed=seed,
+        order=order,
+    )
     if suite_err is not None:
         return suite_err
     assert cases is not None
@@ -355,10 +437,10 @@ async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSO
             max_tokens=max_tokens,
             target_model=target_model,
             cases=cases,
+            real_meta=real_meta,
         )
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"error": str(exc)}, status_code=500)
-
 
 @router.get("/projects/{pid}/runs/{rid}/history")
 async def run_history(pid: str, rid: str) -> list[dict[str, Any]] | dict[str, str]:

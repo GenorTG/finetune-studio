@@ -7,7 +7,7 @@
 {% block content %}
 <div class="page-head">
   <h1>Benchmarks — {{ project.name }}</h1>
-  <div class="sub">Run built-in synthetic/offline suites (smoke or substantive; MMLU-/GSM8K-/HellaSwag-<em>shaped</em> only — not industry scores) or project Q&amp;A suites against trained models (or the untrained base), then score answers with strict or AI judging. No licensed external datasets are bundled.</div>
+  <div class="sub">Run <strong>real</strong> HuggingFace MMLU / GSM8K / HellaSwag (official splits; downloads on first use), built-in <em>synthetic</em> smoke/offline suites (MMLU-/GSM8K-/HellaSwag-<em>shaped</em> only — not industry scores), or project Q&amp;A suites against trained models (or the untrained base). Real suites use strict MCQ / GSM8K scoring; synthetic fixtures stay local.</div>
 </div>
 
 <div class="card">
@@ -33,7 +33,7 @@
     <a href="/projects/{{ pid }}/training" class="btn primary" data-link>Open Training</a>
   </div>
   {% else %}
-  <div class="text-sm dim mb-2">Available suites (synthetic offline · synthetic smoke · local JSON · project auto — none are industry MMLU/GSM8K/HellaSwag):</div>
+  <div class="text-sm dim mb-2">Available suites — <span class="mono">real</span> = official HF industry splits; <span class="mono">synthetic_*</span> = local shaped fixtures (not industry); plus local JSON / project auto:</div>
   <table class="table text-sm mb-4" id="suite-catalog">
     <thead>
       <tr><th>Suite</th><th>Type</th><th>Source</th><th>Cases</th></tr>
@@ -49,6 +49,11 @@
       {% endfor %}
     </tbody>
   </table>
+  <div class="text-sm dim mb-3" id="real-sample-hint">
+    Real suites default to a bounded sample ({{ 50 }} cases). Pass
+    <span class="mono">num_samples</span> or <span class="mono">full_run=true</span>
+    in the run API for larger / full-split evals (full MMLU ≈ 14k).
+  </div>
 
   <h3 class="mt-4 mb-2">Run a benchmark</h3>
   <table class="table">
@@ -76,13 +81,20 @@
                 data-reload="true" style="display:inline;">
             <input type="hidden" name="suite_name" value="{{ suites[0].name if suites else 'default' }}">
             <select name="suite_path" class="select" style="min-width:220px;font-size:11px;"
-                    onchange="var o=this.options[this.selectedIndex]; this.form.elements.suite_name.value=o.getAttribute('data-name')||o.text;">
+                    onchange="var o=this.options[this.selectedIndex]; this.form.elements.suite_name.value=o.getAttribute('data-name')||o.text; var r=this.form.querySelector('[name=num_samples]'); if(r){ r.style.display=(o.getAttribute('data-type')==='real')?'inline-block':'none'; }">
               {% for s in suites %}
               <option value="{{ s.path if s.path is defined else s }}"
                       data-name="{{ s.name if s.name is defined else s }}"
                       data-type="{{ s.suite_type if s.suite_type is defined else 'local' }}"
                       data-source="{{ s.source if s.source is defined else '' }}">{{ s.label if s.label is defined else (s.name if s.name is defined else s) }}</option>
               {% endfor %}
+            </select>
+            <select name="num_samples" class="select" style="min-width:90px;font-size:11px;{% if not suites or (suites[0].suite_type|default('')) != 'real' %}display:none;{% endif %}"
+                    title="Bounded sample for real HF suites (full_run via API)">
+              <option value="20">20</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
             </select>
             <button type="submit" class="btn primary" style="font-size:11px;padding:4px 10px;"
                     {% if not can_bench %}disabled title="Only completed runs with a trained model can be benchmarked"{% endif %}>RUN</button>
@@ -106,13 +118,20 @@
                 data-reload="true" style="display:inline;">
             <input type="hidden" name="suite_name" value="{{ suites[0].name if suites else 'default' }}">
             <select name="suite_path" class="select" style="min-width:220px;font-size:11px;"
-                    onchange="var o=this.options[this.selectedIndex]; this.form.elements.suite_name.value=o.getAttribute('data-name')||o.text;">
+                    onchange="var o=this.options[this.selectedIndex]; this.form.elements.suite_name.value=o.getAttribute('data-name')||o.text; var r=this.form.querySelector('[name=num_samples]'); if(r){ r.style.display=(o.getAttribute('data-type')==='real')?'inline-block':'none'; }">
               {% for s in suites %}
               <option value="{{ s.path if s.path is defined else s }}"
                       data-name="{{ s.name if s.name is defined else s }}"
                       data-type="{{ s.suite_type if s.suite_type is defined else 'local' }}"
                       data-source="{{ s.source if s.source is defined else '' }}">{{ s.label if s.label is defined else (s.name if s.name is defined else s) }}</option>
               {% endfor %}
+            </select>
+            <select name="num_samples" class="select" style="min-width:90px;font-size:11px;{% if not suites or (suites[0].suite_type|default('')) != 'real' %}display:none;{% endif %}"
+                    title="Bounded sample for real HF suites (full_run via API)">
+              <option value="20">20</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
             </select>
             <button type="submit" class="btn" style="font-size:11px;padding:4px 10px;"
                     {% if not project.base_model %}disabled title="Project has no base_model configured"{% endif %}>RUN</button>
@@ -284,6 +303,9 @@
         judge_mode: "heuristic",
         max_tokens: 128,
       };
+      if (suite && suite.suite_type === "real") {
+        body.num_samples = suite.default_sample_limit || 50;
+      }
       var data;
       if (api && api.post) {
         data = await api.post("/api/benchmarks/projects/" + encodeURIComponent(PID)
