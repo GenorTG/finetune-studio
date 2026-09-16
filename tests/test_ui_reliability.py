@@ -199,11 +199,56 @@ def test_responsive_header_gutter_and_780_breakpoint() -> None:
     assert "@media (max-width: 780px)" in css
     assert "@media (max-width: 900px)" in css
     assert "@media (max-width: 1280px)" in css
-    assert "margin-right: min(490px, 42vw)" in css
-    assert "margin-right: min(160px, 28vw)" in css
+    # Gutter is padding-right (inside the box) — never margin-right + width:100%.
+    assert "padding-right: min(490px, 42vw)" in css
+    assert "padding-right: min(160px, 28vw)" in css
+    assert "margin-right: min(490px, 42vw)" not in css
+    assert "margin-right: min(160px, 28vw)" not in css
     # Right-cluster chrome collapses so tabs keep a usable scrollport.
     assert ".sb-right .conn-status { display: none; }" in css
     assert ".sb-right .status-pill { display: none; }" in css
+
+
+def test_header_no_page_overflow_contract_at_640() -> None:
+    """At ≤700px the session bar must not widen the document; tabs stay scrollable."""
+    css = _CSS.read_text(encoding="utf-8")
+    assert "overflow-x: clip" in css
+    assert ".session-bar" in css
+    assert "overflow-x: hidden" in css  # session-bar containment
+    assert "min-width: 0" in css
+    block_700 = css.split("@media (max-width: 700px)", 1)[1]
+    # Prefer the stacked responsive block (second 700px query has sb-tabs rules).
+    if ".sb-tabs {" in block_700.split("@media", 1)[0]:
+        narrow = block_700.split("@media", 1)[0]
+    else:
+        # First 700px block is brand-only; take the later stacked one.
+        parts = css.split("@media (max-width: 700px)")
+        narrow = parts[-1].split("@media", 1)[0]
+    assert "padding-right: 8px" in narrow
+    assert "position: static" in narrow  # .sb-right stacked under tabs
+    assert "font-size: 13px" in narrow
+    assert "font-size: 11px" not in narrow
+    # No width:100% + margin-right gutter (classic scrollWidth blowout).
+    assert "margin-right: min(140px" not in narrow
+
+
+def test_card_head_stacks_below_700() -> None:
+    """Data Prep Uploaded-files card-head must stack title/actions below ~700px."""
+    css = _CSS.read_text(encoding="utf-8")
+    parts = css.split("@media (max-width: 700px)")
+    assert len(parts) >= 2
+    narrow = parts[-1].split("@media", 1)[0]
+    assert ".card-head" in narrow
+    assert "flex-direction: column" in narrow
+    assert "align-items: stretch" in narrow
+    # Base rule still flexes title/actions with a gap.
+    assert ".card-head > :first-child" in css
+    assert "min-width: 0" in css
+
+
+def test_css_cache_bust_bumped() -> None:
+    base = _BASE.read_text(encoding="utf-8")
+    assert "app.css?v=19" in base
 
 
 def test_rag_docs_table_scroll_and_column_classes() -> None:
@@ -220,11 +265,6 @@ def test_rag_docs_table_scroll_and_column_classes() -> None:
     assert "rag-col-name" in rag
     assert "cell-wrap" in rag
     assert "rag-hits-table" in rag or "rag-hit-source" in rag
-
-
-def test_css_cache_bust_bumped() -> None:
-    base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=18" in base
 
 
 def test_rag_ia_workflow_and_cta(client: TestClient) -> None:
