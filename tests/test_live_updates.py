@@ -85,6 +85,49 @@ def test_rag_build_uses_subscribe_not_1_5s_poll() -> None:
     assert "runQuery" in html
     assert "run-kv-table" in html
     assert "Debug JSON" in html
+    # Sync build path: UI must finish when building===false (no false "Queued…").
+    assert "!r.building" in html or "r.building === false" in html or "if (!r.building)" in html
+    assert "docs, " in html and "chunks indexed" in html
+
+
+def test_rag_build_sync_response_not_building(client, tmp_path, monkeypatch) -> None:
+    """POST /rag/build is synchronous — response must not say building=true."""
+    from pathlib import Path
+    from unittest.mock import MagicMock, patch
+
+    pid = client.post("/api/projects", json={"name": "RAG sync status"}).json()["id"]
+    corpus = tmp_path / "rag_corpora" / pid
+    home = tmp_path / "home"
+    files = home / ".finetune-studio" / "projects" / pid / "files"
+    files.mkdir(parents=True)
+    (files / "a.txt").write_text("hi", encoding="utf-8")
+    monkeypatch.setattr(
+        "finetune_studio.webui.routes.rag._corpus_dir",
+        lambda p: corpus if p == pid else tmp_path / "x" / p,
+    )
+    monkeypatch.setattr(
+        "finetune_studio.webui.routes.rag.Path.home",
+        staticmethod(lambda: home),
+    )
+    mock_rag = MagicMock()
+    mock_rag.build_from_directory.return_value = {
+        "documents": 1,
+        "chunks": 2,
+        "vector_dim": 8,
+        "skipped": 0,
+    }
+    with patch(
+        "finetune_studio.data.rag_portable.PortableRAG",
+        return_value=mock_rag,
+    ):
+        r = client.post(f"/api/projects/{pid}/rag/build", json={"reset": False})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert body["building"] is False
+    assert body["documents"] == 1
+    assert body["chunks"] == 2
+    assert Path(body["corpus_dir"]) == corpus
 
 
 def test_data_prep_uses_subscribe_with_status_fallback() -> None:

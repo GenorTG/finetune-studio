@@ -747,6 +747,18 @@
         notify(r.error, 'error');
         return;
       }
+      // Sync build: POST returns only after the corpus is written.
+      if (!r.building) {
+        const docs = r.documents != null ? r.documents : '?';
+        const m = r.chunks != null ? r.chunks : '?';
+        status.textContent = 'Done — ' + docs + ' docs, ' + m + ' chunks indexed.';
+        notify('Corpus built: ' + docs + ' docs · ' + m + ' chunks', 'success');
+        const wrap = document.getElementById('build-progress-wrap');
+        if (wrap) wrap.hidden = true;
+        if (typeof window.loadIndexedDocs === 'function') window.loadIndexedDocs();
+        if (typeof window.loadRagStatus === 'function') window.loadRagStatus();
+        return;
+      }
       const q = r.queued_files != null ? r.queued_files : '?';
       status.textContent = 'Queued ' + q + ' file' + (q === 1 ? '' : 's') + ' — embedding…';
       notify('Corpus build started: ' + q + ' files queued', 'info');

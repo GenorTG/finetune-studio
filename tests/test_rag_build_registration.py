@@ -61,6 +61,10 @@ def test_rag_build_registers_project_rags_row(
     assert r.status_code == 200, r.text
     body = r.json()
     assert body.get("ok") is True
+    # Sync build must not claim an in-flight job after the handler returns.
+    assert body.get("building") is False
+    assert body.get("documents") == 3
+    assert body.get("chunks") == 7
 
     rags = db.list_rags(pid)
     assert len(rags) == 1

@@ -68,6 +68,18 @@ class PortableRAG:
 
     # ── Build / ingest ──
 
+    def _clear_source_artifacts(self) -> None:
+        """Delete ``sources/*.txt`` so rebuild cannot leave stale orphans."""
+        sources_dir = self.dir / "sources"
+        if not sources_dir.exists():
+            sources_dir.mkdir(parents=True, exist_ok=True)
+            return
+        for stale in sources_dir.glob("*.txt"):
+            try:
+                stale.unlink()
+            except OSError:
+                log.warning("failed to remove stale source artifact %s", stale)
+
     def build_from_directory(self, source_dir: str | Path, *,
                               name: str | None = None,
                               embedder: str = DEFAULT_EMBEDDER,
@@ -75,7 +87,14 @@ class PortableRAG:
                               extensions: list | None = None,
                               device: str = "cpu",
                               progress=None) -> dict:
-        """Parse files in source_dir, chunk, embed, build BM25, write all artifacts."""
+        """Parse files in source_dir, chunk, embed, build BM25, write all artifacts.
+
+        Always **replaces** corpus content (chunks, vectors, BM25, sources,
+        manifest documents). This is not an append: every successful build
+        rewrites the index from ``source_dir``. Callers that need a full
+        directory wipe (bundled models, lockfiles, etc.) pass ``reset=True``
+        on the HTTP build/rebuild routes before invoking this method.
+        """
         from finetune_studio.data.parsers import parse as parser_parse
         from finetune_studio.rag.ingest import chunk_text
 
@@ -117,6 +136,9 @@ class PortableRAG:
 
         all_chunks: list[dict] = []
         all_documents: list[dict] = []
+        # Collect parse results first so a no-op early return does not wipe
+        # an existing corpus when every candidate fails ingest/parse.
+        pending: list[tuple[Path, str, str, str]] = []
 
         for f in files:
             if not should_ingest_source_file(f):
@@ -134,7 +156,18 @@ class PortableRAG:
             doc_id = hashlib.md5(
                 f"{display_name}:{len(text)}:{f.stat().st_size}".encode()
             ).hexdigest()[:12]
-            (self.dir / "sources" / f"{doc_id}.txt").write_text(text, encoding="utf-8")
+            pending.append((f, text, display_name, doc_id))
+
+        if not pending:
+            return {"documents": 0, "chunks": 0, "skipped": 0}
+
+        # Replace source artifacts to match the new corpus (no stale orphans).
+        self._clear_source_artifacts()
+        sources_dir = self.dir / "sources"
+        sources_dir.mkdir(parents=True, exist_ok=True)
+
+        for f, text, display_name, doc_id in pending:
+            (sources_dir / f"{doc_id}.txt").write_text(text, encoding="utf-8")
             all_documents.append({"document_id": doc_id, "source": str(f),
                                  "content_text_path": f"sources/{doc_id}.txt",
                                  "filename": display_name})
@@ -584,17 +617,57 @@ python -m finetune_studio.data.rag rebuild-vectors /path/to/corpus [--embedder N
             write_json(self.manifest_path, manifest.to_json())
 
     def list_sources(self) -> list[dict]:
-        """List all sources in the corpus."""
-        sources_dir = self.dir / "sources"
-        if not sources_dir.exists():
+        """List current corpus documents from manifest / chunks (not stale dirs).
+
+        Never invents rows from orphaned ``sources/*.txt`` left by older builds.
+        """
+        from finetune_studio.data.rag_portable.source_labels import (
+            prettify_source_label,
+        )
+
+        sources: list[dict] = []
+        if self.manifest_path.exists():
+            try:
+                raw = read_json(self.manifest_path)
+                meta = (raw.get("extra") or {}).get("documents_meta") or []
+            except Exception:  # noqa: BLE001
+                meta = []
+            if meta:
+                for d in meta:
+                    did = str(d.get("document_id") or d.get("id") or "")
+                    if not did:
+                        continue
+                    fname = prettify_source_label(
+                        str(d.get("filename") or ""),
+                        d.get("source"),
+                    )
+                    src_path = self.dir / "sources" / f"{did}.txt"
+                    size = src_path.stat().st_size if src_path.is_file() else 0
+                    sources.append({"id": did, "filename": fname, "size": size})
+                return sources
+
+        if not self.chunks_path.exists():
             return []
-        sources = []
-        for f in sorted(sources_dir.glob("*.txt")):
-            sources.append({
-                "id": f.stem,
-                "filename": f.stem,
-                "size": f.stat().st_size,
-            })
+        try:
+            pd = try_import_pandas()
+            df = pd.read_parquet(self.chunks_path)
+        except Exception:  # noqa: BLE001
+            return []
+        if len(df) == 0 or "document_id" not in df.columns:
+            return []
+        seen: set[str] = set()
+        for _, row in df.iterrows():
+            did = str(row.get("document_id") or "")
+            if not did or did in seen:
+                continue
+            seen.add(did)
+            fname = prettify_source_label(
+                str(row.get("filename") or ""),
+                row.get("source"),
+            )
+            src_path = self.dir / "sources" / f"{did}.txt"
+            size = src_path.stat().st_size if src_path.is_file() else 0
+            sources.append({"id": did, "filename": fname, "size": size})
         return sources
 
     def rebuild_vectors(self, embedder: str | None = None, device: str = "cpu") -> dict:

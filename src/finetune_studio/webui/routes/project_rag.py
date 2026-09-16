@@ -73,8 +73,8 @@ def list_indexed_docs(pid: str) -> list[dict[str, Any]]:
     sources_dir = root / "sources"
     chunks_path = root / "chunks.parquet"
 
-    has_sources = sources_dir.exists() and any(sources_dir.glob("*.txt"))
-    if not manifest_path.exists() and not has_sources:
+    has_corpus = manifest_path.exists() or chunks_path.exists()
+    if not has_corpus:
         return []
 
     updated_at = 0.0
@@ -111,18 +111,36 @@ def list_indexed_docs(pid: str) -> list[dict[str, Any]]:
         except Exception as e:  # noqa: BLE001
             log.warning("list_indexed_docs: parquet read failed for %s: %s", pid, e)
 
-    # Merge sources/ so orphaned source files still appear
+    # Prefer manifest documents_meta when parquet is empty/missing but
+    # the current corpus records documents there (still no orphan scan).
+    if not by_doc and manifest_path.exists():
+        try:
+            from finetune_studio.data.rag_portable.io import read_json
+
+            m = read_json(manifest_path)
+            for d in (m.get("extra") or {}).get("documents_meta") or []:
+                did = str(d.get("document_id") or d.get("id") or "")
+                if not did:
+                    continue
+                by_doc[did] = {
+                    "filename": prettify_source_label(
+                        str(d.get("filename") or ""),
+                        d.get("source"),
+                    ),
+                    "chunks": 0,
+                }
+        except Exception as e:  # noqa: BLE001
+            log.warning("list_indexed_docs: documents_meta read failed for %s: %s", pid, e)
+
+    # Attach size/mtime from sources/ only for docs already in the current
+    # corpus — never invent inventory rows from stale orphan .txt files.
     if sources_dir.exists():
-        for f in sorted(sources_dir.glob("*.txt")):
-            did = f.stem
-            entry = by_doc.setdefault(
-                did, {"filename": did, "chunks": 0}
-            )
+        for did, entry in by_doc.items():
+            f = sources_dir / f"{did}.txt"
+            if not f.is_file():
+                continue
             entry["size_bytes"] = f.stat().st_size
             entry["mtime"] = f.stat().st_mtime
-            if entry["filename"] == did:
-                # Prefer a nicer name if we never saw parquet
-                entry["filename"] = did
 
     docs: list[dict[str, Any]] = []
 

@@ -79,6 +79,30 @@ def test_table_fixed_layout_and_empty_colspan() -> None:
     assert "Uploaded files" in pdata
 
 
+def test_data_prep_uploaded_files_mobile_column_floors() -> None:
+    """At ≤780px, uploaded-files columns need rem floors + scroll affordance.
+
+    Regression for 375px: percentage widths + max-width:0 collapsed columns
+    to ~4–12px while the page itself did not overflow.
+    """
+    css = _CSS.read_text(encoding="utf-8")
+    assert "#dp-uploaded-files .fl-col-name { width: 10rem; min-width: 10rem; }" in css
+    assert "#dp-uploaded-files .fl-col-actions { width: 10rem; min-width: 10rem; }" in css
+    assert "#dp-uploaded-files .fl-table" in css
+    assert "min-width: 36rem" in css
+    assert "#dp-uploaded-files .fl-name" in css
+    assert "max-width: none" in css
+    # Horizontal scroll lives on .table-scroll inside the drop zone.
+    assert "#dp-uploaded-files .table-scroll" in css
+    assert "overflow-x: auto" in css
+    dp = _DATA_PREP.read_text(encoding="utf-8")
+    assert 'id="dp-uploaded-files"' in dp
+    assert 'class="table-scroll"' in dp
+    assert 'class="fl-table"' in dp
+    assert 'class="fl-col-name"' in dp
+    assert 'class="fl-col-actions"' in dp
+
+
 def test_upload_refresh_paints_before_prefetch() -> None:
     """Successful upload must refresh the list in-place without waiting on conversions."""
     src = _DATA_PREP.read_text(encoding="utf-8")

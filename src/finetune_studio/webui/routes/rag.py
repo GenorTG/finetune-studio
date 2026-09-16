@@ -219,12 +219,19 @@ async def rag_build(pid: str, req: BuildRequest):
     except Exception as e:
         log.exception("RAG build failed")
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+    # Build is synchronous: the corpus is already written when we return.
+    # ``building: false`` keeps the UI from claiming an in-flight embed.
     return {
         "ok": True,
-        "building": True,
+        "building": False,
         "corpus_dir": str(corpus),
         "queued_files": queued_files,
         "queued_chars": queued_chars,
+        "documents": int(result.get("documents") or 0),
+        "chunks": int(result.get("chunks") or 0),
+        "vector_dim": result.get("vector_dim"),
+        "skipped": int(result.get("skipped") or 0),
+        "reset": bool(req.reset),
     }
 
 
@@ -239,11 +246,21 @@ def _rag_build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
         if project_files_dir.exists() else 0
     )
     sources_dir = corpus / "sources"
-    files_done = (
-        sum(1 for _ in sources_dir.glob("*.txt")) if sources_dir.exists() else 0
-    )
     manifest_exists = (corpus / "manifest.json").exists()
     chunks_path = corpus / "chunks.parquet"
+    files_done = 0
+    chunks_count = 0
+    if manifest_exists:
+        try:
+            m = json.loads((corpus / "manifest.json").read_text())
+            files_done = int(m.get("documents", 0) or 0)
+            chunks_count = int(m.get("chunks", 0) or 0)
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            files_done = 0
+            chunks_count = 0
+    elif sources_dir.exists():
+        # Mid-build fallback only — prefer manifest once written.
+        files_done = sum(1 for _ in sources_dir.glob("*.txt"))
     if manifest_exists:
         phase = "done"
     elif chunks_path.exists():
@@ -252,13 +269,6 @@ def _rag_build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
         phase = "chunking"
     else:
         phase = "queued"
-    chunks_count = 0
-    if manifest_exists:
-        try:
-            m = json.loads((corpus / "manifest.json").read_text())
-            chunks_count = int(m.get("chunks", 0) or 0)
-        except (OSError, ValueError, TypeError, json.JSONDecodeError):
-            chunks_count = 0
     return {
         "phase": phase,
         "files_done": files_done,

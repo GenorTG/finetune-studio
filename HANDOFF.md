@@ -7,22 +7,21 @@ Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :786
 ## State (verified 2026-09-16 Europe/Warsaw)
 | Area | Status |
 |------|--------|
-| File-library "all files" count | Fixed: API `total_count` + `_flTotalCount` (not filtered `_flFiles.length`) |
-| Training sprite idle copy | Fixed: `READY TO TRAIN` + poll `/api/training/status`; SPA clears mounts (`sprites.js?v=15`) |
-| Inference model info | Fixed: client GET `/api/models/info?path=`; route returns `total_layers`; POST → 405 |
-| Training Start gate | Fixed: `#start-btn` disabled until dataset; honest merge size wording |
-| Tests | 28/28 `test_ui_reliability` + `test_list_files_total_count_unfiltered`; Ruff clean on touched routes |
+| RAG rebuild / list_sources | Fixed: build clears stale `sources/*.txt`; list/inventory from manifest/chunks only |
+| RAG build status copy | Fixed: sync POST returns `building: false` + docs/chunks; UI shows Done |
+| Data Prep mobile table | Fixed: ≤780px rem column floors + `#dp-uploaded-files` scroll affordance |
+| Tests | 16/16 focused suite green; Ruff clean on touched Python |
 
 ## Next steps
 1. Parent: `git push`; fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`.
-2. Browser Data Prep: with files present, "all files" badge matches table; stay correct after folder select + upload.
-3. Browser Training: idle sprite says READY TO TRAIN; Start disabled until dataset picked/uploaded.
-4. Browser Inference: select a model — no 405; GPU layers slider updates when layers known.
+2. Browser RAG `/projects/<pid>/rag`: rebuild → indexed docs == parsed sources count; no orphan/chunk duplicates.
+3. Browser RAG Build: status shows Done (not Queued/Building after return).
+4. Browser Data Prep at 375px: uploaded-files columns readable via horizontal scroll.
 5. Fix legacy `test_db_lifecycle` / `test_parsed_converts_txt`, then `make test`.
 
 ## Commands
-- Focused: `.venv/bin/python -m pytest tests/test_ui_reliability.py tests/test_file_library_apis.py::test_list_files_total_count_unfiltered -v --tb=short`
-- Lint: `.venv/bin/ruff check src/finetune_studio/webui/routes/file_library.py src/finetune_studio/webui/routes/models.py tests/test_ui_reliability.py`
+- Focused: `.venv/bin/python -m pytest tests/test_rag_rebuild_sources.py tests/test_rag_build_registration.py tests/test_rag_source_labels.py tests/test_live_updates.py::test_rag_build_uses_subscribe_not_1_5s_poll tests/test_live_updates.py::test_rag_build_sync_response_not_building tests/test_ui_reliability.py::test_data_prep_uploaded_files_mobile_column_floors tests/test_ui_reliability.py::test_table_fixed_layout_and_empty_colspan -v --tb=short`
+- Lint: `.venv/bin/ruff check src/finetune_studio/data/rag_portable/store.py src/finetune_studio/data/rag_portable/query.py src/finetune_studio/webui/routes/rag.py src/finetune_studio/webui/routes/project_rag.py`
 - Deploy: `git push`; fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`
 
 ## Blockers

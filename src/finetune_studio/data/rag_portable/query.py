@@ -117,34 +117,43 @@ class PortableRAGQuery:
         return results[:top_k]
 
     def list_sources(self) -> list[dict]:
-        """List all sources in the corpus."""
-        sources_dir = self.dir / "sources"
-        if not sources_dir.exists():
+        """List current corpus documents from manifest / chunks (not stale dirs)."""
+        sources: list[dict] = []
+        meta = []
+        extra = getattr(self.manifest, "extra", None) or {}
+        if isinstance(extra, dict):
+            meta = extra.get("documents_meta") or []
+        if meta:
+            for d in meta:
+                did = str(d.get("document_id") or d.get("id") or "")
+                if not did:
+                    continue
+                fname = prettify_source_label(
+                    str(d.get("filename") or ""),
+                    d.get("source"),
+                )
+                src_path = self.dir / "sources" / f"{did}.txt"
+                size = src_path.stat().st_size if src_path.is_file() else 0
+                sources.append({"id": did, "filename": fname, "size": size})
+            return sources
+
+        if self.chunks is None or len(self.chunks) == 0:
             return []
-        # Build a map of document_id -> filename from chunks
-        doc_to_filename = {}
-        if self.chunks is not None and len(self.chunks) > 0:
-            for _, row in self.chunks.iterrows():
-                doc_id = row.get("document_id")
-                if doc_id and doc_id not in doc_to_filename:
-                    doc_to_filename[doc_id] = row.get("filename", "")
-        sources = []
-        for f in sorted(sources_dir.glob("*.txt")):
-            doc_id = f.stem
-            raw_name = doc_to_filename.get(doc_id, doc_id)
-            raw_source = None
-            if self.chunks is not None and len(self.chunks) > 0:
-                rows = self.chunks[self.chunks["document_id"].astype(str) == str(doc_id)]
-                if len(rows):
-                    raw_source = rows.iloc[0].get("source")
-            sources.append({
-                "id": doc_id,
-                "filename": prettify_source_label(
-                    str(raw_name) if raw_name is not None else "",
-                    raw_source,
-                ),
-                "size": f.stat().st_size,
-            })
+        if "document_id" not in self.chunks.columns:
+            return []
+        seen: set[str] = set()
+        for _, row in self.chunks.iterrows():
+            did = str(row.get("document_id") or "")
+            if not did or did in seen:
+                continue
+            seen.add(did)
+            fname = prettify_source_label(
+                str(row.get("filename") or ""),
+                row.get("source"),
+            )
+            src_path = self.dir / "sources" / f"{did}.txt"
+            size = src_path.stat().st_size if src_path.is_file() else 0
+            sources.append({"id": did, "filename": fname, "size": size})
         return sources
 
     def format_context(self, results: list[dict], max_chars: int = 4000) -> str:

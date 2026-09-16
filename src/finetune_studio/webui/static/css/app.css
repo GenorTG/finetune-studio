@@ -4034,6 +4034,51 @@ body::before {
 .fl-table { min-width: 36rem; }
 #dp-parsed-table { table-layout: fixed; width: 100%; min-width: 20rem; }
 
+/* Data Prep uploaded-files table — usable column floors + scroll affordance
+   on narrow viewports. Percentage widths + max-width:0 collapse to ~4–12px
+   at 375px even inside .table-scroll; pin rem mins and force horizontal scroll. */
+#dp-uploaded-files .table-scroll {
+  position: relative;
+}
+@media (max-width: 780px) {
+  #dp-uploaded-files .fl-drop {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  #dp-uploaded-files .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+    border: 1px solid var(--border);
+    /* Edge fades signal more columns off-screen */
+    background:
+      linear-gradient(to right, var(--bg-elev, #0a0a0a) 30%, transparent) 0 0 / 1.25rem 100% local,
+      linear-gradient(to left, var(--bg-elev, #0a0a0a) 30%, transparent) 100% 0 / 1.25rem 100% local;
+    background-repeat: no-repeat;
+  }
+  #dp-uploaded-files .table-scroll::-webkit-scrollbar { height: 8px; }
+  #dp-uploaded-files .table-scroll::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 2px;
+  }
+  #dp-uploaded-files .fl-table {
+    width: max-content;
+    min-width: 36rem;
+    table-layout: fixed;
+  }
+  #dp-uploaded-files .fl-col-check { width: 2rem; min-width: 2rem; }
+  #dp-uploaded-files .fl-col-name { width: 10rem; min-width: 10rem; }
+  #dp-uploaded-files .fl-col-ver { width: 3.5rem; min-width: 3.5rem; }
+  #dp-uploaded-files .fl-col-type { width: 5.5rem; min-width: 5.5rem; }
+  #dp-uploaded-files .fl-col-size { width: 4.5rem; min-width: 4.5rem; }
+  #dp-uploaded-files .fl-col-status { width: 4rem; min-width: 4rem; }
+  #dp-uploaded-files .fl-col-actions { width: 10rem; min-width: 10rem; }
+  #dp-uploaded-files .fl-name,
+  #dp-uploaded-files .fl-mime { max-width: none; }
+}
+
 /* ── Verdict badges (bench / testing case tables) ───────────────── */
 .verdict-badge {
   display: inline-block;
