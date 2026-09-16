@@ -745,7 +745,8 @@ async function chatSend() {
   _chatSaveHistory();
 
   // AbortController for stop button
-  _chatAbort = new AbortController();
+  const requestAbort = new AbortController();
+  _chatAbort = requestAbort;
 
   try {
     let url, body, parseFn;
@@ -784,7 +785,7 @@ async function chatSend() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      signal: _chatAbort.signal,
+      signal: requestAbort.signal,
     });
     const raw = await r.json();
     if (raw.error) throw new Error(raw.error);
@@ -816,7 +817,7 @@ async function chatSend() {
   } finally {
     sendBtn.disabled = false;
     if (stopBtn) stopBtn.disabled = true;
-    _chatAbort = null;
+    if (_chatAbort === requestAbort) _chatAbort = null;
   }
 }
 

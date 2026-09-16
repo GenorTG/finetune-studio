@@ -43,3 +43,13 @@ def test_empty_rag_sources_array_renders_status() -> None:
     )[0]
     assert "No source chunks retrieved" in body
     assert "Array.isArray(sources)" in body
+
+
+def test_chat_request_keeps_abort_controller_per_request() -> None:
+    src = _src()
+    body = src.split("async function chatSend()", 1)[1].split(
+        "function _chatStop", 1
+    )[0]
+    assert "const requestAbort = new AbortController();" in body
+    assert "signal: requestAbort.signal" in body
+    assert "if (_chatAbort === requestAbort) _chatAbort = null;" in body
