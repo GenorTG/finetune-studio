@@ -1,9 +1,9 @@
 """Versioned built-in benchmark suite definitions and discovery.
 
-Industry-style smoke suites and larger synthetic offline suites ship as JSON
-under ``fixtures/``. They are data-agnostic (no HuggingFace / network), clearly
-labeled as synthetic/offline, and selectable alongside project auto-suites and
-``data/benchmarks/*.json`` files.
+Synthetic offline / smoke suites ship as JSON under ``fixtures/``. They are
+data-agnostic (no HuggingFace / network), clearly labeled as synthetic — not
+industry MMLU/GSM8K/HellaSwag scores — and selectable alongside project
+auto-suites and ``data/benchmarks/*.json`` files.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-SuiteType = Literal["industry_smoke", "industry_offline", "local", "auto"]
+SuiteType = Literal["synthetic_smoke", "synthetic_offline", "local", "auto"]
 SuiteSource = Literal["builtin", "data_benchmarks", "auto_suites"]
 
 _FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
@@ -41,10 +41,11 @@ _BUILTIN_SMOKE: tuple[dict[str, Any], ...] = (
         "name": "mmlu_smoke",
         "filename": "mmlu_smoke.v1.json",
         "family": "mmlu",
-        "title": "MMLU-style knowledge",
+        "title": "Synthetic knowledge MCQ (MMLU-shaped)",
         "description": (
-            "Local smoke suite styled after MMLU multiple-choice knowledge. "
-            "Not the HuggingFace MMLU dataset — synthetic/offline only."
+            "Built-in synthetic smoke suite with MMLU-shaped multiple-choice "
+            "items. NOT the HuggingFace MMLU dataset and NOT an industry score "
+            "— synthetic/offline only; no licensed external data."
         ),
         "version": 1,
     },
@@ -52,10 +53,11 @@ _BUILTIN_SMOKE: tuple[dict[str, Any], ...] = (
         "name": "gsm8k_smoke",
         "filename": "gsm8k_smoke.v1.json",
         "family": "gsm8k",
-        "title": "GSM8K-style arithmetic",
+        "title": "Synthetic arithmetic (GSM8K-shaped)",
         "description": (
-            "Local smoke suite styled after GSM8K grade-school math. "
-            "Not the HuggingFace GSM8K dataset — synthetic/offline only."
+            "Built-in synthetic smoke suite with GSM8K-shaped grade-school math. "
+            "NOT the HuggingFace GSM8K dataset and NOT an industry score — "
+            "synthetic/offline only; no licensed external data."
         ),
         "version": 1,
     },
@@ -63,10 +65,11 @@ _BUILTIN_SMOKE: tuple[dict[str, Any], ...] = (
         "name": "hellaswag_smoke",
         "filename": "hellaswag_smoke.v1.json",
         "family": "hellaswag",
-        "title": "HellaSwag-style completion",
+        "title": "Synthetic completion MCQ (HellaSwag-shaped)",
         "description": (
-            "Local smoke suite styled after HellaSwag sentence completion. "
-            "Not the HuggingFace HellaSwag dataset — synthetic/offline only."
+            "Built-in synthetic smoke suite with HellaSwag-shaped sentence "
+            "completion. NOT the HuggingFace HellaSwag dataset and NOT an "
+            "industry score — synthetic/offline only; no licensed external data."
         ),
         "version": 1,
     },
@@ -86,21 +89,25 @@ class SuiteDefinition:
     version: int | None = None
     family: str = ""
     case_count: int | None = None
+    is_industry_benchmark: bool = False
 
     def label(self) -> str:
         """Human-readable label for dropdowns and lists."""
-        if self.suite_type == "industry_smoke":
-            ver = f" v{self.version}" if self.version is not None else ""
-            n = self.case_count
-            count = f" · {n} cases" if n is not None else ""
-            return f"industry · {self.title} (smoke{ver} · synthetic/offline){count}"
-        if self.suite_type == "industry_offline":
+        if self.suite_type == "synthetic_smoke":
             ver = f" v{self.version}" if self.version is not None else ""
             n = self.case_count
             count = f" · {n} cases" if n is not None else ""
             return (
-                f"industry · {self.title} "
-                f"(offline synthetic{ver}){count}"
+                f"synthetic · {self.title} "
+                f"(smoke{ver} · not industry){count}"
+            )
+        if self.suite_type == "synthetic_offline":
+            ver = f" v{self.version}" if self.version is not None else ""
+            n = self.case_count
+            count = f" · {n} cases" if n is not None else ""
+            return (
+                f"synthetic · {self.title} "
+                f"(offline{ver} · not industry){count}"
             )
         if self.suite_type == "auto":
             n = self.case_count or 0
@@ -121,6 +128,8 @@ class SuiteDefinition:
             "version": self.version,
             "family": self.family,
             "case_count": self.case_count,
+            "is_industry_benchmark": self.is_industry_benchmark,
+            "industry_benchmark": False,
         }
 
 
@@ -144,7 +153,7 @@ def _case_count_from_file(path: Path) -> int | None:
 
 
 def list_builtin_smoke_suites() -> list[SuiteDefinition]:
-    """Return built-in industry smoke suites whose fixture files exist."""
+    """Return built-in synthetic smoke suites whose fixture files exist."""
     out: list[SuiteDefinition] = []
     for meta in _BUILTIN_SMOKE:
         path = _FIXTURES_DIR / str(meta["filename"])
@@ -156,11 +165,12 @@ def list_builtin_smoke_suites() -> list[SuiteDefinition]:
                 path=str(path),
                 title=str(meta["title"]),
                 description=str(meta["description"]),
-                suite_type="industry_smoke",
+                suite_type="synthetic_smoke",
                 source="builtin",
                 version=int(meta["version"]),
                 family=str(meta["family"]),
                 case_count=_case_count_from_file(path),
+                is_industry_benchmark=False,
             )
         )
     return out
@@ -185,18 +195,19 @@ def list_builtin_offline_suites() -> list[SuiteDefinition]:
                 path=str(path),
                 title=str(meta["title"]),
                 description=str(meta["description"]),
-                suite_type="industry_offline",
+                suite_type="synthetic_offline",
                 source="builtin",
                 version=int(meta["version"]),
                 family=str(meta["family"]),
                 case_count=_case_count_from_file(path),
+                is_industry_benchmark=False,
             )
         )
     return out
 
 
 def list_builtin_industry_suites() -> list[SuiteDefinition]:
-    """Smoke + substantive offline built-ins."""
+    """Smoke + substantive offline built-ins (legacy name; all synthetic)."""
     return list_builtin_smoke_suites() + list_builtin_offline_suites()
 
 
@@ -209,6 +220,9 @@ def _sort_key(entry: dict[str, Any]) -> tuple[int, str]:
     """Offline first (substantive), then smoke, then local, then auto."""
     st = str(entry.get("suite_type") or "")
     order = {
+        "synthetic_offline": 0,
+        "synthetic_smoke": 1,
+        # Accept legacy keys if old fixtures linger in-memory.
         "industry_offline": 0,
         "industry_smoke": 1,
         "local": 2,

@@ -3,51 +3,69 @@
   "id": "hellaswag_smoke",
   "version": 1,
   "family": "hellaswag",
-  "suite_type": "industry_smoke",
-  "title": "HellaSwag-style completion",
-  "description": "Local smoke suite styled after HellaSwag sentence completion. Not the HuggingFace HellaSwag dataset — offline only.",
+  "suite_type": "synthetic_smoke",
+  "title": "Synthetic completion MCQ (HellaSwag-shaped)",
+  "description": "Built-in synthetic smoke suite with HellaSwag-shaped sentence completion. NOT the HuggingFace HellaSwag dataset and NOT an industry score \u2014 synthetic/offline only; no licensed external data.",
   "cases": [
     {
       "name": "hellaswag_eating_meal",
       "category": "reasoning",
       "question": "A person is eating a meal. They pick up a fork and begin to eat. What happens next?\nA) The person teleports\nB) The person continues eating\nC) The fork turns into a spoon\nD) The food disappears\nReply with just the letter.",
       "correct_answer": "B",
-      "keywords": ["B"]
+      "keywords": [
+        "B"
+      ]
     },
     {
       "name": "hellaswag_red_light",
       "category": "reasoning",
       "question": "Someone is driving a car. They approach a red traffic light. What do they do?\nA) Speed up\nB) Continue driving\nC) Stop the car\nD) Reverse\nReply with just the letter.",
       "correct_answer": "C",
-      "keywords": ["C"]
+      "keywords": [
+        "C"
+      ]
     },
     {
       "name": "hellaswag_studying",
       "category": "reasoning",
       "question": "A student is studying for an exam. They finish reading their notes. What happens next?\nA) They forget everything instantly\nB) They take a nap forever\nC) They review more material\nD) They delete their notes\nReply with just the letter.",
       "correct_answer": "C",
-      "keywords": ["C"]
+      "keywords": [
+        "C"
+      ]
     },
     {
       "name": "hellaswag_cooking",
       "category": "reasoning",
       "question": "A person is cooking dinner. They turn on the stove. What happens next?\nA) The kitchen floods\nB) They start preparing food\nC) The stove turns into a table\nD) They leave the house\nReply with just the letter.",
       "correct_answer": "B",
-      "keywords": ["B"]
+      "keywords": [
+        "B"
+      ]
     },
     {
       "name": "hellaswag_reading",
       "category": "reasoning",
       "question": "Someone is reading a book. They reach the end of a chapter. What do they do?\nA) Burn the book\nB) Close the book forever\nC) Start the next chapter\nD) Throw the book away\nReply with just the letter.",
       "correct_answer": "C",
-      "keywords": ["C"]
+      "keywords": [
+        "C"
+      ]
     },
     {
       "name": "hellaswag_umbrella",
       "category": "reasoning",
       "question": "It starts raining heavily outdoors. A person walking without cover looks for shelter. What happens next?\nA) They open an umbrella or seek cover\nB) They start swimming in the street\nC) The rain turns into candy\nD) They remove their coat to stay cooler\nReply with just the letter.",
       "correct_answer": "A",
-      "keywords": ["A"]
+      "keywords": [
+        "A"
+      ]
     }
-  ]
+  ],
+  "synthetic": true,
+  "offline": true,
+  "is_industry_benchmark": false,
+  "industry_benchmark": false,
+  "licensed_external_data": false,
+  "scoring": "strict_task_aware"
 }

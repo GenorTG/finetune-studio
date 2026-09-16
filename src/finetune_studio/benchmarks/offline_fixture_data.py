@@ -1,8 +1,10 @@
 """Deterministic synthetic offline benchmark cases (not licensed datasets).
 
-These are hand-authored / procedurally expanded Q&A items styled after common
-industry families (MMLU / GSM8K / HellaSwag). They ship as offline fixtures so
-model comparison works without HuggingFace downloads or third-party licenses.
+These are hand-authored / procedurally expanded Q&A items shaped after common
+industry families (MMLU / GSM8K / HellaSwag) for local comparison only. They are
+NOT industry benchmarks and do not report real MMLU/GSM8K/HellaSwag scores.
+They ship as offline fixtures so model comparison works without HuggingFace
+downloads or third-party licenses.
 """
 
 from __future__ import annotations

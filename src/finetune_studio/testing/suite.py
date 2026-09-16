@@ -72,13 +72,15 @@ class CaseResult:
     time_ms: float = 0.0
     error: str = ""
     keywords: list[str] = field(default_factory=list)
+    scoring_method: str = ""
+    validity: str = ""
 
 
 def load_test_suite(path: str) -> list[BenchmarkCase]:
     """Load a v2 Q&A benchmark suite from JSON.
 
     Accepts either a bare case list, or a versioned suite definition object
-    with a ``cases`` array (industry smoke fixtures).
+    with a ``cases`` array (built-in synthetic or local evaluation fixtures).
     """
     with open(path) as f:
         data = json.load(f)
@@ -175,22 +177,41 @@ def run_suite(engine, cases: list[BenchmarkCase], max_tokens: int = 512,
 
 
 def apply_heuristic_judging(results: list[CaseResult]) -> None:
-    """Mutate results in place: set verdict/judge via keywords or answer overlap.
+    """Mutate results in place: set verdict/judge via strict or legacy scoring.
 
-    Keyword path (preferred when ``keywords`` is non-empty): every keyword must
-    appear (case-insensitive) in ``model_answer`` for pass; any hit → partial;
-    none → fail.
+    Prefer task-aware strict scoring for multiple-choice and numeric cases
+    (exact option / normalized final number; rejects wrong extras). Open-ended
+    cases keep keyword matching when ``keywords`` is non-empty, else
+    ``judge_case_heuristic``.
 
-    Otherwise falls back to ``judge_case_heuristic`` against ``correct_answer``.
     Skips cases that already have a verdict or that errored with an empty answer.
     """
     from finetune_studio.testing.judge import judge_case_heuristic
+    from finetune_studio.testing.strict_scoring import score_strict
 
     for r in results:
         if r.verdict:
             continue
         if r.error and not r.model_answer:
             continue
+
+        strict = score_strict(
+            question=r.question,
+            correct_answer=r.correct_answer,
+            model_answer=r.model_answer,
+        )
+        if strict is not None:
+            r.verdict = strict.verdict
+            r.judge = "heuristic"
+            r.judge_model = "heuristic"
+            r.scoring_method = strict.scoring_method
+            r.validity = strict.validity
+            r.judge_reasoning = (
+                f"[{strict.scoring_method}; validity={strict.validity}] "
+                f"{strict.reasoning}"
+            )
+            continue
+
         if r.keywords:
             lower = (r.model_answer or "").lower()
             hits = [k for k in r.keywords if k.lower() in lower]
@@ -204,7 +225,12 @@ def apply_heuristic_judging(results: list[CaseResult]) -> None:
                 r.verdict = "fail"
             r.judge = "heuristic"
             r.judge_model = "heuristic"
-            r.judge_reasoning = f"keywords matched {n_hits}/{n}"
+            r.scoring_method = "keyword_substring"
+            r.validity = "valid" if n_hits == n else ("partial" if n_hits else "valid")
+            r.judge_reasoning = (
+                f"[keyword_substring; validity={r.validity}] "
+                f"keywords matched {n_hits}/{n}"
+            )
             continue
         verdict, reasoning, _conf = judge_case_heuristic(
             question=r.question,
@@ -216,7 +242,9 @@ def apply_heuristic_judging(results: list[CaseResult]) -> None:
         r.verdict = verdict
         r.judge = "heuristic"
         r.judge_model = "heuristic"
-        r.judge_reasoning = reasoning
+        r.scoring_method = "heuristic_overlap"
+        r.validity = "valid"
+        r.judge_reasoning = f"[heuristic_overlap; validity=valid] {reasoning}"
 
 
 def score_results(results: list[CaseResult]) -> dict:

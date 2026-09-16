@@ -1,6 +1,6 @@
 """Tests for benchmark suite discovery (E2E-43).
 
-Built-in industry smoke suites (package fixtures) are always discoverable.
+Built-in synthetic smoke/offline suites (package fixtures) are always discoverable.
 Local ``data/benchmarks/*.json`` and project ``auto_suites`` remain optional.
 """
 
@@ -54,13 +54,14 @@ def test_missing_known_suite_files_not_listed(
     assert "tool_calling" not in names
     assert "chris_ai_v21" not in names
     # Built-in fixtures are package-local and always discoverable.
-    assert _names_of_type(suites, "industry_smoke") == set(_EXPECTED_SMOKE)
-    assert _names_of_type(suites, "industry_offline") == set(_EXPECTED_OFFLINE)
+    assert _names_of_type(suites, "synthetic_smoke") == set(_EXPECTED_SMOKE)
+    assert _names_of_type(suites, "synthetic_offline") == set(_EXPECTED_OFFLINE)
     assert all(
-        s.get("suite_type") in {"industry_smoke", "industry_offline"}
+        s.get("suite_type") in {"synthetic_smoke", "synthetic_offline"}
         for s in suites
     )
-    assert all(str(s.get("label", "")).startswith("industry ·") for s in suites)
+    assert all(str(s.get("label", "")).startswith("synthetic ·") for s in suites)
+    assert all("not industry" in str(s.get("label", "")) for s in suites)
 
 
 def test_existing_json_file_is_listed(
@@ -81,10 +82,10 @@ def test_existing_json_file_is_listed(
     assert by_name["default"]["path"] == "data/benchmarks/default.json"
     assert by_name["default"]["suite_type"] == "local"
     assert by_name["default"]["label"].startswith("local ·")
-    assert _names_of_type(suites, "industry_smoke") == set(_EXPECTED_SMOKE)
-    assert _names_of_type(suites, "industry_offline") == set(_EXPECTED_OFFLINE)
+    assert _names_of_type(suites, "synthetic_smoke") == set(_EXPECTED_SMOKE)
+    assert _names_of_type(suites, "synthetic_offline") == set(_EXPECTED_OFFLINE)
     # Substantive offline sorts before smoke; both before local.
-    assert suites[0]["suite_type"] == "industry_offline"
+    assert suites[0]["suite_type"] == "synthetic_offline"
     local_idx = next(i for i, s in enumerate(suites) if s["name"] == "default")
     assert local_idx >= len(_EXPECTED_SMOKE) + len(_EXPECTED_OFFLINE)
 
@@ -125,8 +126,8 @@ def test_auto_suites_rows_listed_for_project(
     assert auto[0]["name"] == "held_out"
     assert auto[0]["path"] == str(auto_path)
     assert auto[0]["label"] == "auto · held_out (3 cases)"
-    assert _names_of_type(suites, "industry_smoke") == set(_EXPECTED_SMOKE)
-    assert _names_of_type(suites, "industry_offline") == set(_EXPECTED_OFFLINE)
+    assert _names_of_type(suites, "synthetic_smoke") == set(_EXPECTED_SMOKE)
+    assert _names_of_type(suites, "synthetic_offline") == set(_EXPECTED_OFFLINE)
     assert suites[-1]["suite_type"] == "auto"
 
 
@@ -148,8 +149,8 @@ def test_auto_suites_not_listed_without_project_id(
     suites = _discover_suites()
     assert all(s.get("suite_type") != "auto" for s in suites)
     assert all(s.get("suite_type") != "auto" for s in _discover_suites(None))
-    assert _names_of_type(suites, "industry_smoke") == set(_EXPECTED_SMOKE)
-    assert _names_of_type(suites, "industry_offline") == set(_EXPECTED_OFFLINE)
-    assert _names_of_type(_discover_suites(None), "industry_smoke") == set(
+    assert _names_of_type(suites, "synthetic_smoke") == set(_EXPECTED_SMOKE)
+    assert _names_of_type(suites, "synthetic_offline") == set(_EXPECTED_OFFLINE)
+    assert _names_of_type(_discover_suites(None), "synthetic_smoke") == set(
         _EXPECTED_SMOKE
     )

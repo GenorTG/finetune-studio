@@ -134,6 +134,8 @@ async def run_test_suite(request: Request):
                 "judge": r.judge,
                 "judge_model": r.judge_model,
                 "judge_reasoning": r.judge_reasoning,
+                "scoring_method": r.scoring_method,
+                "validity": r.validity,
                 "time_ms": r.time_ms,
                 "error": r.error,
             }
@@ -266,6 +268,8 @@ async def evaluate_training_dataset(request: Request):
                 "judge": r.judge,
                 "judge_model": r.judge_model,
                 "judge_reasoning": r.judge_reasoning,
+                "scoring_method": r.scoring_method,
+                "validity": r.validity,
                 "time_ms": r.time_ms,
                 "error": r.error,
             }

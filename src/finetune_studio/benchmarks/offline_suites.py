@@ -1,8 +1,9 @@
 """Write / load substantive synthetic offline benchmark fixtures.
 
-Fixtures are labeled as synthetic/offline — not licensed HuggingFace datasets.
-Smoke fixtures (6 cases) remain for quick checks; offline fixtures are larger
-and intended for real model comparison with deterministic keyword scoring.
+Fixtures are labeled as synthetic/offline — not licensed HuggingFace datasets
+and not industry MMLU/GSM8K/HellaSwag scores. Smoke fixtures (6 cases) remain
+for quick checks; offline fixtures are larger and scored with strict
+task-aware matching (exact MC option / normalized numeric final).
 """
 
 from __future__ import annotations
@@ -28,11 +29,11 @@ _OFFLINE_WRITERS: tuple[dict[str, Any], ...] = (
         "name": "mmlu_offline",
         "filename": "mmlu_offline.v1.json",
         "family": "mmlu",
-        "title": "MMLU-style knowledge",
+        "title": "Synthetic knowledge MCQ (MMLU-shaped)",
         "description": (
-            "Synthetic offline knowledge suite styled after MMLU multiple-choice. "
-            "Not the HuggingFace MMLU dataset — synthetic/offline only; no licensed "
-            "external data is bundled."
+            "Synthetic offline knowledge suite with MMLU-shaped multiple-choice. "
+            "NOT the HuggingFace MMLU dataset and NOT an industry score — "
+            "synthetic/offline only; no licensed external data is bundled."
         ),
         "version": 1,
         "builder": mmlu_offline_cases,
@@ -41,11 +42,11 @@ _OFFLINE_WRITERS: tuple[dict[str, Any], ...] = (
         "name": "gsm8k_offline",
         "filename": "gsm8k_offline.v1.json",
         "family": "gsm8k",
-        "title": "GSM8K-style arithmetic",
+        "title": "Synthetic arithmetic (GSM8K-shaped)",
         "description": (
-            "Synthetic offline grade-school math suite styled after GSM8K. "
-            "Not the HuggingFace GSM8K dataset — synthetic/offline only; no licensed "
-            "external data is bundled."
+            "Synthetic offline grade-school math suite with GSM8K-shaped items. "
+            "NOT the HuggingFace GSM8K dataset and NOT an industry score — "
+            "synthetic/offline only; no licensed external data is bundled."
         ),
         "version": 1,
         "builder": gsm8k_offline_cases,
@@ -54,11 +55,11 @@ _OFFLINE_WRITERS: tuple[dict[str, Any], ...] = (
         "name": "hellaswag_offline",
         "filename": "hellaswag_offline.v1.json",
         "family": "hellaswag",
-        "title": "HellaSwag-style completion",
+        "title": "Synthetic completion MCQ (HellaSwag-shaped)",
         "description": (
-            "Synthetic offline sentence-completion suite styled after HellaSwag. "
-            "Not the HuggingFace HellaSwag dataset — synthetic/offline only; no "
-            "licensed external data is bundled."
+            "Synthetic offline sentence-completion suite with HellaSwag-shaped "
+            "items. NOT the HuggingFace HellaSwag dataset and NOT an industry "
+            "score — synthetic/offline only; no licensed external data is bundled."
         ),
         "version": 1,
         "builder": hellaswag_offline_cases,
@@ -93,13 +94,15 @@ def build_suite_document(meta: dict[str, Any], cases: list[dict[str, Any]]) -> d
         "id": meta["name"],
         "version": meta["version"],
         "family": meta["family"],
-        "suite_type": "industry_offline",
+        "suite_type": "synthetic_offline",
         "title": meta["title"],
         "description": meta["description"],
         "synthetic": True,
         "offline": True,
+        "is_industry_benchmark": False,
+        "industry_benchmark": False,
         "licensed_external_data": False,
-        "scoring": "deterministic_keywords",
+        "scoring": "strict_task_aware",
         "cases": cases,
     }
 

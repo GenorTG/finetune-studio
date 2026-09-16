@@ -7,7 +7,7 @@
 {% block content %}
 <div class="page-head">
   <h1>Benchmarks — {{ project.name }}</h1>
-  <div class="sub">Run synthetic/offline industry suites (smoke or substantive) or project Q&amp;A suites against trained models (or the untrained base), then score answers with heuristic or AI judging. Suites are labeled synthetic/offline — no licensed external datasets are bundled.</div>
+  <div class="sub">Run built-in synthetic/offline suites (smoke or substantive; MMLU-/GSM8K-/HellaSwag-<em>shaped</em> only — not industry scores) or project Q&amp;A suites against trained models (or the untrained base), then score answers with strict or AI judging. No licensed external datasets are bundled.</div>
 </div>
 
 <div class="card">
@@ -29,11 +29,11 @@
   </div>
   {% elif not suites %}
   <div class="empty">
-    <p>No benchmark suites available — industry smoke fixtures missing from the install.</p>
+    <p>No benchmark suites available — synthetic smoke fixtures missing from the install.</p>
     <a href="/projects/{{ pid }}/training" class="btn primary" data-link>Open Training</a>
   </div>
   {% else %}
-  <div class="text-sm dim mb-2">Available suites (offline synthetic · smoke · local JSON · project auto):</div>
+  <div class="text-sm dim mb-2">Available suites (synthetic offline · synthetic smoke · local JSON · project auto — none are industry MMLU/GSM8K/HellaSwag):</div>
   <table class="table text-sm mb-4" id="suite-catalog">
     <thead>
       <tr><th>Suite</th><th>Type</th><th>Source</th><th>Cases</th></tr>

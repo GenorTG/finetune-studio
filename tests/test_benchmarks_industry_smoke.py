@@ -1,4 +1,4 @@
-"""Tests for industry smoke suite discovery, labels, and selection."""
+"""Tests for synthetic smoke suite discovery, labels, and selection."""
 
 from __future__ import annotations
 
@@ -32,10 +32,11 @@ def test_builtin_smoke_suites_are_present() -> None:
     names = {s.name for s in suites}
     assert names == {"mmlu_smoke", "gsm8k_smoke", "hellaswag_smoke"}
     for s in suites:
-        assert s.suite_type == "industry_smoke"
+        assert s.suite_type == "synthetic_smoke"
         assert s.source == "builtin"
         assert s.version == 1
         assert s.family in {"mmlu", "gsm8k", "hellaswag"}
+        assert s.is_industry_benchmark is False
         assert Path(s.path).is_file()
         assert s.case_count is not None and s.case_count >= 1
 
@@ -43,33 +44,39 @@ def test_builtin_smoke_suites_are_present() -> None:
 def test_smoke_labels_are_readable() -> None:
     suites = list_builtin_smoke_suites()
     by_name = {s.name: s for s in suites}
-    assert "industry ·" in by_name["mmlu_smoke"].label()
-    assert "MMLU-style" in by_name["mmlu_smoke"].label()
+    assert "synthetic ·" in by_name["mmlu_smoke"].label()
+    assert "not industry" in by_name["mmlu_smoke"].label()
+    assert "MMLU-shaped" in by_name["mmlu_smoke"].label()
     assert "smoke v1" in by_name["mmlu_smoke"].label()
-    assert "synthetic/offline" in by_name["mmlu_smoke"].label()
-    assert "GSM8K-style" in by_name["gsm8k_smoke"].label()
-    assert "HellaSwag-style" in by_name["hellaswag_smoke"].label()
+    assert "industry ·" not in by_name["mmlu_smoke"].label()
+    assert "GSM8K-shaped" in by_name["gsm8k_smoke"].label()
+    assert "HellaSwag-shaped" in by_name["hellaswag_smoke"].label()
+    for s in suites:
+        assert "NOT" in s.description or "not" in s.description.lower()
+        assert "industry" in s.description.lower()
 
 
-def test_discover_includes_industry_without_data_dir(
+def test_discover_includes_synthetic_without_data_dir(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path
 ) -> None:
     monkeypatch.chdir(tmp_path)
     suites = discover_suites()
     types = {s["suite_type"] for s in suites}
-    assert "industry_smoke" in types
-    assert "industry_offline" in types
+    assert "synthetic_smoke" in types
+    assert "synthetic_offline" in types
     assert "local" not in types
     names = {s["name"] for s in suites}
     assert {"mmlu_smoke", "gsm8k_smoke", "hellaswag_smoke"} <= names
     assert {"mmlu_offline", "gsm8k_offline", "hellaswag_offline"} <= names
     for s in suites:
-        if s["suite_type"] in {"industry_smoke", "industry_offline"}:
-            assert s["label"].startswith("industry ·")
+        if s["suite_type"] in {"synthetic_smoke", "synthetic_offline"}:
+            assert s["label"].startswith("synthetic ·")
+            assert "not industry" in s["label"]
             assert s["source"] == "builtin"
+            assert s.get("is_industry_benchmark") is False
 
 
-def test_discover_keeps_local_and_auto_alongside_industry(
+def test_discover_keeps_local_and_auto_alongside_synthetic(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path
 ) -> None:
     bench = tmp_path / "data" / "benchmarks"
@@ -100,8 +107,8 @@ def test_discover_keeps_local_and_auto_alongside_industry(
     for s in suites:
         by_type.setdefault(s["suite_type"], []).append(s)
 
-    assert len(by_type["industry_smoke"]) == 3
-    assert len(by_type.get("industry_offline", [])) == 3
+    assert len(by_type["synthetic_smoke"]) == 3
+    assert len(by_type.get("synthetic_offline", [])) == 3
     assert any(s["name"] == "default" for s in by_type["local"])
     assert any(s["name"] == "held_out" for s in by_type["auto"])
     assert by_type["auto"][0]["label"].startswith("auto ·")
@@ -116,7 +123,7 @@ def test_versioned_fixtures_load_via_load_test_suite() -> None:
         assert cases[0].correct_answer
 
 
-def test_selection_validation_accepts_industry_rejects_unknown(
+def test_selection_validation_accepts_synthetic_rejects_unknown(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path
 ) -> None:
     monkeypatch.chdir(tmp_path)
@@ -144,7 +151,7 @@ def test_selection_validation_accepts_industry_rejects_unknown(
     assert "not selectable" in json.loads(err2.body.decode())["error"]
 
 
-def test_api_suites_lists_industry_labels(
+def test_api_suites_lists_synthetic_labels(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path
 ) -> None:
     from fastapi.testclient import TestClient
@@ -157,10 +164,12 @@ def test_api_suites_lists_industry_labels(
     assert r.status_code == 200
     suites = r.json()
     labels = [s["label"] for s in suites]
-    assert any("MMLU-style" in lb for lb in labels)
-    assert any("GSM8K-style" in lb for lb in labels)
-    assert any("HellaSwag-style" in lb for lb in labels)
+    assert any("MMLU-shaped" in lb for lb in labels)
+    assert any("GSM8K-shaped" in lb for lb in labels)
+    assert any("HellaSwag-shaped" in lb for lb in labels)
+    assert all("industry ·" not in lb for lb in labels)
     for s in suites:
-        if s.get("suite_type") == "industry_smoke":
+        if s.get("suite_type") == "synthetic_smoke":
             assert s.get("source") == "builtin"
+            assert s.get("is_industry_benchmark") is False
             assert "{" not in s["label"]

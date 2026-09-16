@@ -23,7 +23,7 @@ _log = logging.getLogger(__name__)
 
 
 def _discover_suites(project_id: str | None = None) -> list[dict[str, Any]]:
-    """Return selectable suites (industry smoke + local JSON + auto-suites)."""
+    """Return selectable suites (synthetic smoke/offline + local JSON + auto)."""
     return discover_suites(project_id)
 
 
@@ -184,6 +184,8 @@ async def _execute_benchmark(
                 "judge_model": r.judge_model,
                 "verdict": r.verdict,
                 "judge_reasoning": r.judge_reasoning,
+                "scoring_method": r.scoring_method,
+                "validity": r.validity,
                 "scored_at": time.time() if r.verdict else None,
             })
 
@@ -207,6 +209,8 @@ async def _execute_benchmark(
                     "judge": r.judge,
                     "judge_model": r.judge_model,
                     "judge_reasoning": r.judge_reasoning,
+                    "scoring_method": r.scoring_method,
+                    "validity": r.validity,
                 }
                 for r in results
             ],
@@ -621,7 +625,7 @@ async def evaluate_training_for_run(
     """Benchmark a trained run against the project's training dataset.
 
     Persists a benchmark row with ``eval_kind=training_leakage`` in scores and
-    full per-case results (same table pattern as industry suites).
+    full per-case results (same table pattern as synthetic suites).
     """
     body = await request.json()
     dataset_id = (body.get("dataset_id") or "").strip() or None

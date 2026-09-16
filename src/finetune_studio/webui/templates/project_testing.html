@@ -48,7 +48,7 @@
         {% endfor %}
       </select>
       {% if not suites %}
-      <div class="text-xs dim mt-1">No suites discovered. Industry smoke fixtures should ship with the install; you can also add JSON under data/benchmarks/.</div>
+      <div class="text-xs dim mt-1">No suites discovered. Built-in synthetic fixtures should ship with the install; you can also add JSON under data/benchmarks/.</div>
       {% endif %}
       <div id="t-suite-hint" class="text-xs dim mt-1" style="display:none;"></div>
     </div>
@@ -61,7 +61,7 @@
     {% if not models %}
     No project merged/GGUF exports yet — Export a completed run first, then pick a suite.
     {% elif not suites %}
-    No suites discovered — add JSON under data/benchmarks/ or use industry smoke fixtures.
+    No suites discovered — add JSON under data/benchmarks/ or use synthetic smoke fixtures.
     {% else %}
     Pick a suite to enable Run.
     {% endif %}

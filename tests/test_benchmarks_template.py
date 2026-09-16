@@ -127,7 +127,8 @@ def test_benchmarks_template_suite_catalog_not_raw_json() -> None:
     body = _BENCH.read_text(encoding="utf-8")
     assert 'id="suite-catalog"' in body
     assert "suite_type" in body
-    assert "industry smoke" in body.lower() or "industry_smoke" in body
+    assert "synthetic smoke" in body.lower() or "synthetic_smoke" in body
+    assert "industry ·" not in body
     # Catalog is a table of labels/types — not a dump of suite dicts
     assert "<pre>{{ suites" not in body
     assert "{{ suites|tojson }}" in body  # JS only, not visible catalog
