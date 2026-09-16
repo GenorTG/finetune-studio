@@ -10,7 +10,8 @@ from pathlib import Path
 
 def _cmd_build(args):
     import shutil
-    from finetune_studio.data.rag_portable import PortableRAG, DEFAULT_EMBEDDER
+
+    from finetune_studio.data.rag_portable import DEFAULT_EMBEDDER, PortableRAG
     corpus = Path(args.corpus)
     if args.reset and corpus.exists():
         shutil.rmtree(corpus)
@@ -39,10 +40,39 @@ def _cmd_search(args):
 
 def _cmd_eval(args):
     """Run the eval suite against a corpus + question set."""
-    import importlib
-    mod = importlib.import_module("finetune_studio.data.rag_eval")
-    sys.path.insert(0, str(Path(__file__).parent))  # for qa_set import path
-    run_eval_on_corpus(args.corpus, args.qa_set)
+    from finetune_studio.data.rag_eval import run_eval_on_corpus
+
+    try:
+        report = run_eval_on_corpus(
+            args.corpus,
+            args.qa_set,
+            run_portability=not args.skip_portability,
+            use_llm=not args.skip_llm,
+        )
+    except FileNotFoundError as exc:
+        print(json.dumps({"error": str(exc)}))
+        sys.exit(1)
+    payload = report.to_json()
+    print(f"Recall@1: {report.recall_at_k.get(1, 0)*100:.1f}%")
+    print(f"Recall@5: {report.recall_at_k.get(5, 0)*100:.1f}%")
+    print(f"MRR: {report.mrr:.3f}")
+    print(
+        f"Fact coverage (must_contain, NOT llm-judge): "
+        f"{report.fact_coverage_pass_rate*100:.1f}%"
+    )
+    print(f"Grounding: {report.grounding_pass_rate*100:.1f}%")
+    print(f"No-context unknown: {report.no_context_pass_rate*100:.1f}%")
+    print(f"Portability: {report.portability_test.get('status')}")
+    print(json.dumps({"ok": True, "summary": {
+        "recall_at_k": payload["recall_at_k"],
+        "mrr": payload["mrr"],
+        "fact_coverage_pass_rate": payload["fact_coverage_pass_rate"],
+        "grounding_pass_rate": payload["grounding_pass_rate"],
+        "no_context_pass_rate": payload["no_context_pass_rate"],
+        "portability": payload["portability_test"].get("status"),
+        "metadata": payload["metadata"],
+    }}, indent=2))
+
 
 
 def _cmd_rebuild(args):
@@ -80,9 +110,11 @@ def main():
     sp.add_argument("--no-rerank", action="store_true")
     sp.set_defaults(func=_cmd_search)
 
-    sp = sub.add_parser("eval", help="Run retrieval + LLM-as-judge tests")
+    sp = sub.add_parser("eval", help="Run retrieval + grounding + portability tests")
     sp.add_argument("corpus")
     sp.add_argument("--qa-set", required=True, help="Path to a JSON list of {id, query, must_contain, expected_source_contains}")
+    sp.add_argument("--skip-portability", action="store_true", help="Skip tar round-trip portability check")
+    sp.add_argument("--skip-llm", action="store_true", help="Skip model answers (retrieval-only metrics)")
     sp.set_defaults(func=_cmd_eval)
 
     sp = sub.add_parser("rebuild-vectors", help="Re-embed with a (possibly different) model")
@@ -99,55 +131,19 @@ def main():
 
 
 def run_eval_on_corpus(corpus: str, qa_set_path: str):
-    """Stand-alone runner used by the CLI. Loads QA set, runs eval, writes history."""
-    import time
-    from dataclasses import dataclass, field
-    from finetune_studio.data.rag_portable import PortableRAG
-    from finetune_studio.data.rag_eval import (
-        QAEntry, evaluate_retrieval, llm_as_judge, write_results, EvalReport,
+    """Back-compat shim — prefer ``finetune_studio.data.rag_eval.run_eval_on_corpus``."""
+    from finetune_studio.data.rag_eval import run_eval_on_corpus as _run
+
+    report = _run(corpus, qa_set_path)
+    print(f"Recall@1: {report.recall_at_k.get(1, 0)*100:.1f}%")
+    print(f"Recall@5: {report.recall_at_k.get(5, 0)*100:.1f}%")
+    print(f"MRR: {report.mrr:.3f}")
+    print(
+        f"Fact coverage (must_contain substring; NOT llm-judge): "
+        f"{report.fact_coverage_pass_rate*100:.1f}%"
     )
-    from finetune_studio.models.manager import get_manager
-
-    qa_data = json.loads(Path(qa_set_path).read_text())
-    qa = [QAEntry(**{k: v for k, v in q.items() if k in QAEntry.__dataclass_fields__}) for q in qa_data]
-
-    rag = PortableRAG(corpus)
-    if not rag.exists():
-        print(json.dumps({"error": "corpus not built"}))
-        sys.exit(1)
-    q = rag.load()
-
-    print(f"Loaded {len(q.chunks)} chunks, vectors shape {q.vectors.shape}")
-    print(f"Manifest: embedder={rag.manifest_path.read_text().split(chr(10))[6] if False else 'see manifest.json'}")
-
-    t0 = time.time()
-    ret_results, ret_metrics = evaluate_retrieval(q, qa, ks=(1, 3, 5))
-    print(f"Recall@1: {ret_metrics['recall_at_k'][1]*100:.1f}%")
-    print(f"Recall@5: {ret_metrics['recall_at_k'][5]*100:.1f}%")
-    print(f"MRR: {ret_metrics['mrr']:.3f}")
-
-    mgr = get_manager()
-    if mgr.active() is None:
-        mgr.load("local-default")
-    llm_results = llm_as_judge(mgr, q, qa, top_k=5)
-    passed = sum(1 for r in llm_results if r.passed)
-    print(f"LLM-as-judge: {passed}/{len(qa)} ({passed/len(qa)*100:.1f}%)")
-
-    report = EvalReport(
-        corpus=Path(corpus).name,
-        timestamp=time.time(),
-        embedding_model=q.manifest.embedding_model.name,
-        total_questions=len(qa),
-        retrieval_results=[r.__dict__ for r in ret_results],
-        llm_judge_results=[r.__dict__ for r in llm_results],
-        recall_at_k=ret_metrics["recall_at_k"],
-        mrr=ret_metrics["mrr"],
-        llm_pass_rate=round(passed/len(qa), 3),
-        portability_test={},
-        timing={"retrieve": time.time()-t0},
-    )
-    out = write_results(Path(corpus), report)
-    print(f"\nResults written to: {out}")
+    print(f"Portability: {report.portability_test.get('status')}")
+    return report
 
 
 if __name__ == "__main__":

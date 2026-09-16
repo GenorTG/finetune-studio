@@ -18,6 +18,7 @@ import mimetypes
 import threading
 import time
 import uuid
+from collections import Counter
 from dataclasses import dataclass
 
 from finetune_studio.data import project_filesystem as pfs
@@ -26,6 +27,13 @@ from finetune_studio.data.prep.prompts import (
     QA_SYSTEM_PROMPT,
     QA_USER_TEMPLATE,
     style_hint,
+)
+from finetune_studio.data.prep.qa_validate import (
+    CoverageTracker,
+    Provenance,
+    RejectionCounters,
+    build_qa_record,
+    validate_qa_batch,
 )
 from finetune_studio.data.prep.scorer import heuristic_score
 
@@ -171,6 +179,12 @@ class DataPrepRunner:
                    message=f"Model generating Q&A from {len(chunks)} chunks…")
         total_qa = 0
         now = time.time()
+        rejection_counters = RejectionCounters()
+        coverage = CoverageTracker(
+            source_id=self.source_id, chunks_total=len(chunks),
+        )
+        seen_questions: set[str] = set()
+        chunk_indices = list(range(1, len(chunks) + 1))
         for i, chunk in enumerate(chunks, 1):
             if self._cancel.is_set():
                 self._emit(stage="error", message="Cancelled")
@@ -190,28 +204,76 @@ class DataPrepRunner:
                     "error": str(e),
                 })
                 continue
+            # Parsing fallbacks stay in parse_qa_json; validation is post-parse.
             pairs = parse_qa_json(raw, self.qa_per_chunk)
             if not pairs:
                 continue
-            for j, p in enumerate(pairs):
+            batch = validate_qa_batch(
+                pairs, chunk, seen_questions=seen_questions,
+            )
+            rejection_counters.parsed += batch.counters.parsed
+            rejection_counters.accepted += batch.counters.accepted
+            rejection_counters.rejected += batch.counters.rejected
+            rejection_counters.by_reason.update(batch.counters.by_reason)
+            prov = Provenance(
+                source_id=self.source_id,
+                sha256=meta.sha256,
+                filename=self.filename,
+                chunk_idx=i,
+            )
+            for accepted in batch.accepted:
                 qa_id = uuid.uuid4().hex[:12]
-                qa = {
-                    "id": qa_id, "source_id": self.source_id,
-                    "chunk_idx": i, "chunk_text": chunk[:1500],
-                    "question": p["q"], "answer": p["a"],
-                    "difficulty": self.difficulty, "style": self.style,
-                    "score": heuristic_score(p["q"], p["a"], chunk),
-                    "status": "pending", "created_at": now, "updated_at": now,
-                }
+                qa = build_qa_record(
+                    qa_id=qa_id,
+                    pair=accepted,
+                    provenance=prov,
+                    chunk_text=chunk[:1500],
+                    difficulty=self.difficulty,
+                    style=self.style,
+                    score=heuristic_score(accepted.question, accepted.answer, chunk),
+                    created_at=now,
+                )
                 pfs.write_qa_pair(self.pid, qa)
+                coverage.mark_accepted(i)
                 total_qa += 1
+            if batch.rejected:
+                pfs.log_ingestion(self.pid, {
+                    "event": "qa_chunk_rejected",
+                    "sha256": meta.sha256,
+                    "chunk_index": i,
+                    "rejected": len(batch.rejected),
+                    "accepted": len(batch.accepted),
+                    "reasons": {
+                        r: c for r, c in Counter(
+                            reason
+                            for p in batch.rejected
+                            for reason in p.reasons
+                        ).items()
+                    },
+                })
             pct = 30 + (i / max(1, len(chunks))) * 65
             self._emit(stage="generating", pct=pct, chunks_done=i, qa_total=total_qa)
+        coverage_info = coverage.as_dict()
+        coverage_info["uncovered_chunk_indices"] = coverage.uncovered_chunks(chunk_indices)
+        rejection_info = rejection_counters.as_dict()
         pfs.log_ingestion(self.pid, {
             "event": "qa_generated", "sha256": meta.sha256, "filename": self.filename,
             "qa_count": total_qa,
+            "rejection_counters": rejection_info,
+            "coverage": coverage_info,
         })
         self._emit(stage="done", pct=100, chunks_done=len(chunks), qa_total=total_qa,
-                   message=f"Done. {total_qa} Q&A pairs from {len(chunks)} chunks.")
-        return {"ok": True, "source_id": self.source_id, "sha256": meta.sha256,
-                "chunks": len(chunks), "qa": total_qa, "filename": self.filename}
+                   message=(
+                       f"Done. {total_qa} accepted Q&A pairs from {len(chunks)} chunks "
+                       f"({rejection_counters.rejected} rejected)."
+                   ))
+        return {
+            "ok": True,
+            "source_id": self.source_id,
+            "sha256": meta.sha256,
+            "chunks": len(chunks),
+            "qa": total_qa,
+            "filename": self.filename,
+            "rejection_counters": rejection_info,
+            "coverage": coverage_info,
+        }
