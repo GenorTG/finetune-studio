@@ -25,11 +25,8 @@ import json
 import os
 import shutil
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Optional
-
-import numpy as np  # just to keep numpy import path consistent
 
 _ROOT = Path.home() / ".finetune-studio"
 SHARED = _ROOT / "shared_models"
@@ -128,43 +125,45 @@ def _dir_path(kind: str, name: str, hash16: str) -> Path:
     return _dir_for(kind) / f"{safe}@{hash16}"
 
 
-def _model_files(src: Path) -> list[Path]:
-    """All files that constitute a sentence-transformers saved model."""
-    out = []
-    if not src.exists():
-        return out
-    for p in sorted(src.iterdir()):
-        if p.is_file():
-            out.append(p)
-        elif p.is_dir() and p.name in ("1_Pooling", "2_Normalize"):
-            for q in sorted(p.iterdir()):
-                if q.is_file():
-                    out.append(q)
-    return out
-
-
-def register(model_name: str, kind: str, src_dir: Optional[Path] = None,
+def register(model_name: str, kind: str, src_dir: Path | None = None,
              prefer_cached: bool = True) -> ModelRef:
     """Register a model in the shared store.
 
     If `src_dir` is None, downloads from HuggingFace.
     If `src_dir` is given, copies from there (used by `bundle_models()` style flows).
     Returns a `ModelRef` pointing at the shared dir.
+
+    Copies preserve sentence-transformers module subdirs (``1_Pooling``,
+    ``2_Normalize``, …). Flattening those into the root drops Pooling config and
+    breaks load with ``Pooling.__init__() missing embedding_dimension``.
     """
+    from finetune_studio.data.sentence_transformer_local import (
+        copy_sentence_transformer_tree,
+        is_complete_sentence_transformer_dir,
+        move_sentence_transformer_tree,
+    )
+
     _ensure_dirs()
     # Compute content hash + figure out the target dir
     if src_dir is not None and src_dir.exists():
         h = content_hash(src_dir)
         target = _dir_path(kind, model_name, h)
-        if prefer_cached and target.exists():
+        if (
+            prefer_cached
+            and target.exists()
+            and (
+                kind != "embedder"
+                or is_complete_sentence_transformer_dir(target)
+            )
+        ):
             _touch_use(target)
             return ModelRef(name=model_name, kind=kind,
                            short_id=target.name, path=str(target))
-        # Need to copy
+        # Need to copy (or replace an incomplete cached embedder tree)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.mkdir(exist_ok=True)
-        for f in _model_files(src_dir):
-            shutil.copy2(f, target / f.name)
+        if target.exists():
+            shutil.rmtree(target)
+        copy_sentence_transformer_tree(src_dir, target)
         size = sum(p.stat().st_size for p in target.rglob("*") if p.is_file())
     else:
         # Download fresh into target dir.
@@ -192,12 +191,9 @@ def register(model_name: str, kind: str, src_dir: Optional[Path] = None,
             target = _dir_path(kind, model_name, h)
             if target.exists():
                 shutil.rmtree(target)
-            # Move staged files into target
+            # Move staged tree into target (files AND module subdirs)
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.mkdir()
-            for f in stage.iterdir():
-                if f.is_file():
-                    shutil.move(str(f), str(target / f.name))
+            move_sentence_transformer_tree(stage, target)
             size = sum(p.stat().st_size for p in target.rglob("*") if p.is_file())
         finally:
             shutil.rmtree(stage, ignore_errors=True)
@@ -219,8 +215,9 @@ def _touch_use(path: Path) -> None:
         m = json.loads(meta_path.read_text())
         m["use_count"] = m.get("use_count", 0) + 1
         meta_path.write_text(json.dumps(m, indent=2))
-    except Exception:
-        pass
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        # Best-effort counter; never block load/register on META corruption.
+        return
 
 
 def resolve(short_id: str, kind: str) -> Path:
