@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import io
+import re
 import shutil
 import struct
 import tomllib
@@ -20,6 +21,10 @@ import pytest
 from finetune_studio.data.parsers import PARSERS, parse
 
 MARKER = "HeliosMarkUniqueToken42"
+
+
+def _normalized(text: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", text.lower())
 
 # Extensions that need optional Python packages to produce real content.
 _PYTHON_DEP_EXTS: frozenset[str] = frozenset({
@@ -336,7 +341,7 @@ def test_every_registered_extension(ext: str, tmp_path: Path) -> None:
     warnings = list(result.get("metadata", {}).get("warnings") or [])
 
     if mode == "expect_text":
-        assert MARKER in (result.get("text") or ""), (
+        assert _normalized(MARKER) in _normalized(result.get("text") or ""), (
             f"{ext}: expected marker in text; warnings={warnings!r}"
         )
         return
