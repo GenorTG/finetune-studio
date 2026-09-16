@@ -19,11 +19,13 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from finetune_studio import __release_channel__ as RELEASE_CHANNEL
 from finetune_studio import __version__ as APP_VERSION
 from finetune_studio.webui.model_labels import model_label as _model_label
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 templates.env.globals["app_version"] = APP_VERSION
+templates.env.globals["release_channel"] = RELEASE_CHANNEL
 
 # Custom Jinja2 filters for project stats
 def _sum_benchmarks(runs):
@@ -603,6 +605,7 @@ async def project_settings_page(request: Request, pid: str):
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
     """Settings, debug info, replay tutorial, system status."""
+    from finetune_studio import __release_channel__ as RELEASE_CHANNEL
     from finetune_studio import __version__ as APP_VERSION
     return templates.TemplateResponse(
         request,
@@ -610,6 +613,7 @@ async def settings_page(request: Request):
         {
             "request": request,
             "app_version": APP_VERSION,
+            "release_channel": RELEASE_CHANNEL,
         },
     )
 
@@ -622,10 +626,12 @@ async def debug_info():
     import sys
     from pathlib import Path
 
+    from finetune_studio import __release_channel__ as RELEASE_CHANNEL
     from finetune_studio import __version__ as APP_VERSION
 
     info = {
         "app_version": APP_VERSION,
+        "release_channel": RELEASE_CHANNEL,
         "python": sys.version.split()[0],
         "platform": platform.platform(),
         "machine": platform.machine(),

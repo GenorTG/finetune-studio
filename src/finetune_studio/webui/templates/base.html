@@ -51,9 +51,9 @@
       --card: #0c1810;
     }
   </style>
-  <title>{% block title %}Finetune Studio{% endblock %}</title>
+  <title>{% block title %}Finetune Studio{% endblock %} · {{ release_channel }}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/css/app.css?v=24">
+  <link rel="stylesheet" href="/static/css/app.css?v=25">
 </head>
 <body>
   <div id="toasts" class="toasts" aria-live="polite"></div>
@@ -194,7 +194,10 @@
           <span class="status-dot" id="model-status-dot"></span>
           <span class="status-label" id="model-status-label">no model</span>
         </span>
-        <span class="version">v{{ app_version }}</span>
+        <span class="version" title="{{ release_channel }} release · v{{ app_version }}">
+          <span class="release-label">{{ release_channel }}</span>
+          <span class="version-number">v{{ app_version }}</span>
+        </span>
       </div>
 
       {# Active-session indicator bar — thin strip below the tabs that

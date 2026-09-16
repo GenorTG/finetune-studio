@@ -42,7 +42,7 @@
         .join("");
 
       el.innerHTML = `
-        ${row("App version", `<span class="text-accent mono">v${d.app_version}</span>`)}
+        ${row("Release", `<span class="text-accent mono">${d.release_channel || "EARLY BETA"}</span> · <span class="mono">v${d.app_version}</span>`)}
         ${row("Python", `<span class="mono">${d.python}</span>`)}
         ${row("Platform", d.platform)}
         ${row("Hostname", d.hostname)}

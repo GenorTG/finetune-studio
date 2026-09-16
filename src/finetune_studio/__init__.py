@@ -15,3 +15,5 @@ It depends on the finetune_studio.templates module for:
 """
 
 __version__ = "0.1.0"
+# Human-facing maturity label; keep the package version semantic.
+__release_channel__ = "EARLY BETA"
