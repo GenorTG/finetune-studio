@@ -309,7 +309,7 @@ async def project_data_page(request: Request, pid: str):
 async def project_training_page(request: Request, pid: str):
     """Training config + progress for a project."""
     from finetune_studio import db
-    from finetune_studio.models.registry import models_for_selectors
+    from finetune_studio.models.registry import models_for_training
     from finetune_studio.webui.app import discovered_models, training_engine
     from finetune_studio.webui.project_dashboard import resolve_production_run
     ctx = _project_ctx(pid)
@@ -331,7 +331,7 @@ async def project_training_page(request: Request, pid: str):
         "project_training.html",
         {
             **ctx,
-            "models": models_for_selectors(discovered_models),
+            "models": models_for_training(discovered_models),
             "training_state": training_engine.state,
             "detail_run": detail_run,
             "detail_run_id": run_id or "",

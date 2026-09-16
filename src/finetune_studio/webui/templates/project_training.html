@@ -125,12 +125,27 @@
     <input type="hidden" name="data_path" id="data-path-input" value="">
 
     <label>
-      <span class="block text-xs muted mb-1">Base Model</span>
-      <select name="model_path" class="select">
-        {% for model in models %}
-        <option value="{{ model.path }}" {% if model.path == project.base_model %}selected{% endif %}>{{ model.name }} ({{ model.format }}, {{ model.size_gb }} GB)</option>
-        {% endfor %}
+      <span class="block text-xs muted mb-1" title="Hugging Face / safetensors causal LM used as the training base. GGUF and GPTQ exports are inference-only — use Inference or Chat for those.">Base Model</span>
+      <select name="model_path" id="train-base-model" class="select"{% if not models %} disabled{% endif %}>
+        {% if models %}
+          {% for model in models %}
+          <option value="{{ model.path }}" {% if model.path == project.base_model %}selected{% endif %}>{{ model.name }} ({{ model.format }}, {{ model.size_gb }} GB)</option>
+          {% endfor %}
+        {% else %}
+          <option value="" selected disabled>No transformer-compatible base models found</option>
+        {% endif %}
       </select>
+      {% if not models %}
+      <div class="text-xs muted mt-1" id="train-base-model-empty" role="status">
+        Training needs a Hugging Face / safetensors causal LM (not GGUF or GPTQ).
+        Download one under <a href="/models" data-link>Models</a>, then refresh this page.
+        Local-helper GGUFs stay available on <a href="/projects/{{ pid }}/chat" data-link>Chat</a> / Inference.
+      </div>
+      {% else %}
+      <div class="text-xs muted mt-1" id="train-base-model-hint">
+        Only Transformers-compatible bases are listed. GGUF / GPTQ exports are for inference only.
+      </div>
+      {% endif %}
     </label>
 
     {# ── Training Data — tabs (project datasets vs upload) ── #}
@@ -788,17 +803,24 @@
     const d = await r.json();
     const local = d.models || [];
     if (local.length === 0) return;
-    // Merge HF downloads into the server-rendered list (all local models, with
-    // the project's base_model preselected) — never wipe it (E2E-19).
+    // Merge HF downloads into the server-rendered list (trainable HF weights
+    // only — never wipe it (E2E-19); never add GGUF/GPTQ inference artifacts).
     // Skip incomplete pulls (no weight files) so stale stubs don't crowd out
     // retained installs in the Training selector.
     const known = new Set([...sel.options].map(o => o.value));
     for (const m of local) {
       if (known.has(m.path)) continue;
       const files = m.files || [];
+      const hasGguf = files.some(f => {
+        const p = (f.path || f || '').toLowerCase();
+        return p.endsWith('.gguf');
+      });
+      if (hasGguf) continue;
+      const pathL = String(m.path || '').toLowerCase();
+      if (pathL.endsWith('.gguf') || /\/(gptq|gguf|awq)(\/|$)/.test(pathL)) continue;
       const hasWeights = files.some(f => {
         const p = (f.path || f || '').toLowerCase();
-        return p.endsWith('.safetensors') || p.endsWith('.bin') || p.endsWith('.gguf');
+        return p.endsWith('.safetensors') || p.endsWith('.bin');
       });
       if (!hasWeights) continue;
       const opt = document.createElement('option');
@@ -806,6 +828,10 @@
       const gb = (m.size_bytes / 1e9).toFixed(2);
       opt.textContent = `${m.repo_id.replace(/__/g, '/')} (${gb} GB)`;
       sel.appendChild(opt);
+      // Re-enable if the page rendered the empty placeholder.
+      sel.disabled = false;
+      const empty = document.getElementById('train-base-model-empty');
+      if (empty) empty.hidden = true;
     }
   } catch (e) {
     console.warn('model dropdown refresh failed:', e);

@@ -13,6 +13,7 @@ from finetune_studio.models.registry import (
     ModelInfo,
     _safe_model_name,
     models_for_selectors,
+    models_for_training,
     scan_models,
 )
 
@@ -104,7 +105,63 @@ def test_models_for_selectors_drops_shared_models_keeps_installed() -> None:
     assert models[1].path not in paths
 
 
-def test_training_js_uses_selector_query() -> None:
+def test_models_for_training_excludes_gguf_gptq_keeps_safetensors() -> None:
+    models = [
+        ModelInfo(
+            name="Qwen/Qwen3-4B",
+            path="/home/u/.finetune-studio/hf_models/Qwen__Qwen3-4B",
+            format="safetensors",
+            size_gb=8.0,
+            category="downloaded",
+        ),
+        ModelInfo(
+            name="helper.gguf",
+            path="models/gguf/helper.gguf",
+            format="gguf",
+            size_gb=15.0,
+            category="local_helper",
+        ),
+        ModelInfo(
+            name="export-gptq",
+            path="/tmp/out/run1/gptq",
+            format="safetensors",
+            size_gb=4.0,
+            category="trained_export",
+        ),
+        ModelInfo(
+            name="export-gguf-dir",
+            path="/tmp/out/run1/gguf",
+            format="safetensors",
+            size_gb=4.0,
+            category="trained_export",
+        ),
+        {
+            "name": "dict-gptq",
+            "path": "/tmp/out/run2/gptq",
+            "format": "gptq",
+            "category": "trained_export",
+        },
+    ]
+    trainable = models_for_training(models)
+    paths = [
+        m.path if not isinstance(m, dict) else m["path"]
+        for m in trainable
+    ]
+    assert models[0].path in paths
+    assert models[1].path not in paths
+    assert models[2].path not in paths
+    assert models[3].path not in paths
+    assert models[4]["path"] not in paths
+    # Inference selector must still keep the helper GGUF.
+    infer = models_for_selectors(models)
+    infer_paths = [
+        m.path if not isinstance(m, dict) else m["path"]
+        for m in infer
+    ]
+    assert models[1].path in infer_paths
+
+
+def test_training_js_uses_training_query() -> None:
     src = (
         Path(__file__).resolve().parents[1]
         / "src"
@@ -114,10 +171,11 @@ def test_training_js_uses_selector_query() -> None:
         / "js"
         / "training.js"
     ).read_text(encoding="utf-8")
-    assert "for_selector=1" in src
+    assert "for_training=1" in src
+    assert "for_selector=1" not in src
 
 
-def test_training_hf_refresh_skips_incomplete() -> None:
+def test_training_hf_refresh_skips_incomplete_and_gguf() -> None:
     src = (
         Path(__file__).resolve().parents[1]
         / "src"
@@ -128,3 +186,41 @@ def test_training_hf_refresh_skips_incomplete() -> None:
     ).read_text(encoding="utf-8")
     assert "if (!hasWeights) continue" in src
     assert "incomplete — no .safetensors" not in src
+    assert "if (hasGguf) continue" in src
+    assert "p.endsWith('.safetensors') || p.endsWith('.bin');" in src
+    assert "No transformer-compatible base models found" in src
+    assert "train-base-model-empty" in src
+    assert "Only Transformers-compatible bases are listed" in src
+
+
+def test_training_page_empty_copy_when_no_trainable(client, monkeypatch) -> None:
+    from finetune_studio.webui import app as webapp
+
+    monkeypatch.setattr(webapp, "discovered_models", [
+        ModelInfo(
+            name="helper.gguf",
+            path="models/gguf/helper.gguf",
+            format="gguf",
+            size_gb=15.0,
+            category="local_helper",
+        ),
+    ])
+    r = client.post("/api/projects", json={"name": "Train Filter"})
+    assert r.status_code in (200, 201), r.text
+    pid = r.json()["id"]
+    page = client.get(f"/projects/{pid}/training")
+    assert page.status_code == 200
+    body = page.text
+    assert "No transformer-compatible base models found" in body
+    assert "train-base-model-empty" in body
+    assert "helper.gguf" not in body
+    # Inference selector must still list GGUF helpers.
+    assert any(
+        m.format == "gguf" for m in models_for_selectors(webapp.discovered_models)
+    )
+    api = client.get("/api/models?for_training=1")
+    assert api.status_code == 200
+    assert api.json() == []
+    api_inf = client.get("/api/models?for_selector=1")
+    assert api_inf.status_code == 200
+    assert any(m.get("format") == "gguf" for m in api_inf.json())

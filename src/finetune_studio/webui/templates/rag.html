@@ -217,9 +217,11 @@
             {% endif %}
           </td>
           <td class="dim text-xs rag-col-indexed">{{ d.last_indexed or '—' }}</td>
-          <td class="flex gap-1 rag-col-actions">
-            <button class="btn small" data-rebuild="{{ d.id }}" onclick="rebuildDoc(this)" title="Rebuild corpus (whole project)">Rebuild</button>
-            <button class="btn small ghost" data-view="{{ d.id }}" onclick="viewDocChunks('{{ d.id }}', {{ d.name | tojson }})" title="View chunks">View chunks</button>
+          <td class="rag-col-actions">
+            <div class="rag-doc-actions">
+              <button class="btn small" data-rebuild="{{ d.id }}" onclick="rebuildDoc(this)" title="Rebuild corpus (whole project)">Rebuild</button>
+              <button class="btn small ghost" data-view="{{ d.id }}" onclick="viewDocChunks('{{ d.id }}', {{ d.name | tojson }})" title="View chunks">View chunks</button>
+            </div>
           </td>
         </tr>
         {% endfor %}
@@ -408,10 +410,10 @@
             + '<td class="rag-col-chunks">' + (d.chunks || 0) + '</td>'
             + '<td class="rag-col-status">' + statusPill(d.status) + '</td>'
             + '<td class="dim text-xs rag-col-indexed">' + esc(d.last_indexed || '—') + '</td>'
-            + '<td class="flex gap-1 rag-col-actions">'
+            + '<td class="rag-col-actions"><div class="rag-doc-actions">'
             + '<button class="btn small" data-rebuild="' + id + '" onclick="rebuildDoc(this)" title="Rebuild corpus (whole project)">Rebuild</button>'
             + '<button class="btn small ghost" onclick=\'viewDocChunks(' + JSON.stringify(d.id) + ', ' + nameJson + ')\' title="View chunks">View chunks</button>'
-            + '</td></tr>';
+            + '</div></td></tr>';
         }).join('')
       + '</tbody></table></div>';
   }

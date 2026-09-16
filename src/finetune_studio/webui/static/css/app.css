@@ -940,12 +940,15 @@ body::before {
   border-radius: 2px;
 }
 
-/* RAG inventory / hits — override .ref-table's 110px first-col (settings k/v) */
+/* RAG inventory / hits — override .ref-table's 110px first-col (settings k/v).
+   Actions uses a fixed rem width (not %) so Rebuild + View chunks never clip;
+   table-scroll absorbs overflow on narrow viewports. Do not put display:flex on
+   the <td> — that collapses column width under table-layout:fixed. */
 #rag-docs-table,
 .rag-hits-table {
   table-layout: fixed;
   width: 100%;
-  min-width: 36rem;
+  min-width: 48rem;
 }
 #rag-docs-table th,
 #rag-docs-table td,
@@ -961,12 +964,30 @@ body::before {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
-#rag-docs-table .rag-col-name { width: 32%; }
-#rag-docs-table .rag-col-type { width: 14%; }
-#rag-docs-table .rag-col-chunks { width: 8%; }
-#rag-docs-table .rag-col-status { width: 12%; }
-#rag-docs-table .rag-col-indexed { width: 14%; }
-#rag-docs-table .rag-col-actions { width: 20%; white-space: nowrap; }
+#rag-docs-table .rag-col-name { width: 28%; }
+#rag-docs-table .rag-col-type { width: 12%; }
+#rag-docs-table .rag-col-chunks { width: 6%; }
+#rag-docs-table .rag-col-status { width: 10%; }
+#rag-docs-table .rag-col-indexed { width: 12%; }
+#rag-docs-table .rag-col-actions {
+  width: 15rem;
+  min-width: 15rem;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+#rag-docs-table th.rag-col-actions,
+#rag-docs-table td.rag-col-actions {
+  overflow: visible;
+  text-overflow: clip;
+}
+.rag-doc-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
 .rag-hits-table .rag-hit-rank { width: 2.5rem; }
 .rag-hits-table .rag-hit-score { width: 4.5rem; }
 .rag-hits-table .rag-hit-source { width: 28%; }

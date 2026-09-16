@@ -51,12 +51,16 @@ _SKIP_ARCHES = {
 # File patterns that indicate non-model files
 _SKIP_GGUF_PATTERNS = ("mmproj", "projector", "vision")
 
-# Categories suitable for Inference / Training base-model selectors.
-# local_helper GGUFs (e.g. 27B helper) stay selectable; shared_models
+# Categories suitable for Inference selectors (and as the first pass for
+# Training). local_helper GGUFs stay selectable for chat; shared_models
 # embedders/rerankers are dropped via path check in models_for_selectors.
 _SELECTOR_CATEGORIES = frozenset({
     "discovered", "base_model", "trained_export", "downloaded", "local_helper",
 })
+
+# Formats that can be loaded for chat/inference but cannot be used as a
+# Transformers training base (Unsloth / Peft expect HF weights + config.json).
+_TRAINING_EXCLUDED_FORMATS = frozenset({"gguf", "gptq", "awq"})
 
 
 def _readable_file_size(path: str) -> int | None:
@@ -83,10 +87,11 @@ def _weight_bytes(root: str, files: list[str]) -> int:
 
 
 def models_for_selectors(models: list) -> list:
-    """Filter discovered models for Inference / Training dropdowns.
+    """Filter discovered models for Inference (and chat) dropdowns.
 
-    Keeps installed chat / fine-tune weights. Drops shared_models embedder
-    and reranker caches that are not valid base models for those pages.
+    Keeps installed chat / fine-tune weights including GGUF helpers. Drops
+    shared_models embedder and reranker caches. Training pages must use
+    ``models_for_training`` instead so GGUF/GPTQ are not offered as bases.
     """
     out = []
     for m in models:
@@ -104,6 +109,48 @@ def models_for_selectors(models: list) -> list:
             continue
         out.append(m)
     return out
+
+
+def _model_attr(m: object, key: str, default: str = "") -> str:
+    """Read a ModelInfo field or dict key as a string."""
+    if isinstance(m, dict):
+        val = m.get(key, default)
+    else:
+        val = getattr(m, key, default)
+    return str(val or default)
+
+
+def is_trainable_base_model(m: object) -> bool:
+    """True when ``m`` is a Transformers-compatible training base.
+
+    Excludes GGUF files, GPTQ/AWQ export dirs, and other inference-only
+    artifacts. Safetensors / bin HF dirs remain eligible.
+    """
+    fmt = _model_attr(m, "format").lower().strip()
+    path = _model_attr(m, "path").replace("\\", "/")
+    path_l = path.lower()
+    if fmt in _TRAINING_EXCLUDED_FORMATS:
+        return False
+    if path_l.endswith(".gguf"):
+        return False
+    # Path heuristics for export layouts (format may still say safetensors).
+    parts = [p for p in path_l.split("/") if p]
+    if parts and parts[-1] in ("gptq", "gguf", "awq"):
+        return False
+    padded = f"/{path_l}/"
+    return not (
+        "/gptq/" in padded or "/gguf/" in padded or "/awq/" in padded
+    )
+
+
+def models_for_training(models: list) -> list:
+    """Filter for Training base-model selectors only.
+
+    Same category / shared_models rules as ``models_for_selectors``, then drops
+    GGUF / GPTQ / AWQ and other inference-only artifacts. Inference pages must
+    keep using ``models_for_selectors`` so local-helper GGUFs remain available.
+    """
+    return [m for m in models_for_selectors(models) if is_trainable_base_model(m)]
 
 
 def _safe_model_name(root: str, cfg: dict, project_name: str = "") -> str:

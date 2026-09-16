@@ -140,16 +140,24 @@ def _load_failure_payload(error: str, model_path: str = "") -> dict:
     }
 
 @router.get("/")
-async def models_root(for_selector: bool = False):
+async def models_root(for_selector: bool = False, for_training: bool = False):
     """Root models endpoint — returns list of discovered models."""
-    return await list_models(for_selector=for_selector)
+    return await list_models(for_selector=for_selector, for_training=for_training)
 
 
 @router.get("/list")
-async def list_models(for_selector: bool = False):
-    from finetune_studio.models.registry import models_for_selectors
+async def list_models(for_selector: bool = False, for_training: bool = False):
+    from finetune_studio.models.registry import (
+        models_for_selectors,
+        models_for_training,
+    )
     from finetune_studio.webui.app import discovered_models
-    models = models_for_selectors(discovered_models) if for_selector else discovered_models
+    if for_training:
+        models = models_for_training(discovered_models)
+    elif for_selector:
+        models = models_for_selectors(discovered_models)
+    else:
+        models = discovered_models
     return [
         {
             "name": m.name,

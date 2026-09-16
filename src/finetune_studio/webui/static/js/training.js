@@ -87,7 +87,7 @@
   }
 
   async function loadModels() {
-    const r = await fetch("/api/models?for_selector=1");
+    const r = await fetch("/api/models?for_training=1");
     models = await r.json();
     const sel = $("train-model");
     sel.innerHTML = "";

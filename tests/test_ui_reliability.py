@@ -248,7 +248,8 @@ def test_card_head_stacks_below_700() -> None:
 
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=20" in base
+    assert "app.css?v=21" in base
+    assert "sprites.js?v=14" in base
 
 
 def test_workflow_steps_vertical_at_desktop() -> None:
@@ -284,13 +285,22 @@ def test_rag_docs_table_scroll_and_column_classes() -> None:
     assert ".table-scroll" in css
     assert "#rag-docs-table" in css
     assert ".rag-col-name" in css
-    assert "min-width: 36rem" in css
+    assert "min-width: 48rem" in css
+    assert ".rag-col-actions" in css
+    assert "min-width: 15rem" in css
+    assert ".rag-doc-actions" in css
+    assert "inline-flex" in css
+    # Actions must not clip under overflow:hidden from generic .table td.
+    assert "td.rag-col-actions" in css
+    assert "overflow: visible" in css
 
     rag = _RAG.read_text(encoding="utf-8")
     assert "table-scroll rag-docs-scroll" in rag
     assert 'id="rag-docs-table"' in rag
     assert "rag-col-name" in rag
     assert "cell-wrap" in rag
+    assert "rag-doc-actions" in rag
+    assert "flex gap-1 rag-col-actions" not in rag
     assert "rag-hits-table" in rag or "rag-hit-source" in rag
 
 
@@ -360,3 +370,16 @@ def test_sprites_rag_caption_not_embedding_corpus() -> None:
     ).read_text(encoding="utf-8")
     assert "EMBEDDING CORPUS" not in sprites
     assert "RAG RETRIEVAL INDEX" in sprites
+
+
+def test_sprites_bench_idle_caption_not_computing() -> None:
+    """Bench/testing idle mount must not claim scores are computing."""
+    sprites = (
+        _ROOT / "src" / "finetune_studio" / "webui" / "static" / "js" / "sprites.js"
+    ).read_text(encoding="utf-8")
+    assert "COMPUTING SCORES" not in sprites
+    assert "READY TO RUN" in sprites
+    assert "fts:bench-progress" in sprites
+    assert "ev.detail.score" in sprites
+    assert "benchUpdate" in sprites
+    assert "SCORE" in sprites

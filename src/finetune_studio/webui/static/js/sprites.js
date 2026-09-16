@@ -637,7 +637,8 @@
       if (target && !target.querySelector('.bench-sprite')) {
         const cap = document.createElement('div');
         cap.className = 'sprite-mount-caption';
-        cap.textContent = 'COMPUTING SCORES';
+        // Idle pages have no run — do not claim scores are computing.
+        cap.textContent = 'READY TO RUN';
         const host = document.createElement('div');
         host.className = 'sprite-mount';
         host.style.flexDirection = 'row';
