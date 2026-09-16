@@ -475,8 +475,14 @@ def row_to_dict(row: sqlite3.Row | None) -> dict | None:
     if row is None:
         return None
     d = dict(row)
-    # Decode JSON columns.
-    for col in ("rag_ids_json", "settings_json", "metrics_json", "scores_json"):
+    # Decode JSON columns (TEXT → dict under the unsuffixed key).
+    for col in (
+        "rag_ids_json",
+        "settings_json",
+        "metrics_json",
+        "scores_json",
+        "options_json",
+    ):
         if col in d and isinstance(d[col], str) and d[col]:
             try:
                 d[col.removesuffix("_json")] = json.loads(d[col])

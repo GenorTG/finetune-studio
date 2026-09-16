@@ -47,13 +47,22 @@ def _upload(
 def _unique(label: str) -> bytes:
     """Unique payload so sha256-based file ids never collide across tests."""
     import secrets
-    return f"{label}-{secrets.token_hex(8)}".encode("utf-8")
+    return f"{label}-{secrets.token_hex(8)}".encode()
 
 
 # ── GET /parsed ──────────────────────────────────────────────────────────
 
 
-def test_parsed_converts_txt(client, fts_root: Path) -> None:
+def test_parsed_converts_txt(
+    client, fts_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # .txt uploads auto-promote into data-prep and write files/<sha12>/parsed.txt,
+    # which GET /parsed prefers (source=sibling). Disable promote so this test
+    # covers on-the-fly conversion of the raw upload.
+    monkeypatch.setattr(
+        "finetune_studio.data.fs.qa.maybe_auto_promote_upload",
+        lambda *a, **k: None,
+    )
     pid = _project(client)
     body = b"hello world\n" + _unique("txt")
     fid = _upload(client, pid, "notes.txt", body)
@@ -68,7 +77,7 @@ def test_parsed_converts_txt(client, fts_root: Path) -> None:
 
 def test_parsed_converts_json(client, fts_root: Path) -> None:
     pid = _project(client)
-    payload = '{"a": 1, "id": "%s"}' % _unique("json").decode()
+    payload = f'{{"a": 1, "id": "{_unique("json").decode()}"}}'
     fid = _upload(client, pid, "data.json", payload.encode(), "application/json")
     r = client.get(f"/api/projects/{pid}/files/{fid}/parsed")
     assert r.status_code == 200, r.text
@@ -80,7 +89,7 @@ def test_parsed_converts_json(client, fts_root: Path) -> None:
 
 def test_parsed_converts_csv(client, fts_root: Path) -> None:
     pid = _project(client)
-    csv_body = "name,age\nAda,36\n%s,1\n" % _unique("csv").decode()
+    csv_body = f"name,age\nAda,36\n{_unique('csv').decode()},1\n"
     fid = _upload(client, pid, "rows.csv", csv_body.encode(), "text/csv")
     r = client.get(f"/api/projects/{pid}/files/{fid}/parsed")
     assert r.status_code == 200, r.text

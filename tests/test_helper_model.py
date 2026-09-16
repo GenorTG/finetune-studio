@@ -63,7 +63,8 @@ def test_data_prep_page_shows_helper_label(client: Any) -> None:
     assert r.status_code == 200
     assert DEFAULT_HELPER_LABEL in r.text or "Helper ·" in r.text
     assert DEFAULT_HELPER_PROVIDER_ID in r.text
-    assert "will not" in r.text.lower() or "silently" in r.text.lower()
+    assert "load that provider first" in r.text.lower()
+    assert "only" in r.text.lower()
 
 
 def test_testing_page_shows_helper_label(client: Any) -> None:
@@ -213,11 +214,18 @@ def test_architecture_doc_describes_activity_sse() -> None:
 
 
 def test_registry_generic_dirs_exclude_awq() -> None:
-    from finetune_studio.models import registry as reg
+    from finetune_studio.models.registry import (
+        _TRAINING_EXCLUDED_FORMATS,
+        _safe_model_name,
+        is_trainable_base_model,
+    )
 
-    src = Path(reg.__file__).read_text(encoding="utf-8")
-    # Active naming lists must not treat AWQ as a current export format.
-    assert '"awq"' not in src and "'awq'" not in src
+    # AWQ stays a training-excluded format, but is not a generic export naming dir.
+    assert "awq" in _TRAINING_EXCLUDED_FORMATS
+    assert _safe_model_name("/proj/output/awq", {}, project_name="Demo") == "awq"
+    assert not is_trainable_base_model(
+        {"format": "awq", "path": "/x/awq", "category": "discovered"}
+    )
 
 
 def test_no_helper_message_names_label() -> None:

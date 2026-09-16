@@ -12,11 +12,10 @@ schema, same CRUD helpers, no mocks.
 from __future__ import annotations
 
 import os
-import time
 import tempfile
+import time
 
 import pytest
-
 
 # ── Training run lifecycle ───────────────────────────────────────────────
 
@@ -454,7 +453,9 @@ class TestSystemUpdateLifecycle:
                                triggered_by="user")
         assert row["status"] == "queued"
         assert row["mode"] == "update"
-        assert row["options_json"] == {"no_pull": True}
+        # row_to_dict decodes *_json TEXT → unsuffixed dict (same as settings).
+        assert row["options"] == {"no_pull": True}
+        assert "options_json" not in row
         assert row["triggered_by"] == "user"
 
     def test_done_lifecycle_preserves_log(self, mock_settings):
@@ -571,8 +572,9 @@ class TestEngineHelpers:
     """merge_adapter_for_run + engine helpers — no actual model load."""
 
     def test_merge_skips_when_merged_dir_exists(self, mock_settings):
-        from finetune_studio.training.engine import merge_adapter_for_run
         import tempfile
+
+        from finetune_studio.training.engine import merge_adapter_for_run
         with tempfile.TemporaryDirectory() as out:
             os.makedirs(os.path.join(out, "adapter"))
             os.makedirs(os.path.join(out, "merged"))
@@ -598,11 +600,13 @@ class TestEngineHelpers:
 
     def test_merge_raises_without_adapter_dir(self, mock_settings):
         from finetune_studio.training.engine import merge_adapter_for_run
-        with tempfile.TemporaryDirectory() as out:
-            with pytest.raises(ValueError, match="adapter dir not found"):
-                merge_adapter_for_run(
-                    {"output_path": out, "base_model": "/anywhere"},
-                )
+        with (
+            tempfile.TemporaryDirectory() as out,
+            pytest.raises(ValueError, match="adapter dir not found"),
+        ):
+            merge_adapter_for_run(
+                {"output_path": out, "base_model": "/anywhere"},
+            )
 
     def test_merge_skip_via_env_var(self, mock_settings, monkeypatch):
         """FTS_SKIP_MERGE=1 short-circuits the actual merge and writes a
@@ -619,7 +623,9 @@ class TestEngineHelpers:
 
     def test_engine_helpers(self, mock_settings):
         from finetune_studio.training.engine import (
-            TrainingConfig, _dir_size, _human_size,
+            TrainingConfig,
+            _dir_size,
+            _human_size,
         )
         cfg = TrainingConfig()
         assert cfg.merge_on_save is False

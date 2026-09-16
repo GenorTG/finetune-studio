@@ -67,4 +67,6 @@ def test_benchmarks_recent_scores_show_judged_column() -> None:
     html = _BENCH_TMPL.read_text(encoding="utf-8")
     assert "<th>Judged</th>" in html
     assert "Train-set eval" in html
-    assert "synthetic/offline" in html
+    # Synthetic suites are local shaped fixtures — not industry scores.
+    assert "not industry" in html
+    assert "synthetic" in html.lower()
