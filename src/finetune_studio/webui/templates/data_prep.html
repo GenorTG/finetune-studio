@@ -537,6 +537,7 @@ let _flSearchQuery = '';
 let _flTrashVisible = false;
 let _flConvCache = {};           // fid -> conversions[]
 let _flSources = [];             // data-prep sources (parsed.txt pipeline)
+let _flTotalCount = 0;           // project-wide live count (API total_count)
 
 function flIsPromotableText(name) {
   const lower = String(name || '').toLowerCase();
@@ -649,6 +650,14 @@ async function flLoadFiles() {
     if (_flSearchQuery) params.set('search', _flSearchQuery);
     const r = await fetch('/api/projects/' + _flPid + '/files?' + params).then((r) => r.json());
     _flFiles = r.files || [];
+    // Prefer API total_count (unfiltered). Never derive "all files" from the
+    // filtered page length — that races with flLoadFolders and lies in a folder.
+    if (typeof r.total_count === 'number') {
+      _flTotalCount = r.total_count;
+    } else if (!_flCurrentFolder && !_flSearchQuery) {
+      _flTotalCount = _flFiles.length;
+    }
+    flRenderFolders();
     // Paint rows immediately — do not block the table on conversion prefetch
     // (that was leaving an empty table after bulk upload until a full reload).
     flRenderFiles();
@@ -684,7 +693,7 @@ function flRenderFolders() {
   let html = '<li class="fl-tree-row ' + (_flCurrentFolder === null ? 'fl-tree-sel' : '') + '" data-folder-id="">' +
     '<span class="fl-tree-icon">📚</span>' +
     '<a href="#" class="fl-tree-name" onclick="flSelectFolder(null, \'ALL FILES\'); return false;">all files</a>' +
-    '<span class="fl-tree-actions dim text-xs">' + _flFiles.length + '</span>' +
+    '<span class="fl-tree-actions dim text-xs" id="fl-all-count">' + _flTotalCount + '</span>' +
   '</li>';
 
   if (auto.length) {

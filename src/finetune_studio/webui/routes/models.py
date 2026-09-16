@@ -184,6 +184,11 @@ async def model_info(path: str):
     # Enrich with context length and parameter count if available
     if info and not info.get('context_length'):
         info['context_length'] = _guess_context_length(info)
+    # Inference UI slider expects total_layers; loader exposes num_layers for HF.
+    if info and not info.get("total_layers"):
+        layers = info.get("num_layers")
+        if layers:
+            info["total_layers"] = int(layers)
     return info
 
 def _guess_context_length(info: dict) -> int:

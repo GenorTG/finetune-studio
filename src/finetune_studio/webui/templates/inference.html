@@ -273,20 +273,21 @@ function toggleAdv() {
 let modelMetaCache = {};
 async function getModelMeta(path) {
   if (modelMetaCache[path]) return modelMetaCache[path];
-  try {
-    const r = await fts.api.post('/api/models/info', { path });
-    if (r && r.path) {
-      modelMetaCache[path] = r;
-      return r;
-    }
-  } catch (e) {}
+  // Route is GET /api/models/info?path=… (POST returns 405).
+  const r = await fts.api.get('/api/models/info?path=' + encodeURIComponent(path));
+  if (r && r.path) {
+    modelMetaCache[path] = r;
+    return r;
+  }
   return null;
 }
 
 function applyModelMeta(meta) {
   const slider = document.getElementById('n-gpu-layers');
   if (!slider) return;
-  const maxLayers = meta && meta.total_layers ? meta.total_layers : 99;
+  const maxLayers = meta && (meta.total_layers || meta.num_layers)
+    ? (meta.total_layers || meta.num_layers)
+    : 99;
   slider.max = maxLayers;
   if (parseInt(slider.value) >= maxLayers || slider.value === '99') {
     slider.value = maxLayers;
@@ -294,7 +295,7 @@ function applyModelMeta(meta) {
     if (valEl) valEl.textContent = 'all (' + maxLayers + ')';
   }
   const capEl = document.getElementById('mem-label');
-  if (capEl && meta && meta.total_layers) {
+  if (capEl && meta && (meta.total_layers || meta.num_layers)) {
     slider.title = '0 = CPU only · ' + maxLayers + ' = all layers on GPU. This model has ' + maxLayers + ' total layers.';
   }
 }
@@ -429,8 +430,12 @@ document.getElementById('model-select').addEventListener('change', async functio
   const sel = document.getElementById('model-select');
   const path = sel ? sel.value : '';
   if (path) {
-    const meta = await getModelMeta(path);
-    applyModelMeta(meta);
+    try {
+      const meta = await getModelMeta(path);
+      applyModelMeta(meta);
+    } catch (e) {
+      fts.notify('Model info failed: ' + (e.message || e), 'error');
+    }
   }
 });
 // Run once on load if a model is already loaded (to refresh mem-bar status)

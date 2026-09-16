@@ -194,7 +194,10 @@ async def list_files_route(
         mime_prefix=mime_prefix,
         search=search,
     )
-    return {"files": files, "count": len(files)}
+    # Authoritative project-wide live count (ignores folder/search filters).
+    # The "all files" tree badge must not use the filtered page length.
+    total_count = len(fl.list_files(pid, include_deleted=False))
+    return {"files": files, "count": len(files), "total_count": total_count}
 
 
 # ── Trash endpoints (BEFORE /files/{fid} catch-all) ──────────────────────

@@ -197,7 +197,7 @@
     </label>
     <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;" title="After training, merge the LoRA adapter into the base model. The merged model is a standalone file you can load directly (no need to keep the adapter separate). Larger on disk but easier to deploy.">
       <input type="checkbox" name="merge_on_save" value="1" id="merge-on-save-check">
-      <span class="block text-xs muted">Also save merged model (full standalone, ~1.5 GB)</span>
+      <span class="block text-xs muted">Also save merged model (standalone; roughly the size of the base model)</span>
     </label>
     <label style="grid-column: 1 / -1;">
       <span class="block text-xs muted mb-1" title="How the system prompt is handled during training and export.">System Prompt Mode <span class="dim">?</span></span>
@@ -253,7 +253,7 @@
       <input type="number" name="eval_steps" id="eval-steps" value="500" min="0" class="input" title="Run evaluation every N steps. 0 = no evaluation during training.">
     </label>
     <div class="flex gap-2 mt-4" style="grid-column: 1 / -1;">
-      <button type="submit" class="btn primary" id="start-btn">Start training</button>
+      <button type="submit" class="btn primary" id="start-btn" disabled title="Pick or upload a dataset first">Start training</button>
       <button type="button" class="btn danger" data-action="/api/training/stop" data-reload="true">Stop</button>
     </div>
   </form>
@@ -353,6 +353,15 @@
   const select = document.getElementById("dataset-select");
   const fileInput = document.getElementById("dataset-upload");
   const statusEl = document.getElementById("dataset-upload-status");
+  const startBtn = document.getElementById("start-btn");
+
+  function syncStartEnabled() {
+    const hasData = !!(dataPathInput && dataPathInput.value);
+    if (!startBtn) return;
+    startBtn.disabled = !hasData;
+    startBtn.title = hasData ? "Start training" : "Pick or upload a dataset first";
+  }
+  syncStartEnabled();
 
   // Picking a project dataset fills both hidden fields.
   if (select) {
@@ -363,7 +372,11 @@
       if (path) {
         dataPathInput.value = path;
         datasetIdInput.value = opt.value;
+      } else {
+        dataPathInput.value = "";
+        datasetIdInput.value = "";
       }
+      syncStartEnabled();
     });
   }
 
@@ -385,6 +398,7 @@
         statusEl.textContent = `✓ ${ds.name} (${ds.qa_count} pairs)`;
         dataPathInput.value = ds.data_path;
         datasetIdInput.value = ds.id;
+        syncStartEnabled();
         // Switch back to "From project" tab so the user sees the new entry.
         tabs.forEach((t) => t.classList.remove("active"));
         panels.forEach((p) => p.classList.remove("active"));
@@ -412,8 +426,8 @@
   const form = document.getElementById("train-form");
   if (form) {
     form.addEventListener("submit", (ev) => {
-      const startBtn = document.getElementById("start-btn");
-      const originalText = startBtn ? startBtn.textContent : "Start training";
+      const btn = document.getElementById("start-btn");
+      const originalText = btn ? btn.textContent : "Start training";
 
       if (!dataPathInput.value) {
         ev.preventDefault();
@@ -426,7 +440,8 @@
         const projectPanel = document.querySelector('.data-panel[data-panel="project"]');
         projectTab && projectTab.classList.add("active");
         projectPanel && projectPanel.classList.add("active");
-        if (startBtn) { startBtn.disabled = false; startBtn.textContent = originalText; }
+        if (btn) { btn.disabled = true; btn.textContent = originalText; }
+        syncStartEnabled();
         return;
       }
 

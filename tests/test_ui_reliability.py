@@ -251,7 +251,7 @@ def test_card_head_stacks_below_700() -> None:
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
     assert "app.css?v=22" in base
-    assert "sprites.js?v=14" in base
+    assert "sprites.js?v=15" in base
     assert "nav_overflow.js?v=1" in base
     assert "spa.js?v=15" in base
 
@@ -387,3 +387,87 @@ def test_sprites_bench_idle_caption_not_computing() -> None:
     assert "ev.detail.score" in sprites
     assert "benchUpdate" in sprites
     assert "SCORE" in sprites
+
+
+def test_sprites_training_idle_not_always_accelerating() -> None:
+    """Training page must show READY TO TRAIN while idle, not GPU ACCELERATING."""
+    sprites = (
+        _ROOT / "src" / "finetune_studio" / "webui" / "static" / "js" / "sprites.js"
+    ).read_text(encoding="utf-8")
+    train_block = sprites.split("CPU chip → training", 1)[1].split(
+        "Data stream → data prep", 1
+    )[0]
+    assert "READY TO TRAIN" in train_block
+    assert "/api/training/status" in train_block
+    assert "GPU ACCELERATING" in train_block  # only when status is training/running
+    assert "LOADING MODEL" in train_block
+    assert "SAVING" in train_block
+    # Must not hard-code accelerating as the initial caption.
+    assert "cap.textContent = 'GPU ACCELERATING';" not in train_block.split(
+        "refreshTrainCaption", 1
+    )[0]
+    assert "_pageSpriteCleanup" in sprites
+    assert "document.querySelectorAll('.sprite-mount')" in sprites
+
+
+def test_file_library_all_files_uses_total_count() -> None:
+    """Tree 'all files' badge must use API total_count, not filtered _flFiles.length."""
+    src = _DATA_PREP.read_text(encoding="utf-8")
+    assert "_flTotalCount" in src
+    assert "total_count" in src
+    assert "id=\"fl-all-count\"" in src or "id='fl-all-count'" in src
+    all_row = src.split("all files</a>", 1)[1].split("</li>", 1)[0]
+    assert "_flTotalCount" in all_row
+    assert "_flFiles.length" not in all_row
+    load_js = src.split("async function flLoadFiles", 1)[1].split(
+        "async function flLoadTrash", 1
+    )[0]
+    assert "flRenderFolders()" in load_js
+    assert "r.total_count" in load_js
+
+
+def test_inference_model_info_uses_get() -> None:
+    """Client must GET /api/models/info?path=… — POST is not allowed."""
+    src = _INFERENCE.read_text(encoding="utf-8")
+    assert "fts.api.post('/api/models/info'" not in src
+    assert "fts.api.get('/api/models/info?path='" in src
+    assert "encodeURIComponent(path)" in src
+    assert "Model info failed" in src
+    assert "total_layers || meta.num_layers" in src
+
+
+def test_models_info_get_contract(client: TestClient, tmp_path: Path) -> None:
+    """GET /api/models/info?path= works; POST must not silently succeed as GET."""
+    model_dir = tmp_path / "tiny-model"
+    model_dir.mkdir()
+    (model_dir / "config.json").write_text(
+        '{"architectures":["Qwen3ForCausalLM"],"model_type":"qwen3",'
+        '"hidden_size":64,"num_hidden_layers":12,"vocab_size":100}',
+        encoding="utf-8",
+    )
+    r = client.get("/api/models/info", params={"path": str(model_dir)})
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data.get("path") == str(model_dir)
+    assert data.get("num_layers") == 12
+    assert data.get("total_layers") == 12
+
+    post = client.post("/api/models/info", json={"path": str(model_dir)})
+    assert post.status_code == 405, post.text
+
+
+def test_training_start_disabled_until_dataset(client: TestClient) -> None:
+    """Start training must look disabled until a dataset/data_path is chosen."""
+    pid = _project(client)
+    r = client.get(f"/projects/{pid}/training")
+    assert r.status_code == 200, r.text
+    body = r.text
+    assert 'id="start-btn"' in body
+    assert "disabled" in body.split('id="start-btn"', 1)[1].split(">", 1)[0]
+    assert "syncStartEnabled" in body
+    assert "Pick or upload a dataset first" in body
+    assert "~1.5 GB" not in body
+    assert "roughly the size of the base model" in body
+    # Trainable-base filtering kept (server models_for_training + HF merge skips GGUF).
+    assert "trainable HF weights" in body
+    assert "hasGguf" in body

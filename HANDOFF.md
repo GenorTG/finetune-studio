@@ -7,25 +7,25 @@ Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :786
 ## State (verified 2026-09-16 Europe/Warsaw)
 | Area | Status |
 |------|--------|
-| Header nav overflow | Fixed: `.sb-nav-shell` + scroll buttons + `[nav]` menu; `app.css?v=22`, `nav_overflow.js?v=1`, `spa.js?v=15` |
-| RAG docs Actions | Fixed rem Actions col + `.rag-doc-actions` (no flex-on-td) |
-| Bench sprites idle | `READY TO RUN` (not COMPUTING SCORES); `sprites.js?v=14` |
-| Training base filter | `models_for_training` / `?for_training=1`; GGUF/GPTQ excluded |
-| Tests | 32/32 focused nav+UI suite; Ruff clean on touched Python |
+| File-library "all files" count | Fixed: API `total_count` + `_flTotalCount` (not filtered `_flFiles.length`) |
+| Training sprite idle copy | Fixed: `READY TO TRAIN` + poll `/api/training/status`; SPA clears mounts (`sprites.js?v=15`) |
+| Inference model info | Fixed: client GET `/api/models/info?path=`; route returns `total_layers`; POST → 405 |
+| Training Start gate | Fixed: `#start-btn` disabled until dataset; honest merge size wording |
+| Tests | 28/28 `test_ui_reliability` + `test_list_files_total_count_unfiltered`; Ruff clean on touched routes |
 
 ## Next steps
 1. Parent: `git push`; fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`.
-2. Browser @1260px + 640px: open a project page — Testing/Benchmarks/Chat/Export/[tools] reachable via strip scroll or `[nav]`; no page-level horiz overflow from header.
-3. Browser: active tab scrolls into view; `[nav]` lists same routes; SPA data-link still works.
-4. Browser RAG docs: Rebuild + View chunks fully visible.
+2. Browser Data Prep: with files present, "all files" badge matches table; stay correct after folder select + upload.
+3. Browser Training: idle sprite says READY TO TRAIN; Start disabled until dataset picked/uploaded.
+4. Browser Inference: select a model — no 405; GPU layers slider updates when layers known.
 5. Fix legacy `test_db_lifecycle` / `test_parsed_converts_txt`, then `make test`.
 
 ## Commands
-- Focused: `.venv/bin/python -m pytest tests/test_header_nav.py tests/test_ui_reliability.py tests/test_nav_routes.py -v --tb=short`
-- Lint: `.venv/bin/ruff check tests/test_header_nav.py tests/test_ui_reliability.py`
+- Focused: `.venv/bin/python -m pytest tests/test_ui_reliability.py tests/test_file_library_apis.py::test_list_files_total_count_unfiltered -v --tb=short`
+- Lint: `.venv/bin/ruff check src/finetune_studio/webui/routes/file_library.py src/finetune_studio/webui/routes/models.py tests/test_ui_reliability.py`
 - Deploy: `git push`; fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`
 
 ## Blockers
 - `tests/test_db_lifecycle.py::TestSystemUpdateLifecycle::test_create_with_options` still expects dict vs JSON string.
 - `tests/test_file_library_apis.py::test_parsed_converts_txt` still flaky on sibling artifacts.
-- Fan-dragon visual confirm of header `[nav]` / scroll affordance pending after deploy.
+- Fan-dragon visual confirm of this reliability bundle pending after deploy.

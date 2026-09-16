@@ -513,10 +513,18 @@
   /* Page-context sprite mounts: picks the right sprite for the current
      page and injects it into the best matching container. Driven by
      data-sprite hooks when present, falls back to route inference. */
+  let _pageSpriteCleanup = null;
+
   function mountPageSprites() {
+    if (typeof _pageSpriteCleanup === 'function') {
+      try { _pageSpriteCleanup(); } catch (_) { /* ignore */ }
+      _pageSpriteCleanup = null;
+    }
+    // Drop any prior page-context mounts so SPA nav cannot leave stale captions.
+    document.querySelectorAll('.sprite-mount').forEach((el) => el.remove());
+
     const path = location.pathname;
-    // Universal mount target: the first card on the page (always present).
-    // Pages can override via [data-sprite="robot-head"] etc.
+    const cleanups = [];
     const firstCard = document.querySelector('.card');
 
     // Robot head → inference pages (live model thinking)
@@ -546,9 +554,11 @@
         host.appendChild(textWrap);
         target.prepend(host);
 
-        document.addEventListener('fts:token', () => {
+        const onToken = () => {
           robotFeed(host.querySelector('.robot-sprite'));
-        });
+        };
+        document.addEventListener('fts:token', onToken);
+        cleanups.push(() => document.removeEventListener('fts:token', onToken));
 
         // Poll real model state — don't lie about MODEL ONLINE
         async function refreshModelState() {
@@ -572,17 +582,18 @@
           } catch (e) { /* ignore */ }
         }
         refreshModelState();
-        setInterval(refreshModelState, 5000);
+        const modelTimer = setInterval(refreshModelState, 5000);
+        cleanups.push(() => clearInterval(modelTimer));
       }
     }
 
-    // CPU chip → training pages
+    // CPU chip → training pages (honest idle vs active)
     if (/\/training/.test(path)) {
       const target = document.querySelector('[data-sprite="cpu-chip"]') || firstCard;
       if (target && !target.querySelector('.chip-sprite')) {
         const cap = document.createElement('div');
         cap.className = 'sprite-mount-caption';
-        cap.textContent = 'GPU ACCELERATING';
+        cap.textContent = 'READY TO TRAIN';
         const host = document.createElement('div');
         host.className = 'sprite-mount';
         host.style.flexDirection = 'row';
@@ -593,6 +604,29 @@
         host.appendChild(spriteCpuChip(64));
         host.appendChild(cap);
         target.prepend(host);
+
+        async function refreshTrainCaption() {
+          try {
+            const s = await fetch('/api/training/status', { cache: 'no-store' })
+              .then((r) => r.json())
+              .catch(() => null);
+            const st = (s && s.status) ? String(s.status).toLowerCase() : 'idle';
+            if (st === 'loading') {
+              cap.textContent = 'LOADING MODEL';
+            } else if (st === 'training' || st === 'running') {
+              cap.textContent = 'GPU ACCELERATING';
+            } else if (st === 'saving') {
+              cap.textContent = 'SAVING';
+            } else {
+              cap.textContent = 'READY TO TRAIN';
+            }
+          } catch (_) {
+            cap.textContent = 'READY TO TRAIN';
+          }
+        }
+        refreshTrainCaption();
+        const trainTimer = setInterval(refreshTrainCaption, 3000);
+        cleanups.push(() => clearInterval(trainTimer));
       }
     }
 
@@ -650,14 +684,22 @@
         host.appendChild(cap);
         target.prepend(host);
 
-        document.addEventListener('fts:bench-progress', (ev) => {
+        const onBench = (ev) => {
           if (ev.detail && typeof ev.detail.score === 'number') {
             benchUpdate(host.querySelector('.bench-sprite'), ev.detail.score);
             cap.textContent = `SCORE ${(ev.detail.score * 100).toFixed(0)}%`;
           }
-        });
+        };
+        document.addEventListener('fts:bench-progress', onBench);
+        cleanups.push(() => document.removeEventListener('fts:bench-progress', onBench));
       }
     }
+
+    _pageSpriteCleanup = function () {
+      cleanups.forEach((fn) => {
+        try { fn(); } catch (_) { /* ignore */ }
+      });
+    };
   }
 
   if (document.readyState === 'loading') {

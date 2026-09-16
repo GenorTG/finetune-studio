@@ -250,3 +250,29 @@ def test_schema_has_no_parsed_columns(client, fts_root: Path) -> None:
     # stored_path also absent — paths live on file_versions.raw_path
     assert "stored_path" not in cols
     assert "status" not in cols  # trash is deleted_at IS NOT NULL
+
+
+def test_list_files_total_count_unfiltered(client, fts_root: Path) -> None:
+    """total_count is project-wide even when folder_id / search filter the page."""
+    pid = _project(client)
+    for i in range(3):
+        _upload(client, pid, f"a{i}.txt", _unique(f"a{i}"))
+    listed = client.get(f"/api/projects/{pid}/files").json()
+    assert listed["count"] == 3
+    assert listed["total_count"] == 3
+
+    folders = client.get(f"/api/projects/{pid}/folders").json()["folders"]
+    auto = next((f for f in folders if f.get("kind") == "auto"), None)
+    assert auto is not None
+    filtered = client.get(
+        f"/api/projects/{pid}/files", params={"folder_id": auto["id"]}
+    ).json()
+    assert filtered["total_count"] == 3
+    assert filtered["count"] == len(filtered["files"])
+    # Search that matches nothing must not zero the project total.
+    none = client.get(
+        f"/api/projects/{pid}/files", params={"search": "zzznomatchzzz"}
+    ).json()
+    assert none["count"] == 0
+    assert none["total_count"] == 3
+    assert none["files"] == []
