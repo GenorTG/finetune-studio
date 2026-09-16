@@ -497,6 +497,9 @@ def test_training_start_disabled_until_dataset(client: TestClient) -> None:
     assert "hasGguf" in body
 
 _MODELS = _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "models.html"
+_MODELS_INDEX = (
+    _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "models_index.html"
+)
 _BENCH = _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "benchmarks.html"
 _HF = _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "hf_models.html"
 
@@ -515,6 +518,24 @@ def test_models_and_bench_mobile_table_scroll_contract() -> None:
     assert "min-width: 6.5rem" in css
     assert "#bench-run-table" in css
     assert "@media (max-width: 780px)" in css
+    assert ".models-table-scroll" in css
+    assert "overflow-x: auto" in css
+
+
+def test_models_index_mobile_table_scroll_contract() -> None:
+    """Live /models renders models_index.html — must scroll, not crush Copy to 2ch."""
+    css = _CSS.read_text(encoding="utf-8")
+    body = _MODELS_INDEX.read_text(encoding="utf-8")
+    assert 'id="models-index-table-scroll"' in body
+    assert 'class="table-scroll models-table-scroll"' in body
+    assert 'id="models-index-table"' in body
+    assert 'class="models-col-actions"' in body
+    assert "filterModels" in body
+    assert "#models-index-table tr[data-category]" in body
+    assert "#models-index-filters" in body
+    assert "#models-index-table" in css
+    assert "#models-index-table .models-col-actions" in css
+    assert "min-width: 52rem" in css
     assert ".models-table-scroll" in css
     assert "overflow-x: auto" in css
 

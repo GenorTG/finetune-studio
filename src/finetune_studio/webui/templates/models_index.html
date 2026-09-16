@@ -10,7 +10,7 @@
 </div>
 
 {# Category filter pills #}
-<div class="flex flex-wrap gap-2 mb-4">
+<div class="flex flex-wrap gap-2 mb-4" id="models-index-filters">
   <button class="btn sm active" data-filter="all" onclick="filterModels('all', this)">All ({{ models|length }})</button>
   <button class="btn sm" data-filter="trained_export" onclick="filterModels('trained_export', this)">Trained exports ({{ models|selectattr('category','equalto','trained_export')|list|length }})</button>
   <button class="btn sm" data-filter="base_model" onclick="filterModels('base_model', this)">Base models ({{ models|selectattr('category','equalto','base_model')|list|length }})</button>
@@ -18,53 +18,55 @@
   <button class="btn sm" data-filter="discovered" onclick="filterModels('discovered', this)">Discovered ({{ models|selectattr('category','equalto','discovered')|list|length }})</button>
 </div>
 
-<table class="table">
+<div class="table-scroll models-table-scroll" id="models-index-table-scroll" role="region" aria-label="Local models">
+<table class="table" id="models-index-table">
   <thead>
     <tr>
-      <th>Name</th>
-      <th>Category</th>
-      <th>Format</th>
-      <th>Size</th>
-      <th>Architecture</th>
-      <th>Project</th>
-      <th>Path</th>
-      <th></th>
+      <th class="models-col-name">Name</th>
+      <th class="models-col-category">Category</th>
+      <th class="models-col-format">Format</th>
+      <th class="models-col-size">Size</th>
+      <th class="models-col-arch">Architecture</th>
+      <th class="models-col-project">Project</th>
+      <th class="models-col-path">Path</th>
+      <th class="models-col-actions"></th>
     </tr>
   </thead>
   <tbody>
     {% for m in models %}
     <tr class="row-hover" data-category="{{ m.category }}">
-      <td class="name">
+      <td class="name models-col-name">
         {{ m.name }}
         {% if m.vision %}<span class="pill outline" title="Vision model">👁</span>{% endif %}
       </td>
-      <td><span class="pill {{ {
+      <td class="models-col-category"><span class="pill {{ {
         'trained_export': 'solid-green',
         'base_model': 'solid-amber',
         'local_helper': 'outline',
         'downloaded': 'outline',
         'discovered': 'outline'
       }.get(m.category, 'outline') }}">{{ m.category|replace('_',' ') }}</span></td>
-      <td><span class="pill outline">{{ m.format }}</span></td>
-      <td class="num mono">{{ m.size_gb }} GB</td>
-      <td class="meta">{{ m.architecture or '—' }}</td>
-      <td class="meta">
+      <td class="models-col-format"><span class="pill outline">{{ m.format }}</span></td>
+      <td class="num mono models-col-size">{{ m.size_gb }} GB</td>
+      <td class="meta models-col-arch">{{ m.architecture or '—' }}</td>
+      <td class="meta models-col-project">
         {% if m.project_id %}
           <a href="/projects/{{ m.project_id }}" data-link>{{ projects.get(m.project_id, m.project_id[:8]) }}</a>
         {% else %}—{% endif %}
       </td>
-      <td class="meta mono text-xs" title="{{ m.path }}">{{ m.path[-40:] if m.path|length > 40 else m.path }}</td>
-      <td><button class="btn sm" onclick="navigator.clipboard.writeText('{{ m.path }}');fts.notify('Path copied','success')">Copy</button></td>
+      <td class="meta mono text-xs models-col-path" title="{{ m.path }}">{{ m.path[-40:] if m.path|length > 40 else m.path }}</td>
+      <td class="models-col-actions"><button class="btn sm" onclick="navigator.clipboard.writeText('{{ m.path }}');fts.notify('Path copied','success')">Copy</button></td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+</div>
 
 <script>
 function filterModels(cat, btn) {
-  document.querySelectorAll('.btn[data-filter]').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#models-index-filters .btn[data-filter]').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  document.querySelectorAll('tr[data-category]').forEach(tr => {
+  document.querySelectorAll('#models-index-table tr[data-category]').forEach(tr => {
     tr.style.display = (cat === 'all' || tr.dataset.category === cat) ? '' : 'none';
   });
 }

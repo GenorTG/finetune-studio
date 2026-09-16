@@ -4194,22 +4194,34 @@ body::before {
 .bench-table-scroll {
   border: 1px solid var(--border);
 }
-#models-table {
+#models-table,
+#models-index-table {
   table-layout: fixed;
   width: 100%;
   min-width: 40rem;
 }
-#models-table .models-col-name { width: 12rem; min-width: 10rem; }
-#models-table .models-col-size { width: 5rem; min-width: 4.5rem; white-space: nowrap; }
-#models-table .models-col-arch { width: 8rem; min-width: 6rem; }
-#models-table .models-col-path {
+#models-index-table {
+  min-width: 52rem;
+}
+#models-table .models-col-name,
+#models-index-table .models-col-name { width: 12rem; min-width: 10rem; }
+#models-table .models-col-size,
+#models-index-table .models-col-size { width: 5rem; min-width: 4.5rem; white-space: nowrap; }
+#models-table .models-col-arch,
+#models-index-table .models-col-arch { width: 8rem; min-width: 6rem; }
+#models-index-table .models-col-category { width: 8rem; min-width: 7rem; white-space: nowrap; }
+#models-index-table .models-col-format { width: 5.5rem; min-width: 4.5rem; white-space: nowrap; }
+#models-index-table .models-col-project { width: 7rem; min-width: 5.5rem; }
+#models-table .models-col-path,
+#models-index-table .models-col-path {
   width: 12rem;
   min-width: 8rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-#models-table .models-col-actions {
+#models-table .models-col-actions,
+#models-index-table .models-col-actions {
   width: 7rem;
   min-width: 6.5rem;
   white-space: nowrap;
@@ -4263,6 +4275,7 @@ body::before {
     background-repeat: no-repeat;
   }
   #models-table { min-width: 40rem; width: max-content; }
+  #models-index-table { min-width: 52rem; width: max-content; }
   #bench-run-table { min-width: 44rem; width: max-content; }
   .case-results-table { min-width: 48rem; }
 
