@@ -236,7 +236,7 @@
         </td>
         <td class="exports-col-actions">
           <button type="button" class="btn sm primary"
-                  onclick="flOpenInInference({{ m.path|tojson }})">▶ Open in inference</button>
+                  data-model-path="{{ m.path }}" onclick="flOpenInInference(this.dataset.modelPath)">▶ Open in inference</button>
         </td>
       </tr>
       <tr class="export-detail" data-for="{{ row_id }}" data-model-path="{{ m.path }}">
@@ -291,7 +291,7 @@
             </div>
             <div class="flex gap-1 wrap" style="margin-top:12px;">
               <button type="button" class="btn sm primary"
-                      onclick="flOpenInInference({{ m.path|tojson }})">▶ Open in inference</button>
+                      data-model-path="{{ m.path }}" onclick="flOpenInInference(this.dataset.modelPath)">▶ Open in inference</button>
               <a class="btn sm" href="/projects/{{ pid }}/training?run={{ m.run_id }}" data-link>View run →</a>
             </div>
           </div>

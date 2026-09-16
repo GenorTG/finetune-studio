@@ -474,7 +474,7 @@ async def start_training(request: Request):
 
         if getattr(inference_engine, "model", None) is not None:
             inference_engine.unload()
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.exception("Failed to unload global inference model before training")
     training_engine.start(config, training_data, system_prompt)
     return {"status": "started", "steps": training_engine.state.total_steps, "run_id": run_id}
@@ -745,6 +745,10 @@ async def list_exports(run_id: str):
         if os.path.isdir(gguf_dir):
             gguf_files = [f for f in os.listdir(gguf_dir) if f.endswith(".gguf")]
             if gguf_files:
-                exports["formats"]["gguf"] = {"path": gguf_dir, "files": gguf_files}
+                exports["formats"]["gguf"] = {
+                    "path": os.path.join(gguf_dir, min(gguf_files)),
+                    "directory": gguf_dir,
+                    "files": gguf_files,
+                }
 
     return exports
