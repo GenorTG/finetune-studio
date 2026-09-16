@@ -248,7 +248,34 @@ def test_card_head_stacks_below_700() -> None:
 
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=19" in base
+    assert "app.css?v=20" in base
+
+
+def test_workflow_steps_vertical_at_desktop() -> None:
+    """`.rag-workflow-steps` must be a vertical list at all widths (not flex-wrap row).
+
+    At ~1280 the old wrap put steps 1–3 on one cramped line with markers colliding.
+    Base rule must force column; mobile ≤780 may still tighten gap/font.
+    """
+    css = _CSS.read_text(encoding="utf-8")
+    # Base rule lives after media queries; pin the multi-line vertical contract.
+    assert (
+        ".rag-workflow-steps {\n"
+        "  display: flex;\n"
+        "  flex-direction: column;\n"
+        "  flex-wrap: nowrap;"
+    ) in css
+    # Must not regress to the horizontal wrap that cramped desktop ~1280.
+    assert "flex-wrap: wrap;\n  gap: 0.35rem 1.1rem;" not in css
+    # Mobile override keeps column (readable sequence preserved).
+    block_780 = css.split("@media (max-width: 780px)", 1)[1].split("@media", 1)[0]
+    assert ".rag-workflow-steps" in block_780
+    assert "flex-direction: column" in block_780
+
+    dp = _DATA_PREP.read_text(encoding="utf-8")
+    assert 'id="dp-workflow"' in dp
+    assert 'class="rag-workflow-steps"' in dp
+    assert 'aria-label="Data prep workflow"' in dp
 
 
 def test_rag_docs_table_scroll_and_column_classes() -> None:
