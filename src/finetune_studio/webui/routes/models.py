@@ -1,5 +1,6 @@
 """Models tab — list, download, configure models."""
 
+import logging
 import os
 import subprocess
 
@@ -9,6 +10,7 @@ from fastapi.responses import PlainTextResponse
 from finetune_studio.models.loader import load_model_info
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 
 def _identify_process(args_line: str, pid: int) -> str:
@@ -387,6 +389,14 @@ async def inference_memory_estimate(request: Request):
             n_ctx=body.get("n_ctx", 16384),
             n_gpu_layers=body.get("n_gpu_layers", 99),
         )
+        try:
+            from finetune_studio.webui.routes.system import _vram
+            vram = _vram()
+            if vram:
+                est["currently_used_gb"] = vram[0]["used_gb"]
+                est["total_gpu_gb"] = vram[0]["total_gb"]
+        except Exception as e:  # noqa: BLE001
+            log.debug("GPU usage probe failed: %s", e)
         return est
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}

@@ -44,9 +44,14 @@ def collect_activity() -> dict[str, Any]:
             proj_name = "(running)"
             if pid:
                 proj = db.get_project(pid)
-                if proj:
+                if not proj:
+                    # A deleted project must not leave a ghost run in the
+                    # global activity drawer.
+                    proj_name = ""
+                else:
                     proj_name = proj["name"]
-            tasks.append({
+            if not (pid and not proj):
+                tasks.append({
                 "kind": "training",
                 "project_id": pid,
                 "project_name": proj_name,
@@ -56,7 +61,7 @@ def collect_activity() -> dict[str, Any]:
                 "started_at": _now() - int(s.elapsed or 0),
                 "url": f"/projects/{pid}/training" if pid else "/projects",
                 "run_id": run_id or None,
-            })
+                })
     except Exception as e:  # noqa: BLE001
         tasks.append({"kind": "_error", "message": f"training: {e}"})
 
@@ -85,6 +90,8 @@ def collect_activity() -> dict[str, Any]:
             log = entry.get("log", [])
             last = log[-1] if log else {}
             proj = db.get_project(pid) if pid else None
+            if pid and not proj:
+                continue
             # Latest stage: 'done' / 'error' / active
             stage = last.get("stage", "queued")
             pct = last.get("pct", 0) if isinstance(last.get("pct"), (int, float)) else 0
@@ -114,6 +121,8 @@ def collect_activity() -> dict[str, Any]:
                 meta = d / "meta.json"
                 pid = d.name
                 proj = db.get_project(pid)
+                if not proj:
+                    continue
                 if lock.exists():
                     tasks.append({
                         "kind": "rag_build",
