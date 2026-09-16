@@ -292,7 +292,7 @@ async function doDelete(ids) {
   btn.textContent = origText;
   closeModal();
   if (fail > 0) {
-    fts && fts.toast ? fts.toast(`Deleted ${ok}, failed ${fail}: ${lastErr}`, 'error') : alert(`Deleted ${ok}, failed ${fail}: ${lastErr}`);
+    if (window.fts && window.fts.notify) window.fts.notify(`Deleted ${ok}, failed ${fail}: ${lastErr}`, 'error');
   }
   _projSelected.clear();
   // Full reload so server-side counts (badge, etc.) refresh.

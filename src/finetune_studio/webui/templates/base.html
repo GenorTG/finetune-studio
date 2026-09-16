@@ -216,7 +216,7 @@
       <a href="/" data-link>dashboard</a>
       <span class="bc-sep">▮</span>
       <span>projects</span>
-      <a href="/projects/{{ pid }}/overview" data-link>{{ (project.name if project is defined and project else pid) }}</a>
+      <a href="/projects/{{ pid }}" data-link>{{ (project.name if project is defined and project else pid) }}</a>
       <span class="bc-tab">{% block breadcrumb_tab %}overview{% endblock %}</span>
     </nav>
     {# Child templates set workspace to "model" or "rag" for the subnav. #}

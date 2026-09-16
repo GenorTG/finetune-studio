@@ -193,8 +193,7 @@
   }
 
   async function confirmDanger(msg, opts) {
-    if (window.fts && window.fts.confirm) return window.fts.confirm(msg, opts || {});
-    return confirm(msg);
+    return window.fts.confirm(msg, opts || {});
   }
 
   function isTextish(mime) {
@@ -530,7 +529,7 @@
   };
 
   window.fbRename = async function (fid, name) {
-    const newName = prompt('Rename file:', name);
+    const newName = await fts.prompt('Rename file:', name);
     if (!newName || newName === name) return;
     try {
       const r = await fetch('/api/projects/' + PID + '/files/' + fid + '/rename', {
@@ -632,7 +631,7 @@
       return;
     }
     const names = userFolders.map((f, i) => (i + 1) + '. ' + f.name).join('\n');
-    const pick = prompt('Move to folder number:\n' + names);
+    const pick = await fts.prompt('Move to folder number:\n' + names);
     if (!pick) return;
     const idx = parseInt(pick, 10) - 1;
     if (!Number.isFinite(idx) || idx < 0 || idx >= userFolders.length) {
@@ -719,7 +718,7 @@
     if (details) {
       details.addEventListener('click', (e) => {
         e.preventDefault();
-        alert(details.getAttribute('title') || '');
+        notify(details.getAttribute('title') || '');
       });
     }
   }

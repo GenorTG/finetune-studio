@@ -327,7 +327,7 @@ async function startExport() {
   const runRadio = document.querySelector('input[name="export-run"]:checked');
   if (!runRadio) {
     if (window.fts && window.fts.notify) fts.notify('Select a run first', 'error');
-    else alert('Select a run first');
+    else fts.notify('Select a run first', 'error');
     return;
   }
   const runId = runRadio.value;
@@ -337,7 +337,7 @@ async function startExport() {
   if (needsMerge && !baseModel) {
     const msg = 'Adapter-only run: set a compatible 16-bit base model before export';
     if (window.fts && window.fts.notify) fts.notify(msg, 'error');
-    else alert(msg);
+    else fts.notify(msg, 'error');
     return;
   }
 
@@ -346,7 +346,7 @@ async function startExport() {
   if (formats.length === 0) {
     const msg = 'Select at least one available export format (GGUF/GPTQ stay disabled until converters are installed)';
     if (window.fts && window.fts.notify) fts.notify(msg, 'error');
-    else alert(msg);
+    else fts.notify(msg, 'error');
     return;
   }
   // Never POST disabled formats even if the DOM was tampered with.

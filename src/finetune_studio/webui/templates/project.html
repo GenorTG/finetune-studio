@@ -448,7 +448,7 @@
       ? await window.fts.confirm('Move ' + name + ' to trash?', {
           title: 'Confirm delete', danger: true, okText: 'Move to trash',
         })
-      : confirm('Move ' + name + ' to trash?');
+      : await window.fts.confirm('Move ' + name + ' to trash?', {danger: true, okText: 'Move to trash'});
     if (!ok) return;
     try {
       await fetch('/api/projects/' + PID + '/files/' + fid, { method: 'DELETE' });

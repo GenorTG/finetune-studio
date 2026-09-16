@@ -519,7 +519,7 @@
   };
 
   window.clearAllSources = async function() {
-    if (!confirm('Remove ALL sources? You will need to rebuild the corpus.')) return;
+    if (!await fts.confirm('Remove ALL sources? You will need to rebuild the corpus.', {danger: true, okText: 'Remove all'})) return;
     try {
       const r = await fetch('/api/projects/' + PID + '/rag/sources', { method: 'DELETE' });
       const d = await r.json();
@@ -732,7 +732,7 @@
   };
 
   window.wipeCorpus = async function() {
-    if (!confirm('Delete the entire RAG corpus for this project?')) return;
+    if (!await fts.confirm('Delete the entire RAG corpus for this project?', {danger: true, okText: 'Delete corpus'})) return;
     try {
       // rebuild with reset=true wipes the corpus dir; we only need the wipe
       // when there are no files — fall back to clearing sources.

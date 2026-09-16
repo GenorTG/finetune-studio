@@ -138,8 +138,7 @@
   }
 
   async function confirmDanger(msg, opts) {
-    if (window.fts && window.fts.confirm) return window.fts.confirm(msg, opts || {});
-    return confirm(msg);
+    return window.fts.confirm(msg, opts || {});
   }
 
   function apiGet(url) {

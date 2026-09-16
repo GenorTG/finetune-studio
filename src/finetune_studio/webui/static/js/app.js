@@ -67,6 +67,35 @@
     });
   }
 
+  function promptDialog(message, initialValue) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "modal-overlay";
+      overlay.innerHTML = `
+        <div class="modal-dialog" role="dialog" aria-modal="true">
+          <div class="modal-head">Input required</div>
+          <div class="modal-body"><p>${message}</p>
+            <input class="input" data-fts-prompt-input type="text">
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn" data-fts-modal="cancel">Cancel</button>
+            <button type="button" class="btn primary" data-fts-modal="ok">OK</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const input = overlay.querySelector("[data-fts-prompt-input]");
+      input.value = initialValue || "";
+      input.focus();
+      const cleanup = (value) => { overlay.remove(); resolve(value); };
+      overlay.querySelector("[data-fts-modal=cancel]").onclick = () => cleanup(null);
+      overlay.querySelector("[data-fts-modal=ok]").onclick = () => cleanup(input.value);
+      input.onkeydown = (event) => {
+        if (event.key === "Enter") cleanup(input.value);
+        if (event.key === "Escape") cleanup(null);
+      };
+    });
+  }
+
   // ── API ─────────────────────────────────────────────────────────────
   // ── Fetch helper: throw on non-2xx so callers can handle errors ──
   function _errorMessage(body, status) {
@@ -432,7 +461,7 @@
 
   // Page-swap hook called from spa.js after each navigation
   window.fts = {
-    notify, api, poll, subscribe, confirm: confirmDialog, init: delegate, formatJsTime,
+    notify, api, poll, subscribe, confirm: confirmDialog, prompt: promptDialog, init: delegate, formatJsTime,
     conn: { check: connCheck, start: connStart, stop: connStop },
     themeToggle,
   };

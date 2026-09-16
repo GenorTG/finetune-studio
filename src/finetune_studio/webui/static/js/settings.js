@@ -206,11 +206,11 @@
   const bApply = document.getElementById(UPD_BTN.update);
   const bRepair = document.getElementById(UPD_BTN.repair);
   if (bCheck) bCheck.addEventListener('click', () => updTrigger('check'));
-  if (bApply) bApply.addEventListener('click', () => {
-    if (confirm('Apply update? Pulls main, syncs deps, runs migrations and RESTARTS the service (~10s).')) updTrigger('update');
+  if (bApply) bApply.addEventListener('click', async () => {
+    if (await window.fts.confirm('Apply update? Pulls main, syncs deps, runs migrations and restarts the service (about 10s).', {danger: true, okText: 'Apply update'})) updTrigger('update');
   });
-  if (bRepair) bRepair.addEventListener('click', () => {
-    if (confirm('Repair recreates the Python venv from scratch — several minutes, then restarts the service. Continue?')) updTrigger('repair');
+  if (bRepair) bRepair.addEventListener('click', async () => {
+    if (await window.fts.confirm('Repair recreates the Python venv from scratch — several minutes, then restarts the service. Continue?', {danger: true, okText: 'Repair'})) updTrigger('repair');
   });
   updHistory();
   updTickSilent();  // resume the live view if an update is already running

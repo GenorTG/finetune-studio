@@ -1000,8 +1000,8 @@ async function flDeleteFile(fid, name) {
   } catch (e) { fts.notify('Delete failed: ' + e.message, 'error'); }
 }
 
-function flRenameFile(fid, currentName) {
-  const newName = prompt('Rename file:', currentName);
+async function flRenameFile(fid, currentName) {
+  const newName = await fts.prompt('Rename file:', currentName);
   if (!newName || newName === currentName) return;
   fetch('/api/projects/' + _flPid + '/files/' + fid + '/rename', {
     method: 'PATCH',
@@ -1410,7 +1410,7 @@ async function flRestoreFile(fid, name) {
 }
 
 async function flPurgeOne(fid) {
-  if (!confirm('Hard-delete this file from trash now?')) return;
+  if (!await fts.confirm('Hard-delete this file from trash now?', {danger: true, okText: 'Delete permanently'})) return;
   try {
     const r = await fetch('/api/projects/' + _flPid + '/files/' + fid + '/purge', { method: 'POST' });
     const d = await r.json().catch(() => ({}));
@@ -1431,7 +1431,7 @@ function flToggleTrash() {
 }
 
 async function flPromptCreateFolder() {
-  const name = prompt('New folder name:');
+  const name = await fts.prompt('New folder name:');
   if (!name) return;
   try {
     await fetch('/api/projects/' + _flPid + '/folders', {
@@ -1444,7 +1444,7 @@ async function flPromptCreateFolder() {
 }
 
 async function flPromptRenameFolder(fid, oldName) {
-  const name = prompt('Rename folder:', oldName);
+  const name = await fts.prompt('Rename folder:', oldName);
   if (!name || name === oldName) return;
   try {
     await fetch('/api/projects/' + _flPid + '/folders/' + fid, {
@@ -1457,7 +1457,7 @@ async function flPromptRenameFolder(fid, oldName) {
 }
 
 async function flDeleteFolder(fid, name) {
-  if (!confirm('Delete folder "' + name + '"? Files inside it survive (they become unfoldered).')) return;
+  if (!await fts.confirm('Delete folder "' + name + '"? Files inside it survive (they become unfoldered).', {danger: true, okText: 'Delete folder'})) return;
   try {
     await fetch('/api/projects/' + _flPid + '/folders/' + fid, { method: 'DELETE' });
     if (_flCurrentFolder === fid) _flCurrentFolder = null;

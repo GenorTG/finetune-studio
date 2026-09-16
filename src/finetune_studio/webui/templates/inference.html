@@ -363,7 +363,7 @@ async function loadModel() {
 }
 
 async function unloadModel() {
-  if (!confirm('Unload the model and free VRAM?')) return;
+  if (!await fts.confirm('Unload the model and free VRAM?', {danger: true, okText: 'Unload'})) return;
   const btn = $('unload-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Unloading…';
