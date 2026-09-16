@@ -180,3 +180,37 @@ def test_data_prep_page_has_upload_refresh_hooks(client: TestClient) -> None:
     assert "await flInit()" in body
     assert 'id="fl-files-body"' in body
     assert 'colspan="7"' in body
+
+
+def test_responsive_header_gutter_and_780_breakpoint() -> None:
+    """Header/tabs must shrink the absolute .sb-right reserve at mid widths."""
+    css = _CSS.read_text(encoding="utf-8")
+    assert "@media (max-width: 780px)" in css
+    assert "@media (max-width: 900px)" in css
+    assert "@media (max-width: 1280px)" in css
+    assert "margin-right: min(490px, 42vw)" in css
+    assert "margin-right: min(160px, 28vw)" in css
+    # Right-cluster chrome collapses so tabs keep a usable scrollport.
+    assert ".sb-right .conn-status { display: none; }" in css
+    assert ".sb-right .status-pill { display: none; }" in css
+
+
+def test_rag_docs_table_scroll_and_column_classes() -> None:
+    """RAG inventory must use fixed columns + scroll shell (not 110px ref-table first col)."""
+    css = _CSS.read_text(encoding="utf-8")
+    assert ".table-scroll" in css
+    assert "#rag-docs-table" in css
+    assert ".rag-col-name" in css
+    assert "min-width: 36rem" in css
+
+    rag = _RAG.read_text(encoding="utf-8")
+    assert "table-scroll rag-docs-scroll" in rag
+    assert 'id="rag-docs-table"' in rag
+    assert "rag-col-name" in rag
+    assert "cell-wrap" in rag
+    assert "rag-hits-table" in rag or "rag-hit-source" in rag
+
+
+def test_css_cache_bust_bumped() -> None:
+    base = _BASE.read_text(encoding="utf-8")
+    assert "app.css?v=17" in base

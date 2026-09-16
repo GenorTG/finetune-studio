@@ -28,12 +28,13 @@ OUT.mkdir(parents=True, exist_ok=True)
 DEFINED_RULES = [
     "(max-width: 480px)",
     "(max-width: 700px)",
+    "(max-width: 780px)",
     "(max-width: 900px)",
     "(max-width: 1100px)",
     "(max-width: 1280px)",
 ]
 
-BREAKPOINTS = [320, 375, 414, 480, 600, 768, 900, 1024, 1100, 1200, 1280, 1440, 1920]
+BREAKPOINTS = [320, 375, 414, 480, 600, 768, 780, 900, 1024, 1100, 1200, 1280, 1440, 1920]
 
 # Pages to screenshot at 1200px (single canonical viewport)
 PAGES_1200 = [

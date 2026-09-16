@@ -30,6 +30,7 @@ BASE = "http://fan-dragon:7860/projects/264f8765/training?bust=bp"
 DEFINED_RULES = [
     "(max-width: 480px)",
     "(max-width: 700px)",
+    "(max-width: 780px)",
     "(max-width: 900px)",
     "(max-width: 1100px)",
     "(max-width: 1280px)",

@@ -16,6 +16,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from finetune_studio.data.rag_portable.source_labels import prettify_source_label
+
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["project-rag"])
 
@@ -97,10 +99,13 @@ def list_indexed_docs(pid: str) -> list[dict[str, Any]]:
                 for doc_id, group in df.groupby("document_id"):
                     did = str(doc_id)
                     fname = ""
+                    source_path = ""
                     if "filename" in group.columns and len(group):
                         fname = str(group["filename"].iloc[0] or "")
+                    if "source" in group.columns and len(group):
+                        source_path = str(group["source"].iloc[0] or "")
                     by_doc[did] = {
-                        "filename": fname or did,
+                        "filename": prettify_source_label(fname, source_path or None),
                         "chunks": len(group),
                     }
         except Exception as e:  # noqa: BLE001

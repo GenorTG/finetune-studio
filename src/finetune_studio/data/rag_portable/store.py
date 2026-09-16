@@ -10,26 +10,41 @@ import hashlib
 import logging
 import shutil
 import tarfile
+import tempfile
 import time
 import zipfile
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 
 from finetune_studio.data import shared_models as _sm
+from finetune_studio.data.rag_portable.bm25 import BM25Index
 from finetune_studio.data.rag_portable.constants import (
-    DEFAULT_EMBEDDER, DEFAULT_RERANKER, EMBEDDER_LOCAL_PREFIX, RERANKER_LOCAL_PREFIX,
+    DEFAULT_EMBEDDER,
+    DEFAULT_RERANKER,
+    EMBEDDER_LOCAL_PREFIX,
+    RERANKER_LOCAL_PREFIX,
     SCHEMA_VERSION,
 )
 from finetune_studio.data.rag_portable.embedders import get_embedder
-from finetune_studio.data.rag_portable.shared_refs import resolve_model_ref
-from finetune_studio.data.rag_portable.io import read_json, try_import_pandas, write_json
-from finetune_studio.data.rag_portable.bm25 import BM25Index
+from finetune_studio.data.rag_portable.io import (
+    read_json,
+    try_import_pandas,
+    write_json,
+)
 from finetune_studio.data.rag_portable.query import PortableRAGQuery
 from finetune_studio.data.rag_portable.schema import (
-    ChunkSettings, EmbeddingModelInfo, Manifest, RagSettings,
+    ChunkSettings,
+    Manifest,
+    RagSettings,
 )
+from finetune_studio.data.rag_portable.shared_refs import resolve_model_ref
+from finetune_studio.data.rag_portable.source_labels import (
+    display_name_for_path,
+    should_ingest_source_file,
+)
+
+_MODEL_DIR_NAMES = frozenset({"embedder", "reranker"})
 
 log = logging.getLogger(__name__)
 
@@ -54,10 +69,10 @@ class PortableRAG:
     # ── Build / ingest ──
 
     def build_from_directory(self, source_dir: str | Path, *,
-                              name: Optional[str] = None,
+                              name: str | None = None,
                               embedder: str = DEFAULT_EMBEDDER,
                               chunk_size: int = 400, overlap: int = 80,
-                              extensions: Optional[list] = None,
+                              extensions: list | None = None,
                               device: str = "cpu",
                               progress=None) -> dict:
         """Parse files in source_dir, chunk, embed, build BM25, write all artifacts."""
@@ -104,26 +119,32 @@ class PortableRAG:
         all_documents: list[dict] = []
 
         for f in files:
+            if not should_ingest_source_file(f):
+                continue
             try:
                 parsed = parser_parse(f)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 if progress:
                     progress(f"skipping {f.name}: parse error {e}")
                 continue
             text = parsed.get("text", "")
             if not text or not text.strip():
                 continue
-            doc_id = hashlib.md5(f"{f.name}:{len(text)}:{f.stat().st_size}".encode()).hexdigest()[:12]
+            display_name = display_name_for_path(f)
+            doc_id = hashlib.md5(
+                f"{display_name}:{len(text)}:{f.stat().st_size}".encode()
+            ).hexdigest()[:12]
             (self.dir / "sources" / f"{doc_id}.txt").write_text(text, encoding="utf-8")
             all_documents.append({"document_id": doc_id, "source": str(f),
-                                 "content_text_path": f"sources/{doc_id}.txt"})
+                                 "content_text_path": f"sources/{doc_id}.txt",
+                                 "filename": display_name})
             chunks = chunk_text(text, chunk_size=chunk_size, overlap=overlap,
-                                metadata={"source": str(f), "filename": f.name},
+                                metadata={"source": str(f), "filename": display_name},
                                 doc_id=doc_id)
             for c in chunks:
                 all_chunks.append({
                     "id": c.id, "document_id": doc_id, "chunk_index": c.chunk_index,
-                    "source": str(f), "filename": f.name, "text": c.text,
+                    "source": str(f), "filename": display_name, "text": c.text,
                     "metadata": c.metadata or {},
                 })
 
@@ -181,8 +202,8 @@ class PortableRAG:
     #     Use case: ship the corpus to another machine. Unpack, load, query.
     # ──
 
-    def bundle_models(self, embedder_ref: Optional[str] = None,
-                      reranker_ref: Optional[str] = None) -> dict:
+    def bundle_models(self, embedder_ref: str | None = None,
+                      reranker_ref: str | None = None) -> dict:
         """Copy models from the SHARED store INTO the corpus dir for export.
 
         After this call, the corpus is self-contained: a `tar.gz` of the dir
@@ -198,7 +219,7 @@ class PortableRAG:
             raise FileNotFoundError("build the corpus first")
         m = Manifest.from_json(read_json(self.manifest_path))
 
-        def _bundle_one(kind: str, current_ref: str, dest_name: str) -> Optional[str]:
+        def _bundle_one(kind: str, current_ref: str, dest_name: str) -> str | None:
             if not current_ref or not current_ref.startswith(f"shared:{kind}:"):
                 return None
             short_id = current_ref[len(f"shared:{kind}:"):]
@@ -273,19 +294,18 @@ class PortableRAG:
         write_json(self.manifest_path, m.to_json())
         return out
 
-    def export_bundle(self, out_path: Optional[str | Path] = None,
+    def export_bundle(self, out_path: str | Path | None = None,
                      fmt: str = "tar",
-                     name: Optional[str] = None,
+                     name: str | None = None,
                      include_models: bool = True) -> Path:
-        """Export the entire corpus as a self-contained archive.
+        """Export the corpus as an archive without mutating live corpus state.
 
         - `name`: filename stem (default: <corpus_dir_name>-bundle)
         - `fmt`: 'tar' (fast) or 'tar.gz' (compressed, slow for 2GB+)
-        - `include_models`: if True (default for portability use case),
-          copy the embedder + reranker from the shared store into the export
-          bundle so the recipient can run it offline. If False, the bundle
-          keeps `shared:...` references and is smaller but the recipient
-          needs to either have the same shared store OR fetch the model.
+        - `include_models`: if True, copy embedder + reranker into the *staged*
+          export tree only. If False, the archive keeps `shared:...` refs and
+          never includes ``embedder/`` or ``reranker/`` directories — even if a
+          prior with-models export left those dirs on disk.
 
         Returns the path to the written archive.
         """
@@ -296,37 +316,172 @@ class PortableRAG:
         else:
             out_path = Path(out_path)
 
-        # If including models, ensure they're locally bundled first
+        with tempfile.TemporaryDirectory(prefix="fts-rag-export-") as tmp:
+            stage_root = Path(tmp) / self.dir.name
+            self._stage_corpus_for_export(stage_root, include_models=include_models)
+            out_path = self._archive_directory(stage_root, out_path, fmt=fmt)
+        return out_path
+
+    def _stage_corpus_for_export(
+        self, stage: Path, *, include_models: bool
+    ) -> None:
+        """Copy corpus into *stage* for archiving; never mutates ``self.dir``."""
+        stage.mkdir(parents=True, exist_ok=True)
+        for item in self.dir.iterdir():
+            if item.name in _MODEL_DIR_NAMES:
+                # Always omit live staged models from the base copy; with-models
+                # re-adds them below from shared/local sources into *stage* only.
+                continue
+            dest = stage / item.name
+            if item.is_dir():
+                shutil.copytree(item, dest, symlinks=False)
+            elif item.is_file():
+                shutil.copy2(item, dest)
+
+        mpath = stage / "manifest.json"
+        if not mpath.exists():
+            return
+        m = Manifest.from_json(read_json(mpath))
+        shared_paths = dict((m.extra or {}).get("shared_model_paths") or {})
+
         if include_models:
-            self.bundle_models()  # idempotent
+            self._copy_models_into_stage(stage, m, shared_paths)
+        else:
+            self._ensure_shared_refs_in_manifest(m, shared_paths)
+            write_json(mpath, m.to_json())
 
-        # Resolve symlinks so the archive contains real files (so unshared
-        # / portable). Symlinks wouldn't survive being moved to another box.
-        archive_root = self.dir
-        symlinks_resolved = False
-        # (our shared-store model has no symlinks — files are copied into corpus)
+    def _copy_models_into_stage(
+        self,
+        stage: Path,
+        m: Manifest,
+        shared_paths: dict,
+    ) -> None:
+        """Copy embedder/reranker into *stage* and point manifest at them."""
+        def _src_for(kind: str, current_ref: str) -> Path | None:
+            if current_ref and current_ref.startswith(f"shared:{kind}:"):
+                short_id = current_ref[len(f"shared:{kind}:"):]
+                try:
+                    return Path(_sm.resolve(short_id, kind))
+                except Exception as e:  # noqa: BLE001
+                    log.debug(
+                        "shared %s resolve failed for %s: %s",
+                        kind,
+                        short_id,
+                        e,
+                    )
+            if current_ref and current_ref.startswith(
+                EMBEDDER_LOCAL_PREFIX if kind == "embedder" else RERANKER_LOCAL_PREFIX
+            ):
+                local = Path(current_ref.split(":", 1)[1])
+                if local.exists():
+                    return local
+            live = self.dir / ("embedder" if kind == "embedder" else "reranker")
+            if live.exists():
+                return live
+            hint = shared_paths.get(kind)
+            if hint and Path(hint).exists():
+                return Path(hint)
+            return None
 
+        emb_src = _src_for("embedder", m.embedding_model.name or m.rag_settings.embedder)
+        rr_src = _src_for("reranker", m.rag_settings.reranker)
+
+        if emb_src is not None:
+            dest = stage / "embedder"
+            if dest.exists():
+                shutil.rmtree(dest)
+            shutil.copytree(emb_src, dest, symlinks=False)
+            ref = f"{EMBEDDER_LOCAL_PREFIX}{dest.resolve()}"
+            m.embedding_model.name = ref
+            m.rag_settings.embedder = ref
+        else:
+            self._ensure_shared_refs_in_manifest(m, shared_paths, kinds=("embedder",))
+
+        if rr_src is not None:
+            dest = stage / "reranker"
+            if dest.exists():
+                shutil.rmtree(dest)
+            shutil.copytree(rr_src, dest, symlinks=False)
+            ref = f"{RERANKER_LOCAL_PREFIX}{dest.resolve()}"
+            m.rag_settings.reranker = ref
+        else:
+            self._ensure_shared_refs_in_manifest(m, shared_paths, kinds=("reranker",))
+
+        m.updated_at = time.time()
+        write_json(stage / "manifest.json", m.to_json())
+
+    def _ensure_shared_refs_in_manifest(
+        self,
+        m: Manifest,
+        shared_paths: dict,
+        kinds: tuple[str, ...] = ("embedder", "reranker"),
+    ) -> None:
+        """Rewrite local model refs back to ``shared:...`` for slim exports."""
+        for kind in kinds:
+            if kind == "embedder":
+                current = m.embedding_model.name or m.rag_settings.embedder or ""
+                local_prefix = EMBEDDER_LOCAL_PREFIX
+            else:
+                current = m.rag_settings.reranker or ""
+                local_prefix = RERANKER_LOCAL_PREFIX
+
+            if current.startswith(f"shared:{kind}:"):
+                continue
+
+            shared_ref: str | None = None
+            hint = shared_paths.get(kind)
+            if hint:
+                short_id = Path(hint).name
+                if short_id:
+                    shared_ref = f"shared:{kind}:{short_id}"
+            if shared_ref is None and current.startswith(local_prefix):
+                # Last resort: keep HF-style name if we never registered shared paths
+                shared_ref = None
+
+            if shared_ref:
+                if kind == "embedder":
+                    m.embedding_model.name = shared_ref
+                    m.rag_settings.embedder = shared_ref
+                else:
+                    m.rag_settings.reranker = shared_ref
+            elif current.startswith(local_prefix):
+                # Drop absolute local path so the archive does not claim a
+                # machine-specific embedder_local path without shipping weights.
+                if kind == "embedder":
+                    m.embedding_model.name = DEFAULT_EMBEDDER
+                    m.rag_settings.embedder = DEFAULT_EMBEDDER
+                else:
+                    m.rag_settings.reranker = DEFAULT_RERANKER
+
+        m.updated_at = time.time()
+
+    def _archive_directory(
+        self, archive_root: Path, out_path: Path, *, fmt: str
+    ) -> Path:
+        """Write *archive_root* to *out_path* in the requested format."""
         if fmt == "tar.gz":
             if not str(out_path).endswith(".tar.gz"):
-                out_path = out_path.with_suffix(".tar.gz")
+                # with_suffix(".tar.gz") would yield ".tar.gz" incorrectly on
+                # stems that already end in ".tar"; build the name explicitly.
+                out_path = Path(str(out_path) + ".tar.gz")
             with tarfile.open(out_path, "w:gz") as tar:
-                tar.add(str(archive_root), arcname=self.dir.name)
+                tar.add(str(archive_root), arcname=archive_root.name)
         elif fmt in ("tar", ""):
             if not str(out_path).endswith(".tar"):
                 out_path = out_path.with_suffix(".tar")
             with tarfile.open(out_path, "w") as tar:
-                tar.add(str(archive_root), arcname=self.dir.name)
+                tar.add(str(archive_root), arcname=archive_root.name)
         elif fmt == "zip":
             if not str(out_path).endswith(".zip"):
                 out_path = out_path.with_suffix(".zip")
+            parent = archive_root.parent
             with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as zf:
-                for p in self.dir.rglob("*"):
+                for p in archive_root.rglob("*"):
                     if p.is_file():
-                        zf.write(p, p.relative_to(self.dir.parent))
+                        zf.write(p, p.relative_to(parent))
         else:
             raise ValueError(f"Unknown format: {fmt}")
         return out_path
-
     def _write_readme(self, manifest: Manifest) -> None:
         d = self.dir
         readme = f"""# {manifest.name} -- portable RAG corpus (v{manifest.version})
@@ -442,7 +597,7 @@ python -m finetune_studio.data.rag rebuild-vectors /path/to/corpus [--embedder N
             })
         return sources
 
-    def rebuild_vectors(self, embedder: Optional[str] = None, device: str = "cpu") -> dict:
+    def rebuild_vectors(self, embedder: str | None = None, device: str = "cpu") -> dict:
         if not self.exists():
             raise FileNotFoundError(self.dir)
         pd = try_import_pandas()

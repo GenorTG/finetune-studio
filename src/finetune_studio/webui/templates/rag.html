@@ -142,24 +142,25 @@
   <div id="rag-docs-body">
     {% set docs = indexed_docs | default([]) %}
     {% if docs %}
-    <table class="ref-table" id="rag-docs-table">
+    <div class="table-scroll rag-docs-scroll">
+    <table class="table ref-table" id="rag-docs-table">
       <thead>
         <tr>
-          <th>Doc name</th>
-          <th>Type</th>
-          <th>Chunks</th>
-          <th>Status</th>
-          <th>Last indexed</th>
-          <th>Actions</th>
+          <th class="rag-col-name">Doc name</th>
+          <th class="rag-col-type">Type</th>
+          <th class="rag-col-chunks">Chunks</th>
+          <th class="rag-col-status">Status</th>
+          <th class="rag-col-indexed">Last indexed</th>
+          <th class="rag-col-actions">Actions</th>
         </tr>
       </thead>
       <tbody>
         {% for d in docs %}
         <tr data-doc-id="{{ d.id }}">
-          <td class="mono">{{ d.name }}</td>
-          <td class="dim text-xs">{{ d.mime }}</td>
-          <td>{{ d.chunks }}</td>
-          <td>
+          <td class="mono cell-wrap rag-col-name" title="{{ d.name }}">{{ d.name }}</td>
+          <td class="dim text-xs rag-col-type">{{ d.mime }}</td>
+          <td class="rag-col-chunks">{{ d.chunks }}</td>
+          <td class="rag-col-status">
             {% if d.status == 'indexed' %}
             <span class="pill solid-green">indexed</span>
             {% elif d.status == 'pending' %}
@@ -168,8 +169,8 @@
             <span class="pill solid-rose">error</span>
             {% endif %}
           </td>
-          <td class="dim text-xs">{{ d.last_indexed or '—' }}</td>
-          <td class="flex gap-1">
+          <td class="dim text-xs rag-col-indexed">{{ d.last_indexed or '—' }}</td>
+          <td class="flex gap-1 rag-col-actions">
             <button class="btn small" data-rebuild="{{ d.id }}" onclick="rebuildDoc(this)" title="Rebuild corpus (whole project)">Rebuild</button>
             <button class="btn small ghost" data-view="{{ d.id }}" onclick="viewDocChunks('{{ d.id }}', {{ d.name | tojson }})" title="View chunks">View chunks</button>
           </td>
@@ -177,6 +178,7 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
     <p class="text-sm muted" id="rag-docs-empty">No documents indexed yet. Upload files via the data page or chat to populate the RAG store.</p>
     {% endif %}
@@ -262,7 +264,7 @@
       <button id="bundle-btn" onclick="startBundleDownload()" class="btn primary" style="width:100%;" title="Bundle the corpus (chunks + vectors + BM25 index + optional models) into a single archive. Run 'finetune-studio serve' on the recipient machine to use it.">Download</button>
     </div>
   </div>
-  <p class="text-xs dim">"Include models" bakes embedder + reranker into the bundle (~2 GB extra) so the recipient can run offline. Uncheck for a small bundle (~30 KB).</p>
+  <p class="text-xs dim">"Include models" bakes embedder + reranker into the download only (~2 GB extra). The live corpus is never mutated. Uncheck for a small text-only bundle (~30 KB) that always omits staged model weights.</p>
   <span id="bundle-status" class="block mt-2 text-xs dim"></span>
 </div>
 
@@ -328,24 +330,27 @@
         + 'No documents indexed yet. Upload files via the data page or chat to populate the RAG store.</p>';
       return;
     }
-    body.innerHTML = '<table class="ref-table" id="rag-docs-table"><thead><tr>'
-      + '<th>Doc name</th><th>Type</th><th>Chunks</th><th>Status</th><th>Last indexed</th><th>Actions</th>'
+    body.innerHTML = '<div class="table-scroll rag-docs-scroll">'
+      + '<table class="table ref-table" id="rag-docs-table"><thead><tr>'
+      + '<th class="rag-col-name">Doc name</th><th class="rag-col-type">Type</th>'
+      + '<th class="rag-col-chunks">Chunks</th><th class="rag-col-status">Status</th>'
+      + '<th class="rag-col-indexed">Last indexed</th><th class="rag-col-actions">Actions</th>'
       + '</tr></thead><tbody>'
       + list.map(function(d) {
           const id = esc(d.id);
           const nameJson = JSON.stringify(d.name || d.id);
           return '<tr data-doc-id="' + id + '">'
-            + '<td class="mono">' + esc(d.name) + '</td>'
-            + '<td class="dim text-xs">' + esc(d.mime || 'text/plain') + '</td>'
-            + '<td>' + (d.chunks || 0) + '</td>'
-            + '<td>' + statusPill(d.status) + '</td>'
-            + '<td class="dim text-xs">' + esc(d.last_indexed || '—') + '</td>'
-            + '<td class="flex gap-1">'
+            + '<td class="mono cell-wrap rag-col-name" title="' + esc(d.name) + '">' + esc(d.name) + '</td>'
+            + '<td class="dim text-xs rag-col-type">' + esc(d.mime || 'text/plain') + '</td>'
+            + '<td class="rag-col-chunks">' + (d.chunks || 0) + '</td>'
+            + '<td class="rag-col-status">' + statusPill(d.status) + '</td>'
+            + '<td class="dim text-xs rag-col-indexed">' + esc(d.last_indexed || '—') + '</td>'
+            + '<td class="flex gap-1 rag-col-actions">'
             + '<button class="btn small" data-rebuild="' + id + '" onclick="rebuildDoc(this)" title="Rebuild corpus (whole project)">Rebuild</button>'
             + '<button class="btn small ghost" onclick=\'viewDocChunks(' + JSON.stringify(d.id) + ', ' + nameJson + ')\' title="View chunks">View chunks</button>'
             + '</td></tr>';
         }).join('')
-      + '</tbody></table>';
+      + '</tbody></table></div>';
   }
 
   window.saveSettings = async function() {
@@ -526,17 +531,19 @@
         results.innerHTML = '<p class="text-sm muted">No matching chunks.</p>';
         return;
       }
-      let html = '<table class="ref-table"><thead><tr>'
-        + '<th>#</th><th>Score</th><th>Source</th><th>Preview</th></tr></thead><tbody>';
+      let html = '<div class="table-scroll"><table class="table ref-table rag-hits-table"><thead><tr>'
+        + '<th class="rag-hit-rank">#</th><th class="rag-hit-score">Score</th>'
+        + '<th class="rag-hit-source">Source</th><th class="rag-hit-preview">Preview</th></tr></thead><tbody>';
       hits.forEach(function(h, i) {
         html += '<tr>'
-          + '<td class="mono">' + (h.rank != null ? h.rank : (i + 1)) + '</td>'
-          + '<td class="mono">' + (h.score != null ? Number(h.score).toFixed(3) : '—') + '</td>'
-          + '<td class="mono text-xs">' + esc(h.filename || h.source || '—') + '</td>'
-          + '<td class="text-xs">' + esc((h.text || h.preview || '').slice(0, 280)) + '</td>'
+          + '<td class="mono rag-hit-rank">' + (h.rank != null ? h.rank : (i + 1)) + '</td>'
+          + '<td class="mono rag-hit-score">' + (h.score != null ? Number(h.score).toFixed(3) : '—') + '</td>'
+          + '<td class="mono text-xs cell-wrap rag-hit-source" title="' + esc(h.filename || h.source || '') + '">'
+          + esc(h.filename || h.source || '—') + '</td>'
+          + '<td class="text-xs cell-wrap rag-hit-preview">' + esc((h.text || h.preview || '').slice(0, 280)) + '</td>'
           + '</tr>';
       });
-      html += '</tbody></table>';
+      html += '</tbody></table></div>';
       html += '<details class="mt-2"><summary class="text-xs muted">Debug JSON</summary>'
         + '<pre class="mono text-xs" style="max-height:200px;overflow:auto;white-space:pre-wrap;margin:6px 0 0;">'
         + esc(JSON.stringify(d, null, 2)) + '</pre></details>';

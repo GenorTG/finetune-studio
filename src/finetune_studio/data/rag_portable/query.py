@@ -12,6 +12,7 @@ from finetune_studio.data.rag_portable.bm25 import BM25Index
 from finetune_studio.data.rag_portable.rerankers import get_reranker
 from finetune_studio.data.rag_portable.rrf import rrf_fuse
 from finetune_studio.data.rag_portable.schema import Manifest
+from finetune_studio.data.rag_portable.source_labels import prettify_source_label
 
 
 class PortableRAGQuery:
@@ -79,14 +80,19 @@ class PortableRAGQuery:
         results = []
         for rank, (cid, sc) in enumerate(candidates, start=1):
             i = self.idx_map[cid]
+            raw_filename = self.chunks.iloc[i]["filename"]
+            raw_source = self.chunks.iloc[i]["source"]
             results.append({
                 "rank": rank, "chunk_id": cid, "score": float(sc),
                 "rrf_score": float(sc),
                 "dense_score": float(dense_scores[i]),
                 "bm25_score": float(self.bm25.score(query)[i]) if use_hybrid else 0.0,
                 "text": self.chunks.iloc[i]["text"],
-                "source": self.chunks.iloc[i]["source"],
-                "filename": self.chunks.iloc[i]["filename"],
+                "source": raw_source,
+                "filename": prettify_source_label(
+                    str(raw_filename) if raw_filename is not None else "",
+                    raw_source,
+                ),
                 "document_id": self.chunks.iloc[i]["document_id"],
                 "chunk_index": int(self.chunks.iloc[i]["chunk_index"]),
             })
@@ -125,9 +131,18 @@ class PortableRAGQuery:
         sources = []
         for f in sorted(sources_dir.glob("*.txt")):
             doc_id = f.stem
+            raw_name = doc_to_filename.get(doc_id, doc_id)
+            raw_source = None
+            if self.chunks is not None and len(self.chunks) > 0:
+                rows = self.chunks[self.chunks["document_id"].astype(str) == str(doc_id)]
+                if len(rows):
+                    raw_source = rows.iloc[0].get("source")
             sources.append({
                 "id": doc_id,
-                "filename": doc_to_filename.get(doc_id, doc_id),
+                "filename": prettify_source_label(
+                    str(raw_name) if raw_name is not None else "",
+                    raw_source,
+                ),
                 "size": f.stat().st_size,
             })
         return sources
@@ -137,7 +152,8 @@ class PortableRAGQuery:
         total = 0
         for r in results:
             score_str = r.get("ce_score") if "ce_score" in r else r.get("rrf_score", 0)
-            block = f"[{r['rank']}] (source: {r['source']}, score {score_str:.3f})\n{r['text']}"
+            label = r.get("filename") or r.get("source") or "source"
+            block = f"[{r['rank']}] (source: {label}, score {score_str:.3f})\n{r['text']}"
             if total + len(block) > max_chars:
                 break
             blocks.append(block)

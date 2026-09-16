@@ -915,6 +915,56 @@ body::before {
 .table .meta { color: var(--text-muted); font-size: 11.5px; }
 .table .num { font-variant-numeric: tabular-nums; font-family: "VT323", monospace; font-size: 16px; }
 
+/* Horizontally scrollable table shell — keeps th/td columns aligned while
+   allowing narrow viewports to reach Actions without blowing #content width. */
+.table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.table-scroll::-webkit-scrollbar { height: 6px; }
+.table-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 2px;
+}
+
+/* RAG inventory / hits — override .ref-table's 110px first-col (settings k/v) */
+#rag-docs-table,
+.rag-hits-table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 36rem;
+}
+#rag-docs-table th,
+#rag-docs-table td,
+.rag-hits-table th,
+.rag-hits-table td {
+  overflow: hidden;
+  vertical-align: top;
+}
+#rag-docs-table td:first-child,
+.ref-table#rag-docs-table td:first-child {
+  width: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+#rag-docs-table .rag-col-name { width: 32%; }
+#rag-docs-table .rag-col-type { width: 14%; }
+#rag-docs-table .rag-col-chunks { width: 8%; }
+#rag-docs-table .rag-col-status { width: 12%; }
+#rag-docs-table .rag-col-indexed { width: 14%; }
+#rag-docs-table .rag-col-actions { width: 20%; white-space: nowrap; }
+.rag-hits-table .rag-hit-rank { width: 2.5rem; }
+.rag-hits-table .rag-hit-score { width: 4.5rem; }
+.rag-hits-table .rag-hit-source { width: 28%; }
+.rag-hits-table .rag-hit-preview { width: auto; }
+
 /* ===== Project card list ===== */
 .proj-list { display: flex; flex-direction: column; gap: 8px; }
 .proj-card {
@@ -3450,6 +3500,8 @@ body::before {
     flex-wrap: nowrap !important;
     overflow-x: auto !important;
     overflow-y: hidden;
+    /* Shrink right gutter — full 490px reserve overflows mid widths. */
+    margin-right: min(490px, 42vw);
   }
   .sb-group:not(.sb-group-tools) { flex-shrink: 0; }
   .sb-group-tools {
@@ -3460,10 +3512,16 @@ body::before {
     margin-top: 0;
     padding-left: 8px;
   }
+  .sb-right .version { display: none; }
 }
 @media (max-width: 1100px) {
   .sb-brand .sb-prompt { display: none; }
   .sb-active-bar .sb-active-prefix { font-size: 11px; }
+  .sb-tabs {
+    padding-left: 48px;
+    margin-right: min(360px, 38vw);
+  }
+  .sb-right .conn-label { display: none; }
 }
 @media (max-width: 900px) {
   /* Tabs stay on one horizontal scrollable line. */
@@ -3471,6 +3529,8 @@ body::before {
     flex-wrap: nowrap !important;
     overflow-x: auto !important;
     overflow-y: hidden;
+    margin-right: min(280px, 36vw);
+    padding-left: 46px;
   }
   .sb-group-tools {
     flex-basis: auto;
@@ -3480,10 +3540,28 @@ body::before {
     margin-top: 0;
     padding-left: 8px;
   }
-  .content { padding: 12px; }
+  .sb-right .status-label { display: none; }
+  .content { padding: 12px; overflow-x: hidden; }
   .grid.grid-2 { grid-template-columns: 1fr; }
   .activity { width: min(420px, 100vw); }
   .run-detail .grid-2 { grid-template-columns: 1fr; }
+  #rag-docs-table,
+  .rag-hits-table { min-width: 32rem; }
+}
+@media (max-width: 780px) {
+  /* Tight mid-mobile: leave room for theme + activity + palette only. */
+  .sb-tabs {
+    margin-right: min(160px, 28vw);
+    padding-left: 40px;
+  }
+  .sb-right {
+    gap: 4px;
+    right: 8px;
+    max-width: 46%;
+  }
+  .sb-right .conn-status { display: none; }
+  .sb-right .status-pill { display: none; }
+  .table-scroll { max-width: 100%; }
 }
 @media (max-width: 700px) {
   /* tmux strip stays HORIZONTAL + scrollable on mobile — no vertical rail.
@@ -3495,6 +3573,7 @@ body::before {
     overflow-y: hidden;
     width: 100%;
     padding-left: 46px;  /* room for the absolute FS logo only */
+    margin-right: min(140px, 30vw);
   }
   .sb-group {
     flex: 0 0 auto;
