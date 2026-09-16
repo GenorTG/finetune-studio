@@ -9,21 +9,43 @@
 {% block content %}
 <div class="page-head">
   <h1>Data Prep — {{ project.name }}</h1>
-  <div class="sub">Files you upload here are chunked + indexed, then mined by
-    <span class="mono" id="dp-helper-label">{{ helper_label }}</span>
-    (provider <code>{{ helper_provider_id }}</code>) via the agentic chat on the
-    <a href="/projects/{{ pid }}/chat?mode=agent" data-link>Chat</a> tab into a final
-    <code>.jsonl</code> training file. Prep jobs require that helper — they will not
-    silently use a different loaded model. RAW uploads are immutable per-MIME;
-    converted outputs land in your own folders.</div>
+  <div class="sub">
+    Three layers: <b>Uploaded files</b> (immutable uploads),
+    <b>Parsed sources</b> (text ready for prep / RAG embed),
+    and <b>Training / Q&amp;A output</b> (pairs for fine-tuning).
+    Helper: <span class="mono" id="dp-helper-label">{{ helper_label }}</span>
+    (provider <code>{{ helper_provider_id }}</code>).
+    Agentic curation lives on the
+    <a href="/projects/{{ pid }}/chat?mode=agent" data-link>Chat</a> tab.
+  </div>
 </div>
 
-<!-- ── File library (Stage 1B) ──────────────────────────────────────────── -->
-<div class="card mb-6">
+<div class="card mb-4" id="dp-workflow">
   <div class="card-head">
     <div>
-      <div class="card-title">File library</div>
-      <div class="card-sub">Drag files in, organise into folders, hand-edit, then build the Q&amp;A dataset with the agentic chat.</div>
+      <div class="card-title">Workflow</div>
+      <div class="card-sub">Upload → Parse → Prepare/QA → (optional) Embed on RAG → Train</div>
+    </div>
+    <a href="/projects/{{ pid }}/rag" class="btn" data-link id="dp-cta-rag">Open RAG workspace →</a>
+  </div>
+  <ol class="rag-workflow-steps" aria-label="Data prep workflow">
+    <li><b>Upload</b> files into the library below</li>
+    <li><b>Parse</b> / promote into parsed sources</li>
+    <li><b>Prepare / QA</b> with a prep job or Agent chat</li>
+    <li>Export approved pairs to Training, or <a href="/projects/{{ pid }}/rag" data-link>embed on RAG</a></li>
+  </ol>
+</div>
+
+<!-- ── Uploaded files (Stage 1B) ──────────────────────────────────────────── -->
+<div class="card mb-6" id="dp-uploaded-files">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Uploaded files</div>
+      <div class="card-sub">
+        Raw uploads in the project file library. Drag files in, organise into folders,
+        hand-edit. Parsing / promotion creates <b>Parsed sources</b> (next section) —
+        uploads themselves stay immutable per-MIME.
+      </div>
     </div>
     <div class="flex gap-2">
       <button class="btn" id="fl-toggle-trash" onclick="flToggleTrash()">Show trash</button>
@@ -58,6 +80,7 @@
         </div>
       </div>
       <div id="fl-drop-zone" class="fl-drop">
+        <div class="table-scroll">
         <table class="fl-table">
           <thead>
             <tr>
@@ -74,6 +97,7 @@
             <tr><td colspan="7" class="dim text-xs" style="text-align:center;padding:32px">Loading…</td></tr>
           </tbody>
         </table>
+        </div>
         <div id="fl-drop-hint" class="fl-drop-hint">Drop files here to upload</div>
       </div>
       <pre id="fl-upload-status" class="fl-upload-status text-xs mt-2" role="status" aria-live="polite" hidden style="white-space:pre-wrap;margin:8px 0 0"></pre>
@@ -82,15 +106,59 @@
   </div>
 </div>
 
+<!-- ── Parsed sources ────────────────────────────────────────────────────── -->
+<div class="card mb-6" id="dp-parsed-sources">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Parsed sources</div>
+      <div class="card-sub">
+        Text ready for prep jobs and RAG embed. Distinct from raw
+        <b>Uploaded files</b> above and from indexed corpus chunks on the RAG page.
+      </div>
+    </div>
+    <button class="btn small" type="button" onclick="flRefreshSources()">Refresh</button>
+  </div>
+  <div id="dp-parsed-list" class="text-sm">
+    {% if sources %}
+    <div class="table-scroll">
+    <table class="table compact" id="dp-parsed-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Chars</th>
+          <th>Chunks</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sources %}
+        <tr>
+          <td class="mono cell-wrap">{{ s.name }}</td>
+          <td class="num">{{ s.char_count }}</td>
+          <td class="num">{{ s.chunk_count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="dp-empty" id="dp-parsed-empty">
+      No parsed sources yet. Upload a .txt/.md under <b>Uploaded files</b>
+      (auto-promoted), or click <b>Use as source</b> / use the promote control
+      in the prep form below.
+    </p>
+    {% endif %}
+  </div>
+</div>
+
 <!-- ── Existing prep job form ────────────────────────────────────────────── -->
-<div class="card mb-6">
+<div class="card mb-6" id="dp-prep-job">
   <div class="card-head">
     <div>
       <div class="card-title">Run a prep job</div>
-      <div class="card-sub">Pick a source, choose chunking + difficulty, hit start.
+      <div class="card-sub">Pick a <b>Parsed source</b>, choose chunking + difficulty, hit start.
         Uses <b>{{ helper_label }}</b> only — load that provider first (Inference or
         <code>/api/providers/{{ helper_provider_id }}/load</code>). Drafts land in
-        <i>Prepped Q&amp;A</i> below — then take them to the Chat tab in Agent mode to curate + persist.</div>
+        <i>Training / Q&amp;A output</i> below — then take them to the Chat tab in Agent mode to curate + persist.</div>
     </div>
   </div>
 
@@ -169,8 +237,12 @@
 <div class="card mb-6" id="dp-review-card">
   <div class="card-head">
     <div>
-      <div class="card-title">Prepped Q&amp;A</div>
-      <div class="card-sub">Review pending pairs → approve → export to project datasets so Training can select them.</div>
+      <div class="card-title">Training / Q&amp;A output</div>
+      <div class="card-sub">
+        Prepped question–answer pairs for fine-tuning (Model workspace).
+        Review → approve → export to project datasets. This is not the RAG
+        indexed corpus — embed separately on the RAG page if you need retrieval.
+      </div>
     </div>
     <button class="btn small" type="button" id="prep-results-refresh" onclick="prepRefreshResults()">Refresh</button>
   </div>
@@ -521,10 +593,39 @@ async function flLoadSources() {
     const r = await fetch('/api/projects/' + _flPid + '/data-prep/sources').then((r) => r.json());
     _flSources = r.sources || [];
     flRefreshSourceSelect();
+    flRenderParsedList();
   } catch (e) {
     console.error('flLoadSources', e);
     _flSources = [];
+    flRenderParsedList();
   }
+}
+
+function flRenderParsedList() {
+  const host = document.getElementById('dp-parsed-list');
+  if (!host) return;
+  const list = _flSources || [];
+  if (!list.length) {
+    host.innerHTML =
+      '<p class="dp-empty" id="dp-parsed-empty">' +
+      'No parsed sources yet. Upload a .txt/.md under <b>Uploaded files</b> ' +
+      '(auto-promoted), or click <b>Use as source</b> / use the promote control ' +
+      'in the prep form below.</p>';
+    return;
+  }
+  host.innerHTML =
+    '<div class="table-scroll"><table class="table compact" id="dp-parsed-table">' +
+    '<thead><tr><th>Name</th><th>Chars</th><th>Chunks</th></tr></thead><tbody>' +
+    list.map(function (s) {
+      return '<tr><td class="mono cell-wrap">' + escapeHtml(s.name || s.filename || s.id) +
+        '</td><td class="num">' + (s.char_count || 0) +
+        '</td><td class="num">' + (s.chunk_count || 0) + '</td></tr>';
+    }).join('') +
+    '</tbody></table></div>';
+}
+
+async function flRefreshSources() {
+  await flLoadSources();
 }
 
 async function flPrefetchConversions(files) {

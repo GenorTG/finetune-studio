@@ -3554,6 +3554,11 @@ body::before {
     margin-right: min(160px, 28vw);
     padding-left: 40px;
   }
+  .sb-tabs .sb-tab { font-size: 13px; padding: 6px 9px; }
+  .sb-tab-label { font-size: 13px; }
+  .sb-group-label { font-size: 11.5px; }
+  .workspace-subnav { font-size: 13px; gap: 0.5rem; padding: 0.4rem 0.75rem; }
+  .workspace-subnav .ws-switch { font-size: 13px; }
   .sb-right {
     gap: 4px;
     right: 8px;
@@ -3562,6 +3567,11 @@ body::before {
   .sb-right .conn-status { display: none; }
   .sb-right .status-pill { display: none; }
   .table-scroll { max-width: 100%; }
+  #rag-docs-table,
+  .rag-hits-table,
+  #fb-files-table,
+  .fl-table { min-width: 32rem; }
+  .rag-workflow-steps { font-size: 13px; flex-direction: column; gap: 0.25rem; }
 }
 @media (max-width: 700px) {
   /* tmux strip stays HORIZONTAL + scrollable on mobile — no vertical rail.
@@ -3726,15 +3736,15 @@ body::before {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.65rem;
-  padding: 0.45rem 1rem 0.55rem;
+  padding: 0.5rem 1rem 0.6rem;
   background: var(--bg-nav);
   border-bottom: 1px solid var(--border);
   font-family: "Share Tech Mono", monospace;
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--text-muted);
 }
 .workspace-subnav .ws-label {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -3744,10 +3754,10 @@ body::before {
 .workspace-subnav .ws-switch {
   color: var(--text-muted);
   text-decoration: none;
-  padding: 0.25rem 0.55rem;
+  padding: 0.3rem 0.65rem;
   border: 1px solid var(--border);
   font-weight: 600;
-  font-size: 13.5px;
+  font-size: 14px;
 }
 .workspace-subnav .ws-switch:hover { color: var(--accent); border-color: var(--accent); }
 .workspace-subnav .ws-switch.active {
@@ -3770,6 +3780,44 @@ body::before {
   font-weight: 700;
   border-bottom: 2px solid var(--accent);
 }
+
+/* RAG / data-prep workflow explainer */
+.rag-workflow-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.1rem;
+  margin: 0;
+  padding: 0 0 0 1.25rem;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text);
+}
+.rag-workflow-steps li { margin: 0.15rem 0; }
+.rag-workflow-steps a { color: var(--accent); }
+.page-head.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+.page-head .actions { flex-shrink: 0; }
+
+/* Project data / prep tables — keep headers aligned under horizontal scroll */
+#fb-files-table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 36rem;
+}
+#fb-files-table .fb-col-name { width: 28%; }
+#fb-files-table .fb-col-type { width: 12%; }
+#fb-files-table .fb-col-size { width: 10%; }
+#fb-files-table .fb-col-ver { width: 8%; }
+#fb-files-table .fb-col-uploaded { width: 14%; }
+#fb-files-table .fb-col-drift { width: 10%; }
+#fb-files-table .fb-col-actions { width: 14%; }
+.fl-table { min-width: 36rem; }
+#dp-parsed-table { table-layout: fixed; width: 100%; min-width: 20rem; }
 
 /* ── Verdict badges (bench / testing case tables) ───────────────── */
 .verdict-badge {

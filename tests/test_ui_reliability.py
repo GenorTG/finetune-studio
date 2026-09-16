@@ -35,12 +35,18 @@ def test_header_nav_css_readable_floor() -> None:
     assert ".sb-tabs .sb-tab" in css
     assert "font-size: 14px" in css
     assert ".workspace-subnav" in css
-    assert "font-size: 13.5px" in css
+    assert "font-size: 14px" in css
     assert ".ws-label" in css
     # Mid-width media query must not collapse labels to ≤11px again.
     assert ".sb-tab-label { font-size: 13px; }" in css
     assert ".sb-tab-label { font-size: 11px; }" not in css
     assert ".sb-tab-label { font-size: 10px; }" not in css
+    # 780px floor keeps tabs readable (not ≤11px).
+    assert "@media (max-width: 780px)" in css
+    block_780 = css.split("@media (max-width: 780px)", 1)[1].split("@media", 1)[0]
+    assert ".sb-tab-label { font-size: 13px; }" in block_780
+    assert "font-size: 11px" not in block_780
+    assert "font-size: 10px" not in block_780
 
 
 def test_base_workspace_label_and_aria_current() -> None:
@@ -55,17 +61,22 @@ def test_table_fixed_layout_and_empty_colspan() -> None:
     assert "table-layout: fixed" in css
     assert "text-overflow: ellipsis" in css
     assert ".table td[colspan]" in css or ".empty-row td" in css
+    assert "#fb-files-table" in css
+    assert ".fl-table { min-width: 36rem; }" in css
 
     dp = _DATA_PREP.read_text(encoding="utf-8")
     assert "table-layout: fixed" in dp
     assert 'class="fl-col-name"' in dp
     assert 'colspan="7"' in dp
     assert "empty-row" in dp
+    assert "table-scroll" in dp
 
     pdata = _PROJECT_DATA.read_text(encoding="utf-8")
     assert 'colspan="8"' in pdata
     assert "empty-row" in pdata
     assert "cell-wrap" in pdata
+    assert "table-scroll" in pdata
+    assert "Uploaded files" in pdata
 
 
 def test_upload_refresh_paints_before_prefetch() -> None:
@@ -213,4 +224,72 @@ def test_rag_docs_table_scroll_and_column_classes() -> None:
 
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=17" in base
+    assert "app.css?v=18" in base
+
+
+def test_rag_ia_workflow_and_cta(client: TestClient) -> None:
+    """RAG page must explain Upload→…→Test and link to Data Prep (no fake upload)."""
+    pid = _project(client)
+    r = client.get(f"/projects/{pid}/rag")
+    assert r.status_code == 200, r.text
+    body = r.text
+    assert 'id="rag-workflow"' in body
+    assert "Upload" in body and "Parse" in body and "Embed" in body and "Test" in body
+    assert 'id="rag-cta-data-prep"' in body
+    assert f'href="/projects/{pid}/data-prep"' in body
+    assert "Data Prep / Upload Sources" in body
+    assert "Indexed corpus documents" in body
+    assert "Build with AI" not in body
+    assert "agentic" not in body.lower()
+    assert "Upload new files on Data Prep" in body
+    assert "model weights" in body.lower()
+    assert "No documents indexed yet" in body
+    assert f"/projects/{pid}/data-prep" in body
+    # Numbered sections are unique and sequential
+    for title in (
+        "1. Corpus status",
+        "2. Build &amp; rebuild (embed)",
+        "3. Retrieval settings",
+        "4. Indexed corpus documents",
+        "5. Live test query",
+        "6. Chat with RAG",
+        "7. Self-contained export",
+        "8. Shared embedder / reranker library",
+    ):
+        assert title in body, title
+    assert body.count("5. Live test query") == 1
+    assert "5. Chat with RAG" not in body
+
+
+def test_data_prep_ia_sections(client: TestClient) -> None:
+    pid = _project(client)
+    r = client.get(f"/projects/{pid}/data-prep")
+    assert r.status_code == 200, r.text
+    body = r.text
+    assert 'id="dp-uploaded-files"' in body
+    assert "Uploaded files" in body
+    assert 'id="dp-parsed-sources"' in body
+    assert "Parsed sources" in body
+    assert "Training / Q&amp;A output" in body or "Training / Q&A output" in body
+    assert 'id="dp-parsed-empty"' in body or "No parsed sources yet" in body
+    assert f'href="/projects/{pid}/rag"' in body
+    assert "flRenderParsedList" in body or "flRefreshSources" in body
+
+
+def test_rag_workspace_active_on_rag_page(client: TestClient) -> None:
+    pid = _project(client)
+    r = client.get(f"/projects/{pid}/rag")
+    assert r.status_code == 200, r.text
+    body = r.text
+    assert 'class="ws-switch active"' in body or "ws-switch active" in body
+    assert 'aria-current="page"' in body
+    assert "RAG workspace" in body
+    assert "Model workspace" in body
+
+
+def test_sprites_rag_caption_not_embedding_corpus() -> None:
+    sprites = (
+        _ROOT / "src" / "finetune_studio" / "webui" / "static" / "js" / "sprites.js"
+    ).read_text(encoding="utf-8")
+    assert "EMBEDDING CORPUS" not in sprites
+    assert "RAG RETRIEVAL INDEX" in sprites

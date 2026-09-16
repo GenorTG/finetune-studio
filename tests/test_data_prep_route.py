@@ -84,15 +84,18 @@ def test_data_prep_route_renders_main_content(client):
     assert r.status_code == 200
     body = r.text
     # The data_prep.html template has these anchors in its main content.
-    assert "File library" in body, (
-        "Body is missing the File library section — the route is rendering "
+    assert "Uploaded files" in body, (
+        "Body is missing the Uploaded files section — the route is rendering "
         "the SPA 404 fallback instead of data_prep.html. See QABUG-016."
+    )
+    assert "Parsed sources" in body, (
+        "Body is missing the Parsed sources section — same QABUG-016 root cause."
     )
     assert "Run a prep job" in body, (
         "Body is missing the Run-a-prep-job form — same QABUG-016 root cause."
     )
-    assert "Prepped Q&amp;A" in body or "Prepped Q&A" in body, (
-        "Body is missing the Prepped Q&A list — same QABUG-016 root cause."
+    assert "Training / Q&amp;A output" in body or "Training / Q&A output" in body, (
+        "Body is missing the Training / Q&A output list — same QABUG-016 root cause."
     )
     # The prep form should be wired to /api/projects/{pid}/data-prep/start.
     assert f"/api/projects/{pid}/data-prep/start" in body, (

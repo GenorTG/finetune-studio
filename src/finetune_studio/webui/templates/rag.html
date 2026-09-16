@@ -16,32 +16,69 @@
 {% block content %}
 {% include "_resources.html" %}
 
-<div class="page-head">
-  <h1>RAG — Retrieval-Augmented Generation</h1>
-  <div class="sub">Build a searchable index from this project's parsed documents, then query it.</div>
+<div class="page-head row">
+  <div>
+    <h1>RAG — Retrieval-Augmented Generation</h1>
+    <div class="sub">
+      External document memory for this project: retrieve facts from an
+      <b>indexed corpus</b> at query time. This does <b>not</b> change model
+      weights — that is the Model workspace (Training). Upload and parse
+      happen on Data Prep; this page only embeds and queries.
+    </div>
+  </div>
+  <div class="actions flex gap-2 wrap">
+    <a href="/projects/{{ pid }}/data-prep" class="btn primary" data-link
+       id="rag-cta-data-prep">Data Prep / Upload Sources →</a>
+    <a href="/projects/{{ pid }}/data" class="btn" data-link
+       id="rag-cta-data">Project file library</a>
+  </div>
 </div>
 
-<div class="card mb-4" style="border-color: var(--accent); background: linear-gradient(180deg, rgba(0,255,102,0.04) 0%, transparent 100%);">
+{# First-time workflow — Upload is elsewhere; RAG starts at Embed #}
+<div class="card mb-4" id="rag-workflow" style="border-color: var(--accent);">
   <div class="card-head">
     <div>
-      <div class="card-title">0. <span class="text-accent">Build with AI</span> <span class="pill solid-violet text-[10px] ml-1">agentic</span></div>
-      <div class="card-sub">The agentic chat can walk you through the steps below — chunking strategy, embedder choice, overlap tuning. It can also call the build endpoint for you.</div>
+      <div class="card-title">How RAG fits in</div>
+      <div class="card-sub">
+        Source files (uploads + parsed text) live in Data Prep.
+        Indexed corpus documents/chunks live here after Embed.
+      </div>
     </div>
-    <a href="/projects/{{ pid }}/chat" class="btn primary" data-link>Open chat in Agent mode →</a>
   </div>
-  <div class="text-xs dim">
-    Try prompts like <i>"Look at my project sources and recommend a chunk size + embedder for a Q&amp;A corpus."</i>
-    or <i>"Build the corpus with chunk_size=400 and overlap=80."</i> The chat has the same tools as the manual
-    flow — just ask in plain English.
-  </div>
+  <ol class="rag-workflow-steps" aria-label="RAG workflow">
+    <li><a href="/projects/{{ pid }}/data-prep" data-link><b>Upload</b></a> files on Data Prep</li>
+    <li><b>Parse</b> into text sources (auto for .txt/.md, or promote)</li>
+    <li><b>Prepare / QA</b> optional training pairs (Model path)</li>
+    <li><b>Embed</b> parsed sources into this corpus (section 2)</li>
+    <li><b>Test</b> retrieval and chat below</li>
+  </ol>
+  <p class="text-xs dim mt-2 mb-0">
+    Persistent on disk: corpus chunks, vectors, BM25 index, and retrieval
+    settings. Shared embedder/reranker weights live under
+    <code>~/.finetune-studio/shared_models/</code> (not inside your fine-tuned model).
+  </p>
 </div>
+
+<details class="card mb-4" id="rag-agent-help">
+  <summary class="card-head" style="cursor:pointer;list-style:none;">
+    <div>
+      <div class="card-title">Optional: ask Agent chat for help</div>
+      <div class="card-sub">Chat can recommend chunk size / embedder and call Build — it does not replace Upload on Data Prep.</div>
+    </div>
+    <a href="/projects/{{ pid }}/chat?mode=agent" class="btn" data-link onclick="event.stopPropagation()">Open Agent chat →</a>
+  </summary>
+  <div class="text-xs dim" style="padding:0 16px 14px;">
+    Example prompts: <i>"Recommend chunk size and embedder for my sources."</i>
+    or <i>"Build the corpus with chunk_size=400 and overlap=80."</i>
+  </div>
+</details>
 
 {# Status #}
 <div class="card mb-4" id="rag-dashboard">
   <div class="card-head">
     <div>
       <div class="card-title">1. Corpus status</div>
-      <div class="card-sub">Where the RAG index lives on disk</div>
+      <div class="card-sub">Whether an index exists on disk, and where it lives (external memory, not model weights).</div>
     </div>
     <span class="pill solid-purple" id="rag-summary-badge" hidden></span>
   </div>
@@ -53,8 +90,12 @@
 <div class="card mb-4" id="rag-ingest">
   <div class="card-head">
     <div>
-      <div class="card-title">2. Build &amp; rebuild</div>
-      <div class="card-sub">First build downloads the embedder (~2.2 GB for multilingual-e5-large), then takes seconds.</div>
+      <div class="card-title">2. Build &amp; rebuild (embed)</div>
+      <div class="card-sub">
+        Chunk + embed this project's <b>parsed sources</b> into the searchable index.
+        First build may download the embedder (~2.2 GB); later rebuilds reuse it.
+        Upload new files on Data Prep first — there is no upload on this page.
+      </div>
     </div>
   </div>
   <div class="grid grid-12 gap-3 items-end">
@@ -97,7 +138,10 @@
   <div class="card-head">
     <div>
       <div class="card-title">3. Retrieval settings</div>
-      <div class="card-sub">Hybrid = BM25 + dense; rerank = cross-encoder</div>
+      <div class="card-sub">
+        Saved with the project corpus. Hybrid = BM25 keywords + dense vectors;
+        rerank = optional cross-encoder pass. Does not retrain the chat model.
+      </div>
     </div>
   </div>
   <div class="grid grid-12 gap-3 items-end">
@@ -128,10 +172,13 @@
 <div class="card mb-4" id="rag-docs-panel">
   <div class="card-head">
     <div>
-      <div class="card-title">4. Documents indexed</div>
-      <div class="card-sub" id="rag-docs-summary">
-        {{ indexed_doc_count | default(0) }} document{{ '' if (indexed_doc_count | default(0)) == 1 else 's' }}
-        · {{ indexed_chunk_count | default(0) }} chunk{{ '' if (indexed_chunk_count | default(0)) == 1 else 's' }}
+      <div class="card-title">4. Indexed corpus documents</div>
+      <div class="card-sub">
+        Embedded chunks in the RAG index — not raw uploads or Data Prep file-library rows.
+        <span id="rag-docs-summary">
+          {{ indexed_doc_count | default(0) }} document{{ '' if (indexed_doc_count | default(0)) == 1 else 's' }}
+          · {{ indexed_chunk_count | default(0) }} chunk{{ '' if (indexed_chunk_count | default(0)) == 1 else 's' }}
+        </span>
       </div>
     </div>
     <div class="flex gap-2">
@@ -180,7 +227,11 @@
     </table>
     </div>
     {% else %}
-    <p class="text-sm muted" id="rag-docs-empty">No documents indexed yet. Upload files via the data page or chat to populate the RAG store.</p>
+    <p class="text-sm muted" id="rag-docs-empty">
+      No documents indexed yet. Upload and parse sources on
+      <a href="/projects/{{ pid }}/data-prep" data-link>Data Prep</a>,
+      then use <b>Build</b> above to embed them into this corpus.
+    </p>
     {% endif %}
   </div>
 </div>
@@ -204,7 +255,7 @@
   <div class="card-head">
     <div>
       <div class="card-title">5. Live test query</div>
-      <div class="card-sub">Retrieve top-K without generating an answer.</div>
+      <div class="card-sub">Retrieve top-K chunks only — no LLM answer. Use this to tune embed/chunk settings.</div>
     </div>
   </div>
   <div class="flex gap-2">
@@ -222,8 +273,11 @@
 <div class="card mb-4" id="rag-tests">
   <div class="card-head">
     <div>
-      <div class="card-title">5. Chat with RAG</div>
-      <div class="card-sub">Generate an answer using retrieved chunks as context.</div>
+      <div class="card-title">6. Chat with RAG</div>
+      <div class="card-sub">
+        Generate an answer with retrieved chunks as context (requires a loaded chat model).
+        Grounding comes from the corpus, not from fine-tuned weights.
+      </div>
     </div>
   </div>
   <div id="chat-messages" class="flex flex-col gap-2 mb-3" style="min-height:120px;max-height:360px;overflow-y:auto;background:var(--bg-app);border:1px solid var(--border);border-radius:var(--radius);padding:12px;"></div>
@@ -241,8 +295,11 @@
 <div class="card mb-4">
   <div class="card-head">
     <div>
-      <div class="card-title">6. Self-contained export</div>
-      <div class="card-sub">Tarball with corpus + vectors + BM25 + (optional) embedder. Run offline anywhere.</div>
+      <div class="card-title">7. Self-contained export</div>
+      <div class="card-sub">
+        Download a tarball of corpus + vectors + BM25. Optionally bake in embedder/reranker
+        weights for offline use. Export stages a copy — the live corpus is never mutated.
+      </div>
     </div>
   </div>
   <div class="grid grid-12 gap-3 items-end mb-3">
@@ -272,8 +329,12 @@
 <div class="card mb-4">
   <div class="card-head">
     <div>
-      <div class="card-title">7. Shared model library</div>
-      <div class="card-sub">Models used by RAG corpora live in <code>~/.finetune-studio/shared_models/</code> (one copy per model, shared across all corpora).</div>
+      <div class="card-title">8. Shared embedder / reranker library</div>
+      <div class="card-sub">
+        Embedding and reranker weights (external memory helpers) live in
+        <code>~/.finetune-studio/shared_models/</code> — one copy shared across corpora.
+        Separate from fine-tuned chat model checkpoints in the Model workspace.
+      </div>
     </div>
     <button class="btn ghost" onclick="loadSharedModels()">Refresh</button>
   </div>
@@ -327,7 +388,9 @@
     }
     if (!list.length) {
       body.innerHTML = '<p class="text-sm muted" id="rag-docs-empty">'
-        + 'No documents indexed yet. Upload files via the data page or chat to populate the RAG store.</p>';
+        + 'No documents indexed yet. Upload and parse sources on '
+        + '<a href="/projects/' + PID + '/data-prep" data-link>Data Prep</a>, '
+        + 'then use <b>Build</b> above to embed them into this corpus.</p>';
       return;
     }
     body.innerHTML = '<div class="table-scroll rag-docs-scroll">'

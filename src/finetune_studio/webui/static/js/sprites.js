@@ -617,7 +617,7 @@
       if (target && !target.querySelector('.corpus-sprite')) {
         const cap = document.createElement('div');
         cap.className = 'sprite-mount-caption';
-        cap.textContent = 'EMBEDDING CORPUS';
+        cap.textContent = 'RAG RETRIEVAL INDEX';
         const host = document.createElement('div');
         host.className = 'sprite-mount';
         host.style.flexDirection = 'row';

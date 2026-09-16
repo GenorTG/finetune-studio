@@ -108,14 +108,19 @@
   </form>
 </div>
 
-{# ── D. Files table ── #}
+{# ── D. Uploaded files table ── #}
 <div class="card mb-4" id="fb-table">
   <div class="card-head">
     <div>
-      <div class="card-title">Files</div>
-      <div class="card-sub">Browse, preview, tag, and delete every file in this project.</div>
+      <div class="card-title">Uploaded files</div>
+      <div class="card-sub">
+        Project file library (raw uploads). For parsing into prep/RAG sources and
+        Training / Q&amp;A pairs, continue on
+        <a href="/projects/{{ pid }}/data-prep" data-link>Data Prep</a>.
+      </div>
     </div>
   </div>
+  <div class="table-scroll">
   <table class="table compact" id="fb-files-table">
     <thead>
       <tr>
@@ -133,6 +138,7 @@
       <tr class="empty-row"><td colspan="8" class="dim text-xs" style="text-align:center;padding:24px">Loading…</td></tr>
     </tbody>
   </table>
+  </div>
 </div>
 
 <script>
