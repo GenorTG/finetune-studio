@@ -2540,6 +2540,7 @@ body::before {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   z-index: 30;
 }
+.sb-nav-more:not([open]) > .sb-nav-more-panel { display: none; }
 .sb-nav-more-list {
   display: flex;
   flex-direction: column;
