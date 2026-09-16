@@ -11,13 +11,13 @@ Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :786
 | Synthetic benches | Unchanged smoke/offline; labels `synthetic · … (not industry)` |
 | Scoring | Strict MCQ / GSM8K #### finals; no substring credit on real suites |
 | Inference endpoint | `/api/chat-v2/inference/benchmark` returns nested results + scalar `overall` (no sum-of-dicts) |
-| Tests | Real-bench suite + discovery/smoke/offline/template: 44 passed; Ruff clean on touched files |
-| Deployment | Needs `git push` + fan-dragon pull/restart; first real run downloads HF datasets into `data/benchmarks/hf_cache` |
+| Tests | Real-bench suite + discovery/smoke/template: 26 passed; Ruff clean on touched files; official HF splits loaded locally |
+| Deployment | `6032e2b` pushed and live on fan-dragon; service active/systemd-owned on :7860; HF cache warm |
 
 ## Next steps
-1. Deploy: `git push`; on fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`.
-2. Smoke a bounded real suite on fan-dragon (`num_samples=20`) after cache warm.
-3. Browser-check benchmarks page labels (`real ·` vs `synthetic ·`).
+1. Run a bounded real model evaluation on fan-dragon (`num_samples=50`) and save the JSON report.
+2. Run an official full split only when desired: `fts benchmark MODEL --suite all --full-run --report REPORT.json`.
+3. Browser-check benchmark controls and metadata (`real ·` vs `synthetic ·`).
 4. Fix two unrelated legacy failures (`test_db_lifecycle`, `test_parsed_converts_txt`), then `make test`.
 
 ## Commands
