@@ -61,6 +61,38 @@ def test_should_ingest_skips_chunks_prefers_parsed(tmp_path: Path) -> None:
     assert should_ingest_source_file(loose) is True
 
 
+def test_should_ingest_skips_raw_when_parsed_exists(tmp_path: Path) -> None:
+    """File-library raw twin must not double-index beside files/<sha12>/parsed.txt."""
+    files = tmp_path / "files"
+    sha12 = "b04b26d1abef"
+    file_id = sha12 + "6be9"
+    parsed_dir = files / sha12
+    parsed_dir.mkdir(parents=True)
+    (parsed_dir / "metadata.json").write_text(
+        json.dumps({"original_filename": "helios_notes.txt"}),
+        encoding="utf-8",
+    )
+    parsed = parsed_dir / "parsed.txt"
+    parsed.write_text("canonical notes body", encoding="utf-8")
+
+    raw = files / "raw" / "other" / f"{file_id}_helios_notes.txt"
+    raw.parent.mkdir(parents=True)
+    raw.write_text("canonical notes body", encoding="utf-8")
+
+    # Raw without a parsed twin still ingests (standalone / unparsed upload).
+    orphan_raw = files / "raw" / "other" / "aaaaaaaaaaaa1111_orphan_notes.txt"
+    orphan_raw.write_text("orphan only", encoding="utf-8")
+
+    # Loose project text outside files/raw stays eligible.
+    standalone = files / "standalone_memo.txt"
+    standalone.write_text("memo", encoding="utf-8")
+
+    assert should_ingest_source_file(parsed) is True
+    assert should_ingest_source_file(raw) is False
+    assert should_ingest_source_file(orphan_raw) is True
+    assert should_ingest_source_file(standalone) is True
+
+
 def test_prettify_falls_back_without_path() -> None:
     assert "parsed" in prettify_source_label("parsed.txt").lower()
     assert "chunk" in prettify_source_label("0000.txt").lower()

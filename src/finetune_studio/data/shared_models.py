@@ -229,10 +229,27 @@ def resolve(short_id: str, kind: str) -> Path:
     return p
 
 
+def human_size(n: int) -> str:
+    """Format byte counts for UI tables (e.g. ``1.2 GB``)."""
+    size = float(max(0, int(n)))
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size < 1024.0 or unit == "TB":
+            if unit == "B":
+                return f"{int(size)} {unit}"
+            return f"{size:.1f} {unit}"
+        size /= 1024.0
+    return f"{int(n)} B"
+
+
 def stats() -> dict:
-    """Global stats for the model store UI."""
+    """Global stats for the model store UI.
+
+    Always returns ``embedders`` / ``rerankers`` / ``total_size_bytes``, plus a
+    flat ``models`` (and legacy ``items``) list so older UI code that only
+    reads ``d.models || d.items`` still renders entries.
+    """
     _ensure_dirs()
-    out = {"embedders": [], "rerankers": [], "total_size_bytes": 0}
+    out: dict = {"embedders": [], "rerankers": [], "total_size_bytes": 0}
     for kind, base in [("embedder", EMBEDDERS), ("reranker", RERANKERS)]:
         if not base.exists():
             continue
@@ -243,8 +260,18 @@ def stats() -> dict:
             meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
             size = sum(p.stat().st_size for p in d.rglob("*") if p.is_file())
             out["total_size_bytes"] += size
-            out[f"{kind}s"].append({
-                "short_id": d.name, "name": meta.get("name", "?"),
-                "size_bytes": size, "use_count": meta.get("use_count", 0),
-            })
+            entry = {
+                "short_id": d.name,
+                "name": meta.get("name", "?"),
+                "size_bytes": size,
+                "use_count": meta.get("use_count", 0),
+                "kind": kind,
+                "id": d.name,
+                "size_human": human_size(size),
+                "size": human_size(size),
+            }
+            out[f"{kind}s"].append(entry)
+    flat = list(out["embedders"]) + list(out["rerankers"])
+    out["models"] = flat
+    out["items"] = flat  # legacy alias used by older RAG page JS
     return out

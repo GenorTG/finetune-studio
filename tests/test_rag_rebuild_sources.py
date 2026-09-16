@@ -139,6 +139,51 @@ def test_ingest_dedups_chunks_vs_parsed(
     assert "chunk" not in listed[0]["filename"].lower()
 
 
+def test_ingest_skips_raw_library_when_parsed_exists(
+    tmp_path: Path, patched_embedder: None
+) -> None:
+    """One logical doc when files/raw twin and files/<sha>/parsed.txt both exist."""
+    src = tmp_path / "files"
+    corpus = tmp_path / "corpus"
+    sha12 = "b04b26d1abef"
+    file_id = sha12 + "6be9"
+    body = "Helios notes unique phrase for search " * 25
+    _sha_dir(src, sha12, "helios_notes.txt", body)
+
+    raw = src / "raw" / "other" / f"{file_id}_helios_notes.txt"
+    raw.parent.mkdir(parents=True)
+    raw.write_text(body, encoding="utf-8")
+
+    # Unrelated standalone text must still index.
+    (src / "ops_memo.txt").write_text("Standalone ops memo body " * 20, encoding="utf-8")
+
+    rag = PortableRAG(corpus)
+    stats = rag.build_from_directory(
+        src,
+        name="raw-dedup",
+        embedder="fake-deterministic",
+        chunk_size=60,
+        overlap=8,
+        extensions=[".txt"],
+    )
+    assert stats["documents"] == 2
+    listed = rag.list_sources()
+    assert len(listed) == 2
+    filenames = " ".join(s["filename"] for s in listed).lower()
+    assert "helios_notes" in filenames
+    assert "ops_memo" in filenames
+    # Opaque raw library basename must not appear as its own document.
+    assert f"{file_id}_helios_notes" not in filenames
+    meta = json.loads((corpus / "manifest.json").read_text(encoding="utf-8"))
+    doc_sources = [
+        str(d.get("source") or "")
+        for d in ((meta.get("extra") or {}).get("documents_meta") or [])
+    ]
+    assert doc_sources
+    assert all("/raw/" not in s for s in doc_sources)
+    assert any("parsed.txt" in s for s in doc_sources)
+
+
 def test_list_indexed_docs_ignores_orphan_sources(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

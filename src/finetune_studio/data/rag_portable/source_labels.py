@@ -135,12 +135,49 @@ def prettify_source_label(
     return fname
 
 
+_RAW_FILE_ID_RE = re.compile(r"^([0-9a-f]{12,64})_(.+)$", re.IGNORECASE)
+
+
+def _files_root_for_raw_path(path: Path) -> Path | None:
+    """Return ``…/files`` when *path* lives under ``files/raw/…``."""
+    for parent in (path, *path.parents):
+        if parent.name == "raw" and parent.parent.name == "files":
+            return parent.parent
+    return None
+
+
+def _is_file_library_raw(path: Path) -> bool:
+    """True for immutable file-library uploads under ``files/raw/``."""
+    return _files_root_for_raw_path(path) is not None
+
+
+def _has_canonical_parsed_for_raw(path: Path) -> bool:
+    """True when a content-addressed ``files/<sha12>/parsed.txt`` exists.
+
+    Raw library names are ``{file_id}_{stem}.ext`` where ``file_id`` is the
+    content sha prefix; auto-promote writes ``files/<sha12>/parsed.txt``.
+    """
+    files_root = _files_root_for_raw_path(path)
+    if files_root is None:
+        return False
+    match = _RAW_FILE_ID_RE.match(path.name)
+    if not match:
+        return False
+    short = match.group(1)[:12].lower()
+    return (files_root / short / "parsed.txt").is_file()
+
+
 def should_ingest_source_file(path: Path) -> bool:
     """Whether *path* should be indexed into a project RAG corpus.
 
     Skips ``chunks/NNNN.txt`` shards. In content-addressed file dirs (those
     with ``metadata.json`` or ``parsed.txt``), only ``parsed.txt`` is ingested
     so uploads and chunk shards are not double-indexed under opaque names.
+
+    Also skips file-library ``files/raw/…`` copies when a canonical parsed
+    source for the same content hash already exists — rebuild must index one
+    logical document, not raw+parsed twins. Standalone text outside
+    ``files/raw/`` (or raw uploads with no parsed twin) still ingest.
     """
     if not path.is_file():
         return False
@@ -148,8 +185,13 @@ def should_ingest_source_file(path: Path) -> bool:
         return False
     if _CHUNK_FILE_RE.match(path.name):
         return False
+    if ".RAW_TRASH" in path.parts or ".CONVERTED_TRASH" in path.parts:
+        return False
     parent = path.parent
     in_store = (parent / "metadata.json").is_file() or (parent / "parsed.txt").is_file()
     if in_store:
         return path.name == "parsed.txt"
-    return True
+    # Skip file-library raw twins when a canonical parsed source exists.
+    return not (
+        _is_file_library_raw(path) and _has_canonical_parsed_for_raw(path)
+    )

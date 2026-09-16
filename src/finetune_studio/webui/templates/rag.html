@@ -677,25 +677,53 @@
     window.location.href = '/api/projects/' + PID + '/rag/bundle?' + qs.toString();
   };
 
+  function humanBytes(n) {
+    var size = Number(n);
+    if (!isFinite(size) || size < 0) return '—';
+    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var i = 0;
+    while (size >= 1024 && i < units.length - 1) { size /= 1024; i++; }
+    return (i === 0 ? String(Math.round(size)) : size.toFixed(1)) + ' ' + units[i];
+  }
+
+  /** Normalize /api/shared-models/stats shapes: flat models/items OR embedders+rerankers. */
+  function normalizeSharedModelList(d) {
+    if (!d || typeof d !== 'object') return [];
+    if (Array.isArray(d.models) && d.models.length) return d.models;
+    if (Array.isArray(d.items) && d.items.length) return d.items;
+    var emb = Array.isArray(d.embedders) ? d.embedders : [];
+    var rer = Array.isArray(d.rerankers) ? d.rerankers : [];
+    return emb.map(function(m) { return Object.assign({ kind: 'embedder' }, m); })
+      .concat(rer.map(function(m) { return Object.assign({ kind: 'reranker' }, m); }));
+  }
+
   window.loadSharedModels = async function() {
     const el = document.getElementById('shared-models-list');
     if (!el) return;
     try {
       const r = await fetch('/api/shared-models/stats');
-      const d = await r.json();
+      const d = await r.json().catch(function() { return {}; });
       if (!r.ok || d.error) {
-        el.innerHTML = '<span class="dim">' + esc(d.detail || d.error || 'Unavailable') + '</span>';
+        el.innerHTML = '<span class="dim">' + esc(d.detail || d.error || ('HTTP ' + r.status)) + '</span>';
         return;
       }
-      const models = d.models || d.items || [];
+      const models = normalizeSharedModelList(d);
       if (!models.length) {
         el.innerHTML = '<span class="dim">No shared models cached yet.</span>';
         return;
       }
-      el.innerHTML = '<table class="ref-table"><thead><tr><th>Model</th><th>Size</th></tr></thead><tbody>'
+      var total = d.total_size_bytes != null
+        ? ('<div class="text-xs dim mb-2">Total cached: ' + esc(humanBytes(d.total_size_bytes)) + '</div>')
+        : '';
+      el.innerHTML = total
+        + '<table class="ref-table"><thead><tr><th>Kind</th><th>Model</th><th>Size</th></tr></thead><tbody>'
         + models.map(function(m) {
-            return '<tr><td class="mono text-xs">' + esc(m.name || m.id || m.path || '') + '</td>'
-              + '<td class="mono">' + esc(m.size_human || m.size || '—') + '</td></tr>';
+            var label = m.name || m.id || m.short_id || m.path || '';
+            var kind = m.kind || (String(m.short_id || '').indexOf('rerank') >= 0 ? 'reranker' : 'embedder');
+            var sz = m.size_human || m.size || (m.size_bytes != null ? humanBytes(m.size_bytes) : '—');
+            return '<tr><td class="mono text-xs">' + esc(kind) + '</td>'
+              + '<td class="mono text-xs">' + esc(label) + '</td>'
+              + '<td class="mono">' + esc(sz) + '</td></tr>';
           }).join('')
         + '</tbody></table>';
     } catch (e) {
