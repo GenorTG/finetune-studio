@@ -59,6 +59,9 @@ def test_spa_swaps_breadcrumb_on_navigate() -> None:
     assert "project-breadcrumb" in src
     assert "breadcrumbHTML" in src
     assert "breadcrumbPresent" in src
+    # Must create crumb when entering a project (not only update innerHTML).
+    assert "breadcrumbOuter" in src
+    assert "syncShellNav" in src
 
 
 def test_no_updated_every_2s_user_facing() -> None:

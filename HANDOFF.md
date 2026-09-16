@@ -7,25 +7,24 @@ Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :786
 ## State (verified 2026-09-16 Europe/Warsaw)
 | Area | Status |
 |------|--------|
-| PortableRAG build → DB | `POST …/rag/build` + rebuild call `db.ensure_portable_rag` so `project_rags.store_path` = corpus dir (chat attachments) |
-| Embedder dims | `PortableRAG.load()` no longer falls back to DEFAULT_EMBEDDER; dim mismatch / load failure raise actionable errors; search rejects query dim ≠ vectors |
-| Chat retrieval | `chat_v2` uses PortableRAG when `manifest.json`+`vectors.npy` present, else Chroma VectorStore |
-| Workspace nav | Model vs RAG subnav on overview/models/training/testing + RAG page; anchors `#rag-ingest` `#rag-search` `#rag-tests` |
-| Tests | 9/9 focused: `test_rag_build_registration`, `test_rag_embedder_dims`, `test_workspace_nav` |
-| Live reproduce | Still needed on fan-dragon project `774610a3` after pull + restart |
+| SPA shell nav | `spa.js` `syncShellNav` creates/updates/hides `#project-breadcrumb` + `#workspace-subnav` outside `#content` (fix: /projects → /projects/{pid} missing Model/RAG subnav) |
+| Workspace nav | Model vs RAG subnav still in `base.html`; full-page loads unchanged |
+| Prior RAG patch | dcba378 corpus registration + embedder dim safety still on main |
+| Tests | 16/16: workspace_nav, breadcrumb*, spa_page_scripts |
+| Live reproduce | Still needed on fan-dragon after pull + restart |
 
 ## Next steps
-1. Deploy + verify on `774610a3`: `git pull --ff-only && systemctl --user restart finetune-studio`; then rebuild RAG and confirm chat shows ≥1 attached corpus and search works.
-2. Install system-only parser tools on fan-dragon when needed: `antiword`, `tesseract`, `poppler`/`pdftotext`.
-3. Run a bounded real model evaluation on fan-dragon (`num_samples=50`) and save the JSON report.
+1. Deploy: `git push`; fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`.
+2. Browser-verify: open `/projects`, click a project card → Model/RAG `#workspace-subnav` must appear without full reload.
+3. On `774610a3`: rebuild RAG; confirm chat ≥1 attached corpus and search works.
 4. Fix legacy failures (`test_db_lifecycle`, `test_parsed_converts_txt`), then `make test`.
 
 ## Commands
-- Focused: `.venv/bin/python -m pytest tests/test_rag_build_registration.py tests/test_rag_embedder_dims.py tests/test_workspace_nav.py -v --tb=short`
-- Lint touched: `.venv/bin/ruff check src/finetune_studio/db/rags.py src/finetune_studio/webui/routes/rag.py src/finetune_studio/webui/routes/project_rag.py src/finetune_studio/webui/routes/chat_v2.py src/finetune_studio/data/rag_portable/store.py src/finetune_studio/data/rag_portable/query.py tests/test_rag_build_registration.py tests/test_rag_embedder_dims.py tests/test_workspace_nav.py`
+- Focused: `.venv/bin/python -m pytest tests/test_workspace_nav.py tests/test_breadcrumb_page_label.py tests/test_breadcrumb.py tests/test_spa_page_scripts.py -v --tb=short`
+- Lint: `.venv/bin/ruff check tests/test_workspace_nav.py tests/test_breadcrumb_page_label.py`
 - Deploy: `git push`; fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`
 
 ## Blockers
-- Live E2E on `774610a3` not re-verified after this patch (genorbox1 has no GPU/corpus).
+- Live E2E click-path for SPA subnav not re-verified on fan-dragon (genorbox1 has no Playwright app run).
 - `tests/test_db_lifecycle.py::TestSystemUpdateLifecycle::test_create_with_options` still expects dict vs JSON string.
 - `tests/test_file_library_apis.py::test_parsed_converts_txt` still flaky on sibling artifacts.

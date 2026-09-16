@@ -44,15 +44,40 @@
     const newActive  = doc.querySelector(".sb-active-bar");
     const newTitle   = doc.querySelector("title");
     const newCrumb   = doc.getElementById("project-breadcrumb");
+    const newWsNav   = doc.getElementById("workspace-subnav");
     return {
       contentHTML: newContent ? newContent.innerHTML : null,
       pageScriptsHTML: newPageScripts ? newPageScripts.innerHTML : "",
       activeHTML:  newActive  ? newActive.innerHTML  : null,
       breadcrumbHTML: newCrumb ? newCrumb.innerHTML : null,
+      breadcrumbOuter: newCrumb ? newCrumb.outerHTML : null,
       breadcrumbPresent: !!newCrumb,
+      workspaceHTML: newWsNav ? newWsNav.innerHTML : null,
+      workspaceOuter: newWsNav ? newWsNav.outerHTML : null,
+      workspacePresent: !!newWsNav,
       title:       newTitle   ? newTitle.textContent : null,
       fullHTML:    !newContent,
     };
+  }
+
+  /**
+   * Sync a base-shell nav that lives outside #content (breadcrumb / workspace).
+   * Creates the element when entering a project page from a non-project page;
+   * hides it when leaving. Full-page loads already render these in base.html.
+   */
+  function syncShellNav(id, present, innerHTML, outerHTML, afterId) {
+    let el = document.getElementById(id);
+    if (present && outerHTML) {
+      if (el) {
+        if (innerHTML != null) el.innerHTML = innerHTML;
+        el.hidden = false;
+      } else {
+        const after = document.getElementById(afterId);
+        if (after) after.insertAdjacentHTML("afterend", outerHTML);
+      }
+    } else if (el) {
+      el.hidden = true;
+    }
   }
 
   /** Rewrite column-0 top-level const/let/class so SPA re-visits don't throw. */
@@ -136,14 +161,27 @@
       if (ps) ps.innerHTML = ext.pageScriptsHTML;
       const activeBar = document.querySelector(".sb-active-bar");
       if (ext.activeHTML && activeBar) activeBar.innerHTML = ext.activeHTML;
-      // QABUG-009: keep sticky breadcrumb in sync on SPA nav (not only #content).
-      const crumb = document.getElementById("project-breadcrumb");
-      if (ext.breadcrumbPresent && crumb && ext.breadcrumbHTML != null) {
-        crumb.innerHTML = ext.breadcrumbHTML;
-        crumb.hidden = false;
-      } else if (crumb && !ext.breadcrumbPresent) {
-        crumb.hidden = true;
-      }
+      // QABUG-009 / workspace-subnav: shell chrome outside #content must
+      // update (and be created) when SPA-entering a project from /projects.
+      syncShellNav(
+        "project-breadcrumb",
+        ext.breadcrumbPresent,
+        ext.breadcrumbHTML,
+        ext.breadcrumbOuter,
+        "session-bar"
+      );
+      // Prefer inserting after breadcrumb; fall back to session-bar if the
+      // crumb node is still missing (should not happen when pid is set).
+      const wsAfter = document.getElementById("project-breadcrumb")
+        ? "project-breadcrumb"
+        : "session-bar";
+      syncShellNav(
+        "workspace-subnav",
+        ext.workspacePresent,
+        ext.workspaceHTML,
+        ext.workspaceOuter,
+        wsAfter
+      );
       if (window.ftsPalette && window.ftsPalette.refresh) window.ftsPalette.refresh();
       if (ext.title) document.title = ext.title;
       // Highlight nav
