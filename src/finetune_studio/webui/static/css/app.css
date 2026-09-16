@@ -4376,6 +4376,11 @@ body::before {
   .sb-nav-more { display: none !important; }
 }
 
+/* Mid-desktop: keep the fixed status cluster above the wrapping tab row. */
+@media (min-width: 701px) and (max-width: 1280px) {
+  .sb-nav-shell { padding-top: 48px; }
+}
+
 @media (max-width: 700px) {
   .sb-nav-shell {
     min-height: 48px;
