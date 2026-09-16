@@ -339,7 +339,18 @@ async function loadModel() {
   try {
     const params = readLoaderParams();
     const r = await fts.api.post('/api/models/load', { path, ...params });
-    if (r.error) throw new Error(r.error);
+    const failed = !r || r.error || r.status === 'error' || r.loaded === false;
+    if (failed) {
+      throw new Error((r && r.error) || 'Model failed to load (still unloaded)');
+    }
+    // Never claim loaded from HTTP 200 alone — confirm status endpoint.
+    const st = await fts.api.get('/api/inference/status').catch(() => null);
+    if (!st || !st.loaded) {
+      throw new Error(
+        (r && r.error) ||
+        'Load reported success but inference status still shows unloaded. Check VRAM/RAM and GPU processes.'
+      );
+    }
     fts.notify('Model loaded', 'success');
     setTimeout(() => location.reload(), 600);
   } catch (e) {

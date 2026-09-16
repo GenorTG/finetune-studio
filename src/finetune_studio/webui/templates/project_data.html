@@ -116,21 +116,21 @@
       <div class="card-sub">Browse, preview, tag, and delete every file in this project.</div>
     </div>
   </div>
-  <table class="table compact">
+  <table class="table compact" id="fb-files-table">
     <thead>
       <tr>
-        <th style="width:2.5em"><input type="checkbox" id="fb-select-all" title="Select all visible"></th>
-        <th>Name</th>
-        <th>Type</th>
-        <th>Size</th>
-        <th>Version</th>
-        <th>Uploaded</th>
-        <th>Drift</th>
-        <th></th>
+        <th class="fb-col-check" style="width:2.5em"><input type="checkbox" id="fb-select-all" title="Select all visible"></th>
+        <th class="fb-col-name">Name</th>
+        <th class="fb-col-type">Type</th>
+        <th class="fb-col-size">Size</th>
+        <th class="fb-col-ver">Version</th>
+        <th class="fb-col-uploaded">Uploaded</th>
+        <th class="fb-col-drift">Drift</th>
+        <th class="fb-col-actions"></th>
       </tr>
     </thead>
     <tbody id="fb-tbody">
-      <tr><td colspan="8" class="dim text-xs" style="text-align:center;padding:24px">Loading…</td></tr>
+      <tr class="empty-row"><td colspan="8" class="dim text-xs" style="text-align:center;padding:24px">Loading…</td></tr>
     </tbody>
   </table>
 </div>
@@ -288,7 +288,7 @@
     if (!tbody) return;
     const rows = visibleFiles();
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="empty" style="border:0">No files in this view.</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="8" class="empty" style="border:0">No files in this view.</td></tr>';
       if (footer) footer.textContent = '0 files';
       updateBulkBar();
       return;
@@ -317,11 +317,11 @@
       }
       return '<tr class="row-hover' + (deleted ? ' dim' : '') + '">' +
         '<td><input type="checkbox" ' + checked + ' onchange="fbToggleSelect(\'' + esc(f.id) + '\',this.checked)"></td>' +
-        '<td class="name" title="' + esc(f.original_name) + '">' +
+        '<td class="name cell-wrap" title="' + esc(f.original_name) + '">' +
           '<span class="mono" style="margin-right:6px">' + folderIcon + '</span>' + esc(f.original_name) +
           (f.first_folder ? ' <span class="text-xs dim">· ' + esc(f.first_folder) + '</span>' : '') +
         '</td>' +
-        '<td><span class="pill outline mono">' + esc(mimeBadge(f.mime_type)) + '</span></td>' +
+        '<td class="cell-wrap"><span class="pill outline mono">' + esc(mimeBadge(f.mime_type)) + '</span></td>' +
         '<td class="num mono">' + formatBytes(f.size_bytes) + '</td>' +
         '<td class="meta mono">v' + (f.current_version || 1) + '</td>' +
         '<td class="meta mono" title="' + esc(f.uploaded_at || '') + '">' + relativeTime(f.uploaded_at) + '</td>' +

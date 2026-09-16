@@ -33,7 +33,7 @@
   --radius-lg:     0px;
   --radius-sm:     0px;
   --nav-w:         244px;
-  --header-h:      68px;
+  --header-h:      76px;
 
   --ease:          cubic-bezier(.2, .8, .2, 1);
   --t-fast:        120ms;
@@ -866,7 +866,13 @@ body::before {
 .page-head.row { display: flex; align-items: center; }
 
 /* ===== Tables ===== */
-.table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-family: "Share Tech Mono", monospace; }
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12.5px;
+  font-family: "Share Tech Mono", monospace;
+}
 .table th {
   text-align: left;
   font-weight: 700;
@@ -878,11 +884,30 @@ body::before {
   border-bottom: 1px solid var(--border-strong);
   background: var(--bg-panel);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .table td {
   padding: 12px;
   border-bottom: 1px dashed var(--border);
   vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.table td.cell-wrap,
+.table .cell-wrap {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-overflow: clip;
+}
+.table td[colspan],
+.table .empty-row td {
+  white-space: normal;
+  text-overflow: clip;
+  overflow: visible;
+  text-align: center;
 }
 .table tr.row-hover { transition: background var(--t-fast) var(--ease); }
 .table tr.row-hover:hover { background: var(--bg-panel); }
@@ -2287,14 +2312,14 @@ body::before {
 /* Brand cluster: just a small FS logo + terminal prompt */
 .sb-brand {
   position: absolute;
-  top: 8px; left: 12px;
+  top: 10px; left: 12px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   text-decoration: none;
   color: var(--text-muted);
   font-family: "Share Tech Mono", monospace;
-  font-size: 12.5px;
+  font-size: 14px;
   letter-spacing: 0.06em;
   z-index: 2;
 }
@@ -2328,12 +2353,12 @@ body::before {
   display: flex;
   align-items: stretch;
   gap: 12px;  /* gap between sb-group blocks */
-  padding: 8px 0 0 130px;  /* leave room for absolute brand */
+  padding: 10px 0 0 140px;  /* leave room for absolute brand */
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
-  min-height: 42px;
+  min-height: 48px;
   flex: 1;
   margin-right: 490px;  /* leave room for the wider .sb-right cluster (theme + conn + activity + palette + status + version ≈ 467px + 20px gap) */
   scroll-behavior: smooth;
@@ -2345,8 +2370,8 @@ body::before {
 .sb-tabs::-webkit-scrollbar-track { background: transparent; }
 /* Each group block must not wrap either — it holds several tabs. */
 .sb-group { display: flex; align-items: stretch; flex-shrink: 0; white-space: nowrap; flex-wrap: nowrap; }
-/* Tighter tabs so more fit and stay scrollable */
-.sb-tabs .sb-tab { padding: 4px 9px; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
+/* Readable tabs — still compact enough for horizontal scroll */
+.sb-tabs .sb-tab { padding: 6px 11px; font-size: 14px; flex-shrink: 0; white-space: nowrap; }
 
 .sb-group {
   display: inline-flex;
@@ -2362,12 +2387,12 @@ body::before {
 .sb-group-label {
   display: inline-flex;
   align-items: center;
-  padding: 0 6px;
+  padding: 0 8px;
   font-family: "Share Tech Mono", monospace;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 700;
   color: var(--accent);
-  opacity: 0.8;
+  opacity: 0.9;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   user-select: none;
@@ -2380,9 +2405,9 @@ body::before {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 13px 9px;
+  padding: 8px 14px 10px;
   font-family: "Share Tech Mono", monospace;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--text-muted);
@@ -2528,7 +2553,7 @@ body::before {
 
 /* Active path bar — thin strip below the tabs */
 .sb-active-bar {
-  height: 24px;
+  height: 28px;
   padding: 0 14px;
   background: var(--bg-app);
   border-top: 1px solid var(--border-strong);
@@ -2536,7 +2561,7 @@ body::before {
   align-items: center;
   gap: 4px;
   font-family: "Share Tech Mono", monospace;
-  font-size: 12px;
+  font-size: 13.5px;
   letter-spacing: 0.06em;
   color: var(--text-muted);
   position: relative;
@@ -3417,9 +3442,9 @@ body::before {
 
 /* Responsive: tools + activity stacked, single-column pages, narrow header. */
 @media (max-width: 1280px) {
-  /* Hide long project nav labels at this width — leave short labels visible. */
-  .sb-tab-label { font-size: 11px; }
-  .sb-group-label { font-size: 10px; }
+  /* Keep nav readable on mid widths — floor above the old 10–11px sizes. */
+  .sb-tab-label { font-size: 13px; }
+  .sb-group-label { font-size: 12px; }
   /* Tabs scroll horizontally on one line — never wrap (was causing cut-off tabs). */
   .sb-tabs {
     flex-wrap: nowrap !important;
@@ -3497,7 +3522,7 @@ body::before {
     justify-content: flex-end;
     gap: 6px;
   }
-  .sb-tab-label { font-size: 10px; }
+  .sb-tab-label { font-size: 12px; }
   .data-tabs { flex-direction: column; }
   .data-tab { padding: 8px 10px; }
   .empty { padding: 14px 8px; font-size: 11px; }
@@ -3601,7 +3626,7 @@ body::before {
   border-bottom: 1px solid var(--border);
   color: var(--text-muted);
   font-family: "Share Tech Mono", monospace;
-  font-size: 12px;
+  font-size: 13.5px;
 }
 .project-breadcrumb a {
   color: var(--accent);
@@ -3621,34 +3646,50 @@ body::before {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.35rem 1rem 0.5rem;
+  gap: 0.65rem;
+  padding: 0.45rem 1rem 0.55rem;
   background: var(--bg-nav);
   border-bottom: 1px solid var(--border);
   font-family: "Share Tech Mono", monospace;
-  font-size: 12px;
+  font-size: 13.5px;
   color: var(--text-muted);
+}
+.workspace-subnav .ws-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-right: 0.15rem;
 }
 .workspace-subnav .ws-switch {
   color: var(--text-muted);
   text-decoration: none;
-  padding: 0.1rem 0.35rem;
-  border: 1px solid transparent;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 13.5px;
 }
-.workspace-subnav .ws-switch:hover { color: var(--accent); }
+.workspace-subnav .ws-switch:hover { color: var(--accent); border-color: var(--accent); }
 .workspace-subnav .ws-switch.active {
-  color: var(--accent);
+  color: #000;
+  background: var(--accent);
   border-color: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
 }
 .workspace-subnav .ws-sep { color: var(--text-dim); }
 .workspace-subnav .ws-link {
   color: var(--accent);
   text-decoration: none;
+  padding: 0.15rem 0.25rem;
+  font-size: 13px;
 }
 .workspace-subnav .ws-link:hover { text-decoration: underline; }
 .workspace-subnav .ws-link.here {
   color: var(--text);
   text-decoration: underline;
+  font-weight: 700;
+  border-bottom: 2px solid var(--accent);
 }
 
 /* ── Verdict badges (bench / testing case tables) ───────────────── */

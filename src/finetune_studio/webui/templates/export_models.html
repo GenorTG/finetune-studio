@@ -652,7 +652,10 @@ async function startExport() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ path: modelPath }),
           }).then(function (x) { return x.json(); });
-      if (r && r.error) { notify(r.error, "error"); return; }
+      if (r && (r.error || r.status === "error" || r.loaded === false)) {
+        notify(r.error || "Model failed to load (still unloaded)", "error");
+        return;
+      }
       notify("Model loaded", "success");
       location.href = "/inference";
     } catch (e) {

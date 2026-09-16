@@ -93,6 +93,52 @@ def _vram_hint(model_path: str) -> str:
            if occ else ".")
     )
 
+
+def _resource_snapshot_detail(model_path: str = "") -> str:
+    """Always-on VRAM/RAM/process note for load failures (actionable UI copy)."""
+    parts: list[str] = []
+    free, top = _gpu_snapshot()
+    if free is not None:
+        parts.append(f"GPU free VRAM {free / 1024:.1f} GB")
+        if top:
+            occ = ", ".join(
+                f"{t['name']}(pid {t['pid']}) {t['vram_mib'] / 1024:.1f}GB"
+                for t in top[:3]
+            )
+            parts.append(f"top GPU consumers: {occ}")
+    if model_path:
+        try:
+            size_mib = int(os.path.getsize(model_path) / (1024 * 1024))
+            parts.append(f"model file ~{size_mib / 1024:.1f} GB")
+        except OSError:
+            pass
+    try:
+        import psutil
+
+        vm = psutil.virtual_memory()
+        parts.append(
+            f"system RAM {vm.available / (1024 ** 3):.1f} GB free / "
+            f"{vm.total / (1024 ** 3):.1f} GB total"
+        )
+    except Exception:  # noqa: BLE001, S110
+        pass
+    if not parts:
+        return ""
+    return " — " + "; ".join(parts)
+
+
+def _load_failure_payload(error: str, model_path: str = "") -> dict:
+    """Explicit failure body — HTTP 200 kept for callers that only check JSON."""
+    hint = _vram_hint(model_path) if model_path else ""
+    detail = hint or _resource_snapshot_detail(model_path)
+    msg = f"{error}{detail}" if detail and detail not in error else error
+    return {
+        "status": "error",
+        "loaded": False,
+        "error": msg,
+        "model": None,
+    }
+
 @router.get("/")
 async def models_root(for_selector: bool = False):
     """Root models endpoint — returns list of discovered models."""
@@ -170,12 +216,17 @@ async def load_model_endpoint(request: Request):
     Accepts either {"path": "..."} (inference page) or {"model_path": "..."}
     (legacy chat_v2 form). All inference parameters have sensible defaults
     so the inference-page call Just Works.
+
+    Success always includes ``status="loaded"`` and ``loaded=True``. Failures
+    keep HTTP 200 for API compatibility but return ``status="error"``,
+    ``loaded=False``, and an actionable ``error`` string — never claim loaded
+    unless the engine actually holds a model.
     """
     from finetune_studio.webui.app import inference_engine
     body = await request.json()
     model_path = body.get("path") or body.get("model_path") or ""
     if not model_path:
-        return {"error": "No model path provided"}
+        return _load_failure_payload("No model path provided")
     try:
         inference_engine.load(
             model_path,
@@ -190,10 +241,20 @@ async def load_model_endpoint(request: Request):
             rope_freq_base=body.get("rope_freq_base", 0.0),
             rope_freq_scale=body.get("rope_freq_scale", 0.0),
         )
-        vision = getattr(inference_engine, "vision", False)
-        return {"status": "loaded", "model": model_path, "vision": vision}
     except Exception as e:  # noqa: BLE001
-        return {"error": str(e) + _vram_hint(model_path)}
+        return _load_failure_payload(str(e), model_path)
+
+    if getattr(inference_engine, "model", None) is None:
+        return _load_failure_payload(
+            "Load finished but no model is held in memory", model_path
+        )
+    vision = getattr(inference_engine, "vision", False)
+    return {
+        "status": "loaded",
+        "loaded": True,
+        "model": model_path,
+        "vision": vision,
+    }
 
 
 @router.post("/unload")

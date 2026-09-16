@@ -7,23 +7,23 @@ Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :786
 ## State (verified 2026-09-16 Europe/Warsaw)
 | Area | Status |
 |------|--------|
-| PortableRAG build → DB | `POST …/rag/build` registers `project_rags.store_path` |
-| Shared embedder cache | `register()` now copies full ST tree (`1_Pooling`/`2_Normalize`); incomplete caches replaced |
-| Local ST loader | `prepare_local_sentence_transformer_dir` repairs missing Pooling config (same model, no DEFAULT fallback) |
-| Dim safety | `PortableRAG.load()` still rejects dim mismatch / load failure with actionable errors |
-| Tests | 12/12: `test_sentence_transformer_local` + `test_rag_embedder_dims`; changed-file Ruff clean |
-| Live | fan-dragon `05ee307`, systemd-owned :7860; browser search returned 4 hits and Chat showed 1 attached corpus |
-| Navigation | Browser SPA click `/projects` → project overview refreshed Model/RAG workspace subnav |
+| Header/nav readability | Session-bar tabs ≥14px; workspace subnav labeled + active fill |
+| Project tables | `table-layout: fixed`, ellipsis/wrap, empty `colspan` rows |
+| Data-prep upload refresh | Renders file list before conversion prefetch; resets to ALL FILES |
+| Model load semantics | `status=error` + `loaded=false` on failure; UI confirms `/api/inference/status` |
+| RAG `saveSettings` | Defined; POSTs `/api/projects/{pid}/rag/settings` |
+| Tests | 11/11 `test_ui_reliability.py`; Ruff clean on changed Python |
 
 ## Next steps
-1. Re-run live RAG search after future embedder/cache changes: browser RAG page, query `What is the Helios live verification token?` → expect `4 hits`.
-2. Confirm Chat shows corpus checkbox checked and `1 attached` for `b6db7c96`.
-3. Install system parsers on fan-dragon if needed: `antiword`, `tesseract`, `poppler`.
-4. Fix legacy `test_db_lifecycle` / `test_parsed_converts_txt`, then `make test`.
+1. Deploy: `git push`; fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`.
+2. Browser: upload several files on `/projects/{pid}/data-prep` — table + counters must update without full reload.
+3. Browser: force a bad `/api/models/load` — toast must show failure (VRAM/RAM detail), never “Model loaded”.
+4. Confirm Model vs RAG workspace switch looks obvious on overview + RAG pages.
+5. Fix legacy `test_db_lifecycle` / `test_parsed_converts_txt`, then `make test`.
 
 ## Commands
-- Focused: `.venv/bin/python -m pytest tests/test_sentence_transformer_local.py tests/test_rag_embedder_dims.py -v --tb=short`
-- Lint: `.venv/bin/ruff check src/finetune_studio/data/sentence_transformer_local.py src/finetune_studio/data/shared_models.py src/finetune_studio/data/rag_portable/embedders.py tests/test_sentence_transformer_local.py`
+- Focused: `.venv/bin/python -m pytest tests/test_ui_reliability.py -v --tb=short`
+- Lint: `.venv/bin/ruff check src/finetune_studio/webui/routes/models.py tests/test_ui_reliability.py`
 - Deploy: `git push`; fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`
 
 ## Blockers

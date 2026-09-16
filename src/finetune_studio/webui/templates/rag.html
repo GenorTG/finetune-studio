@@ -348,6 +348,29 @@
       + '</tbody></table>';
   }
 
+  window.saveSettings = async function() {
+    const reranker = (document.getElementById('s-reranker') || {}).value || '';
+    const topNEl = document.getElementById('s-rerank-top-n');
+    const rerankOn = document.getElementById('s-rerank-enabled');
+    const hybridOn = document.getElementById('s-hybrid-enabled');
+    const body = {
+      reranker: reranker || null,
+      rerank_top_n: topNEl ? parseInt(topNEl.value, 10) || 50 : 50,
+      rerank_enabled: !!(rerankOn && rerankOn.checked),
+      hybrid_enabled: !!(hybridOn && hybridOn.checked),
+    };
+    try {
+      const d = await api().post('/api/projects/' + PID + '/rag/settings', body);
+      if (d && d.error) {
+        notify(d.error, 'error');
+        return;
+      }
+      notify('Retrieval settings saved', 'success');
+    } catch (e) {
+      notify('Save failed: ' + (e.message || e), 'error');
+    }
+  };
+
   window.loadIndexedDocs = async function() {
     const body = document.getElementById('rag-docs-body');
     if (!body) return;

@@ -62,11 +62,11 @@
           <thead>
             <tr>
               <th class="fl-col-check"><input type="checkbox" id="fl-select-all" onchange="flSelectAll(this.checked)"></th>
-              <th>name</th>
+              <th class="fl-col-name">name</th>
               <th class="fl-col-ver">v</th>
-              <th>type</th>
+              <th class="fl-col-type">type</th>
               <th class="fl-col-size">size</th>
-              <th>status</th>
+              <th class="fl-col-status">status</th>
               <th class="fl-col-actions">actions</th>
             </tr>
           </thead>
@@ -314,12 +314,20 @@
   overflow: auto;
 }
 .fl-drop-hover { border-color: var(--accent, #00ccff); background: rgba(0, 204, 255, 0.04); }
-.fl-table { width: 100%; font-size: 11px; border-collapse: collapse; }
+.fl-table {
+  width: 100%;
+  font-size: 12px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
 .fl-table th, .fl-table td {
   padding: 6px 8px;
   text-align: left;
   vertical-align: middle;
   border-bottom: 1px solid var(--border, #222);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .fl-table th {
   background: var(--bg-elev, #0a0a0a);
@@ -330,10 +338,25 @@
   color: var(--text-dim, #888);
 }
 .fl-table tr:hover td { background: rgba(255, 255, 255, 0.03); }
-.fl-col-check { width: 24px; }
+.fl-col-check { width: 28px; }
+.fl-col-name { width: 32%; }
 .fl-col-ver { width: 56px; text-align: center; white-space: nowrap; }
-.fl-col-size { width: 60px; text-align: right; }
-.fl-col-actions { width: 140px; text-align: right; }
+.fl-col-type { width: 12%; }
+.fl-col-size { width: 72px; text-align: right; }
+.fl-col-status { width: 56px; }
+.fl-col-actions { width: 160px; text-align: right; }
+.fl-name, .fl-mime {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 0; /* fixed-layout: force ellipsis under header */
+}
+.fl-table td[colspan] {
+  white-space: normal;
+  text-overflow: clip;
+  overflow: visible;
+  text-align: center;
+}
 .fl-use-source {
   font-size: 10px;
   padding: 2px 6px;
@@ -525,8 +548,10 @@ async function flLoadFiles() {
     if (_flSearchQuery) params.set('search', _flSearchQuery);
     const r = await fetch('/api/projects/' + _flPid + '/files?' + params).then((r) => r.json());
     _flFiles = r.files || [];
-    await flPrefetchConversions(_flFiles);
+    // Paint rows immediately — do not block the table on conversion prefetch
+    // (that was leaving an empty table after bulk upload until a full reload).
     flRenderFiles();
+    flPrefetchConversions(_flFiles).then(function () { flRenderFiles(); });
   } catch (e) { console.error('flLoadFiles', e); }
 }
 
@@ -599,7 +624,7 @@ function flRenderFiles() {
     return true;
   });
   if (!_visible.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="dim text-xs" style="text-align:center;padding:32px">' +
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7" class="dim text-xs" style="text-align:center;padding:32px">' +
       (_q ? 'No files match your search.' : 'No files yet. ' + (_flCurrentFolder ? 'Pick a different folder, or ' : '') + 'drop files above or click ⬆ Upload.') +
       '</td></tr>';
     if (footer) footer.textContent = '';
@@ -794,6 +819,10 @@ async function flUploadFiles(files) {
         await flPromoteToDataPrep(fid);
       }
     }
+    // Show all files after upload so new MIME-folder rows are visible in-place.
+    _flCurrentFolder = null;
+    const label = document.getElementById('fl-files-label');
+    if (label) label.textContent = 'ALL FILES';
     await flInit();
     flRefreshSourceSelect();
   } catch (e) {
