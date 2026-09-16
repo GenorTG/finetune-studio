@@ -19,7 +19,10 @@ enabled button, and verify the resulting URL, toast, modal, or status change.
 - Replace the desktop horizontal nav scrollport with a wrapping tab row.
 - Hide the nav strip and expose one hamburger menu on mobile only.
 - Remove the visible scroll arrows and scrollbar from the desktop header.
-- Bump the stylesheet cache key to `app.css?v=23`.
+- Bump the stylesheet cache key to `app.css?v=24`.
+- Keep the fixed desktop status cluster above the wrapping tabs at 701–1280px.
+- Route model/export copy actions through an escaped data attribute and a
+  clipboard fallback; headless Chromium no longer throws on Copy.
 
 ## Known follow-up checks
 
@@ -39,7 +42,20 @@ enabled button, and verify the resulting URL, toast, modal, or status change.
 
 ## Evidence status
 
-The browser-control service was unavailable during this pass because the
-gateway was draining, so screenshot and real-click verification remain
-blocked. Static template contracts and focused UI tests are green; do not
-claim the visual audit complete until the browser sweep is rerun.
+Browser verification completed against fan-dragon at 2026-09-16:
+
+- 375px screenshot: hamburger-only navigation, no document horizontal
+  overflow (`scrollWidth=365` for a 375px viewport), and the menu opened with
+  all 13 route links visible.
+- 1200px screenshot: tabs and the fixed status cluster occupy separate rows;
+  measured document `scrollWidth=1190` with no overlap after the final CSS.
+- `/models` at 375px: category filters render, the wide model table is inside
+  an intentional horizontal scroll region, and Copy renders as
+  `ftsCopyText(this.dataset.copyPath)`; clicking it produced zero new browser
+  errors.
+- Mobile screenshots/read-through completed for `/export`, `/training`,
+  `/chat`, `/rag`, `/benchmarks`, `/settings`, and `/models`; no additional
+  document-level overflow was reproduced. RAG destructive/build actions were
+  inspected but not confirmed, and training was not started.
+- Remaining non-blocking coverage: data-prep editor/modal and every RAG
+  modal/action need a clean pass when the slow routes finish consistently.

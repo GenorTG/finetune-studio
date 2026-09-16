@@ -7,19 +7,18 @@ Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :786
 ## State (verified 2026-09-16 Europe/Warsaw)
 | Area | Status |
 |------|--------|
-| Header nav | Desktop tabs wrap with no horizontal scrollbar; mobile uses hamburger only |
+| Header nav | Desktop tabs wrap without overlap/scrollport; mobile uses hamburger only |
 | Project/export mobile | Table scroll/actions and idle Stop fixes present in `a0ce3bb` |
 | Chat idle/history | Empty state is not presented as a live completed result |
 | RAG | Rebuild/search dedupe fix present and tested |
-| Tests | `840 passed, 3 warnings`; focused nav/UI `44 passed` |
-| Browser audit | Blocked: browser-control service disabled while gateway drains; no screenshot evidence yet |
+| Copy actions | Models/project/export copy buttons use escaped data attributes + clipboard fallback |
+| Tests | `840 passed, 3 warnings`; focused nav/UI `44 passed, 2 warnings` |
+| Browser audit | Verified fan-dragon at 375px and 1200px; screenshots and real hamburger/copy clicks passed |
 
 ## Next steps
-1. Rerun the browser sweep from `docs/UI-AUDIT-PLAN.md` when browser control is available.
-2. Verify desktop/mobile header overflow and hamburger links.
-3. Verify `/models`, `/export`, Training, Chat and all project tabs at 375px.
-4. Exercise Overview/Data Prep Preview and every modal/tab/action.
-5. Fix only screenshot-confirmed visual defects; rerun focused and full tests.
+1. Finish the slow-route Data Prep editor/modal pass from `docs/UI-AUDIT-PLAN.md`.
+2. Exercise RAG chunks/search/chat/download modals without confirming destructive actions.
+3. Recheck Overview/Data Prep Preview behavior and remaining mobile action clusters.
 
 ## Commands
 ```
@@ -29,4 +28,4 @@ make test
 ```
 
 ## Blockers
-- Browser-control service is disabled during gateway drain. Do not restart the gateway without Master Genor's explicit approval.
+- No active blocker. GPU-dependent training/inference remains unverified on genorbox1 by design.
