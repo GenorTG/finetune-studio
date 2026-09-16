@@ -859,10 +859,11 @@ async function chatPopulateInlineLoad() {
   const sel = document.getElementById('chat-inline-model');
   if (!loadEl || !sel) return;
   try {
-    const r = await fetch('/api/hf/local');
+    // Use the canonical registry so size/format labels match Models and Inference.
+    const r = await fetch('/api/models');
     if (!r.ok) return;
     const d = await r.json();
-    const models = d.models || [];
+    const models = Array.isArray(d) ? d : (d.models || []);
     if (models.length === 0) return;
     sel.innerHTML = '';
     models.forEach((m) => {
