@@ -446,7 +446,7 @@ async function _chatCheckModel() {
       const ie = await fetch('/api/inference/status').then((r) => r.json());
       if (ie && ie.loaded && ie.model) {
         loadedModelPath = ie.model;
-        if (!active) {
+        if (!active || !active.loaded) {
           // Synthesize an active descriptor from the global engine so
           // the pill stays accurate even when the user only loaded
           // via /inference.
