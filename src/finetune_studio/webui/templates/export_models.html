@@ -232,7 +232,7 @@
         <td class="meta exports-col-created">{{ m.created_at }}</td>
         <td class="exports-col-copy">
           <button class="btn sm" type="button"
-                  onclick="navigator.clipboard.writeText({{ m.path|tojson }});fts.notify('Path copied','success')">Copy path</button>
+                  onclick="ftsCopyText({{ m.path|tojson }})">Copy path</button>
         </td>
         <td class="exports-col-actions">
           <button type="button" class="btn sm primary"

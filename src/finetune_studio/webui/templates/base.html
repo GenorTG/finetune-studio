@@ -312,6 +312,27 @@
   <script src="/static/js/tutorial.js?v=12"></script>
   <script src="/static/js/activity.js?v=13"></script>
   <script>
+    window.ftsCopyText = async function (text) {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const input = document.createElement('textarea');
+          input.value = text;
+          input.setAttribute('readonly', '');
+          input.style.position = 'fixed';
+          input.style.opacity = '0';
+          document.body.appendChild(input);
+          input.select();
+          if (!document.execCommand('copy')) throw new Error('copy failed');
+          input.remove();
+        }
+        window.fts?.notify('Path copied', 'success');
+      } catch (error) {
+        window.fts?.notify('Clipboard unavailable', 'warn');
+      }
+    };
+
     // Global "loaded model" indicator — polls /api/providers every 3s on
     // any page (data-prep, rag, inference, training, testing) so the user
     // can see at a glance whether a model is loaded from anywhere. The
