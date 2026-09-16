@@ -495,3 +495,60 @@ def test_training_start_disabled_until_dataset(client: TestClient) -> None:
     # Trainable-base filtering kept (server models_for_training + HF merge skips GGUF).
     assert "trainable HF weights" in body
     assert "hasGguf" in body
+
+_MODELS = _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "models.html"
+_BENCH = _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "benchmarks.html"
+_HF = _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "hf_models.html"
+
+
+def test_models_and_bench_mobile_table_scroll_contract() -> None:
+    """375px must keep Load / RUN actions reachable via explicit horizontal scroll."""
+    css = _CSS.read_text(encoding="utf-8")
+    models = _MODELS.read_text(encoding="utf-8")
+    bench = _BENCH.read_text(encoding="utf-8")
+    assert 'id="models-table-scroll"' in models
+    assert 'class="table-scroll models-table-scroll"' in models
+    assert 'class="models-col-actions"' in models
+    assert 'id="bench-run-scroll"' in bench
+    assert "bench-table-scroll" in bench
+    assert "#models-table .models-col-actions" in css
+    assert "min-width: 6.5rem" in css
+    assert "#bench-run-table" in css
+    assert "@media (max-width: 780px)" in css
+    assert ".models-table-scroll" in css
+    assert "overflow-x: auto" in css
+
+
+def test_data_toolbar_actions_wrap_on_mobile() -> None:
+    css = _CSS.read_text(encoding="utf-8")
+    pdata = _PROJECT_DATA.read_text(encoding="utf-8")
+    assert 'id="fb-toolbar-actions"' in pdata
+    assert "Move to folder" in pdata
+    assert "#fb-toolbar-actions" in css
+    assert "flex-wrap: wrap" in css
+    assert "min-width: 7.5rem" in css
+
+
+def test_inference_load_button_reachable_on_mobile() -> None:
+    """Fixed-height desktop grid must not clip Load model at ≤780px."""
+    css = _CSS.read_text(encoding="utf-8")
+    inf = _INFERENCE.read_text(encoding="utf-8")
+    assert 'id="inference-layout"' in inf
+    assert "inference-layout" in inf
+    assert 'id="inference-load-actions"' in inf
+    assert 'id="load-btn"' in inf
+    assert "height: calc(100vh" not in inf  # moved to CSS class
+    assert ".inference-layout" in css
+    # Mobile override clears fixed height so the load actions stay in flow.
+    assert "height: auto !important" in css
+    assert ".inference-load-actions" in css
+
+
+def test_hf_modal_escape_close_contract() -> None:
+    html = _HF.read_text(encoding="utf-8")
+    assert "function closeHfModal" in html
+    assert "ev.key !== 'Escape'" in html or 'ev.key !== "Escape"' in html
+    assert 'role="dialog"' in html
+    assert 'aria-modal="true"' in html
+    assert 'aria-label="Close"' in html
+    assert "openHfModal" in html

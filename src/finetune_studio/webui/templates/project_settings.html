@@ -17,7 +17,7 @@
 
 <div class="page-head">
   <h1>Settings</h1>
-  <div class="sub">Project metadata and a live tail of the WebUI process log.</div>
+  <div class="sub">Project metadata and a truthful tail of the WebUI process log (systemd journal when the service owns the port; never claims live for a stale bare uvicorn.log).</div>
 </div>
 
 {# ── WebUI log tail ── #}
@@ -27,6 +27,7 @@
       <div class="card-title">WebUI log tail</div>
       <div class="card-sub text-dim">
         <span class="mono" id="log-path">—</span>
+        · <span id="log-live-badge" class="pill outline">—</span>
         · updated <span id="log-updated">—</span>
       </div>
     </div>
@@ -91,6 +92,7 @@
     const pre = document.getElementById("log-tail");
     const pathEl = document.getElementById("log-path");
     const updEl = document.getElementById("log-updated");
+    const badge = document.getElementById("log-live-badge");
     fetch(LOG_URL)
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -98,9 +100,25 @@
         if (pre) pre.textContent = lines.join("\n") || "(empty)";
         if (pathEl) pathEl.textContent = (data && data.path) ? data.path : "—";
         if (updEl) updEl.textContent = (data && data.updated_at) ? data.updated_at : "—";
+        if (badge) {
+          if (data && data.live) {
+            badge.textContent = "live";
+            badge.className = "pill solid-green";
+          } else if (data && data.stale) {
+            badge.textContent = "stale / unavailable";
+            badge.className = "pill solid-amber";
+          } else {
+            badge.textContent = (data && data.source) ? String(data.source) : "offline";
+            badge.className = "pill outline";
+          }
+        }
       })
       .catch(function (err) {
         if (pre) pre.textContent = "(failed to load log: " + err + ")";
+        if (badge) {
+          badge.textContent = "error";
+          badge.className = "pill solid-rose";
+        }
       });
   }
 

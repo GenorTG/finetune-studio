@@ -4188,3 +4188,108 @@ body::before {
   color: var(--text-muted);
   font-size: 11px;
 }
+
+/* ── Mobile table / action reachability (375–780px) ───────────────── */
+.models-table-scroll,
+.bench-table-scroll {
+  border: 1px solid var(--border);
+}
+#models-table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 40rem;
+}
+#models-table .models-col-name { width: 12rem; min-width: 10rem; }
+#models-table .models-col-size { width: 5rem; min-width: 4.5rem; white-space: nowrap; }
+#models-table .models-col-arch { width: 8rem; min-width: 6rem; }
+#models-table .models-col-path {
+  width: 12rem;
+  min-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#models-table .models-col-actions {
+  width: 7rem;
+  min-width: 6.5rem;
+  white-space: nowrap;
+}
+#bench-run-table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 44rem;
+}
+#bench-run-table .bench-actions-cell { min-width: 16rem; }
+.bench-run-form {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 2px 0;
+}
+
+/* Inference: desktop keeps viewport-height split; mobile must not clip Load */
+.inference-layout {
+  height: calc(100vh - var(--header-h) - 56px);
+}
+.inference-loader-pane {
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+.inference-load-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding-top: 8px;
+  padding-bottom: 4px;
+  background: linear-gradient(to top, var(--bg-panel) 70%, transparent);
+}
+
+@media (max-width: 780px) {
+  .models-table-scroll,
+  .bench-table-scroll,
+  .case-results-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+    /* Edge fades = more columns off-screen */
+    background:
+      linear-gradient(to right, var(--bg-elev, #0a0a0a) 30%, transparent) 0 0 / 1.25rem 100% local,
+      linear-gradient(to left, var(--bg-elev, #0a0a0a) 30%, transparent) 100% 0 / 1.25rem 100% local,
+      var(--bg-panel);
+    background-repeat: no-repeat;
+  }
+  #models-table { min-width: 40rem; width: max-content; }
+  #bench-run-table { min-width: 44rem; width: max-content; }
+  .case-results-table { min-width: 48rem; }
+
+  .page-head.row .actions,
+  #fb-toolbar-actions {
+    flex-shrink: 1;
+    flex-wrap: wrap;
+    width: 100%;
+    margin-left: 0;
+    gap: 8px;
+  }
+  #fb-toolbar-actions .btn {
+    flex: 1 1 auto;
+    min-width: 7.5rem;
+    white-space: nowrap;
+  }
+
+  .inference-layout {
+    height: auto !important;
+    min-height: 0;
+  }
+  .inference-loader-pane {
+    overflow: visible;
+    max-height: none;
+  }
+  .inference-load-actions {
+    position: static;
+    background: transparent;
+  }
+}

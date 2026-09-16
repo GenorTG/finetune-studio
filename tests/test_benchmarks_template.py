@@ -132,3 +132,35 @@ def test_benchmarks_template_suite_catalog_not_raw_json() -> None:
     # Catalog is a table of labels/types — not a dump of suite dicts
     assert "<pre>{{ suites" not in body
     assert "{{ suites|tojson }}" in body  # JS only, not visible catalog
+
+
+def test_benchmarks_base_row_visible_without_training_runs() -> None:
+    """Base-model RUN must remain available when suites exist but runs is empty."""
+    body = _BENCH.read_text(encoding="utf-8")
+    assert 'id="bench-base-row"' in body
+    assert 'id="bench-base-form"' in body
+    assert "/api/benchmarks/projects/{{ pid }}/base/run" in body
+    # Empty-runs hint must not gate the whole suites branch.
+    assert "No training runs yet — start one to enable benchmarking." not in body
+    assert "untrained base model" in body
+    assert 'id="bench-no-runs-hint"' in body
+    # Base row is inside the suites-available branch, not under `{% if runs %}`.
+    assert "{% if not suites %}" in body
+    # Horizontal scroll shell for run controls on narrow viewports.
+    assert 'id="bench-run-scroll"' in body
+    assert "bench-table-scroll" in body
+
+
+def test_benchmarks_page_shows_base_row_with_zero_runs(client) -> None:
+    r = client.post(
+        "/api/projects",
+        json={"name": "Bench Zero Runs", "base_model": "Qwen/Qwen3-0.6B"},
+    )
+    assert r.status_code in (200, 201), r.text
+    pid = r.json()["id"]
+    page = client.get(f"/projects/{pid}/benchmarks")
+    assert page.status_code == 200, page.text
+    assert 'id="bench-base-row"' in page.text
+    assert 'id="bench-base-form"' in page.text
+    assert "/base/run" in page.text
+    assert "start one to enable benchmarking" not in page.text

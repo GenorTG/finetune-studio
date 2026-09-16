@@ -15,20 +15,27 @@
     <a href="/models/explore" class="btn" data-link>Browse HF Hub →</a>
   </div>
   {% if models %}
-  <table class="table">
-    <thead><tr><th>Name</th><th>Format</th><th>Size</th><th>Architecture</th><th>Path</th><th></th></tr></thead>
+  <div class="table-scroll models-table-scroll" id="models-table-scroll" role="region" aria-label="Discovered models">
+  <table class="table" id="models-table">
+    <thead><tr>
+      <th class="models-col-name">Name</th>
+      <th class="models-col-size">Size</th>
+      <th class="models-col-arch">Architecture</th>
+      <th class="models-col-path">Path</th>
+      <th class="models-col-actions">Actions</th>
+    </tr></thead>
     <tbody>
       {% for m in models %}
       <tr class="row-hover">
-        <td class="name">
+        <td class="name models-col-name">
           <span class="pill {{ 'solid-purple' if m.vision else 'solid-blue' }}" style="margin-right:6px;">{{ m.format }}</span>
           {{ m.name }}
           {% if m.vision %}<span class="pill solid-cyan">👁 vision</span>{% endif %}
         </td>
-        <td class="meta mono">{{ m.size_gb }} GB</td>
-        <td class="meta">{{ m.architecture or '—' }}</td>
-        <td class="meta mono truncate" style="max-width:200px;">{{ m.path }}</td>
-        <td>
+        <td class="meta mono models-col-size">{{ m.size_gb }} GB</td>
+        <td class="meta models-col-arch">{{ m.architecture or '—' }}</td>
+        <td class="meta mono models-col-path" title="{{ m.path }}">{{ m.path }}</td>
+        <td class="models-col-actions">
           {% if loaded and loaded.path == m.path %}
           <span class="pill solid-green">● loaded</span>
           {% else %}
@@ -39,6 +46,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}
   <div class="empty">No models found. Add directories to scan in Settings, or browse the HF Hub.</div>
   {% endif %}

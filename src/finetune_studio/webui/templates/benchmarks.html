@@ -22,19 +22,27 @@
     {% endif %}
   </div>
 
-  {% if not runs %}
-  <div class="empty">
-    <p>No training runs yet — start one to enable benchmarking.</p>
-    <a href="/projects/{{ pid }}/training" class="btn primary" data-link>Open Training</a>
-  </div>
-  {% elif not suites %}
+  {% if not suites %}
   <div class="empty">
     <p>No benchmark suites available — synthetic smoke fixtures missing from the install.</p>
     <a href="/projects/{{ pid }}/training" class="btn primary" data-link>Open Training</a>
   </div>
   {% else %}
+  {% if not runs %}
+  <div class="empty small mb-3" id="bench-no-runs-hint" role="status">
+    <p>No training runs yet — you can still benchmark the <strong>untrained base model</strong> when
+      <span class="mono">base_model</span> is configured{% if project.base_model %}
+      (<span class="mono">{{ project.base_model|model_label }}</span>){% else %}
+      (set it on Project Settings){% endif %}.</p>
+    {% if not project.base_model %}
+    <a href="/projects/{{ pid }}/settings" class="btn" data-link>Open Project Settings</a>
+    {% endif %}
+    <a href="/projects/{{ pid }}/training" class="btn primary" data-link>Open Training</a>
+  </div>
+  {% endif %}
   <div class="text-sm dim mb-2">Available suites — <span class="mono">real</span> = official HF industry splits; <span class="mono">synthetic_*</span> = local shaped fixtures (not industry); plus local JSON / project auto:</div>
-  <table class="table text-sm mb-4" id="suite-catalog">
+  <div class="table-scroll bench-table-scroll mb-4">
+  <table class="table text-sm" id="suite-catalog">
     <thead>
       <tr><th>Suite</th><th>Type</th><th>Source</th><th>Cases</th></tr>
     </thead>
@@ -49,6 +57,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   <div class="text-sm dim mb-3" id="real-sample-hint">
     Real suites default to a bounded sample ({{ 50 }} cases). Pass
     <span class="mono">num_samples</span> or <span class="mono">full_run=true</span>
@@ -56,8 +65,9 @@
   </div>
 
   <h3 class="mt-4 mb-2">Run a benchmark</h3>
-  <table class="table">
-    <thead><tr><th>Training run</th><th>Base model</th><th>Status</th><th>Suite</th><th></th></tr></thead>
+  <div class="table-scroll bench-table-scroll" id="bench-run-scroll">
+  <table class="table" id="bench-run-table">
+    <thead><tr><th>Training run</th><th>Base model</th><th>Status</th><th>Suite / actions</th></tr></thead>
     <tbody>
       {% for run in runs %}
       {% set st = (run.status or '')|lower %}
@@ -76,9 +86,9 @@
           <div class="dim text-xs mt-1" title="{{ run.error }}">{{ run.error[:80] }}{% if run.error|length > 80 %}…{% endif %}</div>
           {% endif %}
         </td>
-        <td>
+        <td class="bench-actions-cell">
           <form data-api="/api/benchmarks/projects/{{ pid }}/runs/{{ run.id }}/run"
-                data-reload="true" style="display:inline;">
+                data-reload="true" class="bench-run-form">
             <input type="hidden" name="suite_name" value="{{ suites[0].name if suites else 'default' }}">
             <select name="suite_path" class="select" style="min-width:220px;font-size:11px;"
                     onchange="var o=this.options[this.selectedIndex]; this.form.elements.suite_name.value=o.getAttribute('data-name')||o.text; var r=this.form.querySelector('[name=num_samples]'); if(r){ r.style.display=(o.getAttribute('data-type')==='real')?'inline-block':'none'; }">
@@ -100,7 +110,7 @@
                     {% if not can_bench %}disabled title="Only completed runs with a trained model can be benchmarked"{% endif %}>RUN</button>
           </form>
           <form data-api="/api/benchmarks/projects/{{ pid }}/runs/{{ run.id }}/evaluate-training"
-                data-reload="true" style="display:inline;margin-left:6px;"
+                data-reload="true" class="bench-run-form"
                 title="Evaluate on the project's approved training dataset (leakage / memorization check)">
             <button type="submit" class="btn" style="font-size:11px;padding:4px 10px;"
                     {% if not can_bench %}disabled{% endif %}>Train-set eval</button>
@@ -108,14 +118,14 @@
         </td>
       </tr>
       {% endfor %}
-      {# Explicit base-model probe — never a silent fallback for failed runs #}
-      <tr>
+      {# Explicit base-model probe — shown even with zero training runs #}
+      <tr id="bench-base-row">
         <td class="mono">base model (untrained)</td>
         <td class="mono text-xs dim" title="{{ project.base_model or '' }}">{{ (project.base_model or '')|model_label }}</td>
         <td><span class="pill outline">base</span></td>
-        <td>
+        <td class="bench-actions-cell">
           <form data-api="/api/benchmarks/projects/{{ pid }}/base/run"
-                data-reload="true" style="display:inline;">
+                data-reload="true" class="bench-run-form" id="bench-base-form">
             <input type="hidden" name="suite_name" value="{{ suites[0].name if suites else 'default' }}">
             <select name="suite_path" class="select" style="min-width:220px;font-size:11px;"
                     onchange="var o=this.options[this.selectedIndex]; this.form.elements.suite_name.value=o.getAttribute('data-name')||o.text; var r=this.form.querySelector('[name=num_samples]'); if(r){ r.style.display=(o.getAttribute('data-type')==='real')?'inline-block':'none'; }">
@@ -133,13 +143,14 @@
               <option value="100">100</option>
               <option value="200">200</option>
             </select>
-            <button type="submit" class="btn" style="font-size:11px;padding:4px 10px;"
+            <button type="submit" class="btn" style="font-size:11px;padding:4px 10px;" id="bench-base-run-btn"
                     {% if not project.base_model %}disabled title="Project has no base_model configured"{% endif %}>RUN</button>
           </form>
         </td>
       </tr>
     </tbody>
   </table>
+  </div>
 
   {# QABUG-012: per-case detail table — empty placeholder must leave the DOM
      when cases exist so NO_DATA markers cannot linger beside results. #}

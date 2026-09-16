@@ -81,11 +81,15 @@
 </div>
 
 {# Modal for model info / file picker #}
-<div id="hf-modal" class="modal-back" hidden onclick="if(event.target===this)this.hidden=true">
+<div id="hf-modal" class="modal-back" hidden role="dialog" aria-modal="true"
+     aria-labelledby="hf-modal-title"
+     onclick="if(event.target===this)closeHfModal()">
   <div class="modal">
     <div class="modal-head">
       <strong id="hf-modal-title">Model</strong>
-      <button class="btn ghost icon" onclick="document.getElementById('hf-modal').hidden=true" style="margin-left:auto;">✕</button>
+      <button type="button" class="btn ghost icon" id="hf-modal-close"
+              onclick="closeHfModal()" aria-label="Close"
+              style="margin-left:auto;">✕</button>
     </div>
     <div class="modal-body" id="hf-modal-body">…</div>
     <div class="modal-foot" id="hf-modal-foot"></div>
@@ -222,12 +226,39 @@ function esc(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<
 function fmtM(n) { return (n/1e6).toFixed(n>=1e6 ? 1 : 2) + 'M'; }
 function fmtK(n) { return (n/1e3).toFixed(n>=1e3 ? 1 : 2) + 'K'; }
 
+let _hfModalPrevFocus = null;
+function closeHfModal() {
+  const m = document.getElementById('hf-modal');
+  if (!m || m.hidden) return;
+  m.hidden = true;
+  const prev = _hfModalPrevFocus;
+  _hfModalPrevFocus = null;
+  if (prev && typeof prev.focus === 'function') {
+    try { prev.focus(); } catch (_) { /* ignore */ }
+  }
+}
+function openHfModal() {
+  const m = document.getElementById('hf-modal');
+  if (!m) return;
+  _hfModalPrevFocus = document.activeElement;
+  m.hidden = false;
+  const closeBtn = document.getElementById('hf-modal-close');
+  if (closeBtn) closeBtn.focus();
+}
+document.addEventListener('keydown', function (ev) {
+  if (ev.key !== 'Escape') return;
+  const m = document.getElementById('hf-modal');
+  if (!m || m.hidden) return;
+  ev.preventDefault();
+  closeHfModal();
+});
+
 async function showInfo(repo, btn) {
   const m = document.getElementById('hf-modal');
   document.getElementById('hf-modal-title').textContent = repo;
   document.getElementById('hf-modal-body').innerHTML = '<div class="spinner lg"></div>';
   document.getElementById('hf-modal-foot').innerHTML = '';
-  m.hidden = false;
+  openHfModal();
   try {
     const d = await fts.api.get(`/api/hf/info/${encodeURIComponent(repo)}`);
     document.getElementById('hf-modal-body').innerHTML = `
@@ -256,7 +287,7 @@ async function showFiles(repo, btn) {
   document.getElementById('hf-modal-title').textContent = `Files in ${repo}`;
   document.getElementById('hf-modal-body').innerHTML = '<div class="spinner lg"></div>';
   document.getElementById('hf-modal-foot').innerHTML = '';
-  m.hidden = false;
+  openHfModal();
   try {
     const d = await fts.api.get(`/api/hf/local/${encodeURIComponent(repo)}/files`);
     const files = d.files || [];

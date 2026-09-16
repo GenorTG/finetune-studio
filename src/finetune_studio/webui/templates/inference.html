@@ -5,10 +5,10 @@
 {% block sb_path %}~ / tools / inference{% endblock %}
 
 {% block content %}
-<div class="grid grid-1-3" style="height: calc(100vh - var(--header-h) - 56px);">
+<div class="grid grid-1-3 inference-layout" id="inference-layout">
 
   {# ── Left: model loader + params ──────────────────────── #}
-  <div class="card" style="overflow:auto;">
+  <div class="card inference-loader-pane" id="inference-loader-pane">
     <div class="card-head">
       <div class="card-title">Model</div>
       {% if loaded %}
@@ -152,7 +152,7 @@
       </div>
     </details>
 
-    <div class="mt-4 flex gap-2">
+    <div class="mt-4 flex gap-2 inference-load-actions" id="inference-load-actions">
       {% if loaded %}
       <button class="btn primary" id="load-btn" onclick="loadModel()">Reload model</button>
       <button class="btn danger" id="unload-btn" onclick="unloadModel()">Unload</button>
