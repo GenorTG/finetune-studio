@@ -456,12 +456,15 @@ async function _chatCheckModel() {
     } catch (_) {}
     const pill = document.getElementById('chat-status-pill');
     const warnEl = document.getElementById('chat-model-warn');
+    const sendBtn = document.getElementById('chat-send');
+    const modelLoaded = !!(active && active.loaded);
+    if (sendBtn) sendBtn.disabled = !modelLoaded;
     if (warnEl) {
-      warnEl.hidden = !!(active && active.loaded);
+      warnEl.hidden = modelLoaded;
       // Populate inline loader if no model is loaded
-      if (!(active && active.loaded)) chatPopulateInlineLoad();
+      if (!modelLoaded) chatPopulateInlineLoad();
     }
-    if (active && active.loaded) {
+    if (modelLoaded) {
       let nice = active.name || active.id || '?';
       if (active.kind === 'local_gguf' && active.model_id) {
         const base = String(active.model_id).split(/[\\/]/).pop() || active.model_id;
@@ -728,6 +731,10 @@ async function chatSend() {
   const text = ta.value.trim();
   if (!text) return;
   const sendBtn = document.getElementById('chat-send');
+  if (sendBtn && sendBtn.disabled) {
+    fts.notify('Load a model before sending a message.', 'error');
+    return;
+  }
   const stopBtn = document.getElementById('chat-stop');
   sendBtn.disabled = true;
   if (stopBtn) stopBtn.disabled = false;
