@@ -4349,6 +4349,67 @@ body::before {
   background: linear-gradient(to top, var(--bg-panel) 70%, transparent);
 }
 
+/* Final responsive nav contract.  Keep this after the legacy breakpoint
+   blocks above: those older rules intentionally keep a scroll strip at
+   tablet widths, which reintroduced the second viewport and desktop
+   hamburger the current shell no longer uses. */
+@media (min-width: 701px) {
+  .session-bar { overflow: visible; }
+  .sb-nav-shell {
+    overflow: visible;
+    padding: 10px 360px 0 140px;
+  }
+  .sb-tabs {
+    display: flex;
+    flex-wrap: wrap !important;
+    overflow: visible !important;
+    scrollbar-width: none;
+  }
+  .sb-group {
+    flex-wrap: wrap !important;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .sb-nav-scroll,
+  .sb-nav-more { display: none !important; }
+}
+
+@media (max-width: 700px) {
+  .sb-nav-shell {
+    min-height: 48px;
+    padding: 10px 8px 0 46px;
+    padding-right: 8px;
+    overflow: visible;
+  }
+  .sb-tabs,
+  .sb-nav-scroll { display: none !important; }
+  .sb-nav-more {
+    display: block !important;
+    margin: 0;
+  }
+  .sb-nav-more-btn {
+    width: 38px;
+    height: 32px;
+    padding: 0;
+    font-size: 20px;
+    line-height: 1;
+  }
+  .sb-nav-more-panel {
+    left: 0;
+    right: auto;
+    min-width: min(230px, calc(100vw - 16px));
+  }
+  .sb-right {
+    position: static;
+    font-size: 13px;
+  }
+  .card-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+}
+
 @media (max-width: 780px) {
   .models-table-scroll,
   .bench-table-scroll,
