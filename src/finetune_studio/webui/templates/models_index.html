@@ -55,7 +55,7 @@
         {% else %}—{% endif %}
       </td>
       <td class="meta mono text-xs models-col-path" title="{{ m.path }}">{{ m.path[-40:] if m.path|length > 40 else m.path }}</td>
-      <td class="models-col-actions"><button class="btn sm" onclick="ftsCopyText({{ m.path|tojson }})">Copy</button></td>
+      <td class="models-col-actions"><button class="btn sm" data-copy-path="{{ m.path }}" onclick="ftsCopyText(this.dataset.copyPath)">Copy</button></td>
     </tr>
     {% endfor %}
   </tbody>
