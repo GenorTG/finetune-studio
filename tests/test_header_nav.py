@@ -72,7 +72,8 @@ def test_header_nav_overflow_affordance_markup() -> None:
     assert "[nav]" in base
     assert 'id="sb-nav-more-list"' in base
     assert "nav_overflow.js" in base
-    assert "app.css?v=22" in base
+    assert "☰" in base
+    assert "app.css?v=23" in base
     assert "spa.js?v=15" in base
 
 
@@ -105,6 +106,13 @@ def test_header_nav_css_overflow_contract() -> None:
     # Mid-width gutter still shrinks via shell.
     assert "padding-right: min(490px, 42vw)" in css
     assert "padding-right: min(160px, 28vw)" in css
+    desktop = css.split("@media (min-width: 701px)", 1)[1].split("@media", 1)[0]
+    assert ".sb-tabs" in desktop and "overflow: visible" in desktop
+    assert ".sb-nav-more { display: none !important; }" in desktop
+    mobile_start = css.index("@media (max-width: 700px) {\n  .sb-nav-shell {\n    min-height: 48px;")
+    mobile = css[mobile_start : mobile_start + 1200]
+    assert ".sb-tabs { display: none; }" in mobile
+    assert ".sb-nav-more-btn" in mobile
 
 
 def test_header_nav_js_module_present() -> None:
@@ -192,5 +200,5 @@ def test_project_pages_serve_nav_affordance(client: TestClient) -> None:
 
 def test_css_cache_bust_header_nav() -> None:
     base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=22" in base
+    assert "app.css?v=23" in base
     assert "nav_overflow.js?v=1" in base

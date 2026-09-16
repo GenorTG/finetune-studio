@@ -27,7 +27,11 @@ Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **ge
 ## Session protocol
 - Start: `create_goal` (objective + acceptance command), `progress_card` ≤7 steps. Clear any stale card first.
 - Every new instruction from Genor = new task: `get_goal` first; if objective mismatches, ask Genor for `/goal edit …` (model cannot rewrite objective — only complete/blocked) and reset the `progress_card` before any other call. Every ~10 tool calls: `get_goal`, update the card. Same fix failed twice → stop and change approach.
-- Implementation is Cursor's, mechanically: hand-edit only one-file fixes ≤30 lines, docs, config. New feature / new file, scene or test / ≥2 code files / a fix that already failed once → `sessions_spawn` with `runtime: "acp"`, `agentId: "cursor"`, `streamTo: "parent"`, `label`, `cwd` = this repo (Cursor Auto, flat subscription); then `sessions_yield`. You reproduce, review the diff, verify, commit, push. Cheap research/triage only: `runtime: "subagent"`, `model: "opencode-go/deepseek-v4-flash"`.
+- Implementation is **Cursor's by default** (unless Genor says not to). Hand-edit only one-file fixes ≤30 lines, docs, config. Otherwise use the persistent Cursor helper — `~/.openclaw/workspace/docs/CURSOR-HELPERS.md`:
+  1. Look up this cwd in `CURSOR-HELPERS.json`. Missing → `node ~/.openclaw/scripts/ensure-cursor-helper.mjs --cwd /home/genorbox1/work/finetune-studio --label cursor-helper:finetune-studio` (do it yourself). Use **`acpSessionKey`**.
+  2. `sessions_send` to `agent:cursor:acp:…` with task + acceptance + verify + "update HANDOFF.md". No cold `mode:"run"` for iterative work.
+  3. Wait via announce / `sessions_history` — **not** `sessions_yield` after send. Parallel parent work is fine. One-shot spawn+yield only if asked or ensure failed.
+  You reproduce, review, verify, commit, push. Cheap research/triage: `runtime: "subagent"`, `model: "opencode-go/deepseek-v4-flash"`.
 - End: goal complete/blocked, card cleared, `HANDOFF.md` rewritten, commit + push.
 
 ## HANDOFF rules

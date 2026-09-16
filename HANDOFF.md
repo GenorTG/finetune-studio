@@ -7,33 +7,26 @@ Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :786
 ## State (verified 2026-09-16 Europe/Warsaw)
 | Area | Status |
 |------|--------|
-| Project `/models` mobile | Fixed: `project_models.html` `#trained-exports-table-scroll` + rem floors (Copy / Open in inference) |
-| Export trained exports | Same scroll pattern on `export_models.html` |
-| Training Stop idle | `#stop-btn` disabled until ACTIVE status; enabled in `applyStatus` |
-| Chat idle / stale success | No live restore of localStorage into `#chat-msgs`; labeled “Previous session (not a live result)” |
-| `/models` filter pills | `#models-index-filters` wraps + scroll; added missing `.flex-wrap` utility |
-| Tests | 9/9 focused green; Ruff clean on changed test Python (no src Python edits) |
+| Header nav | Desktop tabs wrap with no horizontal scrollbar; mobile uses hamburger only |
+| Project/export mobile | Table scroll/actions and idle Stop fixes present in `a0ce3bb` |
+| Chat idle/history | Empty state is not presented as a live completed result |
+| RAG | Rebuild/search dedupe fix present and tested |
+| Tests | `840 passed, 3 warnings`; focused nav/UI `44 passed` |
+| Browser audit | Blocked: browser-control service disabled while gateway drains; no screenshot evidence yet |
 
 ## Next steps
-1. Deploy when ready: `git push`; fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio` (do not deploy from this task).
-2. Browser 375px: `/projects/{pid}/models`, `/projects/{pid}/export` — scroll + actions reachable.
-3. Training idle: Stop disabled; while running: Stop enabled.
-4. Chat empty project: empty-state tip only; no “Done — N factual Q&A…” in live pane.
-5. `/models` filters: all pills usable (wrap/scroll), no silent clip.
+1. Rerun the browser sweep from `docs/UI-AUDIT-PLAN.md` when browser control is available.
+2. Verify desktop/mobile header overflow and hamburger links.
+3. Verify `/models`, `/export`, Training, Chat and all project tabs at 375px.
+4. Exercise Overview/Data Prep Preview and every modal/tab/action.
+5. Fix only screenshot-confirmed visual defects; rerun focused and full tests.
 
 ## Commands
 ```
-.venv/bin/python -m pytest \
-  tests/test_ui_reliability.py::test_project_and_export_trained_exports_mobile_scroll \
-  tests/test_ui_reliability.py::test_models_index_filters_discoverable_on_mobile \
-  tests/test_ui_reliability.py::test_training_stop_disabled_while_idle \
-  tests/test_ui_reliability.py::test_training_start_disabled_until_dataset \
-  tests/test_chat_v2_template_fixes.py -v --tb=short
-# → 9 passed
-
-.venv/bin/ruff check tests/test_ui_reliability.py tests/test_chat_v2_template_fixes.py
-# → All checks passed!
+make test
+.venv/bin/python -m pytest tests/test_header_nav.py tests/test_ui_reliability.py -q --tb=short
+.venv/bin/ruff check tests/test_header_nav.py tests/test_ui_reliability.py
 ```
 
 ## Blockers
-- None for this pass (browser confirm pending after deploy).
+- Browser-control service is disabled during gateway drain. Do not restart the gateway without Master Genor's explicit approval.
