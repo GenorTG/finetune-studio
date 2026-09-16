@@ -403,7 +403,7 @@ async def data_prep_chat(pid: str, request: Request):
             pass
     if "max_tokens" in gen_raw:
         try:
-            gen["max_tokens"] = max(32, min(8192, int(gen_raw["max_tokens"])))
+            gen["max_tokens"] = max(32, min(16384, int(gen_raw["max_tokens"])))
         except (TypeError, ValueError):
             pass
     if "top_p" in gen_raw:
