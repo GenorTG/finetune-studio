@@ -20,6 +20,9 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
+from finetune_studio import __release_channel__ as RELEASE_CHANNEL
+from finetune_studio import __version__ as APP_VERSION
+
 log = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -146,6 +149,8 @@ async def data_prep_page(request: Request, pid: str):
     from finetune_studio.data import project_filesystem as pfs
     from finetune_studio.webui.app import discovered_models
     templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
+    templates.env.globals["app_version"] = APP_VERSION
+    templates.env.globals["release_channel"] = RELEASE_CHANNEL
     project = db.get_project(pid)
     if not project:
         return HTMLResponse("Project not found", status_code=404)

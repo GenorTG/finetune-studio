@@ -12,11 +12,15 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.templating import Jinja2Templates
 
 from finetune_studio import db
+from finetune_studio import __release_channel__ as RELEASE_CHANNEL
+from finetune_studio import __version__ as APP_VERSION
 from finetune_studio.config import settings
 from finetune_studio.training.data import load_jsonl, save_jsonl
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
+templates.env.globals["app_version"] = APP_VERSION
+templates.env.globals["release_channel"] = RELEASE_CHANNEL
 
 
 def _has_traversal(raw: str) -> bool:

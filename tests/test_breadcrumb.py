@@ -30,7 +30,7 @@ def _render_base(**kwargs: object) -> str:
 def test_breadcrumb_present_when_pid_defined() -> None:
     html = _render_base(pid="abc123", project={"name": "nightly-qa", "id": "abc123"})
     assert 'id="project-breadcrumb"' in html
-    assert "/projects/abc123/overview" in html
+    assert 'href="/projects/abc123"' in html
     assert "nightly-qa" in html
 
 
