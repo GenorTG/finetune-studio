@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import io
+import shutil
 import struct
 import tomllib
 import zipfile
@@ -71,6 +72,15 @@ def _minimal_png(path: Path) -> None:
         + chunk(b"IDAT", raw)
         + chunk(b"IEND", b"")
     )
+
+
+def _write_ocr_image(path: Path) -> None:
+    """Create a real, high-contrast image so OCR-enabled installs are tested."""
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", (900, 180), "white")
+    ImageDraw.Draw(image).text((24, 60), MARKER, fill="black")
+    image.save(path)
 
 
 def _write_odf(path: Path, ext: str) -> None:
@@ -268,8 +278,9 @@ def _fixture_for(ext: str, dest: Path) -> str:
         return "expect_text"
 
     if ext in {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp", ".gif"}:
-        # 1x1 PNG bytes under any image extension — OCR on a blank pixel is
-        # not reliable, so we always treat this as a dep_warn / no-crash path.
+        if _has_module("PIL") and shutil.which("tesseract"):
+            _write_ocr_image(dest)
+            return "expect_text"
         _minimal_png(dest)
         return "dep_warn"
 
