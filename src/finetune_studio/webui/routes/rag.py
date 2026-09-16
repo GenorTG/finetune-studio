@@ -440,7 +440,7 @@ async def rag_chat(pid: str, req: ChatRequest):
     Returns: {reply, sources: [{filename, score, chunk_text}], messages_full}
     """
     from finetune_studio.data.rag_portable import PortableRAG
-    from finetune_studio.models.manager import get_manager
+    from finetune_studio.webui.app import inference_engine
 
     rag = PortableRAG(_corpus_dir(pid))
     if not rag.exists():
@@ -464,16 +464,24 @@ async def rag_chat(pid: str, req: ChatRequest):
         "If the answer isn't in the context, say so. Quote the source filename in [brackets] when relevant."
     )
     full_system = f"{sys_prompt}\n\nCONTEXT:\n{context}"
-
-    mgr = get_manager()
-    if mgr.active() is None:
-        return JSONResponse({"error": "no model loaded"}, status_code=400)
-
     msgs = [{"role": "system", "content": full_system}] + [
         {"role": m["role"], "content": m["content"]} for m in req.messages
     ]
-    reply = mgr.chat(msgs, max_tokens=req.max_tokens,
-                     temperature=req.temperature, top_p=0.9).strip()
+
+    if inference_engine.model is not None:
+        reply = inference_engine.generate(
+            msgs, max_tokens=req.max_tokens,
+            temperature=req.temperature, top_p=0.9,
+        ).strip()
+    else:
+        from finetune_studio.models.manager import get_manager
+        mgr = get_manager()
+        if mgr.active() is None:
+            return JSONResponse({"error": "no model loaded"}, status_code=400)
+        reply = mgr.chat(
+            msgs, max_tokens=req.max_tokens,
+            temperature=req.temperature, top_p=0.9,
+        ).strip()
 
     # Strip thinking block for UI
     from finetune_studio.webui.thinking import split_thinking
