@@ -16,6 +16,8 @@ enabled button, and verify the resulting URL, toast, modal, or status change.
 
 ## Fixes already applied
 
+- Product maturity is explicitly labeled **EARLY BETA** while retaining semantic
+  version `v0.1.0`; page titles, header, Settings, and debug API agree.
 - Replace the desktop horizontal nav scrollport with a wrapping tab row.
 - Hide the nav strip and expose one hamburger menu on mobile only.
 - Remove the visible scroll arrows and scrollbar from the desktop header.
@@ -43,6 +45,10 @@ enabled button, and verify the resulting URL, toast, modal, or status change.
 ## Evidence status
 
 Browser verification completed against fan-dragon at 2026-09-16:
+
+- Release verification: Settings title is `Settings · Finetune Studio · EARLY
+  BETA`, the header renders `EARLY BETA v0.1.0`, `/api/debug/info` returns
+  `release_channel: EARLY BETA`, and the stylesheet is served as `app.css?v=25`.
 
 - 375px screenshot: hamburger-only navigation, no document horizontal
   overflow (`scrollWidth=365` for a 375px viewport), and the menu opened with
