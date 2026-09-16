@@ -34,9 +34,12 @@ enabled button, and verify the resulting URL, toast, modal, or status change.
    open-in-inference controls.
 3. Verify Training idle/run controls and Chat's empty-state/history controls.
 4. Verify Overview and Data Prep file Preview opens an in-page modal rather
-   than downloading, and exercise RAW/PARSED/VERSIONS/CONVERSIONS tabs.
+   than downloading, and exercise RAW/PARSED/VERSIONS/CONVERSIONS tabs. **Done
+   live:** all four Data Prep tabs rendered content for `helios_notes.txt`.
 5. Verify RAG build/rebuild, source refresh/clear, chunks modal, search, chat,
-   bundle download, and delete-corpus confirmation.
+   bundle download, and delete-corpus confirmation. **Done live:** chunks modal
+   rendered a real parsed chunk; search for `incident` returned five ranked
+   results; destructive confirmations opened and were cancelled.
 6. Verify Benchmark/Testing tabs and disabled-state explanations with no
    dataset/model loaded.
 7. Review remaining cramped mobile tables and action clusters; fix only after
@@ -63,5 +66,5 @@ Browser verification completed against fan-dragon at 2026-09-16:
   `/chat`, `/rag`, `/benchmarks`, `/settings`, and `/models`; no additional
   document-level overflow was reproduced. RAG destructive/build actions were
   inspected but not confirmed, and training was not started.
-- Remaining non-blocking coverage: data-prep editor/modal and every RAG
-  modal/action need a clean pass when the slow routes finish consistently.
+- Remaining bounded coverage: bundle download and model-dependent chat/training
+  execution were not started; destructive actions were intentionally cancelled.
