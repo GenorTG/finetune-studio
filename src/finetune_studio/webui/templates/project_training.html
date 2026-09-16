@@ -254,7 +254,8 @@
     </label>
     <div class="flex gap-2 mt-4" style="grid-column: 1 / -1;">
       <button type="submit" class="btn primary" id="start-btn" disabled title="Pick or upload a dataset first">Start training</button>
-      <button type="button" class="btn danger" data-action="/api/training/stop" data-reload="true">Stop</button>
+      <button type="button" class="btn danger" id="stop-btn" data-action="/api/training/stop" data-reload="true"
+              disabled title="No active training run">Stop</button>
     </div>
   </form>
   <div data-forge class="mt-3" id="training-forge"></div>
@@ -737,6 +738,12 @@
       const eta = s.eta;
       const msg = s.message || "";
       const lines = Array.isArray(s.log_lines) ? s.log_lines : [];
+      const stopBtn = document.getElementById("stop-btn");
+      if (stopBtn) {
+        const running = !!ACTIVE[st];
+        stopBtn.disabled = !running;
+        stopBtn.title = running ? "Stop the current training run" : "No active training run";
+      }
 
       if (badge) {
         badge.textContent = st;

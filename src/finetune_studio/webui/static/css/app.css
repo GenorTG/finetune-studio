@@ -636,6 +636,7 @@ body::before {
 
 .flex { display: flex; }
 .flex-col { display: flex; flex-direction: column; }
+.flex-wrap { flex-wrap: wrap; }
 .gap-1 { gap: 4px; } .gap-2 { gap: 8px; } .gap-3 { gap: 12px; }
 .gap-4 { gap: 16px; } .gap-6 { gap: 24px; }
 .flex-1 { flex: 1; }
@@ -4191,7 +4192,8 @@ body::before {
 
 /* ── Mobile table / action reachability (375–780px) ───────────────── */
 .models-table-scroll,
-.bench-table-scroll {
+.bench-table-scroll,
+.trained-exports-table-scroll {
   border: 1px solid var(--border);
 }
 #models-table,
@@ -4202,6 +4204,11 @@ body::before {
 }
 #models-index-table {
   min-width: 52rem;
+}
+#trained-exports-table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 56rem;
 }
 #models-table .models-col-name,
 #models-index-table .models-col-name { width: 12rem; min-width: 10rem; }
@@ -4224,6 +4231,39 @@ body::before {
 #models-index-table .models-col-actions {
   width: 7rem;
   min-width: 6.5rem;
+  white-space: nowrap;
+}
+#trained-exports-table .exports-col-name { width: 10rem; min-width: 8rem; }
+#trained-exports-table .exports-col-format { width: 5.5rem; min-width: 4.5rem; white-space: nowrap; }
+#trained-exports-table .exports-col-size { width: 5rem; min-width: 4.5rem; white-space: nowrap; }
+#trained-exports-table .exports-col-source { width: 8rem; min-width: 6rem; }
+#trained-exports-table .exports-col-created { width: 7rem; min-width: 5.5rem; white-space: nowrap; }
+#trained-exports-table .exports-col-copy {
+  width: 7.5rem;
+  min-width: 7rem;
+  white-space: nowrap;
+}
+#trained-exports-table .exports-col-actions {
+  width: 11rem;
+  min-width: 10rem;
+  white-space: nowrap;
+}
+
+/* Global /models category filters — wrap first; scroll if still too wide */
+.models-index-filters,
+#models-index-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
+}
+#models-index-filters .btn {
+  flex: 0 0 auto;
   white-space: nowrap;
 }
 #bench-run-table {
@@ -4261,6 +4301,7 @@ body::before {
 @media (max-width: 780px) {
   .models-table-scroll,
   .bench-table-scroll,
+  .trained-exports-table-scroll,
   .case-results-scroll {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -4276,6 +4317,7 @@ body::before {
   }
   #models-table { min-width: 40rem; width: max-content; }
   #models-index-table { min-width: 52rem; width: max-content; }
+  #trained-exports-table { min-width: 56rem; width: max-content; }
   #bench-run-table { min-width: 44rem; width: max-content; }
   .case-results-table { min-width: 48rem; }
 

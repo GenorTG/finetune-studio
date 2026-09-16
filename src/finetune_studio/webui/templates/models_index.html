@@ -9,8 +9,8 @@
   <div class="sub">All models discovered on disk — trained exports, base models, downloaded HF repos, local helpers.</div>
 </div>
 
-{# Category filter pills #}
-<div class="flex flex-wrap gap-2 mb-4" id="models-index-filters">
+{# Category filter pills — wrap + scroll so nothing is silently clipped at 375px #}
+<div class="models-index-filters mb-4" id="models-index-filters" role="toolbar" aria-label="Filter models by category">
   <button class="btn sm active" data-filter="all" onclick="filterModels('all', this)">All ({{ models|length }})</button>
   <button class="btn sm" data-filter="trained_export" onclick="filterModels('trained_export', this)">Trained exports ({{ models|selectattr('category','equalto','trained_export')|list|length }})</button>
   <button class="btn sm" data-filter="base_model" onclick="filterModels('base_model', this)">Base models ({{ models|selectattr('category','equalto','base_model')|list|length }})</button>

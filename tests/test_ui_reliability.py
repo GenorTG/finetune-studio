@@ -495,6 +495,10 @@ def test_training_start_disabled_until_dataset(client: TestClient) -> None:
     # Trainable-base filtering kept (server models_for_training + HF merge skips GGUF).
     assert "trainable HF weights" in body
     assert "hasGguf" in body
+    # Stop stays disabled while idle (no active run).
+    assert 'id="stop-btn"' in body
+    assert "disabled" in body.split('id="stop-btn"', 1)[1].split(">", 1)[0]
+    assert "No active training run" in body
 
 _MODELS = _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "models.html"
 _MODELS_INDEX = (
@@ -573,3 +577,61 @@ def test_hf_modal_escape_close_contract() -> None:
     assert 'aria-modal="true"' in html
     assert 'aria-label="Close"' in html
     assert "openHfModal" in html
+
+
+_PROJECT_MODELS = (
+    _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "project_models.html"
+)
+_EXPORT_MODELS = (
+    _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "export_models.html"
+)
+_TRAINING = (
+    _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "project_training.html"
+)
+
+
+def test_project_and_export_trained_exports_mobile_scroll() -> None:
+    """project_models + export_models trained-exports tables must scroll at 375px."""
+    css = _CSS.read_text(encoding="utf-8")
+    for path in (_PROJECT_MODELS, _EXPORT_MODELS):
+        body = path.read_text(encoding="utf-8")
+        assert 'id="trained-exports-table-scroll"' in body, path.name
+        assert "trained-exports-table-scroll" in body, path.name
+        assert 'id="trained-exports-table"' in body, path.name
+        assert "exports-col-actions" in body, path.name
+        assert "exports-col-copy" in body, path.name
+        assert "Copy path" in body, path.name
+        assert "Open in inference" in body, path.name
+    assert "#trained-exports-table" in css
+    assert "#trained-exports-table .exports-col-actions" in css
+    assert "min-width: 56rem" in css
+    assert ".trained-exports-table-scroll" in css
+    assert "overflow-x: auto" in css
+
+
+def test_models_index_filters_discoverable_on_mobile() -> None:
+    """Filter pills must wrap (or scroll) — .flex-wrap alone was undefined and clipped."""
+    css = _CSS.read_text(encoding="utf-8")
+    body = _MODELS_INDEX.read_text(encoding="utf-8")
+    assert 'id="models-index-filters"' in body
+    assert "models-index-filters" in body
+    assert ".models-index-filters" in css or "#models-index-filters" in css
+    assert "flex-wrap: wrap" in css
+    # Explicit filter rule exists and allows horizontal scroll as backup.
+    assert "#models-index-filters" in css
+    filt_block = css.split("#models-index-filters", 1)[1][:400]
+    assert "flex-wrap" in filt_block or "wrap" in css.split(".models-index-filters", 1)[-1][:500]
+    assert "overflow-x: auto" in css.split(".models-index-filters", 1)[-1][:600] or (
+        "overflow-x: auto" in css.split("#models-index-filters", 1)[-1][:600]
+    )
+
+
+def test_training_stop_disabled_while_idle() -> None:
+    """Stop must be disabled on idle load and only enable while a run is active."""
+    body = _TRAINING.read_text(encoding="utf-8")
+    assert 'id="stop-btn"' in body
+    stop_tag = body.split('id="stop-btn"', 1)[1].split(">", 1)[0]
+    assert "disabled" in stop_tag
+    assert "No active training run" in body
+    assert "stopBtn.disabled" in body
+    assert "ACTIVE[st]" in body

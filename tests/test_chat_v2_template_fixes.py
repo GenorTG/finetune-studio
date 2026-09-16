@@ -46,3 +46,22 @@ def test_presets_target_a_real_system_prompt_field() -> None:
     src = _src()
     assert 'name="system_prompt"' in src
     assert "system_prompt_override:" in src
+
+
+def test_idle_chat_keeps_empty_state_not_live_success() -> None:
+    """Saved localStorage history must not look like a live agent success on idle load."""
+    src = _src()
+    assert 'id="chat-empty"' in src
+    assert "Previous session (saved locally — not a live result)" in src
+    assert "_chatRenderPrevSession" in src
+    assert "_chatPeekHistory" in src
+    assert "_chatHistory.length = 0" in src
+    # Must not wipe empty state by replaying history into #chat-msgs on load.
+    restore = src.split("// Idle load:", 1)[1].split("function _chatCurrentMode", 1)[0]
+    assert "_chatAppend" not in restore
+    assert "empty.remove()" not in restore
+    # Idle copy must not claim work already finished.
+    empty = src.split('id="chat-empty"', 1)[1].split("</div>", 1)[0]
+    assert "Done —" not in empty
+    assert "factual Q&A pairs created" not in empty
+    assert "Example (not a live result)" in empty or "not a live result" in src

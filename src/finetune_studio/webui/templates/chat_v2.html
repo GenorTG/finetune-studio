@@ -95,10 +95,16 @@
       </span>
       <span data-empty="agent" hidden>
         In Agent mode the AI can <b>list_sources</b>, <b>read_source</b>, <b>list_qa_pairs</b>, and <b>create_qa_pairs</b> against the parsed files in this project.
-        <div class="dim mt-2">Try: <i>"List my sources, then generate 5 socratic Q&amp;A pairs from the first one."</i></div>
+        <div class="dim mt-2">Example (not a live result): <i>"List my sources, then generate 5 socratic Q&amp;A pairs from the first one."</i></div>
       </span>
     </div>
   </div>
+  <details class="dp-chat-prev" id="chat-prev-session" hidden>
+    <summary>Previous session (saved locally — not a live result)</summary>
+    <p class="dim text-xs mb-2">These messages were restored from this browser. They are not proof that an action just completed.</p>
+    <div id="chat-prev-msgs" class="dp-chat-prev-msgs"></div>
+    <button type="button" class="btn sm mt-2" id="chat-prev-clear" onclick="_chatDiscardPrevSession()">Discard saved history</button>
+  </details>
 
   <div class="flex gap-2 mt-3">
     <textarea id="chat-input" rows="2" placeholder="Message… (Shift+Enter for newline)" class="input flex-1"></textarea>
@@ -183,6 +189,30 @@
   text-align: left;
   padding: 24px 12px;
   line-height: 1.5;
+}
+.dp-chat-prev {
+  margin-top: 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text-dim, #888);
+  background: var(--bg-app, transparent);
+}
+.dp-chat-prev summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-muted, #aaa);
+}
+.dp-chat-prev-msgs {
+  margin-top: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  font-style: italic;
+  opacity: 0.85;
+}
+.dp-chat-prev-msgs .dp-chat-msg {
+  border-left-style: dashed;
 }
 .dp-chat-msg { padding: 8px 10px; border-left: 2px solid var(--border); }
 .dp-chat-user      { border-left-color: var(--accent-green, #00ff66); }
@@ -341,16 +371,15 @@ let _chatAbort = null;  // AbortController for in-flight requests
 
 // ── Chat history persistence (survives refresh / navigation) ──────
 const _chatStorageKey = 'fts.chat.history.' + _chatPid;
-function _chatLoadHistory() {
+function _chatPeekHistory() {
   try {
     const raw = localStorage.getItem(_chatStorageKey);
-    if (!raw) return;
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length) {
-      _chatHistory.length = 0;
-      _chatHistory.push(...parsed);
-    }
-  } catch (_) { /* corrupt — ignore */ }
+    return (Array.isArray(parsed) && parsed.length) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
 }
 function _chatSaveHistory() {
   try {
@@ -358,18 +387,42 @@ function _chatSaveHistory() {
   } catch (_) { /* quota — ignore */ }
 }
 
-// Restore history on page load
-_chatLoadHistory();
-if (_chatHistory.length) {
-  const msgs = document.getElementById('chat-msgs');
-  const empty = msgs.querySelector('.dp-chat-empty');
-  if (empty) empty.remove();
-  _chatHistory.forEach((m) => {
-    if (m.role === 'assistant' || m.role === 'user') {
-      _chatAppend(m.role, m.content);
-    }
+function _chatRenderPrevSession(saved) {
+  const panel = document.getElementById('chat-prev-session');
+  const box = document.getElementById('chat-prev-msgs');
+  if (!panel || !box) return;
+  box.innerHTML = '';
+  if (!saved || !saved.length) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  saved.forEach((m) => {
+    if (m.role !== 'assistant' && m.role !== 'user') return;
+    const el = document.createElement('div');
+    el.className = 'dp-chat-msg dp-chat-' + m.role;
+    el.innerHTML =
+      '<div class="dp-chat-label">' + (m.role === 'user' ? 'You' : 'Assistant') +
+      ' · prior</div><div class="dp-chat-body"></div>';
+    el.querySelector('.dp-chat-body').textContent = String(m.content || '').slice(0, 2000);
+    box.appendChild(el);
   });
 }
+
+function _chatDiscardPrevSession() {
+  try { localStorage.removeItem(_chatStorageKey); } catch (_) { /* ignore */ }
+  _chatHistory.length = 0;
+  const panel = document.getElementById('chat-prev-session');
+  if (panel) panel.hidden = true;
+  const box = document.getElementById('chat-prev-msgs');
+  if (box) box.innerHTML = '';
+  if (window.fts) window.fts.notify('Saved chat history discarded', 'info');
+}
+
+// Idle load: keep empty state. Never inject saved success into the live pane.
+const _chatSavedOnLoad = _chatPeekHistory();
+_chatHistory.length = 0;
+_chatRenderPrevSession(_chatSavedOnLoad);
 
 function _chatCurrentMode() {
   const r = document.querySelector('input[name="chat-mode"]:checked');
@@ -874,6 +927,10 @@ function _chatClear() {
   empty.id = 'chat-empty';
   empty.innerHTML = document.querySelector('[data-empty="' + _chatCurrentMode() + '"]').innerHTML;
   msgs.appendChild(empty);
+  const panel = document.getElementById('chat-prev-session');
+  if (panel) panel.hidden = true;
+  const box = document.getElementById('chat-prev-msgs');
+  if (box) box.innerHTML = '';
   if (window.fts) window.fts.notify('Conversation cleared', 'info');
 }
 

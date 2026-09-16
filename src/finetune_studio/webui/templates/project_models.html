@@ -59,16 +59,17 @@
     </div>
   </div>
   {% if project.models %}
+  <div class="table-scroll models-table-scroll trained-exports-table-scroll" id="trained-exports-table-scroll" role="region" aria-label="Trained exports">
   <table class="table" id="trained-exports-table">
     <thead>
       <tr>
-        <th>Name</th>
-        <th>Format</th>
-        <th>Size</th>
-        <th>Source run</th>
-        <th>Created</th>
-        <th>Copy path</th>
-        <th>Actions</th>
+        <th class="exports-col-name">Name</th>
+        <th class="exports-col-format">Format</th>
+        <th class="exports-col-size">Size</th>
+        <th class="exports-col-source">Source run</th>
+        <th class="exports-col-created">Created</th>
+        <th class="exports-col-copy">Copy path</th>
+        <th class="exports-col-actions">Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -81,18 +82,18 @@
           data-row-id="{{ row_id }}"
           data-model-path="{{ m.path }}"
           data-run-id="{{ m.run_id }}">
-        <td class="name">
+        <td class="name exports-col-name">
           <button type="button" class="name-btn" onclick="flToggleExportRow({{ m.path|tojson }})">{{ m.name }}</button>
         </td>
-        <td><span class="pill outline">{{ m.format }}</span></td>
-        <td class="num mono">{{ m.size_gb }} GB</td>
-        <td class="meta" title="{{ m.run_name or '' }}">{{ m.run_name or (m.run_id[:8] if m.run_id else '—') }}</td>
-        <td class="meta">{{ m.created_at }}</td>
-        <td>
+        <td class="exports-col-format"><span class="pill outline">{{ m.format }}</span></td>
+        <td class="num mono exports-col-size">{{ m.size_gb }} GB</td>
+        <td class="meta exports-col-source" title="{{ m.run_name or '' }}">{{ m.run_name or (m.run_id[:8] if m.run_id else '—') }}</td>
+        <td class="meta exports-col-created">{{ m.created_at }}</td>
+        <td class="exports-col-copy">
           <button class="btn sm" type="button"
                   onclick="navigator.clipboard.writeText({{ m.path|tojson }});fts.notify('Path copied','success')">Copy path</button>
         </td>
-        <td>
+        <td class="exports-col-actions">
           <button type="button" class="btn sm primary"
                   onclick="flOpenInInference({{ m.path|tojson }})">▶ Open in inference</button>
         </td>
@@ -158,6 +159,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}
   <div class="empty">No models yet. Start a training run on the Training tab to produce adapters / merged checkpoints.</div>
   {% endif %}
