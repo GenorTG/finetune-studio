@@ -2428,33 +2428,177 @@ body::before {
   transition: color var(--t-fast) var(--ease);
 }
 
+/* Nav shell: brand/right gutters live here; tabs scroll inside; [nav] +
+   scroll buttons are always-discoverable overflow affordances. */
+.sb-nav-shell {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  box-sizing: border-box;
+  padding: 10px 490px 0 140px;  /* left: brand; right: .sb-right cluster */
+  min-height: 48px;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  position: relative;
+}
+.sb-nav-shell::before,
+.sb-nav-shell::after {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 0;
+  width: 28px;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity var(--t-fast, 120ms) ease;
+}
+.sb-nav-shell::before {
+  left: 140px;
+  background: linear-gradient(90deg, var(--bg-nav, #0a160d), transparent);
+}
+.sb-nav-shell::after {
+  right: calc(490px + 52px); /* keep clear of [nav] control */
+  background: linear-gradient(270deg, var(--bg-nav, #0a160d), transparent);
+}
+.sb-nav-shell.can-scroll-left::before,
+.sb-nav-shell.can-scroll-right::after { opacity: 0.95; }
+
+.sb-nav-scroll {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--bg-panel);
+  color: var(--accent);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 4;
+}
+.sb-nav-scroll:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: rgba(0, 255, 102, 0.08);
+}
+.sb-nav-scroll:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.sb-nav-scroll[hidden] { display: none !important; }
+
+.sb-nav-more {
+  position: relative;
+  flex: 0 0 auto;
+  align-self: center;
+  z-index: 5;
+}
+.sb-nav-more-btn {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--bg-panel);
+  color: var(--accent);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  user-select: none;
+}
+.sb-nav-more-btn::-webkit-details-marker { display: none; }
+.sb-nav-more-btn::marker { content: ""; }
+.sb-nav-more[open] > .sb-nav-more-btn,
+.sb-nav-more-btn:hover {
+  border-color: var(--accent);
+  background: rgba(0, 255, 102, 0.1);
+  text-shadow: 0 0 4px var(--accent-glow);
+}
+.sb-nav-more-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  max-width: min(280px, 90vw);
+  max-height: min(70vh, 420px);
+  overflow: auto;
+  padding: 6px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm, 4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  z-index: 30;
+}
+.sb-nav-more-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sb-nav-more-link {
+  display: block;
+  padding: 7px 10px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+.sb-nav-more-link:hover {
+  color: var(--accent);
+  background: rgba(0, 255, 102, 0.08);
+}
+.sb-nav-more-link.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(0, 255, 102, 0.12);
+  text-shadow: 0 0 4px var(--accent-glow);
+}
+
 /* The tab strip itself — horizontally scrollable so the 9 project tabs
    never get cut off by the absolute .sb-right cluster on the right.
    Single-line, never wrap at any level (sb-tabs, sb-group, sb-tab).
-   Use padding-right (not margin-right) for the right-cluster gutter so
-   width:100%/flex children cannot expand document scrollWidth. */
+   Gutters live on .sb-nav-shell; this scrollport must stay min-width:0. */
 .sb-tabs {
   display: flex;
   align-items: stretch;
   gap: 12px;  /* gap between sb-group blocks */
   box-sizing: border-box;
-  padding: 10px 490px 0 140px;  /* left: brand; right: .sb-right cluster */
+  padding: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
-  min-height: 48px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto; /* explicit visible affordance (not overlay-thin) */
+  scrollbar-color: var(--accent) var(--bg-panel-2);
+  min-height: 38px;
   flex: 1 1 0;
   min-width: 0;
   max-width: 100%;
-  width: 100%;
+  width: auto;
   scroll-behavior: smooth;
   flex-wrap: nowrap;
   white-space: nowrap;
 }
-.sb-tabs::-webkit-scrollbar { height: 3px; }
-.sb-tabs::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
-.sb-tabs::-webkit-scrollbar-track { background: transparent; }
+.sb-tabs::-webkit-scrollbar { height: 8px; }
+.sb-tabs::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 2px;
+  border: 1px solid var(--bg-panel-2);
+}
+.sb-tabs::-webkit-scrollbar-track { background: var(--bg-panel-2); }
 /* Each group block must not wrap either — it holds several tabs. */
 .sb-group { display: flex; align-items: stretch; flex-shrink: 0; white-space: nowrap; flex-wrap: nowrap; }
 /* Readable tabs — still compact enough for horizontal scroll */
@@ -3531,12 +3675,16 @@ body::before {
   .sb-tab-label { font-size: 13px; }
   .sb-group-label { font-size: 12px; }
   /* Tabs scroll horizontally on one line — never wrap (was causing cut-off tabs). */
+  .sb-nav-shell {
+    /* Shrink right gutter — full 490px reserve overflows mid widths. */
+    padding-right: min(490px, 42vw);
+  }
+  .sb-nav-shell::before { left: 140px; }
+  .sb-nav-shell::after { right: calc(min(490px, 42vw) + 52px); }
   .sb-tabs {
     flex-wrap: nowrap !important;
     overflow-x: auto !important;
     overflow-y: hidden;
-    /* Shrink right gutter — full 490px reserve overflows mid widths. */
-    padding-right: min(490px, 42vw);
   }
   .sb-group:not(.sb-group-tools) { flex-shrink: 0; }
   .sb-group-tools {
@@ -3552,20 +3700,26 @@ body::before {
 @media (max-width: 1100px) {
   .sb-brand .sb-prompt { display: none; }
   .sb-active-bar .sb-active-prefix { font-size: 11px; }
-  .sb-tabs {
+  .sb-nav-shell {
     padding-left: 48px;
     padding-right: min(360px, 38vw);
   }
+  .sb-nav-shell::before { left: 48px; }
+  .sb-nav-shell::after { right: calc(min(360px, 38vw) + 52px); }
   .sb-right .conn-label { display: none; }
 }
 @media (max-width: 900px) {
   /* Tabs stay on one horizontal scrollable line. */
+  .sb-nav-shell {
+    padding-right: min(280px, 36vw);
+    padding-left: 46px;
+  }
+  .sb-nav-shell::before { left: 46px; }
+  .sb-nav-shell::after { right: calc(min(280px, 36vw) + 52px); }
   .sb-tabs {
     flex-wrap: nowrap !important;
     overflow-x: auto !important;
     overflow-y: hidden;
-    padding-right: min(280px, 36vw);
-    padding-left: 46px;
   }
   .sb-group-tools {
     flex-basis: auto;
@@ -3585,10 +3739,12 @@ body::before {
 }
 @media (max-width: 780px) {
   /* Tight mid-mobile: leave room for theme + activity + palette only. */
-  .sb-tabs {
+  .sb-nav-shell {
     padding-right: min(160px, 28vw);
     padding-left: 40px;
   }
+  .sb-nav-shell::before { left: 40px; }
+  .sb-nav-shell::after { right: calc(min(160px, 28vw) + 52px); }
   .sb-tabs .sb-tab { font-size: 13px; padding: 6px 9px; }
   .sb-tab-label { font-size: 13px; }
   .sb-group-label { font-size: 11.5px; }
@@ -3612,16 +3768,20 @@ body::before {
   /* tmux strip stays HORIZONTAL + scrollable on mobile — no vertical rail.
      Stack .sb-right under the tabs so the scrollport uses full width and
      absolute chrome cannot clip project/tools tabs. */
+  .sb-nav-shell {
+    padding-left: 46px;  /* room for the absolute FS logo only */
+    padding-right: 8px;  /* no absolute-right gutter — cluster is stacked */
+  }
+  .sb-nav-shell::before { left: 46px; }
+  .sb-nav-shell::after { right: 56px; }
   .sb-tabs {
     flex-direction: row;
     flex-wrap: nowrap;
     overflow-x: auto;
     overflow-y: hidden;
-    width: 100%;
+    width: auto;
     max-width: 100%;
     min-width: 0;
-    padding-left: 46px;  /* room for the absolute FS logo only */
-    padding-right: 8px;  /* no absolute-right gutter — cluster is stacked */
   }
   .sb-tabs .sb-tab { font-size: 13px; padding: 6px 8px; }
   .sb-tab-label { font-size: 13px; }

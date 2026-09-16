@@ -23,12 +23,29 @@
     const path = url.split("?")[0];
     const sb = sessionBar();
     if (!sb) return;
-    sb.querySelectorAll(".sb-tab").forEach((a) => {
+    // Prefer exact href match; fall back to longest prefix so /projects/{pid}
+    // does not mark every project child tab active.
+    const tabs = Array.from(sb.querySelectorAll(".sb-tabs a.sb-tab"));
+    let exact = null;
+    let bestPrefix = null;
+    let bestLen = -1;
+    tabs.forEach((a) => {
       const href = a.getAttribute("href") || "";
-      if (href === path) a.classList.add("active");
-      else if (href && path.startsWith(href + "/")) a.classList.add("active");
-      else a.classList.remove("active");
+      if (href === path) exact = a;
+      else if (href && path.startsWith(href + "/") && href.length > bestLen) {
+        bestPrefix = a;
+        bestLen = href.length;
+      }
     });
+    const winner = exact || bestPrefix;
+    tabs.forEach((a) => {
+      a.classList.toggle("active", a === winner);
+    });
+    if (window.ftsNavOverflow) {
+      window.ftsNavOverflow.syncMoreActive();
+      window.ftsNavOverflow.scrollActiveIntoView();
+      window.ftsNavOverflow.updateScrollAffordance();
+    }
   }
 
   async function fetchHTML(url) {
@@ -183,6 +200,9 @@
         wsAfter
       );
       if (window.ftsPalette && window.ftsPalette.refresh) window.ftsPalette.refresh();
+      if (window.ftsNavOverflow && window.ftsNavOverflow.refresh) {
+        window.ftsNavOverflow.refresh();
+      }
       if (ext.title) document.title = ext.title;
       // Highlight nav
       setActiveNav(url);

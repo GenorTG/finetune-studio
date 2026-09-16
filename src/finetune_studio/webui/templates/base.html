@@ -53,7 +53,7 @@
   </style>
   <title>{% block title %}Finetune Studio{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/css/app.css?v=21">
+  <link rel="stylesheet" href="/static/css/app.css?v=22">
 </head>
 <body>
   <div id="toasts" class="toasts" aria-live="polite"></div>
@@ -68,73 +68,111 @@
         <span class="sb-prompt">root@fts:~$</span>
       </a>
 
-      {# Tab strip — the actual navigation #}
-      <nav class="sb-tabs" aria-label="Sessions">
+      {# Nav shell: scrollport + explicit overflow affordances (scroll + [nav]) #}
+      <div class="sb-nav-shell" id="sb-nav-shell" data-overflow="false">
+        <button type="button" class="sb-nav-scroll sb-nav-scroll-prev" id="sb-nav-scroll-prev"
+                aria-label="Scroll navigation left" title="Scroll left" hidden>‹</button>
 
-        {# GROUP: System #}
-        <div class="sb-group">
-          <span class="sb-group-label" title="System">[sys]</span>
-          <a href="/" class="sb-tab {% block nav_dashboard %}{% endblock %}" data-link data-tab="dashboard">
-            <span class="sb-tab-label">dashboard</span>
-            <span class="sb-cursor" aria-hidden="true">▮</span>
-          </a>
-          <a href="/projects" class="sb-tab {% block nav_projects %}{% endblock %}" data-link data-tab="projects">
-            <span class="sb-tab-label">projects</span>
-            {% if projects %}<span class="sb-badge">{{ projects|length }}</span>{% endif %}
-          </a>
-        </div>
+        <nav class="sb-tabs" id="sb-tabs" aria-label="Sessions" tabindex="0">
 
-        {# GROUP: Project (only on project pages) #}
-        {% if pid is defined and pid %}
-        <div class="sb-group sb-group-project">
-          <span class="sb-group-label" title="Active project">[{{ (project.name if project else pid)[:10] }}]</span>
-          <a href="/projects/{{ pid }}" class="sb-tab {% block nav_project_overview %}{% endblock %}" data-link data-tab="overview">
-            <span class="sb-tab-label">overview</span>
-          </a>
-          <a href="/projects/{{ pid }}/data" class="sb-tab {% block nav_data %}{% endblock %}" data-link data-tab="data">
-            <span class="sb-tab-label">data</span>
-          </a>
-          <a href="/projects/{{ pid }}/data-prep" class="sb-tab {% block nav_data_prep %}{% endblock %}" data-link data-tab="data-prep">
-            <span class="sb-tab-label">data-prep</span>
-          </a>
-          <a href="/projects/{{ pid }}/rag" class="sb-tab {% block nav_rag %}{% endblock %}" data-link data-tab="rag">
-            <span class="sb-tab-label">rag</span>
-          </a>
-          <a href="/projects/{{ pid }}/training" class="sb-tab {% block nav_training %}{% endblock %}" data-link data-tab="training">
-            <span class="sb-tab-label">training</span>
-          </a>
-          <a href="/projects/{{ pid }}/testing" class="sb-tab {% block nav_testing %}{% endblock %}" data-link data-tab="testing">
-            <span class="sb-tab-label">testing</span>
-          </a>
-          <a href="/projects/{{ pid }}/benchmarks" class="sb-tab {% block nav_benchmarks %}{% endblock %}" data-link data-tab="benchmarks">
-            <span class="sb-tab-label">benchmarks</span>
-          </a>
-          <a href="/projects/{{ pid }}/chat" class="sb-tab {% block nav_project_chat %}{% endblock %}" data-link data-tab="project-chat">
-            <span class="sb-tab-label">chat</span>
-          </a>
-          <a href="/projects/{{ pid }}/export" class="sb-tab {% block nav_project_export %}{% endblock %}" data-link data-tab="export">
-            <span class="sb-tab-label">export</span>
-          </a>
-        </div>
-        {% endif %}
+          {# GROUP: System #}
+          <div class="sb-group">
+            <span class="sb-group-label" title="System">[sys]</span>
+            <a href="/" class="sb-tab {% block nav_dashboard %}{% endblock %}" data-link data-tab="dashboard">
+              <span class="sb-tab-label">dashboard</span>
+              <span class="sb-cursor" aria-hidden="true">▮</span>
+            </a>
+            <a href="/projects" class="sb-tab {% block nav_projects %}{% endblock %}" data-link data-tab="projects">
+              <span class="sb-tab-label">projects</span>
+              {% if projects %}<span class="sb-badge">{{ projects|length }}</span>{% endif %}
+            </a>
+          </div>
 
-        {# GROUP: Tools #}
-        <div class="sb-group sb-group-tools">
-          <span class="sb-group-label" title="Tools">[tools]</span>
-          <a href="/models/explore" class="sb-tab {% block nav_models_explore %}{% endblock %}" data-link data-tab="hf">
-            <span class="sb-tab-label">hf</span>
-          </a>
-          {# QABUG-004: project-scoped chat is the real inference surface;
-             global /inference remains when no project is active. #}
-          <a href="{% if pid is defined and pid %}/projects/{{ pid }}/chat{% else %}/inference{% endif %}"
-             class="sb-tab {% block nav_inference %}{% endblock %}" data-link data-tab="inference">
-            <span class="sb-tab-label">inference</span>
-          </a>
-          <a href="/settings" class="sb-tab {% block nav_settings %}{% endblock %}" data-link data-tab="settings">
-            <span class="sb-tab-label">settings</span>
-          </a>
-        </div>
-      </nav>
+          {# GROUP: Project (only on project pages) #}
+          {% if pid is defined and pid %}
+          <div class="sb-group sb-group-project">
+            <span class="sb-group-label" title="Active project">[{{ (project.name if project else pid)[:10] }}]</span>
+            <a href="/projects/{{ pid }}" class="sb-tab {% block nav_project_overview %}{% endblock %}" data-link data-tab="overview">
+              <span class="sb-tab-label">overview</span>
+            </a>
+            <a href="/projects/{{ pid }}/data" class="sb-tab {% block nav_data %}{% endblock %}" data-link data-tab="data">
+              <span class="sb-tab-label">data</span>
+            </a>
+            <a href="/projects/{{ pid }}/data-prep" class="sb-tab {% block nav_data_prep %}{% endblock %}" data-link data-tab="data-prep">
+              <span class="sb-tab-label">data-prep</span>
+            </a>
+            <a href="/projects/{{ pid }}/rag" class="sb-tab {% block nav_rag %}{% endblock %}" data-link data-tab="rag">
+              <span class="sb-tab-label">rag</span>
+            </a>
+            <a href="/projects/{{ pid }}/training" class="sb-tab {% block nav_training %}{% endblock %}" data-link data-tab="training">
+              <span class="sb-tab-label">training</span>
+            </a>
+            <a href="/projects/{{ pid }}/testing" class="sb-tab {% block nav_testing %}{% endblock %}" data-link data-tab="testing">
+              <span class="sb-tab-label">testing</span>
+            </a>
+            <a href="/projects/{{ pid }}/benchmarks" class="sb-tab {% block nav_benchmarks %}{% endblock %}" data-link data-tab="benchmarks">
+              <span class="sb-tab-label">benchmarks</span>
+            </a>
+            <a href="/projects/{{ pid }}/chat" class="sb-tab {% block nav_project_chat %}{% endblock %}" data-link data-tab="project-chat">
+              <span class="sb-tab-label">chat</span>
+            </a>
+            <a href="/projects/{{ pid }}/export" class="sb-tab {% block nav_project_export %}{% endblock %}" data-link data-tab="export">
+              <span class="sb-tab-label">export</span>
+            </a>
+          </div>
+          {% endif %}
+
+          {# GROUP: Tools #}
+          <div class="sb-group sb-group-tools">
+            <span class="sb-group-label" title="Tools">[tools]</span>
+            <a href="/models/explore" class="sb-tab {% block nav_models_explore %}{% endblock %}" data-link data-tab="hf">
+              <span class="sb-tab-label">hf</span>
+            </a>
+            {# QABUG-004: project-scoped chat is the real inference surface;
+               global /inference remains when no project is active. #}
+            <a href="{% if pid is defined and pid %}/projects/{{ pid }}/chat{% else %}/inference{% endif %}"
+               class="sb-tab {% block nav_inference %}{% endblock %}" data-link data-tab="inference">
+              <span class="sb-tab-label">inference</span>
+            </a>
+            <a href="/settings" class="sb-tab {% block nav_settings %}{% endblock %}" data-link data-tab="settings">
+              <span class="sb-tab-label">settings</span>
+            </a>
+          </div>
+        </nav>
+
+        <button type="button" class="sb-nav-scroll sb-nav-scroll-next" id="sb-nav-scroll-next"
+                aria-label="Scroll navigation right" title="Scroll right" hidden>›</button>
+
+        {# Always-present menu: every route reachable when the strip clips #}
+        <details class="sb-nav-more" id="sb-nav-more">
+          <summary class="sb-nav-more-btn" aria-label="Open full navigation menu"
+                   title="All session tabs">[nav]</summary>
+          <div class="sb-nav-more-panel" id="sb-nav-more-panel" role="menu"
+               aria-label="All navigation links">
+            {# Populated from .sb-tabs by nav_overflow.js; static fallback below
+               keeps links reachable if JS is delayed. #}
+            <div class="sb-nav-more-list" id="sb-nav-more-list">
+              <a href="/" class="sb-nav-more-link" data-link data-tab="dashboard" role="menuitem">dashboard</a>
+              <a href="/projects" class="sb-nav-more-link" data-link data-tab="projects" role="menuitem">projects</a>
+              {% if pid is defined and pid %}
+              <a href="/projects/{{ pid }}" class="sb-nav-more-link" data-link data-tab="overview" role="menuitem">overview</a>
+              <a href="/projects/{{ pid }}/data" class="sb-nav-more-link" data-link data-tab="data" role="menuitem">data</a>
+              <a href="/projects/{{ pid }}/data-prep" class="sb-nav-more-link" data-link data-tab="data-prep" role="menuitem">data-prep</a>
+              <a href="/projects/{{ pid }}/rag" class="sb-nav-more-link" data-link data-tab="rag" role="menuitem">rag</a>
+              <a href="/projects/{{ pid }}/training" class="sb-nav-more-link" data-link data-tab="training" role="menuitem">training</a>
+              <a href="/projects/{{ pid }}/testing" class="sb-nav-more-link" data-link data-tab="testing" role="menuitem">testing</a>
+              <a href="/projects/{{ pid }}/benchmarks" class="sb-nav-more-link" data-link data-tab="benchmarks" role="menuitem">benchmarks</a>
+              <a href="/projects/{{ pid }}/chat" class="sb-nav-more-link" data-link data-tab="project-chat" role="menuitem">chat</a>
+              <a href="/projects/{{ pid }}/export" class="sb-nav-more-link" data-link data-tab="export" role="menuitem">export</a>
+              {% endif %}
+              <a href="/models/explore" class="sb-nav-more-link" data-link data-tab="hf" role="menuitem">hf</a>
+              <a href="{% if pid is defined and pid %}/projects/{{ pid }}/chat{% else %}/inference{% endif %}"
+                 class="sb-nav-more-link" data-link data-tab="inference" role="menuitem">inference</a>
+              <a href="/settings" class="sb-nav-more-link" data-link data-tab="settings" role="menuitem">settings</a>
+            </div>
+          </div>
+        </details>
+      </div>
 
       {# Right cluster — all top-bar buttons on one visible line #}
       <div class="sb-right">
@@ -268,7 +306,8 @@
 
   <script src="/static/js/app.js?v=18"></script>
   <script src="/static/js/sprites.js?v=14"></script>
-  <script src="/static/js/spa.js?v=14"></script>
+  <script src="/static/js/nav_overflow.js?v=1"></script>
+  <script src="/static/js/spa.js?v=15"></script>
   <script src="/static/js/palette.js?v=13"></script>
   <script src="/static/js/tutorial.js?v=12"></script>
   <script src="/static/js/activity.js?v=13"></script>

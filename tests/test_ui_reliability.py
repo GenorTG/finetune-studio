@@ -217,9 +217,10 @@ def test_header_no_page_overflow_contract_at_640() -> None:
     assert "overflow-x: hidden" in css  # session-bar containment
     assert "min-width: 0" in css
     block_700 = css.split("@media (max-width: 700px)", 1)[1]
-    # Prefer the stacked responsive block (second 700px query has sb-tabs rules).
-    if ".sb-tabs {" in block_700.split("@media", 1)[0]:
-        narrow = block_700.split("@media", 1)[0]
+    # Prefer the stacked responsive block (shell + tabs rules).
+    head = block_700.split("@media", 1)[0]
+    if ".sb-tabs {" in head or ".sb-nav-shell {" in head:
+        narrow = head
     else:
         # First 700px block is brand-only; take the later stacked one.
         parts = css.split("@media (max-width: 700px)")
@@ -230,6 +231,7 @@ def test_header_no_page_overflow_contract_at_640() -> None:
     assert "font-size: 11px" not in narrow
     # No width:100% + margin-right gutter (classic scrollWidth blowout).
     assert "margin-right: min(140px" not in narrow
+    assert ".sb-nav-shell" in narrow or ".sb-tabs" in narrow
 
 
 def test_card_head_stacks_below_700() -> None:
@@ -248,8 +250,10 @@ def test_card_head_stacks_below_700() -> None:
 
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=21" in base
+    assert "app.css?v=22" in base
     assert "sprites.js?v=14" in base
+    assert "nav_overflow.js?v=1" in base
+    assert "spa.js?v=15" in base
 
 
 def test_workflow_steps_vertical_at_desktop() -> None:
