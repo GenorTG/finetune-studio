@@ -465,6 +465,17 @@ async def start_training(request: Request):
             log.exception("db.update_run failed for %s", run_id)
 
     training_engine.on_update(_on_state_change)
+    # Training and the global inference helper share the same GPU.  Unload
+    # inference before the worker imports/loads the trainable base; otherwise
+    # a resident GGUF can consume nearly the entire card and make a valid 4B
+    # run fail at step zero.
+    try:
+        from finetune_studio.webui.app import inference_engine
+
+        if getattr(inference_engine, "model", None) is not None:
+            inference_engine.unload()
+    except Exception:  # noqa: BLE001
+        log.exception("Failed to unload global inference model before training")
     training_engine.start(config, training_data, system_prompt)
     return {"status": "started", "steps": training_engine.state.total_steps, "run_id": run_id}
 
