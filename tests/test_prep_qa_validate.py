@@ -89,6 +89,45 @@ class TestValidateRejected:
         assert result.accepted is False
         assert "ungrounded_answer" in result.reasons
 
+    def test_malformed_short_answer(self) -> None:
+        result = validate_qa_pair(
+            "Who is the CEO of Helios Industries?",
+            "short",
+            CHUNK,
+        )
+        assert result.accepted is False
+        assert "malformed_answer" in result.reasons
+
+    def test_malformed_oversized_answer(self) -> None:
+        result = validate_qa_pair(
+            "Who is the CEO of Helios Industries?",
+            "x" * 4001,
+            CHUNK,
+        )
+        assert result.accepted is False
+        assert "malformed_answer" in result.reasons
+
+    def test_stopwords_only_question_is_malformed(self) -> None:
+        # Content-token filter empties stopword-only questions.
+        result = validate_qa_pair(
+            "What is it?",
+            "Helios Industries was founded in 1987 in Zurich.",
+            CHUNK,
+        )
+        assert result.accepted is False
+        assert "malformed_question" in result.reasons
+
+    def test_question_at_min_length_boundary_accepted(self) -> None:
+        # Exactly _MIN_Q_LEN (=8) chars; content token overlaps the chunk.
+        assert len("Founded?") == 8
+        result = validate_qa_pair(
+            "Founded?",
+            "Helios Industries was founded in 1987 in Zurich.",
+            CHUNK,
+        )
+        assert result.accepted is True
+        assert result.reasons == ()
+
     def test_refusal_or_meta_answer(self) -> None:
         result = validate_qa_pair(
             "Who is the CEO of Helios Industries?",

@@ -7,24 +7,26 @@ Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :786
 ## State (verified 2026-09-16 Europe/Warsaw)
 | Area | Status |
 |------|--------|
-| Real benches | `real://mmlu|gsm8k|hellaswag` via `real_benchmarks.py`; `is_real_benchmark=true` + HF metadata; default sample 50, `full_run` / `num_samples` knobs |
-| Synthetic benches | Unchanged smoke/offline; labels `synthetic · … (not industry)` |
-| Scoring | Strict MCQ / GSM8K #### finals; no substring credit on real suites |
-| Inference endpoint | `/api/chat-v2/inference/benchmark` returns nested results + scalar `overall` (no sum-of-dicts) |
-| Tests | Real-bench suite + discovery/smoke/template: 26 passed; Ruff clean on touched files; official HF splits loaded locally |
-| Deployment | `6032e2b` pushed and live on fan-dragon; service active/systemd-owned on :7860; HF cache warm |
+| Parser extras | `.[parsers]` in `pyproject.toml` (pypdf, python-docx, openpyxl, xlrd, python-pptx, beautifulsoup4, striprtf, Pillow); folded into `.[all]`. System tools (antiword/tesseract/poppler) intentionally excluded |
+| Parser coverage | `tests/test_parsers_coverage.py` parametrizes every `PARSERS` extension; text fixtures always assert content; binary/OCR dep-aware |
+| RAG MIME eval | `tests/test_rag_mime_ingestion.py` builds PortableRAG with hash embedder (no HF download) + `run_rag_evaluation` |
+| QA validate | Edge cases for malformed answer length, stopword-only Q, min-length boundary added |
+| Tests | 63 passed, 1 skipped (`.xls` needs xlwt to build fixture); ruff clean on new tests |
+| Prior benches | Real-bench work still live on fan-dragon (`6032e2b`); unchanged this session |
 
 ## Next steps
-1. Run a bounded real model evaluation on fan-dragon (`num_samples=50`) and save the JSON report.
-2. Run an official full split only when desired: `fts benchmark MODEL --suite all --full-run --report REPORT.json`.
-3. Browser-check benchmark controls and metadata (`real ·` vs `synthetic ·`).
-4. Fix two unrelated legacy failures (`test_db_lifecycle`, `test_parsed_converts_txt`), then `make test`.
+1. Deploy parsers reliability: `git push`; fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`.
+2. Optional on fan-dragon: `uv pip install --python .venv/bin/python -e '.[parsers]'` (or `.[all]`) so PDF/DOCX/XLSX ingest has Python deps.
+3. Run a bounded real model evaluation on fan-dragon (`num_samples=50`) and save the JSON report.
+4. Fix legacy failures (`test_db_lifecycle`, `test_parsed_converts_txt`), then `make test`.
 
 ## Commands
-- Real + synthetic bench tests: `.venv/bin/python -m pytest tests/test_real_benchmarks.py tests/test_benchmarks_suite_discovery.py tests/test_benchmarks_industry_smoke.py tests/test_benchmarks_offline_suites.py tests/test_project_testing.py tests/test_strict_scoring.py tests/test_benchmarks_template.py -v --tb=short`
-- Lint: `.venv/bin/ruff check src/finetune_studio/benchmarks/real_benchmarks.py src/finetune_studio/benchmarks/suite_defs.py src/finetune_studio/webui/routes/benchmarks.py src/finetune_studio/webui/routes/chat_v2.py`
+- Parsers + RAG MIME + QA: `.venv/bin/python -m pytest tests/test_parsers_coverage.py tests/test_rag_mime_ingestion.py tests/test_prep_qa_validate.py -v --tb=short`
+- Lint: `.venv/bin/ruff check tests/test_parsers_coverage.py tests/test_rag_mime_ingestion.py tests/test_prep_qa_validate.py`
+- Install parser deps: `uv pip install --python .venv/bin/python -e '.[parsers]'`
 - Deploy: `git push`; fan-dragon `git pull --ff-only && systemctl --user restart finetune-studio`
 
 ## Blockers
 - `tests/test_db_lifecycle.py::TestSystemUpdateLifecycle::test_create_with_options` expects a dict but receives the persisted JSON string.
 - `tests/test_file_library_apis.py::test_parsed_converts_txt` sees a pre-existing sibling artifact and expects conversion.
+- `.xls` happy-path fixture needs `xlwt` (not a runtime parser dep); coverage still hits the missing-`xlrd` warning path when xlrd is absent.
