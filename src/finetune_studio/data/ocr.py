@@ -14,10 +14,11 @@ from __future__ import annotations
 
 import logging
 import os
+import platform
 import shutil
 import subprocess
+import threading
 from pathlib import Path
-from typing import Optional
 
 log = logging.getLogger(__name__)
 
@@ -26,6 +27,42 @@ _DOWNLOAD_URL = "https://github.com/tesseract-ocr/tessdata_fast/raw/main"
 
 # Default bilingual: English + Polish. Override per call.
 DEFAULT_LANGS = "eng+pol"
+
+# One-time auto-install guard so an OCR call can self-bootstrap tessdata on
+# a fresh box without making every call re-check the network.
+_AUTO_INSTALL_LOCK = threading.Lock()
+_AUTO_INSTALL_DONE = False
+
+# Platform-correct install hints surfaced when the binary itself is missing.
+_INSTALL_HINTS: dict[str, str] = {
+    "Darwin": "brew install tesseract tesseract-lang",
+    "debian": "sudo apt-get install -y tesseract-ocr tesseract-ocr-eng tesseract-ocr-pol",
+    "ubuntu": "sudo apt-get install -y tesseract-ocr tesseract-ocr-eng tesseract-ocr-pol",
+    "arch": "sudo pacman -S tesseract tesseract-data-eng tesseract-data-pol",
+    "fedora": "sudo dnf install -y tesseract tesseract-langpack-eng tesseract-langpack-pol",
+    "centos": "sudo dnf install -y tesseract tesseract-langpack-eng tesseract-langpack-pol",
+    "rhel": "sudo dnf install -y tesseract tesseract-langpack-eng tesseract-langpack-pol",
+}
+_FALLBACK_HINT = "install tesseract + eng/pol language packs for your distro"
+
+
+def install_hint() -> str:
+    """One-line platform-correct install hint for the tesseract binary."""
+    sysname = platform.system()
+    if sysname == "Darwin":
+        return _INSTALL_HINTS["Darwin"]
+    if sysname == "Linux":
+        try:
+            release = (Path("/etc/os-release").read_text(encoding="utf-8", errors="ignore")).lower()
+            for key in ("ubuntu", "debian", "arch", "fedora", "centos", "rhel"):
+                if key in release:
+                    return _INSTALL_HINTS[key]
+        except OSError:
+            pass
+        return _FALLBACK_HINT
+    if sysname in ("Windows", "win32"):
+        return "Download tesseract from https://github.com/UB-Mannheim/tesseract/wiki and add eng/pol language packs"
+    return _FALLBACK_HINT
 
 
 def tessdata_dir() -> Path:
@@ -68,13 +105,13 @@ def _tessdata_prefix() -> str:
     return str(tessdata_dir()) + "/"
 
 
-def _tesseract_cmd() -> Optional[list[str]]:
+def _tesseract_cmd() -> list[str] | None:
     """Find the tesseract binary, or None if not installed."""
     p = shutil.which("tesseract")
     return [p] if p else None
 
 
-def is_available() -> bool:
+def is_available(languages: str = DEFAULT_LANGS) -> bool:
     """Is tesseract usable from this app right now?"""
     if not _tesseract_cmd():
         return False
@@ -84,13 +121,45 @@ def is_available() -> bool:
         env["TESSDATA_PREFIX"] = _tessdata_prefix()
         r = subprocess.run(
             ["tesseract", "--list-langs"],
-            capture_output=True, text=True, timeout=10, env=env,
+            capture_output=True, text=True, timeout=10, env=env, check=False,
         )
         # Sometimes --list-langs writes to stderr, sometimes hangs on missing dir
         combined = (r.stdout + "\n" + r.stderr).lower()
-        return any(code in combined for code in ("eng", "pol"))
-    except Exception:
+        wanted = {code.strip() for code in languages.lower().split("+") if code.strip()}
+        return wanted.issubset({code for code in ("eng", "pol", "deu", "fra", "spa", "ita", "rus", "ukr", "nld") if code in combined})
+    except Exception:  # noqa: BLE001 — any subprocess/IO failure means tesseract is unusable
         return False
+
+
+def _ensure_tessdata(languages: str = DEFAULT_LANGS) -> None:
+    """Self-heal: download any missing tessdata, one-shot per process.
+
+    Raises RuntimeError when the network download itself fails so callers can
+    surface it; tessdata already present is a no-op. The ``FTS_OCR_AUTOINSTALL``
+    env var (set to ``0``) opts out — useful for air-gapped CI.
+    """
+    global _AUTO_INSTALL_DONE
+    if os.environ.get("FTS_OCR_AUTOINSTALL", "1") == "0":
+        return
+    if _AUTO_INSTALL_DONE:
+        return
+    with _AUTO_INSTALL_LOCK:
+        if _AUTO_INSTALL_DONE:
+            return
+        wanted = {code.strip() for code in languages.lower().split("+") if code.strip()}
+        have = set(installed_languages())
+        missing = wanted - have
+        if missing:
+            log.info("OCR self-bootstrap: installing tessdata for %s", sorted(missing))
+            result = install(extra_languages=missing)
+            if result.get("errors"):
+                raise RuntimeError(
+                    "OCR tessdata download failed for "
+                    + ", ".join(sorted(missing))
+                    + ": "
+                    + "; ".join(result["errors"])
+                )
+        _AUTO_INSTALL_DONE = True
 
 
 def installed_languages() -> list[str]:
@@ -105,10 +174,18 @@ def ocr_image(image_path: str | Path, languages: str = DEFAULT_LANGS,
 
     psm 3 = fully automatic page segmentation (default)
     oem 1 = LSTM neural net only (fast)
+
+    Raises RuntimeError with an actionable install hint when the tesseract
+    binary itself is missing. Tessdata is self-installed on first use (opt out
+    with ``FTS_OCR_AUTOINSTALL=0``).
     """
     cmd = _tesseract_cmd()
     if not cmd:
-        raise RuntimeError("tesseract binary not found on PATH")
+        raise RuntimeError(
+            "tesseract binary not found on PATH. Install with: "
+            + install_hint()
+        )
+    _ensure_tessdata(languages)
     env = os.environ.copy()
     env["TESSDATA_PREFIX"] = _tessdata_prefix()
     out_base = Path("/tmp") / f"_ocr_{os.getpid()}_{abs(hash(str(image_path))) % 100000}"
@@ -116,7 +193,7 @@ def ocr_image(image_path: str | Path, languages: str = DEFAULT_LANGS,
     try:
         r = subprocess.run(
             cmd + [str(image_path), str(out_base), "-l", languages, "--psm", str(psm), "--oem", str(oem)],
-            capture_output=True, text=True, timeout=180, env=env,
+            capture_output=True, text=True, timeout=180, env=env, check=False,
         )
         if r.returncode != 0:
             raise RuntimeError(f"tesseract failed: {r.stderr.strip()}")
@@ -136,6 +213,12 @@ def ocr_image_object(img, languages: str = DEFAULT_LANGS,
         import pytesseract
     except ImportError as e:
         raise RuntimeError("pytesseract not installed: pip install pytesseract") from e
+    if not _tesseract_cmd():
+        raise RuntimeError(
+            "tesseract binary not found on PATH. Install with: "
+            + install_hint()
+        )
+    _ensure_tessdata(languages)
     # pytesseract respects TESSDATA_PREFIX env var
     old_prefix = os.environ.get("TESSDATA_PREFIX")
     os.environ["TESSDATA_PREFIX"] = _tessdata_prefix()
@@ -154,6 +237,12 @@ def ocr_pdf(pdf_path: str | Path, languages: str = DEFAULT_LANGS, dpi: int = 200
         from pdf2image import convert_from_path
     except ImportError as e:
         raise RuntimeError("pdf2image not installed: pip install pdf2image") from e
+    if not _tesseract_cmd():
+        raise RuntimeError(
+            "tesseract binary not found on PATH. Install with: "
+            + install_hint()
+        )
+    _ensure_tessdata(languages)
     try:
         images = convert_from_path(str(pdf_path), dpi=dpi)
     except Exception as e:
@@ -172,7 +261,6 @@ def ocr_pdf(pdf_path: str | Path, languages: str = DEFAULT_LANGS, dpi: int = 200
 # CLI: python -m finetune_studio.data.ocr install|status|test
 def _cli() -> int:
     import argparse
-    import sys
     p = argparse.ArgumentParser(prog="finetune_studio.data.ocr")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("install", help="Download tessdata_fast for eng+pol")
@@ -195,7 +283,7 @@ def _cli() -> int:
         from PIL import Image, ImageDraw, ImageFont
         try:
             font = ImageFont.truetype("/usr/share/fonts/TTF/DejaVuSans.ttf", 24)
-        except Exception:
+        except Exception:  # noqa: BLE001 — fall back to default font on any font-discovery failure
             font = ImageFont.load_default()
         img = Image.new("RGB", (700, 100), "white")
         ImageDraw.Draw(img).text((10, 30), "Hello OCR World! Zażółć gęślą jaźń.", fill="black", font=font)

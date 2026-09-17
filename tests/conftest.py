@@ -21,6 +21,33 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_ocr_tessdata() -> None:
+    """Pre-install tessdata so OCR tests are green on a fresh clone.
+
+    Honours ``FTS_OCR_AUTOINSTALL=0`` (air-gapped CI). Idempotent — already-
+    installed languages are skipped. Failures are logged but do not raise:
+    the OCR tests themselves report the actionable install command in their
+    own failure messages.
+    """
+    if os.environ.get("FTS_OCR_AUTOINSTALL", "1") == "0":
+        return
+    try:
+        from finetune_studio.data import ocr
+    except Exception as e:  # noqa: BLE001 — fixture must never crash pytest
+        print(f"\n[conftest] could not import ocr module: {e}", file=sys.stderr)
+        return
+    if ocr.is_available():
+        return
+    if not ocr._tesseract_cmd():
+        # Binary missing entirely; tests will surface the install hint.
+        return
+    try:
+        ocr.install()
+    except Exception as e:  # noqa: BLE001 — tessdata download failure must not crash pytest
+        print(f"\n[conftest] tessdata self-install failed: {e}", file=sys.stderr)
+
+
 @pytest.fixture
 def temp_db(monkeypatch):
     """Create a temp SQLite DB file, init schema, yield path, cleanup."""
@@ -82,7 +109,7 @@ def client(mock_settings, monkeypatch):
     except ImportError:
         import types
         fake = types.ModuleType("aiofiles")
-        fake.open = lambda *a, **kw: open(*a, **kw)
+        fake.open = lambda *a, **kw: open(*a, **kw)  # noqa: SIM115 — callback, not a file-open site
         monkeypatch.setitem(sys.modules, "aiofiles", fake)
 
     with patch("finetune_studio.models.registry.scan_models") as mock_scan, \
@@ -91,10 +118,11 @@ def client(mock_settings, monkeypatch):
         mock_scan.return_value = []
         try:
             import importlib
+
             import finetune_studio.webui.app as app_module
             importlib.reload(app_module)
             app = app_module.app
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — broad catch is intentional so test setup never crashes pytest
             pytest.skip(f"webui app not importable: {e}")
         with TestClient(app) as c:
             yield c
