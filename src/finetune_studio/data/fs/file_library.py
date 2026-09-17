@@ -22,6 +22,7 @@ import logging
 import mimetypes
 import os
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -705,31 +706,71 @@ def write_uploaded_file(pid: str, data: bytes, original_name: str, *, mime_hint:
 
     Dedup is NOT applied here — the caller (route handler) checks for an
     existing hash first and decides whether to call this.
+
+    The file_id is namespaced by project (``{pid[:8]}-{raw_hash[:16]}``) so
+    identical content uploaded to two different projects gets two distinct
+    rows. ``project_files.id`` is a global PRIMARY KEY; using the bare
+    hash prefix collided across projects and broke OCR/image ingestion on
+    fan-dragon where the same test image was reused.
     """
     ensure_dirs(pid)
     mime = _sniff_mime(original_name, mime_hint)
     kind = auto_kind_for(mime)
     raw_hash = sha256_of_bytes(data)
-    file_id = raw_hash[:16]
+    file_id = f"{pid[:8]}-{raw_hash[:16]}"
     auto_folder = get_or_create_auto_folder(pid, kind)
 
     raw_path = raw_path_for(pid, file_id, original_name, kind)
     raw_path.parent.mkdir(parents=True, exist_ok=True)
     raw_path.write_bytes(data)
 
-    row = record_uploaded_file(
-        pid=pid,
-        file_id=file_id,
-        original_name=original_name,
-        mime_type=mime,
-        size_bytes=len(data),
-        raw_path=str(raw_path),
-        raw_hash=raw_hash,
-        raw_size=len(data),
-        auto_kind=kind,
-        auto_folder_id=auto_folder["id"],
-        uploaded_by=uploaded_by,
-    )
+    try:
+        row = record_uploaded_file(
+            pid=pid,
+            file_id=file_id,
+            original_name=original_name,
+            mime_type=mime,
+            size_bytes=len(data),
+            raw_path=str(raw_path),
+            raw_hash=raw_hash,
+            raw_size=len(data),
+            auto_kind=kind,
+            auto_folder_id=auto_folder["id"],
+            uploaded_by=uploaded_by,
+        )
+    except Exception as e:
+        # Race / cross-project collision: a row with this id already exists.
+        # In-project duplicate is the caller's responsibility (route dedup);
+        # cross-project collision is retried with a uuid suffix so the new
+        # upload lands as its own row.
+        from finetune_studio import db
+        msg = str(e)
+        if "UNIQUE constraint failed: project_files.id" in msg:
+            with db.cursor() as c:
+                row = c.execute(
+                    "SELECT project_id FROM project_files WHERE id = ?", (file_id,)
+                ).fetchone()
+            if row and row[0] == pid:
+                raise  # in-project duplicate: caller should have caught it via dedup
+            file_id = f"{pid[:8]}-{uuid.uuid4().hex[:16]}"
+            raw_path = raw_path_for(pid, file_id, original_name, kind)
+            raw_path.parent.mkdir(parents=True, exist_ok=True)
+            raw_path.write_bytes(data)
+            row = record_uploaded_file(
+                pid=pid,
+                file_id=file_id,
+                original_name=original_name,
+                mime_type=mime,
+                size_bytes=len(data),
+                raw_path=str(raw_path),
+                raw_hash=raw_hash,
+                raw_size=len(data),
+                auto_kind=kind,
+                auto_folder_id=auto_folder["id"],
+                uploaded_by=uploaded_by,
+            )
+        else:
+            raise
     return FileMetadata(
         file_id=file_id,
         original_name=original_name,
