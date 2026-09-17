@@ -152,6 +152,11 @@ class ModelManager:
         fields = {k: v for k, v in kw.items() if k in allowed}
         if "id" not in fields or not fields["id"]:
             raise ValueError("Provider id required")
+        # The public API calls this field ``extra``; SQLite stores its JSON
+        # representation in ``extra_json``. Keep the names separate so edits
+        # from the WebUI actually persist instead of raising SQL errors.
+        if "extra" in fields:
+            fields["extra_json"] = json_dumps(fields.pop("extra"))
         with sqlite3.connect(_DB_PATH) as c:
             existing = c.execute("SELECT id FROM model_providers WHERE id = ?", (fields["id"],)).fetchone()
             if existing:
