@@ -255,3 +255,18 @@ def test_external_api_answer_is_not_penalized_by_unrelated_metrics_table() -> No
     )
     assert score is not None
     assert score.verdict == "pass"
+
+
+def test_question_focused_scope_and_glossary_answers_pass_without_extra_prose() -> None:
+    scope = score_source_grounded(
+        question="What are the third and fourth scope items listed in the brief?",
+        correct_answer="The third scope item is Tool-calling chat, and the fourth is an E2E WebUI stress test dated 2026-09-10.",
+        model_answer="The third scope item is Tool-calling chat, and the fourth is an E2E WebUI stress test.",
+    )
+    glossary = score_source_grounded(
+        question="Which glossary term specifically requires human action?",
+        correct_answer="Exception requires human action after the third failure.",
+        model_answer="The glossary term is exception, which requires human action.",
+    )
+    assert scope is not None and scope.verdict == "pass"
+    assert glossary is not None and glossary.verdict == "pass"
