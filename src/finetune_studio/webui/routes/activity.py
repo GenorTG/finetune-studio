@@ -340,6 +340,19 @@ def collect_activity() -> dict[str, Any]:
     # ── Inference engine loaded model ───────────────────────────────
     try:
         from finetune_studio.webui.app import inference_engine
+        loading_path = getattr(inference_engine, "_loading_path", None)
+        if loading_path:
+            started = getattr(inference_engine, "_loading_started", 0.0) or _now()
+            tasks.append({
+                "kind": "model_load",
+                "project_id": "",
+                "project_name": Path(loading_path).name or "?",
+                "status": "running",
+                "progress": 0.5,
+                "message": f"loading model · {loading_path[-60:]}",
+                "started_at": started,
+                "url": "/inference",
+            })
         if getattr(inference_engine, "model", None) is not None:
             path = getattr(inference_engine, "model_path", "")
             tasks.append({

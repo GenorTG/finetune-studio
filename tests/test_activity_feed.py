@@ -199,6 +199,43 @@ def test_live_training_dedups_with_persisted_row(iso_db, monkeypatch):
     assert "step 5/10" in training[0]["message"]
 
 
+def test_in_flight_model_load_shows(iso_db, monkeypatch):
+    """A model mid-load surfaces as a running model_load row."""
+    import time
+
+    app_mod = types.ModuleType("finetune_studio.webui.app")
+
+    class _State:
+        status = "idle"
+        current_step = 0
+        total_steps = 0
+        loss = 0.0
+        elapsed = 0
+        message = ""
+
+    class _Engine:
+        state = _State()
+        current_run_id = ""
+
+    class _Infer:
+        model = None
+        model_path = ""
+        _loading_path = "/models/quality-v3/gguf/model-q8_0.gguf"
+        _loading_started = time.time()
+
+    app_mod.training_engine = _Engine()
+    app_mod.inference_engine = _Infer()
+    monkeypatch.setitem(sys.modules, "finetune_studio.webui.app", app_mod)
+
+    from finetune_studio.webui.routes.activity import collect_activity
+    payload = collect_activity()
+    loads = [t for t in payload["tasks"] if t["kind"] == "model_load"]
+    assert len(loads) == 1
+    assert loads[0]["status"] == "running"
+    assert "model-q8_0.gguf" in loads[0]["project_name"]
+    assert payload["active_count"] >= 1
+
+
 def test_deleted_project_rows_are_skipped(iso_db, _stub_live):
     from finetune_studio import db
     from finetune_studio.webui.routes.activity import collect_activity

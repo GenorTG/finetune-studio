@@ -40,27 +40,37 @@ class InferenceEngine:
         self._gguf_template = None
         self._last_used = 0.0
         self._idle_timer = None
+        # In-flight load bookkeeping so the activity feed can show a
+        # "loading…" row while a (possibly multi-minute) load blocks — the
+        # engine only exposes ``model`` once the load has fully completed.
+        self._loading_path: str | None = None
+        self._loading_started: float = 0.0
 
     def load(self, model_path, device="auto", n_ctx=4096, n_gpu_layers=99, n_batch=512, mmap=True, mlock=False,
               n_threads=None, flash_attn=True, seed=None, rope_freq_base=0.0, rope_freq_scale=0.0,
               max_seq_length=None, load_in_4bit=False):
         from pathlib import Path
-        self.unload()
-        path = Path(model_path)
-        if path.is_file() and path.suffix == ".gguf":
-            self._load_gguf(str(path), n_ctx=n_ctx, n_gpu_layers=n_gpu_layers, n_batch=n_batch,
-                            mmap=mmap, mlock=mlock, n_threads=n_threads, flash_attn=flash_attn,
-                            seed=seed, rope_freq_base=rope_freq_base, rope_freq_scale=rope_freq_scale)
-        else:
-            self._load_hf(
-                model_path,
-                device,
-                max_seq_length=max_seq_length,
-                load_in_4bit=load_in_4bit,
-            )
-        self.model_path = model_path
-        self._last_used = time.time()
-        self._start_idle_timer()
+        self._loading_path = model_path
+        self._loading_started = time.time()
+        try:
+            self.unload()
+            path = Path(model_path)
+            if path.is_file() and path.suffix == ".gguf":
+                self._load_gguf(str(path), n_ctx=n_ctx, n_gpu_layers=n_gpu_layers, n_batch=n_batch,
+                                mmap=mmap, mlock=mlock, n_threads=n_threads, flash_attn=flash_attn,
+                                seed=seed, rope_freq_base=rope_freq_base, rope_freq_scale=rope_freq_scale)
+            else:
+                self._load_hf(
+                    model_path,
+                    device,
+                    max_seq_length=max_seq_length,
+                    load_in_4bit=load_in_4bit,
+                )
+            self.model_path = model_path
+            self._last_used = time.time()
+            self._start_idle_timer()
+        finally:
+            self._loading_path = None
 
     @staticmethod
     def _looks_like_qwen3(model_path: str) -> bool:
