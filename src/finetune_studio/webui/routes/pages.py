@@ -584,6 +584,7 @@ async def benchmarks_page(request: Request, pid: str):
             "cases": latest_cases,
             "scores": latest_scores,
             "latest_run_id": latest_rid,
+            "latest_benchmark_id": latest_bench.get("id", "") if latest_bench else "",
         },
     )
 

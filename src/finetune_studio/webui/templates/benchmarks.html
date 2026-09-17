@@ -155,6 +155,19 @@
   {# QABUG-012: per-case detail table — empty placeholder must leave the DOM
      when cases exist so NO_DATA markers cannot linger beside results. #}
   <h3 class="mt-6 mb-2">Latest case results</h3>
+  {% if latest_benchmark_id and cases %}
+  <div class="card mb-3" id="secondary-judge-card">
+    <div class="card-title">Secondary transcript judge</div>
+    <div class="card-sub">Loads a separate local model after generation. Its verdict is stored as an annotation; the authoritative source-grounded score and audit remain unchanged.</div>
+    <div class="flex gap-2 items-end mt-2">
+      <label class="flex-1"><span class="block text-xs muted mb-1">Judge model path</span>
+        <input id="secondary-judge-model" class="input" type="text" placeholder="/path/to/judge-model" autocomplete="off">
+      </label>
+      <button type="button" id="secondary-judge-btn" class="btn" onclick="runSecondaryJudge()">Judge transcripts</button>
+    </div>
+    <div id="secondary-judge-status" class="text-xs dim mt-2" role="status"></div>
+  </div>
+  {% endif %}
   <div id="bench-cases-panel">
     {% include "_case_results.html" %}
     {% if not cases %}
@@ -270,6 +283,34 @@
   var btn = document.getElementById("cmp-run-btn");
   var empty = document.getElementById("cmp-empty");
   var wrap = document.getElementById("cmp-table-wrap");
+
+  window.runSecondaryJudge = async function runSecondaryJudge() {
+    var model = (document.getElementById("secondary-judge-model") || {}).value || "";
+    var btn = document.getElementById("secondary-judge-btn");
+    var status = document.getElementById("secondary-judge-status");
+    if (!model.trim()) {
+      if (status) status.textContent = "Enter a local judge model path first.";
+      return;
+    }
+    if (btn) { btn.disabled = true; btn.textContent = "Judging…"; }
+    if (status) status.textContent = "Loading the secondary model after generation…";
+    try {
+      var r = await fetch("/api/benchmarks/projects/" + encodeURIComponent(PID)
+        + "/benchmarks/{{ latest_benchmark_id }}/judge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ judge_mode: "secondary_local", judge_model: model.trim() }),
+        });
+      var data = await r.json().catch(function () { return {}; });
+      if (!r.ok || data.error) throw new Error(data.error || ("HTTP " + r.status));
+      if (status) status.textContent = "Stored secondary judgments for " + data.judged + " transcript(s).";
+      if (window.fts && window.fts.notify) window.fts.notify("Secondary judge finished", "success");
+      location.reload();
+    } catch (e) {
+      if (status) status.textContent = "Secondary judge failed: " + (e.message || e);
+      if (btn) { btn.disabled = false; btn.textContent = "Judge transcripts"; }
+    }
+  };
 
   function syncBtn() {
     if (!btn) return;
