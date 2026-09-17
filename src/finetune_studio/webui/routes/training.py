@@ -381,6 +381,8 @@ async def start_training(request: Request):
     if not config.model_path:
         return {"error": "No model_path provided"}
     training_data = load_jsonl(data_path)
+    if not training_data:
+        return {"error": "Training dataset is empty"}
     system_prompt = body.get("system_prompt", "")
     system_prompt_mode = body.get("system_prompt_mode", "bake")
     # The project training form sends only the mode; bake/runtime without a
@@ -405,6 +407,8 @@ async def start_training(request: Request):
             "merge_on_save": merge_on_save,
             "system_prompt": system_prompt,
             "system_prompt_mode": system_prompt_mode,
+            "dataset_rows": len(training_data),
+            "validation_split": 0.1,
         },
         system_prompt=system_prompt,
         system_prompt_mode=system_prompt_mode,

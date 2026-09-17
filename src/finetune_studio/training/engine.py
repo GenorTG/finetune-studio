@@ -433,11 +433,14 @@ class TrainingEngine:
                 os.makedirs(self.config.output_dir, exist_ok=True)
                 with open(prompt_path, "w") as f:
                     f.write(system_prompt)
-            train_data, _val_data = split_data(formatted)
+            train_data, val_data = split_data(formatted)
             if self._stop_requested():
                 self._mark_stopped()
                 return
-            self.state.message = f"Training on {len(train_data)} examples..."
+            self.state.message = (
+                f"Training on {len(train_data)} examples; "
+                f"holding out {len(val_data)} for validation..."
+            )
             self._notify()
             if self.config.unsloth:
                 try:

@@ -127,6 +127,16 @@ class TestFormatForSft:
         # garbage row dropped; the two valid rows pass through
         assert len(out) == 2
 
+    def test_split_is_reproducible_and_reports_validation_rows(self):
+        from finetune_studio.training.data import split_data
+        rows = [{"messages": [{"role": "user", "content": str(i)}]} for i in range(256)]
+        train, validation = split_data(rows)
+        train_again, validation_again = split_data(rows)
+        assert len(train) == 230
+        assert len(validation) == 26
+        assert train == train_again
+        assert validation == validation_again
+
     def test_state(self):
         s = TrainingState()
         assert s.status == "idle"

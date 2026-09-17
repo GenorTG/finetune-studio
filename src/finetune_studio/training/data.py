@@ -22,6 +22,26 @@ KEY CONCEPTS
 """
 
 import json
+import re
+
+_PROVENANCE_LINE = re.compile(
+    r"(?im)^\s*(?:source|filename|file)\s*:\s*[^\n]+$"
+)
+_PROVENANCE_PAREN = re.compile(
+    r"(?i)\s*[\(\[]\s*(?:source|filename|file)\s*:\s*[^\)\]]+\s*[\)\]]\s*$"
+)
+
+
+def clean_answer_for_training(answer: str) -> str:
+    """Remove display-only provenance from the learned assistant response.
+
+    Source IDs remain in the exported JSONL row metadata. Teaching the model
+    filenames makes answers noisy and can turn digits in filenames into false
+    numeric answers; provenance belongs in the audit trail, not the target.
+    """
+    text = _PROVENANCE_LINE.sub("", answer or "")
+    text = _PROVENANCE_PAREN.sub("", text)
+    return text.strip()
 
 
 def load_jsonl(path: str) -> list:
@@ -102,14 +122,17 @@ def format_for_sft(data: list, system_prompt: str = "") -> list:
             continue
         if not msgs:
             continue
+        for msg in msgs:
+            if msg.get("role") == "assistant":
+                msg["content"] = clean_answer_for_training(str(msg.get("content", "")))
         if system_prompt and msgs[0].get("role") != "system":
             msgs = [{"role": "system", "content": system_prompt}] + msgs
         formatted.append({"messages": msgs})
     return formatted
 
-def split_data(data: list, train_ratio: float = 0.9):
+def split_data(data: list, train_ratio: float = 0.9, seed: int = 42):
     import random
     shuffled = data.copy()
-    random.shuffle(shuffled)
+    random.Random(seed).shuffle(shuffled)
     split = int(len(shuffled) * train_ratio)
     return shuffled[:split], shuffled[split:]

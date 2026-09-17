@@ -226,14 +226,15 @@ async def evaluate_training_dataset(request: Request):
     override_path = (body.get("model_path") or body.get("path") or "").strip()
 
     from finetune_studio.testing.training_eval import (
+        build_heldout_eval,
         build_training_eval,
         suite_label_for_training_eval,
     )
 
     try:
-        cases, meta = build_training_eval(
-            project_id, dataset_id=dataset_id, max_cases=max_cases
-        )
+        eval_kind = str(body.get("eval_kind") or "training_leakage")
+        builder = build_heldout_eval if eval_kind == "heldout" else build_training_eval
+        cases, meta = builder(project_id, dataset_id=dataset_id, max_cases=max_cases)
     except LookupError as e:
         return JSONResponse({"error": str(e)}, status_code=404)
     except (FileNotFoundError, ValueError) as e:

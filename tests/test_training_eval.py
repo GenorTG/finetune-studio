@@ -12,6 +12,7 @@ from finetune_studio.config import settings
 from finetune_studio.db import datasets as datasets_db
 from finetune_studio.testing.training_eval import (
     LEAKAGE_WARNING,
+    build_heldout_eval,
     build_training_eval,
     cases_from_training_jsonl,
     suite_label_for_training_eval,
@@ -51,6 +52,24 @@ def test_cases_from_training_jsonl_sharegpt(tmp_path: Path) -> None:
     assert len(cases) == 2
     assert cases[0].question.startswith("What is LoRA")
     assert "Paris" in cases[1].correct_answer
+
+
+def test_heldout_eval_is_deterministic_and_excludes_training_slice(
+    isolated_db: Path, tmp_path: Path
+) -> None:
+    proj = db.create_project(name="heldout", base_model="x/y")
+    p = tmp_path / "approved.jsonl"
+    _write_sharegpt(p, [(f"Q{i}?", f"A{i}") for i in range(20)])
+    ds = datasets_db.create_dataset(
+        proj["id"], "approved", str(p), source="data-prep-export", qa_count=20
+    )
+    cases, meta = build_heldout_eval(proj["id"], dataset_id=ds["id"], max_cases=20)
+    again, again_meta = build_heldout_eval(proj["id"], dataset_id=ds["id"], max_cases=20)
+    assert len(cases) == 2
+    assert [c.name for c in cases] == [c.name for c in again]
+    assert meta.eval_kind == "heldout"
+    assert again_meta.eval_kind == "heldout"
+    assert "validation" in meta.leakage_warning.lower()
 
 
 def test_build_training_eval_meta(isolated_db: Path, tmp_path: Path) -> None:

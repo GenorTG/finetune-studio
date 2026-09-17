@@ -73,9 +73,8 @@
 <div class="card mb-6">
   <div class="card-head">
     <div>
-      <div class="card-title">Training-data evaluation</div>
-      <div class="card-sub">Score the model on the project's approved training dataset.
-        High scores measure memorization / leakage risk — not held-out generalization.</div>
+      <div class="card-title">Dataset evaluation</div>
+      <div class="card-sub">Choose a real held-out validation slice for quality, or the full training set for a separate memorization check.</div>
     </div>
   </div>
   <div class="grid grid-12 gap-3 items-end">
@@ -95,6 +94,13 @@
       <label class="block text-xs muted mb-1">Max cases</label>
       <input id="t-train-max" class="input" type="number" min="1" max="500" value="100">
     </div>
+    <div class="col-span-3">
+      <label class="block text-xs muted mb-1">Evaluation kind</label>
+      <select id="t-eval-kind" class="select">
+        <option value="heldout">Held-out validation (quality)</option>
+        <option value="training_leakage">Full training set (memorization check)</option>
+      </select>
+    </div>
     <div class="col-span-2">
       <button id="t-train-eval-btn" type="button" onclick="runTrainingEval()" class="btn"
               style="width:100%;" {% if not models %}disabled title="Export a merged model first"{% endif %}>
@@ -102,8 +108,8 @@
       </button>
     </div>
   </div>
-  <div id="t-train-hint" class="text-xs dim mt-2" role="status">
-    Uses the same per-case table as suite runs. Labelled <span class="mono">training_leakage</span>.
+    <div id="t-train-hint" class="text-xs dim mt-2" role="status">
+    Held-out uses the same deterministic 10% validation slice used by training; it is the relevant score for in-domain quality.
   </div>
 </div>
 
@@ -389,17 +395,23 @@
     const btn = document.getElementById('t-train-eval-btn');
     const dsSel = document.getElementById('t-train-ds');
     const maxEl = document.getElementById('t-train-max');
+    const kindEl = document.getElementById('t-eval-kind');
     const modelSel = document.getElementById('t-model');
     const datasetId = dsSel ? (dsSel.value || '').trim() : '';
     const maxCases = maxEl ? Math.max(1, parseInt(maxEl.value || '100', 10) || 100) : 100;
+    const evalKind = kindEl ? (kindEl.value || 'heldout') : 'heldout';
     const modelPath = modelSel ? (modelSel.value || '').trim() : '';
     if (btn) btn.disabled = true;
     if (status) {
       status.dataset.busy = '1';
-      status.textContent = 'Running training-data (leakage) evaluation…';
+      status.textContent = evalKind === 'heldout'
+        ? 'Running held-out validation evaluation…'
+        : 'Running training-data (leakage) evaluation…';
     }
     if (hint) {
-      hint.textContent = 'Leakage eval in progress — high pass rates mean memorization, not generalization.';
+      hint.textContent = evalKind === 'heldout'
+        ? 'Held-out validation in progress — this is the meaningful in-domain quality score.'
+        : 'Leakage eval in progress — high pass rates mean memorization, not generalization.';
     }
     if (results) {
       results.innerHTML = '<span class="muted">Evaluating training dataset…</span>';
@@ -409,6 +421,7 @@
         project_id: PID,
         max_cases: maxCases,
         max_tokens: 512,
+        eval_kind: evalKind,
       };
       if (datasetId) body.dataset_id = datasetId;
       if (modelPath) body.model_path = modelPath;
@@ -433,9 +446,9 @@
       const scores = r.scores || {};
       const cases = r.results || [];
       if (status) {
-        status.textContent = 'Training-data eval done — '
+        status.textContent = (evalKind === 'heldout' ? 'Held-out eval done — ' : 'Training-data eval done — ')
           + (scores.pass_rate != null ? scores.pass_rate + '%' : '—')
-          + ' pass · ' + cases.length + ' cases (leakage check)';
+          + ' pass · ' + cases.length + ' cases (' + evalKind + ')';
       }
       if (hint && scores.leakage_warning) {
         hint.textContent = scores.leakage_warning;

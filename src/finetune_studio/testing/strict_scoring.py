@@ -49,6 +49,15 @@ _ANSWER_IS_NUMBER = re.compile(
     r"(?i)(?:answer|final(?:\s+answer)?|result|total|equals?)\s*(?:is|=|:)?\s*"
     r"([-+]?\d[\d,]*(?:\.\d+)?)"
 )
+_PROVENANCE_SUFFIX = re.compile(
+    r"(?is)\s*(?:\n\s*)?(?:\(|\[)?\s*(?:source|filename|file)\s*:\s*"
+    r"[^\n\)\]]+\.(?:md|txt|csv|json|jsonl|html|pdf|docx|xlsx|rst)\s*(?:\)|\])?\s*$"
+)
+
+
+def strip_provenance_suffix(text: str) -> str:
+    """Ignore an approved source citation when scoring the answer body."""
+    return _PROVENANCE_SUFFIX.sub("", text or "").strip()
 
 
 @dataclass(frozen=True)
@@ -103,7 +112,7 @@ def _normalize_number(raw: str) -> str:
 
 def extract_selected_letters(model_answer: str) -> list[str]:
     """Return positively asserted option letters (negations removed)."""
-    text = model_answer or ""
+    text = strip_provenance_suffix(model_answer)
     negated = {
         (a or b).upper()
         for a, b in _NEGATED_LETTER.findall(text)
@@ -121,7 +130,7 @@ def extract_selected_letters(model_answer: str) -> list[str]:
 
 def extract_final_numbers(model_answer: str) -> list[str]:
     """Extract candidate final numeric answers (normalized strings)."""
-    text = model_answer or ""
+    text = strip_provenance_suffix(model_answer)
     hash_hits = [_normalize_number(x) for x in _HASH_FINAL.findall(text)]
     if hash_hits:
         # Last #### wins (GSM8K convention).

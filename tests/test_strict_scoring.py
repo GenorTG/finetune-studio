@@ -69,6 +69,26 @@ def test_numeric_pass_on_normalized_final() -> None:
     assert s.validity == "valid"
 
 
+def test_numeric_ignores_approved_filename_citation() -> None:
+    s = score_numeric(
+        correct_answer="8",
+        model_answer="The total is 8. (Source: 15_overtime_budget.csv)",
+    )
+    assert s.verdict == "pass"
+
+
+def test_training_target_strips_citation_but_keeps_answer() -> None:
+    from finetune_studio.training.data import format_for_sft
+
+    out = format_for_sft([{
+        "conversations": [
+            {"from": "human", "value": "What is the total?"},
+            {"from": "gpt", "value": "8 (Source: 15_overtime_budget.csv)"},
+        ],
+    }])
+    assert out[0]["messages"][1]["content"] == "8"
+
+
 def test_numeric_rejects_substring_inside_larger_number() -> None:
     """Keyword '8' would match inside '18' / '48'; strict must fail."""
     s = score_numeric(correct_answer="8", model_answer="The total is 18.")

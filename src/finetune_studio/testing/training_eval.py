@@ -19,8 +19,9 @@ from finetune_studio.testing.generate_suite import (
     _slugify,
 )
 from finetune_studio.testing.suite import BenchmarkCase
+from finetune_studio.training.data import clean_answer_for_training
 
-EvalKind = Literal["training_leakage"]
+EvalKind = Literal["training_leakage", "heldout"]
 
 LEAKAGE_WARNING = (
     "Training-data evaluation: cases are drawn from the project's approved "
@@ -54,7 +55,7 @@ def _extract_qa(example: dict[str, Any]) -> tuple[str, str] | None:
         q = str(conversations[0].get("value") or conversations[0].get("content") or "").strip()
         a = str(conversations[1].get("value") or conversations[1].get("content") or "").strip()
         if q and a:
-            return q, a
+            return q, clean_answer_for_training(a)
 
     messages = example.get("messages")
     if isinstance(messages, list):
@@ -64,13 +65,13 @@ def _extract_qa(example: dict[str, Any]) -> tuple[str, str] | None:
             q = str(user.get("content") or "").strip()
             a = str(asst.get("content") or "").strip()
             if q and a:
-                return q, a
+                return q, clean_answer_for_training(a)
 
     # Flat Q/A keys used by some exporters
     q = str(example.get("question") or example.get("prompt") or "").strip()
     a = str(example.get("answer") or example.get("response") or example.get("completion") or "").strip()
     if q and a:
-        return q, a
+        return q, clean_answer_for_training(a)
     return None
 
 
@@ -180,6 +181,44 @@ def build_training_eval(
     return cases, meta
 
 
+def build_heldout_eval(
+    project_id: str,
+    *,
+    dataset_id: str | None = None,
+    max_cases: int = 200,
+) -> tuple[list[BenchmarkCase], TrainingEvalMeta]:
+    """Build the deterministic 10% validation slice used by the trainer.
+
+    This is the meaningful quality score. The full approved dataset remains
+    available as the separately labelled leakage check, but it must not be
+    presented as generalization evidence.
+    """
+    ds = resolve_project_dataset(project_id, dataset_id)
+    all_cases, skipped = cases_from_training_jsonl(str(ds["data_path"]), max_cases=5000)
+    import random
+    shuffled = list(all_cases)
+    random.Random(42).shuffle(shuffled)
+    split = int(len(shuffled) * 0.9)
+    cases = shuffled[split:split + max_cases]
+    if not cases:
+        raise ValueError("dataset has no held-out validation examples")
+    meta = TrainingEvalMeta(
+        eval_kind="heldout",
+        leakage_warning=(
+            "Held-out validation slice: deterministic 10% excluded from the "
+            "training split. This is the relevant in-domain quality score."
+        ),
+        dataset_id=str(ds["id"]),
+        dataset_name=str(ds.get("name") or ""),
+        dataset_path=str(ds["data_path"]),
+        dataset_source=str(ds.get("source") or ""),
+        case_count=len(cases),
+        skipped=skipped,
+        max_cases=max_cases,
+    )
+    return cases, meta
+
+
 def suite_label_for_training_eval(meta: TrainingEvalMeta) -> str:
     """Human-readable suite name for DB / UI."""
-    return f"training_leakage:{meta.dataset_name or meta.dataset_id}"
+    return f"{meta.eval_kind}:{meta.dataset_name or meta.dataset_id}"
