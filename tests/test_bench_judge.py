@@ -169,3 +169,32 @@ def test_bench_judge_marks_fail_when_keywords_missed(
     )
     assert r.status_code == 200, r.text
     assert r.json()["results"][0]["verdict"] == "fail"
+
+
+def test_secondary_local_judge_is_persisted_without_overwriting_source_score(
+    client_and_db: tuple[TestClient, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, _db_path = client_and_db
+    pid, rid = _create_project_and_run(client, tmp_path)
+    _stub_engine(monkeypatch, '{"verdict":"pass","reasoning":"exact","confidence":0.9}')
+    suite_path = _write_suite(tmp_path, ["Paris"])
+    run = client.post(
+        f"/api/benchmarks/projects/{pid}/runs/{rid}/run",
+        json={"suite_path": suite_path, "suite_name": "secondary", "judge_mode": "heuristic"},
+    )
+    assert run.status_code == 200, run.text
+    bid = run.json()["benchmark"]["id"]
+    original_verdict = db.list_cases(bid)[0]["verdict"]
+
+    judged = client.post(
+        f"/api/benchmarks/projects/{pid}/benchmarks/{bid}/judge",
+        json={"judge_mode": "secondary_local", "judge_model": "judge-model"},
+    )
+    assert judged.status_code == 200, judged.text
+    assert judged.json()["authoritative_scores_unchanged"] is True
+    case = db.list_cases(bid)[0]
+    assert case["verdict"] == original_verdict
+    assert case["judge"] == "heuristic"
+    assert case["judge_input"]["secondary_judge"]["model"] == "judge-model"

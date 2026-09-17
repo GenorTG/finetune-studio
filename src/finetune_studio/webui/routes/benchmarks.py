@@ -625,6 +625,48 @@ async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any
         finally:
             judge_engine.unload()
 
+    if judge_mode == "secondary_local":
+        judge_engine = InferenceEngine()
+        try:
+            _unload_global_inference()
+            model_path = str(judge_model or "").strip()
+            if not model_path:
+                return JSONResponse(
+                    {"error": "judge_model is required for secondary_local"},
+                    status_code=400,
+                )
+            judge_engine.load(model_path)
+            updated = 0
+            for case in cases:
+                if not case.get("model_answer"):
+                    continue
+                verdict, reasoning, confidence = judge_case_local(
+                    judge_engine,
+                    question=case["question"],
+                    correct_answer=case["correct_answer"],
+                    model_answer=case["model_answer"],
+                    transcript=case.get("transcript") or [],
+                )
+                judge_input = case.get("judge_input") or {}
+                judge_input["secondary_judge"] = {
+                    "verdict": verdict,
+                    "reasoning": reasoning,
+                    "confidence": confidence,
+                    "model": model_path,
+                    "judged_at": time.time(),
+                }
+                db.update_case(case["id"], judge_input=judge_input)
+                updated += 1
+            return {
+                "ok": True,
+                "judged": updated,
+                "judge_mode": "secondary_local",
+                "judge_model": model_path,
+                "authoritative_scores_unchanged": True,
+            }
+        finally:
+            judge_engine.unload()
+
     return JSONResponse(
         {"error": f"unknown judge_mode: {judge_mode}"},
         status_code=400,

@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import json
 import os
-import time
 from typing import Literal
 
 Verdict = Literal["pass", "fail", "partial", ""]
@@ -145,13 +144,20 @@ def judge_case_heuristic(
     return "fail", detail, min(0.5 + (1 - ratio) / 2, 1.0)
 
 
-def build_judge_messages(question: str, correct_answer: str, model_answer: str) -> list[dict]:
+def build_judge_messages(
+    question: str,
+    correct_answer: str,
+    model_answer: str,
+    transcript: list[dict] | None = None,
+) -> list[dict]:
     """Build the chat messages for the judge prompt."""
     user_content = (
         f"QUESTION:\n{question}\n\n"
         f"CORRECT ANSWER:\n{correct_answer}\n\n"
         f"MODEL ANSWER:\n{model_answer}"
     )
+    if transcript:
+        user_content += f"\n\nTRANSCRIPT:\n{json.dumps(transcript, ensure_ascii=False)}"
     return [
         {"role": "system", "content": JUDGE_PROMPT},
         {"role": "user", "content": user_content},
@@ -174,8 +180,8 @@ def judge_case_ai(
     messages = build_judge_messages(question, correct_answer, model_answer)
 
     try:
-        import urllib.request
         import urllib.error
+        import urllib.request
 
         payload = json.dumps({
             "model": model,
@@ -207,7 +213,7 @@ def judge_case_ai(
 
         return verdict, data.get("reasoning", ""), float(data.get("confidence", 0.5))
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return "", f"AI judge error: {e}", 0.0
 
 
@@ -217,9 +223,10 @@ def judge_case_local(
     correct_answer: str,
     model_answer: str,
     think: bool = False,
+    transcript: list[dict] | None = None,
 ) -> tuple[Verdict, str, float]:
     """Judge using a local model (the inference engine)."""
-    messages = build_judge_messages(question, correct_answer, model_answer)
+    messages = build_judge_messages(question, correct_answer, model_answer, transcript)
     try:
         raw = engine.generate(messages, max_tokens=500, temperature=0.0, think=think)
         # Try to parse JSON from response
@@ -236,5 +243,5 @@ def judge_case_local(
         if "partial" in low:
             return "partial", raw, 0.5
         return "fail", raw, 0.5
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return "", f"local judge error: {e}", 0.0

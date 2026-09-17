@@ -144,6 +144,8 @@ def update_case(cid: str, **kwargs) -> None:
     # JSON-encode transcript if present
     if "transcript" in kwargs and not isinstance(kwargs["transcript"], str):
         kwargs["transcript"] = json.dumps(kwargs["transcript"])
+    if "judge_input" in kwargs and not isinstance(kwargs["judge_input"], str):
+        kwargs["judge_input"] = json.dumps(kwargs["judge_input"])
     sets = ", ".join(f"{k} = ?" for k in kwargs)
     vals = list(kwargs.values()) + [cid]
     with cursor() as c:
