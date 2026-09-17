@@ -117,6 +117,11 @@ def list_cases(benchmark_id: str) -> list[dict]:
                 d["transcript"] = json.loads(d["transcript"])
             except (TypeError, json.JSONDecodeError):
                 d["transcript"] = []
+        if "judge_input" in d and isinstance(d["judge_input"], str) and d["judge_input"]:
+            try:
+                d["judge_input"] = json.loads(d["judge_input"])
+            except (TypeError, json.JSONDecodeError):
+                d["judge_input"] = {}
         out.append(d)
     return out
 

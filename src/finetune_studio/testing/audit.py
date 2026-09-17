@@ -32,7 +32,10 @@ def recompute_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
             model_answer=str(case.get("model_answer") or ""),
             transcript=transcript if isinstance(transcript, list) else [],
             error=str(case.get("error") or ""),
-            keywords=[str(k) for k in case.get("keywords", []) or []],
+            keywords=[str(k) for k in (
+                case.get("keywords")
+                or (case.get("judge_input") or {}).get("keywords", [])
+            )],
         ))
     apply_heuristic_judging(results)
     recomputed = score_results(results)
