@@ -12,10 +12,10 @@ real root-cause fixes, real fan-dragon verification, no fake greens.
 |------|--------|
 | Source-disjoint gap | Fine-tune alone **0/52** strict — needs retrieval grounding |
 | **RAG-grounded API** | Committed `6653d31` — `testing/rag_suite.py` + `POST /api/testing/run-rag-suite` |
-| **RAG benchmark persistence** | `8a68755`; live benchmark `9050d067` stores explicit Q8 path, transcript, retrieval provenance; audit **1/1 pass, 0 disagreements** |
+| **RAG benchmark persistence** | `8a68755`; live benchmark `36ff7634` stores the explicit Q8 path and all 246 transcripts; audit **246/246 valid, 0 disagreements** |
 | **RAG-grounded UI** | Testing card `#t-rag-card` → **Run with RAG** |
 | **Full ingested corpus** | `testing/full_corpus_suite.py` + `discover_suites(pid)` hook; all approved source-grounded QA pairs |
-| **Full-corpus live result** | 246/246 judged: **230 pass / 16 partial / 0 fail**, weighted **96.7%** at top_k=5 after question-focused scoring and table arithmetic retry |
+| **Full-corpus live result** | 246/246 judged: **231 pass / 15 partial / 0 fail**, weighted **97.0%** at top_k=5 after question-focused scoring and table arithmetic retry |
 | **Retrieval live run** | **245/246 hits (99.59%)**; source-miss fallback expands to top-20 and isolates the matched source context |
 | **OCR** | Fresh-box tessdata bootstrap argument fixed; local OCR/parser checks **49 passed, 3 skipped** |
 | Quality baselines | v3 held-out 17.4% strict; v4 source-disjoint 11.5% weighted unchanged |
@@ -29,7 +29,7 @@ real root-cause fixes, real fan-dragon verification, no fake greens.
 
 ### Live grounded result
 - Fan Dragon Q8 + PortableRAG full-corpus run covered **246 cases across 35 source documents**. Raw response retained all transcripts and hit provenance.
-- Final live run on `56f4912`: **230 pass / 16 partial / 0 fail**, weighted **96.7%**, average 750.8 ms; model path is the deployed Q8 export.
+- Final authoritative run on `b25cabb`, benchmark `36ff7634`: **231 pass / 15 partial / 0 fail**, weighted **97.0%**, average 803.4 ms; model path is the persisted Q8 export.
 - Grounded retries correct table variance mix-ups and recover crowded source misses without changing normal top-k=5 behavior.
 
 ### Verify (genorbox1)
@@ -49,10 +49,9 @@ real root-cause fixes, real fan-dragon verification, no fake greens.
 ```
 
 ## Next steps
-1. Persist the final 246-case RAG run as a benchmark row using the live persistence path; retain its raw transcript and audit URL.
-2. Investigate the remaining 16 partial cases against parsed-source evidence; do not turn partials into passes without fact coverage.
-3. Close the final retrieval miss by improving query/source matching, then rerun the full suite.
-4. Keep browser QA green (70/70).
+1. Investigate the remaining 15 partial cases against parsed-source evidence; do not turn partials into passes without fact coverage.
+2. Close the final retrieval miss by improving query/source matching, then rerun the full suite.
+3. Keep browser QA green (70/70).
 
 ## Commands
 ```
