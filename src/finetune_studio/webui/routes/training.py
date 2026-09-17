@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from finetune_studio.training.data import load_jsonl
 from finetune_studio.training.engine import TrainingConfig
 from finetune_studio.training.monitor import training_events
+from finetune_studio.training.run_persistence import attach_run
 from finetune_studio.webui.app import training_engine
 from finetune_studio.webui.live_sse import sse_response
 
@@ -391,7 +392,6 @@ async def start_training(request: Request):
         system_prompt = (db.get_project(project_id) or {}).get("system_prompt", "") or ""
 
     # Create a run record
-    import time as _time
     run = db.create_run(
         project_id=project_id,
         name=f"Run · {Path(data_path).name}",
@@ -422,53 +422,14 @@ async def start_training(request: Request):
         )
     # Persist immediately so Export / Training UI can locate the run even when
     # later status callbacks omit output_path or use a composite engine run id.
-    db.update_run(run_id, output_path=config.output_dir)
-    run_started_at = _time.time()
-    training_engine.current_run_id = f"{project_id}-{run_id}" if project_id else run_id
-    training_engine.current_project_id = project_id
-    training_engine.current_db_run_id = run_id
-
-    state_started_logged = {"value": False}
-    def _on_state_change(state):
-        update: dict = {}
-        active_states = ("running", "training", "loading", "saving")
-        if state.status in active_states and not state_started_logged["value"]:
-            state_started_logged["value"] = True
-            update["started_at"] = run_started_at
-            update["status"] = state.status
-        elif state.status in active_states:
-            update["status"] = state.status
-        if state.status == "done":
-            update["status"] = "done"
-            finished = _time.time()
-            update["finished_at"] = finished
-            update["duration"] = max(0.0, finished - run_started_at)
-            if state.final_loss is not None:
-                update["final_loss"] = state.final_loss
-            update["metrics"] = {
-                "total_steps": state.total_steps,
-                "current_step": state.current_step,
-                "loss": state.loss,
-                "epoch": state.epoch,
-                "elapsed": state.elapsed,
-            }
-        elif state.status == "saving":
-            update["status"] = "saving"
-        elif state.status == "error":
-            update["status"] = "failed"
-            finished = _time.time()
-            update["finished_at"] = finished
-            update["duration"] = max(0.0, finished - run_started_at)
-            update["error"] = state.error or state.message or "training failed"
-        if not update:
-            return
-        try:
-            db.update_run(run_id, **update)
-        except Exception:
-            # Training callback must not die on DB hiccups; engine keeps running.
-            log.exception("db.update_run failed for %s", run_id)
-
-    training_engine.on_update(_on_state_change)
+    db.update_run(
+        run_id,
+        name=f"Run {run_id} · {Path(data_path).name}",
+        output_path=config.output_dir,
+    )
+    # One persister per run; the previous run's callback is detached so it can
+    # never rewrite its own row with this run's progress.
+    attach_run(training_engine, run_id, config.output_dir, project_id=project_id)
     # Training and the global inference helper share the same GPU.  Unload
     # inference before the worker imports/loads the trainable base; otherwise
     # a resident GGUF can consume nearly the entire card and make a valid 4B

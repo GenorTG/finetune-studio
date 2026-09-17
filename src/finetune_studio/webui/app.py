@@ -36,74 +36,6 @@ training_engine = TrainingEngine()
 inference_engine = InferenceEngine()
 discovered_models: list[ModelInfo] = []
 
-def _on_training_update(state):
-    """Persist training progress to the DB row tagged on the engine.
-
-    Guarantees the standard lifecycle fields land in the row:
-      - status, metrics, started_at, finished_at, output_path, error.
-
-    `output_path` is the *parent* directory `<output_dir>/` so the
-    standalone merge endpoint can locate both `<output_dir>/adapter/`
-    and `<output_dir>/merged/`.
-    """
-    rid = training_engine.current_run_id
-    if not rid:
-        return
-    metrics = {
-        "step": state.current_step,
-        "total_steps": state.total_steps,
-        "loss": state.loss,
-        "learning_rate": state.learning_rate,
-        "epoch": state.epoch,
-        "elapsed": state.elapsed,
-        "eta": state.eta,
-    }
-    fields: dict = {"status": state.status, "metrics": metrics}
-    cfg_dir = getattr(training_engine.config, "output_dir", "") or ""
-    cfg_dir_abs = os.path.abspath(cfg_dir) if cfg_dir else ""
-    # Fall back to the training engine's output_dir if _on_state_change
-    # hasn't fired yet (e.g. the very first training run).
-    if not cfg_dir_abs:
-        cfg_dir_abs = os.path.abspath(
-            getattr(training_engine.config, "output_dir", "output")
-        )
-    now = __import__("time").time()
-    if state.status in ("loading", "training", "running", "saving"):
-        # First active transition records started_at. Read existing to avoid
-        # clobbering a started_at the routes layer already wrote.
-        try:
-            existing = db.get_run(rid)
-            if existing and not existing.get("started_at"):
-                fields["started_at"] = now
-        except Exception:  # noqa: BLE001
-            pass
-    if state.status == "done":
-        fields["finished_at"] = now
-        if state.final_loss is not None:
-            fields["final_loss"] = state.final_loss
-        if cfg_dir_abs:
-            fields["output_path"] = cfg_dir_abs
-        # Soft post-train failures (merge/GGUF) leave status=done but set error.
-        if state.error:
-            fields["error"] = (state.error or "")[:2000]
-            fields["notes"] = (state.error or "")[:2000]
-    elif state.status == "stopped":
-        fields["finished_at"] = now
-        fields["notes"] = "Stopped by user"
-        if cfg_dir_abs and os.path.isdir(os.path.join(cfg_dir_abs, "adapter")):
-            fields["output_path"] = cfg_dir_abs
-    elif state.status == "error":
-        fields["finished_at"] = now
-        fields["error"] = (state.error or state.message or "training failed")[:500]
-        # If the adapter was saved before the failure, still point the user
-        # at the output dir so they can recover / merge manually.
-        if cfg_dir_abs and os.path.isdir(os.path.join(cfg_dir_abs, "adapter")):
-            fields["output_path"] = cfg_dir_abs
-    try:
-        db.update_run(rid, **fields)
-    except Exception:  # noqa: BLE001, S110
-        pass
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global discovered_models
@@ -121,9 +53,9 @@ async def lifespan(app: FastAPI):
     for m in discovered_models:
         vision = " 👁 vision" if getattr(m, "vision", False) else ""
         print(f"  {m.name} ({m.format}, {m.size_gb}GB{vision})")
-    # Init DB and hook training -> DB persistence.
+    # Init DB. Training runs bind their own DB persister when started
+    # (training.run_persistence.attach_run).
     db.init_db()
-    training_engine.on_update(_on_training_update)
     # Re-attach to in-flight HF downloads from the previous session so
     # the UI shows them (and we can mark the dead ones as cancelled).
     try:

@@ -153,6 +153,45 @@ class TrainingState:
     error: str = ""
     log_lines: list = field(default_factory=list)
 
+
+def apply_trainer_log(
+    state: TrainingState,
+    logs: dict,
+    *,
+    global_step: int,
+    epoch: float | None,
+    total_steps: int,
+    elapsed: float,
+) -> None:
+    """Fold one ``TrainerCallback.on_log`` payload into ``state``.
+
+    Only step logs carry ``loss``. The end-of-train summary (``train_loss``,
+    ``train_runtime``) and evaluation logs (``eval_loss``) must not reset the
+    live/final loss to 0 — that is what made finished runs report no loss.
+    """
+    state.current_step = global_step
+    state.epoch = round(epoch or 0, 2)
+    state.elapsed = round(elapsed, 1)
+    if global_step > 0:
+        state.eta = round(elapsed / global_step * max(0, total_steps - global_step), 1)
+    if "loss" in logs and logs["loss"] is not None:
+        state.loss = round(float(logs["loss"]), 4)
+        state.final_loss = state.loss
+        if logs.get("learning_rate") is not None:
+            state.learning_rate = round(float(logs["learning_rate"]), 8)
+        state.log_lines.append(
+            f"Step {global_step}/{total_steps} | loss={state.loss} | lr={state.learning_rate}"
+        )
+    elif logs.get("eval_loss") is not None:
+        state.log_lines.append(
+            f"Step {global_step}/{total_steps} | eval_loss={round(float(logs['eval_loss']), 4)}"
+        )
+    elif logs.get("train_loss") is not None:
+        state.log_lines.append(
+            f"Train summary | mean loss={round(float(logs['train_loss']), 4)} | last loss={state.loss}"
+        )
+
+
 class _ThreadChild:
     """Duck-typed process handle wrapping a thread (test hook only)."""
 
@@ -191,7 +230,14 @@ class TrainingEngine:
         self._listener: threading.Thread | None = None
 
     def on_update(self, callback):
+        """Subscribe to state changes; returns an idempotent unsubscribe."""
         self._callbacks.append(callback)
+
+        def _unsubscribe() -> None:
+            if callback in self._callbacks:
+                self._callbacks.remove(callback)
+
+        return _unsubscribe
 
     def _notify(self):
         for cb in self._callbacks:
@@ -261,8 +307,8 @@ class TrainingEngine:
     def _apply_state_dict(self, payload: dict) -> None:
         """Copy a child state snapshot onto ``self.state`` and notify parents."""
         for key in (
-            "status", "current_step", "total_steps", "loss", "learning_rate",
-            "epoch", "elapsed", "eta", "message", "error",
+            "status", "current_step", "total_steps", "loss", "final_loss",
+            "learning_rate", "epoch", "elapsed", "eta", "message", "error",
         ):
             if key in payload:
                 setattr(self.state, key, payload[key])
@@ -616,17 +662,10 @@ class TrainingEngine:
         class ProgressCallback(TrainerCallback):
             def on_log(self2, args, state, control, logs=None, **kwargs):
                 if logs:
-                    engine.state.current_step = state.global_step
-                    engine.state.loss = round(logs.get("loss", 0), 4)
-                    engine.state.final_loss = engine.state.loss
-                    engine.state.learning_rate = round(logs.get("learning_rate", 0), 8)
-                    engine.state.epoch = round(state.epoch or 0, 2)
-                    engine.state.elapsed = round(time.time() - start_time, 1)
-                    if state.global_step > 0:
-                        rate = engine.state.elapsed / state.global_step
-                        engine.state.eta = round(rate * (total - state.global_step), 1)
-                    engine.state.log_lines.append(
-                        f"Step {state.global_step}/{total} | loss={engine.state.loss} | lr={engine.state.learning_rate}"
+                    apply_trainer_log(
+                        engine.state, logs, global_step=state.global_step,
+                        epoch=state.epoch, total_steps=total,
+                        elapsed=time.time() - start_time,
                     )
                     engine._notify()
         class StopCallback(TrainerCallback):
@@ -752,17 +791,10 @@ class TrainingEngine:
         class ProgressCallback(TrainerCallback):
             def on_log(self2, args, state, control, logs=None, **kwargs):
                 if logs:
-                    engine.state.current_step = state.global_step
-                    engine.state.loss = round(logs.get("loss", 0), 4)
-                    engine.state.final_loss = engine.state.loss
-                    engine.state.learning_rate = round(logs.get("learning_rate", 0), 8)
-                    engine.state.epoch = round(state.epoch or 0, 2)
-                    engine.state.elapsed = round(time.time() - start_time, 1)
-                    if state.global_step > 0:
-                        rate = engine.state.elapsed / state.global_step
-                        engine.state.eta = round(rate * (total - state.global_step), 1)
-                    engine.state.log_lines.append(
-                        f"Step {state.global_step}/{total} | loss={engine.state.loss} | lr={engine.state.learning_rate}"
+                    apply_trainer_log(
+                        engine.state, logs, global_step=state.global_step,
+                        epoch=state.epoch, total_steps=total,
+                        elapsed=time.time() - start_time,
                     )
                     engine._notify()
         class StopCallback(TrainerCallback):

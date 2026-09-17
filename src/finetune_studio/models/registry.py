@@ -275,6 +275,10 @@ def scan_models(directories: list) -> list:
                     display_name = f
                     if "/output" in p or "output_" in p:
                         cat = "trained_export"
+                        # Every run exports model-<quant>.gguf; prefix the run
+                        # dir so exports from different runs are distinguishable.
+                        run_dir = os.path.dirname(root) if os.path.basename(root) == "gguf" else root
+                        display_name = f"{os.path.basename(run_dir)}/{f}"
                     elif "shared_models" in p or "/models/gguf" in p.replace("\\", "/"):
                         cat = "local_helper"
                         from finetune_studio.models.helper import (

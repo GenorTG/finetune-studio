@@ -458,6 +458,13 @@ def init_db() -> None:
         _safe_alter(c, "ALTER TABLE benchmark_cases ADD COLUMN judge_input TEXT NOT NULL DEFAULT ''")
         _safe_alter(c, "ALTER TABLE benchmark_cases ADD COLUMN source_id TEXT NOT NULL DEFAULT ''")
         _safe_alter(c, "ALTER TABLE benchmark_cases ADD COLUMN chunk_idx INTEGER NOT NULL DEFAULT 0")
+        # Auto-generated "Run · <dataset file>" names collide for every run on
+        # the same dataset; tag them with the run id so selectors can tell
+        # runs (and their exports) apart. Custom names are left untouched.
+        c.execute(
+            "UPDATE training_runs SET name = 'Run ' || id || ' · ' || substr(name, 7) "
+            "WHERE name LIKE 'Run · %' AND instr(name, id) = 0"
+        )
         # Create benchmark_cases if it doesn't exist (new in v2)
         c.executescript("""
             CREATE TABLE IF NOT EXISTS benchmark_cases (

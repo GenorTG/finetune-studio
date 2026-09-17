@@ -55,15 +55,12 @@ def list_runs(project_id: str | None = None) -> list[dict]:
             run["duration"] = finished - started
         else:
             run["duration"] = None
-        # Extract final_loss from metrics_json if present
-        metrics = run.get("metrics_json", {})
-        if isinstance(metrics, str):
-            import json as _json
-            try:
-                metrics = _json.loads(metrics)
-            except Exception:
-                metrics = {}
-        run["final_loss"] = metrics.get("final_loss") if isinstance(metrics, dict) else None
+        # row_to_dict decodes metrics_json into "metrics". The final_loss
+        # column is authoritative; legacy rows only carry the last step loss.
+        if run.get("final_loss") is None:
+            metrics = run.get("metrics")
+            if isinstance(metrics, dict):
+                run["final_loss"] = metrics.get("final_loss", metrics.get("loss"))
     return runs
 
 
@@ -73,6 +70,9 @@ def update_run(rid: str, **fields: Any) -> dict | None:
         "status", "started_at", "finished_at", "output_path",
         "metrics_json", "notes", "error", "parent_run_id", "final_loss",
     }
+    # Callers pass the decoded name (``metrics=``), matching row_to_dict.
+    if "metrics" in fields:
+        fields.setdefault("metrics_json", fields.pop("metrics"))
     sets, vals = [], []
     for k, v in fields.items():
         if k in allowed:

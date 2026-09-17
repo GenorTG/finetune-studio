@@ -367,9 +367,13 @@ async def start_run(pid: str, rid: str, request: Request):
     if not run.get("data_path"):
         return {"error": "run has no data_path"}
     from finetune_studio.training.data import load_jsonl
+    from finetune_studio.training.run_persistence import attach_run
     training_data = load_jsonl(run["data_path"])
-    db.update_run(rid, status="running", started_at=time.time())
-    training_engine.run_id = rid  # type: ignore[attr-defined]
+    # A bare "output" dir is shared by every run and gets overwritten (E2E-25).
+    if (config.output_dir or "output").rstrip("/") == "output":
+        config.output_dir = f"output/projects/{pid}/runs/{rid}"
+    db.update_run(rid, status="running", started_at=time.time(), output_path=config.output_dir)
+    attach_run(training_engine, rid, config.output_dir, project_id=pid)
     training_engine.start(config, training_data, run.get("system_prompt", ""))
     return {"status": "started", "run_id": rid, "run": db.get_run(rid)}
 

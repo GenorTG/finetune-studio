@@ -37,6 +37,7 @@ def _state_payload(state: Any) -> dict[str, Any]:
         "current_step": state.current_step,
         "total_steps": state.total_steps,
         "loss": state.loss,
+        "final_loss": state.final_loss,
         "learning_rate": state.learning_rate,
         "epoch": state.epoch,
         "elapsed": state.elapsed,
