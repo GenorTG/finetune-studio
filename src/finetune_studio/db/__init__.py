@@ -45,6 +45,7 @@ from finetune_studio.db.datasets import (
 )
 from finetune_studio.db.benchmarks import (
     create_benchmark, get_benchmark, list_benchmarks,
+    list_recent as list_benchmarks_recent,
     create_case, list_cases, update_case, update_benchmark_scores,
 )
 from finetune_studio.db.reviews import list_review, record_review
@@ -63,6 +64,7 @@ from finetune_studio.db.rag_corpora import (
     get_build as get_rag_build,
     latest_for_rag as latest_rag_build,
     list_for_rag as list_rag_builds,
+    list_recent as list_rag_builds_recent,
     mark_done as mark_rag_build_done,
     mark_failed as mark_rag_build_failed,
     mark_running as mark_rag_build_running,

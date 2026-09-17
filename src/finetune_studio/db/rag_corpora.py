@@ -83,6 +83,16 @@ def list_for_rag(rag_id: str, limit: int = 50) -> list[dict]:
     return [row_to_dict(r) for r in rows]
 
 
+def list_recent(limit: int = 50) -> list[dict]:
+    """Across all RAGs/projects — for the global activity feed."""
+    with cursor() as c:
+        rows = c.execute(
+            "SELECT * FROM rag_corpora ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [row_to_dict(r) for r in rows]
+
+
 def latest_for_rag(rag_id: str) -> dict | None:
     """The most recent build attempt for a RAG — what the UI shows as 'last build'."""
     with cursor() as c:

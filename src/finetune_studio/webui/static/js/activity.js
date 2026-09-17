@@ -21,20 +21,26 @@
   const closeBtn  = $("activity-close");
 
   const KIND_ICON = {
-    training:   "▣",
-    rag_build:  "⌗",
-    rag_ready:  "✓",
-    data_prep:  "▥",
-    inference:  "◉",
-    download:   "↓",
+    training:      "▣",
+    benchmark:     "✚",
+    export:        "⇪",
+    rag_build:     "⌗",
+    rag_ready:     "✓",
+    data_prep:     "▥",
+    inference:     "◉",
+    download:      "↓",
+    system_update: "⟳",
   };
   const KIND_LABEL = {
-    training:   "Training",
-    rag_build:  "RAG build",
-    rag_ready:  "RAG ready",
-    data_prep:  "Data prep",
-    inference:  "Inference",
-    download:   "Download",
+    training:      "Training",
+    benchmark:     "Benchmark",
+    export:        "Export",
+    rag_build:     "RAG build",
+    rag_ready:     "RAG ready",
+    data_prep:     "Data prep",
+    inference:     "Inference",
+    download:      "Download",
+    system_update: "Update",
   };
 
   /** Stable identity for a task across poll re-renders (not array index). */

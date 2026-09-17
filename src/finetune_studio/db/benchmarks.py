@@ -76,6 +76,16 @@ def list_benchmarks(run_id: str | None = None) -> list[dict]:
     return [row_to_dict(r) for r in rows]
 
 
+def list_recent(limit: int = 50) -> list[dict]:
+    """Across all runs — for the global activity feed."""
+    with cursor() as c:
+        rows = c.execute(
+            "SELECT * FROM benchmark_runs ORDER BY ran_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [row_to_dict(r) for r in rows]
+
+
 # ── benchmark_cases (per-test results) ────────────────────────────────────
 
 def create_case(benchmark_id: str, run_id: str, name: str, category: str,
