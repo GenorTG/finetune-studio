@@ -150,6 +150,60 @@ async def run_test_suite(request: Request):
     }
 
 
+@router.post("/run-rag-suite")
+async def run_rag_test_suite(request: Request):
+    """Run a Q&A suite with PortableRAG retrieval grounding.
+
+    Body keys: ``project_id``/``pid``, ``suite_path``, ``model_path``/``path``,
+    ``corpus_path`` (defaults to the project's PortableRAG corpus), ``top_k``,
+    ``max_tokens``, ``temperature``.
+
+    Blocking model + RAG work runs in ``asyncio.to_thread`` so the event loop
+    stays responsive. Response includes transcripts, retrieval hits, context,
+    corpus/model paths, scores, and retrieval recall metrics.
+    """
+    body = await request.json()
+    suite_path = str(body.get("suite_path") or "").strip()
+    if not suite_path:
+        return JSONResponse({"error": "suite_path required"}, status_code=400)
+
+    project_id = str(body.get("project_id") or body.get("pid") or "").strip()
+    override_path = str(body.get("model_path") or body.get("path") or "").strip()
+    corpus_path = str(body.get("corpus_path") or "").strip()
+    top_k = int(body.get("top_k", 5))
+    max_tokens = int(body.get("max_tokens", 512))
+    temperature = float(body.get("temperature", 0.3))
+
+    load_err = _ensure_model_loaded(project_id, override_path)
+    if load_err is not None:
+        return load_err
+
+    from finetune_studio.testing.rag_suite import run_rag_suite_evaluation
+
+    def _blocking() -> dict[str, object]:
+        report = run_rag_suite_evaluation(
+            inference_engine,
+            suite_path=suite_path,
+            corpus_path=corpus_path,
+            project_id=project_id,
+            top_k=top_k,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        return report.as_api_dict()
+
+    try:
+        return await asyncio.to_thread(_blocking)
+    except FileNotFoundError as e:
+        return JSONResponse({"error": str(e)}, status_code=404)
+    except (TypeError, ValueError, OSError) as e:
+        _log.warning("run-rag-suite failed: %s", e)
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:  # noqa: BLE001
+        _log.exception("run-rag-suite unexpected failure")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 def _ensure_model_loaded(project_id: str, override_path: str) -> JSONResponse | None:
     """Load override or latest merged model; return error response or None."""
     if override_path:
