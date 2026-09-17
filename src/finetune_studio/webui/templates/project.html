@@ -490,7 +490,7 @@
           '</div>';
         return '<tr class="row-hover">' +
           '<td class="name" title="' + esc(f.original_name) + '">' + esc(f.original_name) + '</td>' +
-          '<td class="meta mono">' + esc(mimeSubtype(mime)) + '</td>' +
+          '<td class="meta mono" title="' + esc(mime) + '">' + esc(window.fts && window.fts.fileTypeLabel ? window.fts.fileTypeLabel(f.original_name, mime) : mimeSubtype(mime)) + '</td>' +
           '<td class="num mono">' + formatBytes(f.size_bytes) + '</td>' +
           '<td class="meta mono">v' + (f.current_version || 1) + '</td>' +
           '<td class="meta mono">' + relativeTime(f.uploaded_at) + '</td>' +

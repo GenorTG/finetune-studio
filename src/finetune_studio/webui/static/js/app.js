@@ -459,11 +459,21 @@
     if (match) { e.preventDefault(); match.action(); }
   });
 
+  // Short human type label for a file row. Prefer the filename extension —
+  // raw MIME subtypes read as "vnd.openxmlformats-officedocument…" (docx) or
+  // "octet-stream" (jsonl) in the file tables.
+  function fileTypeLabel(name, mime) {
+    const ext = /\.([A-Za-z0-9]{1,10})$/.exec(String(name || ""));
+    if (ext) return ext[1].toLowerCase();
+    const sub = String(mime || "").split("/").pop() || "";
+    return sub.replace(/^(x-|vnd\.)/, "").split(/[.+]/).pop() || "?";
+  }
+
   // Page-swap hook called from spa.js after each navigation
   window.fts = {
     notify, api, poll, subscribe, confirm: confirmDialog, prompt: promptDialog, init: delegate, formatJsTime,
     conn: { check: connCheck, start: connStart, stop: connStop },
-    themeToggle,
+    themeToggle, fileTypeLabel,
   };
 
   // Run the formatter on full load + after every SPA swap

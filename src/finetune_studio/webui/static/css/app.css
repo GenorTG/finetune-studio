@@ -4383,10 +4383,6 @@ body::before {
   .sb-nav-more { display: none !important; }
 }
 
-/* Mid-desktop: keep the fixed status cluster above the wrapping tab row. */
-@media (min-width: 701px) and (max-width: 1280px) {
-  .sb-nav-shell { padding-top: 48px; }
-}
 
 @media (max-width: 700px) {
   .sb-nav-shell {
@@ -4472,5 +4468,56 @@ body::before {
   .inference-load-actions {
     position: static;
     background: transparent;
+  }
+}
+
+/* Desktop header grid (≥701px).  The brand and status cluster used to be
+   absolutely positioned over the tab row with a guessed right gutter; any
+   cluster wider than the gutter covered project tabs (benchmarks/chat/export
+   were unreachable at 1440px).  As grid items nothing can overlap: row 1 is
+   brand + the full-width wrapping tab strip, row 2 is the path bar with the
+   status cluster at its right end. */
+@media (min-width: 701px) {
+  .session-bar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "brand nav   nav"
+      "path  path  right";
+    align-items: stretch;
+    overflow: visible;
+  }
+  .sb-brand {
+    position: static;
+    grid-area: brand;
+    align-self: start;
+    margin: 12px 4px 0 12px;
+  }
+  .sb-nav-shell {
+    grid-area: nav;
+    min-width: 0;
+    padding: 8px 12px 6px 8px;
+  }
+  .sb-nav-shell::before,
+  .sb-nav-shell::after { display: none; }
+  .sb-active-bar {
+    grid-area: path;
+    height: auto;
+    min-height: 36px;
+    min-width: 0;
+  }
+  .sb-active-prefix {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sb-right {
+    position: static;
+    grid-area: right;
+    max-width: none;
+    margin: 0;
+    padding: 3px 16px 3px 8px;
+    background: var(--bg-app);
+    border-top: 1px solid var(--border-strong);
   }
 }

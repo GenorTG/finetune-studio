@@ -156,6 +156,7 @@ async def data_prep_page(request: Request, pid: str):
         return HTMLResponse("Project not found", status_code=404)
     sources = pfs.list_qa_sources(pid)
     from finetune_studio.data.fs.qa import AUTO_PROMOTE_EXTENSIONS
+    from finetune_studio.data.parsers import PARSERS
     from finetune_studio.models.helper import (
         DEFAULT_HELPER_LABEL,
         DEFAULT_HELPER_PROVIDER_ID,
@@ -170,8 +171,10 @@ async def data_prep_page(request: Request, pid: str):
         "sources": sources,
         "helper_label": (helper or {}).get("label") or DEFAULT_HELPER_LABEL,
         "helper_provider_id": DEFAULT_HELPER_PROVIDER_ID,
-        # Keep the "Use as source" UI in sync with upload auto-promote.
+        # Text uploads auto-promote; any parser-supported file can be
+        # promoted manually with "Use as source" (register_qa_source parses it).
         "auto_promote_extensions": sorted(AUTO_PROMOTE_EXTENSIONS),
+        "promotable_extensions": sorted(PARSERS),
     }
     return templates.TemplateResponse(request, "data_prep.html", ctx)
 

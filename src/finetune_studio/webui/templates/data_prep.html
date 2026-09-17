@@ -526,8 +526,8 @@
 <script>
 // ── File library (Stage 1B) ───────────────────────────────────────────────
 const _flPid = "{{ pid }}";
-// Keep in sync with finetune_studio.data.fs.qa.AUTO_PROMOTE_EXTENSIONS (injected).
-const _FL_PROMOTE_EXTS = {{ auto_promote_extensions | default(['.txt', '.md', '.markdown', '.log']) | tojson }};
+// Parser-supported extensions (finetune_studio.data.parsers.PARSERS, injected).
+const _FL_PROMOTE_EXTS = {{ promotable_extensions | default(auto_promote_extensions) | default(['.txt', '.md', '.markdown', '.log']) | tojson }};
 let _flFolders = [];
 let _flFiles = [];
 let _flTrash = [];
@@ -746,7 +746,9 @@ function flRenderFiles() {
     const version = f.current_version || 1;
     const size = flFormatBytes(f.size_bytes || 0);
     const drift = f.last_trained_at && f.uploaded_at > f.last_trained_at ? '<span class="fl-drift" title="This file changed after the last dataset that included it.">⚠ drift</span>' : '';
-    const mime = (f.mime_type || '').split('/').pop() || '?';
+    const mime = window.fts && window.fts.fileTypeLabel
+      ? window.fts.fileTypeLabel(f.original_name, f.mime_type)
+      : ((f.mime_type || '').split('/').pop() || '?');
     const hasParsed = flHasParsedMd(f);
     const parsedInd = hasParsed
       ? '<span class="fl-parsed-ind" title="Parsed MD ready">📝</span>'
@@ -754,16 +756,15 @@ function flRenderFiles() {
     const promotable = flIsPromotableText(f.original_name);
     const alreadySource = !!flMatchSource(f.original_name);
     let promoteAct = '';
-    if (promotable) {
-      if (alreadySource) {
-        promoteAct = '<span class="fl-act-source-ok" title="Already in the Source file picker">✓ source</span>';
-      } else {
-        promoteAct =
-          '<button type="button" class="btn small fl-use-source" data-file-id="' + f.id + '"' +
-          ' title="Parse and add this file to the Source file picker"' +
-          ' onclick="flUseAsSource(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\')">' +
-          'Use as source</button>';
-      }
+    if (alreadySource) {
+      // Any parsed source (csv/pdf/docx/…), not only text uploads.
+      promoteAct = '<span class="fl-act-source-ok" title="Already in the Source file picker">✓ source</span>';
+    } else if (promotable) {
+      promoteAct =
+        '<button type="button" class="btn small fl-use-source" data-file-id="' + f.id + '"' +
+        ' title="Parse and add this file to the Source file picker"' +
+        ' onclick="flUseAsSource(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\')">' +
+        'Use as source</button>';
     }
     const actions = '<div class="fl-row-actions">' +
       promoteAct +
@@ -779,7 +780,7 @@ function flRenderFiles() {
         '<span class="fl-name-text">' + escapeHtml(f.original_name) + '</span>' + drift +
       '</td>' +
       '<td class="fl-col-ver"><span class="fl-version">v' + version + '</span>' + parsedInd + '</td>' +
-      '<td class="fl-mime">' + escapeHtml(mime) + '</td>' +
+      '<td class="fl-mime" title="' + escapeHtml(f.mime_type || '') + '">' + escapeHtml(mime) + '</td>' +
       '<td class="fl-col-size">' + size + '</td>' +
       '<td><span class="fl-status-ok">✓</span></td>' +
       '<td class="fl-col-actions">' + actions + '</td>' +
