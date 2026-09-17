@@ -23,13 +23,14 @@ the project's per-source qa/pairs/*.json.
 | Quality-v3 run | `8b1dd006` on Qwen3-4B / 168 optimizer steps / 6 epochs / final_loss=0.1281 / 231 s wall / LoRA r=64, alpha=128. Merged + Q4_K_M+Q5_K_M+Q8_0+F16 exported at `output/projects/fbcf7083/runs/quality-v3-augmented/`. |
 | Quality-v3 held-out | Same deterministic 23-case suite (seed=42, train_ratio=0.9): **6 pass / 6 partial / 11 fail = 43.5% weighted, 26.1% strict pass** (+21.8 weighted pts, +21.8 strict pts vs quality-v2). Independent audit (recompute_cases) agrees: 12 pass / 4 partial / 7 fail = 52.2% pass_rate / 60.9% weighted; 8 disagreements between heuristic_overlap and source_critical_facts scorers (audit not fully passed). Closed gaps: held-011 C-17, held-016 Ada Smit, held-020 Oriole Packaging dates, held-021 customer reply. |
 | Evidence corpus | `.tmp/evidence-run/held-out-q8-4f801bcb.json` (baseline transcript), `held-out-q8-augmented.json` (post-aug), `held-out-audit.json` + `held-out-audit-augmented.json` (independent verdicts), `augmented-pairs-v2.jsonl`, `held-out-suite.json`. |
+| Live UI verification | Fan Dragon `e2e_ui_qa.py`: **70 passed / 0 failed**. Live Training API confirms run `8b1dd006` is `done`, 168/168 steps, `final_loss=0.1281`; `/api/training/runs/8b1dd006/exports` exposes merged, adapter, F16, Q8, Q5, and Q4 artifacts. |
 | Last code | `fa84208` Agent off event loop, `9ea259f` provenance + stricter scoring, augmentation pipeline: `scripts/augment_dataset.py` + `tests/test_augment_dataset.py`. |
 
 ## Next steps
 1. **Tighten the remaining 11 fails** — most are exact-date facts (RK-04 owner, CR-77 status, OCTOPUS-7741 external_api flag, 25-unit threshold). Either expand the augmentation with more specific QA pairs or accept these as "grounded on multi-source facts the 4B struggles with" and add a per-case memory-augmented tool.
 2. **Reconcile the audit scorers** — `source_critical_facts` and `heuristic_overlap` disagree on 8 of 23 cases (audit not "passed"). The strict scorer is the source of truth; either retire the lenient scorer from `score_results` or feed the strict reasoning back to the lenient one.
 3. **Wire `recompute_cases` to the WebUI benchmark audit endpoint** so any saved benchmark row recomputes its verdicts on click, not only via local Python.
-4. **Verify the augmented training run through the WebUI** (Training tab → run `8b1dd006` → progress chart, final_loss, exports). Browser path works; the persisted UI evidence is the next concrete deliverable.
+4. **Complete** — augmented training run verified through the live WebUI/API: run `8b1dd006` is done with final loss and all exports rendered/returned correctly; browser QA is 70/70.
 5. **Browser upload path** — `browser upload` action's `paths` array still hits the MiniMax args-normalizer quirk. Drop the strict-typed UI hint or pre-encode the array; the API upload path works fine.
 
 ## Commands
