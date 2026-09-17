@@ -14,8 +14,9 @@ Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :786
 | Prior training/evaluation | 4B LoRA completed 116/116; old 47.7% score was same-data leakage, not held-out quality evidence |
 | Evaluation contract | UI distinguishes held-out quality from memorization; training-eval responses retain raw transcript, judge input, scoring method, validity, errors, and provenance |
 | Fidelity audit | `/api/projects/{pid}/data-prep/audit` checks raw hash, deterministic reparse, chunks, token coverage, pair provenance, chunk coverage, and export count. Benchmark audit independently recomputes every verdict. |
-| Quality-v2 evidence | 230-row audited dataset; 156 optimizer steps / 6 epochs; merged + Q8 exported. Held-out raw transcript independently re-scored; stale verdicts disagreed on 4/21 rows and corrected scoring gave 0/21 strict passes. |
-| Last code | Working tree contains entity/contradiction scoring and training-eval evidence fields; deploy only after focused + full tests. |
+| Quality-v2 evidence | 230-row audited dataset; 156 optimizer steps / 6 epochs; merged + Q8 exported. Fresh held-out API run: 23/23 judged, 1 pass / 7 partial / 15 fail (4.3%). |
+| Evidence audit | 230/230 leakage rows map to dataset questions; independent verdict recomputation matched 230/230 before stricter entity/contradiction rules. Parser audit is 35/35. |
+| Last code | `fa84208` moves blocking Agent inference off the WebUI event loop; `9ea259f` adds provenance evidence and stricter source scoring. |
 
 ## Next steps
 1. Deploy scorer/evidence changes and rerun held-out through WebUI; download raw transcript and call the benchmark audit endpoint.
@@ -38,3 +39,5 @@ ssh fan-dragon "bash -lc 'cd /home/genortg/finetune-studio && git fetch origin m
 - Training JSONL removes display-only source citations from assistant targets while retaining `source_id/chunk_idx` metadata.
 - Numeric scorer provenance stripping must happen before both task detection and expected-value parsing; otherwise cited numeric answers are falsely classified as non-numeric.
 - Fidelity is a chain, not a headline: raw bytes are reparsed and hashed, persisted chunks are compared with deterministic chunking, every pair maps to a source/chunk, suites report invalid/truncated rows, and benchmark audits expose every transcript plus independent verdict recomputation.
+- The current 230-pair dataset has chunk coverage but not semantic completeness: deterministic fact scan found uncovered IDs in `14_dispatch_metrics.csv` / `16_returns.csv`, `C-17` in `24_risk_register.csv`, and `INC-1842` in `03_incident_postmortem.md`.
+- Local 27B Agent requests can exceed 180 seconds even at 2,048 tokens; the event-loop fix keeps health endpoints responsive, but the request must be quarantined rather than counted as generated data when it times out.
