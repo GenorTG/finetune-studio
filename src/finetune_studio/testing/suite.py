@@ -199,13 +199,33 @@ def apply_heuristic_judging(results: list[CaseResult]) -> None:
     Skips cases that already have a verdict or that errored with an empty answer.
     """
     from finetune_studio.testing.judge import judge_case_heuristic
-    from finetune_studio.testing.strict_scoring import score_strict
+    from finetune_studio.testing.strict_scoring import (
+        score_source_grounded,
+        score_strict,
+    )
 
     for r in results:
         if r.verdict:
             continue
         if r.error and not r.model_answer:
             continue
+
+        if r.source_id:
+            source_score = score_source_grounded(
+                correct_answer=r.correct_answer,
+                model_answer=r.model_answer,
+            )
+            if source_score is not None:
+                r.verdict = source_score.verdict
+                r.judge = "heuristic"
+                r.judge_model = "heuristic"
+                r.scoring_method = source_score.scoring_method
+                r.validity = source_score.validity
+                r.judge_reasoning = (
+                    f"[{source_score.scoring_method}; validity={source_score.validity}] "
+                    f"{source_score.reasoning}"
+                )
+                continue
 
         strict = score_strict(
             question=r.question,

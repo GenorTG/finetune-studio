@@ -53,11 +53,58 @@ _PROVENANCE_SUFFIX = re.compile(
     r"(?is)\s*(?:\n\s*)?(?:\(|\[)?\s*(?:source|filename|file)\s*:\s*"
     r"[^\n\)\]]+\.(?:md|txt|csv|json|jsonl|html|pdf|docx|xlsx|rst)\s*(?:\)|\])?\s*$"
 )
+_FACT_TOKEN = re.compile(
+    r"\b\d{4}[-/]\d{1,2}[-/]\d{1,2}\b|"
+    r"\b\d{1,2}:\d{2}\b|"
+    r"\b[A-Z]{2,}[-_]\d+\b|\b[A-Z]-\d+\b|"
+    r"\b\d+(?:,\d{3})*(?:\.\d+)?\s*%|"
+    r"\b\d+(?:,\d{3})*(?:\.\d+)?\b",
+    re.IGNORECASE,
+)
+_NUMBER_WORDS = {
+    "zero": "0", "one": "1", "two": "2", "three": "3",
+    "four": "4", "five": "5", "six": "6", "seven": "7",
+    "eight": "8", "nine": "9", "ten": "10", "fifteen": "15",
+    "twenty": "20", "twenty-five": "25",
+}
 
 
 def strip_provenance_suffix(text: str) -> str:
     """Ignore an approved source citation when scoring the answer body."""
     return _PROVENANCE_SUFFIX.sub("", text or "").strip()
+
+
+def extract_critical_facts(text: str) -> set[str]:
+    """Extract dates, times, IDs, percentages, and explicit numeric facts."""
+    cleaned = strip_provenance_suffix(text).lower()
+    for word, number in _NUMBER_WORDS.items():
+        cleaned = re.sub(rf"\b{re.escape(word)}\b", number, cleaned)
+    return {
+        re.sub(r"[\s,]", "", match).lower()
+        for match in _FACT_TOKEN.findall(cleaned)
+    }
+
+
+def score_source_grounded(
+    *, correct_answer: str, model_answer: str,
+) -> StrictScore | None:
+    """Require every critical fact in a source-grounded expected answer."""
+    expected = extract_critical_facts(correct_answer)
+    if not expected:
+        return None
+    actual = extract_critical_facts(model_answer)
+    missing = sorted(expected - actual)
+    if not missing:
+        return StrictScore(
+            verdict="pass", scoring_method="source_critical_facts",
+            validity="valid", reasoning="all critical facts are present",
+        )
+    matched = len(expected & actual)
+    verdict: Verdict = "partial" if matched else "fail"
+    return StrictScore(
+        verdict=verdict, scoring_method="source_critical_facts",
+        validity="valid", reasoning=f"missing critical facts: {', '.join(missing)}",
+    )
 
 
 @dataclass(frozen=True)

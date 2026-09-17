@@ -6,6 +6,7 @@ from finetune_studio.testing.strict_scoring import (
     detect_task_kind,
     score_multiple_choice,
     score_numeric,
+    score_source_grounded,
     score_strict,
 )
 from finetune_studio.testing.suite import CaseResult, apply_heuristic_judging
@@ -151,3 +152,21 @@ def test_score_strict_returns_none_for_open() -> None:
         correct_answer="Low-Rank Adaptation",
         model_answer="LoRA adapters",
     ) is None
+
+
+def test_source_grounded_scoring_rejects_wrong_date() -> None:
+    score = score_source_grounded(
+        correct_answer="The review is scheduled for 2026-10-05.",
+        model_answer="The review is scheduled for 2026-11-15.",
+    )
+    assert score is not None
+    assert score.verdict == "fail"
+
+
+def test_source_grounded_scoring_accepts_number_words() -> None:
+    score = score_source_grounded(
+        correct_answer="Two of 86 lots exceeded the 2 percent rule.",
+        model_answer="2 of 86 lots exceeded the 2% rule.",
+    )
+    assert score is not None
+    assert score.verdict == "pass"
