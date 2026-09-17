@@ -225,3 +225,20 @@ def test_resolve_loaded_backend_is_helper_only(
     only_other = gen_mod.resolve_loaded_backend(prefer_inference=False)
     assert only_other is not None
     assert only_other["kind"] == "provider"
+
+
+def test_agent_created_pairs_keep_one_based_chunk_provenance(fts_root: Path) -> None:
+    """Agent-created pairs satisfy the same provenance contract as prep jobs."""
+    from finetune_studio.data.fs import qa as qa_fs
+    from finetune_studio.webui.routes.data_prep_chat import _run_tool
+
+    qa_fs.write_qa_source("agent-provenance", {
+        "id": "source-1", "filename": "policy.txt", "chunk_count": 1,
+    })
+    result = _run_tool("agent-provenance", "create_qa_pairs", {
+        "source_id": "source-1",
+        "pairs": [{"question": "Who owns it?", "answer": "Mira.", "chunk_idx": 1}],
+    })
+    assert result == {"written": 1, "source_id": "source-1"}
+    pair = qa_fs.list_qa_pairs("agent-provenance")[0]
+    assert pair["chunk_idx"] == 1

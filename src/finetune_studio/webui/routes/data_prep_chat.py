@@ -66,7 +66,7 @@ TOOLS_CATALOG = [
     },
     {
         "name": "create_qa_pairs",
-        "description": "Create new Q&A pairs for a source. Each pair needs a source_id (from list_sources), a question, and an answer. Pairs land in 'pending' status so the user can review before approving.",
+        "description": "Create new Q&A pairs for a source. Each pair needs a source_id, question, answer, and 1-based parsed chunk_idx. Pairs land in pending status for review.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -78,6 +78,7 @@ TOOLS_CATALOG = [
                         "properties": {
                             "question": {"type": "string"},
                             "answer": {"type": "string"},
+                            "chunk_idx": {"type": "integer", "minimum": 1},
                         },
                         "required": ["question", "answer"],
                     },
@@ -96,6 +97,7 @@ SYSTEM_PROMPT = """You are an expert training-data organizer for fine-tuning a l
 2. Call `read_source` on each file you intend to mine, so the content is fresh in your context.
 3. Generate Q&A pairs that test ACTUAL knowledge from the text — not generic questions. The answers should quote or closely paraphrase the source.
 4. Aim for 3-8 pairs per source by default. Cover key facts, definitions, cause/effect, comparison, and applied reasoning.
+   Every pair MUST include its 1-based parsed `chunk_idx`; use 1 for a one-chunk source.
 5. Call `create_qa_pairs` with the full batch in ONE call, not one pair per call.
 6. Be terse in prose — the data does the talking.
 
@@ -213,6 +215,7 @@ def _run_tool(pid: str, name: str, args: dict) -> dict:
                     "source_id": sid,
                     "question": q,
                     "answer": a,
+                    "chunk_idx": max(1, int(pair.get("chunk_idx") or 1)),
                     "status": "pending",
                     "created_at": time.time(),
                     "created_via": "data-prep-chat",
