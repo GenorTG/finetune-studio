@@ -196,14 +196,21 @@ def write_held_out_suite(held: list[dict], path: pathlib.Path) -> None:
 def merge_into_qa_pairs(project_dir: pathlib.Path, augmented: list[dict]) -> int:
     pairs_dir = project_dir / "qa" / "pairs"
     pairs_dir.mkdir(parents=True, exist_ok=True)
-    existing_questions = {
-        json.loads(p.read_text(encoding="utf-8")).get("question", "")
-        for p in pairs_dir.glob("*.json")
-    }
+    existing_by_question = {}
+    for path in pairs_dir.glob("*.json"):
+        existing_by_question[json.loads(path.read_text(encoding="utf-8")).get("question", "")] = path
     ts = int(time.time() * 1000)
     added = 0
     for i, p in enumerate(augmented):
-        if p["question"] in existing_questions:
+        existing = existing_by_question.get(p["question"])
+        if existing is not None:
+            if p.get("category") == "source-grounded-curated":
+                qa = json.loads(existing.read_text(encoding="utf-8"))
+                qa.update({"answer": p["correct_answer"], "source_id": p["source_id"],
+                           "chunk_idx": p.get("chunk_idx", 0), "keywords": p.get("keywords", []),
+                           "category": p["category"], "status": "approved"})
+                existing.write_text(json.dumps(qa, indent=2, ensure_ascii=False), encoding="utf-8")
+                added += 1
             continue
         qa_id = f"qa_aug_{ts}_{i:03d}"
         qa = {
@@ -218,7 +225,7 @@ def merge_into_qa_pairs(project_dir: pathlib.Path, augmented: list[dict]) -> int
             "created_at": time.time(),
         }
         (pairs_dir / f"{qa_id}.json").write_text(json.dumps(qa, indent=2, ensure_ascii=False), encoding="utf-8")
-        existing_questions.add(p["question"])
+        existing_by_question[p["question"]] = pairs_dir / f"{qa_id}.json"
         added += 1
     return added
 
