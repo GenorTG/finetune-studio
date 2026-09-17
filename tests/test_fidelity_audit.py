@@ -28,6 +28,14 @@ def test_source_audit_catches_raw_and_parse_drift(tmp_path, monkeypatch) -> None
     assert "persisted_parse_differs_from_deterministic_reparse" in report["errors"]
 
 
+def test_empty_audit_is_not_reported_as_pass(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(paths, "_PROJECTS", tmp_path / "projects")
+    from finetune_studio.data.audit import audit_project_sources
+
+    report = audit_project_sources("empty")
+    assert report["status"] == "not_applicable"
+
+
 def test_dataset_audit_flags_unknown_source_and_export_loss(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(paths, "_PROJECTS", tmp_path / "projects")
     pid = "dataset"

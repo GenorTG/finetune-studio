@@ -106,6 +106,7 @@ def audit_project_sources(pid: str) -> dict[str, Any]:
         "source_count": len(sources),
         "passed": sum(1 for item in audits if item["ok"]),
         "failed": sum(1 for item in audits if not item["ok"]),
+        "status": "not_applicable" if not sources else ("pass" if all(item["ok"] for item in audits) else "fail"),
         "sources": audits,
     }
 
@@ -170,7 +171,8 @@ def audit_qa_pairs(pid: str, *, exported_path: str | None = None) -> dict[str, A
         "source_coverage": source_coverage,
         "errors": errors + [{"error": e} for e in export_errors],
         "export_count": export_count,
-        "passed": not errors and not export_errors,
+        "passed": bool(pairs) and not errors and not export_errors,
+        "status": "not_applicable" if not pairs else ("pass" if not errors and not export_errors else "fail"),
         "rejected_or_pending_count": len(pfs.list_qa_pairs(pid)) - len(pairs),
     }
 
