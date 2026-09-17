@@ -6,7 +6,9 @@ Replaces permissive keyword/substring matching for MCQ and numeric items:
 - Numeric requires a single normalized final answer equal to the expected
   value; substring hits inside larger numbers or rival finals are rejected.
 
-Open-ended cases fall back to the caller (legacy keyword / heuristic path).
+Source-grounded open-ended cases use conservative content-term coverage; unrelated
+answers must not pass merely because they share a few generic words. Non-source
+open-ended cases retain the caller's legacy path.
 """
 
 from __future__ import annotations
@@ -67,6 +69,12 @@ _NUMBER_WORDS = {
     "eight": "8", "nine": "9", "ten": "10", "fifteen": "15",
     "twenty": "20", "twenty-five": "25",
 }
+_CONTENT_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
+    "how", "in", "is", "it", "of", "on", "or", "that", "the", "this",
+    "to", "was", "what", "when", "where", "which", "who", "with", "why",
+    "percent",
+}
 
 
 def strip_provenance_suffix(text: str) -> str:
@@ -77,6 +85,7 @@ def strip_provenance_suffix(text: str) -> str:
 def extract_critical_facts(text: str) -> set[str]:
     """Extract dates, times, IDs, percentages, and explicit numeric facts."""
     cleaned = strip_provenance_suffix(text).lower()
+    cleaned = re.sub(r"(\d+(?:\.\d+)?)\s+percent(?:age)?\b", r"\1%", cleaned)
     for word, number in _NUMBER_WORDS.items():
         cleaned = re.sub(rf"\b{re.escape(word)}\b", number, cleaned)
     return {
@@ -85,25 +94,39 @@ def extract_critical_facts(text: str) -> set[str]:
     }
 
 
+def extract_content_terms(text: str) -> set[str]:
+    """Return meaningful lexical anchors for source-grounded open answers."""
+    cleaned = strip_provenance_suffix(text).lower()
+    return {
+        term for term in re.findall(r"[a-z][a-z0-9'-]{3,}", cleaned)
+        if term not in _CONTENT_STOPWORDS
+    }
+
+
 def score_source_grounded(
     *, correct_answer: str, model_answer: str,
 ) -> StrictScore | None:
-    """Require every critical fact in a source-grounded expected answer."""
+    """Require facts and meaningful content coverage for source-grounded answers."""
     expected = extract_critical_facts(correct_answer)
-    if not expected:
-        return None
     actual = extract_critical_facts(model_answer)
-    missing = sorted(expected - actual)
-    if not missing:
+    missing_facts = expected - actual
+    expected_terms = extract_content_terms(correct_answer)
+    actual_terms = extract_content_terms(model_answer)
+    missing_terms = expected_terms - actual_terms
+    if not missing_facts and not missing_terms:
         return StrictScore(
             verdict="pass", scoring_method="source_critical_facts",
-            validity="valid", reasoning="all critical facts are present",
+            validity="valid", reasoning="all critical facts and content anchors are present",
         )
-    matched = len(expected & actual)
+    matched_facts = len(expected & actual)
+    matched = matched_facts + len(expected_terms & actual_terms)
     verdict: Verdict = "partial" if matched else "fail"
+    if expected and missing_facts and matched_facts == 0:
+        verdict = "fail"
+    missing = sorted(missing_facts | missing_terms)
     return StrictScore(
         verdict=verdict, scoring_method="source_critical_facts",
-        validity="valid", reasoning=f"missing critical facts: {', '.join(missing)}",
+        validity="valid", reasoning=f"missing source anchors: {', '.join(missing)}",
     )
 
 

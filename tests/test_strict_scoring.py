@@ -106,6 +106,24 @@ def test_numeric_rejects_wrong_extra_conflicting_finals() -> None:
     assert s.validity in {"wrong_extra", "ambiguous"}
 
 
+def test_source_grounded_open_answer_rejects_unrelated_proper_action() -> None:
+    s = score_source_grounded(
+        correct_answer="Management must close the maintenance action by 2026-08-15.",
+        model_answer="The next maintenance action is due no later than 2026-08-15.",
+    )
+    assert s is not None
+    assert s.verdict in {"fail", "partial"}
+
+
+def test_source_grounded_open_answer_rejects_wrong_named_contact() -> None:
+    s = score_source_grounded(
+        correct_answer="Pavel Novak is the Rotterdam maintenance contact.",
+        model_answer="Mira Varga is the Rotterdam maintenance contact.",
+    )
+    assert s is not None
+    assert s.verdict in {"fail", "partial"}
+
+
 def test_apply_heuristic_records_scoring_metadata() -> None:
     results = [
         CaseResult(
