@@ -4,68 +4,42 @@ Local fine-tune + data-prep WebUI (FastAPI, `src/finetune_studio/`).
 Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :7860.
 
 ## Mission
-Ship held-out quality + WebUI evidence that an outside reviewer can't dispute:
-real root-cause fixes, real fan-dragon verification, no fake greens.
+Make the studio show all real activity and keep training/RAG/testing quality
+honest — real root-cause fixes, real fan-dragon verification, no fake greens.
 
-## State (verified 2026-09-17 21:10 CEST)
+## State (verified 2026-09-17 20:30 CEST)
 | Area | Status |
 |------|--------|
-| Source-disjoint gap | Fine-tune alone **0/52** strict — needs retrieval grounding |
-| **RAG-grounded API** | Committed `6653d31` — `testing/rag_suite.py` + `POST /api/testing/run-rag-suite` |
-| **RAG benchmark persistence** | `8a68755`; live benchmark `36ff7634` stores the explicit Q8 path and all 246 transcripts; audit **246/246 valid, 0 disagreements** |
-| **RAG-grounded UI** | Testing card `#t-rag-card` → **Run with RAG** |
-| **Full ingested corpus** | `testing/full_corpus_suite.py` + `discover_suites(pid)` hook; all approved source-grounded QA pairs |
-| **Full-corpus live result** | 246/246 judged: **231 pass / 15 partial / 0 fail**, weighted **97.0%** at top_k=5 after question-focused scoring and table arithmetic retry |
-| **Retrieval live run** | **245/246 hits (99.59%)**; source-miss fallback expands to top-20 and isolates the matched source context |
-| **OCR** | Fresh-box tessdata bootstrap argument fixed; local OCR/parser checks **49 passed, 3 skipped** |
-| Quality baselines | v3 held-out 17.4% strict; v4 source-disjoint 11.5% weighted unchanged |
-
-### Full-ingested-corpus (Testing dropdown)
-- Shared typed helper builds `projects/<pid>/suites/full-ingested-corpus.json` from approved source-grounded QA pairs (no hardcoded project id).
-- `discover_suites(project_id)` regenerates/ensures the file when pairs exist; label `local · full-ingested-corpus (N cases)`, `source=project_qa`.
-- Auto / local / synthetic / real discovery unchanged. Empty approved set → suite omitted (stale file removed).
-- CLI: `scripts/build_full_qa_suite.py` wraps the same helper.
-- Does **not** claim run quality — discovery/generation only.
-
-### Live grounded result
-- Fan Dragon Q8 + PortableRAG full-corpus run covered **246 cases across 35 source documents**. Raw response retained all transcripts and hit provenance.
-- Final authoritative run on `b25cabb`, benchmark `36ff7634`: **231 pass / 15 partial / 0 fail**, weighted **97.0%**, average 803.4 ms; model path is the persisted Q8 export.
-- Grounded retries correct table variance mix-ups and recover crowded source misses without changing normal top-k=5 behavior.
-
-### Verify (genorbox1)
-```
-.venv/bin/python -m pytest tests/test_full_corpus_suite.py \
-  tests/test_benchmarks_suite_discovery.py \
-  tests/test_testing_run_gate.py tests/test_rag_suite.py -v --tb=short
-# → 24 passed
-
-.venv/bin/python -m ruff check \
-  src/finetune_studio/testing/full_corpus_suite.py \
-  src/finetune_studio/benchmarks/suite_defs.py \
-  scripts/build_full_qa_suite.py \
-  tests/test_full_corpus_suite.py \
-  tests/test_testing_run_gate.py
-# → All checks passed!
-```
+| **Activity feed** | `b573758` deployed — `collect_activity()` merges live in-memory progress with persisted history from every durable table (training, benchmark, data_prep, rag, export, hf download, system_update). Was 1 ephemeral row → now 15 real tasks on fan-dragon |
+| Activity dedup | Live rows win by `run_id`/`id`; live training uses the bare db run id (not the `{pid}-{id}` composite) so it collapses with its persisted row |
+| Activity cap | 60-row window, **live rows never evicted** (fixed a regression where stale persisted active rows could hide a running task) |
+| Activity badge | Persisted running/queued counted only if recent (<2h) or live — no forever-spinning badge from interrupted runs |
+| New feed kinds | `benchmark` (✚), `export` (⇪), `system_update` (⟳) in `activity.js`; type-filter values fixed in `base.html` (`rag`→`rag_build`/`rag_ready`, added export/system_update) |
+| **Test isolation** | conftest `temp_db` now patches `db.connection.settings` (not just `config.settings`) — tests were writing to the real dev DB (6.7k junk projects accumulated). Full suite **917 passed, 0 failed** |
+| WebUI verified | Screenshots: benchmark + training kinds render with badges, type-filter works, expand panel shows loss/project/progress/GO-TO |
+| Recovered CSS | fan-dragon-only commit `12fde89` (mid-desktop nav padding) re-applied on genorbox1 (`b3090c6`) so deploy fast-forwards clean |
 
 ## Next steps
-1. Investigate the remaining 15 partial cases against parsed-source evidence; do not turn partials into passes without fact coverage.
-2. Close the final retrieval miss by improving query/source matching, then rerun the full suite.
-3. Keep browser QA green (70/70).
+1. WebUI quality sweep of training surface — start a real run and confirm live progress + activity row: open `/projects/<pid>/training`, click Start, watch the activity drawer.
+2. RAG build/chat surface — trigger a build, confirm `rag_build`→`rag_ready` transition shows in the feed with doc/chunk counts.
+3. Testing/benchmarks surface — run a suite, confirm per-case table (not raw JSON) and that the run appears as a `benchmark` activity row.
+4. Prune the dev DB junk on genorbox1 if desired (6.7k test-`P`/`E`/`R` projects) — `data/finetune_studio.db` is gitignored runtime.
+5. Consider reconciling stale persisted `queued`/`running` rows for exports/data_prep/rag on startup (training already does via `reconcile_stale_runs`).
 
 ## Commands
 ```
-.venv/bin/python -m pytest tests/test_full_corpus_suite.py \
-  tests/test_benchmarks_suite_discovery.py \
-  tests/test_testing_run_gate.py tests/test_rag_suite.py -v --tb=short
-.venv/bin/python -m ruff check \
-  src/finetune_studio/testing/full_corpus_suite.py \
-  src/finetune_studio/benchmarks/suite_defs.py \
-  scripts/build_full_qa_suite.py \
-  tests/test_full_corpus_suite.py \
-  tests/test_testing_run_gate.py
+# activity + isolation tests
+.venv/bin/python -m pytest tests/test_activity_feed.py tests/test_live_updates.py -v --tb=short
+# full suite (excl GPU-only vram file)
+.venv/bin/python -m pytest tests/ -q --ignore=tests/test_vram_profiler.py
+# ruff (run directly; Makefile hides failures)
+.venv/bin/python -m ruff check src/finetune_studio/webui/routes/activity.py
+# live feed smoke
+.venv/bin/python -c "from finetune_studio.webui.routes.activity import collect_activity; import collections; p=collect_activity(); print(dict(collections.Counter(t['kind'] for t in p['tasks'])))"
+# deploy: push here, then on fan-dragon
+ssh fan-dragon 'bash -c "cd /home/genortg/finetune-studio && git fetch origin -q && git reset --hard origin/main && systemctl --user restart finetune-studio"'
 ```
 
 ## Blockers
-- Perfect answers are not achieved yet: current grounded result is 230/246 strict passes, 16 partials, and one retrieval miss.
-- Browser upload MiniMax quirk unchanged; use API upload fallback.
+- Cursor ACP helper handshake times out ("Opening handshake has timed out") — implemented this work by hand instead. Re-provision before delegating larger changes.
+- fan-dragon had drifted (detached HEAD, `main` ahead 1/behind 71). Resolved by recovering the local commit + `reset --hard origin/main`; watch for future drift.
