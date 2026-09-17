@@ -1,5 +1,6 @@
 """Models tab — list, download, configure models."""
 
+import asyncio
 import logging
 import os
 import subprocess
@@ -243,7 +244,13 @@ async def load_model_endpoint(request: Request):
     if not model_path:
         return _load_failure_payload("No model path provided")
     try:
-        inference_engine.load(
+        # Run the blocking load off the event loop. Loading a multi-GB model
+        # can take seconds-to-minutes; doing it inline froze the entire WebUI
+        # (every other request, the activity SSE, navigation) until it
+        # finished. to_thread keeps the loop responsive so the "loading…"
+        # activity row is visible and the UI stays live.
+        await asyncio.to_thread(
+            inference_engine.load,
             model_path,
             n_ctx=body.get("n_ctx", 16384),
             n_gpu_layers=body.get("n_gpu_layers", 99),
