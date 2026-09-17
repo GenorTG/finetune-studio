@@ -142,7 +142,7 @@ def _needs_table_arithmetic_retry(question: str, response: str, context: str) ->
         and "total" in question.lower()
         and "actual_hours" in context
         and "variance_hours" in context
-        and re.search(r"\bvariance\b|\b\d+\s*\+\s*\d+", response or "", re.IGNORECASE)
+        and re.search(r"\bvariance\b|\bplus\b|\b\d+\s*\+\s*\d+", response or "", re.IGNORECASE)
     )
 
 
