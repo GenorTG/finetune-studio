@@ -463,9 +463,14 @@ def collect_activity() -> dict[str, Any]:
         -float(t.get("started_at") or 0),
     ))
 
-    # Bound the drawer: newest 60 rows after sorting (active always survives
-    # because it sorts first). Keeps a busy studio's feed readable.
-    tasks = tasks[:60]
+    # Bound the drawer: newest 60 rows after sorting. Live in-memory rows are
+    # never evicted — a genuinely-running task must always be visible even when
+    # a pile of stale persisted rows would otherwise fill the window.
+    top = tasks[:60]
+    if len(tasks) > 60:
+        top_ids = {id(t) for t in top}
+        top.extend(t for t in tasks[60:] if t.get("_live") and id(t) not in top_ids)
+    tasks = top
 
     # Count by kind for the badge (only truly-active work). A persisted
     # running/queued row is counted only when it is recent — an interrupted

@@ -62,11 +62,19 @@ def temp_db(monkeypatch):
     _Fake.db_path = db_path
     _Fake.host = "127.0.0.1"
     _Fake.port = 7860
-    monkeypatch.setattr(cfg, "settings", _Fake())
+    fake = _Fake()
+    monkeypatch.setattr(cfg, "settings", fake)
+
+    # ``db.connection`` bound its own ``settings`` reference at import
+    # (``from finetune_studio.config import settings``), so patching only
+    # ``cfg.settings`` left every DB write pointing at the real dev database.
+    # Patch the reference ``_connect`` actually reads so each test is truly
+    # isolated and never pollutes ``data/finetune_studio.db``.
+    import finetune_studio.db.connection as _conn
+    monkeypatch.setattr(_conn, "settings", fake)
 
     # Initialise schema with the real init_db
-    from finetune_studio.db.connection import init_db
-    init_db()
+    _conn.init_db()
 
     yield db_path
     try:
