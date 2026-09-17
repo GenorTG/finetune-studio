@@ -21,6 +21,7 @@ CORS: not needed, same-origin.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -540,11 +541,17 @@ async def data_prep_chat(pid: str, request: Request):
         rounds += 1
         try:
             if backend["kind"] == "external":
-                reply_text = await _chat_external(backend, full_messages, gen)
+                reply_text = await asyncio.to_thread(
+                    _chat_external, backend, full_messages, gen
+                )
             elif backend["kind"] == "global":
-                reply_text = _chat_global_engine(backend, full_messages, gen)
+                reply_text = await asyncio.to_thread(
+                    _chat_global_engine, backend, full_messages, gen
+                )
             else:
-                reply_text = _chat_local(backend, full_messages, gen)
+                reply_text = await asyncio.to_thread(
+                    _chat_local, backend, full_messages, gen
+                )
         except Exception as e:
             log.exception("chat call failed")
             return {"error": f"chat call failed: {e}"}
