@@ -204,3 +204,30 @@ def test_done_run_loads_and_unloads_even_when_run_suite_raises(
     assert eng.load_calls, "expected InferenceEngine.load to be called"
     assert eng.unload_calls >= 1, "expected unload in finally"
     global_ie.unload.assert_called()
+
+
+def test_done_run_accepts_explicit_export_and_records_target(
+    client_and_db: tuple[TestClient, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, _ = client_and_db
+    pid = _create_project(client)
+    out = tmp_path / "out3"
+    out.mkdir()
+    (out / "merged").mkdir()
+    (out / "merged" / "config.json").write_text("{}", encoding="utf-8")
+    export = out / "model-q8_0.gguf"
+    export.write_bytes(b"GGUF")
+    run = db.create_run(pid, "train-ok", base_model="org/base")
+    db.update_run(run["id"], status="done", output_path=str(out))
+    suite_path = _write_suite(tmp_path)
+    _install_tracking_engine(monkeypatch, global_model=None)
+
+    r = client.post(
+        f"/api/benchmarks/projects/{pid}/runs/{run['id']}/run",
+        json={"suite_path": suite_path, "model_path": str(export)},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["benchmark"]["scores"]["model_path"] == str(export)
+    assert _TrackingEngine.instances[0].load_calls == [str(export)]

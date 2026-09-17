@@ -234,6 +234,9 @@ async def _execute_benchmark(
             apply_heuristic_judging(results)
 
         scores = score_results(results)
+        # Persist the exact artifact used; merged and quantized exports can
+        # produce materially different answers and must not be conflated.
+        scores["model_path"] = target_model
         if real_meta:
             scores["is_real_benchmark"] = True
             scores["benchmark_metadata"] = real_meta
@@ -365,7 +368,15 @@ async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] 
         return suite_err
     assert cases is not None
 
-    target_model = _resolve_trained_target(run)
+    requested_model = str(body.get("model_path") or "").strip()
+    target_model = requested_model or _resolve_trained_target(run)
+    if requested_model and not os.path.isabs(target_model):
+        target_model = os.path.abspath(target_model)
+    if requested_model and not os.path.exists(target_model):
+        return JSONResponse(
+            {"error": f"requested benchmark model not found: {target_model}"},
+            status_code=404,
+        )
     if not target_model:
         return JSONResponse(
             {"error": f"Run {rid} has no trained model (status: {run.get('status')})"},
