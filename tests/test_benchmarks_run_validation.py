@@ -229,5 +229,6 @@ def test_done_run_accepts_explicit_export_and_records_target(
         json={"suite_path": suite_path, "model_path": str(export)},
     )
     assert r.status_code == 200, r.text
+    assert r.json()["benchmark"]["model_path"] == str(export)
     assert r.json()["benchmark"]["scores"]["model_path"] == str(export)
     assert _TrackingEngine.instances[0].load_calls == [str(export)]

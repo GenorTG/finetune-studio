@@ -15,15 +15,16 @@ def _get(bid: str) -> dict | None:
 
 
 def create_benchmark(run_id: str, suite_name: str, scores: dict,
-                     time_ms: int = 0, cases: list[dict] | None = None) -> dict:
+                     time_ms: int = 0, cases: list[dict] | None = None,
+                     model_path: str = "") -> dict:
     """Create a benchmark run + (optionally) its per-case results."""
     bid = new_id()
     now = time.time()
     with cursor() as c:
         c.execute(
-            "INSERT INTO benchmark_runs (id, run_id, suite_name, scores_json, time_ms, ran_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (bid, run_id, suite_name, json.dumps(scores), time_ms, now),
+            "INSERT INTO benchmark_runs (id, run_id, suite_name, model_path, scores_json, time_ms, ran_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (bid, run_id, suite_name, model_path, json.dumps(scores), time_ms, now),
         )
         # Optional per-case rows (new in v2 schema — AI/human judging)
         if cases:

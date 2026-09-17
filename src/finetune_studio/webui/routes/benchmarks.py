@@ -273,7 +273,8 @@ async def _execute_benchmark(
             })
 
         benchmark = db.create_benchmark(
-            rid, suite_name, scores, dt_ms, cases=case_dicts
+            rid, suite_name, scores, dt_ms, cases=case_dicts,
+            model_path=target_model,
         )
 
         return {
