@@ -73,7 +73,7 @@ class StrictScore:
 def detect_task_kind(question: str, correct_answer: str) -> TaskKind:
     """Infer whether a case is multiple-choice, numeric, or open-ended."""
     q = question or ""
-    ca = (correct_answer or "").strip()
+    ca = strip_provenance_suffix(correct_answer)
     option_letters = {m.group(1).upper() for m in _MC_OPTION_LINE.finditer(q)}
     if len(option_letters) >= 2:
         return "multiple_choice"
@@ -227,7 +227,7 @@ def score_numeric(
 ) -> StrictScore:
     """Score a numeric case: normalized final answer must match exactly."""
     method = "strict_numeric"
-    expected = _normalize_number(correct_answer or "")
+    expected = _normalize_number(strip_provenance_suffix(correct_answer))
     if not expected or not _is_numeric_answer(expected):
         return StrictScore(
             verdict="fail",

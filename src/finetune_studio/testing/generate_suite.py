@@ -60,6 +60,7 @@ def generate_suite_from_training_data(
 
     # Load training data
     examples = []
+    invalid_lines = 0
     with open(data_path) as f:
         for line in f:
             line = line.strip()
@@ -68,7 +69,7 @@ def generate_suite_from_training_data(
             try:
                 examples.append(json.loads(line))
             except json.JSONDecodeError:
-                continue
+                invalid_lines += 1
 
     if not examples:
         return {"error": "no valid examples in training data"}
@@ -79,8 +80,10 @@ def generate_suite_from_training_data(
     categories: dict[str, int] = {}
     difficulty: dict[str, int] = {}
 
+    truncated = 0
     for i, ex in enumerate(examples):
         if len(cases) >= max_cases:
+            truncated += 1
             break
 
         # Extract Q&A from conversations format
@@ -111,6 +114,8 @@ def generate_suite_from_training_data(
             correct_answer=answer,
             category=category,
             context=judge_hint,
+            source_id=str(ex.get("source_id") or ""),
+            chunk_idx=int(ex.get("chunk_idx") or 0),
         ))
 
         categories[category] = categories.get(category, 0) + 1
@@ -134,6 +139,8 @@ def generate_suite_from_training_data(
             "question": c.question,
             "correct_answer": c.correct_answer,
             "judge_hint": c.context,
+            "source_id": c.source_id,
+            "chunk_idx": c.chunk_idx,
         })
 
     with open(suite_path, "w") as f:
@@ -144,6 +151,10 @@ def generate_suite_from_training_data(
         "suite_name": suite_name,
         "case_count": len(cases),
         "skipped": skipped,
+        "invalid_lines": invalid_lines,
+        "truncated": truncated,
+        "dataset_count": len(examples),
+        "source_ids": sorted({c.source_id for c in cases if c.source_id}),
         "categories": categories,
         "difficulty": difficulty,
     }
@@ -211,8 +222,6 @@ def _analyze_difficulty(question: str, answer: str) -> tuple[str, str]:
     judge_hint: instruction for the judge on how to evaluate this case
     """
     answer_len = len(answer)
-    word_count = len(answer.split())
-
     # Short factual answers — exact match or close paraphrase
     if answer_len <= 30:
         return "easy", "exact_match: The model should give a specific, short factual answer. Accept exact match or very close paraphrase."

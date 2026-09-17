@@ -543,6 +543,14 @@ async def ingestion_log_route(pid: str, limit: int = 200):
     return {"events": pfs.read_ingestion_log(pid, limit=limit)}
 
 
+@router.get("/projects/{pid}/data-prep/audit")
+async def data_prep_audit(pid: str) -> dict:
+    """Return deterministic raw-file and curated-dataset fidelity evidence."""
+    from finetune_studio.data.audit import audit_project_sources, audit_qa_pairs
+
+    return {"sources": audit_project_sources(pid), "dataset": audit_qa_pairs(pid)}
+
+
 @router.post("/projects/{pid}/data-prep/reprocess/{source_id}")
 async def reprocess_source(pid: str, source_id: str):
     """Re-run the parser + Q&A generation for an existing source."""

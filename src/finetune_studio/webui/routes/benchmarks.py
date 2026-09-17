@@ -241,6 +241,14 @@ async def _execute_benchmark(
 
         case_dicts: list[dict[str, Any]] = []
         for r in results:
+            judge_input = {
+                "question": r.question,
+                "correct_answer": r.correct_answer,
+                "model_answer": r.model_answer,
+                "keywords": list(r.keywords),
+                "scoring_method": r.scoring_method,
+                "judge_mode": judge_mode,
+            }
             case_dicts.append({
                 "name": r.case_name,
                 "category": r.category,
@@ -252,9 +260,13 @@ async def _execute_benchmark(
                 "judge_model": r.judge_model,
                 "verdict": r.verdict,
                 "judge_reasoning": r.judge_reasoning,
+                "scored_at": time.time() if r.verdict else None,
                 "scoring_method": r.scoring_method,
                 "validity": r.validity,
-                "scored_at": time.time() if r.verdict else None,
+                "error": r.error,
+                "judge_input": judge_input,
+                "source_id": getattr(r, "source_id", ""),
+                "chunk_idx": getattr(r, "chunk_idx", 0),
             })
 
         benchmark = db.create_benchmark(
@@ -611,6 +623,19 @@ async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any
 async def list_benchmark_cases(pid: str, bid: str) -> list[dict[str, Any]]:
     """List all cases + judge verdicts for a benchmark."""
     return db.list_cases(bid)
+
+
+@router.get("/projects/{pid}/benchmarks/{bid}/audit", response_model=None)
+async def audit_benchmark(pid: str, bid: str) -> dict[str, Any] | JSONResponse:
+    """Return every persisted transcript plus an independent score recomputation."""
+    benchmark = db.get_benchmark(bid)
+    if not benchmark:
+        return JSONResponse({"error": "benchmark not found"}, status_code=404)
+    from finetune_studio.testing.audit import recompute_cases
+
+    cases = db.list_cases(bid)
+    return {"benchmark": benchmark, "case_count": len(cases), "cases": cases,
+            "independent_audit": recompute_cases(cases)}
 
 
 @router.post("/projects/{pid}/benchmarks/{bid}/cases/{cid}/verdict")

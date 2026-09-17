@@ -94,6 +94,12 @@ CREATE TABLE IF NOT EXISTS benchmark_cases (
     verdict         TEXT NOT NULL DEFAULT '',      -- pass | fail | partial
     judge_reasoning TEXT NOT NULL DEFAULT '',      -- judge explanation
     scored_at       REAL,
+    scoring_method  TEXT NOT NULL DEFAULT '',
+    validity        TEXT NOT NULL DEFAULT '',
+    error           TEXT NOT NULL DEFAULT '',
+    judge_input     TEXT NOT NULL DEFAULT '',
+    source_id       TEXT NOT NULL DEFAULT '',
+    chunk_idx       INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (benchmark_id) REFERENCES benchmark_runs(id) ON DELETE CASCADE,
     FOREIGN KEY (run_id) REFERENCES training_runs(id) ON DELETE CASCADE
 );
@@ -446,6 +452,12 @@ def init_db() -> None:
             c,
             "ALTER TABLE project_files ADD COLUMN notes TEXT NOT NULL DEFAULT ''",
         )
+        _safe_alter(c, "ALTER TABLE benchmark_cases ADD COLUMN scoring_method TEXT NOT NULL DEFAULT ''")
+        _safe_alter(c, "ALTER TABLE benchmark_cases ADD COLUMN validity TEXT NOT NULL DEFAULT ''")
+        _safe_alter(c, "ALTER TABLE benchmark_cases ADD COLUMN error TEXT NOT NULL DEFAULT ''")
+        _safe_alter(c, "ALTER TABLE benchmark_cases ADD COLUMN judge_input TEXT NOT NULL DEFAULT ''")
+        _safe_alter(c, "ALTER TABLE benchmark_cases ADD COLUMN source_id TEXT NOT NULL DEFAULT ''")
+        _safe_alter(c, "ALTER TABLE benchmark_cases ADD COLUMN chunk_idx INTEGER NOT NULL DEFAULT 0")
         # Create benchmark_cases if it doesn't exist (new in v2)
         c.executescript("""
             CREATE TABLE IF NOT EXISTS benchmark_cases (

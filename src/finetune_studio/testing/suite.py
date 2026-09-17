@@ -54,6 +54,8 @@ class BenchmarkCase:
     category: str = "general"
     context: str = ""  # optional extra context for the judge
     keywords: list[str] = field(default_factory=list)
+    source_id: str = ""
+    chunk_idx: int = 0
 
 
 @dataclass
@@ -74,6 +76,8 @@ class CaseResult:
     keywords: list[str] = field(default_factory=list)
     scoring_method: str = ""
     validity: str = ""
+    source_id: str = ""
+    chunk_idx: int = 0
 
 
 def load_test_suite(path: str) -> list[BenchmarkCase]:
@@ -107,6 +111,8 @@ def load_test_suite(path: str) -> list[BenchmarkCase]:
                 category=item.get("category", "general"),
                 context=item.get("context", ""),
                 keywords=[str(k) for k in kws],
+                source_id=str(item.get("source_id") or ""),
+                chunk_idx=int(item.get("chunk_idx") or 0),
             ))
         elif "messages" in item:
             # v1 fallback: extract from messages format
@@ -124,6 +130,8 @@ def load_test_suite(path: str) -> list[BenchmarkCase]:
                 correct_answer=correct,
                 category=item.get("category", "general"),
                 keywords=[str(k) for k in kws],
+                source_id=str(item.get("source_id") or ""),
+                chunk_idx=int(item.get("chunk_idx") or 0),
             ))
     return cases
 
@@ -158,6 +166,8 @@ def run_suite(engine, cases: list[BenchmarkCase], max_tokens: int = 512,
                 transcript=transcript,
                 time_ms=round(elapsed_ms, 1),
                 keywords=list(case.keywords),
+                source_id=case.source_id,
+                chunk_idx=case.chunk_idx,
             ))
         except Exception as e:  # noqa: BLE001
             elapsed_ms = (time.time() - start) * 1000
@@ -172,6 +182,8 @@ def run_suite(engine, cases: list[BenchmarkCase], max_tokens: int = 512,
                 error=str(e),
                 time_ms=round(elapsed_ms, 1),
                 keywords=list(case.keywords),
+                source_id=case.source_id,
+                chunk_idx=case.chunk_idx,
             ))
     return results
 

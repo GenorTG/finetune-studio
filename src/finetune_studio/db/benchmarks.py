@@ -6,7 +6,6 @@ import time
 
 from finetune_studio.db.connection import cursor, new_id, row_to_dict
 
-
 # ── benchmark_runs (parent) ───────────────────────────────────────────────
 
 def _get(bid: str) -> dict | None:
@@ -33,8 +32,9 @@ def create_benchmark(run_id: str, suite_name: str, scores: dict,
                 c.execute(
                     "INSERT INTO benchmark_cases (id, benchmark_id, run_id, case_name, category, "
                     "question, correct_answer, model_answer, transcript, judge, judge_model, "
-                    "verdict, judge_reasoning, scored_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "verdict, judge_reasoning, scored_at, scoring_method, validity, error, "
+                    "judge_input, source_id, chunk_idx) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         cid, bid, run_id,
                         case.get("name", ""),
@@ -48,6 +48,12 @@ def create_benchmark(run_id: str, suite_name: str, scores: dict,
                         case.get("verdict", ""),
                         case.get("judge_reasoning", ""),
                         case.get("scored_at"),
+                        case.get("scoring_method", ""),
+                        case.get("validity", ""),
+                        case.get("error", ""),
+                        json.dumps(case.get("judge_input", {})),
+                        case.get("source_id", ""),
+                        int(case.get("chunk_idx") or 0),
                     ),
                 )
     return _get(bid)  # type: ignore[return-value]
@@ -75,7 +81,9 @@ def create_case(benchmark_id: str, run_id: str, name: str, category: str,
                 question: str, correct_answer: str, model_answer: str,
                 transcript: list, judge: str = "none", judge_model: str = "",
                 verdict: str = "", judge_reasoning: str = "",
-                scored_at: float | None = None) -> str:
+                scored_at: float | None = None, scoring_method: str = "",
+                validity: str = "", error: str = "", judge_input: dict | None = None,
+                source_id: str = "", chunk_idx: int = 0) -> str:
     """Insert a single benchmark case row. Returns the new id."""
     cid = new_id()
     with cursor() as c:
@@ -107,8 +115,8 @@ def list_cases(benchmark_id: str) -> list[dict]:
         if "transcript" in d and isinstance(d["transcript"], str) and d["transcript"]:
             try:
                 d["transcript"] = json.loads(d["transcript"])
-            except Exception:
-                pass
+            except (TypeError, json.JSONDecodeError):
+                d["transcript"] = []
         out.append(d)
     return out
 
