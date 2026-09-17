@@ -288,6 +288,26 @@ CREATE TABLE IF NOT EXISTS system_updates (
 );
 CREATE INDEX IF NOT EXISTS idx_updates_status ON system_updates(status);
 
+-- Append-only request log for operations that do not have their own job
+-- table (uploads, chat/query, model loads, and small mutations). Durable job
+-- tables remain the source of progress; this table preserves the operation.
+CREATE TABLE IF NOT EXISTS activity_events (
+    id          TEXT PRIMARY KEY,
+    project_id  TEXT NOT NULL DEFAULT '',
+    kind        TEXT NOT NULL,
+    operation   TEXT NOT NULL,
+    method      TEXT NOT NULL,
+    path        TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'done',
+    http_status INTEGER NOT NULL DEFAULT 200,
+    message     TEXT NOT NULL DEFAULT '',
+    started_at  REAL NOT NULL,
+    finished_at REAL NOT NULL,
+    created_at  REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_activity_events_created ON activity_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_activity_events_project ON activity_events(project_id, created_at);
+
 -- ── File library (Stage 1) ────────────────────────────────────────────────
 -- User-named folders, organised independently of file storage. Raw files
 -- are immutable + MIME-segregated at upload time. Converted versions are

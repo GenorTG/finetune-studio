@@ -101,6 +101,27 @@ def _persistent_tasks(projs: _ProjCache) -> list[dict[str, Any]]:
     """
     tasks: list[dict[str, Any]] = []
 
+    # ── API operation history ──────────────────────────────────────
+    try:
+        for e in db.list_activity_events_recent(100):
+            pid = e.get("project_id") or ""
+            if pid and not projs.get(pid):
+                continue
+            status = "done" if int(e.get("http_status") or 500) < 400 else "error"
+            tasks.append({
+                "kind": e.get("kind") or "operation",
+                "project_id": pid,
+                "project_name": projs.name(pid) or "system",
+                "status": status,
+                "progress": 1.0 if status == "done" else 0.0,
+                "message": e.get("message") or f"{e.get('method', '')} {e.get('operation', e.get('path', ''))}",
+                "started_at": e.get("finished_at") or e.get("created_at") or 0,
+                "url": e.get("path") or "/",
+                "id": e.get("id"),
+            })
+    except Exception as e:  # noqa: BLE001
+        tasks.append({"kind": "_error", "message": f"activity_events: {e}"})
+
     # ── Training runs (history) ────────────────────────────────────
     try:
         for r in db.list_runs():

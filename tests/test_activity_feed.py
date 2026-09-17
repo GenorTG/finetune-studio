@@ -248,3 +248,37 @@ def test_deleted_project_rows_are_skipped(iso_db, _stub_live):
 
     payload = collect_activity()
     assert _kinds(payload) == set()
+
+
+def test_operation_events_are_persisted_and_visible(iso_db, _stub_live):
+    from finetune_studio import db
+    from finetune_studio.webui.routes.activity import collect_activity
+
+    project = db.create_project("Events")
+    event = db.record_activity_event(
+        kind="rag_query", operation="/api/projects/x/rag/chat",
+        method="POST", path="/api/projects/x/rag/chat",
+        project_id=project["id"], message="POST /api/projects/x/rag/chat → 200",
+    )
+
+    assert event["kind"] == "rag_query"
+    events = db.list_activity_events_recent()
+    assert any(row["id"] == event["id"] for row in events)
+    tasks = collect_activity()["tasks"]
+    query = next(task for task in tasks if task.get("id") == event["id"])
+    assert query["kind"] == "rag_query"
+    assert query["status"] == "done"
+    assert query["project_id"] == project["id"]
+
+
+def test_mutating_api_request_creates_operation_event(client):
+    response = client.post("/api/projects", json={"name": "Middleware event"})
+    assert response.status_code in (200, 201)
+
+    from finetune_studio import db
+
+    events = db.list_activity_events_recent()
+    assert any(
+        event["path"] == "/api/projects" and event["method"] == "POST"
+        for event in events
+    )

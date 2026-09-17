@@ -105,6 +105,7 @@ from finetune_studio.db.system_updates import (
     mark_running as mark_update_running,
     update_update,
 )
+from finetune_studio.db.activity_events import list_recent as list_activity_events_recent, record as record_activity_event
 
 # Initialise on import so callers don't have to remember.
 init_db()

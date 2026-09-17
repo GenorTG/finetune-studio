@@ -31,6 +31,10 @@
     inference:     "◉",
     download:      "↓",
     system_update: "⟳",
+    operation:     "•",
+    upload:        "↑",
+    rag_query:     "⌕",
+    testing:       "✓",
   };
   const KIND_LABEL = {
     training:      "Training",
@@ -43,6 +47,10 @@
     inference:     "Inference",
     download:      "Download",
     system_update: "Update",
+    operation:     "Operation",
+    upload:        "Upload",
+    rag_query:     "RAG query",
+    testing:       "Testing",
   };
 
   /** Stable identity for a task across poll re-renders (not array index). */

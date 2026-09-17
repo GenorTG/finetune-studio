@@ -19,7 +19,7 @@ KEY CONCEPTS
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -27,6 +27,7 @@ from finetune_studio import db
 from finetune_studio.config import settings
 import os
 import json
+import time
 
 from finetune_studio.models.registry import ModelInfo, scan_models
 from finetune_studio.testing.inference import InferenceEngine
@@ -78,6 +79,70 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="Finetune Studio", version="0.1.0", lifespan=lifespan)
+
+
+def _activity_kind(path: str) -> str:
+    """Classify mutating API paths for the global operation feed."""
+    p = path.lower()
+    if "/upload" in p or "/promote" in p or "/reprocess" in p:
+        return "upload"
+    if "/rag/" in p and any(x in p for x in ("/chat", "/query", "/search")):
+        return "rag_query"
+    if "/testing/" in p or p.endswith("/testing"):
+        return "testing"
+    if "/benchmark" in p or "/run-suite" in p:
+        return "benchmark"
+    if "/export" in p or p.endswith("/merge"):
+        return "export"
+    if "/models/load" in p or "/models/unload" in p or "/providers/" in p:
+        return "model_load"
+    if "/rag/build" in p or "/rag/rebuild" in p:
+        return "rag_build"
+    if "/runs" in p and p.endswith("/start"):
+        return "training"
+    return "operation"
+
+
+@app.middleware("http")
+async def record_activity_operations(request: Request, call_next):
+    """Persist every mutating API operation after its response completes."""
+    path = request.url.path
+    if (
+        request.method not in {"POST", "PUT", "PATCH", "DELETE"}
+        or path.startswith("/api/activity")
+        or path.endswith("/events")
+    ):
+        return await call_next(request)
+    started = time.time()
+    try:
+        response = await call_next(request)
+    except Exception:
+        _record_activity_event(request, started, 500)
+        raise
+    _record_activity_event(request, started, response.status_code)
+    return response
+
+
+def _record_activity_event(request: Request, started: float, http_status: int) -> None:
+    """Best-effort event write; logging must never break the API response."""
+    try:
+        parts = request.url.path.strip("/").split("/")
+        project_id = parts[2] if len(parts) > 2 and parts[:2] == ["api", "projects"] else ""
+        status = "done" if http_status < 400 else "error"
+        db.record_activity_event(
+            kind=_activity_kind(request.url.path),
+            operation=request.url.path,
+            method=request.method,
+            path=request.url.path,
+            project_id=project_id,
+            status=status,
+            http_status=http_status,
+            message=f"{request.method} {request.url.path} → {http_status}",
+            started_at=started,
+            finished_at=time.time(),
+        )
+    except Exception:  # noqa: BLE001
+        pass
 
 # ── CORS + Trusted Hosts (configured via Settings page) ──
 def _apply_hosting_middleware():

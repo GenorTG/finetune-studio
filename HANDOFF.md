@@ -11,6 +11,7 @@ honest — real root-cause fixes, real fan-dragon verification, no fake greens.
 | Area | Status |
 |------|--------|
 | **Activity feed** | `b573758` deployed — `collect_activity()` merges live in-memory progress with persisted history from every durable table (training, benchmark, data_prep, rag, export, hf download, system_update). Was 1 ephemeral row → now 15 real tasks on fan-dragon |
+| **Operation log** | Durable `activity_events` plus HTTP middleware records every mutating API operation (upload/OCR, training, RAG, testing, benchmark, export, model/provider, settings/update); feed renders operation kind, status, project, and route |
 | Activity dedup | Live rows win by `run_id`/`id`; live training uses the bare db run id (not the `{pid}-{id}` composite) so it collapses with its persisted row |
 | Activity cap | 60-row window, **live rows never evicted** (fixed a regression where stale persisted active rows could hide a running task) |
 | Activity badge | Persisted running/queued counted only if recent (<2h) or live — no forever-spinning badge from interrupted runs |
