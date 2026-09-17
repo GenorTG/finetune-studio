@@ -36,6 +36,8 @@ def recompute_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
                 case.get("keywords")
                 or (case.get("judge_input") or {}).get("keywords", [])
             )],
+            source_id=str(case.get("source_id") or ""),
+            chunk_idx=int(case.get("chunk_idx") or 0),
         ))
     apply_heuristic_judging(results)
     recomputed = score_results(results)

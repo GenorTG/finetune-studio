@@ -73,6 +73,25 @@ def test_suite_audit_detects_truncation_and_suite_preserves_provenance(tmp_path)
     assert "suite_dataset_count_mismatch" in audit_suite_cases(str(suite), str(dataset))["errors"]
 
 
+def test_recompute_cases_preserves_source_grounded_scoring() -> None:
+    from finetune_studio.testing.audit import recompute_cases
+
+    report = recompute_cases([{
+        "case_name": "approval",
+        "question": "What is the approval status?",
+        "correct_answer": "The request is not approved.",
+        "model_answer": "The request is approved.",
+        "source_id": "source-1",
+        "chunk_idx": 2,
+        "verdict": "fail",
+        "transcript": [],
+    }])
+
+    assert report["recomputed_scores"]["failed"] == 1
+    assert report["disagreements"] == []
+    assert report["passed"] is True
+
+
 def test_recompute_cases_does_not_trust_stored_verdict() -> None:
     cases = [{"case_name": "n", "category": "numeric", "question": "How many units were shipped?",
               "correct_answer": "8 (Source: budget.csv)", "model_answer": "8",
