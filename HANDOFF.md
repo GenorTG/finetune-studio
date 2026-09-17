@@ -5,49 +5,66 @@ Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :786
 
 ## Mission
 Ship held-out quality + WebUI evidence that an outside reviewer can't dispute:
-real root-cause fixes, real fan-dragon verification, no fake greens. Every
-audit row is reproducible from raw artifacts in `.tmp/evidence-run/` and
-the project's per-source qa/pairs/*.json.
+real root-cause fixes, real fan-dragon verification, no fake greens.
 
-## State (verified 2026-09-17 17:20 CEST)
+## State (verified 2026-09-17 18:05 CEST)
 | Area | Status |
 |------|--------|
-| Release | EARLY BETA v0.1.0; service active under `finetune-studio.service` |
-| Retained project | `fbcf7083` (Helios Fulfillment Evidence Run); models Qwen3.8-27B GGUF helper + Qwen3-4B base; runs `8587cee6` / `8b1dd006` / `f4f627af` |
-| Quality-v3 held-out | **4 pass / 7 partial / 12 fail = 32.6% weighted, 17.4% strict** (benchmark `ed1af82e`) |
-| Source-disjoint v4 | **0 pass / 12 partial / 40 fail = 11.5% weighted** on 52 unseen-source cases (`bb896ad9`) — fine-tune alone does not generalize |
-| **RAG-grounded suite** | `testing/rag_suite.py` + `POST /api/testing/run-rag-suite` landed locally (uncommitted) |
-| Live UI | Fan-dragon `e2e_ui_qa.py` last green: **70/70** |
-| Prior HANDOFF | `docs/archive/HANDOFF-2026-09-17-pre-rag-suite.md` |
+| Source-disjoint gap | Fine-tune alone **0/52** strict — needs retrieval grounding |
+| **RAG-grounded API** | Committed `6653d31` — `testing/rag_suite.py` + `POST /api/testing/run-rag-suite` |
+| **RAG-grounded UI** | Testing card `#t-rag-card` → **Run with RAG** |
+| **Full ingested corpus** | `testing/full_corpus_suite.py` + `discover_suites(pid)` hook; all approved source-grounded QA pairs |
+| **Full-corpus live result** | 246/246 judged: **143 pass / 79 partial / 24 fail**, weighted **74.2%**; retrieval **243/246 (98.78%)** |
+| **OCR** | Fresh-box tessdata bootstrap argument fixed; local OCR/parser checks **49 passed, 3 skipped** |
+| Quality baselines | v3 held-out 17.4% strict; v4 source-disjoint 11.5% weighted unchanged |
 
-### RAG-suite (this milestone)
-- **Module:** `src/finetune_studio/testing/rag_suite.py` — reusable. Loads PortableRAG (`corpus_path` or default `~/.finetune-studio/rag_corpora/<pid>` / `project_rags`), top-k retrieve per `BenchmarkCase`, context-only prompt with `UNKNOWN_REPLY` fallback, preserves transcript/context/hits/provenance/`model_path`/`corpus_path`, applies existing heuristic scoring, reports retrieval hit/recall.
-- **Endpoint:** `POST /api/testing/run-rag-suite` — `_ensure_model_loaded` + blocking eval via `asyncio.to_thread`. No UI changes.
-- **Verify (genorbox1, this session):**
-  - `.venv/bin/python -m pytest tests/test_rag_suite.py -v --tb=short` → **10 passed** in 3.86s
-  - `.venv/bin/python -m ruff check src/finetune_studio/testing/rag_suite.py src/finetune_studio/webui/routes/testing.py tests/test_rag_suite.py` → **All checks passed!**
+### Full-ingested-corpus (Testing dropdown)
+- Shared typed helper builds `projects/<pid>/suites/full-ingested-corpus.json` from approved source-grounded QA pairs (no hardcoded project id).
+- `discover_suites(project_id)` regenerates/ensures the file when pairs exist; label `local · full-ingested-corpus (N cases)`, `source=project_qa`.
+- Auto / local / synthetic / real discovery unchanged. Empty approved set → suite omitted (stale file removed).
+- CLI: `scripts/build_full_qa_suite.py` wraps the same helper.
+- Does **not** claim run quality — discovery/generation only.
+
+### Live grounded result
+- Fan Dragon Q8 + PortableRAG full-corpus run covered **246 cases across 35 source documents**. Raw response retained all transcripts and hit provenance.
+- Retrieval found the declared source for 243/246 cases. The remaining answer failures are real or legacy over-broad QA targets; scoring was not weakened.
+
+### Verify (genorbox1)
+```
+.venv/bin/python -m pytest tests/test_full_corpus_suite.py \
+  tests/test_benchmarks_suite_discovery.py \
+  tests/test_testing_run_gate.py tests/test_rag_suite.py -v --tb=short
+# → 24 passed
+
+.venv/bin/python -m ruff check \
+  src/finetune_studio/testing/full_corpus_suite.py \
+  src/finetune_studio/benchmarks/suite_defs.py \
+  scripts/build_full_qa_suite.py \
+  tests/test_full_corpus_suite.py \
+  tests/test_testing_run_gate.py
+# → All checks passed!
+```
 
 ## Next steps
-1. Parent review → commit + push when approved; fan-dragon `git pull --ff-only` + `systemctl --user restart finetune-studio`.
-2. Fan-dragon live check: `POST /api/testing/run-rag-suite` on the 52-case source-disjoint suite + PortableRAG corpus for `fbcf7083` (expect retrieval recall ≫ fine-tune-only 0/52).
-3. Optional: Testing-tab “Run with RAG” button (not in this milestone).
-4. Keep browser QA green (70/70).
+1. Commit and deploy current UI/full-corpus/OCR changes; verify `full-ingested-corpus (246 cases)` in Fan Dragon Testing.
+2. Re-run OCR upload → promote-to-source after deployment using the API probe.
+3. Correct the 24 full-corpus failures only from parsed-source evidence; rerun the full grounded suite.
+4. Persist full-corpus RAG benchmark runs with artifact paths and raw transcripts.
+5. Keep browser QA green (70/70).
 
 ## Commands
 ```
-.venv/bin/python -m pytest tests/test_rag_suite.py -v --tb=short
-# → 10 passed
-
+.venv/bin/python -m pytest tests/test_full_corpus_suite.py \
+  tests/test_benchmarks_suite_discovery.py \
+  tests/test_testing_run_gate.py tests/test_rag_suite.py -v --tb=short
 .venv/bin/python -m ruff check \
-  src/finetune_studio/testing/rag_suite.py \
-  src/finetune_studio/webui/routes/testing.py \
-  tests/test_rag_suite.py
-# → All checks passed!
+  src/finetune_studio/testing/full_corpus_suite.py \
+  src/finetune_studio/benchmarks/suite_defs.py \
+  scripts/build_full_qa_suite.py \
+  tests/test_full_corpus_suite.py \
+  tests/test_testing_run_gate.py
 ```
-- Full suite: `make test`
-- Deploy (after commit): `git push` → fan-dragon pull + `systemctl --user restart finetune-studio`
 
 ## Blockers
-- Milestone left **uncommitted** by request (no push).
-- Browser upload MiniMax `paths` quirk unchanged; use API upload.
-- Training OOM from stale GPU processes — check `nvidia-smi --query-compute-apps=pid,used_memory --format=csv` before runs.
+- Perfect answers are not achieved yet: current grounded result is 143/246 strict passes and retrieval misses 3 cases.
+- Browser upload MiniMax quirk unchanged; use API upload fallback.

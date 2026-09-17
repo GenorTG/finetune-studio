@@ -69,6 +69,23 @@ def test_ensure_tessdata_is_idempotent(tmp_path: Path, monkeypatch: pytest.Monke
     ocr._ensure_tessdata("zz_NOPE_DOES_NOT_EXIST")
 
 
+def test_ensure_tessdata_passes_missing_languages_to_installer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from finetune_studio.data import ocr
+
+    calls: list[list[str]] = []
+    monkeypatch.setattr(ocr, "_AUTO_INSTALL_DONE", False)
+    monkeypatch.setattr(ocr, "installed_languages", list)
+    monkeypatch.setattr(
+        ocr,
+        "install",
+        lambda languages=None: calls.append(sorted(languages or [])) or {"errors": []},
+    )
+    ocr._ensure_tessdata("eng+pol")
+    assert calls == [["eng", "pol"]]
+
+
 def test_ocr_image_round_trips_a_real_png(tmp_path: Path) -> None:
     """The image parser must return extracted text via OCR end-to-end."""
     from finetune_studio.data.parsers.image import parse as parse_image

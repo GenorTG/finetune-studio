@@ -23,7 +23,13 @@ SuiteType = Literal[
     "local",
     "auto",
 ]
-SuiteSource = Literal["builtin", "data_benchmarks", "auto_suites", "huggingface"]
+SuiteSource = Literal[
+    "builtin",
+    "data_benchmarks",
+    "auto_suites",
+    "huggingface",
+    "project_qa",
+]
 
 _FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
@@ -133,6 +139,9 @@ class SuiteDefinition:
             n = self.case_count or 0
             return f"auto · {self.name} ({n} cases)"
         title = self.title or self.name
+        if self.source == "project_qa":
+            n = self.case_count or 0
+            return f"local · {title} ({n} cases)"
         return f"local · {title}"
 
     def as_dict(self) -> dict[str, Any]:
@@ -302,7 +311,8 @@ def discover_suites(project_id: str | None = None) -> list[dict[str, Any]]:
     the path is present on disk. Built-in fixtures are always listed when
     their package files exist. Real suites use ``real://`` virtual paths.
     When ``project_id`` is set, rows from ``auto_suites`` for that project
-    are appended.
+    are appended, and a project-local ``full-ingested-corpus`` suite is
+    generated from approved QA pairs when any exist.
     """
     found: dict[str, dict[str, Any]] = {}
 
@@ -349,6 +359,13 @@ def discover_suites(project_id: str | None = None) -> list[dict[str, Any]]:
 
     if project_id:
         from finetune_studio import db
+        from finetune_studio.testing.full_corpus_suite import (
+            ensure_full_corpus_suite_definition,
+        )
+
+        corpus = ensure_full_corpus_suite_definition(project_id)
+        if corpus is not None:
+            found[f"project_qa:{corpus.name}"] = corpus.as_dict()
 
         with db.cursor() as c:
             rows = c.execute(

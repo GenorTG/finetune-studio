@@ -70,6 +70,39 @@
   <pre id="t-live-log" class="text-xs mono mt-2" role="log" aria-live="polite" style="display:none;max-height:120px;overflow-y:auto;border:1px solid var(--border);padding:8px;white-space:pre-wrap;margin:0;background:var(--bg-app);"></pre>
 </div>
 
+<div class="card mb-6" id="t-rag-card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">RAG-grounded suite</div>
+      <div class="card-sub">Uses the Model + Test suite above. Retrieves from the project's PortableRAG corpus, then answers only from retrieved context (or says it does not know). Prefer this for source-disjoint / unseen-document cases.</div>
+    </div>
+  </div>
+  <div class="grid grid-12 gap-3 items-end">
+    <div class="col-span-6">
+      <label class="block text-xs muted mb-1" for="t-rag-corpus">Corpus path (optional)</label>
+      <input id="t-rag-corpus" class="input mono text-sm" type="text"
+             placeholder="default: ~/.finetune-studio/rag_corpora/{{ pid }}"
+             title="Leave blank to use the project's PortableRAG corpus (or registered project_rags store).">
+    </div>
+    <div class="col-span-2">
+      <label class="block text-xs muted mb-1" for="t-rag-topk">top_k</label>
+      <input id="t-rag-topk" class="input" type="number" min="1" max="32" value="5"
+             title="How many chunks to retrieve per question.">
+    </div>
+    <div class="col-span-2">
+      <label class="block text-xs muted mb-1" for="t-rag-maxtok">Max tokens</label>
+      <input id="t-rag-maxtok" class="input" type="number" min="32" max="4096" value="512">
+    </div>
+    <div class="col-span-2">
+      <button id="t-run-rag-btn" type="button" onclick="runRagSuite()" class="btn"
+              style="width:100%;" disabled title="Pick a test suite first">Run with RAG</button>
+    </div>
+  </div>
+  <div id="t-rag-status" class="mt-3 text-xs" aria-live="polite" role="status">
+    Pick a suite above to enable RAG-grounded Run.
+  </div>
+</div>
+
 <div class="card mb-6">
   <div class="card-head">
     <div>
@@ -177,7 +210,8 @@
     return 'verdict-none';
   }
 
-  function renderResults(scores, cases) {
+  function renderResults(scores, cases, meta) {
+    meta = meta || {};
     const judged = scores.judged || 0;
     const passRate = judged === 0
       ? '—'
@@ -193,17 +227,37 @@
       + (scores.eval_kind
           ? ' <span class="pill outline">' + escapeHtml(scores.eval_kind) + '</span>'
           : '')
+      + (meta.mode === 'rag'
+          ? ' <span class="pill outline">rag-grounded</span>'
+          : '')
       + '</div>';
+    if (meta.retrieval && typeof meta.retrieval === 'object') {
+      const ret = meta.retrieval;
+      const recall = ret.recall_at_k != null ? ret.recall_at_k : ret.hit_rate;
+      html += '<div class="text-xs mt-2" id="t-rag-retrieval-summary" role="status">'
+        + 'Retrieval: hits ' + (ret.retrieval_hits != null ? ret.retrieval_hits : '—')
+        + ' / ' + (ret.cases_with_source_id != null ? ret.cases_with_source_id : '—')
+        + ' with source_id'
+        + (recall != null ? (' · recall@k ' + recall) : '')
+        + (meta.corpus_path ? (' · corpus <code class="mono">' + escapeHtml(String(meta.corpus_path)) + '</code>') : '')
+        + (meta.model_path ? (' · model <code class="mono">' + escapeHtml(String(meta.model_path)) + '</code>') : '')
+        + '</div>';
+    }
     if (scores.leakage_warning) {
       html += '<div class="text-xs dim mt-1" role="status">'
         + escapeHtml(scores.leakage_warning) + '</div>';
     }
+    const showRetHit = cases.some(function (c) {
+      return c && (c.retrieval_hit === true || c.retrieval_hit === false);
+    });
     html += '<div class="case-results-scroll" role="region" aria-label="Case results" tabindex="0">'
       + '<table class="table case-results-table" id="case-results-table"><thead><tr>'
       + '<th class="case-col-idx">#</th><th class="case-col-name">Case name</th>'
       + '<th class="case-col-cat">Category</th><th class="case-col-text">Question</th>'
       + '<th class="case-col-text">Expected</th><th class="case-col-answer">Model answer</th>'
-      + '<th class="case-col-verdict">Verdict</th><th class="case-col-judge">Judge reasoning</th>'
+      + '<th class="case-col-verdict">Verdict</th>'
+      + (showRetHit ? '<th class="case-col-ret">Retrieval</th>' : '')
+      + '<th class="case-col-judge">Judge reasoning</th>'
       + '<th class="case-col-time">Time (ms)</th>'
       + '</tr></thead><tbody>';
     cases.forEach((c, i) => {
@@ -217,8 +271,15 @@
         + '<td class="case-col-text case-col-fixed">' + escapeHtml(c.correct_answer || '') + '</td>'
         + '<td class="case-col-answer"><pre class="case-answer-pre">' + escapeHtml(answer) + '</pre></td>'
         + '<td class="case-col-verdict"><span class="verdict-badge ' + verdictClass(v) + '">'
-        + escapeHtml(v || 'none') + '</span></td>'
-        + '<td class="judge-reasoning case-col-judge">' + (c.judge_reasoning
+        + escapeHtml(v || 'none') + '</span></td>';
+      if (showRetHit) {
+        const hit = c.retrieval_hit;
+        const hitLabel = hit === true ? 'hit' : (hit === false ? 'miss' : '—');
+        const hitCls = hit === true ? 'verdict-pass' : (hit === false ? 'verdict-fail' : 'verdict-none');
+        html += '<td class="case-col-ret"><span class="verdict-badge ' + hitCls + '">'
+          + hitLabel + '</span></td>';
+      }
+      html += '<td class="judge-reasoning case-col-judge">' + (c.judge_reasoning
             ? '<details><summary>reasoning</summary><div class="text-xs">' + escapeHtml(c.judge_reasoning) + '</div></details>'
             : '—') + '</td>'
         + '<td class="mono case-col-time">' + Math.round(c.time_ms || 0) + '</td>'
@@ -226,11 +287,29 @@
     });
     html += '</tbody></table></div>';
     // Raw payload stays behind an explicit Debug control — not the primary view.
+    const debugPayload = { scores: scores, results: cases };
+    if (meta.retrieval) debugPayload.retrieval = meta.retrieval;
+    if (meta.corpus_path) debugPayload.corpus_path = meta.corpus_path;
+    if (meta.model_path) debugPayload.model_path = meta.model_path;
     html += '<details class="mt-3" id="t-results-debug"><summary class="text-xs muted">Debug JSON</summary>'
       + '<pre class="mono text-xs" style="max-height:240px;overflow:auto;white-space:pre-wrap;margin:8px 0 0;">'
-      + escapeHtml(JSON.stringify({ scores: scores, results: cases }, null, 2))
+      + escapeHtml(JSON.stringify(debugPayload, null, 2))
       + '</pre></details>';
     return html;
+  }
+
+  function setRagRunEnabled(enabled, title) {
+    const ragBtn = document.getElementById('t-run-rag-btn');
+    const ragStatus = document.getElementById('t-rag-status');
+    if (ragBtn) {
+      ragBtn.disabled = !enabled;
+      ragBtn.title = title || (enabled ? 'Run suite with PortableRAG grounding' : 'Pick a test suite first');
+    }
+    if (ragStatus && !ragStatus.dataset.busy) {
+      ragStatus.textContent = enabled
+        ? ('Ready — RAG-grounded run for ' + (suiteLabelFromSelect() || 'selected suite'))
+        : 'Pick a suite above to enable RAG-grounded Run.';
+    }
   }
 
   window.onSuitePicked = function() {
@@ -246,6 +325,7 @@
         runBtn.disabled = true;
         runBtn.title = 'Pick a test suite first';
       }
+      setRagRunEnabled(false, 'Pick a test suite first');
       if (status && !status.dataset.busy) {
         status.textContent = 'Pick a suite to enable Run.';
       }
@@ -261,6 +341,7 @@
       runBtn.disabled = false;
       runBtn.title = 'Run suite: ' + label;
     }
+    setRagRunEnabled(true, 'Run with RAG: ' + label);
     if (status && !status.dataset.busy) {
       status.textContent = 'Ready — ' + label;
     }
@@ -385,6 +466,129 @@
         runBtn.disabled = !(sel && sel.value);
         runBtn.title = runBtn.disabled ? 'Pick a test suite first' : ('Run suite: ' + suiteName);
       }
+      const sel = document.getElementById('t-suite');
+      setRagRunEnabled(!!(sel && sel.value), (sel && sel.value) ? ('Run with RAG: ' + suiteName) : 'Pick a test suite first');
+    }
+  };
+
+  window.runRagSuite = async function() {
+    const status = document.getElementById('t-status');
+    const ragStatus = document.getElementById('t-rag-status');
+    const liveLog = document.getElementById('t-live-log');
+    const results = document.getElementById('t-results');
+    const runBtn = document.getElementById('t-run-btn');
+    const ragBtn = document.getElementById('t-run-rag-btn');
+    const suite = document.getElementById('t-suite').value.trim();
+    if (!suite) {
+      if (ragStatus) ragStatus.textContent = 'Please pick a test suite above.';
+      if (status) status.textContent = 'Please pick a test suite.';
+      setRagRunEnabled(false, 'Pick a test suite first');
+      return;
+    }
+    const suiteName = suiteLabelFromSelect() || suiteLabel(suite);
+    const corpusEl = document.getElementById('t-rag-corpus');
+    const topkEl = document.getElementById('t-rag-topk');
+    const maxTokEl = document.getElementById('t-rag-maxtok');
+    const corpusPath = corpusEl ? (corpusEl.value || '').trim() : '';
+    const topK = topkEl ? Math.max(1, parseInt(topkEl.value || '5', 10) || 5) : 5;
+    const maxTokens = maxTokEl ? Math.max(32, parseInt(maxTokEl.value || '512', 10) || 512) : 512;
+    if (status) status.dataset.busy = '1';
+    if (ragStatus) ragStatus.dataset.busy = '1';
+    if (runBtn) runBtn.disabled = true;
+    if (ragBtn) ragBtn.disabled = true;
+    if (status) status.textContent = '✓ RAG suite: ' + suiteName + ' — Running…';
+    if (ragStatus) ragStatus.textContent = 'Retrieving + generating (auto-loads model if needed)…';
+    if (results) {
+      results.innerHTML = '<span class="muted">Running RAG-grounded suite…</span>';
+    }
+    if (liveLog) {
+      liveLog.style.display = 'block';
+      liveLog.textContent = 'mode: rag-grounded\nsuite: ' + suiteName + '\nawaiting /api/testing/run-rag-suite…';
+    }
+    const started = Date.now();
+    try {
+      const modelSel = document.getElementById('t-model');
+      const modelPath = modelSel ? (modelSel.value || '').trim() : '';
+      const body = {
+        suite_path: suite,
+        project_id: PID,
+        top_k: topK,
+        max_tokens: maxTokens,
+        temperature: 0.3,
+      };
+      if (modelPath) body.model_path = modelPath;
+      if (corpusPath) body.corpus_path = corpusPath;
+      let r;
+      if (api.post) {
+        r = await api.post('/api/testing/run-rag-suite', body);
+      } else {
+        const resp = await fetch('/api/testing/run-rag-suite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        r = await resp.json();
+        if (!resp.ok && r.error) throw new Error(r.error);
+      }
+      if (r.error) {
+        if (status) status.textContent = 'Error: ' + r.error;
+        if (ragStatus) ragStatus.textContent = 'Error: ' + r.error;
+        if (results) results.innerHTML = '<span class="err">' + escapeHtml(r.error) + '</span>';
+        if (liveLog) liveLog.textContent = 'error: ' + r.error;
+        notify(r.error, 'error');
+        return;
+      }
+      const scores = r.scores || {};
+      const cases = r.results || [];
+      const elapsed = Math.round((Date.now() - started) / 1000);
+      const ret = r.retrieval || {};
+      if (status) {
+        status.textContent = 'RAG done — pass rate ' + (scores.pass_rate || 0)
+          + '% · retrieval hits ' + (ret.retrieval_hits != null ? ret.retrieval_hits : '—')
+          + ' · ' + elapsed + 's';
+      }
+      if (ragStatus) {
+        ragStatus.textContent = 'Done — '
+          + (scores.passed || 0) + '/' + cases.length + ' passed'
+          + (ret.recall_at_k != null ? (' · recall@k ' + ret.recall_at_k) : '');
+      }
+      if (liveLog) {
+        liveLog.textContent = [
+          'mode: rag-grounded',
+          'suite: ' + suiteName,
+          'elapsed: ' + elapsed + 's',
+          'corpus: ' + (r.corpus_path || '(default)'),
+          'model: ' + (r.model_path || '—'),
+          'retrieval_hits: ' + (ret.retrieval_hits != null ? ret.retrieval_hits : '—'),
+          'pass_rate: ' + (scores.pass_rate != null ? scores.pass_rate : '—'),
+        ].join('\n');
+      }
+      if (results) {
+        results.innerHTML = renderResults(scores, cases, {
+          mode: 'rag',
+          retrieval: ret,
+          corpus_path: r.corpus_path || '',
+          model_path: r.model_path || '',
+        });
+      }
+      notify('RAG suite finished: ' + (scores.passed || 0) + '/' + cases.length + ' passed', 'success');
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      if (status) status.textContent = 'Error: ' + msg;
+      if (ragStatus) ragStatus.textContent = 'Error: ' + msg;
+      if (results) results.innerHTML = '<span class="err">' + escapeHtml(msg) + '</span>';
+      if (liveLog) liveLog.textContent = 'error: ' + msg;
+      notify(msg, 'error');
+    } finally {
+      if (status) delete status.dataset.busy;
+      if (ragStatus) delete ragStatus.dataset.busy;
+      const sel = document.getElementById('t-suite');
+      const hasSuite = !!(sel && sel.value);
+      if (runBtn) {
+        runBtn.disabled = !hasSuite;
+        runBtn.title = hasSuite ? ('Run suite: ' + suiteName) : 'Pick a test suite first';
+      }
+      setRagRunEnabled(hasSuite, hasSuite ? ('Run with RAG: ' + suiteName) : 'Pick a test suite first');
     }
   };
 

@@ -151,7 +151,7 @@ def _ensure_tessdata(languages: str = DEFAULT_LANGS) -> None:
         missing = wanted - have
         if missing:
             log.info("OCR self-bootstrap: installing tessdata for %s", sorted(missing))
-            result = install(extra_languages=missing)
+            result = install(languages=sorted(missing))
             if result.get("errors"):
                 raise RuntimeError(
                     "OCR tessdata download failed for "
