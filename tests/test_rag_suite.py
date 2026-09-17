@@ -16,6 +16,7 @@ from finetune_studio.config import settings
 from finetune_studio.data.rag_eval import UNKNOWN_REPLY
 from finetune_studio.testing.rag_suite import (
     RagCaseResult,
+    _needs_table_arithmetic_retry,
     build_grounded_messages,
     compute_retrieval_metrics,
     hit_matches_source,
@@ -94,6 +95,17 @@ def test_build_grounded_messages_mentions_unknown_fallback() -> None:
 def test_build_grounded_messages_warns_against_variance_for_table_totals() -> None:
     msgs = build_grounded_messages("What is the total actual_hours?", "actual_hours | variance_hours")
     assert "not a variance" in msgs[0]["content"]
+
+
+def test_table_arithmetic_retry_detects_variance_mixup() -> None:
+    assert _needs_table_arithmetic_retry(
+        "What was the total actual overtime hours?",
+        "54 plus 29, totaling 83 variance hours.",
+        "month | actual_hours | variance_hours",
+    )
+    assert not _needs_table_arithmetic_retry(
+        "Who owns RK-04?", "Elian Mertens", "owner | risk_id"
+    )
 
 
 def test_hit_matches_source_and_chunk() -> None:

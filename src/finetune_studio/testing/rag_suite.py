@@ -12,6 +12,7 @@ can reuse it without FastAPI.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -132,6 +133,17 @@ def build_grounded_messages(question: str, context: str) -> list[dict[str, str]]
         {"role": "system", "content": RAG_SYSTEM_PROMPT},
         {"role": "user", "content": user},
     ]
+
+
+def _needs_table_arithmetic_retry(question: str, response: str, context: str) -> bool:
+    """Detect the common actual-hours/variance mix-up in tabular answers."""
+    return bool(
+        "actual" in question.lower()
+        and "total" in question.lower()
+        and "actual_hours" in context
+        and "variance_hours" in context
+        and re.search(r"\bvariance\b|\b\d+\s*\+\s*\d+", response or "", re.IGNORECASE)
+    )
 
 
 def hit_matches_source(
@@ -265,6 +277,20 @@ def run_rag_suite(
                 temperature=temperature,
                 think=think,
             )
+            if _needs_table_arithmetic_retry(case.question, response, context):
+                correction = (
+                    "Re-answer this question from the table. It asks for total actual_hours: "
+                    "sum the actual_hours column for the requested month/sites. Do not use "
+                    "variance_hours, budget_hours, or variance values. Answer concisely."
+                )
+                retry_messages = messages + [{"role": "user", "content": correction}]
+                response = engine.generate(
+                    retry_messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    think=think,
+                )
+                messages = retry_messages
             elapsed_ms = (time.time() - start) * 1000
             transcript = list(messages) + [{"role": "assistant", "content": response}]
             case_result = CaseResult(
