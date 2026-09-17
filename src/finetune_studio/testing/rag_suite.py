@@ -276,11 +276,14 @@ def run_rag_suite(
                 expanded_hits = list(rag_query.search(
                     case.question, top_k=max(20, top_k * 2)
                 ) or [])
-                if any(
-                    hit_matches_source(hit, case.source_id, case.chunk_idx)
-                    for hit in expanded_hits
-                ):
-                    hits_raw = expanded_hits
+                matched_expanded = [
+                    hit for hit in expanded_hits
+                    if hit_matches_source(hit, case.source_id, case.chunk_idx)
+                ]
+                if matched_expanded:
+                    # The wider search is only a recovery path; discard its
+                    # distractors once the expected source is found.
+                    hits_raw = matched_expanded
             provenance = [provenance_from_hit(h) for h in hits_raw]
             context = rag_query.format_context(hits_raw, max_chars=max_context_chars)
             messages = build_grounded_messages(case.question, context)
