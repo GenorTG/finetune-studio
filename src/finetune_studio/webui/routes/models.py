@@ -9,6 +9,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
 
 from finetune_studio.models.loader import load_model_info
+from finetune_studio.webui.engine_guard import ENGINE_LOCK
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -249,20 +250,21 @@ async def load_model_endpoint(request: Request):
         # (every other request, the activity SSE, navigation) until it
         # finished. to_thread keeps the loop responsive so the "loading…"
         # activity row is visible and the UI stays live.
-        await asyncio.to_thread(
-            inference_engine.load,
-            model_path,
-            n_ctx=body.get("n_ctx", 16384),
-            n_gpu_layers=body.get("n_gpu_layers", 99),
-            n_batch=body.get("n_batch", 512),
-            mmap=body.get("mmap", True),
-            mlock=body.get("mlock", False),
-            n_threads=body.get("n_threads"),
-            flash_attn=body.get("flash_attn", True),
-            seed=body.get("seed"),
-            rope_freq_base=body.get("rope_freq_base", 0.0),
-            rope_freq_scale=body.get("rope_freq_scale", 0.0),
-        )
+        async with ENGINE_LOCK:
+            await asyncio.to_thread(
+                inference_engine.load,
+                model_path,
+                n_ctx=body.get("n_ctx", 16384),
+                n_gpu_layers=body.get("n_gpu_layers", 99),
+                n_batch=body.get("n_batch", 512),
+                mmap=body.get("mmap", True),
+                mlock=body.get("mlock", False),
+                n_threads=body.get("n_threads"),
+                flash_attn=body.get("flash_attn", True),
+                seed=body.get("seed"),
+                rope_freq_base=body.get("rope_freq_base", 0.0),
+                rope_freq_scale=body.get("rope_freq_scale", 0.0),
+            )
     except Exception as e:  # noqa: BLE001
         return _load_failure_payload(str(e), model_path)
 
@@ -355,14 +357,16 @@ async def inference_chat(request: Request):
         messages = [{"role": "system", "content": sp}] + messages
 
     try:
-        response = inference_engine.generate(
-            messages,
-            max_tokens=body.get("max_tokens", 512),
-            temperature=body.get("temperature", 0.7),
-            top_p=body.get("top_p", 0.9),
-            top_k=body.get("top_k", 40),
-            repeat_penalty=body.get("repeat_penalty", 1.1),
-        )
+        async with ENGINE_LOCK:
+            response = await asyncio.to_thread(
+                inference_engine.generate,
+                messages,
+                max_tokens=body.get("max_tokens", 512),
+                temperature=body.get("temperature", 0.7),
+                top_p=body.get("top_p", 0.9),
+                top_k=body.get("top_k", 40),
+                repeat_penalty=body.get("repeat_penalty", 1.1),
+            )
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": str(e)}, status_code=500)
 

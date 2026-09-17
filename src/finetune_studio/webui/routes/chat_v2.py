@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Request
+
+from finetune_studio.webui.engine_guard import ENGINE_LOCK
 
 router = APIRouter()
 
@@ -128,10 +131,12 @@ async def inference_chat(request: Request):
         else:
             messages.insert(0, {"role": "system", "content": think_instruction})
     try:
-        response = inference_engine.generate(
-            messages, max_tokens=max_tokens, temperature=temperature,
-            top_p=top_p, top_k=top_k, repeat_penalty=repeat_penalty,
-        )
+        async with ENGINE_LOCK:
+            response = await asyncio.to_thread(
+                inference_engine.generate,
+                messages, max_tokens=max_tokens, temperature=temperature,
+                top_p=top_p, top_k=top_k, repeat_penalty=repeat_penalty,
+            )
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
     from finetune_studio.webui.thinking import split_thinking
@@ -154,21 +159,23 @@ async def load_model(request: Request):
     if not model_path:
         return {"error": "No model_path"}
     try:
-        inference_engine.load(
-            model_path,
-            n_ctx=body.get("n_ctx", 16384),
-            n_gpu_layers=body.get("n_gpu_layers", 99),
-            n_batch=body.get("n_batch", 512),
-            mmap=body.get("mmap", True),
-            mlock=body.get("mlock", False),
-            n_threads=body.get("n_threads"),
-            flash_attn=body.get("flash_attn", True),
-            seed=body.get("seed"),
-            rope_freq_base=body.get("rope_freq_base", 0.0),
-            rope_freq_scale=body.get("rope_freq_scale", 0.0),
-            max_seq_length=body.get("max_seq_length"),
-            load_in_4bit=body.get("load_in_4bit", True),
-        )
+        async with ENGINE_LOCK:
+            await asyncio.to_thread(
+                inference_engine.load,
+                model_path,
+                n_ctx=body.get("n_ctx", 16384),
+                n_gpu_layers=body.get("n_gpu_layers", 99),
+                n_batch=body.get("n_batch", 512),
+                mmap=body.get("mmap", True),
+                mlock=body.get("mlock", False),
+                n_threads=body.get("n_threads"),
+                flash_attn=body.get("flash_attn", True),
+                seed=body.get("seed"),
+                rope_freq_base=body.get("rope_freq_base", 0.0),
+                rope_freq_scale=body.get("rope_freq_scale", 0.0),
+                max_seq_length=body.get("max_seq_length"),
+                load_in_4bit=body.get("load_in_4bit", True),
+            )
         vision = getattr(inference_engine, "vision", False)
         return {"status": "loaded", "model": model_path, "vision": vision}
     except Exception as e:  # noqa: BLE001
@@ -371,9 +378,11 @@ async def chat(request: Request, pid: str):
             gen_messages.append(m)
 
     try:
-        response = inference_engine.generate(
-            gen_messages, max_tokens=max_tokens, temperature=temperature, top_p=top_p,
-        )
+        async with ENGINE_LOCK:
+            response = await asyncio.to_thread(
+                inference_engine.generate,
+                gen_messages, max_tokens=max_tokens, temperature=temperature, top_p=top_p,
+            )
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
 

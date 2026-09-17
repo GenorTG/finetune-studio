@@ -1,7 +1,11 @@
 """Comparison tab — side-by-side model output."""
 
 """Comparison and RAG testing routes for WebUI."""
+import asyncio
+
 from fastapi import APIRouter, Request
+
+from finetune_studio.webui.engine_guard import ENGINE_LOCK
 
 router = APIRouter()
 
@@ -16,7 +20,7 @@ async def compare_load(request: Request):
         return {"error": "No path provided"}
     try:
         from finetune_studio.benchmarks.comparison import comparator
-        comparator.load_model(name, path)
+        await asyncio.to_thread(comparator.load_model, name, path)
         return {"status": "loaded", "name": name, "models": list(comparator.engines.keys())}
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
@@ -36,7 +40,7 @@ async def compare_run(request: Request):
     if not comparator.engines:
         return {"error": "No models loaded. Use /compare/load first."}
 
-    result = comparator.run_comparison(test_suite, config)
+    result = await asyncio.to_thread(comparator.run_comparison, test_suite, config)
     return result
 
 
@@ -75,7 +79,10 @@ async def rag_chat(request: Request):
     from finetune_studio.rag.store import VectorStore
 
     rag_store = VectorStore(settings.rag_store_path)
-    results = rag_store.search(user_msg, top_k=top_k, embedding_model=settings.rag.embedding_model)
+    results = await asyncio.to_thread(
+        rag_store.search, user_msg, top_k=top_k,
+        embedding_model=settings.rag.embedding_model,
+    )
 
     # Build context
     context_parts = []
@@ -100,11 +107,13 @@ async def rag_chat(request: Request):
     if not inference_engine or inference_engine.model is None:
         return {"error": "No model loaded"}
 
-    result = inference_engine.generate(
-        augmented_messages,
-        max_tokens=max_tokens,
-        temperature=temperature,
-    )
+    async with ENGINE_LOCK:
+        result = await asyncio.to_thread(
+            inference_engine.generate,
+            augmented_messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
 
     return {
         "response": result if isinstance(result, str) else result.get("response", str(result)),
