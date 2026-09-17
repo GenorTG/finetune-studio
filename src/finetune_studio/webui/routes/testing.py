@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
@@ -168,6 +169,7 @@ async def run_rag_test_suite(request: Request):
         return JSONResponse({"error": "suite_path required"}, status_code=400)
 
     project_id = str(body.get("project_id") or body.get("pid") or "").strip()
+    requested_run_id = str(body.get("run_id") or "").strip()
     override_path = str(body.get("model_path") or body.get("path") or "").strip()
     corpus_path = str(body.get("corpus_path") or "").strip()
     top_k = int(body.get("top_k", 5))
@@ -190,7 +192,16 @@ async def run_rag_test_suite(request: Request):
             max_tokens=max_tokens,
             temperature=temperature,
         )
-        return report.as_api_dict()
+        payload = report.as_api_dict()
+        benchmark = _persist_rag_report(
+            project_id=project_id,
+            requested_run_id=requested_run_id,
+            suite_path=suite_path,
+            report=payload,
+        )
+        payload["benchmark"] = benchmark
+        payload["benchmark_id"] = benchmark["id"]
+        return payload
 
     try:
         return await asyncio.to_thread(_blocking)
@@ -202,6 +213,79 @@ async def run_rag_test_suite(request: Request):
     except Exception as e:  # noqa: BLE001
         _log.exception("run-rag-suite unexpected failure")
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+def _persist_rag_report(
+    *,
+    project_id: str,
+    requested_run_id: str,
+    suite_path: str,
+    report: dict[str, object],
+) -> dict:
+    """Persist a grounded report without discarding transcript provenance."""
+    from finetune_studio import db
+
+    run_id = requested_run_id if requested_run_id and db.get_run(requested_run_id) else ""
+    model_path = str(report.get("model_path") or "")
+    if not run_id and project_id:
+        for run in db.list_runs(project_id):
+            output_path = str(run.get("output_path") or "")
+            if run.get("status") == "done" and output_path and model_path.startswith(output_path):
+                run_id = str(run["id"])
+                break
+    if not run_id:
+        placeholder = db.create_run(
+            project_id=project_id,
+            name=f"RAG evaluation · {suite_path.rsplit('/', 1)[-1]}",
+            base_model=model_path,
+            data_path=suite_path,
+        )
+        run_id = placeholder["id"]
+        db.update_run(
+            run_id,
+            status="done",
+            output_path=model_path,
+            notes="Evaluation-only RAG benchmark; no training performed",
+        )
+
+    results = list(report.get("results") or [])
+    scores = dict(report.get("scores") or {})
+    scores["retrieval"] = dict(report.get("retrieval") or {})
+    scores["corpus_path"] = report.get("corpus_path", "")
+    cases = []
+    for result in results:
+        result_dict = dict(result)
+        cases.append({
+            "name": result_dict.get("name", ""),
+            "category": result_dict.get("category", "general"),
+            "question": result_dict.get("question", ""),
+            "correct_answer": result_dict.get("correct_answer", ""),
+            "model_answer": result_dict.get("model_answer", ""),
+            "transcript": result_dict.get("transcript", []),
+            "judge": result_dict.get("judge", "none"),
+            "judge_model": result_dict.get("judge_model", ""),
+            "verdict": result_dict.get("verdict", ""),
+            "judge_reasoning": result_dict.get("judge_reasoning", ""),
+            "scored_at": time.time(),
+            "scoring_method": result_dict.get("scoring_method", ""),
+            "validity": result_dict.get("validity", ""),
+            "error": result_dict.get("error", ""),
+            "judge_input": {
+                "retrieval_hit": result_dict.get("retrieval_hit", False),
+                "retrieval_hits": result_dict.get("retrieval_hits", []),
+                "context_text": result_dict.get("context_text", ""),
+            },
+            "source_id": result_dict.get("source_id", ""),
+            "chunk_idx": result_dict.get("chunk_idx", 0),
+        })
+    return db.create_benchmark(
+        run_id,
+        f"rag · {suite_path.rsplit('/', 1)[-1]}",
+        scores,
+        time_ms=round(sum(float(dict(r).get("time_ms") or 0) for r in results)),
+        cases=cases,
+        model_path=model_path,
+    )
 
 
 def _ensure_model_loaded(project_id: str, override_path: str) -> JSONResponse | None:

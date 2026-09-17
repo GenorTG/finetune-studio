@@ -414,6 +414,15 @@ def test_run_rag_suite_route_with_fake_engine_and_rag(
     assert body["retrieval"]["retrieval_hits"] == 1
     assert body["retrieval"]["recall_at_k"] == 1.0
     assert body["scores"]["total"] == 1
+    assert body["benchmark_id"]
+    benchmark = db.get_benchmark(body["benchmark_id"])
+    assert benchmark is not None
+    assert benchmark["model_path"] == "/override/model"
+    cases = db.list_cases(body["benchmark_id"])
+    assert len(cases) == 1
+    assert cases[0]["source_id"] == "doc-rk04"
+    assert cases[0]["transcript"]
+    assert cases[0]["judge_input"]["retrieval_hit"] is True
     row = body["results"][0]
     assert row["name"] == "rk04_owner"
     assert row["retrieval_hit"] is True
