@@ -212,6 +212,7 @@ def apply_heuristic_judging(results: list[CaseResult]) -> None:
 
         if r.source_id:
             source_score = score_source_grounded(
+                question=r.question,
                 correct_answer=r.correct_answer,
                 model_answer=r.model_answer,
             )

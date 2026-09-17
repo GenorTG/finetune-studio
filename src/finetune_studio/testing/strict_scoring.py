@@ -76,6 +76,7 @@ _CONTENT_STOPWORDS = {
     "percent",
 }
 _NAMED_ENTITY = re.compile(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b|\b[A-Z]{2,}[-_]\d+\b|\b[A-Z]-\d+\b")
+_ROLE_WORDS = {"director", "control", "lead", "officer", "supervisor", "desk", "team", "privacy"}
 
 
 def strip_provenance_suffix(text: str) -> str:
@@ -104,21 +105,65 @@ def extract_content_terms(text: str) -> set[str]:
     }
 
 
+def _focused_expected_answer(question: str, answer: str) -> str:
+    """Drop unrelated rows from legacy table/record-shaped expected answers."""
+    if "|" not in answer and not (answer.count("{") >= 2 and answer.count("}") >= 2):
+        return answer
+    question_lower = question.lower()
+    rows = [line.strip() for line in answer.splitlines() if "|" in line]
+    anchors = re.findall(r"\b(?:[a-z]{2,}[-_]\d+|[a-z]{2,}\d+|\d{4}-\d{2}-\d{2})\b", question_lower)
+    anchors += [term for term in re.findall(r"\b[a-z]{4,}\b", question_lower)
+                if term not in _CONTENT_STOPWORDS]
+    selected = [row for row in rows if any(anchor in row.lower() for anchor in anchors)]
+    if selected:
+        return "\n".join(selected)
+    objects = re.findall(r"\{[^{}]*\}", answer, re.DOTALL)
+    selected_objects = [obj for obj in objects if any(anchor in obj.lower() for anchor in anchors)]
+    if selected_objects:
+        return "\n".join(selected_objects)
+    # A table with no row matching the question is malformed as an expected
+    # answer; retain its header only so it cannot impose unrelated entities.
+    # No matching record means the legacy target is not question-focused.
+    return "" if rows or objects else answer
+
+
+def _normalise_phrase(text: str) -> str:
+    return re.sub(r"\s+", " ", text.lower()).strip().removeprefix("the ")
+
+
 def score_source_grounded(
-    *, correct_answer: str, model_answer: str,
+    *, question: str = "", correct_answer: str, model_answer: str,
 ) -> StrictScore | None:
     """Require facts and meaningful content coverage for source-grounded answers."""
-    expected = extract_critical_facts(correct_answer)
+    correct_answer = _focused_expected_answer(question, correct_answer)
+    question_facts = extract_critical_facts(question)
+    expected = extract_critical_facts(correct_answer) - question_facts
+    expected = {
+        fact for fact in expected
+        if not (re.search(r"[a-z]-\d+|[a-z]{2,}-\d+", fact)
+                and fact not in question_facts)
+    }
     actual = extract_critical_facts(model_answer)
     missing_facts = expected - actual
-    expected_terms = extract_content_terms(correct_answer)
+    expected_terms = extract_content_terms(correct_answer) - extract_content_terms(question)
     actual_terms = extract_content_terms(model_answer)
+    identity_query = not question or bool(re.search(
+        r"\b(?:who|owner|contact|reviewer|responsible|supervisor)\b", question, re.IGNORECASE
+    ))
     expected_entities = {
         entity.lower() for entity in _NAMED_ENTITY.findall(correct_answer)
+    } if identity_query else set()
+    question_phrase = _normalise_phrase(question)
+    expected_entities = {
+        entity for entity in expected_entities
+        if _normalise_phrase(entity) not in question_phrase
+        and not any(word in _normalise_phrase(entity).split() for word in _ROLE_WORDS)
     }
     actual_lower = strip_provenance_suffix(model_answer).lower()
+    actual_phrase = _normalise_phrase(actual_lower)
     missing_entities = {
-        entity for entity in expected_entities if entity not in actual_lower
+        entity for entity in expected_entities
+        if _normalise_phrase(entity) not in actual_phrase
     }
     expected_rejection = bool(re.search(r"\b(?:not approved|rejected|denied)\b", correct_answer, re.IGNORECASE))
     contradictory_approval = expected_rejection and bool(
@@ -131,14 +176,14 @@ def score_source_grounded(
             validity="valid", reasoning=f"missing or contradictory source anchors: {', '.join(missing)}",
         )
     missing_terms = expected_terms - actual_terms
-    if not missing_facts and not missing_terms:
+    term_ratio = len(expected_terms & actual_terms) / max(1, len(expected_terms))
+    if not missing_facts and (not missing_terms or (question and term_ratio >= 0.35)):
         return StrictScore(
             verdict="pass", scoring_method="source_critical_facts",
             validity="valid", reasoning="all critical facts and content anchors are present",
         )
     matched_facts = len(expected & actual)
     matched = matched_facts + len(expected_terms & actual_terms)
-    term_ratio = len(expected_terms & actual_terms) / max(1, len(expected_terms))
     verdict: Verdict = "partial" if matched else "fail"
     if term_ratio < 0.35 and not matched_facts:
         verdict = "fail"

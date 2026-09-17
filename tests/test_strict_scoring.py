@@ -197,3 +197,46 @@ def test_source_grounded_scoring_accepts_number_words() -> None:
     )
     assert score is not None
     assert score.verdict == "pass"
+
+
+def test_source_grounded_ignores_unrelated_rows_in_legacy_table_answer() -> None:
+    score = score_source_grounded(
+        question="Who is the recorded owner of risk RK-04?",
+        correct_answer=(
+            "risk_id | owner\n--- | ---\n"
+            "RK-01 | Pavel Novak\nRK-04 | Elian Mertens"
+        ),
+        model_answer="Elian Mertens is the owner of risk RK-04.",
+    )
+    assert score is not None
+    assert score.verdict == "pass"
+
+
+def test_source_grounded_table_focus_still_rejects_wrong_owner() -> None:
+    score = score_source_grounded(
+        question="Who is the recorded owner of risk RK-04?",
+        correct_answer="risk_id | owner\n--- | ---\nRK-04 | Elian Mertens",
+        model_answer="Nadiya Petrov is the owner of risk RK-04.",
+    )
+    assert score is not None
+    assert score.verdict == "fail"
+
+
+def test_question_supplied_identifier_is_not_required_in_answer() -> None:
+    score = score_source_grounded(
+        question="What is the approval status of CR-77?",
+        correct_answer="CR-77 is not approved.",
+        model_answer="The request is not approved.",
+    )
+    assert score is not None
+    assert score.verdict == "pass"
+
+
+def test_question_aware_scoring_still_rejects_wrong_date() -> None:
+    score = score_source_grounded(
+        question="When is the review scheduled?",
+        correct_answer="The review is scheduled for 2026-10-05.",
+        model_answer="The review is scheduled for 2026-11-15.",
+    )
+    assert score is not None
+    assert score.verdict == "fail"
