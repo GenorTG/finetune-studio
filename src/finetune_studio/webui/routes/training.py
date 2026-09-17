@@ -443,8 +443,8 @@ async def start_training(request: Request):
             finished = _time.time()
             update["finished_at"] = finished
             update["duration"] = max(0.0, finished - run_started_at)
-            if state.loss:
-                update["final_loss"] = state.loss
+            if state.final_loss is not None:
+                update["final_loss"] = state.final_loss
             update["metrics"] = {
                 "total_steps": state.total_steps,
                 "current_step": state.current_step,

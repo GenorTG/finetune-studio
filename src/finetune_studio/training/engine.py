@@ -144,6 +144,7 @@ class TrainingState:
     current_step: int = 0
     total_steps: int = 0
     loss: float = 0.0
+    final_loss: float | None = None
     learning_rate: float = 0.0
     epoch: float = 0.0
     elapsed: float = 0.0
@@ -617,6 +618,7 @@ class TrainingEngine:
                 if logs:
                     engine.state.current_step = state.global_step
                     engine.state.loss = round(logs.get("loss", 0), 4)
+                    engine.state.final_loss = engine.state.loss
                     engine.state.learning_rate = round(logs.get("learning_rate", 0), 8)
                     engine.state.epoch = round(state.epoch or 0, 2)
                     engine.state.elapsed = round(time.time() - start_time, 1)
@@ -752,6 +754,7 @@ class TrainingEngine:
                 if logs:
                     engine.state.current_step = state.global_step
                     engine.state.loss = round(logs.get("loss", 0), 4)
+                    engine.state.final_loss = engine.state.loss
                     engine.state.learning_rate = round(logs.get("learning_rate", 0), 8)
                     engine.state.epoch = round(state.epoch or 0, 2)
                     engine.state.elapsed = round(time.time() - start_time, 1)

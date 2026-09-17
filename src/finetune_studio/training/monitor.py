@@ -37,6 +37,7 @@ def training_snapshot(engine: Any) -> dict[str, Any]:
         "current_step": s.current_step,
         "total_steps": s.total_steps,
         "loss": s.loss,
+        "final_loss": s.final_loss,
         "learning_rate": s.learning_rate,
         "epoch": s.epoch,
         "elapsed": s.elapsed,

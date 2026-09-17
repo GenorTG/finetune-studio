@@ -79,6 +79,8 @@ def _on_training_update(state):
             pass
     if state.status == "done":
         fields["finished_at"] = now
+        if state.final_loss is not None:
+            fields["final_loss"] = state.final_loss
         if cfg_dir_abs:
             fields["output_path"] = cfg_dir_abs
         # Soft post-train failures (merge/GGUF) leave status=done but set error.
