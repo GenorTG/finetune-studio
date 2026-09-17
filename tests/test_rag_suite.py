@@ -91,6 +91,11 @@ def test_build_grounded_messages_mentions_unknown_fallback() -> None:
     assert "chunk about RK-04" in msgs[1]["content"]
 
 
+def test_build_grounded_messages_warns_against_variance_for_table_totals() -> None:
+    msgs = build_grounded_messages("What is the total actual_hours?", "actual_hours | variance_hours")
+    assert "not a variance" in msgs[0]["content"]
+
+
 def test_hit_matches_source_and_chunk() -> None:
     hit = {
         "document_id": "doc-rk04",

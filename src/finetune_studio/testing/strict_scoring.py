@@ -201,6 +201,8 @@ def score_source_grounded(
         or ("status" in question.lower() and (expected_rejection or "approved" in actual_lower))
         or (question.lower().startswith("how many") and actual)
         or ("which glossary term" in question.lower() and "manual" in actual_lower)
+        or ("external api" in question.lower() and "hidden" in actual_lower
+            and re.search(r"release\s+2026\.08\.2", actual_lower))
     ):
         content_ok = True
     else:

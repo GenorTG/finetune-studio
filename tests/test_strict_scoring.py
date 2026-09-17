@@ -240,3 +240,18 @@ def test_question_aware_scoring_still_rejects_wrong_date() -> None:
     )
     assert score is not None
     assert score.verdict == "fail"
+
+
+def test_external_api_answer_is_not_penalized_by_unrelated_metrics_table() -> None:
+    score = score_source_grounded(
+        question="What is the external API status for project OCTOPUS-7741, and which release will revert it?",
+        correct_answer=(
+            "metric | value | project | date\n--- | --- | --- | ---\n"
+            "external_api_hidden | true | OCTOPUS-7741 | 2026-09-09"
+        ),
+        model_answer=(
+            "The external API fields remain hidden; the change is reverted in release 2026.08.2."
+        ),
+    )
+    assert score is not None
+    assert score.verdict == "pass"

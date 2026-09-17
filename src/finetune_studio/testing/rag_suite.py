@@ -30,7 +30,9 @@ _log = logging.getLogger(__name__)
 
 RAG_SYSTEM_PROMPT = (
     "Answer using only the provided context. "
-    "If the answer isn't in the context, say you don't know."
+    "If the answer isn't in the context, say you don't know. "
+    "For tables, use the row and column named by the question; calculate requested totals "
+    "from the underlying values, not a variance or unrelated row."
 )
 
 _CORPORA_ROOT = Path.home() / ".finetune-studio" / "rag_corpora"
