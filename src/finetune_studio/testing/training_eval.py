@@ -124,6 +124,8 @@ def cases_from_training_jsonl(
                     correct_answer=answer,
                     category=category,
                     context=judge_hint,
+                    source_id=str(example.get("source_id") or ""),
+                    chunk_idx=int(example.get("chunk_idx") or 0),
                 )
             )
 

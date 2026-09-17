@@ -54,6 +54,22 @@ def test_cases_from_training_jsonl_sharegpt(tmp_path: Path) -> None:
     assert "Paris" in cases[1].correct_answer
 
 
+def test_cases_preserve_source_provenance(tmp_path: Path) -> None:
+    p = tmp_path / "provenance.jsonl"
+    p.write_text(json.dumps({
+        "conversations": [
+            {"from": "human", "value": "When?"},
+            {"from": "gpt", "value": "2026-10-05"},
+        ],
+        "source_id": "review.md",
+        "chunk_idx": 1,
+    }) + "\n", encoding="utf-8")
+    cases, skipped = cases_from_training_jsonl(str(p), max_cases=10)
+    assert skipped == 0
+    assert cases[0].source_id == "review.md"
+    assert cases[0].chunk_idx == 1
+
+
 def test_heldout_eval_is_deterministic_and_excludes_training_slice(
     isolated_db: Path, tmp_path: Path
 ) -> None:
