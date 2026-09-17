@@ -159,6 +159,9 @@ def test_evaluate_training_api_returns_per_case_table(
     assert len(body["results"]) == 2
     assert "verdict" in body["results"][0]
     assert "model_answer" in body["results"][0]
+    assert "transcript" in body["results"][0]
+    assert "source_id" in body["results"][0]
+    assert "chunk_idx" in body["results"][0]
     assert body["scores"]["judged"] >= 1
 
 

@@ -275,6 +275,10 @@ async def evaluate_training_dataset(request: Request):
                 "judge_reasoning": r.judge_reasoning,
                 "scoring_method": r.scoring_method,
                 "validity": r.validity,
+                "source_id": r.source_id,
+                "chunk_idx": r.chunk_idx,
+                "keywords": list(r.keywords),
+                "transcript": list(r.transcript),
                 "time_ms": r.time_ms,
                 "error": r.error,
             }

@@ -121,7 +121,16 @@ def test_source_grounded_open_answer_rejects_wrong_named_contact() -> None:
         model_answer="Mira Varga is the Rotterdam maintenance contact.",
     )
     assert s is not None
-    assert s.verdict in {"fail", "partial"}
+    assert s.verdict == "fail"
+
+
+def test_source_grounded_rejects_contradictory_approval_state() -> None:
+    s = score_source_grounded(
+        correct_answer="The request is not approved. Operations rejected it because carrier rate limits are unknown.",
+        model_answer="CR-77 is approved pending a carrier scan.",
+    )
+    assert s is not None
+    assert s.verdict == "fail"
 
 
 def test_apply_heuristic_records_scoring_metadata() -> None:

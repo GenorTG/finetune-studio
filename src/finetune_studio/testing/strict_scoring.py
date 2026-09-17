@@ -75,6 +75,7 @@ _CONTENT_STOPWORDS = {
     "to", "was", "what", "when", "where", "which", "who", "with", "why",
     "percent",
 }
+_NAMED_ENTITY = re.compile(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b|\b[A-Z]{2,}[-_]\d+\b|\b[A-Z]-\d+\b")
 
 
 def strip_provenance_suffix(text: str) -> str:
@@ -112,6 +113,23 @@ def score_source_grounded(
     missing_facts = expected - actual
     expected_terms = extract_content_terms(correct_answer)
     actual_terms = extract_content_terms(model_answer)
+    expected_entities = {
+        entity.lower() for entity in _NAMED_ENTITY.findall(correct_answer)
+    }
+    actual_lower = strip_provenance_suffix(model_answer).lower()
+    missing_entities = {
+        entity for entity in expected_entities if entity not in actual_lower
+    }
+    expected_rejection = bool(re.search(r"\b(?:not approved|rejected|denied)\b", correct_answer, re.IGNORECASE))
+    contradictory_approval = expected_rejection and bool(
+        re.search(r"\bapproved\b", model_answer, re.IGNORECASE)
+    ) and not bool(re.search(r"\bnot approved\b|\brejected\b|\bdenied\b", model_answer, re.IGNORECASE))
+    if missing_entities or contradictory_approval:
+        missing = sorted(missing_entities or {"expected rejection/approval state"})
+        return StrictScore(
+            verdict="fail", scoring_method="source_critical_facts",
+            validity="valid", reasoning=f"missing or contradictory source anchors: {', '.join(missing)}",
+        )
     missing_terms = expected_terms - actual_terms
     if not missing_facts and not missing_terms:
         return StrictScore(
@@ -120,7 +138,10 @@ def score_source_grounded(
         )
     matched_facts = len(expected & actual)
     matched = matched_facts + len(expected_terms & actual_terms)
+    term_ratio = len(expected_terms & actual_terms) / max(1, len(expected_terms))
     verdict: Verdict = "partial" if matched else "fail"
+    if term_ratio < 0.35 and not matched_facts:
+        verdict = "fail"
     if expected and missing_facts and matched_facts == 0:
         verdict = "fail"
     missing = sorted(missing_facts | missing_terms)
