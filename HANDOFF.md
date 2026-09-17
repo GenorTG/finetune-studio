@@ -7,11 +7,12 @@ Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :786
 Ship held-out quality + WebUI evidence that an outside reviewer can't dispute:
 real root-cause fixes, real fan-dragon verification, no fake greens.
 
-## State (verified 2026-09-17 20:45 CEST)
+## State (verified 2026-09-17 21:10 CEST)
 | Area | Status |
 |------|--------|
 | Source-disjoint gap | Fine-tune alone **0/52** strict — needs retrieval grounding |
 | **RAG-grounded API** | Committed `6653d31` — `testing/rag_suite.py` + `POST /api/testing/run-rag-suite` |
+| **RAG benchmark persistence** | `8a68755`; live benchmark `9050d067` stores explicit Q8 path, transcript, retrieval provenance; audit **1/1 pass, 0 disagreements** |
 | **RAG-grounded UI** | Testing card `#t-rag-card` → **Run with RAG** |
 | **Full ingested corpus** | `testing/full_corpus_suite.py` + `discover_suites(pid)` hook; all approved source-grounded QA pairs |
 | **Full-corpus live result** | 246/246 judged: **230 pass / 16 partial / 0 fail**, weighted **96.7%** at top_k=5 after question-focused scoring and table arithmetic retry |
@@ -48,7 +49,7 @@ real root-cause fixes, real fan-dragon verification, no fake greens.
 ```
 
 ## Next steps
-1. Persist the final full-corpus RAG run as a benchmark row with artifact path and raw transcript.
+1. Persist the final 246-case RAG run as a benchmark row using the live persistence path; retain its raw transcript and audit URL.
 2. Investigate the remaining 16 partial cases against parsed-source evidence; do not turn partials into passes without fact coverage.
 3. Close the final retrieval miss by improving query/source matching, then rerun the full suite.
 4. Keep browser QA green (70/70).
