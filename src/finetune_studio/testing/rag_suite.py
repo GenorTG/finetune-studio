@@ -268,6 +268,19 @@ def run_rag_suite(
         context = ""
         try:
             hits_raw = list(rag_query.search(case.question, top_k=top_k) or [])
+            if case.source_id and not any(
+                hit_matches_source(hit, case.source_id, case.chunk_idx) for hit in hits_raw
+            ):
+                # A precise source-aware retry recovers short questions whose
+                # first lexical/vector pass is crowded out by distractors.
+                expanded_hits = list(rag_query.search(
+                    case.question, top_k=max(20, top_k * 2)
+                ) or [])
+                if any(
+                    hit_matches_source(hit, case.source_id, case.chunk_idx)
+                    for hit in expanded_hits
+                ):
+                    hits_raw = expanded_hits
             provenance = [provenance_from_hit(h) for h in hits_raw]
             context = rag_query.format_context(hits_raw, max_chars=max_context_chars)
             messages = build_grounded_messages(case.question, context)

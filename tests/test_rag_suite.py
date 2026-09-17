@@ -206,6 +206,25 @@ def test_run_rag_suite_preserves_transcript_context_hits() -> None:
     assert rag.search_calls == [(question, 3)]
 
 
+def test_run_rag_suite_expands_retrieval_when_source_is_missing() -> None:
+    class ExpandingRag(FakeRag):
+        def search(self, query: str, top_k: int = 5) -> list[dict]:
+            self.search_calls.append((query, top_k))
+            if top_k >= 20:
+                return [{"document_id": "source-b", "chunk_index": 0, "text": "answer"}]
+            return []
+
+    rag = ExpandingRag()
+    engine = FakeEngine(answer="answer")
+    case = BenchmarkCase(
+        name="expand", category="qa", question="question", correct_answer="answer",
+        source_id="source-b",
+    )
+    results = run_rag_suite(engine, rag, [case], top_k=5)
+    assert results[0].retrieval_hit is True
+    assert rag.search_calls == [("question", 5), ("question", 20)]
+
+
 def test_run_rag_suite_evaluation_scores_and_metrics(tmp_path: Path) -> None:
     suite = [
         {
