@@ -93,16 +93,21 @@ def _scan_run_models(runs: list[dict]) -> list[dict]:
                 created = os.path.getmtime(path)
             except OSError:
                 continue
-            model_path = path
+            model_paths = [path]
             if fmt == "gguf":
-                gguf_files = sorted(
-                    name for name in os.listdir(path) if name.endswith(".gguf")
-                )
-                if not gguf_files:
+                model_paths = [
+                    os.path.join(path, name)
+                    for name in sorted(os.listdir(path))
+                    if name.endswith(".gguf")
+                ]
+                if not model_paths:
                     continue
-                model_path = os.path.join(path, gguf_files[0])
-            models.append({
-                "name": f"{run.get('name') or run.get('id', '')}/{subdir}",
+            for model_path in model_paths:
+                model_name = f"{run.get('name') or run.get('id', '')}/{subdir}"
+                if fmt == "gguf":
+                    model_name += f"/{os.path.basename(model_path)}"
+                models.append({
+                "name": model_name,
                 "format": fmt,
                 "size_gb": (
                     round(os.path.getsize(model_path) / (1024 ** 3), 2)
