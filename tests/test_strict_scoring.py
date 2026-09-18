@@ -199,6 +199,62 @@ def test_source_grounded_scoring_accepts_number_words() -> None:
     assert score.verdict == "pass"
 
 
+def test_source_grounded_scoring_accepts_plural_zero_word() -> None:
+    score = score_source_grounded(
+        question="What changed for SKU values?",
+        correct_answer="A leading zero is now preserved in SKU values.",
+        model_answer="Leading zeros are now preserved in SKU values.",
+    )
+    assert score is not None
+    assert score.verdict == "pass"
+
+
+def test_source_grounded_does_not_require_unasked_date_or_site() -> None:
+    lane = score_source_grounded(
+        question="Which lane was activated when C-17 stopped?",
+        correct_answer="Lane C-12 was activated on 2026-08-04 at Rotterdam.",
+        model_answer="Lane C-12 was activated.",
+    )
+    case = score_source_grounded(
+        question="What is the case identifier and what did the customer report?",
+        correct_answer="Case CS-491 reported a missing parcel on 2026-08-09.",
+        model_answer="The case is CS-491 and the customer reported a missing parcel.",
+    )
+    assert lane is not None and lane.verdict == "pass"
+    assert case is not None and case.verdict == "pass"
+
+
+def test_source_grounded_still_requires_date_when_question_asks_when() -> None:
+    score = score_source_grounded(
+        question="When was C-17 restored?",
+        correct_answer="C-17 was restored on 2026-08-04 at 10:18.",
+        model_answer="C-17 was restored at 10:18.",
+    )
+    assert score is not None
+    assert score.verdict == "partial"
+
+
+def test_source_grounded_purpose_answer_can_be_concise() -> None:
+    precise = score_source_grounded(
+        question="What is the purpose of including the scanner identifier?",
+        correct_answer=(
+            "The scanner identifier is one required field and provides traceability "
+            "of which scanner produced the failed read."
+        ),
+        model_answer="It helps trace which scanner produced the exception.",
+    )
+    vague = score_source_grounded(
+        question="What is the overall purpose of the Customer Communication Guide?",
+        correct_answer=(
+            "It provides a standard for known facts, checks, update timing, refunds, "
+            "card numbers, and escalation to the duty manager."
+        ),
+        model_answer="The guide provides a standard for communicating with customers about delays.",
+    )
+    assert precise is not None and precise.verdict == "pass"
+    assert vague is not None and vague.verdict == "partial"
+
+
 def test_source_grounded_ignores_unrelated_rows_in_legacy_table_answer() -> None:
     score = score_source_grounded(
         question="Who is the recorded owner of risk RK-04?",

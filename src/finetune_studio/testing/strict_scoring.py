@@ -77,6 +77,7 @@ _CONTENT_STOPWORDS = {
 }
 _NAMED_ENTITY = re.compile(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b|\b[A-Z]{2,}[-_]\d+\b|\b[A-Z]-\d+\b")
 _ROLE_WORDS = {"director", "control", "lead", "officer", "supervisor", "desk", "team", "privacy", "manager"}
+_CONTENT_TERM_ALIASES = {"traceability": "trace"}
 
 
 def strip_provenance_suffix(text: str) -> str:
@@ -88,6 +89,7 @@ def extract_critical_facts(text: str) -> set[str]:
     """Extract dates, times, IDs, percentages, and explicit numeric facts."""
     cleaned = strip_provenance_suffix(text).lower()
     cleaned = re.sub(r"(\d+(?:\.\d+)?)\s+percent(?:age)?\b", r"\1%", cleaned)
+    cleaned = re.sub(r"\bzero(?:es|s)\b", "0", cleaned)
     for word, number in _NUMBER_WORDS.items():
         cleaned = re.sub(rf"\b{re.escape(word)}\b", number, cleaned)
     return {
@@ -100,7 +102,8 @@ def extract_content_terms(text: str) -> set[str]:
     """Return meaningful lexical anchors for source-grounded open answers."""
     cleaned = strip_provenance_suffix(text).lower()
     return {
-        term for term in re.findall(r"[a-z][a-z0-9'-]{3,}", cleaned)
+        _CONTENT_TERM_ALIASES.get(term, term)
+        for term in re.findall(r"[a-z][a-z0-9'-]{3,}", cleaned)
         if term not in _CONTENT_STOPWORDS
     }
 
@@ -138,6 +141,14 @@ def _normalise_phrase(text: str) -> str:
     return re.sub(r"\s+", " ", text.lower()).strip().removeprefix("the ")
 
 
+def _question_requests_date(question: str) -> bool:
+    q = question.strip().lower()
+    return bool(re.search(
+        r"^when\b|\bon what date\b|\b(?:what|which) date\b|\bdate (?:is|was|did)\b",
+        q,
+    ))
+
+
 def score_source_grounded(
     *, question: str = "", correct_answer: str, model_answer: str,
 ) -> StrictScore | None:
@@ -146,6 +157,17 @@ def score_source_grounded(
     correct_answer = _focused_expected_answer(question, correct_answer)
     question_facts = extract_critical_facts(question)
     expected = extract_critical_facts(correct_answer) - question_facts
+    if question and not _question_requests_date(question):
+        expected = {
+            fact for fact in expected
+            if not re.fullmatch(r"\d{4}[-/]\d{1,2}[-/]\d{1,2}", fact)
+        }
+    purpose_query = "purpose" in question.lower()
+    if purpose_query:
+        expected = {
+            fact for fact in expected
+            if not re.fullmatch(r"[-+]?\d+(?:\.\d+)?%?", fact)
+        }
     expected = {
         fact for fact in expected
         if not (re.search(r"[a-z]-\d+|[a-z]{2,}-\d+", fact)
@@ -198,7 +220,9 @@ def score_source_grounded(
     term_ratio = len(expected_terms & actual_terms) / max(1, len(expected_terms))
     expected_negative = bool(re.search(r"\b(?:false|did not|no|not)\b", correct_answer, re.IGNORECASE))
     model_negative = bool(re.search(r"\b(?:false|did not|no|not)\b", model_answer, re.IGNORECASE))
-    if (
+    if purpose_query:
+        content_ok = term_ratio >= 0.25
+    elif (
         (expected_negative and model_negative and not missing_entities)
         or (identity_query and question)
         or ("status" in question.lower() and (expected_rejection or "approved" in actual_lower))
@@ -221,7 +245,7 @@ def score_source_grounded(
     matched_facts = len(expected & actual)
     matched = matched_facts + len(expected_terms & actual_terms)
     verdict: Verdict = "partial" if matched else "fail"
-    if term_ratio < 0.35 and not matched_facts:
+    if term_ratio < 0.35 and not matched_facts and not (purpose_query and matched):
         verdict = "fail"
     if expected and missing_facts and matched_facts == 0:
         verdict = "fail"
