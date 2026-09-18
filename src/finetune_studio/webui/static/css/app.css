@@ -4398,7 +4398,19 @@ body::before {
 #bench-run-table {
   table-layout: fixed;
   width: 100%;
-  min-width: 44rem;
+  /* Run name is the biggest hog — keep it compact so the actions column
+     fits at realistic widths instead of demanding a 790px h-scroll. */
+  min-width: 36rem;
+}
+#bench-run-table th:first-child,
+#bench-run-table td:first-child {
+  width: 13rem;
+}
+#bench-run-table td:first-child .mono {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 #bench-run-table .bench-actions-cell { min-width: 16rem; }
 .bench-run-form {
@@ -4514,7 +4526,7 @@ body::before {
   #models-table { min-width: 40rem; width: max-content; }
   #models-index-table { min-width: 52rem; width: max-content; }
   #trained-exports-table { min-width: 56rem; width: max-content; }
-  #bench-run-table { min-width: 44rem; width: max-content; }
+  #bench-run-table { min-width: 40rem; width: max-content; }
   .case-results-table { min-width: 48rem; }
 
   .page-head.row .actions,

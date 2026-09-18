@@ -1762,9 +1762,20 @@ async function dpExportApproved() {
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
     await dpRefreshExportedDatasets();
     dpBridgeStatus(
-      'Exported ' + approved + ' approved pair(s) into project datasets. Open Training → “From this project” to select it, or review the JSONL in Data Editor.',
+      'Exported ' + approved + ' approved pair(s) into project datasets. Select it in Training → “From this project”, or review the JSONL in Data Editor.',
       'success'
     );
+    // Make the next step un-missable: CTA row attached to the exported-datasets panel.
+    var panel = document.getElementById('dp-exported-datasets');
+    if (panel && !panel.hidden && !document.getElementById('dp-post-export-cta')) {
+      var cta = document.createElement('div');
+      cta.id = 'dp-post-export-cta';
+      cta.className = 'dp-ds-row';
+      cta.style.marginTop = '8px';
+      cta.innerHTML = '<span class="text-xs dim">Next step: configure a run</span>' +
+        '<a class="btn sm primary" href="/projects/' + encodeURIComponent(_prepPid) + '/training?dataset=latest" data-link>Start training with this dataset →</a>';
+      panel.appendChild(cta);
+    }
   } catch (e) {
     dpBridgeStatus('Export failed: ' + ((e && e.message) || e), 'error');
   }

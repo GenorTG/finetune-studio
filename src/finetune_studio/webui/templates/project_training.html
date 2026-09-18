@@ -364,6 +364,16 @@
   }
   syncStartEnabled();
 
+  // Deep-link from Data Prep post-export CTA: /training?dataset=latest
+  // Prefills the newest registered dataset so one click lands ready-to-run.
+  (function prefillDatasetFromQuery() {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      if (q.get("dataset") !== "latest" || !select || !select.options.length) return;
+      if (select.options.length > 1) { select.selectedIndex = 1; select.dispatchEvent(new Event("change")); }
+    } catch (_) {}
+  })();
+
   // Picking a project dataset fills both hidden fields.
   if (select) {
     select.addEventListener("change", () => {
