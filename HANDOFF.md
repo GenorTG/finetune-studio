@@ -7,43 +7,38 @@ Edit on genorbox1 → push → fan-dragon runs `finetune-studio.service` on :786
 Make the studio show all real activity and keep training/RAG/testing quality
 honest — real root-cause fixes, real fan-dragon verification, no fake greens.
 
-## State (verified 2026-09-17 20:30 CEST)
+## State (verified 2026-09-18 08:30 CEST · commit cf6e703)
+
 | Area | Status |
 |------|--------|
-| **Activity feed** | `b573758` deployed — `collect_activity()` merges live in-memory progress with persisted history from every durable table (training, benchmark, data_prep, rag, export, hf download, system_update). Was 1 ephemeral row → now 15 real tasks on fan-dragon |
-| **Operation log** | Durable `activity_events` plus HTTP middleware records every mutating API operation (upload/OCR, training, RAG, testing, benchmark, export, model/provider, settings/update); feed renders operation kind, status, project, and route |
-| **Training E2E** | Fan Dragon run `43cb2fbf` via `/api/training/start`: 246 rows, 6 epochs, Unsloth, rank 64/alpha 128, LR 2e-4, batch 2 × accumulation 4, seq 2048, 168/168 steps, final_loss 0.1319; merged + Q8 artifacts; same 10-case training probe 10/10. A 2-epoch standard run `34a071ff` only scored 5/10 and final_loss 1.1286, so it is not an acceptable quality preset for this corpus. |
-| **Secondary judge** | `secondary_local` loads a separate local model only after transcripts exist, judges each transcript, unloads it, and stores verdict/reasoning/confidence under `judge_input.secondary_judge`; source-grounded verdicts and audit scores remain unchanged. Live proof: benchmark `9050d067`, 1/1 secondary pass, primary audit still passed. |
-| Activity dedup | Live rows win by `run_id`/`id`; live training uses the bare db run id (not the `{pid}-{id}` composite) so it collapses with its persisted row |
-| Activity cap | 60-row window, **live rows never evicted** (fixed a regression where stale persisted active rows could hide a running task) |
-| Activity badge | Persisted running/queued counted only if recent (<2h) or live — no forever-spinning badge from interrupted runs |
-| New feed kinds | `benchmark` (✚), `export` (⇪), `system_update` (⟳) in `activity.js`; type-filter values fixed in `base.html` (`rag`→`rag_build`/`rag_ready`, added export/system_update) |
-| **Test isolation** | conftest `temp_db` now patches `db.connection.settings` (not just `config.settings`) — tests were writing to the real dev DB (6.7k junk projects accumulated). Full suite **917 passed, 0 failed** |
-| WebUI verified | Screenshots: benchmark + training kinds render with badges, type-filter works, expand panel shows loss/project/progress/GO-TO |
-| Recovered CSS | fan-dragon-only commit `12fde89` (mid-desktop nav padding) re-applied on genorbox1 (`b3090c6`) so deploy fast-forwards clean |
+| **Activity feed** | 34 tasks on fan-dragon; all subsystems tracked (training, benchmark, export, data_prep, rag_build, hf_download, system_update, operation middleware) |
+| **Startup reconciliation** | On restart, stale `queued`/`running` rows across all 5 durable tables are marked `failed`: training_runs, system_updates, data_prep_runs, rag_corpora, model_exports (cf6e703) |
+| **Event loop** | All blocking GPU/inference routes use `asyncio.to_thread`: benchmarks `_execute_benchmark`, `judge_benchmark`; testing `load_model`, `chat`, `run_test_suite`; RAG `rag_rebuild` (ac84053 + 4b550be) |
+| **Benchmark judging** | Heuristic judging runs inline; all cases get verdicts. RAG benchmarks: 93-100% pass; held-out: 17-26%; source-disjoint run: 0% (training quality, not a bug) |
+| **RAG corpora tracking** | `rag_rebuild` now creates `rag_corpora` rows with running/done/failed lifecycle; 36 docs/36 chunks confirmed via API (4b550be) |
+| **Theme toggle** | Light/dark toggle confirmed working; `data-theme` attribute swap + localStorage persistence |
+| **Tests** | 922 passed, 0 failed (genorbox1; 37 GPU-only in test_vram_profiler.py skip) |
 
 ## Next steps
-1. WebUI quality sweep of training surface — inspect run `43cb2fbf` in `/projects/<pid>/training`, including the saved settings, loss, artifacts, and activity row.
-2. RAG build/chat surface — trigger a build, confirm `rag_build`→`rag_ready` transition shows in the feed with doc/chunk counts.
-3. Testing/benchmarks surface — run a suite, confirm per-case table (not raw JSON) and that the run appears as a `benchmark` activity row.
-4. Prune the dev DB junk on genorbox1 if desired (6.7k test-`P`/`E`/`R` projects) — `data/finetune_studio.db` is gitignored runtime.
-5. Consider reconciling stale persisted `queued`/`running` rows for exports/data_prep/rag on startup (training already does via `reconcile_stale_runs`).
-6. Use the Benchmarks “Secondary transcript judge” action with a local judge path when an independent semantic review is needed; it annotates cases without replacing the source-grounded score.
+1. Training quality: source-disjoint run scored 0% — the augmented dataset run `8b1dd006` scored 93-100% on RAG but only 17-26% on held-out. Consider a longer training run (200+ optimizer steps) on a merged augmented dataset.
+2. Benchmark panel: "Dataset evaluation" and "RAG-grounded suite" cards in testing page — verify end-to-end with a live run.
+3. Data-prep pipeline: verify the `scripts/augment_dataset.py` augmentation produces correct sharegpt format and that exporting to training works.
+4. Prune dev DB junk on genorbox1 if desired (gitignored runtime artifact: `data/finetune_studio.db`).
 
 ## Commands
-```
-# activity + isolation tests
-.venv/bin/python -m pytest tests/test_activity_feed.py tests/test_live_updates.py -v --tb=short
-# full suite (excl GPU-only vram file)
-.venv/bin/python -m pytest tests/ -q --ignore=tests/test_vram_profiler.py
-# ruff (run directly; Makefile hides failures)
-.venv/bin/python -m ruff check src/finetune_studio/webui/routes/activity.py
-# live feed smoke
-.venv/bin/python -c "from finetune_studio.webui.routes.activity import collect_activity; import collections; p=collect_activity(); print(dict(collections.Counter(t['kind'] for t in p['tasks'])))"
-# deploy: push here, then on fan-dragon
-ssh fan-dragon 'bash -c "cd /home/genortg/finetune-studio && git fetch origin -q && git reset --hard origin/main && systemctl --user restart finetune-studio"'
+```bash
+# Full test suite (genorbox1)
+make test
+# Lint (run directly; Makefile hides failures)
+.venv/bin/python -m ruff check src/
+# Deploy to fan-dragon
+git push
+ssh fan-dragon 'bash -c "cd /home/genortg/finetune-studio && git fetch origin -q && git reset --hard origin/main && systemctl --user restart finetune-studio && sleep 4 && ss -ltnp | grep 7860"'
+# Verify cgroup after restart
+ssh fan-dragon 'bash -c "ss -ltnp | grep 7860 | awk \"{print \$6}\" | grep -oP \"pid=\\K[0-9]+\" | xargs -I{} cat /proc/{}/cgroup"'
+# Check activity feed
+curl -s http://fan-dragon:7860/api/activity | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d['tasks']), 'tasks')"
 ```
 
 ## Blockers
-- Cursor ACP helper handshake times out ("Opening handshake has timed out") — implemented this work by hand instead. Re-provision before delegating larger changes.
-- fan-dragon had drifted (detached HEAD, `main` ahead 1/behind 71). Resolved by recovering the local commit + `reset --hard origin/main`; watch for future drift.
+None current.

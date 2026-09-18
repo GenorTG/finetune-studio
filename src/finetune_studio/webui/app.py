@@ -93,22 +93,46 @@ app = FastAPI(title="Finetune Studio", version="0.1.0", lifespan=lifespan)
 def _activity_kind(path: str) -> str:
     """Classify mutating API paths for the global operation feed."""
     p = path.lower()
-    if "/upload" in p or "/promote" in p or "/reprocess" in p:
-        return "upload"
+    # Model load/unload/refresh must be checked BEFORE the broader inference
+    # prefix so it does not steal those endpoints.
+    if (
+        "/models/load" in p
+        or "/models/unload" in p
+        or "/models/refresh" in p
+        or "/inference/load" in p
+        or "/inference/unload" in p
+        or "/chat-v2/load" in p
+        or "/chat-v2/unload" in p
+        or "/providers/" in p
+    ):
+        return "model_load"
+    # More specific checks so they win over the generic fallbacks below.
+    if p.startswith("/api/inference/") or p.startswith("/api/chat-v2/") or "/compare/rag/chat" in p:
+        return "inference"
+    if "/rag/build" in p or "/rag/rebuild" in p or "/rag/rebuild-vectors" in p:
+        return "rag_build"
     if "/rag/" in p and any(x in p for x in ("/chat", "/query", "/search")):
         return "rag_query"
+    if "/upload" in p or "/promote" in p or "/reprocess" in p or p.endswith("/sources"):
+        return "upload"
     if "/testing/" in p or p.endswith("/testing"):
         return "testing"
     if "/benchmark" in p or "/run-suite" in p:
         return "benchmark"
     if "/export" in p or p.endswith("/merge"):
         return "export"
-    if "/models/load" in p or "/models/unload" in p or "/providers/" in p:
-        return "model_load"
-    if "/rag/build" in p or "/rag/rebuild" in p:
-        return "rag_build"
     if "/runs" in p and p.endswith("/start"):
         return "training"
+    if p == "/api/training/start" or "/training/" in p and p.endswith("/start"):
+        return "training"
+    if p.startswith("/api/hf/"):
+        return "download"
+    if "/chat" in p and "/data-prep" in p:
+        return "data_prep"
+    if "/data-prep/" in p:
+        return "data_prep"
+    if "/system-update" in p or "/system/" in p:
+        return "system_update"
     return "operation"
 
 
