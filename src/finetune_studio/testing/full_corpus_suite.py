@@ -15,6 +15,7 @@ from typing import Any
 
 from finetune_studio.data.fs.paths import project_dir
 from finetune_studio.data.fs.qa import list_qa_pairs
+from finetune_studio.data.prep.export import deduplicate_qa_pairs
 
 FULL_CORPUS_SUITE_NAME = "full-ingested-corpus"
 FULL_CORPUS_CATEGORY = "full-corpus"
@@ -128,12 +129,25 @@ def case_from_pair(pair: dict[str, Any], *, fallback_name: str = "") -> FullCorp
     )
 
 
+def _deduplicated_pairs(pairs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Apply the same one-question/one-target contract as dataset export."""
+    usable: list[dict[str, Any]] = []
+    for pair in pairs:
+        if pair.get("status", "approved") != "approved":
+            continue
+        if not str(pair.get("source_id") or "").strip():
+            continue
+        question, answer = extract_qa_text(pair)
+        if question and answer:
+            usable.append({**pair, "question": question, "answer": answer})
+    return deduplicate_qa_pairs(usable)
+
+
 def cases_from_approved_pairs(project_id: str) -> list[FullCorpusCase]:
     """Collect typed cases from every usable approved pair in the project."""
     cases: list[FullCorpusCase] = []
-    for pair in list_qa_pairs(project_id):
-        if not isinstance(pair, dict):
-            continue
+    raw_pairs = [pair for pair in list_qa_pairs(project_id) if isinstance(pair, dict)]
+    for pair in _deduplicated_pairs(raw_pairs):
         case = case_from_pair(pair)
         if case is not None:
             cases.append(case)
@@ -144,7 +158,7 @@ def cases_from_pairs_directory(pairs_dir: Path) -> list[FullCorpusCase]:
     """Collect cases by reading ``*.json`` pair files under ``pairs_dir``."""
     if not pairs_dir.is_dir():
         return []
-    cases: list[FullCorpusCase] = []
+    pairs: list[dict[str, Any]] = []
     for pair_path in sorted(pairs_dir.glob("*.json")):
         try:
             pair = json.loads(pair_path.read_text(encoding="utf-8"))
@@ -152,7 +166,11 @@ def cases_from_pairs_directory(pairs_dir: Path) -> list[FullCorpusCase]:
             continue
         if not isinstance(pair, dict):
             continue
-        case = case_from_pair(pair, fallback_name=pair_path.stem)
+        pair.setdefault("id", pair_path.stem)
+        pairs.append(pair)
+    cases: list[FullCorpusCase] = []
+    for pair in _deduplicated_pairs(pairs):
+        case = case_from_pair(pair)
         if case is not None:
             cases.append(case)
     return cases

@@ -160,6 +160,41 @@ def test_ensure_writes_suite_and_definition(project_fs: Path) -> None:
     assert "2 cases" in definition.label()
 
 
+def test_ensure_deduplicates_questions_with_training_export_contract(
+    project_fs: Path,
+) -> None:
+    pid = "proj-dedup"
+    _write_pair(
+        project_fs,
+        pid,
+        "generated",
+        question="Who owns risk C-17?",
+        answer='{"owner":"Elena Maric","noise":"whole record"}',
+    )
+    _write_pair(
+        project_fs,
+        pid,
+        "curated",
+        question="  Who owns risk C-17? ",
+        answer="Elena Maric owns risk C-17.",
+    )
+    pairs_dir = project_fs / pid / "qa" / "pairs"
+    generated_path = pairs_dir / "generated.json"
+    generated = json.loads(generated_path.read_text(encoding="utf-8"))
+    generated["category"] = "source-grounded-augmented"
+    generated_path.write_text(json.dumps(generated), encoding="utf-8")
+    curated_path = pairs_dir / "curated.json"
+    curated = json.loads(curated_path.read_text(encoding="utf-8"))
+    curated["category"] = "source-grounded-curated"
+    curated_path.write_text(json.dumps(curated), encoding="utf-8")
+
+    result = ensure_full_corpus_suite(pid)
+    data = json.loads(result.path.read_text(encoding="utf-8"))
+
+    assert result.case_count == 1
+    assert data["cases"][0]["correct_answer"] == "Elena Maric owns risk C-17."
+
+
 def test_ensure_no_pairs_returns_none_and_clears_stale(
     project_fs: Path,
 ) -> None:
