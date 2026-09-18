@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -67,25 +68,44 @@ def _local_models() -> list[dict]:
 # ── Hub search ─────────────────────────────────────────────────────────
 
 def _search_hf(req: SearchRequest) -> list[dict]:
-    """Query the HuggingFace Hub."""
+    """Query the HuggingFace Hub.
+
+    Two surfaced bugs were fixed here:
+    1. Free-text queries like ``"qwen3 gguf"`` previously required the literal
+       string to be a substring of the repo_id, so they almost always returned
+       zero results even though the Hub search matched plenty of models.
+       We now tokenise the query and require every token to be present in the
+       repo_id (case-insensitive).
+    2. The ``pipeline_tag`` filter (``text-generation``) silently excluded
+       models tagged only ``conversational``, which is how Qwen3 chat models
+       are commonly published. When the strict filter yields zero results we
+       retry once without it so the user still sees the matches.
+    """
     from huggingface_hub import HfApi
     api = HfApi()
     sort = {"downloads": "downloads", "likes": "likes",
             "trending": "trendingScore"}.get(req.sort, "downloads")
-    try:
-        # Use the real Hub text search when a query is present — this does a
-        # proper fuzzy/full-text match server-side instead of fetching a tiny
-        # window of popular models and substring-filtering locally.
-        models = api.list_models(
-            search=req.query or None,
-            pipeline_tag=req.task or None,
-            sort=sort,
-            limit=req.limit * 2 + 10,
-        )
-        out = []
+    query_tokens = [t for t in re.split(r"\s+", (req.query or "").lower().strip()) if t]
+    def _matches(mid: str) -> bool:
+        if not query_tokens:
+            return True
+        lowered = mid.lower()
+        return all(tok in lowered for tok in query_tokens)
+    def _list_models(pipeline_tag: str | None) -> list[dict]:
+        try:
+            models = api.list_models(
+                search=req.query or None,
+                pipeline_tag=pipeline_tag or None,
+                sort=sort,
+                limit=req.limit * 4 + 20,
+            )
+        except Exception as e:  # noqa: BLE001
+            log.warning("HF list_models failed: %s", e)
+            return []
+        out: list[dict] = []
         for m in models:
             mid = m.modelId
-            if req.query and req.query.lower() not in mid.lower():
+            if not _matches(mid):
                 continue
             out.append({
                 "repo_id": mid,
@@ -98,9 +118,11 @@ def _search_hf(req: SearchRequest) -> list[dict]:
             if len(out) >= req.limit:
                 break
         return out
-    except Exception as e:  # noqa: BLE001
-        log.warning("HF search failed: %s", e)
-        return []
+    out = _list_models(req.task or None)
+    if not out and req.task:
+        # Pipeline-tag was too strict — retry without it.
+        out = _list_models(None)
+    return out
 
 
 def _model_info(repo_id: str) -> dict | None:
