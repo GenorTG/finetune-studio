@@ -266,9 +266,11 @@
           const data = Object.fromEntries(new FormData(form));
           api.post(url, data).then((d) => {
             if (d.error) notify(d.error, "error");
+            else if (d.run_id) { notify("Training started · run " + d.run_id.slice(0, 8), "success"); window.ftsActivity?.open(); }
             else notify("Done", "success");
             if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
-          }).catch((err) => notify(err.message || "Request failed", "error"));
+          })
+          .catch((err) => notify(err.message || "Request failed", "error"));
         }
       });
     });
@@ -306,8 +308,14 @@
               if (window.ftsActivity && typeof window.ftsActivity.refresh === "function") {
                 window.ftsActivity.refresh();
               }
-            }
-            else notify("Done", "success");
+            } else if (d && d.run_id) {
+              // Training start / benchmark exec — long op, name it properly
+              // (a bare "Done" after starting a 20-minute run is a lie).
+              notify("Training started · run " + String(d.run_id).slice(0, 8), "success");
+              if (window.ftsActivity && typeof window.ftsActivity.open === "function") {
+                window.ftsActivity.open();
+              }
+            } else notify("Done", "success");
             if (btn.dataset.reload === "true") setTimeout(() => location.reload(), 600);
           })
           .catch((err) => notify(err.message || "Request failed", "error"));
