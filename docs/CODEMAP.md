@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-346 files · 60728 lines
-- `finetune_studio`: 211 files, 37542 lines
-- `scripts`: 6 files, 1501 lines
-- `tests`: 129 files, 21685 lines
+350 files · 61063 lines
+- `finetune_studio`: 212 files, 37688 lines
+- `scripts`: 7 files, 1522 lines
+- `tests`: 131 files, 21853 lines
 
 
 # finetune_studio
@@ -613,15 +613,15 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `validate_qa_batch(pairs: Sequence[Mapping[str, Any]], chunk: str, *, seen_questions: set[str] |…` (L293) — Validate a list of parser outputs against one chunk.
 - `build_qa_record(*, qa_id: str, pair: PairValidation, provenance: Provenance, chunk_text: str,…` (L324) — Assemble the on-disk Q&A dict with provenance + validation stamp.
 
-## `src/finetune_studio/data/prep/runner.py` (279 lines)
-- `class PrepProgress` (L44)
-- `class DataPrepRunner` (L55)
-  - `def __init__(self, pid: str, data: bytes, filename: str, *, qa_per_chunk: int = 3, difficu…` (L56)
-  - `def cancel(self) -> None` (L74)
-  - `def _emit(self, **kw) -> None` (L77)
-  - `def run(self) -> dict` (L86)
-  - `def _run_inner(self) -> dict` (L94)
-  - imports: finetune_studio.data, finetune_studio.data.prep.generator, finetune_studio.data.prep.ingest, finetune_studio.data.prep.parsers, finetune_studio.data.prep.prompts, finetune_studio.data.prep.qa_validate, finetune_studio.data.prep.scorer
+## `src/finetune_studio/data/prep/runner.py` (287 lines)
+- `class PrepProgress` (L45)
+- `class DataPrepRunner` (L56)
+  - `def __init__(self, pid: str, data: bytes, filename: str, *, qa_per_chunk: int = 3, difficu…` (L57)
+  - `def cancel(self) -> None` (L75)
+  - `def _emit(self, **kw) -> None` (L78)
+  - `def run(self) -> dict` (L87)
+  - `def _run_inner(self) -> dict` (L95)
+  - imports: finetune_studio.data, finetune_studio.data.fs.metadata, finetune_studio.data.prep.generator, finetune_studio.data.prep.ingest, finetune_studio.data.prep.parsers, finetune_studio.data.prep.prompts, finetune_studio.data.prep.qa_validate, finetune_studio.data.prep.scorer
 
 ## `src/finetune_studio/data/prep/scorer.py` (35 lines)
 - `heuristic_score(q: str, a: str, source: str) -> float` (L16)
@@ -944,45 +944,50 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 
 ## `src/finetune_studio/models/__init__.py` (2 lines)
 
-## `src/finetune_studio/models/helper.py` (169 lines)
-- `default_helper_gguf_path() -> str` (L40) — Absolute path to the configured helper GGUF on this host.
-- `normalize_model_path(path: str | None) -> str` (L54) — Absolute normalised path for equality checks (empty if unset).
-- `paths_match(a: str | None, b: str | None) -> bool` (L65) — True when two model paths refer to the same file/dir.
-- `helper_basename(path: str | None) -> str` (L74) — Last path segment of a model path (GGUF filename or dir name).
-- `is_helper_gguf_path(path: str | None) -> bool` (L82) — True when ``path`` is the configured helper GGUF (env or default).
-- `is_helper_provider(row: dict[str, Any] | None) -> bool` (L90) — True when a provider row is the configured local helper.
-- `helper_display_label(*, name: str | None = None, model_id: str | None = None) -> str` (L99) — Human-readable helper label for UI / API (always prefixed Helper ·).
-- `annotate_provider(row: dict[str, Any]) -> dict[str, Any]` (L119) — Copy a provider dict and add ``is_helper`` + display ``label``.
-- `get_configured_helper_provider() -> dict[str, Any] | None` (L137) — Return the helper provider row from ModelManager, or None.
-- `wrong_model_message(loaded_path: str | None = None) -> str` (L151) — Error when a non-helper model is loaded for a helper-only workflow.
-- `no_helper_message() -> str` (L162) — Error when the helper is not loaded.
+## `src/finetune_studio/models/gguf_layers.py` (68 lines)
+- `is_gguf_path(model_path: str) -> bool` (L21)
+- `gguf_header_values(path: str) -> dict[str, Any]` (L25) — Return selected integer header values for ``path`` (empty on any error).
+- `resolve_block_count(model_path: str) -> dict[str, Any]` (L51) — Return ``{"block_count": int|None, "context_length": int|None}`` for a GGUF.
+
+## `src/finetune_studio/models/helper.py` (173 lines)
+- `default_helper_gguf_path() -> str` (L44) — Absolute path to the configured helper GGUF on this host.
+- `normalize_model_path(path: str | None) -> str` (L58) — Absolute normalised path for equality checks (empty if unset).
+- `paths_match(a: str | None, b: str | None) -> bool` (L69) — True when two model paths refer to the same file/dir.
+- `helper_basename(path: str | None) -> str` (L78) — Last path segment of a model path (GGUF filename or dir name).
+- `is_helper_gguf_path(path: str | None) -> bool` (L86) — True when ``path`` is the configured helper GGUF (env or default).
+- `is_helper_provider(row: dict[str, Any] | None) -> bool` (L94) — True when a provider row is the configured local helper.
+- `helper_display_label(*, name: str | None = None, model_id: str | None = None) -> str` (L103) — Human-readable helper label for UI / API (always prefixed Helper ·).
+- `annotate_provider(row: dict[str, Any]) -> dict[str, Any]` (L123) — Copy a provider dict and add ``is_helper`` + display ``label``.
+- `get_configured_helper_provider() -> dict[str, Any] | None` (L141) — Return the helper provider row from ModelManager, or None.
+- `wrong_model_message(loaded_path: str | None = None) -> str` (L155) — Error when a non-helper model is loaded for a helper-only workflow.
+- `no_helper_message() -> str` (L166) — Error when the helper is not loaded.
   - imports: finetune_studio.models.manager
 
 ## `src/finetune_studio/models/loader.py` (65 lines)
 - `load_model_info(model_path: str) -> dict` (L25)
 - `load_for_inference(model_path: str, device: str = 'auto', **kwargs)` (L50)
-- `load_gguf_inference(gguf_path: str, n_ctx: int = 4096, n_gpu_layers: int = 99)` (L62)
+- `load_gguf_inference(gguf_path: str, n_ctx: int = 4096, n_gpu_layers: int = -1)` (L62)
 
-## `src/finetune_studio/models/manager.py` (295 lines)
-- `_ensure_db() -> None` (L28)
-- `json_dumps(d: dict) -> str` (L107)
-- `json_loads(s: str) -> dict` (L112)
-- `class ModelManager` (L120)
-  - `def __init__(self)` (L128)
-  - `def list_providers(self) -> list[dict]` (L140)
-  - `def get_provider(self, pid: str) -> dict | None` (L158)
-  - `def upsert_provider(self, **kw) -> dict` (L164)
-  - `def delete_provider(self, pid: str) -> bool` (L189)
-  - `def active(self) -> dict | None` (L196)
-  - `def load(self, pid: str, extra: dict | None = None) -> dict` (L204)
-  - `def unload(self) -> None` (L254)
-  - `def _safe_unload(self) -> None` (L259)
-  - `def chat(self, messages: list[dict], **gen) -> str` (L268)
-  - `def generate(self, prompt: str, **gen) -> str` (L276)
-- `get_manager() -> ModelManager` (L290)
-  - imports: finetune_studio.models.helper, finetune_studio.models.providers
+## `src/finetune_studio/models/manager.py` (311 lines)
+- `_ensure_db() -> None` (L29)
+- `json_dumps(d: dict) -> str` (L111)
+- `json_loads(s: str) -> dict` (L116)
+- `class ModelManager` (L124)
+  - `def __init__(self)` (L132)
+  - `def list_providers(self) -> list[dict]` (L144)
+  - `def get_provider(self, pid: str) -> dict | None` (L162)
+  - `def upsert_provider(self, **kw) -> dict` (L168)
+  - `def delete_provider(self, pid: str) -> bool` (L193)
+  - `def active(self) -> dict | None` (L200)
+  - `def load(self, pid: str, extra: dict | None = None) -> dict` (L208)
+  - `def unload(self) -> None` (L270)
+  - `def _safe_unload(self) -> None` (L275)
+  - `def chat(self, messages: list[dict], **gen) -> str` (L284)
+  - `def generate(self, prompt: str, **gen) -> str` (L292)
+- `get_manager() -> ModelManager` (L306)
+  - imports: finetune_studio.models.gguf_layers, finetune_studio.models.helper, finetune_studio.models.providers
 
-## `src/finetune_studio/models/providers.py` (273 lines)
+## `src/finetune_studio/models/providers.py` (315 lines)
 - `class ProviderConfig` (L28)
 - `class ModelProvider` (L40)
   - `def __init__(self, config: ProviderConfig)` (L50)
@@ -994,22 +999,23 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def describe(self) -> dict` (L70)
 - `class LocalGGUFProvider(ModelProvider)` (L82)
   - `def __init__(self, config: ProviderConfig)` (L85)
-  - `def load(self) -> None` (L99)
-  - `def unload(self) -> None` (L133)
-  - `def is_loaded(self) -> bool` (L147)
-  - `def _gen_kwargs(self, gen: dict) -> dict` (L150)
-  - `def chat(self, messages: list[dict], **gen) -> str` (L159)
-  - `def generate(self, prompt: str, **gen) -> str` (L167)
-- `class OpenAICompatProvider(ModelProvider)` (L177)
-  - `def __init__(self, config: ProviderConfig)` (L180)
-  - `def _client(self)` (L184)
-  - `def load(self) -> None` (L192)
-  - `def unload(self) -> None` (L197)
-  - `def chat(self, messages: list[dict], **gen) -> str` (L202)
-  - `def generate(self, prompt: str, **gen) -> str` (L218)
-- `build_provider(config: ProviderConfig) -> ModelProvider` (L238)
-- `_local_helper_preset() -> dict` (L248)
-  - imports: finetune_studio.models.helper
+  - `def load(self) -> None` (L106)
+  - `def describe(self) -> dict` (L151)
+  - `def unload(self) -> None` (L175)
+  - `def is_loaded(self) -> bool` (L189)
+  - `def _gen_kwargs(self, gen: dict) -> dict` (L192)
+  - `def chat(self, messages: list[dict], **gen) -> str` (L201)
+  - `def generate(self, prompt: str, **gen) -> str` (L209)
+- `class OpenAICompatProvider(ModelProvider)` (L219)
+  - `def __init__(self, config: ProviderConfig)` (L222)
+  - `def _client(self)` (L226)
+  - `def load(self) -> None` (L234)
+  - `def unload(self) -> None` (L239)
+  - `def chat(self, messages: list[dict], **gen) -> str` (L244)
+  - `def generate(self, prompt: str, **gen) -> str` (L260)
+- `build_provider(config: ProviderConfig) -> ModelProvider` (L280)
+- `_local_helper_preset() -> dict` (L290)
+  - imports: finetune_studio.models.gguf_layers, finetune_studio.models.helper
 
 ## `src/finetune_studio/models/registry.py` (367 lines)
 - `class ModelInfo` (L29)
@@ -1135,23 +1141,23 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `is_local_gptq_checkpoint(model_path: str) -> bool` (L24) — True for a local dir that looks like a GPTQ export.
 - `load_gptq_model_torch(model_path: str, *, device_map: str | dict[str, Any] | None = None) -> Any` (L55) — Load a GPTQ dir with ``GPTQModel.from_quantized`` + ``BACKEND.GPTQ_TORCH``.
 
-## `src/finetune_studio/testing/inference.py` (609 lines)
+## `src/finetune_studio/testing/inference.py` (610 lines)
 - `class InferenceEngine` (L32)
   - `def __init__(self)` (L33)
-  - `def load(self, model_path, device = 'auto', n_ctx = 4096, n_gpu_layers = 99, n_batch =…` (L49)
+  - `def load(self, model_path, device = 'auto', n_ctx = 4096, n_gpu_layers = -1, n_batch =…` (L49)
   - `def _looks_like_qwen3(model_path: str) -> bool` (L76)
   - `def _load_hf_bnb_4bit(self, model_path: str, device_map: str | dict)` (L96)
   - `def _load_hf(self, model_path, device, max_seq_length = None, load_in_4bit = False)` (L114)
-  - `def _load_gguf(self, gguf_path, n_ctx = 4096, n_gpu_layers = 99, n_batch = 512, mmap = True,…` (L192)
+  - `def _load_gguf(self, gguf_path, n_ctx = 4096, n_gpu_layers = -1, n_batch = 512, mmap = True,…` (L192)
   - `def _start_idle_timer(self)` (L251)
   - `def _auto_unload(self)` (L260)
   - `def unload(self)` (L269)
   - `def idle_seconds(self)` (L330)
   - `def generate(self, messages, max_tokens = 1024, temperature = 0.7, top_p = 0.9, top_k = 40…` (L336)
   - `def _generate_hf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop, …` (L345)
-  - `def estimate_memory(model_path, n_ctx = 4096, n_gpu_layers = 99)` (L373)
-  - `def read_model_metadata(model_path)` (L427)
-  - `def _generate_gguf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop)` (L574)
+  - `def estimate_memory(model_path, n_ctx = 4096, n_gpu_layers = -1)` (L373)
+  - `def read_model_metadata(model_path)` (L428)
+  - `def _generate_gguf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop)` (L575)
   - imports: finetune_studio.config, finetune_studio.templates.renderer, finetune_studio.testing.gptq_load
 
 ## `src/finetune_studio/testing/judge.py` (247 lines)
@@ -1731,26 +1737,26 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `remove_favorite(path: str)` (L431) — Remove a model from favorites.
   - imports: finetune_studio, finetune_studio.config, finetune_studio.data.shared_models, finetune_studio.models.registry, finetune_studio.webui
 
-## `src/finetune_studio/webui/routes/models.py` (413 lines)
-- `_identify_process(args_line: str, pid: int) -> str` (L18) — Human-identifiable name for a GPU consumer. `ps comm` truncates
-- `_gpu_snapshot()` (L41) — Return (free_mib, top consumers) from nvidia-smi, or (None, []).
-- `_vram_hint(model_path: str) -> str` (L78) — Actionable VRAM-capacity note appended to load errors, or '' if fine.
-- `_resource_snapshot_detail(model_path: str = '') -> str` (L101) — Always-on VRAM/RAM/process note for load failures (actionable UI copy).
-- `_load_failure_payload(error: str, model_path: str = '') -> dict` (L134) — Explicit failure body — HTTP 200 kept for callers that only check JSON.
-- `models_root(for_selector: bool = False, for_training: bool = False)` (L147) — Root models endpoint — returns list of discovered models.
-- `list_models(for_selector: bool = False, for_training: bool = False)` (L153)
-- `count_models()` (L181)
-- `model_info(path: str)` (L186)
-- `_guess_context_length(info: dict) -> int` (L198) — Guess context length from architecture or model name.
-- `refresh_models()` (L216)
-- `load_model_endpoint(request: Request)` (L230) — Load a model into the global inference engine.
-- `unload_model_endpoint()` (L285) — Manually unload the currently loaded model.
-- `inference_status()` (L308)
-- `inference_load(request: Request)` (L328) — Alias for /api/models/load — same handler.
-- `inference_unload()` (L334) — Alias for /api/models/unload.
-- `inference_chat(request: Request)` (L340) — Generate a chat completion using the global inference engine.
-- `inference_memory_estimate(request: Request)` (L390) — Estimate VRAM needed for a model with given loader params.
-  - imports: finetune_studio.config, finetune_studio.models.loader, finetune_studio.models.manager, finetune_studio.models.registry, finetune_studio.testing.inference, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.routes.system, finetune_studio.webui.thinking
+## `src/finetune_studio/webui/routes/models.py` (420 lines)
+- `_identify_process(args_line: str, pid: int) -> str` (L19) — Human-identifiable name for a GPU consumer. `ps comm` truncates
+- `_gpu_snapshot()` (L42) — Return (free_mib, top consumers) from nvidia-smi, or (None, []).
+- `_vram_hint(model_path: str) -> str` (L79) — Actionable VRAM-capacity note appended to load errors, or '' if fine.
+- `_resource_snapshot_detail(model_path: str = '') -> str` (L102) — Always-on VRAM/RAM/process note for load failures (actionable UI copy).
+- `_load_failure_payload(error: str, model_path: str = '') -> dict` (L135) — Explicit failure body — HTTP 200 kept for callers that only check JSON.
+- `models_root(for_selector: bool = False, for_training: bool = False)` (L148) — Root models endpoint — returns list of discovered models.
+- `list_models(for_selector: bool = False, for_training: bool = False)` (L154)
+- `count_models()` (L182)
+- `model_info(path: str)` (L187)
+- `_guess_context_length(info: dict) -> int` (L205) — Guess context length from architecture or model name.
+- `refresh_models()` (L223)
+- `load_model_endpoint(request: Request)` (L237) — Load a model into the global inference engine.
+- `unload_model_endpoint()` (L292) — Manually unload the currently loaded model.
+- `inference_status()` (L315)
+- `inference_load(request: Request)` (L335) — Alias for /api/models/load — same handler.
+- `inference_unload()` (L341) — Alias for /api/models/unload.
+- `inference_chat(request: Request)` (L347) — Generate a chat completion using the global inference engine.
+- `inference_memory_estimate(request: Request)` (L397) — Estimate VRAM needed for a model with given loader params.
+  - imports: finetune_studio.config, finetune_studio.models.gguf_layers, finetune_studio.models.loader, finetune_studio.models.manager, finetune_studio.models.registry, finetune_studio.testing.inference, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.routes.system, finetune_studio.webui.thinking
 
 ## `src/finetune_studio/webui/routes/pages.py` (707 lines)
 - `_sum_benchmarks(runs)` (L31) — Sum total benchmark count across all runs.
@@ -1999,6 +2005,8 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 
 ## `scripts/generate_dataset.py` (110 lines)
 - `generate_dataset(n: int, output_path: str, seed: int = 42) -> int` (L60) — Generate n unique training examples.
+
+## `scripts/gguf_layer_probe.py` (21 lines)
 
 ## `scripts/install_diagnose.py` (755 lines)
 - `class Issue` (L56)
@@ -2636,6 +2644,17 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def test_export_q8_0_via_skip_marker(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L214)
   - imports: finetune_studio.training, finetune_studio.training.advanced_quant, finetune_studio.training.engine, finetune_studio.training.gguf_convert, finetune_studio.training.run_export
 
+## `tests/test_gguf_layers.py` (112 lines)
+- `_write_minimal_gguf(path: Path, arch: str = 'qwen3', block_count: int = 36, ctx: int = 40960) -> …` (L23) — Hand-rolled minimal GGUF v3 header with two uint32 scalar fields.
+- `test_is_gguf_path(tmp_path: Path) -> None` (L38)
+- `test_resolve_block_count_reads_real_value(tmp_path: Path) -> None` (L44)
+- `test_resolve_llama_arch_prefix(tmp_path: Path) -> None` (L52)
+- `test_resolve_missing_file_is_empty(tmp_path: Path) -> None` (L58)
+- `test_non_gguf_paths_return_none() -> None` (L63)
+- `test_gguf_header_values_scalar_only(tmp_path: Path) -> None` (L69)
+- `test_manager_translates_legacy_99(monkeypatch: pytest.MonkeyPatch) -> None` (L75) — load() must rewrite legacy n_gpu_layers=99 to -1, never pass 99 on.
+  - imports: finetune_studio.models, finetune_studio.models.gguf_layers
+
 ## `tests/test_header_nav.py` (207 lines)
 - `_render_base(*, pid: str | None = None) -> str` (L35)
 - `_href_for_tab(html: str, tab: str) -> str` (L52)
@@ -2916,6 +2935,11 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def test_runner_writes_only_accepted_pairs(self) -> None` (L205)
   - `def test_runner_rejects_duplicate_across_chunks(self) -> None` (L262)
   - imports: finetune_studio.data.prep.parsers, finetune_studio.data.prep.qa_validate, finetune_studio.data.prep.runner
+
+## `tests/test_prep_source_data_path.py` (56 lines)
+- `_fake_backend(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[dict[str, Any]]` (L19) — Fake generator: one deterministic Q&A JSON block, no model needed.
+- `test_source_manifest_keeps_data_path(client: Any, _fake_backend: list[dict[str, Any]]) -> None` (L39) — After a prep run, the source row must have a data_path that exists.
+  - imports: finetune_studio.data
 
 ## `tests/test_project_dashboard.py` (92 lines)
 - `test_format_relative_buckets() -> None` (L16)

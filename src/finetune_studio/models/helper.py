@@ -27,7 +27,7 @@ DEFAULT_HELPER_GGUF_BASENAME: str = "Qwen3-8B-Q5_K_M.gguf"
 # the f16 KV cache from eating ~9.4GB at that depth (8 = GGML q8_0).
 DEFAULT_HELPER_EXTRA: dict[str, Any] = {
     "n_ctx": 32768,
-    "n_gpu_layers": 99,
+    "n_gpu_layers": -1,  # all layers — real count comes from the GGUF header
     "n_batch": 512,
     "n_threads": 0,
     "seed": -1,

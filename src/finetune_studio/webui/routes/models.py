@@ -8,6 +8,7 @@ import subprocess
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
 
+from finetune_studio.models.gguf_layers import is_gguf_path, resolve_block_count
 from finetune_studio.models.loader import load_model_info
 from finetune_studio.webui.engine_guard import ENGINE_LOCK
 
@@ -188,9 +189,15 @@ async def model_info(path: str):
     # Enrich with context length and parameter count if available
     if info and not info.get('context_length'):
         info['context_length'] = _guess_context_length(info)
-    # Inference UI slider expects total_layers; loader exposes num_layers for HF.
+    # Real layer count: for GGUF files read it straight from the file header
+    # (no guessing, no 99-magic). The Inference UI slider uses total_layers.
     if info and not info.get("total_layers"):
         layers = info.get("num_layers")
+        if not layers and is_gguf_path(path):
+            topo = resolve_block_count(path)
+            layers = topo.get("block_count")
+            if topo.get("context_length") and not info.get("context_length_native"):
+                info["context_length_native"] = topo["context_length"]
         if layers:
             info["total_layers"] = int(layers)
     return info
@@ -255,7 +262,7 @@ async def load_model_endpoint(request: Request):
                 inference_engine.load,
                 model_path,
                 n_ctx=body.get("n_ctx", 16384),
-                n_gpu_layers=body.get("n_gpu_layers", 99),
+                n_gpu_layers=body.get("n_gpu_layers", -1),
                 n_batch=body.get("n_batch", 512),
                 mmap=body.get("mmap", True),
                 mlock=body.get("mlock", False),
@@ -398,7 +405,7 @@ async def inference_memory_estimate(request: Request):
         est = inference_engine.estimate_memory(
             model_path,
             n_ctx=body.get("n_ctx", 16384),
-            n_gpu_layers=body.get("n_gpu_layers", 99),
+            n_gpu_layers=body.get("n_gpu_layers", -1),
         )
         try:
             from finetune_studio.webui.routes.system import _vram

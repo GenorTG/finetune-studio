@@ -86,7 +86,9 @@ class LocalGGUFProvider(ModelProvider):
         super().__init__(config)
         self._llama = None  # the llama_cpp.Llama instance
         self._n_ctx: int = int(config.extra.get("n_ctx", 16384))
-        self._n_gpu_layers: int = int(config.extra.get("n_gpu_layers", 99))
+        # n_gpu_layers: -1 = all layers (llama.cpp native idiom). Legacy 99
+        # is translated by ModelManager.load() before reaching here.
+        self._n_gpu_layers: int = int(config.extra.get("n_gpu_layers", -1))
         self._n_batch: int = int(config.extra.get("n_batch", 512))
         self._n_threads: int = int(config.extra.get("n_threads", 0))
         self._seed: int = int(config.extra.get("seed", -1))
@@ -95,6 +97,11 @@ class LocalGGUFProvider(ModelProvider):
         self._flash_attn: bool = bool(config.extra.get("flash_attn", True))
         self._mmap: bool = bool(config.extra.get("mmap", True))
         self._mlock: bool = bool(config.extra.get("mlock", False))
+        self._kv_type_k: int = int(config.extra.get("type_k", 0) or 0)
+        self._kv_type_v: int = int(config.extra.get("type_v", 0) or 0)
+        # Real layer count from the GGUF header (None for non-GGUF paths).
+        from finetune_studio.models.gguf_layers import resolve_block_count
+        self._topology = resolve_block_count(self.config.model_id)
 
     def load(self) -> None:
         from llama_cpp import Llama
@@ -126,9 +133,44 @@ class LocalGGUFProvider(ModelProvider):
             kwargs["rope_freq_base"] = self._rope_freq_base
         if self._rope_freq_scale > 0:
             kwargs["rope_freq_scale"] = self._rope_freq_scale
+        if self._kv_type_k > 0:
+            kwargs["type_k"] = self._kv_type_k
+        if self._kv_type_v > 0:
+            kwargs["type_v"] = self._kv_type_v
+        if self._topology.get("block_count") is not None:
+            log.info(
+                "LocalGGUFProvider topology: %d transformer blocks, "
+                "native ctx %s — n_gpu_layers=%d",
+                self._topology["block_count"],
+                self._topology.get("context_length"), self._n_gpu_layers,
+            )
         with self._lock:
             self._llama = Llama(**kwargs)
         self._loaded_at = time.time()
+
+    def describe(self) -> dict:
+        d = {
+            "kind": "local_gguf",
+            "id": self.config.id,
+            "name": self.config.name,
+            "model_id": self.config.model_id,
+            "loaded": self._llama is not None,
+            "n_ctx": self._n_ctx,
+            "n_gpu_layers": self._n_gpu_layers,
+            "n_batch": self._n_batch,
+        }
+        # Real topology when the model is a GGUF (UI shows "36/36").
+        block_count = self._topology.get("block_count")
+        if block_count is not None:
+            d["block_count"] = block_count
+            d["context_length_native"] = self._topology.get("context_length")
+            if self._n_gpu_layers == -1:
+                d["gpu_layers_on"] = block_count
+                d["gpu_layers_total"] = block_count
+            elif self._n_gpu_layers > 0:
+                d["gpu_layers_on"] = min(self._n_gpu_layers, block_count)
+                d["gpu_layers_total"] = block_count
+        return d
 
     def unload(self) -> None:
         with self._lock:

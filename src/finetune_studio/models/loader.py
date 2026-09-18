@@ -59,7 +59,7 @@ def load_for_inference(model_path: str, device: str = "auto", **kwargs):
     )
     return model, tokenizer
 
-def load_gguf_inference(gguf_path: str, n_ctx: int = 4096, n_gpu_layers: int = 99):
+def load_gguf_inference(gguf_path: str, n_ctx: int = 4096, n_gpu_layers: int = -1):
     from llama_cpp import Llama
     model = Llama(model_path=gguf_path, n_ctx=n_ctx, n_gpu_layers=n_gpu_layers, verbose=False)
     return model, None

@@ -164,7 +164,7 @@ async def load_model(request: Request):
                 inference_engine.load,
                 model_path,
                 n_ctx=body.get("n_ctx", 16384),
-                n_gpu_layers=body.get("n_gpu_layers", 99),
+                n_gpu_layers=body.get("n_gpu_layers", -1),
                 n_batch=body.get("n_batch", 512),
                 mmap=body.get("mmap", True),
                 mlock=body.get("mlock", False),
@@ -230,7 +230,7 @@ async def memory_estimate(request: Request):
     body = await request.json()
     model_path = body.get("model_path", "")
     n_ctx = body.get("n_ctx", 16384)
-    n_gpu_layers = body.get("n_gpu_layers", 99)
+    n_gpu_layers = body.get("n_gpu_layers", -1)
     if not model_path:
         return {"error": "No model_path"}
     try:

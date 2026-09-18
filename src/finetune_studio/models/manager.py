@@ -19,6 +19,7 @@ from finetune_studio.models.providers import (
     ProviderConfig,
     build_provider,
 )
+from finetune_studio.models.gguf_layers import resolve_block_count
 
 log = logging.getLogger(__name__)
 
@@ -219,6 +220,18 @@ class ModelManager:
             for k in _LOADER_KEYS:
                 if k in extra and extra[k] is not None:
                     merged_extra[k] = extra[k]
+        # Resolve real model topology from the GGUF header. Legacymagic
+        # n_gpu_layers=99 meant "all layers" — translate it to llama.cpp's
+        # true idiom (-1) and expose the actual block count so the UI can
+        # show "36/36 layers" instead of a fake 99.
+        if merged_extra.get("n_gpu_layers") in (99, "99"):
+            merged_extra["n_gpu_layers"] = -1
+        self._topology = resolve_block_count(cfg_row["model_id"])
+        if self._topology.get("block_count") is not None:
+            merged_extra.setdefault("topology_block_count", self._topology["block_count"])
+        elif merged_extra.get("n_gpu_layers") == -1:
+            log.warning("load %s: n_gpu_layers=-1 but model is not GGUF; "
+                        "n_gpu_layers will apply as-is via llama.cpp", pid)
         with self._lock:
             if (self._provider is not None
                     and self._active_id == pid

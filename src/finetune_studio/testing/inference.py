@@ -46,7 +46,7 @@ class InferenceEngine:
         self._loading_path: str | None = None
         self._loading_started: float = 0.0
 
-    def load(self, model_path, device="auto", n_ctx=4096, n_gpu_layers=99, n_batch=512, mmap=True, mlock=False,
+    def load(self, model_path, device="auto", n_ctx=4096, n_gpu_layers=-1, n_batch=512, mmap=True, mlock=False,
               n_threads=None, flash_attn=True, seed=None, rope_freq_base=0.0, rope_freq_scale=0.0,
               max_seq_length=None, load_in_4bit=False):
         from pathlib import Path
@@ -189,7 +189,7 @@ class InferenceEngine:
             )
         self.is_gguf = False
 
-    def _load_gguf(self, gguf_path, n_ctx=4096, n_gpu_layers=99, n_batch=512, mmap=True, mlock=False,
+    def _load_gguf(self, gguf_path, n_ctx=4096, n_gpu_layers=-1, n_batch=512, mmap=True, mlock=False,
                    n_threads=None, flash_attn=True, seed=None, rope_freq_base=0.0, rope_freq_scale=0.0):
         from pathlib import Path
 
@@ -370,7 +370,7 @@ class InferenceEngine:
         return response
 
     @staticmethod
-    def estimate_memory(model_path, n_ctx=4096, n_gpu_layers=99):
+    def estimate_memory(model_path, n_ctx=4096, n_gpu_layers=-1):
         """Estimate VRAM/RAM usage for a model. Returns dict with estimates in GB."""
         from pathlib import Path
         path = Path(model_path)
@@ -391,8 +391,9 @@ class InferenceEngine:
             if head_dim == 0:
                 head_dim = 128
 
-            # Weight distribution
-            gpu_frac = min(n_gpu_layers / total_layers, 1.0)
+            # Weight distribution: -1 = all layers on GPU (llama.cpp native
+            # "offload everything" idiom). No magic 99 / 100 fakes.
+            gpu_frac = 1.0 if n_gpu_layers == -1 else min(n_gpu_layers / total_layers, 1.0)
             weights_vram = size_gb * gpu_frac
             weights_ram = size_gb * (1.0 - gpu_frac)
 
