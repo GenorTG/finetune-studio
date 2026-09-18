@@ -259,6 +259,13 @@
           const fd = new FormData(form);
           fetch(url, { method: "POST", body: fd }).then(_ok).then((d) => {
             if (d && d.error) notify(d.error, "error");
+            else if (d && d.counts) {
+              // File upload: name the count, flag duplicates explicitly.
+              const c = d.counts;
+              const dup = c.duplicates_skipped ? " · " + c.duplicates_skipped + " dup skipped" : "";
+              const bad = c.errors ? " · " + c.errors + " failed" : "";
+              notify(c.uploaded + " file(s) uploaded" + dup + bad, c.errors ? "warn" : "success");
+            }
             else notify("Upload done", "success");
             if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
           }).catch((err) => notify(err.message || "Upload failed", "error"));
