@@ -20,6 +20,20 @@ Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **ge
 - `scripts/`, `install*.{sh,fish,zsh,ps1,bat}`, `run*.{sh,fish,zsh,bat}` — installers/launchers; keep all shell variants in sync when changing one.
 - `data/`, `datasets/`, `models/`, `output/`, `projects/` — runtime artifacts, never committed.
 
+## Working in this repo (all models)
+
+- **`docs/CODEMAP.md` is the symbol map.** Before grepping around for "where is X / what
+  imports Y", run `make codemap` (or `.venv/bin/python scripts/codemap.py --grep NAME`)
+  — it indexes every module, class, function with signatures + intra-repo imports in one file.
+  Grep mode: `scripts/codemap.py --grep score_results` → `file:line def name(sig)`.
+- **Any session that adds/moves/renames modules, classes, or functions must run
+  `make codemap` and commit the regenerated `docs/CODEMAP.md` in the same commit** as
+  the code change. CI-style check exists: `make codemap-check` (fails if the committed
+  map is stale).
+- New code goes in the module that already owns that concern (one concern per module);
+  CODEMAP shows who owns what at a glance. `src/finetune_studio/benchmarks/__init__.py`
+  being 536 lines with everything in `__init__.py` is a known wart — do not add to it.
+
 ## Conventions
 - Type hints on every function signature (params + return). Pydantic/dataclass models for anything crossing the API boundary.
 - One module = one responsibility; new feature → new module + new test file, not a bigger existing file.

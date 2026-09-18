@@ -42,5 +42,11 @@ test:
 lint:
 	.venv/bin/python -m ruff check src/ || true
 
+codemap:
+	.venv/bin/python scripts/codemap.py
+
+codemap-check:
+	@.venv/bin/python scripts/codemap.py && git diff --exit-code -- docs/CODEMAP.md || (echo 'CODEMAP stale — run `make codemap` and commit it'; exit 1)
+
 clean:
 	rm -rf .venv data/*.db __pycache__ */__pycache__ */*/__pycache__ .pytest_cache
