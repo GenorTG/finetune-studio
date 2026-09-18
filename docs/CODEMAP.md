@@ -7,8 +7,8 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-346 files · 60711 lines
-- `finetune_studio`: 211 files, 37525 lines
+346 files · 60712 lines
+- `finetune_studio`: 211 files, 37526 lines
 - `scripts`: 6 files, 1501 lines
 - `tests`: 129 files, 21685 lines
 
@@ -1708,27 +1708,27 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `delete_folder_route(pid: str, fid: str)` (L378)
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.data.fs.qa
 
-## `src/finetune_studio/webui/routes/hf_models.py` (434 lines)
-- `class SearchRequest(BaseModel)` (L30)
-- `_local_models() -> list[dict]` (L41) — Walk the local cache and return one entry per (repo_id, branch_or_file).
-- `_search_hf(req: SearchRequest) -> list[dict]` (L69) — Query the HuggingFace Hub.
-- `_model_info(repo_id: str) -> dict | None` (L127)
-- `hf_search(q: str = '', task: str = 'text-generation', library: str | None = None, sort:…` (L163)
-- `hf_info(repo_id: str)` (L171)
-- `class DownloadRequest(BaseModel)` (L178)
-- `hf_download(req: DownloadRequest, background: BackgroundTasks)` (L185) — Start a background download; return immediately with a job_id.
-- `hf_download_progress(job_id: str)` (L208)
-- `hf_download_cancel(job_id: str)` (L222) — Mark a job as cancelled (best-effort — child subprocesses may continue briefly).
-- `_refresh_model_registry() -> int` (L243) — Rescan model dirs (incl. HF Explorer cache) into ``discovered_models``.
-- `_download_worker(job_id: str, repo_id: str, filename: str | None, revision: str)` (L259) — Background download via huggingface_hub.snapshot_download or hf_hub_download.
-- `restore_in_progress_downloads() -> int` (L322) — Re-populate the in-memory _DOWNLOADS dict from the DB on startup.
-- `hf_local()` (L366) — List models already downloaded into our local cache.
-- `hf_delete_local(repo_id: str)` (L372) — Delete a locally cached model.
-- `hf_local_files(repo_id: str)` (L382) — List files in a local model dir with sizes.
-- `shared_model_stats_endpoint()` (L400)
-- `list_favorites()` (L407) — List favorited models. Never 500 the page — empty list on error.
-- `add_favorite(request: Request)` (L417) — Add a model to favorites.
-- `remove_favorite(path: str)` (L430) — Remove a model from favorites.
+## `src/finetune_studio/webui/routes/hf_models.py` (435 lines)
+- `class SearchRequest(BaseModel)` (L31)
+- `_local_models() -> list[dict]` (L42) — Walk the local cache and return one entry per (repo_id, branch_or_file).
+- `_search_hf(req: SearchRequest) -> list[dict]` (L70) — Query the HuggingFace Hub.
+- `_model_info(repo_id: str) -> dict | None` (L128)
+- `hf_search(q: str = '', task: str = 'text-generation', library: str | None = None, sort:…` (L164)
+- `hf_info(repo_id: str)` (L172)
+- `class DownloadRequest(BaseModel)` (L179)
+- `hf_download(req: DownloadRequest, background: BackgroundTasks)` (L186) — Start a background download; return immediately with a job_id.
+- `hf_download_progress(job_id: str)` (L209)
+- `hf_download_cancel(job_id: str)` (L223) — Mark a job as cancelled (best-effort — child subprocesses may continue briefly).
+- `_refresh_model_registry() -> int` (L244) — Rescan model dirs (incl. HF Explorer cache) into ``discovered_models``.
+- `_download_worker(job_id: str, repo_id: str, filename: str | None, revision: str)` (L260) — Background download via huggingface_hub.snapshot_download or hf_hub_download.
+- `restore_in_progress_downloads() -> int` (L323) — Re-populate the in-memory _DOWNLOADS dict from the DB on startup.
+- `hf_local()` (L367) — List models already downloaded into our local cache.
+- `hf_delete_local(repo_id: str)` (L373) — Delete a locally cached model.
+- `hf_local_files(repo_id: str)` (L383) — List files in a local model dir with sizes.
+- `shared_model_stats_endpoint()` (L401)
+- `list_favorites()` (L408) — List favorited models. Never 500 the page — empty list on error.
+- `add_favorite(request: Request)` (L418) — Add a model to favorites.
+- `remove_favorite(path: str)` (L431) — Remove a model from favorites.
   - imports: finetune_studio, finetune_studio.config, finetune_studio.data.shared_models, finetune_studio.models.registry, finetune_studio.webui
 
 ## `src/finetune_studio/webui/routes/models.py` (413 lines)

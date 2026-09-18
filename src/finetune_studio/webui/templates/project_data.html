@@ -651,30 +651,57 @@
     await loadFiles();
   }
 
-  async function uploadFiles(fileList) {
+  function formatBytes(b) {
+    if (!b && b !== 0) return '?';
+    if (b < 1024) return b + ' B';
+    if (b < 1024*1024) return (b/1024).toFixed(0) + ' KB';
+    return (b/(1024*1024)).toFixed(1) + ' MB';
+  }
+
+  function uploadFiles(fileList) {
     if (!fileList || !fileList.length) return;
     const status = document.getElementById('fb-upload-status');
     const input = document.getElementById('fb-upload-input');
     const fd = new FormData();
-    for (const f of fileList) fd.append('files', f, f.name);
+    const names = [];
+    let total = 0;
+    for (const f of fileList) { fd.append('files', f, f.name); total += f.size; names.push(f.name); }
     if (input) input.disabled = true;
-    if (status) status.textContent = 'Uploading…';
-    try {
-      const r = await fetch('/api/projects/' + PID + '/files/upload', { method: 'POST', body: fd });
-      const data = await r.json();
-      const c = data.counts || {};
-      if (status) {
-        status.textContent = 'Uploaded ' + (c.uploaded || 0) +
-          (c.duplicates_skipped ? ', ' + c.duplicates_skipped + ' dup' : '') +
-          (c.errors ? ', ' + c.errors + ' err' : '');
+    // Real-time progress: XHR upload.onprogress → "Uploading 42% (1.2 MB / 2.7 MB)…",
+    // then parsing verdict once the server responds (parse is synchronous in the API).
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/projects/' + PID + '/files/upload');
+    xhr.upload.onprogress = (ev) => {
+      if (status && ev.lengthComputable) {
+        const pct = Math.round((ev.loaded / ev.total) * 100);
+        status.textContent = 'Uploading ' + pct + '% (' + formatBytes(ev.loaded) + ' / ' + formatBytes(total) + ')… ' + names.join(', ');
       }
-      await loadFiles();
-    } catch (e) {
-      if (status) status.textContent = 'Failed: ' + e.message;
-      notify('Upload failed: ' + e.message, 'error');
-    } finally {
+    };
+    xhr.onload = async () => {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        const c = data.counts || {};
+        if (status) {
+          status.textContent = 'Uploaded ' + (c.uploaded || 0) +
+            (c.duplicates_skipped ? ', ' + c.duplicates_skipped + ' dup' : '') +
+            (c.errors ? ', ' + c.errors + ' err' : '') +
+            ' — parsed ✓';
+        }
+        await loadFiles();
+      } catch (e) {
+        if (status) status.textContent = 'Failed: ' + e.message;
+        notify('Upload failed: ' + e.message, 'error');
+      } finally {
+        if (input) { input.disabled = false; input.value = ''; }
+      }
+    };
+    xhr.onerror = () => {
+      if (status) status.textContent = 'Failed: network error';
+      notify('Upload failed: network error', 'error');
       if (input) { input.disabled = false; input.value = ''; }
-    }
+    };
+    if (status) status.textContent = 'Uploading 0% (' + formatBytes(total) + ')… ' + names.join(', ');
+    xhr.send(fd);
   }
 
   function wireUi() {
