@@ -3,9 +3,10 @@
 Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **genorbox1**, commit + push, pull on **fan-dragon** for GPU runs (`finetune-studio.service`, port 7860). Never SSH into fan-dragon to edit files.
 
 ## Read first
-1. `docs/PRODUCT-BRIEF.md` — what Genor wants the product to be good at (north star).
-2. `HANDOFF.md` — verified ops state + next steps (≤120 lines; if longer, it is stale — rewrite it).
-3. `docs/README.md` — doc map. Then area docs as needed. `RESTART.md` = fan-dragon service. `PHASES.md` may be stale vs HANDOFF.
+1. `docs/WORKPLAN.md` — **the plan and its order is law** (durable across models; rules + numbered steps; never reorder).
+2. `docs/PRODUCT-BRIEF.md` — what Genor wants the product to be good at (north star).
+3. `HANDOFF.md` — verified ops state + next steps (≤120 lines; if longer, it is stale — rewrite it).
+4. `docs/README.md` — doc map. Then area docs as needed. `RESTART.md` = fan-dragon service. `PHASES.md` may be stale vs HANDOFF.
 
 ## Commands
 - Tests: `make test` (= `.venv/bin/python -m pytest tests/ -v --tb=short`). Single file: `.venv/bin/python -m pytest tests/test_api.py -v`.
