@@ -16,6 +16,9 @@ KEY CONCEPTS
   model is loaded, what test suite is selected, etc.).
 """
 
+import json
+import os
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -25,10 +28,6 @@ from fastapi.staticfiles import StaticFiles
 
 from finetune_studio import db
 from finetune_studio.config import settings
-import os
-import json
-import time
-
 from finetune_studio.models.registry import ModelInfo, scan_models
 from finetune_studio.testing.inference import InferenceEngine
 from finetune_studio.training.engine import TrainingEngine
@@ -107,7 +106,7 @@ def _activity_kind(path: str) -> str:
     ):
         return "model_load"
     # More specific checks so they win over the generic fallbacks below.
-    if p.startswith("/api/inference/") or p.startswith("/api/chat-v2/") or "/compare/rag/chat" in p:
+    if p.startswith(("/api/inference/", "/api/chat-v2/")) or "/compare/rag/chat" in p:
         return "inference"
     if "/rag/build" in p or "/rag/rebuild" in p or "/rag/rebuild-vectors" in p:
         return "rag_build"
@@ -156,6 +155,50 @@ async def record_activity_operations(request: Request, call_next):
     return response
 
 
+def _activity_summary(path: str, method: str, http_status: int) -> str:
+    """Human one-liner for the activity feed (replaces 'POST /api/x → 200').
+
+    Screen-scrapes the path for the resource the user actually acted on:
+    filenames, run ids, dataset names. The project name is NOT baked in —
+    it renders as its own badge from project_id.
+    """
+    try:
+        # Keyed on the marker strings, not on path order.
+        if "/data-prep/start" in path:
+            return "Start Q&A mining"
+        if "/data-prep/chat" in path:
+            return "Agent mining question"
+        if "/data-prep/qa/bulk" in path:
+            return "Bulk-approve/reject Q&A"
+        if "/data-prep/export" in path:
+            return "Export Q&A dataset"
+        if path.endswith("/data-prep/sources"):
+            return "Promote file → source"
+        if "/files/upload" in path:
+            return "Upload + parse files"
+        if "/training/start" in path:
+            return "Start training run"
+        if "/run-suite" in path:
+            return "Run test suite"
+        if any(x in path for x in ("/export-gguf", "/quantize", "/export")):
+            return "Export model"
+        if "/load" in path and "models" in path:
+            return "Load model"
+        if "/unload" in path:
+            return "Unload model"
+        if "/download/start" in path or path.startswith("/api/hf/"):
+            return "HF download"
+        if "/projects" in path and path.count("/") <= 3:
+            return "Create project"
+        verb = {
+            "POST": "Create", "PUT": "Update", "PATCH": "Update",
+            "DELETE": "Delete",
+        }.get(method.upper(), "Operation")
+        return verb
+    except Exception:  # noqa: BLE001 — summary must never break recording
+        return "Operation"
+
+
 def _record_activity_event(request: Request, started: float, http_status: int) -> None:
     """Best-effort event write; logging must never break the API response."""
     try:
@@ -170,11 +213,11 @@ def _record_activity_event(request: Request, started: float, http_status: int) -
             project_id=project_id,
             status=status,
             http_status=http_status,
-            message=f"{request.method} {request.url.path} → {http_status}",
+            message=_activity_summary(request.url.path, request.method, http_status),
             started_at=started,
             finished_at=time.time(),
         )
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001, S110 — activity logging must never break the API response
         pass
 
 # ── CORS + Trusted Hosts (configured via Settings page) ──
@@ -261,35 +304,46 @@ app.include_router(chat_v2.router, prefix="/api/chat-v2", tags=["chat-v2"])  # t
 app.include_router(data_prep.router, prefix="/api", tags=["data-prep"])  # type: ignore[has-type]  # /api/projects/{pid}/data-prep/*
 app.include_router(data_prep_chat.router, prefix="/api", tags=["data-prep-chat"])  # type: ignore[has-type]  # /api/projects/{pid}/data-prep/chat*
 app.include_router(data_prep._pages)  # type: ignore[has-type]  # HTML page /projects/{pid}/data-prep
-app.include_router(hf_models.router, prefix="/api", tags=["hf-models"])  # type: ignore[has-type]  # /api/hf/* + /api/shared-models/*
+app.include_router(hf_models.router, prefix="/api")  # type: ignore[has-type]  # /api/hf/* + /api/shared-models/*
 app.include_router(system.router)  # type: ignore[has-type]  # /api/system/* — RAM/VRAM snapshot
 app.include_router(rag.router, prefix="/api/projects", tags=["rag"])  # type: ignore[has-type]  # /api/projects/{pid}/rag/*
 
-from finetune_studio.webui.routes import exports as _exports  # noqa: E402
+from finetune_studio.webui.routes import exports as _exports
+
 app.include_router(_exports.router, prefix="/api", tags=["exports"])  # type: ignore[has-type]  # /api/projects/{pid}/runs/{rid}/export
 
-from finetune_studio.webui.routes import updates as _updates  # noqa: E402
+from finetune_studio.webui.routes import updates as _updates
+
 app.include_router(_updates.router, prefix="/api", tags=["system-updates"])  # type: ignore[has-type]  # /api/system/update*
 
-from finetune_studio.webui.routes import activity as _activity  # noqa: E402
+from finetune_studio.webui.routes import activity as _activity
+
 app.include_router(_activity.router)  # type: ignore[has-type]  # /api/activity
 
-from finetune_studio.webui.routes import settings as _settings  # noqa: E402
+from finetune_studio.webui.routes import settings as _settings
+
 app.include_router(_settings.router)  # type: ignore[has-type]  # /api/settings
 
-from finetune_studio.webui.routes import datasets as _datasets  # noqa: E402
+from finetune_studio.webui.routes import datasets as _datasets
+
 app.include_router(_datasets.router, prefix="/api", tags=["datasets"])  # type: ignore[has-type]  # /api/projects/{pid}/datasets/*
 
 # Stage 1 — File library (raw + converted dual storage, folders, dedup,
 # versioning, trash). Routes self-prefix their full path.
-from finetune_studio.webui.routes import file_library as _file_library  # noqa: E402
+from finetune_studio.webui.routes import file_library as _file_library
+
 app.include_router(_file_library.router, prefix="/api", tags=["file-library"])  # type: ignore[has-type]  # /api/projects/{pid}/files/* + /folders/*
 
-from finetune_studio.webui.routes import project_models as _project_models  # noqa: E402
+from finetune_studio.webui.routes import project_models as _project_models
+
 app.include_router(_project_models.router, prefix="/api", tags=["project-models"])  # type: ignore[has-type]  # /api/projects/{pid}/models/.../contents
 
-from finetune_studio.webui.routes import project_rag as _project_rag  # noqa: E402
+from finetune_studio.webui.routes import project_rag as _project_rag
+
 app.include_router(_project_rag.router, prefix="/api", tags=["project-rag"])  # type: ignore[has-type]  # /api/projects/{pid}/rag/docs* + /rebuild
 
-from finetune_studio.webui.routes import project_settings as _project_settings  # noqa: E402
+from finetune_studio.webui.routes import (
+    project_settings as _project_settings,
+)
+
 app.include_router(_project_settings.router, prefix="/api", tags=["project-settings"])  # type: ignore[has-type]  # /api/projects/{pid}/logs

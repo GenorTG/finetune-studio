@@ -53,7 +53,7 @@
   </style>
   <title>{% block title %}Finetune Studio{% endblock %} · {{ release_channel }}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/css/app.css?v=26">
+  <link rel="stylesheet" href="/static/css/app.css?v=27">
 </head>
 <body>
   <div id="toasts" class="toasts" aria-live="polite"></div>
@@ -179,12 +179,8 @@
         <button id="theme-toggle" class="btn small" type="button"
                 onclick="window.ftsThemeToggle && window.ftsThemeToggle()"
                 title="Toggle dark/light theme" aria-label="Toggle dark/light theme">🌙</button>
-        <div id="conn-status" class="conn-status" title="Connection status" data-hide-mobile>
-          <span class="conn-dot"></span>
-          <span class="conn-label">connected</span>
-        </div>
         <button class="sb-activity" id="sb-activity" title="Activity feed — running tasks" aria-label="Open activity feed">
-          <span class="sb-activity-icon">⚙</span>
+          <span class="sb-activity-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 9h3l2-5 3 10 2-5h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           <span class="sb-activity-count" id="sb-activity-count" hidden>0</span>
         </button>
         <button class="sb-palette" id="sb-palette" title="Command palette (Ctrl+K)" aria-label="Open command palette">
@@ -195,9 +191,9 @@
           <span class="status-label" id="model-status-label">no model</span>
         </span>
         <span class="version" title="{{ release_channel }} release · v{{ app_version }}">
-          <span class="release-label">{{ release_channel }}</span>
           <span class="version-number">v{{ app_version }}</span>
         </span>
+      </div>
       </div>
 
       {# Active-session indicator bar — thin strip below the tabs that
@@ -267,7 +263,7 @@
     <div class="activity-backdrop" id="activity-backdrop" hidden></div>
     <aside class="activity" id="activity" hidden aria-label="Activity feed">
       <div class="activity-head">
-        <span class="activity-title">⚙ ACTIVITY</span>
+        <span class="activity-title">ACTIVITY<span class="activity-title-pulse" aria-hidden="true">▮▮</span></span>
         <span class="activity-sub" id="activity-sub">Loading…</span>
         <button class="activity-close" id="activity-close" title="Close (Esc)" aria-label="Close">✕</button>
       </div>
@@ -321,7 +317,7 @@
   <script src="/static/js/spa.js?v=15"></script>
   <script src="/static/js/palette.js?v=13"></script>
   <script src="/static/js/tutorial.js?v=12"></script>
-  <script src="/static/js/activity.js?v=14"></script>
+  <script src="/static/js/activity.js?v=15"></script>
   <script>
     window.ftsCopyText = async function (text) {
       try {
