@@ -3860,7 +3860,7 @@ body::before {
     padding-left: 8px;
   }
   .sb-right .status-label { display: none; }
-  .content { padding: 12px; overflow-x: hidden; }
+  .content { padding: 12px; }  /* no overflow-x:hidden — same visible-y+hidden-x => auto trap; body clips horizontal */
   .grid.grid-2 { grid-template-columns: 1fr; }
   .activity { width: min(420px, 100vw); }
   .run-detail .grid-2 { grid-template-columns: 1fr; }
