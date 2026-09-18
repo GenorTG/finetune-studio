@@ -22,6 +22,7 @@ from collections import Counter
 from dataclasses import dataclass
 
 from finetune_studio.data import project_filesystem as pfs
+from finetune_studio.data.fs.metadata import _safe_filename
 from finetune_studio.data.prep.parsers import parse_qa_json
 from finetune_studio.data.prep.prompts import (
     QA_SYSTEM_PROMPT,
@@ -147,7 +148,12 @@ class DataPrepRunner:
                 "char_count": ingest.char_count, "warnings": ingest.warnings,
             })
         self._emit(stage="chunking", pct=20, message="Splitting into semantic chunks…")
-        # Q&A source manifest (filesystem-side)
+        # Q&A source manifest (filesystem-side). Keep a resolvable data_path:
+        # the content-addressed raw file is the canonical location, and prep
+        # re-runs (source picker → Start prep) resolve the source through it.
+        # Bug 2026-09-18: this rewrite used to DROP data_path, so every
+        # re-run after a restart 404'd with "source file missing".
+        raw_canonical = pfs.file_dir(self.pid, meta.sha256) / _safe_filename(self.filename)
         pfs.write_qa_source(self.pid, {
             "id": self.source_id,
             "sha256": meta.sha256,
@@ -158,6 +164,8 @@ class DataPrepRunner:
             "parser": ingest.parser,
             "uploaded_at": meta.uploaded_at,
             "status": "ready",
+            "data_path": str(raw_canonical),
+            "path": str(raw_canonical),
         })
         pfs.log_ingestion(self.pid, {
             "event": "chunked", "sha256": meta.sha256, "filename": self.filename,
