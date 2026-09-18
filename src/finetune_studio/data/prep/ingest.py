@@ -36,14 +36,23 @@ def _parsed_path(pid: str, sha256: str) -> Path:
 
 
 def is_already_parsed(pid: str, sha256: str) -> bool:
-    """True when parsed.txt exists and is non-trivial."""
+    """True when parsed.txt exists, is non-trivial, and is not a placeholder.
+
+    Parser error strings ("[DOC: ... install antiword]", "[Failed ...",
+    "[Unsupported ...]") write >10 chars, so the old length check served
+    them forever and a failed parse could never be retried after the
+    parser dependency was installed (QABUG 2026-09-18, .doc/olefile).
+    """
     p = _parsed_path(pid, sha256)
     if not p.is_file():
         return False
     try:
-        return len(p.read_text(encoding="utf-8", errors="replace").strip()) >= 10
+        text = p.read_text(encoding="utf-8", errors="replace").strip()
     except OSError:
         return False
+    if len(text) < 10:
+        return False
+    return not text.startswith(("[DOC:", "[Failed", "[Unsupported", "[EPUB:"))
 
 
 def load_existing_chunks(pid: str, sha256: str) -> list[str]:
