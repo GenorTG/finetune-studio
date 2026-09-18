@@ -235,3 +235,41 @@ class TestExportQA:
             obj = json.loads(result.strip())
             assert obj["messages"][0]["role"] == "user"
             assert obj["messages"][1]["role"] == "assistant"
+
+    @pytest.mark.parametrize("fmt", ["sharegpt", "alpaca", "openai"])
+    def test_export_deduplicates_questions_and_prefers_curated_answer(self, fmt):
+        import json
+        from unittest.mock import patch
+
+        from finetune_studio.data.prep.export import export_qa_jsonl
+
+        pairs = [
+            {
+                "id": "generated",
+                "source_id": "risk.json",
+                "question": "Who owns risk C-17?",
+                "answer": '{"risk_id":"C-17","owner":"Elena Maric","unrelated":"noise"}',
+                "status": "approved",
+                "category": "source-grounded-augmented",
+            },
+            {
+                "id": "curated",
+                "source_id": "risk.json",
+                "question": "  Who owns risk C-17?  ",
+                "answer": "Elena Maric owns risk C-17.",
+                "status": "approved",
+                "category": "source-grounded-curated",
+            },
+        ]
+        with patch("finetune_studio.data.prep.export.pfs") as mock_pfs:
+            mock_pfs.list_qa_pairs.return_value = pairs
+            rows = [json.loads(line) for line in export_qa_jsonl("pid", fmt=fmt).splitlines()]
+
+        assert len(rows) == 1
+        if fmt == "sharegpt":
+            answer = rows[0]["conversations"][1]["value"]
+        elif fmt == "alpaca":
+            answer = rows[0]["output"]
+        else:
+            answer = rows[0]["messages"][1]["content"]
+        assert answer == "Elena Maric owns risk C-17."

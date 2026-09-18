@@ -231,35 +231,30 @@ def merge_into_qa_pairs(project_dir: pathlib.Path, augmented: list[dict]) -> int
 
 
 def rebuild_sharegpt_dataset(project_dir: pathlib.Path, dataset_dir: pathlib.Path) -> int:
+    from finetune_studio.data.prep.export import deduplicate_qa_pairs
+
     pairs_dir = project_dir / "qa" / "pairs"
-    selected: dict[str, tuple[tuple[int, int], dict]] = {}
+    pairs: list[dict] = []
     for p in sorted(pairs_dir.glob("*.json")):
         qa = json.loads(p.read_text(encoding="utf-8"))
-        question = qa.get("question", "")
-        answer = qa.get("answer", "")
-        if not question or not answer:
-            continue
         if qa.get("status") and qa["status"] != "approved":
             continue
+        pairs.append(qa)
+
+    rows = []
+    for qa in deduplicate_qa_pairs(pairs):
         category = qa.get("category", "source-grounded")
         row = {
             "conversations": [
-                {"from": "human", "value": question},
-                {"from": "gpt", "value": answer},
+                {"from": "human", "value": qa["question"]},
+                {"from": "gpt", "value": qa["answer"]},
             ],
             "source_id": qa.get("source_id", ""),
             "chunk_idx": qa.get("chunk_idx", 0),
             "keywords": qa.get("keywords", []),
             "category": category,
         }
-        key = re.sub(r"\s+", " ", question).strip().casefold()
-        priority = 3 if category == "source-grounded-curated" else (
-            1 if category == "source-grounded-augmented" else 2
-        )
-        rank = (priority, -len(answer))
-        if key not in selected or rank > selected[key][0]:
-            selected[key] = (rank, row)
-    rows = [selected[key][1] for key in sorted(selected)]
+        rows.append(row)
     pid = project_dir.name
     ds_path = dataset_dir / pid / "datasets" / f"{pid}-sharegpt-approved.jsonl"
     ds_path.parent.mkdir(parents=True, exist_ok=True)
