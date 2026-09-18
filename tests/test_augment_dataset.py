@@ -140,3 +140,39 @@ def test_augment_pair_answers_hold_real_source_facts(synth_project: Path) -> Non
     assert "Elian Mertens" in rk04["correct_answer"], (
         f"RK-04 answer must contain owner name; got: {rk04['correct_answer']!r}"
     )
+
+
+def test_export_deduplicates_questions_and_prefers_original_pair(synth_project: Path) -> None:
+    proj = synth_project / "projects" / "synthpid"
+    duplicate_question = "When and where did conveyor C-17 stop?"
+    original_answer = "C-17 stopped in Rotterdam at 09:42 CET."
+    pairs_dir = proj / "qa" / "pairs"
+    (pairs_dir / "qa_original.json").write_text(json.dumps({
+        "question": duplicate_question,
+        "answer": original_answer,
+        "status": "approved",
+        "source_id": "000000000000",
+    }), encoding="utf-8")
+    (pairs_dir / "qa_augmented.json").write_text(json.dumps({
+        "question": f"  {duplicate_question}  ",
+        "answer": "A whole noisy JSON record that should not train the model.",
+        "status": "approved",
+        "source_id": "000000000000",
+        "category": "source-grounded-augmented",
+    }), encoding="utf-8")
+
+    repo_root = Path(__file__).resolve().parent.parent
+    result = subprocess.run(
+        [PYTHON, str(repo_root / "scripts" / "augment_dataset.py"),
+         "--project-id", "synthpid", "--root", str(synth_project)],
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    dataset = synth_project / "data/projects/synthpid/datasets/synthpid-sharegpt-approved.jsonl"
+    rows = [json.loads(line) for line in dataset.read_text().splitlines() if line.strip()]
+    matches = [
+        row for row in rows
+        if row["conversations"][0]["value"].strip() == duplicate_question
+    ]
+    assert len(matches) == 1
+    assert matches[0]["conversations"][1]["value"] == original_answer

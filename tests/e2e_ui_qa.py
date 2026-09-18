@@ -10,14 +10,17 @@ models, etc.), focuses on real behavior rather than decorative features.
 """
 
 import asyncio
+import json
+import os
 import re
 import sys
-import json
 from datetime import datetime
 from pathlib import Path
+
 from playwright.async_api import async_playwright
 
-BASE = "http://fan-dragon:7860"
+BASE = os.environ.get("FTS_BASE", "http://fan-dragon:7860").rstrip("/")
+PROJECT_ID = os.environ.get("FTS_PROJECT_ID", "").strip()
 SHOTS = Path("/home/genorbox1/.openclaw/workspace/media/qa_v2")
 SHOTS.mkdir(parents=True, exist_ok=True)
 RESULTS = []
@@ -458,7 +461,8 @@ async def test_settings_ssr(ctx):
         await page.goto(BASE + "/api/projects", wait_until="domcontentloaded")
         body = await page.text_content("body")
         data = json.loads(body)
-        pid = data[0]["id"] if data else None
+        project_ids = {item["id"] for item in data}
+        pid = PROJECT_ID if PROJECT_ID in project_ids else (data[0]["id"] if data else None)
         rec("settings.list_ok", bool(pid))
         if not pid:
             await page.close()
