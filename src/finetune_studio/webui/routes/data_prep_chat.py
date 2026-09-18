@@ -509,7 +509,7 @@ async def data_prep_chat(pid: str, request: Request):
                 return {"error": f"failed to load provider: {e}"}
             backend = {"kind": "provider", "manager": mgr, "provider_id": provider_id}
     else:
-        # No provider_id: require the configured 27B GGUF helper — never
+        # No provider_id: require the configured GGUF helper — never
         # silently reuse a different Inference/manager model (e.g. a merged
         # project LoRA). Explicit provider_id / external_api remain allowed.
         from finetune_studio.data.prep.generator import (

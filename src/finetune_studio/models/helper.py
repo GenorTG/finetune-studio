@@ -1,7 +1,7 @@
-"""Configured local helper model (27B GGUF) for data-prep / suite generation.
+"""Configured local helper model (8B GGUF) for data-prep / suite generation.
 
 The studio keeps one dedicated provider row (``local-default``) pointing at the
-Qwen3.8-27B GGUF used to mine Q&A and (when LLM-assisted) build test suites.
+helper GGUF used to mine Q&A and (when LLM-assisted) build test suites.
 Callers must resolve that helper explicitly — never silently reuse whatever
 happens to be loaded on the Inference tab.
 """
@@ -16,9 +16,11 @@ from typing import Any
 DEFAULT_HELPER_PROVIDER_ID: str = "local-default"
 
 # Clear UI / error-message label (not the bare filename alone).
-DEFAULT_HELPER_LABEL: str = "Helper · Qwen3.8-27B GGUF"
+DEFAULT_HELPER_LABEL: str = "Helper · Qwen3-8B GGUF"
 
-DEFAULT_HELPER_GGUF_BASENAME: str = "Qwen3.8-27B-abliterated-Q4_K_M.gguf"
+# Helper seat is the 8B Q5_K_M fetched from Qwen/Qwen3-8B-GGUF (2026-09-18).
+# Genor's fleet rule: helpers must be <27B; the 27B stays off the helper seat.
+DEFAULT_HELPER_GGUF_BASENAME: str = "Qwen3-8B-Q5_K_M.gguf"
 
 # Loader defaults for the seeded local_gguf provider.
 DEFAULT_HELPER_EXTRA: dict[str, Any] = {
@@ -106,7 +108,7 @@ def helper_display_label(
     if (
         cleaned
         and cleaned not in ("Local GGUF", "local", DEFAULT_HELPER_PROVIDER_ID)
-        and ("27B" in cleaned or "helper" in cleaned.lower())
+        and ("27B" in cleaned or "helper" in cleaned.lower() or "8B" in cleaned)
     ):
         return f"Helper · {cleaned}"
     base = helper_basename(model_id) or DEFAULT_HELPER_GGUF_BASENAME

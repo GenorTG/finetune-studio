@@ -1,4 +1,4 @@
-"""Focused tests for the configured 27B GGUF helper defaults."""
+"""Focused tests for the configured GGUF helper defaults."""
 
 from __future__ import annotations
 
@@ -23,8 +23,8 @@ from finetune_studio.models.registry import _safe_model_name
 
 def test_default_helper_constants_are_explicit() -> None:
     assert DEFAULT_HELPER_PROVIDER_ID == "local-default"
-    assert "27B" in DEFAULT_HELPER_LABEL
     assert DEFAULT_HELPER_GGUF_BASENAME.endswith(".gguf")
+    assert "8B" in DEFAULT_HELPER_LABEL
     assert DEFAULT_HELPER_GGUF_BASENAME in default_helper_gguf_path()
 
 
@@ -68,7 +68,7 @@ def test_annotate_provider_renames_legacy_local_gguf() -> None:
 
 def test_helper_display_label_prefixes() -> None:
     assert helper_display_label(name="Local GGUF").startswith("Helper")
-    assert "27B" in helper_display_label(model_id=DEFAULT_HELPER_GGUF_BASENAME)
+    assert "8B" in helper_display_label(model_id=DEFAULT_HELPER_GGUF_BASENAME)
 
 
 def test_wrong_and_no_helper_messages_name_provider() -> None:
@@ -97,7 +97,7 @@ def test_providers_api_exposes_helper(client: Any) -> None:
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["helper_provider_id"] == DEFAULT_HELPER_PROVIDER_ID
-    assert "27B" in body["helper_label"]
+    assert "8B" in body["helper_label"]
     assert any(p.get("id") == DEFAULT_HELPER_PROVIDER_ID for p in body["providers"])
 
 
@@ -105,7 +105,7 @@ def test_data_prep_page_shows_helper(client: Any) -> None:
     pid = client.post("/api/projects", json={"name": "Helper Prep UI"}).json()["id"]
     r = client.get(f"/projects/{pid}/data-prep")
     assert r.status_code == 200, r.text
-    assert DEFAULT_HELPER_LABEL in r.text or "27B" in r.text
+    assert DEFAULT_HELPER_LABEL in r.text or "8B" in r.text
     assert DEFAULT_HELPER_PROVIDER_ID in r.text
     # Prep job copy: helper-only, load that provider first (no silent fallback).
     assert "load that provider first" in r.text
@@ -117,7 +117,7 @@ def test_testing_page_shows_helper(client: Any) -> None:
     r = client.get(f"/projects/{pid}/testing")
     assert r.status_code == 200, r.text
     assert "helper_label" not in r.text  # rendered, not the key
-    assert "27B" in r.text or "Helper" in r.text
+    assert "8B" in r.text or "Helper" in r.text
     assert "silent" in r.text.lower() or "never a silent" in r.text
 
 
@@ -147,7 +147,7 @@ def test_auto_suite_generate_names_helper(
     body = r.json()
     assert body.get("ok") is True
     assert body.get("helper_provider_id") == DEFAULT_HELPER_PROVIDER_ID
-    assert "27B" in (body.get("helper_label") or "")
+    assert "8B" in (body.get("helper_label") or "")
     assert body.get("generation_mode") == "deterministic"
 
 

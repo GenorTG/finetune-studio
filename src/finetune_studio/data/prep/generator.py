@@ -1,7 +1,7 @@
 """Resolve a chat callable for data-prep Q&A generation.
 
 Data-prep and LLM-assisted suite generation require the configured local
-27B GGUF helper (``models.helper``). This module never loads a model and
+GGUF helper (``models.helper``). This module never loads a model and
 never silently falls back to a different loaded model (e.g. a project's
 merged 4B on the Inference tab).
 

@@ -7,8 +7,8 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-346 files · 60712 lines
-- `finetune_studio`: 211 files, 37526 lines
+346 files · 60728 lines
+- `finetune_studio`: 211 files, 37542 lines
 - `scripts`: 6 files, 1501 lines
 - `tests`: 129 files, 21685 lines
 
@@ -944,18 +944,18 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 
 ## `src/finetune_studio/models/__init__.py` (2 lines)
 
-## `src/finetune_studio/models/helper.py` (167 lines)
-- `default_helper_gguf_path() -> str` (L38) — Absolute path to the configured helper GGUF on this host.
-- `normalize_model_path(path: str | None) -> str` (L52) — Absolute normalised path for equality checks (empty if unset).
-- `paths_match(a: str | None, b: str | None) -> bool` (L63) — True when two model paths refer to the same file/dir.
-- `helper_basename(path: str | None) -> str` (L72) — Last path segment of a model path (GGUF filename or dir name).
-- `is_helper_gguf_path(path: str | None) -> bool` (L80) — True when ``path`` is the configured helper GGUF (env or default).
-- `is_helper_provider(row: dict[str, Any] | None) -> bool` (L88) — True when a provider row is the configured local helper.
-- `helper_display_label(*, name: str | None = None, model_id: str | None = None) -> str` (L97) — Human-readable helper label for UI / API (always prefixed Helper ·).
-- `annotate_provider(row: dict[str, Any]) -> dict[str, Any]` (L117) — Copy a provider dict and add ``is_helper`` + display ``label``.
-- `get_configured_helper_provider() -> dict[str, Any] | None` (L135) — Return the helper provider row from ModelManager, or None.
-- `wrong_model_message(loaded_path: str | None = None) -> str` (L149) — Error when a non-helper model is loaded for a helper-only workflow.
-- `no_helper_message() -> str` (L160) — Error when the helper is not loaded.
+## `src/finetune_studio/models/helper.py` (169 lines)
+- `default_helper_gguf_path() -> str` (L40) — Absolute path to the configured helper GGUF on this host.
+- `normalize_model_path(path: str | None) -> str` (L54) — Absolute normalised path for equality checks (empty if unset).
+- `paths_match(a: str | None, b: str | None) -> bool` (L65) — True when two model paths refer to the same file/dir.
+- `helper_basename(path: str | None) -> str` (L74) — Last path segment of a model path (GGUF filename or dir name).
+- `is_helper_gguf_path(path: str | None) -> bool` (L82) — True when ``path`` is the configured helper GGUF (env or default).
+- `is_helper_provider(row: dict[str, Any] | None) -> bool` (L90) — True when a provider row is the configured local helper.
+- `helper_display_label(*, name: str | None = None, model_id: str | None = None) -> str` (L99) — Human-readable helper label for UI / API (always prefixed Helper ·).
+- `annotate_provider(row: dict[str, Any]) -> dict[str, Any]` (L119) — Copy a provider dict and add ``is_helper`` + display ``label``.
+- `get_configured_helper_provider() -> dict[str, Any] | None` (L137) — Return the helper provider row from ModelManager, or None.
+- `wrong_model_message(loaded_path: str | None = None) -> str` (L151) — Error when a non-helper model is loaded for a helper-only workflow.
+- `no_helper_message() -> str` (L162) — Error when the helper is not loaded.
   - imports: finetune_studio.models.manager
 
 ## `src/finetune_studio/models/loader.py` (65 lines)
@@ -963,23 +963,23 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `load_for_inference(model_path: str, device: str = 'auto', **kwargs)` (L50)
 - `load_gguf_inference(gguf_path: str, n_ctx: int = 4096, n_gpu_layers: int = 99)` (L62)
 
-## `src/finetune_studio/models/manager.py` (281 lines)
+## `src/finetune_studio/models/manager.py` (295 lines)
 - `_ensure_db() -> None` (L28)
-- `json_dumps(d: dict) -> str` (L93)
-- `json_loads(s: str) -> dict` (L98)
-- `class ModelManager` (L106)
-  - `def __init__(self)` (L114)
-  - `def list_providers(self) -> list[dict]` (L126)
-  - `def get_provider(self, pid: str) -> dict | None` (L144)
-  - `def upsert_provider(self, **kw) -> dict` (L150)
-  - `def delete_provider(self, pid: str) -> bool` (L175)
-  - `def active(self) -> dict | None` (L182)
-  - `def load(self, pid: str, extra: dict | None = None) -> dict` (L190)
-  - `def unload(self) -> None` (L240)
-  - `def _safe_unload(self) -> None` (L245)
-  - `def chat(self, messages: list[dict], **gen) -> str` (L254)
-  - `def generate(self, prompt: str, **gen) -> str` (L262)
-- `get_manager() -> ModelManager` (L276)
+- `json_dumps(d: dict) -> str` (L107)
+- `json_loads(s: str) -> dict` (L112)
+- `class ModelManager` (L120)
+  - `def __init__(self)` (L128)
+  - `def list_providers(self) -> list[dict]` (L140)
+  - `def get_provider(self, pid: str) -> dict | None` (L158)
+  - `def upsert_provider(self, **kw) -> dict` (L164)
+  - `def delete_provider(self, pid: str) -> bool` (L189)
+  - `def active(self) -> dict | None` (L196)
+  - `def load(self, pid: str, extra: dict | None = None) -> dict` (L204)
+  - `def unload(self) -> None` (L254)
+  - `def _safe_unload(self) -> None` (L259)
+  - `def chat(self, messages: list[dict], **gen) -> str` (L268)
+  - `def generate(self, prompt: str, **gen) -> str` (L276)
+- `get_manager() -> ModelManager` (L290)
   - imports: finetune_studio.models.helper, finetune_studio.models.providers
 
 ## `src/finetune_studio/models/providers.py` (273 lines)

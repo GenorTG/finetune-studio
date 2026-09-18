@@ -1,4 +1,4 @@
-"""Regression: configured 27B GGUF helper is explicit for data-prep / suites."""
+"""Regression: configured GGUF helper is explicit for data-prep / suites."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from finetune_studio.models.helper import (
 
 def test_helper_constants_and_label() -> None:
     assert DEFAULT_HELPER_PROVIDER_ID == "local-default"
-    assert "27B" in DEFAULT_HELPER_LABEL
+    assert "8B" in DEFAULT_HELPER_LABEL
     assert DEFAULT_HELPER_LABEL.startswith("Helper")
     assert helper_display_label(name="Local GGUF").startswith("Helper ·")
     assert is_helper_gguf_path(

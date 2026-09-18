@@ -1,4 +1,4 @@
-"""Data-prep chat requires the configured 27B GGUF helper.
+"""Data-prep chat requires the configured GGUF helper.
 
 When ``provider_id`` is omitted, the route must use the helper already loaded
 in ModelManager or on ``inference_engine`` — never a project's merged 4B (or
@@ -61,7 +61,7 @@ def _manager_helper(*, active: dict[str, Any] | None) -> MagicMock:
         "id": DEFAULT_HELPER_PROVIDER_ID,
         "kind": "local_gguf",
         "model_id": _HELPER_PATH,
-        "name": "Helper · Qwen3.8-27B GGUF",
+        "name": "Helper · Qwen3-8B GGUF",
     }
     mgr.load = MagicMock(
         side_effect=AssertionError("manager.load must not be called"),

@@ -76,6 +76,20 @@ def _ensure_db() -> None:
                 "WHERE id = ? AND (name = '' OR name = 'Local GGUF' OR name = 'local')",
                 (DEFAULT_HELPER_LABEL, DEFAULT_HELPER_PROVIDER_ID),
             )
+            # 2026-09-18 fleet rule (Genor): helper seat must be <27B. Migrate the
+            # legacy 27B label/path to the current helper defaults.
+            c.execute(
+                "UPDATE model_providers SET name = ? "
+                "WHERE id = ? AND name = ?",
+                (DEFAULT_HELPER_LABEL, DEFAULT_HELPER_PROVIDER_ID,
+                 "Helper · Qwen3.8-27B GGUF"),
+            )
+            c.execute(
+                "UPDATE model_providers SET model_id = ? "
+                "WHERE id = ? AND model_id LIKE ?",
+                (default_helper_gguf_path(), DEFAULT_HELPER_PROVIDER_ID,
+                 "%Qwen3.8-27B-abliterated-Q4_K_M.gguf"),
+            )
 
 
 _LOG = logging.getLogger(__name__)
