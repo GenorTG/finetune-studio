@@ -4491,7 +4491,10 @@ body::before {
   }
 }
 
-@media (max-width: 780px) {
+@media (max-width: 900px) {
+  /* bench/models tables start clipping at ~900px (sidebar collapse) — the
+     780px cutoff left a 780–900px band where columns ran off-screen with no
+     horizontal scroll. */
   .models-table-scroll,
   .bench-table-scroll,
   .trained-exports-table-scroll,
