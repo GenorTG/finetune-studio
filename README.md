@@ -32,6 +32,11 @@ suite all live in one repo.
 - [Contributing](#contributing)
 - [License & attributions](#license--attributions)
 
+> **New here?** The fastest path from zero to a trained model is the
+> step-by-step [**Tutorial**](docs/TUTORIAL.md) — upload → parse → QA pairs
+> → train → benchmark → export → chat, with the common first-run pitfalls
+> covered.
+
 ---
 
 ## Why I built this
@@ -399,6 +404,7 @@ Full list with versions and licenses → **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTI
 ## Documentation
 
 - **[docs/README.md](docs/README.md)** — doc map (start here)
+- **[docs/TUTORIAL.md](docs/TUTORIAL.md)** — end-to-end first-model tutorial (users start here)
 - **[HANDOFF.md](HANDOFF.md)** — current ops state / next steps for agents
 - **[docs/PRODUCT-BRIEF.md](docs/PRODUCT-BRIEF.md)** — product north star & quality bar
 - **[AGENTS.md](AGENTS.md)** — how agents should work this repo

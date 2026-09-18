@@ -7,6 +7,7 @@ Start here when onboarding a human or a fresh agent session.
 | Doc | Role |
 |-----|------|
 | [`../HANDOFF.md`](../HANDOFF.md) | **Ops:** verified state, next steps, commands, blockers (rewrite often) |
+| [`TUTORIAL.md`](TUTORIAL.md) | **Start here as a user:** first model end-to-end, pitfalls table |
 | [`PRODUCT-BRIEF.md`](PRODUCT-BRIEF.md) | **North star:** what “good” means, how to verify, Genor’s quality bar |
 | [`../AGENTS.md`](../AGENTS.md) | **How to work:** hosts, commands, session protocol, gotchas |
 | [`../RESTART.md`](../RESTART.md) | Fan-dragon service restart / squat uvicorn |

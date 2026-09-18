@@ -117,6 +117,7 @@
     <a href="#why">why</a>
     <a href="#quickstart">quickstart</a>
     <a href="#docs">docs</a>
+    <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/TUTORIAL.md">tutorial ↗</a>
     <a href="https://github.com/GenorTG/finetune-studio">github ↗</a>
   </span>
 </div></nav>
@@ -225,7 +226,7 @@
     <figure><img src="screenshots/02_project.png" alt="Project overview with data, RAG, training summary" loading="lazy">
       <figcaption><b>PROJECT OVERVIEW</b> — per-project dashboard: data count, RAG status, run history, latest scores.</figcaption></figure>
     <figure><img src="screenshots/03_data_prep.png" alt="Data prep with file library and parsed preview" loading="lazy">
-      <figcaption><b>DATA PREP</b> — file library with rename + per-file purge, 4-tab modal preview on converted files.</figcaption></figure>
+      <figcaption><b>DATA PREP</b> — immutable deduped uploads, parsed sources, QA mining and triage; export lands in Training with a one-click handoff.</figcaption></figure>
     <figure><img src="screenshots/04_rag.png" alt="RAG with search and documents-indexed panel" loading="lazy">
       <figcaption><b>RAG</b> — corpus inventory + per-doc Rebuild + View chunks, all on a PortableRAG parquet-backed store.</figcaption></figure>
     <figure><img src="screenshots/05_models.png" alt="Models with expand rows for each trained export" loading="lazy">
@@ -233,13 +234,15 @@
     <figure><img src="screenshots/06_training.png" alt="Training with past-run Actions" loading="lazy">
       <figcaption><b>TRAINING</b> — LoRA config, live loss curve; each past run has Actions (⭐ Set Production, ▶ Inference, ⬇ Download).</figcaption></figure>
     <figure><img src="screenshots/07_benchmarks.png" alt="Benchmarks with Recent scores and Compare two runs tabs" loading="lazy">
-      <figcaption><b>BENCHMARKS</b> — Recent scores + Compare two runs tabs; per-suite Δ table colored.</figcaption></figure>
+      <figcaption><b>BENCHMARKS</b> — real HF suites (strict MCQ) + synthetic offline smoke + project QA suites; Recent scores + Compare two runs with colored per-suite Δ.</figcaption></figure>
     <figure><img src="screenshots/08_export.png" alt="Export with expand rows for each trained export" loading="lazy">
-      <figcaption><b>EXPORT</b> — merged / abliterated first-class; GGUF + GPTQ when host tools are present; same expand-row pattern as Models.</figcaption></figure>
+      <figcaption><b>EXPORT</b> — merged / abliterated first-class; GGUF + GPTQ when host tools are present; failures land in the run row, never silent.</figcaption></figure>
     <figure><img src="screenshots/09_testing.png" alt="Testing with suite dropdown" loading="lazy">
       <figcaption><b>TESTING</b> — generate QA pairs from a trained model; suite dropdown picks from available.</figcaption></figure>
     <figure><img src="screenshots/10_settings.png" alt="Settings with WebUI log tail card" loading="lazy">
       <figcaption><b>SETTINGS</b> — per-project config + WebUI log tail + Apply update controls.</figcaption></figure>
+    <figure><img src="screenshots/11_chat.png" alt="Chat with streaming, RAG attach and Agent mode" loading="lazy">
+      <figcaption><b>CHAT</b> — safetensors or GGUF, streaming with sprite feedback, RAG-attach, Agent mode for tool-driven dataset curation.</figcaption></figure>
   </div>
 </div></section>
 
@@ -290,6 +293,7 @@
 <section id="docs"><div class="wrap">
   <h2>DOCS</h2>
   <div class="docs">
+    <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/TUTORIAL.md"><b>TUTORIAL.md</b>your first model, end to end — workflow, tips, first-run pitfalls</a>
     <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/INSTALL.md"><b>INSTALL.md</b>install on Linux / macOS / Windows, prerequisites, troubleshooting</a>
     <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/ARCHITECTURE.md"><b>ARCHITECTURE.md</b>layers, route map, data flow, disk layout</a>
     <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/DEPENDENCIES.md"><b>DEPENDENCIES.md</b>every dep → where it's used, GPU-wheel story</a>
