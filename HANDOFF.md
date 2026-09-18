@@ -1,63 +1,62 @@
 # HANDOFF — finetune-studio
 
-Local fine-tune + data-prep WebUI (`src/finetune_studio/`).  
+Local fine-tune + data-prep WebUI (`src/finetune_studio/`).
 Edit on **genorbox1** → push → **fan-dragon** runs `finetune-studio.service` on `:7860`.
 
-**Read first:** `docs/PRODUCT-BRIEF.md` (what “good” means) · this file (ops state) · `AGENTS.md` (how to work).
+**Read first:** `docs/WORKPLAN.md` (order is law — read FIRST) · `docs/PRODUCT-BRIEF.md` (north star) · this file · `AGENTS.md`.
 
 ## Mission
 
-Ship an honest studio: every op visible in Activity, training that actually learns the ingested corpus, Q&A/RAG you can audit by reading answers — not fake greens.
+Ship an honest studio: every op visible in Activity, training that actually learns the ingested corpus, Q&A you can audit by reading answers — not fake greens.
 
-## State (verified 2026-09-18 ~11:00 CEST · genorbox1 `53ddebc`)
+## State (verified 2026-09-18 ~15:00 CEST · genorbox1 `463a97e` = fan-dragon `4ed1336`+docs·463a97e pending pull)
 
 | Area | Status |
 |------|--------|
-| **genorbox1 git** | `main` @ `53ddebc` (= `origin/main`). Dirty (uncommitted): `HANDOFF.md`, `AGENTS.md`, `README.md`, `docs/PRODUCT-BRIEF.md`, `docs/README.md`, `hf_models.py` search WIP, `tests/test_activity_kind_classifier.py` |
-| **fan-dragon** | Checkout **`e2e6635`** (behind genorbox1). **Service FAILED** (stop-sigterm timeout). HTTP :7860 down. ~51/62 Gi RAM used, ~16.5/24 Gi VRAM — often other apps/games; do not kill them; pause studio work if headroom is insufficient. Within the studio, load/unload models yourself. |
-| **Activity feed** | Classifier covers model_load / inference / rag_build / download / etc. (`e2e6635`); probe saw HF download API 200 but Hub **401** on bad/tokenless pulls |
-| **Event loop** | Blocking GPU/infer paths wrapped in `asyncio.to_thread` + locks (ac84053…00d4a70) |
-| **Startup reconcile** | Stale `queued`/`running` → `failed` on 5 tables (`cf6e703`) |
-| **Quality (last solid numbers)** | Augmented run `8b1dd006`: RAG ~93–100%; held-out ~17–26%; source-disjoint once **0%**. Earlier fresh Q8 held-out ~4.3% with ID/fact gaps |
-| **Suites / RAG UI** | full-ingested-corpus discovery + RAG-grounded testing UI landed in tree; verify live after service is up |
-| **Tests (genorbox1)** | Historically ~922 pass; re-run after WIP commits. GPU profiler tests skip here |
-| **OpenClaw** | MiniMax tools OK if you use `timeoutSeconds`, prefer curl, no tool self-tests. Old dashboard chat `…eec0a8da…` is toxic — **use a fresh session** |
+| **genorbox1 git** | `main` @ `463a97e` = `origin/main`. Clean except `.tmp/` (untracked, fine). |
+| **fan-dragon** | Checkout `4ed1336` (one docs commit behind `463a97e` — docs only, harmless). **Service active**, cgroup verified `finetune-studio.service`, HTTP 200, activity feed live (60 tasks). VRAM: 3.6/24 GiB used. Testing engine has GGUF `quality-v4-source-disjoint/model-q4_k_m.gguf` LOADED — unload before big train. |
+| **Judged quality (source-disjoint, 52 cases)** | **Human verdict: ~8% pass strict / ~15% lenient. Auto said 35% — WRONG on 17/52 (33%)**: 13 false positives (wrong dates/owners passed), 2 false negatives, 2 severity disputes. Report: `docs/judging/2026-09-18-source-disjoint-q4.md`. Auto-scoring OVER-scores; bare-answer under-score trap matters less than hallucinated-numbers pass. |
+| **HF search** | FIXED live on fan-dragon (`/api/hf/search?q=...` returns real results; token-match + pipeline-tag retry, `4ed1336`). Playwrong-path note: route prefix is `/api/hf/*`, page is `/models/explore` + `/hf-models` (not `/projects/{pid}/hf-models` — that is 404). |
+| **Tests (genorbox1)** | activity-classifier 38 pass; full suite historically ~922. |
+| **Codemap** | `make codemap` / `--grep NAME` / `make codemap-check` live. Commit regenerated `docs/CODEMAP.md` with code moves. |
+| **Suites / RAG UI** | full-corpus + RAG-grounded testing UI landed; NOT yet smoke-verified live. |
 
-## Next steps (do in order)
+## Next steps (do in order — WORKPLAN.md governs)
 
-1. **Bring fan-dragon WebUI back** — `systemctl --user start finetune-studio` only (do **not** kill unrelated GPU/RAM users). If start fails or VRAM/RAM is too tight for studio work: pause and report. Confirm cgroup + `curl -sI http://fan-dragon:7860/`.
-2. **Align revisions** — `git push` any finished WIP; fan-dragon `fetch` + `reset --hard origin/main` + restart; note both SHAs.
-3. **Smoke product path (API + 1–2 WebUI screenshots)** — OCR/upload → parse → use as source; `/api/activity` kinds; HF search page (`/hf-models`) shows results; fix empty search if still broken.
-4. **RAG export round-trip** — build → export zip from WebUI (add download if missing) → re-import → query; fail loudly if pack is useless.
-5. **Training quality** — only when headroom allows (else pause). Unload studio helpers/models you loaded before a big train. Longer run (≥200 optimizer steps) on merged augmented data; **held-out** (not leakage); download transcript and **read** answers; augment for dispatch/return/C-17/INC-1842 gaps if still weak.
-6. **Helper GGUF** — HF download a Qwen GGUF **>4B and <27B** for data-prep/judge helper; wire/load via inference paths; leave 27B off the default helper seat.
-7. **Rewrite this HANDOFF** when a milestone is verified (archive old copy under `docs/archive/`).
+1. **Pull `463a97e` on fan-dragon** (`bash update.sh`) — docs-only diff, 1 min.
+2. **Unload the testing GGUF** after any bench work (leave box clean).
+3. **Fix suite bugs found while judging:** regenerate `source-disjoint-held-out.json` — case 050's expected answer is a raw table dump; dedupe overlapping cases (000/046/048, 005/044/049, 006/007/011/051).
+4. **Retrain with a real run** (≥200 optimizer steps, headroom loads fine now) then re-run judging session — person/date/number hallucinations are the dominant failure classes; use source-grounded augmentation.
+5. **RAG export zip round-trip** via WebUI — untested end-to-end.
+6. **Auto-judge wiring** — only after trust gate in `docs/judging/PROTOCOL.md` (≥95% human agreement over 2 runs + Genor 10-case spot check).
+7. **Rewrite/HANDOFF** at next milestone; keep ≤120 lines, archive old copies.
 
 ## Commands
 
 ```bash
 # genorbox1
 cd ~/work/finetune-studio
-make test
-.venv/bin/python -m ruff check src/
+make test                       # focused: .venv/bin/python -m pytest tests/test_ACTIVITY.py -v
+.venv/bin/python -m ruff check src/   # NEVER `make lint` (swallows failures)
+make codemap                    # regenerate docs/CODEMAP.md after code moves; commit it together
 
-# deploy
+# deploy (scripted route — iron rule 2b)
 git push
-ssh fan-dragon 'bash -c "cd /home/genortg/finetune-studio && git fetch origin -q && git reset --hard origin/main && systemctl --user restart finetune-studio && sleep 5 && systemctl --user is-active finetune-studio && ss -ltnp | grep 7860"'
+ssh fan-dragon 'bash -c "cd /home/genortg/finetune-studio && bash update.sh 2>&1 | tail -15"'
+ssh fan-dragon 'bash -c "cd /home/genortg/finetune-studio && git log --oneline -1; systemctl --user is-active finetune-studio; ss -ltnp | grep 7860"'
 
-# truth: unit cgroup (not a squat uvicorn)
-ssh fan-dragon 'bash -c "ss -ltnp | grep 7860 | grep -oP \"pid=\\K[0-9]+\" | head -1 | xargs -I{} cat /proc/{}/cgroup | grep finetune-studio"'
+# service truth (squat-uvicorn check)
+ssh fan-dragon 'bash -c "ss -ltnp | grep 7860 | grep -oP \"pid=\\K[0-9]+\" | head -1 | xargs -I{} sh -c \"grep finetune-studio /proc/{}/cgroup\""'
 
-# activity + resource peek (observe only — do not kill foreign PIDs)
-curl -s http://fan-dragon:7860/api/activity | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d.get(\"tasks\",[])),\"tasks\")"
-ssh fan-dragon 'bash -c "nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader; nvidia-smi --query-compute-apps=pid,used_memory,process_name --format=csv; free -h | head -2"'
+# API verify (browser flakes once → fall back to curl; never CDP loops)
+curl -s http://fan-dragon:7860/api/activity | python3 -m json.tool | head -40
+ssh fan-dragon 'bash -c "nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader; free -h | head -2"'
 ```
 
 ## Blockers
 
-- **fan-dragon WebUI down** (`finetune-studio.service` failed) — restart the **service** only; do not clear RAM/VRAM by killing games/other services. If resources stay insufficient for studio ops → pause.
-- Uncommitted HF search / AGENTS / activity-classifier test on genorbox1 — finish or stash before hard reset on fan-dragon.
+- None hard. Next milestone is quality (training + re-judge), not ops.
 
 ## Fresh-session kickoff (paste for MiniMax)
 
-You are on finetune-studio. Read `docs/PRODUCT-BRIEF.md` + this `HANDOFF.md` + `AGENTS.md`. Do **not** compact, do **not** restart OpenClaw gateway, do **not** self-test OpenClaw tools. Prefer `curl` to fan-dragon; use `timeoutSeconds` on exec. `get_goal` before `create_goal`. Status ≤8 lines then execute Next steps from #1 without stopping for another essay. Work in this session (edits + checks); use Cursor ACP only if Genor asks or a change is large — if ACP handshake fails once, hand-edit or report once. On fan-dragon: never kill foreign GPU/RAM users (games/other services); pause if the box is too full. Manage Finetune Studio load/unload yourself.
+You are on finetune-studio. Read `docs/WORKPLAN.md` FIRST (order is law), then `docs/PRODUCT-BRIEF.md` + this `HANDOFF.md` + `AGENTS.md`. Do **not** compact, do **not** restart OpenClaw gateway, do **not** self-test OpenClaw tools. Deploy ONLY via `update.sh` on fan-dragon; never manual reset chains; never start service on stale checkout. Never kill foreign GPU/RAM pids. Auto-test verdicts are untrustworthy — human judging per `docs/judging/PROTOCOL.md` is mandatory. Evidence format: `DONE <change> / verified: <pasted lines> / gaps: <unchecked>`. `get_goal` before any create. Consult `docs/CODEMAP.md` instead of grepping.
