@@ -25,9 +25,9 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from fastapi import HTTPException
+
 from finetune_studio.data.fs.paths import project_files_root
 
 log = logging.getLogger(__name__)
@@ -60,7 +60,7 @@ _RAW_TRASH_DIR = ".RAW_TRASH"
 _CONVERTED_TRASH_DIR = ".CONVERTED_TRASH"
 
 
-def _sniff_mime(filename: str, sniffed: Optional[str] = None) -> str:
+def _sniff_mime(filename: str, sniffed: str | None = None) -> str:
     """Best-effort MIME detection: prefer the python-magic 'sniffed' value
     if the caller already ran libmagic, else fall back to mimetypes by
     extension."""
@@ -138,10 +138,10 @@ class UploadReportItem:
     """One row in the bulk-upload report."""
     filename: str
     status: str                 # 'uploaded' | 'duplicate' | 'error'
-    file_id: Optional[str] = None
-    duplicate_of: Optional[str] = None      # filename the duplicate matched
-    converted: Optional[str] = None        # 'ok' | 'error' | None (skipped)
-    error: Optional[str] = None
+    file_id: str | None = None
+    duplicate_of: str | None = None      # filename the duplicate matched
+    converted: str | None = None        # 'ok' | 'error' | None (skipped)
+    error: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -232,7 +232,7 @@ def get_or_create_auto_folder(pid: str, auto_kind: str) -> dict:
         return dict(row)
 
 
-def find_existing_hash(pid: str, raw_hash: str) -> Optional[dict]:
+def find_existing_hash(pid: str, raw_hash: str) -> dict | None:
     """Look up an existing live file (deleted_at IS NULL) by its raw hash.
     Used for sha256 dedup on upload."""
     from finetune_studio import db
@@ -293,10 +293,10 @@ def record_uploaded_file(
 def list_files(
     pid: str,
     *,
-    folder_id: Optional[str] = None,
+    folder_id: str | None = None,
     include_deleted: bool = False,
-    mime_prefix: Optional[str] = None,
-    search: Optional[str] = None,
+    mime_prefix: str | None = None,
+    search: str | None = None,
 ) -> list[dict]:
     """List files for a project. If folder_id is given, restrict to files
     in that folder. Otherwise return all live files."""
@@ -344,7 +344,7 @@ def list_folders(pid: str, *, include_auto: bool = True) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def get_file(pid: str, file_id: str, *, include_deleted: bool = False) -> Optional[dict]:
+def get_file(pid: str, file_id: str, *, include_deleted: bool = False) -> dict | None:
     from finetune_studio import db
     clauses = ["pf.project_id = ?", "pf.id = ?"]
     params: list = [pid, file_id]
@@ -698,9 +698,64 @@ def list_trash(pid: str) -> list[dict]:
     return out
 
 
+# ── Soft-delete revival on re-upload (QABUG 2026-09-18) ──────────────────
+
+def _revive_deleted_file(pid: str, file_id: str, original_name: str,
+                         data: bytes, mime: str, kind: str, raw_hash: str,
+                         auto_folder_id: str, uploaded_by: str) -> FileMetadata:
+    """Undelete a soft-deleted row for a re-upload of the same filename.
+
+    Delete moved the physical raw file to trash and set deleted_at; the
+    (project_id, original_name) UNIQUE still belongs to that trash row. So
+    a deliberate delete + re-upload must revive: undelete the row, write a
+    NEW raw copy (trash copy stays for restore), bump current_version and
+    append a file_versions row.
+    """
+    import time as _time
+
+    from finetune_studio import db
+    now = _time.time()
+    with db.cursor() as c:
+        prev = c.execute(
+            "SELECT current_version FROM project_files WHERE id = ?", (file_id,)
+        ).fetchone()
+        prev_version = (prev[0] if prev else 0) or 0
+        next_version = prev_version + 1
+        raw_path = raw_path_for(pid, file_id, original_name, kind)
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_path.write_bytes(data)
+        c.execute(
+            "UPDATE project_files SET deleted_at = NULL, trash_kind = NULL, "
+            "mime_type = ?, size_bytes = ?, current_version = ?, "
+            "uploaded_at = ?, uploaded_by = ? WHERE id = ?",
+            (mime, len(data), next_version, now, uploaded_by, file_id),
+        )
+        c.execute(
+            "INSERT INTO file_versions "
+            "(file_id, version, raw_path, raw_hash, raw_size, uploaded_at, uploaded_by) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (file_id, next_version, str(raw_path), raw_hash, len(data), now,
+             uploaded_by),
+        )
+        c.execute(
+            "INSERT OR IGNORE INTO folder_membership (folder_id, file_id) VALUES (?, ?)",
+            (auto_folder_id, file_id),
+        )
+    return FileMetadata(
+        file_id=file_id,
+        original_name=original_name,
+        mime_type=mime,
+        size_bytes=len(data),
+        raw_path=str(raw_path),
+        raw_hash=raw_hash,
+        auto_kind=kind,
+        version=next_version,
+    )
+
+
 # ── Single-file write path (used by routes/file_library.py) ──────────────
 
-def write_uploaded_file(pid: str, data: bytes, original_name: str, *, mime_hint: Optional[str] = None, uploaded_by: str = "user") -> FileMetadata:
+def write_uploaded_file(pid: str, data: bytes, original_name: str, *, mime_hint: str | None = None, uploaded_by: str = "user") -> FileMetadata:
     """Write bytes to the correct MIME-segregated raw subfolder. Compute
     sha256. Create the project_files + file_versions rows. Returns metadata.
 
@@ -719,6 +774,23 @@ def write_uploaded_file(pid: str, data: bytes, original_name: str, *, mime_hint:
     raw_hash = sha256_of_bytes(data)
     file_id = f"{pid[:8]}-{raw_hash[:16]}"
     auto_folder = get_or_create_auto_folder(pid, kind)
+
+    # Re-upload of a deliberately deleted (name) must revive the trash row
+    # instead of colliding on the (project_id, original_name) UNIQUE — the
+    # dedup pass upstream ignores deleted rows by design, so without this
+    # the re-upload could never land (QABUG 2026-09-18).
+    revived = False
+    from finetune_studio import db as _db_mod
+    with _db_mod.cursor() as c:
+        trash = c.execute(
+            "SELECT id FROM project_files WHERE project_id = ? AND original_name = ? AND deleted_at IS NOT NULL",
+            (pid, original_name),
+        ).fetchone()
+    if trash:
+        return _revive_deleted_file(
+            pid, trash["id"], original_name, data, mime, kind, raw_hash,
+            auto_folder["id"], uploaded_by,
+        )
 
     raw_path = raw_path_for(pid, file_id, original_name, kind)
     raw_path.parent.mkdir(parents=True, exist_ok=True)
@@ -748,10 +820,15 @@ def write_uploaded_file(pid: str, data: bytes, original_name: str, *, mime_hint:
         if "UNIQUE constraint failed: project_files.id" in msg:
             with db.cursor() as c:
                 row = c.execute(
-                    "SELECT project_id FROM project_files WHERE id = ?", (file_id,)
+                    "SELECT project_id, deleted_at FROM project_files WHERE id = ?", (file_id,)
                 ).fetchone()
-            if row and row[0] == pid:
-                raise  # in-project duplicate: caller should have caught it via dedup
+            # In-project duplicate of a LIVE row = caller bug (raise).
+            # Soft-deleted row holding the id: the user deleted that file on
+            # purpose — recycle a fresh uuid so the re-upload lands instead
+            # of poisoning the id forever (QABUG: re-upload after delete
+            # failed with UNIQUE constraint).
+            if row and row[0] == pid and row[1] is None:
+                raise  # live in-project duplicate: caller should have caught it via dedup
             file_id = f"{pid[:8]}-{uuid.uuid4().hex[:16]}"
             raw_path = raw_path_for(pid, file_id, original_name, kind)
             raw_path.parent.mkdir(parents=True, exist_ok=True)
@@ -918,7 +995,7 @@ def _convert_raw_to_md(path: Path, original_name: str) -> str:
     return f"```\n{text}\n```\n"
 
 
-def _current_raw_path(pid: str, file_id: str, current_version: int) -> Optional[Path]:
+def _current_raw_path(pid: str, file_id: str, current_version: int) -> Path | None:
     """Resolve the on-disk path for the file's current version.
 
     Soft-delete moves bytes into .RAW_TRASH without always updating raw_path,
