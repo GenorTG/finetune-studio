@@ -308,7 +308,10 @@ body::before {
   max-width: 100%;
   min-height: calc(100vh - 76px);  /* fill the visible viewport minus the topbar row, but allow growth past it for tall pages like data-prep (989px file library) */
   overflow-y: visible;
-  overflow-x: hidden;
+  /* NOTE: never set overflow-x:hidden here — pairing it with visible-y
+     forces overflow-y to compute as auto (CSS spec), turning .content
+     into a 361px inner scroll trap for tall pages. body already clips
+     horizontal overflow (overflow-x: clip on html/body root rule). */
   padding: 28px 32px 48px;
   position: relative;
 }
@@ -2347,8 +2350,8 @@ body::before {
   min-width: 0;
   max-width: 100%;
   padding: 22px 28px;
-  overflow-x: hidden;
-  overflow-y: visible;  /* was auto — the inner scroll was clipping the 989px file library on data-prep page; let .main handle scrolling */
+  /* no overflow-x:hidden here — see note in the first .content rule */
+  overflow-y: visible;  /* let .main / the window handle scrolling */
   position: relative;
 }
 
