@@ -12,9 +12,21 @@ Source of truth for ordering: this file. HANDOFF.md describes state, not order.
 1. **Order is law.** Steps below run strictly in numbered order. Never start step N+1
    while step N is incomplete or blocked.
 2. **Fan-dragon runs only the freshest code.** Never start/restart the service while its
-   checkout is behind `origin/main`. Sequence is ALWAYS: commit/push here → align
-   fan-dragon to `origin/main` → THEN start/restart the service. Stale service up is
-   worthless and worse than useless (it hides misalignment).
+   checkout is behind `origin/main`. Sequence is ALWAYS: commit/push here → update
+   fan-dragon → THEN use the service. Stale service up is worthless and worse than
+   useless (it hides misalignment). Never test on an old version while critical changes
+   sit unpushed/unpulled on genorbox1.
+2b. **Always use the scripted update route** — repo has `update.sh` (and HTTP wrapper
+   `POST /api/system/update`) that does in ONE run: git pull --ff-only → venv health
+   check/repair → `pip install -e .` → llama.cpp check → DB migrations → service
+   restart. Deploy = `ssh fan-dragon 'bash -c "cd /home/genortg/finetune-studio && bash update.sh"'`.
+   Manual ssh fetch/reset/restart chains are for when update.sh itself fails — say so if
+   you fall back. Saves tokens and avoids ssh timeouts.
+2c. **Commit + push every fix before moving on.** Bug fixed but uncommitted = not fixed.
+   Half-fixed things are the app's biggest historical disease: finish the fix (code +
+   test + verify) or do not start the next thing.
+2d. **Fix things FULLY before moving on.** No "works for the case I tested" — run the
+   module's test file, ruff, and the live check on fan-dragon. Then commit, push, update.
 3. **Never kill foreign GPU/RAM users on fan-dragon** (games, other services). Observe
    only. If headroom is insufficient → pause studio work, one-line report, wait.
 4. **Auto-test verdicts are untrustworthy.** Human-grade judging per
@@ -39,13 +51,19 @@ Source of truth for ordering: this file. HANDOFF.md describes state, not order.
   `src/` before pushing).
 - `git push`. Only when `origin/main` == local main → Step 2.
 
-### Step 2 — Align fan-dragon to origin/main  [depends: Step 1]
+### Step 2 — Update fan-dragon to origin/main (scripted route)  [depends: Step 1]
 ```bash
-ssh fan-dragon 'bash -c "cd /home/genortg/finetune-studio && git fetch origin -q && git reset --hard origin/main && git log --oneline -1"'
+ssh fan-dragon 'bash -c "cd /home/genortg/finetune-studio && bash update.sh 2>&1 | tail -20"'
+# then verify freshness + service truth:
+ssh fan-dragon 'bash -c "cd /home/genortg/finetune-studio && git log --oneline -1; systemctl --user is-active finetune-studio; ss -ltnp | grep 7860"'
 ```
+- update.sh = pull + venv repair + pip sync + llama.cpp check + DB migrations + restart,
+  in one run. Only if update.sh fails, fall back to manual fetch/reset and SAY SO.
 - Record both SHAs (local, fan-dragon). They must match. Only then Step 3.
 
 ### Step 3 — Start the service (freshest code only)  [depends: Step 2]
+- Normally Step 2's update.sh already restarted the service — Step 3 is only needed if
+  the service is still down after update.sh:
 ```bash
 ssh fan-dragon 'bash -c "systemctl --user start finetune-studio; sleep 5; systemctl --user is-active finetune-studio; ss -ltnp | grep 7860"'
 # cgroup truth check (squat uvicorn detection):
@@ -86,4 +104,7 @@ curl -sI http://fan-dragon:7860/
 ## Blockers log (append, never delete)
 
 - 2026-09-18: fan-dragon service down + behind origin/main. Resolution path = Steps 1→2→3
-  in exact order. NOT "just restart the service".
+  in exact order. NOT "just restart the service" — update fan-dragon to freshest code first
+  via update.sh (scripted route), then service.
+- 2026-09-18: update.sh + /api/system/update existed but agents kept doing manual ssh
+  reset chains — WORKPLAN now mandates the scripted route (Genor order).
