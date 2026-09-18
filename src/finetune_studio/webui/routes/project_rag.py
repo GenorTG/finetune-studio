@@ -7,6 +7,7 @@ and per-doc originals in ``sources/<doc_id>.txt``.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import mimetypes
 import time
@@ -279,9 +280,18 @@ async def rag_rebuild(pid: str, req: RebuildRequest | None = None) -> dict[str, 
 
         shutil.rmtree(corpus)
 
+    # Ensure a project_rags row exists so we have a rag_id for build tracking.
+    existing_rags = db.list_rags(pid)
+    rag_row = existing_rags[0] if existing_rags else db.create_rag(pid, name)
+    rag_id = rag_row["id"]
+
+    build = db.create_rag_build(pid, rag_id)
+    db.mark_rag_build_running(build["id"])
+
     rag = PortableRAG(corpus)
     try:
-        result = rag.build_from_directory(
+        result = await asyncio.to_thread(
+            rag.build_from_directory,
             source_dir=str(files_dir),
             name=name,
             embedder=body.embedder or "intfloat/multilingual-e5-large",
@@ -291,7 +301,12 @@ async def rag_rebuild(pid: str, req: RebuildRequest | None = None) -> dict[str, 
         )
     except Exception as e:
         log.exception("RAG rebuild failed")
+        db.mark_rag_build_failed(build["id"], error=str(e))
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+    doc_count = int(result.get("documents") or 0)
+    chunk_count = int(result.get("chunks") or 0)
+    db.mark_rag_build_done(build["id"], doc_count=doc_count, chunk_count=chunk_count)
 
     # Keep chat attachments + RAG page on the same corpus directory.
     try:
@@ -299,8 +314,8 @@ async def rag_rebuild(pid: str, req: RebuildRequest | None = None) -> dict[str, 
             pid,
             str(corpus),
             name=name,
-            doc_count=int(result.get("documents") or 0),
-            chunk_count=int(result.get("chunks") or 0),
+            doc_count=doc_count,
+            chunk_count=chunk_count,
         )
     except Exception:
         log.exception("Failed to register project_rags for PortableRAG corpus")
