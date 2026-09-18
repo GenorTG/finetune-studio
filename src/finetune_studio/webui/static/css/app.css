@@ -1839,6 +1839,12 @@ body::before {
 
 /* ---------- Mobile ---------- */
 @media (max-width: 700px) {
+  /* Toasts: full-width top strip on phones — 380px max-width would
+     overflow a 360px viewport and the close edge sits off-screen. */
+  .toasts { left: 14px; right: 14px; top: 10px; }
+  .toast { min-width: 0; max-width: none; width: 100%; }
+}
+@media (max-width: 700px) {
   /* Session-bar layout is top-strip + main below — the legacy 60px left
      rail from the old drawer era crushed all content into column 1. */
   .app { grid-template-columns: minmax(0, 1fr); }
