@@ -14,6 +14,7 @@ Endpoints the UI uses (mirror of the existing style):
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -23,6 +24,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from finetune_studio.webui.engine_guard import ENGINE_LOCK
 from finetune_studio.webui.live_sse import sse_data, sse_response
 
 log = logging.getLogger(__name__)
@@ -478,20 +480,26 @@ async def rag_chat(pid: str, req: ChatRequest):
         {"role": m["role"], "content": m["content"]} for m in req.messages
     ]
 
-    if inference_engine.model is not None:
-        reply = inference_engine.generate(
-            msgs, max_tokens=req.max_tokens,
-            temperature=req.temperature, top_p=0.9,
-        ).strip()
-    else:
+    def _generate() -> str:
+        if inference_engine.model is not None:
+            return inference_engine.generate(
+                msgs, max_tokens=req.max_tokens,
+                temperature=req.temperature, top_p=0.9,
+            ).strip()
         from finetune_studio.models.manager import get_manager
         mgr = get_manager()
         if mgr.active() is None:
-            return JSONResponse({"error": "no model loaded"}, status_code=400)
-        reply = mgr.chat(
+            raise ValueError("no model loaded")
+        return mgr.chat(
             msgs, max_tokens=req.max_tokens,
             temperature=req.temperature, top_p=0.9,
         ).strip()
+
+    try:
+        async with ENGINE_LOCK:
+            reply = await asyncio.to_thread(_generate)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
 
     # Strip thinking block for UI
     from finetune_studio.webui.thinking import split_thinking

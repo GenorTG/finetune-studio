@@ -267,7 +267,7 @@ async def inference_benchmark(request: Request):
     else:
         bench_list = ["mmlu", "gsm8k", "hellaswag"]
 
-    try:
+    def _blocking():
         suite = RealBenchmarkSuite()
         results = suite.run_all(
             inference_engine,
@@ -275,8 +275,11 @@ async def inference_benchmark(request: Request):
             benchmarks=bench_list,
             full_run=full_run,
         )
-        overall = overall_accuracy_from_run_all(results)
-        return {"results": results, "overall": overall}
+        return {"results": results, "overall": overall_accuracy_from_run_all(results)}
+
+    try:
+        async with ENGINE_LOCK:
+            return await asyncio.to_thread(_blocking)
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
 

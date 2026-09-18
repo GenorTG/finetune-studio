@@ -188,13 +188,12 @@ async def run_rag_test_suite(request: Request):
     max_tokens = int(body.get("max_tokens", 512))
     temperature = float(body.get("temperature", 0.3))
 
-    load_err = _ensure_model_loaded(project_id, override_path)
-    if load_err is not None:
-        return load_err
-
     from finetune_studio.testing.rag_suite import run_rag_suite_evaluation
 
     def _blocking() -> dict[str, object]:
+        err = _ensure_model_loaded(project_id, override_path)
+        if err is not None:
+            return err  # type: ignore[return-value]
         report = run_rag_suite_evaluation(
             inference_engine,
             suite_path=suite_path,
@@ -216,7 +215,12 @@ async def run_rag_test_suite(request: Request):
         return payload
 
     try:
-        return await asyncio.to_thread(_blocking)
+        async with ENGINE_LOCK:
+            result = await asyncio.to_thread(_blocking)
+        from fastapi.responses import JSONResponse as _JSONResponse
+        if isinstance(result, _JSONResponse):
+            return result
+        return result
     except FileNotFoundError as e:
         return JSONResponse({"error": str(e)}, status_code=404)
     except (TypeError, ValueError, OSError) as e:
@@ -394,45 +398,52 @@ async def evaluate_training_dataset(request: Request):
     except (FileNotFoundError, ValueError) as e:
         return JSONResponse({"error": str(e)}, status_code=400)
 
-    load_err = _ensure_model_loaded(project_id, override_path)
-    if load_err is not None:
-        return load_err
+    def _blocking():
+        err = _ensure_model_loaded(project_id, override_path)
+        if err is not None:
+            return err
+        results = run_suite(inference_engine, cases, max_tokens=max_tokens)
+        apply_heuristic_judging(results)
+        scores = score_results(results)
+        scores = {
+            **scores,
+            "eval_kind": meta.eval_kind,
+            "leakage_warning": meta.leakage_warning,
+        }
+        return {
+            "suite_name": suite_label_for_training_eval(meta),
+            "eval": meta.as_dict(),
+            "scores": scores,
+            "results": [
+                {
+                    "name": r.case_name,
+                    "category": r.category,
+                    "question": r.question,
+                    "correct_answer": r.correct_answer,
+                    "response": r.model_answer,
+                    "model_answer": r.model_answer,
+                    "passed": r.verdict == "pass",
+                    "verdict": r.verdict,
+                    "judge": r.judge,
+                    "judge_model": r.judge_model,
+                    "judge_reasoning": r.judge_reasoning,
+                    "scoring_method": r.scoring_method,
+                    "validity": r.validity,
+                    "source_id": r.source_id,
+                    "chunk_idx": r.chunk_idx,
+                    "keywords": list(r.keywords),
+                    "transcript": list(r.transcript),
+                    "time_ms": r.time_ms,
+                    "error": r.error,
+                }
+                for r in results
+            ],
+            "model_path": inference_engine.model_path,
+        }
 
-    results = run_suite(inference_engine, cases, max_tokens=max_tokens)
-    apply_heuristic_judging(results)
-    scores = score_results(results)
-    scores = {
-        **scores,
-        "eval_kind": meta.eval_kind,
-        "leakage_warning": meta.leakage_warning,
-    }
-    return {
-        "suite_name": suite_label_for_training_eval(meta),
-        "eval": meta.as_dict(),
-        "scores": scores,
-        "results": [
-            {
-                "name": r.case_name,
-                "category": r.category,
-                "question": r.question,
-                "correct_answer": r.correct_answer,
-                "response": r.model_answer,
-                "model_answer": r.model_answer,
-                "passed": r.verdict == "pass",
-                "verdict": r.verdict,
-                "judge": r.judge,
-                "judge_model": r.judge_model,
-                "judge_reasoning": r.judge_reasoning,
-                "scoring_method": r.scoring_method,
-                "validity": r.validity,
-                "source_id": r.source_id,
-                "chunk_idx": r.chunk_idx,
-                "keywords": list(r.keywords),
-                "transcript": list(r.transcript),
-                "time_ms": r.time_ms,
-                "error": r.error,
-            }
-            for r in results
-        ],
-        "model_path": inference_engine.model_path,
-    }
+    async with ENGINE_LOCK:
+        result = await asyncio.to_thread(_blocking)
+    from fastapi.responses import JSONResponse as _JSONResponse
+    if isinstance(result, _JSONResponse):
+        return result
+    return result
