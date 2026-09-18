@@ -445,6 +445,17 @@ class TrainingEngine:
         except Exception:  # noqa: BLE001
             pass
 
+    def _sync_run_error(self, message: str) -> None:
+        """Best-effort: persist a post-train export/merge failure into the
+        run row so "done" never silently swallows a broken export."""
+        if not self.current_run_id:
+            return
+        try:
+            from finetune_studio.db.runs import update_run
+            update_run(self.current_run_id, error=message[:2000])
+        except Exception:  # noqa: S110 — status sync must never crash the run
+            log.exception("failed to sync run error")
+
     def _maybe_merge(self, model: object, tokenizer: object, output_dir: str) -> None:
         """Run merge; failures are non-fatal (adapter on disk is still valid)."""
         try:
@@ -711,15 +722,34 @@ class TrainingEngine:
         if cfg.merge_on_save:
             self._maybe_merge(model, tokenizer, cfg.output_dir)
         if cfg.export_gguf:
+            # export_gguf converts <output_dir>/merged/ — with no merge the
+            # export is a guaranteed "no merged model" no-op (QABUG: run
+            # 8a1962c3 asked for q8_0, got silence). Auto-merge first when
+            # the user asked for GGUF but unchecked merge.
+            merged_dir = os.path.join(cfg.output_dir, "merged")
+            if not cfg.merge_on_save and (
+                not os.path.isdir(merged_dir) or not os.listdir(merged_dir)
+            ):
+                try:
+                    self._maybe_merge(model, tokenizer, cfg.output_dir)
+                except Exception:
+                    log.exception("Pre-GGUF auto-merge failed")
             try:
-                self._do_export_gguf(cfg.output_dir)
+                gguf_result = self._do_export_gguf(cfg.output_dir)
+                if not gguf_result.get("ok"):
+                    err = gguf_result.get("error") or gguf_result.get("reason") or "GGUF export failed"
+                    self.state.error = (
+                        f"Training complete — GGUF export failed: {err}"
+                    )
             except Exception as e:
                 log.exception("GGUF export failed (non-fatal)")
-                self.state.message = (
+                self.state.error = (
                     f"Training complete — GGUF export failed: {_format_exc(e)}"
                 )
-                self.state.error = self.state.message
-                self._notify()
+            if self.state.error:
+                self.state.message = self.state.error
+                self._notify()  # copy into run.error so the run row is honest
+                self._sync_run_error(self.state.error)
         if cfg.export_gptq:
             self._do_export_gptq(cfg.output_dir)
         if cfg.export_imatrix:
