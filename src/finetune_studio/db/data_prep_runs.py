@@ -103,3 +103,25 @@ def list_recent(limit: int = 50) -> list[dict]:
             (limit,),
         ).fetchall()
     return [row_to_dict(r) for r in rows]
+
+
+def reconcile_stale(error: str = "interrupted by service restart") -> int:
+    """Mark in-flight data_prep_runs as failed after a process restart.
+
+    Returns the number of rows updated.
+    """
+    import time
+    stale = ("queued", "running")
+    placeholders = ", ".join("?" for _ in stale)
+    now = time.time()
+    with cursor() as c:
+        rows = c.execute(
+            f"SELECT id FROM data_prep_runs WHERE status IN ({placeholders})",
+            stale,
+        ).fetchall()
+        for r in rows:
+            c.execute(
+                "UPDATE data_prep_runs SET status = 'failed', error = ?, finished_at = ? WHERE id = ?",
+                (error, now, r["id"]),
+            )
+    return len(rows)

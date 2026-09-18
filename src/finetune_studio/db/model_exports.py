@@ -106,3 +106,24 @@ def list_recent(limit: int = 50) -> list[dict]:
             (limit,),
         ).fetchall()
     return [row_to_dict(r) for r in rows]
+
+
+def reconcile_stale(error: str = "interrupted by service restart") -> int:
+    """Mark in-flight model_exports as failed after a process restart.
+
+    Returns the number of rows updated.
+    """
+    stale = ("queued", "running")
+    placeholders = ", ".join("?" for _ in stale)
+    now = time.time()
+    with cursor() as c:
+        rows = c.execute(
+            f"SELECT id FROM model_exports WHERE status IN ({placeholders})",
+            stale,
+        ).fetchall()
+        for r in rows:
+            c.execute(
+                "UPDATE model_exports SET status = 'failed', error = ?, finished_at = ? WHERE id = ?",
+                (error, now, r["id"]),
+            )
+    return len(rows)

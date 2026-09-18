@@ -74,6 +74,15 @@ async def lifespan(app: FastAPI):
         n_runs = db.reconcile_stale_runs()
         if n_runs:
             print(f"Reconciled {n_runs} stale training_runs row(s)")
+        n = db.reconcile_stale_data_prep()
+        if n:
+            print(f"Reconciled {n} stale data_prep_runs row(s)")
+        n = db.reconcile_stale_rag_builds()
+        if n:
+            print(f"Reconciled {n} stale rag_corpora row(s)")
+        n = db.reconcile_stale_exports()
+        if n:
+            print(f"Reconciled {n} stale model_exports row(s)")
     except Exception:  # noqa: BLE001
         pass
     yield

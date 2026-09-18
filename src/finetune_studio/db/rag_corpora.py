@@ -102,3 +102,25 @@ def latest_for_rag(rag_id: str) -> dict | None:
             (rag_id,),
         ).fetchone()
     return row_to_dict(row)
+
+
+def reconcile_stale(error: str = "interrupted by service restart") -> int:
+    """Mark in-flight rag_corpora rows as failed after a process restart.
+
+    Returns the number of rows updated.
+    """
+    import time as _time
+    stale = ("queued", "running")
+    placeholders = ", ".join("?" for _ in stale)
+    now = _time.time()
+    with cursor() as c:
+        rows = c.execute(
+            f"SELECT id FROM rag_corpora WHERE status IN ({placeholders})",
+            stale,
+        ).fetchall()
+        for r in rows:
+            c.execute(
+                "UPDATE rag_corpora SET status = 'failed', error = ?, finished_at = ? WHERE id = ?",
+                (error, now, r["id"]),
+            )
+    return len(rows)

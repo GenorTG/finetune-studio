@@ -57,6 +57,7 @@ from finetune_studio.db.data_prep_runs import (
     mark_done as mark_data_prep_done,
     mark_failed as mark_data_prep_failed,
     mark_running as mark_data_prep_running,
+    reconcile_stale as reconcile_stale_data_prep,
     update_run as update_data_prep_run,
 )
 from finetune_studio.db.rag_corpora import (
@@ -68,6 +69,7 @@ from finetune_studio.db.rag_corpora import (
     mark_done as mark_rag_build_done,
     mark_failed as mark_rag_build_failed,
     mark_running as mark_rag_build_running,
+    reconcile_stale as reconcile_stale_rag_builds,
     update_build as update_rag_build,
 )
 from finetune_studio.db.hf_downloads import (
@@ -90,6 +92,7 @@ from finetune_studio.db.model_exports import (
     mark_done as mark_export_done,
     mark_failed as mark_export_failed,
     mark_running as mark_export_running,
+    reconcile_stale as reconcile_stale_exports,
     update_export,
 )
 from finetune_studio.db.system_updates import (
