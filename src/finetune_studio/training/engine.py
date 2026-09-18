@@ -453,7 +453,7 @@ class TrainingEngine:
         try:
             from finetune_studio.db.runs import update_run
             update_run(self.current_run_id, error=message[:2000])
-        except Exception:  # noqa: S110 — status sync must never crash the run
+        except Exception:  # status sync must never crash the run
             log.exception("failed to sync run error")
 
     def _maybe_merge(self, model: object, tokenizer: object, output_dir: str) -> None:
@@ -869,15 +869,33 @@ class TrainingEngine:
         if cfg.merge_on_save:
             self._maybe_merge(model, tokenizer, cfg.output_dir)
         if cfg.export_gguf:
+            # Same auto-merge as the chat_template path: export converts
+            # <output_dir>/merged/, so without a merge it is a silent no-op
+            # (run 6e9e2672 asked for q8_0, got silence).
+            merged_dir = os.path.join(cfg.output_dir, "merged")
+            if not cfg.merge_on_save and (
+                not os.path.isdir(merged_dir) or not os.listdir(merged_dir)
+            ):
+                try:
+                    self._maybe_merge(model, tokenizer, cfg.output_dir)
+                except Exception:
+                    log.exception("Pre-GGUF auto-merge failed")
             try:
-                self._do_export_gguf(cfg.output_dir)
-            except Exception as e:
+                gguf_result = self._do_export_gguf(cfg.output_dir)
+                if not gguf_result.get("ok"):
+                    err = gguf_result.get("error") or gguf_result.get("reason") or "GGUF export failed"
+                    self.state.error = (
+                        f"Training complete — GGUF export failed: {err}"
+                    )
+            except Exception as exc:
                 log.exception("GGUF export failed (non-fatal)")
-                self.state.message = (
-                    f"Training complete — GGUF export failed: {_format_exc(e)}"
+                self.state.error = (
+                    f"Training complete — GGUF export failed: {_format_exc(exc)}"
                 )
-                self.state.error = self.state.message
+            if self.state.error:
+                self.state.message = self.state.error
                 self._notify()
+                self._sync_run_error(self.state.error)
         self.state.status = "done"
         if not (self.state.message or "").startswith("Training complete —"):
             self.state.message = "Training complete!"
