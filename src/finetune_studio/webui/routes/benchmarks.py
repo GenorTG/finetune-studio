@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import time
@@ -203,104 +204,110 @@ async def _execute_benchmark(
     else:
         eff_max_tokens = max_tokens
 
-    engine = InferenceEngine()
-    try:
-        _unload_global_inference()
+    def _blocking() -> dict[str, Any]:
+        engine = InferenceEngine()
         try:
-            engine.load(target_model)
-        except Exception as exc:  # noqa: BLE001
-            return JSONResponse({"error": f"load failed: {exc}"}, status_code=500)
+            _unload_global_inference()
+            try:
+                engine.load(target_model)
+            except Exception as exc:  # noqa: BLE001
+                return {"_load_error": str(exc)}
 
-        t0 = time.time()
-        results = run_suite(
-            engine,
-            cases,
-            max_tokens=eff_max_tokens,
-            temperature=run_temperature,
-        )
-        dt_ms = int((time.time() - t0) * 1000)
-
-        if judge_mode == "none":
-            pass
-        elif judge_mode == "heuristic":
-            apply_heuristic_judging(results)
-        elif judge_mode in ("ai", "local"):
-            _log.warning(
-                "judge_mode=%s not applied during run; falling back to heuristic",
-                judge_mode,
+            t0 = time.time()
+            results = run_suite(
+                engine,
+                cases,
+                max_tokens=eff_max_tokens,
+                temperature=run_temperature,
             )
-            apply_heuristic_judging(results)
-        else:
-            apply_heuristic_judging(results)
+            dt_ms = int((time.time() - t0) * 1000)
 
-        scores = score_results(results)
-        # Persist the exact artifact used; merged and quantized exports can
-        # produce materially different answers and must not be conflated.
-        scores["model_path"] = target_model
-        if real_meta:
-            scores["is_real_benchmark"] = True
-            scores["benchmark_metadata"] = real_meta
-            scores["accuracy"] = scores.get("pass_rate")
+            if judge_mode == "none":
+                pass
+            elif judge_mode == "heuristic":
+                apply_heuristic_judging(results)
+            elif judge_mode in ("ai", "local"):
+                _log.warning(
+                    "judge_mode=%s not applied during run; falling back to heuristic",
+                    judge_mode,
+                )
+                apply_heuristic_judging(results)
+            else:
+                apply_heuristic_judging(results)
 
-        case_dicts: list[dict[str, Any]] = []
-        for r in results:
-            judge_input = {
-                "question": r.question,
-                "correct_answer": r.correct_answer,
-                "model_answer": r.model_answer,
-                "keywords": list(r.keywords),
-                "scoring_method": r.scoring_method,
-                "judge_mode": judge_mode,
-            }
-            case_dicts.append({
-                "name": r.case_name,
-                "category": r.category,
-                "question": r.question,
-                "correct_answer": r.correct_answer,
-                "model_answer": r.model_answer,
-                "transcript": r.transcript,
-                "judge": r.judge or "none",
-                "judge_model": r.judge_model,
-                "verdict": r.verdict,
-                "judge_reasoning": r.judge_reasoning,
-                "scored_at": time.time() if r.verdict else None,
-                "scoring_method": r.scoring_method,
-                "validity": r.validity,
-                "error": r.error,
-                "judge_input": judge_input,
-                "source_id": getattr(r, "source_id", ""),
-                "chunk_idx": getattr(r, "chunk_idx", 0),
-            })
+            scores = score_results(results)
+            # Persist the exact artifact used; merged and quantized exports can
+            # produce materially different answers and must not be conflated.
+            scores["model_path"] = target_model
+            if real_meta:
+                scores["is_real_benchmark"] = True
+                scores["benchmark_metadata"] = real_meta
+                scores["accuracy"] = scores.get("pass_rate")
 
-        benchmark = db.create_benchmark(
-            rid, suite_name, scores, dt_ms, cases=case_dicts,
-            model_path=target_model,
-        )
-
-        return {
-            "benchmark": benchmark,
-            "scores": scores,
-            "results": [
-                {
+            case_dicts: list[dict[str, Any]] = []
+            for r in results:
+                judge_input = {
+                    "question": r.question,
+                    "correct_answer": r.correct_answer,
+                    "model_answer": r.model_answer,
+                    "keywords": list(r.keywords),
+                    "scoring_method": r.scoring_method,
+                    "judge_mode": judge_mode,
+                }
+                case_dicts.append({
                     "name": r.case_name,
                     "category": r.category,
                     "question": r.question,
                     "correct_answer": r.correct_answer,
-                    "model_answer": r.model_answer[:500],
+                    "model_answer": r.model_answer,
                     "transcript": r.transcript,
-                    "time_ms": r.time_ms,
-                    "verdict": r.verdict,
-                    "judge": r.judge,
+                    "judge": r.judge or "none",
                     "judge_model": r.judge_model,
+                    "verdict": r.verdict,
                     "judge_reasoning": r.judge_reasoning,
+                    "scored_at": time.time() if r.verdict else None,
                     "scoring_method": r.scoring_method,
                     "validity": r.validity,
-                }
-                for r in results
-            ],
-        }
-    finally:
-        engine.unload()
+                    "error": r.error,
+                    "judge_input": judge_input,
+                    "source_id": getattr(r, "source_id", ""),
+                    "chunk_idx": getattr(r, "chunk_idx", 0),
+                })
+
+            benchmark = db.create_benchmark(
+                rid, suite_name, scores, dt_ms, cases=case_dicts,
+                model_path=target_model,
+            )
+
+            return {
+                "benchmark": benchmark,
+                "scores": scores,
+                "results": [
+                    {
+                        "name": r.case_name,
+                        "category": r.category,
+                        "question": r.question,
+                        "correct_answer": r.correct_answer,
+                        "model_answer": r.model_answer[:500],
+                        "transcript": r.transcript,
+                        "time_ms": r.time_ms,
+                        "verdict": r.verdict,
+                        "judge": r.judge,
+                        "judge_model": r.judge_model,
+                        "judge_reasoning": r.judge_reasoning,
+                        "scoring_method": r.scoring_method,
+                        "validity": r.validity,
+                    }
+                    for r in results
+                ],
+            }
+        finally:
+            engine.unload()
+
+    result = await asyncio.to_thread(_blocking)
+    if "_load_error" in result:
+        return JSONResponse({"error": f"load failed: {result['_load_error']}"}, status_code=500)
+    return result
 
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
@@ -590,82 +597,91 @@ async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any
         return {"ok": True, "judged": updated}
 
     if judge_mode == "local":
-        judge_engine = InferenceEngine()
-        try:
-            _unload_global_inference()
-            run = db.get_run(benchmark["run_id"])
-            model_path = judge_model or (run.get("base_model", "") if run else "")
-            if not model_path:
-                return JSONResponse(
-                    {"error": "no model path for local judge"},
-                    status_code=400,
-                )
-            judge_engine.load(model_path)
+        run = db.get_run(benchmark["run_id"])
+        model_path = judge_model or (run.get("base_model", "") if run else "")
+        if not model_path:
+            return JSONResponse(
+                {"error": "no model path for local judge"},
+                status_code=400,
+            )
 
-            updated = 0
-            for case in cases:
-                if not case.get("model_answer"):
-                    continue
-                verdict, reasoning, _confidence = judge_case_local(
-                    judge_engine,
-                    question=case["question"],
-                    correct_answer=case["correct_answer"],
-                    model_answer=case["model_answer"],
-                )
-                db.update_case(
-                    case["id"],
-                    judge="local",
-                    judge_model=model_path,
-                    verdict=verdict,
-                    judge_reasoning=reasoning,
-                    scored_at=time.time(),
-                )
-                updated += 1
-            return {"ok": True, "judged": updated}
-        finally:
-            judge_engine.unload()
+        def _local_judge() -> int:
+            judge_engine = InferenceEngine()
+            try:
+                _unload_global_inference()
+                judge_engine.load(model_path)
+                updated = 0
+                for case in cases:
+                    if not case.get("model_answer"):
+                        continue
+                    verdict, reasoning, _confidence = judge_case_local(
+                        judge_engine,
+                        question=case["question"],
+                        correct_answer=case["correct_answer"],
+                        model_answer=case["model_answer"],
+                    )
+                    db.update_case(
+                        case["id"],
+                        judge="local",
+                        judge_model=model_path,
+                        verdict=verdict,
+                        judge_reasoning=reasoning,
+                        scored_at=time.time(),
+                    )
+                    updated += 1
+                return updated
+            finally:
+                judge_engine.unload()
+
+        updated = await asyncio.to_thread(_local_judge)
+        return {"ok": True, "judged": updated}
 
     if judge_mode == "secondary_local":
-        judge_engine = InferenceEngine()
-        try:
-            _unload_global_inference()
-            model_path = str(judge_model or "").strip()
-            if not model_path:
-                return JSONResponse(
-                    {"error": "judge_model is required for secondary_local"},
-                    status_code=400,
-                )
-            judge_engine.load(model_path)
-            updated = 0
-            for case in cases:
-                if not case.get("model_answer"):
-                    continue
-                verdict, reasoning, confidence = judge_case_local(
-                    judge_engine,
-                    question=case["question"],
-                    correct_answer=case["correct_answer"],
-                    model_answer=case["model_answer"],
-                    transcript=case.get("transcript") or [],
-                )
-                judge_input = case.get("judge_input") or {}
-                judge_input["secondary_judge"] = {
-                    "verdict": verdict,
-                    "reasoning": reasoning,
-                    "confidence": confidence,
-                    "model": model_path,
-                    "judged_at": time.time(),
-                }
-                db.update_case(case["id"], judge_input=judge_input)
-                updated += 1
-            return {
-                "ok": True,
-                "judged": updated,
-                "judge_mode": "secondary_local",
-                "judge_model": model_path,
-                "authoritative_scores_unchanged": True,
-            }
-        finally:
-            judge_engine.unload()
+        model_path = str(judge_model or "").strip()
+        if not model_path:
+            return JSONResponse(
+                {"error": "judge_model is required for secondary_local"},
+                status_code=400,
+            )
+
+        def _secondary_judge() -> int:
+            judge_engine = InferenceEngine()
+            try:
+                _unload_global_inference()
+                judge_engine.load(model_path)
+                updated = 0
+                for case in cases:
+                    if not case.get("model_answer"):
+                        continue
+                    verdict, reasoning, confidence = judge_case_local(
+                        judge_engine,
+                        question=case["question"],
+                        correct_answer=case["correct_answer"],
+                        model_answer=case["model_answer"],
+                        transcript=case.get("transcript") or [],
+                    )
+                    judge_input = case.get("judge_input") or {}
+                    judge_input["secondary_judge"] = {
+                        "verdict": verdict,
+                        "reasoning": reasoning,
+                        "confidence": confidence,
+                        "model": model_path,
+                        "judged_at": time.time(),
+                    }
+                    db.update_case(case["id"], judge_input=judge_input)
+                    updated += 1
+                return updated
+            finally:
+                judge_engine.unload()
+
+        updated = await asyncio.to_thread(_secondary_judge)
+        return {
+            "ok": True,
+            "judged": updated,
+            "judge_mode": "secondary_local",
+            "judge_model": model_path,
+            "authoritative_scores_unchanged": True,
+        }
 
     return JSONResponse(
         {"error": f"unknown judge_mode: {judge_mode}"},

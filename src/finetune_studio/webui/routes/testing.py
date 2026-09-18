@@ -16,6 +16,7 @@ from finetune_studio.testing.suite import (
     score_results,
 )
 from finetune_studio.webui.app import inference_engine
+from finetune_studio.webui.engine_guard import ENGINE_LOCK
 from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
 from finetune_studio.webui.testing_models import resolve_latest_merged_model
 
@@ -45,7 +46,8 @@ async def load_model(request: Request):
             kwargs["max_seq_length"] = int(body["max_seq_length"])
         if "load_in_4bit" in body:
             kwargs["load_in_4bit"] = bool(body["load_in_4bit"])
-        inference_engine.load(model_path, **kwargs)
+        async with ENGINE_LOCK:
+            await asyncio.to_thread(inference_engine.load, model_path, **kwargs)
         return {"status": "loaded", "model": model_path}
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
@@ -95,9 +97,11 @@ async def chat(request: Request):
     messages = body.get("messages", [])
     max_tokens = body.get("max_tokens", 512)
     temperature = body.get("temperature", 0.7)
-    response = inference_engine.generate(
-        messages, max_tokens=max_tokens, temperature=temperature
-    )
+    async with ENGINE_LOCK:
+        response = await asyncio.to_thread(
+            inference_engine.generate, messages,
+            max_tokens=max_tokens, temperature=temperature,
+        )
     return {"response": response}
 
 
@@ -111,12 +115,20 @@ async def run_test_suite(request: Request):
         body.get("model_path") or body.get("path") or ""
     ).strip()
 
-    load_err = _ensure_model_loaded(str(project_id or ""), override_path)
-    if load_err is not None:
-        return load_err
-
     cases = load_test_suite(suite_path)
-    results = run_suite(inference_engine, cases, max_tokens=max_tokens)
+
+    def _blocking():
+        err = _ensure_model_loaded(str(project_id or ""), override_path)
+        if err is not None:
+            return err
+        return run_suite(inference_engine, cases, max_tokens=max_tokens)
+
+    async with ENGINE_LOCK:
+        result = await asyncio.to_thread(_blocking)
+    from fastapi.responses import JSONResponse as _JSONResponse
+    if isinstance(result, _JSONResponse):
+        return result
+    results = result
     apply_heuristic_judging(results)
     scores = score_results(results)
     # v2 schema (CaseResult): case_name / model_answer / verdict (pass|partial|fail|"") /
