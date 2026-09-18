@@ -17,10 +17,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import shutil
+import tempfile
 import time
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -401,20 +403,7 @@ async def rag_search(pid: str, req: SearchRequest):
 async def rag_bundle(pid: str, name: str | None = None,
                      fmt: str = "tar",
                      include_models: str = "true"):
-    """Download a self-contained archive of the corpus.
-
-    Query params:
-      - name: custom filename stem (default: <project>-bundle-<date>)
-      - fmt: 'tar' (fast, ~2.2GB) or 'tar.gz' (slow, ~2.0GB)
-      - include_models: 'true' to copy the embedder + reranker INTO the
-        archive (so recipient can run fully offline); 'false' to keep
-        `shared:...` references and use the recipient's existing model store.
-
-    Recipients unpack + install numpy + pandas + pyarrow + sentence-transformers
-    and run `PortableRAG(dir).load()` to query. The RAG is fully offline-capable
-    if `include_models=true` was used; otherwise the recipient needs to either
-    have a model at the same shared path OR have network to fetch it.
-    """
+    """Download a self-contained archive of the corpus."""
     from fastapi.responses import FileResponse
 
     from finetune_studio.data.rag_portable import PortableRAG
@@ -434,6 +423,67 @@ async def rag_bundle(pid: str, name: str | None = None,
         media_type="application/x-tar" if fmt != "zip" else "application/zip",
         filename=out.name,
     )
+
+
+@router.post("/{pid}/rag/import")
+async def rag_import(pid: str, file: UploadFile, overwrite: bool = False):
+    """Import a corpus bundle (.tar/.tar.gz/.zip) produced by ``GET .../rag/bundle``.
+
+    The uploaded archive replaces (or, with ``overwrite=false``, refuses to
+    replace) the existing corpus directory for this project. The returned
+    stats mirror :func:`rag_status` so the UI can refresh in place.
+    """
+    from finetune_studio.data.rag_portable import PortableRAG
+
+    filename = file.filename or "bundle"
+    suffix = Path(filename).suffix.lower()
+    if suffix not in (".tar", ".tar.gz", ".tgz", ".zip"):
+        return JSONResponse(
+            {"error": f"unsupported archive format: {suffix}"},
+            status_code=400,
+        )
+
+    # Stage the upload to a temp file so PortableRAG.import_bundle can stream
+    # it without holding the whole thing in memory.
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = Path(tmp.name)
+
+    rag = PortableRAG(_corpus_dir(pid))
+    try:
+        stats = rag.import_bundle(tmp_path, overwrite=overwrite)
+    except FileNotFoundError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except FileExistsError as e:
+        return JSONResponse({"error": str(e)}, status_code=409)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:
+        log.exception("bundle import failed")
+        return JSONResponse({"error": f"bundle import failed: {e}"}, status_code=500)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    # Persist a fresh activity-feed row so the user sees this in the drawer.
+    try:
+        from finetune_studio import db
+        db.record_activity_event(
+            kind="rag_build",
+            operation=f"POST /api/projects/{pid}/rag/import",
+            method="POST",
+            path=f"/api/projects/{pid}/rag/import",
+            project_id=pid,
+            status="done",
+            http_status=200,
+            message=(
+                f"Imported RAG bundle: {stats.get('documents', 0)} docs, "
+                f"{stats.get('chunks', 0)} chunks"
+            ),
+        )
+    except Exception:
+        log.exception("failed to record import activity event")
+
+    return stats
 
 
 @router.get("/shared-models/stats")

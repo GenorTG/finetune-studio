@@ -7,6 +7,7 @@ Also: bundle/unbundle models for portability, export as tar/zip.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import shutil
 import tarfile
@@ -354,6 +355,112 @@ class PortableRAG:
             self._stage_corpus_for_export(stage_root, include_models=include_models)
             out_path = self._archive_directory(stage_root, out_path, fmt=fmt)
         return out_path
+
+    def import_bundle(
+        self,
+        archive_path: str | Path,
+        *,
+        overwrite: bool = False,
+    ) -> dict:
+        """Import an exported corpus bundle into ``self.dir``.
+
+        - ``archive_path``: path to a ``.tar``, ``.tar.gz`` or ``.zip`` produced
+          by :meth:`export_bundle`.
+        - ``overwrite``: if ``False`` (default), refuse to replace an existing
+          corpus at ``self.dir``. If ``True``, remove it before extracting.
+
+        Returns a dict with the loaded manifest stats. Raises ``FileNotFoundError``
+        if the archive is missing, ``FileExistsError`` if the corpus already
+        exists and ``overwrite`` is False, ``ValueError`` for unsupported
+        formats or missing manifests.
+        """
+        archive_path = Path(archive_path)
+        if not archive_path.exists():
+            raise FileNotFoundError(f"Bundle not found: {archive_path}")
+
+        if self.exists() and not overwrite:
+            raise FileExistsError(
+                f"Corpus already exists at {self.dir}; pass overwrite=True to replace."
+            )
+
+        with tempfile.TemporaryDirectory(prefix="fts-rag-import-") as tmp:
+            stage = Path(tmp) / "stage"
+            stage.mkdir()
+
+            suffix = archive_path.suffix.lower()
+            if suffix in (".tar.gz", ".tgz"):
+                with tarfile.open(archive_path, "r:gz") as tar:
+                    tar.extractall(stage)
+            elif suffix == ".tar":
+                with tarfile.open(archive_path, "r") as tar:
+                    tar.extractall(stage)
+            elif suffix == ".zip":
+                with zipfile.ZipFile(archive_path, "r") as zf:
+                    zf.extractall(stage)
+            else:
+                raise ValueError(f"Unsupported archive format: {suffix}")
+
+            # Find manifest.json. It may sit at stage/manifest.json or one
+            # directory below (the export wraps everything in <corpus_name>/).
+            candidates = [m for m in stage.rglob("manifest.json") if m.is_file()]
+            if not candidates:
+                raise ValueError(f"No manifest.json found in {archive_path}")
+            # Prefer the manifest whose sibling is chunks.parquet — that's the
+            # real corpus root, not an embedder/reranker sub-manifest.
+            with_chunks = [m for m in candidates if (m.parent / "chunks.parquet").exists()]
+            manifest_path = with_chunks[0] if with_chunks else candidates[0]
+            corpus_root = manifest_path.parent
+
+            manifest_dict = json.loads(manifest_path.read_text(encoding="utf-8"))
+            for required in ("name", "embedding_model", "rag_settings", "documents", "chunks"):
+                if required not in manifest_dict:
+                    raise ValueError(f"Manifest missing required field: {required}")
+
+            # Atomically replace the live corpus.
+            if self.dir.exists():
+                shutil.rmtree(self.dir)
+            self.dir.mkdir(parents=True)
+
+            for item in corpus_root.iterdir():
+                dest = self.dir / item.name
+                if item.is_dir():
+                    shutil.copytree(item, dest, symlinks=False)
+                else:
+                    shutil.copy2(item, dest)
+
+            # Rewrite local model refs so they point at the freshly extracted
+            # embedder/reranker directories inside self.dir, not the path the
+            # source machine had.
+            manifest = Manifest.from_json(json.loads(self.manifest_path.read_text()))
+            for kind in ("embedder", "reranker"):
+                prefix = EMBEDDER_LOCAL_PREFIX if kind == "embedder" else RERANKER_LOCAL_PREFIX
+                if kind == "embedder":
+                    current = manifest.embedding_model.name or manifest.rag_settings.embedder or ""
+                else:
+                    current = manifest.rag_settings.reranker or ""
+                staged = self.dir / kind
+                if current.startswith(prefix) and staged.exists():
+                    new_ref = f"{prefix}{staged.resolve()}"
+                    if kind == "embedder":
+                        manifest.embedding_model.name = new_ref
+                        manifest.rag_settings.embedder = new_ref
+                    else:
+                        manifest.rag_settings.reranker = new_ref
+            manifest.updated_at = time.time()
+            write_json(self.manifest_path, manifest.to_json())
+
+        # Reload to verify the result is queryable, then return stats.
+        loaded = self.load()
+        manifest_dict = loaded.manifest.to_json()
+        return {
+            "corpus_dir": str(self.dir),
+            "name": manifest_dict["name"],
+            "documents": manifest_dict["documents"],
+            "chunks": manifest_dict["chunks"],
+            "embedder": manifest_dict["embedding_model"]["name"],
+            "reranker": manifest_dict["rag_settings"]["reranker"],
+            "version": manifest_dict.get("version"),
+        }
 
     def _stage_corpus_for_export(
         self, stage: Path, *, include_models: bool

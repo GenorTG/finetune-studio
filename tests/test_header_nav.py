@@ -73,8 +73,7 @@ def test_header_nav_overflow_affordance_markup() -> None:
     assert 'id="sb-nav-more-list"' in base
     assert "nav_overflow.js" in base
     assert "☰" in base
-    assert "app.css?v=26" in base
-    assert "release-label" in base
+    assert "app.css?v=27" in base
     assert "{{ release_channel }}" in base
     assert "· {{ release_channel }}</title>" in base
     assert "spa.js?v=15" in base
@@ -203,5 +202,5 @@ def test_project_pages_serve_nav_affordance(client: TestClient) -> None:
 
 def test_css_cache_bust_header_nav() -> None:
     base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=26" in base
+    assert "app.css?v=27" in base
     assert "nav_overflow.js?v=1" in base

@@ -274,7 +274,7 @@ def test_card_head_stacks_below_700() -> None:
 
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=26" in base
+    assert "app.css?v=27" in base
     assert "sprites.js?v=15" in base
     assert "nav_overflow.js?v=1" in base
     assert "spa.js?v=15" in base

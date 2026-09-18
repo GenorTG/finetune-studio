@@ -224,64 +224,95 @@ EXT_BINARY = [".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".odt",
 ALL_EXTS = EXT_BINARY + EXT_PLAIN  # 13 binary + 20 plain = 33 ext keys
 
 
-def to_plain_text(body: str, ext: str) -> str:
-    """Wrap the lore body into the shape each text parser expects."""
+def to_plain_text(body: str, ext: str, idx: int = 0) -> str:
+    """Wrap the lore body into the shape each text parser expects.
+
+    Every builder injects the per-file annal + a rotating house profile so
+    no two files share identical bytes (the file library dedups by sha256
+    and would otherwise collapse template siblings).
+    """
+    h = HOUSES[idx % 9]
+    h2 = HOUSES[(idx + 3) % 9]
+    ev = EVENTS[idx % len(EVENTS)]
+    unique_head = (
+    f"annal {idx}\n"
+    f"house: {h[0]} (continent {h[1]}, craft {h[2]}, seat {h[7]})\n"
+    f"archon: {h[4]}, population {h[3]:,}\n"
+    f"event: {ev[0]} in {ev[1]}\n"
+)
     if ext in (".csv", ".tsv"):
         sep = "," if ext == ".csv" else "\t"
-        rows = ["item,house,price_crowns\n" if ext == ".csv" else "item\thouse\tprice_crowns\n"]
+        rows = [f"item{sep}house{sep}price_crowns\n"]
+        rows.append(f"annal{sep}index{sep}{idx}\n")
+        rows.append(f"subject_house{sep}{h[0]}{sep}{h[3]}\n")
+        rows.append(f"subject_event{sep}{ev[0]}{sep}{ev[1]}\n")
         for g, hname, p in TRADE_GOODS:
-            rows.append(f"{g}.{hname}.{p}\n".replace(".", sep))
-        for i in range(4):
-            rows.append(f"{DOMAIN_BUILDERS[i % 6][1]}-entry-{i}.{EXAMPLE_HOUSE}.{9 + i}\n".replace(".", sep))
+            rows.append(f"{g}{sep}{hname}{sep}{p}\n")
         return "".join(rows)
     if ext == ".json":
-        h = HOUSES[0]
         return json.dumps({
             "codex": "Vaelindrath Concord",
-            "trade_good": TRADE_GOODS[0][0], "source_house": TRADE_GOODS[0][1],
-            "price": TRADE_GOODS[0][2],
+            "annal_index": idx,
+            "subject": {"name": h[0], "continent": h[1], "craft": h[2],
+                        "population": h[3], "archon": h[4], "seat": h[7]},
+            "event": {"name": ev[0], "year": ev[1]},
+            "trade_good": TRADE_GOODS[idx % len(TRADE_GOODS)][0],
+            "source_house": TRADE_GOODS[idx % len(TRADE_GOODS)][1],
+            "price": TRADE_GOODS[idx % len(TRADE_GOODS)][2],
             "houses": [{"name": x[0], "continent": x[1], "craft": x[2],
-                        "population": x[3], "archon": x[4]} for x in HOUSES],
+                        "population": x[3]} for x in HOUSES],
         }, indent=2)
     if ext == ".jsonl":
         lines = []
-        for i, h in enumerate(HOUSES):
-            lines.append(json.dumps({"record": i, "house": h[0],
-                                     "population": h[3], "craft": h[2]}))
+        for i, hh in enumerate(HOUSES):
+            lines.append(json.dumps({"record": i, "house": hh[0],
+                                     "population": hh[3], "craft": hh[2],
+                                     "annal": idx, "subject": h[0],
+                                     "event": ev[0]}))
         return "\n".join(lines) + "\n"
     if ext in (".yaml", ".yml"):
-        lines = ["# Vaelindrath Concord trade register"]
-        for i, (good, hname, price) in enumerate(TRADE_GOODS[:6]):
+        lines = [f"# Vaelindrath Concord register, annal {idx}",
+                 f"subject_house: {h[0]}",
+                 f"subject_population: {h[3]}",
+                 f"subject_archon: {h[4]}",
+                 f"event: {ev[0]}", f"event_year: {ev[1]}"]
+        for good, hname, price in TRADE_GOODS[:6]:
             lines += [f"{good}:", f"  source_house: {hname}",
                       f"  price_crowns: {price}"]
         return "\n".join(lines) + "\n"
     if ext in (".ini", ".cfg", ".conf"):
         return (
-            "[concord]\nfounding_year = 411\nseat = Highmere Steps\n"
-            "founding_vote = 6-3\n\n"
-            "[trade]\nmoth_silk_price = 265\nembersteel_price = 91\n"
-            "salt_pearl_price = 480\n\n"
-            "[events]\nfounding_event = the Saltmoot\nfirst_dissent = Murkfen-Cadwal\n"
+            f"[annal]\nindex = {idx}\n"
+            f"[concord]\nfounding_year = 411\nseat = Highmere Steps\n"
+            f"founding_vote = 6-3\n\n"
+            f"[subject]\nhouse = {h[0]}\npopulation = {h[3]}\n"
+            f"archon = {h[4]}\nseat = {h[7]}\n\n"
+            f"[event]\nname = {ev[0]}\nyear = {ev[1]}\n"
         )
     if ext == ".xml":
         return (
-            "<concord>\n  <founding year=\"411\" vote=\"6-3\"/>\n"
-            "  <house name=\"Vaal-Rhunne\" continent=\"Osthelm\" population=\"412000\">\n"
-            "    <craft>salted glassworks</craft>\n  </house>\n"
-            "  <house name=\"Drevmoor-Kaelin\" continent=\"Drevmora\" population=\"288500\">\n"
-            "    <craft>bog-iron forges</craft>\n  </house>\n"
-            "  <event name=\"the Bell Quarrel\" year=\"527\"/>\n"
+            f"<concord annal=\"{idx}\">\n"
+            f"  <founding year=\"411\" vote=\"6-3\"/>\n"
+            f"  <event name=\"{ev[0]}\" year=\"{ev[1]}\"/>\n"
+            f"  <subject_house name=\"{h[0]}\" continent=\"{h[1]}\" population=\"{h[3]}\"\n"
+            f"           archon=\"{h[4]}\" seat=\"{h[7]}\">\n"
+            f"    <craft>{h[2]}</craft>\n  </subject_house>\n"
+            f"  <house name=\"{h2[0]}\" continent=\"{h2[1]}\" population=\"{h2[3]}\">\n"
+            f"    <craft>{h2[2]}</craft>\n  </house>\n"
             "</concord>\n"
         )
     if ext in (".py", ".js", ".ts", ".jsx", ".tsx"):
         comment = "#" if ext == ".py" else "//"
         return (
-            f"{comment} Vaelindrath Concord annal index (codified {731})\n"
+            f"{comment} Vaelindrath Concord annal {idx} (codified {731})\n"
+            f"{comment} Subject house: {h[0]} of {h[1]}, craft {h[2]}, "
+            f"population {h[3]}\n"
+            f"{comment} Annal event: {ev[0]} in {ev[1]}\n"
             f"{comment} Total tollerooms in the Concord: 144\n"
             f"{comment} Salt-parliament sits 40 days per founding-season\n"
-            f"const DEFAULT_FOUNDING = 411;{comment} the Saltmoot\n"
-            f"const NINE_HOUSES = {json.dumps([h[0] for h in HOUSES])};\n"
-            f"{comment} Moth-silk fetches 265 crowns at Bellquay Shoals\n"
+            f"const ANNAL_INDEX = {idx};\n"
+            f"const SUBJECT_POPULATION = {h[3]};{comment} {h[0]}\n"
+            f"const NINE_HOUSES = {json.dumps([hh[0] for hh in HOUSES])};\n"
             f"function tolleroomCount(){{ return 144; }}\n"
         )
     if ext == ".xls":
@@ -297,11 +328,12 @@ def to_plain_text(body: str, ext: str) -> str:
         wb.save(buf); return buf.getvalue()
     if ext == ".css":
         return (
-            "/* Annotated stylesheet of the Concord's charters (copy 3).\n"
-            "   Binding color: ash-grey. Vellum: Drevmorian goat.\n"
-            "   Page size: 31 lines x 44 cubits. */\n"
-            ".concord-charter { binding: asc-facing; pages: 88; }\n"
-            ".tide-glyph { stroke: ultramarine; }\n"
+            f"/* Annotated stylesheet, annal {idx} — copy certified {411 + idx}.\n"
+            f"   Subject house: {h[0]} ({h[1]}), craft {h[2]}, seat {h[7]}.\n"
+            f"   Annal event: {ev[0]} in {ev[1]}. */\n"
+            f".concord-charter-{idx} {{ binding: asc-facing; pages: {88 + idx}; }}\n"
+            f".house-{idx % 9}-glyph {{ stroke: ultramarine; }}\n"
+            f".annal-{idx}-tide {{ fill: ultramarine; }}\n"
         )
     if ext in (".html", ".htm"):
         return (
@@ -314,11 +346,14 @@ def to_plain_text(body: str, ext: str) -> str:
             "</body></html>\n"
         )
     if ext == ".log":
-        i = 0
-        lines = ["=== Concord dispatch log, annal 872 ==="]
-        for ev in EVENTS[:5]:
-            lines.append(f"[{ev[1]}] {ev[0]}: {ev[2][:60]}...")
-        lines.append("[872] writ-count check: 4,100 seals audited; 12 missing.")
+        lines = [f"=== Concord dispatch log, annal {idx} (Sevric {700 + idx}) ===",
+                 f"[{ev[1]}] {ev[0]}: {ev[2][:70]}...",
+                 f"[{700 + idx}] subject house {h[0]} ({h[1]}) audit: "
+                 f"{h[3]} souls, seat {h[7]}.",
+                 f"[{700 + idx}] archon {h[4]} countersigned; tithe {400 + idx * 90} crowns.",
+                 f"[{700 + idx}] writ-count check: 4,100 seals audited; {12 + idx % 7} missing."]
+        for e2 in EVENTS[:5]:
+            lines.append(f"[{e2[1]}] {e2[0]}: {e2[2][:60]}...")
         return "\n".join(lines) + "\n"
     if ext == ".ini":
         return (
@@ -341,6 +376,9 @@ def to_plain_text(body: str, ext: str) -> str:
 def build_binary(ext: str, body: str, idx: int) -> bytes:
     """Build a real binary doc for the optional-deps extensions."""
     import io
+    h = HOUSES[idx % 9]
+    h2 = HOUSES[(idx + 3) % 9]
+    ev = EVENTS[idx % len(EVENTS)]
     if ext == ".xls":
         import xlwt
         buf = io.BytesIO()
@@ -401,27 +439,29 @@ def build_binary(ext: str, body: str, idx: int) -> bytes:
         buf = io.BytesIO(); d.save(buf); return buf.getvalue()
     if ext == ".xlsx":
         from openpyxl import Workbook
-        wb = Workbook(); ws = wb.active; ws.title = "ledger"
+        wb = Workbook(); ws = wb.active; ws.title = f"ledger_{idx}"
         ws.append(["good", "house", "price_crowns"])
+        ws.append(["annal", idx, ev[1]])
+        ws.append(["subject_house", h[0], h[3]])
+        ws.append(["subject_event", ev[0], ev[1]])
         for g, hname, p in TRADE_GOODS:
             ws.append([g, hname, p])
-        ws.append(["bell-bronze escort", "Cerune-Spathi", "37"])
-        ws.append(["margin-stone road", "Highmere-Aldwin", "19"])
-        ws.append(["salt-pearl writs", "Queness-Vail", "480"])
+        ws.append([f"escort-{idx}", h[0], 37 + idx])
         buf = io.BytesIO(); wb.save(buf); return buf.getvalue()
     if ext == ".pptx":
         from pptx import Presentation
         prs = Presentation()
         s1 = prs.slides.add_slide(prs.slide_layouts[0])
-        s1.shapes.title.text = "The Vaelindrath Concord"
-        s1.placeholders[1].text = "Annal brief, compiled in the year 731"
+        s1.shapes.title.text = f"The Vaelindrath Concord — annal {idx}"
+        s1.placeholders[1].text = f"Compiled {731 + idx}. Subject: {h[0]} of {h[1]}"
         s2 = prs.slides.add_slide(prs.slide_layouts[1])
         s2.shapes.title.text = "Key facts"
         tf = s2.placeholders[1].text_frame
-        tf.text = "Founding: the Saltmoot of 411, vote 6-3"
-        tf.add_paragraph().text = f"Population of Vaal-Rhunne: 412,000"
-        tf.add_paragraph().text = "Moth-silk, most trade good value: 265 crowns per writ"
-        tf.add_paragraph().text = "Ledgerfire, 1002: 4,100 writs lost"
+        tf.text = f"Founding: the Saltmoot of 411, vote 6-3"
+        tf.add_paragraph().text = f"Population of {h[0]}: {h[3]:,}"
+        tf.add_paragraph().text = f"Annal event: {ev[0]} in {ev[1]}"
+        tf.add_paragraph().text = f"Moth-silk price: 265 crowns per writ"
+        tf.add_paragraph().text = f"Ledgerfire, 1002: 4,100 writs lost"
         buf = io.BytesIO(); prs.save(buf); return buf.getvalue()
     if ext == ".pdf":
         from reportlab.lib.pagesizes import A4
@@ -471,12 +511,20 @@ def build_binary(ext: str, body: str, idx: int) -> bytes:
         from odf.table import Table, TableRow, TableCell
         from odf.text import P as OdfP
         doc = OpenDocumentSpreadsheet()
-        table = Table(name="ledger")
+        table = Table(name=f"ledger_{idx}")
         headers = ["item", "house", "price_crowns"]
         row = TableRow()
-        for h in headers:
-            cell = TableCell(valuetype="string"); cell.addElement(OdfP(text=h)); row.addElement(cell)
+        for hname2 in headers:
+            cell = TableCell(valuetype="string"); cell.addElement(OdfP(text=hname2)); row.addElement(cell)
         table.addElement(row)
+        # Unique per-file rows: annal + subject house/event
+        for vals in (("annal", str(idx), str(ev[1])),
+                     ("subject_house", h[0], str(h[3])),
+                     ("subject_event", ev[0], str(ev[1]))):
+            row = TableRow()
+            for v in vals:
+                cell = TableCell(valuetype="string"); cell.addElement(OdfP(text=v)); row.addElement(cell)
+            table.addElement(row)
         for g, hname, p in TRADE_GOODS:
             row = TableRow()
             for v in (g, hname, str(p)):
@@ -558,7 +606,7 @@ for ext in EXT_PLAIN:
         if ext == ".md":
             body = f"# {body.splitlines()[0]}\n\n" + "\n\n".join(body.splitlines()[2:])
         fname = f"vael_{domain}_{domain_idx:03d}{ext}"
-        (OUT / fname).write_text(to_plain_text(body, ext), encoding="utf-8")
+        (OUT / fname).write_text(to_plain_text(body, ext, domain_idx), encoding="utf-8")
         manifest.append({"file": fname, "bytes": (OUT / fname).stat().st_size, "domain": domain})
         built += 1
 
