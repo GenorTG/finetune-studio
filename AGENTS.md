@@ -3,8 +3,9 @@
 Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **genorbox1**, commit + push, pull on **fan-dragon** for GPU runs (`finetune-studio.service`, port 7860). Never SSH into fan-dragon to edit files.
 
 ## Read first
-1. `HANDOFF.md` — current state and next steps (≤120 lines; if longer, it is stale — rewrite it).
-2. `docs/` for the area you touch. `PHASES.md` = roadmap, `RESTART.md` = service restart on fan-dragon.
+1. `docs/PRODUCT-BRIEF.md` — what Genor wants the product to be good at (north star).
+2. `HANDOFF.md` — verified ops state + next steps (≤120 lines; if longer, it is stale — rewrite it).
+3. `docs/README.md` — doc map. Then area docs as needed. `RESTART.md` = fan-dragon service. `PHASES.md` may be stale vs HANDOFF.
 
 ## Commands
 - Tests: `make test` (= `.venv/bin/python -m pytest tests/ -v --tb=short`). Single file: `.venv/bin/python -m pytest tests/test_api.py -v`.
@@ -25,13 +26,14 @@ Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **ge
 - Commits: imperative, "what + why", one logical change each.
 
 ## Session protocol
-- Start: `create_goal` (objective + acceptance command), `progress_card` ≤7 steps. Clear any stale card first.
+- Start: `get_goal` first. If none → `create_goal` (objective + acceptance) + `progress_card` ≤7 steps. If a goal already exists → `update_goal` / card refresh, never blind `create_goal`.
 - Every new instruction from Genor = new task: `get_goal` first; if objective mismatches, ask Genor for `/goal edit …` (model cannot rewrite objective — only complete/blocked) and reset the `progress_card` before any other call. Every ~10 tool calls: `get_goal`, update the card. Same fix failed twice → stop and change approach.
-- Implementation is **Cursor's by default** (unless Genor says not to). Hand-edit only one-file fixes ≤30 lines, docs, config. Otherwise use the persistent Cursor helper — `~/.openclaw/workspace/docs/CURSOR-HELPERS.md`:
-  1. Look up this cwd in `CURSOR-HELPERS.json`. Missing → `node ~/.openclaw/scripts/ensure-cursor-helper.mjs --cwd /home/genorbox1/work/finetune-studio --label cursor-helper:finetune-studio` (do it yourself). Use **`acpSessionKey`**.
-  2. `sessions_send` to `agent:cursor:acp:…` with task + acceptance + verify + "update HANDOFF.md". No cold `mode:"run"` for iterative work.
-  3. Wait via announce / `sessions_history` — **not** `sessions_yield` after send. Parallel parent work is fine. One-shot spawn+yield only if asked or ensure failed.
-  You reproduce, review, verify, commit, push. Cheap research/triage: `runtime: "subagent"`, `model: "opencode-go/deepseek-v4-flash"`.
+- **Default for fresh MiniMax / when Genor says “work in this session”:** edit, test, and verify yourself here. Prefer that over spawning Cursor/Claude fleets.
+- Cursor ACP helper (large multi-file work) — `~/.openclaw/workspace/docs/CURSOR-HELPERS.md` — only when Genor asks or the change is clearly too big for an in-session pass:
+  1. Look up cwd in `CURSOR-HELPERS.json`. Missing → `node ~/.openclaw/scripts/ensure-cursor-helper.mjs --cwd /home/genorbox1/work/finetune-studio --label cursor-helper:finetune-studio`. Use **`acpSessionKey`**.
+  2. `sessions_send` with task + acceptance + verify + "update HANDOFF.md". Helper may take 10+ minutes — wait via announce / `sessions_history`, not panic-retries.
+  3. Handshake timeout once → stop retrying; hand-edit or report blocker once.
+  Cheap research/triage only if needed: `runtime: "subagent"`, `model: "opencode-go/deepseek-v4-flash"`.
 - End: goal complete/blocked, card cleared, `HANDOFF.md` rewritten, commit + push.
 
 ## HANDOFF rules
@@ -39,6 +41,10 @@ Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **ge
 
 ## Gotchas
 <!-- Append one line per learned rule. Format: "- <date> <rule> (<why/commit>)". -->
+- 2026-09-18 **Fan-dragon resources:** high RAM/VRAM often = **other services or games**. Never kill/interrupt those. If Finetune Studio cannot run for lack of headroom → **pause** and report. Inside the studio, load/unload models/helpers yourself (do not leave stacked loads).
+- 2026-09-18 **MiniMax / OpenClaw tools:** never pass `timeout` to `exec` — use `timeoutSeconds` (integer). Prefer native tools over the `tool_call` meta-tool. Prefer `curl`/API on `http://fan-dragon:7860` over browser for verification; if browser times out once, fall back to curl immediately (do not retry CDP evaluate loops). Do not narrate "acknowledging runtime context" / background-clean boilerplate every turn — silent continue.
+- 2026-09-18 **Session protocol (this chat was bloody):** call `get_goal` before `create_goal` (create fails if a goal already exists — use `update_goal`). If `cursor_helper_send` / ACP handshake times out, stop retrying and either do a ≤30-line hand-edit or report the blocker once. Do not burn turns on OpenClaw tool self-tests when Genor says tools are fixed. After a short status, continue to the next concrete verify/fix step in the same turn.
+- 2026-09-18 **Oversized session:** this dashboard session (`…eec0a8da…`) is >10k trajectory events / ~200k tokens; LLM compact times out. Prefer a fresh chat for new milestones rather than mechanical compact + model thrash.
 - 2026-09-10 `make lint` swallows failures with `|| true`; run ruff directly.
 - 2026-09-10 37 tests in `test_vram_profiler.py` are GPU/env dependent — not a regression on genorbox1.
 - 2026-09-14 genorbox1 is dev-only: pure pytest + ruff here (`uv pip install --python .venv/bin/python -e .[dev]` — the venv is uv-managed, `python -m pip` does not exist); anything needing GPU, Playwright or the running app → fan-dragon.
@@ -65,6 +71,7 @@ Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **ge
 - 2026-09-15 "/api/testing/run-suite returns 'No model loaded'" because the page-surface handler relies on the global `inference_engine` being pre-loaded by `POST /api/testing/load`. The bench exec loads its own `InferenceEngine(target_model)` per call so it works; the test page doesn't. Fix: auto-load the project's most-recent merged model at request time.
 - 2026-09-15 `start_training` must `db.update_run(run_id, output_path=config.output_dir)` immediately after path scoping — route status callbacks omit `output_path`, and `app._on_training_update` uses composite `current_run_id` (`{pid}-{run_id}`), so completed runs showed Output — and Export could not find them.
 - 2026-09-15 Data-prep `GET …/export` must import `get_dataset_by_path` / `create_dataset` from `finetune_studio.db.datasets` (not `db.get_dataset_by_path`) — otherwise registry fails silently and Training stays “No datasets yet” after a successful download.
+- 2026-09-18 **Auto-test verdicts are untrustworthy — human judge pass is mandatory** (Genor): heuristic scoring is key-word overlap, so a correct bare answer like "1994" vs expected "Chris's mum went to prom in 1994" scores ~25% = FAIL even though it is right, and it cannot catch wrong-number answers inside chatty responses either. Every held-out/bench run must be judged by the agent reading the transcript: know the expected answer FIRST, then read the model's answer, verdict pass/partial/fail on semantics (any phrasing counts), only then compare against the auto-scorer. Automation may come later, only after this eyeball standard is pinned down.
 - 2026-09-17 Data-prep Agent generation must run in `asyncio.to_thread`; local 27B inference is blocking and otherwise starves every WebUI/API request while the helper loads or generates.
 - 2026-09-17 Source-grounded augmentation pipeline: `scripts/augment_dataset.py` reads `qa/pairs/*.json`, walks parsed sources for targeted fact-bearing sentences, regenerates the deterministic held-out suite, merges the augmented pairs, and rebuilds the sharegpt dataset. Locked in by `tests/test_augment_dataset.py`. Held-out moved 4.3% → 26.1% strict pass on run `8b1dd006`.
 - 2026-09-17 Training can OOM even when `nvidia-smi` shows free VRAM — residual `python` processes (old inference workers) can hold 10+ GiB. Check `nvidia-smi --query-compute-apps=pid,used_memory --format=csv` before kicking a run, kill stale pids if any, then `/api/training/start`.
