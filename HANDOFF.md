@@ -20,6 +20,7 @@ honest — real root-cause fixes, real fan-dragon verification, no fake greens.
 | **Tests** | 922 passed, 0 failed (genorbox1; 37 GPU-only in test_vram_profiler.py skip) |
 
 ## Next steps
+- (none — activity feed is comprehensive across all 14 kinds as of `e2e6635`)
 1. Training quality: source-disjoint run scored 0% — the augmented dataset run `8b1dd006` scored 93-100% on RAG but only 17-26% on held-out. Consider a longer training run (200+ optimizer steps) on a merged augmented dataset.
 2. Benchmark panel: "Dataset evaluation" and "RAG-grounded suite" cards in testing page — verify end-to-end with a live run.
 3. Data-prep pipeline: verify the `scripts/augment_dataset.py` augmentation produces correct sharegpt format and that exporting to training works.
