@@ -101,6 +101,9 @@ _LOADER_KEYS = (
     "n_ctx", "n_gpu_layers", "n_batch", "n_threads",
     "seed", "rope_freq_base", "rope_freq_scale",
     "flash_attn", "mmap", "mlock", "keep_in_memory",
+    # KV-cache quantization (GGML type enums; 8 = q8_0). Required so the
+    # helper can run 32k contexts without the f16 KV cache eating ~9.4GB.
+    "type_k", "type_v",
 )
 
 

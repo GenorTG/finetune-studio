@@ -23,8 +23,10 @@ DEFAULT_HELPER_LABEL: str = "Helper · Qwen3-8B GGUF"
 DEFAULT_HELPER_GGUF_BASENAME: str = "Qwen3-8B-Q5_K_M.gguf"
 
 # Loader defaults for the seeded local_gguf provider.
+# 32k ctx per Genor (agentic tool-calling needs room); q8_0 KV cache keeps
+# the f16 KV cache from eating ~9.4GB at that depth (8 = GGML q8_0).
 DEFAULT_HELPER_EXTRA: dict[str, Any] = {
-    "n_ctx": 16384,
+    "n_ctx": 32768,
     "n_gpu_layers": 99,
     "n_batch": 512,
     "n_threads": 0,
@@ -34,6 +36,8 @@ DEFAULT_HELPER_EXTRA: dict[str, Any] = {
     "flash_attn": True,
     "mmap": True,
     "mlock": False,
+    "type_k": 8,
+    "type_v": 8,
 }
 
 
