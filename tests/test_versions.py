@@ -93,10 +93,7 @@ def test_subset_dataset_build_route(client, project, temp_db, monkeypatch):
     import tempfile
     from pathlib import Path
 
-    import finetune_studio.config as cfg
     import finetune_studio.data.fs.qa as qafs
-    import finetune_studio.data.fs.files as fl_mod
-    import finetune_studio.webui.routes.versions as vroutes
     # Point qa fs at a temp project dir
     tmp = Path(tempfile.mkdtemp(prefix="vers-subset-"))
     monkeypatch.setattr(qafs, "project_dir", lambda pid: tmp / pid)
@@ -115,7 +112,8 @@ def test_subset_dataset_build_route(client, project, temp_db, monkeypatch):
         ("srcAAA", "What is the capital?", "Spirefen."),
         ("srcBBB", "How many wives does the Turnwarden keep?", "Three."),
     ]
-    from finetune_studio.data.prep.qa_validate import Provenance, build_qa_record as bqr
+    from finetune_studio.data.prep.qa_validate import Provenance
+    from finetune_studio.data.prep.qa_validate import build_qa_record as bqr
     class _P:
         def __init__(self, q, a): self.question, self.answer = q, a
     for j, (sid, q, a) in enumerate(questions):
@@ -148,6 +146,7 @@ def test_subset_dataset_build_route(client, project, temp_db, monkeypatch):
 def test_subset_empty_payload_rejected(client, project, temp_db, monkeypatch):
     import tempfile
     from pathlib import Path
+
     import finetune_studio.data.fs.qa as qafs
     tmp = Path(tempfile.mkdtemp(prefix="vers-empty-"))
     monkeypatch.setattr(qafs, "project_dir", lambda pid: tmp / pid)
@@ -163,7 +162,7 @@ def test_subset_empty_payload_rejected(client, project, temp_db, monkeypatch):
 def test_rag_coverage_gate(client, project, temp_db, monkeypatch):
     import tempfile
     from pathlib import Path
-    import finetune_studio.config as cfg
+
     import finetune_studio.data.fs.qa as qafs
 
     tmp = Path(tempfile.mkdtemp(prefix="vers-ragcov-"))

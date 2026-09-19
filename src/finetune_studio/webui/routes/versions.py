@@ -214,7 +214,6 @@ async def rag_coverage(pid: str):
     """
     import json as _json
 
-    from finetune_studio.config import settings
     from finetune_studio.data.fs import qa as qafs
 
     sources = qafs.list_qa_sources(pid)
