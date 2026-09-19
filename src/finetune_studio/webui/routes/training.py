@@ -233,6 +233,32 @@ async def get_preset(preset_id: str):
         raise HTTPException(status_code=404, detail=f"Unknown preset: {preset_id}")
     return p
 
+
+@router.get("/recommend")
+async def recommend_config(
+    tier: str = "balanced",
+    base_model: str = "",
+    dataset: str = "",
+    pairs: int | None = None,
+    batch_size: int = 2,
+    grad_accum: int = 4,
+):
+    """Propose training settings for a base model + dataset at a quality tier.
+
+    Returns the computed config plus the arithmetic (optimizer-step math,
+    dataset-size scaling, LR-by-size rules) so the user can judge it, not
+    just obey it.
+    """
+    from finetune_studio.training.preset_advisor import propose
+    try:
+        adv = propose(tier=tier, base_model_ref=base_model,
+                      dataset_path=dataset or None, pair_count_hint=pairs,
+                      batch_size=batch_size,
+                      gradient_accumulation_steps=grad_accum)
+        return adv.to_dict()
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
 @router.get("/status")
 async def status():
     s = training_engine.state
