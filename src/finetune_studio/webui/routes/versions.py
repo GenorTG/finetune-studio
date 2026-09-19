@@ -220,7 +220,9 @@ async def rag_coverage(pid: str):
     sources = qafs.list_qa_sources(pid)
     if not sources:
         return JSONResponse({"error": "no parsed sources in this project"}, status_code=400)
-    corpus_dir = (Path(settings.db_path).parent / "rag_corpora" / pid)
+    from finetune_studio.webui.routes.rag import _corpus_dir as _rag_corpus_dir
+
+    corpus_dir = _rag_corpus_dir(pid)
     manifest_path = corpus_dir / "manifest.json"
     if not manifest_path.exists():
         return JSONResponse({"error": "no RAG corpus built for this project"}, status_code=400)

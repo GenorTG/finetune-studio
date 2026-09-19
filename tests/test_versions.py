@@ -173,9 +173,9 @@ def test_rag_coverage_gate(client, project, temp_db, monkeypatch):
         (tmp / project / "qa" / "sources" / f"{sid}.json").write_text(json.dumps(
             {"id": sid, "filename": fn, "sha256": "h-" + sid, "chunk_count": 3,
              "uploaded_at": 1.0}))
-    # Point rag corpora dir at temp too
-    import finetune_studio.webui.routes.versions as vr
-    monkeypatch.setattr(Path, "parent", Path.parent, raising=False)  # noop sanity
+    # Point rag corpora root at temp (single source of truth: rag route module)
+    import finetune_studio.webui.routes.rag as ragmod
+    monkeypatch.setattr(ragmod, "_CORPORA", tmp / "rag_corpora")
     corpus = tmp / "rag_corpora" / project
     corpus.mkdir(parents=True)
     manifest = {"extra": {"documents_meta": [
@@ -183,18 +183,6 @@ def test_rag_coverage_gate(client, project, temp_db, monkeypatch):
         {"document_id": "d2", "filename": "beta.txt"},
     ]}}
     (corpus / "manifest.json").write_text(json.dumps(manifest))
-    # settings.db_path determines corpus root: patch settings used inside route
-    class _Fake:
-        pass
-    _Fake.db_path = str(tmp / "fake.db")
-    import finetune_studio.config as cfg
-    real_settings = vr.settings if hasattr(vr, "settings") else None
-    # The route reads settings at call time via finetune_studio.config; patch there
-    from finetune_studio import config as cfgmod
-    class _S: pass
-    _S.db_path = str(tmp / "fake.db")
-    monkeypatch.setattr(cfgmod, "settings", _S, raising=False)
-
     # No corpus for other pid -> 400 handled; our project: 2/3 covered
     r = client.get(f"/api/projects/{project}/rag/coverage")
     assert r.status_code == 200, r.text[:200]
