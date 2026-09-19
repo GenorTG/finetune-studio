@@ -7,58 +7,66 @@ Edit on **genorbox1** → push → **fan-dragon** runs `finetune-studio.service`
 
 ## Mission
 
-Trained models must reliably answer the learned corpus — no lying about trained DB sources. Judge by reading transcripts, not auto-greens.
+Trained models must reliably answer the learned corpus — no lying about trained DB sources. Judge by reading transcripts, not auto-greens. **Data guarantee: every parsed chunk must reach the training dataset (no silent holes).**
 
-## State (verified 2026-09-18 ~18:30 CEST · genorbox1 = fan-dragon `a13992c`+3)
+## State (verified 2026-09-19 ~17:45 CEST · fan-dragon at `451facd`, service active)
 
 | Area | Status |
 |------|--------|
-| **Fleet** (Genor's rule) | 4B safetensors trainer, helper = **Qwen3-8B Q5_K_M GGUF** (36/36 layers GPU, ctx 32768), 27B abliterated — only 3. Helper load now uses real GGUF header topology (`-1` = all layers, block_count read from file) — **no magic 99 anywhere** (`9bd2913`). |
-| **Project 58d4e331** | "Vaelindrath Stress" — **131 fictional files / 43 extensions, ≥2 per ext, byte-unique** (generator: `scripts/gen_vaelindrath_corpus.py`, artifacts `/tmp/vael`). Parsed: 129 sources / 131 chunks / 65KB, all ready incl. real OLE2 `.doc` (olefile) on fan-dragon. |
-| **Q&A pairs** | **581 mined** (hard/direct ×8/chunk, one run per source; ~15 min on 8B helper all-GPU). Triage: 564 approved / 17 rejected (7 identifier-leak + 10 ambiguous-bare). |
-| **Dataset + suite** | `58d4e331-sharegpt-approved.jsonl` (**515 dedup rows**) registered as dataset `6d7680a0`; `full-ingested-corpus.json` suite auto-built (515 cases). Built together from same pairs (Genor's method). |
-| **Training (2 runs this pass)** | Run `212035ad` (4 ep, r64): **67% strict** — failure class = digit scrambling on under-memorized prices/counts. Retrained run `f76bf64f` (**12 ep, r128/α256**): **95.1% strict (490/515)**. Both auto-merged + q8_0 GGUF exported (4.3GB). |
-| **Judging (eyeballed 25 fails + passes)** | 24 genuine recall misses (confused similar facts), 1 known cross-source conflict question. Passes sampled = real. No false-positive class found. |
-| **Bugs found by the stress pass (all fixed + deployed)** | `e87c9db` olefile .doc parser · `767099e` delete→re-upload revival (trash row poisoned re-uploads) · `7394318` placeholder-parse retry guard · `ba1e561`+`a13992c` GGUF export silently no-ops without merge (now auto-merges on **both** TRL paths, failures land in run row) · `2dc90ae` activity UX pass. |
-| **UX pass deployed** | Activity feed: human messages ("Start Q&A mining") + project as separate badge; gear icon → pulse SVG everywhere; kind/status/border contrast kit; top-right decluttered (conn-status chip dropped, release label folded into tooltip). Verified via API + activity feed live during 129-run mining. |
+| **Dataset coverage — 100% enforced** | `coverage_fill.py` (`6af6312`): deterministic second pass; chunks the LLM mining missed get extractive pairs (answer quoted verbatim, `origin=coverage_fill`, status approved, no invention). Runs **at end of every mining run** (runner self-heal, `451facd`) **and before every export** (route gate) — a dataset cannot ship with silently-unmined chunks. Live proof: project 58d4e331 went 515→**554 rows**, chunk coverage **131/131 = 100%**, idempotent on re-export. `fill_all_project_gaps()` also surfaces declared-but-lost parsed artifacts (never crash-swallow). |
+| **Size-aware training advisor** | `training/preset_advisor.py` (`b78bf15`): parses base size from model name (GGUF quant suffix excluded), scales rank/LR/epochs by base size + dataset size, raises epochs to clear per-tier optimizer-step floor (evidence: 772 steps → 95.1% strict, 257 → 67%). `GET /api/training/recommend?tier=&base_model=&pairs=`. Training page prefills + re-runs when base/dataset changes. 10 evidence-pinned tests. |
+| **Auto-suite proven live** | `POST /api/training/runs/{id}/auto-suites/generate` on run `f76bf64f` → 500 cases, deterministic, quality-checked vs the trusted 515-suite (97% normalized-question overlap, 0 degenerate). Selectable via `GET /api/benchmarks/suites?project_id=` (param is `project_id`, **not** `pid`). |
+| **Project 58d4e331** | "Vaelindrath Stress": 131 files / 129 sources / 131 chunks, **all parsed, zero failed parses** (18 zero-pair files found + filled=100%). Mining: 581 pairs → 564 approved / 17 rejected (7 id-leak, 10 ambiguous) → dedup → **515**; +39 coverage_fill approved → **554-row dataset on disk now** (551 unique approved questions, all present). |
+| **Training evidence** | Run `212035ad` (4 ep, r64) = 67% strict; run `f76bf64f` (12 ep, r128/α256, 2e-4) = **95.1% (490/515)** + q8_0 GGUF (4.3 GB). Eyeball per protocol: 25 fails = 24 real misses + 1 known cross-source conflict; no judge false positives. Auto-scoring trustworthy here. |
+| **Fleet (Genor's rule, 3 models)** | 4B safetensors trainer; helper = Qwen3-8B Q5_K_M GGUF (real header topology, `-1` = all layers, no magic 99); 27B abliterated GGUF. |
+| **Deployed UX** | Named toasts both paths, counted upload toasts, WCAG-pass pills (5.16–10.19:1), dim-token contrast, mobile toast strip; deployed assets `app.css?v=29` + `app.js?v=21` (served + verified). |
 
 ## Next steps
 
-1. Final batch: `/api/benchmarks/*` full-corpus bench run with judge eyeball per `docs/judging/PROTOCOL.md`; then judge the 490 passes sample (auto-scoring trustworthy here, spot-check).
-2. Params ladder if <99% wanted: 16-24 epochs or full-corpus augmentation pass (`scripts/augment_dataset.py` precedent, Aethermere 26→93%).
-3. Unstaged in tree: rag import_bundle ~274 lines (`rag.py`/`store.py`) + corpus-generator dedup injection — finish + commit separately.
-4. UX second pass: popups/toasts, responsive polish (Genor asked; icon/message/contrast done).
-5. HANDOFF rewrite at next milestone; archive old to `docs/archive/`.
+1. **Retrain on the 554-row dataset** (advisor tier=precision proposes 12-13 ep r128 — new coverage-fill pairs from the 18 previously-missed files may lift >95.1%): `/api/training/start` with dataset id from the 554-row export, then auto-suite → strict test.
+2. **Finish rag `import_bundle` WIP** (~274 lines, committed unverified in `45077f2`: `rag.py` + `data/rag_portable/store.py`) — complete or strip.
+3. Full-corpus bench with eyeball judging per `docs/judging/PROTOCOL.md`; then sample the 490+ passes.
+4. Visual UX strict pass with real screenshots (advisory panel, toasts) — needs a paired computer-capable node; verified so far only via curl/DOM.
+5. Popups/responsive polish second pass (asked; icon/message/contrast shipped).
 
 ## Commands
 
 ```bash
 # genorbox1
 cd ~/work/finetune-studio
-make test                     # focused: .venv/bin/python -m pytest tests/test_X.py -v
+make test                     # 1007 passed as of 2026-09-19
 .venv/bin/python -m ruff check src/   # NEVER `make lint` (swallows failures)
 make codemap                  # commit docs/CODEMAP.md with code moves
 
 # deploy (scripted route — iron rule)
 git push && ssh fan-dragon 'bash -c "cd /home/genortg/finetune-studio && bash update.sh 2>&1 | tail -5; git log --oneline -1; systemctl --user is-active finetune-studio"'
 
+# coverage verify (post-export)
+python3 - <<'PY'  # on fan-dragon
+import json, glob, re
+pairs = [json.load(open(p)) for p in glob.glob("/home/genortg/.finetune-studio/projects/58d4e331/qa/pairs/*.json")]
+srcs  = [json.load(open(p)) for p in glob.glob("/home/genortg/.finetune-studio/projects/58d4e331/qa/sources/*.json")]
+from collections import Counter
+cov = Counter((r["source_id"], r["chunk_idx"]) for r in pairs if r["status"] == "approved")
+print("chunk coverage:", len(cov), "/", sum(s["chunk_count"] for s in srcs))
+PY
+
 # GPU/ops
 ssh fan-dragon 'bash -c "nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader"'
-# helper load: POST /api/providers/local-default/load
-# suite run: POST /api/testing/run-suite {suite_path, project_id, max_tokens:256, model_path} — LONG (~10 min for 515)
+# suite run: POST /api/testing/run-suite {suite_path, project_id, max_tokens:256, model_path} — LONG (~10 min for 515+)
 
-# data flow
-POST /api/projects/{pid}/files/upload            # upload+parse (auto-promote)
+# data flow (export now self-fills coverage)
 POST /api/projects/{pid}/data-prep/start {source_id, qa_per_chunk, difficulty, style}
 POST /api/projects/{pid}/data-prep/qa/bulk {ids, action:"approve"}
-GET  /api/projects/{pid}/data-prep/export?fmt=sharegpt&only=approved  # registers dataset
+GET  /api/projects/{pid}/data-prep/export?fmt=sharegpt&only=approved  # registers dataset, runs coverage gate first
 POST /api/training/start {project_id, dataset_id, model_path, num_epochs, lora_rank, export_gguf, gguf_quants}
+GET  /api/training/recommend?tier=&base_model=&pairs=&dataset=
 ```
 
 ## Blockers
 
-- None. Deep-dive detail for this pass kept at `docs/judging/2026-09-18-vaelindrath-summary.md`.
-- ComfyUI VRAM the only external pressure; parrot/observe, never kill.
+- Screenshots/visual pass needs a paired computer-capable node (Genor to pair).
+- ComfyUI VRAM the only external GPU pressure; observe, never kill.
 
-## Gotchas worth re-reading before training work
-See repo `AGENTS.md ## Gotchas` — now includes: olefile must be installed on fan-dragon before re-parsing .doc; upload dedup ignores deleted rows so the revival path matters; merge_on_save off + export_gguf was a silent no-op on both TRL save paths.
+## Gotchas worth re-reading before data-prep or training work
+See repo `AGENTS.md ## Gotchas`. New: coverage-fill counts `qa` (model pairs) and `qa_coverage_fill` separately — never merge them into one number; extractive fill answers must stay verbatim substrings (asserted in tests).
