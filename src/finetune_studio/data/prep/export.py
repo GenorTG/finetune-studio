@@ -67,3 +67,43 @@ def export_qa_jsonl(pid: str, fmt: str = "sharegpt", only: str = "approved") -> 
     else:
         raise ValueError(f"Unknown format: {fmt}")
     return "\n".join(json.dumps(o, ensure_ascii=False) for o in out) + ("\n" if out else "")
+
+
+def export_qa_jsonl_from_sources(
+    pid: str,
+    source_ids: list[str],
+    fmt: str = "sharegpt",
+    only: str = "approved",
+) -> str:
+    """Export a dataset built ONLY from the hand-picked sources (subset build).
+
+    Same contract as `export_qa_jsonl` but filtered to the given source ids —
+    the base for specialized custom versions trained on selected old+new
+    files. Unknown source ids are skipped silently at this layer; the caller
+    (route) validates them and reports the real counts.
+    """
+    wanted = set(source_ids)
+    items = [q for q in pfs.list_qa_pairs(pid, status=only if only != "all" else None)
+             if q.get("source_id") in wanted]
+    if only == "all":
+        items = [q for q in items if q.get("status") != "rejected"]
+    items = deduplicate_qa_pairs(items)
+    if fmt == "sharegpt":
+        out = [{"conversations": [
+            {"from": "human", "value": it["question"]},
+            {"from": "gpt", "value": clean_answer_for_training(it["answer"])},
+        ], "source_id": it.get("source_id", ""),
+           "chunk_idx": it.get("chunk_idx", 0),
+           "score": it.get("score", 0.0)} for it in items]
+    elif fmt == "alpaca":
+        out = [{"instruction": it["question"], "input": "", "output": clean_answer_for_training(it["answer"]),
+                "source_id": it.get("source_id", ""), "chunk_idx": it.get("chunk_idx", 0)} for it in items]
+    elif fmt == "openai":
+        out = [{"messages": [
+            {"role": "user", "content": it["question"]},
+            {"role": "assistant", "content": clean_answer_for_training(it["answer"])},
+        ], "source_id": it.get("source_id", ""),
+           "chunk_idx": it.get("chunk_idx", 0)} for it in items]
+    else:
+        raise ValueError(f"Unknown format: {fmt}")
+    return "\n".join(json.dumps(o, ensure_ascii=False) for o in out) + ("\n" if out else "")

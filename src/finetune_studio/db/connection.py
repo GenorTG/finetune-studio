@@ -183,6 +183,21 @@ CREATE INDEX IF NOT EXISTS idx_datasets_project ON project_datasets(project_id);
 -- data_prep_runs: per-run persistence for the data-prep pipeline.
 -- The in-memory _RUNS dict in routes/data_prep.py stays for in-progress
 -- polling, but the DB is the durable record.
+CREATE TABLE IF NOT EXISTS project_versions (
+    id                TEXT PRIMARY KEY,
+    project_id        TEXT NOT NULL,
+    version_number    INTEGER NOT NULL,
+    label             TEXT NOT NULL DEFAULT '',
+    notes             TEXT NOT NULL DEFAULT '',
+    manifest_json     TEXT NOT NULL DEFAULT '{}',  -- pinned datasets/files/rags/runs/base model
+    parent_version_id TEXT,                          -- lineage: version this was built from
+    created_at        REAL NOT NULL,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    UNIQUE(project_id, version_number)
+);
+CREATE INDEX IF NOT EXISTS idx_project_versions_project
+    ON project_versions(project_id, version_number DESC);
+
 CREATE TABLE IF NOT EXISTS data_prep_runs (
     id            TEXT PRIMARY KEY,
     project_id    TEXT NOT NULL,

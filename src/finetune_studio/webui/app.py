@@ -320,6 +320,10 @@ from finetune_studio.webui.routes import activity as _activity
 
 app.include_router(_activity.router)  # type: ignore[has-type]  # /api/activity
 
+from finetune_studio.webui.routes import versions as _versions
+
+app.include_router(_versions.router, prefix="/api", tags=["versions"])  # /api/projects/{pid}/versions* + datasets/subset + rag/coverage
+
 from finetune_studio.webui.routes import settings as _settings
 
 app.include_router(_settings.router)  # type: ignore[has-type]  # /api/settings

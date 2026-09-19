@@ -116,6 +116,52 @@ def fill_all_project_gaps(pid: str) -> dict[str, Any]:
     return summary
 
 
+def fill_sources_gaps(pid: str, source_ids: list[str]) -> dict[str, Any]:
+    """Coverage-fill ONLY the given sources (subset builds).
+
+    Same semantics as `fill_all_project_gaps` but restricted to the picked
+    source ids so a specialized subset dataset can still carry the hard
+    no-skips guarantee for exactly the files it derives from. Unknown ids
+    contribute nothing; callers validate counts against their own request.
+    """
+    wanted = [s for s in source_ids if s]
+    sources = [s for s in pfs.list_qa_sources(pid) if str(s.get("id") or "") in set(wanted)]
+    total = FillResult()
+    uncovered: list[dict[str, Any]] = []
+    for src in sources:
+        sid = str(src.get("id") or "")
+        sha = str(src.get("sha256") or "")
+        declared_chunks = int(src.get("chunk_count") or 0)
+        try:
+            chunks = load_existing_chunks(pid, sha) if sha else []
+            result = fill_coverage_gaps(
+                pid, sid, sha,
+                chunk_texts={i: c for i, c in enumerate(chunks, 1)} or None,
+            )
+        except Exception as exc:
+            log.exception("coverage fill failed for source %s", sid)
+            n = declared_chunks if declared_chunks else 1
+            uncovered.extend(
+                {"source": sid, "chunk_idx": i, "error": f"fill failed: {exc}"}
+                for i in range(1, n + 1)
+            )
+            continue
+        total.pairs_created += result.pairs_created
+        total.chunks_filled += result.chunks_filled
+        total.skipped_no_content += result.skipped_no_content
+        for unc in result.chunks_still_uncovered:
+            unc["source"] = sid
+            uncovered.append(unc)
+        if declared_chunks and not chunks:
+            uncovered.extend(
+                {"source": sid, "chunk_idx": i, "error": "parsed chunks missing"}
+                for i in range(1, declared_chunks + 1)
+            )
+    summary = total.as_dict()
+    summary["uncovered_chunks"] = uncovered
+    return summary
+
+
 # ── sentence splitting ───────────────────────────────────────────────────
 
 _SENT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])")

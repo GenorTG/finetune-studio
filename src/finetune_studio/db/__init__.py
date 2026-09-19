@@ -109,6 +109,10 @@ from finetune_studio.db.system_updates import (
     update_update,
 )
 from finetune_studio.db.activity_events import list_recent as list_activity_events_recent, record as record_activity_event
+from finetune_studio.db.project_versions import (
+    create_version, delete_version, get_version, get_version_by_number,
+    latest_version, list_versions, version_lineage,
+)
 
 # Initialise on import so callers don't have to remember.
 init_db()
