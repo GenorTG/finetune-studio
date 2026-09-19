@@ -2,7 +2,7 @@
 {% block title %}Guided Flow — {{ project.name }}{% endblock %}
 {% block nav_project_overview %}active{% endblock %}
 {% block sb_path %}~ / projects / {{ project.name }} / flow{% endblock %}
-{% block breadcrumb_tab %}overview{% endblock %}
+{% block breadcrumb_tab %}flow{% endblock %}
 
 {% block crumbs %}
   <a href="/projects" data-link>Projects</a>
@@ -185,12 +185,24 @@
       }).catch(function (e) { pill("train", "error", false); line("training: ERROR " + e); });
     }
     if (!which || which === "test") {
+      // Suite scoring isn't persisted per-run; auto-suite presence + the run's
+      // own suite file is the honest "was this run tested" signal.
       fetch("/api/training/runs?project_id=" + PID).then(r => r.json()).then(function (rows) {
         rows = Array.isArray(rows) ? rows : [];
-        var tested = rows.filter(function (r) { return (r.metrics_json || '"strict_pass_rate"') !== undefined && r.metrics_json && r.metrics_json.indexOf && r.metrics_json.indexOf("strict_pass_rate") >= 0; });
-        set("test", tested.length + " run(s) with suite results");
+        var done = rows.filter(function (r) { return ["done", "completed"].indexOf(r.status) >= 0; });
+        var checks = done.slice(0, 3).map(function (r) {
+          return fetch("/api/training/runs/" + r.id + "/auto-suites").then(function (res) {
+            return res.json();
+          }).then(function (suites) {
+            return (Array.isArray(suites) && suites.length > 0) ? { run: r, suites: suites } : null;
+          }).catch(function () { return null; });
+        });
+        return Promise.all(checks);
+      }).then(function (checked) {
+        var tested = checked.filter(Boolean);
+        set("test", tested.length + " run(s) with generated suite(s)");
         pill("test", tested.length > 0 ? "tested" : "no runs", tested.length > 0);
-        line("suite-scored runs: " + tested.length);
+        line("suite-registered runs: " + tested.length);
       }).catch(function (e) { pill("test", "error", false); line("test: ERROR " + e); });
     }
     if (!which || which === "version") {
