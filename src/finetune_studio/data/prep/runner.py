@@ -20,6 +20,7 @@ import time
 import uuid
 from collections import Counter
 from dataclasses import dataclass
+from typing import Any
 
 from finetune_studio.data import project_filesystem as pfs
 from finetune_studio.data.fs.metadata import _safe_filename
@@ -264,16 +265,54 @@ class DataPrepRunner:
         coverage_info = coverage.as_dict()
         coverage_info["uncovered_chunk_indices"] = coverage.uncovered_chunks(chunk_indices)
         rejection_info = rejection_counters.as_dict()
+        # Self-heal: chunks the model mining never converted get deterministic
+        # extractive pairs now, so nothing parsed is left out of the next export.
+        fill_summary: dict[str, Any] | None = None
+        fill_pairs = 0
+        try:
+            from finetune_studio.data.prep.coverage_fill import fill_coverage_gaps
+
+            fill = fill_coverage_gaps(
+                self.pid, self.source_id, meta.sha256,
+                chunk_texts={i: c for i, c in enumerate(chunks, 1)},
+            )
+            fill_summary = fill.as_dict()
+            fill_pairs = fill.pairs_created
+            if fill.pairs_created:
+                # merge honestly: tracker counts model-accepted chunks, the fill
+                # result says which gaps it closed. No disk re-read (pfs may be
+                # test-mocked).
+                still_open = {
+                    int(u["chunk_idx"])
+                    for u in fill_summary.get("chunks_still_uncovered", [])
+                }
+                filled_idx = set(range(1, len(chunks) + 1)) - still_open
+                covered_now = (coverage.chunks_with_accepted | filled_idx) & set(chunk_indices)
+                coverage_info["chunks_with_accepted"] = len(covered_now)
+                coverage_info["chunks_uncovered"] = len(chunk_indices) - len(covered_now)
+                coverage_info["coverage_ratio"] = round(
+                    coverage_info["chunks_with_accepted"] / max(1, len(chunk_indices)), 4)
+        except Exception:
+            log.exception("coverage fill failed for %s", self.source_id)
+        if fill_summary and fill_summary.get("chunks_still_uncovered"):
+            log.warning(
+                "source %s: %d chunk(s) could not yield any pair even extractively: %s",
+                self.source_id, len(fill_summary["chunks_still_uncovered"]),
+                fill_summary["chunks_still_uncovered"],
+            )
         pfs.log_ingestion(self.pid, {
             "event": "qa_generated", "sha256": meta.sha256, "filename": self.filename,
             "qa_count": total_qa,
+            "qa_coverage_fill": fill_pairs,
             "rejection_counters": rejection_info,
             "coverage": coverage_info,
+            "coverage_fill": fill_summary,
         })
         self._emit(stage="done", pct=100, chunks_done=len(chunks), qa_total=total_qa,
                    message=(
                        f"Done. {total_qa} accepted Q&A pairs from {len(chunks)} chunks "
-                       f"({rejection_counters.rejected} rejected)."
+                       f"({rejection_counters.rejected} rejected; "
+                       f"+{fill_pairs} coverage-fill extractive)."
                    ))
         return {
             "ok": True,
@@ -281,7 +320,9 @@ class DataPrepRunner:
             "sha256": meta.sha256,
             "chunks": len(chunks),
             "qa": total_qa,
+            "qa_coverage_fill": fill_pairs,
             "filename": self.filename,
             "rejection_counters": rejection_info,
             "coverage": coverage_info,
+            "coverage_fill": fill_summary,
         }
