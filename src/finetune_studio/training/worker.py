@@ -22,6 +22,9 @@ log = logging.getLogger(__name__)
 # Apply before any datasets/unsloth import in this process (E2E-27).
 os.environ.setdefault("UNSLOTH_DATASET_NUM_PROC", "0")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+# Expandable segments fight cuBLAS/pool fragmentation: long r128 runs on a
+# 24 GiB card OOM mid-run at step ~40 (e3f1ae03) despite headroom at start.
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 
 def _config_from_dict(raw: dict[str, Any]) -> Any:
@@ -91,14 +94,14 @@ def training_worker(
     def _push(state: Any) -> None:
         try:
             out_queue.put({"op": "state", "state": _state_payload(state)})
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("Failed to push training state to parent")
 
     eng.on_update(_push)
 
     try:
         eng._train(training_data, system_prompt)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         # _train normally catches; this is belt-and-suspenders for empty msgs.
         msg = _format_exc(exc)
         eng.state.status = "error"
