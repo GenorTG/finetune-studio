@@ -9,11 +9,12 @@ Edit on **genorbox1** → push → **fan-dragon** runs `finetune-studio.service`
 
 Trained models must reliably answer the learned corpus — no lying about trained DB sources. Judge by reading transcripts, not auto-greens. **Data guarantee: every parsed chunk must reach the training dataset (no silent holes).**
 
-## State (verified 2026-09-19 ~18:45 CEST · fan-dragon at `1829aba`, service active)
+## State (verified 2026-09-19 ~19:35 CEST · fan-dragon at `7bb24dc`, service active)
 
 | Area | Status |
 |------|--------|
 | **Dataset coverage — 100% enforced** | `coverage_fill.py` (`6af6312`): deterministic second pass; chunks the LLM mining missed get extractive pairs (answer quoted verbatim, `origin=coverage_fill`, status approved, no invention). Runs **at end of every mining run** (runner self-heal, `451facd`) **and before every export** (route gate) — a dataset cannot ship with silently-unmined chunks. Live proof: project 58d4e331 went 515→**554 rows**, chunk coverage **131/131 = 100%**, idempotent on re-export. `fill_all_project_gaps()` also surfaces declared-but-lost parsed artifacts (never crash-swallow). |
+| **Project versioning (goal 34ff4655)** | `project_versions` table + CRUD (`bc1152b`): immutable manifests pin datasets/source_ids/RAG corpora/runs/base model; monotonic version_number, `parent_version_id` lineage → any old version is a branch base. Subset datasets: `POST /api/projects/{pid}/datasets/subset` hand-picks sources → coverage-filled, per-source row counts, registered (`58d4e331-specialized-picks-…` = 48 rows live). RAG parity gate `GET …/rag/coverage` (129/129 = 100% on the live corpus; shares rag route's corpus root — never re-derive the path). Guided flow page `/projects/{pid}/flow` (`7bb24dc`): 7-step files→QA→dataset→RAG→train→test→version dashboard, nav entry, all through the same APIs as curl. Versions CRUD/lineage live-verified as v1 `302071b6` → v2 `4fca19a4`. Timings: flow page auto-checks all 7 stages on load. |
 | **Size-aware training advisor** | `training/preset_advisor.py` (`b78bf15`): parses base size from model name (GGUF quant suffix excluded), scales rank/LR/epochs by base size + dataset size, raises epochs to clear per-tier optimizer-step floor (evidence: 772 steps → 95.1% strict, 257 → 67%). `GET /api/training/recommend?tier=&base_model=&pairs=`. Training page prefills + re-runs when base/dataset changes. 10 evidence-pinned tests. |
 | **Auto-suite proven live** | `POST /api/training/runs/{id}/auto-suites/generate` on run `f76bf64f` → 500 cases, deterministic, quality-checked vs the trusted 515-suite (97% normalized-question overlap, 0 degenerate). Selectable via `GET /api/benchmarks/suites?project_id=` (param is `project_id`, **not** `pid`). |
 | **Project 58d4e331** | "Vaelindrath Stress": 131 files / 129 sources / 131 chunks, **all parsed, zero failed parses** (18 zero-pair files found + filled=100%). Mining: 581 pairs → 564 approved / 17 rejected (7 id-leak, 10 ambiguous) → dedup → **515**; +39 coverage_fill approved → **554-row dataset on disk now** (551 unique approved questions, all present). |
@@ -23,7 +24,7 @@ Trained models must reliably answer the learned corpus — no lying about traine
 
 ## Next steps
 
-1. Recall >94.8% needs a different lever, not another straight retrain: params ladder (16-24 ep) or `scripts/augment_dataset.py` augmentation pass on the 554-row dataset (Aethermere precedent 26→93%) — then same-suite re-verify.
+1. Versions UX polish (compare manifests, copy-pins-to-new) + train a real specialized model from the 48-row subset build as the flow's end-to-end demo.
 2. **Finish rag `import_bundle` WIP** (~274 lines, committed unverified in `45077f2`: `rag.py` + `data/rag_portable/store.py`) — complete or strip.
 3. Full-corpus bench with eyeball judging per `docs/judging/PROTOCOL.md`; then sample the 490+ passes.
 4. Visual UX strict pass with real screenshots (advisory panel, toasts) — needs a paired computer-capable node; verified so far only via curl/DOM.
