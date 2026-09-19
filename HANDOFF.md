@@ -9,7 +9,7 @@ Edit on **genorbox1** → push → **fan-dragon** runs `finetune-studio.service`
 
 Trained models must reliably answer the learned corpus — no lying about trained DB sources. Judge by reading transcripts, not auto-greens. **Data guarantee: every parsed chunk must reach the training dataset (no silent holes).**
 
-## State (verified 2026-09-19 ~19:35 CEST · fan-dragon at `7bb24dc`, service active)
+## State (verified 2026-09-19 ~20:15 CEST · fan-dragon at `d1df0a5`, service active)
 
 | Area | Status |
 |------|--------|
@@ -24,7 +24,7 @@ Trained models must reliably answer the learned corpus — no lying about traine
 
 ## Next steps
 
-1. Versions UX polish (compare manifests, copy-pins-to-new) + train a real specialized model from the 48-row subset build as the flow's end-to-end demo.
+1. **Specialized-subset demo done (run `c327fa36`)**: 120 ep r128/α256 on 48 hand-picked rows → final loss 0.0987, q8_0 GGUF exported. Its own 48-case suite: **91.7%** vs generalist 89.6% on the same instrument (fixed 5 / regressed 4) — modest win, real but within noise; both models stumble on digit-confusable facts. Verdict recorded; next: versions UX polish (compare manifests, copy-pins-to-new) or specialized RAG corpus for the same 10 picks.
 2. **Finish rag `import_bundle` WIP** (~274 lines, committed unverified in `45077f2`: `rag.py` + `data/rag_portable/store.py`) — complete or strip.
 3. Full-corpus bench with eyeball judging per `docs/judging/PROTOCOL.md`; then sample the 490+ passes.
 4. Visual UX strict pass with real screenshots (advisory panel, toasts) — needs a paired computer-capable node; verified so far only via curl/DOM.
