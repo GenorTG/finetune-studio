@@ -618,6 +618,23 @@ async def project_settings_page(request: Request, pid: str):
     )
 
 
+@router.get("/projects/{pid}/flow", response_class=HTMLResponse)
+async def project_flow_page(request: Request, pid: str):
+    """Guided start-to-finish flow: files → QA → dataset → RAG → train → test → version.
+
+    Read-only dashboard over the same APIs the CLI uses; the only POST actions
+    are full-export, RAG build, and save-version, all reachable in curl too.
+    """
+    ctx = _project_ctx(pid)
+    if not ctx:
+        return RedirectResponse(url="/projects", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "project_flow.html",
+        {**ctx, "request": request},
+    )
+
+
 # ── Settings & Debug Info ───────────────────────────────────────────
 
 @router.get("/settings", response_class=HTMLResponse)

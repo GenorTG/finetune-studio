@@ -229,6 +229,7 @@
       <span class="ws-sep" aria-hidden="true">|</span>
       {% if ws == 'model' %}
       <a href="/projects/{{ pid }}" data-link class="ws-link {% if self.breadcrumb_tab()|trim in ('overview', 'models') %}here{% endif %}">dashboard</a>
+      <a href="/projects/{{ pid }}/flow" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'flow' %}here{% endif %}" title="Guided start-to-finish flow">flow</a>
       <a href="/projects/{{ pid }}/training" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'training' %}here{% endif %}">training</a>
       <a href="/projects/{{ pid }}/testing" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'testing' %}here{% endif %}">testing</a>
       {% elif ws == 'rag' %}
