@@ -482,8 +482,25 @@ async def delete_source_route(pid: str, source_id: str):
 
 
 @router.get("/projects/{pid}/data-prep/export")
-async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved"):
+async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
+                     force: bool = False):
     from finetune_studio.data.prep import export_qa_jsonl
+    # 100%-coverage gate: run the deterministic fill pass first so chunks the
+    # stochastic mining pass never converted still land as approved extractive
+    # pairs. force=false keeps uncoverable chunks as an honest warning rather
+    # than a silent hole.
+    fill_summary: dict | None = None
+    try:
+        from finetune_studio.data.prep.coverage_fill import fill_all_project_gaps
+        fill_summary = fill_all_project_gaps(pid)
+        if fill_summary and fill_summary.get("uncovered_chunks"):
+            log.warning(
+                "coverage fill left %d chunk(s) uncovered in project %s: %s",
+                len(fill_summary["uncovered_chunks"]), pid,
+                fill_summary["uncovered_chunks"][:10],
+            )
+    except Exception:
+        log.exception("coverage fill failed — exporting without it")
     try:
         body = export_qa_jsonl(pid, fmt=fmt, only=only)
     except ValueError as e:
