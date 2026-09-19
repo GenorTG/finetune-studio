@@ -208,6 +208,17 @@
       </select>
       <span class="block text-xs muted mt-1" id="system-prompt-help">Bake: model always behaves this way. Runtime: export includes a system_prompt.txt for inference engines. None: no system prompt.</span>
     </label>
+    <label style="grid-column: 1 / -1;">
+      <span class="block text-xs muted mb-1" title="Presets fill every field below with a vetted starting point. Your evidence for what works lives in benchmarks: the 95%-strict run used PRECISION on a 515-pair domain dataset; 4-epoch runs at the same rank hit only 67%.">Training preset <span class="dim">?</span></span>
+      <select id="training-preset" class="select" aria-label="Training preset">
+        <option value="" selected>— pick a preset (updates fields below, then adjust) —</option>
+        <option value="smoke">🔥 Smoke test — fast & lossy (minutes; proves the plumbing)</option>
+        <option value="balanced">⚖ Baseline — good quality, sane time (recommended start)</option>
+        <option value="precision">🎯 Precision — very good for factual/domain recall</option>
+        <option value="overkill">💀 Overkill — probably unnecessary; only for stubborn domains</option>
+      </select>
+      <span class="block text-xs mt-1" id="preset-note" role="status" style="color:var(--text-dim);">Pick a preset to prefill epochs, rank, LR, batch. Values stay editable — the preset is a starting point, not a cage.</span>
+    </label>
     <label>
       <span class="block text-xs muted mb-1" title="How many trainable parameters the LoRA adapter has. Higher rank = more expressive but slower to train and bigger adapter file. Typical range: 8–64. 64 is a good default; 8 if you're memory-constrained.">LoRA Rank <span class="dim">?</span></span>
       <input type="number" name="lora_rank" value="64" class="input">
@@ -363,6 +374,44 @@
     startBtn.title = hasData ? "Start training" : "Pick or upload a dataset first";
   }
   syncStartEnabled();
+
+  // Training presets: fill all config fields with vetted starting points.
+  // Evidence: PRECISION is the config that hit 95.1% strict on the 515-case
+  // domain suite (12ep r128 α256 lr 2e-4); 4-epoch runs at the same rank hit 67%.
+  const PRESETS = {
+    smoke: {
+      note: "Minutes-long run to prove the pipeline works end-to-end. The model will NOT memorize your domain — expect low benchmark scores. Use it to validate export/chat plumbing, then upgrade.",
+      values: { num_epochs: 1, learning_rate: "2e-4", lora_rank: 16, batch_size: 2, gradient_accumulation_steps: 1 },
+    },
+    balanced: {
+      note: "Recommended start for most datasets. Enough real optimizer steps for solid recall on typical domain datasets without gold-plating. If the benchmark shows underfit, move up to Precision.",
+      values: { num_epochs: 6, learning_rate: "2e-4", lora_rank: 64, batch_size: 2, gradient_accumulation_steps: 4 },
+    },
+    precision: {
+      note: "The config that produced the 95.1% strict result on a 515-pair factual domain dataset (Qwen3-4B base). Slower, but the sweet spot when recall actually matters.",
+      values: { num_epochs: 12, learning_rate: "2e-4", lora_rank: 128, batch_size: 2, gradient_accumulation_steps: 4 },
+    },
+    overkill: {
+      note: "Long run, big rank, slow LR — only worth it if Precision still fails your benchmark AND you've verified the dataset itself is solid. Wastes hours otherwise; benchmark before assuming you need this.",
+      values: { num_epochs: 24, learning_rate: "1e-4", lora_rank: 256, batch_size: 2, gradient_accumulation_steps: 4 },
+    },
+  };
+  const presetSel = document.getElementById("training-preset");
+  const presetNote = document.getElementById("preset-note");
+  if (presetSel) {
+    presetSel.addEventListener("change", () => {
+      const p = PRESETS[presetSel.value];
+      if (p) {
+        for (const [k, v] of Object.entries(p.values)) {
+          const el = document.querySelector(`[name="${k}"]`);
+          if (el) el.value = v;
+        }
+        if (presetNote) presetNote.textContent = p.note;
+      } else if (presetNote) {
+        presetNote.textContent = "Pick a preset to prefill epochs, rank, LR, batch. Values stay editable — the preset is a starting point, not a cage.";
+      }
+    });
+  }
 
   // Deep-link from Data Prep post-export CTA: /training?dataset=latest
   // Prefills the newest registered dataset so one click lands ready-to-run.
