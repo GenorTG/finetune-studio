@@ -198,3 +198,28 @@ def test_import_rejects_missing_archive_and_bad_manifest(tmp_path: Path) -> None
         zf.writestr("random.txt", "not a bundle")
     with pytest.raises(ValueError):
         rag.import_bundle(bad)
+
+
+def test_import_rejects_path_traversal(tmp_path: Path) -> None:
+    """A bundle with ../ escape entries must be refused, not extracted."""
+    import tarfile
+    import zipfile
+
+    evil = tmp_path / "evil.zip"
+    with zipfile.ZipFile(evil, "w") as zf:
+        zf.writestr("../../pwned.txt", "boom")
+    with pytest.raises(ValueError, match="unsafe path"):
+        PortableRAG(tmp_path / "newdir").import_bundle(evil)
+    assert not (tmp_path / "pwned.txt").exists()
+
+    evil_tar = tmp_path / "evil.tar"
+    with tarfile.open(evil_tar, "w") as tar:
+        import io
+
+        data = b"boom"
+        info = tarfile.TarInfo(name="../pwned2.txt")
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
+    with pytest.raises(Exception):
+        PortableRAG(tmp_path / "newdir2").import_bundle(evil_tar)
+    assert not (tmp_path / "pwned2.txt").exists()

@@ -390,12 +390,19 @@ class PortableRAG:
             suffix = archive_path.suffix.lower()
             if suffix in (".tar.gz", ".tgz"):
                 with tarfile.open(archive_path, "r:gz") as tar:
-                    tar.extractall(stage)
+                    # filter='data' rejects absolute paths / ../ traversal / device nodes
+                    tar.extractall(stage, filter="data")
             elif suffix == ".tar":
                 with tarfile.open(archive_path, "r") as tar:
-                    tar.extractall(stage)
+                    tar.extractall(stage, filter="data")
             elif suffix == ".zip":
                 with zipfile.ZipFile(archive_path, "r") as zf:
+                    for member in zf.infolist():
+                        target = (stage / member.filename).resolve()
+                        if not target.is_relative_to(stage.resolve()):
+                            raise ValueError(
+                                f"Bundle contains unsafe path: {member.filename}"
+                            )
                     zf.extractall(stage)
             else:
                 raise ValueError(f"Unsupported archive format: {suffix}")
