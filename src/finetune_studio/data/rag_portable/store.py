@@ -387,7 +387,17 @@ class PortableRAG:
             stage = Path(tmp) / "stage"
             stage.mkdir()
 
-            suffix = archive_path.suffix.lower()
+            name_lower = archive_path.name.lower()
+            if name_lower.endswith((".tar.gz", ".tgz")):
+                suffix = ".tar.gz"
+            elif name_lower.endswith(".tar"):
+                suffix = ".tar"
+            elif name_lower.endswith(".zip"):
+                suffix = ".zip"
+            else:
+                raise ValueError(
+                    f"Unsupported archive format: {archive_path.suffix.lower()}"
+                )
             if suffix in (".tar.gz", ".tgz"):
                 with tarfile.open(archive_path, "r:gz") as tar:
                     # filter='data' rejects absolute paths / ../ traversal / device nodes
@@ -404,8 +414,6 @@ class PortableRAG:
                                 f"Bundle contains unsafe path: {member.filename}"
                             )
                     zf.extractall(stage)
-            else:
-                raise ValueError(f"Unsupported archive format: {suffix}")
 
             # Find manifest.json. It may sit at stage/manifest.json or one
             # directory below (the export wraps everything in <corpus_name>/).

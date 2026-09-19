@@ -220,6 +220,41 @@ def test_import_rejects_path_traversal(tmp_path: Path) -> None:
         info = tarfile.TarInfo(name="../pwned2.txt")
         info.size = len(data)
         tar.addfile(info, io.BytesIO(data))
-    with pytest.raises(Exception):
+    with pytest.raises((tarfile.TarError, ValueError)):
         PortableRAG(tmp_path / "newdir2").import_bundle(evil_tar)
     assert not (tmp_path / "pwned2.txt").exists()
+
+
+def test_import_route_accepts_tar_gz_suffix(tmp_path: Path, monkeypatch) -> None:
+    """The upload route must accept 'x.tar.gz' — Path.suffix sees '.gz' only."""
+    import io
+    
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    import finetune_studio.webui.routes.rag as rag_routes
+
+    monkeypatch.setattr(rag_routes, "_CORPORA", tmp_path / "rag_corpora")
+
+    app = FastAPI()
+    app.include_router(rag_routes.router)
+    client = TestClient(app)
+
+    # minimal valid bundle built via the store's own export path; with local
+    # models so |load()| validation can resolve them without a shared store
+    src = tmp_path / "srccorpus"
+    _write_minimal_corpus(src, with_local_models=True)
+    _write_real_payloads(src)
+    archive = PortableRAG(src).export_bundle(out_path=None, fmt="tar.gz", include_models=True)
+    data = Path(archive).read_bytes()
+    _stub_embedder(monkeypatch)
+
+    pid = "routecheck01"
+    r = client.post(
+        f"/{pid}/rag/import?overwrite=false",
+        files={"file": ("vael-bundle.tar.gz", io.BytesIO(data), "application/gzip")},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body.get("documents", 0) >= 1 or body.get("chunks", 0) >= 1
+    assert (tmp_path / "rag_corpora" / pid / "manifest.json").exists()

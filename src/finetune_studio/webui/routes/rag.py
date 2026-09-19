@@ -436,10 +436,18 @@ async def rag_import(pid: str, file: UploadFile, overwrite: bool = False):
     from finetune_studio.data.rag_portable import PortableRAG
 
     filename = file.filename or "bundle"
-    suffix = Path(filename).suffix.lower()
-    if suffix not in (".tar", ".tar.gz", ".tgz", ".zip"):
+    name_lower = filename.lower()
+    # Path.suffix only sees the last dot, so "x.tar.gz" reports ".gz" —
+    # match compound suffixes explicitly.
+    if name_lower.endswith((".tar.gz", ".tgz")):
+        suffix = ".tar.gz"
+    elif name_lower.endswith(".tar"):
+        suffix = ".tar"
+    elif name_lower.endswith(".zip"):
+        suffix = ".zip"
+    else:
         return JSONResponse(
-            {"error": f"unsupported archive format: {suffix}"},
+            {"error": f"unsupported archive format: {Path(filename).suffix.lower()}"},
             status_code=400,
         )
 
