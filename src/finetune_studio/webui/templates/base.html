@@ -190,6 +190,8 @@
           <span class="status-dot" id="model-status-dot"></span>
           <span class="status-label" id="model-status-label">no model</span>
         </span>
+        <button class="sb-palette" id="model-unload-btn" title="Unload the currently loaded model (frees VRAM)"
+                style="display:none" aria-label="Unload model">⏏</button>
         <span class="version" title="{{ release_channel }} release · v{{ app_version }}">
           <span class="version-number">v{{ app_version }}</span>
         </span>
@@ -367,14 +369,17 @@
         const fingerprint = active ? active.id + ':' + (active.model_id || '') : 'none';
         if (fingerprint === lastState) return;
         lastState = fingerprint;
+        const unloadBtn = document.getElementById('model-unload-btn');
         if (active && active.loaded) {
           dot.className = 'status-dot idle';
           lbl.textContent = '● ' + deriveLabel(active);
           pill.title = 'Loaded: ' + deriveLabel(active) + '\n' + JSON.stringify(active, null, 2);
+          if (unloadBtn) unloadBtn.style.display = '';
         } else {
           dot.className = 'status-dot';
           lbl.textContent = '○ no model';
           pill.title = 'No model loaded. Click to open Inference.';
+          if (unloadBtn) unloadBtn.style.display = 'none';
         }
       }
       async function tick() {
@@ -397,6 +402,32 @@
         const target = infLink ? (infLink.getAttribute('href') || '/inference') : '/projects';
         window.location.href = target;
       });
+      const unloadBtn = document.getElementById('model-unload-btn');
+      if (unloadBtn) {
+        unloadBtn.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          if (unloadBtn.dataset.busy === '1') return;
+          unloadBtn.dataset.busy = '1';
+          unloadBtn.textContent = '…';
+          try {
+            const r = await fetch('/api/models/unload', { method: 'POST' });
+            const d = await r.json().catch(() => ({}));
+            if (r.ok && !d.error) {
+              lbl.textContent = '○ no model';
+              dot.className = 'status-dot';
+              unloadBtn.style.display = 'none';
+              lastState = null; // force re-render on next tick
+            } else {
+              if (window.fts) window.fts.notify('Unload failed: ' + (d.error || ('HTTP ' + r.status)), 'error');
+            }
+          } catch (e) {
+            if (window.fts) window.fts.notify('Unload failed: ' + e.message, 'error');
+          } finally {
+            unloadBtn.dataset.busy = '';
+            unloadBtn.textContent = '⏏';
+          }
+        });
+      }
       tick();
       setInterval(tick, 3000);
     })();
