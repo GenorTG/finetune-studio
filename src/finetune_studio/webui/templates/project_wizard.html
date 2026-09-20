@@ -408,6 +408,17 @@
       var srcs = await api("/api/projects/" + PID + "/data-prep/sources");
       var sources = srcs.sources || [];
       if (!sources.length) { line("Step 2: no parsed documents yet — upload files (step 1) first."); return false; }
+      // Mining needs a helper model resident; the chain used to fail every
+      // document silently and continue into a coverage-fill-only dataset.
+      var prov = await api("/api/providers");
+      if (!prov.active) {
+        var hid = prov.helper_provider_id || "local-default";
+        line("Loading helper (" + (prov.helper_label || hid) + ")…");
+        var lr = await post("/api/providers/" + hid + "/load", {});
+        if (!lr || lr.ok === false || lr.error) throw new Error("helper load failed: " + ((lr && lr.error) || "unknown"));
+        line("Helper ready.");
+      }
+      var started = 0, failed = 0;
       for (var i = 0; i < sources.length; i++) {
         var s = sources[i];
         line("Generating pairs from document " + (i + 1) + "/" + sources.length + ": " + s.filename);
@@ -415,8 +426,9 @@
         try {
           r = await post("/api/projects/" + PID + "/data-prep/start",
             { source_id: s.id, qa_per_chunk: 3, difficulty: "medium", style: "socratic" });
-        } catch (e) { line("  failed to start: " + e.message); continue; }
-        if (r.error) { line("  failed: " + r.error); continue; }
+        } catch (e) { failed++; line("  failed to start: " + e.message); continue; }
+        if (r.error) { failed++; line("  failed: " + r.error); continue; }
+        started++;
         var lastPct = -1;
         for (;;) {
           await sleep(4000);
@@ -429,6 +441,7 @@
           if (pct !== lastPct) { lastPct = pct; set("wiz-qa", s.filename + " — " + pct + "%"); }
         }
       }
+      if (!started) { line("Step 2 failed: no document could be mined (" + failed + " error(s)) — fix the error above and retry."); return false; }
       var qa = await api("/api/projects/" + PID + "/data-prep/qa");
       var pending = (qa.items || []).filter(function (i) { return i.status === "pending"; })
         .map(function (i) { return i.id; });
@@ -472,6 +485,12 @@
       var list = ds.datasets || [];
       if (!list.length) { line("Step 4: no dataset yet — run step 3 first."); return false; }
       var dataset = list[0];
+      // Free VRAM: a resident helper GGUF + the trainable base can stack past
+      // the card and OOM the run at step zero.
+      try {
+        var provT = await api("/api/providers");
+        if (provT && provT.active) { await post("/api/providers/unload", {}); line("Unloaded resident helper to free VRAM for training."); }
+      } catch (e) { /* best effort */ }
       line("Starting training: " + (dataset.qa_count || "?") + " rows · preset " + preset + " · base " + model);
       var r = await post("/api/training/start", {
         project_id: PID, dataset_id: dataset.id, model_path: model,
