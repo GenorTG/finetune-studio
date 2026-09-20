@@ -92,7 +92,7 @@ body::before {
 
 .app {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto auto 1fr;
   grid-template-columns: minmax(0, 1fr);
   min-height: 100vh;  /* was height:100vh — let content grow beyond viewport so the file library (989px) renders */
   overflow: visible;
@@ -2332,9 +2332,12 @@ body::before {
   font-size: 11px;
 }
 
-/* Adjust main content to sit below header */
+/* Adjust main content to sit below header. Rows are explicit because the
+   breadcrumb (QABUG-009) and workspace subnav are optional siblings: without
+   pinned rows, .main's old "grid-row: 2" collided with the breadcrumb's
+   auto-placement and the bar rendered mid-page over the content. */
 .main {
-  grid-row: 2;
+  grid-row: 4;
   grid-column: 1;
   min-width: 0;
   width: 100%;
@@ -4048,6 +4051,8 @@ body::before {
   position: sticky;
   top: 0;
   z-index: 10;
+  grid-row: 2;
+  grid-column: 1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -4074,6 +4079,8 @@ body::before {
 
 /* ── Model / RAG workspace subnav ───────────────────────────────── */
 .workspace-subnav {
+  grid-row: 3;
+  grid-column: 1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;

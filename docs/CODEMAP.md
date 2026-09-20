@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-366 files · 65277 lines
-- `finetune_studio`: 218 files, 40028 lines
+366 files · 65467 lines
+- `finetune_studio`: 218 files, 40191 lines
 - `scripts`: 9 files, 2199 lines
-- `tests`: 139 files, 23050 lines
+- `tests`: 139 files, 23077 lines
 
 
 # finetune_studio
@@ -713,11 +713,11 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `read_json(path: Path) -> dict` (L15)
 - `try_import_pandas()` (L19) — Lazily import pandas, raising a clear error if it's missing.
 
-## `src/finetune_studio/data/rag_portable/mcp_package.py` (341 lines)
-- `_slug(name: str) -> str` (L191)
-- `_tar_data_filter(ti: tarfile.TarInfo) -> tarfile.TarInfo` (L196) — Portable equivalent of tarfile's ``filter="data"`` (older Pythons
-- `_copy_shared_model(ref: str, kind: str, dest: Path) -> str | None` (L211) — Copy a ``shared:<kind>:<short_id>`` model dir into ``dest``.
-- `build_package(corpus_dir: str | Path, out_path: str | Path, *, name: str | None = None, fmt…` (L240) — Assemble the hostable package for a built corpus and archive it.
+## `src/finetune_studio/data/rag_portable/mcp_package.py` (504 lines)
+- `_slug(name: str) -> str` (L349)
+- `_tar_data_filter(ti: tarfile.TarInfo) -> tarfile.TarInfo` (L354) — Portable equivalent of tarfile's ``filter="data"`` (older Pythons
+- `_copy_shared_model(ref: str, kind: str, dest: Path) -> str | None` (L369) — Copy a ``shared:<kind>:<short_id>`` model dir into ``dest``.
+- `build_package(corpus_dir: str | Path, out_path: str | Path, *, name: str | None = None, fmt…` (L398) — Assemble the hostable package for a built corpus and archive it.
   - imports: finetune_studio.data
 
 ## `src/finetune_studio/data/rag_portable/query.py` (170 lines)
@@ -3220,18 +3220,20 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_import_route_accepts_tar_gz_suffix(tmp_path: Path, monkeypatch) -> None` (L228) — The upload route must accept 'x.tar.gz' — Path.suffix sees '.gz' only.
   - imports: finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.store, finetune_studio.webui.routes.rag
 
-## `tests/test_rag_mcp_package.py` (260 lines)
+## `tests/test_rag_mcp_package.py` (287 lines)
 - `corpus_dir(tmp_path: Path) -> Path` (L41) — A real (tiny) PortableRAG corpus dir with all on-disk artifacts.
 - `_extract(archive: Path, dest: Path) -> Path` (L84)
 - `test_build_package_contents(corpus_dir: Path, tmp_path: Path) -> None` (L92)
-- `test_standalone_keyword_search(corpus_dir: Path, tmp_path: Path) -> None` (L118) — server.py --query works offline (no embedding endpoint) via BM25.
-- `test_standalone_mcp_stdio(corpus_dir: Path, tmp_path: Path) -> None` (L136) — MCP handshake + tools/list + tools/call over stdio, JSON-RPC 2.0.
-- `test_missing_corpus_files_raises(tmp_path: Path) -> None` (L177)
-- `_fake_shared_store(tmp_path: Path, monkeypatch) -> Path` (L184) — Point shared_models.resolve at fake embedder/reranker dirs.
-- `_point_manifest_at_shared(corpus: Path) -> None` (L204)
-- `test_build_package_with_models(corpus_dir: Path, tmp_path: Path, monkeypatch) -> None` (L213) — include_models bundles the shared embedder + reranker into the package.
-- `test_include_models_requires_shared_ref(corpus_dir: Path, tmp_path: Path) -> None` (L238) — No shared: embedder in the manifest → honest error, not a silent small pkg.
-- `test_server_offline_with_bundled_models(corpus_dir: Path, tmp_path: Path, monkeypatch) -> None` (L244) — A package with bundled (broken) models still answers — keyword fallback,
+- `test_setup_script_shipped(corpus_dir: Path, tmp_path: Path) -> None` (L118) — setup.sh: guided one-command deploy, shipped executable and valid bash.
+- `test_setup_uninstall_is_safe(corpus_dir: Path, tmp_path: Path) -> None` (L134) — `setup.sh --uninstall` with no service installed must exit 0, no prompts.
+- `test_standalone_keyword_search(corpus_dir: Path, tmp_path: Path) -> None` (L145) — server.py --query works offline (no embedding endpoint) via BM25.
+- `test_standalone_mcp_stdio(corpus_dir: Path, tmp_path: Path) -> None` (L163) — MCP handshake + tools/list + tools/call over stdio, JSON-RPC 2.0.
+- `test_missing_corpus_files_raises(tmp_path: Path) -> None` (L204)
+- `_fake_shared_store(tmp_path: Path, monkeypatch) -> Path` (L211) — Point shared_models.resolve at fake embedder/reranker dirs.
+- `_point_manifest_at_shared(corpus: Path) -> None` (L231)
+- `test_build_package_with_models(corpus_dir: Path, tmp_path: Path, monkeypatch) -> None` (L240) — include_models bundles the shared embedder + reranker into the package.
+- `test_include_models_requires_shared_ref(corpus_dir: Path, tmp_path: Path) -> None` (L265) — No shared: embedder in the manifest → honest error, not a silent small pkg.
+- `test_server_offline_with_bundled_models(corpus_dir: Path, tmp_path: Path, monkeypatch) -> None` (L271) — A package with bundled (broken) models still answers — keyword fallback,
   - imports: finetune_studio.data, finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.bm25, finetune_studio.data.rag_portable.mcp_package
 
 ## `tests/test_rag_mime_ingestion.py` (168 lines)

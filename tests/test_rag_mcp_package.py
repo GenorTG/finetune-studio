@@ -115,6 +115,33 @@ def test_build_package_contents(corpus_dir: Path, tmp_path: Path) -> None:
     assert "test-corpus-rag" in cfg["mcpServers"]
 
 
+def test_setup_script_shipped(corpus_dir: Path, tmp_path: Path) -> None:
+    """setup.sh: guided one-command deploy, shipped executable and valid bash."""
+    archive = build_package(corpus_dir, tmp_path / "p.tar.gz", name="Test Corpus")
+    root = _extract(archive, tmp_path / "x")
+    setup = root / "setup.sh"
+    assert setup.is_file() and setup.stat().st_mode & 0o111, "setup.sh must ship executable"
+    txt = setup.read_text(encoding="utf-8")
+    for needle in ("MCP-ENTRY.txt", "--uninstall", "systemctl --user",
+                   "run-mcp.sh", "--port", "--yes"):
+        assert needle in txt, f"setup.sh missing {needle!r}"
+    syntax = subprocess.run(["bash", "-n", str(setup)],
+                            capture_output=True, text=True, timeout=30, check=False)
+    assert syntax.returncode == 0, syntax.stderr
+    assert "bash setup.sh" in (root / "README.md").read_text(encoding="utf-8")
+
+
+def test_setup_uninstall_is_safe(corpus_dir: Path, tmp_path: Path) -> None:
+    """`setup.sh --uninstall` with no service installed must exit 0, no prompts."""
+    archive = build_package(corpus_dir, tmp_path / "p.tar.gz", name="Test Corpus")
+    root = _extract(archive, tmp_path / "x")
+    r = subprocess.run(["bash", str(root / "setup.sh"), "--uninstall"],
+                       capture_output=True, text=True, timeout=60, check=False,
+                       cwd=str(root))
+    assert r.returncode == 0, r.stderr
+    assert "nothing to remove" in (r.stdout + r.stderr).lower()
+
+
 def test_standalone_keyword_search(corpus_dir: Path, tmp_path: Path) -> None:
     """server.py --query works offline (no embedding endpoint) via BM25."""
     archive = build_package(corpus_dir, tmp_path / "p.tar.gz", name="Test Corpus")
