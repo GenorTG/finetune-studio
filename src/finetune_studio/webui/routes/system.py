@@ -122,3 +122,29 @@ async def gpu_text():
         return PlainTextResponse("no GPU")
     g = vram[0]
     return PlainTextResponse(f"{g['name']} · {g['pct']}%")
+
+
+@router.get("/api/system/version")
+async def version():
+    """Exact build identity of the running service.
+
+    ``version`` is MAJOR.MINOR.PATCH.BUILD from the repo VERSION file — the
+    pre-commit hook bumps BUILD every commit, so this pins the deployed code
+    to one commit. ``git_commit`` is the short SHA when git metadata exists.
+    """
+    from pathlib import Path
+
+    from finetune_studio import __release_channel__, __version__
+
+    commit = ""
+    try:
+        head = Path(".git") / "HEAD"
+        if head.is_file():
+            ref = head.read_text(encoding="utf-8").strip()
+            if ref.startswith("ref:"):
+                refpath = Path(".git") / ref.split(": ", 1)[1]
+                if refpath.is_file():
+                    commit = refpath.read_text(encoding="utf-8").strip()[:8]
+    except OSError:
+        pass
+    return {"version": __version__, "channel": __release_channel__, "git_commit": commit}
