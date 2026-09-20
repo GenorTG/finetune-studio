@@ -7,15 +7,16 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-368 files · 65798 lines
-- `finetune_studio`: 218 files, 40282 lines
+369 files · 65972 lines
+- `finetune_studio`: 218 files, 40336 lines
 - `scripts`: 9 files, 2199 lines
-- `tests`: 141 files, 23317 lines
+- `tests`: 142 files, 23437 lines
 
 
 # finetune_studio
 
-## `src/finetune_studio/__init__.py` (19 lines)
+## `src/finetune_studio/__init__.py` (45 lines)
+- `build_version() -> str` (L23) — Full per-commit build version ``MAJOR.MINOR.PATCH.BUILD``.
 
 ## `src/finetune_studio/__main__.py` (18 lines)
   - imports: finetune_studio.cli
@@ -163,7 +164,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def score_winogrande(self, response: str, option1: str, option2: str) -> dict` (L155)
   - `def score_open_ended(self, response: str, reference: str, keywords: list | None = None, forbidden:…` (L176)
 
-## `src/finetune_studio/benchmarks/suite_defs.py` (426 lines)
+## `src/finetune_studio/benchmarks/suite_defs.py` (428 lines)
 - `class SuiteDefinition` (L95)
   - `def label(self) -> str` (L116)
   - `def as_dict(self) -> dict[str, Any]` (L147)
@@ -176,8 +177,8 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `format_auto_suite_label(suite_name: str, case_count: int) -> str` (L286) — Label for a project auto-generated suite.
 - `_sort_key(entry: dict[str, Any]) -> tuple[int, str]` (L291) — Real first, then offline, smoke, local, auto.
 - `discover_suites(project_id: str | None = None) -> list[dict[str, Any]]` (L307) — Discover selectable suites: real HF, offline, smoke, local JSON, auto.
-- `selectable_paths(project_id: str | None = None) -> set[str]` (L394) — Paths currently offered by discovery (for selection validation).
-- `is_selectable_suite(suite_path: str, project_id: str | None = None) -> bool` (L399) — True when suite_path is among discovered selectable suites.
+- `selectable_paths(project_id: str | None = None) -> set[str]` (L396) — Paths currently offered by discovery (for selection validation).
+- `is_selectable_suite(suite_path: str, project_id: str | None = None) -> bool` (L401) — True when suite_path is among discovered selectable suites.
   - imports: finetune_studio, finetune_studio.benchmarks.offline_suites, finetune_studio.benchmarks.real_benchmarks, finetune_studio.testing.full_corpus_suite
 
 ## `src/finetune_studio/benchmarks/tool_calling.py` (381 lines)
@@ -1964,12 +1965,14 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `update_settings(request: Any)` (L61) — Partial update of settings.
 - `reload_settings()` (L73) — Tell the app to reload settings from disk (e.g. after port change).
 
-## `src/finetune_studio/webui/routes/system.py` (124 lines)
+## `src/finetune_studio/webui/routes/system.py` (150 lines)
 - `_ram() -> dict` (L16) — Host RAM in GB.
 - `_vram() -> list[dict]` (L34) — Per-GPU VRAM in GB. Uses torch.cuda when present, else nvidia-smi via subprocess.
 - `resources()` (L90) — Host RAM + per-GPU VRAM snapshot for UI bars.
 - `gpu_summary()` (L103) — Short VRAM string for dashboard stat tile (plain text for SPA poll).
 - `gpu_text()` (L117) — Sub-line for dashboard stat tile — GPU name + percent (plain text).
+- `version()` (L128) — Exact build identity of the running service.
+  - imports: finetune_studio
 
 ## `src/finetune_studio/webui/routes/testing.py` (449 lines)
 - `_resolve_merged_model(pid: str) -> str | None` (L27) — Return path to the most-recent completed run's merged model, or None.
@@ -2353,13 +2356,14 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_done_run_accepts_explicit_export_and_records_target(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L209)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.webui.app
 
-## `tests/test_benchmarks_suite_discovery.py` (167 lines)
+## `tests/test_benchmarks_suite_discovery.py` (199 lines)
 - `isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L29)
 - `_names_of_type(suites: list[dict[str, Any]], suite_type: str) -> set[str]` (L36)
 - `test_missing_known_suite_files_not_listed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L44)
 - `test_existing_json_file_is_listed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L78)
 - `test_auto_suites_rows_listed_for_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L104)
 - `test_auto_suites_not_listed_without_project_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L145)
+- `test_auto_suite_regeneration_lists_newest_case_count(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L170) — Same suite file re-generated (500→554) must show the NEWEST row.
   - imports: finetune_studio, finetune_studio.config, finetune_studio.webui.routes.benchmarks
 
 ## `tests/test_benchmarks_template.py` (173 lines)
@@ -3700,6 +3704,14 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_write_uploaded_file_namespaces_id_by_project(mock_settings) -> None` (L15) — Identical bytes uploaded to two different projects must yield two
 - `test_write_uploaded_file_includes_image_png_metadata(mock_settings) -> None` (L41) — The OCR ingestion path must round-trip an image upload without raising.
   - imports: finetune_studio, finetune_studio.data.fs
+
+## `tests/test_version.py` (88 lines)
+- `test_build_version_format_and_file_agreement() -> None` (L20)
+- `test_system_version_endpoint(client) -> None` (L28)
+- `_git(repo: Path, *args: str) -> None` (L39)
+- `test_commitmsg_hook_bumps_every_commit(tmp_path: Path) -> None` (L44)
+- `test_hook_scripts_are_executable_and_valid_bash() -> None` (L81)
+  - imports: finetune_studio
 
 ## `tests/test_versions.py` (193 lines)
 - `project(temp_db)` (L13)

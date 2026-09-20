@@ -48,5 +48,8 @@ codemap:
 codemap-check:
 	@.venv/bin/python scripts/codemap.py && git diff --exit-code -- docs/CODEMAP.md || (echo 'CODEMAP stale — run `make codemap` and commit it'; exit 1)
 
+hooks:
+	bash scripts/install-hooks.sh
+
 clean:
 	rm -rf .venv data/*.db __pycache__ */__pycache__ */*/__pycache__ .pytest_cache
