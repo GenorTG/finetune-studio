@@ -365,7 +365,7 @@
       let actions;
       if (deleted) {
         actions =
-          '<div class="flex gap-1 wrap">' +
+          '<div class="flex gap-1">' +
           '<button class="btn sm" type="button" onclick="fbRestore(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">Restore</button>' +
           '<button class="btn sm danger" type="button" title="Hard-delete this file" onclick="fbPurgeOne(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">Purge</button>' +
           '</div>';
@@ -373,7 +373,7 @@
         const mime = f.mime_type || '';
         const p = pipe[f.id] || {};
         actions =
-          '<div class="flex gap-1 wrap">' +
+          '<div class="flex gap-1">' +
           '<button class="btn sm" type="button" title="View / edit this file" onclick="wbOpen(\'' + esc(f.id) + '\',\'original\')">👁</button>' +
           '<button class="btn sm" type="button" title="Edit parsed text (feeds training + RAG)" onclick="wbOpen(\'' + esc(f.id) + '\',\'parsed\')">✎p</button>' +
           (p.has_parsed ? '<button class="btn sm" type="button" title="Discard manual edits, re-run the parser" onclick="wbReparse(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">↻</button>' : '') +
