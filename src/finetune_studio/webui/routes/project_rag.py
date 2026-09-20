@@ -249,13 +249,16 @@ async def rag_doc_chunks(pid: str, doc_id: str) -> dict[str, Any]:
 
 @router.get("/projects/{pid}/rag/mcp-package")
 async def rag_mcp_package(pid: str, name: str | None = None,
-                          fmt: str = "tar.gz"):
+                          fmt: str = "tar.gz",
+                          include_models: str = "false"):
     """Download a hostable, self-installing RAG package (MCP + HTTP server).
 
     Contains the corpus (manifest, chunks.jsonl, vectors, bm25), a
     standalone ``server.py`` (keyword search out of the box; semantic when
-    pointed at any OpenAI-compatible /v1/embeddings endpoint), ``install.sh``
-    (venv + numpy only), run scripts, an MCP config example, and a README.
+    pointed at any OpenAI-compatible /v1/embeddings endpoint), ``install.sh``,
+    run scripts, an MCP config example, and a README. With
+    ``include_models=true`` the embedding model (+ reranker) the corpus was
+    built with ship inside — full offline semantic search, no provider.
     """
     from fastapi.responses import FileResponse
 
@@ -270,15 +273,19 @@ async def rag_mcp_package(pid: str, name: str | None = None,
             status_code=404,
             detail="no corpus yet — build one first (section 2 on this page)",
         )
+    inc_models = str(include_models).lower() not in ("0", "false", "no", "")
     proj = db.get_project(pid)
     title = name or (proj["name"] if proj else pid)
     safe = re.sub(r"[^A-Za-z0-9._-]+", "-", title)[:48] or pid
     ext = "zip" if fmt == "zip" else "tar.gz"
     out_dir = Path("output") / "projects" / pid / "rag-packages"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"{safe}-rag-package.{ext}"
+    suffix = "-with-models" if inc_models else ""
+    out_path = out_dir / f"{safe}-rag-package{suffix}.{ext}"
     try:
-        await asyncio.to_thread(build_package, corpus, out_path, name=title, fmt=ext)
+        await asyncio.to_thread(build_package, corpus, out_path,
+                                name=title, fmt=ext,
+                                include_models=inc_models)
     except FileNotFoundError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except Exception as e:
