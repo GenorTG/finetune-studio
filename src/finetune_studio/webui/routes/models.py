@@ -316,9 +316,17 @@ async def inference_status():
     from finetune_studio.testing.inference import IDLE_TIMEOUT
     from finetune_studio.webui.app import inference_engine
     loaded = inference_engine.model is not None
+    model_display = None
+    if loaded:
+        try:
+            from finetune_studio import naming as _naming
+            model_display = _naming.display_for_path(inference_engine.model_path or "")
+        except Exception:  # noqa: BLE001  # display helper must never break status
+            model_display = None
     return {
         "loaded": loaded,
         "model": inference_engine.model_path if loaded else None,
+        "model_display": model_display,
         "vision": getattr(inference_engine, "vision", False) if loaded else False,
         "is_gguf": inference_engine.is_gguf if loaded else False,
         "idle_seconds": inference_engine.idle_seconds,

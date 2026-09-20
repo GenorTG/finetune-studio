@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-371 files · 66505 lines
-- `finetune_studio`: 219 files, 40676 lines
+373 files · 66940 lines
+- `finetune_studio`: 220 files, 40941 lines
 - `scripts`: 9 files, 2199 lines
-- `tests`: 143 files, 23630 lines
+- `tests`: 144 files, 23800 lines
 
 
 # finetune_studio
@@ -457,15 +457,16 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `scan_data_files(directory)` (L23)
 - `dedup_data(data)` (L39)
 
-## `src/finetune_studio/data/parsed_edit.py` (232 lines)
-- `_current_raw_path(pid: str, file_id: str) -> tuple[dict, Path]` (L33)
-- `_source_for_raw_path(pid: str, raw: Path) -> dict | None` (L49) — Find the QA source registered for this raw file (by absolute path).
-- `_rewrite_source_chunks(pid: str, source: dict, text: str) -> dict` (L63) — Point a QA source at hand-edited text: parsed.txt + chunks + manifest.
-- `_override_path(raw: Path) -> Path` (L90) — Manual-edit override file — never the raw file itself (a ``.md``
-- `save_parsed_override(pid: str, file_id: str, text: str) -> dict` (L97) — Save a human-edited parsed text for a library file.
-- `reparse_file(pid: str, file_id: str) -> dict` (L134) — Discard the manual override and re-run the real parser from raw bytes.
-- `pipeline_status(pid: str) -> dict[str, dict]` (L175) — Per-file pipeline flags for the browser: parsed / prep / rag.
-  - imports: finetune_studio.data, finetune_studio.data.fs, finetune_studio.data.prep.chunker, finetune_studio.data.prep.ingest, finetune_studio.data.rag_portable
+## `src/finetune_studio/data/parsed_edit.py` (271 lines)
+- `_current_raw_path(pid: str, file_id: str) -> tuple[dict, Path, str]` (L35)
+- `_source_for_file(pid: str, raw: Path, raw_hash: str = '') -> dict | None` (L51) — Find the QA source for a library file — by content sha256 first (the
+- `_rewrite_source_chunks(pid: str, source: dict, text: str) -> dict` (L70) — Point a QA source at hand-edited text: parsed.txt + chunks + manifest.
+- `_override_path(raw: Path) -> Path` (L97) — Manual-edit override file — never the raw file itself (a ``.md``
+- `save_parsed_override(pid: str, file_id: str, text: str) -> dict` (L104) — Save a human-edited parsed text for a library file.
+- `reparse_file(pid: str, file_id: str) -> dict` (L141) — Discard the manual override and re-run the real parser from raw bytes.
+- `_corpus_sha12s(pid: str) -> set[str]` (L185) — sha12 dirs indexed in the project's RAG corpus, from the manifest.
+- `pipeline_status(pid: str) -> dict[str, dict]` (L214) — Per-file pipeline flags for the browser: parsed / prep / rag.
+  - imports: finetune_studio.data, finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.data.prep.chunker, finetune_studio.data.prep.ingest
 
 ## `src/finetune_studio/data/parsers.py` (428 lines)
 - `parse_text(path: Path) -> str` (L30)
@@ -1080,18 +1081,30 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `_local_helper_preset() -> dict` (L290)
   - imports: finetune_studio.models.gguf_layers, finetune_studio.models.helper
 
-## `src/finetune_studio/models/registry.py` (367 lines)
-- `class ModelInfo` (L29)
-- `_readable_file_size(path: str) -> int | None` (L66) — Return byte size, or None when the path is missing / a broken symlink.
-- `_weight_bytes(root: str, files: list[str]) -> int` (L76) — Sum readable weight-file sizes; ignore dangling HF hub symlinks.
-- `models_for_selectors(models: list) -> list` (L89) — Filter discovered models for Inference (and chat) dropdowns.
-- `_model_attr(m: object, key: str, default: str = '') -> str` (L114) — Read a ModelInfo field or dict key as a string.
-- `is_trainable_base_model(m: object) -> bool` (L123) — True when ``m`` is a Transformers-compatible training base.
-- `models_for_training(models: list) -> list` (L146) — Filter for Training base-model selectors only.
-- `_safe_model_name(root: str, cfg: dict, project_name: str = '') -> str` (L156) — Extract a human-readable model name from config or directory path.
-- `_lookup_project_name(output_path: str) -> tuple[str, str]` (L215) — Look up (project_id, project_name) from training_runs DB by output_path.
-- `scan_models(directories: list) -> list` (L249)
-  - imports: finetune_studio.models.helper
+## `src/finetune_studio/models/registry.py` (388 lines)
+- `class ModelInfo` (L28)
+- `_readable_file_size(path: str) -> int | None` (L65) — Return byte size, or None when the path is missing / a broken symlink.
+- `_weight_bytes(root: str, files: list[str]) -> int` (L75) — Sum readable weight-file sizes; ignore dangling HF hub symlinks.
+- `models_for_selectors(models: list) -> list` (L88) — Filter discovered models for Inference (and chat) dropdowns.
+- `_model_attr(m: object, key: str, default: str = '') -> str` (L113) — Read a ModelInfo field or dict key as a string.
+- `is_trainable_base_model(m: object) -> bool` (L122) — True when ``m`` is a Transformers-compatible training base.
+- `models_for_training(models: list) -> list` (L145) — Filter for Training base-model selectors only.
+- `_safe_model_name(root: str, cfg: dict, project_name: str = '') -> str` (L155) — Extract a human-readable model name from config or directory path.
+- `_lookup_project_name(output_path: str) -> tuple[str, str]` (L214) — Look up (project_id, project_name) for a model path.
+- `scan_models(directories: list) -> list` (L253)
+  - imports: finetune_studio, finetune_studio.models.helper
+
+## `src/finetune_studio/naming.py` (188 lines)
+- `detect_quant(name_or_path: str) -> str | None` (L47)
+- `detect_abliterated(name_or_path: str) -> bool` (L58)
+- `short_base(name_or_path: str) -> str` (L62) — ``Qwen/Qwen3-4B`` / ``models--Qwen--Qwen3-4B/snapshots/<hash>`` /
+- `_looks_hash(seg: str) -> bool` (L88)
+- `kind_label(dirname: str) -> str` (L92)
+- `model_full_name(project: str = '', base: str = '', version: str = '', kind: str = '', quant: …` (L96)
+- `_version_label_for_run(project_id: str, run_id: str) -> str` (L112) — ``v3 my-label`` if a pinned project version references this run id.
+- `resolve_run_path(path: str) -> dict | None` (L135) — Parse ``projects/<pid>/runs/<rid>/<kind>`` and enrich from the DB.
+- `display_for_path(path: str, size_hint: str = '') -> str` (L167) — Best human-readable name for a model path (run export or plain dir).
+  - imports: finetune_studio
 
 ## `src/finetune_studio/rag/__init__.py` (13 lines)
   - imports: finetune_studio.rag.ingest, finetune_studio.rag.manager, finetune_studio.rag.query, finetune_studio.rag.store
@@ -1700,7 +1713,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `batch_save(pid: str, request: Request)` (L244)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.db.datasets, finetune_studio.training.data
 
-## `src/finetune_studio/webui/routes/data_prep.py` (628 lines)
+## `src/finetune_studio/webui/routes/data_prep.py` (635 lines)
 - `class StartPrepBody(BaseModel)` (L38)
 - `_progress_cb(progress_log: list[dict]) -> object` (L45) — Build a PrepProgress callback that appends to ``progress_log``.
 - `_run_prep_background(run_id: str, runner: object, progress_log: list[dict]) -> None` (L59) — Shared background body for upload / start / reprocess prep runs.
@@ -1722,10 +1735,10 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `bulk_action(pid: str, request: Request)` (L466)
 - `delete_source_route(pid: str, source_id: str)` (L479)
 - `export_qa(pid: str, fmt: str = 'sharegpt', only: str = 'approved', force: bool = False)` (L485)
-- `file_metadata_route(pid: str, sha256: str)` (L551) — Read structured metadata for a content-addressed file.
-- `ingestion_log_route(pid: str, limit: int = 200)` (L561)
-- `data_prep_audit(pid: str) -> dict` (L567) — Return deterministic raw-file and curated-dataset fidelity evidence.
-- `reprocess_source(pid: str, source_id: str)` (L575) — Re-run the parser + Q&A generation for an existing source.
+- `file_metadata_route(pid: str, sha256: str)` (L558) — Read structured metadata for a content-addressed file.
+- `ingestion_log_route(pid: str, limit: int = 200)` (L568)
+- `data_prep_audit(pid: str) -> dict` (L574) — Return deterministic raw-file and curated-dataset fidelity evidence.
+- `reprocess_source(pid: str, source_id: str)` (L582) — Re-run the parser + Q&A generation for an existing source.
   - imports: finetune_studio, finetune_studio.data, finetune_studio.data.audit, finetune_studio.data.fs.qa, finetune_studio.data.parsers, finetune_studio.data.prep, finetune_studio.data.prep.coverage_fill, finetune_studio.data.prep.generator, finetune_studio.db.datasets, finetune_studio.models.helper, finetune_studio.models.manager, finetune_studio.webui.app
 
 ## `src/finetune_studio/webui/routes/data_prep_chat.py` (788 lines)
@@ -1814,7 +1827,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `remove_favorite(path: str)` (L431) — Remove a model from favorites.
   - imports: finetune_studio, finetune_studio.config, finetune_studio.data.shared_models, finetune_studio.models.registry, finetune_studio.webui
 
-## `src/finetune_studio/webui/routes/models.py` (420 lines)
+## `src/finetune_studio/webui/routes/models.py` (428 lines)
 - `_identify_process(args_line: str, pid: int) -> str` (L19) — Human-identifiable name for a GPU consumer. `ps comm` truncates
 - `_gpu_snapshot()` (L42) — Return (free_mib, top consumers) from nvidia-smi, or (None, []).
 - `_vram_hint(model_path: str) -> str` (L79) — Actionable VRAM-capacity note appended to load errors, or '' if fine.
@@ -1829,13 +1842,13 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `load_model_endpoint(request: Request)` (L237) — Load a model into the global inference engine.
 - `unload_model_endpoint()` (L292) — Manually unload the currently loaded model.
 - `inference_status()` (L315)
-- `inference_load(request: Request)` (L335) — Alias for /api/models/load — same handler.
-- `inference_unload()` (L341) — Alias for /api/models/unload.
-- `inference_chat(request: Request)` (L347) — Generate a chat completion using the global inference engine.
-- `inference_memory_estimate(request: Request)` (L397) — Estimate VRAM needed for a model with given loader params.
-  - imports: finetune_studio.config, finetune_studio.models.gguf_layers, finetune_studio.models.loader, finetune_studio.models.manager, finetune_studio.models.registry, finetune_studio.testing.inference, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.routes.system, finetune_studio.webui.thinking
+- `inference_load(request: Request)` (L343) — Alias for /api/models/load — same handler.
+- `inference_unload()` (L349) — Alias for /api/models/unload.
+- `inference_chat(request: Request)` (L355) — Generate a chat completion using the global inference engine.
+- `inference_memory_estimate(request: Request)` (L405) — Estimate VRAM needed for a model with given loader params.
+  - imports: finetune_studio, finetune_studio.config, finetune_studio.models.gguf_layers, finetune_studio.models.loader, finetune_studio.models.manager, finetune_studio.models.registry, finetune_studio.testing.inference, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.routes.system, finetune_studio.webui.thinking
 
-## `src/finetune_studio/webui/routes/pages.py` (730 lines)
+## `src/finetune_studio/webui/routes/pages.py` (732 lines)
 - `_sum_benchmarks(runs)` (L31) — Sum total benchmark count across all runs.
 - `_require_project(pid: str)` (L43) — Return project dict or None (caller redirects to /projects).
 - `_dir_size_gb(path: str) -> float` (L58) — Total size of a directory tree in GB, rounded to 2 decimals.
@@ -1843,27 +1856,27 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `_project_ctx(pid: str) -> dict` (L128) — Build common template context for project pages.
 - `index(request: Request)` (L146) — Home page — project list + system overview.
 - `inference_page(request: Request)` (L165) — Global inference page — load any model, chat, run benchmarks.
-- `hf_models_page(request: Request)` (L201) — HuggingFace model browser + downloader (LM Studio-style).
-- `models_index(request: Request)` (L212) — Local model library — all discovered models with categories.
-- `hf_models_alias(request: Request)` (L226) — Alias for /models/explore — renders the same HF model browser.
-- `export_page(pid: str, request: Request)` (L237) — Model export page — choose format, quant, and browse trained exports.
-- `projects_page(request: Request)` (L270) — Project list / create page.
-- `project_overview_alias(request: Request, pid: str)` (L284) — Alias used by the sticky breadcrumb (QABUG-009).
-- `project_detail_page(request: Request, pid: str)` (L290) — Project overview dashboard — stats, recent runs/models/files, activity.
-- `project_data_page(request: Request, pid: str)` (L310) — File browser for a project (library + trash + upload).
-- `project_training_page(request: Request, pid: str)` (L328) — Training config + progress for a project.
-- `_recent_suite_runs(pid: str, limit: int = 5) -> list[dict]` (L362) — Return the most recent benchmark suite runs for a project (newest first).
-- `project_testing_page(request: Request, pid: str)` (L398) — Testing / inference playground for a project.
-- `project_models_page(request: Request, pid: str)` (L442) — Model browser for a project — trained exports with expand-row detail.
-- `project_rag_page(request: Request, pid: str)` (L457) — RAG page — corpus build/chat plus docs-indexed inventory panel.
-- `data_editor_page(request: Request, pid: str, dataset_path: str)` (L483) — Project-scoped data editor for a JSONL dataset.
-- `benchmarks_page(request: Request, pid: str)` (L504) — Benchmarks tab — run suites, view scores, compare runs.
-- `project_chat_page(request: Request, pid: str)` (L593) — Project chat page — chat with the project's production model, optionally
-- `project_settings_page(request: Request, pid: str)` (L609) — Project settings + WebUI log tail (no SSH needed for uvicorn.log).
-- `project_wizard_page(request: Request, pid: str)` (L622) — Project wizard: Quick start runs files → QA → dataset → train → test
-- `project_flow_page(request: Request, pid: str)` (L639) — Old name for the wizard — keep bookmarks and links working.
-- `settings_page(request: Request)` (L647) — Settings, debug info, replay tutorial, system status.
-- `debug_info()` (L663) — Return system debug info for the Settings page.
+- `hf_models_page(request: Request)` (L203) — HuggingFace model browser + downloader (LM Studio-style).
+- `models_index(request: Request)` (L214) — Local model library — all discovered models with categories.
+- `hf_models_alias(request: Request)` (L228) — Alias for /models/explore — renders the same HF model browser.
+- `export_page(pid: str, request: Request)` (L239) — Model export page — choose format, quant, and browse trained exports.
+- `projects_page(request: Request)` (L272) — Project list / create page.
+- `project_overview_alias(request: Request, pid: str)` (L286) — Alias used by the sticky breadcrumb (QABUG-009).
+- `project_detail_page(request: Request, pid: str)` (L292) — Project overview dashboard — stats, recent runs/models/files, activity.
+- `project_data_page(request: Request, pid: str)` (L312) — File browser for a project (library + trash + upload).
+- `project_training_page(request: Request, pid: str)` (L330) — Training config + progress for a project.
+- `_recent_suite_runs(pid: str, limit: int = 5) -> list[dict]` (L364) — Return the most recent benchmark suite runs for a project (newest first).
+- `project_testing_page(request: Request, pid: str)` (L400) — Testing / inference playground for a project.
+- `project_models_page(request: Request, pid: str)` (L444) — Model browser for a project — trained exports with expand-row detail.
+- `project_rag_page(request: Request, pid: str)` (L459) — RAG page — corpus build/chat plus docs-indexed inventory panel.
+- `data_editor_page(request: Request, pid: str, dataset_path: str)` (L485) — Project-scoped data editor for a JSONL dataset.
+- `benchmarks_page(request: Request, pid: str)` (L506) — Benchmarks tab — run suites, view scores, compare runs.
+- `project_chat_page(request: Request, pid: str)` (L595) — Project chat page — chat with the project's production model, optionally
+- `project_settings_page(request: Request, pid: str)` (L611) — Project settings + WebUI log tail (no SSH needed for uvicorn.log).
+- `project_wizard_page(request: Request, pid: str)` (L624) — Project wizard: Quick start runs files → QA → dataset → train → test
+- `project_flow_page(request: Request, pid: str)` (L641) — Old name for the wizard — keep bookmarks and links working.
+- `settings_page(request: Request)` (L649) — Settings, debug info, replay tutorial, system status.
+- `debug_info()` (L665) — Return system debug info for the Settings page.
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.db, finetune_studio.models.helper, finetune_studio.models.loader, finetune_studio.models.registry, finetune_studio.training.export_capabilities, finetune_studio.webui.app, finetune_studio.webui.model_labels, finetune_studio.webui.project_dashboard, finetune_studio.webui.project_data_browser, finetune_studio.webui.routes.benchmarks, finetune_studio.webui.routes.project_export, finetune_studio.webui.routes.project_rag, finetune_studio.webui.testing_models
 
 ## `src/finetune_studio/webui/routes/project_export.py` (48 lines)
@@ -2752,19 +2765,20 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_list_files_total_count_unfiltered(client, fts_root: Path) -> None` (L264) — total_count is project-wide even when folder_id / search filter the page.
   - imports: finetune_studio.data.fs
 
-## `tests/test_file_workbench.py` (182 lines)
-- `fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L19)
-- `_project(client) -> str` (L28)
-- `_upload(client, pid: str, name: str, content: bytes) -> str` (L34)
-- `_doc(label: str) -> bytes` (L45)
-- `test_parsed_edit_roundtrip_and_override(fts_root: Path, client) -> None` (L54)
-- `test_reparse_discards_override(fts_root: Path, client) -> None` (L77)
-- `test_edit_rechunks_data_prep_source(fts_root: Path, client) -> None` (L91)
-- `test_pipeline_flags(fts_root: Path, client) -> None` (L119)
-- `test_rag_quick_promotes_then_builds(fts_root: Path, client, monkeypatch) -> None` (L134)
-- `test_parsed_put_validation(fts_root: Path, client) -> None` (L163)
-- `test_data_page_renders_workbench_controls(client) -> None` (L172)
-  - imports: finetune_studio.data, finetune_studio.data.fs, finetune_studio.webui, finetune_studio.webui.routes
+## `tests/test_file_workbench.py` (203 lines)
+- `fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L18)
+- `_project(client) -> str` (L27)
+- `_upload(client, pid: str, name: str, content: bytes) -> str` (L33)
+- `_doc(label: str) -> bytes` (L44)
+- `test_parsed_edit_roundtrip_and_override(fts_root: Path, client) -> None` (L53)
+- `test_reparse_discards_override(fts_root: Path, client) -> None` (L76)
+- `test_edit_rechunks_data_prep_source(fts_root: Path, client) -> None` (L90)
+- `test_pipeline_flags(fts_root: Path, client) -> None` (L118)
+- `test_rag_quick_promotes_then_builds(fts_root: Path, client, monkeypatch) -> None` (L133)
+- `test_parsed_put_validation(fts_root: Path, client) -> None` (L162)
+- `test_pipeline_in_rag_from_manifest(fts_root: Path, client) -> None` (L171) — Corpus document ids are md5(path) — the badge must match the sha12
+- `test_data_page_renders_workbench_controls(client) -> None` (L195)
+  - imports: finetune_studio.data, finetune_studio.data.fs, finetune_studio.webui.routes
 
 ## `tests/test_full_corpus_suite.py` (293 lines)
 - `isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L26)
@@ -2982,6 +2996,19 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 ## `tests/test_models_unload_all.py` (26 lines)
 - `test_unload_frees_engine_and_manager(client, monkeypatch: pytest.MonkeyPatch) -> None` (L13)
   - imports: finetune_studio.models.manager, finetune_studio.webui.app
+
+## `tests/test_naming.py` (149 lines)
+- `test_detect_quant() -> None` (L15)
+- `test_detect_abliterated() -> None` (L24)
+- `test_short_base() -> None` (L29)
+- `test_model_full_name_scheme() -> None` (L38)
+- `test_kind_label() -> None` (L46)
+- `test_display_for_path_run_export(client) -> None` (L56)
+- `test_display_for_path_with_pinned_version(client) -> None` (L73)
+- `test_registry_lookup_uses_app_db(client) -> None` (L89)
+- `test_status_has_model_display(client, monkeypatch) -> None` (L101)
+- `test_dataset_export_name_is_readable(client) -> None` (L128)
+  - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.models.registry, finetune_studio.webui.app
 
 ## `tests/test_nav_routes.py` (80 lines)
 - `client_and_db(tmp_path, monkeypatch)` (L31)

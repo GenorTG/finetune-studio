@@ -19,7 +19,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import sqlite3
 from dataclasses import dataclass
 
 log = logging.getLogger(__name__)
@@ -213,34 +212,38 @@ def _safe_model_name(root: str, cfg: dict, project_name: str = "") -> str:
 
 
 def _lookup_project_name(output_path: str) -> tuple[str, str]:
-    """Look up (project_id, project_name) from training_runs DB by output_path.
-    
-    Matches both exact paths (e.g. /home/user/output) and paths inside output
-    subdirectories (e.g. /home/user/output/merged).
+    """Look up (project_id, project_name) for a model path.
+
+    Primary: parse ``projects/<pid>/runs/<rid>/<kind>`` and read the project
+    row via the APP db layer — the old raw-sqlite lookup pointed at
+    ~/.finetune-studio/finetune_studio.db, which is NOT where the deployed
+    DB lives (FTS_DB_PATH), so it silently failed and every run export was
+    labelled with its bare hash dir. Fallback: DB walk-up on output_path.
     """
     try:
-        import sqlite3 as _sql
-        db_path = os.path.join(os.path.expanduser("~"), ".finetune-studio", "finetune_studio.db")
-        if not os.path.exists(db_path):
-            db_path = os.path.join(os.path.expanduser("~"), ".finetune-studio", "fts.db")
-        if not os.path.exists(db_path):
-            return ("", "")
-        with _sql.connect(db_path) as conn:
-            # Walk up the path hierarchy to find a matching output_path
-            check = output_path
-            for _ in range(5):
-                row = conn.execute(
+        from finetune_studio import db, naming
+
+        info = naming.resolve_run_path(output_path)
+        if info and info.get("project_id"):
+            proj = db.get_project(info["project_id"])
+            if proj:
+                return (info["project_id"], str(proj.get("name") or ""))
+
+        check = output_path
+        for _ in range(6):
+            with db.cursor() as c:
+                row = c.execute(
                     "SELECT tr.project_id, p.name FROM training_runs tr "
                     "LEFT JOIN projects p ON p.id = tr.project_id "
-                    "WHERE tr.output_path = ? OR tr.output_path LIKE ? LIMIT 1",
-                    (check, f"{check}/%"),
+                    "WHERE tr.output_path = ? OR ? LIKE tr.output_path || '%' LIMIT 1",
+                    (check, check),
                 ).fetchone()
-                if row:
-                    return (row[0] or "", row[1] or "")
-                parent = os.path.dirname(check)
-                if parent == check:
-                    break
-                check = parent
+            if row:
+                return (str(row["project_id"] or ""), str(row["name"] or ""))
+            parent = os.path.dirname(check)
+            if parent == check:
+                break
+            check = parent
     except Exception:
         log.exception("project lookup for %s failed", output_path)
     return ("", "")
@@ -275,10 +278,28 @@ def scan_models(directories: list) -> list:
                     display_name = f
                     if "/output" in p or "output_" in p:
                         cat = "trained_export"
-                        # Every run exports model-<quant>.gguf; prefix the run
-                        # dir so exports from different runs are distinguishable.
-                        run_dir = os.path.dirname(root) if os.path.basename(root) == "gguf" else root
-                        display_name = f"{os.path.basename(run_dir)}/{f}"
+                        # Every run exports model-<quant>.gguf; label with the
+                        # full naming scheme (project · base · version · kind ·
+                        # quant · abliterated) instead of a bare run-dir hash.
+                        from finetune_studio import naming as _naming
+                        _info = _naming.resolve_run_path(fp)
+                        _nnamed = ""
+                        if _info:
+                            proj_id = _info.get("project_id") or ""
+                            run_id = _info.get("run_id_full") or _info.get("run_id") or ""
+                            _nnamed = _naming.model_full_name(
+                                _info.get("project_name") or "",
+                                _info.get("base") or "",
+                                _info.get("version") or "",
+                                _info.get("kind") or "gguf",
+                                _info.get("quant") or _naming.detect_quant(f),
+                                _info.get("abliterated") or _naming.detect_abliterated(f),
+                            )
+                        if _nnamed:
+                            display_name = _nnamed
+                        else:
+                            run_dir = os.path.dirname(root) if os.path.basename(root) == "gguf" else root
+                            display_name = f"{os.path.basename(run_dir)}/{f}"
                     elif "shared_models" in p or "/models/gguf" in p.replace("\\", "/"):
                         cat = "local_helper"
                         from finetune_studio.models.helper import (
@@ -328,30 +349,29 @@ def scan_models(directories: list) -> list:
                 p = root.lower()
                 if "/output" in p or "output_" in p or "/models/safetensors/" in p:
                     cat = "trained_export"
-                    # Look up project from training_runs DB (walks up path hierarchy)
-                    proj_id, proj_name = _lookup_project_name(root)
-                    # Find run_id if possible
-                    if proj_id:
-                        try:
-                            db_path = os.path.join(os.path.expanduser("~"), ".finetune-studio", "finetune_studio.db")
-                            if not os.path.exists(db_path):
-                                db_path = os.path.join(os.path.expanduser("~"), ".finetune-studio", "fts.db")
-                            if os.path.exists(db_path):
-                                with sqlite3.connect(db_path) as conn:
-                                    row = conn.execute(
-                                        "SELECT id FROM training_runs WHERE output_path = ? OR ? LIKE output_path || '%' LIMIT 1",
-                                        (root, root),
-                                    ).fetchone()
-                                    if row:
-                                        run_id = row[0]
-                        except (sqlite3.Error, OSError):
-                            log.exception("run_id lookup failed for %s", root)
-                    # Re-derive name with project context if generic
-                    if proj_name and (
-                        name.lower() in ("merged", "abliterated", "gguf", "adapter", "gptq")
-                        or "/" in name
-                    ):
-                        name = f"{proj_name} ({name})"
+                    # Full readable name via the naming scheme: project · base
+                    # model · pinned version · kind (+ quant/abliterated).
+                    from finetune_studio import naming as _naming
+                    _info = _naming.resolve_run_path(root)
+                    if _info:
+                        proj_id = _info.get("project_id") or ""
+                        run_id = _info.get("run_id_full") or _info.get("run_id") or ""
+                        proj_name = _info.get("project_name") or ""
+                        full = _naming.model_full_name(
+                            proj_name, _info.get("base") or "",
+                            _info.get("version") or "", _info.get("kind") or "",
+                            _info.get("quant"), _info.get("abliterated"),
+                        )
+                        if full:
+                            name = full
+                    if not proj_id:
+                        # Non-standard layout: fall back to the DB walk-up.
+                        proj_id, proj_name = _lookup_project_name(root)
+                        if proj_name and (
+                            name.lower() in ("merged", "abliterated", "gguf", "adapter", "gptq")
+                            or "/" in name
+                        ):
+                            name = f"{proj_name} ({name})"
                 elif "shared_models" in p:
                     cat = "local_helper"
                 elif "hf_models" in p:
