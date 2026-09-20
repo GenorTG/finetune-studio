@@ -102,10 +102,12 @@ handles:
 - A docs-indexed panel showing every indexed chunk with a per-doc rebuild
   button + view-chunks modal
 - **Standalone export**: one download turns the corpus into a self-installing
-  package (its own venv, one dependency) that serves search over **MCP**
+  package (its own venv) that serves search over **MCP**
   (Claude Desktop / OpenClaw / Cursor) *and* a plain **HTTP API** — keyword
   search works offline out of the box; point it at any OpenAI-compatible
-  embeddings endpoint for semantic search
+  embeddings endpoint for semantic search — or tick "Include models" and the
+  embedding model + reranker ship **inside** the package: full offline
+  semantic search with no external service at all (~2.3 GB archive)
 
 📸 **See:** the RAG page with the live corpus inventory.
 

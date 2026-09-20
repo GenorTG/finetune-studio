@@ -134,13 +134,19 @@ The index is separate from training. Steps, in order:
    context. Needs a chat model loaded (top-bar pill).
 6. **Download / export** (section 7): the plain corpus archive, or the
    **standalone package** — one tarball with the index, a small Python
-   server, `install.sh` (makes its own venv; numpy is the only dependency),
-   a README, and an MCP config example. On any machine with Python 3.10+:
-   `bash install.sh && bash run-http.sh` gives you `GET /search?q=...`, and
-   `bash run-mcp.sh` speaks MCP (Claude Desktop / OpenClaw / Cursor). Keyword
-   search works offline out of the box; set `RAG_EMBED_BASE_URL` to any
-   OpenAI-compatible `/v1/embeddings` endpoint (LM Studio, Ollama, OpenAI)
-   for full meaning-based search.
+   server, `install.sh` (makes its own venv), a README, and an MCP config
+   example. On any machine with Python 3.10+: `bash install.sh &&
+   bash run-http.sh` gives you `GET /search?q=...`, and `bash run-mcp.sh`
+   speaks MCP (Claude Desktop / OpenClaw / Cursor). Two flavors, chosen by
+   the "Include models" checkbox before download:
+   - **small** — keyword (BM25) search works offline out of the box; set
+     `RAG_EMBED_BASE_URL` to any OpenAI-compatible `/v1/embeddings` endpoint
+     (LM Studio, Ollama, OpenAI) for meaning-based search.
+   - **full (~2.3 GB)** — the embedding model + reranker ship *inside* the
+     package: `install.sh` wires up torch-CPU + sentence-transformers and
+     the server does full semantic search with **no external service at
+     all**. Verified: query "strange weather event in the heavens" finds the
+     meteoric-salt annal (dense 0.78, zero keyword overlap) offline.
 
 **Use RAG for facts that change; use fine-tuning for style/response
 shape.** Both work against the same parsed sources.
