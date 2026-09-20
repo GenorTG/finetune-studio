@@ -188,7 +188,7 @@
       <tbody>
         {% for b in all_benchmarks[:10] %}
         <tr>
-          <td>{{ b._run_name }}</td>
+          <td class="cell-wrap" title="{{ b._run_name }}">{{ b._run_name }}</td>
           <td class="mono">{{ b.suite_name or b.suite or '—' }}</td>
           <td class="mono">{% if b.scores and b.scores.judged is defined and (b.scores.judged | int) == 0 %}—{% elif b.scores and b.scores.pass_rate is defined %}{{ b.scores.pass_rate }}%{% else %}—{% endif %}{% if b.scores and b.scores.eval_kind is defined and b.scores.eval_kind %} <span class="pill outline" title="{{ b.scores.leakage_warning | default('training-set eval') }}">leakage</span>{% endif %}</td>
           <td class="mono dim">{% if b.scores and b.scores.judged is defined %}{{ b.scores.judged }}/{{ b.scores.total | default('?') }}{% else %}—{% endif %}</td>
