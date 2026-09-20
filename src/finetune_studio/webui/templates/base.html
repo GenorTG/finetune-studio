@@ -239,10 +239,10 @@
       <a href="/projects/{{ pid }}/training" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'training' %}here{% endif %}">training</a>
       <a href="/projects/{{ pid }}/testing" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'testing' %}here{% endif %}">testing</a>
       {% elif ws == 'rag' %}
-      <a href="/projects/{{ pid }}/rag" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'rag' %}here{% endif %}">dashboard</a>
-      <a href="/projects/{{ pid }}/rag#rag-ingest" data-link class="ws-link">ingest</a>
-      <a href="/projects/{{ pid }}/rag#rag-search" data-link class="ws-link">search</a>
-      <a href="/projects/{{ pid }}/rag#rag-tests" data-link class="ws-link">tests</a>
+      <a href="/projects/{{ pid }}/rag" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'rag' %}here{% endif %}">overview</a>
+      <a href="/projects/{{ pid }}/rag#rag-ingest" data-link class="ws-link" title="Build the search index">build</a>
+      <a href="/projects/{{ pid }}/rag#rag-search" data-link class="ws-link" title="Test a search against the index">search</a>
+      <a href="/projects/{{ pid }}/rag#rag-chat" data-link class="ws-link" title="Chat grounded in your documents">chat</a>
       {% endif %}
     </nav>
     {% endif %}

@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import mimetypes
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -244,6 +245,48 @@ async def rag_doc_chunks(pid: str, doc_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="project not found")
     chunks = list_doc_chunks(pid, doc_id)
     return {"doc_id": doc_id, "chunks": chunks, "count": len(chunks)}
+
+
+@router.get("/projects/{pid}/rag/mcp-package")
+async def rag_mcp_package(pid: str, name: str | None = None,
+                          fmt: str = "tar.gz"):
+    """Download a hostable, self-installing RAG package (MCP + HTTP server).
+
+    Contains the corpus (manifest, chunks.jsonl, vectors, bm25), a
+    standalone ``server.py`` (keyword search out of the box; semantic when
+    pointed at any OpenAI-compatible /v1/embeddings endpoint), ``install.sh``
+    (venv + numpy only), run scripts, an MCP config example, and a README.
+    """
+    from fastapi.responses import FileResponse
+
+    from finetune_studio import db
+    from finetune_studio.data.rag_portable.mcp_package import build_package
+
+    if not db.get_project(pid):
+        raise HTTPException(status_code=404, detail="project not found")
+    corpus = corpus_dir(pid)
+    if not (corpus / "manifest.json").is_file():
+        raise HTTPException(
+            status_code=404,
+            detail="no corpus yet — build one first (section 2 on this page)",
+        )
+    proj = db.get_project(pid)
+    title = name or (proj["name"] if proj else pid)
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", title)[:48] or pid
+    ext = "zip" if fmt == "zip" else "tar.gz"
+    out_dir = Path("output") / "projects" / pid / "rag-packages"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{safe}-rag-package.{ext}"
+    try:
+        await asyncio.to_thread(build_package, corpus, out_path, name=title, fmt=ext)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except Exception as e:
+        log.exception("rag package build failed")
+        raise HTTPException(status_code=500, detail=f"package build failed: {e}") from e
+    media = ("application/zip" if ext == "zip"
+             else "application/gzip")
+    return FileResponse(path=str(out_path), media_type=media, filename=out_path.name)
 
 
 @router.post("/projects/{pid}/rag/rebuild")

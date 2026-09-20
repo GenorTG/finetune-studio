@@ -77,8 +77,8 @@
 <div class="card mb-4" id="rag-dashboard">
   <div class="card-head">
     <div>
-      <div class="card-title">1. Corpus status</div>
-      <div class="card-sub">Whether an index exists on disk, and where it lives (external memory, not model weights).</div>
+      <div class="card-title">1. Index status</div>
+      <div class="card-sub">Whether a search index exists on disk for this project, and where it lives (external memory, not model weights).</div>
     </div>
     <span class="pill solid-purple" id="rag-summary-badge" hidden></span>
   </div>
@@ -90,10 +90,11 @@
 <div class="card mb-4" id="rag-ingest">
   <div class="card-head">
     <div>
-      <div class="card-title">2. Build &amp; rebuild (embed)</div>
+      <div class="card-title">2. Build the index</div>
       <div class="card-sub">
-        Chunk + embed this project's <b>parsed sources</b> into the searchable index.
-        First build may download the embedder (~2.2 GB); later rebuilds reuse it.
+        Split this project's <b>parsed text sources</b> into chunks and turn them
+        into a searchable index. First build may download the embedding model
+        (~2.2 GB); later rebuilds reuse it.
         Upload new files on Data Prep first — there is no upload on this page.
       </div>
     </div>
@@ -123,7 +124,7 @@
       <button onclick="buildCorpus(false)" id="build-btn" class="btn primary" style="flex:1;"
               title="Build the RAG corpus: chunk your sources, embed each chunk, index for fast retrieval. First build downloads the embedder (~2.2 GB) which takes a few minutes.">Build</button>
       <button onclick="buildCorpus(true)" id="rebuild-btn" class="btn"
-              title="Wipe the existing corpus and rebuild from scratch. Use this when you change chunk size, overlap, or embedder — the existing chunks are no longer valid.">⟲</button>
+              title="Wipe the existing corpus and rebuild from scratch. Use this when you change chunk size, overlap, or embedder — the existing chunks are no longer valid.">⟲ Rebuild from scratch</button>
     </div>
   </div>
   <div id="build-status" class="mt-3 text-xs dim"></div>
@@ -137,10 +138,11 @@
 <div class="card mb-4">
   <div class="card-head">
     <div>
-      <div class="card-title">3. Retrieval settings</div>
+      <div class="card-title">3. Search settings</div>
       <div class="card-sub">
-        Saved with the project corpus. Hybrid = BM25 keywords + dense vectors;
-        rerank = optional cross-encoder pass. Does not retrain the chat model.
+        Saved with this project's index. Hybrid = keyword match + meaning match
+        combined; rerank = a second scoring pass that reorders results for
+        accuracy. These affect retrieval only — they never retrain the chat model.
       </div>
     </div>
   </div>
@@ -172,9 +174,11 @@
 <div class="card mb-4" id="rag-docs-panel">
   <div class="card-head">
     <div>
-      <div class="card-title">4. Indexed corpus documents</div>
+      <div class="card-title">4. Documents in the index</div>
       <div class="card-sub">
-        Embedded chunks in the RAG index — not raw uploads or Data Prep file-library rows.
+        What actually got indexed — not your raw uploads, and not the Data Prep
+        file list. If a file is missing here, it wasn't parsed or wasn't included
+        in the last build.
         <span id="rag-docs-summary">
           {{ indexed_doc_count | default(0) }} document{{ '' if (indexed_doc_count | default(0)) == 1 else 's' }}
           · {{ indexed_chunk_count | default(0) }} chunk{{ '' if (indexed_chunk_count | default(0)) == 1 else 's' }}
@@ -183,7 +187,7 @@
     </div>
     <div class="flex gap-2">
       <button class="btn small" onclick="loadIndexedDocs()" title="Refresh inventory">⟲ Refresh</button>
-      <button class="btn small danger" onclick="clearAllSources()" title="Remove all sources (requires rebuild)">Clear all</button>
+      <button class="btn small danger" onclick="clearAllSources()" title="Remove all parsed source files from the corpus. After this, press Build again to re-index from what's left on Data Prep.">Remove all sources</button>
     </div>
   </div>
   <div id="rag-docs-body">
@@ -256,8 +260,12 @@
 <div class="card mb-4" id="rag-search">
   <div class="card-head">
     <div>
-      <div class="card-title">5. Live test query</div>
-      <div class="card-sub">Retrieve top-K chunks only — no LLM answer. Use this to tune embed/chunk settings.</div>
+      <div class="card-title">5. Search test</div>
+      <div class="card-sub">
+        Search the corpus and see which passages come back — no AI answer is
+        generated. Use it to check whether your build and settings retrieve
+        the right text before you chat or train.
+      </div>
     </div>
   </div>
   <div class="flex gap-2">
@@ -272,13 +280,14 @@
 </div>
 
 {# Chat #}
-<div class="card mb-4" id="rag-tests">
+<div class="card mb-4" id="rag-chat">
   <div class="card-head">
     <div>
-      <div class="card-title">6. Chat with RAG</div>
+      <div class="card-title">6. Ask the model (grounded)</div>
       <div class="card-sub">
-        Generate an answer with retrieved chunks as context (requires a loaded chat model).
-        Grounding comes from the corpus, not from fine-tuned weights.
+        Chat that looks up your documents first and answers using them as context
+        (needs a chat model loaded — see the pill in the top bar).
+        The grounding comes from this index, not from fine-tuned weights.
       </div>
     </div>
   </div>
@@ -297,33 +306,45 @@
 <div class="card mb-4">
   <div class="card-head">
     <div>
-      <div class="card-title">7. Self-contained export</div>
+      <div class="card-title">7. Download / export the corpus</div>
       <div class="card-sub">
-        Download a tarball of corpus + vectors + BM25. Optionally bake in embedder/reranker
-        weights for offline use. Export stages a copy — the live corpus is never mutated.
+        One archive with everything: documents, chunks, vectors, keyword index,
+        and your settings. Optionally include the search models so it works on
+        a machine with no internet. Export copies files — the live corpus is never changed.
       </div>
     </div>
   </div>
   <div class="grid grid-12 gap-3 items-end mb-3">
     <div class="col-span-5">
-      <label class="block text-xs muted mb-1">Bundle filename stem</label>
+      <label class="block text-xs muted mb-1">File name (without extension)</label>
       <input id="bundle-name" type="text" placeholder="helios-docs-v1" class="input">
     </div>
     <div class="col-span-3">
-      <label class="block text-xs muted mb-1">Format</label>
+      <label class="block text-xs muted mb-1">Archive type</label>
       <select id="bundle-fmt" class="select">
-        <option value="tar" selected>.tar (faster, ~2.2 GB)</option>
-        <option value="tar.gz">.tar.gz (compressed, slower)</option>
+        <option value="tar" selected>.tar — plain, fastest</option>
+        <option value="tar.gz">.tar.gz — smaller, slower</option>
+        <option value="zip">.zip — opens everywhere</option>
       </select>
     </div>
     <div class="col-span-2 flex items-end pb-2">
-      <label class="flex items-center gap-2 text-xs" title="Bakes the embedder + reranker weights into the bundle (~2 GB extra) so the recipient can run the corpus offline without separately downloading the models. Uncheck for a small text-only bundle (~30 KB)."><input id="bundle-include-models" type="checkbox" checked> Include models</label>
+      <label class="flex items-center gap-2 text-xs" title="Include the embedder + reranker model files in the archive (adds roughly 2 GB) so the recipient can search offline without downloading the models separately. Leave unchecked for a small text-only bundle (~30 KB)."><input id="bundle-include-models" type="checkbox" checked> Include models</label>
     </div>
     <div class="col-span-2">
-      <button id="bundle-btn" onclick="startBundleDownload()" class="btn primary" style="width:100%;" title="Bundle the corpus (chunks + vectors + BM25 index + optional models) into a single archive. Run 'finetune-studio serve' on the recipient machine to use it.">Download</button>
+      <button id="bundle-btn" onclick="startBundleDownload()" class="btn primary" style="width:100%;" title="Bundle the corpus (documents, chunks, vectors, keyword index, settings, optional models) into a single archive you can move to another machine or share.">Download</button>
     </div>
   </div>
-  <p class="text-xs dim">"Include models" bakes embedder + reranker into the download only (~2 GB extra). The live corpus is never mutated. Uncheck for a small text-only bundle (~30 KB) that always omits staged model weights.</p>
+  <p class="text-xs dim">"Include models" adds the search-model files to the download only (roughly 2 GB extra). The live corpus is never changed. Uncheck for a small text-only archive (~30 KB) that always leaves out model files.</p>
+  <div class="flex gap-2 items-center mt-3">
+    <a class="btn primary" id="mcp-pkg-btn"
+       href="/api/projects/{{ pid }}/rag/mcp-package?fmt=tar.gz"
+       title="Downloads an archive that contains everything needed to search this corpus on another machine: the index, a small Python server, a one-command installer, and a README. It speaks both plain HTTP and MCP (the protocol Claude, OpenClaw, Cursor and friends use).">
+      ⬇ Download as a standalone search server (MCP + HTTP)
+    </a>
+    <a class="btn" href="/api/projects/{{ pid }}/rag/mcp-package?fmt=zip"
+       title="Same package as a .zip instead of .tar.gz.">.zip</a>
+  </div>
+  <p class="text-xs dim mt-2">The standalone package runs anywhere with Python 3.10+. Keyword search works out of the box; for meaning-based search point it at any embeddings endpoint (LM Studio, Ollama, OpenAI) — the README inside explains both.</p>
   <span id="bundle-status" class="block mt-2 text-xs dim"></span>
 </div>
 
@@ -331,11 +352,12 @@
 <div class="card mb-4">
   <div class="card-head">
     <div>
-      <div class="card-title">8. Shared embedder / reranker library</div>
+      <div class="card-title">8. Shared search models</div>
       <div class="card-sub">
-        Embedding and reranker weights (external memory helpers) live in
-        <code>~/.finetune-studio/shared_models/</code> — one copy shared across corpora.
-        Separate from fine-tuned chat model checkpoints in the Model workspace.
+        The embedder and reranker model files (the helpers that turn text into
+        searchable numbers) live in <code>~/.finetune-studio/shared_models/</code> —
+        one copy shared by every corpus here. They are separate from your
+        fine-tuned chat models in the Model workspace.
       </div>
     </div>
     <button class="btn ghost" onclick="loadSharedModels()">Refresh</button>
