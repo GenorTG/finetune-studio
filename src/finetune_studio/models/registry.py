@@ -276,13 +276,17 @@ def scan_models(directories: list) -> list:
                     run_id = ""
                     p = root.lower()
                     display_name = f
-                    if "/output" in p or "output_" in p:
+                    from finetune_studio import naming as _naming
+                    # resolve_run_path works for RELATIVE scan roots too — the
+                    # deployed box scans "output/projects/…" (no leading slash),
+                    # so the old "/output" substring test never matched and
+                    # every run export kept its bare hash-dir name.
+                    _info = _naming.resolve_run_path(fp)
+                    if _info or "/output" in p or "output_" in p:
                         cat = "trained_export"
                         # Every run exports model-<quant>.gguf; label with the
                         # full naming scheme (project · base · version · kind ·
                         # quant · abliterated) instead of a bare run-dir hash.
-                        from finetune_studio import naming as _naming
-                        _info = _naming.resolve_run_path(fp)
                         _nnamed = ""
                         if _info:
                             proj_id = _info.get("project_id") or ""
@@ -347,12 +351,14 @@ def scan_models(directories: list) -> list:
                 run_id = ""
                 proj_name = ""
                 p = root.lower()
-                if "/output" in p or "output_" in p or "/models/safetensors/" in p:
+                from finetune_studio import naming as _naming
+                # resolve_run_path works for RELATIVE scan roots too (deployed
+                # box scans "output/projects/…" without a leading slash).
+                _info = _naming.resolve_run_path(root)
+                if _info or "/output" in p or "output_" in p or "/models/safetensors/" in p:
                     cat = "trained_export"
                     # Full readable name via the naming scheme: project · base
                     # model · pinned version · kind (+ quant/abliterated).
-                    from finetune_studio import naming as _naming
-                    _info = _naming.resolve_run_path(root)
                     if _info:
                         proj_id = _info.get("project_id") or ""
                         run_id = _info.get("run_id_full") or _info.get("run_id") or ""

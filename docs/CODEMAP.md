@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-373 files · 66940 lines
-- `finetune_studio`: 220 files, 40941 lines
+373 files · 66951 lines
+- `finetune_studio`: 220 files, 40949 lines
 - `scripts`: 9 files, 2199 lines
-- `tests`: 144 files, 23800 lines
+- `tests`: 144 files, 23803 lines
 
 
 # finetune_studio
@@ -1081,7 +1081,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `_local_helper_preset() -> dict` (L290)
   - imports: finetune_studio.models.gguf_layers, finetune_studio.models.helper
 
-## `src/finetune_studio/models/registry.py` (388 lines)
+## `src/finetune_studio/models/registry.py` (393 lines)
 - `class ModelInfo` (L28)
 - `_readable_file_size(path: str) -> int | None` (L65) — Return byte size, or None when the path is missing / a broken symlink.
 - `_weight_bytes(root: str, files: list[str]) -> int` (L75) — Sum readable weight-file sizes; ignore dangling HF hub symlinks.
@@ -1091,19 +1091,19 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `models_for_training(models: list) -> list` (L145) — Filter for Training base-model selectors only.
 - `_safe_model_name(root: str, cfg: dict, project_name: str = '') -> str` (L155) — Extract a human-readable model name from config or directory path.
 - `_lookup_project_name(output_path: str) -> tuple[str, str]` (L214) — Look up (project_id, project_name) for a model path.
-- `scan_models(directories: list) -> list` (L253)
+- `scan_models(directories: list) -> list` (L252)
   - imports: finetune_studio, finetune_studio.models.helper
 
-## `src/finetune_studio/naming.py` (188 lines)
-- `detect_quant(name_or_path: str) -> str | None` (L47)
-- `detect_abliterated(name_or_path: str) -> bool` (L58)
-- `short_base(name_or_path: str) -> str` (L62) — ``Qwen/Qwen3-4B`` / ``models--Qwen--Qwen3-4B/snapshots/<hash>`` /
-- `_looks_hash(seg: str) -> bool` (L88)
-- `kind_label(dirname: str) -> str` (L92)
-- `model_full_name(project: str = '', base: str = '', version: str = '', kind: str = '', quant: …` (L96)
-- `_version_label_for_run(project_id: str, run_id: str) -> str` (L112) — ``v3 my-label`` if a pinned project version references this run id.
-- `resolve_run_path(path: str) -> dict | None` (L135) — Parse ``projects/<pid>/runs/<rid>/<kind>`` and enrich from the DB.
-- `display_for_path(path: str, size_hint: str = '') -> str` (L167) — Best human-readable name for a model path (run export or plain dir).
+## `src/finetune_studio/naming.py` (191 lines)
+- `detect_quant(name_or_path: str) -> str | None` (L50)
+- `detect_abliterated(name_or_path: str) -> bool` (L61)
+- `short_base(name_or_path: str) -> str` (L65) — ``Qwen/Qwen3-4B`` / ``models--Qwen--Qwen3-4B/snapshots/<hash>`` /
+- `_looks_hash(seg: str) -> bool` (L91)
+- `kind_label(dirname: str) -> str` (L95)
+- `model_full_name(project: str = '', base: str = '', version: str = '', kind: str = '', quant: …` (L99)
+- `_version_label_for_run(project_id: str, run_id: str) -> str` (L115) — ``v3 my-label`` if a pinned project version references this run id.
+- `resolve_run_path(path: str) -> dict | None` (L138) — Parse ``projects/<pid>/runs/<rid>/<kind>`` and enrich from the DB.
+- `display_for_path(path: str, size_hint: str = '') -> str` (L170) — Best human-readable name for a model path (run export or plain dir).
   - imports: finetune_studio
 
 ## `src/finetune_studio/rag/__init__.py` (13 lines)
@@ -2997,17 +2997,17 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_unload_frees_engine_and_manager(client, monkeypatch: pytest.MonkeyPatch) -> None` (L13)
   - imports: finetune_studio.models.manager, finetune_studio.webui.app
 
-## `tests/test_naming.py` (149 lines)
-- `test_detect_quant() -> None` (L15)
-- `test_detect_abliterated() -> None` (L24)
-- `test_short_base() -> None` (L29)
-- `test_model_full_name_scheme() -> None` (L38)
-- `test_kind_label() -> None` (L46)
-- `test_display_for_path_run_export(client) -> None` (L56)
-- `test_display_for_path_with_pinned_version(client) -> None` (L73)
-- `test_registry_lookup_uses_app_db(client) -> None` (L89)
-- `test_status_has_model_display(client, monkeypatch) -> None` (L101)
-- `test_dataset_export_name_is_readable(client) -> None` (L128)
+## `tests/test_naming.py` (152 lines)
+- `test_detect_quant() -> None` (L14)
+- `test_detect_abliterated() -> None` (L23)
+- `test_short_base() -> None` (L28)
+- `test_model_full_name_scheme() -> None` (L37)
+- `test_kind_label() -> None` (L45)
+- `test_display_for_path_run_export(client) -> None` (L55)
+- `test_display_for_path_with_pinned_version(client) -> None` (L76)
+- `test_registry_lookup_uses_app_db(client) -> None` (L92)
+- `test_status_has_model_display(client, monkeypatch) -> None` (L104)
+- `test_dataset_export_name_is_readable(client) -> None` (L131)
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.models.registry, finetune_studio.webui.app
 
 ## `tests/test_nav_routes.py` (80 lines)
