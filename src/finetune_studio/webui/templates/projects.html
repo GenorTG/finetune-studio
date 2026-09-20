@@ -136,7 +136,7 @@
 .proj-card .proj-select {
   position: absolute; left: 10px; top: 10px;
   width: 16px; height: 16px; z-index: 5;
-  accent-color: var(--accent-green, #00ff66);
+  accent-color: var(--accent);
   cursor: pointer;
 }
 .proj-card .proj-delete {
@@ -151,13 +151,13 @@
   color: var(--accent-red, #ff4444);
   border-color: var(--accent-red, #ff4444);
 }
-.proj-card.selected { outline: 1px solid var(--accent-green, #00ff66); }
+.proj-card.selected { outline: 1px solid var(--accent); }
 
 /* Bulk-action toolbar. */
 .bulk-bar {
   display: none; align-items: center; gap: 14px;
   padding: 10px 14px; margin-bottom: 12px;
-  border: 1px solid var(--border); background: var(--bg-elev, #0a0a0a);
+  border: 1px solid var(--border); background: var(--bg-elevated, #0a0a0a);
 }
 .bulk-bar.visible { display: flex; }
 .bulk-bar .btn.danger { background: var(--accent-red, #ff4444); color: #000; }

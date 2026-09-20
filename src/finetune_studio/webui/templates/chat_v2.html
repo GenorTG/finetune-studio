@@ -155,12 +155,12 @@
     </div>
   </div>
   <table class="table compact">
-    <tr><td class="meta muted" title="This project's stable identifier (8-hex-char). Used in all URLs and exports.">Project ID</td><td class="mono">{{ pid }}</td></tr>
-    <tr data-mode="test"><td class="meta muted" title="The instruction the model sees at the start of every conversation in Test mode. Sets its persona + behaviour. Edit it on the project overview page.">System prompt</td><td class="mono">{{ project.system_prompt or '(none)' }}</td></tr>
-    <tr data-mode="agent"><td class="meta muted" title="Server-side. In Agent mode the model is given a special system prompt that instructs it to call list_sources → read_source → create_qa_pairs before answering, so it can mine Q&A pairs from your parsed files.">Agent system prompt</td><td class="mono">Server-side. The model is instructed to call <code>list_sources</code> → <code>read_source</code> → <code>create_qa_pairs</code> before answering.</td></tr>
-    <tr><td class="meta muted" title="The base model this project is built around. The trained model is an adapter (LoRA) on top of this base. Use it on the Inference tab to chat with the un-fine-tuned version.">Base model</td><td class="mono">{{ project.base_model or '—' }}</td></tr>
-    <tr><td class="meta muted" title="The training run designated as 'production' for this project — typically the best-scoring run. Set on the project overview page; this is what the Chat page serves by default.">Production run</td><td class="mono">{{ project.production_run or '(none)' }}</td></tr>
-    <tr><td class="meta muted" title="RAG corpora built from this project's parsed sources. The chat uses them as retrieval-augmented context in Test mode. Build them on the RAG tab.">RAG corpora</td><td class="mono">{{ rags|length if rags else 0 }} attached</td></tr>
+    <tr><td class="meta muted" title="This project's stable identifier (8-hex-char). Used in all URLs and exports.">Project ID</td><td class="mono cell-wrap">{{ pid }}</td></tr>
+    <tr data-mode="test"><td class="meta muted" title="The instruction the model sees at the start of every conversation in Test mode. Sets its persona + behaviour. Edit it on the project overview page.">System prompt</td><td class="mono cell-wrap">{{ project.system_prompt or '(none)' }}</td></tr>
+    <tr data-mode="agent"><td class="meta muted" title="Server-side. In Agent mode the model is given a special system prompt that instructs it to call list_sources → read_source → create_qa_pairs before answering, so it can mine Q&A pairs from your parsed files.">Agent system prompt</td><td class="mono cell-wrap">Server-side. The model is instructed to call <code>list_sources</code> → <code>read_source</code> → <code>create_qa_pairs</code> before answering.</td></tr>
+    <tr><td class="meta muted" title="The base model this project is built around. The trained model is an adapter (LoRA) on top of this base. Use it on the Inference tab to chat with the un-fine-tuned version.">Base model</td><td class="mono cell-wrap">{{ project.base_model or '—' }}</td></tr>
+    <tr><td class="meta muted" title="The training run designated as 'production' for this project — typically the best-scoring run. Set on the project overview page; this is what the Chat page serves by default.">Production run</td><td class="mono cell-wrap">{{ project.production_run or '(none)' }}</td></tr>
+    <tr><td class="meta muted" title="RAG corpora built from this project's parsed sources. The chat uses them as retrieval-augmented context in Test mode. Build them on the RAG tab.">RAG corpora</td><td class="mono cell-wrap">{{ rags|length if rags else 0 }} attached</td></tr>
   </table>
   <div class="flex gap-2 mt-4 wrap">
     <a href="/projects/{{ pid }}" class="btn" data-link>← Back to project</a>
@@ -172,7 +172,7 @@
 <style>
 .dp-chat-msgs {
   border: 1px solid var(--border);
-  background: var(--bg-elev, #0a0a0a);
+  background: var(--bg-elevated, #0a0a0a);
   padding: 12px;
   max-height: 480px;
   overflow-y: auto;
@@ -181,7 +181,7 @@
   flex-direction: column;
   gap: 10px;
 }
-.dp-chat-warn { border:1px solid var(--amber, #f59e0b); background:rgba(245,158,11,.08); color:var(--amber-text, #fbbf24); padding:10px 12px; margin-bottom:12px; font-size:13px; line-height:1.4; }
+.dp-chat-warn { border:1px solid var(--warn); background:rgba(245,158,11,.08); color:var(--warn); padding:10px 12px; margin-bottom:12px; font-size:13px; line-height:1.4; }
 .dp-chat-warn a { color:inherit; text-decoration:underline; }
 .dp-chat-empty {
   color: var(--text-dim, #888);
@@ -215,7 +215,7 @@
   border-left-style: dashed;
 }
 .dp-chat-msg { padding: 8px 10px; border-left: 2px solid var(--border); }
-.dp-chat-user      { border-left-color: var(--accent-green, #00ff66); }
+.dp-chat-user      { border-left-color: var(--accent); }
 .dp-chat-assistant { border-left-color: var(--accent, #00ccff); }
 .dp-chat-tool      { border-left-color: var(--accent-violet, #cc88ff); }
 .dp-chat-error     { border-left-color: var(--err, #ff4444); color: var(--err, #ff4444); }
@@ -258,7 +258,7 @@
   white-space: pre-wrap;
 }
 /* Status color for tool blocks: green ok, red error, amber partial */
-.dp-chat-tool-ok      { border-left: 3px solid var(--accent-green, #00ff66); }
+.dp-chat-tool-ok      { border-left: 3px solid var(--accent); }
 .dp-chat-tool-err     { border-left: 3px solid var(--err, #ff4444); }
 .dp-chat-tool-partial { border-left: 3px solid #ffaa00; }
 /* Header line layout: [icon] tool_name [args] → result [copy] */
@@ -272,7 +272,7 @@
 .dp-chat-tool-icon {
   font-weight: 700;
   font-size: 13px;
-  color: var(--accent-green, #00ff66);
+  color: var(--accent);
 }
 .dp-chat-tool-err .dp-chat-tool-icon { color: var(--err, #ff4444); }
 .dp-chat-tool-partial .dp-chat-tool-icon { color: #ffaa00; }
@@ -646,7 +646,7 @@ function _chatRenderToolCalls(toolCalls) {
           const label = s.filename || s.name || s.id || s.rag_name || '—';
           const chars = s.char_count != null ? s.char_count : (s.text ? s.text.length : '—');
           const chunks = s.chunk_count != null ? s.chunk_count : '—';
-          tr.innerHTML = '<td>' + (i + 1) + '</td><td class="mono">' +
+          tr.innerHTML = '<td>' + (i + 1) + '</td><td class="mono cell-wrap">' +
             String(label).replace(/[<>&]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])) +
             '</td><td>' + chars + '</td><td>' + chunks + '</td>';
           tbody.appendChild(tr);

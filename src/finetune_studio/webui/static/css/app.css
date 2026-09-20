@@ -26,6 +26,21 @@
   /* text placed ON an accent fill — black on neon green (dark), white on
      forest green (light); keeps every logo/primary-btn/pill ≥ 4.5:1 */
   --on-accent:     #000;
+  /* Legacy token aliases — templates reference these names; resolving them
+     through the real tokens makes every one of them theme-aware (the light
+     block in base.html overrides the targets, so the alias follows). */
+  --muted:         var(--text-muted);
+  --danger:        var(--err);
+  --accent-red:    var(--err);
+  --accent-rose:   var(--err);
+  --accent-green:  var(--accent);
+  --accent-amber:  var(--warn);
+  --accent-cyan:   var(--cyan);
+  --accent-violet: var(--magenta);
+  --bg-deep:       var(--bg-app);
+  --surface:       var(--bg-panel);
+  --font-mono:     "Share Tech Mono", ui-monospace, monospace;
+  --mono:          "Share Tech Mono", ui-monospace, monospace;
   --warn:          #ffaa00;
   --err:           #ff3a3a;
   --ok:            #00ff66;
@@ -4328,8 +4343,8 @@ body::before {
     border: 1px solid var(--border);
     /* Edge fades signal more columns off-screen */
     background:
-      linear-gradient(to right, var(--bg-elev, #0a0a0a) 30%, transparent) 0 0 / 1.25rem 100% local,
-      linear-gradient(to left, var(--bg-elev, #0a0a0a) 30%, transparent) 100% 0 / 1.25rem 100% local;
+      linear-gradient(to right, var(--bg-elevated, #0a0a0a) 30%, transparent) 0 0 / 1.25rem 100% local,
+      linear-gradient(to left, var(--bg-elevated, #0a0a0a) 30%, transparent) 100% 0 / 1.25rem 100% local;
     background-repeat: no-repeat;
   }
   #dp-uploaded-files .table-scroll::-webkit-scrollbar { height: 8px; }
@@ -4556,7 +4571,13 @@ body::before {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-#bench-run-table .bench-actions-cell { min-width: 16rem; }
+#bench-run-table .bench-actions-cell { min-width: 16rem; white-space: normal; overflow: visible; }
+/* Two forms (bench-run + train-set eval) must stack, not fight for one
+   nowrap line — inline-flex siblings + td nowrap pushed the 2nd form
+   146px past the cell and clipped the button. */
+#bench-run-table .bench-actions-cell .bench-run-form { display: flex; }
+#bench-run-table th:nth-child(4) { width: 21rem; }
+#suite-catalog td:first-child { white-space: normal; }
 .bench-run-form {
   display: inline-flex;
   flex-wrap: wrap;
@@ -4662,8 +4683,8 @@ body::before {
     scrollbar-color: var(--border-strong) transparent;
     /* Edge fades = more columns off-screen */
     background:
-      linear-gradient(to right, var(--bg-elev, #0a0a0a) 30%, transparent) 0 0 / 1.25rem 100% local,
-      linear-gradient(to left, var(--bg-elev, #0a0a0a) 30%, transparent) 100% 0 / 1.25rem 100% local,
+      linear-gradient(to right, var(--bg-elevated, #0a0a0a) 30%, transparent) 0 0 / 1.25rem 100% local,
+      linear-gradient(to left, var(--bg-elevated, #0a0a0a) 30%, transparent) 100% 0 / 1.25rem 100% local,
       var(--bg-panel);
     background-repeat: no-repeat;
   }
