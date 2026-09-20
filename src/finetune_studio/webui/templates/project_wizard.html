@@ -230,7 +230,11 @@
         <div class="card-title">Pin version</div>
         <div class="card-sub text-dim" id="flow-version-sub">—</div>
       </div><span class="pill outline" id="flow-version-pill">…</span></div>
-      <div class="flex gap-2 wrap">
+      <form id="flow-version-form" class="flex gap-2 wrap" style="margin:0">
+        <input class="input" id="flow-version-label" placeholder="label (e.g. v3-my-corpus)" style="max-width:200px">
+        <button class="btn sm primary" type="submit">Save version</button>
+      </form>
+      <div class="flex gap-2 wrap mt-2">
         <button class="btn sm" type="button" onclick="flowCheck('version')">Refresh</button>
         <span class="text-xs dim" id="flow-version-list"></span>
       </div>
@@ -367,11 +371,15 @@
         var vs = d.versions || [];
         pill("wiz-version", vs.length > 0 ? "v" + vs[0].version_number + " latest" : "none", vs.length > 0);
         set("wiz-version", vs.length + " version(s) pinned");
+        pill("flow-version", vs.length > 0 ? "v" + vs[0].version_number + " latest" : "none", vs.length > 0);
+        set("flow-version", vs.length + " version(s) pinned");
         var names = vs.slice(0, 4).map(function (v) { return "v" + v.version_number + (v.label ? " " + v.label : ""); }).join(" · ");
-        var t = document.getElementById("wiz-version-list");
-        if (t) t.textContent = names;
+        ["wiz-version-list", "flow-version-list"].forEach(function (lid) {
+          var t = document.getElementById(lid);
+          if (t) t.textContent = names;
+        });
         line("versions pinned: " + vs.length);
-      }).catch(function (e) { pill("wiz-version", "error", false); line("versions: ERROR " + e); });
+      }).catch(function (e) { pill("wiz-version", "error", false); pill("flow-version", "error", false); line("versions: ERROR " + e); });
     }
   }
   window.wizRefresh = wizRefresh;
@@ -544,20 +552,24 @@
     });
   }).catch(function () { /* keep the static default */ });
 
-  var vf = document.getElementById("wiz-version-form");
-  if (vf) {
-    vf.addEventListener("submit", function (ev) {
-      ev.preventDefault();
-      var label = (document.getElementById("wiz-version-label") || {}).value || "";
-      post("/api/projects/" + PID + "/versions", { label: label || "saved-from-wizard" })
-        .then(function (v) {
-          if (v.error) throw new Error(v.error);
-          line("Version v" + v.version_number + " pinned.");
-          wizRefresh("version");
-        })
-        .catch(function (e) { line("Pin version failed: " + e.message); });
-    });
+  function pinVersion(formId, labelId, fallback) {
+    var label = (document.getElementById(labelId) || {}).value || "";
+    post("/api/projects/" + PID + "/versions", { label: label || fallback })
+      .then(function (v) {
+        if (v.error) throw new Error(v.error);
+        line("Version v" + v.version_number + " pinned.");
+        wizRefresh("version");
+      })
+      .catch(function (e) { line("Pin version failed: " + e.message); });
   }
+  [["wiz-version-form", "wiz-version-label"], ["flow-version-form", "flow-version-label"]].forEach(function (pair) {
+    var f = document.getElementById(pair[0]);
+    if (!f) return;
+    f.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      pinVersion(pair[0], pair[1], "saved-from-wizard");
+    });
+  });
 
   window.flowExport = function () { wizExport(); };
   window.flowRagBuild = function () {
