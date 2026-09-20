@@ -378,6 +378,8 @@ def discover_suites(project_id: str | None = None) -> list[dict[str, Any]]:
             suite_path = str(row["suite_path"])
             case_count = int(row["case_count"] or 0)
             key = f"auto:{suite_name}:{suite_path}"
+            if key in found:
+                continue  # rows are created_at DESC — keep the NEWEST per file
             found[key] = SuiteDefinition(
                 name=suite_name,
                 path=suite_path,

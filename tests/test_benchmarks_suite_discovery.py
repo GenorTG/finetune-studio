@@ -165,3 +165,35 @@ def test_auto_suites_not_listed_without_project_id(
     assert _names_of_type(_discover_suites(None), "synthetic_smoke") == set(
         _EXPECTED_SMOKE
     )
+
+
+def test_auto_suite_regeneration_lists_newest_case_count(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path
+) -> None:
+    """Same suite file re-generated (500→554) must show the NEWEST row.
+
+    Regression for the full-coverage rollout: the old capped row shadowed the
+    fresh full-coverage row in the picker because the DESC loop kept
+    overwriting with older rows.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data" / "benchmarks").mkdir(parents=True)
+
+    proj = db.create_project(name="regen-proj", base_model="x/y")
+    run = db.create_run(proj["id"], "r1", base_model="x/y")
+    auto_path = tmp_path / "suite_regen.json"
+    auto_path.write_text(json.dumps([]), encoding="utf-8")
+    now = time.time()
+    with db.cursor() as c:
+        for sid, cnt, ts in (("as-old", 500, now - 100), ("as-new", 554, now)):
+            c.execute(
+                "INSERT INTO auto_suites "
+                "(id, run_id, project_id, suite_name, suite_path, case_count, "
+                "categories_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (sid, run["id"], proj["id"], "regen", str(auto_path), cnt, "{}", ts),
+            )
+
+    suites = _discover_suites(proj["id"])
+    auto = [s for s in suites if s.get("suite_type") == "auto" and s["name"] == "regen"]
+    assert len(auto) == 1, "one entry per suite file"
+    assert auto[0]["case_count"] == 554, "newest regeneration wins"
