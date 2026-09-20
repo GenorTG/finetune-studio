@@ -336,15 +336,16 @@
   </div>
   <p class="text-xs dim">"Include models" adds the search-model files to the download only (roughly 2 GB extra). The live corpus is never changed. Uncheck for a small text-only archive (~30 KB) that always leaves out model files.</p>
   <div class="flex gap-2 items-center mt-3">
-    <a class="btn primary" id="mcp-pkg-btn"
-       href="/api/projects/{{ pid }}/rag/mcp-package?fmt=tar.gz"
-       title="Downloads an archive that contains everything needed to search this corpus on another machine: the index, a small Python server, a one-command installer, and a README. It speaks both plain HTTP and MCP (the protocol Claude, OpenClaw, Cursor and friends use).">
+    <button class="btn primary" type="button" id="mcp-pkg-btn"
+            onclick="startMcpPackage('tar.gz')"
+            title="Downloads an archive that contains everything needed to search this corpus on another machine: the index, a small Python server, a one-command installer, and a README. It speaks both plain HTTP and MCP (the protocol Claude, OpenClaw, Cursor and friends use). If 'Include models' above is checked, the embedding model ships inside too — full meaning-based search with no external service.">
       ⬇ Download as a standalone search server (MCP + HTTP)
-    </a>
-    <a class="btn" href="/api/projects/{{ pid }}/rag/mcp-package?fmt=zip"
-       title="Same package as a .zip instead of .tar.gz.">.zip</a>
+    </button>
+    <button class="btn" type="button"
+            onclick="startMcpPackage('zip')"
+            title="Same package as a .zip instead of .tar.gz.">.zip</button>
   </div>
-  <p class="text-xs dim mt-2">The standalone package runs anywhere with Python 3.10+. Keyword search works out of the box; for meaning-based search point it at any embeddings endpoint (LM Studio, Ollama, OpenAI) — the README inside explains both.</p>
+  <p class="text-xs dim mt-2" id="mcp-pkg-note">The standalone package runs anywhere with Python 3.10+. Keyword search works out of the box; for meaning-based search point it at any embeddings endpoint (LM Studio, Ollama, OpenAI) — the README inside explains both. <b>Check "Include models" first to bundle the embedding model inside the package — then it does full semantic search completely offline, no provider needed at all</b> (roughly 2.3 GB download).</p>
   <span id="bundle-status" class="block mt-2 text-xs dim"></span>
 </div>
 
@@ -697,6 +698,17 @@
     if (name) qs.set('name', name);
     if (status) status.textContent = 'Starting download…';
     window.location.href = '/api/projects/' + PID + '/rag/bundle?' + qs.toString();
+  };
+
+  window.startMcpPackage = function (fmt) {
+    var inc = document.getElementById('bundle-include-models');
+    var withModels = !!(inc && inc.checked);
+    var note = document.getElementById('mcp-pkg-note');
+    if (note) note.innerHTML = withModels
+      ? 'Building the full package with the embedding model inside (~2.3 GB) — this takes a minute, then the download starts. It will search by meaning, fully offline.'
+      : 'Building the small package (index only, keyword search out of the box) — download starts when ready.';
+    window.location.href = '/api/projects/' + PID + '/rag/mcp-package?fmt='
+      + encodeURIComponent(fmt) + '&include_models=' + (withModels ? 'true' : 'false');
   };
 
   function humanBytes(n) {

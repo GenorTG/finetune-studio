@@ -179,3 +179,82 @@ def test_missing_corpus_files_raises(tmp_path: Path) -> None:
     empty.mkdir()
     with pytest.raises(FileNotFoundError):
         build_package(empty, tmp_path / "p.tar.gz")
+
+
+def _fake_shared_store(tmp_path: Path, monkeypatch) -> Path:
+    """Point shared_models.resolve at fake embedder/reranker dirs."""
+    from finetune_studio.data import shared_models as sm
+
+    emb = tmp_path / "shared-embedder"
+    emb.mkdir()
+    (emb / "config.json").write_text('{"model_type": "fake"}', encoding="utf-8")
+    (emb / "model.safetensors").write_bytes(b"not-a-real-tensor")
+    (emb / "notes.lock").write_text("", encoding="utf-8")  # must be skipped
+    rr = tmp_path / "shared-reranker"
+    rr.mkdir()
+    (rr / "config.json").write_text('{"model_type": "fake"}', encoding="utf-8")
+
+    def fake_resolve(short_id: str, kind: str) -> Path:
+        return emb if kind == "embedder" else rr
+
+    monkeypatch.setattr(sm, "resolve", fake_resolve)
+    return emb
+
+
+def _point_manifest_at_shared(corpus: Path) -> None:
+    mpath = corpus / "manifest.json"
+    m = json.loads(mpath.read_text(encoding="utf-8"))
+    m["embedding_model"]["name"] = "shared:embedder:demo-embed@abc"
+    m.setdefault("rag_settings", {})["embedder"] = "shared:embedder:demo-embed@abc"
+    m["rag_settings"]["reranker"] = "shared:reranker:demo-rerank@def"
+    mpath.write_text(json.dumps(m), encoding="utf-8")
+
+
+def test_build_package_with_models(corpus_dir: Path, tmp_path: Path, monkeypatch) -> None:
+    """include_models bundles the shared embedder + reranker into the package."""
+    _fake_shared_store(tmp_path, monkeypatch)
+    _point_manifest_at_shared(corpus_dir)
+    out = tmp_path / "full.tar.gz"
+    build_package(corpus_dir, out, name="Test Corpus", include_models=True)
+    root = _extract(out, tmp_path / "x")
+
+    assert (root / "corpus" / "embedder" / "config.json").is_file()
+    assert (root / "corpus" / "embedder" / "model.safetensors").is_file()
+    assert not (root / "corpus" / "embedder" / "notes.lock").exists(), "lock files must not ship"
+    assert (root / "corpus" / "reranker" / "config.json").is_file()
+
+    reqs = (root / "requirements.txt").read_text()
+    assert "sentence-transformers" in reqs
+    assert "torch" in (root / "install.sh").read_text()
+
+    manifest = json.loads((root / "corpus" / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["embedding_model"]["name"] == "demo-embed@abc"
+
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    assert "Full semantic search is already inside" in readme
+    assert "corpus/embedder/" in readme
+
+
+def test_include_models_requires_shared_ref(corpus_dir: Path, tmp_path: Path) -> None:
+    """No shared: embedder in the manifest → honest error, not a silent small pkg."""
+    with pytest.raises(FileNotFoundError, match="shared embedder"):
+        build_package(corpus_dir, tmp_path / "p.tar.gz", include_models=True)
+
+
+def test_server_offline_with_bundled_models(corpus_dir: Path, tmp_path: Path, monkeypatch) -> None:
+    """A package with bundled (broken) models still answers — keyword fallback,
+    never a crash: the whole point of the self-deployable promise."""
+    _fake_shared_store(tmp_path, monkeypatch)
+    _point_manifest_at_shared(corpus_dir)
+    archive = build_package(corpus_dir, tmp_path / "p.tar.gz",
+                            name="Test Corpus", include_models=True)
+    root = _extract(archive, tmp_path / "x")
+    r = subprocess.run(
+        [sys.executable, str(root / "server.py"),
+         "--corpus", str(root / "corpus"),
+         "--query", "oath of salt", "--top-k", "2"],
+        capture_output=True, text=True, timeout=120, check=False,
+    )
+    assert r.returncode == 0, r.stderr
+    hits = json.loads(r.stdout)
+    assert hits and hits[0]["chunk_id"] == "c1"

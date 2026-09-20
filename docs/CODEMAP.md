@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-366 files · 65016 lines
-- `finetune_studio`: 218 files, 39846 lines
+366 files · 65277 lines
+- `finetune_studio`: 218 files, 40028 lines
 - `scripts`: 9 files, 2199 lines
-- `tests`: 139 files, 22971 lines
+- `tests`: 139 files, 23050 lines
 
 
 # finetune_studio
@@ -713,10 +713,12 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `read_json(path: Path) -> dict` (L15)
 - `try_import_pandas()` (L19) — Lazily import pandas, raising a clear error if it's missing.
 
-## `src/finetune_studio/data/rag_portable/mcp_package.py` (250 lines)
-- `_slug(name: str) -> str` (L160)
-- `_tar_data_filter(ti: tarfile.TarInfo) -> tarfile.TarInfo` (L165) — Portable equivalent of tarfile's ``filter="data"`` (older Pythons
-- `build_package(corpus_dir: str | Path, out_path: str | Path, *, name: str | None = None, fmt…` (L177) — Assemble the hostable package for a built corpus and archive it.
+## `src/finetune_studio/data/rag_portable/mcp_package.py` (341 lines)
+- `_slug(name: str) -> str` (L191)
+- `_tar_data_filter(ti: tarfile.TarInfo) -> tarfile.TarInfo` (L196) — Portable equivalent of tarfile's ``filter="data"`` (older Pythons
+- `_copy_shared_model(ref: str, kind: str, dest: Path) -> str | None` (L211) — Copy a ``shared:<kind>:<short_id>`` model dir into ``dest``.
+- `build_package(corpus_dir: str | Path, out_path: str | Path, *, name: str | None = None, fmt…` (L240) — Assemble the hostable package for a built corpus and archive it.
+  - imports: finetune_studio.data
 
 ## `src/finetune_studio/data/rag_portable/query.py` (170 lines)
 - `class PortableRAGQuery` (L18)
@@ -759,18 +761,21 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `_has_canonical_parsed_for_raw(path: Path) -> bool` (L154) — True when a content-addressed ``files/<sha12>/parsed.txt`` exists.
 - `should_ingest_source_file(path: Path) -> bool` (L170) — Whether *path* should be indexed into a project RAG corpus.
 
-## `src/finetune_studio/data/rag_portable/standalone_server.py` (327 lines)
-- `tokenize(text: str) -> list[str]` (L44)
-- `class Corpus` (L48)
-  - `def __init__(self, corpus_dir: Path = CORPUS_DIR)` (L51)
-  - `def bm25_scores(self, query: str) -> np.ndarray` (L71)
-  - `def embed_query(self, query: str) -> np.ndarray | None` (L91)
-  - `def search(self, query: str, top_k: int = 5) -> list[dict]` (L115)
-  - `def info(self) -> dict` (L159)
-- `serve_http(corpus: Corpus, port: int) -> None` (L173)
-- `mcp_responder(corpus: Corpus)` (L239)
-- `serve_mcp(corpus: Corpus) -> None` (L283)
-- `main(argv: list[str] | None = None) -> int` (L300)
+## `src/finetune_studio/data/rag_portable/standalone_server.py` (411 lines)
+- `tokenize(text: str) -> list[str]` (L46)
+- `class Corpus` (L50)
+  - `def __init__(self, corpus_dir: Path = CORPUS_DIR)` (L53)
+  - `def _looks_like_model(d: Path) -> bool` (L81)
+  - `def local_embedder(self)` (L89)
+  - `def local_reranker(self)` (L108)
+  - `def bm25_scores(self, query: str) -> np.ndarray` (L127)
+  - `def embed_query(self, query: str) -> np.ndarray | None` (L147)
+  - `def search(self, query: str, top_k: int = 5) -> list[dict]` (L176)
+  - `def info(self) -> dict` (L235)
+- `serve_http(corpus: Corpus, port: int) -> None` (L257)
+- `mcp_responder(corpus: Corpus)` (L323)
+- `serve_mcp(corpus: Corpus) -> None` (L367)
+- `main(argv: list[str] | None = None) -> int` (L384)
 
 ## `src/finetune_studio/data/rag_portable/store.py` (814 lines)
 - `class PortableRAG` (L53)
@@ -1860,7 +1865,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `model_export_contents(pid: str, export_path: str) -> dict` (L73) — List top-level files in a trained export directory (max 20).
   - imports: finetune_studio
 
-## `src/finetune_studio/webui/routes/project_rag.py` (374 lines)
+## `src/finetune_studio/webui/routes/project_rag.py` (381 lines)
 - `corpus_dir(pid: str) -> Path` (L29) — Return the on-disk corpus directory for ``pid``.
 - `project_files_dir(pid: str) -> Path` (L34) — Return the project's parsed-files directory used as RAG build input.
 - `_guess_mime(filename: str) -> str` (L39) — Guess a MIME type from ``filename``; default to text/plain.
@@ -1871,8 +1876,8 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `class RebuildRequest(BaseModel)` (L209)
 - `rag_docs_inventory(pid: str) -> dict[str, Any]` (L225) — List indexed documents with per-doc chunk counts and status.
 - `rag_doc_chunks(pid: str, doc_id: str) -> dict[str, Any]` (L240) — List chunk id + text preview for one indexed document.
-- `rag_mcp_package(pid: str, name: str | None = None, fmt: str = 'tar.gz')` (L251) — Download a hostable, self-installing RAG package (MCP + HTTP server).
-- `rag_rebuild(pid: str, req: RebuildRequest | None = None) -> dict[str, Any]` (L293) — Rebuild the project RAG corpus (whole-project scope).
+- `rag_mcp_package(pid: str, name: str | None = None, fmt: str = 'tar.gz', include_models: str =…` (L251) — Download a hostable, self-installing RAG package (MCP + HTTP server).
+- `rag_rebuild(pid: str, req: RebuildRequest | None = None) -> dict[str, Any]` (L300) — Rebuild the project RAG corpus (whole-project scope).
   - imports: finetune_studio, finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.io, finetune_studio.data.rag_portable.mcp_package, finetune_studio.data.rag_portable.source_labels
 
 ## `src/finetune_studio/webui/routes/project_settings.py` (210 lines)
@@ -3215,14 +3220,19 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_import_route_accepts_tar_gz_suffix(tmp_path: Path, monkeypatch) -> None` (L228) — The upload route must accept 'x.tar.gz' — Path.suffix sees '.gz' only.
   - imports: finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.store, finetune_studio.webui.routes.rag
 
-## `tests/test_rag_mcp_package.py` (181 lines)
+## `tests/test_rag_mcp_package.py` (260 lines)
 - `corpus_dir(tmp_path: Path) -> Path` (L41) — A real (tiny) PortableRAG corpus dir with all on-disk artifacts.
 - `_extract(archive: Path, dest: Path) -> Path` (L84)
 - `test_build_package_contents(corpus_dir: Path, tmp_path: Path) -> None` (L92)
 - `test_standalone_keyword_search(corpus_dir: Path, tmp_path: Path) -> None` (L118) — server.py --query works offline (no embedding endpoint) via BM25.
 - `test_standalone_mcp_stdio(corpus_dir: Path, tmp_path: Path) -> None` (L136) — MCP handshake + tools/list + tools/call over stdio, JSON-RPC 2.0.
 - `test_missing_corpus_files_raises(tmp_path: Path) -> None` (L177)
-  - imports: finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.bm25, finetune_studio.data.rag_portable.mcp_package
+- `_fake_shared_store(tmp_path: Path, monkeypatch) -> Path` (L184) — Point shared_models.resolve at fake embedder/reranker dirs.
+- `_point_manifest_at_shared(corpus: Path) -> None` (L204)
+- `test_build_package_with_models(corpus_dir: Path, tmp_path: Path, monkeypatch) -> None` (L213) — include_models bundles the shared embedder + reranker into the package.
+- `test_include_models_requires_shared_ref(corpus_dir: Path, tmp_path: Path) -> None` (L238) — No shared: embedder in the manifest → honest error, not a silent small pkg.
+- `test_server_offline_with_bundled_models(corpus_dir: Path, tmp_path: Path, monkeypatch) -> None` (L244) — A package with bundled (broken) models still answers — keyword fallback,
+  - imports: finetune_studio.data, finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.bm25, finetune_studio.data.rag_portable.mcp_package
 
 ## `tests/test_rag_mime_ingestion.py` (168 lines)
 - `_hash_embed(texts: list[str] | str, dim: int = 64) -> np.ndarray` (L22) — Bag-of-token hashing → L2-normalised vectors (deterministic, offline).

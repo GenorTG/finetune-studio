@@ -9,15 +9,17 @@ Modes
     --mcp           MCP stdio server (JSON-RPC 2.0 over stdin/stdout).
                     Exposes one tool: rag_search(query, top_k).
 
-Query embedding (semantic search) uses any OpenAI-compatible
-/v1/embeddings endpoint — LM Studio, Ollama, OpenAI, vLLM, ...:
-    RAG_EMBED_BASE_URL   e.g. http://localhost:1234/v1  (unset = keyword-only)
-    RAG_EMBED_MODEL      default: the model the corpus was built with
-    RAG_EMBED_API_KEY    optional bearer token
+Embedding, best available source first:
+    1. corpus/embedder/  — a model bundled into the package: full offline
+       semantic search (needs "sentence-transformers" in the venv; install.sh
+       adds it automatically for model packages)
+    2. corpus/reranker/  — bundled cross-encoder: local reranking pass
+    3. RAG_EMBED_BASE_URL — any OpenAI-compatible /v1/embeddings endpoint
+       (LM Studio, Ollama, OpenAI, vLLM); optional RAG_EMBED_MODEL, RAG_EMBED_API_KEY
+    4. none of the above — keyword (BM25) search only
 
-With no endpoint configured the server still works: keyword (BM25) search.
-
-Dependencies: numpy only (install.sh sets up a venv with it).
+Dependencies: numpy always; sentence-transformers only when the package
+bundles models (install.sh handles it).
 """
 from __future__ import annotations
 
@@ -67,6 +69,60 @@ class Corpus:
         emb = (self.manifest.get("embedding_model") or {}).get("name") or ""
         self.embed_model = os.environ.get("RAG_EMBED_MODEL") or emb.split(":")[-1] or emb
         self.embed_base = (os.environ.get("RAG_EMBED_BASE_URL") or "").rstrip("/")
+        self._local_embedder = None
+        self._local_embedder_failed = False
+        self._reranker = None
+        self._reranker_failed = False
+        rs = self.manifest.get("rag_settings") or {}
+        self.rerank_enabled = bool(rs.get("rerank_enabled", False))
+        self.rerank_top_n = int(rs.get("rerank_top_n", 50))
+
+    @staticmethod
+    def _looks_like_model(d: Path) -> bool:
+        """A real HF snapshot dir, not a leftover placeholder."""
+        if not d.is_dir():
+            return False
+        names = {p.name for p in d.iterdir()}
+        return bool({"config.json", "sentence_bert_config.json"} & names
+                    or {n for n in names if n.endswith((".safetensors", ".bin"))})
+
+    def local_embedder(self):
+        """SentenceTransformer loaded from corpus/embedder/, or None."""
+        if self._local_embedder is not None or self._local_embedder_failed:
+            return self._local_embedder
+        d = self.dir / "embedder"
+        if not self._looks_like_model(d):
+            return None
+        try:
+            from sentence_transformers import SentenceTransformer
+            self._local_embedder = SentenceTransformer(
+                str(d), device=os.environ.get("RAG_DEVICE", "cpu"))
+            print(f"[rag-server] local embedder loaded from {d}", file=sys.stderr)
+        except Exception as e:  # noqa: BLE001 — degrade, never crash the server
+            self._local_embedder_failed = True
+            print(f"[warn] bundled embedder failed ({e}); "
+                  "falling back to API/keyword search", file=sys.stderr)
+            return None
+        return self._local_embedder
+
+    def local_reranker(self):
+        """CrossEncoder loaded from corpus/reranker/, or None."""
+        if (self._reranker is not None or self._reranker_failed
+                or not self.rerank_enabled):
+            return self._reranker
+        d = self.dir / "reranker"
+        if not self._looks_like_model(d):
+            return None
+        try:
+            from sentence_transformers import CrossEncoder
+            self._reranker = CrossEncoder(
+                str(d), device=os.environ.get("RAG_DEVICE", "cpu"))
+            print(f"[rag-server] local reranker loaded from {d}", file=sys.stderr)
+        except Exception as e:  # noqa: BLE001
+            self._reranker_failed = True
+            print(f"[warn] bundled reranker failed ({e}); skipping rerank", file=sys.stderr)
+            return None
+        return self._reranker
 
     def bm25_scores(self, query: str) -> np.ndarray:
         n = self.bm25.get("doc_count", len(self.chunks))
@@ -89,7 +145,12 @@ class Corpus:
         return scores
 
     def embed_query(self, query: str) -> np.ndarray | None:
-        """Embed the query via an OpenAI-compatible endpoint; None if unavailable."""
+        """Embed the query: bundled model → API endpoint → None (keyword-only)."""
+        model = self.local_embedder()
+        if model is not None:
+            v = np.asarray(model.encode([query], normalize_embeddings=True),
+                           dtype=np.float32)[0]
+            return v
         if not self.embed_base:
             return None
         body = json.dumps({"input": [query], "model": self.embed_model}).encode()
@@ -145,6 +206,7 @@ class Corpus:
                 "rank": rank,
                 "chunk_id": cid,
                 "score": round(float(score), 6),
+                "rrf_score": round(float(score), 6),
                 "text": c.get("text", ""),
                 "filename": c.get("filename") or c.get("source") or "",
                 "document_id": c.get("document_id", ""),
@@ -154,15 +216,37 @@ class Corpus:
                 hit["dense_score"] = round(float(dense_scores[i]), 6)
             hit["bm25_score"] = round(float(bm25[i]), 6)
             hits.append(hit)
+
+        reranker = self.local_reranker()
+        if reranker is not None and len(hits) > 1:
+            pool = hits[: self.rerank_top_n]
+            try:
+                ce = reranker.predict([(query, h["text"]) for h in pool])
+                for h, s in zip(pool, ce):
+                    h["ce_score"] = round(float(s), 6)
+                pool.sort(key=lambda h: -h["ce_score"])
+                hits = pool + hits[len(pool):]
+                for rank, h in enumerate(hits, start=1):
+                    h["rank"] = rank
+            except Exception as e:  # noqa: BLE001
+                print(f"[warn] rerank failed ({e}); keeping RRF order", file=sys.stderr)
         return hits
 
     def info(self) -> dict:
+        if self.local_embedder() is not None:
+            mode = "offline-semantic (bundled embedder)"
+        elif self.embed_base:
+            mode = "hybrid (embeddings API)" if self.hybrid else "semantic (embeddings API)"
+        else:
+            mode = "keyword-only"
+        if self.local_reranker() is not None:
+            mode += " + rerank"
         return {
             "corpus": self.manifest.get("name", ""),
             "chunks": len(self.chunks),
             "documents": self.manifest.get("documents", 0),
             "embed_model": self.embed_model or "(none)",
-            "mode": "hybrid" if self.embed_base else "keyword-only",
+            "mode": mode,
             "embed_endpoint": self.embed_base or "(not set)",
         }
 
