@@ -313,7 +313,7 @@
           <span class="pill solid-green prod-pill">⭐ production</span>
           {% endif %}
           {% if run.status == 'failed' and run.error %}
-          <div class="text-xs solid-rose" style="color:var(--rose, #e11);max-width:28ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+          <div class="text-xs solid-rose" style="color:var(--err);max-width:28ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
                title="{{ run.error }}">{{ run.error[:120] }}{% if run.error|length > 120 %}…{% endif %}</div>
           {% endif %}
         </td>
@@ -688,7 +688,7 @@
       const canAct = status === "done" && !!out;
       const prodMark = isProd ? ' <span class="pill solid-green prod-pill">⭐ production</span>' : "";
       const errLine = (status === "failed" && err)
-        ? '<div class="text-xs" style="color:var(--rose, #e11);max-width:28ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' +
+        ? '<div class="text-xs" style="color:var(--err);max-width:28ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' +
           esc(err) + '">' + esc(err.length > 120 ? err.slice(0, 120) + "…" : err) + "</div>"
         : "";
       const setProdDisabled = canAct ? "" : " disabled title=\"Only finished runs with an output path can be production\"";
