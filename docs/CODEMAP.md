@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-373 files · 66951 lines
-- `finetune_studio`: 220 files, 40949 lines
+375 files · 67505 lines
+- `finetune_studio`: 221 files, 41279 lines
 - `scripts`: 9 files, 2199 lines
-- `tests`: 144 files, 23803 lines
+- `tests`: 145 files, 24027 lines
 
 
 # finetune_studio
@@ -338,7 +338,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `write_chunks(pid: str, sha256: str, chunks: list[str], chunk_meta: Optional[list[dict]] = …` (L14)
   - imports: finetune_studio.data.fs.paths
 
-## `src/finetune_studio/data/fs/file_library.py` (1359 lines)
+## `src/finetune_studio/data/fs/file_library.py` (1349 lines)
 - `_sniff_mime(filename: str, sniffed: str | None = None) -> str` (L63) — Best-effort MIME detection: prefer the python-magic 'sniffed' value
 - `auto_kind_for(mime: str) -> str` (L75) — Map a MIME type to one of the six raw subfolders.
 - `_ext_for_filename(name: str) -> str` (L90) — Return lowercase extension WITHOUT the dot, or '' if none.
@@ -367,22 +367,22 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `rename_folder(pid: str, folder_id: str, new_name: str) -> dict` (L420)
 - `delete_folder(pid: str, folder_id: str) -> dict` (L460) — Delete a user folder. The files in it remain — only the membership
 - `move_file_to_folder(pid: str, file_id: str, folder_id: str) -> dict` (L478) — Move a file to a different folder.
-- `soft_delete_file(pid: str, file_id: str) -> dict` (L548) — Soft-delete: move the file (and any converted siblings) to the trash
-- `restore_file(pid: str, file_id: str) -> dict` (L592) — Restore a soft-deleted file from trash back to its original auto-folder.
-- `purge_trash(pid: str, older_than_days: int = 7) -> dict` (L639) — Hard-delete everything in trash older than N days.
-- `list_trash(pid: str) -> list[dict]` (L681) — List files currently in trash, with how many days until purge.
-- `_revive_deleted_file(pid: str, file_id: str, original_name: str, data: bytes, mime: str, kind: str…` (L703) — Undelete a soft-deleted row for a re-upload of the same filename.
-- `write_uploaded_file(pid: str, data: bytes, original_name: str, *, mime_hint: str | None = None, u…` (L758) — Write bytes to the correct MIME-segregated raw subfolder. Compute
-- `_cache_key(pid: str, file_id: str) -> str` (L877)
-- `invalidate_parsed_cache(pid: str, file_id: str) -> None` (L881) — Drop any in-memory parsed-MD cache entry for this file.
-- `_project_files_columns() -> set[str]` (L886) — Return the live column names on project_files (for optional parsed_* cols).
-- `_validate_rename_name(new_name: str) -> str` (L901) — Validate a user-facing rename target. Returns the stripped name.
-- `_csv_to_md_table(text: str) -> str` (L930) — Convert CSV/TSV text to a simple GitHub-flavoured markdown table.
-- `_convert_raw_to_md(path: Path, original_name: str) -> str` (L961) — Convert a text-like file on disk into markdown. Raises HTTPException 422
-- `_current_raw_path(pid: str, file_id: str, current_version: int) -> Path | None` (L998) — Resolve the on-disk path for the file's current version.
-- `rename_file(pid: str, file_id: str, new_name: str) -> dict` (L1024) — Rename a live file: update project_files.original_name and rename on disk.
-- `purge_file(pid: str, file_id: str) -> dict` (L1142) — Hard-delete a single trashed file (disk + DB rows).
-- `get_parsed_markdown(pid: str, file_id: str) -> dict` (L1215) — Resolve a file's parsed-markdown representation.
+- `soft_delete_file(pid: str, file_id: str) -> dict` (L538) — Soft-delete: move the file (and any converted siblings) to the trash
+- `restore_file(pid: str, file_id: str) -> dict` (L582) — Restore a soft-deleted file from trash back to its original auto-folder.
+- `purge_trash(pid: str, older_than_days: int = 7) -> dict` (L629) — Hard-delete everything in trash older than N days.
+- `list_trash(pid: str) -> list[dict]` (L671) — List files currently in trash, with how many days until purge.
+- `_revive_deleted_file(pid: str, file_id: str, original_name: str, data: bytes, mime: str, kind: str…` (L693) — Undelete a soft-deleted row for a re-upload of the same filename.
+- `write_uploaded_file(pid: str, data: bytes, original_name: str, *, mime_hint: str | None = None, u…` (L748) — Write bytes to the correct MIME-segregated raw subfolder. Compute
+- `_cache_key(pid: str, file_id: str) -> str` (L867)
+- `invalidate_parsed_cache(pid: str, file_id: str) -> None` (L871) — Drop any in-memory parsed-MD cache entry for this file.
+- `_project_files_columns() -> set[str]` (L876) — Return the live column names on project_files (for optional parsed_* cols).
+- `_validate_rename_name(new_name: str) -> str` (L891) — Validate a user-facing rename target. Returns the stripped name.
+- `_csv_to_md_table(text: str) -> str` (L920) — Convert CSV/TSV text to a simple GitHub-flavoured markdown table.
+- `_convert_raw_to_md(path: Path, original_name: str) -> str` (L951) — Convert a text-like file on disk into markdown. Raises HTTPException 422
+- `_current_raw_path(pid: str, file_id: str, current_version: int) -> Path | None` (L988) — Resolve the on-disk path for the file's current version.
+- `rename_file(pid: str, file_id: str, new_name: str) -> dict` (L1014) — Rename a live file: update project_files.original_name and rename on disk.
+- `purge_file(pid: str, file_id: str) -> dict` (L1132) — Hard-delete a single trashed file (disk + DB rows).
+- `get_parsed_markdown(pid: str, file_id: str) -> dict` (L1205) — Resolve a file's parsed-markdown representation.
   - imports: finetune_studio, finetune_studio.data.fs.paths
 
 ## `src/finetune_studio/data/fs/files.py` (123 lines)
@@ -439,6 +439,18 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `delete_qa_source(pid: str, source_id: str) -> bool` (L204) — Delete a source AND all its Q&A pairs (filesystem-side).
   - imports: finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.data.prep.ingest
 
+## `src/finetune_studio/data/fs/workbench.py` (291 lines)
+- `_current_raw(pid: str, file_id: str) -> tuple[dict, Path, str]` (L36)
+- `bulk_action(pid: str, ids: list[str], action: str, payload: dict) -> dict` (L52) — Apply one action to many files. Returns per-id results, never partial-crashes.
+- `_apply_tag(pid: str, fid: str, action: str, payload: dict) -> dict` (L87)
+- `_parse_tags(raw) -> list[str]` (L108)
+- `download_zip(pid: str, ids: list[str]) -> tuple[bytes, str]` (L119) — Zip the raw bytes of the selected files. Returns (payload, filename).
+- `_unique_arcname(name: str, seen: set[str]) -> str` (L154)
+- `file_usage(pid: str, file_id: str) -> dict` (L169) — Where this file's content actually went: source → pairs → datasets → runs,
+- `_jsonl_contains_ids(path: str, pair_ids: set[str]) -> bool` (L228) — True when any line's id (or provenance source_id) is one of pair_ids.
+- `search_content(pid: str, q: str, limit: int = 25) -> dict` (L253) — Substring search inside parsed text of every file (name-search stays
+  - imports: finetune_studio, finetune_studio.data, finetune_studio.data.fs, finetune_studio.data.parsed_edit
+
 ## `src/finetune_studio/data/ocr.py` (300 lines)
 - `install_hint() -> str` (L49) — One-line platform-correct install hint for the tesseract binary.
 - `tessdata_dir() -> Path` (L68) — Where we look for user-installed tessdata. Creates the dir if needed.
@@ -464,7 +476,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `_override_path(raw: Path) -> Path` (L97) — Manual-edit override file — never the raw file itself (a ``.md``
 - `save_parsed_override(pid: str, file_id: str, text: str) -> dict` (L104) — Save a human-edited parsed text for a library file.
 - `reparse_file(pid: str, file_id: str) -> dict` (L141) — Discard the manual override and re-run the real parser from raw bytes.
-- `_corpus_sha12s(pid: str) -> set[str]` (L185) — sha12 dirs indexed in the project's RAG corpus, from the manifest.
+- `corpus_sha12s(pid: str) -> set[str]` (L185) — sha12 dirs indexed in the project's RAG corpus, from the manifest.
 - `pipeline_status(pid: str) -> dict[str, dict]` (L214) — Per-file pipeline flags for the browser: parsed / prep / rag.
   - imports: finetune_studio.data, finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.data.prep.chunker, finetune_studio.data.prep.ingest
 
@@ -1778,30 +1790,34 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `_export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None` (L324) — Background GGUF export worker.
   - imports: finetune_studio, finetune_studio.training.export_response, finetune_studio.training.gguf_convert, finetune_studio.training.run_export, finetune_studio.webui.live_sse
 
-## `src/finetune_studio/webui/routes/file_library.py` (416 lines)
-- `_project_or_404(pid: str) -> None` (L44)
-- `upload_files(pid: str, request: Request, files: list[UploadFile] = File(...), folder_id: s…` (L53) — Upload one or more files. Supports both single-file (curl -F file=@x)
-- `list_files_route(pid: str, folder_id: str | None = None, include_deleted: bool = False, mime_p…` (L182)
-- `list_trash_route(pid: str)` (L206)
-- `purge_trash_route(pid: str, older_than_days: int = Query(7, ge=0))` (L212)
-- `files_pipeline_route(pid: str)` (L220) — Per-file workbench flags: {file_id: {has_parsed, source_id, chunk_count,
-- `get_file_route(pid: str, fid: str)` (L231)
-- `download_raw_route(pid: str, fid: str, version: int | None = None)` (L242) — Download raw bytes. If version is None, serves the current version.
-- `get_parsed_route(pid: str, fid: str)` (L275) — Return the file's parsed-markdown representation.
-- `save_parsed_route(pid: str, fid: str, request: Request)` (L287) — Save a hand-edited parsed text for a file (built-in editor).
-- `reparse_file_route(pid: str, fid: str)` (L304) — Discard the manual parsed override and re-run the real parser.
-- `list_versions_route(pid: str, fid: str)` (L312)
-- `list_conversions_route(pid: str, fid: str)` (L318)
-- `rename_file_route(pid: str, fid: str, request: Request)` (L324) — Rename a live file (DB original_name + on-disk path).
-- `purge_file_route(pid: str, fid: str)` (L340) — Hard-delete one trashed file (disk + DB). Must already be in trash.
-- `move_file_route(pid: str, fid: str, request: Request)` (L347)
-- `delete_file_route(pid: str, fid: str)` (L357)
-- `restore_file_route(pid: str, fid: str)` (L363)
-- `create_folder_route(pid: str, request: Request)` (L371)
-- `list_folders_route(pid: str, include_auto: bool = Query(True))` (L381)
-- `update_file_tags(pid: str, fid: str, request: Request)` (L387) — Update tags and notes for a file.
-- `rename_folder_route(pid: str, fid: str, request: Request)` (L404)
-- `delete_folder_route(pid: str, fid: str)` (L414)
+## `src/finetune_studio/webui/routes/file_library.py` (465 lines)
+- `_project_or_404(pid: str) -> None` (L48)
+- `upload_files(pid: str, request: Request, files: list[UploadFile] = File(...), folder_id: s…` (L57) — Upload one or more files. Supports both single-file (curl -F file=@x)
+- `list_files_route(pid: str, folder_id: str | None = None, include_deleted: bool = False, mime_p…` (L186)
+- `list_trash_route(pid: str)` (L210)
+- `purge_trash_route(pid: str, older_than_days: int = Query(7, ge=0))` (L216)
+- `files_pipeline_route(pid: str)` (L224) — Per-file workbench flags: {file_id: {has_parsed, source_id, chunk_count,
+- `files_bulk_route(pid: str, request: Request)` (L233) — Bulk action over file ids: delete | restore | move | reparse | tag-add |
+- `files_download_zip_route(pid: str, request: Request)` (L245) — Zip the raw bytes of the selected files (collision-safe entry names).
+- `files_search_content_route(pid: str, q: str = Query(''), limit: int = 25)` (L260) — Substring search inside PARSED text of project files (name search
+- `get_file_route(pid: str, fid: str)` (L271)
+- `download_raw_route(pid: str, fid: str, version: int | None = None)` (L282) — Download raw bytes. If version is None, serves the current version.
+- `get_parsed_route(pid: str, fid: str)` (L315) — Return the file's parsed-markdown representation.
+- `save_parsed_route(pid: str, fid: str, request: Request)` (L327) — Save a hand-edited parsed text for a file (built-in editor).
+- `reparse_file_route(pid: str, fid: str)` (L344) — Discard the manual parsed override and re-run the real parser.
+- `file_usage_route(pid: str, fid: str)` (L352) — Where this file's content actually went: prep source, RAG corpus,
+- `list_versions_route(pid: str, fid: str)` (L361)
+- `list_conversions_route(pid: str, fid: str)` (L367)
+- `rename_file_route(pid: str, fid: str, request: Request)` (L373) — Rename a live file (DB original_name + on-disk path).
+- `purge_file_route(pid: str, fid: str)` (L389) — Hard-delete one trashed file (disk + DB). Must already be in trash.
+- `move_file_route(pid: str, fid: str, request: Request)` (L396)
+- `delete_file_route(pid: str, fid: str)` (L406)
+- `restore_file_route(pid: str, fid: str)` (L412)
+- `create_folder_route(pid: str, request: Request)` (L420)
+- `list_folders_route(pid: str, include_auto: bool = Query(True))` (L430)
+- `update_file_tags(pid: str, fid: str, request: Request)` (L436) — Update tags and notes for a file.
+- `rename_folder_route(pid: str, fid: str, request: Request)` (L453)
+- `delete_folder_route(pid: str, fid: str)` (L463)
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.data.fs.qa, finetune_studio.data.parsed_edit
 
 ## `src/finetune_studio/webui/routes/hf_models.py` (435 lines)
@@ -2740,6 +2756,27 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_recompute_cases_preserves_source_grounded_scoring() -> None` (L77)
 - `test_recompute_cases_does_not_trust_stored_verdict() -> None` (L96)
   - imports: finetune_studio.data, finetune_studio.data.audit, finetune_studio.data.fs, finetune_studio.data.fs.metadata, finetune_studio.data.prep.ingest, finetune_studio.testing.audit, finetune_studio.testing.generate_suite
+
+## `tests/test_file_browser_v2.py` (224 lines)
+- `fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L17)
+- `_project(client) -> str` (L26)
+- `_upload(client, pid: str, name: str, content: bytes) -> str` (L32)
+- `_doc(label: str) -> bytes` (L41)
+- `_bulk(client, pid, ids, action, **extra)` (L49)
+- `test_bulk_tag_add_remove(fts_root: Path, client) -> None` (L57)
+- `test_bulk_delete_restore_cycle(fts_root: Path, client) -> None` (L73)
+- `test_bulk_reparse_discards_override(fts_root: Path, client) -> None` (L82)
+- `test_bulk_move_requires_folder_and_works(fts_root: Path, client) -> None` (L91)
+- `test_bulk_unknown_action_400(fts_root: Path, client) -> None` (L102)
+- `test_download_zip_contains_raw_bytes(fts_root: Path, client) -> None` (L110)
+- `test_download_zip_empty_ids_400(fts_root: Path, client) -> None` (L127)
+- `test_usage_chains_file_to_runs(fts_root: Path, client) -> None` (L136)
+- `test_usage_no_source(fts_root: Path, client) -> None` (L163)
+- `test_search_content_finds_snippet(fts_root: Path, client) -> None` (L174)
+- `test_search_content_validation(fts_root: Path, client) -> None` (L187)
+- `test_folder_rename_delete_survives_files(fts_root: Path, client) -> None` (L196)
+- `test_data_page_renders_v2_controls(client) -> None` (L218)
+  - imports: finetune_studio, finetune_studio.data, finetune_studio.data.fs
 
 ## `tests/test_file_library_apis.py` (287 lines)
 - `fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L12) — Point the file-library disk root at a temp dir for isolated tests.
