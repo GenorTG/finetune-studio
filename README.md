@@ -103,7 +103,10 @@ handles:
   button + view-chunks modal
 - **Standalone export**: one download turns the corpus into a self-installing
   package (its own venv) that serves search over **MCP**
-  (Claude Desktop / OpenClaw / Cursor) *and* a plain **HTTP API** — keyword
+  (Claude Desktop / OpenClaw / Cursor) *and* a plain **HTTP API** —
+  `bash setup.sh` does the rest: install, port choice, start-now, optional
+  persistent service (`--uninstall` removes it), and a copy-paste MCP entry
+  with real absolute paths. Keyword
   search works offline out of the box; point it at any OpenAI-compatible
   embeddings endpoint for semantic search — or tick "Include models" and the
   embedding model + reranker ship **inside** the package: full offline
