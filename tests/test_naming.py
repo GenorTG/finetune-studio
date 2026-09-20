@@ -67,6 +67,10 @@ def test_display_for_path_run_export(client) -> None:
     assert "Qwen3-4B" in disp, disp
     assert "merged" in disp, disp
     assert rid8 not in disp, disp  # no bare hash dirs in the name anymore
+    # RELATIVE scan roots (deployed box walks "output/…" with no leading
+    # slash) must resolve too — the bug that shipped 0.1.0.10 labels.
+    disp_rel = naming.display_for_path(f"{out_rel}/merged")
+    assert "Naming Verify" in disp_rel, disp_rel
 
 
 def test_display_for_path_with_pinned_version(client) -> None:
