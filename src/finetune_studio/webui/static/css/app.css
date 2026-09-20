@@ -431,6 +431,10 @@ body::before {
 .pill.outline { background: transparent; border-color: var(--border-strong); color: var(--text-muted); }
 
 /* ===== Buttons (chunky, beveled) ===== */
+/* The `hidden` attribute must actually hide — class rules like .btn set
+   display:inline-flex which otherwise override the UA [hidden] rule. */
+[hidden] { display: none !important; }
+
 .btn {
   display: inline-flex;
   align-items: center;
