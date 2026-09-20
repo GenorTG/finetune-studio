@@ -214,6 +214,17 @@ async def purge_trash_route(pid: str, older_than_days: int = Query(7, ge=0)):
     return fl.purge_trash(pid, older_than_days=older_than_days)
 
 
+# ── Pipeline status (BEFORE the /files/{fid} catch-all) ─────────────────
+
+@router.get("/projects/{pid}/files/pipeline")
+async def files_pipeline_route(pid: str):
+    """Per-file workbench flags: {file_id: {has_parsed, source_id, chunk_count,
+    parser, in_rag}} — drives the browser badges + editor affordances."""
+    from finetune_studio.data.parsed_edit import pipeline_status
+    _project_or_404(pid)
+    return {"status": pipeline_status(pid)}
+
+
 # ── Single-file routes (with {fid}) ──────────────────────────────────────
 
 @router.get("/projects/{pid}/files/{fid}")
@@ -270,6 +281,31 @@ async def get_parsed_route(pid: str, fid: str):
     """
     _project_or_404(pid)
     return fl.get_parsed_markdown(pid, fid)
+
+
+@router.put("/projects/{pid}/files/{fid}/parsed")
+async def save_parsed_route(pid: str, fid: str, request: Request):
+    """Save a hand-edited parsed text for a file (built-in editor).
+
+    Writes the ``<raw>.md`` override and, when the file is a data-prep
+    source, rewrites parsed.txt + regenerates chunks so training data and
+    the next RAG build use the edited text. Raw bytes stay immutable.
+    """
+    from finetune_studio.data.parsed_edit import save_parsed_override
+    _project_or_404(pid)
+    body = await request.json()
+    text = body.get("text")
+    if text is None:
+        raise HTTPException(status_code=400, detail="text required")
+    return save_parsed_override(pid, fid, str(text))
+
+
+@router.post("/projects/{pid}/files/{fid}/reparse")
+async def reparse_file_route(pid: str, fid: str):
+    """Discard the manual parsed override and re-run the real parser."""
+    from finetune_studio.data.parsed_edit import reparse_file
+    _project_or_404(pid)
+    return reparse_file(pid, fid)
 
 
 @router.get("/projects/{pid}/files/{fid}/versions")

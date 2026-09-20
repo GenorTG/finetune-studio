@@ -121,7 +121,9 @@
       <input id="b-overlap" type="number" min="0" max="500" value="80" class="input">
     </div>
     <div class="col-span-2 flex gap-2">
-      <button onclick="buildCorpus(false)" id="build-btn" class="btn primary" style="flex:1;"
+      <button onclick="quickIndex()" id="quick-index-btn" class="btn primary"
+              title="⚡ One click: promote every library file that is not parsed yet (raw → parsed + chunks), then build the corpus from all parsed text. This is the quick flow — the controls below stay for fine-tuning.">⚡ Quick index</button>
+      <button onclick="buildCorpus(false)" id="build-btn" class="btn" style="flex:1;"
               title="Build the RAG corpus: chunk your sources, embed each chunk, index for fast retrieval. First build downloads the embedder (~2.2 GB) which takes a few minutes.">Build</button>
       <button onclick="buildCorpus(true)" id="rebuild-btn" class="btn"
               title="Wipe the existing corpus and rebuild from scratch. Use this when you change chunk size, overlap, or embedder — the existing chunks are no longer valid.">⟲ Rebuild from scratch</button>
@@ -781,6 +783,36 @@
       loadIndexedDocs();
     } catch (e) {
       notify('Failed: ' + e.message, 'error');
+    }
+  };
+
+  window.quickIndex = async function () {
+    const status = document.getElementById('build-status');
+    const btn = document.getElementById('quick-index-btn');
+    const buildBtn = document.getElementById('build-btn');
+    const rebuildBtn = document.getElementById('rebuild-btn');
+    btn.disabled = true; if (buildBtn) buildBtn.disabled = true; if (rebuildBtn) rebuildBtn.disabled = true;
+    status.textContent = 'Quick index: promoting unparsed files, then embedding… (first build downloads the embedder ~2.2 GB)';
+    try {
+      const r = await api().post('/api/projects/' + PID + '/rag/quick', {});
+      if (r.error) { status.textContent = 'Error: ' + r.error; notify(r.error, 'error'); return; }
+      const b = r.build || {};
+      if (b.ok === false) {
+        status.textContent = 'Promoted ' + (r.promoted || 0) + ' file(s) — build failed: ' + (b.error || '?');
+        notify('Build failed: ' + (b.error || '?'), 'error');
+        return;
+      }
+      const failed = (r.failed || []).length;
+      status.textContent = '⚡ Promoted ' + (r.promoted || 0) + ' new file(s)' +
+        (failed ? ' (' + failed + ' failed to parse)' : '') + ' · corpus: ' +
+        (b.documents != null ? b.documents : '?') + ' docs, ' + (b.chunks != null ? b.chunks : '?') + ' chunks.';
+      notify('Quick index done: ' + (r.promoted || 0) + ' promoted · ' + (b.chunks != null ? b.chunks : '?') + ' chunks', 'success');
+      loadIndexedDocs();
+    } catch (e) {
+      status.textContent = 'Failed: ' + e.message;
+      notify('Quick index failed: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false; if (buildBtn) buildBtn.disabled = false; if (rebuildBtn) rebuildBtn.disabled = false;
     }
   };
 

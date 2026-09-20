@@ -30,6 +30,7 @@
     <span class="pill outline" id="fb-bulk-label" hidden>0 selected</span>
     <button class="btn sm danger" type="button" id="fb-bulk-delete" disabled>Delete selected</button>
     <button class="btn sm" type="button" id="fb-bulk-move" disabled>Move to folder</button>
+    <button class="btn sm" type="button" id="wb-bulk-prep" disabled title="Promote the selected files into data-prep sources — feeds Q&A training data + the RAG corpus">⚡ Send to Data Prep</button>
     <button class="btn sm primary" type="button" id="fb-upload-toggle">⬆ Upload</button>
   </div>
 </div>
@@ -125,19 +126,49 @@
     <thead>
       <tr>
         <th class="fb-col-check" style="width:2.5em"><input type="checkbox" id="fb-select-all" title="Select all visible"></th>
-        <th class="fb-col-name">Name</th>
-        <th class="fb-col-type">Type</th>
-        <th class="fb-col-size">Size</th>
+        <th class="fb-col-name wb-sortable" data-sort="name" title="Sort by name">Name <span class="wb-sort-ind"></span></th>
+        <th class="fb-col-type wb-sortable" data-sort="type">Type <span class="wb-sort-ind"></span></th>
+        <th class="fb-col-size wb-sortable" data-sort="size">Size <span class="wb-sort-ind"></span></th>
         <th class="fb-col-ver">Version</th>
-        <th class="fb-col-uploaded">Uploaded</th>
+        <th class="fb-col-uploaded wb-sortable" data-sort="uploaded">Uploaded <span class="wb-sort-ind"></span></th>
+        <th class="fb-col-pipeline">Pipeline</th>
         <th class="fb-col-drift">Drift</th>
         <th class="fb-col-actions"></th>
       </tr>
     </thead>
     <tbody id="fb-tbody">
-      <tr class="empty-row"><td colspan="8" class="dim text-xs" style="text-align:center;padding:24px">Loading…</td></tr>
+      <tr class="empty-row"><td colspan="9" class="dim text-xs" style="text-align:center;padding:24px">Loading…</td></tr>
     </tbody>
   </table>
+  </div>
+</div>
+
+{# ── Workbench modal: original viewer + parsed-text editor ── #}
+<div class="modal-overlay" id="wb-editor-modal" style="display:none;">
+  <div class="modal-dialog" style="max-width:920px;">
+    <div class="modal-head" id="wb-modal-title">File</div>
+    <div class="flex gap-2" style="padding:8px 16px 0;">
+      <button class="btn sm" type="button" id="wb-tab-original">Original</button>
+      <button class="btn sm" type="button" id="wb-tab-parsed" title="View & hand-edit the parsed text that feeds training data and RAG">Parsed&nbsp;✎</button>
+      <span class="flex-1"></span>
+      <span class="text-xs dim mono self-center" id="wb-modal-src"></span>
+    </div>
+    <div class="modal-body">
+      <div id="wb-pane-original"></div>
+      <div id="wb-pane-parsed" style="display:none;">
+        <textarea class="textarea" id="wb-parsed-text" rows="18" style="width:100%;font-family:var(--mono,monospace);font-size:12px;" spellcheck="false"></textarea>
+        <div class="flex gap-2 mt-2 items-center wrap">
+          <button class="btn primary" type="button" id="wb-save-parsed">💾 Save parsed text</button>
+          <button class="btn" type="button" id="wb-reparse-btn" title="Discard manual edits and re-run the real parser on the original bytes">↻ Re-parse from original</button>
+          <span class="text-xs dim" id="wb-parsed-info"></span>
+        </div>
+        <div class="text-xs dim mt-1">Saving keeps the original bytes untouched; chunks for Q&amp;A / training are regenerated and the next RAG build picks the edit up.</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" type="button" id="wb-versions-btn">Versions</button>
+      <button class="btn" type="button" id="wb-close-btn">Close</button>
+    </div>
   </div>
 </div>
 
@@ -153,6 +184,9 @@
   let searchQ = '';
   let folderId = '';
   let mimePrefix = '';
+  let pipe = {};            // file_id -> {has_parsed, source_id, chunk_count, parser, in_rag}
+  let sortKey = '';         // '' | name | type | size | uploaded
+  let sortDir = 1;
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -249,17 +283,19 @@
     const label = document.getElementById('fb-bulk-label');
     const del = document.getElementById('fb-bulk-delete');
     const move = document.getElementById('fb-bulk-move');
+    const prep = document.getElementById('wb-bulk-prep');
     if (label) {
       label.hidden = n === 0;
       label.textContent = n + ' selected';
     }
     if (del) del.disabled = n === 0 || view === 'trash';
     if (move) move.disabled = n === 0 || view === 'trash';
+    if (prep) prep.disabled = n === 0 || view === 'trash';
   }
 
   function visibleFiles() {
     const q = searchQ.trim().toLowerCase();
-    return files.filter((f) => {
+    const rows = files.filter((f) => {
       const deleted = !!f.deleted_at;
       if (view === 'active' && deleted) return false;
       if (view === 'trash' && !deleted) return false;
@@ -274,6 +310,29 @@
       }
       return true;
     });
+    if (sortKey) {
+      const key = (f) => {
+        if (sortKey === 'name') return String(f.original_name || '').toLowerCase();
+        if (sortKey === 'size') return Number(f.size_bytes) || 0;
+        if (sortKey === 'uploaded') return Number(f.uploaded_at) || 0;
+        return String(f.mime_type || '');
+      };
+      rows.sort((a, b) => {
+        const va = key(a), vb = key(b);
+        return (va < vb ? -1 : va > vb ? 1 : 0) * sortDir;
+      });
+    }
+    return rows;
+  }
+
+  function pipeBadges(f) {
+    const p = pipe[f.id] || {};
+    const on = (label, title) => '<span class="pill solid-green text-xs" title="' + esc(title) + '">' + label + '</span>';
+    const off = (label, title) => '<span class="pill outline text-xs" title="' + esc(title) + '">' + label + '</span>';
+    const parsed = p.has_parsed ? on('parsed', 'parsed text available') : off('unparsed', 'no parsed text yet — re-parse or send to Data Prep');
+    const prep = p.source_id ? on('prep·' + (p.chunk_count || 0) + 'ch', 'data-prep source' + (p.parser === 'manual-edit' ? ' (hand-edited)' : ' via ' + (p.parser || 'parser'))) : off('prep', 'not a data-prep source yet');
+    const rag = p.in_rag ? on('rag', 'indexed in the RAG corpus') : off('rag', 'not in the RAG corpus (or corpus not built)');
+    return '<div class="flex gap-1 wrap">' + parsed + prep + rag + '</div>';
   }
 
   function renderFolders() {
@@ -293,7 +352,7 @@
     if (!tbody) return;
     const rows = visibleFiles();
     if (!rows.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="8" class="empty" style="border:0">No files in this view.</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="9" class="empty" style="border:0">No files in this view.</td></tr>';
       if (footer) footer.textContent = '0 files';
       updateBulkBar();
       return;
@@ -311,9 +370,13 @@
           '</div>';
       } else {
         const mime = f.mime_type || '';
+        const p = pipe[f.id] || {};
         actions =
           '<div class="flex gap-1 wrap">' +
-          '<button class="btn sm" type="button" title="Preview" onclick="fbPreview(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\',\'' + esc(mime) + '\')">👁</button>' +
+          '<button class="btn sm" type="button" title="View / edit this file" onclick="wbOpen(\'' + esc(f.id) + '\',\'original\')">👁</button>' +
+          '<button class="btn sm" type="button" title="Edit parsed text (feeds training + RAG)" onclick="wbOpen(\'' + esc(f.id) + '\',\'parsed\')">✎p</button>' +
+          (p.has_parsed ? '<button class="btn sm" type="button" title="Discard manual edits, re-run the parser" onclick="wbReparse(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">↻</button>' : '') +
+          (!p.source_id ? '<button class="btn sm" type="button" title="Send to Data Prep (parse + chunk)" onclick="wbPromote(\'' + esc(f.id) + '\')">⚡</button>' : '') +
           '<a class="btn sm" title="Download raw" href="/api/projects/' + PID + '/files/' + encodeURIComponent(f.id) + '/raw" download="' + esc(f.original_name) + '">⬇</a>' +
           '<button class="btn sm" type="button" title="Tags &amp; notes" onclick="fbEditTags(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">🏷</button>' +
           '<button class="btn sm" type="button" title="Rename" onclick="fbRename(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">✎</button>' +
@@ -330,6 +393,7 @@
         '<td class="num mono">' + formatBytes(f.size_bytes) + '</td>' +
         '<td class="meta mono">v' + (f.current_version || 1) + '</td>' +
         '<td class="meta mono" title="' + esc(f.uploaded_at || '') + '">' + relativeTime(f.uploaded_at) + '</td>' +
+        '<td>' + (deleted ? '<span class="dim">—</span>' : pipeBadges(f)) + '</td>' +
         '<td>' + (deleted ? '<span class="dim">—</span>' : driftBadge(f)) + '</td>' +
         '<td>' + actions + '</td>' +
       '</tr>';
@@ -355,15 +419,19 @@
 
   async function loadFiles() {
     try {
-      const r = await fetch('/api/projects/' + PID + '/files?include_deleted=true');
+      const [r, rp] = await Promise.all([
+        fetch('/api/projects/' + PID + '/files?include_deleted=true'),
+        fetch('/api/projects/' + PID + '/files/pipeline'),
+      ]);
       const d = await r.json();
       files = d.files || [];
+      try { pipe = ((await rp.json()) || {}).status || {}; } catch (e) { pipe = {}; }
       updateStats();
       renderTable();
     } catch (e) {
       const tbody = document.getElementById('fb-tbody');
       if (tbody) {
-        tbody.innerHTML = '<tr><td colspan="8" class="err text-xs" style="text-align:center;padding:20px">Failed: ' + esc(e.message) + '</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="err text-xs" style="text-align:center;padding:20px">Failed: ' + esc(e.message) + '</td></tr>';
       }
     }
   }
@@ -651,6 +719,148 @@
     await loadFiles();
   }
 
+  // ── Workbench: one modal, two tabs — original viewer + parsed editor ──
+  let wbFid = null;
+
+  function wbModal() { return document.getElementById('wb-editor-modal'); }
+
+  function wbShowTab(which) {
+    const o = document.getElementById('wb-pane-original');
+    const p = document.getElementById('wb-pane-parsed');
+    const bo = document.getElementById('wb-tab-original');
+    const bp = document.getElementById('wb-tab-parsed');
+    o.style.display = which === 'original' ? '' : 'none';
+    p.style.display = which === 'parsed' ? '' : 'none';
+    bo.classList.toggle('primary', which === 'original');
+    bp.classList.toggle('primary', which === 'parsed');
+  }
+
+  function wbClose() { wbModal().style.display = 'none'; wbFid = null; }
+
+  window.wbOpen = async function (fid, tab) {
+    wbFid = fid;
+    const f = files.find((x) => x.id === fid) || {};
+    document.getElementById('wb-modal-title').textContent = f.original_name || fid;
+    document.getElementById('wb-modal-src').textContent = (f.mime_type || '') + ' · ' + formatBytes(f.size_bytes);
+    wbModal().style.display = 'flex';
+    wbShowTab(tab === 'parsed' ? 'parsed' : 'original');
+
+    const pane = document.getElementById('wb-pane-original');
+    const mime = f.mime_type || '';
+    const rawUrl = '/api/projects/' + PID + '/files/' + encodeURIComponent(fid) + '/raw';
+    if (mime.startsWith('image/')) {
+      pane.innerHTML = '<img src="' + rawUrl + '" alt="' + esc(f.original_name || '') + '" style="max-width:100%;max-height:60vh;border-radius:4px;">';
+    } else if (mime === 'application/pdf') {
+      pane.innerHTML = '<iframe src="' + rawUrl + '" style="width:100%;height:60vh;border:none;border-radius:4px;"></iframe>';
+    } else if (isTextish(mime) || isMarkdown(mime, f.original_name)) {
+      pane.innerHTML = '<pre id="wb-raw-content" class="mono text-xs" style="max-height:60vh;overflow:auto;padding:12px;background:var(--bg-panel);border:1px solid var(--border);">Loading…</pre>';
+      fetch(rawUrl).then((r) => r.text()).then((t) => {
+        const el = document.getElementById('wb-raw-content');
+        if (el) el.textContent = t;
+      }).catch(() => {
+        const el = document.getElementById('wb-raw-content');
+        if (el) el.textContent = 'Failed to load original.';
+      });
+    } else {
+      pane.innerHTML = '<div class="dim" style="padding:24px;text-align:center">No inline preview for this type.<br><br>' +
+        '<a class="btn primary" href="' + rawUrl + '" download="' + esc(f.original_name || '') + '">⬇ Download raw</a></div>';
+    }
+
+    if (tab === 'parsed') await wbLoadParsed();
+  };
+
+  async function wbLoadParsed() {
+    if (!wbFid) return;
+    const info = document.getElementById('wb-parsed-info');
+    const ta = document.getElementById('wb-parsed-text');
+    info.textContent = 'Loading parsed text…';
+    try {
+      const r = await fetch('/api/projects/' + PID + '/files/' + encodeURIComponent(wbFid) + '/parsed');
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        ta.value = '';
+        info.textContent = (d.detail || ('HTTP ' + r.status)) + ' — run ⚡ Send to Data Prep first (binary formats parse server-side).';
+        return;
+      }
+      ta.value = d.parsed_md || '';
+      info.textContent = 'source: ' + (d.source || '?') + ' · ' + (ta.value.length) + ' chars';
+    } catch (e) {
+      info.textContent = 'Failed: ' + e.message;
+    }
+  }
+
+  async function wbSaveParsed() {
+    if (!wbFid) return;
+    const info = document.getElementById('wb-parsed-info');
+    const btn = document.getElementById('wb-save-parsed');
+    btn.disabled = true;
+    try {
+      const r = await fetch('/api/projects/' + PID + '/files/' + encodeURIComponent(wbFid) + '/parsed', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: document.getElementById('wb-parsed-text').value }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || d.error || ('HTTP ' + r.status));
+      info.textContent = 'Saved ' + d.chars + ' chars' +
+        (d.rechunked ? ' · re-chunked to ' + d.chunk_count + ' chunks (training data updated)' : ' · not a prep source yet — press ⚡') +
+        ' · RAG rebuild picks it up';
+      notify('Parsed text saved', 'success');
+      await loadFiles();
+    } catch (e) {
+      notify('Save failed: ' + e.message, 'error');
+      info.textContent = 'Save failed: ' + e.message;
+    } finally { btn.disabled = false; }
+  }
+
+  window.wbReparse = async function (fid, name) {
+    const ok = await confirmDanger('Re-parse ' + name + ' from the original bytes? Manual parsed-text edits will be discarded.', {
+      title: 'Re-parse', okText: 'Re-parse',
+    });
+    if (!ok) return;
+    try {
+      const r = await fetch('/api/projects/' + PID + '/files/' + encodeURIComponent(fid) + '/reparse', { method: 'POST' });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || d.error || ('HTTP ' + r.status));
+      notify(name + ': ' + (d.chunk_count != null ? d.chunk_count + ' chunks via ' + (d.parser || 'parser') : 'override discarded'), 'success');
+      if (wbFid === fid) await wbLoadParsed();
+      await loadFiles();
+    } catch (e) {
+      notify('Re-parse failed: ' + e.message, 'error');
+    }
+  };
+
+  window.wbPromote = async function (fid) {
+    try {
+      const r = await fetch('/api/projects/' + PID + '/data-prep/sources', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file_id: fid }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d.error) throw new Error(d.error || d.detail || ('HTTP ' + r.status));
+      notify('Sent to Data Prep — ' + ((d.source || {}).chunk_count || '?') + ' chunks', 'success');
+      await loadFiles();
+    } catch (e) {
+      notify('Send failed: ' + e.message, 'error');
+    }
+  };
+
+  async function bulkPrep() {
+    if (!selected.size) return;
+    let done = 0, errs = 0;
+    for (const fid of [...selected]) {
+      try {
+        const r = await fetch('/api/projects/' + PID + '/data-prep/sources', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file_id: fid }),
+        });
+        if (r.ok) done++; else errs++;
+      } catch (e) { errs++; }
+    }
+    notify('Data Prep: ' + done + ' source(s) ready' + (errs ? ', ' + errs + ' failed' : ''), errs ? 'error' : 'success');
+    selected.clear();
+    await loadFiles();
+  }
+
   function formatBytes(b) {
     if (!b && b !== 0) return '?';
     if (b < 1024) return b + ' B';
@@ -741,6 +951,38 @@
         uploadFiles(input && input.files);
       });
     }
+    const bulkPrepBtn = document.getElementById('wb-bulk-prep');
+    if (bulkPrepBtn) bulkPrepBtn.addEventListener('click', bulkPrep);
+    document.querySelectorAll('th.wb-sortable').forEach((th) => {
+      th.style.cursor = 'pointer';
+      th.addEventListener('click', () => {
+        const k = th.getAttribute('data-sort');
+        if (sortKey === k) { sortDir = -sortDir; } else { sortKey = k; sortDir = 1; }
+        document.querySelectorAll('th.wb-sortable .wb-sort-ind').forEach((s) => { s.textContent = ''; });
+        const ind = th.querySelector('.wb-sort-ind');
+        if (ind) ind.textContent = sortDir > 0 ? '▲' : '▼';
+        renderTable();
+      });
+    });
+    const wbCloseBtn = document.getElementById('wb-close-btn');
+    if (wbCloseBtn) wbCloseBtn.addEventListener('click', wbClose);
+    if (wbModal()) wbModal().addEventListener('click', (e) => { if (e.target === wbModal()) wbClose(); });
+    const wbTo = document.getElementById('wb-tab-original');
+    const wbTp = document.getElementById('wb-tab-parsed');
+    if (wbTo) wbTo.addEventListener('click', () => wbShowTab('original'));
+    if (wbTp) wbTp.addEventListener('click', async () => { wbShowTab('parsed'); await wbLoadParsed(); });
+    const wbSave = document.getElementById('wb-save-parsed');
+    if (wbSave) wbSave.addEventListener('click', wbSaveParsed);
+    const wbRp = document.getElementById('wb-reparse-btn');
+    if (wbRp) wbRp.addEventListener('click', () => {
+      const f = files.find((x) => x.id === wbFid) || {};
+      if (wbFid) wbReparse(wbFid, f.original_name || wbFid);
+    });
+    const wbVer = document.getElementById('wb-versions-btn');
+    if (wbVer) wbVer.addEventListener('click', () => {
+      const f = files.find((x) => x.id === wbFid) || {};
+      if (wbFid) fbShowVersions(wbFid, f.original_name || wbFid);
+    });
     const details = document.getElementById('fb-desc-details');
     if (details) {
       details.addEventListener('click', (e) => {
