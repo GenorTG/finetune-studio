@@ -168,6 +168,30 @@ def test_parsed_put_validation(fts_root: Path, client) -> None:
                       json={"text": "x"}).status_code == 404
 
 
+def test_pipeline_in_rag_from_manifest(fts_root: Path, client) -> None:
+    """Corpus document ids are md5(path) — the badge must match the sha12
+    directory inside documents_meta[].source instead."""
+    import json as _json
+
+    pid = _project(client)
+    fid = _upload(client, pid, f"rag-{secrets.token_hex(3)}.md", _doc("ragbadge"))
+    status = client.get(f"/api/projects/{pid}/files/pipeline").json()["status"]
+    sha12 = status[fid]["source_id"]  # auto-promoted on .md upload
+    assert sha12
+    assert status[fid]["in_rag"] is False
+
+    corpus = fts_root / "rag_corpora" / pid
+    corpus.mkdir(parents=True)
+    (corpus / "manifest.json").write_text(_json.dumps({
+        "extra": {"documents_meta": [
+            {"document_id": "deadbeefcafe", "source": f"{fts_root}/projects/{pid}/files/{sha12}/parsed.txt"},
+        ]},
+    }), encoding="utf-8")
+
+    status2 = client.get(f"/api/projects/{pid}/files/pipeline").json()["status"]
+    assert status2[fid]["in_rag"] is True
+
+
 def test_data_page_renders_workbench_controls(client) -> None:
     pid = _project(client)
     r = client.get(f"/projects/{pid}/data")

@@ -16,7 +16,9 @@ Storage model (mirrors ``file_library.get_parsed_markdown`` resolution order):
 """
 from __future__ import annotations
 
+import json
 import logging
+import re
 import time
 from pathlib import Path
 
@@ -177,11 +179,43 @@ def reparse_file(pid: str, file_id: str) -> dict:
     return out
 
 
+_RAG_SHA12_RE = re.compile(r"/files/([0-9a-f]{12})/")
+
+
+def _corpus_sha12s(pid: str) -> set[str]:
+    """sha12 dirs indexed in the project's RAG corpus, from the manifest.
+
+    Corpus ``document_id`` is an md5 of the source path — NOT the content
+    sha12 — so the badge must read ``documents_meta[].source`` paths
+    (``…/files/<sha12>/parsed.txt``) instead. Best-effort: no manifest →
+    empty set. Checks both the rag.py location (~) and FTS_ROOT for tests.
+    """
+    from finetune_studio.data.fs.paths import root
+
+    out: set[str] = set()
+    for base in (Path.home() / ".finetune-studio" / "rag_corpora",
+                 root() / "rag_corpora"):
+        manifest = base / pid / "manifest.json"
+        if not manifest.is_file():
+            continue
+        try:
+            raw = json.loads(manifest.read_text(encoding="utf-8"))
+            meta = (raw.get("extra") or {}).get("documents_meta") or []
+            for d in meta:
+                m = _RAG_SHA12_RE.search(str(d.get("source") or ""))
+                if m:
+                    out.add(m.group(1))
+        except (OSError, ValueError):
+            log.debug("rag manifest unreadable for %s", pid, exc_info=True)
+        break
+    return out
+
+
 def pipeline_status(pid: str) -> dict[str, dict]:
     """Per-file pipeline flags for the browser: parsed / prep / rag.
 
-    ``in_rag`` is best-effort: matches the QA source id (sha12) or filename
-    against the corpus manifest. No corpus → all False (cheap, never raises).
+    ``in_rag`` matches the QA source id (content sha12) against the corpus
+    manifest's indexed ``files/<sha12>/`` paths. No corpus → all False.
     """
     status: dict[str, dict] = {}
     sources = pfs.list_qa_sources(pid)
@@ -196,19 +230,7 @@ def pipeline_status(pid: str) -> dict[str, dict]:
             if val:
                 by_path[str(Path(val))] = s
 
-    rag_ids: set[str] = set()
-    rag_names: set[str] = set()
-    try:
-        from finetune_studio.data.rag_portable import PortableRAG
-
-        corpus = Path.home() / ".finetune-studio" / "rag_corpora" / pid
-        rag = PortableRAG(corpus)
-        if rag.exists():
-            for d in rag.load().list_sources():
-                rag_ids.add(str(d.get("id") or ""))
-                rag_names.add(str(d.get("filename") or "").lower())
-    except Exception:  # corpus absent/unreadable ⇒ not in RAG
-        log.debug("rag status unavailable for %s", pid, exc_info=True)
+    rag_ids = _corpus_sha12s(pid)
 
     for f in fl.list_files(pid):
         fid = str(f["id"])
@@ -238,7 +260,7 @@ def pipeline_status(pid: str) -> dict[str, dict]:
             or src_ready
         )
         source_id = src.get("id") if src else None
-        in_rag = bool(source_id) and (source_id in rag_ids or source_id in rag_names)
+        in_rag = bool(source_id) and str(source_id) in rag_ids
         status[fid] = {
             "has_parsed": has_parsed,
             "source_id": source_id,
