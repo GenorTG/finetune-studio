@@ -135,10 +135,14 @@ The index is separate from training. Steps, in order:
 6. **Download / export** (section 7): the plain corpus archive, or the
    **standalone package** — one tarball with the index, a small Python
    server, `install.sh` (makes its own venv), a README, and an MCP config
-   example. On any machine with Python 3.10+: `bash install.sh &&
-   bash run-http.sh` gives you `GET /search?q=...`, and `bash run-mcp.sh`
-   speaks MCP (Claude Desktop / OpenClaw / Cursor). Two flavors, chosen by
-   the "Include models" checkbox before download:
+   example. On any machine with Python 3.10+: **`bash setup.sh`** — one
+   command that installs the venv, asks for a port, can start the server
+   right away, can install it as a persistent service (`bash setup.sh
+   --uninstall` removes it), and prints a copy-paste MCP entry with real
+   absolute paths (also saved to `MCP-ENTRY.txt`). Manual path:
+   `bash install.sh && bash run-http.sh` gives you `GET /search?q=...`, and
+   `bash run-mcp.sh` speaks MCP (Claude Desktop / OpenClaw / Cursor). Two
+   flavors, chosen by the "Include models" checkbox before download:
    - **small** — keyword (BM25) search works offline out of the box; set
      `RAG_EMBED_BASE_URL` to any OpenAI-compatible `/v1/embeddings` endpoint
      (LM Studio, Ollama, OpenAI) for meaning-based search.
