@@ -73,9 +73,9 @@
       {% set st = (run.status or '')|lower %}
       {% set can_bench = st in ('done', 'completed') and run.output_path %}
       <tr>
-        <td class="mono">{{ run.name }}</td>
+        <td class="mono cell-wrap" title="{{ run.name }}">{{ run.name }}</td>
         <td class="mono text-xs dim" title="{{ run.base_model or '' }}">{{ (run.base_model or '')|model_label }}</td>
-        <td>
+        <td class="cell-wrap">
           <span class="pill outline">{{ run.status }}</span>
           {% if not can_bench %}
           <div class="dim text-xs mt-1">
