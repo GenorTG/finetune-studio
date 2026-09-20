@@ -56,6 +56,7 @@ Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **ge
 
 ## Gotchas
 <!-- Append one line per learned rule. Format: "- <date> <rule> (<why/commit>)". -->
+- 2026-09-20 **Workbench matching rules:** QA source manifests point at content-addressed `files/<sha12>/…`, NOT the raw library path — match file↔source by `sha256`; and RAG corpus `document_id` is md5(path) — check corpus membership via manifest `documents_meta[].source` sha12 dirs (e7e9f7f, 266ffc1; both caught live during browser verification, not by tests).
 - 2026-09-20 **Per-commit versioning:** run `make hooks` once per clone; the **pre-commit** hook bumps `VERSION` (BUILD segment) and the commit *includes* the bump — commit-msg cannot (git snapshots the index before it; the first versioning scheme shipped one build behind, caught by the 0.1.0.2 E2E). UI chip + `GET /api/system/version` show it. Skip a bump with `FTS_NO_BUMP=1 git commit …`; VERSION-only commits don't bump.
 - 2026-09-20 **Wizard chain:** step 2 auto-loads the helper provider, aborts when no document could be mined, and unloads the helper before training. Never let mining errors pass silently — the E2E on fb05a690 caught the chain coasting into a coverage-fill-only dataset (87a8643).
 - 2026-09-18 **Fan-dragon resources:** high RAM/VRAM often = **other services or games**. Never kill/interrupt those. If Finetune Studio cannot run for lack of headroom → **pause** and report. Inside the studio, load/unload models/helpers yourself (do not leave stacked loads).
