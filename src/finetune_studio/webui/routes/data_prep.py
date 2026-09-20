@@ -519,20 +519,27 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
         fname = f"{pid}-{fmt}-{only}.jsonl"
         target = ds_dir / fname
         target.write_text(body, encoding="utf-8")
+        # Readable registry name (Genor 2026-09-20): project · format · rows —
+        # never a bare pid hash.
+        from finetune_studio import db as _db
+        _proj = _db.get_project(pid) or {}
+        _rows = count_qa_pairs(str(target))
+        _disp = f"{_proj.get('name') or pid} · {fmt} · {_rows} rows"
         existing = get_dataset_by_path(pid, str(target))
         if not existing:
             create_dataset(
                 project_id=pid,
-                name=target.stem,
+                name=_disp,
                 data_path=str(target),
                 source="data-prep-export",
-                qa_count=count_qa_pairs(str(target)),
+                qa_count=_rows,
                 size_bytes=target.stat().st_size,
             )
         else:
             update_dataset(
                 existing["id"],
-                qa_count=count_qa_pairs(str(target)),
+                name=_disp,
+                qa_count=_rows,
                 size_bytes=target.stat().st_size,
             )
     except Exception:

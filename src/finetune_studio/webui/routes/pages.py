@@ -180,8 +180,10 @@ async def inference_page(request: Request):
             from finetune_studio.models.loader import load_model_info
             info = load_model_info(loaded_path) or {}
             from types import SimpleNamespace
+
+            from finetune_studio import naming as _naming
             loaded = SimpleNamespace(
-                name=info.get("name") or loaded_path.split("/")[-1],
+                name=info.get("name") or _naming.display_for_path(loaded_path),
                 path=loaded_path,
                 format=info.get("format", ""),
                 size_gb=info.get("size_gb", 0.0),
