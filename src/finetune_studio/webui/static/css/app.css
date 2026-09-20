@@ -3953,6 +3953,7 @@ body::before {
   }
   .sb-right {
     position: static;
+    box-sizing: border-box;  /* width:100% + 8px side padding was content-box → 16px spill past the bar edge */
     padding: 4px 8px 6px;
     border-top: 1px solid var(--border);
     width: 100%;

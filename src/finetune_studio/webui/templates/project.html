@@ -85,6 +85,7 @@
     <a class="btn sm ghost" href="/projects/{{ pid }}/training" data-link>All runs →</a>
   </div>
   {% if recent_runs %}
+  <div class="table-scroll">
   <table class="table compact">
     <thead>
       <tr>
@@ -124,6 +125,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}
   <div class="empty">No training runs yet. Start one from Training.</div>
   {% endif %}
@@ -139,6 +141,7 @@
     <a class="btn sm ghost" href="/projects/{{ pid }}/models" data-link>All models →</a>
   </div>
   {% if recent_models %}
+  <div class="table-scroll">
   <table class="table compact">
     <thead>
       <tr>
@@ -166,6 +169,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}
   <div class="empty">No exports yet. Finish a training run to produce adapters / GGUF / merged checkpoints.</div>
   {% endif %}
@@ -180,6 +184,7 @@
     </div>
     <a class="btn sm ghost" href="/projects/{{ pid }}/data-prep" data-link>All files →</a>
   </div>
+  <div class="table-scroll">
   <table class="table compact">
     <thead>
       <tr>
@@ -196,6 +201,7 @@
       <tr><td colspan="7" class="dim text-xs" style="text-align:center;padding:20px">Loading files…</td></tr>
     </tbody>
   </table>
+  </div>
 </div>
 
 {# ── G. Recent activity ── #}
