@@ -101,6 +101,11 @@ handles:
 - Live build progress via Server-Sent Events
 - A docs-indexed panel showing every indexed chunk with a per-doc rebuild
   button + view-chunks modal
+- **Standalone export**: one download turns the corpus into a self-installing
+  package (its own venv, one dependency) that serves search over **MCP**
+  (Claude Desktop / OpenClaw / Cursor) *and* a plain **HTTP API** — keyword
+  search works offline out of the box; point it at any OpenAI-compatible
+  embeddings endpoint for semantic search
 
 📸 **See:** the RAG page with the live corpus inventory.
 
@@ -235,12 +240,18 @@ real APIs.
 
 ### RAG (`/projects/{pid}/rag`)
 
-Build a corpus, search it, tune retrieval parameters. A
-**Documents-indexed panel** at the bottom of the page lists every indexed
-chunk with status, last-indexed timestamp, and a per-doc Rebuild button +
-View-chunks modal. Corpus is persisted on disk as `~/.finetune-studio/
-rag_corpora/{pid}/{chunks.parquet,sources/*.txt}`. The CorpusNode sprite
-shows document nodes connecting to embedding vectors in real time.
+Build an index, search it, tune retrieval parameters, and take it with you.
+Sections are numbered in workflow order: **1. Index status**, **2. Build the
+index**, **3. Search settings**, **4. Documents in the index**, **5. Search
+test**, **6. Ask the model (grounded)**, **7. Download / export the corpus**,
+**8. Shared search models**. The export card offers both the plain corpus
+archive and the **standalone package** (`GET
+/api/projects/{pid}/rag/mcp-package`) — a self-installing tarball with the
+index, a single-file Python server, `install.sh`, MCP config example, and a
+README; it speaks MCP over stdio and REST over HTTP. Index is persisted on
+disk as `~/.finetune-studio/rag_corpora/{pid}/{chunks.parquet,vectors.npy,
+bm25.json,sources/*.txt}`. The CorpusNode sprite shows document nodes
+connecting to embedding vectors in real time.
 
 ![RAG](docs/screenshots/04_rag.png)
 

@@ -120,10 +120,28 @@ page — no need to round-trip to Inference.
 
 ### 8. RAG (RAG tab) — optional
 
-Corpus is separate from training: parse sources on Data Prep, then
-**Embed** here to build chunks + BM25/dense index (parquet-backed, on
-disk). Retrieval test shows what a query would fetch; chat with "RAG
-mode" grounds answers in retrieved chunks instead of fine-tuned weights.
+The index is separate from training. Steps, in order:
+
+1. Upload + parse your files on **Data Prep** first (RAG has no upload).
+2. On the RAG tab, press **Build the index** (section 2). Sources get split
+   into chunks and indexed for keyword + meaning search. First build may
+   download the embedding model; later builds reuse it.
+3. **Documents in the index** (section 4) shows what actually got indexed —
+   if a file is missing there, it wasn't parsed.
+4. **Search test** (section 5) runs a real query and shows which passages
+   come back, with scores — no AI answer, so you can judge retrieval quality.
+5. **Ask the model (grounded)** (section 6) chats using those passages as
+   context. Needs a chat model loaded (top-bar pill).
+6. **Download / export** (section 7): the plain corpus archive, or the
+   **standalone package** — one tarball with the index, a small Python
+   server, `install.sh` (makes its own venv; numpy is the only dependency),
+   a README, and an MCP config example. On any machine with Python 3.10+:
+   `bash install.sh && bash run-http.sh` gives you `GET /search?q=...`, and
+   `bash run-mcp.sh` speaks MCP (Claude Desktop / OpenClaw / Cursor). Keyword
+   search works offline out of the box; set `RAG_EMBED_BASE_URL` to any
+   OpenAI-compatible `/v1/embeddings` endpoint (LM Studio, Ollama, OpenAI)
+   for full meaning-based search.
+
 **Use RAG for facts that change; use fine-tuning for style/response
 shape.** Both work against the same parsed sources.
 
