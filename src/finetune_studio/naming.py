@@ -17,7 +17,10 @@ because the DB lives at FTS_DB_PATH, which is why names fell back to hashes).
 from __future__ import annotations
 
 import json
+import logging
 import re
+
+log = logging.getLogger(__name__)
 
 # q4_k_m, Q5_K_M, q8_0, q4.0, f16/bf16/fp16/fp8
 _QUANT_RE = re.compile(
@@ -153,7 +156,7 @@ def resolve_run_path(path: str) -> dict | None:
                 base = short_base(str(r.get("base_model") or ""))
                 out["run_id_full"] = full
                 break
-    except Exception:  # noqa: BLE001  # display resolver must never raise
+    except Exception:  # display resolver must never raise
         log.debug("naming: run lookup failed for %s", path, exc_info=True)
     out["project_name"] = project_name
     out["base"] = base
