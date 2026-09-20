@@ -182,7 +182,7 @@ def reparse_file(pid: str, file_id: str) -> dict:
 _RAG_SHA12_RE = re.compile(r"/files/([0-9a-f]{12})/")
 
 
-def _corpus_sha12s(pid: str) -> set[str]:
+def corpus_sha12s(pid: str) -> set[str]:
     """sha12 dirs indexed in the project's RAG corpus, from the manifest.
 
     Corpus ``document_id`` is an md5 of the source path — NOT the content
@@ -230,7 +230,7 @@ def pipeline_status(pid: str) -> dict[str, dict]:
             if val:
                 by_path[str(Path(val))] = s
 
-    rag_ids = _corpus_sha12s(pid)
+    rag_ids = corpus_sha12s(pid)
 
     for f in fl.list_files(pid):
         fid = str(f["id"])

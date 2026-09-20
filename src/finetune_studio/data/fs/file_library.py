@@ -479,12 +479,10 @@ def move_file_to_folder(pid: str, file_id: str, folder_id: str) -> dict:
     """Move a file to a different folder.
 
     Invariants (enforced here so the UI cannot violate them):
-    - Files currently in an auto (raw MIME) folder are pinned: they cannot
-      be moved to a user folder. Raw bytes live at their content-addressed
-      MIME path forever so the audit trail is stable.
-    - Files in an auto folder can only move to the SAME-MIME auto folder
-      (which is a no-op, but reject explicitly to catch logic errors).
-    - Files in a user folder can move to any other user folder freely.
+    - Auto→auto moves must stay in the file's own MIME bucket.
+    - Auto→user is the organizing move the file browser offers: membership is
+      a DB label, the raw bytes never move, so the audit trail is unaffected.
+    - Files in a user folder cannot move back into an auto folder.
     """
     from finetune_studio import db
     with db.cursor() as c:
@@ -509,17 +507,9 @@ def move_file_to_folder(pid: str, file_id: str, folder_id: str) -> dict:
             (file_id,),
         ).fetchone()
 
-        # Rule 1: a file currently in an auto folder is pinned to it.
-        if current and current["kind"] == "auto":
-            if target["kind"] == "user":
-                raise HTTPException(
-                    status_code=409,
-                    detail=(
-                        f"raw files are pinned to {current['name']}/ and cannot be moved to "
-                        f"user folders; only the converted version of this file can be moved"
-                    ),
-                )
-            # target is auto — only allow if same MIME kind
+        # Rule 1: auto→auto must stay in the file's own MIME bucket.
+        # auto→user is allowed (organizing label only — raw bytes stay put).
+        if current and current["kind"] == "auto" and target["kind"] == "auto":
             file_kind = auto_kind_for(f["mime_type"])
             if file_kind != target["name"]:
                 raise HTTPException(

@@ -15,6 +15,10 @@ Endpoints:
   POST   /api/projects/{pid}/files/{fid}/move     — move file to folder
   DELETE /api/projects/{pid}/files/{fid}          — soft-delete (moves to trash)
   POST   /api/projects/{pid}/files/{fid}/restore  — restore from trash
+  POST   /api/projects/{pid}/files/bulk           — bulk delete/restore/move/reparse/tag
+  POST   /api/projects/{pid}/files/download-zip   — zip raw bytes of selected files
+  GET    /api/projects/{pid}/files/search-content — substring search inside parsed text
+  GET    /api/projects/{pid}/files/{fid}/usage    — where this file went (source/pairs/datasets/runs/RAG)
 
   POST   /api/projects/{pid}/folders              — create user folder
   GET    /api/projects/{pid}/folders              — list folders (user + auto)
@@ -31,7 +35,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from finetune_studio.data.fs import file_library as fl
 
@@ -225,6 +229,42 @@ async def files_pipeline_route(pid: str):
     return {"status": pipeline_status(pid)}
 
 
+@router.post("/projects/{pid}/files/bulk")
+async def files_bulk_route(pid: str, request: Request):
+    """Bulk action over file ids: delete | restore | move | reparse | tag-add |
+    tag-remove. Per-file isolation — one bad id never aborts the batch."""
+    from finetune_studio.data.fs import workbench as wb
+    _project_or_404(pid)
+    body = await request.json()
+    ids = [str(i) for i in (body.get("ids") or [])]
+    action = str(body.get("action") or "")
+    return wb.bulk_action(pid, ids, action, body)
+
+
+@router.post("/projects/{pid}/files/download-zip")
+async def files_download_zip_route(pid: str, request: Request):
+    """Zip the raw bytes of the selected files (collision-safe entry names)."""
+    from finetune_studio.data.fs import workbench as wb
+    _project_or_404(pid)
+    body = await request.json()
+    ids = [str(i) for i in (body.get("ids") or [])]
+    payload, filename = wb.download_zip(pid, ids)
+    return Response(
+        content=payload,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/projects/{pid}/files/search-content")
+async def files_search_content_route(pid: str, q: str = Query(""), limit: int = 25):
+    """Substring search inside PARSED text of project files (name search
+    stays client-side). Returns snippet per match."""
+    from finetune_studio.data.fs import workbench as wb
+    _project_or_404(pid)
+    return wb.search_content(pid, q, limit=limit)
+
+
 # ── Single-file routes (with {fid}) ──────────────────────────────────────
 
 @router.get("/projects/{pid}/files/{fid}")
@@ -306,6 +346,15 @@ async def reparse_file_route(pid: str, fid: str):
     from finetune_studio.data.parsed_edit import reparse_file
     _project_or_404(pid)
     return reparse_file(pid, fid)
+
+
+@router.get("/projects/{pid}/files/{fid}/usage")
+async def file_usage_route(pid: str, fid: str):
+    """Where this file's content actually went: prep source, RAG corpus,
+    QA pairs, datasets built from them, training runs that used those datasets."""
+    from finetune_studio.data.fs import workbench as wb
+    _project_or_404(pid)
+    return wb.file_usage(pid, fid)
 
 
 @router.get("/projects/{pid}/files/{fid}/versions")
