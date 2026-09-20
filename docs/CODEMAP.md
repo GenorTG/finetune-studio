@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-369 files · 65972 lines
-- `finetune_studio`: 218 files, 40336 lines
+371 files · 66505 lines
+- `finetune_studio`: 219 files, 40676 lines
 - `scripts`: 9 files, 2199 lines
-- `tests`: 142 files, 23437 lines
+- `tests`: 143 files, 23630 lines
 
 
 # finetune_studio
@@ -338,7 +338,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `write_chunks(pid: str, sha256: str, chunks: list[str], chunk_meta: Optional[list[dict]] = …` (L14)
   - imports: finetune_studio.data.fs.paths
 
-## `src/finetune_studio/data/fs/file_library.py` (1345 lines)
+## `src/finetune_studio/data/fs/file_library.py` (1359 lines)
 - `_sniff_mime(filename: str, sniffed: str | None = None) -> str` (L63) — Best-effort MIME detection: prefer the python-magic 'sniffed' value
 - `auto_kind_for(mime: str) -> str` (L75) — Map a MIME type to one of the six raw subfolders.
 - `_ext_for_filename(name: str) -> str` (L90) — Return lowercase extension WITHOUT the dot, or '' if none.
@@ -456,6 +456,16 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 ## `src/finetune_studio/data/organizer.py` (51 lines)
 - `scan_data_files(directory)` (L23)
 - `dedup_data(data)` (L39)
+
+## `src/finetune_studio/data/parsed_edit.py` (232 lines)
+- `_current_raw_path(pid: str, file_id: str) -> tuple[dict, Path]` (L33)
+- `_source_for_raw_path(pid: str, raw: Path) -> dict | None` (L49) — Find the QA source registered for this raw file (by absolute path).
+- `_rewrite_source_chunks(pid: str, source: dict, text: str) -> dict` (L63) — Point a QA source at hand-edited text: parsed.txt + chunks + manifest.
+- `_override_path(raw: Path) -> Path` (L90) — Manual-edit override file — never the raw file itself (a ``.md``
+- `save_parsed_override(pid: str, file_id: str, text: str) -> dict` (L97) — Save a human-edited parsed text for a library file.
+- `reparse_file(pid: str, file_id: str) -> dict` (L134) — Discard the manual override and re-run the real parser from raw bytes.
+- `pipeline_status(pid: str) -> dict[str, dict]` (L175) — Per-file pipeline flags for the browser: parsed / prep / rag.
+  - imports: finetune_studio.data, finetune_studio.data.fs, finetune_studio.data.prep.chunker, finetune_studio.data.prep.ingest, finetune_studio.data.rag_portable
 
 ## `src/finetune_studio/data/parsers.py` (428 lines)
 - `parse_text(path: Path) -> str` (L30)
@@ -1755,28 +1765,31 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `_export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None` (L324) — Background GGUF export worker.
   - imports: finetune_studio, finetune_studio.training.export_response, finetune_studio.training.gguf_convert, finetune_studio.training.run_export, finetune_studio.webui.live_sse
 
-## `src/finetune_studio/webui/routes/file_library.py` (380 lines)
+## `src/finetune_studio/webui/routes/file_library.py` (416 lines)
 - `_project_or_404(pid: str) -> None` (L44)
 - `upload_files(pid: str, request: Request, files: list[UploadFile] = File(...), folder_id: s…` (L53) — Upload one or more files. Supports both single-file (curl -F file=@x)
 - `list_files_route(pid: str, folder_id: str | None = None, include_deleted: bool = False, mime_p…` (L182)
 - `list_trash_route(pid: str)` (L206)
 - `purge_trash_route(pid: str, older_than_days: int = Query(7, ge=0))` (L212)
-- `get_file_route(pid: str, fid: str)` (L220)
-- `download_raw_route(pid: str, fid: str, version: int | None = None)` (L231) — Download raw bytes. If version is None, serves the current version.
-- `get_parsed_route(pid: str, fid: str)` (L264) — Return the file's parsed-markdown representation.
-- `list_versions_route(pid: str, fid: str)` (L276)
-- `list_conversions_route(pid: str, fid: str)` (L282)
-- `rename_file_route(pid: str, fid: str, request: Request)` (L288) — Rename a live file (DB original_name + on-disk path).
-- `purge_file_route(pid: str, fid: str)` (L304) — Hard-delete one trashed file (disk + DB). Must already be in trash.
-- `move_file_route(pid: str, fid: str, request: Request)` (L311)
-- `delete_file_route(pid: str, fid: str)` (L321)
-- `restore_file_route(pid: str, fid: str)` (L327)
-- `create_folder_route(pid: str, request: Request)` (L335)
-- `list_folders_route(pid: str, include_auto: bool = Query(True))` (L345)
-- `update_file_tags(pid: str, fid: str, request: Request)` (L351) — Update tags and notes for a file.
-- `rename_folder_route(pid: str, fid: str, request: Request)` (L368)
-- `delete_folder_route(pid: str, fid: str)` (L378)
-  - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.data.fs.qa
+- `files_pipeline_route(pid: str)` (L220) — Per-file workbench flags: {file_id: {has_parsed, source_id, chunk_count,
+- `get_file_route(pid: str, fid: str)` (L231)
+- `download_raw_route(pid: str, fid: str, version: int | None = None)` (L242) — Download raw bytes. If version is None, serves the current version.
+- `get_parsed_route(pid: str, fid: str)` (L275) — Return the file's parsed-markdown representation.
+- `save_parsed_route(pid: str, fid: str, request: Request)` (L287) — Save a hand-edited parsed text for a file (built-in editor).
+- `reparse_file_route(pid: str, fid: str)` (L304) — Discard the manual parsed override and re-run the real parser.
+- `list_versions_route(pid: str, fid: str)` (L312)
+- `list_conversions_route(pid: str, fid: str)` (L318)
+- `rename_file_route(pid: str, fid: str, request: Request)` (L324) — Rename a live file (DB original_name + on-disk path).
+- `purge_file_route(pid: str, fid: str)` (L340) — Hard-delete one trashed file (disk + DB). Must already be in trash.
+- `move_file_route(pid: str, fid: str, request: Request)` (L347)
+- `delete_file_route(pid: str, fid: str)` (L357)
+- `restore_file_route(pid: str, fid: str)` (L363)
+- `create_folder_route(pid: str, request: Request)` (L371)
+- `list_folders_route(pid: str, include_auto: bool = Query(True))` (L381)
+- `update_file_tags(pid: str, fid: str, request: Request)` (L387) — Update tags and notes for a file.
+- `rename_folder_route(pid: str, fid: str, request: Request)` (L404)
+- `delete_folder_route(pid: str, fid: str)` (L414)
+  - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.data.fs.qa, finetune_studio.data.parsed_edit
 
 ## `src/finetune_studio/webui/routes/hf_models.py` (435 lines)
 - `class SearchRequest(BaseModel)` (L31)
@@ -1931,7 +1944,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `data_convert(req: ConvertRequest) -> DataJobResponse` (L110) — Convert training data between formats (chatml, sharegpt, alpaca, etc.).
   - imports: finetune_studio.compare.engine, finetune_studio.training.config_optimizer, finetune_studio.training.data_augmentation, finetune_studio.training.data_quality, finetune_studio.training.hallucination_guard
 
-## `src/finetune_studio/webui/routes/rag.py` (574 lines)
+## `src/finetune_studio/webui/routes/rag.py` (632 lines)
 - `_corpus_dir(pid: str) -> Path` (L38)
 - `_build_meta(pid: str, name: str) -> dict` (L42) — Sidecar DB-like info stored next to the project. For now: just counts.
 - `class SearchRequest(BaseModel)` (L49)
@@ -1943,19 +1956,21 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `rag_get_settings(pid: str)` (L113)
 - `rag_patch_settings(pid: str, req: SettingsPatch)` (L135) — Update settings. Changes to embedder/rerank_top_n don't break anything,
 - `rag_build(pid: str, req: BuildRequest)` (L166) — (Re)build the project's RAG from the project's files dir.
-- `_rag_build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict` (L242) — One progress snapshot for SSE frames and the /build/status poll.
-- `rag_build_status(pid: str)` (L286) — One-shot corpus-build progress (SSE silent fallback for /build/progress).
-- `rag_build_progress(pid: str)` (L292) — Server-Sent Events stream that reports corpus build progress.
-- `rag_rebuild_vectors(pid: str, req: RebuildVectorsRequest)` (L329) — Re-embed with (possibly new) embedder. Loads + replaces vectors.npy.
-- `rag_list_sources(pid: str)` (L344) — List all sources in the corpus.
-- `rag_delete_source(pid: str, source_id: str)` (L358) — Remove a single source from the corpus.
-- `rag_clear_sources(pid: str)` (L373) — Clear all sources from the corpus (requires rebuild).
-- `rag_search(pid: str, req: SearchRequest)` (L387)
-- `rag_bundle(pid: str, name: str | None = None, fmt: str = 'tar', include_models: str = 't…` (L403) — Download a self-contained archive of the corpus.
-- `rag_import(pid: str, file: UploadFile, overwrite: bool = False)` (L429) — Import a corpus bundle (.tar/.tar.gz/.zip) produced by ``GET .../rag/bundle``.
-- `shared_model_stats()` (L498) — Dashboard stats for the shared model pool. Shows which models are stored,
-- `rag_chat(pid: str, req: ChatRequest)` (L506) — RAG-augmented chat. Retrieves top-k from project corpus, prepends to
-  - imports: finetune_studio, finetune_studio.data.rag_portable, finetune_studio.data.shared_models, finetune_studio.models.manager, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.live_sse, finetune_studio.webui.thinking
+- `class QuickRequest(BaseModel)` (L242)
+- `rag_quick(pid: str, req: QuickRequest)` (L248) — ⚡ Quick index: promote every not-yet-parsed library file into QA
+- `_rag_build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict` (L300) — One progress snapshot for SSE frames and the /build/status poll.
+- `rag_build_status(pid: str)` (L344) — One-shot corpus-build progress (SSE silent fallback for /build/progress).
+- `rag_build_progress(pid: str)` (L350) — Server-Sent Events stream that reports corpus build progress.
+- `rag_rebuild_vectors(pid: str, req: RebuildVectorsRequest)` (L387) — Re-embed with (possibly new) embedder. Loads + replaces vectors.npy.
+- `rag_list_sources(pid: str)` (L402) — List all sources in the corpus.
+- `rag_delete_source(pid: str, source_id: str)` (L416) — Remove a single source from the corpus.
+- `rag_clear_sources(pid: str)` (L431) — Clear all sources from the corpus (requires rebuild).
+- `rag_search(pid: str, req: SearchRequest)` (L445)
+- `rag_bundle(pid: str, name: str | None = None, fmt: str = 'tar', include_models: str = 't…` (L461) — Download a self-contained archive of the corpus.
+- `rag_import(pid: str, file: UploadFile, overwrite: bool = False)` (L487) — Import a corpus bundle (.tar/.tar.gz/.zip) produced by ``GET .../rag/bundle``.
+- `shared_model_stats()` (L556) — Dashboard stats for the shared model pool. Shows which models are stored,
+- `rag_chat(pid: str, req: ChatRequest)` (L564) — RAG-augmented chat. Retrieves top-k from project corpus, prepends to
+  - imports: finetune_studio, finetune_studio.data, finetune_studio.data.fs, finetune_studio.data.fs.qa, finetune_studio.data.rag_portable, finetune_studio.data.shared_models, finetune_studio.models.manager, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.live_sse, finetune_studio.webui.thinking
 
 ## `src/finetune_studio/webui/routes/settings.py` (79 lines)
 - `_load() -> dict[str, Any]` (L20)
@@ -2736,6 +2751,20 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_schema_has_no_parsed_columns(client, fts_root: Path) -> None` (L254) — Documented blocker check: project_files has no parsed_md/parsed_path.
 - `test_list_files_total_count_unfiltered(client, fts_root: Path) -> None` (L264) — total_count is project-wide even when folder_id / search filter the page.
   - imports: finetune_studio.data.fs
+
+## `tests/test_file_workbench.py` (182 lines)
+- `fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L19)
+- `_project(client) -> str` (L28)
+- `_upload(client, pid: str, name: str, content: bytes) -> str` (L34)
+- `_doc(label: str) -> bytes` (L45)
+- `test_parsed_edit_roundtrip_and_override(fts_root: Path, client) -> None` (L54)
+- `test_reparse_discards_override(fts_root: Path, client) -> None` (L77)
+- `test_edit_rechunks_data_prep_source(fts_root: Path, client) -> None` (L91)
+- `test_pipeline_flags(fts_root: Path, client) -> None` (L119)
+- `test_rag_quick_promotes_then_builds(fts_root: Path, client, monkeypatch) -> None` (L134)
+- `test_parsed_put_validation(fts_root: Path, client) -> None` (L163)
+- `test_data_page_renders_workbench_controls(client) -> None` (L172)
+  - imports: finetune_studio.data, finetune_studio.data.fs, finetune_studio.webui, finetune_studio.webui.routes
 
 ## `tests/test_full_corpus_suite.py` (293 lines)
 - `isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L26)
@@ -3705,12 +3734,12 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_write_uploaded_file_includes_image_png_metadata(mock_settings) -> None` (L41) — The OCR ingestion path must round-trip an image upload without raising.
   - imports: finetune_studio, finetune_studio.data.fs
 
-## `tests/test_version.py` (88 lines)
-- `test_build_version_format_and_file_agreement() -> None` (L20)
-- `test_system_version_endpoint(client) -> None` (L28)
-- `_git(repo: Path, *args: str) -> None` (L39)
-- `test_commitmsg_hook_bumps_every_commit(tmp_path: Path) -> None` (L44)
-- `test_hook_scripts_are_executable_and_valid_bash() -> None` (L81)
+## `tests/test_version.py` (99 lines)
+- `test_build_version_format_and_file_agreement() -> None` (L22)
+- `test_system_version_endpoint(client) -> None` (L30)
+- `_git(repo: Path, *args: str, env: dict | None = None) -> str` (L41)
+- `test_precommit_hook_bumps_the_COMMITTED_version(tmp_path: Path) -> None` (L47) — The version inside the commit tree must equal the post-hook value.
+- `test_hook_scripts_are_executable_and_valid_bash() -> None` (L91)
   - imports: finetune_studio
 
 ## `tests/test_versions.py` (193 lines)

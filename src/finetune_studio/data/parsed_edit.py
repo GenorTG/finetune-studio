@@ -1,0 +1,232 @@
+"""Manual parsed-text editing + pipeline status (file workbench, Genor 2026-09-20).
+
+One concern: a human edits the PARSED text of a library file (fixing OCR
+garbage, trimming boilerplate) and that edit must flow into BOTH consumers —
+the data-prep/Q&A chunks (training data) and the RAG corpus (on next build) —
+while the original raw bytes stay immutable.
+
+Storage model (mirrors ``file_library.get_parsed_markdown`` resolution order):
+  - The manual override lives at ``<raw>.md`` (sibling of the stored raw
+    file) — resolution step 3, so it wins over on-the-fly conversion.
+  - When the file is already a data-prep QA source, the canonical parse
+    artifact ``files/<sha12>/parsed.txt`` is rewritten too and the chunks are
+    regenerated, so prep jobs and RAG builds see the edited text.
+
+``reparse`` discards the override and re-runs the real parser from raw bytes.
+"""
+from __future__ import annotations
+
+import logging
+import time
+from pathlib import Path
+
+from fastapi import HTTPException
+
+from finetune_studio.data import project_filesystem as pfs
+from finetune_studio.data.fs import file_library as fl
+
+log = logging.getLogger(__name__)
+
+MANUAL_PARSER = "manual-edit"
+
+
+def _current_raw_path(pid: str, file_id: str) -> tuple[dict, Path]:
+    f = fl.get_file(pid, file_id)
+    if not f:
+        raise HTTPException(status_code=404, detail="file not found")
+    versions = fl.list_versions(pid, file_id)
+    if not versions:
+        raise HTTPException(status_code=404, detail="file has no stored version")
+    match = next(
+        (v for v in versions if v["version"] == f.get("current_version")), versions[0]
+    )
+    raw = Path(str(match.get("raw_path") or ""))
+    if not raw.is_file():
+        raise HTTPException(status_code=410, detail="raw bytes missing on disk")
+    return f, raw
+
+
+def _source_for_raw_path(pid: str, raw: Path) -> dict | None:
+    """Find the QA source registered for this raw file (by absolute path)."""
+    try:
+        want = str(raw.resolve())
+    except OSError:
+        want = str(raw)
+    for s in pfs.list_qa_sources(pid):
+        for key in ("data_path", "path"):
+            val = s.get(key) or ""
+            if val and str(Path(val)) == want:
+                return s
+    return None
+
+
+def _rewrite_source_chunks(pid: str, source: dict, text: str) -> dict:
+    """Point a QA source at hand-edited text: parsed.txt + chunks + manifest."""
+    sha = str(source.get("sha256") or "")
+    if not sha:
+        return source
+    fd = pfs.file_dir(pid, sha)
+    (fd / "parsed.txt").write_text(text, encoding="utf-8")
+    from finetune_studio.data.prep.chunker import chunk_text
+
+    chunks = chunk_text(text)
+    pfs.write_chunks(pid, sha, chunks)
+    try:
+        pfs.update_file_metadata(pid, sha, chunk_count=len(chunks), char_count=len(text))
+    except Exception:  # metadata.json may not exist for old sources
+        log.debug("metadata update skipped for %s", sha[:12], exc_info=True)
+    updated = {
+        **source,
+        "char_count": len(text),
+        "chunk_count": len(chunks),
+        "parser": MANUAL_PARSER,
+        "status": "ready",
+        "edited_at": time.time(),
+    }
+    pfs.write_qa_source(pid, updated)
+    return updated
+
+
+def _override_path(raw: Path) -> Path:
+    """Manual-edit override file — never the raw file itself (a ``.md``
+    upload would collide with ``raw.with_suffix('.md')`` and destroy the
+    original bytes).``<raw>.parsed.md`` is collision-proof."""
+    return raw.parent / (raw.name + ".parsed.md")
+
+
+def save_parsed_override(pid: str, file_id: str, text: str) -> dict:
+    """Save a human-edited parsed text for a library file.
+
+    Writes the ``<raw>.parsed.md`` override (invalidating the parsed cache),
+    and — when the file is a data-prep source — rewrites ``parsed.txt`` and
+    regenerates chunks so training data + the next RAG build use the edit.
+    """
+    if text is None:
+        raise HTTPException(status_code=400, detail="text required")
+    f, raw = _current_raw_path(pid, file_id)
+    _override_path(raw).write_text(text, encoding="utf-8")
+    fl.invalidate_parsed_cache(pid, file_id)
+
+    source = _source_for_raw_path(pid, raw)
+    rechunked = False
+    source_id = None
+    chunks = 0
+    if source is not None:
+        source = _rewrite_source_chunks(pid, source, text)
+        rechunked = True
+        source_id = source.get("id")
+        chunks = int(source.get("chunk_count") or 0)
+    return {
+        "ok": True,
+        "file_id": file_id,
+        "name": f.get("original_name"),
+        "chars": len(text),
+        "source_id": source_id,
+        "rechunked": rechunked,
+        "chunk_count": chunks,
+        "rag_note": (
+            "RAG corpus rebuild picks up the edit" if rechunked
+            else "send to Data Prep (⚡) to feed training + RAG"
+        ),
+    }
+
+
+def reparse_file(pid: str, file_id: str) -> dict:
+    """Discard the manual override and re-run the real parser from raw bytes."""
+    f, raw = _current_raw_path(pid, file_id)
+    override = _override_path(raw)
+    removed = False
+    if override.is_file():
+        override.unlink()
+        removed = True
+    fl.invalidate_parsed_cache(pid, file_id)
+
+    source = _source_for_raw_path(pid, raw)
+    out: dict = {"ok": True, "file_id": file_id, "override_removed": removed,
+                 "name": f.get("original_name")}
+    if source is not None:
+        from finetune_studio.data.prep.ingest import parse_and_chunk
+
+        data = raw.read_bytes()
+        sha = str(source.get("sha256") or "")
+        ingest = parse_and_chunk(
+            pid, data, str(source.get("filename") or f.get("original_name") or raw.name),
+            sha256=sha, mime_type=str(source.get("mime_type") or f.get("mime_type") or ""),
+            reuse_if_parsed=False,
+        )
+        if ingest.ok:
+            updated = {
+                **source,
+                "char_count": ingest.char_count,
+                "chunk_count": ingest.chunk_count,
+                "parser": ingest.parser,
+                "status": "ready",
+            }
+            updated.pop("edited_at", None)
+            pfs.write_qa_source(pid, updated)
+            out.update({"source_id": source.get("id"),
+                        "chunk_count": ingest.chunk_count,
+                        "parser": ingest.parser})
+        else:
+            out["error"] = ingest.error or "reparse failed"
+    return out
+
+
+def pipeline_status(pid: str) -> dict[str, dict]:
+    """Per-file pipeline flags for the browser: parsed / prep / rag.
+
+    ``in_rag`` is best-effort: matches the QA source id (sha12) or filename
+    against the corpus manifest. No corpus → all False (cheap, never raises).
+    """
+    status: dict[str, dict] = {}
+    sources = pfs.list_qa_sources(pid)
+    by_path: dict[str, dict] = {}
+    for s in sources:
+        for key in ("data_path", "path"):
+            val = s.get(key)
+            if val:
+                by_path[str(Path(val))] = s
+
+    rag_ids: set[str] = set()
+    rag_names: set[str] = set()
+    try:
+        from finetune_studio.data.rag_portable import PortableRAG
+
+        corpus = Path.home() / ".finetune-studio" / "rag_corpora" / pid
+        rag = PortableRAG(corpus)
+        if rag.exists():
+            for d in rag.load().list_sources():
+                rag_ids.add(str(d.get("id") or ""))
+                rag_names.add(str(d.get("filename") or "").lower())
+    except Exception:  # corpus absent/unreadable ⇒ not in RAG
+        log.debug("rag status unavailable for %s", pid, exc_info=True)
+
+    for f in fl.list_files(pid):
+        fid = str(f["id"])
+        try:
+            versions = fl.list_versions(pid, fid)
+        except Exception:  # noqa: BLE001
+            versions = []
+        raw_path = ""
+        for v in versions:
+            if v.get("version") == f.get("current_version"):
+                raw_path = str(v.get("raw_path") or "")
+                break
+        if not raw_path and versions:
+            raw_path = str(versions[0].get("raw_path") or "")
+        has_parsed = bool(raw_path) and (
+            _override_path(Path(raw_path)).is_file()
+            or Path(raw_path).with_suffix(".md").is_file()
+            or (raw_path in by_path and (by_path[raw_path].get("status") == "ready"))
+        )
+        src = by_path.get(raw_path)
+        source_id = src.get("id") if src else None
+        in_rag = bool(source_id) and (source_id in rag_ids or source_id in rag_names)
+        status[fid] = {
+            "has_parsed": has_parsed,
+            "source_id": source_id,
+            "chunk_count": int((src or {}).get("chunk_count") or 0),
+            "parser": (src or {}).get("parser") or "",
+            "in_rag": in_rag,
+        }
+    return status

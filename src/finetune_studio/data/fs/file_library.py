@@ -1290,6 +1290,20 @@ def get_parsed_markdown(pid: str, file_id: str) -> dict:
             _PARSED_CACHE[cache_k] = result
             return result
 
+    # 2.5) Manual override written by the file-workbench parsed editor
+    # (collision-proof: never the raw file itself, unlike a .md sibling).
+    if raw_path_obj is not None:
+        override = raw_path_obj.parent / (raw_path_obj.name + ".parsed.md")
+        if override.exists() and override.is_file():
+            result = {
+                "fid": file_id,
+                "path": str(override),
+                "parsed_md": override.read_text(encoding="utf-8", errors="replace"),
+                "source": "override",
+            }
+            _PARSED_CACHE[cache_k] = result
+            return result
+
     # 3) Sibling .md next to stored raw
     if raw_path_obj is not None:
         sibling = raw_path_obj.with_suffix(".md")

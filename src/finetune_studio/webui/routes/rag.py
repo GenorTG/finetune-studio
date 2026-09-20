@@ -239,6 +239,64 @@ async def rag_build(pid: str, req: BuildRequest):
     }
 
 
+class QuickRequest(BaseModel):
+    file_ids: list[str] | None = None
+    promote_missing: bool = True
+
+
+@router.post("/{pid}/rag/quick")
+async def rag_quick(pid: str, req: QuickRequest):
+    """⚡ Quick index: promote every not-yet-parsed library file into QA
+    sources, then build the corpus from all parsed text — one click, no
+    leaving the RAG page. ``file_ids`` restricts the promote step.
+    """
+    from finetune_studio import db
+    from finetune_studio.data import project_filesystem as pfs
+    from finetune_studio.data.fs import file_library as fl
+    from finetune_studio.data.fs.qa import promote_file_library_upload
+
+    if not db.get_project(pid):
+        return JSONResponse({"error": "project not found"}, status_code=404)
+
+    promoted: list[dict] = []
+    failed: list[dict] = []
+    if req.promote_missing:
+        sources = pfs.list_qa_sources(pid)
+        known_paths = set()
+        for s in sources:
+            known_paths.add(str(s.get("data_path") or ""))
+            known_paths.add(str(s.get("path") or ""))
+        for f in fl.list_files(pid):
+            if req.file_ids and f["id"] not in req.file_ids:
+                continue
+            try:
+                versions = fl.list_versions(pid, f["id"])
+            except Exception:  # noqa: BLE001
+                log.warning("rag quick: no versions for file %s", f.get("original_name"))
+                continue
+            raw_path = str(versions[0].get("raw_path") or "") if versions else ""
+            if not raw_path or raw_path in known_paths:
+                continue
+            try:
+                src = promote_file_library_upload(
+                    pid, f["id"], mime_type=f.get("mime_type") or "",
+                    filename=f.get("original_name"),
+                )
+                promoted.append({"file_id": f["id"], "name": f.get("original_name"),
+                                 "source_id": src.get("id"), "status": src.get("status")})
+                if src.get("status") != "ready":
+                    failed.append({"name": f.get("original_name"),
+                                   "error": src.get("error") or "parse incomplete"})
+            except Exception as e:  # noqa: BLE001
+                failed.append({"name": f.get("original_name"), "error": str(e)})
+
+    build = await rag_build(pid, BuildRequest())
+    build_dict = build if isinstance(build, dict) else {"error": "build failed"}
+    return {"ok": bool(build_dict.get("ok", True)),
+            "promoted": len(promoted), "promoted_files": promoted,
+            "failed": failed, "build": build_dict}
+
+
 def _rag_build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
     """One progress snapshot for SSE frames and the /build/status poll."""
     corpus = _corpus_dir(pid)
