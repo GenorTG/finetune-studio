@@ -23,6 +23,9 @@
   --accent:        #00ff66;
   --accent-2:      #9cff00;
   --accent-glow:   rgba(0,255,102,0.45);
+  /* text placed ON an accent fill — black on neon green (dark), white on
+     forest green (light); keeps every logo/primary-btn/pill ≥ 4.5:1 */
+  --on-accent:     #000;
   --warn:          #ffaa00;
   --err:           #ff3a3a;
   --ok:            #00ff66;
@@ -79,7 +82,7 @@ body::before {
   mix-blend-mode: multiply;
 }
 
-::selection { background: var(--accent); color: #000; }
+::selection { background: var(--accent); color: var(--on-accent); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -154,7 +157,7 @@ body::before {
 .nav-brand .logo {
   width: 26px; height: 26px;
   background: var(--accent);
-  color: #000;
+  color: var(--on-accent);
   display: grid; place-items: center;
   font-weight: 700; font-size: 11px;
   font-family: "Press Start 2P", monospace;
@@ -465,15 +468,10 @@ body::before {
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #000;
+  color: var(--on-accent);
   box-shadow: 0 0 12px var(--accent-glow);
 }
-.btn.primary:hover { background: var(--accent-2); border-color: var(--accent-2); color: #000; }
-/* Light theme: accent is dark green — black-on-accent falls below 3:1. */
-:root[data-theme="light"] .btn.primary,
-:root[data-theme="light"] .btn.primary:hover,
-:root[data-theme="light"] .tutorial-btn.primary { color: #fff; }
-:root[data-theme="light"] .logo { color: #fff; }
+.btn.primary:hover { background: var(--accent-2); border-color: var(--accent-2); color: var(--on-accent); }
 .btn.danger  { background: rgba(255,58,58,0.12); border-color: var(--err); color: var(--err); }
 .btn.success { background: rgba(0,255,102,0.12); border-color: var(--accent); color: var(--accent); }
 .btn.ghost   { background: transparent; border-color: var(--border); color: var(--text-muted); }
@@ -1061,7 +1059,7 @@ body::before {
 .bubble.user {
   align-self: flex-end;
   background: var(--accent);
-  color: #000;
+  color: var(--on-accent);
   border: 1px solid var(--accent);
 }
 .bubble.user::after {
@@ -1224,7 +1222,7 @@ body::before {
 .hf-card .icon {
   width: 32px; height: 32px;
   background: var(--accent);
-  color: #000;
+  color: var(--on-accent);
   display: grid; place-items: center;
   font-weight: 700;
   font-family: "Press Start 2P", monospace;
@@ -1310,9 +1308,9 @@ body::before {
   border: 1px solid var(--border-strong);
 }
 .step.done { color: var(--text); }
-.step.done .num { background: var(--accent); color: #000; border-color: var(--accent); }
+.step.done .num { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 .step.active { border-color: var(--accent); color: var(--accent); }
-.step.active .num { background: var(--accent); color: #000; border-color: var(--accent); animation: led-blink 1.4s steps(2) infinite; }
+.step.active .num { background: var(--accent); color: var(--on-accent); border-color: var(--accent); animation: led-blink 1.4s steps(2) infinite; }
 
 /* ===== RAG sources ===== */
 .src {
@@ -1959,7 +1957,7 @@ body::before {
 .brand .logo {
   width: 24px; height: 24px;
   background: var(--accent);
-  color: #000;
+  color: var(--on-accent);
   display: grid; place-items: center;
   font-weight: 700; font-size: 10px;
   font-family: "Press Start 2P", monospace;
@@ -2226,7 +2224,7 @@ body::before {
 .drawer-brand .logo {
   width: 26px; height: 26px;
   background: var(--accent);
-  color: #000;
+  color: var(--on-accent);
   display: grid; place-items: center;
   font-weight: 700; font-size: 11px;
   font-family: "Press Start 2P", monospace;
@@ -2437,7 +2435,7 @@ body::before {
 .sb-brand .logo {
   width: 22px; height: 22px;
   background: var(--accent);
-  color: #000;
+  color: var(--on-accent);
   display: grid; place-items: center;
   font-weight: 700; font-size: 10px;
   font-family: "Press Start 2P", monospace;
@@ -3241,7 +3239,7 @@ body::before {
 }
 .tutorial-btn.primary {
   background: var(--accent);
-  color: #000;
+  color: var(--on-accent);
   border-color: var(--accent);
   font-weight: 700;
 }
@@ -3365,7 +3363,7 @@ body::before {
 .sb-activity-icon { font-size: 13px; line-height: 1; }
 .sb-activity-count {
   background: var(--accent);
-  color: #000;
+  color: var(--on-accent);
   font-size: 9px;
   font-weight: 700;
   padding: 0 5px;
@@ -3617,7 +3615,7 @@ body::before {
   text-align: center;
   font-size: 10px;
   line-height: 12px;
-  color: #000;
+  color: var(--on-accent);
   font-weight: 700;
   text-shadow: 0 0 2px rgba(255,255,255,0.5);
 }
@@ -3634,7 +3632,7 @@ body::before {
 }
 .activity-goto:hover {
   background: var(--accent);
-  color: #000;
+  color: var(--on-accent);
 }
 
 .activity-foot {
@@ -4242,7 +4240,7 @@ body::before {
 }
 .workspace-subnav .ws-switch:hover { color: var(--accent); border-color: var(--accent); }
 .workspace-subnav .ws-switch.active {
-  color: #000;
+  color: var(--on-accent);
   background: var(--accent);
   border-color: var(--accent);
   box-shadow: 0 0 8px var(--accent-glow);
