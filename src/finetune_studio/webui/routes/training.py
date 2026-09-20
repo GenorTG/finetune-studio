@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, Request
@@ -40,6 +41,49 @@ def _optional_body_bool(body: dict, key: str, overrides: dict | None = None) -> 
     if overrides is not None and key in overrides:
         return _coerce_bool(overrides[key])
     return None
+
+
+_HF_REPO_ID_RE = re.compile(r"^[\w.\-]+/[\w.\-]+$")
+
+
+def _resolve_model_path(model_path: str, allow_download: bool) -> tuple[str, str | None]:
+    """Resolve a trainable base to a local dir; block silent multi-GB hub pulls.
+
+    A bare ``org/repo`` model_path makes ``from_pretrained`` stream gigabytes
+    mid-run (this stalled the first c327fa36 attempt). Local paths pass
+    through; repo ids already in the HF hub cache pass through (the load hits
+    disk); ids present in the app's ``~/.finetune-studio/hf_models`` download
+    dir are rewritten to that path; anything else needs an explicit
+    ``allow_download=true``. Returns ``(model_path, error_or_None)``.
+    """
+    p = Path(model_path).expanduser()
+    if p.exists():
+        return str(p), None
+    repo = model_path.split(":", 1)[0]
+    if not _HF_REPO_ID_RE.match(repo):
+        return model_path, None  # not a repo id — the engine surfaces its own error
+    org, name = repo.split("/", 1)
+    hub_snap = (
+        Path.home()
+        / ".cache"
+        / "huggingface"
+        / "hub"
+        / f"models--{org}--{name.replace('/', '--')}"
+        / "snapshots"
+    )
+    if hub_snap.is_dir() and any(hub_snap.iterdir()):
+        return model_path, None
+    app_dir = Path.home() / ".finetune-studio" / "hf_models" / f"{org}__{name}"
+    if app_dir.is_dir():
+        return str(app_dir), None
+    if allow_download:
+        return model_path, None
+    return model_path, (
+        f"model_path {model_path!r} is not local — starting would download it "
+        "from the Hub mid-run (multi-GB; this stalled the first c327fa36 "
+        "attempt). Pull it via Models → Explore and pick the local copy, or "
+        "send allow_download=true to proceed anyway."
+    )
 
 
 # ── Training Presets ──────────────────────────────────────────
@@ -407,6 +451,11 @@ async def start_training(request: Request):
 
     if not config.model_path:
         return {"error": "No model_path provided"}
+    config.model_path, dl_err = _resolve_model_path(
+        config.model_path, _optional_body_bool(body, "allow_download") or False
+    )
+    if dl_err:
+        return {"error": dl_err}
     training_data = load_jsonl(data_path)
     if not training_data:
         return {"error": "Training dataset is empty"}
