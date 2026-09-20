@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-363 files · 64180 lines
-- `finetune_studio`: 216 files, 39202 lines
+366 files · 65016 lines
+- `finetune_studio`: 218 files, 39846 lines
 - `scripts`: 9 files, 2199 lines
-- `tests`: 138 files, 22779 lines
+- `tests`: 139 files, 22971 lines
 
 
 # finetune_studio
@@ -713,6 +713,11 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `read_json(path: Path) -> dict` (L15)
 - `try_import_pandas()` (L19) — Lazily import pandas, raising a clear error if it's missing.
 
+## `src/finetune_studio/data/rag_portable/mcp_package.py` (250 lines)
+- `_slug(name: str) -> str` (L160)
+- `_tar_data_filter(ti: tarfile.TarInfo) -> tarfile.TarInfo` (L165) — Portable equivalent of tarfile's ``filter="data"`` (older Pythons
+- `build_package(corpus_dir: str | Path, out_path: str | Path, *, name: str | None = None, fmt…` (L177) — Assemble the hostable package for a built corpus and archive it.
+
 ## `src/finetune_studio/data/rag_portable/query.py` (170 lines)
 - `class PortableRAGQuery` (L18)
   - `def __init__(self, corpus_dir: Path, manifest: Manifest, chunks, vectors: np.ndarray, idx_…` (L21)
@@ -753,6 +758,19 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `_is_file_library_raw(path: Path) -> bool` (L149) — True for immutable file-library uploads under ``files/raw/``.
 - `_has_canonical_parsed_for_raw(path: Path) -> bool` (L154) — True when a content-addressed ``files/<sha12>/parsed.txt`` exists.
 - `should_ingest_source_file(path: Path) -> bool` (L170) — Whether *path* should be indexed into a project RAG corpus.
+
+## `src/finetune_studio/data/rag_portable/standalone_server.py` (327 lines)
+- `tokenize(text: str) -> list[str]` (L44)
+- `class Corpus` (L48)
+  - `def __init__(self, corpus_dir: Path = CORPUS_DIR)` (L51)
+  - `def bm25_scores(self, query: str) -> np.ndarray` (L71)
+  - `def embed_query(self, query: str) -> np.ndarray | None` (L91)
+  - `def search(self, query: str, top_k: int = 5) -> list[dict]` (L115)
+  - `def info(self) -> dict` (L159)
+- `serve_http(corpus: Corpus, port: int) -> None` (L173)
+- `mcp_responder(corpus: Corpus)` (L239)
+- `serve_mcp(corpus: Corpus) -> None` (L283)
+- `main(argv: list[str] | None = None) -> int` (L300)
 
 ## `src/finetune_studio/data/rag_portable/store.py` (814 lines)
 - `class PortableRAG` (L53)
@@ -1798,7 +1816,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `inference_memory_estimate(request: Request)` (L397) — Estimate VRAM needed for a model with given loader params.
   - imports: finetune_studio.config, finetune_studio.models.gguf_layers, finetune_studio.models.loader, finetune_studio.models.manager, finetune_studio.models.registry, finetune_studio.testing.inference, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.routes.system, finetune_studio.webui.thinking
 
-## `src/finetune_studio/webui/routes/pages.py` (707 lines)
+## `src/finetune_studio/webui/routes/pages.py` (730 lines)
 - `_sum_benchmarks(runs)` (L31) — Sum total benchmark count across all runs.
 - `_require_project(pid: str)` (L43) — Return project dict or None (caller redirects to /projects).
 - `_dir_size_gb(path: str) -> float` (L58) — Total size of a directory tree in GB, rounded to 2 decimals.
@@ -1823,8 +1841,10 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `benchmarks_page(request: Request, pid: str)` (L504) — Benchmarks tab — run suites, view scores, compare runs.
 - `project_chat_page(request: Request, pid: str)` (L593) — Project chat page — chat with the project's production model, optionally
 - `project_settings_page(request: Request, pid: str)` (L609) — Project settings + WebUI log tail (no SSH needed for uvicorn.log).
-- `settings_page(request: Request)` (L624) — Settings, debug info, replay tutorial, system status.
-- `debug_info()` (L640) — Return system debug info for the Settings page.
+- `project_wizard_page(request: Request, pid: str)` (L622) — Project wizard: Quick start runs files → QA → dataset → train → test
+- `project_flow_page(request: Request, pid: str)` (L639) — Old name for the wizard — keep bookmarks and links working.
+- `settings_page(request: Request)` (L647) — Settings, debug info, replay tutorial, system status.
+- `debug_info()` (L663) — Return system debug info for the Settings page.
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.db, finetune_studio.models.helper, finetune_studio.models.loader, finetune_studio.models.registry, finetune_studio.training.export_capabilities, finetune_studio.webui.app, finetune_studio.webui.model_labels, finetune_studio.webui.project_dashboard, finetune_studio.webui.project_data_browser, finetune_studio.webui.routes.benchmarks, finetune_studio.webui.routes.project_export, finetune_studio.webui.routes.project_rag, finetune_studio.webui.testing_models
 
 ## `src/finetune_studio/webui/routes/project_export.py` (48 lines)
@@ -1840,19 +1860,20 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `model_export_contents(pid: str, export_path: str) -> dict` (L73) — List top-level files in a trained export directory (max 20).
   - imports: finetune_studio
 
-## `src/finetune_studio/webui/routes/project_rag.py` (331 lines)
-- `corpus_dir(pid: str) -> Path` (L28) — Return the on-disk corpus directory for ``pid``.
-- `project_files_dir(pid: str) -> Path` (L33) — Return the project's parsed-files directory used as RAG build input.
-- `_guess_mime(filename: str) -> str` (L38) — Guess a MIME type from ``filename``; default to text/plain.
-- `_format_ts(ts: float) -> str` (L44) — Format a unix timestamp for display; empty string if unset.
-- `list_indexed_docs(pid: str) -> list[dict[str, Any]]` (L54) — Inventory of documents indexed into the project's RAG corpus.
-- `list_doc_chunks(pid: str, doc_id: str) -> list[dict[str, Any]]` (L174) — Return chunk previews for one document (id + first 120 chars of text).
-- `total_chunk_count(docs: list[dict[str, Any]]) -> int` (L203) — Sum of ``chunks`` across indexed-doc dicts.
-- `class RebuildRequest(BaseModel)` (L208)
-- `rag_docs_inventory(pid: str) -> dict[str, Any]` (L224) — List indexed documents with per-doc chunk counts and status.
-- `rag_doc_chunks(pid: str, doc_id: str) -> dict[str, Any]` (L239) — List chunk id + text preview for one indexed document.
-- `rag_rebuild(pid: str, req: RebuildRequest | None = None) -> dict[str, Any]` (L250) — Rebuild the project RAG corpus (whole-project scope).
-  - imports: finetune_studio, finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.io, finetune_studio.data.rag_portable.source_labels
+## `src/finetune_studio/webui/routes/project_rag.py` (374 lines)
+- `corpus_dir(pid: str) -> Path` (L29) — Return the on-disk corpus directory for ``pid``.
+- `project_files_dir(pid: str) -> Path` (L34) — Return the project's parsed-files directory used as RAG build input.
+- `_guess_mime(filename: str) -> str` (L39) — Guess a MIME type from ``filename``; default to text/plain.
+- `_format_ts(ts: float) -> str` (L45) — Format a unix timestamp for display; empty string if unset.
+- `list_indexed_docs(pid: str) -> list[dict[str, Any]]` (L55) — Inventory of documents indexed into the project's RAG corpus.
+- `list_doc_chunks(pid: str, doc_id: str) -> list[dict[str, Any]]` (L175) — Return chunk previews for one document (id + first 120 chars of text).
+- `total_chunk_count(docs: list[dict[str, Any]]) -> int` (L204) — Sum of ``chunks`` across indexed-doc dicts.
+- `class RebuildRequest(BaseModel)` (L209)
+- `rag_docs_inventory(pid: str) -> dict[str, Any]` (L225) — List indexed documents with per-doc chunk counts and status.
+- `rag_doc_chunks(pid: str, doc_id: str) -> dict[str, Any]` (L240) — List chunk id + text preview for one indexed document.
+- `rag_mcp_package(pid: str, name: str | None = None, fmt: str = 'tar.gz')` (L251) — Download a hostable, self-installing RAG package (MCP + HTTP server).
+- `rag_rebuild(pid: str, req: RebuildRequest | None = None) -> dict[str, Any]` (L293) — Rebuild the project RAG corpus (whole-project scope).
+  - imports: finetune_studio, finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.io, finetune_studio.data.rag_portable.mcp_package, finetune_studio.data.rag_portable.source_labels
 
 ## `src/finetune_studio/webui/routes/project_settings.py` (210 lines)
 - `resolve_log_path(candidates: tuple[str, ...] | None = None) -> str` (L35) — Return the first existing candidate path, else the primary candidate.
@@ -2000,7 +2021,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `_update_worker(uid: str, mode: str, options: dict) -> None` (L181) — Spawn update.sh as subprocess, stream output to the DB row.
   - imports: finetune_studio, finetune_studio.webui.live_sse
 
-## `src/finetune_studio/webui/routes/versions.py` (256 lines)
+## `src/finetune_studio/webui/routes/versions.py` (257 lines)
 - `_manifest_of(v: dict) -> dict[str, Any]` (L35)
 - `_save_version(pid: str, body: dict[str, Any]) -> dict | JSONResponse` (L42) — Shared save logic for both the JSON route and the multipart-free CLI path.
 - `list_versions(pid: str)` (L96)
@@ -2010,7 +2031,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `delete_version(vid: str, pid: str)` (L129)
 - `build_subset_dataset(pid: str, request: Request)` (L137) — Specialized build: hand-picked sources → coverage-filled → registered dataset.
 - `rag_coverage(pid: str)` (L208) — 100%-facts gate for RAG: every parsed source present in the corpus?
-  - imports: finetune_studio, finetune_studio.config, finetune_studio.data.fs, finetune_studio.data.prep.coverage_fill, finetune_studio.data.prep.export, finetune_studio.db.datasets, finetune_studio.db.runs
+  - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.data.prep.coverage_fill, finetune_studio.data.prep.export, finetune_studio.db.datasets, finetune_studio.db.runs, finetune_studio.webui.routes.rag
 
 ## `src/finetune_studio/webui/testing_models.py` (75 lines)
 - `is_run_done(run: dict[str, Any]) -> bool` (L22) — True when a training run is finished successfully.
@@ -2207,7 +2228,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_empty_rag_sources_array_renders_status() -> None` (L39)
 - `test_chat_request_keeps_abort_controller_per_request() -> None` (L48)
 
-## `tests/test_api.py` (200 lines)
+## `tests/test_api.py` (224 lines)
 - `class TestHealthRoutes` (L3)
   - `def test_root_page(self, client)` (L4)
   - `def test_projects_page(self, client)` (L9)
@@ -2241,6 +2262,10 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def test_delete_nonexistent_project(self, client)` (L187)
   - `def test_hf_search_empty_query(self, client)` (L192)
   - `def test_hf_search_negative_limit(self, client)` (L197)
+- `class TestWizardPage` (L204)
+  - `def _pid(self, client, name = 'Wizard Test')` (L205)
+  - `def test_wizard_page_renders_both_modes(self, client)` (L210)
+  - `def test_flow_redirects_to_wizard(self, client)` (L220)
 
 ## `tests/test_app_js_delegate.py` (72 lines)
 - `_app_js() -> str` (L12)
@@ -3190,6 +3215,15 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_import_route_accepts_tar_gz_suffix(tmp_path: Path, monkeypatch) -> None` (L228) — The upload route must accept 'x.tar.gz' — Path.suffix sees '.gz' only.
   - imports: finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.store, finetune_studio.webui.routes.rag
 
+## `tests/test_rag_mcp_package.py` (181 lines)
+- `corpus_dir(tmp_path: Path) -> Path` (L41) — A real (tiny) PortableRAG corpus dir with all on-disk artifacts.
+- `_extract(archive: Path, dest: Path) -> Path` (L84)
+- `test_build_package_contents(corpus_dir: Path, tmp_path: Path) -> None` (L92)
+- `test_standalone_keyword_search(corpus_dir: Path, tmp_path: Path) -> None` (L118) — server.py --query works offline (no embedding endpoint) via BM25.
+- `test_standalone_mcp_stdio(corpus_dir: Path, tmp_path: Path) -> None` (L136) — MCP handshake + tools/list + tools/call over stdio, JSON-RPC 2.0.
+- `test_missing_corpus_files_raises(tmp_path: Path) -> None` (L177)
+  - imports: finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.bm25, finetune_studio.data.rag_portable.mcp_package
+
 ## `tests/test_rag_mime_ingestion.py` (168 lines)
 - `_hash_embed(texts: list[str] | str, dim: int = 64) -> np.ndarray` (L22) — Bag-of-token hashing → L2-normalised vectors (deterministic, offline).
 - `_fake_get_embedder(name: str = 'fake-deterministic', device: str = 'cpu')` (L37)
@@ -3625,7 +3659,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_write_uploaded_file_includes_image_png_metadata(mock_settings) -> None` (L41) — The OCR ingestion path must round-trip an image upload without raising.
   - imports: finetune_studio, finetune_studio.data.fs
 
-## `tests/test_versions.py` (206 lines)
+## `tests/test_versions.py` (193 lines)
 - `project(temp_db)` (L13)
 - `client(temp_db)` (L19)
 - `test_version_crud_and_monotonic_numbers(project)` (L24)
@@ -3636,9 +3670,9 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_save_version_404_unknown_project(client)` (L80)
 - `test_save_version_rejects_foreign_parent(client, project)` (L85)
 - `test_subset_dataset_build_route(client, project, temp_db, monkeypatch)` (L91) — Subset export: select known sources -> registered dataset with rows.
-- `test_subset_empty_payload_rejected(client, project, temp_db, monkeypatch)` (L148)
-- `test_rag_coverage_gate(client, project, temp_db, monkeypatch)` (L163)
-  - imports: finetune_studio, finetune_studio.config, finetune_studio.data.fs.files, finetune_studio.data.fs.qa, finetune_studio.data.prep.qa_validate, finetune_studio.webui.app, finetune_studio.webui.routes.versions
+- `test_subset_empty_payload_rejected(client, project, temp_db, monkeypatch)` (L146)
+- `test_rag_coverage_gate(client, project, temp_db, monkeypatch)` (L162)
+  - imports: finetune_studio, finetune_studio.data.fs.qa, finetune_studio.data.prep.qa_validate, finetune_studio.webui.app, finetune_studio.webui.routes.rag
 
 ## `tests/test_vram.py` (176 lines)
 - `class TestConstants` (L8)

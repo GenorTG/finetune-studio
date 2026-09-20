@@ -618,21 +618,27 @@ async def project_settings_page(request: Request, pid: str):
     )
 
 
-@router.get("/projects/{pid}/flow", response_class=HTMLResponse)
-async def project_flow_page(request: Request, pid: str):
-    """Guided start-to-finish flow: files → QA → dataset → RAG → train → test → version.
-
-    Read-only dashboard over the same APIs the CLI uses; the only POST actions
-    are full-export, RAG build, and save-version, all reachable in curl too.
-    """
+@router.get("/projects/{pid}/wizard", response_class=HTMLResponse)
+async def project_wizard_page(request: Request, pid: str):
+    """Project wizard: Quick start runs files → QA → dataset → train → test
+    in one guided sequence; Step by step exposes every control separately."""
+    from finetune_studio.models.registry import models_for_training
+    from finetune_studio.webui.app import discovered_models
     ctx = _project_ctx(pid)
     if not ctx:
         return RedirectResponse(url="/projects", status_code=302)
     return templates.TemplateResponse(
         request,
-        "project_flow.html",
-        {**ctx, "request": request},
+        "project_wizard.html",
+        {**ctx, "request": request,
+         "models": models_for_training(discovered_models)},
     )
+
+
+@router.get("/projects/{pid}/flow", response_class=HTMLResponse)
+async def project_flow_page(request: Request, pid: str):
+    """Old name for the wizard — keep bookmarks and links working."""
+    return RedirectResponse(url=f"/projects/{pid}/wizard", status_code=302)
 
 
 # ── Settings & Debug Info ───────────────────────────────────────────

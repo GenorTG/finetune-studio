@@ -1,0 +1,28 @@
+{
+  "traceSchema": "openclaw-trajectory",
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-18T11:54:06.911Z",
+  "traceId": "767172bc-96c5-446b-82b5-836241df9985",
+  "sessionId": "767172bc-96c5-446b-82b5-836241df9985",
+  "sessionKey": "agent:cursor:acp:1a033c5e-8842-4628-a33e-6ca1d4ba6221",
+  "workspaceDir": "$WORKSPACE_DIR",
+  "leafId": "2f48aa10-a981-4a66-afec-df76514ce56b",
+  "eventCount": 339,
+  "runtimeEventCount": 0,
+  "transcriptEventCount": 339,
+  "sourceFiles": {
+    "session": "agent:…6221"
+  },
+  "contents": [
+    {
+      "path": "events.jsonl",
+      "mediaType": "application/x-ndjson",
+      "bytes": 918404
+    },
+    {
+      "path": "session-branch.json",
+      "mediaType": "application/json",
+      "bytes": 13547
+    }
+  ]
+}

@@ -198,3 +198,27 @@ class TestInputValidation:
         r = client.get("/api/hf/search?q=test&limit=-1")
         # Route may clamp/validate; accept any safe status
         assert r.status_code in (200, 400, 422)
+
+# ── Project wizard (quick + advanced modes) ───────────────────────────────
+
+class TestWizardPage:
+    def _pid(self, client, name="Wizard Test"):
+        r = client.post("/api/projects", json={"name": name})
+        assert r.status_code == 200
+        return r.json()["id"]
+
+    def test_wizard_page_renders_both_modes(self, client):
+        pid = self._pid(client)
+        r = client.get(f"/projects/{pid}/wizard")
+        assert r.status_code == 200
+        body = r.text
+        assert "Project wizard" in body
+        assert "Quick start" in body and "Step by step" in body
+        assert "Run steps 2-5 now" in body
+        assert "wiz-quick" in body and "wiz-advanced" in body
+
+    def test_flow_redirects_to_wizard(self, client):
+        pid = self._pid(client, name="Flow Redirect Test")
+        r = client.get(f"/projects/{pid}/flow", follow_redirects=False)
+        assert r.status_code == 302
+        assert r.headers["location"].endswith(f"/projects/{pid}/wizard")
