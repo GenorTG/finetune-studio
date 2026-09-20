@@ -9,7 +9,7 @@ Edit on **genorbox1** → push → **fan-dragon** runs `finetune-studio.service`
 
 Trained models must reliably answer the learned corpus — no lying about trained DB sources. Judge by reading transcripts, not auto-greens. **Data guarantee: every parsed chunk must reach the training dataset (no silent holes).**
 
-## State (verified 2026-09-20 ~19:15 CEST · fan-dragon at build `0.1.0.2`, service active)
+## State (verified 2026-09-20 ~19:25 CEST · fan-dragon: `GET /api/system/version` = live build, last seen `0.1.0.4` @ `9d71ccf`, service active)
 
 | Area | Status |
 |------|--------|
