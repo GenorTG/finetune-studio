@@ -63,12 +63,22 @@ ready-made ways to query them: a plain HTTP API and an MCP server
 | `run-http.sh` | starts `http://localhost:8899/search?q=...` |
 | `run-mcp.sh` | starts the MCP server on stdio (for agent apps) |
 | `mcp-config.example.json` | config snippet for agent apps |
+| `setup.sh` | one-command guided setup: install, port, start, optional service, prints your MCP entry |
 
 ## Quickstart
 
 ```bash
-bash install.sh          # once; makes .venv/
-bash run-http.sh         # starts the search API on :8899
+bash setup.sh            # guided: installs, picks a port, starts the server,
+                         # can install a persistent service, and prints a
+                         # copy-paste MCP entry with real paths
+cat MCP-ENTRY.txt        # the MCP config setup.sh generated for this machine
+```
+
+Or do it by hand:
+
+```bash
+bash install.sh          # once; makes .venv/ (numpy; + torch/ST for model packs)
+bash run-http.sh         # starts the search API on :8899 (PORT=… to change)
 curl "http://localhost:8899/search?q=your+question&top_k=5"
 ```
 
@@ -78,7 +88,9 @@ Or one-shot from the shell, no server:
 .venv/bin/python server.py --query "your question" --top-k 5
 ```
 
-{embed_section}## Use it as an MCP server (agents)
+{embed_section}
+
+## Use it as an MCP server (agents)
 
 - **Claude Desktop** — put this in `claude_desktop_config.json` (edit the path):
 
@@ -175,6 +187,152 @@ set -euo pipefail
 cd "$(dirname "$0")"
 [ -d .venv ] || bash install.sh
 exec .venv/bin/python server.py --mcp
+"""
+
+_SETUP_SH = """#!/usr/bin/env bash
+# One-command setup for this Finetune Studio RAG pack.
+#
+#   bash setup.sh              guided: port, start server, optional service
+#   bash setup.sh --yes        defaults only (install + MCP entry, no prompts)
+#   bash setup.sh --yes --start --port 8899
+#   bash setup.sh --service    run as a persistent systemd user service
+#   bash setup.sh --uninstall  remove the service (keeps files)
+#
+# Always writes MCP-ENTRY.txt with a copy-pasteable MCP config that has
+# this machine's absolute paths already filled in.
+set -euo pipefail
+cd "$(dirname "$0")"
+PKG_DIR="$(pwd)"
+NAME="$(basename "$PKG_DIR")"
+UNIT="fts-rag-$NAME.service"
+UNIT_PATH="$HOME/.config/systemd/user/$UNIT"
+PORT=8899
+ASSUME_YES=0; DO_START=0; DO_SERVICE=0; DO_UNINSTALL=0; PORT_SET=0
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --yes|-y)      ASSUME_YES=1 ;;
+    --port)        shift; PORT="${1:?--port needs a number}"; PORT_SET=1 ;;
+    --port=*)      PORT="${1#--port=}"; PORT_SET=1 ;;
+    --start)       DO_START=1 ;;
+    --service)     DO_SERVICE=1 ;;
+    --uninstall)   DO_UNINSTALL=1 ;;
+    -h|--help)     sed -n '2,12p' "$0" | sed 's/^# \\?//'; exit 0 ;;
+    *) echo "unknown option: $1 (try --help)"; exit 2 ;;
+  esac
+  shift
+done
+
+ask_yn() {  # ask_yn "prompt" default(Y|N) -> 0=yes
+  local prompt="$1" def="${2:-N}" ans
+  if [ "$ASSUME_YES" = 1 ] || [ ! -t 0 ]; then [ "$def" = "Y" ]; return; fi
+  read -r -p "$prompt [$def] " ans || ans=""
+  ans="${ans:-$def}"
+  case "$ans" in [Yy]*) return 0 ;; *) return 1 ;; esac
+}
+
+if [ "$DO_UNINSTALL" = 1 ]; then
+  if command -v systemctl >/dev/null 2>&1 && [ -f "$UNIT_PATH" ]; then
+    systemctl --user disable --now "$UNIT" 2>/dev/null || true
+    rm -f "$UNIT_PATH"
+    systemctl --user daemon-reload
+    echo "Service '$UNIT' removed."
+  else
+    echo "No service installed at $UNIT_PATH — nothing to remove."
+  fi
+  if [ -f rag-server.pid ]; then
+    kill "$(cat rag-server.pid)" 2>/dev/null || true
+    rm -f rag-server.pid
+    echo "Stopped the locally started server."
+  fi
+  exit 0
+fi
+
+# 1) dependencies (venv)
+if [ ! -x .venv/bin/python ]; then
+  echo "Creating venv + installing dependencies…"
+  bash install.sh
+fi
+
+# 2) port (prompt only when interactive)
+if [ "$PORT_SET" = 0 ] && [ "$ASSUME_YES" = 0 ] && [ -t 0 ]; then
+  read -r -p "Port for the search API [$PORT]: " ans || ans=""
+  PORT="${ans:-$PORT}"
+fi
+case "$PORT" in (*[!0-9]*|'') PORT=8899 ;; esac
+
+# 3) copy-paste MCP entry (absolute paths, ready to paste)
+cat > MCP-ENTRY.txt <<ENTRY
+{
+  "mcpServers": {
+    "$NAME": {
+      "command": "bash",
+      "args": ["$PKG_DIR/run-mcp.sh"]
+    }
+  }
+}
+ENTRY
+echo
+ echo "=== Copy-paste MCP entry (also saved to MCP-ENTRY.txt) ==="
+cat MCP-ENTRY.txt
+echo "=== Paste into Claude Desktop / OpenClaw mcp.servers / Cursor; or use HTTP: ==="
+echo "  curl 'http://localhost:$PORT/search?q=your+question&top_k=5'"
+echo
+
+HAVE_SYSTEMD=0
+if command -v systemctl >/dev/null 2>&1 && [ -n "${XDG_RUNTIME_DIR:-}" ]; then HAVE_SYSTEMD=1; fi
+
+# 4) persistent service?
+if [ "$DO_SERVICE" = 1 ] || ask_yn "Install as a service that stays up (starts on login, restarts on crash)?" N; then
+  if [ "$HAVE_SYSTEMD" = 0 ]; then
+    echo "No systemd user session here — skipping service. Start manually with: bash run-http.sh"
+  else
+    ENV_LINES=""
+    [ -n "${RAG_EMBED_BASE_URL:-}" ] && ENV_LINES="Environment=RAG_EMBED_BASE_URL=$RAG_EMBED_BASE_URL"
+    [ -n "${RAG_EMBED_API_KEY:-}" ] && ENV_LINES="$ENV_LINES
+Environment=RAG_EMBED_API_KEY=$RAG_EMBED_API_KEY"
+    mkdir -p "$(dirname "$UNIT_PATH")"
+    cat > "$UNIT_PATH" <<UNIT
+[Unit]
+Description=Finetune Studio RAG pack ($NAME)
+After=network-online.target
+
+[Service]
+WorkingDirectory=$PKG_DIR
+ExecStart=$PKG_DIR/.venv/bin/python $PKG_DIR/server.py --http $PORT
+$ENV_LINES
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
+UNIT
+    systemctl --user daemon-reload
+    systemctl --user enable --now "$UNIT"
+    echo "Service installed: $UNIT (port $PORT)"
+    echo "  status:  systemctl --user status $UNIT"
+    echo "  logs:    journalctl --user -u $UNIT -f"
+    echo "  remove:  bash setup.sh --uninstall"
+    if ! loginctl show-user "$(id -un)" 2>/dev/null | grep -q 'Linger=yes'; then
+      echo "  tip: to keep it running after logout run: loginctl enable-linger $(id -un)"
+    fi
+    exit 0
+  fi
+fi
+
+# 5) or just run it now
+if [ "$DO_START" = 1 ] || ask_yn "Start the search server now on port $PORT?" Y; then
+  nohup .venv/bin/python server.py --http "$PORT" > rag-server.log 2>&1 &
+  echo $! > rag-server.pid
+  sleep 2
+  if curl -fsS "http://localhost:$PORT/health" >/dev/null 2>&1; then
+    echo "Search server running on http://localhost:$PORT (log: rag-server.log, stop: kill \\$(cat rag-server.pid))"
+  else
+    echo "Server started but /health not answering yet — check rag-server.log"
+  fi
+else
+  echo "Not started. Whenever you like: bash run-http.sh  (PORT=… to change the port)"
+fi
 """
 
 _MCP_CONFIG_TMPL = """{{
@@ -316,12 +474,13 @@ def build_package(
         (root / "run-mcp.sh").write_text(_RUN_MCP_SH, encoding="utf-8")
         (root / "mcp-config.example.json").write_text(
             _MCP_CONFIG_TMPL.format(slug=slug), encoding="utf-8")
+        (root / "setup.sh").write_text(_SETUP_SH, encoding="utf-8")
         (root / "README.md").write_text(_README_TMPL.format(
             title=title, slug=slug, embed_model=embed_model,
             date=time.strftime("%Y-%m-%d"),
             embed_section=embed_section.format(embed_model=embed_model),
         ), encoding="utf-8")
-        for sh in ("install.sh", "run-http.sh", "run-mcp.sh"):
+        for sh in ("install.sh", "run-http.sh", "run-mcp.sh", "setup.sh"):
             (root / sh).chmod(0o755)
 
         if fmt == "zip":
@@ -330,7 +489,11 @@ def build_package(
                     if p.is_file():
                         zf.write(p, p.relative_to(stage))
         elif fmt in ("tar.gz", "tgz", "tar"):
-            with tarfile.open(out, "w:gz" if fmt != "tar" else "w") as tf:
+            gz = fmt != "tar"
+            # safetensors weights barely compress; level 9 on a 2 GB model
+            # package wastes minutes. Text-only packs keep level 9.
+            kwargs = {"compresslevel": 1 if include_models else 9} if gz else {}
+            with tarfile.open(out, "w:gz" if gz else "w", **kwargs) as tf:
                 tf.add(root, arcname=f"{slug}-rag", filter=_tar_data_filter)
         else:
             raise ValueError(f"unsupported package format: {fmt!r}")
