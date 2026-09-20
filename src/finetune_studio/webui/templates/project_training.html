@@ -307,7 +307,7 @@
           data-started="{{ run.started_at or '' }}"
           data-duration="{{ run.duration or '' }}"
           data-loss="{{ run.final_loss if run.final_loss is not none else '' }}">
-        <td class="name">
+        <td class="name cell-wrap" title="{{ run.name }}">
           {{ run.name }}
           {% if project.production_run == run.id %}
           <span class="pill solid-green prod-pill">⭐ production</span>
@@ -701,7 +701,7 @@
       return (
         '<tr class="row-hover' + active + '" data-run-id="' + esc(id) + '" data-run-name="' + esc(name) + '"' +
         ' data-status="' + esc(status) + '" data-output-path="' + esc(out) + '">' +
-        '<td class="name">' + esc(name) + prodMark + errLine + "</td>" +
+        '<td class="name cell-wrap" title="' + esc(name) + '">' + esc(name) + prodMark + errLine + "</td>" +
         '<td><span class="pill ' + statusPillClass(status) + '">' + esc(status) + "</span></td>" +
         '<td class="meta mono">' + esc(formatStarted(run.started_at)) + "</td>" +
         '<td class="meta mono">' + esc(formatDuration(run.duration)) + "</td>" +

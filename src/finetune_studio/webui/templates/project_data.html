@@ -523,7 +523,7 @@
         '<td class="meta mono fb-c-up" title="' + esc(f.uploaded_at || '') + '">' + relativeTime(f.uploaded_at) + '</td>' +
         '<td class="fb-c-pipe">' + (deleted ? '<span class="dim">—</span>' : pipeBadges(f)) + '</td>' +
         '<td class="fb-c-drift">' + (deleted ? '<span class="dim">—</span>' : driftBadge(f)) + '</td>' +
-        '<td>' + actions + '</td>' +
+        '<td class="fb-c-actions">' + actions + '</td>' +
       '</tr>';
     }).join('');
     updatePageBar();

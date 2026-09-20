@@ -82,7 +82,7 @@
           data-row-id="{{ row_id }}"
           data-model-path="{{ m.path }}"
           data-run-id="{{ m.run_id }}">
-        <td class="name exports-col-name">
+        <td class="name exports-col-name" title="{{ m.name }}">
           <button type="button" class="name-btn" onclick="flToggleExportRow({{ m.path|tojson }})">{{ m.name }}</button>
         </td>
         <td class="exports-col-format"><span class="pill outline">{{ m.format }}</span></td>

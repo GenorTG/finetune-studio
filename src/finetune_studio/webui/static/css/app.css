@@ -469,6 +469,11 @@ body::before {
   box-shadow: 0 0 12px var(--accent-glow);
 }
 .btn.primary:hover { background: var(--accent-2); border-color: var(--accent-2); color: #000; }
+/* Light theme: accent is dark green — black-on-accent falls below 3:1. */
+:root[data-theme="light"] .btn.primary,
+:root[data-theme="light"] .btn.primary:hover,
+:root[data-theme="light"] .tutorial-btn.primary { color: #fff; }
+:root[data-theme="light"] .logo { color: #fff; }
 .btn.danger  { background: rgba(255,58,58,0.12); border-color: var(--err); color: var(--err); }
 .btn.success { background: rgba(0,255,102,0.12); border-color: var(--accent); color: var(--accent); }
 .btn.ghost   { background: transparent; border-color: var(--border); color: var(--text-muted); }
@@ -916,6 +921,12 @@ body::before {
   overflow-wrap: anywhere;
   word-break: break-word;
   text-overflow: clip;
+}
+/* Cells that hold buttons must never be clipped by the ellipsis rule above —
+   a half-hidden action button is unreachable, not tidy. */
+.table td.flex {
+  overflow: visible;
+  white-space: normal;
 }
 .table td[colspan],
 .table .empty-row td {
@@ -3073,6 +3084,15 @@ body::before {
   .sb-brand .sb-prompt { display: none; }
   .sb-right { gap: 6px; }
   .sb-right .version { display: none; }
+  /* Absolute clusters reserve gutters in the tab strip — shrink them so the
+     right cluster (theme/activity/palette/pill) never spills past the edge. */
+  .sb-nav-shell { padding-left: 56px; padding-right: 180px; }
+  .sb-brand { left: 8px; }
+}
+@media (max-width: 560px) {
+  .sb-right .status-pill,
+  .sb-right .conn-status { display: none; }
+  .sb-nav-shell { padding-right: 148px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4273,13 +4293,20 @@ body::before {
   width: 100%;
   min-width: 36rem;
 }
-#fb-files-table .fb-col-name { width: 28%; }
-#fb-files-table .fb-col-type { width: 12%; }
-#fb-files-table .fb-col-size { width: 10%; }
-#fb-files-table .fb-col-ver { width: 8%; }
-#fb-files-table .fb-col-uploaded { width: 14%; }
-#fb-files-table .fb-col-drift { width: 10%; }
-#fb-files-table .fb-col-actions { width: 14%; }
+#fb-files-table .fb-col-check { width: 2.5rem; }
+#fb-files-table .fb-col-type { width: 5.5rem; }
+#fb-files-table .fb-col-size { width: 5rem; }
+#fb-files-table .fb-col-ver { width: 3.5rem; }
+#fb-files-table .fb-col-uploaded { width: 7.5rem; }
+#fb-files-table .fb-col-drift { width: 5rem; }
+#fb-files-table .fb-col-pipeline { width: 9rem; }
+/* Actions row needs ~8 icon buttons on one line — fixed rem floor beats a %
+   that collapses; table-scroll absorbs the overflow (59a8206 design). */
+#fb-files-table .fb-col-actions { width: 21rem; }
+#fb-files-table td.fb-c-actions { overflow: visible; white-space: nowrap; }
+#fb-files-table td.fb-c-actions .btn.sm { padding: 4px 7px; }
+#fb-files-table td.fb-c-pipe { white-space: normal; }
+#fb-files-table { min-width: 74rem; }
 .fl-table { min-width: 36rem; }
 #dp-parsed-table { table-layout: fixed; width: 100%; min-width: 20rem; }
 

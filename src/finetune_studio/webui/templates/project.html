@@ -99,7 +99,7 @@
     <tbody>
       {% for run in recent_runs %}
       <tr class="row-hover">
-        <td class="name">{{ run.name }}</td>
+        <td class="name cell-wrap" title="{{ run.name }}">{{ run.name }}</td>
         <td>
           <span class="pill {{ {'running':'solid-amber','done':'solid-green','failed':'solid-rose','stopped':'outline'}.get(run.status, 'outline') }}">
             {{ run.status }}
@@ -153,7 +153,7 @@
     <tbody>
       {% for m in recent_models %}
       <tr class="row-hover">
-        <td class="name">{{ m.name }}</td>
+        <td class="name cell-wrap" title="{{ m.name }}">{{ m.name }}</td>
         <td><span class="pill outline">{{ m.format }}</span></td>
         <td class="num mono">{{ m.size_gb }} GB</td>
         <td class="meta mono" title="{{ m.run_name or '' }}">{{ m.run_id[:8] if m.run_id else '—' }}</td>
