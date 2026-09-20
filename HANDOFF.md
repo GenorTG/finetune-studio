@@ -9,13 +9,13 @@ Edit on **genorbox1** → push → **fan-dragon** runs `finetune-studio.service`
 
 Trained models must reliably answer the learned corpus — no lying about trained DB sources. Judge by reading transcripts, not auto-greens. **Data guarantee: every parsed chunk must reach the training dataset (no silent holes).**
 
-## State (verified 2026-09-20 ~12:00 CEST · fan-dragon at `90bcc21`+, service active)
+## State (verified 2026-09-20 ~12:20 CEST · fan-dragon at `90c86dc`, service active)
 
 | Area | Status |
 |------|--------|
 | **Dataset coverage — 100% enforced** | `coverage_fill.py` (`6af6312`): deterministic second pass; chunks the LLM mining missed get extractive pairs (answer quoted verbatim, `origin=coverage_fill`, status approved, no invention). Runs **at end of every mining run** (runner self-heal, `451facd`) **and before every export** (route gate) — a dataset cannot ship with silently-unmined chunks. Live proof: project 58d4e331 went 515→**554 rows**, chunk coverage **131/131 = 100%**, idempotent on re-export. `fill_all_project_gaps()` also surfaces declared-but-lost parsed artifacts (never crash-swallow). |
 | **RAG standalone package + readability** | `90bcc21`: RAG page sections renamed for humans (1 Index status → 8 Shared search models; nav overview/build/search/chat; "Remove all sources"/"Rebuild from scratch" buttons). New export: `GET /api/projects/{pid}/rag/mcp-package` → self-installing tarball (corpus + single-file server.py + install.sh venv/numpy-only + README + MCP config). Speaks **MCP stdio** (`rag_search`, `rag_info`) AND **HTTP** (`/search?q=`); keyword search offline out of the box, semantic via any OpenAI-compatible /v1/embeddings (`RAG_EMBED_BASE_URL`). Proven live: downloaded 575 KB pkg, clean-venv install, real Vaelindrath queries via both modes. `tests/test_rag_mcp_package.py` 4 green. TUTORIAL §8 + README rewritten to match. |
-| **Project versioning (goal 34ff4655)** | `project_versions` table + CRUD (`bc1152b`): immutable manifests pin datasets/source_ids/RAG corpora/runs/base model; monotonic version_number, `parent_version_id` lineage → any old version is a branch base. Subset datasets: `POST /api/projects/{pid}/datasets/subset` hand-picks sources → coverage-filled, per-source row counts, registered (`58d4e331-specialized-picks-…` = 48 rows live). RAG parity gate `GET …/rag/coverage` (129/129 = 100% on the live corpus; shares rag route's corpus root — never re-derive the path). Guided flow page `/projects/{pid}/flow` (`7bb24dc`): 7-step files→QA→dataset→RAG→train→test→version dashboard, nav entry, all through the same APIs as curl. Versions CRUD/lineage live-verified as v1 `302071b6` → v2 `4fca19a4`. Timings: flow page auto-checks all 7 stages on load. |
+| **Project versioning (goal 34ff4655)** | `project_versions` table + CRUD (`bc1152b`): immutable manifests pin datasets/source_ids/RAG corpora/runs/base model; monotonic version_number, `parent_version_id` lineage → any old version is a branch base. Subset datasets: `POST /api/projects/{pid}/datasets/subset` hand-picks sources → coverage-filled, per-source row counts, registered (`58d4e331-specialized-picks-…` = 48 rows live). RAG parity gate `GET …/rag/coverage` (129/129 = 100% on the live corpus; shares rag route's corpus root — never re-derive the path). Guided flow page `/projects/{pid}/flow` (`7bb24dc`) → **replaced by the Project wizard** (`90bcc21`+`90c86dc`): `/projects/{pid}/wizard` with two modes — **Quick start** (6-step guided pipeline: upload → generate+auto-approve QA pairs → build dataset → train with base-model/preset pickers → auto-suite test with pass rate → pin; plus "Run steps 2-5" chaining, all through the same APIs) and **Step by step** (the old cards incl. RAG index, live status pills, pin form). `/flow` 302-redirects; tab renamed flow→wizard in all 3 nav spots. Tests in `tests/test_api.py::TestWizardPage`. Versions CRUD/lineage live-verified as v1 `302071b6` → v2 `4fca19a4`. Both wizard modes screenshot-verified on fan-dragon. |
 | **Size-aware training advisor** | `training/preset_advisor.py` (`b78bf15`): parses base size from model name (GGUF quant suffix excluded), scales rank/LR/epochs by base size + dataset size, raises epochs to clear per-tier optimizer-step floor (evidence: 772 steps → 95.1% strict, 257 → 67%). `GET /api/training/recommend?tier=&base_model=&pairs=`. Training page prefills + re-runs when base/dataset changes. 10 evidence-pinned tests. |
 | **Auto-suite proven live** | `POST /api/training/runs/{id}/auto-suites/generate` on run `f76bf64f` → 500 cases, deterministic, quality-checked vs the trusted 515-suite (97% normalized-question overlap, 0 degenerate). Selectable via `GET /api/benchmarks/suites?project_id=` (param is `project_id`, **not** `pid`). |
 | **Project 58d4e331** | "Vaelindrath Stress": 131 files / 129 sources / 131 chunks, **all parsed, zero failed parses** (18 zero-pair files found + filled=100%). Mining: 581 pairs → 564 approved / 17 rejected (7 id-leak, 10 ambiguous) → dedup → **515**; +39 coverage_fill approved → **554-row dataset on disk now** (551 unique approved questions, all present). |
@@ -25,11 +25,11 @@ Trained models must reliably answer the learned corpus — no lying about traine
 
 ## Next steps
 
-1. **Specialized-subset demo done (run `c327fa36`)**: 120 ep r128/α256 on 48 hand-picked rows → final loss 0.0987, q8_0 GGUF exported. Its own 48-case suite: **91.7%** vs generalist 89.6% on the same instrument (fixed 5 / regressed 4) — modest win, real but within noise; both models stumble on digit-confusable facts. Verdict recorded; next: versions UX polish (compare manifests, copy-pins-to-new) or specialized RAG corpus for the same 10 picks.
-2. **Finish rag `import_bundle` WIP** (~274 lines, committed unverified in `45077f2`: `rag.py` + `data/rag_portable/store.py`) — complete or strip.
-3. Full-corpus bench with eyeball judging per `docs/judging/PROTOCOL.md`; then sample the 490+ passes.
-4. Visual UX strict pass with real screenshots (advisory panel, toasts) — needs a paired computer-capable node; verified so far only via curl/DOM.
-5. Popups/responsive polish second pass (asked; icon/message/contrast shipped).
+1. **Versions UX polish**: compare manifests side-by-side, copy-pins-to-new-project. Exact surface not built yet — start at `routes/versions.py` + wizard step 6.
+2. **Specialized RAG corpus** for the 10 hand-picked files (companion to subset datasets) — build via `POST …/rag/build` on a filtered source set; then pin it in a version manifest.
+3. **60ep/r64 variant** on the 48-row subset to noise-check the 91.7%-vs-89.6% split: `POST /api/training/start {project_id:"58d4e331", dataset_id:<a0ae8778>, preset_id:"standard", overrides:{num_epochs:60, lora_rank:64}}`.
+4. Full-corpus bench with eyeball judging per `docs/judging/PROTOCOL.md`; then sample the 490+ passes.
+5. Training-start guard: warn when `model_path` would trigger a multi-GB hub download (stalled run `c327fa36` attempt #1 this way) — `routes/training.py:start_training`.
 
 ## Commands
 
@@ -67,7 +67,7 @@ GET  /api/training/recommend?tier=&base_model=&pairs=&dataset=
 
 ## Blockers
 
-- Screenshots/visual pass needs a paired computer-capable node (Genor to pair).
+- None. (Screenshots work via the host browser tool — every visual change gets a rendered-page check now; Genor's standing rule.)
 - ComfyUI VRAM the only external GPU pressure; observe, never kill.
 
 ## Gotchas worth re-reading before data-prep or training work
