@@ -4296,17 +4296,17 @@ body::before {
 #fb-files-table .fb-col-check { width: 2.5rem; }
 #fb-files-table .fb-col-type { width: 5.5rem; }
 #fb-files-table .fb-col-size { width: 5rem; }
-#fb-files-table .fb-col-ver { width: 3.5rem; }
-#fb-files-table .fb-col-uploaded { width: 7.5rem; }
+#fb-files-table .fb-col-ver { width: 4rem; }
+#fb-files-table .fb-col-uploaded { width: 7rem; }
 #fb-files-table .fb-col-drift { width: 5rem; }
-#fb-files-table .fb-col-pipeline { width: 9rem; }
-/* Actions row needs ~8 icon buttons on one line — fixed rem floor beats a %
+#fb-files-table .fb-col-pipeline { width: 8rem; }
+/* Actions row needs ~9 icon buttons on one line — fixed rem floor beats a %
    that collapses; table-scroll absorbs the overflow (59a8206 design). */
-#fb-files-table .fb-col-actions { width: 21rem; }
-#fb-files-table td.fb-c-actions { overflow: visible; white-space: nowrap; }
+#fb-files-table .fb-col-actions { width: 25rem; }
+#fb-files-table td.fb-c-actions { overflow: visible; white-space: nowrap; text-overflow: clip; }
 #fb-files-table td.fb-c-actions .btn.sm { padding: 4px 7px; }
 #fb-files-table td.fb-c-pipe { white-space: normal; }
-#fb-files-table { min-width: 74rem; }
+#fb-files-table { min-width: 78rem; }
 .fl-table { min-width: 36rem; }
 #dp-parsed-table { table-layout: fixed; width: 100%; min-width: 20rem; }
 
