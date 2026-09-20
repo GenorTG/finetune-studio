@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 MANUAL_PARSER = "manual-edit"
 
 
-def _current_raw_path(pid: str, file_id: str) -> tuple[dict, Path]:
+def _current_raw_path(pid: str, file_id: str) -> tuple[dict, Path, str]:
     f = fl.get_file(pid, file_id)
     if not f:
         raise HTTPException(status_code=404, detail="file not found")
@@ -43,11 +43,16 @@ def _current_raw_path(pid: str, file_id: str) -> tuple[dict, Path]:
     raw = Path(str(match.get("raw_path") or ""))
     if not raw.is_file():
         raise HTTPException(status_code=410, detail="raw bytes missing on disk")
-    return f, raw
+    return f, raw, str(match.get("raw_hash") or "")
 
 
-def _source_for_raw_path(pid: str, raw: Path) -> dict | None:
-    """Find the QA source registered for this raw file (by absolute path)."""
+def _source_for_file(pid: str, raw: Path, raw_hash: str = "") -> dict | None:
+    """Find the QA source for a library file — by content sha256 first (the
+    source may have been registered from the content-addressed copy, not the
+    raw/ path), then by path as a fallback."""
+    for s in pfs.list_qa_sources(pid):
+        if raw_hash and str(s.get("sha256") or "") == raw_hash:
+            return s
     try:
         want = str(raw.resolve())
     except OSError:
@@ -103,11 +108,11 @@ def save_parsed_override(pid: str, file_id: str, text: str) -> dict:
     """
     if text is None:
         raise HTTPException(status_code=400, detail="text required")
-    f, raw = _current_raw_path(pid, file_id)
+    f, raw, raw_hash = _current_raw_path(pid, file_id)
     _override_path(raw).write_text(text, encoding="utf-8")
     fl.invalidate_parsed_cache(pid, file_id)
 
-    source = _source_for_raw_path(pid, raw)
+    source = _source_for_file(pid, raw, raw_hash)
     rechunked = False
     source_id = None
     chunks = 0
@@ -133,7 +138,7 @@ def save_parsed_override(pid: str, file_id: str, text: str) -> dict:
 
 def reparse_file(pid: str, file_id: str) -> dict:
     """Discard the manual override and re-run the real parser from raw bytes."""
-    f, raw = _current_raw_path(pid, file_id)
+    f, raw, raw_hash = _current_raw_path(pid, file_id)
     override = _override_path(raw)
     removed = False
     if override.is_file():
@@ -141,7 +146,7 @@ def reparse_file(pid: str, file_id: str) -> dict:
         removed = True
     fl.invalidate_parsed_cache(pid, file_id)
 
-    source = _source_for_raw_path(pid, raw)
+    source = _source_for_file(pid, raw, raw_hash)
     out: dict = {"ok": True, "file_id": file_id, "override_removed": removed,
                  "name": f.get("original_name")}
     if source is not None:
@@ -180,8 +185,12 @@ def pipeline_status(pid: str) -> dict[str, dict]:
     """
     status: dict[str, dict] = {}
     sources = pfs.list_qa_sources(pid)
+    by_sha: dict[str, dict] = {}
     by_path: dict[str, dict] = {}
     for s in sources:
+        sha = str(s.get("sha256") or "")
+        if sha:
+            by_sha[sha] = s
         for key in ("data_path", "path"):
             val = s.get(key)
             if val:
@@ -208,18 +217,26 @@ def pipeline_status(pid: str) -> dict[str, dict]:
         except Exception:  # noqa: BLE001
             versions = []
         raw_path = ""
+        raw_hash = ""
         for v in versions:
             if v.get("version") == f.get("current_version"):
                 raw_path = str(v.get("raw_path") or "")
+                raw_hash = str(v.get("raw_hash") or "")
                 break
         if not raw_path and versions:
             raw_path = str(versions[0].get("raw_path") or "")
-        has_parsed = bool(raw_path) and (
-            _override_path(Path(raw_path)).is_file()
-            or Path(raw_path).with_suffix(".md").is_file()
-            or (raw_path in by_path and (by_path[raw_path].get("status") == "ready"))
+            raw_hash = str(versions[0].get("raw_hash") or "")
+        src = (by_sha.get(raw_hash) if raw_hash else None) or by_path.get(raw_path)
+        src_ready = bool(src) and (
+            str(src.get("status") or "ready") == "ready" or int(src.get("chunk_count") or 0) > 0
         )
-        src = by_path.get(raw_path)
+        rp = Path(raw_path) if raw_path else None
+        sibling = rp.with_suffix(".md") if rp else None
+        has_parsed = bool(rp) and (
+            _override_path(rp).is_file()
+            or (sibling is not None and sibling != rp and sibling.is_file())
+            or src_ready
+        )
         source_id = src.get("id") if src else None
         in_rag = bool(source_id) and (source_id in rag_ids or source_id in rag_names)
         status[fid] = {
