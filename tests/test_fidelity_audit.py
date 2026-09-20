@@ -63,13 +63,14 @@ def test_suite_audit_detects_truncation_and_suite_preserves_provenance(tmp_path)
     dataset.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
     result = generate_suite_from_training_data(str(dataset), str(tmp_path / "suite"))
     suite = Path(result["suite_path"])
-    data = json.loads(suite.read_text(encoding="utf-8"))
-    assert data[0]["source_id"] == "s1"
-    assert data[0]["chunk_idx"] == 2
+    doc = json.loads(suite.read_text(encoding="utf-8"))
+    assert doc["meta"]["coverage"] == "full"
+    assert doc["cases"][0]["source_id"] == "s1"
+    assert doc["cases"][0]["chunk_idx"] == 2
     audit = audit_suite_cases(str(suite), str(dataset))
     assert audit["ok"] is True
-    data.pop()
-    suite.write_text(json.dumps(data), encoding="utf-8")
+    doc["cases"].pop()
+    suite.write_text(json.dumps(doc), encoding="utf-8")
     assert "suite_dataset_count_mismatch" in audit_suite_cases(str(suite), str(dataset))["errors"]
 
 

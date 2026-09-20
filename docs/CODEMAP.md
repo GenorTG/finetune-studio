@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-367 files · 65631 lines
-- `finetune_studio`: 218 files, 40240 lines
+368 files · 65798 lines
+- `finetune_studio`: 218 files, 40282 lines
 - `scripts`: 9 files, 2199 lines
-- `tests`: 140 files, 23192 lines
+- `tests`: 141 files, 23317 lines
 
 
 # finetune_studio
@@ -315,7 +315,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 
 ## `src/finetune_studio/data/__init__.py` (2 lines)
 
-## `src/finetune_studio/data/audit.py` (204 lines)
+## `src/finetune_studio/data/audit.py` (213 lines)
 - `_sha256(data: bytes) -> str` (L22)
 - `_source_raw_path(pid: str, source: dict[str, Any]) -> Path` (L26)
 - `audit_source(pid: str, source: dict[str, Any]) -> dict[str, Any]` (L32) — Audit one persisted source from raw bytes through chunk artefacts.
@@ -1181,11 +1181,11 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `ensure_full_corpus_suite_definition(project_id: str) -> Any` (L265) — Ensure the suite file exists and return its discovery definition, or None.
   - imports: finetune_studio.benchmarks.suite_defs, finetune_studio.data.fs.paths, finetune_studio.data.fs.qa, finetune_studio.data.prep.export
 
-## `src/finetune_studio/testing/generate_suite.py` (242 lines)
+## `src/finetune_studio/testing/generate_suite.py` (284 lines)
 - `generate_suite_from_training_data(data_path: str, output_dir: str, suite_name: str | None = None, max_cases: in…` (L38) — Convert a training JSONL file into a benchmark suite.
-- `_categorize(question: str, answer: str) -> str` (L163) — Categorize a Q&A pair by its question type.
-- `_analyze_difficulty(question: str, answer: str) -> tuple[str, str]` (L215) — Analyze answer characteristics to determine difficulty and judging strategy.
-- `_slugify(text: str) -> str` (L237) — Convert text to a safe filename slug.
+- `_categorize(question: str, answer: str) -> str` (L205) — Categorize a Q&A pair by its question type.
+- `_analyze_difficulty(question: str, answer: str) -> tuple[str, str]` (L257) — Analyze answer characteristics to determine difficulty and judging strategy.
+- `_slugify(text: str) -> str` (L279) — Convert text to a safe filename slug.
   - imports: finetune_studio.testing.suite
 
 ## `src/finetune_studio/testing/gptq_load.py` (80 lines)
@@ -1260,25 +1260,25 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `score_numeric(*, correct_answer: str, model_answer: str) -> StrictScore` (L419) — Score a numeric case: normalized final answer must match exactly.
 - `score_strict(*, question: str, correct_answer: str, model_answer: str) -> StrictScore | No…` (L522) — Score with the strict scorer when the task kind is MCQ or numeric.
 
-## `src/finetune_studio/testing/suite.py` (317 lines)
+## `src/finetune_studio/testing/suite.py` (320 lines)
 - `class BenchmarkCase` (L49)
-- `class CaseResult` (L62)
-- `load_test_suite(path: str) -> list[BenchmarkCase]` (L83) — Load a v2 Q&A benchmark suite from JSON.
-- `extract_answer(transcript: list) -> str` (L139) — Pull the last assistant message from a transcript as the model's answer.
-- `run_suite(engine, cases: list[BenchmarkCase], max_tokens: int = 512, temperature: float…` (L147) — Run each case through the model. No judging yet — just collect transcripts.
-- `apply_heuristic_judging(results: list[CaseResult]) -> None` (L191) — Mutate results in place: set verdict/judge via strict or legacy scoring.
-- `score_results(results: list[CaseResult]) -> dict` (L283) — Aggregate stats over judged results. Only counts cases with a verdict.
+- `class CaseResult` (L63)
+- `load_test_suite(path: str) -> list[BenchmarkCase]` (L84) — Load a v2 Q&A benchmark suite from JSON.
+- `extract_answer(transcript: list) -> str` (L142) — Pull the last assistant message from a transcript as the model's answer.
+- `run_suite(engine, cases: list[BenchmarkCase], max_tokens: int = 512, temperature: float…` (L150) — Run each case through the model. No judging yet — just collect transcripts.
+- `apply_heuristic_judging(results: list[CaseResult]) -> None` (L194) — Mutate results in place: set verdict/judge via strict or legacy scoring.
+- `score_results(results: list[CaseResult]) -> dict` (L286) — Aggregate stats over judged results. Only counts cases with a verdict.
   - imports: finetune_studio.testing.judge, finetune_studio.testing.strict_scoring
 
-## `src/finetune_studio/testing/training_eval.py` (226 lines)
+## `src/finetune_studio/testing/training_eval.py` (229 lines)
 - `class TrainingEvalMeta` (L34)
   - `def as_dict(self) -> dict[str, Any]` (L47)
 - `_extract_qa(example: dict[str, Any]) -> tuple[str, str] | None` (L51) — Pull (question, answer) from ShareGPT conversations or messages formats.
-- `cases_from_training_jsonl(data_path: str, *, max_cases: int = 200) -> tuple[list[BenchmarkCase], int]` (L78) — Convert a training JSONL file into BenchmarkCase rows.
-- `resolve_project_dataset(project_id: str, dataset_id: str | None = None) -> dict[str, Any]` (L135) — Pick a project dataset (explicit id or most recent with qa_count > 0).
-- `build_training_eval(project_id: str, *, dataset_id: str | None = None, max_cases: int = 200) -> t…` (L157) — Resolve dataset + build leakage-eval cases and metadata.
-- `build_heldout_eval(project_id: str, *, dataset_id: str | None = None, max_cases: int = 200) -> t…` (L186) — Build the deterministic 10% validation slice used by the trainer.
-- `suite_label_for_training_eval(meta: TrainingEvalMeta) -> str` (L224) — Human-readable suite name for DB / UI.
+- `cases_from_training_jsonl(data_path: str, *, max_cases: int | None = 200) -> tuple[list[BenchmarkCase],…` (L78) — Convert a training JSONL file into BenchmarkCase rows.
+- `resolve_project_dataset(project_id: str, dataset_id: str | None = None) -> dict[str, Any]` (L136) — Pick a project dataset (explicit id or most recent with qa_count > 0).
+- `build_training_eval(project_id: str, *, dataset_id: str | None = None, max_cases: int = 200) -> t…` (L158) — Resolve dataset + build leakage-eval cases and metadata.
+- `build_heldout_eval(project_id: str, *, dataset_id: str | None = None, max_cases: int = 200) -> t…` (L187) — Build the deterministic 10% validation slice used by the trainer.
+- `suite_label_for_training_eval(meta: TrainingEvalMeta) -> str` (L227) — Human-readable suite name for DB / UI.
   - imports: finetune_studio.db, finetune_studio.testing.generate_suite, finetune_studio.testing.suite, finetune_studio.training.data
 
 ## `src/finetune_studio/training/__init__.py` (2 lines)
@@ -1358,7 +1358,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def _calculate_severity(self)` (L225)
 - `generate_fixes(analysis: dict) -> list` (L234) — Generate specific fixes based on analysis.
 
-## `src/finetune_studio/training/engine.py` (1246 lines)
+## `src/finetune_studio/training/engine.py` (1213 lines)
 - `_format_exc(exc: BaseException) -> str` (L47) — ``Type: msg`` without a trailing empty ``: `` when msg is blank.
 - `_merged_dir_complete(merged_dir: str) -> bool` (L52) — True when merged/ has weight files (not just a partial config dump).
 - `_free_cuda() -> None` (L62) — Drop refs the caller already deleted and clear the CUDA cache.
@@ -1396,9 +1396,9 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def _do_abliteration(self) -> dict` (L984)
   - `def _do_export_gptq(self, output_dir: str) -> dict` (L1007)
   - `def _do_export_imatrix(self, output_dir: str) -> dict` (L1031)
-  - `def _auto_generate_suite(self) -> dict` (L1091)
-  - `def _do_export_gguf(self, output_dir: str, force: bool = False) -> dict` (L1125)
-- `merge_adapter_for_run(run: dict, force: bool = False) -> dict` (L1168) — Merge a persisted run's adapter on disk into a standalone model.
+  - `def _auto_generate_suite(self) -> dict` (L1055)
+  - `def _do_export_gguf(self, output_dir: str, force: bool = False) -> dict` (L1092)
+- `merge_adapter_for_run(run: dict, force: bool = False) -> dict` (L1135) — Merge a persisted run's adapter on disk into a standalone model.
   - imports: finetune_studio.db.connection, finetune_studio.db.runs, finetune_studio.testing.generate_suite, finetune_studio.training.abliteration, finetune_studio.training.advanced_quant, finetune_studio.training.data, finetune_studio.training.gguf_convert, finetune_studio.training.merge_base, finetune_studio.training.sft_args, finetune_studio.training.worker
 
 ## `src/finetune_studio/training/export_capabilities.py` (66 lines)
@@ -1987,7 +1987,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `evaluate_training_dataset(request: Request)` (L371) — Run heuristic evaluation against a project's approved training dataset.
   - imports: finetune_studio, finetune_studio.db, finetune_studio.testing.rag_suite, finetune_studio.testing.suite, finetune_studio.testing.training_eval, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.live_sse, finetune_studio.webui.testing_models
 
-## `src/finetune_studio/webui/routes/training.py` (794 lines)
+## `src/finetune_studio/webui/routes/training.py` (812 lines)
 - `_coerce_bool(value: object) -> bool` (L23) — Parse JSON/FormData bool-ish values (``"1"``, ``"true"``, ``true``, …).
 - `_optional_body_bool(body: dict, key: str, overrides: dict | None = None) -> bool | None` (L37) — Return coerced bool when ``key`` is present on body or overrides; else None.
 - `_resolve_model_path(model_path: str, allow_download: bool) -> tuple[str, str | None]` (L49) — Resolve a trainable base to a local dir; block silent multi-GB hub pulls.
@@ -2007,13 +2007,13 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `stop_training()` (L523)
 - `export_run(run_id: str, request: Request)` (L529) — Export a trained run to deployable formats (standalone, post-training).
 - `list_auto_suites(run_id: str)` (L570) — List all auto-generated suites for a training run.
-- `trigger_auto_suite(run_id: str)` (L579) — Trigger auto-generation of a benchmark suite from training data.
-- `abliterate_run(run_id: str)` (L631) — Abliterate (de-censor) a trained model.
-- `get_abliteration(run_id: str)` (L679) — Get abliteration status for a run.
-- `quantize_run(run_id: str, request: Request)` (L688) — Export a trained model using advanced quantization.
-- `list_quant_exports(run_id: str)` (L744) — List all quantization exports for a run.
-- `set_run_output(run_id: str, request: Request)` (L753) — Update a run's output_path.
-- `list_exports(run_id: str)` (L765) — List all exports (merged, gguf, adapter) for a training run.
+- `trigger_auto_suite(run_id: str, request: Request)` (L579) — Trigger auto-generation of a benchmark suite from training data.
+- `abliterate_run(run_id: str)` (L649) — Abliterate (de-censor) a trained model.
+- `get_abliteration(run_id: str)` (L697) — Get abliteration status for a run.
+- `quantize_run(run_id: str, request: Request)` (L706) — Export a trained model using advanced quantization.
+- `list_quant_exports(run_id: str)` (L762) — List all quantization exports for a run.
+- `set_run_output(run_id: str, request: Request)` (L771) — Update a run's output_path.
+- `list_exports(run_id: str)` (L783) — List all exports (merged, gguf, adapter) for a training run.
   - imports: finetune_studio, finetune_studio.db.connection, finetune_studio.db.runs, finetune_studio.models.helper, finetune_studio.testing.generate_suite, finetune_studio.training.abliteration, finetune_studio.training.advanced_quant, finetune_studio.training.data, finetune_studio.training.engine, finetune_studio.training.monitor, finetune_studio.training.preset_advisor, finetune_studio.training.run_export, finetune_studio.training.run_persistence, finetune_studio.webui.app, finetune_studio.webui.live_sse
 
 ## `src/finetune_studio/webui/routes/updates.py` (256 lines)
@@ -2700,13 +2700,13 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def test_export_page_handles_non_json_and_detail(self) -> None` (L188)
   - imports: finetune_studio, finetune_studio.training, finetune_studio.training.engine, finetune_studio.training.export_response
 
-## `tests/test_fidelity_audit.py` (103 lines)
+## `tests/test_fidelity_audit.py` (104 lines)
 - `test_source_audit_catches_raw_and_parse_drift(tmp_path, monkeypatch) -> None` (L15)
 - `test_empty_audit_is_not_reported_as_pass(tmp_path, monkeypatch) -> None` (L31)
 - `test_dataset_audit_flags_unknown_source_and_export_loss(tmp_path, monkeypatch) -> None` (L39)
 - `test_suite_audit_detects_truncation_and_suite_preserves_provenance(tmp_path) -> None` (L58)
-- `test_recompute_cases_preserves_source_grounded_scoring() -> None` (L76)
-- `test_recompute_cases_does_not_trust_stored_verdict() -> None` (L95)
+- `test_recompute_cases_preserves_source_grounded_scoring() -> None` (L77)
+- `test_recompute_cases_does_not_trust_stored_verdict() -> None` (L96)
   - imports: finetune_studio.data, finetune_studio.data.audit, finetune_studio.data.fs, finetune_studio.data.fs.metadata, finetune_studio.data.prep.ingest, finetune_studio.testing.audit, finetune_studio.testing.generate_suite
 
 ## `tests/test_file_library_apis.py` (287 lines)
@@ -3469,6 +3469,18 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_external_api_answer_is_not_penalized_by_unrelated_metrics_table() -> None` (L301)
 - `test_question_focused_scope_and_glossary_answers_pass_without_extra_prose() -> None` (L316)
   - imports: finetune_studio.testing.strict_scoring, finetune_studio.testing.suite, finetune_studio.training.data
+
+## `tests/test_suite_full_coverage.py` (124 lines)
+- `_dataset(tmp_path: Path, n: int, dup: bool = False) -> str` (L19)
+- `test_default_is_full_coverage(tmp_path: Path) -> None` (L36)
+- `test_sampling_is_explicit_deterministic_and_labeled(tmp_path: Path) -> None` (L49)
+- `test_duplicate_questions_get_unique_names(tmp_path: Path) -> None` (L67)
+- `test_row_index_roundtrips_through_loader(tmp_path: Path) -> None` (L76)
+- `run_with_data(client, tmp_path: Path)` (L88)
+- `test_route_default_full_coverage(client, run_with_data) -> None` (L101)
+- `test_route_sample_size_opt_in(client, run_with_data) -> None` (L109)
+- `test_route_rejects_bad_sample_size(client, run_with_data) -> None` (L119)
+  - imports: finetune_studio, finetune_studio.data.audit, finetune_studio.testing.generate_suite, finetune_studio.testing.suite
 
 ## `tests/test_testing_auto_load.py` (256 lines)
 - `client_and_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)` (L25)

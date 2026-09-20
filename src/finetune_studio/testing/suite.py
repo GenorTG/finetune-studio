@@ -56,6 +56,7 @@ class BenchmarkCase:
     keywords: list[str] = field(default_factory=list)
     source_id: str = ""
     chunk_idx: int = 0
+    row_index: int = -1  # 0-based line in the source dataset (full-coverage audit)
 
 
 @dataclass
@@ -113,6 +114,7 @@ def load_test_suite(path: str) -> list[BenchmarkCase]:
                 keywords=[str(k) for k in kws],
                 source_id=str(item.get("source_id") or ""),
                 chunk_idx=int(item.get("chunk_idx") or 0),
+                row_index=int(item.get("row_index", -1)),
             ))
         elif "messages" in item:
             # v1 fallback: extract from messages format
@@ -132,6 +134,7 @@ def load_test_suite(path: str) -> list[BenchmarkCase]:
                 keywords=[str(k) for k in kws],
                 source_id=str(item.get("source_id") or ""),
                 chunk_idx=int(item.get("chunk_idx") or 0),
+                row_index=int(item.get("row_index", -1)),
             ))
     return cases
 

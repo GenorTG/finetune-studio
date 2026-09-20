@@ -42,7 +42,7 @@ class TrainingEvalMeta:
     dataset_source: str
     case_count: int
     skipped: int
-    max_cases: int
+    max_cases: int | None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -78,11 +78,12 @@ def _extract_qa(example: dict[str, Any]) -> tuple[str, str] | None:
 def cases_from_training_jsonl(
     data_path: str,
     *,
-    max_cases: int = 200,
+    max_cases: int | None = 200,
 ) -> tuple[list[BenchmarkCase], int]:
     """Convert a training JSONL file into BenchmarkCase rows.
 
-    Returns ``(cases, skipped)``.
+    ``max_cases=None`` means full coverage (every row). Returns
+    ``(cases, skipped)``.
     """
     if not os.path.isfile(data_path):
         raise FileNotFoundError(f"training data not found: {data_path}")
@@ -96,7 +97,7 @@ def cases_from_training_jsonl(
             line = line.strip()
             if not line:
                 continue
-            if len(cases) >= max_cases:
+            if max_cases is not None and len(cases) >= max_cases:
                 break
             try:
                 example = json.loads(line)
@@ -196,7 +197,9 @@ def build_heldout_eval(
     presented as generalization evidence.
     """
     ds = resolve_project_dataset(project_id, dataset_id)
-    all_cases, skipped = cases_from_training_jsonl(str(ds["data_path"]), max_cases=5000)
+    # Full pool read (no head cap) — the 10% slice must be able to come from
+    # anywhere in the dataset, not just its first 5000 rows.
+    all_cases, skipped = cases_from_training_jsonl(str(ds["data_path"]), max_cases=None)
     import random
     shuffled = list(all_cases)
     random.Random(42).shuffle(shuffled)
