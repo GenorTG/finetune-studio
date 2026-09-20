@@ -185,19 +185,28 @@ def audit_suite_cases(suite_path: str, dataset_path: str | None = None) -> dict[
         result["errors"].append("suite_missing")
         return result
     data = json.loads(path.read_text(encoding="utf-8"))
+    meta: dict = {}
+    if isinstance(data, dict):
+        meta = data.get("meta") or {}
     cases = data.get("cases", []) if isinstance(data, dict) else data
     if not isinstance(cases, list):
         result["errors"].append("suite_cases_missing")
         return result
     names = [str(c.get("name", "")) for c in cases]
     result["case_count"] = len(cases)
+    result["coverage"] = meta.get("coverage", "full")
     result["duplicate_names"] = sorted(k for k, v in Counter(names).items() if v > 1)
     if result["duplicate_names"]:
         result["errors"].append("duplicate_case_names")
     if dataset_path:
         rows = [json.loads(line) for line in Path(dataset_path).read_text(encoding="utf-8").splitlines() if line.strip()]
         result["dataset_count"] = len(rows)
-        if len(rows) != len(cases):
+        if result["coverage"] == "sampled":
+            # A sampled suite is explicit opt-in; the audit checks its honesty
+            # instead: the file must carry matching sample metadata.
+            if int(meta.get("case_count", -1)) != len(cases) or int(meta.get("dataset_count", -1)) != len(rows):
+                result["errors"].append("sampled_suite_meta_mismatch")
+        elif len(rows) != len(cases):
             result["errors"].append("suite_dataset_count_mismatch")
     result["source_ids"] = sorted({str(c.get("source_id")) for c in cases if c.get("source_id")})
     result["ok"] = not result["errors"]

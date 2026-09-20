@@ -576,8 +576,14 @@ async def list_auto_suites(run_id: str):
 
 
 @router.post("/runs/{run_id}/auto-suites/generate")
-async def trigger_auto_suite(run_id: str):
+async def trigger_auto_suite(run_id: str, request: Request):
     """Trigger auto-generation of a benchmark suite from training data.
+
+    Coverage rule: the suite tests **every** dataset row by default (N rows
+    → N cases, no cap). ``{"sample_size": K}`` in the body is the only way
+    to shrink it — a deterministic uniform sample, labeled ``-sampledKofN``
+    in the suite name and ``coverage="sampled"`` in the response, so a
+    sampled verdict can never be misread as full coverage.
 
     JSONL→suite conversion is deterministic (no LLM). The response still
     names the configured helper so UI / future LLM-assisted generation
@@ -589,6 +595,18 @@ async def trigger_auto_suite(run_id: str):
         DEFAULT_HELPER_PROVIDER_ID,
         get_configured_helper_provider,
     )
+    sample_size: int | None = None
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001 — empty/absent body = full coverage
+        body = {}
+    if isinstance(body, dict) and body.get("sample_size") not in (None, ""):
+        try:
+            sample_size = int(body["sample_size"])
+        except (TypeError, ValueError):
+            return {"error": "sample_size must be an integer"}
+        if sample_size <= 0:
+            return {"error": "sample_size must be > 0"}
     run = db.get_run(run_id)
     if not run:
         return {"error": "run not found"}
@@ -599,7 +617,7 @@ async def trigger_auto_suite(run_id: str):
     if not output_path:
         return {"error": "run has no output_path"}
     from finetune_studio.testing.generate_suite import generate_suite_from_training_data
-    result = generate_suite_from_training_data(data_path, output_path)
+    result = generate_suite_from_training_data(data_path, output_path, max_cases=sample_size)
     if result.get("error"):
         return result
     # Record in DB

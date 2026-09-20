@@ -1051,45 +1051,9 @@ class TrainingEngine:
             self.state.message = f"Imatrix GGUF export failed: {e}"
             self._notify()
             return {"error": str(e)}
-        """Auto-generate a benchmark suite from the training data.
-
-        Saves to `<output_dir>/suite_<name>.json` and records in DB.
-        """
-        data_path = self.config.get("data_path", "") if hasattr(self.config, "data_path") else ""
-        if not data_path or not os.path.isfile(data_path):
-            self.state.message = "Auto-suite: no training data found, skipping."
-            self._notify()
-            return {}
-        from finetune_studio.testing.generate_suite import generate_suite_from_training_data
-        output_dir = self.config.output_dir
-        result = generate_suite_from_training_data(data_path, output_dir)
-        if result.get("error"):
-            self.state.message = f"Auto-suite: {result['error']}"
-            self._notify()
-            return result
-        # Record in DB
-        try:
-            from finetune_studio.db.connection import cursor, new_id
-            from time import time as _time
-            suite_id = new_id()
-            project_id = self.config.get("project_id", "") if hasattr(self.config, "project_id") else ""
-            with cursor() as c:
-                c.execute(
-                    "INSERT INTO auto_suites (id, run_id, project_id, suite_name, suite_path, case_count, categories_json, created_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    (suite_id, self.current_run_id, project_id,
-                     result.get("suite_name", "auto"), result.get("suite_path", ""),
-                     result.get("case_count", 0),
-                     json.dumps(result.get("categories", {})), _time()),
-                )
-        except Exception:
-            pass
-        self.state.message = f"Auto-suite: {result.get('case_count', 0)} cases saved."
-        self._notify()
-        return result
 
     def _auto_generate_suite(self) -> dict:
-        """Auto-generate a benchmark suite from training data."""
+        """Auto-generate a benchmark suite from training data (full coverage)."""
         data_path = getattr(self.config, 'data_path', '')
         if not data_path or not os.path.isfile(data_path):
             self.state.message = "Auto-suite: no training data found, skipping."
@@ -1118,7 +1082,10 @@ class TrainingEngine:
                 )
         except Exception:
             pass
-        self.state.message = f"Auto-suite: {result.get('case_count', 0)} cases saved."
+        self.state.message = (
+            f"Auto-suite: {result.get('case_count', 0)} cases saved "
+            f"({result.get('coverage', 'full')} coverage)."
+        )
         self._notify()
         return result
 

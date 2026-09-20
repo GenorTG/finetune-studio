@@ -39,18 +39,28 @@ def generate_suite_from_training_data(
     data_path: str,
     output_dir: str,
     suite_name: str | None = None,
-    max_cases: int = 500,
+    max_cases: int | None = None,
+    sample_seed: int = 42,
 ) -> dict:
     """Convert a training JSONL file into a benchmark suite.
+
+    Coverage rule (Genor, 2026-09-20): the suite must test **all** dataset
+    rows — 100 rows → 100 cases, 1M rows → 1M cases. ``max_cases`` is an
+    explicit opt-in to sampling for huge corpora only; when it kicks in the
+    suite is named ``<stem>-sampledKofN`` and the result carries
+    ``coverage="sampled"`` so no verdict can be misread as full coverage.
 
     Args:
         data_path: Path to JSONL training data (conversations format)
         output_dir: Where to save the suite JSON
         suite_name: Name for the suite (defaults to filename stem)
-        max_cases: Maximum number of cases to include
+        max_cases: None (default) = full coverage; int = deterministic
+            uniform sample of that many rows (seeded, reproducible)
+        sample_seed: RNG seed for sampling (default 42)
 
     Returns:
-        {suite_path, case_count, skipped, categories, difficulty}
+        {suite_path, case_count, skipped, categories, difficulty,
+         coverage, dataset_count, ...}
     """
     data_path = str(data_path)
     output_dir = str(output_dir)
@@ -74,18 +84,15 @@ def generate_suite_from_training_data(
     if not examples:
         return {"error": "no valid examples in training data"}
 
-    # Convert to benchmark cases
+    # Convert to benchmark cases — parse ALL rows first, sample after, so a
+    # sampled suite covers the whole file uniformly instead of its head.
     cases = []
     skipped = 0
     categories: dict[str, int] = {}
     difficulty: dict[str, int] = {}
+    seen_names: dict[str, int] = {}
 
-    truncated = 0
     for i, ex in enumerate(examples):
-        if len(cases) >= max_cases:
-            truncated += 1
-            break
-
         # Extract Q&A from conversations format
         conversations = ex.get("conversations", [])
         if len(conversations) < 2:
@@ -103,10 +110,14 @@ def generate_suite_from_training_data(
         category = _categorize(question, answer)
 
         # Determine difficulty and judging strategy based on answer characteristics
-        diff, judge_hint = _analyze_difficulty(question, answer)
+        _diff, judge_hint = _analyze_difficulty(question, answer)
 
-        # Create a stable name from the question
-        name = _slugify(question[:60])
+        # Create a stable name from the question, deduplicated — full-coverage
+        # suites on big datasets WILL have colliding question prefixes.
+        base = _slugify(question[:60]) or f"case_{i}"
+        n = seen_names.get(base, 0)
+        seen_names[base] = n + 1
+        name = base if n == 0 else f"{base}_{n + 1}"
 
         cases.append(BenchmarkCase(
             name=name,
@@ -116,18 +127,35 @@ def generate_suite_from_training_data(
             context=judge_hint,
             source_id=str(ex.get("source_id") or ""),
             chunk_idx=int(ex.get("chunk_idx") or 0),
+            row_index=i,
         ))
-
-        categories[category] = categories.get(category, 0) + 1
-        difficulty[diff] = difficulty.get(diff, 0) + 1
 
     if not cases:
         return {"error": "no valid cases could be extracted", "skipped": skipped}
+
+    # Sampling: explicit opt-in only (max_cases set AND smaller than the pool).
+    total_cases = len(cases)
+    coverage = "full"
+    sampled = False
+    if max_cases is not None and 0 < max_cases < total_cases:
+        import random
+
+        idx = sorted(random.Random(sample_seed).sample(range(total_cases), max_cases))
+        cases = [cases[j] for j in idx]
+        coverage = "sampled"
+        sampled = True
+
+    for c in cases:
+        categories[c.category] = categories.get(c.category, 0) + 1
+        d, _hint = _analyze_difficulty(c.question, c.correct_answer)
+        difficulty[d] = difficulty.get(d, 0) + 1
 
     # Save suite
     os.makedirs(output_dir, exist_ok=True)
     if not suite_name:
         suite_name = Path(data_path).stem
+    if sampled and "-sampled" not in suite_name:
+        suite_name = f"{suite_name}-sampled{len(cases)}of{total_cases}"
 
     suite_path = os.path.join(output_dir, f"suite_{suite_name}.json")
 
@@ -141,10 +169,21 @@ def generate_suite_from_training_data(
             "judge_hint": c.context,
             "source_id": c.source_id,
             "chunk_idx": c.chunk_idx,
+            "row_index": c.row_index,
         })
 
     with open(suite_path, "w") as f:
-        json.dump(suite_data, f, indent=2)
+        json.dump({
+            "meta": {
+                "coverage": coverage,
+                "dataset_count": len(examples),
+                "pool_count": total_cases,
+                "case_count": len(cases),
+                "sample_size": len(cases) if sampled else None,
+                "sample_seed": sample_seed if sampled else None,
+            },
+            "cases": suite_data,
+        }, f, indent=2)
 
     return {
         "suite_path": suite_path,
@@ -152,8 +191,11 @@ def generate_suite_from_training_data(
         "case_count": len(cases),
         "skipped": skipped,
         "invalid_lines": invalid_lines,
-        "truncated": truncated,
+        "truncated": 0,
+        "coverage": coverage,
         "dataset_count": len(examples),
+        "pool_count": total_cases,
+        "sample_seed": sample_seed if sampled else None,
         "source_ids": sorted({c.source_id for c in cases if c.source_id}),
         "categories": categories,
         "difficulty": difficulty,

@@ -118,12 +118,17 @@
     <div class="card-head"><div>
       <div class="card-title">Step 5 · Test it</div>
       <div class="card-sub text-dim">
-        Generates a quiz from the same training data and scores the trained
-        model's answers. The pass rate tells you whether the model actually
-        learned the material.
+        Generates a quiz that covers <b>every row</b> of the training data —
+        100 rows means 100 questions — and scores the trained model's answers.
+        The pass rate tells you whether the model actually learned the material.
       </div>
     </div><span class="pill outline" id="wiz-test-pill">…</span></div>
     <div class="text-sm" id="wiz-test-sub">—</div>
+    <div class="flex gap-2 wrap mt-1 items-center">
+      <label class="text-xs muted" for="wiz-test-sample">Limit to a random sample of</label>
+      <input id="wiz-test-sample" class="input" type="number" min="1" placeholder="all" style="max-width:96px" title="Only for huge datasets — leave empty to test every row. A sampled run is labeled 'sampled' everywhere so it can't masquerade as full coverage.">
+      <span class="text-xs muted">questions (huge datasets only — leave empty for the full test).</span>
+    </div>
     <div class="flex gap-2 wrap mt-2">
       <button class="btn primary" type="button" id="wiz-test-btn" onclick="wizTest()">Run the test</button>
       <a class="btn sm" href="/projects/{{ pid }}/testing" data-link>Open testing</a>
@@ -503,7 +508,11 @@
       for (var i = 0; i < done.length; i++) if (done[i].id === wizLastRunId) run = done[i];
       if (!run) run = done[0];
       line("Generating quiz for run " + run.id + "…");
-      await post("/api/training/runs/" + run.id + "/auto-suites/generate");
+      var sampleEl = document.getElementById("wiz-test-sample");
+      var sampleN = sampleEl && sampleEl.value ? parseInt(sampleEl.value, 10) : 0;
+      if (sampleN > 0) line("Sampling " + sampleN + " random questions (explicit opt-in) — the verdict will be labeled sampled.");
+      var gen = await post("/api/training/runs/" + run.id + "/auto-suites/generate", sampleN > 0 ? { sample_size: sampleN } : {});
+      if (gen && gen.error) throw new Error(gen.error);
       var suites = await api("/api/training/runs/" + run.id + "/auto-suites");
       if (!Array.isArray(suites) || !suites.length) throw new Error("no quiz was generated");
       var suite = suites[0];
