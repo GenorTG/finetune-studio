@@ -9,7 +9,7 @@ Edit on **genorbox1** → push → **fan-dragon** runs `finetune-studio.service`
 
 Trained models must reliably answer the learned corpus — no lying about trained DB sources. Judge by reading transcripts, not auto-greens. **Data guarantee: every parsed chunk must reach the training dataset (no silent holes).**
 
-## State (verified 2026-09-20 ~14:35 CEST · fan-dragon at `784efe8`, service active)
+## State (verified 2026-09-20 ~17:00 CEST · fan-dragon at `e9bed6e`, service active)
 
 | Area | Status |
 |------|--------|
@@ -21,7 +21,8 @@ Trained models must reliably answer the learned corpus — no lying about traine
 | **Project 58d4e331** | "Vaelindrath Stress": 131 files / 129 sources / 131 chunks, **all parsed, zero failed parses** (18 zero-pair files found + filled=100%). Mining: 581 pairs → 564 approved / 17 rejected (7 id-leak, 10 ambiguous) → dedup → **515**; +39 coverage_fill approved → **554-row dataset on disk now** (551 unique approved questions, all present). |
 | **Training evidence** | Run `212035ad` (4 ep, r64) = 67% strict; run `f76bf64f` (12 ep, r128/α256) = 94.8% on the locked 500-case suite; run `e65fafd5` (11 ep, r128/α256, **554-row coverage-filled dataset**) = 94.2% same instrument — **retrain on filled data was net-neutral** (fixed 23, regressed 25). Production model stays `f76bf64f/merged`; GGUF q8_0 exported for both. Eyeball: fails are genuine recall misses (digit/price confusion + similar-fact swaps); no judge false positives. |
 | **Fleet (Genor's rule, 3 models)** | 4B safetensors trainer; helper = Qwen3-8B Q5_K_M GGUF (real header topology, `-1` = all layers, no magic 99); 27B abliterated GGUF. |
-| **Deployed UX** | Named toasts both paths, counted upload toasts, WCAG-pass pills (5.16–10.19:1), dim-token contrast, mobile toast strip; deployed assets `app.css?v=29` + `app.js?v=21` (served + verified). |
+| **Deployed UX** | Named toasts both paths, counted upload toasts, WCAG-pass pills (5.16–10.19:1), dim-token contrast, mobile toast strip; deployed assets `app.css?v=34` + `app.js?v=21` (served + verified). |
+| **Training-start hub-download guard** | `e9bed6e`: `_resolve_model_path` in `routes/training.py` — local paths pass; bare `org/repo` ids resolve via HF hub cache (pass-through) or app `~/.finetune-studio/hf_models/Org__Repo` (rewritten to the local dir, no download); anything else **blocks** with an actionable error unless `allow_download=true`. Kills the silent multi-GB mid-run pull that stalled `c327fa36` #1. 5 tests in `tests/test_training_start_guard.py`; live-verified on fan-dragon (fake repo id → error, run count unchanged, wizard 200). Serena project memory written (`.serena/memories/project-overview.md`, tracked). |
 
 ## Next steps
 
@@ -29,7 +30,7 @@ Trained models must reliably answer the learned corpus — no lying about traine
 2. **Specialized RAG corpus** for the 10 hand-picked files (companion to subset datasets) — build via `POST …/rag/build` on a filtered source set; then pin it in a version manifest.
 3. **60ep/r64 variant** on the 48-row subset to noise-check the 91.7%-vs-89.6% split: `POST /api/training/start {project_id:"58d4e331", dataset_id:<a0ae8778>, preset_id:"standard", overrides:{num_epochs:60, lora_rank:64}}`.
 4. Full-corpus bench with eyeball judging per `docs/judging/PROTOCOL.md`; then sample the 490+ passes.
-5. Training-start guard: warn when `model_path` would trigger a multi-GB hub download (stalled run `c327fa36` attempt #1 this way) — `routes/training.py:start_training`.
+5. ~~Training-start guard~~ — **done `e9bed6e`** (see State). Next up: Versions UX polish.
 
 ## Commands
 
