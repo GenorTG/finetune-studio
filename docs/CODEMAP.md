@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-366 files · 65467 lines
-- `finetune_studio`: 218 files, 40191 lines
+367 files · 65631 lines
+- `finetune_studio`: 218 files, 40240 lines
 - `scripts`: 9 files, 2199 lines
-- `tests`: 139 files, 23077 lines
+- `tests`: 140 files, 23192 lines
 
 
 # finetune_studio
@@ -1987,32 +1987,33 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `evaluate_training_dataset(request: Request)` (L371) — Run heuristic evaluation against a project's approved training dataset.
   - imports: finetune_studio, finetune_studio.db, finetune_studio.testing.rag_suite, finetune_studio.testing.suite, finetune_studio.testing.training_eval, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.live_sse, finetune_studio.webui.testing_models
 
-## `src/finetune_studio/webui/routes/training.py` (745 lines)
-- `_coerce_bool(value: object) -> bool` (L22) — Parse JSON/FormData bool-ish values (``"1"``, ``"true"``, ``true``, …).
-- `_optional_body_bool(body: dict, key: str, overrides: dict | None = None) -> bool | None` (L36) — Return coerced bool when ``key`` is present on body or overrides; else None.
-- `_get_presets() -> list[dict]` (L197) — Return all presets with their IDs.
-- `_get_preset(preset_id: str) -> dict | None` (L202) — Return a specific preset by ID.
-- `_apply_preset(preset_id: str, overrides: dict | None = None) -> TrainingConfig` (L210) — Build a TrainingConfig from a preset, with optional field overrides.
-- `list_presets()` (L222) — Return all training presets.
-- `get_preset(preset_id: str)` (L228) — Return a specific preset.
-- `recommend_config(tier: str = 'balanced', base_model: str = '', dataset: str = '', pairs: int |…` (L238) — Propose training settings for a base model + dataset at a quality tier.
-- `status()` (L263)
-- `status_text()` (L280)
-- `progress()` (L297) — SSE live training status (preferred over polling ``/status``).
-- `progress_text()` (L303) — Plain-text one-shot progress string for dashboard polling.
-- `list_training_runs()` (L329) — List ALL training runs (across all projects).
-- `list_training_runs_for_project(pid: str)` (L336) — List training runs for a specific project.
-- `start_training(request: Request)` (L343)
-- `stop_training()` (L474)
-- `export_run(run_id: str, request: Request)` (L480) — Export a trained run to deployable formats (standalone, post-training).
-- `list_auto_suites(run_id: str)` (L521) — List all auto-generated suites for a training run.
-- `trigger_auto_suite(run_id: str)` (L530) — Trigger auto-generation of a benchmark suite from training data.
-- `abliterate_run(run_id: str)` (L582) — Abliterate (de-censor) a trained model.
-- `get_abliteration(run_id: str)` (L630) — Get abliteration status for a run.
-- `quantize_run(run_id: str, request: Request)` (L639) — Export a trained model using advanced quantization.
-- `list_quant_exports(run_id: str)` (L695) — List all quantization exports for a run.
-- `set_run_output(run_id: str, request: Request)` (L704) — Update a run's output_path.
-- `list_exports(run_id: str)` (L716) — List all exports (merged, gguf, adapter) for a training run.
+## `src/finetune_studio/webui/routes/training.py` (794 lines)
+- `_coerce_bool(value: object) -> bool` (L23) — Parse JSON/FormData bool-ish values (``"1"``, ``"true"``, ``true``, …).
+- `_optional_body_bool(body: dict, key: str, overrides: dict | None = None) -> bool | None` (L37) — Return coerced bool when ``key`` is present on body or overrides; else None.
+- `_resolve_model_path(model_path: str, allow_download: bool) -> tuple[str, str | None]` (L49) — Resolve a trainable base to a local dir; block silent multi-GB hub pulls.
+- `_get_presets() -> list[dict]` (L241) — Return all presets with their IDs.
+- `_get_preset(preset_id: str) -> dict | None` (L246) — Return a specific preset by ID.
+- `_apply_preset(preset_id: str, overrides: dict | None = None) -> TrainingConfig` (L254) — Build a TrainingConfig from a preset, with optional field overrides.
+- `list_presets()` (L266) — Return all training presets.
+- `get_preset(preset_id: str)` (L272) — Return a specific preset.
+- `recommend_config(tier: str = 'balanced', base_model: str = '', dataset: str = '', pairs: int |…` (L282) — Propose training settings for a base model + dataset at a quality tier.
+- `status()` (L307)
+- `status_text()` (L324)
+- `progress()` (L341) — SSE live training status (preferred over polling ``/status``).
+- `progress_text()` (L347) — Plain-text one-shot progress string for dashboard polling.
+- `list_training_runs()` (L373) — List ALL training runs (across all projects).
+- `list_training_runs_for_project(pid: str)` (L380) — List training runs for a specific project.
+- `start_training(request: Request)` (L387)
+- `stop_training()` (L523)
+- `export_run(run_id: str, request: Request)` (L529) — Export a trained run to deployable formats (standalone, post-training).
+- `list_auto_suites(run_id: str)` (L570) — List all auto-generated suites for a training run.
+- `trigger_auto_suite(run_id: str)` (L579) — Trigger auto-generation of a benchmark suite from training data.
+- `abliterate_run(run_id: str)` (L631) — Abliterate (de-censor) a trained model.
+- `get_abliteration(run_id: str)` (L679) — Get abliteration status for a run.
+- `quantize_run(run_id: str, request: Request)` (L688) — Export a trained model using advanced quantization.
+- `list_quant_exports(run_id: str)` (L744) — List all quantization exports for a run.
+- `set_run_output(run_id: str, request: Request)` (L753) — Update a run's output_path.
+- `list_exports(run_id: str)` (L765) — List all exports (merged, gguf, adapter) for a training run.
   - imports: finetune_studio, finetune_studio.db.connection, finetune_studio.db.runs, finetune_studio.models.helper, finetune_studio.testing.generate_suite, finetune_studio.training.abliteration, finetune_studio.training.advanced_quant, finetune_studio.training.data, finetune_studio.training.engine, finetune_studio.training.monitor, finetune_studio.training.preset_advisor, finetune_studio.training.run_export, finetune_studio.training.run_persistence, finetune_studio.webui.app, finetune_studio.webui.live_sse
 
 ## `src/finetune_studio/webui/routes/updates.py` (256 lines)
@@ -3584,6 +3585,23 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_unsloth_defaults_false_when_omitted(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L147) — Project training form has no unsloth field — use standard TRL (no Unsloth status).
 - `test_unsloth_explicit_true_preserved(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L159)
   - imports: finetune_studio, finetune_studio.webui.routes.training
+
+## `tests/test_training_start_guard.py` (115 lines)
+- `class _FakeEngine` (L16)
+  - `def __init__(self) -> None` (L17)
+  - `def on_update(self, cb: object) -> None` (L28)
+  - `def start(self, config: object, data: list, system_prompt: str) -> None` (L31)
+- `fake_engine(monkeypatch: pytest.MonkeyPatch) -> _FakeEngine` (L36)
+- `fake_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L45) — Point Path.home() at an empty sandbox so cache probes are deterministic.
+- `_project(client) -> str` (L53)
+- `_jsonl(tmp_path: Path) -> str` (L59)
+- `_start(client, pid: str, data_path: str, model_path: str, **extra)` (L66)
+- `test_remote_repo_id_is_blocked(client, fake_engine, fake_home, tmp_path)` (L72)
+- `test_allow_download_proceeds(client, fake_engine, fake_home, tmp_path)` (L81)
+- `test_hub_cache_hit_passes_through(client, fake_engine, fake_home, tmp_path)` (L88)
+- `test_app_hf_models_dir_is_rewritten_to_local(client, fake_engine, fake_home, tmp_path)` (L99)
+- `test_existing_local_path_untouched(client, fake_engine, fake_home, tmp_path)` (L109)
+  - imports: finetune_studio.webui.routes.training
 
 ## `tests/test_training_stop_phases.py` (65 lines)
 - `test_stop_before_merge_skips_merge_and_marks_stopped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L12)
