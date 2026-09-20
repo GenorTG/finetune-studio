@@ -48,3 +48,4 @@ HANDOFF-*.md
 
 # Session daily-notes logs (memory/YYYY-MM-DD.md) — local continuity, not project code.
 /memory/
+.openclaw/
