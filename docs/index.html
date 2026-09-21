@@ -156,7 +156,7 @@
       <p>File ingestion (PDF, DOCX, TXT, MD, HTML, code, CSV, JSON, images
       via OCR). Configurable chunking. Embedder model selection. Live
       build progress via SSE. <b>Documents-indexed panel</b> with
-      per-doc Rebuild + View-chunks modal.</p>
+      per-doc Rebuild + View-chunks modal. One-click <b>⚡ Quick index</b> builds the whole corpus; export it as a standalone MCP + HTTP search server.</p>
       <div class="pillbox"><span class="pill">RAG</span><span class="pill">VECTOR SEARCH</span></div>
     </div>
 
@@ -194,62 +194,66 @@
 </div></section>
 
 <section id="new"><div class="wrap">
-  <h2>NEW IN v2</h2>
-  <p class="lead">Since the public v1 release, UI audit items, file-library
-  APIs, a Playwright smoke suite, and a settings log tail. Quick
-  highlights:</p>
+  <h2>NEW IN THE EARLY BETA</h2>
+  <p class="lead">Since v2 the app grew a spine. Highlights on the current
+  build (<span class="dim">v0.1.0.x — the exact version is pinned in the
+  header chip</span>):</p>
   <ul style="color:var(--fg);font-size:13px;line-height:1.8;list-style:none;padding:0">
-    <li>· <b style="color:var(--accent)">Benchmarks compare tab</b> — pick any two trained exports, get the per-suite Δ table</li>
-    <li>· <b style="color:var(--accent)">Documents-indexed panel</b> in RAG — PortableRAG corpus (parquet + sources), per-doc Rebuild</li>
-    <li>· <b style="color:var(--accent)">Per-export expand rows</b> on Models + Export — see parent run, training settings, dir contents, plus ▶ Open in inference</li>
-    <li>· <b style="color:var(--accent)">Per-file rename + hard-purge</b> APIs on the data library (buttons have always been there — the endpoints are real now)</li>
-    <li>· <b style="color:var(--accent)">Parsed MD preview</b> on the data library — <code style="color:var(--amber)">GET /api/projects/{pid}/files/{fid}/parsed</code></li>
-    <li>· <b style="color:var(--accent)">Per-project Settings page</b> with a WebUI log tail card (Refresh + Auto-refresh)</li>
-    <li>· <b style="color:var(--accent)">Playwright E2E smoke suite</b> — <code style="color:var(--amber)">tests/e2e_ui_qa.py</code> / <code style="color:var(--amber)">tests/run_qa.sh</code></li>
-    <li>· <b style="color:var(--accent)">Self-update pipeline</b> — <code style="color:var(--amber)">./update.sh</code> or Settings → Apply update</li>
-    <li>· <b style="color:var(--accent)">Training Actions</b> per past-run row (⭐ Set Production / ▶ Inference / ⬇ Download)</li>
-    <li>· <b style="color:var(--accent)">Testing</b> suite dropdown replaces free-text input</li>
+    <li>· <b style="color:var(--accent)">⚡ Quick work</b> — the entire model pipeline on one page (upload → pairs → dataset → train → test → pin), live status pills per step, and a <b>Run steps 2–5</b> chain that drives dataset → training → test unattended</li>
+    <li>· <b style="color:var(--accent)">Two-card flow picker</b> on the project home — 🧠 Train a model vs 📚 Search my files (RAG) — with numbered, flow-scoped sub-nav (<code style="color:var(--amber)">1 files → 2 pairs → 3 train → 4 test → 5 use it</code>)</li>
+    <li>· <b style="color:var(--accent)">File browser v2</b> — folder chips with drag-to-move, tag pills, bulk actions, zip export, per-file usage chain (file → pairs → datasets → runs → RAG), parsed-content search, 7-day trash with restore-all</li>
+    <li>· <b style="color:var(--accent)">100 % data guarantee</b> — every dataset export fills un-mined chunks with verbatim extractive pairs; a dataset can never ship with silent holes</li>
+    <li>· <b style="color:var(--accent)">Full-coverage test suites</b> — auto-suites test every dataset row (N rows → N questions); sampling is an explicit, labeled opt-in</li>
+    <li>· <b style="color:var(--accent)">Project versions</b> — immutable manifests pinning datasets + sources + corpora + runs + base model, with lineage</li>
+    <li>· <b style="color:var(--accent)">Standalone RAG package</b> — the corpus ships as a self-installing tarball (MCP + HTTP, <code style="color:var(--amber)">setup.sh</code>, optional bundled embedder + reranker for fully offline semantic search)</li>
+    <li>· <b style="color:var(--accent)">Parsed-text editor</b> — fix a bad parse in-app; corrections feed mining + the next RAG build while raw bytes stay immutable</li>
+    <li>· <b style="color:var(--accent)">Per-commit build chip + self-update</b> — Settings → Apply update pulls, repairs, migrates, restarts</li>
+    <li>· <b style="color:var(--accent)">Dual-theme visual QA</b> — every route probed at 1920/1440/1270/768/375 in dark + light: no clipped actions, no sub-11px text, WCAG-checked contrast</li>
   </ul>
 </div></section>
 
 <section id="gallery"><div class="wrap">
   <h2>SCREENSHOTS</h2>
-  <p class="lead">Terminal-grade UI: tmux-style session bar, phosphor-green
-  notches, animated sprites, command palette on Ctrl+K. Default listen
-  port <span class="dim">:7860</span>.</p>
+  <p class="lead">Terminal-grade UI: tmux-style session bar, numbered flow
+  steps, phosphor-green notches, animated sprites, command palette on
+  Ctrl+K. Default listen port <span class="dim">:7860</span>.</p>
 
   <figure class="gallery-hero">
-    <img src="screenshots/01_dashboard.png" alt="Dashboard with host resources and project cards" loading="lazy">
-    <figcaption><b>DASHBOARD</b> — host resources (RAM/VRAM bars updated live), your projects, quick-create.</figcaption>
+    <img src="screenshots/03_quick_work.png" alt="Quick work — the whole training pipeline on one page" loading="lazy">
+    <figcaption><b>⚡ QUICK WORK</b> — upload → pairs → dataset → train → test → pin on one page, live status pills, one-click chain for steps 2–5.</figcaption>
   </figure>
   <div class="gallery">
-    <figure><img src="screenshots/02_project.png" alt="Project overview with data, RAG, training summary" loading="lazy">
-      <figcaption><b>PROJECT OVERVIEW</b> — per-project dashboard: data count, RAG status, run history, latest scores.</figcaption></figure>
-    <figure><img src="screenshots/03_data_prep.png" alt="Data prep with file library and parsed preview" loading="lazy">
-      <figcaption><b>DATA PREP</b> — immutable deduped uploads, parsed sources, QA mining and triage; export lands in Training with a one-click handoff.</figcaption></figure>
-    <figure><img src="screenshots/04_rag.png" alt="RAG with search and documents-indexed panel" loading="lazy">
-      <figcaption><b>RAG</b> — corpus inventory + per-doc Rebuild + View chunks, all on a PortableRAG parquet-backed store.</figcaption></figure>
-    <figure><img src="screenshots/05_models.png" alt="Models with expand rows for each trained export" loading="lazy">
-      <figcaption><b>MODELS</b> — 7-col trained-exports table; click any row to expand (source run, training settings, dir contents, ▶ Open in inference).</figcaption></figure>
-    <figure><img src="screenshots/06_training.png" alt="Training with past-run Actions" loading="lazy">
-      <figcaption><b>TRAINING</b> — LoRA config, live loss curve; each past run has Actions (⭐ Set Production, ▶ Inference, ⬇ Download).</figcaption></figure>
-    <figure><img src="screenshots/07_benchmarks.png" alt="Benchmarks with Recent scores and Compare two runs tabs" loading="lazy">
-      <figcaption><b>BENCHMARKS</b> — real HF suites (strict MCQ) + synthetic offline smoke + project QA suites; Recent scores + Compare two runs with colored per-suite Δ.</figcaption></figure>
-    <figure><img src="screenshots/08_export.png" alt="Export with expand rows for each trained export" loading="lazy">
+    <figure><img src="screenshots/01_dashboard.png" alt="Dashboard with host resources and project cards" loading="lazy">
+      <figcaption><b>DASHBOARD</b> — host resources (RAM/VRAM bars updated live), your projects, quick-create.</figcaption></figure>
+    <figure><img src="screenshots/02_project.png" alt="Project home with the two-card flow picker" loading="lazy">
+      <figcaption><b>PROJECT HOME</b> — answers "where do I start": 🧠 Train a model vs 📚 Search my files (RAG), plus live counts, runs, exports, activity.</figcaption></figure>
+    <figure><img src="screenshots/04_files.png" alt="File browser v2" loading="lazy">
+      <figcaption><b>FILES · STEP 1</b> — immutable deduped uploads, folder chips, tags, bulk actions, zip export, usage chain, parsed-text editor, 7-day trash.</figcaption></figure>
+    <figure><img src="screenshots/05_pairs.png" alt="Question-answer pairs page" loading="lazy">
+      <figcaption><b>PAIRS · STEP 2</b> — mine question-answer pairs from your sources, triage in bulk; export fills every un-mined chunk — 100 % coverage.</figcaption></figure>
+    <figure><img src="screenshots/06_rag.png" alt="RAG workspace" loading="lazy">
+      <figcaption><b>RAG WORKSPACE</b> — ⚡ Quick index, documents-in-index, search test, grounded chat, standalone MCP + HTTP package export.</figcaption></figure>
+    <figure><img src="screenshots/07_training.png" alt="Training with past-run Actions" loading="lazy">
+      <figcaption><b>TRAINING · STEP 3</b> — LoRA config, live loss curve; each past run has Actions (⭐ Set Production, ▶ Inference, ⬇ Download).</figcaption></figure>
+    <figure><img src="screenshots/10_testing.png" alt="Testing page" loading="lazy">
+      <figcaption><b>TESTING · STEP 4</b> — did it learn YOUR material? Auto-suites test every dataset row; case-by-case strict judging.</figcaption></figure>
+    <figure><img src="screenshots/08_models.png" alt="Models with expand rows" loading="lazy">
+      <figcaption><b>MODELS · STEP 5</b> — trained-exports table; expand any row for the parent run, settings, dir contents, ▶ Open in inference.</figcaption></figure>
+    <figure><img src="screenshots/09_export.png" alt="Export page" loading="lazy">
       <figcaption><b>EXPORT</b> — merged / abliterated first-class; GGUF + GPTQ when host tools are present; failures land in the run row, never silent.</figcaption></figure>
-    <figure><img src="screenshots/09_testing.png" alt="Testing with suite dropdown" loading="lazy">
-      <figcaption><b>TESTING</b> — generate QA pairs from a trained model; suite dropdown picks from available.</figcaption></figure>
-    <figure><img src="screenshots/10_settings.png" alt="Settings with WebUI log tail card" loading="lazy">
-      <figcaption><b>SETTINGS</b> — per-project config + WebUI log tail + Apply update controls.</figcaption></figure>
-    <figure><img src="screenshots/11_chat.png" alt="Chat with streaming, RAG attach and Agent mode" loading="lazy">
+    <figure><img src="screenshots/13_chat.png" alt="Chat" loading="lazy">
       <figcaption><b>CHAT</b> — safetensors or GGUF, streaming with sprite feedback, RAG-attach, Agent mode for tool-driven dataset curation.</figcaption></figure>
+    <figure><img src="screenshots/11_benchmarks.png" alt="Benchmarks" loading="lazy">
+      <figcaption><b>BENCHMARKS</b> — optional public exams: offline smoke suites + real HF splits, Recent scores + Compare two runs.</figcaption></figure>
+    <figure><img src="screenshots/12_settings.png" alt="Settings" loading="lazy">
+      <figcaption><b>SETTINGS</b> — per-project config + WebUI log tail + Apply update + Replay Tutorial.</figcaption></figure>
   </div>
 </div></section>
 
 <section id="pipeline"><div class="wrap">
   <h2>THE PIPELINE</h2>
   <p class="lead">From raw documents to a benchmarked, chat-ready model —
-  one project, one flow:</p>
+  one project, one flow — or let ⚡ Quick work chain it from one page:</p>
 <pre class="diagram"><span class="g">upload</span> ──► <span class="g">file library</span>      sha256 dedup · MIME auto-folders · versioning · 7-day trash · rename · per-file purge · parsed MD
    └─► <span class="g">parse + chunk</span>      pdf · docx · csv · xml · images(OCR) ── ~500-token chunks
         └─► <span class="g">corpus</span>            PortableRAG parquet + sources + live SSE

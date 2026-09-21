@@ -21,7 +21,7 @@ suite all live in one repo.
 - [Why I built this](#why-i-built-this)
 - [Who it's for](#who-its-for)
 - [The four use cases](#the-four-use-cases)
-- [What's new vs v1](#whats-new-vs-v1)
+- [What's new in the early-beta line](#whats-new-in-the-early-beta-line)
 - [Why this over doing it manually?](#why-this-over-doing-it-manually)
 - [Walkthrough — the pages](#walkthrough--the-pages)
 - [Quickstart](#quickstart)
@@ -33,9 +33,9 @@ suite all live in one repo.
 - [License & attributions](#license--attributions)
 
 > **New here?** The fastest path from zero to a trained model is the
-> step-by-step [**Tutorial**](docs/TUTORIAL.md) — upload → parse → QA pairs
-> → train → benchmark → export → chat, with the common first-run pitfalls
-> covered.
+> step-by-step [**Tutorial**](docs/TUTORIAL.md) — or open **⚡ Quick work**
+> inside a project and chain files → pairs → train → test in one page.
+> Common first-run pitfalls are covered in both.
 
 ---
 
@@ -165,32 +165,38 @@ as tokens stream in.
 
 ---
 
-## What's new vs v1
+## What's new in the early-beta line
 
-The studio has grown up. Highlights since the public v1 release:
+Since v2 the app grew a spine — and a lot of muscle:
 
-- **Benchmarks compare tab** — pick any two trained exports, get the
-  per-suite score diff (Δ = B − A, colored).
-- **Documents-indexed panel in RAG** — see every indexed chunk, status,
-  and a per-doc Rebuild button (PortableRAG corpus backed by parquet +
-  sources).
-- **Per-export expand rows** on Models and Export pages — click the
-  export name to see the parent training run, the training settings, and
-  the top-level directory contents (file sizes + names). Same row carries a
-  **▶ Open in inference** button that loads the model and jumps to chat.
-- **Per-file rename + hard-purge** on the data library — real APIs
-  (`PATCH .../rename`, `POST .../purge`), including files created before
-  the versions table existed.
-- **Parsed MD preview** on the data library — click 📝 on any converted
-  file to stream the converted MD
-  (`GET /api/projects/{pid}/files/{fid}/parsed`).
-- **Per-project Settings page** — including a **WebUI log tail** card
-  (Refresh + Auto-refresh) for debugging long-running jobs.
-- **Playwright E2E suite** — live-browser smoke coverage across the
-  public routes (`tests/e2e_ui_qa.py`, `tests/run_qa.sh`).
-- **Self-update pipeline** — `./update.sh` or Settings → Apply update
-  (pull → venv repair → dep sync → migrations → restart), with startup
-  reconciliation of interrupted runs.
+- **⚡ Quick work** — the entire model pipeline on one page (upload →
+  pairs → dataset → train → test → pin), a live status pill per step, and
+  **Run steps 2–5** to chain dataset → training → test unattended.
+- **Two-card flow picker on the project home** — 🧠 Train a model vs
+  📚 Search my files (RAG) — with numbered, flow-scoped sub-nav
+  (`1 files → 2 pairs → 3 train → 4 test → 5 use it`).
+- **File browser v2** — folder chips with drag-to-move, tag pills, bulk
+  actions, zip export, per-file usage chain (file → pairs → datasets →
+  runs → RAG), parsed-content search, thumbnails, columns picker, 7-day
+  trash with restore-all.
+- **100 % data guarantee** — every dataset export fills un-mined chunks
+  with verbatim extractive pairs; a dataset can never ship with silent
+  holes.
+- **Full-coverage test suites** — auto-suites test every dataset row
+  (N rows → N questions); sampling is an explicit, labeled opt-in.
+- **Project versions** — immutable manifests pinning datasets + sources +
+  corpora + runs + base model, with lineage; pin from Quick work Step 6.
+- **Standalone RAG package** — the corpus ships as a self-installing
+  tarball (MCP + HTTP, `setup.sh`, optional bundled embedder + reranker
+  for fully offline semantic search).
+- **Parsed-text editor** — fix a bad parse in-app; corrections feed
+  mining and the next RAG build while raw bytes stay immutable.
+- **Per-commit build chip + self-update** — the header pins the exact
+  deployed version (`v0.1.0.N`); Settings → Apply update pulls, repairs,
+  migrates and restarts.
+- **Dual-theme visual QA** — every route probed at 1920/1440/1270/768/375
+  in dark and light: no clipped actions, no sub-11px text, WCAG-checked
+  contrast, both themes.
 
 ---
 
@@ -225,42 +231,92 @@ projects, quick-create buttons.
 
 ![Dashboard](docs/screenshots/01_dashboard.png)
 
-### Project overview (`/projects/{pid}`)
+### Project home (`/projects/{pid}`)
 
-Per-project dashboard: data count, RAG status, training run history,
-latest benchmark scores, with all of the project context in one place.
+Answers “where do I start?” before you touch any tab: two flow cards —
+🧠 **Train a model** (what it is, why it's slow, 5 ordered steps) and
+📚 **Search my files / RAG** (minutes, no training, 4 steps) — plus live
+counts for files, datasets, runs and models, recent training history,
+latest exports, and the activity feed.
 
-![Project overview](docs/screenshots/02_project.png)
+![Project home](docs/screenshots/02_project.png)
 
-### Data prep (`/projects/{pid}/data-prep`)
+### ⚡ Quick work (`/projects/{pid}/work`)
 
-Upload files, configure chunking + difficulty, kick off a QA-generation
-job. The DataStream sprite shows bytes flowing through the parser. The
-**file library** underneath gives you SHA-256 dedup, MIME-auto-routed
-immutable raws, your own folders, versioning, and a 7-day soft-delete
-trash — plus per-file **rename** and **per-file purge** buttons that hit
-real APIs.
+The whole pipeline on one page: six numbered cards — **1** upload files,
+**1b** build a RAG index (one click, live coverage pill), **2** make
+question-answer pairs, **3** build the dataset, **4** train, **5** test,
+**6** pin & use — each with its own button and status pill, plus
+**Run steps 2–5 now** to chain dataset → training → test unattended while
+progress streams below. This is the recommended path; the individual pages
+are there when you want fine control.
 
-![Data prep](docs/screenshots/03_data_prep.png)
+![Quick work](docs/screenshots/03_quick_work.png)
 
-### RAG (`/projects/{pid}/rag`)
+### Files — step 1 of both flows (`/projects/{pid}/data`)
+
+The file browser: drag-drop upload (SHA-256 dedup, MIME auto-folders, raw
+bytes immutable), renameable folder chips with drag-to-move, tag pills with
+click-to-filter, bulk actions (delete / restore / move / re-parse / tag),
+thumbnails, sortable + pickable columns, pagination, parsed-content search,
+⬇ zip export, ℹ️ a per-file usage chain (file → sources → pairs → datasets →
+runs → RAG), a built-in **parsed-text editor** (corrections feed mining and
+the next RAG build without touching the original), and a 7-day soft-delete
+trash with restore-all.
+
+![Files](docs/screenshots/04_files.png)
+
+### Pairs — step 2 (`/projects/{pid}/data-prep`)
+
+Question-answer pairs: mine training pairs from your parsed sources with an
+extractive prep job (no LLM), the Chat Agent, or manual JSONL upload; triage
+with bulk approve / reject. **Export approved → Training** writes a ShareGPT
+JSONL dataset — and the coverage gate fills any chunk mining missed with
+verbatim extractive pairs, so a dataset can never ship with silent holes:
+**100 % of your material is always in the training data.**
+
+![Pairs](docs/screenshots/05_pairs.png)
+
+### RAG — the search-my-files workspace (`/projects/{pid}/rag`)
 
 Build an index, search it, tune retrieval parameters, and take it with you.
 Sections are numbered in workflow order: **1. Index status**, **2. Build the
-index**, **3. Search settings**, **4. Documents in the index**, **5. Search
-test**, **6. Ask the model (grounded)**, **7. Download / export the corpus**,
-**8. Shared search models**. The export card offers both the plain corpus
-archive and the **standalone package** (`GET
-/api/projects/{pid}/rag/mcp-package`) — a self-installing tarball with the
-index, a single-file Python server, `install.sh`, MCP config example, and a
-README; it speaks MCP over stdio and REST over HTTP. Index is persisted on
-disk as `~/.finetune-studio/rag_corpora/{pid}/{chunks.parquet,vectors.npy,
+index** (⚡ Quick index promotes every parsed file in one click), **3. Search
+settings**, **4. Documents in the index**, **5. Search test**, **6. Ask the
+model (grounded)**, **7. Download / export the corpus**, **8. Shared search
+models**. The export card offers both the plain corpus archive and the
+**standalone package** (`GET /api/projects/{pid}/rag/mcp-package`) — a
+self-installing tarball with the index, a single-file Python server,
+`setup.sh`, MCP config example, and a README; it speaks MCP over stdio and
+REST over HTTP, and can ship the embedder + reranker inside for fully
+offline semantic search. Index is persisted on disk as
+`~/.finetune-studio/rag_corpora/{pid}/{chunks.parquet,vectors.npy,
 bm25.json,sources/*.txt}`. The CorpusNode sprite shows document nodes
 connecting to embedding vectors in real time.
 
-![RAG](docs/screenshots/04_rag.png)
+![RAG](docs/screenshots/06_rag.png)
 
-### Models (`/projects/{pid}/models`)
+### Training — step 3 (`/projects/{pid}/training`)
+
+Configure a fine-tune, watch loss curves live. Base-model and preset
+pickers recommend rank/LR/epochs from your base size and dataset size. Each
+past run in the **Past runs** table carries Actions (⭐ Set Production,
+▶ Inference, ⬇ Download) so you can promote / inspect / pull down any of
+your previous runs without re-opening individual pages. The CpuChip sprite
+flickers as the GPU accelerates.
+
+![Training](docs/screenshots/07_training.png)
+
+### Testing — step 4 (`/projects/{pid}/testing`)
+
+Did it learn *your* material? Auto-generated project suites test **every
+row** of the training dataset (N rows → N questions; sampling is an
+explicit, labeled opt-in), strict-substring judged and reviewable
+case-by-case.
+
+![Testing](docs/screenshots/10_testing.png)
+
+### Models — step 5 (`/projects/{pid}/models`)
 
 Every trained export from every run, in a 7-column table (Name / Format /
 Size / Source run / Created / Copy path / Actions). Click any row's name
@@ -268,26 +324,7 @@ to **expand** it and see the parent training run, the training settings
 (LR, rank, batch, epochs, max seq length, merge-on-save), and a top-level
 directory listing. ▶ Open in inference jumps straight to chat.
 
-![Models](docs/screenshots/05_models.png)
-
-### Training (`/projects/{pid}/training`)
-
-Configure a fine-tune, watch loss curves live. Each past run in the
-**Past runs** table now carries Actions (⭐ Set Production, ▶ Inference,
-⬇ Download) so you can promote / inspect / pull down any of your
-previous runs without re-opening individual pages. The CpuChip sprite
-flickers as the GPU accelerates.
-
-![Training](docs/screenshots/06_training.png)
-
-### Benchmarks (`/projects/{pid}/benchmarks`)
-
-Run offline smoke suites (MMLU-/GSM8K-/HellaSwag-style) plus project-local
-suites. Two tabs: **Recent scores** (live history) and **Compare two runs**
-(pickers + a per-suite Δ table). The BenchBars sprite fills in as scores
-arrive.
-
-![Benchmarks](docs/screenshots/07_benchmarks.png)
+![Models](docs/screenshots/08_models.png)
 
 ### Export (`/projects/{pid}/export`)
 
@@ -302,29 +339,44 @@ Pick a run, pick a format, hit RUN. Supported formats today:
 The trained-exports table uses the same expand-row pattern as Models —
 click a row to inspect its contents, then ▶ Open in inference.
 
-![Export](docs/screenshots/08_export.png)
+![Export](docs/screenshots/09_export.png)
 
-### Testing (`/projects/{pid}/testing`)
+### Chat (`/projects/{pid}/chat`)
 
-Generate QA pairs from a trained model against the prepared dataset.
-Suite dropdown replaces the old free-text input — picks come straight
-from the available suites.
+Pick a safetensors or GGUF model, load (auto-unload on idle frees VRAM),
+and chat — streaming with sprite feedback, image input for multimodal
+models, per-session temperature / top-p / system prompt, persistent
+history, RAG-attach for grounded answers, and Agent mode for tool-driven
+dataset curation.
 
-![Testing](docs/screenshots/09_testing.png)
+![Chat](docs/screenshots/13_chat.png)
 
-### Settings (`/projects/{pid}/settings`)
+### Benchmarks (optional, `/benchmarks`)
+
+Public exams, separate from your project test: offline smoke suites
+(MMLU-/GSM8K-/HellaSwag-style) plus project-local suites, real HF splits
+when you allow downloads. Two tabs: **Recent scores** (live history) and
+**Compare two runs** (pickers + a per-suite Δ table). The BenchBars sprite
+fills in as scores arrive.
+
+![Benchmarks](docs/screenshots/11_benchmarks.png)
+
+### Settings (`/settings`, per-project under `/projects/{pid}/settings`)
 
 Per-project settings including a **WebUI log tail** card (Refresh +
 Auto-refresh) for debugging long-running jobs without leaving the browser.
 Also hosts the in-app **Apply update** controls for the self-update
-pipeline.
+pipeline and the **Replay Tutorial** button for the 8-step onboarding tour.
 
-![Settings](docs/screenshots/10_settings.png)
+![Settings](docs/screenshots/12_settings.png)
 
 ---
 
 The session bar at the top of every page is a Tmux-style tab strip with
-three groups: **[SYS]**, **[PROJECT]**, **[TOOLS]**. The active tab has a
+three groups: **[SYS]**, the active **[project]**, **[TOOLS]**. Inside a
+project, a numbered step strip shows the flow you're in —
+`1 files → 2 pairs → 3 train → 4 test → 5 use it` for training,
+`1 files → 2 build → 3 search → 4 chat` for RAG. The active tab has a
 phosphor-green notch that punches into the active-path bar below it.
 `Ctrl+K` opens the command palette — fuzzy-search any page in any
 project.

@@ -10,13 +10,25 @@ Qwen3-4B-class training; RAG and chat work CPU-only too.
 
 ---
 
-## The core loop
+## Two flows, one project
+
+Every project offers two independent paths over the **same uploaded files**:
 
 ```
-Upload → Parse → QA pairs → Approve → Export → Train → Benchmark → Export → Chat
+🧠 Train a model    1 files → 2 pairs → 3 train → 4 test → 5 use it
+📚 Search my files  1 files → 2 build → 3 search → 4 chat        (RAG — minutes, no training)
 ```
 
-Everything else (RAG, testing, production runs) hangs off this spine.
+The project home shows these as two big cards so you always know where to
+start, and the sub-nav lists the numbered steps of whichever flow you're in.
+You can do both, in any order — they never block each other.
+
+**The short path: ⚡ Quick work.** One page (`work` in the sub-nav) holds the
+whole model pipeline as six numbered cards — upload, make pairs, build the
+dataset, train, test, pin — each with a status pill and one button. There's
+even a **Run steps 2–5 now** chain that drives the entire pipeline unattended
+while you watch. Use the individual pages when you want fine control; use
+Quick work when you just want the model.
 
 ### 0. Bootstrap (once)
 
@@ -24,24 +36,27 @@ Everything else (RAG, testing, production runs) hangs off this spine.
    starts an 8-step onboarding tour (replayable anytime: Tools → Settings
    → Replay Tutorial).
 2. Click `+ New Project`, give it a name. Projects own everything: files,
-   datasets, corpora, runs, exports, suites.
+   datasets, corpora, runs, exports, versions, suites.
 
-### 1. Get raw documents in (Data Prep)
+### 1. Get raw documents in (step **1 · files**)
 
-1. Open your project → **Data Prep** tab.
-2. Drag files into the **Uploaded files** library (or ⬆ Upload). Anything
-   readable is parsed to text: PDF, DOCX, DOC, TXT, MD, HTML, code, CSV,
-   JSON, EPUB, RTF, and more. Files are SHA-256 deduped and stored
-   immutable; parsing never mutates the raw upload.
-3. Click **Parse** (or 📄 actions per file). Parsed files become **Parsed
-   sources** — the text layer every later stage reads from. A placeholder
-   parse (for example, a .doc needing a missing dependency) is retried
-   automatically; open 📝 to preview the converted markdown.
+1. Open your project → **files** (or Quick work's Step 1 card).
+2. Drag files in (or ⬆ Upload). Anything readable is parsed to text: PDF,
+   DOCX, DOC, TXT, MD, HTML, code, CSV, JSON, EPUB, RTF, and more. Files
+   are SHA-256 deduped and stored **immutable** — parsing and editing never
+   touch the raw bytes.
+3. The file browser is the hub: folders (drag files between them), tags,
+   bulk actions, column picker, thumbnails, pagination, a 7-day trash with
+   restore, ⬇ zip export, and an ℹ️ usage view showing where each file went
+   (pairs → datasets → runs → RAG).
+4. Want to fix a bad parse? Open a file's 📝 editor and edit the **parsed
+   text** — the correction feeds Q&A mining and the next RAG build, while
+   the original upload stays byte-identical.
+5. Parsed files become **sources** — the text layer every later stage reads.
 
-### 2. Turn sources into training pairs (QA mining)
+### 2. Turn sources into training pairs (step **2 · pairs**)
 
-Three ways to get prompt/response training data out of your parsed
-sources:
+Three ways to get prompt/response training data out of your parsed sources:
 
 - **Prep job (no LLM)** — extractive Q&A: questions built from real
   sentences in the sources; zero hallucination risk, fastest start.
@@ -57,14 +72,17 @@ model doesn't learn to parrot internal keys.
 ### 3. Export pairs → dataset
 
 Click **Export approved → Training**. This writes a ShareGPT JSONL and
-registers it under the project. A green **Start training with this
-dataset →** button appears — that's your handoff; it opens Training with
-the dataset preselected. Check the JSONL any time in Data Editor.
+registers it under the project. **The 100 % guarantee:** any chunk mining
+missed is filled with verbatim extractive pairs at export time, so every
+parsed chunk of every source is present in the dataset — no silent holes.
+A green **Start training with this dataset →** button appears — that's your
+handoff; it opens Training with the dataset preselected.
 
-### 4. Train (Training tab)
+### 4. Train (step **3 · train**)
 
 1. **Base model** — pick a local transformers-compatible base (GGUF/GPTQ
-   exports are inference-only; they can't be trained on).
+   exports are inference-only; they can't be trained on). The preset picker
+   recommends rank/LR/epochs from base + dataset size.
 2. **Training data** — *From this project* is your exported dataset;
    *Upload my own* registers a raw JSONL.
 3. Set epochs, LoRA rank, learning rate, batch size. For a small factual
@@ -72,88 +90,69 @@ the dataset preselected. Check the JSONL any time in Data Editor.
    epochs at 4× gradient accumulation is not memorization (see the badges
    on the run: they report actual steps, never fake progress).
 4. **Start training.** Live loss/step/LR stream over SSE; the activity feed
-   logs every REST call. VRAM is profiled before the run and an
-   actionable error tells you what's holding memory if it can't fit.
+   logs every REST call. VRAM is profiled before the run and an actionable
+   error tells you what's holding memory if it can't fit.
 5. Runs can be stopped; interrupted runs are reconciled at next startup.
    Past-run rows carry ⭐ Set production / ▶ Inference / ⬇ Download.
 
-### 5. Export (Export tab)
+### 5. Test it (step **4 · test**)
 
-Pick a run, pick formats:
+The **Testing** page answers one question: *did it learn MY material?*
+Auto-generated project suites test **every row of the training dataset**
+(N rows → N questions, full coverage by default; sampling is an explicit,
+labeled opt-in). Results are strict-substring judged and reviewable
+case-by-case. Rule of thumb: if the auto-score says pass, spot-check 10–20
+answers with your own eyes — the judge is heuristic (see
+[docs/judging/PROTOCOL.md](judging/PROTOCOL.md)).
 
-- **merged** — adapter merged onto a 16-bit base (required before GGUF if
-  you trained on a 4-bit/nf4 base; the export path auto-merges and any
-  failure is written to the run row, not silently swallowed).
-- **GGUF** — q4_K_M … q8_0, needs llama.cpp conversion tools on the host;
-  a clear install hint otherwise. Never a fake success.
-- **abliterated** — refusal-direction edit of a merged checkpoint.
-- **GPTQ** — needs `auto-gptq`; honest failure if missing.
+**Benchmarks** (global page) is separate: public exams — offline smoke
+suites styled after MMLU/GSM8K/HellaSwag, real HF splits when you allow
+downloads, and a **Compare two runs** Δ table. Useful, optional, and not a
+substitute for the project test.
 
-Exported artifacts show up under **Models** with expand rows (parent run,
-settings, directory listing) and ▶ Open in inference.
+### 6. Use it (step **5 · use it**)
 
-### 6. Evaluate (Benchmarks tab)
+- **Pin a version** — Quick work's Step 6 pins the exact dataset + corpus +
+  run + base model into an immutable project version, so any result is
+  reproducible and branchable.
+- **Export** (project **export** page): **merged** (adapter onto a 16-bit
+  base — auto-merged before GGUF; failures land on the run row, never
+  silent), **GGUF** (q4_K_M … q8_0, needs llama.cpp tools on the host),
+  **abliterated** (refusal-direction edit of a merged checkpoint), **GPTQ**
+  (needs `auto-gptq`; honest failure if missing).
+- **Models** page: every export in one table — click a row to expand the
+  parent run, settings, and directory contents; ▶ Open in inference.
+- **Chat**: load a safetensors **or GGUF** model, stream, image input for
+  multimodal, per-session temperature/top-p/system prompt. History
+  persists; idle models auto-unload. No model loaded? The red ⚠ panel has
+  a one-click loader right on the page.
 
-- **Synthetic offline suites** (MMLU/GSM8K/HellaSwag-*shaped*) — fast,
-  local, no downloads; good for smoke checks.
-- **Project QA suite** — generated from your own held-out pairs; this is
-  the one that tells you whether your model *memorized your domain*
-  (with strict substring judging you can eyeball case-by-case under
-  **Testing**).
-- **Real industry suites** — official GSM8K/MMLU/HellaSwag splits,
-  downloaded on first use; strict MCQ scoring. Bounded `num_samples` for
-  fast runs, `full_run=true` via the API for full splits.
-- **Compare two runs** tab — per-suite Δ table, colored.
+### 7. RAG — search my files (the other flow)
 
-Rule of thumb: if the auto-score says pass, spot-check 10–20 answers on
-the Testing page. The judge is heuristic; your eyes are the gold standard
-(see docs/judging/PROTOCOL.md).
+Independent of training; same parsed sources. In sub-nav order:
 
-### 7. Chat (Chat tab)
+1. **1 · files** — upload + parse (there is no separate RAG upload).
+2. **2 · build** — press **Build the index** (or ⚡ Quick index; Quick work's
+   Step 1b card does the whole flow in one click and shows a live coverage
+   pill, e.g. "129/129 · 100 %"). Sources are chunked and indexed for
+   keyword + meaning search; the first build may download the embedder.
+3. **Documents in the index** — what actually got indexed; a missing file
+   wasn't parsed.
+4. **Search test** — a real query with per-passage scores, no AI answer, so
+   you can judge retrieval alone.
+5. **Ask the model (grounded)** — chat over those passages (needs a chat
+   model loaded — the top-bar pill says which).
+6. **Download / export** — the plain corpus archive, or the **standalone
+   package**: one tarball with the index + a small Python server +
+   `setup.sh`. On any machine with Python 3.10+: `bash setup.sh` installs a
+   venv, picks a port, starts the server, can install it as a persistent
+   service, and prints a copy-paste MCP entry. It speaks **MCP** (Claude
+   Desktop / OpenClaw / Cursor) and plain **HTTP** (`GET /search?q=…`).
+   Tick "Include models" (~2.3 GB) and the embedder + reranker ship inside
+   the package: full offline semantic search with no external service.
 
-Load a safetensors **or GGUF** model, chat with streaming, image input for
-multimodal models, per-session temperature/top-p/system prompt. History
-persists across reloads; idle models auto-unload to free VRAM.
-
-No model loaded yet? Use the red ⚠ panel's one-click loader right on the
-page — no need to round-trip to Inference.
-
-### 8. RAG (RAG tab) — optional
-
-The index is separate from training. Steps, in order:
-
-1. Upload + parse your files on **Data Prep** first (RAG has no upload).
-2. On the RAG tab, press **Build the index** (section 2). Sources get split
-   into chunks and indexed for keyword + meaning search. First build may
-   download the embedding model; later builds reuse it.
-3. **Documents in the index** (section 4) shows what actually got indexed —
-   if a file is missing there, it wasn't parsed.
-4. **Search test** (section 5) runs a real query and shows which passages
-   come back, with scores — no AI answer, so you can judge retrieval quality.
-5. **Ask the model (grounded)** (section 6) chats using those passages as
-   context. Needs a chat model loaded (top-bar pill).
-6. **Download / export** (section 7): the plain corpus archive, or the
-   **standalone package** — one tarball with the index, a small Python
-   server, `install.sh` (makes its own venv), a README, and an MCP config
-   example. On any machine with Python 3.10+: **`bash setup.sh`** — one
-   command that installs the venv, asks for a port, can start the server
-   right away, can install it as a persistent service (`bash setup.sh
-   --uninstall` removes it), and prints a copy-paste MCP entry with real
-   absolute paths (also saved to `MCP-ENTRY.txt`). Manual path:
-   `bash install.sh && bash run-http.sh` gives you `GET /search?q=...`, and
-   `bash run-mcp.sh` speaks MCP (Claude Desktop / OpenClaw / Cursor). Two
-   flavors, chosen by the "Include models" checkbox before download:
-   - **small** — keyword (BM25) search works offline out of the box; set
-     `RAG_EMBED_BASE_URL` to any OpenAI-compatible `/v1/embeddings` endpoint
-     (LM Studio, Ollama, OpenAI) for meaning-based search.
-   - **full (~2.3 GB)** — the embedding model + reranker ship *inside* the
-     package: `install.sh` wires up torch-CPU + sentence-transformers and
-     the server does full semantic search with **no external service at
-     all**. Verified: query "strange weather event in the heavens" finds the
-     meteoric-salt annal (dense 0.78, zero keyword overlap) offline.
-
-**Use RAG for facts that change; use fine-tuning for style/response
-shape.** Both work against the same parsed sources.
+**Use RAG for facts that change; use fine-tuning for style/response shape.**
+Both work against the same parsed sources.
 
 ---
 
@@ -161,12 +160,13 @@ shape.** Both work against the same parsed sources.
 
 | Symptom | It means | Fix |
 |---|---|---|
-| "No datasets yet" in Training | Export step didn't run/complete | Data Prep → Export approved → Training; look for green success + the CTA |
+| "No datasets yet" in Training | Export step didn't run/complete | **pairs** → Export approved → Training; look for the green success + CTA |
 | Chat says "no model loaded" | Nothing loaded in inference | Use the ⚠ panel's Load dropdown on the chat page itself |
 | Training starts but feels instant-and-done | Loop returned without real steps | Check the run badge's optimizer-step count; raise epochs / dataset size |
-| Export says merge needed | Adapter trained on 4-bit base | Set base model to the 16-bit sibling (e.g. `Qwen/Qwen3-0.6B`), not nf4 |
+| Export says merge needed | Adapter trained on 4-bit base | Set base model to the 16-bit sibling (e.g. `Qwen/Qwen3-4B`), not nf4 |
 | GGUF button disabled | llama.cpp tools missing | Install llama.cpp; the API error says exactly what |
 | Chat unrelated answers | No/weak system prompt + wrong production run | Training → ⭐ Set production on the good run; Chat → pick the project's system prompt |
+| RAG search finds nothing for a file | It was never indexed | **files** → check the pipeline badges; then **build** → ⚡ Quick index |
 
 ## Where everything lives on disk
 
