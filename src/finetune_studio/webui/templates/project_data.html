@@ -37,7 +37,7 @@
     <span class="pill outline" id="fb-bulk-label" hidden>0 selected</span>
     <button class="btn sm danger" type="button" id="fb-bulk-delete" disabled>Delete selected</button>
     <button class="btn sm" type="button" id="fb-bulk-move" disabled>Move to folder</button>
-    <button class="btn sm" type="button" id="wb-bulk-prep" disabled title="Promote the selected files into data-prep sources — feeds Q&A training data + the RAG corpus">⚡ Send to Data Prep</button>
+    <button class="btn sm" type="button" id="wb-bulk-prep" disabled title="Promote the selected files into parsed sources — feeds the pairs page (Q&A training data) + the RAG corpus">⚡ Send to pairs</button>
     <button class="btn sm" type="button" id="fb-bulk-zip" disabled title="Download the selected files (raw bytes) as one zip">⬇ Zip</button>
     <button class="btn sm" type="button" id="fb-bulk-tag" disabled title="Add or remove tags on the selected files">🏷 Tag</button>
     <button class="btn sm" type="button" id="fb-bulk-reparse" disabled title="Re-run the parser on the selected files (discards manual parsed-text edits)">↻ Re-parse</button>
@@ -457,7 +457,7 @@
     const p = pipe[f.id] || {};
     const on = (label, title) => '<span class="pill solid-green text-xs" title="' + esc(title) + '">' + label + '</span>';
     const off = (label, title) => '<span class="pill outline text-xs" title="' + esc(title) + '">' + label + '</span>';
-    const parsed = p.has_parsed ? on('parsed', 'parsed text available') : off('unparsed', 'no parsed text yet — re-parse or send to Data Prep');
+    const parsed = p.has_parsed ? on('parsed', 'parsed text available') : off('unparsed', 'no parsed text yet — re-parse or send to pairs');
     const prep = p.source_id ? on('prep·' + (p.chunk_count || 0) + 'ch', 'data-prep source' + (p.parser === 'manual-edit' ? ' (hand-edited)' : ' via ' + (p.parser || 'parser'))) : off('prep', 'not a data-prep source yet');
     const rag = p.in_rag ? on('rag', 'indexed in the RAG corpus') : off('rag', 'not in the RAG corpus (or corpus not built)');
     return '<div class="flex gap-1 wrap">' + parsed + prep + rag + '</div>';
@@ -505,7 +505,7 @@
           '<button class="btn sm" type="button" title="Edit parsed text (feeds training + RAG)" onclick="wbOpen(\'' + esc(f.id) + '\',\'parsed\')">✎p</button>' +
           '<button class="btn sm" type="button" title="Usage — where this file\'s content went (source / RAG / pairs / datasets / runs)" onclick="fbUsage(\'' + esc(f.id) + '\')">ℹ️</button>' +
           (p.has_parsed ? '<button class="btn sm" type="button" title="Discard manual edits, re-run the parser" onclick="wbReparse(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">↻</button>' : '') +
-          (!p.source_id ? '<button class="btn sm" type="button" title="Send to Data Prep (parse + chunk)" onclick="wbPromote(\'' + esc(f.id) + '\')">⚡</button>' : '') +
+          (!p.source_id ? '<button class="btn sm" type="button" title="Send to pairs (parse + chunk)" onclick="wbPromote(\'' + esc(f.id) + '\')">⚡</button>' : '') +
           '<a class="btn sm" title="Download raw" href="/api/projects/' + PID + '/files/' + encodeURIComponent(f.id) + '/raw" download="' + esc(f.original_name) + '">⬇</a>' +
           '<button class="btn sm" type="button" title="Tags &amp; notes" onclick="fbEditTags(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">🏷</button>' +
           '<button class="btn sm" type="button" title="Rename" onclick="fbRename(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">✎</button>' +
@@ -1198,7 +1198,7 @@
       const d = await r.json().catch(() => ({}));
       if (!r.ok) {
         ta.value = '';
-        info.textContent = (d.detail || ('HTTP ' + r.status)) + ' — run ⚡ Send to Data Prep first (binary formats parse server-side).';
+        info.textContent = (d.detail || ('HTTP ' + r.status)) + ' — run ⚡ Send to pairs first (binary formats parse server-side).';
         return;
       }
       ta.value = d.parsed_md || '';
@@ -1256,7 +1256,7 @@
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || d.error) throw new Error(d.error || d.detail || ('HTTP ' + r.status));
-      notify('Sent to Data Prep — ' + ((d.source || {}).chunk_count || '?') + ' chunks', 'success');
+      notify('Sent to pairs — ' + ((d.source || {}).chunk_count || '?') + ' chunks', 'success');
       await loadFiles();
     } catch (e) {
       notify('Send failed: ' + e.message, 'error');
@@ -1275,7 +1275,7 @@
         if (r.ok) done++; else errs++;
       } catch (e) { errs++; }
     }
-    notify('Data Prep: ' + done + ' source(s) ready' + (errs ? ', ' + errs + ' failed' : ''), errs ? 'error' : 'success');
+    notify('Pairs: ' + done + ' source(s) ready' + (errs ? ', ' + errs + ' failed' : ''), errs ? 'error' : 'success');
     selected.clear();
     await loadFiles();
   }

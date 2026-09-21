@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Data Prep · {{ project.name }} · Finetune Studio{% endblock %}
+{% block title %}Question-answer pairs · {{ project.name }} · Finetune Studio{% endblock %}
 {% block nav_data_prep %}active{% endblock %}
 {% block sb_path %}~ / projects / {{ project.name }} / data-prep{% endblock %}
 {% block breadcrumb_tab %}data-prep{% endblock %}
 {% block workspace %}model{% endblock %}
 {% block crumb %}
-<a href="/projects" data-link>Projects</a> <span class="sep">/</span> <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a> <span class="sep">/</span> <span>Data Prep</span>
+<a href="/projects" data-link>Projects</a> <span class="sep">/</span> <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a> <span class="sep">/</span> <span>pairs</span>
 {% endblock %}
 {% block content %}
 <div class="page-head">
@@ -1171,7 +1171,7 @@ async function flFillParsedPanel(panel, fid, name) {
 
   const bannerHtml =
     '<div class="fl-preview-banner">Parsed MD preview not yet available for this file. ' +
-    'Use Data Prep → Prep job to generate one.</div>';
+    'Use the ⚡ send-to-pairs action on it first (parse + chunk).</div>';
 
   const sibling = flFindSiblingMd(fid, name);
   if (sibling) {

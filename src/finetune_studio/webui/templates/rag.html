@@ -51,7 +51,7 @@
     </div>
   </div>
   <ol class="rag-workflow-steps" aria-label="RAG workflow">
-    <li><a href="/projects/{{ pid }}/data-prep" data-link><b>Upload</b></a> files on Data Prep</li>
+    <li><a href="/projects/{{ pid }}/data" data-link><b>Upload</b></a> files on the files page</li>
     <li><b>Parse</b> into text sources (auto for .txt/.md, or promote)</li>
     <li><b>Prepare / QA</b> optional training pairs (Model path)</li>
     <li><b>Embed</b> parsed sources into this corpus (section 2)</li>
@@ -68,7 +68,7 @@
   <summary class="card-head" style="cursor:pointer;list-style:none;">
     <div>
       <div class="card-title">Optional: ask Agent chat for help</div>
-      <div class="card-sub">Chat can recommend chunk size / embedder and call Build — it does not replace Upload on Data Prep.</div>
+      <div class="card-sub">Chat can recommend chunk size / embedder and call Build — it does not replace uploading files (step 1).</div>
     </div>
     <a href="/projects/{{ pid }}/chat?mode=agent" class="btn" data-link onclick="event.stopPropagation()">Open Agent chat →</a>
   </summary>
@@ -100,7 +100,7 @@
         Split this project's <b>parsed text sources</b> into chunks and turn them
         into a searchable index. First build may download the embedding model
         (~2.2 GB); later rebuilds reuse it.
-        Upload new files on Data Prep first — there is no upload on this page.
+        Upload new files on the files page first — there is no upload on this page.
       </div>
     </div>
   </div>
@@ -194,7 +194,7 @@
     </div>
     <div class="flex gap-2">
       <button class="btn small" onclick="loadIndexedDocs()" title="Refresh inventory">⟲ Refresh</button>
-      <button class="btn small danger" onclick="clearAllSources()" title="Remove all parsed source files from the corpus. After this, press Build again to re-index from what's left on Data Prep.">Remove all sources</button>
+      <button class="btn small danger" onclick="clearAllSources()" title="Remove all parsed source files from the corpus. After this, press Build again to re-index from whatever sources remain.">Remove all sources</button>
     </div>
   </div>
   <div id="rag-docs-body">

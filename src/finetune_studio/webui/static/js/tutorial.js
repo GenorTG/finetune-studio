@@ -26,8 +26,9 @@
       target: ".session-bar",
       align: "bottom",
       title: "THE SESSION BAR",
-      body: "Your command center. Three groups of tabs — [SYS], [PROJECT], [TOOLS] — " +
-            "let you hop between any page in one click. Active tab has a green notch " +
+      body: "Your command center. Three groups — [SYS], the active project, [TOOLS] — " +
+            "let you hop between any page in one click. Inside a project, the strip below " +
+            "lists the numbered steps of the flow you're in. Active tab has a green notch " +
             "and blinking cursor so you always know where you are.",
     },
     {
@@ -79,9 +80,10 @@
       align: "center",
       route: "/",
       title: "YOU'RE READY",
-      body: "That's the tour. From here: create a project → upload data → " +
-            "build a RAG corpus or fine-tune a model → chat or benchmark the " +
-            "result. You can replay this tour anytime from Settings.",
+      body: "That's the tour. From here: create a project → open ⚡ Quick work → " +
+            "upload your files, then chain pairs → dataset → training → test in one " +
+            "click — or build a RAG index and search your files immediately. " +
+            "You can replay this tour anytime from Settings.",
       finish: true,
     },
   ];
