@@ -13,6 +13,11 @@
  * Usage: window.__qa('<label>') -> JSON string.
  */
 window.__qa = function (label) {
+  /* HARD BUDGET: a previous QA session DDoS'd its own browser tab by running
+     uncapped full-document scans (getComputedStyle × 7 passes) on heavy pages
+     inside iframes; timed-out evaluates kept running and starved the main
+     thread. All passes now slice the node set and share one deadline. */
+  const DEADLINE = performance.now() + 12000;
   const vw = document.documentElement.clientWidth;
   const vh = document.documentElement.clientHeight;
   const sel = (el) => {
@@ -56,12 +61,15 @@ window.__qa = function (label) {
     return false;
   };
 
-  const all = [...document.querySelectorAll('body *')].filter(vis);
-  const out = { label, vw, vh, theme: document.documentElement.getAttribute('data-theme') || 'dark' };
+  const all = [...document.querySelectorAll('body *')].filter(vis).slice(0, 4000);
+  const overBudget = () => performance.now() > DEADLINE;
+  const out = { label, vw, vh, theme: document.documentElement.getAttribute('data-theme') || 'dark', budgetMs: 12000 };
 
   out.pageScroll = document.documentElement.scrollWidth > vw + 1;
 
+  out.partial = false;
   out.overflow = all.filter((el) => {
+    if (overBudget()) { out.partial = true; return false; }
     const r = el.getBoundingClientRect();
     if (r.width < 8 || r.height < 4) return false;
     if (r.right <= vw + 2 || r.left >= vw) return false;
@@ -71,6 +79,7 @@ window.__qa = function (label) {
   /* Clipped text is only a BUG when the full string is unrecoverable: no
      title, no aria-label. With a tooltip it is a deliberate truncation. */
   out.clipped = all.filter((el) => {
+    if (overBudget()) { out.partial = true; return false; }
     if (!el.children.length && !el.textContent.trim()) return false;
     if (el.scrollWidth <= el.clientWidth + 2) return false;
     const cs = getComputedStyle(el);
@@ -80,12 +89,14 @@ window.__qa = function (label) {
   }).map((el) => ({ sel: sel(el), lost: el.scrollWidth - el.clientWidth, txt: el.textContent.trim().slice(0, 30) })).slice(0, 12);
 
   out.tiny = all.filter((el) => {
+    if (overBudget()) { out.partial = true; return false; }
     const t = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length > 2);
     if (!t) return false;
     return parseFloat(getComputedStyle(el).fontSize) < 11;
   }).map((el) => ({ sel: sel(el), px: parseFloat(getComputedStyle(el).fontSize), txt: el.textContent.trim().slice(0, 24) })).slice(0, 12);
 
   out.low = all.filter((el) => {
+    if (overBudget()) { out.partial = true; return false; }
     const t = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length > 2);
     if (!t) return false;
     const cs = getComputedStyle(el);
@@ -110,6 +121,7 @@ window.__qa = function (label) {
   const ownText = (el) => [...el.childNodes].filter((n) => n.nodeType === 3)
     .map((n) => n.textContent).join(' ').replace(/\s+/g, ' ').trim();
   out.wall = all.filter((el) => {
+    if (overBudget()) { out.partial = true; return false; }
     /* <pre>/<code> are logs and payloads: monospaced, scrollable, and meant
        to be long. Only prose blocks are readability problems. */
     if (el.closest('pre, code')) return false;
