@@ -501,6 +501,11 @@ body::before {
 /* ===== Inputs ===== */
 .input, .select, .textarea {
   width: 100%;
+  /* width:100% + padding + border was CONTENT-BOX, so every field in the app
+     overflowed its container by exactly 22px (20 padding + 2 border) — the
+     cause of the -22 clip the QA probe found on testing/benchmarks/rag/wizard. */
+  box-sizing: border-box;
+  max-width: 100%;
   padding: 7px 10px;
   font-size: 13px;
   font-family: "Share Tech Mono", monospace;
@@ -4626,6 +4631,8 @@ body::before {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Table headers were 10.5px — under the 11px readability floor. */
+#suite-catalog th, #bench-run-table th, #bench-scores-table th { font-size: 11.5px; }
 #bench-run-table .bench-actions-cell { min-width: 16rem; white-space: normal; overflow: visible; }
 /* Two forms (bench-run + train-set eval) must stack, not fight for one
    nowrap line — inline-flex siblings + td nowrap pushed the 2nd form

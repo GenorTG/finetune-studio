@@ -54,7 +54,7 @@
   </style>
   <title>{% block title %}Finetune Studio{% endblock %} · {{ release_channel }}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/css/app.css?v=43">
+  <link rel="stylesheet" href="/static/css/app.css?v=44">
 </head>
 <body>
   <div id="toasts" class="toasts" aria-live="polite"></div>
@@ -138,7 +138,7 @@
           {# GROUP: Tools #}
           <div class="sb-group sb-group-tools">
             <span class="sb-group-label" title="Tools">[tools]</span>
-            <a href="/models/explore" class="sb-tab {% block nav_models_explore %}{% endblock %}" data-link data-tab="hf">
+            <a href="/models/explore" class="sb-tab {% block nav_models_explore %}{% endblock %}" data-link data-tab="hf" title="Browse + download base models from Hugging Face">
               <span class="sb-tab-label">hf</span>
             </a>
             {# QABUG-004: project-scoped chat is the real inference surface;
@@ -179,7 +179,7 @@
               <a href="/projects/{{ pid }}/chat" class="sb-nav-more-link" data-link data-tab="project-chat" role="menuitem">chat</a>
               <a href="/projects/{{ pid }}/export" class="sb-nav-more-link" data-link data-tab="export" role="menuitem">export</a>
               {% endif %}
-              <a href="/models/explore" class="sb-nav-more-link" data-link data-tab="hf" role="menuitem">hf</a>
+              <a href="/models/explore" class="sb-nav-more-link" data-link data-tab="hf" role="menuitem" title="Browse + download base models from Hugging Face">hf</a>
               <a href="{% if pid is defined and pid %}/projects/{{ pid }}/chat{% else %}/inference{% endif %}"
                  class="sb-nav-more-link" data-link data-tab="inference" role="menuitem">inference</a>
               <a href="/settings" class="sb-nav-more-link" data-link data-tab="settings" role="menuitem">settings</a>
