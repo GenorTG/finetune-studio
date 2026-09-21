@@ -74,7 +74,7 @@
       <div class="card-sub text-dim">
         The studio reads each parsed document and writes question-answer pairs
         from it, then approves them for training. Takes a few minutes per
-        document. Want to review them first? Open Data Prep.
+        document. Want to review them first? Open the pairs page.
       </div>
     </div><span class="pill outline" id="wiz-qa-pill">…</span></div>
     <div class="text-sm" id="wiz-qa-sub">—</div>
@@ -474,7 +474,7 @@
         .map(function (i) { return i.id; });
       if (pending.length) {
         await post("/api/projects/" + PID + "/data-prep/qa/bulk", { ids: pending, action: "approve" });
-        line("Approved " + pending.length + " new pair(s) automatically (review them any time on Data Prep).");
+        line("Approved " + pending.length + " new pair(s) automatically (review them any time on the pairs page).");
       }
       wizRefresh("qa");
       return true;
