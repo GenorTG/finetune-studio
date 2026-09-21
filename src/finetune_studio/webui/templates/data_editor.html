@@ -65,6 +65,11 @@
     </div>
     <span class="text-xs dim mono" id="de-footer-count"></span>
   </div>
+  {# QA pass: this table was NOT inside .table-scroll — its fixed columns
+     (~44em) squeezed the Q/A cells to clipped ellipses and pushed the row
+     action buttons past the viewport edge (probe: @1308 at 1270), where the
+     header clip made them unreachable. #}
+  <div class="table-scroll">
   <table class="table compact">
     <thead>
       <tr>
@@ -80,6 +85,7 @@
       <tr><td colspan="6" class="dim text-xs" style="text-align:center;padding:24px">Loading…</td></tr>
     </tbody>
   </table>
+  </div>
   <div style="padding:12px 16px;text-align:center;">
     <button class="btn sm" type="button" id="de-load-more" hidden>Load more</button>
   </div>
@@ -318,9 +324,9 @@
         '<tr data-index="' + r.index + '">' +
           '<td class="mono">' + r.index + '</td>' +
           '<td>' + statusPill(r.status) + '</td>' +
-          '<td class="text-xs dim">' + esc(truncate(r.source, 48)) + '</td>' +
-          '<td class="text-xs">' + esc(truncate(r.question, 200)) + '</td>' +
-          '<td class="text-xs">' + esc(truncate(r.answer, 200)) + '</td>' +
+          '<td class="text-xs dim" title="' + esc(r.source) + '">' + esc(truncate(r.source, 48)) + '</td>' +
+          '<td class="text-xs" title="' + esc(truncate(r.question, 500)) + '">' + esc(truncate(r.question, 200)) + '</td>' +
+          '<td class="text-xs" title="' + esc(truncate(r.answer, 500)) + '">' + esc(truncate(r.answer, 200)) + '</td>' +
           '<td class="flex gap-1">' +
             '<button class="btn sm ghost" type="button" data-act="open" title="Open">👁</button>' +
             '<button class="btn sm success" type="button" data-act="approve" title="Approve">✅</button>' +
