@@ -4883,10 +4883,19 @@ body::before {
    Groups must wrap their own tabs inside the strip. */
 @media (min-width: 701px) {
   .sb-group {
-    flex-wrap: wrap;
-    flex-shrink: 1;
     min-width: 0;
     max-width: 100%;
   }
   .sb-group .sb-tab { flex-shrink: 0; }
+}
+/* The contract's own `.sb-group { flex-wrap: nowrap !important }` (≥701) is
+   fine above ~1080px, but below that a single-line project group (~830px of
+   tabs) no longer fits the strip — with overflow:visible it spills past the
+   viewport and the header clips it: UNREACHABLE. Same !important force, but
+   only in the band where nowrap cannot fit. */
+@media (min-width: 701px) and (max-width: 1080px) {
+  .sb-group:not(.sb-group-tools) {
+    flex-wrap: wrap !important;
+    flex-shrink: 1 !important;
+  }
 }
