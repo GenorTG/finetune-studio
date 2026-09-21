@@ -2924,6 +2924,13 @@ body::before {
    wrapper, so nothing is pushed off-page. */
 @media (max-width: 860px) {
   .table-scroll .table { min-width: 640px; }
+  /* Past-runs: 7 columns under 640 still squeezed the Details button cell
+     to a half-clipped "Details" (probe -25px) — give this table more scroll
+     width so action buttons keep their full size. */
+  #past-runs-table { min-width: 700px; }
+  /* rag docs headers were ellipsized ("Last indexed" -25px, "Chunks" -15px):
+     column-% maths; letting the TH text wrap is the honest fix. */
+  #rag-docs-table th { white-space: normal; }
 }
 
 /* Navigation contract: desktop uses a wrapping tab row; mobile uses the
