@@ -43,12 +43,14 @@ Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **ge
 ## Session protocol
 - Start: `get_goal` first. If none → `create_goal` (objective + acceptance) + `progress_card` ≤7 steps. If a goal already exists → `update_goal` / card refresh, never blind `create_goal`.
 - Every new instruction from Genor = new task: `get_goal` first; if objective mismatches, ask Genor for `/goal edit …` (model cannot rewrite objective — only complete/blocked) and reset the `progress_card` before any other call. Every ~10 tool calls: `get_goal`, update the card. Same fix failed twice → stop and change approach.
-- **Default for fresh MiniMax / when Genor says “work in this session”:** edit, test, and verify yourself here. Prefer that over spawning Cursor/Claude fleets.
-- Cursor ACP helper (large multi-file work) — `~/.openclaw/workspace/docs/CURSOR-HELPERS.md` — only when Genor asks or the change is clearly too big for an in-session pass:
-  1. Look up cwd in `CURSOR-HELPERS.json`. Missing → `node ~/.openclaw/scripts/ensure-cursor-helper.mjs --cwd /home/genorbox1/work/finetune-studio --label cursor-helper:finetune-studio`. Use **`acpSessionKey`**.
-  2. `sessions_send` with task + acceptance + verify + "update HANDOFF.md". Helper may take 10+ minutes — wait via announce / `sessions_history`, not panic-retries.
-  3. Handshake timeout once → stop retrying; hand-edit or report blocker once.
-  Cheap research/triage only if needed: `runtime: "subagent"`, `model: "opencode-go/deepseek-v4-flash"`.
+- **Work mode** (workspace `AGENTS.md` **Work modes**; Genor wording wins):
+  - **Solo** — small/local work, or Genor: "work in this session" / "do it yourself" / "no spawn": edit, test, verify here.
+  - **Parallel native** — multi-file or multi-track without Cursor: `sessions_spawn` `runtime:"subagent"`, **omit `model`** (inherit pin), scoped task + acceptance; parent keeps working. "No Cursor" ≠ never spawn.
+  - **Cursor** — only when Genor asks or explicitly wants ACP helper (`~/.openclaw/workspace/docs/CURSOR-HELPERS.md`):
+    1. Look up cwd in `CURSOR-HELPERS.json`. Missing → `node ~/.openclaw/scripts/ensure-cursor-helper.mjs --cwd /home/genorbox1/work/finetune-studio --label cursor-helper:finetune-studio`. Use **`acpSessionKey`**.
+    2. `sessions_send` with task + acceptance + verify + "update HANDOFF.md". Wait via announce / `sessions_history`, not panic-retries. Never `sessions_yield` after send.
+    3. Handshake timeout once → stop retrying; hand-edit or report blocker once.
+  - **Cheap lane** (low-stakes triage only): `model: "opencode-go/deepseek-v4-flash"`.
 - End: goal complete/blocked, card cleared, `HANDOFF.md` rewritten, commit + push.
 
 ## HANDOFF rules
@@ -56,6 +58,8 @@ Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **ge
 
 ## Gotchas
 <!-- Append one line per learned rule. Format: "- <date> <rule> (<why/commit>)". -->
+- 2026-09-21 **Flow-scoped nav contract:** every project template MUST declare `{% block workspace %}model|rag{% endblock %}` — without it the flow subnav silently disappears (7 pages shipped that way) and the session strip falls back to the model flow. RAG-only pages also set `{% block workspace_nav %}rag{% endblock %}`. Tab label, page `<h1>`, and `breadcrumb_tab` must all use the SAME word (the `data`/`files`/`data-prep`/`pairs` mismatch is what made the app unreadable) (5615f73, d605f7e).
+- 2026-09-21 **Page-header copy rule:** a project page header states (1) which numbered step of which flow it is, (2) what it does in plain words — no LoRA/corpus/"three layers" jargon in the first sentence, (3) a link to the next step. Jargon goes in a `text-xs` line below (ae44ac5).
 - 2026-09-20 **CSS token discipline:** templates may only reference tokens defined in app.css `:root` / base.html light block — an undefined `var(--x, #fallback)` silently renders the dark-theme fallback in light mode (13 legacy names like `--accent-green`/`--bg-elev`/`--muted` shipped 1.3:1 text this way; now aliased to real tokens). Measure contrast against the COMPOSITED ancestor background, never the element's own `backgroundColor`.
 - 2026-09-20 **Visual QA probe:** the `window.__audit` pattern (overflow past viewport + clipped cells + <10px text + WCAG vs composited bg), run on every route in dark AND light at 1270px and 320px, catches what pytest/HTTP codes never see (clipped action buttons, 300px silent truncations). `act kind=resize` does NOT change the viewport — use `browser action=emulate device="Desktop Chrome"|"iPhone SE"`.
 - 2026-09-20 **hidden attr vs classes:** `.btn`/`.pill` set `display`, which beats the UA `[hidden]` rule — the global `[hidden]{display:none!important}` in app.css is load-bearing; never remove it, and bump `?v=` in base.html with every css change (stale cache hid this bug for a whole pass) (7e493c7).
