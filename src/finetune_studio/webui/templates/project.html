@@ -42,6 +42,20 @@
   </div>
 </div>
 
+{# ── A2. Start here — the whole flow lives on one page ── #}
+<div class="card mb-3" id="start-here" style="border-color: var(--accent);">
+  <div class="card-head"><div>
+    <div class="card-title">Start here — the whole flow lives on one page</div>
+    <div class="card-sub text-dim">
+      Upload files → optional <b>📚 RAG index</b> for instant search →
+      question-answer pairs → dataset → training → test → pinned version.
+      <b>⚡ Quick work</b> walks it end to end with live status; the tabs below
+      are the same steps, for manual control.
+    </div>
+  </div>
+  <a class="btn primary" href="/projects/{{ pid }}/wizard" data-link>⚡ Open quick work</a>
+</div>
+
 {# ── B. Top-row stats ── #}
 <div class="grid grid-4 gap-3 mb-4">
   <a class="stat hover" href="/projects/{{ pid }}/data-prep" data-link>

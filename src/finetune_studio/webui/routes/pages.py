@@ -643,6 +643,12 @@ async def project_flow_page(request: Request, pid: str):
     return RedirectResponse(url=f"/projects/{pid}/wizard", status_code=302)
 
 
+@router.get("/projects/{pid}/work", response_class=HTMLResponse)
+async def project_work_page(request: Request, pid: str):
+    """Canonical name of the quick-work page (routes keep /wizard for history)."""
+    return RedirectResponse(url=f"/projects/{pid}/wizard", status_code=302)
+
+
 # ── Settings & Debug Info ───────────────────────────────────────────
 
 @router.get("/settings", response_class=HTMLResponse)

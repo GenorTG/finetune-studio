@@ -212,10 +212,35 @@ class TestWizardPage:
         r = client.get(f"/projects/{pid}/wizard")
         assert r.status_code == 200
         body = r.text
-        assert "Project wizard" in body
+        assert "Quick work" in body
         assert "Quick start" in body and "Step by step" in body
         assert "Run steps 2-5 now" in body
         assert "wiz-quick" in body and "wiz-advanced" in body
+
+    def test_wizard_page_offers_rag_quick_step(self, client):
+        """One-page flow = training AND RAG: Step 1b must be in quick mode."""
+        pid = self._pid(client, name="Wizard RAG Step")
+        body = client.get(f"/projects/{pid}/wizard").text
+        assert "wiz-step-rag" in body
+        assert "Build RAG index" in body
+        assert "wizRagQuick" in body
+
+    def test_work_redirects_to_wizard(self, client):
+        pid = self._pid(client, name="Work Redirect Test")
+        r = client.get(f"/projects/{pid}/work", follow_redirects=False)
+        assert r.status_code == 302
+        assert r.headers["location"].endswith(f"/projects/{pid}/wizard")
+
+    def test_overview_has_start_here_banner(self, client):
+        pid = self._pid(client, name="Overview Banner")
+        body = client.get(f"/projects/{pid}").text
+        assert "start-here" in body
+        assert "Open quick work" in body
+
+    def test_dashboard_cards_have_quick_work_entry(self, client):
+        self._pid(client, name="Dash Quick Work")
+        body = client.get("/projects").text
+        assert "proj-work" in body and "quick work" in body
 
     def test_flow_redirects_to_wizard(self, client):
         pid = self._pid(client, name="Flow Redirect Test")

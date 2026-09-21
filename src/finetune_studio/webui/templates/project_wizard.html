@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Project Wizard — {{ project.name }}{% endblock %}
+{% block title %}Quick work — {{ project.name }}{% endblock %}
 {% block nav_project_wizard %}active{% endblock %}
-{% block sb_path %}~ / projects / {{ project.name }} / wizard{% endblock %}
+{% block sb_path %}~ / projects / {{ project.name }} / quick work{% endblock %}
 {% block breadcrumb_tab %}wizard{% endblock %}
 
 {% block crumbs %}
@@ -9,16 +9,19 @@
   <span class="sep">/</span>
   <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a>
   <span class="sep">/</span>
-  <span class="here">Wizard</span>
+  <span class="here">Quick work</span>
 {% endblock %}
 
 {% block content %}
 <div class="page-head">
-  <h1>Project wizard</h1>
+  <h1>⚡ Quick work</h1>
   <div class="sub">
-    Two ways to work. <b>Quick start</b> walks the whole pipeline in order —
-    files → question-answer pairs → dataset → training → test.
-    <b>Step by step</b> gives you every control separately, in any order.
+    The whole product from this one page. You upload <b>files</b>; from them you
+    can get two things — both start below:
+    <b> a trained model</b> (Quick start chains it in order:
+    files → question-answer pairs → dataset → training → test → pin), and
+    <b>📚 a searchable RAG index</b> (Step 1b — one click, no training needed).
+    <b>🛠 Step by step</b> gives every control separately, in any order.
   </div>
 </div>
 
@@ -44,6 +47,23 @@
     <div class="flex gap-2 wrap mt-2">
       <a class="btn primary" href="/projects/{{ pid }}/data" data-link>Upload files</a>
       <button class="btn sm" type="button" onclick="wizRefresh('files')">Refresh</button>
+    </div>
+  </div>
+
+  <div class="card mb-2" id="wiz-step-rag" style="border-color: var(--cyan);">
+    <div class="card-head"><div>
+      <div class="card-title">Step 1b · Or make it searchable now (RAG)</div>
+      <div class="card-sub text-dim">
+        Skips training entirely: every parsed file becomes a searchable
+        knowledge index you can query and chat with right away. Independent of
+        the steps below — do both, in any order.
+      </div>
+    </div><span class="pill outline" id="wiz-rag-pill">…</span></div>
+    <div class="text-sm" id="wiz-rag-sub">—</div>
+    <div class="flex gap-2 wrap mt-2">
+      <button class="btn primary" type="button" id="wiz-rag-btn" onclick="wizRagQuick()" title="Promote every uploaded file into sources and build the index — one click">⚡ Build RAG index</button>
+      <a class="btn sm" href="/projects/{{ pid }}/rag" data-link>Open RAG workspace</a>
+      <button class="btn sm" type="button" onclick="wizRefresh('rag')">Refresh</button>
     </div>
   </div>
 
@@ -337,8 +357,14 @@
       api("/api/projects/" + PID + "/rag/coverage").then(function (d) {
         set("flow-rag", d.covered + "/" + d.parsed_sources + " sources · " + d.coverage_pct + "%");
         pill("flow-rag", d.missing_sources.length === 0 ? "100%" : d.coverage_pct + "%", d.missing_sources.length === 0);
+        set("wiz-rag", d.covered + "/" + d.parsed_sources + " sources indexed · " + d.coverage_pct + "% coverage");
+        pill("wiz-rag", d.missing_sources.length === 0 ? "ready" : d.coverage_pct + "%", d.missing_sources.length === 0);
         line("rag coverage: " + d.covered + "/" + d.parsed_sources);
-      }).catch(function () { pill("flow-rag", "not built", false); set("flow-rag", "index missing — build it on the RAG tab"); });
+      }).catch(function () {
+        pill("flow-rag", "not built", false); set("flow-rag", "index missing — build it on the RAG tab");
+        pill("wiz-rag", "not built", false);
+        set("wiz-rag", "no index yet — \u26a1 Build RAG index below does it in one click (needs parsed files from Step 1)");
+      });
     }
     if (!which || which === "train") {
       api("/api/training/runs?project_id=" + PID).then(function (rows) {
@@ -394,7 +420,7 @@
   var busy = false;
   function setBusy(b) {
     busy = b;
-    ["wiz-qa-btn", "wiz-dataset-btn", "wiz-train-btn", "wiz-test-btn", "wiz-run-all"].forEach(function (id) {
+    ["wiz-qa-btn", "wiz-dataset-btn", "wiz-train-btn", "wiz-test-btn", "wiz-run-all", "wiz-rag-btn"].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.disabled = b;
     });
@@ -453,6 +479,27 @@
       return true;
     } catch (e) {
       line("Step 2 failed: " + e.message);
+      return false;
+    } finally { setBusy(false); }
+  };
+
+  window.wizRagQuick = async function () {
+    if (busy) { line("Already running — wait for the current step."); return false; }
+    setBusy(true);
+    try {
+      line("RAG quick index: promoting every uploaded file + building…");
+      var d = await post("/api/projects/" + PID + "/rag/quick", {});
+      if (d && d.error) throw new Error(d.error);
+      var b = d.build || {};
+      if (b.ok === false) throw new Error(b.error || "build failed");
+      line("RAG index ready: " + (b.documents != null ? b.documents : "?") + " docs / "
+           + (b.chunks != null ? b.chunks : "?") + " chunks"
+           + (d.promoted ? " · " + d.promoted + " file(s) newly promoted" : "")
+           + (d.failed && d.failed.length ? " · " + d.failed.length + " file(s) could not parse (see RAG tab)" : ""));
+      await wizRefresh("rag");
+      return true;
+    } catch (e) {
+      line("RAG quick FAILED: " + e.message);
       return false;
     } finally { setBusy(false); }
   };
