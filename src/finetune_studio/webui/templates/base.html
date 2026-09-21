@@ -33,8 +33,13 @@
       --border-hot:    #006633;
 
       --text:          #1a2a1a;
-      --text-muted:    #4a6a4a;
-      --text-dim:      #6a8a6a;
+      /* Light-theme dim tones were lifted straight from the dark palette's
+         ratios and failed WCAG on every page: --text-muted read 3.85:1 and
+         --text-dim 3.22:1 against the nav/panel backgrounds (version chip,
+         breadcrumb prompt, "Flow" label). Darkened to clear 4.5:1 against
+         the LIGHTEST surface they sit on (#e8ece8 nav), not just white. */
+      --text-muted:    #3a5a3a;
+      --text-dim:      #4a6a4a;
 
       --accent:        #006633;
       --accent-2:      #338855;
@@ -54,7 +59,7 @@
   </style>
   <title>{% block title %}Finetune Studio{% endblock %} · {{ release_channel }}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/css/app.css?v=48">
+  <link rel="stylesheet" href="/static/css/app.css?v=49">
 </head>
 <body>
   <div id="toasts" class="toasts" aria-live="polite"></div>
