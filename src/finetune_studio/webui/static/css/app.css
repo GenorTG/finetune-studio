@@ -397,7 +397,8 @@ body::before {
   position: relative;
 }
 .stat .label {
-  font-size: 10.5px;
+  /* 11px is the readability floor for real UI text (QA probe rule). */
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -428,7 +429,7 @@ body::before {
 .pill {
   display: inline-flex;
   align-items: center;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   padding: 1px 7px;
   background: var(--bg-panel-2);
@@ -771,7 +772,7 @@ body::before {
 .font-bold     { font-weight: 700; }
 
 /* Font sizes (Tailwind default scale + arbitrary value support) */
-.text-\[10px\] { font-size: 10px; line-height: 1.2; }
+.text-\[10px\] { font-size: 11px; line-height: 1.25; }
 .text-lg       { font-size: 1.125rem; line-height: 1.75rem; }
 .text-xl       { font-size: 1.25rem; line-height: 1.75rem; }
 .text-2xl      { font-size: 1.5rem; line-height: 2rem; }
@@ -1108,7 +1109,7 @@ body::before {
   opacity: 0.7;
 }
 .bubble .meta {
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--text-dim);
   margin-bottom: 4px;
   font-weight: 600;
@@ -4268,7 +4269,7 @@ body::before {
 }
 .workspace-subnav .ws-sep { color: var(--text-dim); }
 .workspace-subnav .ws-steps-label {
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-dim);
