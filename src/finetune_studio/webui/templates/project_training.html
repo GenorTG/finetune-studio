@@ -299,6 +299,11 @@
     </div>
   </div>
   {% if project.runs %}
+  {# QA pass: this table had no .table-scroll wrapper — at 768/375 the
+     fixed-layout columns pushed the row action buttons PAST the viewport
+     (probe: buttons@800/819 at 768px) where the body clip made them
+     unreachable. Wrap it so narrow viewports scroll instead. #}
+  <div class="table-scroll">
   <table class="table" id="past-runs-table">
     <thead><tr><th>Name</th><th>Status</th><th>Started</th><th>Duration</th><th>Loss</th><th></th><th>Actions</th></tr></thead>
     <tbody id="past-runs-body">
@@ -322,7 +327,7 @@
           {% endif %}
         </td>
         <td><span class="pill {{ {'running':'solid-amber','loading':'solid-amber','training':'solid-amber','saving':'solid-amber','done':'solid-green','failed':'solid-rose','error':'solid-rose','stopped':'outline'}.get(run.status, 'outline') }}">{{ run.status }}</span></td>
-        <td class="meta mono js-time" data-ts="{{ run.started_at or '' }}">—</td>
+        <td class="meta mono js-time" data-ts="{{ run.started_at or '' }}" title="When this run started">—</td>
         <td class="meta mono js-duration" data-secs="{{ run.duration or '' }}">—</td>
         <td class="num mono">{{ '%.4f'|format(run.final_loss) if run.final_loss else '—' }}</td>
         <td><a class="btn sm" href="/projects/{{ pid }}/training?run={{ run.id }}" data-link>Details</a></td>
@@ -344,6 +349,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}
   <div class="empty" id="past-runs-empty">No runs yet. Configure above and hit "Start training".</div>
   {% endif %}

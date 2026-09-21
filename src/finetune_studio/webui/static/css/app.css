@@ -658,6 +658,14 @@ body::before {
 
 /* ===== Grids ===== */
 .grid { display: grid; gap: 16px; }
+/* `.grid-12`/`.col-span-N` are legacy utility names never given 12-column
+   definitions — every consumer (rag build config, wizard, testing) renders
+   as a full-width stack, which is the established look. Pin the track to
+   minmax(0,1fr) so it can SHRINK: an unshrinkable <select> (long option
+   text) used to push the implicit track past the viewport
+   (QA probe: div.col-span-4@506, select#b-embedder@506 at 375px). */
+.grid-12 { grid-template-columns: minmax(0, 1fr); }
+.grid-12 select { min-width: 0; }
 .grid-2 { grid-template-columns: repeat(2, 1fr); }
 .grid-3 { grid-template-columns: repeat(3, 1fr); }
 .grid-4 { grid-template-columns: repeat(4, 1fr); }
@@ -989,10 +997,13 @@ body::before {
   text-overflow: clip;
 }
 /* Cells that hold buttons must never be clipped by the ellipsis rule above —
-   a half-hidden action button is unreachable, not tidy. */
+   a half-hidden action button is unreachable, not tidy. flex-wrap so the
+   button cluster drops to a second line when the column narrows (QA probe:
+   overview activity actions overflowed their cell -36px at 768px). */
 .table td.flex {
   overflow: visible;
   white-space: normal;
+  flex-wrap: wrap;
 }
 .table td[colspan],
 .table .empty-row td {
@@ -2905,6 +2916,15 @@ body::before {
 }
 .sb-active-bar:empty,
 .sb-active-prefix:empty + .sb-active-cursor { display: none; }
+
+/* Phones/small tablets: tables inside .table-scroll keep a usable width and
+   scroll instead of squeezing columns until headers ellipsis
+   (QA probe: overview th "Status" -14, "Started" -21 clipped at 375px,
+   rag version cell -156 at 768px). Only ever applies inside a scroll
+   wrapper, so nothing is pushed off-page. */
+@media (max-width: 860px) {
+  .table-scroll .table { min-width: 640px; }
+}
 
 /* Navigation contract: desktop uses a wrapping tab row; mobile uses the
    single hamburger menu.  The old horizontal scrollport made the header a
