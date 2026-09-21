@@ -62,6 +62,9 @@ window.__qa = function (label) {
   };
 
   const all = [...document.querySelectorAll('body *')].filter(vis).slice(0, 4000);
+  /* Decorative subtrees (aria-hidden, e.g. dashboard matrix-rain) are not
+     user content — never judge them for clip/contrast/size/readability. */
+  const decor = (el) => !!el.closest('[aria-hidden="true"]');
   const overBudget = () => performance.now() > DEADLINE;
   const out = { label, vw, vh, theme: document.documentElement.getAttribute('data-theme') || 'dark', budgetMs: 12000 };
 
@@ -80,6 +83,7 @@ window.__qa = function (label) {
      title, no aria-label. With a tooltip it is a deliberate truncation. */
   out.clipped = all.filter((el) => {
     if (overBudget()) { out.partial = true; return false; }
+    if (decor(el)) return false;
     if (!el.children.length && !el.textContent.trim()) return false;
     if (el.scrollWidth <= el.clientWidth + 2) return false;
     const cs = getComputedStyle(el);
@@ -90,6 +94,7 @@ window.__qa = function (label) {
 
   out.tiny = all.filter((el) => {
     if (overBudget()) { out.partial = true; return false; }
+    if (decor(el)) return false;
     const t = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length > 2);
     if (!t) return false;
     return parseFloat(getComputedStyle(el).fontSize) < 11;
@@ -97,6 +102,7 @@ window.__qa = function (label) {
 
   out.low = all.filter((el) => {
     if (overBudget()) { out.partial = true; return false; }
+    if (decor(el)) return false;
     const t = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length > 2);
     if (!t) return false;
     const cs = getComputedStyle(el);

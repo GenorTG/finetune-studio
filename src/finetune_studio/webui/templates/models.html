@@ -27,7 +27,7 @@
     <tbody>
       {% for m in models %}
       <tr class="row-hover">
-        <td class="name models-col-name">
+        <td class="name models-col-name" title="{{ m.name }}">
           <span class="pill {{ 'solid-purple' if m.vision else 'solid-blue' }}" style="margin-right:6px;">{{ m.format }}</span>
           {{ m.name }}
           {% if m.vision %}<span class="pill solid-cyan">👁 vision</span>{% endif %}

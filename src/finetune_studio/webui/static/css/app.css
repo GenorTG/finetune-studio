@@ -365,6 +365,10 @@ body::before {
 .card-head {
   display: flex;
   align-items: center;
+  /* flex-wrap: without it, long cards like Settings→Updates clipped their
+     own title (probe: card-title -8px) instead of letting the sub line
+     drop below — wrapping only ever triggers when the row truly cannot fit. */
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
@@ -442,7 +446,7 @@ body::before {
 .pill.solid-blue   { background: rgba(0,225,255,0.12); color: var(--cyan); border-color: rgba(0,225,255,0.3); }
 .pill.solid-green  { background: rgba(0,255,102,0.12); color: var(--accent); border-color: rgba(0,255,102,0.3); }
 .pill.solid-purple { background: rgba(255,43,214,0.12); color: var(--magenta); border-color: rgba(255,43,214,0.3); }
-.pill.solid-orange { background: rgba(255,170,0,0.12); color: var(--warn); border-color: rgba(255,170,0,0.3); }
+.pill.solid-orange { background: rgba(255,170,0,0.12); color: var(--warn-text, var(--warn)); border-color: rgba(255,170,0,0.3); }
 .pill.solid-pink   { background: rgba(255,43,214,0.12); color: var(--magenta); border-color: rgba(255,43,214,0.3); }
 .pill.solid-cyan   { background: rgba(0,225,255,0.12); color: var(--cyan); border-color: rgba(0,225,255,0.3); }
 .pill.solid-amber  { background: rgba(255,170,0,0.12); color: var(--warn-text, var(--warn)); border-color: rgba(255,170,0,0.3); }
@@ -3125,7 +3129,7 @@ body::before {
   background: var(--bg-app);
   border: 1px solid var(--border-strong);
   padding: 1px 5px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--accent);
   margin-right: 3px;
 }
@@ -3338,7 +3342,7 @@ body::before {
   color: var(--accent);
   padding: 1px 5px;
   font-family: inherit;
-  font-size: 10px;
+  font-size: 11px;
   margin: 0 2px;
 }
 

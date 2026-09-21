@@ -49,7 +49,7 @@
       <div class="head">
         <div class="icon">{{ r.repo_id.split('/')[-1][0]|upper }}</div>
         <div style="flex:1;min-width:0;">
-          <div class="name truncate">{{ r.repo_id }}</div>
+          <div class="name truncate" title="{{ r.repo_id }}">{{ r.repo_id }}</div>
           <div class="text-xs dim mono truncate">{{ r.id }}</div>
         </div>
       </div>
@@ -201,7 +201,7 @@ function renderResults(results) {
         <div class="head">
           <div class="icon">${esc(((repo.split('/').slice(-1)[0] || repo)[0] || '?').toUpperCase())}</div>
           <div style="flex:1;min-width:0;">
-            <div class="name truncate">${esc(repo)}</div>
+            <div class="name truncate" title="${esc(repo)}">${esc(repo)}</div>
             <div class="text-xs dim mono truncate">${esc(r.id || '')}</div>
           </div>
         </div>
