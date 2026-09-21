@@ -236,7 +236,7 @@
       <span class="ws-sep" aria-hidden="true">|</span>
       {% if ws == 'model' %}
       <a href="/projects/{{ pid }}" data-link class="ws-link {% if self.breadcrumb_tab()|trim in ('overview', 'models') %}here{% endif %}">dashboard</a>
-      <a href="/projects/{{ pid }}/wizard" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'wizard' %}here{% endif %}" title="Quick work — one page: train a model or build a RAG index">⚡ quick work</a>
+      <a href="/projects/{{ pid }}/wizard" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'quick work' %}here{% endif %}" title="Quick work — one page: train a model or build a RAG index">⚡ quick work</a>
       <a href="/projects/{{ pid }}/training" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'training' %}here{% endif %}">training</a>
       <a href="/projects/{{ pid }}/testing" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'testing' %}here{% endif %}">testing</a>
       {% elif ws == 'rag' %}
