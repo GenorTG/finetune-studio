@@ -4108,6 +4108,17 @@ body::before {
      headers were tuned for; stats/action rows must wrap; feed rows too. */
   #ov-models-table,
   #ov-runs-table { min-width: 640px; }
+  /* 375 tail (batch 21): 640 floor still left 'UPLOADED' -7px; compact
+     th padding/spacing tighten closes it without another width bump. */
+  .table.compact th { padding: 8px 6px; letter-spacing: 0.06em; }
+  /* rag docs at 375: 46.5rem left mono cells 10-22px short (type/status/ts);
+     52rem + re-tuned shares fit text/plain + timestamp inside the scroller. */
+  #rag-docs-table { min-width: 52rem; }
+  #rag-docs-table .rag-col-name { width: 22%; }
+  #rag-docs-table .rag-col-type { width: 13%; }
+  #rag-docs-table .rag-col-chunks { width: 12%; }
+  #rag-docs-table .rag-col-status { width: 14%; }
+  #rag-docs-table .rag-col-indexed { width: 19%; }
   .main .flex { flex-wrap: wrap; }
   .dash-activity li div { overflow-wrap: anywhere; }
 }
