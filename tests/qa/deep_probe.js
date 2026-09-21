@@ -42,11 +42,15 @@ window.__qa = function (label) {
     }
     return parseRGB(getComputedStyle(document.body).backgroundColor) || [10, 10, 10];
   };
-  const scrollAncestorAbsorbs = (el, right) => {
+  /* An element inside a horizontally scrollable ancestor is REACHABLE by
+     scrolling, even when it currently renders past the viewport. Requiring it
+     to already fit produced false positives on every wide table (file actions,
+     bench case results) — scroll containers exist precisely to hold them. */
+  const scrollAncestorAbsorbs = (el) => {
     let p = el.parentElement;
     while (p && p !== document.body) {
       const ox = getComputedStyle(p).overflowX;
-      if ((ox === 'auto' || ox === 'scroll') && right <= p.getBoundingClientRect().right + 2) return true;
+      if (ox === 'auto' || ox === 'scroll') return true;
       p = p.parentElement;
     }
     return false;
@@ -61,7 +65,7 @@ window.__qa = function (label) {
     const r = el.getBoundingClientRect();
     if (r.width < 8 || r.height < 4) return false;
     if (r.right <= vw + 2 || r.left >= vw) return false;
-    return !scrollAncestorAbsorbs(el, r.right);
+    return !scrollAncestorAbsorbs(el);
   }).map((el) => ({ sel: sel(el), right: Math.round(el.getBoundingClientRect().right) })).slice(0, 12);
 
   /* Clipped text is only a BUG when the full string is unrecoverable: no
@@ -100,15 +104,16 @@ window.__qa = function (label) {
     return txt.length <= 2 && !/^\d+$/.test(txt);
   }).map((el) => ({ sel: sel(el), txt: el.textContent.trim().slice(0, 12) })).slice(0, 12);
 
-  /* Text walls: one block, no list/heading structure, very long. */
+  /* Text walls: judged on the element's OWN text nodes, never descendants'.
+     Measuring textContent made every layout container (div.main, table-scroll)
+     look like a 36,000-character wall. */
+  const ownText = (el) => [...el.childNodes].filter((n) => n.nodeType === 3)
+    .map((n) => n.textContent).join(' ').replace(/\s+/g, ' ').trim();
   out.wall = all.filter((el) => {
-    if (el.children.length > 2) return false;
-    const t = el.textContent.trim();
+    const t = ownText(el);
     if (t.length < 320) return false;
-    if (el.querySelector('li, br, p, ul, ol')) return false;
-    const tag = el.tagName.toLowerCase();
-    return tag === 'div' || tag === 'p' || tag === 'span';
-  }).map((el) => ({ sel: sel(el), chars: el.textContent.trim().length, txt: el.textContent.trim().slice(0, 40) })).slice(0, 8);
+    return !el.querySelector('li, br, p, ul, ol');
+  }).map((el) => ({ sel: sel(el), chars: ownText(el).length, txt: ownText(el).slice(0, 40) })).slice(0, 8);
 
   /* Empty states must explain AND offer the next action. */
   out.emptyBad = [...document.querySelectorAll('.empty')].filter(vis).filter((el) => {
