@@ -3357,7 +3357,7 @@ body::before {
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  font-size: 10px;
+  font-size: 11px;
   align-self: center;
 }
 .debug-value {
