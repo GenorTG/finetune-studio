@@ -915,7 +915,10 @@ body::before {
 .table th {
   text-align: left;
   font-weight: 700;
-  font-size: 10.5px;
+  /* Was 10.5px: EVERY table header in the app sat under the 11px
+     readability floor (QA probe flagged overview/files/training/
+     benchmarks/export/rag headers alike). */
+  font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--accent);
@@ -4632,8 +4635,6 @@ body::before {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Table headers were 10.5px — under the 11px readability floor. */
-#suite-catalog th, #bench-run-table th, #bench-scores-table th { font-size: 11.5px; }
 #bench-run-table .bench-actions-cell { min-width: 16rem; white-space: normal; overflow: visible; }
 /* Two forms (bench-run + train-set eval) must stack, not fight for one
    nowrap line — inline-flex siblings + td nowrap pushed the 2nd form
