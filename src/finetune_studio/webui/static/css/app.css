@@ -2953,6 +2953,9 @@ body::before {
   #rag-docs-table .rag-col-status { width: 14%; }
   #rag-docs-table .rag-col-indexed { width: 19%; }
   #rag-docs-table th { white-space: normal; }
+  /* .table th is globally nowrap; "Source run" on the overview models
+     table clipped -12px at 768 (probe). Dense headers may stack here. */
+  .table.compact th { white-space: normal; }
   /* Overview models: the Format column ("safetensors" pill) needed ~102px
      but its 6-way equal share gave 78 (probe td -24px at 768). */
   #ov-models-table th:nth-child(2),
