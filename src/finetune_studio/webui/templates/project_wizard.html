@@ -496,6 +496,7 @@
            + (b.chunks != null ? b.chunks : "?") + " chunks"
            + (d.promoted ? " · " + d.promoted + " file(s) newly promoted" : "")
            + (d.failed && d.failed.length ? " · " + d.failed.length + " file(s) could not parse (see RAG tab)" : ""));
+      await sleep(1500);  /* coverage endpoint can lag the manifest flush by ~1s */
       await wizRefresh("rag");
       return true;
     } catch (e) {
