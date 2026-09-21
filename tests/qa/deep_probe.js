@@ -110,6 +110,9 @@ window.__qa = function (label) {
   const ownText = (el) => [...el.childNodes].filter((n) => n.nodeType === 3)
     .map((n) => n.textContent).join(' ').replace(/\s+/g, ' ').trim();
   out.wall = all.filter((el) => {
+    /* <pre>/<code> are logs and payloads: monospaced, scrollable, and meant
+       to be long. Only prose blocks are readability problems. */
+    if (el.closest('pre, code')) return false;
     const t = ownText(el);
     if (t.length < 320) return false;
     return !el.querySelector('li, br, p, ul, ol');
