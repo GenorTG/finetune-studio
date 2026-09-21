@@ -277,7 +277,7 @@
     {% endfor %}
   </ul>
   {% else %}
-  <div class="empty">No activity yet.</div>
+  <div class="empty">No activity yet — uploads, pair jobs and training runs will show up here as they happen.</div>
   {% endif %}
 </div>
 
@@ -533,7 +533,7 @@
       const data = await r.json();
       const files = (data.files || []).slice().sort((a, b) => (Number(b.uploaded_at) || 0) - (Number(a.uploaded_at) || 0)).slice(0, 5);
       if (!files.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty" style="border:0">No files yet. Upload from Data Prep.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty" style="border:0">No files yet — upload them on <a href="/projects/' + PID + '/data" data-link>Files</a>, or run <a href="/projects/' + PID + '/wizard" data-link>⚡ Quick work</a> to do everything from one page.</td></tr>';
         return;
       }
       tbody.innerHTML = files.map((f) => {

@@ -480,7 +480,7 @@
     if (!tbody) return;
     const rows = pagedRows();
     if (!rows.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="9" class="empty" style="border:0">No files in this view.</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="9" class="empty" style="border:0">No files in this view — clear the search or folder filter, or drop new files on the upload box above.</td></tr>';
       if (footer) footer.textContent = '0 files';
       updateBulkBar();
       return;
