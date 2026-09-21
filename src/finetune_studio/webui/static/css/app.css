@@ -4114,11 +4114,15 @@ body::before {
   /* rag docs at 375: 46.5rem left mono cells 10-22px short (type/status/ts);
      52rem + re-tuned shares fit text/plain + timestamp inside the scroller. */
   #rag-docs-table { min-width: 52rem; }
-  #rag-docs-table .rag-col-name { width: 22%; }
+  #rag-docs-table .rag-col-name { width: 21%; }
   #rag-docs-table .rag-col-type { width: 13%; }
   #rag-docs-table .rag-col-chunks { width: 12%; }
   #rag-docs-table .rag-col-status { width: 14%; }
-  #rag-docs-table .rag-col-indexed { width: 19%; }
+  #rag-docs-table .rag-col-indexed { width: 20%; }
+  /* File browser: 512px floor over 11 columns starved the checkbox cell
+     (needs ~55px incl padding, got 40 → clipped -15px ×6 at 375). */
+  #fb-files-table th:first-child,
+  #fb-files-table td:first-child { width: 56px; padding: 8px; text-align: center; }
   .main .flex { flex-wrap: wrap; }
   .dash-activity li div { overflow-wrap: anywhere; }
 }
