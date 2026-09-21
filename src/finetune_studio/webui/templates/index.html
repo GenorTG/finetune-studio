@@ -95,7 +95,7 @@
         <div class="icon ph-icon">{{ p.name[0]|upper }}</div>
         <div style="flex:1;min-width:0;">
           <div class="name truncate">{{ p.name }}</div>
-          <div class="desc truncate">{{ p.description or 'No description' }}</div>
+          <div class="desc truncate" title="{{ p.description or 'No description' }}">{{ p.description or 'No description' }}</div>
         </div>
         <div class="meta">
           {% if p.base_model %}<span class="pill solid-blue">{{ p.base_model.split('/')[-1] }}</span>{% endif %}

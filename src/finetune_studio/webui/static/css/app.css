@@ -3287,7 +3287,8 @@ body::before {
   background: var(--bg-panel-2);
 }
 .tutorial-step-count {
-  font-size: 10px;
+  /* QA probe: 10px sat under the 11px readability floor (batch 20). */
+  font-size: 11px;
   color: var(--text-dim);
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -3444,7 +3445,7 @@ body::before {
 .gpu-line .gpu-vram {
   color: var(--text-muted);
 }
-.gpu-line .gpu-driver { font-size: 10px; }
+.gpu-line .gpu-driver { font-size: 11px; }
 
 .pkg-table {
   width: 100%;
@@ -4006,7 +4007,10 @@ body::before {
   .grid.grid-2 { grid-template-columns: 1fr; }
   .activity { width: min(420px, 100vw); }
   .run-detail .grid-2 { grid-template-columns: 1fr; }
-  #rag-docs-table,
+  /* standalone sweep: 32rem floor crushed the ≤860 740px rule, so every
+     rag docs column clipped -21..-50px at 375. The % widths above are
+     tuned for 740px — restore it (hits/fb/fl tables keep 32rem). */
+  #rag-docs-table { min-width: 46.5rem; }
   .rag-hits-table { min-width: 32rem; }
 }
 @media (max-width: 780px) {
@@ -4030,7 +4034,7 @@ body::before {
   .sb-right .conn-status { display: none; }
   .sb-right .status-pill { display: none; }
   .table-scroll { max-width: 100%; }
-  #rag-docs-table,
+  #rag-docs-table { min-width: 46.5rem; }
   .rag-hits-table,
   #fb-files-table,
   .fl-table { min-width: 32rem; }
@@ -4100,6 +4104,12 @@ body::before {
   .data-tabs { flex-direction: column; }
   .data-tab { padding: 8px 10px; }
   .empty { padding: 14px 8px; font-size: 11px; }
+  /* standalone sweep 375: overview tables need the scroll floor their
+     headers were tuned for; stats/action rows must wrap; feed rows too. */
+  #ov-models-table,
+  #ov-runs-table { min-width: 640px; }
+  .main .flex { flex-wrap: wrap; }
+  .dash-activity li div { overflow-wrap: anywhere; }
 }
 
 /* ── Connection status ─────────────────────────────────────────── */
@@ -4675,7 +4685,7 @@ body::before {
 #models-table .models-col-arch,
 #models-index-table .models-col-arch { width: 8rem; min-width: 6rem; }
 #models-index-table .models-col-category { width: 8rem; min-width: 7rem; white-space: nowrap; }
-#models-index-table .models-col-format { width: 5.5rem; min-width: 4.5rem; white-space: nowrap; }
+#models-index-table .models-col-format { width: 6.5rem; min-width: 5.5rem; white-space: nowrap; }
 #models-index-table .models-col-project { width: 7rem; min-width: 5.5rem; }
 #models-table .models-col-path,
 #models-index-table .models-col-path {

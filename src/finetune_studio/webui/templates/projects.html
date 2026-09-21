@@ -114,7 +114,7 @@
       </div>
       <div style="flex:1;min-width:0;">
         <div class="name">{{ p.name }}</div>
-        <div class="desc truncate">{{ p.description or 'No description yet — click to open.' }}</div>
+        <div class="desc truncate" title="{{ p.description or 'No description yet — click to open.' }}">{{ p.description or 'No description yet — click to open.' }}</div>
         <div class="flex gap-2 mt-1" style="font-size:11px;">
           {% if p.base_model %}<span class="pill solid-blue">base: {{ p.base_model.split('/')[-1] }}</span>{% endif %}
           {% if p.production_run %}<span class="pill solid-green">● production</span>{% endif %}
