@@ -1004,6 +1004,13 @@ body::before {
   overflow: visible;
   white-space: normal;
   flex-wrap: wrap;
+  /* Action columns must size to their BUTTONS, not to the leftover share of
+     100%% fixed layout: at 768 the overview runs/models action cells still
+     clipped -36/-55px (probe) even after wrapping, because a single button
+     ("Copy path", "Open in inference") is wider than its 116px column.
+     max-content widens the column; the .table-scroll wrapper absorbs it,
+     and on desktops the column already fits so nothing changes. */
+  min-width: max-content;
 }
 .table td[colspan],
 .table .empty-row td {
@@ -2936,11 +2943,22 @@ body::before {
   /* rag docs headers ellipsized at 768 ("Chunks" -15, "indexed" -11,
      timestamp -25) — rebalance the column percentages inside the scroll
      wrapper so headers and the 16-char timestamp fit. */
-  #rag-docs-table .rag-col-type { width: 11%; }
-  #rag-docs-table .rag-col-chunks { width: 9%; }
-  #rag-docs-table .rag-col-status { width: 12%; }
-  #rag-docs-table .rag-col-indexed { width: 16%; }
+  /* batch 16's %s left single-word headers and the timestamp 4-11px short at
+     768. "CHUNKS" cannot wrap (one word) so white-space:normal alone was
+     never enough — the % floor must actually fit mono+letter-spacing. */
+  #rag-docs-table { min-width: 740px; }
+  #rag-docs-table .rag-col-name { width: 26%; }
+  #rag-docs-table .rag-col-type { width: 10%; }
+  #rag-docs-table .rag-col-chunks { width: 11%; }
+  #rag-docs-table .rag-col-status { width: 14%; }
+  #rag-docs-table .rag-col-indexed { width: 19%; }
   #rag-docs-table th { white-space: normal; }
+  /* Overview compact tables: fixed layout left the last (action) column at
+     its th default share — the button cluster needed more (probe:
+     "Details" -36px, "Copy path" -55px at 768). 26% holds two buttons or
+     wraps cleanly inside the scroll wrapper. */
+  .table.compact th:last-child,
+  .table.compact td:last-child { width: 26%; }
 }
 
 /* Navigation contract: desktop uses a wrapping tab row; mobile uses the
