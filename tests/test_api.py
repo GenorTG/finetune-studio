@@ -231,11 +231,26 @@ class TestWizardPage:
         assert r.status_code == 302
         assert r.headers["location"].endswith(f"/projects/{pid}/wizard")
 
-    def test_overview_has_start_here_banner(self, client):
+    def test_overview_has_flow_picker(self, client):
+        """Project home must answer 'where do I start' before any tab: two
+        explicit flow cards (train a model / search my files)."""
         pid = self._pid(client, name="Overview Banner")
         body = client.get(f"/projects/{pid}").text
         assert "start-here" in body
-        assert "Open quick work" in body
+        assert "flow-card-model" in body and "flow-card-rag" in body
+        assert "Train a model" in body and "Search my files" in body
+
+    def test_project_nav_is_flow_scoped(self, client):
+        """Model pages must not show RAG-flow tabs and vice versa — the flat
+        10-tab strip was the main 'what do I click' complaint."""
+        pid = self._pid(client, name="Nav Scope")
+        model_body = client.get(f"/projects/{pid}/training").text
+        assert 'data-tab="training"' in model_body
+        assert 'data-tab="export"' in model_body
+        rag_body = client.get(f"/projects/{pid}/rag").text
+        assert 'data-tab="rag"' in rag_body
+        # RAG flow hides the fine-tune-only steps from the session strip
+        assert 'data-tab="benchmarks"' not in rag_body.split("sb-group-tools")[0]
 
     def test_dashboard_cards_have_quick_work_entry(self, client):
         self._pid(client, name="Dash Quick Work")
