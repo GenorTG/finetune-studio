@@ -42,18 +42,55 @@
   </div>
 </div>
 
-{# ── A2. Start here — the whole flow lives on one page ── #}
-<div class="card mb-3" id="start-here" style="border-color: var(--accent);">
-  <div class="card-head"><div>
-    <div class="card-title">Start here — the whole flow lives on one page</div>
-    <div class="card-sub text-dim">
-      Upload files → optional <b>📚 RAG index</b> for instant search →
-      question-answer pairs → dataset → training → test → pinned version.
-      <b>⚡ Quick work</b> walks it end to end with live status; the tabs below
-      are the same steps, for manual control.
+{# ── A2. Start here — pick one of the two kinds of work ── #}
+<div class="flow-picker mb-4" id="start-here">
+  <div class="flow-picker-head">
+    <h2>What do you want to do with these files?</h2>
+    <p class="text-dim">Two kinds of work, same file library. Do one, the other, or both — in any order.</p>
+  </div>
+  <div class="flow-picker-grid">
+    <div class="flow-card" id="flow-card-model">
+      <div class="flow-card-icon" aria-hidden="true">🧠</div>
+      <div class="flow-card-title">Train a model</div>
+      <div class="flow-card-sub">
+        Teach a model your material so it answers from memory, with no lookup
+        at question time. <b>Slow</b> (hours of GPU) but the knowledge is baked in.
+      </div>
+      <ol class="flow-card-steps">
+        <li>Upload files</li>
+        <li>Turn them into question-answer pairs → dataset</li>
+        <li>Fine-tune</li>
+        <li>Test the answers</li>
+        <li>Export / chat with it</li>
+      </ol>
+      <div class="flex gap-2 wrap mt-2">
+        <a class="btn primary" href="/projects/{{ pid }}/wizard" data-link>⚡ Do it step by step</a>
+        <a class="btn sm" href="/projects/{{ pid }}/training" data-link>Training page</a>
+      </div>
+    </div>
+    <div class="flow-card" id="flow-card-rag">
+      <div class="flow-card-icon" aria-hidden="true">📚</div>
+      <div class="flow-card-title">Search my files (RAG)</div>
+      <div class="flow-card-sub">
+        Index the documents so a model can look things up while answering.
+        <b>Minutes, no training</b>, and new files are picked up by a rebuild.
+      </div>
+      <ol class="flow-card-steps">
+        <li>Upload files</li>
+        <li>Build the index (one click)</li>
+        <li>Search it</li>
+        <li>Chat grounded in the documents</li>
+      </ol>
+      <div class="flex gap-2 wrap mt-2">
+        <a class="btn primary" href="/projects/{{ pid }}/rag" data-link>📚 Open RAG workspace</a>
+        <a class="btn sm" href="/projects/{{ pid }}/wizard#wiz-step-rag" data-link>One-click build</a>
+      </div>
     </div>
   </div>
-  <a class="btn primary" href="/projects/{{ pid }}/wizard" data-link>⚡ Open quick work</a>
+  <div class="flow-picker-foot text-dim">
+    Both start from the same place:
+    <a href="/projects/{{ pid }}/data" data-link>the file library</a> — upload there first.
+  </div>
 </div>
 
 {# ── B. Top-row stats ── #}

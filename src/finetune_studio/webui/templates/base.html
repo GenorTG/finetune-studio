@@ -54,7 +54,7 @@
   </style>
   <title>{% block title %}Finetune Studio{% endblock %} · {{ release_channel }}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/css/app.css?v=42">
+  <link rel="stylesheet" href="/static/css/app.css?v=43">
 </head>
 <body>
   <div id="toasts" class="toasts" aria-live="polite"></div>
@@ -89,40 +89,49 @@
             </a>
           </div>
 
-          {# GROUP: Project (only on project pages) #}
+          {# GROUP: Project (only on project pages) — scoped to the ACTIVE
+             workspace so the strip shows ONE flow's steps, not all 10 tabs. #}
           {% if pid is defined and pid %}
+          {% set nav_ws %}{% block workspace_nav %}{% endblock %}{% endset %}
+          {% set nav_ws = nav_ws|trim or 'model' %}
           <div class="sb-group sb-group-project">
-            <span class="sb-group-label" title="Active project">[{{ (project.name if project else pid)[:10] }}]</span>
-            <a href="/projects/{{ pid }}" class="sb-tab {% block nav_project_overview %}{% endblock %}" data-link data-tab="overview">
+            <span class="sb-group-label" title="Active project · {{ nav_ws }} flow">[{{ (project.name if project else pid)[:10] }}]</span>
+            <a href="/projects/{{ pid }}" class="sb-tab {% block nav_project_overview %}{% endblock %}" data-link data-tab="overview" title="Project home — pick a flow">
               <span class="sb-tab-label">overview</span>
             </a>
             <a href="/projects/{{ pid }}/wizard" class="sb-tab {% block nav_project_wizard %}{% endblock %}" data-link data-tab="wizard" title="Quick work — one page: train a model or build a RAG index">
               <span class="sb-tab-label">⚡ quick work</span>
             </a>
-            <a href="/projects/{{ pid }}/data" class="sb-tab {% block nav_data %}{% endblock %}" data-link data-tab="data">
-              <span class="sb-tab-label">data</span>
+            <a href="/projects/{{ pid }}/data" class="sb-tab {% block nav_data %}{% endblock %}" data-link data-tab="data" title="File library — shared by both flows">
+              <span class="sb-tab-label">files</span>
             </a>
-            <a href="/projects/{{ pid }}/data-prep" class="sb-tab {% block nav_data_prep %}{% endblock %}" data-link data-tab="data-prep">
+            <a href="/projects/{{ pid }}/data-prep" class="sb-tab {% block nav_data_prep %}{% endblock %}" data-link data-tab="data-prep" title="Parsed sources + Q&amp;A pairs">
               <span class="sb-tab-label">data-prep</span>
             </a>
-            <a href="/projects/{{ pid }}/rag" class="sb-tab {% block nav_rag %}{% endblock %}" data-link data-tab="rag">
-              <span class="sb-tab-label">rag</span>
+            {% if nav_ws == 'rag' %}
+            <a href="/projects/{{ pid }}/rag" class="sb-tab {% block nav_rag %}{% endblock %}" data-link data-tab="rag" title="RAG index: build, search, chat">
+              <span class="sb-tab-label">📚 rag index</span>
             </a>
-            <a href="/projects/{{ pid }}/training" class="sb-tab {% block nav_training %}{% endblock %}" data-link data-tab="training">
-              <span class="sb-tab-label">training</span>
-            </a>
-            <a href="/projects/{{ pid }}/testing" class="sb-tab {% block nav_testing %}{% endblock %}" data-link data-tab="testing">
-              <span class="sb-tab-label">testing</span>
-            </a>
-            <a href="/projects/{{ pid }}/benchmarks" class="sb-tab {% block nav_benchmarks %}{% endblock %}" data-link data-tab="benchmarks">
-              <span class="sb-tab-label">benchmarks</span>
-            </a>
-            <a href="/projects/{{ pid }}/chat" class="sb-tab {% block nav_project_chat %}{% endblock %}" data-link data-tab="project-chat">
+            <a href="/projects/{{ pid }}/chat" class="sb-tab {% block nav_project_chat %}{% endblock %}" data-link data-tab="project-chat" title="Chat grounded in your documents">
               <span class="sb-tab-label">chat</span>
             </a>
-            <a href="/projects/{{ pid }}/export" class="sb-tab {% block nav_project_export %}{% endblock %}" data-link data-tab="export">
+            {% else %}
+            <a href="/projects/{{ pid }}/training" class="sb-tab {% block nav_training %}{% endblock %}" data-link data-tab="training" title="Fine-tune runs">
+              <span class="sb-tab-label">training</span>
+            </a>
+            <a href="/projects/{{ pid }}/testing" class="sb-tab {% block nav_testing %}{% endblock %}" data-link data-tab="testing" title="Score a trained model on your own data">
+              <span class="sb-tab-label">testing</span>
+            </a>
+            <a href="/projects/{{ pid }}/benchmarks" class="sb-tab {% block nav_benchmarks %}{% endblock %}" data-link data-tab="benchmarks" title="Industry + project benchmark suites">
+              <span class="sb-tab-label">benchmarks</span>
+            </a>
+            <a href="/projects/{{ pid }}/chat" class="sb-tab {{ self.nav_project_chat() }}" data-link data-tab="project-chat" title="Chat with the trained model">
+              <span class="sb-tab-label">chat</span>
+            </a>
+            <a href="/projects/{{ pid }}/export" class="sb-tab {% block nav_project_export %}{% endblock %}" data-link data-tab="export" title="Export adapters / merged / GGUF">
               <span class="sb-tab-label">export</span>
             </a>
+            {% endif %}
           </div>
           {% endif %}
 
@@ -221,29 +230,37 @@
       <a href="/projects/{{ pid }}" data-link>{{ (project.name if project is defined and project else pid) }}</a>
       <span class="bc-tab">{% block breadcrumb_tab %}overview{% endblock %}</span>
     </nav>
-    {# Child templates set workspace to "model" or "rag" for the subnav. #}
+    {# Child templates set workspace to "model" or "rag"; the subnav is the
+       FLOW menu — which kind of work you are doing, and its ordered steps. #}
     {% set ws %}{% block workspace %}{% endblock %}{% endset %}
     {% set ws = ws|trim %}
+    {% set bc = self.breadcrumb_tab()|trim %}
     {% if ws %}
     <nav id="workspace-subnav" class="workspace-subnav" aria-label="Workspace">
-      <span class="ws-label">Workspace</span>
+      <span class="ws-label" title="Two kinds of work per project — pick one">Flow</span>
       <a href="/projects/{{ pid }}" data-link class="ws-switch {% if ws == 'model' %}active{% endif %}"
          {% if ws == 'model' %}aria-current="page"{% endif %}
-         title="Model fine-tune workspace">Model workspace</a>
+         title="Train your own model on these files">🧠 Train a model</a>
       <a href="/projects/{{ pid }}/rag" data-link class="ws-switch {% if ws == 'rag' %}active{% endif %}"
          {% if ws == 'rag' %}aria-current="page"{% endif %}
-         title="RAG retrieval workspace">RAG workspace</a>
+         title="Make these files searchable — no training">📚 Search my files (RAG)</a>
       <span class="ws-sep" aria-hidden="true">|</span>
       {% if ws == 'model' %}
-      <a href="/projects/{{ pid }}" data-link class="ws-link {% if self.breadcrumb_tab()|trim in ('overview', 'models') %}here{% endif %}">dashboard</a>
-      <a href="/projects/{{ pid }}/wizard" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'quick work' %}here{% endif %}" title="Quick work — one page: train a model or build a RAG index">⚡ quick work</a>
-      <a href="/projects/{{ pid }}/training" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'training' %}here{% endif %}">training</a>
-      <a href="/projects/{{ pid }}/testing" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'testing' %}here{% endif %}">testing</a>
+      <span class="ws-steps-label" aria-hidden="true">steps</span>
+      <a href="/projects/{{ pid }}" data-link class="ws-link {% if bc in ('overview', 'models') %}here{% endif %}" title="Project home">home</a>
+      <a href="/projects/{{ pid }}/wizard" data-link class="ws-link {% if bc == 'quick work' %}here{% endif %}" title="All steps on one page, in order">⚡ quick work</a>
+      <a href="/projects/{{ pid }}/data" data-link class="ws-link {% if bc == 'data' %}here{% endif %}" title="1 · Upload + organise your files">1 files</a>
+      <a href="/projects/{{ pid }}/data-prep" data-link class="ws-link {% if bc == 'data-prep' %}here{% endif %}" title="2 · Question-answer pairs → dataset">2 pairs</a>
+      <a href="/projects/{{ pid }}/training" data-link class="ws-link {% if bc == 'training' %}here{% endif %}" title="3 · Fine-tune on the dataset">3 train</a>
+      <a href="/projects/{{ pid }}/testing" data-link class="ws-link {% if bc == 'testing' %}here{% endif %}" title="4 · Score it on your own data">4 test</a>
+      <a href="/projects/{{ pid }}/export" data-link class="ws-link {% if bc == 'export' %}here{% endif %}" title="5 · Export / use the trained model">5 use it</a>
       {% elif ws == 'rag' %}
-      <a href="/projects/{{ pid }}/rag" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'rag' %}here{% endif %}">overview</a>
-      <a href="/projects/{{ pid }}/rag#rag-ingest" data-link class="ws-link" title="Build the search index">build</a>
-      <a href="/projects/{{ pid }}/rag#rag-search" data-link class="ws-link" title="Test a search against the index">search</a>
-      <a href="/projects/{{ pid }}/rag#rag-chat" data-link class="ws-link" title="Chat grounded in your documents">chat</a>
+      <span class="ws-steps-label" aria-hidden="true">steps</span>
+      <a href="/projects/{{ pid }}/rag" data-link class="ws-link {% if bc == 'rag' %}here{% endif %}" title="RAG home — index status">home</a>
+      <a href="/projects/{{ pid }}/data" data-link class="ws-link {% if bc == 'data' %}here{% endif %}" title="1 · Upload the documents to index">1 files</a>
+      <a href="/projects/{{ pid }}/rag#rag-ingest" data-link class="ws-link" title="2 · Build the search index">2 build</a>
+      <a href="/projects/{{ pid }}/rag#rag-search" data-link class="ws-link" title="3 · Test a search against the index">3 search</a>
+      <a href="/projects/{{ pid }}/chat" data-link class="ws-link {% if bc == 'chat' %}here{% endif %}" title="4 · Chat grounded in your documents">4 chat</a>
       {% endif %}
     </nav>
     {% endif %}
