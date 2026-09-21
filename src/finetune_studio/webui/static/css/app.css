@@ -2931,6 +2931,17 @@ body::before {
   }
 }
 
+/* Tablet band (701–1000px): the desktop contract kept the cluster's fixed
+   360px right + 140px left gutters, squeezing the wrapping tab row into
+   ~280px — the group then spilled past the viewport (QA probe flagged
+   a.sb-tab@806 at 770px) and the header clips, so tabs were unreachable.
+   Give the tabs the full width UNDER the cluster row instead. */
+@media (min-width: 701px) and (max-width: 1000px) {
+  .sb-nav-shell {
+    padding: 52px 12px 0 12px;
+  }
+}
+
 @media (max-width: 700px) {
   .sb-nav-shell {
     min-height: 48px;
