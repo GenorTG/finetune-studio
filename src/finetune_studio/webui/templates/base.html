@@ -170,7 +170,7 @@
               {% if pid is defined and pid %}
               <a href="/projects/{{ pid }}" class="sb-nav-more-link" data-link data-tab="overview" role="menuitem">overview</a>
               <a href="/projects/{{ pid }}/wizard" class="sb-nav-more-link" data-link data-tab="wizard" role="menuitem">⚡ quick work</a>
-              <a href="/projects/{{ pid }}/data" class="sb-nav-more-link" data-link data-tab="data" role="menuitem">data</a>
+              <a href="/projects/{{ pid }}/data" class="sb-nav-more-link" data-link data-tab="data" role="menuitem">files</a>
               <a href="/projects/{{ pid }}/data-prep" class="sb-nav-more-link" data-link data-tab="data-prep" role="menuitem">data-prep</a>
               <a href="/projects/{{ pid }}/rag" class="sb-nav-more-link" data-link data-tab="rag" role="menuitem">rag</a>
               <a href="/projects/{{ pid }}/training" class="sb-nav-more-link" data-link data-tab="training" role="menuitem">training</a>
@@ -249,7 +249,7 @@
       <span class="ws-steps-label" aria-hidden="true">steps</span>
       <a href="/projects/{{ pid }}" data-link class="ws-link {% if bc in ('overview', 'models') %}here{% endif %}" title="Project home">home</a>
       <a href="/projects/{{ pid }}/wizard" data-link class="ws-link {% if bc == 'quick work' %}here{% endif %}" title="All steps on one page, in order">⚡ quick work</a>
-      <a href="/projects/{{ pid }}/data" data-link class="ws-link {% if bc == 'data' %}here{% endif %}" title="1 · Upload + organise your files">1 files</a>
+      <a href="/projects/{{ pid }}/data" data-link class="ws-link {% if bc == 'files' %}here{% endif %}" title="1 · Upload + organise your files">1 files</a>
       <a href="/projects/{{ pid }}/data-prep" data-link class="ws-link {% if bc == 'data-prep' %}here{% endif %}" title="2 · Question-answer pairs → dataset">2 pairs</a>
       <a href="/projects/{{ pid }}/training" data-link class="ws-link {% if bc == 'training' %}here{% endif %}" title="3 · Fine-tune on the dataset">3 train</a>
       <a href="/projects/{{ pid }}/testing" data-link class="ws-link {% if bc == 'testing' %}here{% endif %}" title="4 · Score it on your own data">4 test</a>
@@ -257,7 +257,7 @@
       {% elif ws == 'rag' %}
       <span class="ws-steps-label" aria-hidden="true">steps</span>
       <a href="/projects/{{ pid }}/rag" data-link class="ws-link {% if bc == 'rag' %}here{% endif %}" title="RAG home — index status">home</a>
-      <a href="/projects/{{ pid }}/data" data-link class="ws-link {% if bc == 'data' %}here{% endif %}" title="1 · Upload the documents to index">1 files</a>
+      <a href="/projects/{{ pid }}/data" data-link class="ws-link {% if bc == 'files' %}here{% endif %}" title="1 · Upload the documents to index">1 files</a>
       <a href="/projects/{{ pid }}/rag#rag-ingest" data-link class="ws-link" title="2 · Build the search index">2 build</a>
       <a href="/projects/{{ pid }}/rag#rag-search" data-link class="ws-link" title="3 · Test a search against the index">3 search</a>
       <a href="/projects/{{ pid }}/chat" data-link class="ws-link {% if bc == 'chat' %}here{% endif %}" title="4 · Chat grounded in your documents">4 chat</a>

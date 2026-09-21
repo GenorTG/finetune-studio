@@ -9,15 +9,17 @@
 {% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>Data Prep — {{ project.name }}</h1>
+  <h1>Question-answer pairs — {{ project.name }}</h1>
   <div class="sub">
-    Three layers: <b>Uploaded files</b> (immutable uploads),
-    <b>Parsed sources</b> (text ready for prep / RAG embed),
-    and <b>Training / Q&amp;A output</b> (pairs for fine-tuning).
-    Helper: <span class="mono" id="dp-helper-label">{{ helper_label }}</span>
-    (provider <code>{{ helper_provider_id }}</code>).
-    Agentic curation lives on the
-    <a href="/projects/{{ pid }}/chat?mode=agent" data-link>Chat</a> tab.
+    <b>Step 2 · Train a model.</b> A model cannot learn from raw documents — it learns
+    from questions and their answers. This page reads each parsed file and writes those
+    pairs for you; you approve or edit them, then export them as the <b>dataset</b> that
+    <a href="/projects/{{ pid }}/training" data-link>training (step 3)</a> consumes.
+    <br><span class="text-xs">Files come from the
+    <a href="/projects/{{ pid }}/data" data-link>file library (step 1)</a>. Writing the pairs
+    uses the helper model <span class="mono" id="dp-helper-label">{{ helper_label }}</span>
+    (<code>{{ helper_provider_id }}</code>). Want to mine them conversationally instead?
+    <a href="/projects/{{ pid }}/chat?mode=agent" data-link>Agent chat</a>.</span>
   </div>
 </div>
 

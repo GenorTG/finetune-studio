@@ -10,10 +10,13 @@
 
 <div class="page-head">
   <h1>Testing</h1>
-  <div class="sub">Run a saved test suite against a model and inspect pass/fail per case.
-    Auto-suites from training JSONL are deterministic; LLM-assisted suite generation
-    (when enabled) uses <span class="mono">{{ helper_label }}</span> only — never a silent
-    fallback to another loaded model.</div>
+  <div class="sub"><b>Step 4 · Train a model.</b> Did it actually learn your material?
+    This quizzes a trained run on questions built from your own dataset — one question
+    per row by default — and shows pass/fail with the model's raw answer per case.
+    <br><span class="text-xs">Auto-generated quizzes are deterministic; LLM-assisted generation
+    uses <span class="mono">{{ helper_label }}</span> only — never a silent fallback to
+    another loaded model. For public leaderboards (MMLU/GSM8K) use
+    <a href="/projects/{{ pid }}/benchmarks" data-link>benchmarks</a> instead.</span></div>
 </div>
 
 <div class="card mb-6">

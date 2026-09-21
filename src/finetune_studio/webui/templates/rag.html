@@ -19,19 +19,23 @@
 
 <div class="page-head row">
   <div>
-    <h1>RAG — Retrieval-Augmented Generation</h1>
+    <h1>📚 Search my files — RAG index</h1>
     <div class="sub">
-      External document memory for this project: retrieve facts from an
-      <b>indexed corpus</b> at query time. This does <b>not</b> change model
-      weights — that is the Model workspace (Training). Upload and parse
-      happen on Data Prep; this page only indexes and searches.
+      The <b>no-training</b> flow. Your documents are indexed here, and at question
+      time the model looks up the relevant passages instead of remembering them — so
+      answers can quote the source, and new files just need a rebuild.
+      <b>Minutes, not hours</b>, and model weights never change (that is
+      <a href="/projects/{{ pid }}/training" data-link>training</a>).
+      <br><span class="text-xs">Steps: upload on
+      <a href="/projects/{{ pid }}/data" data-link>files</a> → build below → search →
+      <a href="/projects/{{ pid }}/chat" data-link>chat grounded in the documents</a>.</span>
     </div>
   </div>
   <div class="actions flex gap-2 wrap">
-    <a href="/projects/{{ pid }}/data-prep" class="btn primary" data-link
-       id="rag-cta-data-prep">Data Prep / Upload Sources →</a>
-    <a href="/projects/{{ pid }}/data" class="btn" data-link
-       id="rag-cta-data">Project file library</a>
+    <a href="/projects/{{ pid }}/data" class="btn primary" data-link
+       id="rag-cta-data">⬆ Upload files (step 1)</a>
+    <a href="/projects/{{ pid }}/data-prep" class="btn" data-link
+       id="rag-cta-data-prep">Parsed sources</a>
   </div>
 </div>
 

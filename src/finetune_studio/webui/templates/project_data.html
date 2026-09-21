@@ -2,7 +2,7 @@
 {% block title %}Data — {{ project.name }}{% endblock %}
 {% block nav_data %}active{% endblock %}
 {% block sb_path %}~ / projects / {{ project.name }} / data{% endblock %}
-{% block breadcrumb_tab %}data{% endblock %}
+{% block breadcrumb_tab %}files{% endblock %}
 {% block workspace %}model{% endblock %}
 
 {% block crumbs %}
@@ -19,8 +19,14 @@
 {# ── A. Header ── #}
 <div class="page-head row">
   <div>
-    <h1>Data — {{ project.name }}</h1>
+    <h1>Files — {{ project.name }}</h1>
     <div class="sub">
+      <b>Step 1 of both flows.</b> Everything starts here: upload your documents,
+      organise them in folders, and check each one parsed. From here they feed
+      <a href="/projects/{{ pid }}/data-prep" data-link>question-answer pairs</a>
+      (to train a model) and/or the
+      <a href="/projects/{{ pid }}/rag" data-link>RAG index</a> (to search them).
+      <br>
       {{ desc_short }}
       {% if desc_long %}
       <a href="#" class="muted" id="fb-desc-details" title="{{ desc_full }}">details</a>
