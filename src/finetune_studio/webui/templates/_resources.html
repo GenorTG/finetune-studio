@@ -1,18 +1,22 @@
 {# Partial: host RAM + per-GPU VRAM bars. Polled every 3s by the fetcher at the bottom. #}
-<div id="sys-resources" class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6 overflow-hidden">
+{# Theme note: this card used hardcoded tailwind greys (bg-gray-900 /
+   text-gray-300) that never followed the light palette — in light mode it
+   stayed dark navy while its text switched to light-theme colours, giving
+   2.92:1. Everything here is token-driven now. #}
+<div id="sys-resources" class="res-card mb-6">
   <div class="flex items-center justify-between mb-3">
-    <h3 class="text-sm font-semibold text-gray-300">Host Resources</h3>
-    <span id="sys-resources-updated" class="text-xs dim" title="When these host readings were last refreshed"></span>
+    <h3 class="res-card-title">Host Resources</h3>
+    <span id="sys-resources-updated" class="text-xs muted" title="When these host readings were last refreshed"></span>
   </div>
   <div class="space-y-5">
     {# RAM row — single bar #}
     <div>
       <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs mb-1.5">
-        <span class="text-gray-300 font-medium">RAM</span>
-        <span id="ram-text" class="text-emerald-400 font-semibold">— / — GB (—%)</span>
+        <span class="res-label" title="System memory in use on the machine running the studio">RAM</span>
+        <span id="ram-text" class="res-value">— / — GB (—%)</span>
       </div>
-      <div class="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
-        <div id="ram-bar" class="h-full rounded-full transition-all duration-500 ease-out bg-emerald-500" style="width:0%"></div>
+      <div class="res-track">
+        <div id="ram-bar" class="res-fill" style="width:0%"></div>
       </div>
     </div>
     {# VRAM rows — one per GPU, populated by JS #}
@@ -27,10 +31,11 @@
   const vramRows = document.getElementById('vram-rows');
   const updated = document.getElementById('sys-resources-updated');
 
+  /* Token-driven severity so the bars follow the active theme. */
   function colorFor(pct) {
-    if (pct < 60) return 'bg-emerald-500';
-    if (pct < 85) return 'bg-amber-500';
-    return 'bg-red-500';
+    if (pct < 60) return 'ok';
+    if (pct < 85) return 'warn';
+    return 'crit';
   }
 
   function fmtGb(g) { return (g || 0).toFixed(1); }
@@ -43,22 +48,22 @@
     }
     ramText.textContent = `${fmtGb(ram.used_gb)} / ${fmtGb(ram.total_gb)} GB (${ram.pct}%)`;
     ramBar.style.width = Math.min(100, ram.pct) + '%';
-    ramBar.className = 'h-full rounded-full transition-all duration-500 ease-out ' + colorFor(ram.pct);
+    ramBar.className = 'res-fill ' + colorFor(ram.pct);
   }
 
   function renderVram(vram) {
     if (!vram || vram.length === 0) {
-      vramRows.innerHTML = '<div class="text-xs text-gray-500">No GPU detected on host.</div>';
+      vramRows.innerHTML = '<div class="text-xs muted">No GPU detected on host \u2014 training needs an NVIDIA GPU; RAG and data prep run fine without one.</div>';
       return;
     }
     vramRows.innerHTML = vram.map(g => `
       <div data-vram-idx="${g.index}">
         <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs mb-1.5">
-          <span class="text-gray-300 font-medium truncate" title="${g.name}">VRAM · ${g.name}</span>
-          <span class="vram-text text-emerald-400 font-semibold">${fmtGb(g.used_gb)} / ${fmtGb(g.total_gb)} GB (${g.pct}%)</span>
+          <span class="res-label truncate" title="Graphics memory on ${g.name} — this is what limits training size">VRAM · ${g.name}</span>
+          <span class="vram-text res-value">${fmtGb(g.used_gb)} / ${fmtGb(g.total_gb)} GB (${g.pct}%)</span>
         </div>
-        <div class="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
-          <div class="vram-bar h-full rounded-full transition-all duration-500 ease-out ${colorFor(g.pct)}" style="width:${Math.min(100, g.pct)}%"></div>
+        <div class="res-track">
+          <div class="vram-bar res-fill ${colorFor(g.pct)}" style="width:${Math.min(100, g.pct)}%"></div>
         </div>
       </div>
     `).join('');
