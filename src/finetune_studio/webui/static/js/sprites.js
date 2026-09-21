@@ -114,6 +114,7 @@
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const rain = document.createElement('div');
     rain.className = 'matrix-rain';
+    rain.setAttribute('aria-hidden', 'true');
     const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789$#@%&';
     for (let i = 0; i < 40; i++) {
       const span = document.createElement('span');
