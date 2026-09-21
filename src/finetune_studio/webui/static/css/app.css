@@ -2947,12 +2947,16 @@ body::before {
      768. "CHUNKS" cannot wrap (one word) so white-space:normal alone was
      never enough — the % floor must actually fit mono+letter-spacing. */
   #rag-docs-table { min-width: 740px; }
-  #rag-docs-table .rag-col-name { width: 26%; }
-  #rag-docs-table .rag-col-type { width: 10%; }
+  #rag-docs-table .rag-col-name { width: 24%; }
+  #rag-docs-table .rag-col-type { width: 12%; }
   #rag-docs-table .rag-col-chunks { width: 11%; }
   #rag-docs-table .rag-col-status { width: 14%; }
   #rag-docs-table .rag-col-indexed { width: 19%; }
   #rag-docs-table th { white-space: normal; }
+  /* Overview models: the Format column ("safetensors" pill) needed ~102px
+     but its 6-way equal share gave 78 (probe td -24px at 768). */
+  #ov-models-table th:nth-child(2),
+  #ov-models-table td:nth-child(2) { width: 18%; }
   /* Overview compact tables: fixed layout left the last (action) column at
      its th default share — the button cluster needed more (probe:
      "Details" -36px, "Copy path" -55px at 768). 26% holds two buttons or
