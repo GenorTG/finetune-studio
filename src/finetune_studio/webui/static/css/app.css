@@ -739,9 +739,12 @@ body::before {
 .res-fill.crit { background: var(--err); }
 .cyan { color: var(--cyan); }
 .violet { color: var(--magenta); }
-.ok { color: var(--ok); }
-.warn { color: var(--warn); }
-.err { color: var(--err); }
+/* Status utilities color BOTH plain text and the wizard's .pill.ok/.warn
+   variants — they must point at readable TEXT tokens, never the brighter
+   fill colours (warn-on-white measured 3.57:1 on the throwaway project). */
+.ok { color: var(--ok-text, var(--ok)); }
+.warn { color: var(--warn-text, var(--warn)); }
+.err { color: var(--err-text, var(--err)); }
 
 .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
 .tabnums { font-variant-numeric: tabular-nums; }
