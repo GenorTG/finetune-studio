@@ -8,7 +8,14 @@
 {% block content %}
 <div class="page-head">
   <h1>Benchmarks — {{ project.name }}</h1>
-  <div class="sub">Run <strong>real</strong> HuggingFace MMLU / GSM8K / HellaSwag (official splits; downloads on first use), built-in <em>synthetic</em> smoke/offline suites (MMLU-/GSM8K-/HellaSwag-<em>shaped</em> only — not industry scores), or project Q&amp;A suites against trained models (or the untrained base). Real suites use strict MCQ / GSM8K scoring; synthetic fixtures stay local.</div>
+  <div class="sub"><b>Optional · Train a model.</b> Scores your run on <em>public</em> exams
+    instead of your own data — use it to compare against published numbers, or to check the
+    fine-tune did not damage general ability. To ask “did it learn MY material?” use
+    <a href="/projects/{{ pid }}/testing" data-link>testing (step 4)</a> instead.
+    <br><span class="text-xs">Sources: <strong>real</strong> HuggingFace MMLU / GSM8K / HellaSwag
+    (official splits, downloaded on first use, strict MCQ / GSM8K scoring); built-in
+    <em>synthetic</em> smoke suites (same shape, local, <em>not</em> industry scores); or your own
+    project Q&amp;A suites — all runnable against a trained run or the untrained base.</span></div>
 </div>
 
 <div class="card">

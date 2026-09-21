@@ -105,8 +105,8 @@
             <a href="/projects/{{ pid }}/data" class="sb-tab {% block nav_data %}{% endblock %}" data-link data-tab="data" title="File library — shared by both flows">
               <span class="sb-tab-label">files</span>
             </a>
-            <a href="/projects/{{ pid }}/data-prep" class="sb-tab {% block nav_data_prep %}{% endblock %}" data-link data-tab="data-prep" title="Parsed sources + Q&amp;A pairs">
-              <span class="sb-tab-label">data-prep</span>
+            <a href="/projects/{{ pid }}/data-prep" class="sb-tab {% block nav_data_prep %}{% endblock %}" data-link data-tab="data-prep" title="Question-answer pairs → the training dataset">
+              <span class="sb-tab-label">pairs</span>
             </a>
             {% if nav_ws == 'rag' %}
             <a href="/projects/{{ pid }}/rag" class="sb-tab {% block nav_rag %}{% endblock %}" data-link data-tab="rag" title="RAG index: build, search, chat">
@@ -171,7 +171,7 @@
               <a href="/projects/{{ pid }}" class="sb-nav-more-link" data-link data-tab="overview" role="menuitem">overview</a>
               <a href="/projects/{{ pid }}/wizard" class="sb-nav-more-link" data-link data-tab="wizard" role="menuitem">⚡ quick work</a>
               <a href="/projects/{{ pid }}/data" class="sb-nav-more-link" data-link data-tab="data" role="menuitem">files</a>
-              <a href="/projects/{{ pid }}/data-prep" class="sb-nav-more-link" data-link data-tab="data-prep" role="menuitem">data-prep</a>
+              <a href="/projects/{{ pid }}/data-prep" class="sb-nav-more-link" data-link data-tab="data-prep" role="menuitem">pairs</a>
               <a href="/projects/{{ pid }}/rag" class="sb-nav-more-link" data-link data-tab="rag" role="menuitem">rag</a>
               <a href="/projects/{{ pid }}/training" class="sb-nav-more-link" data-link data-tab="training" role="menuitem">training</a>
               <a href="/projects/{{ pid }}/testing" class="sb-nav-more-link" data-link data-tab="testing" role="menuitem">testing</a>
