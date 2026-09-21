@@ -2928,8 +2928,18 @@ body::before {
      to a half-clipped "Details" (probe -25px) — give this table more scroll
      width so action buttons keep their full size. */
   #past-runs-table { min-width: 700px; }
-  /* rag docs headers were ellipsized ("Last indexed" -25px, "Chunks" -15px):
-     column-% maths; letting the TH text wrap is the honest fix. */
+  /* Details lives in its own narrow column (empty header) — fixed layout
+     gave it ~66px while the button needs ~92 (probe: td -24px clipped at
+     768). Reserve the room. */
+  #past-runs-table th:nth-child(6),
+  #past-runs-table td:nth-child(6) { width: 100px; }
+  /* rag docs headers ellipsized at 768 ("Chunks" -15, "indexed" -11,
+     timestamp -25) — rebalance the column percentages inside the scroll
+     wrapper so headers and the 16-char timestamp fit. */
+  #rag-docs-table .rag-col-type { width: 11%; }
+  #rag-docs-table .rag-col-chunks { width: 9%; }
+  #rag-docs-table .rag-col-status { width: 12%; }
+  #rag-docs-table .rag-col-indexed { width: 16%; }
   #rag-docs-table th { white-space: normal; }
 }
 
