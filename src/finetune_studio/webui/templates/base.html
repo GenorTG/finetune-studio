@@ -96,8 +96,8 @@
             <a href="/projects/{{ pid }}" class="sb-tab {% block nav_project_overview %}{% endblock %}" data-link data-tab="overview">
               <span class="sb-tab-label">overview</span>
             </a>
-            <a href="/projects/{{ pid }}/wizard" class="sb-tab {% block nav_project_wizard %}{% endblock %}" data-link data-tab="wizard" title="Project wizard — quick start or step by step">
-              <span class="sb-tab-label">wizard</span>
+            <a href="/projects/{{ pid }}/wizard" class="sb-tab {% block nav_project_wizard %}{% endblock %}" data-link data-tab="wizard" title="Quick work — one page: train a model or build a RAG index">
+              <span class="sb-tab-label">⚡ quick work</span>
             </a>
             <a href="/projects/{{ pid }}/data" class="sb-tab {% block nav_data %}{% endblock %}" data-link data-tab="data">
               <span class="sb-tab-label">data</span>
@@ -160,7 +160,7 @@
               <a href="/projects" class="sb-nav-more-link" data-link data-tab="projects" role="menuitem">projects</a>
               {% if pid is defined and pid %}
               <a href="/projects/{{ pid }}" class="sb-nav-more-link" data-link data-tab="overview" role="menuitem">overview</a>
-              <a href="/projects/{{ pid }}/wizard" class="sb-nav-more-link" data-link data-tab="wizard" role="menuitem">wizard</a>
+              <a href="/projects/{{ pid }}/wizard" class="sb-nav-more-link" data-link data-tab="wizard" role="menuitem">⚡ quick work</a>
               <a href="/projects/{{ pid }}/data" class="sb-nav-more-link" data-link data-tab="data" role="menuitem">data</a>
               <a href="/projects/{{ pid }}/data-prep" class="sb-nav-more-link" data-link data-tab="data-prep" role="menuitem">data-prep</a>
               <a href="/projects/{{ pid }}/rag" class="sb-nav-more-link" data-link data-tab="rag" role="menuitem">rag</a>
@@ -236,7 +236,7 @@
       <span class="ws-sep" aria-hidden="true">|</span>
       {% if ws == 'model' %}
       <a href="/projects/{{ pid }}" data-link class="ws-link {% if self.breadcrumb_tab()|trim in ('overview', 'models') %}here{% endif %}">dashboard</a>
-      <a href="/projects/{{ pid }}/wizard" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'wizard' %}here{% endif %}" title="Project wizard — quick start or step by step">wizard</a>
+      <a href="/projects/{{ pid }}/wizard" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'wizard' %}here{% endif %}" title="Quick work — one page: train a model or build a RAG index">⚡ quick work</a>
       <a href="/projects/{{ pid }}/training" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'training' %}here{% endif %}">training</a>
       <a href="/projects/{{ pid }}/testing" data-link class="ws-link {% if self.breadcrumb_tab()|trim == 'testing' %}here{% endif %}">testing</a>
       {% elif ws == 'rag' %}

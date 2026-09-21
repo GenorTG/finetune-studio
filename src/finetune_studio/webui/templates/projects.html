@@ -106,6 +106,9 @@
       <button type="button" class="proj-delete"
               onclick="event.preventDefault(); event.stopPropagation(); confirmDelete(['{{ p.id }}'], '{{ p.name|e }}');"
               aria-label="Delete {{ p.name|e }}">✕</button>
+      <button type="button" class="proj-work"
+              onclick="event.preventDefault(); event.stopPropagation(); window.location='/projects/{{ p.id }}/wizard';"
+              title="One page: train a model or build a RAG index from your files">⚡ quick work</button>
       <div class="ph-icon lg">
         {{ p.name[0]|upper }}
       </div>
@@ -151,6 +154,15 @@
   color: var(--accent-red, #ff4444);
   border-color: var(--accent-red, #ff4444);
 }
+/* One-click entry to the whole pipeline — sits bottom-right of the card. */
+.proj-card .proj-work {
+  position: absolute; right: 10px; bottom: 10px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-muted); padding: 3px 8px;
+  font-family: var(--font-mono, monospace); font-size: 10.5px;
+  cursor: pointer; z-index: 5; border-radius: 3px;
+}
+.proj-card .proj-work:hover { color: var(--accent); border-color: var(--accent); }
 .proj-card.selected { outline: 1px solid var(--accent); }
 
 /* Bulk-action toolbar. */
