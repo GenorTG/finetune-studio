@@ -2931,17 +2931,6 @@ body::before {
   }
 }
 
-/* Tablet band (701–1000px): the desktop contract kept the cluster's fixed
-   360px right + 140px left gutters, squeezing the wrapping tab row into
-   ~280px — the group then spilled past the viewport (QA probe flagged
-   a.sb-tab@806 at 770px) and the header clips, so tabs were unreachable.
-   Give the tabs the full width UNDER the cluster row instead. */
-@media (min-width: 701px) and (max-width: 1000px) {
-  .sb-nav-shell {
-    padding: 52px 12px 0 12px;
-  }
-}
-
 @media (max-width: 700px) {
   .sb-nav-shell {
     min-height: 48px;
@@ -4883,4 +4872,21 @@ body::before {
     background: var(--bg-app);
     border-top: 1px solid var(--border-strong);
   }
+}
+
+/* Final contract fix (QA pass 2026-09-21): the grid header (row 1 = wrapping
+   tab strip) fought the older scrollport rules — .sb-group kept
+   flex-shrink:0 from the ≤1280 block while the last ≥701 block forced
+   overflow:visible + wrap on .sb-tabs. Result at 701–1000px: the project
+   group neither wrapped nor scrolled and spilled past the viewport
+   (chat@806 at 770px) — header clips, so those tabs were UNREACHABLE.
+   Groups must wrap their own tabs inside the strip. */
+@media (min-width: 701px) {
+  .sb-group {
+    flex-wrap: wrap;
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .sb-group .sb-tab { flex-shrink: 0; }
 }
