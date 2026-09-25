@@ -183,9 +183,9 @@
     <div>
       <div class="card-title">4. Documents in the index</div>
       <div class="card-sub">
-        What actually got indexed — not your raw uploads, and not the Data Prep
-        file list. If a file is missing here, it wasn't parsed or wasn't included
-        in the last build.
+        What actually got indexed — not your raw uploads (files page), and not the
+        parsed sources list. If a file is missing here, it wasn't parsed or wasn't
+        included in the last build.
         <span id="rag-docs-summary">
           {{ indexed_doc_count | default(0) }} document{{ '' if (indexed_doc_count | default(0)) == 1 else 's' }}
           · {{ indexed_chunk_count | default(0) }} chunk{{ '' if (indexed_chunk_count | default(0)) == 1 else 's' }}
@@ -241,8 +241,8 @@
     </div>
     {% else %}
     <p class="text-sm muted" id="rag-docs-empty">
-      No documents indexed yet. Upload and parse sources on
-      <a href="/projects/{{ pid }}/data-prep" data-link>Data Prep</a>,
+      No documents indexed yet. Upload and parse sources on the
+      <a href="/projects/{{ pid }}/data" data-link>files page</a>,
       then use <b>Build</b> above to embed them into this corpus.
     </p>
     {% endif %}
@@ -420,8 +420,8 @@
     }
     if (!list.length) {
       body.innerHTML = '<p class="text-sm muted" id="rag-docs-empty">'
-        + 'No documents indexed yet. Upload and parse sources on '
-        + '<a href="/projects/' + PID + '/data-prep" data-link>Data Prep</a>, '
+        + 'No documents indexed yet. Upload and parse sources on the '
+        + '<a href="/projects/' + PID + '/data" data-link>files page</a>, '
         + 'then use <b>Build</b> above to embed them into this corpus.</p>';
       return;
     }

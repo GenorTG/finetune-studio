@@ -133,7 +133,7 @@ def save_parsed_override(pid: str, file_id: str, text: str) -> dict:
         "chunk_count": chunks,
         "rag_note": (
             "RAG corpus rebuild picks up the edit" if rechunked
-            else "send to Data Prep (⚡) to feed training + RAG"
+            else "send to the pairs page (⚡) to feed training + RAG"
         ),
     }
 

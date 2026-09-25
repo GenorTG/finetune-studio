@@ -50,8 +50,8 @@ def test_project_overview_shows_model_workspace_subnav(client) -> None:
     body = r.text
     assert 'id="workspace-subnav"' in body
     assert 'id="project-breadcrumb"' in body
-    assert "Model workspace" in body
-    assert "RAG workspace" in body
+    assert "Train a model" in body
+    assert "Search my files" in body
     assert f'href="/projects/{pid}/rag"' in body
 
 
@@ -61,19 +61,19 @@ def test_rag_page_shows_rag_workspace_subnav(client) -> None:
     assert r.status_code == 200, r.text
     body = r.text
     assert 'id="workspace-subnav"' in body
-    assert "Model workspace" in body
-    assert "RAG workspace" in body
+    assert "Train a model" in body
+    assert "Search my files" in body
     assert f'href="/projects/{pid}/rag"' in body
     assert f'href="/projects/{pid}/rag#rag-ingest"' in body
     assert f'href="/projects/{pid}/rag#rag-search"' in body
-    assert f'href="/projects/{pid}/rag#rag-tests"' in body
-    assert ">dashboard<" in body
-    assert ">ingest<" in body
-    assert ">search<" in body
-    assert ">tests<" in body
+    assert f'href="/projects/{pid}/chat"' in body
+    assert ">home<" in body
+    assert ">2 build<" in body
+    assert ">3 search<" in body
+    assert ">4 chat<" in body
     assert 'id="rag-ingest"' in body
     assert 'id="rag-search"' in body
-    assert 'id="rag-tests"' in body
+    assert 'id="rag-dashboard"' in body
 
 
 def test_training_page_shows_model_workspace_subnav(client) -> None:
@@ -82,20 +82,22 @@ def test_training_page_shows_model_workspace_subnav(client) -> None:
     assert r.status_code == 200, r.text
     body = r.text
     assert 'id="workspace-subnav"' in body
-    assert "Model workspace" in body
-    assert "RAG workspace" in body
+    assert "Train a model" in body
+    assert "Search my files" in body
     assert f'href="/projects/{pid}/training"' in body
     assert f'href="/projects/{pid}/testing"' in body
-    assert ">dashboard<" in body
-    assert ">training<" in body
-    assert ">testing<" in body
+    assert ">home<" in body
+    assert ">3 train<" in body
+    assert ">4 test<" in body
     # RAG section anchors should not appear as the active workspace links set
     assert f'href="/projects/{pid}/rag#rag-ingest"' not in body
 
 
-def test_data_prep_page_has_no_workspace_subnav(client) -> None:
-    """Unrelated tabs keep the existing breadcrumb only."""
+def test_data_prep_page_has_workspace_subnav(client) -> None:
+    """Flow-scoped nav contract (2026-09-21): the pairs page declares
+    workspace=model, so the subnav MUST render with the model flow active."""
     pid = _project(client)
     r = client.get(f"/projects/{pid}/data-prep")
     assert r.status_code == 200, r.text
-    assert 'id="workspace-subnav"' not in r.text
+    assert 'id="workspace-subnav"' in r.text
+    assert "ws-switch active" in r.text

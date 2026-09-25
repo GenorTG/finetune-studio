@@ -72,7 +72,7 @@ def test_table_fixed_layout_and_empty_colspan() -> None:
     assert "table-scroll" in dp
 
     pdata = _PROJECT_DATA.read_text(encoding="utf-8")
-    assert 'colspan="8"' in pdata
+    assert 'colspan="9"' in pdata
     assert "empty-row" in pdata
     assert "cell-wrap" in pdata
     assert "table-scroll" in pdata
@@ -274,8 +274,8 @@ def test_card_head_stacks_below_700() -> None:
 
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=33" in base
-    assert "sprites.js?v=15" in base
+    assert "app.css?v=65" in base
+    assert "sprites.js?v=16" in base
     assert "nav_overflow.js?v=1" in base
     assert "spa.js?v=15" in base
 
@@ -342,27 +342,27 @@ def test_rag_ia_workflow_and_cta(client: TestClient) -> None:
     assert "Upload" in body and "Parse" in body and "Embed" in body and "Test" in body
     assert 'id="rag-cta-data-prep"' in body
     assert f'href="/projects/{pid}/data-prep"' in body
-    assert "Data Prep / Upload Sources" in body
+    assert "Parsed sources" in body
     assert "Indexed corpus documents" in body
     assert "Build with AI" not in body
     assert "agentic" not in body.lower()
-    assert "Upload new files on Data Prep" in body
+    assert "Upload new files on the files page" in body
     assert "model weights" in body.lower()
     assert "No documents indexed yet" in body
     assert f"/projects/{pid}/data-prep" in body
     # Numbered sections are unique and sequential
     for title in (
-        "1. Corpus status",
-        "2. Build &amp; rebuild (embed)",
-        "3. Retrieval settings",
-        "4. Indexed corpus documents",
-        "5. Live test query",
-        "6. Chat with RAG",
-        "7. Self-contained export",
-        "8. Shared embedder / reranker library",
+        "1. Index status",
+        "2. Build the index",
+        "3. Search settings",
+        "4. Documents in the index",
+        "5. Search test",
+        "6. Ask the model (grounded)",
+        "7. Download / export the corpus",
+        "8. Shared search models",
     ):
         assert title in body, title
-    assert body.count("5. Live test query") == 1
+    assert body.count("5. Search test") == 1
     assert "5. Chat with RAG" not in body
 
 
@@ -388,8 +388,8 @@ def test_rag_workspace_active_on_rag_page(client: TestClient) -> None:
     body = r.text
     assert 'class="ws-switch active"' in body or "ws-switch active" in body
     assert 'aria-current="page"' in body
-    assert "RAG workspace" in body
-    assert "Model workspace" in body
+    assert "Search my files" in body
+    assert "Train a model" in body
 
 
 def test_sprites_rag_caption_not_embedding_corpus() -> None:
