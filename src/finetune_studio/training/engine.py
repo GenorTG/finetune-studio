@@ -49,6 +49,29 @@ def _format_exc(exc: BaseException) -> str:
     return f"{type(exc).__name__}: {exc}".rstrip(": ")
 
 
+# Mirrors unsloth/_gpu_init.py: critical modules it patches at import time.
+# torch is deliberately absent: unsloth does not warn on a torch-first import.
+_UNSLOTH_CRITICAL_MODULES: tuple[str, ...] = ("trl", "transformers", "peft")
+
+
+def _unsloth_preimport_blockers() -> list[str]:
+    """Critical modules already in ``sys.modules`` before unsloth is imported.
+
+    unsloth patches these at import time and only warns (never raises) if they
+    loaded first, so a run can silently lose its optimizations. The ordering
+    inside ``_train_unsloth`` is correct; the risk is process history, because
+    ``training_engine`` is a module-level singleton in ``webui/app.py`` and any
+    earlier standard run / quant / abliteration / export leaves the trio
+    imported for the rest of that process's life.
+
+    Returns an empty list when unsloth will import clean, which is the case for
+    the first unsloth run in a fresh process.
+    """
+    import sys
+
+    return [m for m in _UNSLOTH_CRITICAL_MODULES if m in sys.modules]
+
+
 def _merged_dir_complete(merged_dir: str) -> bool:
     """True when merged/ has weight files (not just a partial config dump)."""
     if not os.path.isdir(merged_dir):
@@ -611,6 +634,22 @@ class TrainingEngine:
     def _train_unsloth(self, train_data):
         import sys
         from datasets import Dataset
+
+        # Read the precondition BEFORE importing unsloth: once unsloth is in
+        # sys.modules its own import is what consumed the check. Logging keeps
+        # a degraded run visible instead of silently slower / more VRAM.
+        _blockers = _unsloth_preimport_blockers()
+        if _blockers:
+            log.warning(
+                "unsloth importing after %s — unsloth's at-import patches will "
+                "NOT apply to this run (slower, more VRAM). Cause: this worker "
+                "process already imported them on an earlier request. Restart "
+                "the service before benchmarking.",
+                ", ".join(_blockers),
+            )
+        else:
+            log.info("unsloth importing clean (no critical modules preloaded)")
+
         from unsloth import FastLanguageModel
 
         from finetune_studio.training.sft_args import build_sft_args_from_config
