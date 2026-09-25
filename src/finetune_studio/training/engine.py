@@ -266,8 +266,10 @@ class TrainingEngine:
         for cb in self._callbacks:
             try:
                 cb(self.state)
-            except Exception:
-                pass
+            except Exception:  # one bad callback must not kill training
+                # Not log.exception: _notify runs per step, so a broken
+                # callback would flood the journal with tracebacks.
+                log.warning("Training state callback failed: %s", exc_info=True)
 
     def start(self, config, training_data, system_prompt="", *, _worker_target=None):
         """Start training in a spawn child process (never in the uvicorn process).
@@ -441,11 +443,10 @@ class TrainingEngine:
             self._mark_stopped()
 
     def _stop_requested(self) -> bool:
-        if self._stop_event.is_set():
-            return True
-        if self._mp_stop is not None and getattr(self._mp_stop, "is_set", lambda: False)():
-            return True
-        return False
+        return self._stop_event.is_set() or (
+            self._mp_stop is not None
+            and getattr(self._mp_stop, "is_set", lambda: False)()
+        )
 
     def _mark_stopped(self) -> None:
         """Terminal state when the user hits Stop (adapter may still be valid)."""
@@ -465,8 +466,8 @@ class TrainingEngine:
             ):
                 fields["output_path"] = self.config.output_dir
             update_run(self.current_run_id, **fields)
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception:  # run-state persistence is best-effort
+            log.exception("Failed to persist run state")
 
     def _sync_run_error(self, message: str) -> None:
         """Best-effort: persist a post-train export/merge failure into the
@@ -548,8 +549,8 @@ class TrainingEngine:
             # Persist the error to the DB so the UI can surface it on the run row
             try:
                 self._persist_run_error(msg)
-            except Exception:
-                pass
+            except Exception:  # error path must not raise
+                log.exception("Failed to persist run error")
 
     def _persist_run_error(self, error_msg: str) -> None:
         """Write the failure reason to the training_runs.error column.
@@ -563,8 +564,8 @@ class TrainingEngine:
             from finetune_studio.db.runs import update_run
             # current_run_id is the full 8-char hex like "bdc217b1" — use it as-is
             update_run(self.current_run_id, status="failed", error=error_msg[:2000])
-        except Exception:
-            pass
+        except Exception:  # best-effort status write
+            log.exception("Failed to mark run %s as failed", self.current_run_id)
 
     def _persist_run_output(self) -> None:
         """Update the DB run record with the output path so the merge
@@ -587,8 +588,8 @@ class TrainingEngine:
                 fields["error"] = err[:2000]
                 fields["notes"] = err[:2000]
             update_run(run_id, **fields)
-        except Exception:
-            pass
+        except Exception:  # best-effort run-row write
+            log.exception("Failed to update run %s", run_id)
 
     def _load_model_with_fallback(self, model_path, tokenizer):
         """Load model with mixed VRAM/RAM fallback.
@@ -598,8 +599,8 @@ class TrainingEngine:
         2. If OOM, retry with device_map="auto" — mixes RAM + VRAM, slower.
         3. If still failing, raise the original error.
         """
-        from transformers import AutoModelForCausalLM
         import torch
+        from transformers import AutoModelForCausalLM
         # Attempt 1: Full GPU
         try:
             self.state.message = "Loading model on GPU..."
@@ -613,7 +614,7 @@ class TrainingEngine:
             if "out of memory" not in str(e).lower() and "CUDA" not in str(e):
                 raise
             self.state.message = (
-                f"GPU OOM — retrying with mixed RAM+VRAM (slower)..."
+                "GPU OOM — retrying with mixed RAM+VRAM (slower)..."
             )
             self._notify()
             try:
@@ -621,8 +622,8 @@ class TrainingEngine:
                 gc.collect()
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
-            except Exception:
-                pass
+            except Exception:  # OOM cleanup must never mask the retry
+                log.warning("Failed to free VRAM before retry: %s", exc_info=True)
         # Attempt 2: Mixed device map
         self.state.message = "Loading model with CPU offload (RAM+VRAM mix)..."
         self._notify()
@@ -633,6 +634,7 @@ class TrainingEngine:
 
     def _train_unsloth(self, train_data):
         import sys
+
         from datasets import Dataset
 
         # Read the precondition BEFORE importing unsloth: once unsloth is in
@@ -672,16 +674,16 @@ class TrainingEngine:
         # Fix PicklingError: unsloth monkey-patches SFTTrainer/SFTConfig but
         # pickle looks up the original class by module path. Re-patch sys.modules
         # so pickle finds the patched classes.
-        import trl.trainer.sft_trainer as _sft_trainer_mod
         import trl.trainer.sft_config as _sft_config_mod
+        import trl.trainer.sft_trainer as _sft_trainer_mod
         sys.modules["trl.trainer.sft_trainer"].SFTTrainer = _sft_trainer_mod.SFTTrainer
         sys.modules["trl.trainer.sft_config"].SFTConfig = _sft_config_mod.SFTConfig
-
-        from trl import SFTTrainer
 
         # Monkey-patch Trainer._save to avoid PicklingError when saving
         # training args. Unsloth's class replacement chain breaks pickle.
         import json as _json
+
+        from trl import SFTTrainer
         def _patched_save(self_trainer, output_dir, _internal_call=False):
             import os as _os
             if hasattr(self_trainer.model, 'save_pretrained'):
@@ -754,7 +756,9 @@ class TrainingEngine:
                 with open(os.path.join(adapter_dir, "chat_template.jinja"), "w") as f:
                     f.write(tokenizer.chat_template)
             except Exception:
-                pass
+                log.warning(
+                    "Could not persist chat_template.jinja: %s", exc_info=True
+                )
         if self._stop_requested():
             self._mark_stopped()
             return
@@ -813,10 +817,11 @@ class TrainingEngine:
 
     def _train_standard(self, train_data):
         import sys
-        from datasets import Dataset
+
         from peft import LoraConfig, get_peft_model
         from transformers import AutoTokenizer
 
+        from datasets import Dataset
         from finetune_studio.training.sft_args import build_sft_args_from_config
         cfg = self.config
         self.state.message = "Loading model..."
@@ -846,8 +851,8 @@ class TrainingEngine:
         total = steps_per_epoch * cfg.num_epochs
         self.state.total_steps = total
         # Fix PicklingError: re-patch sys.modules after any unsloth/trl patches
-        import trl.trainer.sft_trainer as _sft_trainer_mod
         import trl.trainer.sft_config as _sft_config_mod
+        import trl.trainer.sft_trainer as _sft_trainer_mod
         sys.modules["trl.trainer.sft_trainer"].SFTTrainer = _sft_trainer_mod.SFTTrainer
         sys.modules["trl.trainer.sft_config"].SFTConfig = _sft_config_mod.SFTConfig
 
@@ -901,7 +906,9 @@ class TrainingEngine:
                 with open(os.path.join(adapter_dir, "chat_template.jinja"), "w") as f:
                     f.write(tokenizer.chat_template)
             except Exception:
-                pass
+                log.warning(
+                    "Could not persist chat_template.jinja: %s", exc_info=True
+                )
         if self._stop_requested():
             self._mark_stopped()
             return
@@ -1039,6 +1046,7 @@ class TrainingEngine:
             self._notify()
             return result
         except Exception as e:
+            log.exception("Abliteration failed")
             self.state.message = f"Abliteration failed: {e}"
             self._notify()
             return {"error": str(e)}
@@ -1063,6 +1071,7 @@ class TrainingEngine:
             self._notify()
             return result
         except Exception as e:
+            log.exception("GPTQ export failed")
             self.state.message = f"GPTQ export failed: {e}"
             self._notify()
             return {"error": str(e)}
@@ -1083,10 +1092,11 @@ class TrainingEngine:
                 imatrix_path=getattr(self.config, 'imatrix_calibration', ''),
                 quants=getattr(self.config, 'gguf_quants', ['q4_k_m', 'q5_k_m', 'q8_0']),
             )
-            self.state.message = f"Imatrix GGUF exported."
+            self.state.message = "Imatrix GGUF exported."
             self._notify()
             return result
         except Exception as e:
+            log.exception("Imatrix GGUF export failed")
             self.state.message = f"Imatrix GGUF export failed: {e}"
             self._notify()
             return {"error": str(e)}
@@ -1098,7 +1108,9 @@ class TrainingEngine:
             self.state.message = "Auto-suite: no training data found, skipping."
             self._notify()
             return {}
-        from finetune_studio.testing.generate_suite import generate_suite_from_training_data
+        from finetune_studio.testing.generate_suite import (
+            generate_suite_from_training_data,
+        )
         output_dir = self.config.output_dir
         result = generate_suite_from_training_data(data_path, output_dir)
         if result.get("error"):
@@ -1106,8 +1118,9 @@ class TrainingEngine:
             self._notify()
             return result
         try:
-            from finetune_studio.db.connection import cursor, new_id
             from time import time as _time
+
+            from finetune_studio.db.connection import cursor, new_id
             suite_id = new_id()
             project_id = getattr(self.config, 'project_id', '')
             with cursor() as c:
@@ -1120,7 +1133,7 @@ class TrainingEngine:
                      json.dumps(result.get("categories", {})), _time()),
                 )
         except Exception:
-            pass
+            log.exception("Auto-suite generated but not recorded in the DB")
         self.state.message = (
             f"Auto-suite: {result.get('case_count', 0)} cases saved "
             f"({result.get('coverage', 'full')} coverage)."
