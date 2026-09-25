@@ -56,6 +56,10 @@ __pycache__/
 .mypy_cache/
 /.serena/
 node_modules/
+# Written into the repo root by unsloth at import time (compiled trainer
+# copies + lock files). tests/test_import_smoke.py triggers it, so a plain
+# `make test` would otherwise leave ~31 untracked files behind.
+/unsloth_compiled_cache/
 
 # Workspace-level OpenClaw files (Amy persona, handoff notes).
 # These belong in ~/.openclaw/workspace/, NEVER inside a project repo.

@@ -155,6 +155,26 @@ def test_no_unignored_runtime_paths(untracked_files: set[str]) -> None:
     )
 
 
+def test_nothing_is_left_untracked_and_unignored(untracked_files: set[str]) -> None:
+    """The whole tree must be either tracked or deliberately ignored.
+
+    Genor's standing rule: commit everything except secrets and huge runtime
+    files. So an untracked, non-ignored path is always wrong — it means real
+    work is one ``git add -A`` from being lost, or generated junk is about to
+    be committed.
+
+    This is deliberately NOT limited to the known ``RUNTIME_PREFIXES``. A
+    prefix list has a blind spot exactly where it matters: ``unsloth`` writes
+    ``unsloth_compiled_cache/`` into the repo root at import time, and a test
+    that merely imported it left 31 untracked files that no prefix rule named.
+    The global invariant catches junk nobody thought to list.
+    """
+    assert not untracked_files, (
+        f"{len(untracked_files)} untracked, non-ignored path(s) — commit them, or "
+        f"gitignore them if they are runtime junk: {sorted(untracked_files)[:15]}"
+    )
+
+
 def test_required_runtime_seeds_are_still_tracked(tracked_files: set[str]) -> None:
     """The ignore rules must not swallow shipped assets the app needs."""
     missing = [path for path in REQUIRED_TRACKED if path not in tracked_files]
@@ -182,6 +202,7 @@ def test_ignore_rules_actually_work_on_disk() -> None:
         "projects/probe/curated.db",
         "media/inbound/probe.png",
         ".serena/probe.yml",
+        "unsloth_compiled_cache/probe.py",  # written by importing unsloth
     )
     must_be_tracked = REQUIRED_TRACKED
 
