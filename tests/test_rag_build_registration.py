@@ -107,7 +107,7 @@ def test_rag_build_updates_existing_row_same_corpus(
     assert int(rags[0]["chunk_count"]) == 42
 
 
-def test_ensure_portable_rag_helper_idempotent(tmp_path: Path) -> None:
+def test_ensure_portable_rag_helper_idempotent(temp_db, tmp_path: Path) -> None:
     proj = db.create_project(name="ensure-helper")
     pid = proj["id"]
     store = str((tmp_path / "corpus").resolve())
