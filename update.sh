@@ -82,6 +82,18 @@ for name in ("torch", "torchvision", "torchaudio"):
         lines.append(f"{name}=={m.version(name)}")
     except m.PackageNotFoundError:
         pass
+
+# torchao >= 0.17 needs torch 2.7+ (torch.utils._pytree.register_constant) and
+# transformers 5.x imports it eagerly, so a torchao left uncapped breaks every
+# transformers import on a torch-2.6 pin. gptqmodel/unsloth_zoo hard-require
+# torchao, so cap rather than remove. See install.sh write_torch_constraints.
+try:
+    major, minor = (int(p) for p in m.version("torch").split(".")[:2])
+    if (major, minor) < (2, 7):
+        lines.append("torchao<0.17")
+except Exception:
+    pass
+
 if lines:
     import os; os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     open(out, "w").write("\n".join(lines) + "\n")

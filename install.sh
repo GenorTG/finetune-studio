@@ -297,6 +297,22 @@ for name in ("torch", "torchvision", "torchaudio"):
         lines.append(f"{name}=={m.version(name)}")
     except m.PackageNotFoundError:
         pass
+
+# torchao >= 0.17 calls torch.utils._pytree.register_constant, which only
+# exists in torch 2.7+. transformers 5.x imports torchao eagerly, so on the
+# CUDA-12.4 / driver-535 pin (torch 2.6) that AttributeError takes down EVERY
+# transformers class import -- peft, TrainingArguments, BloomPreTrainedModel
+# all die with a misleading "Are this object's requirements defined
+# correctly?". gptqmodel (>=0.16.0) and unsloth_zoo (>=0.13.0) hard-require
+# torchao, so capping it (not removing it) is the only fix that keeps those
+# importable. Verified: 0.16.0 is the last release without the pytree call.
+try:
+    major, minor = (int(p) for p in m.version("torch").split(".")[:2])
+    if (major, minor) < (2, 7):
+        lines.append("torchao<0.17")
+except Exception:
+    pass
+
 if lines:
     open(out, "w").write("\n".join(lines) + "\n")
 PY
