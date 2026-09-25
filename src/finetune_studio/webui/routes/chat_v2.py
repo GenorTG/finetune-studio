@@ -6,7 +6,7 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from finetune_studio.webui.engine_guard import ENGINE_LOCK
 
@@ -77,7 +77,10 @@ async def project_context(pid: str):
     from finetune_studio.webui.app import discovered_models
     project = db.get_project(pid)
     if not project:
-        return {"error": "Project not found"}
+        # Raise, don't return {"error": ...} with a 200: a missing project is a
+        # 404 like every other project route. Returning 200 made the XHR
+        # succeed and the caller had to sniff for an "error" key.
+        raise HTTPException(status_code=404, detail="project not found")
 
     rags = db.list_rags(pid)
     # Resolve production model path from the production run
@@ -295,6 +298,14 @@ async def chat(request: Request, pid: str):
     from finetune_studio import db
     from finetune_studio.webui.app import inference_engine
 
+    # The project is validated FIRST: it is the path resource, and every other
+    # project route 404s on it before touching anything else. Checking the
+    # model first made a missing project report "No model loaded" (200) and
+    # send the caller to fix a model that was never the problem.
+    project = db.get_project(pid)
+    if not project:
+        raise HTTPException(status_code=404, detail="project not found")
+
     body = await request.json()
     messages = body.get("messages", [])
     enabled_rag_ids = body.get("enabled_rag_ids", [])
@@ -310,11 +321,7 @@ async def chat(request: Request, pid: str):
     if inference_engine.model is None:
         return {"error": "No model loaded. Load a model first."}
 
-    # Get project for system prompt default
-    project = db.get_project(pid)
-    if not project:
-        return {"error": "Project not found"}
-
+    # `project` (validated at the top) supplies the system prompt default.
     # Extract last user message for RAG retrieval
     user_msg = ""
     for msg in reversed(messages):

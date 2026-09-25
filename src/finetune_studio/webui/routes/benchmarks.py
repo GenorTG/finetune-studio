@@ -731,6 +731,13 @@ async def compare_runs(pid: str, run_a: str = "", run_b: str = "") -> dict[str, 
     Baseline is run_a; delta is run_b − run_a. Uses each run's latest
     benchmark per suite_name and the primary numeric score (pass_rate, etc.).
     """
+    # The project is validated FIRST, like every other project route
+    # (_project_or_404): otherwise a bad pid is reported as the unrelated
+    # "run_a and run_b required", which sends the caller hunting for a
+    # missing query param instead of the project that does not exist.
+    if not db.get_project(pid):
+        return JSONResponse({"error": "project not found"}, status_code=404)
+
     if not run_a or not run_b:
         return JSONResponse(
             {"error": "run_a and run_b required"},

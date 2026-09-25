@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-375 files · 67505 lines
-- `finetune_studio`: 221 files, 41279 lines
+380 files · 68393 lines
+- `finetune_studio`: 221 files, 41498 lines
 - `scripts`: 9 files, 2199 lines
-- `tests`: 145 files, 24027 lines
+- `tests`: 150 files, 24696 lines
 
 
 # finetune_studio
@@ -859,7 +859,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `validate_file(path)` (L24)
 - `validate_jsonl(p, report)` (L52)
 
-## `src/finetune_studio/db/__init__.py` (118 lines)
+## `src/finetune_studio/db/__init__.py` (265 lines)
   - imports: finetune_studio.db.activity_events, finetune_studio.db.benchmarks, finetune_studio.db.connection, finetune_studio.db.data_prep_runs, finetune_studio.db.datasets, finetune_studio.db.hf_downloads, finetune_studio.db.model_exports, finetune_studio.db.project_versions, finetune_studio.db.projects, finetune_studio.db.rag_corpora, finetune_studio.db.rags, finetune_studio.db.reviews, finetune_studio.db.runs, finetune_studio.db.system_updates
 
 ## `src/finetune_studio/db/activity_events.py` (50 lines)
@@ -1394,47 +1394,48 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def _calculate_severity(self)` (L225)
 - `generate_fixes(analysis: dict) -> list` (L234) — Generate specific fixes based on analysis.
 
-## `src/finetune_studio/training/engine.py` (1213 lines)
+## `src/finetune_studio/training/engine.py` (1265 lines)
 - `_format_exc(exc: BaseException) -> str` (L47) — ``Type: msg`` without a trailing empty ``: `` when msg is blank.
-- `_merged_dir_complete(merged_dir: str) -> bool` (L52) — True when merged/ has weight files (not just a partial config dump).
-- `_free_cuda() -> None` (L62) — Drop refs the caller already deleted and clear the CUDA cache.
-- `_dir_size(path: str) -> int` (L77) — Sum of file sizes under `path`, in bytes. Missing dir → 0.
-- `_human_size(n: int) -> int` (L91) — 1.4 GB / 235 MB / 12 KB style.
-- `class TrainingConfig` (L101)
-- `class TrainingState` (L142)
-- `apply_trainer_log(state: TrainingState, logs: dict, *, global_step: int, epoch: float | None, t…` (L157) — Fold one ``TrainerCallback.on_log`` payload into ``state``.
-- `class _ThreadChild` (L195)
-  - `def __init__(self, thread: threading.Thread) -> None` (L198)
-  - `def is_alive(self) -> bool` (L202)
-  - `def join(self, timeout: float | None = None) -> None` (L205)
-  - `def terminate(self) -> None` (L210)
-  - `def kill(self) -> None` (L214)
-- `class TrainingEngine` (L218)
-  - `def __init__(self)` (L219)
-  - `def on_update(self, callback)` (L232)
-  - `def _notify(self)` (L242)
-  - `def start(self, config, training_data, system_prompt = '', *, _worker_target = None)` (L249)
-  - `def _apply_state_dict(self, payload: dict) -> None` (L307)
-  - `def _listen_child(self) -> None` (L319)
-  - `def _cleanup_child_handles(self) -> None` (L363)
-  - `def stop(self) -> None` (L376)
-  - `def _stop_requested(self) -> bool` (L420)
-  - `def _mark_stopped(self) -> None` (L427)
-  - `def _sync_run_error(self, message: str) -> None` (L448)
-  - `def _maybe_merge(self, model: object, tokenizer: object, output_dir: str) -> None` (L459)
-  - `def _train(self, training_data, system_prompt)` (L471)
-  - `def _persist_run_error(self, error_msg: str) -> None` (L531)
-  - `def _persist_run_output(self) -> None` (L546)
-  - `def _load_model_with_fallback(self, model_path, tokenizer)` (L570)
-  - `def _train_unsloth(self, train_data)` (L611)
-  - `def _train_standard(self, train_data)` (L775)
-  - `def _do_merge(self, model, tokenizer, output_dir: str) -> dict` (L904)
-  - `def _do_abliteration(self) -> dict` (L984)
-  - `def _do_export_gptq(self, output_dir: str) -> dict` (L1007)
-  - `def _do_export_imatrix(self, output_dir: str) -> dict` (L1031)
-  - `def _auto_generate_suite(self) -> dict` (L1055)
-  - `def _do_export_gguf(self, output_dir: str, force: bool = False) -> dict` (L1092)
-- `merge_adapter_for_run(run: dict, force: bool = False) -> dict` (L1135) — Merge a persisted run's adapter on disk into a standalone model.
+- `_unsloth_preimport_blockers() -> list[str]` (L57) — Critical modules already in ``sys.modules`` before unsloth is imported.
+- `_merged_dir_complete(merged_dir: str) -> bool` (L75) — True when merged/ has weight files (not just a partial config dump).
+- `_free_cuda() -> None` (L85) — Drop refs the caller already deleted and clear the CUDA cache.
+- `_dir_size(path: str) -> int` (L100) — Sum of file sizes under `path`, in bytes. Missing dir → 0.
+- `_human_size(n: int) -> int` (L114) — 1.4 GB / 235 MB / 12 KB style.
+- `class TrainingConfig` (L124)
+- `class TrainingState` (L165)
+- `apply_trainer_log(state: TrainingState, logs: dict, *, global_step: int, epoch: float | None, t…` (L180) — Fold one ``TrainerCallback.on_log`` payload into ``state``.
+- `class _ThreadChild` (L218)
+  - `def __init__(self, thread: threading.Thread) -> None` (L221)
+  - `def is_alive(self) -> bool` (L225)
+  - `def join(self, timeout: float | None = None) -> None` (L228)
+  - `def terminate(self) -> None` (L233)
+  - `def kill(self) -> None` (L237)
+- `class TrainingEngine` (L241)
+  - `def __init__(self)` (L242)
+  - `def on_update(self, callback)` (L255)
+  - `def _notify(self)` (L265)
+  - `def start(self, config, training_data, system_prompt = '', *, _worker_target = None)` (L274)
+  - `def _apply_state_dict(self, payload: dict) -> None` (L332)
+  - `def _listen_child(self) -> None` (L344)
+  - `def _cleanup_child_handles(self) -> None` (L388)
+  - `def stop(self) -> None` (L401)
+  - `def _stop_requested(self) -> bool` (L445)
+  - `def _mark_stopped(self) -> None` (L451)
+  - `def _sync_run_error(self, message: str) -> None` (L472)
+  - `def _maybe_merge(self, model: object, tokenizer: object, output_dir: str) -> None` (L483)
+  - `def _train(self, training_data, system_prompt)` (L495)
+  - `def _persist_run_error(self, error_msg: str) -> None` (L555)
+  - `def _persist_run_output(self) -> None` (L570)
+  - `def _load_model_with_fallback(self, model_path, tokenizer)` (L594)
+  - `def _train_unsloth(self, train_data)` (L635)
+  - `def _train_standard(self, train_data)` (L818)
+  - `def _do_merge(self, model, tokenizer, output_dir: str) -> dict` (L950)
+  - `def _do_abliteration(self) -> dict` (L1030)
+  - `def _do_export_gptq(self, output_dir: str) -> dict` (L1054)
+  - `def _do_export_imatrix(self, output_dir: str) -> dict` (L1079)
+  - `def _auto_generate_suite(self) -> dict` (L1104)
+  - `def _do_export_gguf(self, output_dir: str, force: bool = False) -> dict` (L1144)
+- `merge_adapter_for_run(run: dict, force: bool = False) -> dict` (L1187) — Merge a persisted run's adapter on disk into a standalone model.
   - imports: finetune_studio.db.connection, finetune_studio.db.runs, finetune_studio.testing.generate_suite, finetune_studio.training.abliteration, finetune_studio.training.advanced_quant, finetune_studio.training.data, finetune_studio.training.gguf_convert, finetune_studio.training.merge_base, finetune_studio.training.sft_args, finetune_studio.training.worker
 
 ## `src/finetune_studio/training/export_capabilities.py` (66 lines)
@@ -1648,7 +1649,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `activity_events()` (L534) — SSE stream of activity snapshots.
   - imports: finetune_studio, finetune_studio.webui.app, finetune_studio.webui.live_sse, finetune_studio.webui.routes.data_prep, finetune_studio.webui.routes.hf_models
 
-## `src/finetune_studio/webui/routes/benchmarks.py` (866 lines)
+## `src/finetune_studio/webui/routes/benchmarks.py` (873 lines)
 - `_discover_suites(project_id: str | None = None) -> list[dict[str, Any]]` (L33) — Return selectable suites (real HF + synthetic + local JSON + auto).
 - `_parse_sample_knobs(body: dict[str, Any]) -> tuple[int | None, bool, int, str]` (L38) — Parse num_samples / full_run / seed / order from a run request body.
 - `_validate_suite_file(suite_path: str, *, project_id: str | None = None, require_selectable: bool =…` (L51) — Ensure suite_path is usable. Returns (cases, real_meta, error).
@@ -1672,22 +1673,22 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `audit_benchmark(pid: str, bid: str) -> dict[str, Any] | JSONResponse` (L699) — Return every persisted transcript plus an independent score recomputation.
 - `set_verdict(pid: str, bid: str, cid: str, request: Request) -> dict[str, bool]` (L712) — Human overrides/sets a verdict.
 - `compare_runs(pid: str, run_a: str = '', run_b: str = '') -> dict[str, Any] | JSONResponse` (L728) — Side-by-side per-suite score comparison of two training runs.
-- `evaluate_training_for_run(pid: str, rid: str, request: Request) -> dict[str, Any] | JSONResponse` (L799) — Benchmark a trained run against the project's training dataset.
+- `evaluate_training_for_run(pid: str, rid: str, request: Request) -> dict[str, Any] | JSONResponse` (L806) — Benchmark a trained run against the project's training dataset.
   - imports: finetune_studio, finetune_studio.benchmarks.real_benchmarks, finetune_studio.benchmarks.suite_defs, finetune_studio.testing.audit, finetune_studio.testing.inference, finetune_studio.testing.judge, finetune_studio.testing.suite, finetune_studio.testing.training_eval, finetune_studio.webui.app
 
-## `src/finetune_studio/webui/routes/chat_v2.py` (403 lines)
+## `src/finetune_studio/webui/routes/chat_v2.py` (410 lines)
 - `_is_portable_corpus(store_path: str) -> bool` (L16) — True when ``store_path`` is a PortableRAG directory (manifest + vectors).
 - `_search_rag_attachment(store_path: str, query: str, *, top_k: int = 5) -> list[dict[str, Any]]` (L22) — Search a project_rags store — PortableRAG when present, else Chroma VectorStore.
 - `list_chat_projects()` (L57) — List projects with RAG counts for the picker.
 - `project_context(pid: str)` (L74) — Return project's production model path, system prompt, RAGs, and discovered models.
-- `inference_chat(request: Request)` (L103) — Global inference chat — supports text and vision (images).
-- `load_model(request: Request)` (L153) — Load a model into the inference engine.
-- `inference_status()` (L186) — Current inference engine status.
-- `unload_model()` (L203) — Manually unload the current model.
-- `model_info(request: Request)` (L212) — Read model metadata (layer count, etc.) for UI configuration.
-- `memory_estimate(request: Request)` (L227) — Estimate VRAM/RAM usage for a model with given settings.
-- `inference_benchmark(request: Request)` (L244) — Run quick real benchmarks on the loaded model.
-- `chat(request: Request, pid: str)` (L289) — RAG-enhanced chat for a project.
+- `inference_chat(request: Request)` (L106) — Global inference chat — supports text and vision (images).
+- `load_model(request: Request)` (L156) — Load a model into the inference engine.
+- `inference_status()` (L189) — Current inference engine status.
+- `unload_model()` (L206) — Manually unload the current model.
+- `model_info(request: Request)` (L215) — Read model metadata (layer count, etc.) for UI configuration.
+- `memory_estimate(request: Request)` (L230) — Estimate VRAM/RAM usage for a model with given settings.
+- `inference_benchmark(request: Request)` (L247) — Run quick real benchmarks on the loaded model.
+- `chat(request: Request, pid: str)` (L292) — RAG-enhanced chat for a project.
   - imports: finetune_studio, finetune_studio.benchmarks.real_benchmarks, finetune_studio.data.rag_portable, finetune_studio.rag.store, finetune_studio.testing.inference, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.thinking
 
 ## `src/finetune_studio/webui/routes/comparison.py` (125 lines)
@@ -1864,7 +1865,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `inference_memory_estimate(request: Request)` (L405) — Estimate VRAM needed for a model with given loader params.
   - imports: finetune_studio, finetune_studio.config, finetune_studio.models.gguf_layers, finetune_studio.models.loader, finetune_studio.models.manager, finetune_studio.models.registry, finetune_studio.testing.inference, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.routes.system, finetune_studio.webui.thinking
 
-## `src/finetune_studio/webui/routes/pages.py` (732 lines)
+## `src/finetune_studio/webui/routes/pages.py` (738 lines)
 - `_sum_benchmarks(runs)` (L31) — Sum total benchmark count across all runs.
 - `_require_project(pid: str)` (L43) — Return project dict or None (caller redirects to /projects).
 - `_dir_size_gb(path: str) -> float` (L58) — Total size of a directory tree in GB, rounded to 2 decimals.
@@ -1891,8 +1892,9 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `project_settings_page(request: Request, pid: str)` (L611) — Project settings + WebUI log tail (no SSH needed for uvicorn.log).
 - `project_wizard_page(request: Request, pid: str)` (L624) — Project wizard: Quick start runs files → QA → dataset → train → test
 - `project_flow_page(request: Request, pid: str)` (L641) — Old name for the wizard — keep bookmarks and links working.
-- `settings_page(request: Request)` (L649) — Settings, debug info, replay tutorial, system status.
-- `debug_info()` (L665) — Return system debug info for the Settings page.
+- `project_work_page(request: Request, pid: str)` (L647) — Canonical name of the quick-work page (routes keep /wizard for history).
+- `settings_page(request: Request)` (L655) — Settings, debug info, replay tutorial, system status.
+- `debug_info()` (L671) — Return system debug info for the Settings page.
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.db, finetune_studio.models.helper, finetune_studio.models.loader, finetune_studio.models.registry, finetune_studio.training.export_capabilities, finetune_studio.webui.app, finetune_studio.webui.model_labels, finetune_studio.webui.project_dashboard, finetune_studio.webui.project_data_browser, finetune_studio.webui.routes.benchmarks, finetune_studio.webui.routes.project_export, finetune_studio.webui.routes.project_rag, finetune_studio.webui.testing_models
 
 ## `src/finetune_studio/webui/routes/project_export.py` (48 lines)
@@ -2174,11 +2176,11 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 
 ## `tests/__init__.py` (0 lines)
 
-## `tests/conftest.py` (136 lines)
+## `tests/conftest.py` (148 lines)
 - `_ensure_ocr_tessdata() -> None` (L25) — Pre-install tessdata so OCR tests are green on a fresh clone.
-- `temp_db(monkeypatch)` (L52) — Create a temp SQLite DB file, init schema, yield path, cleanup.
-- `mock_settings(temp_db, monkeypatch)` (L87) — MagicMock with full settings interface, patched into config singleton.
-- `client(mock_settings, monkeypatch)` (L110) — FastAPI TestClient for the webui app with heavy deps mocked.
+- `temp_db(monkeypatch)` (L52) — Redirect the database at a temp SQLite file, yield its path, clean up.
+- `mock_settings(temp_db, monkeypatch)` (L99) — MagicMock with full settings interface, patched into config singleton.
+- `client(mock_settings, monkeypatch)` (L122) — FastAPI TestClient for the webui app with heavy deps mocked.
   - imports: finetune_studio.config, finetune_studio.data, finetune_studio.db.connection, finetune_studio.webui.app
 
 ## `tests/e2e_functional.py` (390 lines)
@@ -2281,7 +2283,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_empty_rag_sources_array_renders_status() -> None` (L39)
 - `test_chat_request_keeps_abort_controller_per_request() -> None` (L48)
 
-## `tests/test_api.py` (224 lines)
+## `tests/test_api.py` (264 lines)
 - `class TestHealthRoutes` (L3)
   - `def test_root_page(self, client)` (L4)
   - `def test_projects_page(self, client)` (L9)
@@ -2318,7 +2320,12 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `class TestWizardPage` (L204)
   - `def _pid(self, client, name = 'Wizard Test')` (L205)
   - `def test_wizard_page_renders_both_modes(self, client)` (L210)
-  - `def test_flow_redirects_to_wizard(self, client)` (L220)
+  - `def test_wizard_page_offers_rag_quick_step(self, client)` (L220)
+  - `def test_work_redirects_to_wizard(self, client)` (L228)
+  - `def test_overview_has_flow_picker(self, client)` (L234)
+  - `def test_project_nav_is_flow_scoped(self, client)` (L243)
+  - `def test_dashboard_cards_have_quick_work_entry(self, client)` (L255)
+  - `def test_flow_redirects_to_wizard(self, client)` (L260)
 
 ## `tests/test_app_js_delegate.py` (72 lines)
 - `_app_js() -> str` (L12)
@@ -2573,13 +2580,13 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_export_without_approved_still_empty_or_empty_file(client_and_db) -> None` (L172) — Pending-only projects must not silently populate Training.
   - imports: finetune_studio, finetune_studio.config, finetune_studio.data.fs, finetune_studio.webui.app
 
-## `tests/test_data_prep_route.py` (120 lines)
+## `tests/test_data_prep_route.py` (129 lines)
 - `client(monkeypatch, tmp_path)` (L16) — Isolated FastAPI TestClient backed by a temp SQLite db + temp fs root.
-- `_make_project(client) -> str` (L53) — Create a project + return its id (uses the real /api/projects route).
-- `test_data_prep_route_returns_200(client)` (L68) — GET /projects/{pid}/data-prep returns 200 — not 404 (the bug).
-- `test_data_prep_route_renders_main_content(client)` (L80) — Response body contains the data_prep.html template content (not just the base layout).
-- `test_data_prep_route_renders_sources_or_empty(client)` (L107) — The Source file dropdown iterates `sources or []` — empty list is fine
-  - imports: finetune_studio, finetune_studio.webui.app
+- `_make_project(client) -> str` (L62) — Create a project + return its id (uses the real /api/projects route).
+- `test_data_prep_route_returns_200(client)` (L77) — GET /projects/{pid}/data-prep returns 200 — not 404 (the bug).
+- `test_data_prep_route_renders_main_content(client)` (L89) — Response body contains the data_prep.html template content (not just the base layout).
+- `test_data_prep_route_renders_sources_or_empty(client)` (L116) — The Source file dropdown iterates `sources or []` — empty list is fine
+  - imports: finetune_studio, finetune_studio.db.connection, finetune_studio.webui.app
 
 ## `tests/test_data_prep_start.py` (338 lines)
 - `fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L24) — Point the file-library disk root at a temp dir for isolated tests.
@@ -2644,6 +2651,16 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def test_list_benchmarks(self, mock_settings)` (L165)
 - `class TestReviews` (L177)
   - `def test_record_and_list_review(self, mock_settings)` (L178)
+  - imports: finetune_studio.db
+
+## `tests/test_db_facade_exports.py` (78 lines)
+- `_imported_names() -> set[str]` (L27) — Every name bound by a module-level ``from ... import`` in the facade.
+- `test_all_is_declared() -> None` (L38) — The facade must export an explicit list (this is what silences F401).
+- `test_every_import_is_exported() -> None` (L44) — An imported-but-unlisted name reappears as F401 and can be 'fixed' away.
+- `test_every_exported_name_exists() -> None` (L53) — A stale __all__ entry would raise AttributeError only at the call site.
+- `test_all_is_sorted_and_unique() -> None` (L59) — Keeps diffs stable and prevents duplicate entries accumulating.
+- `test_core_api_is_still_exported() -> None` (L65) — Spot-check the calls used across the app, not just any name.
+- `test_exports_are_callable_in_a_temp_db(name: str, tmp_path: Path) -> None` (L74) — Attribute access must still work, which is the whole point of the facade.
   - imports: finetune_studio.db
 
 ## `tests/test_db_lifecycle.py` (642 lines)
@@ -2918,6 +2935,11 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_pipeline_tag_strict_filter_kept_when_results_present() -> None` (L63)
 - `test_empty_query_returns_anything_in_pipeline_tag() -> None` (L72)
   - imports: finetune_studio.webui.routes.hf_models
+
+## `tests/test_import_smoke.py` (85 lines)
+- `_load(module: str, attribute: str | None) -> None` (L48)
+- `test_core_training_stack_imports() -> None` (L54) — The core stack must import. This is the torchao-class regression guard.
+- `test_optional_accelerator_stack_is_reported() -> None` (L74) — Optional packages are informational — a missing one must not fail CI.
 
 ## `tests/test_inference_gptq_load.py` (189 lines)
 - `test_detects_quantize_config_json(tmp_path: Path) -> None` (L18)
@@ -3216,6 +3238,14 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_open_in_inference_handler_posts_load(client, tmp_path: Path) -> None` (L124) — Page JS posts {path} to /api/models/load; API accepts that body.
   - imports: finetune_studio
 
+## `tests/test_project_not_found_404.py` (102 lines)
+- `client() -> TestClient` (L30)
+- `test_chat_v2_missing_project_is_404(client: TestClient, url: str) -> None` (L41) — The two chat_v2 sites that used to answer 200 with an error body.
+- `test_context_response_model_does_not_swallow_the_404(client: TestClient) -> None` (L52) — A 200 body must never be the only signal that a project is missing.
+- `test_compare_reports_the_project_before_the_params(client: TestClient, query: str, label: str) -> None` (L67) — A missing project outranks missing run params (regression: was 400).
+- `test_compare_still_reports_missing_runs_as_400_when_project_exists(client: TestClient) -> None` (L81) — The fix must not swallow the genuine run-param error.
+  - imports: finetune_studio, finetune_studio.webui.app
+
 ## `tests/test_project_rag.py` (199 lines)
 - `_project(client) -> str` (L11)
 - `_write_fake_corpus(root: Path, *, doc_id: str = 'abc123def456') -> Path` (L17) — Minimal PortableRAG-shaped corpus: manifest + sources + chunks.parquet.
@@ -3243,9 +3273,9 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_testing_page_renders_suite_select(client) -> None` (L13)
 - `test_testing_page_lists_project_merged_export(client, tmp_path) -> None` (L45) — After merge-at-export, the merged path must appear in the selector.
 - `test_testing_page_suite_options_match_discover(client) -> None` (L69)
-- `test_recent_suite_runs_helper() -> None` (L82)
+- `test_recent_suite_runs_helper(temp_db) -> None` (L82)
 - `test_testing_page_shows_recent_runs(client) -> None` (L103)
-- `test_recent_suite_runs_respects_limit() -> None` (L124)
+- `test_recent_suite_runs_respects_limit(temp_db) -> None` (L124)
   - imports: finetune_studio, finetune_studio.db.connection, finetune_studio.webui.routes.benchmarks, finetune_studio.webui.routes.pages
 
 ## `tests/test_project_training.py` (94 lines)
@@ -3270,7 +3300,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `_patch_build_env(monkeypatch, tmp_path: Path, pid: str) -> Path` (L16) — Point corpus + project files under tmp_path; return corpus dir.
 - `test_rag_build_registers_project_rags_row(client, tmp_path: Path, monkeypatch) -> None` (L34) — Canonical POST …/rag/build writes a project_rags row at the corpus dir.
 - `test_rag_build_updates_existing_row_same_corpus(client, tmp_path: Path, monkeypatch) -> None` (L78) — Second build updates the same project_rags row (no duplicate).
-- `test_ensure_portable_rag_helper_idempotent(tmp_path: Path) -> None` (L110)
+- `test_ensure_portable_rag_helper_idempotent(temp_db, tmp_path: Path) -> None` (L110)
   - imports: finetune_studio
 
 ## `tests/test_rag_embedder_dims.py` (136 lines)
@@ -3438,6 +3468,17 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_training_hf_refresh_skips_incomplete_and_gguf() -> None` (L178)
 - `test_training_page_empty_copy_when_no_trainable(client, monkeypatch) -> None` (L196)
   - imports: finetune_studio.models.registry, finetune_studio.webui
+
+## `tests/test_repo_hygiene.py` (234 lines)
+- `_git(*args: str) -> str | None` (L75) — Run a git command in the repo, returning stdout, or None if unavailable.
+- `tracked_files() -> set[str]` (L96) — Set of repo-relative paths git currently tracks, or skip if unavailable.
+- `untracked_files() -> set[str]` (L105) — Untracked, NOT-ignored paths — exactly what ``git add -A`` would add.
+- `test_no_runtime_path_is_tracked(tracked_files: set[str]) -> None` (L118) — No file inside a runtime tree may be committed.
+- `test_no_runtime_payload_suffix_is_tracked(tracked_files: set[str]) -> None` (L131) — No DB/weights/jsonl payload may be tracked, wherever it sits.
+- `test_no_unignored_runtime_paths(untracked_files: set[str]) -> None` (L141) — Nothing untracked-and-unignored may sit in a runtime tree.
+- `test_nothing_is_left_untracked_and_unignored(untracked_files: set[str]) -> None` (L158) — The whole tree must be either tracked or deliberately ignored.
+- `test_required_runtime_seeds_are_still_tracked(tracked_files: set[str]) -> None` (L178) — The ignore rules must not swallow shipped assets the app needs.
+- `test_ignore_rules_actually_work_on_disk() -> None` (L186) — Probe ``git check-ignore`` on representative runtime paths.
 
 ## `tests/test_reupload_after_delete.py` (44 lines)
 - `_upload(pid: str, fid_ref: list[str], name: str, payload: bytes, client: Any) -> dict` (L15)
@@ -3763,6 +3804,14 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_models_index_filters_discoverable_on_mobile() -> None` (L612) — Filter pills must wrap (or scroll) — .flex-wrap alone was undefined and clipped.
 - `test_training_stop_disabled_while_idle() -> None` (L629) — Stop must be disabled on idle load and only enable while a run is active.
 
+## `tests/test_unsloth_import_order.py` (107 lines)
+- `test_critical_modules_match_unsloth_itself() -> None` (L31) — The list must stay aligned with unsloth's own trigger condition.
+- `test_clean_process_reports_no_blockers() -> None` (L45) — A fresh process must report clean, so a first unsloth run is not flagged.
+- `test_poisoned_process_is_detected(poisoned: str) -> None` (L57) — Each critical module, once loaded, must be reported as a blocker.
+- `test_order_follows_the_declared_sequence() -> None` (L71) — With all three loaded, the report is stable and in declaration order.
+- `test_train_unsloth_reads_precondition_before_importing_unsloth() -> None` (L87) — The check must come BEFORE ``from unsloth import ...`` in the source.
+  - imports: finetune_studio.training.engine
+
 ## `tests/test_update.py` (192 lines)
 - `class TestUpdateWorkerSkip` (L18)
   - `def test_skip_marks_running_then_done_with_log(self, mock_settings, monkeypatch)` (L22)
@@ -3845,14 +3894,14 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def test_method_in_results(self)` (L170)
   - imports: finetune_studio.training.vram.constants, finetune_studio.training.vram.estimate, finetune_studio.training.vram.recommend, finetune_studio.training.vram.schema
 
-## `tests/test_workspace_nav.py` (101 lines)
+## `tests/test_workspace_nav.py` (103 lines)
 - `_project(client) -> str` (L11)
 - `test_spa_syncs_workspace_subnav_outside_content() -> None` (L17) — SPA must create/update #workspace-subnav (base shell), not only #content.
 - `test_projects_list_has_no_workspace_subnav(client) -> None` (L37) — Non-project pages must omit subnav so SPA can detect enter/leave.
 - `test_project_overview_shows_model_workspace_subnav(client) -> None` (L45) — Direct URL render includes Model workspace subnav (full-page load).
 - `test_rag_page_shows_rag_workspace_subnav(client) -> None` (L58)
 - `test_training_page_shows_model_workspace_subnav(client) -> None` (L79)
-- `test_data_prep_page_has_no_workspace_subnav(client) -> None` (L96) — Unrelated tabs keep the existing breadcrumb only.
+- `test_data_prep_page_has_workspace_subnav(client) -> None` (L96) — Flow-scoped nav contract (2026-09-21): the pairs page declares
 
 ## `tests/unit/test_engine_fixes.py` (81 lines)
 - `_has_trl()` (L5)
