@@ -269,6 +269,43 @@ else
 fi
 log "venv python: $PYTHON_CMD"
 
+# ── pip helper: uv-created venvs have NO pip module (2026-09-25: genorbox1
+#    hit "No module named pip" in the llama.cpp requirements step). ──
+pip_install() {
+    if command -v uv >/dev/null 2>&1; then
+        uv pip install --python "$PYTHON_CMD" "$@"
+    else
+        "$PYTHON_CMD" -m pip install "$@"
+    fi
+}
+
+# ── Freeze the torch family after install_torch so later `-e .` / optional
+#    installs cannot silently upgrade torch off the CUDA-matched build.
+#    (2026-09-25: `uv pip install -e .` replaced torch 2.6.0+cu124 with PyPI
+#    2.14.0 (cu130 build) while torchvision/torchaudio stayed +cu124 →
+#    ImportError: undefined symbol: ncclCommResume on driver 535.) ──
+TORCH_CONSTRAINTS="${VENV_DIR:-.venv}/torch-constraints.txt"
+CONSTRAINT_ARGS=()
+write_torch_constraints() {
+    mkdir -p "$(dirname "$TORCH_CONSTRAINTS")"
+    "$PYTHON_CMD" - "$TORCH_CONSTRAINTS" <<'PY' 2>/dev/null || true
+import importlib.metadata as m, sys
+out = sys.argv[1]
+lines = []
+for name in ("torch", "torchvision", "torchaudio"):
+    try:
+        lines.append(f"{name}=={m.version(name)}")
+    except m.PackageNotFoundError:
+        pass
+if lines:
+    open(out, "w").write("\n".join(lines) + "\n")
+PY
+    if [ -s "$TORCH_CONSTRAINTS" ]; then
+        CONSTRAINT_ARGS=(-c "$TORCH_CONSTRAINTS")
+        log "torch family pinned via $TORCH_CONSTRAINTS"
+    fi
+}
+
 # ── Install PyTorch with matching GPU ──
 install_torch() {
     case "$GPU_VENDOR" in
@@ -354,7 +391,7 @@ install_llama_cpp_cli() {
         git clone --depth 1 https://github.com/ggerganov/llama.cpp "$LLAMA_CPP_DIR" \
             || die "git clone llama.cpp failed"
     fi
-    "$PYTHON_CMD" -m pip install --quiet --disable-pip-version-check \
+    pip_install --quiet \
         -r "$LLAMA_CPP_DIR/requirements/requirements-convert_hf_to_gguf.txt" 2>&1 | tail -3 \
         || warn "convert_hf_to_gguf pip deps install failed — conversion may not work."
     cmake -S "$LLAMA_CPP_DIR" -B "$LLAMA_CPP_DIR/build" 2>&1 | tail -2 \
@@ -374,9 +411,10 @@ if [ "$LLAMA_CPP_ONLY" = "1" ]; then
     exit 0
 fi
 install_torch
+write_torch_constraints
 install_gguf
 log "Installing base packages from pyproject.toml..."
-uv pip install --python "$PYTHON_CMD" -e .
+uv pip install --python "$PYTHON_CMD" "${CONSTRAINT_ARGS[@]}" -e .
 mkdir -p data
 install_llama_cpp_cli
 
@@ -389,10 +427,10 @@ install_optional_packages() {
     uv pip install --python "$PYTHON_CMD" "numpy>=1.24.0" "scipy>=1.10.0" 2>&1 | tail -1 \
         || warn "numpy/scipy install failed — abliteration may not work."
     # unsloth for faster training
-    uv pip install --python "$PYTHON_CMD" "unsloth>=2024.10.0" 2>&1 | tail -1 \
+    uv pip install --python "$PYTHON_CMD" "${CONSTRAINT_ARGS[@]}" "unsloth>=2024.10.0" 2>&1 | tail -1 \
         || warn "unsloth install failed — will use standard training."
     # GPTQ export (gptqmodel) + Transformers GPTQ load (optimum) via pyproject extra
-    uv pip install --python "$PYTHON_CMD" -e '.[gptq]' 2>&1 | tail -1 \
+    uv pip install --python "$PYTHON_CMD" "${CONSTRAINT_ARGS[@]}" -e '.[gptq]' 2>&1 | tail -1 \
         || warn "gptq extra install failed — try: uv pip install -e '.[gptq]' (gptqmodel + optimum)."
 }
 install_optional_packages

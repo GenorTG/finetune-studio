@@ -24,6 +24,12 @@ cd "$(dirname "$(readlink -f "$0")")"
 
 VENV_DIR="${VENV_DIR:-.venv}"
 LLAMA_CPP_DIR="${LLAMA_CPP_DIR:-$HOME/llama.cpp}"
+# install.sh builds the CLI project-local (.llama.cpp); honour that here too
+# so update.sh never rebuilds a second copy under $HOME (2026-09-25).
+if [ ! -e "$LLAMA_CPP_DIR/build/bin/llama-quantize" ] \
+        && [ -e "$PWD/.llama.cpp/build/bin/llama-quantize" ]; then
+    LLAMA_CPP_DIR="$PWD/.llama.cpp"
+fi
 NO_PULL=0
 NO_LLAMA=0
 NO_RESTART=0
@@ -47,6 +53,42 @@ for arg in "$@"; do
 done
 
 VENV_PY="$PWD/$VENV_DIR/bin/python"
+
+# uv-created venvs have NO pip module (hit on genorbox1, 2026-09-25) —
+# prefer uv, fall back to the venv's own pip. Mirrors install.sh.
+pip_install() {
+    if command -v uv >/dev/null 2>&1; then
+        uv pip install --python "$VENV_PY" "$@"
+    else
+        "$VENV_PY" -m pip install "$@"
+    fi
+}
+
+# Keep the CUDA-matched torch family pinned during dep sync: install.sh writes
+# .venv/torch-constraints.txt after install_torch. Without it, a later resolve
+# (unsloth/gptq/`-e .`) silently upgrades torch to the default PyPI build and
+# breaks the venv on older drivers (undefined symbol: ncclCommResume, 535).
+torch_constraint_args() {
+    local f="$VENV_DIR/torch-constraints.txt"
+    if [ ! -s "$f" ]; then
+        # Existing installs predate install.sh's pin file — generate it from
+        # the currently installed (working) torch family so sync can't drift.
+        "$VENV_PY" - "$f" <<'PY' 2>/dev/null || true
+import importlib.metadata as m, sys
+out = sys.argv[1]
+lines = []
+for name in ("torch", "torchvision", "torchaudio"):
+    try:
+        lines.append(f"{name}=={m.version(name)}")
+    except m.PackageNotFoundError:
+        pass
+if lines:
+    import os; os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
+    open(out, "w").write("\n".join(lines) + "\n")
+PY
+    fi
+    [ -s "$f" ] && printf -- '-c\n%s\n' "$f"
+}
 
 # ── Step 1: git pull ────────────────────────────────────────────────────
 if [ "$NO_PULL" = "0" ]; then
@@ -120,7 +162,8 @@ fi
 # ── Step 3: pip sync ────────────────────────────────────────────────────
 if [ "$CHECK_MODE" = "0" ]; then
     log "Syncing deps via 'pip install -e .'..."
-    "$VENV_PY" -m pip install --quiet --disable-pip-version-check -e . 2>&1 | tail -5 \
+    # shellcheck disable=SC2046
+    pip_install --quiet $(torch_constraint_args) -e . 2>&1 | tail -5 \
         || warn "pip install -e . failed — deps may be stale"
 else
     log "check mode: skipping pip install"
@@ -139,7 +182,7 @@ if [ "$NO_LLAMA" = "0" ] && [ "$CHECK_MODE" = "0" ]; then
                 || warn "git clone llama.cpp failed"
         fi
         if [ -d "$LLAMA_CPP_DIR" ]; then
-            "$VENV_PY" -m pip install --quiet --disable-pip-version-check \
+            pip_install --quiet \
                 -r "$LLAMA_CPP_DIR/requirements/requirements-convert_hf_to_gguf.txt" 2>&1 | tail -3 \
                 || warn "convert_hf_to_gguf pip deps failed"
             cmake -S "$LLAMA_CPP_DIR" -B "$LLAMA_CPP_DIR/build" 2>&1 | tail -2 \
