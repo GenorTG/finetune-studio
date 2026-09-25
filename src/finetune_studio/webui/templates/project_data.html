@@ -57,17 +57,17 @@
   <a class="stat hover" href="#fb-table" data-view="active" onclick="return fbStatClick(event,'active')">
     <div class="label">In library</div>
     <div class="value" id="fb-stat-library">{{ fb_stats.library }}</div>
-    <div class="delta">deleted_at IS NULL</div>
+    <div class="delta">excludes trash</div>
   </a>
   <a class="stat hover" href="#fb-table" data-view="trash" onclick="return fbStatClick(event,'trash')">
     <div class="label">In trash</div>
     <div class="value" style="color:var(--warn);" id="fb-stat-trash">{{ fb_stats.trash }}</div>
-    <div class="delta">soft-deleted</div>
+    <div class="delta">restore or purge</div>
   </a>
   <a class="stat hover" href="#fb-table" data-view="active" onclick="return fbStatClick(event,'active')">
     <div class="label">Storage</div>
     <div class="value violet" id="fb-stat-storage">{{ fb_stats.storage_label }}</div>
-    <div class="delta">sum of size_bytes</div>
+    <div class="delta">all active files</div>
   </a>
 </div>
 
@@ -147,9 +147,9 @@
     <div>
       <div class="card-title">Uploaded files</div>
       <div class="card-sub">
-        Project file library (raw uploads). For parsing into prep/RAG sources and
-        Training / Q&amp;A pairs, continue on
-        <a href="/projects/{{ pid }}/data-prep" data-link>Data Prep</a>.
+        Project file library (raw uploads). To turn files into search sources and
+        training question–answer pairs, continue on the
+        <a href="/projects/{{ pid }}/data-prep" data-link>Question-answer pairs</a> page.
       </div>
     </div>
   </div>
@@ -458,7 +458,7 @@
     const on = (label, title) => '<span class="pill solid-green text-xs" title="' + esc(title) + '">' + label + '</span>';
     const off = (label, title) => '<span class="pill outline text-xs" title="' + esc(title) + '">' + label + '</span>';
     const parsed = p.has_parsed ? on('parsed', 'parsed text available') : off('unparsed', 'no parsed text yet — re-parse or send to pairs');
-    const prep = p.source_id ? on('prep·' + (p.chunk_count || 0) + 'ch', 'data-prep source' + (p.parser === 'manual-edit' ? ' (hand-edited)' : ' via ' + (p.parser || 'parser'))) : off('prep', 'not a data-prep source yet');
+    const prep = p.source_id ? on('prep·' + (p.chunk_count || 0) + 'ch', 'parsed source' + (p.parser === 'manual-edit' ? ' (hand-edited)' : ' via ' + (p.parser || 'parser'))) : off('prep', 'not a data-prep source yet');
     const rag = p.in_rag ? on('rag', 'indexed in the RAG corpus') : off('rag', 'not in the RAG corpus (or corpus not built)');
     return '<div class="flex gap-1 wrap">' + parsed + prep + rag + '</div>';
   }

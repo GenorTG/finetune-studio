@@ -13,7 +13,7 @@ _SPA_JS = _ROOT / "src" / "finetune_studio" / "webui" / "static" / "js" / "spa.j
 _PROJECT_TEMPLATES = {
     "project.html": "overview",
     "project_training.html": "training",
-    "data_prep.html": "data-prep",
+    "data_prep.html": "pairs",
     "project_testing.html": "testing",
     "rag.html": "rag",
     "chat_v2.html": "chat",

@@ -957,7 +957,7 @@ def _convert_raw_to_md(path: Path, original_name: str) -> str:
             status_code=422,
             detail=(
                 f"cannot convert binary format '.{ext}' to markdown inline — "
-                "run Data Prep → Prep job (or upload a sibling .md) first"
+                "run a prep job on the pairs page (or upload a sibling .md) first"
             ),
         )
     if ext not in _CONVERTIBLE_EXTS and ext not in {"", "text"}:
