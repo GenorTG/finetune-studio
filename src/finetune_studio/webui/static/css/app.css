@@ -3495,11 +3495,11 @@ body::before {
 .sb-activity-count {
   background: var(--accent);
   color: var(--on-accent);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   padding: 0 5px;
   border: 1px solid var(--accent);
-  min-width: 14px;
+  min-width: 16px;
   text-align: center;
   font-family: "VT323", monospace;
   letter-spacing: 0.05em;
