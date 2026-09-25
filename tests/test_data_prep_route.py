@@ -37,8 +37,17 @@ def client(monkeypatch, tmp_path):
     # Re-bind the module-level Settings so app code reads the patched one.
     monkeypatch.setattr(cfg_mod, "settings", cfg)
 
-    # Reset the module-level db module's cached connection so it re-opens on
-    # the tmp db.
+    # ``db.connection`` imported ``settings`` by value at import time, so
+    # patching only ``cfg_mod.settings`` (or reloading the ``db`` package,
+    # which does not re-execute already-imported submodules) left every DB
+    # write pointing at the REAL dev database — each run added a qabug-*
+    # row to data/finetune_studio.db. Patch the reference ``_connect``
+    # actually reads, same fix as conftest (b573758).
+    import finetune_studio.db.connection as _conn
+
+    monkeypatch.setattr(_conn, "settings", cfg)
+    _conn.init_db()
+
     import importlib
 
     importlib.reload(db)
