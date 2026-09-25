@@ -10,17 +10,34 @@ __pycache__/
 # The previous `data/` matched src/finetune_studio/data/ and silently ignored
 # any new source files added under that path — which broke the file-library
 # build on fan-dragon. Use anchored patterns + explicit names instead.
-/data/
-/data/docs/
-/data/*.db
+# Everything under data/ is runtime state EXCEPT the one shipped seed file the
+# app reads at startup (the default benchmark suite). This must be `/data/*`
+# and not `/data/`: git does not descend into a directory excluded by a bare
+# `/data/`, so the negations below could never re-include anything. An earlier
+# unanchored `data/` also matched src/finetune_studio/data/ and silently
+# ignored new source files — which broke the file-library build on fan-dragon.
+/data/*
+# Three-step re-include, and it must stay three steps: `/data/*` excludes the
+# benchmarks DIR, and git never descends into an excluded dir, so the dir must
+# be un-ignored before the file inside it can be. Then re-ignore everything
+# else in benchmarks/ — a single `!/data/benchmarks/` exposed the runtime
+# hf_cache/ tree (21 files) that had been invisible under the old bare /data/.
+!/data/benchmarks/
+/data/benchmarks/*
+!/data/benchmarks/default.json
 /.finetune-studio.db
 *.sqlite
 *.sqlite3
-/data/projects/
-/data/models/
 /projects/
 /output/
 /screenshots/
+# Runtime dirs that were previously NOT ignored even though AGENTS.md lists
+# them as "runtime artifacts, never committed": a user's corpus, downloaded
+# weights, and inbound media staging all sat untracked-but-visible, one
+# `git add -A` away from being committed.
+/datasets/
+/models/
+/media/
 # Build artifacts that should never enter version control. The llama.cpp
 # build lives under .llama.cpp/ at the repo root (project-local, see
 # LLAMA_CPP_DIR in install.sh) so the install scripts don't reach into
@@ -33,6 +50,11 @@ __pycache__/
 # Common runtime / build artifacts
 *.log
 *.tmp
+# Tool caches / local agent state — never repo content.
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+/.serena/
 node_modules/
 
 # Workspace-level OpenClaw files (Amy persona, handoff notes).
