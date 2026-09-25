@@ -79,7 +79,7 @@ def test_testing_page_suite_options_match_discover(client) -> None:
             assert s["label"] in r.text
 
 
-def test_recent_suite_runs_helper() -> None:
+def test_recent_suite_runs_helper(temp_db) -> None:
     from finetune_studio import db
     from finetune_studio.webui.routes.pages import _recent_suite_runs
 
@@ -121,7 +121,7 @@ def test_testing_page_shows_recent_runs(client) -> None:
     assert "50.0%" in r.text
 
 
-def test_recent_suite_runs_respects_limit() -> None:
+def test_recent_suite_runs_respects_limit(temp_db) -> None:
     from finetune_studio import db
     from finetune_studio.webui.routes.pages import _recent_suite_runs
 

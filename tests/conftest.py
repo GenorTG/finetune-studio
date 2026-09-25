@@ -48,21 +48,33 @@ def _ensure_ocr_tessdata() -> None:
         print(f"\n[conftest] tessdata self-install failed: {e}", file=sys.stderr)
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def temp_db(monkeypatch):
-    """Create a temp SQLite DB file, init schema, yield path, cleanup."""
+    """Redirect the database at a temp SQLite file, yield its path, clean up.
+
+    Autouse: tests that touch ``db`` directly (without requesting
+    ``client``/``mock_settings``) used to write straight into the real dev
+    database — that produced 226 stray "Recent Suite Runs" / "Limit Suite
+    Runs" / "ensure-helper" project rows. Isolating by default makes the leak
+    structurally impossible instead of relying on every test remembering to
+    request a fixture.
+
+    The patch is a full-fidelity copy of the real ``Settings`` with only
+    ``db_path`` redirected, NOT a minimal stub: this fixture now applies to
+    every test in the suite, so a stub would strip ``data_dir``, ``rag``,
+    ``model_dirs``… from any application code a test exercises.
+    """
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
 
     # Patch settings.db_path before importing db modules
+    import dataclasses
+
     import finetune_studio.config as cfg
 
-    class _Fake:
-        pass
-    _Fake.db_path = db_path
-    _Fake.host = "127.0.0.1"
-    _Fake.port = 7860
-    fake = _Fake()
+    fake = dataclasses.replace(
+        cfg.settings, db_path=db_path, host="127.0.0.1", port=7860
+    )
     monkeypatch.setattr(cfg, "settings", fake)
 
     # ``db.connection`` bound its own ``settings`` reference at import
