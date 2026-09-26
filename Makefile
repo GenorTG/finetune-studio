@@ -37,7 +37,7 @@ run:
 webui: run
 
 test:
-	.venv/bin/python -m pytest tests/ -v --tb=short || python -m pytest tests/ -v --tb=short
+	.venv/bin/python -m pytest tests/ -v --tb=short
 
 lint:
 	.venv/bin/python -m ruff check src/ || true
