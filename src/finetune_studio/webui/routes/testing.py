@@ -346,7 +346,11 @@ def _ensure_model_loaded(project_id: str, override_path: str) -> JSONResponse | 
 @router.get("/projects/{pid}/training-datasets")
 async def list_training_datasets_for_eval(pid: str):
     """List project datasets that can be used for training-data evaluation."""
+    from finetune_studio import db
     from finetune_studio.db import datasets as datasets_db
+
+    if not db.get_project(pid):
+        return JSONResponse({"error": "project not found"}, status_code=404)
 
     rows = datasets_db.list_datasets(pid)
     return {

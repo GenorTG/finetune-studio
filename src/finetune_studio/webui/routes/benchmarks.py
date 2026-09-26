@@ -35,6 +35,19 @@ def _discover_suites(project_id: str | None = None) -> list[dict[str, Any]]:
     return discover_suites(project_id)
 
 
+def _project_404(pid: str) -> JSONResponse | None:
+    """Return a 404 response when the project does not exist, else None.
+
+    This module answers errors with ``JSONResponse`` rather than raising
+    ``HTTPException`` (see the 404s below), so the guard matches that style.
+    Called before any DB read, filesystem walk or stream so a bad pid never
+    starts work.
+    """
+    if not db.get_project(pid):
+        return JSONResponse({"error": "project not found"}, status_code=404)
+    return None
+
+
 def _parse_sample_knobs(body: dict[str, Any]) -> tuple[int | None, bool, int, str]:
     """Parse num_samples / full_run / seed / order from a run request body."""
     full_run = bool(body.get("full_run", False))
@@ -323,9 +336,12 @@ async def list_suites(project_id: str | None = None) -> list[dict[str, Any]]:
     return _discover_suites(project_id)
 
 
-@router.get("/projects/{pid}/runs")
-async def list_runs_with_benchmarks(pid: str) -> list[dict[str, Any]]:
+@router.get("/projects/{pid}/runs", response_model=None)
+async def list_runs_with_benchmarks(pid: str) -> list[dict[str, Any]] | JSONResponse:
     """List training runs for a project, augmented with latest benchmark score."""
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     runs = db.list_runs(pid)
     out: list[dict[str, Any]] = []
     for run in runs:
@@ -473,9 +489,12 @@ async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSO
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"error": str(exc)}, status_code=500)
 
-@router.get("/projects/{pid}/runs/{rid}/history")
-async def run_history(pid: str, rid: str) -> list[dict[str, Any]] | dict[str, str]:
+@router.get("/projects/{pid}/runs/{rid}/history", response_model=None)
+async def run_history(pid: str, rid: str) -> list[dict[str, Any]] | dict[str, str] | JSONResponse:
     """List all benchmarks for a specific run."""
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     run = db.get_run(rid)
     if not run or run["project_id"] != pid:
         return {"error": "not found"}
@@ -689,9 +708,12 @@ async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any
     )
 
 
-@router.get("/projects/{pid}/benchmarks/{bid}/cases")
-async def list_benchmark_cases(pid: str, bid: str) -> list[dict[str, Any]]:
+@router.get("/projects/{pid}/benchmarks/{bid}/cases", response_model=None)
+async def list_benchmark_cases(pid: str, bid: str) -> list[dict[str, Any]] | JSONResponse:
     """List all cases + judge verdicts for a benchmark."""
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     return db.list_cases(bid)
 
 

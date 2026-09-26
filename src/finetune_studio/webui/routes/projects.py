@@ -29,6 +29,18 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _project_404(pid: str) -> JSONResponse | None:
+    """Return a 404 response when the project does not exist, else None.
+
+    This module answers errors with ``JSONResponse`` (see ``get_project``),
+    so the guard matches that style instead of raising HTTPException. Called
+    before any DB read or filesystem scan so a bad pid starts no work.
+    """
+    if not db.get_project(pid):
+        return JSONResponse({"error": "project not found"}, status_code=404)
+    return None
+
+
 # ── Projects ─────────────────────────────────────────────────────────────
 
 @router.get("")
@@ -50,6 +62,9 @@ async def create_project(request: Request):
 
 @router.get("/{pid}")
 async def get_project(pid: str):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     p = db.get_project(pid)
     if not p:
         return {"error": "not found"}
@@ -190,6 +205,9 @@ async def promote_run(pid: str, request: Request):
 
 @router.get("/{pid}/rags")
 async def list_rags(pid: str):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     return db.list_rags(pid)
 
 
@@ -283,6 +301,9 @@ async def query_rag(pid: str, rid: str, request: Request):
 
 @router.get("/{pid}/rags/{rid}/stats")
 async def rag_stats(pid: str, rid: str):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     rag = db.get_rag(rid)
     if not rag:
         return {"error": "rag not found"}
@@ -294,6 +315,9 @@ async def rag_stats(pid: str, rid: str):
 
 @router.get("/{pid}/runs")
 async def list_runs(pid: str):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     return db.list_runs(pid)
 
 
@@ -316,6 +340,9 @@ async def create_run(pid: str, request: Request):
 
 @router.get("/{pid}/runs/{rid}")
 async def get_run(pid: str, rid: str):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     run = db.get_run(rid)
     if not run:
         return {"error": "not found"}
@@ -488,4 +515,7 @@ async def merge_run(pid: str, rid: str, request: Request, force: str = "false"):
 
 @router.get("/{pid}/runs/{rid}/benchmarks")
 async def list_run_benchmarks(pid: str, rid: str):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     return db.list_benchmarks(rid)

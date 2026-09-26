@@ -100,3 +100,158 @@ def test_compare_still_reports_missing_runs_as_400_when_project_exists(
         assert "run_a and run_b required" in resp.text
     finally:
         db.delete_project(pid)
+
+
+# ── The 24 remaining project-scoped GET routes (measured 2026-09-26) ──
+#
+# A leak probe over the app's own route table (59 project-scoped GET routes)
+# found these still answering 200 for a nonexistent project. Two shapes of
+# defect: routes that never checked the pid at all, and routes that returned
+# ``{"error": ...}`` as a normal dict, which FastAPI turns into a 200.
+
+LEAKING_ROUTES = [
+    # benchmarks.py
+    "/api/benchmarks/projects/{pid}/benchmarks/{bid}/cases",
+    "/api/benchmarks/projects/{pid}/runs",
+    "/api/benchmarks/projects/{pid}/runs/{rid}/history",
+    # projects.py
+    "/api/projects/{pid}",
+    "/api/projects/{pid}/data-prep/audit",
+    "/api/projects/{pid}/data-prep/chat/tools",
+    "/api/projects/{pid}/data-prep/export",
+    "/api/projects/{pid}/data-prep/ingestion-log",
+    "/api/projects/{pid}/data-prep/qa",
+    "/api/projects/{pid}/data-prep/runs/{run_id}/events",
+    "/api/projects/{pid}/data-prep/sources",
+    "/api/projects/{pid}/exports",
+    "/api/projects/{pid}/exports/{eid}/events",
+    "/api/projects/{pid}/rag",
+    "/api/projects/{pid}/rag/build/progress",
+    "/api/projects/{pid}/rag/build/status",
+    "/api/projects/{pid}/rags",
+    "/api/projects/{pid}/rags/{rid}/stats",
+    "/api/projects/{pid}/runs",
+    "/api/projects/{pid}/runs/{rid}",
+    "/api/projects/{pid}/runs/{rid}/benchmarks",
+    "/api/projects/{pid}/runs/{rid}/exports",
+    # testing.py
+    "/api/testing/projects/{pid}/training-datasets",
+    # training.py
+    "/api/training/runs/{pid}",
+]
+
+SUBS = {
+    "rid": "zz-no-such-run-zz",
+    "bid": "zz-no-such-bench-zz",
+    "eid": "zz-no-such-export-zz",
+    "run_id": "zz-no-such-run-zz",
+}
+
+
+def _fill(template: str) -> str:
+    """Substitute a bogus pid plus a bogus sub-resource id."""
+    out = template
+    for key, value in SUBS.items():
+        out = out.replace("{" + key + "}", value)
+    return out.replace("{pid}", MISSING_PID)
+
+
+@pytest.mark.parametrize("template", LEAKING_ROUTES)
+def test_missing_project_is_404(client: TestClient, template: str) -> None:
+    """Every project-scoped GET route owes a caller a 404, never a 200.
+
+    A 200 with an ``error`` key in the body reads as success to an XHR, so
+    the caller only discovers the project was missing by sniffing the body.
+    """
+    url = _fill(template)
+    resp = client.get(url)
+    assert resp.status_code == 404, (
+        f"{url} answered {resp.status_code} for a missing project; a caller "
+        f"would treat that as success. body={resp.text[:200]}"
+    )
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        # SSE routes must reject before the stream opens, so no 200 with a
+        # `data:` error frame can ever be emitted.
+        "/api/projects/{pid}/data-prep/runs/{run_id}/events",
+        "/api/projects/{pid}/exports/{eid}/events",
+        "/api/projects/{pid}/rag/build/progress",
+    ],
+)
+def test_streaming_routes_reject_before_the_stream(
+    client: TestClient, template: str,
+) -> None:
+    """No SSE route may answer 200 and bury the failure in a data frame."""
+    url = _fill(template)
+    resp = client.get(url)
+    assert resp.status_code == 404, (
+        f"{url} answered {resp.status_code}; the stream started and only "
+        f"reported the failure inside a frame. body={resp.text[:200]}"
+    )
+    assert not resp.text.startswith("data:"), (
+        f"{url} emitted an SSE body instead of rejecting the bad project"
+    )
+
+
+def test_rag_status_does_not_leak_a_corpus_path(client: TestClient) -> None:
+    """A bad pid must not get a real absolute ``corpus_dir`` back.
+
+    ``/api/projects/{pid}/rag`` builds its path from the pid, so without a
+    guard a nonexistent project got a 200 naming a directory on this host.
+    """
+    resp = client.get(f"/api/projects/{MISSING_PID}/rag")
+    assert resp.status_code == 404
+    assert "corpus_dir" not in resp.text, (
+        f"a missing project leaked its corpus_dir: {resp.text[:200]}"
+    )
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        "/api/projects/{pid}/runs",
+        "/api/projects/{pid}/rags",
+        "/api/projects/{pid}/exports",
+        "/api/projects/{pid}/data-prep/sources",
+    ],
+)
+def test_a_real_project_still_answers_200(
+    client: TestClient, template: str,
+) -> None:
+    """The guard must not turn a valid project into a 404 (regression gate).
+
+    Each of these is a "list" route that returns an empty collection for a
+    project that exists but has no children — that empty answer is what the
+    UI relies on to render its empty state.
+    """
+    from finetune_studio import db
+
+    project = db.create_project(name="valid-project-404-probe")
+    try:
+        pid = project["id"] if isinstance(project, dict) else project
+        resp = client.get(_fill(template).replace(MISSING_PID, pid))
+        assert resp.status_code == 200, (
+            f"{template} answered {resp.status_code} for a real project; the "
+            f"guard is too broad. body={resp.text[:200]}"
+        )
+    finally:
+        db.delete_project(pid)
+
+
+def test_a_real_project_with_no_runs_still_returns_an_empty_list(
+    client: TestClient,
+) -> None:
+    """A brand-new project's run list is ``[]``, not a 404 or an error body."""
+    from finetune_studio import db
+
+    project = db.create_project(name="empty-runs-404-probe")
+    try:
+        pid = project["id"] if isinstance(project, dict) else project
+        resp = client.get(f"/api/projects/{pid}/runs")
+        assert resp.status_code == 200
+        assert resp.json() == [], f"expected [], got {resp.text[:200]}"
+    finally:
+        db.delete_project(pid)

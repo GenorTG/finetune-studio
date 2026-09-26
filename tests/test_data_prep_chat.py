@@ -272,11 +272,29 @@ class TestChatRouteSmoke:
         assert "ok" in body or "error" in body  # may fail because project doesn't exist
 
     def test_tools_catalog_endpoint(self, client):
+        """The catalog is a static listing, but the route is still scoped to a
+        project, so it needs one that exists (it used to probe the literal pid
+        'test' and only answered 200 because nothing validated the project).
+        """
+        from finetune_studio import db
+
+        project = db.create_project(name="chat-tools-catalog-probe")
+        try:
+            pid = project["id"] if isinstance(project, dict) else project
+            r = client.get(f"/api/projects/{pid}/data-prep/chat/tools")
+            assert r.status_code == 200
+            body = r.json()
+            tool_names = {t["name"] for t in body["tools"]}
+            assert {"list_sources", "read_source", "list_qa_pairs", "create_qa_pairs"} <= tool_names
+        finally:
+            db.delete_project(pid)
+
+    def test_tools_catalog_endpoint_404s_for_a_missing_project(self, client):
+        """Regression: a bad pid must be a 404, not a 200 with a catalog."""
         r = client.get("/api/projects/test/data-prep/chat/tools")
-        assert r.status_code == 200
-        body = r.json()
-        tool_names = {t["name"] for t in body["tools"]}
-        assert {"list_sources", "read_source", "list_qa_pairs", "create_qa_pairs"} <= tool_names
+        assert r.status_code == 404, (
+            f"missing project answered {r.status_code}; body={r.text[:200]}"
+        )
 
 
 # ── InferenceEngine.unload cleanup ──────────────────────────────────────

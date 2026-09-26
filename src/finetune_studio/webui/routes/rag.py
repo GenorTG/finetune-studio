@@ -39,6 +39,20 @@ def _corpus_dir(pid: str) -> Path:
     return _CORPORA / pid
 
 
+def _project_404(pid: str) -> JSONResponse | None:
+    """Return a 404 response when the project does not exist, else None.
+
+    This module answers errors with ``JSONResponse`` (see the corpus 404s
+    below), so the guard matches that style. Called before any corpus
+    directory is touched — otherwise a bad pid gets a real ``corpus_dir``
+    path back with a 200.
+    """
+    from finetune_studio import db
+    if not db.get_project(pid):
+        return JSONResponse({"error": "project not found"}, status_code=404)
+    return None
+
+
 def _build_meta(pid: str, name: str) -> dict:
     """Sidecar DB-like info stored next to the project. For now: just counts."""
     return {"name": name, "pid": pid}
@@ -86,6 +100,9 @@ class SettingsPatch(BaseModel):
 
 @router.get("/{pid}/rag")
 async def rag_status(pid: str):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     from finetune_studio.data.rag_portable import PortableRAG
     rag = PortableRAG(_corpus_dir(pid))
     if not rag.exists():
@@ -343,6 +360,9 @@ def _rag_build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
 @router.get("/{pid}/rag/build/status")
 async def rag_build_status(pid: str):
     """One-shot corpus-build progress (SSE silent fallback for /build/progress)."""
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     return _rag_build_snapshot(pid)
 
 
@@ -358,6 +378,10 @@ async def rag_build_progress(pid: str):
     ``GET .../rag/build/status`` via fts.subscribe (fallbackMs ≥ 5s).
     """
     import asyncio
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
 
     async def gen():
         start = asyncio.get_event_loop().time()

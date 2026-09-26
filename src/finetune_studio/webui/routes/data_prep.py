@@ -28,6 +28,19 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 _pages = APIRouter()
 
+
+def _project_404(pid: str) -> JSONResponse | None:
+    """Return a 404 response when the project does not exist, else None.
+
+    This module answers errors with ``JSONResponse`` (see ``get_prep_run``),
+    so the guard matches that style. Called before any project filesystem
+    walk, coverage-fill pass or stream so a bad pid starts no work.
+    """
+    from finetune_studio import db
+    if not db.get_project(pid):
+        return JSONResponse({"error": "project not found"}, status_code=404)
+    return None
+
 # In-memory run registry. Keyed by (pid, run_id).
 _RUNS: dict[tuple[str, str], dict] = {}
 
@@ -323,6 +336,9 @@ async def start_prep(
 
 @router.get("/projects/{pid}/data-prep/runs/{run_id}/events")
 async def stream_events(pid: str, run_id: str):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     from fastapi.responses import StreamingResponse
     async def gen():
         run = _RUNS.get((pid, run_id))
@@ -381,6 +397,9 @@ async def get_prep_run(pid: str, run_id: str):
 
 @router.get("/projects/{pid}/data-prep/sources")
 async def list_sources_route(pid: str):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     from finetune_studio.data import project_filesystem as pfs
     sources = pfs.list_qa_sources(pid)
     out = [{
@@ -448,6 +467,9 @@ async def promote_source_route(pid: str, request: Request):
 
 @router.get("/projects/{pid}/data-prep/qa")
 async def list_qa_route(pid: str, source_id: str | None = None, status: str | None = None):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     from finetune_studio.data import project_filesystem as pfs
     return {"items": pfs.list_qa_pairs(pid, source_id=source_id, status=status)}
 
@@ -484,6 +506,9 @@ async def delete_source_route(pid: str, source_id: str):
 @router.get("/projects/{pid}/data-prep/export")
 async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
                      force: bool = False):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     from finetune_studio.data.prep import export_qa_jsonl
     # 100%-coverage gate: run the deterministic fill pass first so chunks the
     # stochastic mining pass never converted still land as approved extractive
@@ -566,6 +591,9 @@ async def file_metadata_route(pid: str, sha256: str):
 
 @router.get("/projects/{pid}/data-prep/ingestion-log")
 async def ingestion_log_route(pid: str, limit: int = 200):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     from finetune_studio.data import project_filesystem as pfs
     return {"events": pfs.read_ingestion_log(pid, limit=limit)}
 
@@ -573,6 +601,9 @@ async def ingestion_log_route(pid: str, limit: int = 200):
 @router.get("/projects/{pid}/data-prep/audit")
 async def data_prep_audit(pid: str) -> dict:
     """Return deterministic raw-file and curated-dataset fidelity evidence."""
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     from finetune_studio.data.audit import audit_project_sources, audit_qa_pairs
 
     return {"sources": audit_project_sources(pid), "dataset": audit_qa_pairs(pid)}

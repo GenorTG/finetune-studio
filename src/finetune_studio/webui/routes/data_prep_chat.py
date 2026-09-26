@@ -785,4 +785,7 @@ def _chat_local(backend: dict, messages: list[dict], gen: dict | None = None) ->
 async def list_tools(pid: str):
     """Catalog of tools the chat exposes to the model (useful for debugging
     + for UI to show a help panel)."""
+    from finetune_studio import db
+    if not db.get_project(pid):
+        return JSONResponse({"error": "project not found"}, status_code=404)
     return {"tools": TOOLS_CATALOG}

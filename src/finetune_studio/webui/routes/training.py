@@ -378,8 +378,14 @@ async def list_training_runs():
 
 @router.get("/runs/{pid}")
 async def list_training_runs_for_project(pid: str):
-    """List training runs for a specific project."""
+    """List training runs for a specific project.
+
+    The path param is named ``pid`` but it is a *project* id, not a run id.
+    """
+    from finetune_studio import db
     from finetune_studio.db.runs import list_runs
+    if not db.get_project(pid):
+        return JSONResponse({"error": "project not found"}, status_code=404)
     return list_runs(pid)
 
 

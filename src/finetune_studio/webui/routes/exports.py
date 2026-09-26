@@ -29,6 +29,18 @@ from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
 log = logging.getLogger(__name__)
 router = APIRouter()
 
+
+def _project_404(pid: str) -> JSONResponse | None:
+    """Return a 404 response when the project does not exist, else None.
+
+    This module answers errors with ``JSONResponse`` (see ``get_export``),
+    so the guard matches that style instead of raising HTTPException. Called
+    before the export row is read and before any stream starts.
+    """
+    if not db.get_project(pid):
+        return JSONResponse({"error": "project not found"}, status_code=404)
+    return None
+
 # Quantization levels supported by llama.cpp's llama-quantize + convert's
 # built-in --outtype flag. f16/bf16/f32/Q8_0 are single-step via convert;
 # everything else needs the two-step HF -> fp16 GGUF -> quantized flow.
@@ -286,6 +298,10 @@ async def get_export(pid: str, eid: str):
 @router.get("/projects/{pid}/exports/{eid}/events")
 async def export_events(pid: str, eid: str):
     """SSE stream of a single export row until it reaches a terminal status."""
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+
     async def gen():
         last: str | None = None
         while True:
@@ -313,11 +329,17 @@ async def export_events(pid: str, eid: str):
 
 @router.get("/projects/{pid}/runs/{rid}/exports")
 async def list_run_exports(pid: str, rid: str):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     return db.list_exports_for_run(rid)
 
 
 @router.get("/projects/{pid}/exports")
 async def list_project_exports(pid: str, limit: int = 100):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     return db.list_exports_for_project(pid, limit=limit)
 
 
