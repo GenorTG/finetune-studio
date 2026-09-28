@@ -21,6 +21,10 @@ from finetune_studio.webui.app import app
 def client_and_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     db_path = tmp_path / "fts_test.db"
     monkeypatch.setattr(settings, "db_path", str(db_path))
+    # The shared autouse fixture patches db.connection.settings separately;
+    # keep this module's custom path aligned with the connection actually used.
+    import finetune_studio.db.connection as connection
+    monkeypatch.setattr(connection.settings, "db_path", str(db_path))
     db.init_db()
     return TestClient(app), db_path
 

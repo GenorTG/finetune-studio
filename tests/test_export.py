@@ -49,8 +49,13 @@ class TestExportHelpers:
         _find_llama_tool returns None. We simulate this by clearing PATH
         and pointing search paths at a temp dir that has nothing in it."""
         from finetune_studio.webui.routes import exports
+        from finetune_studio.training import gguf_convert
         monkeypatch.setattr(exports, "LLAMA_CPP_SEARCH_PATHS",
                             [tempfile.mkdtemp()])
+        # Quantizer/script discovery is shared with the training exporter and
+        # intentionally has its own search-path helper.
+        monkeypatch.setattr(gguf_convert, "llama_cpp_search_paths",
+                            lambda: [tempfile.mkdtemp()])
         monkeypatch.setenv("PATH", "")
         assert exports._find_llama_tool("llama-quantize") is None
         assert exports._find_convert_script() is None
