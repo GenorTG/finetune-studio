@@ -421,6 +421,15 @@ class TestRepairTorchCommand:
         assert "--force-reinstall" in argv
         assert "--no-deps" in argv
         assert "llama-cpp-python" in argv
+        # MUST target the venv python (not sys.executable / miniconda).
+        # Pre-fix bug: repair used sys.executable which was the host's
+        # miniconda python, so the source build landed in the wrong
+        # site-packages and never reached the venv.
+        expected_py = str(venv / "bin" / "python")
+        assert argv[0] == expected_py, \
+            f"expected venv python {expected_py!r}, got {argv[0]!r}"
+        assert "miniconda" not in argv[0], \
+            f"pip must target venv, not miniconda; got {argv[0]!r}"
         # Must NOT use abetlen's prebuilt wheel URL (that path lacks sm_120)
         assert "--extra-index-url" not in argv
         # Must pass CMAKE_ARGS=... sm_120 to subprocess.run via env=

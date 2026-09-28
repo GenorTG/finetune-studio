@@ -407,9 +407,20 @@ install_llama_cpp_cli() {
         git clone --depth 1 https://github.com/ggerganov/llama.cpp "$LLAMA_CPP_DIR" \
             || die "git clone llama.cpp failed"
     fi
-    pip_install --quiet \
-        -r "$LLAMA_CPP_DIR/requirements/requirements-convert_hf_to_gguf.txt" 2>&1 | tail -3 \
-        || warn "convert_hf_to_gguf pip deps install failed — conversion may not work."
+    # Only install convert_hf_to_gguf.py Python deps when the Python
+    # conversion path is needed. Two reasons to skip:
+    #   (a) --llama-cpp-only builds the C++ CLI and does not need them.
+    #   (b) requirements-convert_hf_to_gguf.txt pins torch==2.11.0 from
+    #       the PyTorch CPU index, which silently downgrades the venv's
+    #       CUDA-matched torch (verified fan-dragon crash, 2026-09-28:
+    #       2.12.1+cu130 → 2.11.0+cpu, mixed torchaudio broke imports).
+    #       When we DO install (normal path), ${CONSTRAINT_ARGS[@]} pins
+    #       the existing torch family so the upgrade is a no-op.
+    if [ "$LLAMA_CPP_ONLY" != "1" ]; then
+        pip_install --quiet "${CONSTRAINT_ARGS[@]}" \
+            -r "$LLAMA_CPP_DIR/requirements/requirements-convert_hf_to_gguf.txt" 2>&1 | tail -3 \
+            || warn "convert_hf_to_gguf pip deps install failed — conversion may not work."
+    fi
     cmake -S "$LLAMA_CPP_DIR" -B "$LLAMA_CPP_DIR/build" 2>&1 | tail -2 \
         || die "cmake configure failed."
     cmake --build "$LLAMA_CPP_DIR/build" --config Release -j 2>&1 | tail -3 \

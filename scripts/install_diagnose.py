@@ -590,7 +590,7 @@ def repair(
             idx = f"https://download.pytorch.org/whl/{gpu.cuda_ver}"
             log(f"[repair] reinstalling torch family from {idx}")
             r = subprocess.run([
-                sys.executable, "-m", "pip", "install",
+                str(venv_py), "-m", "pip", "install",
                 "--reinstall", "--index-url", idx,
                 "torch", "torchvision", "torchaudio",
             ], capture_output=True, text=True, timeout=900)
@@ -602,7 +602,7 @@ def repair(
             idx = "https://download.pytorch.org/whl/cpu"
             log(f"[repair] reinstalling torch (CPU) from {idx}")
             r = subprocess.run([
-                sys.executable, "-m", "pip", "install", "--reinstall",
+                str(venv_py), "-m", "pip", "install", "--reinstall",
                 "--index-url", idx, "torch", "torchvision", "torchaudio",
             ], capture_output=True, text=True, timeout=900)
             actions.append(f"torch CPU reinstall: {'ok' if r.returncode == 0 else 'FAIL'}")
@@ -625,7 +625,7 @@ def repair(
             env = os.environ.copy()
             env["CMAKE_ARGS"] = f"-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES={arch}"
             cmd = [
-                sys.executable, "-m", "pip", "install",
+                str(venv_py), "-m", "pip", "install",
                 "--force-reinstall", "--no-deps", "llama-cpp-python",
             ]
             r = subprocess.run(
@@ -639,7 +639,7 @@ def repair(
                 log((r.stderr or r.stdout)[-1200:])
         elif gpu.vendor == "nvidia" and gpu.cuda_ver:
             cmd = [
-                sys.executable, "-m", "pip", "install", "--reinstall",
+                str(venv_py), "-m", "pip", "install", "--reinstall",
                 "--extra-index-url",
                 f"https://abetlen.github.io/llama-cpp-python/whl/"
                 f"{gpu.cuda_ver}/llama-cpp-python/",
@@ -654,7 +654,7 @@ def repair(
                 log(r.stderr[-800:])
         else:
             cmd = [
-                sys.executable, "-m", "pip", "install", "--reinstall",
+                str(venv_py), "-m", "pip", "install", "--reinstall",
                 "llama-cpp-python>=0.3.0",
             ]
             log("[repair] reinstalling llama-cpp-python (CPU)")
@@ -668,7 +668,7 @@ def repair(
     if PIP_INSTALL_EDITABLE in by_code:
         log("[repair] syncing editable deps (pip install -e .)")
         r = subprocess.run([
-            sys.executable, "-m", "pip", "install", "-e", ".",
+            str(venv_py), "-m", "pip", "install", "-e", ".",
         ], capture_output=True, text=True, timeout=600)
         actions.append(f"pip -e .: {'ok' if r.returncode == 0 else 'FAIL'}")
 
