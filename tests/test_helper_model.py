@@ -9,9 +9,13 @@ from unittest.mock import MagicMock
 import pytest
 
 from finetune_studio.models.helper import (
+    ALTERNATE_HELPER_GGUF_BASENAME,
+    ALTERNATE_HELPER_LABEL,
+    ALTERNATE_HELPER_PROVIDER_ID,
     DEFAULT_HELPER_GGUF_BASENAME,
     DEFAULT_HELPER_LABEL,
     DEFAULT_HELPER_PROVIDER_ID,
+    alternate_helper_gguf_path,
     annotate_provider,
     helper_display_label,
     is_helper_gguf_path,
@@ -23,7 +27,7 @@ from finetune_studio.models.helper import (
 
 def test_helper_constants_and_label() -> None:
     assert DEFAULT_HELPER_PROVIDER_ID == "local-default"
-    assert "8B" in DEFAULT_HELPER_LABEL
+    assert "12B" in DEFAULT_HELPER_LABEL
     assert DEFAULT_HELPER_LABEL.startswith("Helper")
     assert helper_display_label(name="Local GGUF").startswith("Helper ·")
     assert is_helper_gguf_path(
@@ -51,6 +55,10 @@ def test_providers_api_exposes_helper(client: Any) -> None:
     body = r.json()
     assert body.get("helper_provider_id") == DEFAULT_HELPER_PROVIDER_ID
     assert "Helper" in (body.get("helper_label") or "")
+    # Both helpers are seeded as local providers.
+    helpers = [p for p in body["providers"] if p.get("is_helper")]
+    assert any(p.get("id") == DEFAULT_HELPER_PROVIDER_ID for p in helpers), helpers
+    assert any(p.get("id") == ALTERNATE_HELPER_PROVIDER_ID for p in helpers), helpers
     assert "providers" in body
     helpers = [p for p in body["providers"] if p.get("is_helper")]
     assert helpers, "seeded local-default helper must be present"

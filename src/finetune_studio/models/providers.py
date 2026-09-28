@@ -304,8 +304,27 @@ def _local_helper_preset() -> dict:
     }
 
 
+def _alternate_helper_preset() -> dict:
+    """Second local helper (Qwen3-30B-A3B) — swap via the Inference picker."""
+    from finetune_studio.models.helper import (
+        ALTERNATE_HELPER_LABEL,
+        ALTERNATE_HELPER_PROVIDER_ID,
+        alternate_helper_gguf_path,
+    )
+
+    return {
+        "id": ALTERNATE_HELPER_PROVIDER_ID,
+        "name": ALTERNATE_HELPER_LABEL,
+        "kind": "local_gguf",
+        "model_id": alternate_helper_gguf_path(),
+        "base_url": "",
+        "api_key": "",
+    }
+
+
 PROVIDER_PRESETS: list[dict] = [
     _local_helper_preset(),
+    _alternate_helper_preset(),
     {"id": "openai", "name": "OpenAI", "kind": "openai_compat", "base_url": "https://api.openai.com/v1", "model_id": "gpt-4o-mini", "api_key": ""},
     {"id": "openrouter", "name": "OpenRouter", "kind": "openai_compat", "base_url": "https://openrouter.ai/api/v1", "model_id": "anthropic/claude-3.5-sonnet", "api_key": ""},
     {"id": "opencode-go", "name": "opencode-go", "kind": "openai_compat", "base_url": "https://api.opencode.ai/v1", "model_id": "default", "api_key": ""},

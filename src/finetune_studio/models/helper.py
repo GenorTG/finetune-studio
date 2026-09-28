@@ -16,11 +16,21 @@ from typing import Any
 DEFAULT_HELPER_PROVIDER_ID: str = "local-default"
 
 # Clear UI / error-message label (not the bare filename alone).
-DEFAULT_HELPER_LABEL: str = "Helper · Qwen3-8B GGUF"
+DEFAULT_HELPER_LABEL: str = "Helper · Gemma 4 12B Uncensored GGUF"
 
-# Helper seat is the 8B Q5_K_M fetched from Qwen/Qwen3-8B-GGUF (2026-09-18).
+# Helper seat is the Gemma 4 12B Uncensored Q4_K_M
+# (zaakirio/gemma-4-12b-it-uncensored-GGUF, fetched 2026-09-28).
 # Genor's fleet rule: helpers must be <27B; the 27B stays off the helper seat.
-DEFAULT_HELPER_GGUF_BASENAME: str = "Qwen3-8B-Q5_K_M.gguf"
+DEFAULT_HELPER_GGUF_BASENAME: str = "gemma-4-12b-it-uncensored-Q4_K_M.gguf"
+
+# Alternate helper — bigger MoE, available as a second local provider so the
+# user can swap via the Inference picker without re-downloading.
+# Qwen3-30B-A3B IQ4_XS (unsloth dynamic, ~16 GB on disk) — fits 16 GB VRAM with
+# a small KV cache; the 30B weights MUST all be memory-resident (3B active is
+# compute, not memory).
+ALTERNATE_HELPER_PROVIDER_ID: str = "local-qwen30b-a3b"
+ALTERNATE_HELPER_LABEL: str = "Helper · Qwen3-30B-A3B Uncensored GGUF"
+ALTERNATE_HELPER_GGUF_BASENAME: str = "Qwen3-30B-A3B-Instruct-2507-IQ4_XS.gguf"
 
 # Loader defaults for the seeded local_gguf provider.
 # 32k ctx per Genor (agentic tool-calling needs room); q8_0 KV cache keeps
@@ -40,6 +50,12 @@ DEFAULT_HELPER_EXTRA: dict[str, Any] = {
     "type_v": 8,
 }
 
+# Alternate helper (Qwen3-30B-A3B) gets the same loader defaults. The IQ4_XS
+# quant is small enough that f16 KV cache fits at 16k ctx on 16 GB; use q8_0
+# for the same reason as the default — ~9 GB f16 KV at 32k would evict
+# weights from a 16 GB card.
+ALTERNATE_HELPER_EXTRA: dict[str, Any] = dict(DEFAULT_HELPER_EXTRA)
+
 
 def default_helper_gguf_path() -> str:
     """Absolute path to the configured helper GGUF on this host."""
@@ -52,6 +68,20 @@ def default_helper_gguf_path() -> str:
         / "models"
         / "gguf"
         / DEFAULT_HELPER_GGUF_BASENAME
+    )
+
+
+def alternate_helper_gguf_path() -> str:
+    """Absolute path to the secondary helper GGUF on this host."""
+    override = (os.environ.get("FTS_ALT_HELPER_GGUF") or "").strip()
+    if override:
+        return str(Path(override).expanduser())
+    return str(
+        Path.home()
+        / "finetune-studio"
+        / "models"
+        / "gguf"
+        / ALTERNATE_HELPER_GGUF_BASENAME
     )
 
 
@@ -87,15 +117,19 @@ def is_helper_gguf_path(path: str | None) -> bool:
     """True when ``path`` is the configured helper GGUF (env or default)."""
     if paths_match(path, default_helper_gguf_path()):
         return True
+    if paths_match(path, alternate_helper_gguf_path()):
+        return True
     # Basename match covers relative vs absolute layout differences.
-    return helper_basename(path) == DEFAULT_HELPER_GGUF_BASENAME
+    base = helper_basename(path)
+    return base in (DEFAULT_HELPER_GGUF_BASENAME, ALTERNATE_HELPER_GGUF_BASENAME)
 
 
 def is_helper_provider(row: dict[str, Any] | None) -> bool:
-    """True when a provider row is the configured local helper."""
+    """True when a provider row is a configured local helper (default OR alternate)."""
     if not row:
         return False
-    if (row.get("id") or "") == DEFAULT_HELPER_PROVIDER_ID:
+    pid = (row.get("id") or "")
+    if pid in (DEFAULT_HELPER_PROVIDER_ID, ALTERNATE_HELPER_PROVIDER_ID):
         return True
     return is_helper_gguf_path(row.get("model_id") or row.get("model_path"))
 
@@ -112,11 +146,24 @@ def helper_display_label(
     if (
         cleaned
         and cleaned not in ("Local GGUF", "local", DEFAULT_HELPER_PROVIDER_ID)
-        and ("27B" in cleaned or "helper" in cleaned.lower() or "8B" in cleaned)
+        and (
+            "27B" in cleaned
+            or "helper" in cleaned.lower()
+            or any(tag in cleaned for tag in ("8B", "12B", "A3B"))
+        )
     ):
         return f"Helper · {cleaned}"
-    base = helper_basename(model_id) or DEFAULT_HELPER_GGUF_BASENAME
-    stem = base[: -len(".gguf")] if base.lower().endswith(".gguf") else base
+    # When given only a path/model_id, map known helper basenames to the
+    # canonical label so the UI doesn't show lowercase "12b" / "a3b" fragments
+    # in the basename.
+    base = helper_basename(model_id)
+    if base == DEFAULT_HELPER_GGUF_BASENAME:
+        return DEFAULT_HELPER_LABEL
+    if base == ALTERNATE_HELPER_GGUF_BASENAME:
+        return ALTERNATE_HELPER_LABEL
+    stem = (base or DEFAULT_HELPER_GGUF_BASENAME)[: -len(".gguf")] if (
+        base or ""
+    ).lower().endswith(".gguf") else (base or DEFAULT_HELPER_GGUF_BASENAME)
     return f"Helper · {stem}"
 
 

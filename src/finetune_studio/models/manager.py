@@ -45,11 +45,17 @@ def _ensure_db() -> None:
             value TEXT NOT NULL
         );
         """)
-        # Default local helper (27B GGUF) if no providers configured yet.
+        # Default local helper (Gemma 4 12B Uncensored GGUF) if no providers
+        # configured yet, plus the alternate (Qwen3-30B-A3B) as a second local
+        # helper so the user can swap via the Inference picker.
         from finetune_studio.models.helper import (
+            ALTERNATE_HELPER_EXTRA,
+            ALTERNATE_HELPER_LABEL,
+            ALTERNATE_HELPER_PROVIDER_ID,
             DEFAULT_HELPER_EXTRA,
             DEFAULT_HELPER_LABEL,
             DEFAULT_HELPER_PROVIDER_ID,
+            alternate_helper_gguf_path,
             default_helper_gguf_path,
         )
 
@@ -67,6 +73,20 @@ def _ensure_db() -> None:
                     "",
                     "",
                     json_dumps(dict(DEFAULT_HELPER_EXTRA)),
+                    now,
+                ),
+            )
+            c.execute(
+                "INSERT INTO model_providers (id, name, kind, model_id, base_url, api_key, extra_json, created_at) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (
+                    ALTERNATE_HELPER_PROVIDER_ID,
+                    ALTERNATE_HELPER_LABEL,
+                    "local_gguf",
+                    alternate_helper_gguf_path(),
+                    "",
+                    "",
+                    json_dumps(dict(ALTERNATE_HELPER_EXTRA)),
                     now,
                 ),
             )
@@ -90,6 +110,50 @@ def _ensure_db() -> None:
                 "WHERE id = ? AND model_id LIKE ?",
                 (default_helper_gguf_path(), DEFAULT_HELPER_PROVIDER_ID,
                  "%Qwen3.8-27B-abliterated-Q4_K_M.gguf"),
+            )
+            # 2026-09-28 fleet update: seed the alternate (Qwen3-30B-A3B)
+            # helper row when the user upgrades past Gemma-only helpers.
+            cur_alt = c.execute(
+                "SELECT COUNT(*) FROM model_providers WHERE id = ?",
+                (ALTERNATE_HELPER_PROVIDER_ID,),
+            ).fetchone()
+            if cur_alt[0] == 0:
+                c.execute(
+                    "INSERT INTO model_providers (id, name, kind, model_id, base_url, api_key, extra_json, created_at) "
+                    "VALUES (?,?,?,?,?,?,?,?)",
+                    (
+                        ALTERNATE_HELPER_PROVIDER_ID,
+                        ALTERNATE_HELPER_LABEL,
+                        "local_gguf",
+                        alternate_helper_gguf_path(),
+                        "",
+                        "",
+                        json_dumps(dict(ALTERNATE_HELPER_EXTRA)),
+                        time.time(),
+                    ),
+                )
+            # 2026-09-28 fleet update: previous default was an 8B Q5_K_M
+            # (Qwen3-8B) that the user is now replacing with Gemma 4 12B. Any
+            # lingering row whose model_id points at the old 8B filename is
+            # migrated to the new default label + path.
+            c.execute(
+                "UPDATE model_providers SET name = ?, model_id = ? "
+                "WHERE id = ? AND model_id LIKE ?",
+                (
+                    DEFAULT_HELPER_LABEL,
+                    default_helper_gguf_path(),
+                    DEFAULT_HELPER_PROVIDER_ID,
+                    "%Qwen3-8B-Q5_K_M.gguf",
+                ),
+            )
+            c.execute(
+                "UPDATE model_providers SET name = ? "
+                "WHERE id = ? AND name = ?",
+                (
+                    DEFAULT_HELPER_LABEL,
+                    DEFAULT_HELPER_PROVIDER_ID,
+                    "Helper · Qwen3-8B GGUF",
+                ),
             )
 
 
