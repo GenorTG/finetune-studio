@@ -624,9 +624,15 @@ def repair(
             log(f"[repair] rebuilding llama-cpp-python from source for sm_{arch} (Blackwell)")
             env = os.environ.copy()
             env["CMAKE_ARGS"] = f"-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES={arch}"
+            # --no-binary llama-cpp-python forces source build even when
+            # a matching wheel is in pip's cache (the cached abetlen wheel
+            # is the broken one — no sm_120 kernels). --no-deps prevents
+            # torch/peft/etc from being touched.
             cmd = [
                 str(venv_py), "-m", "pip", "install",
-                "--force-reinstall", "--no-deps", "llama-cpp-python",
+                "--force-reinstall", "--no-deps",
+                "--no-binary", "llama-cpp-python",
+                "llama-cpp-python",
             ]
             r = subprocess.run(
                 cmd, env=env, capture_output=True, text=True, timeout=1800,
