@@ -42,6 +42,9 @@ def test_nf4_unsloth_cache_resolves_to_qwen_sibling(
     hub = home / ".cache" / "huggingface" / "hub"
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("HF_HOME", str(home / ".cache" / "huggingface"))
+    # HF_HUB_CACHE takes precedence over HF_HOME; isolate it too so the
+    # sibling snapshot created below is the cache this test actually scans.
+    monkeypatch.delenv("HF_HUB_CACHE", raising=False)
     # Quantized training base (what Unsloth loaded).
     quant_snap = hub / "models--unsloth--qwen3-0.6b-unsloth-bnb-4bit" / "snapshots" / "abc123"
     _write_config(quant_snap, quantized=True)

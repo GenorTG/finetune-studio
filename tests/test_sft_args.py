@@ -1,15 +1,15 @@
 """Regression: local SFT args must not require a Hub token.
 
-Fan-dragon (TRL 0.24 + transformers 5.x) failed POST /api/training/start with:
-  KeyError: 'push_to_hub_token'
-when SFTTrainer converted plain TrainingArguments via dict_args.pop(...).
+Fan-dragon (TRL + transformers) failed POST /api/training/start when
+SFTTrainer converted plain TrainingArguments through a version-specific
+``dict_args.pop(...)`` path. The production contract is to build an SFTConfig
+for local training and leave Hub publishing disabled.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from transformers import TrainingArguments
 from trl import SFTConfig
 
@@ -73,18 +73,3 @@ def test_build_sft_args_from_config_maps_training_config(
     assert args.gradient_accumulation_steps == cfg.gradient_accumulation_steps
     assert args.push_to_hub is False
     assert args.hub_token is None
-
-
-def test_plain_training_args_lack_push_to_hub_token(
-    tmp_path: Path,
-) -> None:
-    """Documents TRL 0.24 / transformers 5.x mismatch behind the live failure."""
-    plain = TrainingArguments(
-        output_dir=str(tmp_path / "plain"),
-        report_to="none",
-    )
-    dict_args = plain.to_dict()
-    dict_args["hub_token"] = plain.hub_token
-    assert "push_to_hub_token" not in dict_args
-    with pytest.raises(KeyError, match="push_to_hub_token"):
-        dict_args.pop("push_to_hub_token")
