@@ -308,7 +308,7 @@ class TestRepairTorchCommand:
         import install_diagnose as d
         gpu_stub = d.GpuInfo(
             vendor="nvidia", name="RTX 3090", driver_version="610.57.04",
-            cuda_ver="cu130", cuda_toolkit_path="/opt/cuda",
+            cuda_ver="cu130", compute_cap="8.6", cuda_toolkit_path="/opt/cuda",
         )
         issues = [d.Issue(d.REINSTALL_TORCH, "broken", "fix it", severity=2)]
 
@@ -353,7 +353,7 @@ class TestRepairTorchCommand:
         import install_diagnose as d
         gpu_stub = d.GpuInfo(
             vendor="none", name="(no GPU)", driver_version="",
-            cuda_ver="", cuda_toolkit_path="",
+            cuda_ver="", compute_cap="", cuda_toolkit_path="",
         )
         issues = [d.Issue(d.REINSTALL_TORCH, "broken", "fix it", severity=2)]
         with patch.object(d, "GpuInfo") as gi, \
@@ -376,7 +376,7 @@ class TestRepairTorchCommand:
         import install_diagnose as d
         gpu_stub = d.GpuInfo(
             vendor="nvidia", name="RTX 3090", driver_version="610.57.04",
-            cuda_ver="cu130", cuda_toolkit_path="/opt/cuda",
+            cuda_ver="cu130", compute_cap="8.6", cuda_toolkit_path="/opt/cuda",
         )
         issues = [d.Issue(d.REINSTALL_TORCH, "broken", "fix it", severity=2)]
         with patch.object(d, "GpuInfo") as gi, \
@@ -387,6 +387,52 @@ class TestRepairTorchCommand:
                                    log=lambda *a, **k: None)
         assert ok is False
         assert any("torch reinstall: FAIL" in a for a in actions)
+
+    def test_blackwell_sm120_triggers_source_build(self, tmp_path):
+        """RTX 5090/5080 (sm_120) MUST trigger a source rebuild of
+        llama-cpp-python, not the abetlen prebuilt wheel — the wheel
+        lacks sm_120 kernels and crashes in ggml_cuda_op_scale on the
+        first forward pass."""
+        venv = tmp_path / ".venv"
+        (venv / "bin").mkdir(parents=True)
+        (venv / "bin" / "python").write_text("#!/bin/sh\n")
+        (venv / "bin" / "python").chmod(0o755)
+        (tmp_path / "llama.cpp").mkdir()
+
+        import install_diagnose as d
+        gpu_stub = d.GpuInfo(
+            vendor="nvidia", name="NVIDIA GeForce RTX 5080",
+            driver_version="615.71", cuda_ver="cu130",
+            compute_cap="12.0", cuda_toolkit_path="/opt/cuda",
+        )
+        issues = [d.Issue(d.REINSTALL_LLAMA_CPP, "sm_120", "fix it",
+                          severity=2)]
+
+        with patch.object(d, "GpuInfo") as gi, \
+             patch.object(d, "subprocess") as sb, \
+             patch.dict(d.os.environ, {}, clear=False):
+            gi.detect.return_value = gpu_stub
+            sb.run.return_value = _fake_run(returncode=0)
+            ok, actions = d.repair(issues, venv, tmp_path / "llama.cpp",
+                                   log=lambda *a, **k: None)
+
+        # Source-build argv: pip install --force-reinstall --no-deps
+        argv = sb.run.call_args[0][0]
+        assert "--force-reinstall" in argv
+        assert "--no-deps" in argv
+        assert "llama-cpp-python" in argv
+        # Must NOT use abetlen's prebuilt wheel URL (that path lacks sm_120)
+        assert "--extra-index-url" not in argv
+        # Must pass CMAKE_ARGS=... sm_120 to subprocess.run via env=
+        env = sb.run.call_args[1].get("env") or sb.run.call_args[0][1]
+        cmake_args = env.get("CMAKE_ARGS", "")
+        assert "-DGGML_CUDA=ON" in cmake_args, \
+            f"expected GGML_CUDA=ON, got CMAKE_ARGS={cmake_args!r}"
+        assert "-DCMAKE_CUDA_ARCHITECTURES=120" in cmake_args, \
+            f"expected sm_120 arch, got CMAKE_ARGS={cmake_args!r}"
+        # Summary line should reflect the source-build path
+        assert any("source build (sm_120)" in a for a in actions)
+        assert ok is True
 
 
 # ── CLI smoke tests ─────────────────────────────────────────────────────

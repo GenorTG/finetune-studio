@@ -75,6 +75,7 @@ class GpuInfo:
     name: str
     driver_version: str
     cuda_ver: str          # "cu130" / "cu124" / "cu121" / "cu118" / ""
+    compute_cap: str       # "12.0" for sm_120 (Blackwell), "8.6" for sm_86, etc.
     cuda_toolkit_path: str # "/opt/cuda" if found
 
     @classmethod
@@ -92,7 +93,7 @@ class GpuInfo:
                 break
 
         if force_cpu:
-            return cls("none", "(forced CPU)", "", "", cuda_path)
+            return cls("none", "(forced CPU)", "", "", "", cuda_path)
 
         # NVIDIA
         if shutil.which("nvidia-smi"):
@@ -118,6 +119,20 @@ class GpuInfo:
                     elif major >= 520: cuda_ver = "cu121"
                     elif major >= 470: cuda_ver = "cu118"
                     else:               cuda_ver = "cu118"
+                # Compute capability (e.g. "12.0" for sm_120/Blackwell,
+                # "8.6" for sm_86/Ampere). Prebuilt llama-cpp-python wheels
+                # only bundle the kernels the maintainer chose to compile;
+                # sm_120 needs a source build. Detected here so diagnose()
+                # can emit REINSTALL_LLAMA_CPP for unsupported arches.
+                r2 = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=compute_cap",
+                     "--format=csv,noheader"],
+                    capture_output=True, text=True, timeout=10,
+                )
+                if r2.returncode == 0 and r2.stdout.strip():
+                    compute_cap = r2.stdout.strip().splitlines()[0].strip()
+                else:
+                    compute_cap = ""
             except (subprocess.TimeoutExpired, OSError):
                 pass
 
@@ -125,6 +140,7 @@ class GpuInfo:
         if vendor == "none" and (shutil.which("rocm-smi") or Path("/opt/rocm").exists()):
             vendor = "amd"
             name = "AMD GPU (ROCm)"
+            compute_cap = ""
 
         # Intel XPU
         if vendor == "none" and (
@@ -132,8 +148,9 @@ class GpuInfo:
         ):
             vendor = "intel"
             name = "Intel XPU"
+            compute_cap = ""
 
-        return cls(vendor, name, driver, cuda_ver, cuda_path)
+        return cls(vendor, name, driver, cuda_ver, compute_cap, cuda_path)
 
 
 # ── Diagnostic helpers ──────────────────────────────────────────────────
@@ -461,6 +478,30 @@ def diagnose(
         except ValueError:
             pass
 
+    # ── Blackwell sm_120 source-build requirement ──
+    # Prebuilt llama-cpp-python wheels from abetlen don't bundle sm_120
+    # kernels (verified: crash in ggml_cuda_op_scale on RTX 5090/5080
+    # at the first forward pass). The wheel install path silently produces
+    # a "loaded" model that ABRTs on the first chat token. Source build
+    # with CMAKE_CUDA_ARCHITECTURES=120 fixes it.
+    if gpu.vendor == "nvidia" and gpu.compute_cap:
+        try:
+            cc_major = int(float(gpu.compute_cap.split(".")[0]))
+        except ValueError:
+            cc_major = 0
+        if cc_major >= 12 and venv.llama_cpp_version:
+            issues.append(Issue(
+                REINSTALL_LLAMA_CPP,
+                f"GPU {gpu.name} (sm_{cc_major}0/Blackwell) requires source-"
+                f"rebuilt llama-cpp-python — prebuilt abetlen wheels lack "
+                f"sm_{cc_major}0 CUDA kernels (crashes in ggml_cuda_op_scale "
+                f"on first token).",
+                f"rebuild from source:  CMAKE_ARGS=\"-DGGML_CUDA=ON "
+                f"-DCMAKE_CUDA_ARCHITECTURES={cc_major}0\" "
+                f"pip install --force-reinstall --no-deps llama-cpp-python",
+                severity=2,
+            ))
+
     # ── llama.cpp CLI ──
     if not (llcpp["quantize_exists"] and llcpp["convert_exists"]):
         issues.append(Issue(
@@ -567,7 +608,36 @@ def repair(
             actions.append(f"torch CPU reinstall: {'ok' if r.returncode == 0 else 'FAIL'}")
 
     if REINSTALL_LLAMA_CPP in by_code:
-        if gpu.vendor == "nvidia" and gpu.cuda_ver:
+        # Blackwell sm_120 needs source build (prebuilt wheels lack kernels);
+        # other NVIDIA cards use abetlen's prebuilt wheel for speed.
+        sm_blackwell = False
+        cc_major = 0
+        if gpu.vendor == "nvidia" and gpu.compute_cap:
+            try:
+                cc_major = int(float(gpu.compute_cap.split(".")[0]))
+            except ValueError:
+                cc_major = 0
+            sm_blackwell = cc_major >= 12
+
+        if sm_blackwell:
+            arch = f"{cc_major}0"
+            log(f"[repair] rebuilding llama-cpp-python from source for sm_{arch} (Blackwell)")
+            env = os.environ.copy()
+            env["CMAKE_ARGS"] = f"-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES={arch}"
+            cmd = [
+                sys.executable, "-m", "pip", "install",
+                "--force-reinstall", "--no-deps", "llama-cpp-python",
+            ]
+            r = subprocess.run(
+                cmd, env=env, capture_output=True, text=True, timeout=1800,
+            )
+            actions.append(
+                f"llama-cpp source build (sm_{arch}): "
+                f"{'ok' if r.returncode == 0 else 'FAIL'}"
+            )
+            if r.returncode != 0:
+                log((r.stderr or r.stdout)[-1200:])
+        elif gpu.vendor == "nvidia" and gpu.cuda_ver:
             cmd = [
                 sys.executable, "-m", "pip", "install", "--reinstall",
                 "--extra-index-url",
@@ -576,16 +646,24 @@ def repair(
                 "llama-cpp-python>=0.3.0",
             ]
             log(f"[repair] reinstalling llama-cpp-python (cuda {gpu.cuda_ver})")
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
+            actions.append(
+                f"llama-cpp reinstall: {'ok' if r.returncode == 0 else 'FAIL'}"
+            )
+            if r.returncode != 0:
+                log(r.stderr[-800:])
         else:
             cmd = [
                 sys.executable, "-m", "pip", "install", "--reinstall",
                 "llama-cpp-python>=0.3.0",
             ]
             log("[repair] reinstalling llama-cpp-python (CPU)")
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
-        actions.append(f"llama-cpp reinstall: {'ok' if r.returncode == 0 else 'FAIL'}")
-        if r.returncode != 0:
-            log(r.stderr[-800:])
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
+            actions.append(
+                f"llama-cpp reinstall: {'ok' if r.returncode == 0 else 'FAIL'}"
+            )
+            if r.returncode != 0:
+                log(r.stderr[-800:])
 
     if PIP_INSTALL_EDITABLE in by_code:
         log("[repair] syncing editable deps (pip install -e .)")

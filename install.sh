@@ -29,6 +29,10 @@ CONDA_ENV="${CONDA_ENV:-chris-ai}"
 VENV_DIR="${VENV_DIR:-.venv}"
 # llama.cpp lives inside the project, NOT in $HOME. Boxed-in so the install
 # is reproducible and self-contained — nothing references external paths.
+log()  { echo "[install] $*"; }
+warn() { echo "[install] WARN: $*" >&2; }
+die()  { echo "[install] ERROR: $*" >&2; exit 1; }
+
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)}"
 LLAMA_CPP_DIR="${LLAMA_CPP_DIR:-$PROJECT_ROOT/.llama.cpp}"
 # If the user still has a legacy install at $HOME/llama.cpp, warn once
@@ -42,10 +46,6 @@ FORCE_CPU=0
 SKIP_GGUF=0
 SKIP_LLAMA_CPP=0
 LLAMA_CPP_ONLY=0
-
-log()  { echo "[install] $*"; }
-warn() { echo "[install] WARN: $*" >&2; }
-die()  { echo "[install] ERROR: $*" >&2; exit 1; }
 
 for arg in "$@"; do
     case "$arg" in
