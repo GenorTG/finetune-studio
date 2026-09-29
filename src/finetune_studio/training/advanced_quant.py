@@ -19,11 +19,19 @@ _CALIBRATION_EXAMPLE_COUNT = 128
 
 
 def is_gptqmodel_available() -> bool:
-    """Return True when the modern ``gptqmodel`` package imports."""
+    """Return True when the modern ``gptqmodel`` package imports.
+
+    ``gptqmodel`` pulls in ``tokenicer`` -> ``transformers`` -> the optional
+    ``kernels`` package; a version skew between those (e.g. a ``kernels``
+    release that no longer matches what the installed ``transformers``
+    expects) raises at import time rather than with ``ImportError``. Treat
+    any import-time failure as "unavailable" so a broken optional backend
+    disables the GPTQ export option instead of 500ing the whole page.
+    """
     try:
         import gptqmodel  # noqa: F401
         return True
-    except ImportError:
+    except Exception:  # noqa: BLE001 - optional backend, any import-time failure disables it
         return False
 
 
@@ -32,7 +40,7 @@ def is_auto_gptq_available() -> bool:
     try:
         import auto_gptq  # noqa: F401
         return True
-    except ImportError:
+    except Exception:  # noqa: BLE001 - optional backend, any import-time failure disables it
         return False
 
 
@@ -46,7 +54,7 @@ def is_optimum_available() -> bool:
     try:
         import optimum  # noqa: F401
         return True
-    except ImportError:
+    except Exception:  # noqa: BLE001 - optional backend, any import-time failure disables it
         return False
 
 

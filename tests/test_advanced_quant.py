@@ -54,6 +54,27 @@ class TestGptqCapabilityDetection:
         assert "optimum" in hints["hint"].lower()
         assert ".[gptq]" in hints["hint"] or "optimum" in hints["hint"]
 
+    def test_gptqmodel_import_time_valueerror_is_treated_as_unavailable(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A ``kernels``/``transformers`` version skew raises ValueError (not
+        ImportError) from deep inside gptqmodel's import chain. That must be
+        treated as "unavailable", not bubble up and 500 the /export page.
+        """
+        from finetune_studio.training import advanced_quant as aq
+
+        real_import = __import__
+
+        def fake_import(name: str, *args: Any, **kwargs: Any) -> Any:
+            if name == "gptqmodel":
+                raise ValueError(
+                    "Either a revision or a version must be specified."
+                )
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr("builtins.__import__", fake_import)
+        assert aq.is_gptqmodel_available() is False
+
     def test_pyproject_gptq_extra_includes_optimum(self) -> None:
         import tomllib
         from pathlib import Path
