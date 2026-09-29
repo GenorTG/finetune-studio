@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-383 files · 69976 lines
-- `finetune_studio`: 223 files, 42376 lines
+383 files · 70179 lines
+- `finetune_studio`: 223 files, 42484 lines
 - `scripts`: 9 files, 2283 lines
-- `tests`: 151 files, 25317 lines
+- `tests`: 151 files, 25412 lines
 
 
 # finetune_studio
@@ -875,7 +875,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `validate_file(path)` (L24)
 - `validate_jsonl(p, report)` (L52)
 
-## `src/finetune_studio/db/__init__.py` (265 lines)
+## `src/finetune_studio/db/__init__.py` (270 lines)
   - imports: finetune_studio.db.activity_events, finetune_studio.db.benchmarks, finetune_studio.db.connection, finetune_studio.db.data_prep_runs, finetune_studio.db.datasets, finetune_studio.db.hf_downloads, finetune_studio.db.model_exports, finetune_studio.db.project_versions, finetune_studio.db.projects, finetune_studio.db.rag_corpora, finetune_studio.db.rags, finetune_studio.db.reviews, finetune_studio.db.runs, finetune_studio.db.system_updates
 
 ## `src/finetune_studio/db/activity_events.py` (50 lines)
@@ -904,7 +904,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `row_to_dict(row: sqlite3.Row | None) -> dict | None` (L529)
   - imports: finetune_studio.config
 
-## `src/finetune_studio/db/data_prep_runs.py` (127 lines)
+## `src/finetune_studio/db/data_prep_runs.py` (141 lines)
 - `_get(rid: str) -> dict | None` (L16)
 - `create_run(project_id: str, filename: str = '', byte_count: int = 0, source_id: str = ''…` (L22) — Insert a fresh `queued` row. Caller sets started_at via mark_running.
 - `mark_running(rid: str) -> dict | None` (L39)
@@ -914,7 +914,8 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `get_run(rid: str) -> dict | None` (L83)
 - `list_for_project(project_id: str, limit: int = 100) -> list[dict]` (L87) — Return recent runs for the activity feed / project dashboard.
 - `list_recent(limit: int = 50) -> list[dict]` (L98) — Across all projects — for the global activity feed.
-- `reconcile_stale(error: str = 'interrupted by service restart') -> int` (L108) — Mark in-flight data_prep_runs as failed after a process restart.
+- `list_stale() -> list[dict]` (L108) — Return full rows for in-flight (queued/running) runs after a restart.
+- `reconcile_stale(error: str = 'interrupted by service restart') -> int` (L121) — Mark in-flight data_prep_runs as failed after a process restart.
   - imports: finetune_studio.db.connection
 
 ## `src/finetune_studio/db/datasets.py` (119 lines)
@@ -1342,26 +1343,26 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `abliterate_model(model_path: str, output_dir: str, layer_indices: Optional[list[int]] = None, …` (L129) — Abliterate (de-censor) a model by removing its refusal direction.
 - `test_refusals(model, tokenizer, device: str = 'cuda') -> dict` (L207) — Test how often a model refuses to answer.
 
-## `src/finetune_studio/training/advanced_quant.py` (483 lines)
+## `src/finetune_studio/training/advanced_quant.py` (491 lines)
 - `is_gptqmodel_available() -> bool` (L21) — Return True when the modern ``gptqmodel`` package imports.
-- `is_auto_gptq_available() -> bool` (L30) — Return True when legacy ``auto_gptq`` imports.
-- `is_gptq_available() -> bool` (L39) — Return True when any supported GPTQ backend is importable.
-- `is_optimum_available() -> bool` (L44) — Return True when ``optimum`` imports (needed for HF GPTQ inference).
-- `preferred_gptq_backend() -> GptqBackendName | None` (L53) — Prefer ``gptqmodel``; fall back to ``auto_gptq``; else None.
-- `gptq_missing_backend_message() -> str` (L62) — Actionable error when neither GPTQ backend is installed.
-- `gptq_optimum_inference_hint() -> str` (L72) — Hint when export backend is present but HF GPTQ load needs optimum.
-- `gptq_dependency_hints() -> dict[str, Any]` (L81) — Capability flags + actionable hints for export vs inference deps.
-- `verify_gptq_artifacts(gptq_dir: str) -> dict[str, Any]` (L100) — Require a non-empty GPTQ export dir (config + weight file).
-- `calibration_example_texts(count: int = _CALIBRATION_EXAMPLE_COUNT) -> list[str]` (L160) — Default GPTQ calibration sentences (shared across backends).
-- `quantize_gptq(model_path: str, output_dir: str, bits: int = 4, group_size: int = 128, damp_…` (L171) — Quantize a model using GPTQ (Post-training Quantization).
-- `_quantize_with_gptqmodel(model_path: str, output_dir: str, bits: int, group_size: int, damp_percent: f…` (L235) — Run GPTQ via ``gptqmodel`` (GPTQModel + GPTQConfig/QuantizeConfig).
-- `_quantize_with_auto_gptq(model_path: str, output_dir: str, bits: int, group_size: int, damp_percent: f…` (L284) — Run GPTQ via legacy ``auto_gptq``.
-- `_copy_runtime_sidecars(model_path: str, output_dir: str) -> None` (L319) — Copy optional prompt / chat-template files next to the GPTQ weights.
-- `quantize_gguf_imatrix(model_path: str, output_dir: str, imatrix_path: str, quants: list[str] | None…` (L327) — Quantize a model to GGUF using an importance matrix for higher quality.
-- `generate_imatrix(model_path: str, output_path: str, calibration_data: str | None = None, n_ctx…` (L402) — Generate an importance matrix for GGUF quantization.
-- `_default_calibration_path() -> str` (L452) — Get or create a default calibration text file.
-- `_dir_size(path: str) -> int` (L465)
-- `_human_size(n: int) -> str` (L478)
+- `is_auto_gptq_available() -> bool` (L38) — Return True when legacy ``auto_gptq`` imports.
+- `is_gptq_available() -> bool` (L47) — Return True when any supported GPTQ backend is importable.
+- `is_optimum_available() -> bool` (L52) — Return True when ``optimum`` imports (needed for HF GPTQ inference).
+- `preferred_gptq_backend() -> GptqBackendName | None` (L61) — Prefer ``gptqmodel``; fall back to ``auto_gptq``; else None.
+- `gptq_missing_backend_message() -> str` (L70) — Actionable error when neither GPTQ backend is installed.
+- `gptq_optimum_inference_hint() -> str` (L80) — Hint when export backend is present but HF GPTQ load needs optimum.
+- `gptq_dependency_hints() -> dict[str, Any]` (L89) — Capability flags + actionable hints for export vs inference deps.
+- `verify_gptq_artifacts(gptq_dir: str) -> dict[str, Any]` (L108) — Require a non-empty GPTQ export dir (config + weight file).
+- `calibration_example_texts(count: int = _CALIBRATION_EXAMPLE_COUNT) -> list[str]` (L168) — Default GPTQ calibration sentences (shared across backends).
+- `quantize_gptq(model_path: str, output_dir: str, bits: int = 4, group_size: int = 128, damp_…` (L179) — Quantize a model using GPTQ (Post-training Quantization).
+- `_quantize_with_gptqmodel(model_path: str, output_dir: str, bits: int, group_size: int, damp_percent: f…` (L243) — Run GPTQ via ``gptqmodel`` (GPTQModel + GPTQConfig/QuantizeConfig).
+- `_quantize_with_auto_gptq(model_path: str, output_dir: str, bits: int, group_size: int, damp_percent: f…` (L292) — Run GPTQ via legacy ``auto_gptq``.
+- `_copy_runtime_sidecars(model_path: str, output_dir: str) -> None` (L327) — Copy optional prompt / chat-template files next to the GPTQ weights.
+- `quantize_gguf_imatrix(model_path: str, output_dir: str, imatrix_path: str, quants: list[str] | None…` (L335) — Quantize a model to GGUF using an importance matrix for higher quality.
+- `generate_imatrix(model_path: str, output_path: str, calibration_data: str | None = None, n_ctx…` (L410) — Generate an importance matrix for GGUF quantization.
+- `_default_calibration_path() -> str` (L460) — Get or create a default calibration text file.
+- `_dir_size(path: str) -> int` (L473)
+- `_human_size(n: int) -> str` (L486)
 
 ## `src/finetune_studio/training/config_optimizer.py` (215 lines)
 - `class TrainingRecommendation` (L28)
@@ -1611,16 +1612,16 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 
 ## `src/finetune_studio/webui/__init__.py` (2 lines)
 
-## `src/finetune_studio/webui/app.py` (353 lines)
+## `src/finetune_studio/webui/app.py` (363 lines)
 - `lifespan(app: FastAPI)` (L40)
-- `_activity_kind(path: str) -> str` (L92) — Classify mutating API paths for the global operation feed.
-- `record_activity_operations(request: Request, call_next)` (L139) — Persist every mutating API operation after its response completes.
-- `_activity_summary(path: str, method: str, http_status: int) -> str` (L158) — Human one-liner for the activity feed (replaces 'POST /api/x → 200').
-- `_record_activity_event(request: Request, started: float, http_status: int) -> None` (L202) — Best-effort event write; logging must never break the API response.
-- `_apply_hosting_middleware()` (L224) — Apply CORS and trusted-host middleware from user settings.
-- `class _NoCacheStatic(StaticFiles)` (L255)
-  - `async def get_response(self, path, scope)` (L261)
-  - imports: finetune_studio, finetune_studio.config, finetune_studio.models.registry, finetune_studio.testing.inference, finetune_studio.training.engine, finetune_studio.webui.routes, finetune_studio.webui.routes.hf_models
+- `_activity_kind(path: str) -> str` (L102) — Classify mutating API paths for the global operation feed.
+- `record_activity_operations(request: Request, call_next)` (L149) — Persist every mutating API operation after its response completes.
+- `_activity_summary(path: str, method: str, http_status: int) -> str` (L168) — Human one-liner for the activity feed (replaces 'POST /api/x → 200').
+- `_record_activity_event(request: Request, started: float, http_status: int) -> None` (L212) — Best-effort event write; logging must never break the API response.
+- `_apply_hosting_middleware()` (L234) — Apply CORS and trusted-host middleware from user settings.
+- `class _NoCacheStatic(StaticFiles)` (L265)
+  - `async def get_response(self, path, scope)` (L271)
+  - imports: finetune_studio, finetune_studio.config, finetune_studio.models.registry, finetune_studio.testing.inference, finetune_studio.training.engine, finetune_studio.webui.routes, finetune_studio.webui.routes.data_prep, finetune_studio.webui.routes.hf_models
 
 ## `src/finetune_studio/webui/engine_guard.py` (25 lines)
 
@@ -1745,7 +1746,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `batch_save(pid: str, request: Request)` (L244)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.db.datasets, finetune_studio.training.data
 
-## `src/finetune_studio/webui/routes/data_prep.py` (795 lines)
+## `src/finetune_studio/webui/routes/data_prep.py` (866 lines)
 - `_project_404(pid: str) -> JSONResponse | None` (L32) — Return a 404 response when the project does not exist, else None.
 - `class StartPrepBody(BaseModel)` (L51)
 - `class BulkPrepBody(BaseModel)` (L58)
@@ -1753,28 +1754,29 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `_run_prep_background(run_id: str, runner: object, progress_log: list[dict]) -> None` (L79) — Shared background body for upload / start / reprocess prep runs.
 - `enqueue_prep_run(pid: str, background: BackgroundTasks, *, data: bytes, filename: str, qa_per_…` (L127) — Create a DB run row, register the runner, queue background work.
 - `enqueue_source_prep_run(pid: str, background: BackgroundTasks, *, source: dict, qa_per_chunk: int, di…` (L166) — Queue one source without retaining its potentially large bytes in RAM.
-- `data_prep_page(request: Request, pid: str)` (L223)
-- `list_providers()` (L266)
-- `upsert_provider(request: Request)` (L285)
-- `delete_provider(pid: str)` (L292)
-- `load_provider(pid: str, request: Request)` (L298) — Load a model provider. Accepts an optional JSON body of loader
-- `unload_active()` (L331)
-- `upload_file(pid: str, background: BackgroundTasks, file: UploadFile = File(...), qa_per_c…` (L340) — Read bytes, then start a prep run in background. NO auto-load of model.
-- `start_prep(pid: str, body: StartPrepBody, background: BackgroundTasks)` (L363) — Start prep from an existing QA source (source picker → Start prep).
-- `start_bulk_prep(pid: str, body: BulkPrepBody, background: BackgroundTasks)` (L403) — Queue selected parsed files as sequential, source-scoped prep jobs.
-- `stream_events(pid: str, run_id: str)` (L457)
-- `get_prep_run(pid: str, run_id: str)` (L481) — One-shot prep-run progress (SSE silent fallback for /events).
-- `list_sources_route(pid: str)` (L518)
-- `promote_source_route(pid: str, request: Request)` (L539) — Promote a file-library upload into the data-prep source picker (QABUG-003).
-- `list_qa_route(pid: str, source_id: str | None = None, status: str | None = None)` (L592)
-- `update_qa_route(pid: str, qa_id: str, request: Request)` (L601)
-- `bulk_action(pid: str, request: Request)` (L611)
-- `delete_source_route(pid: str, source_id: str)` (L624)
-- `export_qa(pid: str, fmt: str = 'sharegpt', only: str = 'approved', force: bool = False)` (L630)
-- `file_metadata_route(pid: str, sha256: str)` (L712) — Read structured metadata for a content-addressed file.
-- `ingestion_log_route(pid: str, limit: int = 200)` (L722)
-- `data_prep_audit(pid: str) -> dict` (L731) — Return deterministic raw-file and curated-dataset fidelity evidence.
-- `reprocess_source(pid: str, source_id: str)` (L742) — Re-run the parser + Q&A generation for an existing source.
+- `resume_stale_data_prep_runs() -> dict[str, int]` (L220) — Resume queued/running data-prep runs left behind by a process restart.
+- `data_prep_page(request: Request, pid: str)` (L288)
+- `list_providers()` (L331)
+- `upsert_provider(request: Request)` (L350)
+- `delete_provider(pid: str)` (L357)
+- `load_provider(pid: str, request: Request)` (L363) — Load a model provider. Accepts an optional JSON body of loader
+- `unload_active()` (L396)
+- `upload_file(pid: str, background: BackgroundTasks, file: UploadFile = File(...), qa_per_c…` (L405) — Read bytes, then start a prep run in background. NO auto-load of model.
+- `start_prep(pid: str, body: StartPrepBody, background: BackgroundTasks)` (L428) — Start prep from an existing QA source (source picker → Start prep).
+- `start_bulk_prep(pid: str, body: BulkPrepBody, background: BackgroundTasks)` (L468) — Queue selected parsed files as sequential, source-scoped prep jobs.
+- `stream_events(pid: str, run_id: str)` (L522)
+- `get_prep_run(pid: str, run_id: str)` (L546) — One-shot prep-run progress (SSE silent fallback for /events).
+- `list_sources_route(pid: str)` (L583)
+- `promote_source_route(pid: str, request: Request)` (L604) — Promote a file-library upload into the data-prep source picker (QABUG-003).
+- `list_qa_route(pid: str, source_id: str | None = None, status: str | None = None)` (L657)
+- `update_qa_route(pid: str, qa_id: str, request: Request)` (L666)
+- `bulk_action(pid: str, request: Request)` (L676)
+- `delete_source_route(pid: str, source_id: str)` (L689)
+- `export_qa(pid: str, fmt: str = 'sharegpt', only: str = 'approved', force: bool = False)` (L695)
+- `file_metadata_route(pid: str, sha256: str)` (L783) — Read structured metadata for a content-addressed file.
+- `ingestion_log_route(pid: str, limit: int = 200)` (L793)
+- `data_prep_audit(pid: str) -> dict` (L802) — Return deterministic raw-file and curated-dataset fidelity evidence.
+- `reprocess_source(pid: str, source_id: str)` (L813) — Re-run the parser + Q&A generation for an existing source.
   - imports: finetune_studio, finetune_studio.data, finetune_studio.data.audit, finetune_studio.data.fs.qa, finetune_studio.data.parsers, finetune_studio.data.prep, finetune_studio.data.prep.coverage_fill, finetune_studio.data.prep.generator, finetune_studio.data.prep.queued, finetune_studio.data.prep.source_state, finetune_studio.db.datasets, finetune_studio.models.helper, finetune_studio.models.manager, finetune_studio.webui.app
 
 ## `src/finetune_studio/webui/routes/data_prep_chat.py` (791 lines)
@@ -2264,23 +2266,24 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_inference_wins_over_rag_query_for_chat_v2() -> None` (L68) — Inference endpoints are classified before rag_query even if 'chat' appears.
   - imports: finetune_studio.webui.app
 
-## `tests/test_advanced_quant.py` (250 lines)
+## `tests/test_advanced_quant.py` (271 lines)
 - `class TestGptqCapabilityDetection` (L11)
   - `def test_neither_backend(self, monkeypatch: pytest.MonkeyPatch) -> None` (L12)
   - `def test_prefers_gptqmodel_over_auto_gptq(self, monkeypatch: pytest.MonkeyPatch) -> None` (L23)
   - `def test_falls_back_to_auto_gptq(self, monkeypatch: pytest.MonkeyPatch) -> None` (L33)
   - `def test_optimum_inference_hint_when_export_ok(self, monkeypatch: pytest.MonkeyPatch) -> None` (L42)
-  - `def test_pyproject_gptq_extra_includes_optimum(self) -> None` (L57)
-- `class TestCalibrationExamples` (L72)
-  - `def test_shared_calibration_texts(self) -> None` (L73)
-- `class TestVerifyGptqArtifacts` (L84)
-  - `def test_ok_with_config_and_weights(self, tmp_path: Path) -> None` (L85)
-  - `def test_accepts_quantize_config_json(self, tmp_path: Path) -> None` (L97)
-- `class TestQuantizeGptqDispatch` (L107)
-  - `def test_raises_when_no_backend(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L108)
-  - `def test_uses_gptqmodel_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L117)
-  - `def test_uses_auto_gptq_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L156)
-  - `def test_gptqmodel_loader_wires_calibration(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L184)
+  - `def test_gptqmodel_import_time_valueerror_is_treated_as_unavailable(self, monkeypatch: pytest.MonkeyPatch) -> None` (L57)
+  - `def test_pyproject_gptq_extra_includes_optimum(self) -> None` (L78)
+- `class TestCalibrationExamples` (L93)
+  - `def test_shared_calibration_texts(self) -> None` (L94)
+- `class TestVerifyGptqArtifacts` (L105)
+  - `def test_ok_with_config_and_weights(self, tmp_path: Path) -> None` (L106)
+  - `def test_accepts_quantize_config_json(self, tmp_path: Path) -> None` (L118)
+- `class TestQuantizeGptqDispatch` (L128)
+  - `def test_raises_when_no_backend(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L129)
+  - `def test_uses_gptqmodel_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L138)
+  - `def test_uses_auto_gptq_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L177)
+  - `def test_gptqmodel_loader_wires_calibration(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L205)
   - imports: finetune_studio.training, finetune_studio.training.advanced_quant
 
 ## `tests/test_agent_chat_model_resolution.py` (244 lines)
@@ -3145,7 +3148,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_html_missing_bs4_warns_or_extracts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L365)
   - imports: finetune_studio.data.parsers
 
-## `tests/test_per_file_data_pipeline.py` (227 lines)
+## `tests/test_per_file_data_pipeline.py` (301 lines)
 - `pipeline_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[TestClient, Path]` (L21)
 - `_project(client: TestClient) -> str` (L35)
 - `_source(source_id: str = 'src-one', chunks: int = 2) -> dict[str, Any]` (L44)
@@ -3153,9 +3156,10 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_bulk_upload_stages_parser_supported_files_for_background_parse(pipeline_env: tuple[TestClient, Path], monkeypatch: pytest.MonkeyPatch) -> No…` (L101)
 - `test_upload_streams_large_files_in_bounded_chunks() -> None` (L128)
 - `test_bulk_generation_queues_source_scoped_lazy_jobs(pipeline_env: tuple[TestClient, Path], monkeypatch: pytest.MonkeyPatch) -> No…` (L139)
-- `test_data_prep_ui_exposes_per_file_queue_and_assembler() -> None` (L183)
-- `test_sources_endpoint_exposes_per_file_readiness(pipeline_env: tuple[TestClient, Path]) -> None` (L202)
-  - imports: finetune_studio, finetune_studio.config, finetune_studio.data.fs, finetune_studio.data.prep.source_state, finetune_studio.webui.app, finetune_studio.webui.routes
+- `test_resume_stale_data_prep_runs_requeues_instead_of_failing(pipeline_env: tuple[TestClient, Path], monkeypatch: pytest.MonkeyPatch) -> No…` (L183) — A restart used to mark every in-flight run `failed` outright
+- `test_data_prep_ui_exposes_per_file_queue_and_assembler() -> None` (L257)
+- `test_sources_endpoint_exposes_per_file_readiness(pipeline_env: tuple[TestClient, Path]) -> None` (L276)
+  - imports: finetune_studio, finetune_studio.config, finetune_studio.data.fs, finetune_studio.data.prep.source_state, finetune_studio.webui.app, finetune_studio.webui.routes, finetune_studio.webui.routes.data_prep
 
 ## `tests/test_phase_bd.py` (409 lines)
 - `shot(page, name, full_page: bool = True)` (L64) — Save screenshot, return absolute path.
