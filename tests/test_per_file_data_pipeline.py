@@ -180,6 +180,80 @@ def test_bulk_generation_queues_source_scoped_lazy_jobs(
         assert queued.path.is_file()
 
 
+def test_resume_stale_data_prep_runs_requeues_instead_of_failing(
+    pipeline_env: tuple[TestClient, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A restart used to mark every in-flight run `failed` outright
+    (`db.reconcile_stale_data_prep`), silently dropping the rest of a
+    multi-file batch. `resume_stale_data_prep_runs` must instead re-derive
+    the source path + settings from the durable `data_prep_runs` row and
+    re-enqueue the job — only a run whose source file vanished should still
+    fail."""
+    client, projects = pipeline_env
+    pid = _project(client)
+
+    raw = projects / pid / "resumable.md"
+    raw.parent.mkdir(parents=True, exist_ok=True)
+    raw.write_text("Resumable source grounded content.", encoding="utf-8")
+    source = {
+        **_source("src-resumable", chunks=1),
+        "data_path": str(raw),
+        "path": str(raw),
+    }
+    qa_fs.write_qa_source(pid, source)
+
+    resumable_run = db.create_data_prep_run(
+        project_id=pid, filename="resumable.md", byte_count=raw.stat().st_size,
+        source_id=source["id"],
+        settings_obj={"source_id": source["id"], "qa_per_chunk": 2,
+                      "difficulty": "hard", "style": "direct"},
+    )
+    db.mark_data_prep_running(resumable_run["id"])
+
+    orphan_run = db.create_data_prep_run(
+        project_id=pid, filename="gone.md", byte_count=10,
+        source_id="src-does-not-exist",
+        settings_obj={"source_id": "src-does-not-exist"},
+    )
+
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "finetune_studio.webui.routes.data_prep._run_prep_background",
+        lambda run_id, runner, log: calls.append(run_id),
+    )
+
+    from finetune_studio.webui.routes.data_prep import (
+        _RUNS,
+        resume_stale_data_prep_runs,
+    )
+
+    import asyncio
+
+    async def _drive() -> dict[str, int]:
+        result = await resume_stale_data_prep_runs()
+        # Let the resumed background task (scheduled via asyncio.create_task)
+        # actually run before the loop closes.
+        await asyncio.sleep(0.05)
+        return result
+
+    outcome = asyncio.run(_drive())
+    assert outcome == {"resumed": 1, "failed": 1}
+
+    resumed_row = db.get_data_prep_run(resumable_run["id"])
+    assert resumed_row["status"] == "queued"
+    queued = _RUNS[(pid, resumable_run["id"])]["runner"]
+    assert queued.path == raw
+    assert queued.qa_per_chunk == 2
+    assert queued.difficulty == "hard"
+    assert queued.style == "direct"
+
+    failed_row = db.get_data_prep_run(orphan_run["id"])
+    assert failed_row["status"] == "error"
+    assert "no longer available" in (failed_row["error"] or "")
+
+    assert resumable_run["id"] in calls
+
+
 def test_data_prep_ui_exposes_per_file_queue_and_assembler() -> None:
     template = (
         Path(__file__).resolve().parents[1]

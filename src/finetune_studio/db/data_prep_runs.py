@@ -105,10 +105,24 @@ def list_recent(limit: int = 50) -> list[dict]:
     return [row_to_dict(r) for r in rows]
 
 
+def list_stale() -> list[dict]:
+    """Return full rows for in-flight (queued/running) runs after a restart.
+
+    Callers use ``source_id`` + ``settings_json`` to re-derive the source
+    path and prep settings and resume the job, rather than discarding it.
+    """
+    with cursor() as c:
+        rows = c.execute(
+            "SELECT * FROM data_prep_runs WHERE status IN ('queued', 'running')",
+        ).fetchall()
+    return [row_to_dict(r) for r in rows]
+
+
 def reconcile_stale(error: str = "interrupted by service restart") -> int:
     """Mark in-flight data_prep_runs as failed after a process restart.
 
-    Returns the number of rows updated.
+    Used only as the fallback for runs `list_stale` callers could not
+    resume (e.g. the source file is gone). Returns the number updated.
     """
     import time
     stale = ("queued", "running")

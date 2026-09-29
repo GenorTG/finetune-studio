@@ -53,6 +53,9 @@ from finetune_studio.db.data_prep_runs import (
     list_for_project as list_data_prep_for_project,
 )
 from finetune_studio.db.data_prep_runs import (
+    list_stale as list_stale_data_prep_runs,
+)
+from finetune_studio.db.data_prep_runs import (
     list_recent as list_data_prep_recent,
 )
 from finetune_studio.db.data_prep_runs import (
@@ -244,11 +247,13 @@ __all__ = ["add_model_favorite", "append_update_log", "count_qa_pairs",
     "init_db", "is_model_favorited", "latest_rag_build", "latest_update_in_progress",
     "latest_version", "list_activity_events_recent", "list_benchmarks",
     "list_benchmarks_recent", "list_cases", "list_data_prep_for_project",
-    "list_data_prep_recent", "list_datasets", "list_exports_for_project",
+    "list_data_prep_recent", "list_datasets",
+    "list_exports_for_project",
     "list_exports_for_run", "list_exports_recent", "list_hf_downloads_in_progress",
     "list_hf_downloads_recent", "list_model_favorites", "list_projects",
     "list_rag_builds", "list_rag_builds_recent", "list_rags", "list_review",
-    "list_runs", "list_updates_recent", "list_versions", "mark_data_prep_done",
+    "list_runs", "list_stale_data_prep_runs", "list_updates_recent",
+    "list_versions", "mark_data_prep_done",
     "mark_data_prep_failed", "mark_data_prep_running", "mark_export_done",
     "mark_export_failed", "mark_export_running", "mark_hf_download_cancelled",
     "mark_hf_download_done", "mark_hf_download_failed", "mark_hf_download_running",

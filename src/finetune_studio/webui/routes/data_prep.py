@@ -217,6 +217,71 @@ def enqueue_source_prep_run(
     return run_id
 
 
+async def resume_stale_data_prep_runs() -> dict[str, int]:
+    """Resume queued/running data-prep runs left behind by a process restart.
+
+    A restart (crash, systemd `daemon-reload`, `update.sh`) used to mark
+    every in-flight run `failed` outright (`db.reconcile_stale_data_prep`),
+    silently dropping the rest of a multi-file batch. Each queued run is
+    already durable (project_id, source_id, settings_json, and the source's
+    on-disk path via `project_filesystem`), so re-derive the same
+    `QueuedSourcePrep` the original request would have built and re-enqueue
+    it. Only runs whose source is now missing fall back to `failed`.
+    """
+    from finetune_studio import db
+    from finetune_studio.data import project_filesystem as pfs
+    from finetune_studio.data.prep.queued import QueuedSourcePrep
+    from starlette.concurrency import run_in_threadpool
+
+    resumed = 0
+    failed = 0
+    for row in db.list_stale_data_prep_runs():
+        rid = row["id"]
+        pid = row["project_id"]
+        # `db.row_to_dict` already parses the `settings_json` column into a
+        # `settings` dict (see `db/connection.py:row_to_dict`) — do not
+        # re-parse a "settings_json" key here, it does not exist on this dict.
+        settings_obj = row.get("settings") or {}
+        source_id = row.get("source_id") or settings_obj.get("source_id") or ""
+        source = None
+        if source_id and pid:
+            try:
+                source = next(
+                    (s for s in pfs.list_qa_sources(pid) if s.get("id") == source_id),
+                    None,
+                )
+            except Exception:
+                log.exception("resume_stale_data_prep_runs: list_qa_sources failed for %s", pid)
+        path_str = (source or {}).get("data_path") or (source or {}).get("path") or ""
+        path = Path(path_str) if path_str else None
+        if source is None or path is None or not path.is_file():
+            db.mark_data_prep_failed(
+                rid, "interrupted by service restart: source file no longer available"
+            )
+            failed += 1
+            continue
+        db.update_data_prep_run(rid, status="queued")
+        progress_log: list[dict] = []
+        filename = row.get("filename") or source.get("filename") or path.name
+        runner = QueuedSourcePrep(
+            pid=pid,
+            path=path,
+            filename=filename,
+            qa_per_chunk=int(settings_obj.get("qa_per_chunk", 3)),
+            difficulty=settings_obj.get("difficulty", "medium"),
+            style=settings_obj.get("style", "socratic"),
+            uploaded_by="resume-after-restart",
+            progress_cb=_progress_cb(progress_log),
+        )
+        _RUNS[(pid, rid)] = {
+            "runner": runner, "log": progress_log,
+            "filename": filename, "byte_count": row.get("byte_count") or 0,
+        }
+        asyncio.create_task(run_in_threadpool(_run_prep_background, rid, runner, progress_log))
+        resumed += 1
+    return {"resumed": resumed, "failed": failed}
+
+
 # ── HTML page ────────────────────────────────────────────────────────────
 
 @_pages.get("/projects/{pid}/data-prep", response_class=HTMLResponse)
@@ -640,14 +705,20 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
     try:
         from finetune_studio.data.prep.coverage_fill import fill_all_project_gaps
         fill_summary = fill_all_project_gaps(pid)
-        if fill_summary and fill_summary.get("uncovered_chunks"):
+        if fill_summary and fill_summary.get("uncovered_chunks") and not force:
             return JSONResponse(
                 {
                     "error": "dataset export blocked: parsed chunks remain uncovered",
                     "uncovered_chunks": fill_summary["uncovered_chunks"][:50],
                     "uncovered_count": len(fill_summary["uncovered_chunks"]),
+                    "hint": "pass ?force=true to export anyway with those chunks missing",
                 },
                 status_code=409,
+            )
+        if fill_summary and fill_summary.get("uncovered_chunks") and force:
+            log.warning(
+                "export_qa: force=true — exporting project %s with %d uncovered chunk(s)",
+                pid, len(fill_summary["uncovered_chunks"]),
             )
     except Exception as exc:
         log.exception("coverage fill failed — export blocked")

@@ -73,9 +73,19 @@ async def lifespan(app: FastAPI):
         n_runs = db.reconcile_stale_runs()
         if n_runs:
             print(f"Reconciled {n_runs} stale training_runs row(s)")
-        n = db.reconcile_stale_data_prep()
-        if n:
-            print(f"Reconciled {n} stale data_prep_runs row(s)")
+    except Exception:  # noqa: BLE001
+        pass
+    # Resume data-prep runs interrupted mid-flight by the restart instead of
+    # marking a whole batch failed (each queued run is durable: project_id +
+    # source_id + settings_json + the source's on-disk path all persist).
+    try:
+        from finetune_studio.webui.routes.data_prep import resume_stale_data_prep_runs
+        outcome = await resume_stale_data_prep_runs()
+        if outcome["resumed"] or outcome["failed"]:
+            print(
+                f"Data-prep restart recovery: resumed {outcome['resumed']}, "
+                f"failed {outcome['failed']} (source missing)"
+            )
         n = db.reconcile_stale_rag_builds()
         if n:
             print(f"Reconciled {n} stale rag_corpora row(s)")
