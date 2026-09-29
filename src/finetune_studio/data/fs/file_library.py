@@ -182,9 +182,9 @@ def raw_path_for(pid: str, file_id: str, original_name: str, auto_kind: str) -> 
 def converted_filename_for(original_name: str, when_ts: float) -> str:
     """Naming convention for converted files. Includes date for traceability
     when a CLI user wants to find the latest conversion."""
-    from datetime import datetime
+    from datetime import UTC, datetime
     stem = _safe_stem(original_name)
-    date_str = datetime.fromtimestamp(when_ts).strftime("%Y-%m-%d")
+    date_str = datetime.fromtimestamp(when_ts, tz=UTC).strftime("%Y-%m-%d")
     return f"{stem} (converted {date_str}).md"
 
 
@@ -583,7 +583,6 @@ def restore_file(pid: str, file_id: str) -> dict:
     """Restore a soft-deleted file from trash back to its original auto-folder.
     Converted siblings stay in trash — they'd need to be re-converted."""
     from finetune_studio import db
-    now = time.time()
     with db.cursor() as c:
         f = c.execute(
             "SELECT id, original_name, mime_type, current_version FROM project_files WHERE id = ? AND project_id = ? AND deleted_at IS NOT NULL",
@@ -769,7 +768,6 @@ def write_uploaded_file(pid: str, data: bytes, original_name: str, *, mime_hint:
     # instead of colliding on the (project_id, original_name) UNIQUE — the
     # dedup pass upstream ignores deleted rows by design, so without this
     # the re-upload could never land (QABUG 2026-09-18).
-    revived = False
     from finetune_studio import db as _db_mod
     with _db_mod.cursor() as c:
         trash = c.execute(
@@ -843,6 +841,102 @@ def write_uploaded_file(pid: str, data: bytes, original_name: str, *, mime_hint:
         original_name=original_name,
         mime_type=mime,
         size_bytes=len(data),
+        raw_path=str(raw_path),
+        raw_hash=raw_hash,
+        auto_kind=kind,
+        version=row["current_version"],
+    )
+
+
+def write_staged_upload(
+    pid: str,
+    staged_path: Path,
+    original_name: str,
+    *,
+    raw_hash: str,
+    size_bytes: int,
+    mime_hint: str | None = None,
+    uploaded_by: str = "user",
+) -> FileMetadata:
+    """Atomically adopt a streamed upload without loading it back into RAM.
+
+    ``staged_path`` must be on the project filesystem. The caller computes the
+    hash while streaming the multipart body and remains responsible for
+    deleting the staging file when this function raises.
+    """
+    ensure_dirs(pid)
+    mime = _sniff_mime(original_name, mime_hint)
+    kind = auto_kind_for(mime)
+    file_id = f"{pid[:8]}-{raw_hash[:16]}"
+    auto_folder = get_or_create_auto_folder(pid, kind)
+
+    from finetune_studio import db as _db_mod
+    with _db_mod.cursor() as c:
+        trash = c.execute(
+            "SELECT id FROM project_files WHERE project_id = ? "
+            "AND original_name = ? AND deleted_at IS NOT NULL",
+            (pid, original_name),
+        ).fetchone()
+    if trash:
+        # Re-upload recovery is rare; retain the established helper's exact
+        # versioning behavior even though it needs bytes for this branch.
+        data = staged_path.read_bytes()
+        staged_path.unlink(missing_ok=True)
+        return _revive_deleted_file(
+            pid, trash["id"], original_name, data, mime, kind, raw_hash,
+            auto_folder["id"], uploaded_by,
+        )
+
+    raw_path = raw_path_for(pid, file_id, original_name, kind)
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(staged_path, raw_path)
+    try:
+        row = record_uploaded_file(
+            pid=pid,
+            file_id=file_id,
+            original_name=original_name,
+            mime_type=mime,
+            size_bytes=size_bytes,
+            raw_path=str(raw_path),
+            raw_hash=raw_hash,
+            raw_size=size_bytes,
+            auto_kind=kind,
+            auto_folder_id=auto_folder["id"],
+            uploaded_by=uploaded_by,
+        )
+    except Exception as exc:
+        if "UNIQUE constraint failed: project_files.id" not in str(exc):
+            raise
+        with _db_mod.cursor() as c:
+            collision = c.execute(
+                "SELECT project_id, deleted_at FROM project_files WHERE id = ?",
+                (file_id,),
+            ).fetchone()
+        if collision and collision[0] == pid and collision[1] is None:
+            raise
+        file_id = f"{pid[:8]}-{uuid.uuid4().hex[:16]}"
+        retry_path = raw_path_for(pid, file_id, original_name, kind)
+        retry_path.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(raw_path, retry_path)
+        raw_path = retry_path
+        row = record_uploaded_file(
+            pid=pid,
+            file_id=file_id,
+            original_name=original_name,
+            mime_type=mime,
+            size_bytes=size_bytes,
+            raw_path=str(raw_path),
+            raw_hash=raw_hash,
+            raw_size=size_bytes,
+            auto_kind=kind,
+            auto_folder_id=auto_folder["id"],
+            uploaded_by=uploaded_by,
+        )
+    return FileMetadata(
+        file_id=file_id,
+        original_name=original_name,
+        mime_type=mime,
+        size_bytes=size_bytes,
         raw_path=str(raw_path),
         raw_hash=raw_hash,
         auto_kind=kind,

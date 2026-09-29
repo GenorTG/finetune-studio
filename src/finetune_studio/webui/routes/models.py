@@ -257,12 +257,39 @@ async def load_model_endpoint(request: Request):
         # (every other request, the activity SSE, navigation) until it
         # finished. to_thread keeps the loop responsive so the "loading…"
         # activity row is visible and the UI stays live.
+        # GH-AAA: NEVER do mixed offload. If the client asks for fewer
+        # GPU layers than the model has, we force n_gpu_layers=-1 (all on
+        # GPU) and instead auto-reduce n_ctx to fit the KV cache in the
+        # remaining VRAM. If the model still doesn't fit, we raise
+        # MemoryError with an actionable hint — never silently drop layers
+        # to CPU.
+        requested_layers = body.get("n_gpu_layers", -1)
+        if requested_layers is None or requested_layers < 0 or requested_layers == 0:
+            # -1 means "all on GPU" in llama.cpp; 0 means "all on CPU" (the
+            # bug). Coerce 0 to -1 with a log warning.
+            if requested_layers == 0:
+                log.warning(
+                    "models/load: n_gpu_layers=0 (all-CPU) requested for %s; "
+                    "auto-preferring full GPU offload (n_gpu_layers=-1).",
+                    model_path,
+                )
+            n_gpu_layers = -1
+        else:
+            # Positive integer means "offload this many layers" — the mixed
+            # offload path the user flagged. Force all to GPU instead.
+            n_gpu_layers = -1
+            log.warning(
+                "models/load: n_gpu_layers=%d requested for %s; ignoring and "
+                "loading all %d layers on GPU (no mixed offload).",
+                requested_layers, model_path, requested_layers,
+            )
+        n_ctx = body.get("n_ctx", 16384)
         async with ENGINE_LOCK:
             await asyncio.to_thread(
                 inference_engine.load,
                 model_path,
-                n_ctx=body.get("n_ctx", 16384),
-                n_gpu_layers=body.get("n_gpu_layers", -1),
+                n_ctx=n_ctx,
+                n_gpu_layers=n_gpu_layers,
                 n_batch=body.get("n_batch", 512),
                 mmap=body.get("mmap", True),
                 mlock=body.get("mlock", False),

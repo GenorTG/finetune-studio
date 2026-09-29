@@ -37,22 +37,77 @@ def promote_file_library_upload(
     mime_type: str = "",
     filename: str | None = None,
 ) -> dict:
-    """Resolve a project_files row to a disk path and register+parse as QA source.
+    """Resolve, register, and synchronously parse one library upload."""
+    source = stage_file_library_upload(
+        pid, file_id, mime_type=mime_type, filename=filename
+    )
+    from finetune_studio.data.prep.ingest import ensure_qa_source_parsed
 
-    Raises ``OSError`` / ``ValueError`` on missing file or empty path.
+    return ensure_qa_source_parsed(pid, source)
+
+
+def stage_file_library_upload(
+    pid: str,
+    file_id: str,
+    *,
+    mime_type: str = "",
+    filename: str | None = None,
+) -> dict:
+    """Create a queued per-file source manifest without parsing it inline.
+
+    Bulk uploads use this cheap step in the request path, then parse the
+    source in a background task. The manifest is durable immediately, so a
+    refresh can show ``queued`` instead of pretending the file vanished.
     """
     from finetune_studio.data.fs import file_library as fl
 
     versions = fl.list_versions(pid, file_id)
     if not versions:
         raise ValueError(f"file {file_id} has no versions")
-    data_path = versions[0].get("raw_path") or ""
+    latest = versions[0]
+    data_path = latest.get("raw_path") or ""
     if not data_path:
         raise ValueError(f"file {file_id} has no raw_path")
     meta = fl.get_file(pid, file_id) or {}
     mime = mime_type or meta.get("mime_type") or ""
-    name = filename or meta.get("original_name")
-    return register_qa_source(pid, data_path, mime_type=mime, filename=name)
+    name = filename or meta.get("original_name") or Path(data_path).name
+    raw_hash = str(latest.get("raw_hash") or "")
+    source_id = raw_hash[:12] if raw_hash else file_id
+    existing = read_qa_source(pid, source_id)
+    if existing and existing.get("status") not in {"error", "queued"}:
+        return existing
+    source = {
+        **existing,
+        "id": source_id,
+        "file_id": file_id,
+        "sha256": raw_hash,
+        "filename": name,
+        "name": name,
+        "mime_type": mime,
+        "char_count": int(existing.get("char_count") or 0),
+        "chunk_count": int(existing.get("chunk_count") or 0),
+        "parser": existing.get("parser") or "",
+        "uploaded_at": meta.get("uploaded_at") or time.time(),
+        "status": "queued",
+        "data_path": data_path,
+        "path": data_path,
+        "size_bytes": int(meta.get("size_bytes") or latest.get("raw_size") or 0),
+    }
+    source.pop("error", None)
+    write_qa_source(pid, source)
+    return source
+
+
+def parse_staged_qa_source(pid: str, source_id: str) -> dict:
+    """Parse one staged source, persisting success or error on its manifest."""
+    from finetune_studio.data.prep.ingest import ensure_qa_source_parsed
+
+    source = read_qa_source(pid, source_id)
+    if not source:
+        raise ValueError(f"unknown source: {source_id}")
+    source = {**source, "status": "parsing"}
+    write_qa_source(pid, source)
+    return ensure_qa_source_parsed(pid, source)
 
 
 def maybe_auto_promote_upload(

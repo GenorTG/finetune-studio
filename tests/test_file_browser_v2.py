@@ -162,7 +162,7 @@ def test_usage_chains_file_to_runs(fts_root: Path, client) -> None:
 
 def test_usage_no_source(fts_root: Path, client) -> None:
     pid = _project(client)
-    fid = _upload(client, pid, f"n-{secrets.token_hex(3)}.csv", b"a,b\n1,2\n")
+    fid = _upload(client, pid, f"n-{secrets.token_hex(3)}.bin", b"not a parser-supported file")
     u = client.get(f"/api/projects/{pid}/files/{fid}/usage").json()
     assert u["source"] is None
     assert u["datasets"] == [] and u["runs"] == []

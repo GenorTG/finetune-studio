@@ -292,13 +292,27 @@ class DataPrepRunner:
                 coverage_info["chunks_uncovered"] = len(chunk_indices) - len(covered_now)
                 coverage_info["coverage_ratio"] = round(
                     coverage_info["chunks_with_accepted"] / max(1, len(chunk_indices)), 4)
-        except Exception:
+        except Exception as exc:
             log.exception("coverage fill failed for %s", self.source_id)
-        if fill_summary and fill_summary.get("chunks_still_uncovered"):
+            fill_summary = {
+                "error": str(exc),
+                "chunks_still_uncovered": [
+                    {"source": self.source_id, "chunk_idx": idx}
+                    for idx in coverage.uncovered_chunks(chunk_indices)
+                ],
+            }
+        uncovered_after_fill = (
+            fill_summary.get("chunks_still_uncovered", [])
+            if fill_summary
+            else [
+                {"source": self.source_id, "chunk_idx": idx}
+                for idx in coverage.uncovered_chunks(chunk_indices)
+            ]
+        )
+        if uncovered_after_fill:
             log.warning(
                 "source %s: %d chunk(s) could not yield any pair even extractively: %s",
-                self.source_id, len(fill_summary["chunks_still_uncovered"]),
-                fill_summary["chunks_still_uncovered"],
+                self.source_id, len(uncovered_after_fill), uncovered_after_fill,
             )
         pfs.log_ingestion(self.pid, {
             "event": "qa_generated", "sha256": meta.sha256, "filename": self.filename,
@@ -308,6 +322,39 @@ class DataPrepRunner:
             "coverage": coverage_info,
             "coverage_fill": fill_summary,
         })
+        source_manifest = pfs.read_qa_source(self.pid, self.source_id)
+        if source_manifest:
+            pfs.write_qa_source(self.pid, {
+                **source_manifest,
+                "status": "generated_incomplete" if uncovered_after_fill else "generated",
+                "generated_at": time.time(),
+                "generation": {
+                    "qa_model_accepted": total_qa,
+                    "qa_coverage_fill": fill_pairs,
+                    "rejection_counters": rejection_info,
+                    "coverage": coverage_info,
+                },
+            })
+        if uncovered_after_fill:
+            message = (
+                f"Coverage incomplete: {len(uncovered_after_fill)} of {len(chunks)} "
+                "chunk(s) still have no approved pair. Dataset export is blocked."
+            )
+            self._emit(
+                stage="error", pct=100, chunks_done=len(chunks),
+                qa_total=total_qa + fill_pairs, message=message,
+            )
+            return {
+                "ok": False,
+                "error": message,
+                "source_id": self.source_id,
+                "sha256": meta.sha256,
+                "chunks": len(chunks),
+                "qa": total_qa,
+                "qa_coverage_fill": fill_pairs,
+                "coverage": coverage_info,
+                "coverage_fill": fill_summary,
+            }
         self._emit(stage="done", pct=100, chunks_done=len(chunks), qa_total=total_qa,
                    message=(
                        f"Done. {total_qa} accepted Q&A pairs from {len(chunks)} chunks "

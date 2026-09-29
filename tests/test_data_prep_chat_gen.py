@@ -4,10 +4,9 @@ through minimal stubs (no full DB or model load).
 """
 from __future__ import annotations
 
-import os
+from unittest.mock import MagicMock
 
 import pytest
-from unittest.mock import MagicMock
 
 
 @pytest.fixture
@@ -77,8 +76,9 @@ def test_load_provider_route_forwards_extra(monkeypatch, fake_mgr):
     through to ModelManager.load(pid, extra=...)."""
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
-    from finetune_studio.webui.routes.data_prep import router
+
     from finetune_studio.models import manager as mgr_mod
+    from finetune_studio.webui.routes.data_prep import router
 
     captured = {}
     def fake_load(pid, extra=None):
@@ -98,11 +98,11 @@ def test_load_provider_route_forwards_extra(monkeypatch, fake_mgr):
     assert r.status_code == 200
     assert captured["pid"] == "local-default"
     assert captured["extra"]["n_ctx"] == 8192
-    assert captured["extra"]["n_gpu_layers"] == 33
+    assert captured["extra"]["n_gpu_layers"] == -1
 
-    # Empty body -> empty extra
+    # Empty body still enforces the helper's full-GPU policy.
     captured.clear()
     r = c.post("/providers/local-default/load")
     assert r.status_code == 200
-    assert captured["extra"] == {}
+    assert captured["extra"] == {"n_gpu_layers": -1}
 

@@ -55,6 +55,13 @@ class StartPrepBody(BaseModel):
     style: Style = "socratic"
 
 
+class BulkPrepBody(BaseModel):
+    source_ids: list[str] = Field(min_length=1, max_length=500)
+    qa_per_chunk: int = Field(default=3, ge=1, le=10)
+    difficulty: Difficulty = "medium"
+    style: Style = "socratic"
+
+
 def _progress_cb(progress_log: list[dict]) -> object:
     """Build a PrepProgress callback that appends to ``progress_log``."""
 
@@ -88,6 +95,10 @@ def _run_prep_background(run_id: str, runner: object, progress_log: list[dict]) 
         for entry in progress_log:
             if isinstance(entry.get("qa_total"), int):
                 qa_total = max(qa_total, entry["qa_total"])
+        qa_total = max(
+            qa_total,
+            int(result.get("qa") or 0) + int(result.get("qa_coverage_fill") or 0),
+        )
         if result.get("ok"):
             try:
                 db.mark_data_prep_done(
@@ -147,6 +158,60 @@ def enqueue_prep_run(
     _RUNS[(pid, run_id)] = {
         "runner": runner, "log": progress_log,
         "filename": filename, "byte_count": len(data),
+    }
+    background.add_task(_run_prep_background, run_id, runner, progress_log)
+    return run_id
+
+
+def enqueue_source_prep_run(
+    pid: str,
+    background: BackgroundTasks,
+    *,
+    source: dict,
+    qa_per_chunk: int,
+    difficulty: str,
+    style: str,
+) -> str:
+    """Queue one source without retaining its potentially large bytes in RAM."""
+    from finetune_studio import db
+    from finetune_studio.data.prep.queued import QueuedSourcePrep
+
+    path_str = source.get("data_path") or source.get("path") or ""
+    path = Path(path_str)
+    if not path_str or not path.is_file():
+        raise FileNotFoundError(path_str or str(source.get("id") or "source"))
+    filename = source.get("filename") or source.get("name") or path.name
+    settings_obj = {
+        "source": "per-file-queue",
+        "source_id": source.get("id"),
+        "qa_per_chunk": qa_per_chunk,
+        "difficulty": difficulty,
+        "style": style,
+    }
+    db_row = db.create_data_prep_run(
+        project_id=pid,
+        filename=filename,
+        byte_count=path.stat().st_size,
+        source_id=str(source.get("id") or ""),
+        settings_obj=settings_obj,
+    )
+    run_id = db_row["id"]
+    progress_log: list[dict] = []
+    runner = QueuedSourcePrep(
+        pid=pid,
+        path=path,
+        filename=filename,
+        qa_per_chunk=qa_per_chunk,
+        difficulty=difficulty,
+        style=style,
+        uploaded_by="per-file-queue",
+        progress_cb=_progress_cb(progress_log),
+    )
+    _RUNS[(pid, run_id)] = {
+        "runner": runner,
+        "log": progress_log,
+        "filename": filename,
+        "byte_count": path.stat().st_size,
     }
     background.add_task(_run_prep_background, run_id, runner, progress_log)
     return run_id
@@ -245,6 +310,16 @@ async def load_provider(pid: str, request: Request):
     except (json.JSONDecodeError, ValueError, TypeError) as e:
         # No body / empty body / non-JSON -> just reload with persisted extras.
         log.debug("load_provider body ignored: %s", e)
+    # GH-AAA: helper models are used for data-prep Q/A generation. They
+    # MUST be fully on GPU (no mixed offload) so generation runs at GPU
+    # speed. Override any client-supplied n_gpu_layers to -1.
+    if "n_gpu_layers" in extra and extra["n_gpu_layers"] != -1:
+        log.warning(
+            "providers/load: helper model %s requested n_gpu_layers=%s; "
+            "forcing -1 (all on GPU).",
+            pid, extra["n_gpu_layers"],
+        )
+    extra["n_gpu_layers"] = -1
     try:
         return {"ok": True, "active": get_manager().load(pid, extra=extra)}
     except Exception as e:
@@ -313,25 +388,69 @@ async def start_prep(
 
         return JSONResponse({"error": helper_resolution_error()}, status_code=409)
 
-    data = path.read_bytes()
-    filename = src.get("filename") or src.get("name") or path.name
-    run_id = enqueue_prep_run(
-        pid, background,
-        data=data, filename=filename,
+    run_id = enqueue_source_prep_run(
+        pid,
+        background,
+        source=src,
         qa_per_chunk=body.qa_per_chunk,
         difficulty=body.difficulty,
         style=body.style,
-        uploaded_by="webui",
-        source_id=body.source_id,
-        settings_obj={
-            "source": "start",
-            "source_id": body.source_id,
-            "qa_per_chunk": body.qa_per_chunk,
-            "difficulty": body.difficulty,
-            "style": body.style,
-        },
     )
     return {"ok": True, "run_id": run_id, "source_id": body.source_id}
+
+
+@router.post("/projects/{pid}/data-prep/start-bulk", response_model=None)
+async def start_bulk_prep(
+    pid: str,
+    body: BulkPrepBody,
+    background: BackgroundTasks,
+):
+    """Queue selected parsed files as sequential, source-scoped prep jobs.
+
+    Starlette executes these background tasks in insertion order. That is
+    intentional: one helper model consumes the available GPU at a time, while
+    queued files retain only their paths rather than every file's bytes.
+    """
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    from finetune_studio.data import project_filesystem as pfs
+    from finetune_studio.data.prep.generator import (
+        helper_resolution_error,
+        resolve_generator,
+    )
+
+    if resolve_generator() is None:
+        return JSONResponse({"error": helper_resolution_error()}, status_code=409)
+    by_id = {str(s.get("id") or ""): s for s in pfs.list_qa_sources(pid)}
+    unknown = [source_id for source_id in body.source_ids if source_id not in by_id]
+    if unknown:
+        return JSONResponse(
+            {"error": f"unknown source ids ({len(unknown)}): {unknown[:10]}"},
+            status_code=400,
+        )
+    run_ids: list[str] = []
+    for source_id in dict.fromkeys(body.source_ids):
+        source = by_id[source_id]
+        if source.get("status") in {"queued", "parsing", "error", "registered"}:
+            return JSONResponse(
+                {"error": f"source {source_id} is not parsed and ready"},
+                status_code=409,
+            )
+        try:
+            run_ids.append(
+                enqueue_source_prep_run(
+                    pid,
+                    background,
+                    source=source,
+                    qa_per_chunk=body.qa_per_chunk,
+                    difficulty=body.difficulty,
+                    style=body.style,
+                )
+            )
+        except FileNotFoundError as exc:
+            return JSONResponse({"error": f"source file missing: {exc}"}, status_code=404)
+    return {"ok": True, "run_ids": run_ids, "queued": len(run_ids)}
 
 
 @router.get("/projects/{pid}/data-prep/runs/{run_id}/events")
@@ -402,12 +521,16 @@ async def list_sources_route(pid: str):
         return missing
     from finetune_studio.data import project_filesystem as pfs
     sources = pfs.list_qa_sources(pid)
+    from finetune_studio.data.prep.source_state import summarize_source
+
     out = [{
         "id": s["id"], "filename": s["filename"], "mime_type": s.get("mime_type", ""),
         "char_count": s.get("char_count", 0), "chunk_count": s.get("chunk_count", 0),
         "uploaded_at": s.get("uploaded_at", 0), "sha256": s.get("sha256", ""),
-        "parser": s.get("parser", ""),
+        "parser": s.get("parser", ""), "status": s.get("status", "registered"),
+        "error": s.get("error", ""),
         "data_path": s.get("data_path") or s.get("path") or "",
+        **summarize_source(pid, s),
     } for s in sources]
     return {"sources": out}
 
@@ -512,20 +635,26 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
     from finetune_studio.data.prep import export_qa_jsonl
     # 100%-coverage gate: run the deterministic fill pass first so chunks the
     # stochastic mining pass never converted still land as approved extractive
-    # pairs. force=false keeps uncoverable chunks as an honest warning rather
-    # than a silent hole.
+    # pairs. Never export a dataset with silent coverage holes.
     fill_summary: dict | None = None
     try:
         from finetune_studio.data.prep.coverage_fill import fill_all_project_gaps
         fill_summary = fill_all_project_gaps(pid)
         if fill_summary and fill_summary.get("uncovered_chunks"):
-            log.warning(
-                "coverage fill left %d chunk(s) uncovered in project %s: %s",
-                len(fill_summary["uncovered_chunks"]), pid,
-                fill_summary["uncovered_chunks"][:10],
+            return JSONResponse(
+                {
+                    "error": "dataset export blocked: parsed chunks remain uncovered",
+                    "uncovered_chunks": fill_summary["uncovered_chunks"][:50],
+                    "uncovered_count": len(fill_summary["uncovered_chunks"]),
+                },
+                status_code=409,
             )
-    except Exception:
-        log.exception("coverage fill failed — exporting without it")
+    except Exception as exc:
+        log.exception("coverage fill failed — export blocked")
+        return JSONResponse(
+            {"error": f"dataset export blocked: coverage verification failed: {exc}"},
+            status_code=500,
+        )
     try:
         body = export_qa_jsonl(pid, fmt=fmt, only=only)
     except ValueError as e:

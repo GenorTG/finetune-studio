@@ -1,4 +1,4 @@
-"""Upload of text files must auto-promote into data-prep parsed sources."""
+"""Parser-supported uploads are staged immediately and parsed in background."""
 
 from __future__ import annotations
 
@@ -58,14 +58,18 @@ def test_text_upload_auto_promotes_to_parsed_source(client_and_db, name, body):
     assert item["status"] == "uploaded"
     assert item.get("source_id"), item
     assert item.get("source"), item
-    assert item["source"].get("status") == "ready"
-    assert int(item["source"].get("chunk_count") or 0) > 0
+    assert item["source"].get("status") == "queued"
+    assert item.get("parse_status") == "queued"
 
+    # TestClient waits for the response's background tasks, so the durable
+    # source has completed parsing even though the response snapshot says queued.
     listed = client.get(f"/api/projects/{pid}/data-prep/sources").json()["sources"]
-    assert any(s["id"] == item["source_id"] for s in listed)
+    parsed = next(s for s in listed if s["id"] == item["source_id"])
+    assert parsed["status"] == "ready"
+    assert int(parsed.get("chunk_count") or 0) > 0
 
 
-def test_non_text_upload_does_not_auto_promote(client_and_db):
+def test_parser_supported_binary_is_staged_and_parse_failure_is_visible(client_and_db):
     client, _ = client_and_db
     pid = _create_project(client)
     # Tiny PNG-ish bytes with a non-text extension.
@@ -76,9 +80,12 @@ def test_non_text_upload_does_not_auto_promote(client_and_db):
     assert r.status_code == 200, r.text
     item = r.json()["report"][0]
     assert item["status"] == "uploaded"
-    assert "source_id" not in item or item.get("source_id") is None
+    assert item.get("source_id")
+    assert item.get("parse_status") == "queued"
     listed = client.get(f"/api/projects/{pid}/data-prep/sources").json()["sources"]
-    assert listed == []
+    assert len(listed) == 1
+    assert listed[0]["stage"] == "error"
+    assert listed[0]["error"]
 
 
 def test_duplicate_text_upload_still_ensures_source(client_and_db):

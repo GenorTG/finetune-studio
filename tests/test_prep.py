@@ -72,6 +72,39 @@ class TestChunker:
         assert "second sentence" in full_text
         assert "third sentence" in full_text
 
+    def test_heading_before_oversized_paragraph_is_not_a_standalone_chunk(self):
+        """A lone heading used to be flushed as chunk 1 ("# Lore", 6 chars),
+        which coverage-fill cannot turn into a pair -> permanent export block.
+        The oversized paragraph after it also skipped the sentence split."""
+        from finetune_studio.data.prep.chunker import chunk_text
+        text = "# Lore\n\n" + ("Keeper Odo swore on green wax in 1841. " * 60)
+        chunks = chunk_text(text)
+        assert chunks[0].startswith("# Lore\n\nKeeper Odo")
+        assert all(len(c) > 200 for c in chunks), [len(c) for c in chunks]
+        assert all(len(c) <= 1200 for c in chunks), [len(c) for c in chunks]
+        assert " ".join(chunks).count("Keeper Odo") >= 60
+
+    def test_long_buffer_before_oversized_paragraph_keeps_overlap(self):
+        from finetune_studio.data.prep.chunker import chunk_text
+        intro = "The archive opened in spring. " * 12  # ~360 chars, standalone
+        body = "Warden Pell counted every ledger twice. " * 60
+        chunks = chunk_text(f"{intro.strip()}\n\n{body.strip()}", overlap=100)
+        assert chunks[0] == intro.strip()
+        assert chunks[1].startswith(chunks[0][-100:].strip())
+        assert all(len(c) <= 1200 for c in chunks)
+
+    def test_unaffected_inputs_chunk_identically(self):
+        """Stored chunks must stay reproducible (data/audit.py re-chunks and
+        compares) for every input shape the old splitter already handled."""
+        from finetune_studio.data.prep.chunker import chunk_text
+        para = "Short fact about the realm. " * 10
+        text = "\n\n".join([para.strip()] * 8)
+        chunks = chunk_text(text, target_chars=600, overlap=80)
+        assert chunks[0] == "\n\n".join([para.strip()] * 2)
+        assert chunks[1].startswith(chunks[0][-80:])
+        lone = ("One long sentence here. " * 80).strip()
+        assert all(len(c) <= 1200 for c in chunk_text(lone))
+
 
 # ── Parsers ──────────────────────────────────────────────────────────────────
 

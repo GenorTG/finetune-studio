@@ -94,6 +94,13 @@ def test_subset_dataset_build_route(client, project, temp_db, monkeypatch):
     from pathlib import Path
 
     import finetune_studio.data.fs.qa as qafs
+    from finetune_studio.data.prep import coverage_fill
+    # This test exercises selection/registration; coverage behavior has its own test.
+    monkeypatch.setattr(
+        coverage_fill,
+        "fill_sources_gaps",
+        lambda pid, source_ids: {"uncovered_chunks": [], "pairs_created": 0},
+    )
     # Point qa fs at a temp project dir
     tmp = Path(tempfile.mkdtemp(prefix="vers-subset-"))
     monkeypatch.setattr(qafs, "project_dir", lambda pid: tmp / pid)
@@ -148,6 +155,13 @@ def test_subset_empty_payload_rejected(client, project, temp_db, monkeypatch):
     from pathlib import Path
 
     import finetune_studio.data.fs.qa as qafs
+    from finetune_studio.data.prep import coverage_fill
+    # Isolate the "no approved pairs" rejection from the coverage gate (own test).
+    monkeypatch.setattr(
+        coverage_fill,
+        "fill_sources_gaps",
+        lambda pid, source_ids: {"uncovered_chunks": [], "pairs_created": 0},
+    )
     tmp = Path(tempfile.mkdtemp(prefix="vers-empty-"))
     monkeypatch.setattr(qafs, "project_dir", lambda pid: tmp / pid)
     (tmp / project / "qa" / "sources").mkdir(parents=True)
@@ -157,6 +171,31 @@ def test_subset_empty_payload_rejected(client, project, temp_db, monkeypatch):
     r = client.post(f"/api/projects/{project}/datasets/subset",
                     json={"source_ids": ["srcX"]})
     assert r.status_code == 400  # no approved pairs -> rejected
+
+
+def test_subset_build_blocks_uncovered_chunks(client, project, monkeypatch):
+    import finetune_studio.data.fs.qa as qafs
+    from finetune_studio.data.prep import coverage_fill
+
+    monkeypatch.setattr(
+        qafs,
+        "list_qa_sources",
+        lambda pid: [{"id": "src-gap", "filename": "gap.txt", "chunk_count": 1}],
+    )
+    monkeypatch.setattr(
+        coverage_fill,
+        "fill_sources_gaps",
+        lambda pid, source_ids: {
+            "uncovered_chunks": [{"source": "src-gap", "chunk_idx": 1}]
+        },
+    )
+    r = client.post(
+        f"/api/projects/{project}/datasets/subset",
+        json={"source_ids": ["src-gap"]},
+    )
+    assert r.status_code == 409
+    assert r.json()["uncovered_count"] == 1
+    assert "blocked" in r.json()["error"]
 
 
 def test_rag_coverage_gate(client, project, temp_db, monkeypatch):

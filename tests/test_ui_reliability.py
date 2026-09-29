@@ -204,6 +204,24 @@ def test_load_success_payload_when_model_held(
     assert data["status"] == "loaded"
     assert data["loaded"] is True
     assert data["model"] == "/models/ok"
+    assert engine.load.call_args.kwargs["n_gpu_layers"] == -1
+
+
+def test_load_coerces_cpu_or_partial_offload_to_full_gpu(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    engine = MagicMock()
+    engine.model = object()
+    engine.vision = False
+    monkeypatch.setattr("finetune_studio.webui.app.inference_engine", engine)
+
+    for requested in (0, 24):
+        response = client.post(
+            "/api/models/load",
+            json={"path": "/models/ok.gguf", "n_gpu_layers": requested},
+        )
+        assert response.status_code == 200, response.text
+        assert engine.load.call_args.kwargs["n_gpu_layers"] == -1
 
 
 def test_data_prep_page_has_upload_refresh_hooks(client: TestClient) -> None:

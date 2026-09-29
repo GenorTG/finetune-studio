@@ -169,6 +169,23 @@ def test_approve_then_export_registers_training_dataset(client_and_db) -> None:
     assert hit["name"] in train.text or hit["id"] in train.text
 
 
+def test_export_blocks_when_coverage_still_has_holes(
+    client_and_db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _db_path, _projects = client_and_db
+    pid = _create_project(client)
+    monkeypatch.setattr(
+        "finetune_studio.data.prep.coverage_fill.fill_all_project_gaps",
+        lambda project_id: {
+            "uncovered_chunks": [{"source": "src-gap", "chunk_idx": 2}]
+        },
+    )
+    r = client.get(f"/api/projects/{pid}/data-prep/export")
+    assert r.status_code == 409
+    assert r.json()["uncovered_count"] == 1
+    assert "blocked" in r.json()["error"]
+
+
 def test_export_without_approved_still_empty_or_empty_file(client_and_db) -> None:
     """Pending-only projects must not silently populate Training."""
     client, _db_path, projects = client_and_db

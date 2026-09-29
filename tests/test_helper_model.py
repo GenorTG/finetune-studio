@@ -9,13 +9,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from finetune_studio.models.helper import (
-    ALTERNATE_HELPER_GGUF_BASENAME,
-    ALTERNATE_HELPER_LABEL,
     ALTERNATE_HELPER_PROVIDER_ID,
     DEFAULT_HELPER_GGUF_BASENAME,
     DEFAULT_HELPER_LABEL,
     DEFAULT_HELPER_PROVIDER_ID,
-    alternate_helper_gguf_path,
     annotate_provider,
     helper_display_label,
     is_helper_gguf_path,
@@ -71,7 +68,8 @@ def test_data_prep_page_shows_helper_label(client: Any) -> None:
     assert r.status_code == 200
     assert DEFAULT_HELPER_LABEL in r.text or "Helper ·" in r.text
     assert DEFAULT_HELPER_PROVIDER_ID in r.text
-    assert "load that provider first" in r.text.lower()
+    assert "loads it" in r.text.lower()
+    assert "full gpu offload" in r.text.lower()
     assert "only" in r.text.lower()
 
 

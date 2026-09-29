@@ -152,8 +152,9 @@ def test_data_prep_page_shows_helper(client: Any) -> None:
     assert r.status_code == 200, r.text
     assert DEFAULT_HELPER_LABEL in r.text or "12B" in r.text
     assert DEFAULT_HELPER_PROVIDER_ID in r.text
-    # Prep job copy: helper-only, load that provider first (no silent fallback).
-    assert "load that provider first" in r.text
+    # Prep job copy: helper-only, automatically loaded with full GPU offload.
+    assert "loads it" in r.text
+    assert "full GPU offload" in r.text
     assert "Uses" in r.text and "only" in r.text.lower()
 
 

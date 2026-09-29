@@ -117,13 +117,14 @@ def test_edit_rechunks_data_prep_source(fts_root: Path, client) -> None:
 
 def test_pipeline_flags(fts_root: Path, client) -> None:
     pid = _project(client)
-    # .csv is NOT auto-promoted on upload (.txt/.md/.markdown/.log are)
+    # Every parser-supported upload is staged and parsed in the background.
     fid_a = _upload(client, pid, f"a-{secrets.token_hex(3)}.csv", b"k,v\n1,2\n")
     fid_b = _upload(client, pid, f"b-{secrets.token_hex(3)}.md", _doc("beta"))
     client.post(f"/api/projects/{pid}/data-prep/sources", json={"file_id": fid_b})
 
     status = client.get(f"/api/projects/{pid}/files/pipeline").json()["status"]
-    assert status[fid_a]["source_id"] is None
+    assert status[fid_a]["source_id"], status[fid_a]
+    assert status[fid_a]["has_parsed"] is True
     assert status[fid_b]["source_id"], status[fid_b]
     assert status[fid_b]["has_parsed"] is True
     assert status[fid_b]["chunk_count"] > 0
@@ -143,15 +144,16 @@ def test_rag_quick_promotes_then_builds(fts_root: Path, client, monkeypatch) -> 
     monkeypatch.setattr(rag_mod, "rag_build", fake_build)
 
     pid = _project(client)
-    # .csv is not auto-promoted, so the quick flow has real work to do
+    # Upload already staged and parsed the CSV; quick RAG can build directly.
     fid = _upload(client, pid, f"quick-{secrets.token_hex(3)}.csv",
                   b"question,answer\n" + _doc("quick"))
     r = client.post(f"/api/projects/{pid}/rag/quick", json={})
     body = r.json()
     assert body["ok"] is True, body
-    assert body["promoted"] == 1
-    assert body["promoted_files"][0]["file_id"] == fid
+    assert body["promoted"] == 0
+    assert body["promoted_files"] == []
     assert body["build"]["chunks"] == 12
+    assert client.get(f"/api/projects/{pid}/files/{fid}/usage").json()["source"]
     assert calls["pid"] == pid
 
     # second run: already a source → nothing left to promote

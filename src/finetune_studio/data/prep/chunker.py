@@ -8,6 +8,31 @@ from __future__ import annotations
 
 import re
 
+# A buffer shorter than this (typically a lone heading) carries no standalone
+# facts. It is never flushed as its own chunk ahead of an oversized paragraph:
+# coverage-fill cannot mint a pair from "# Lore", so such a chunk would be a
+# permanent coverage hole that blocks dataset export.
+_MIN_STANDALONE_CHARS = 200
+
+
+def _pack_sentences(prefix: str, para: str, target_chars: int) -> tuple[list[str], str]:
+    """Greedy-pack ``para``'s sentences after ``prefix``.
+
+    Returns (full chunks, trailing partial buffer).
+    """
+    chunks: list[str] = []
+    buf = prefix
+    for s in re.split(r"(?<=[.!?])\s+", para):
+        sep = "\n\n" if buf == prefix and prefix else " "
+        cand = (buf + sep + s).strip() if buf else s
+        if len(cand) <= target_chars:
+            buf = cand
+        else:
+            if buf:
+                chunks.append(buf)
+            buf = s
+    return chunks, buf
+
 
 def chunk_text(text: str, target_chars: int = 1200, overlap: int = 200) -> list[str]:
     """Split on paragraph boundaries; fall back to sentence boundaries; then hard wrap.
@@ -25,23 +50,25 @@ def chunk_text(text: str, target_chars: int = 1200, overlap: int = 200) -> list[
         if len(cand) <= target_chars:
             buf = cand
             continue
-        if buf:
+        if buf and len(p) > target_chars:
+            # Oversized paragraph after buffered text: it still needs a
+            # sentence split. A short buffer (heading) leads the first
+            # sentences instead of becoming a fact-free chunk of its own.
+            if len(buf) < _MIN_STANDALONE_CHARS:
+                prefix = buf
+            else:
+                chunks.append(buf)
+                prefix = (buf[-overlap:] if len(buf) > overlap else buf).strip()
+            packed, buf = _pack_sentences(prefix, p, target_chars)
+            chunks.extend(packed)
+        elif buf:
             chunks.append(buf)
             tail = buf[-overlap:] if len(buf) > overlap else buf
             buf = (tail + "\n\n" + p).strip()
         else:
             # Single para too long — sentence split
-            sents = re.split(r"(?<=[.!?])\s+", p)
-            buf2 = ""
-            for s in sents:
-                cand = (buf2 + " " + s).strip() if buf2 else s
-                if len(cand) <= target_chars:
-                    buf2 = cand
-                else:
-                    if buf2:
-                        chunks.append(buf2)
-                    buf2 = s
-            buf = buf2
+            packed, buf = _pack_sentences("", p, target_chars)
+            chunks.extend(packed)
     if buf:
         chunks.append(buf)
     return chunks

@@ -32,15 +32,63 @@ them as a fid='trash' lookup.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
+import tempfile
+from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from finetune_studio.data.fs import file_library as fl
 
 log = logging.getLogger(__name__)
 router = APIRouter()
+
+_UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024
+
+
+async def _stage_upload(pid: str, upload: UploadFile) -> tuple[Path, int, str]:
+    """Stream one multipart upload to disk while hashing it."""
+    staging_dir = fl.project_files_root(pid) / ".uploads"
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha256()
+    size = 0
+    with tempfile.NamedTemporaryFile(
+        prefix="upload-", suffix=".part", dir=staging_dir, delete=False
+    ) as staged:
+        path = Path(staged.name)
+        try:
+            while True:
+                chunk = await upload.read(_UPLOAD_CHUNK_BYTES)
+                if not chunk:
+                    break
+                staged.write(chunk)
+                digest.update(chunk)
+                size += len(chunk)
+        except Exception:
+            path.unlink(missing_ok=True)
+            raise
+    return path, size, digest.hexdigest()
+
+
+def _parse_source_background(pid: str, source_id: str) -> None:
+    """Parse one staged upload after the HTTP response has been sent."""
+    from finetune_studio.data.fs.qa import parse_staged_qa_source
+
+    try:
+        parse_staged_qa_source(pid, source_id)
+    except Exception:
+        log.exception("background parse failed for %s/%s", pid, source_id)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
@@ -57,6 +105,7 @@ def _project_or_404(pid: str) -> None:
 async def upload_files(
     pid: str,
     request: Request,
+    background: BackgroundTasks,
     files: list[UploadFile] = File(...),  # noqa: B008  # FastAPI requires File() default at def site
     folder_id: str | None = Form(None),
     uploaded_by: str = Form("user"),
@@ -82,8 +131,9 @@ async def upload_files(
 
     for up in files:
         name = up.filename or "unnamed"
+        staged_path: Path | None = None
         try:
-            data = await up.read()
+            staged_path, size_bytes, h = await _stage_upload(pid, up)
         except Exception as e:  # noqa: BLE001
             report.append({
                 "filename": name,
@@ -93,7 +143,8 @@ async def upload_files(
             counts["errors"] += 1
             continue
 
-        if not data:
+        if not size_bytes:
+            staged_path.unlink(missing_ok=True)
             report.append({
                 "filename": name,
                 "status": "error",
@@ -103,39 +154,50 @@ async def upload_files(
             continue
 
         # Dedup check
-        h = fl.sha256_of_bytes(data)
         existing = fl.find_existing_hash(pid, h)
         if existing:
+            staged_path.unlink(missing_ok=True)
             item: dict = {
                 "filename": name,
                 "status": "duplicate",
                 "duplicate_of": existing["original_name"],
                 "duplicate_file_id": existing["id"],
             }
-            # Still ensure text duplicates are selectable as parsed sources.
-            from finetune_studio.data.fs.qa import maybe_auto_promote_upload
-            source = maybe_auto_promote_upload(
-                pid,
-                existing["id"],
-                name,
-                mime_type=up.content_type or existing.get("mime_type") or "",
-            )
-            if source:
-                item["source"] = source
-                item["source_id"] = source.get("id")
+            from finetune_studio.data.fs.qa import stage_file_library_upload
+            from finetune_studio.data.parsers import PARSERS
+
+            if Path(name).suffix.lower() in PARSERS:
+                source = stage_file_library_upload(
+                    pid,
+                    existing["id"],
+                    mime_type=up.content_type or existing.get("mime_type") or "",
+                    filename=name,
+                )
+                if source:
+                    item["source"] = source
+                    item["source_id"] = source.get("id")
+                    item["parse_status"] = source.get("status")
+                    if source.get("status") in {"queued", "error"}:
+                        background.add_task(
+                            _parse_source_background, pid, str(source["id"])
+                        )
             report.append(item)
             counts["duplicates_skipped"] += 1
             continue
 
         try:
-            meta = fl.write_uploaded_file(
+            meta = fl.write_staged_upload(
                 pid=pid,
-                data=data,
+                staged_path=staged_path,
                 original_name=name,
+                raw_hash=h,
+                size_bytes=size_bytes,
                 mime_hint=up.content_type,
                 uploaded_by=uploaded_by,
             )
         except Exception as e:
+            if staged_path is not None:
+                staged_path.unlink(missing_ok=True)
             log.exception("upload write failed for %s", name)
             report.append({"filename": name, "status": "error", "error": str(e)})
             counts["errors"] += 1
@@ -162,14 +224,23 @@ async def upload_files(
             "raw_hash": meta.raw_hash,
             "auto_kind": meta.auto_kind,
         }
-        # Auto-promote .txt/.md/.markdown/.log into the data-prep source picker.
-        from finetune_studio.data.fs.qa import maybe_auto_promote_upload
-        source = maybe_auto_promote_upload(
-            pid, meta.file_id, name, mime_type=meta.mime_type or ""
-        )
-        if source:
-            item["source"] = source
-            item["source_id"] = source.get("id")
+        # Stage every parser-supported file immediately, then parse it after
+        # the response. Hundreds of PDFs/DOCX files no longer make Upload wait
+        # for extraction one-by-one in the request path.
+        from finetune_studio.data.fs.qa import stage_file_library_upload
+        from finetune_studio.data.parsers import PARSERS
+
+        if Path(name).suffix.lower() in PARSERS:
+            source = stage_file_library_upload(
+                pid, meta.file_id, mime_type=meta.mime_type or "", filename=name
+            )
+            if source:
+                item["source"] = source
+                item["source_id"] = source.get("id")
+                item["parse_status"] = source.get("status")
+                background.add_task(
+                    _parse_source_background, pid, str(source["id"])
+                )
         report.append(item)
         counts["uploaded"] += 1
 

@@ -239,7 +239,34 @@ class InferenceEngine:
             kwargs["rope_freq_base"] = rope_freq_base
         if rope_freq_scale > 0:
             kwargs["rope_freq_scale"] = rope_freq_scale
-        self.model = Llama(**kwargs)
+        # GH-AAA: load with full GPU offload (n_gpu_layers=-1). If the
+        # model + KV cache don't fit in VRAM, retry with a halved n_ctx —
+        # NEVER silently fall back to mixed offload (some layers on CPU).
+        last_err: Exception | None = None
+        for attempt in range(6):
+            try:
+                self.model = Llama(**kwargs)
+                last_err = None
+                break
+            except Exception as e:
+                msg = str(e).lower()
+                if "out of memory" not in msg and "cuda" not in msg and "vram" not in msg:
+                    raise
+                last_err = e
+                # Halve n_ctx and retry. Floor at 512 so we never silently
+                # load with an absurdly small context.
+                new_ctx = max(512, kwargs["n_ctx"] // 2)
+                if new_ctx == kwargs["n_ctx"]:
+                    # Already at the floor; give up.
+                    break
+                print(
+                    f"GGUF load OOM at n_ctx={kwargs['n_ctx']} "
+                    f"(attempt {attempt+1}/6); retrying with n_ctx={new_ctx}. "
+                    f"Model layers stay on GPU — only KV cache shrinks."
+                )
+                kwargs["n_ctx"] = new_ctx
+        if self.model is None and last_err is not None:
+            raise last_err
         self.tokenizer = None
         # Cache the GGUF's own chat template + tokens so we don't re-extract per call.
         try:

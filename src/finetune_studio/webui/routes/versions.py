@@ -163,11 +163,20 @@ async def build_subset_dataset(pid: str, request: Request):
     try:
         fill = fill_sources_gaps(pid, source_ids)
         if fill.get("uncovered_chunks"):
-            log.warning("subset coverage fill left %d uncovered: %s",
-                        len(fill["uncovered_chunks"]), fill["uncovered_chunks"][:6])
-    except Exception:
-        log.exception("subset coverage fill failed")
-        fill = None
+            return JSONResponse(
+                {
+                    "error": "dataset build blocked: selected sources contain uncovered chunks",
+                    "uncovered_chunks": fill["uncovered_chunks"][:50],
+                    "uncovered_count": len(fill["uncovered_chunks"]),
+                },
+                status_code=409,
+            )
+    except Exception as exc:
+        log.exception("subset coverage fill failed — dataset build blocked")
+        return JSONResponse(
+            {"error": f"dataset build blocked: coverage verification failed: {exc}"},
+            status_code=500,
+        )
 
     fmt = body.get("fmt", "sharegpt")
     try:

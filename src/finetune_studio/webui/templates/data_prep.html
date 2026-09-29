@@ -119,7 +119,13 @@
         <b>Uploaded files</b> above and from indexed corpus chunks on the RAG page.
       </div>
     </div>
-    <button class="btn small" type="button" onclick="flRefreshSources()">Refresh</button>
+    <div class="flex gap-2 wrap">
+      <button class="btn small primary" type="button" id="dp-generate-selected"
+              onclick="dpGenerateSelectedSources()">Generate pairs for selected</button>
+      <button class="btn small success" type="button" id="dp-build-selected"
+              onclick="dpBuildSelectedDataset()">Build dataset from selected</button>
+      <button class="btn small" type="button" onclick="flRefreshSources()">Refresh</button>
+    </div>
   </div>
   <div id="dp-parsed-list" class="text-sm">
     {% if sources %}
@@ -127,17 +133,25 @@
     <table class="table compact" id="dp-parsed-table">
       <thead>
         <tr>
+          <th><input type="checkbox" aria-label="Select all parsed sources"></th>
           <th>Name</th>
+          <th>Stage</th>
           <th>Chars</th>
           <th>Chunks</th>
+          <th>Pairs</th>
+          <th>Approved coverage</th>
         </tr>
       </thead>
       <tbody>
         {% for s in sources %}
         <tr>
+          <td><input type="checkbox" class="dp-source-check" value="{{ s.id }}"></td>
           <td class="mono cell-wrap">{{ s.name }}</td>
+          <td>{{ s.status or 'ready' }}</td>
           <td class="num">{{ s.char_count }}</td>
           <td class="num">{{ s.chunk_count }}</td>
+          <td class="num">—</td>
+          <td>—</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -159,8 +173,8 @@
     <div>
       <div class="card-title">Run a prep job</div>
       <div class="card-sub">Pick a <b>Parsed source</b>, choose chunking + difficulty, hit start.
-        Uses <b>{{ helper_label }}</b> only — load that provider first (Inference or
-        <code>/api/providers/{{ helper_provider_id }}/load</code>). Drafts land in
+        Uses <b>{{ helper_label }}</b> only — the selected-files action loads it
+        automatically with full GPU offload. Drafts land in
         <i>Training / Q&amp;A output</i> below — then take them to the Chat tab in Agent mode to curate + persist.</div>
     </div>
   </div>
@@ -531,6 +545,7 @@
 <script>
 // ── File library (Stage 1B) ───────────────────────────────────────────────
 const _flPid = "{{ pid }}";
+const _dpHelperProviderId = "{{ helper_provider_id }}";
 // Parser-supported extensions (finetune_studio.data.parsers.PARSERS, injected).
 const _FL_PROMOTE_EXTS = {{ promotable_extensions | default(auto_promote_extensions) | default(['.txt', '.md', '.markdown', '.log']) | tojson }};
 let _flFolders = [];
@@ -621,13 +636,29 @@ function flRenderParsedList() {
   }
   host.innerHTML =
     '<div class="table-scroll"><table class="table compact" id="dp-parsed-table">' +
-    '<thead><tr><th>Name</th><th>Chars</th><th>Chunks</th></tr></thead><tbody>' +
+    '<thead><tr><th><input type="checkbox" id="dp-source-check-all" aria-label="Select all parsed sources"></th>' +
+    '<th>Name</th><th>Stage</th><th>Chars</th><th>Chunks</th><th>Pairs</th><th>Approved coverage</th></tr></thead><tbody>' +
     list.map(function (s) {
-      return '<tr><td class="mono cell-wrap">' + escapeHtml(s.name || s.filename || s.id) +
-        '</td><td class="num">' + (s.char_count || 0) +
-        '</td><td class="num">' + (s.chunk_count || 0) + '</td></tr>';
+      const stage = s.stage || s.status || 'registered';
+      const ready = !!s.training_ready;
+      const badgeClass = ready ? 'solid-green' : (stage === 'error' ? 'solid-rose' : 'outline');
+      const disabled = ['queued', 'parsing', 'error', 'registered'].indexOf(stage) >= 0 ? ' disabled' : '';
+      const title = s.error ? ' title="' + escapeHtml(s.error) + '"' : '';
+      return '<tr><td><input type="checkbox" class="dp-source-check" value="' + escapeHtml(s.id) + '"' + disabled + '></td>' +
+        '<td class="mono cell-wrap">' + escapeHtml(s.name || s.filename || s.id) + '</td>' +
+        '<td><span class="pill ' + badgeClass + '"' + title + '>' + escapeHtml(stage.replace(/_/g, ' ')) + '</span></td>' +
+        '<td class="num">' + (s.char_count || 0) + '</td>' +
+        '<td class="num">' + (s.chunk_count || 0) + '</td>' +
+        '<td class="num">' + (s.pairs_total || 0) + ' <span class="dim">(' + (s.pairs_pending || 0) + ' pending)</span></td>' +
+        '<td>' + (s.coverage_pct || 0) + '% · ' + (s.chunks_approved || 0) + '/' + (s.chunks_total || 0) + '</td></tr>';
     }).join('') +
     '</tbody></table></div>';
+  const all = document.getElementById('dp-source-check-all');
+  if (all) all.addEventListener('change', function () {
+    document.querySelectorAll('.dp-source-check:not(:disabled)').forEach(function (box) {
+      box.checked = all.checked;
+    });
+  });
 }
 
 async function flRefreshSources() {
@@ -904,9 +935,12 @@ function flRefreshSourceSelect() {
   const prev = sel.value;
   const opts = ['<option value="">— pick a parsed source —</option>'];
   for (const s of (_flSources || [])) {
+    const stage = s.stage || s.status || 'registered';
+    const unavailable = ['queued', 'parsing', 'error', 'registered'].indexOf(stage) >= 0;
     const label = (s.name || s.filename || s.id) +
-      ' · ' + (s.char_count || 0) + ' chars · ' + (s.chunk_count || 0) + ' chunks';
-    opts.push('<option value="' + escapeHtml(s.id) + '">' + escapeHtml(label) + '</option>');
+      ' · ' + stage.replace(/_/g, ' ') + ' · ' +
+      (s.char_count || 0) + ' chars · ' + (s.chunk_count || 0) + ' chunks';
+    opts.push('<option value="' + escapeHtml(s.id) + '"' + (unavailable ? ' disabled' : '') + '>' + escapeHtml(label) + '</option>');
   }
   sel.innerHTML = opts.join('');
   if (prev) sel.value = prev;
@@ -924,17 +958,8 @@ async function flUploadFiles(files) {
     const r = await fetch('/api/projects/' + _flPid + '/files/upload', { method: 'POST', body: fd });
     const data = await r.json();
     flShowUploadReport(data);
-    // Promote each newly uploaded (or duplicate) file into the source picker.
-    // Server already auto-promotes .txt/.md/.markdown/.log; this covers other
-    // formats and is idempotent when the upload response already includes source.
-    const report = data.report || [];
-    for (const item of report) {
-      if (item.source_id || item.source) continue;
-      const fid = item.file_id || item.duplicate_file_id;
-      if (fid && (item.status === 'uploaded' || item.status === 'duplicate')) {
-        await flPromoteToDataPrep(fid);
-      }
-    }
+    // Parsing is server-side background work. Do not serially issue one
+    // blocking promotion request per uploaded file from the browser.
     // Show all files after upload so new MIME-folder rows are visible in-place.
     _flCurrentFolder = null;
     const label = document.getElementById('fl-files-label');
@@ -1815,6 +1840,76 @@ function escapeHtml(s) {
 function prepRefresh() {
   // Reload the source dropdown + the prepped-Q&A list.
   location.reload();
+}
+
+function dpSelectedSourceIds() {
+  return Array.from(document.querySelectorAll('.dp-source-check:checked')).map(function (box) {
+    return box.value;
+  }).filter(Boolean);
+}
+
+function dpPrepSettings() {
+  return {
+    qa_per_chunk: parseInt((document.getElementById('prep-qpc') || {}).value || '3', 10) || 3,
+    difficulty: (document.getElementById('prep-diff') || {}).value || 'medium',
+    style: (document.getElementById('prep-style') || {}).value || 'socratic',
+  };
+}
+
+async function dpEnsureHelperLoaded() {
+  const providers = await fetch('/api/providers', { cache: 'no-store' }).then(function (r) { return r.json(); });
+  const helperId = providers.helper_provider_id || _dpHelperProviderId || 'local-default';
+  const active = providers.active || null;
+  if (active && active.id === helperId) return;
+  prepSetStatus('Loading the built-in helper with full GPU offload…', 'info');
+  const r = await fetch('/api/providers/' + encodeURIComponent(helperId) + '/load', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+  });
+  const data = await r.json().catch(function () { return {}; });
+  if (!r.ok || data.ok === false) throw new Error(data.error || ('helper load HTTP ' + r.status));
+}
+
+async function dpGenerateSelectedSources() {
+  const sourceIds = dpSelectedSourceIds();
+  if (!sourceIds.length) {
+    prepSetStatus('Select at least one parsed source.', 'error');
+    return;
+  }
+  const body = Object.assign({ source_ids: sourceIds }, dpPrepSettings());
+  prepSetStatus('Queueing ' + sourceIds.length + ' per-file job(s)…', 'info');
+  try {
+    await dpEnsureHelperLoaded();
+    const r = await fetch('/api/projects/' + encodeURIComponent(_prepPid) + '/data-prep/start-bulk', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const data = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(data.error || data.detail || ('HTTP ' + r.status));
+    prepSetStatus('Queued ' + data.queued + ' file job(s). One helper uses the GPU at a time.', 'success');
+    if (data.run_ids && data.run_ids.length) prepSubscribe(data.run_ids[0]);
+  } catch (e) {
+    prepSetStatus('Queue failed: ' + ((e && e.message) || e), 'error');
+  }
+}
+
+async function dpBuildSelectedDataset() {
+  const sourceIds = dpSelectedSourceIds();
+  if (!sourceIds.length) {
+    prepSetStatus('Select at least one source to assemble.', 'error');
+    return;
+  }
+  prepSetStatus('Building a deterministic dataset from ' + sourceIds.length + ' source(s)…', 'info');
+  try {
+    const r = await fetch('/api/projects/' + encodeURIComponent(_prepPid) + '/datasets/subset', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source_ids: sourceIds, fmt: 'sharegpt' }),
+    });
+    const data = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(data.error || data.detail || ('HTTP ' + r.status));
+    prepSetStatus('Built ' + data.rows + ' training rows from ' + sourceIds.length + ' source(s).', 'success');
+    await dpRefreshExportedDatasets();
+  } catch (e) {
+    prepSetStatus('Dataset build failed: ' + ((e && e.message) || e), 'error');
+  }
 }
 
 // Wire the form: fetch /start, show inline status, subscribe to SSE progress.
