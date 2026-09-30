@@ -174,3 +174,61 @@ class TestLoadLlamaGguf:
         with patch("llama_cpp.Llama", FakeLlama):
             mod.load_llama_gguf(str(gguf), n_threads=None, detect_mmproj=False)
         assert FakeLlama.calls[0]["n_threads"] > 0
+
+
+class TestUnloadAllModels:
+    """There are two independent 'currently loaded model' trackers: the
+    global inference_engine and ModelManager's active provider. Nothing
+    enforced that only one is ever resident — a data-prep helper loaded via
+    ModelManager stayed loaded through a whole training run or benchmark
+    judge pass that only unloaded inference_engine, silently doubling VRAM
+    use. unload_all_models() must always free both, unconditionally."""
+
+    def test_unloads_both_engines_when_both_have_models(self):
+        from finetune_studio.models import llama_loader as mod
+
+        fake_engine = MagicMock()
+        fake_engine.model = object()
+        fake_manager = MagicMock()
+
+        with patch("finetune_studio.webui.app.inference_engine", fake_engine), \
+             patch("finetune_studio.models.manager.get_manager", return_value=fake_manager):
+            mod.unload_all_models()
+
+        fake_engine.unload.assert_called_once()
+        fake_manager.unload.assert_called_once()
+
+    def test_skips_inference_engine_unload_when_no_model_loaded(self):
+        """Don't call unload() on an engine that has nothing loaded —
+        matches the existing guard pattern at every other unload call site."""
+        from finetune_studio.models import llama_loader as mod
+
+        fake_engine = MagicMock()
+        fake_engine.model = None
+        fake_manager = MagicMock()
+
+        with patch("finetune_studio.webui.app.inference_engine", fake_engine), \
+             patch("finetune_studio.models.manager.get_manager", return_value=fake_manager):
+            mod.unload_all_models()
+
+        fake_engine.unload.assert_not_called()
+        # ModelManager.unload() is cheap/idempotent even with nothing
+        # active, so it's always called rather than probed first.
+        fake_manager.unload.assert_called_once()
+
+    def test_one_engine_failing_does_not_block_the_other(self):
+        """A broken/import-failing engine must not prevent freeing the
+        other one — this runs before every load, so it can't be allowed
+        to raise and abort the load that's about to happen."""
+        from finetune_studio.models import llama_loader as mod
+
+        fake_engine = MagicMock()
+        fake_engine.model = object()
+        fake_engine.unload.side_effect = RuntimeError("boom")
+        fake_manager = MagicMock()
+
+        with patch("finetune_studio.webui.app.inference_engine", fake_engine), \
+             patch("finetune_studio.models.manager.get_manager", return_value=fake_manager):
+            mod.unload_all_models()  # must not raise
+
+        fake_manager.unload.assert_called_once()

@@ -168,6 +168,11 @@ async def load_model(request: Request):
         kwargs = resolve_loader_overrides(body, caller="chat-v2/load", model_path=model_path)
         kwargs["max_seq_length"] = body.get("max_seq_length")
         kwargs["load_in_4bit"] = body.get("load_in_4bit", True)
+        # Free whatever ModelManager (data-prep's helper, /api/providers/*)
+        # has resident before loading into inference_engine — otherwise both
+        # sit in VRAM simultaneously until someone happens to click Unload.
+        from finetune_studio.models.manager import get_manager
+        get_manager().unload()
         async with ENGINE_LOCK:
             await asyncio.to_thread(inference_engine.load, model_path, **kwargs)
         vision = getattr(inference_engine, "vision", False)
@@ -195,10 +200,11 @@ async def inference_status():
 
 @router.post("/unload")
 async def unload_model():
-    """Manually unload the current model."""
+    """Manually unload the current model (both engines — see E2E-22)."""
+    from finetune_studio.models.llama_loader import unload_all_models
     from finetune_studio.webui.app import inference_engine
     was = inference_engine.model_path
-    inference_engine.unload()
+    unload_all_models()
     return {"status": "unloaded", "was": was}
 
 

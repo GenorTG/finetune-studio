@@ -380,6 +380,15 @@ async def load_provider(pid: str, request: Request):
     # persisted value (ModelManager.load's own merge), not get overwritten
     # with the generic 32k floor on every single load.
     extra = resolve_loader_overrides(extra, caller="providers/load", model_path=pid, default_ctx=False)
+    # Free whatever the global inference_engine (testing/chat/RAG/benchmarks)
+    # has resident before loading this provider — otherwise both sit in
+    # VRAM simultaneously until someone happens to click Unload.
+    try:
+        from finetune_studio.webui.app import inference_engine
+        if getattr(inference_engine, "model", None) is not None:
+            inference_engine.unload()
+    except Exception:  # noqa: BLE001
+        log.exception("providers/load: failed to unload the global inference engine first")
     try:
         return {"ok": True, "active": get_manager().load(pid, extra=extra)}
     except Exception as e:
@@ -389,8 +398,9 @@ async def load_provider(pid: str, request: Request):
 
 @router.post("/providers/unload")
 async def unload_active():
-    from finetune_studio.models.manager import get_manager
-    get_manager().unload()
+    """Unload the active provider (both engines — see E2E-22)."""
+    from finetune_studio.models.llama_loader import unload_all_models
+    unload_all_models()
     return {"ok": True, "active": None}
 
 

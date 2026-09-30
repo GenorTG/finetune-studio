@@ -201,3 +201,33 @@ def resolve_loader_overrides(
         if key in body and body[key] is not None:
             out[key] = body[key]
     return out
+
+
+def unload_all_models() -> None:
+    """Free every model this app can hold resident, on both engines.
+
+    There are two independent "currently loaded model" trackers: the
+    global ``inference_engine`` (testing.py, chat_v2.py, benchmarks.py,
+    RAG) and ``ModelManager``'s active provider (data-prep's helper,
+    `/api/providers/*`). Nothing enforces that only one is ever loaded at
+    once. `/api/models/unload` already coordinates both (comment there:
+    "there is no separate UI for it, so Unload frees both" — a prior bug,
+    E2E-22) but `benchmarks.py`'s judge-model load and `training.py`'s
+    pre-training unload each only unloaded `inference_engine` — if a
+    data-prep helper was loaded via ModelManager at the time, it stayed
+    resident through the whole judge run or training run, competing for
+    VRAM with whatever just tried to load. One function every one of
+    those call sites should use instead of re-deciding which engine(s)
+    to unload each time.
+    """
+    try:
+        from finetune_studio.webui.app import inference_engine
+        if getattr(inference_engine, "model", None) is not None:
+            inference_engine.unload()
+    except Exception:  # noqa: BLE001 — best-effort; a missing/broken engine must not block the caller
+        log.exception("unload_all_models: failed to unload the global inference engine")
+    try:
+        from finetune_studio.models.manager import get_manager
+        get_manager().unload()
+    except Exception:  # noqa: BLE001
+        log.exception("unload_all_models: failed to unload the ModelManager active provider")

@@ -502,6 +502,11 @@ async def data_prep_chat(pid: str, request: Request):
                 "falling through to manager.load",
                 engine_abs, provider_abs,
             )
+            # The engine holds a DIFFERENT model than the provider wants —
+            # free it first. Otherwise it stays resident alongside whatever
+            # manager.load() below loads, both competing for VRAM.
+            if getattr(inference_engine, "model", None) is not None:
+                inference_engine.unload()
             try:
                 mgr.load(provider_id)
             except Exception as e:

@@ -147,14 +147,14 @@ def _resolve_trained_target(run: dict[str, Any]) -> str:
 
 
 def _unload_global_inference() -> None:
-    """Unload the UI global InferenceEngine if it holds a model."""
-    try:
-        from finetune_studio.webui.app import inference_engine as _global_ie
+    """Free VRAM before loading a judge model — both engines, not just one.
 
-        if _global_ie is not None and getattr(_global_ie, "model", None) is not None:
-            _global_ie.unload()
-    except Exception:  # noqa: BLE001, S110
-        pass
+    Used to only unload the global InferenceEngine. A data-prep helper
+    loaded via ModelManager stayed resident through the whole judge run,
+    competing for VRAM with the judge model that was just asked to load.
+    """
+    from finetune_studio.models.llama_loader import unload_all_models
+    unload_all_models()
 
 
 def _latest_benchmark(run_id: str) -> dict | None:

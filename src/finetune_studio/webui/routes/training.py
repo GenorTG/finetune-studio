@@ -508,17 +508,17 @@ async def start_training(request: Request):
     # One persister per run; the previous run's callback is detached so it can
     # never rewrite its own row with this run's progress.
     attach_run(training_engine, run_id, config.output_dir, project_id=project_id)
-    # Training and the global inference helper share the same GPU.  Unload
-    # inference before the worker imports/loads the trainable base; otherwise
-    # a resident GGUF can consume nearly the entire card and make a valid 4B
-    # run fail at step zero.
+    # Training and any resident helper/test model share the same GPU. Unload
+    # BOTH engines before the worker imports/loads the trainable base —
+    # unloading only the global InferenceEngine used to leave a
+    # ModelManager-loaded helper (e.g. data-prep's) resident through the
+    # whole run, competing for VRAM and making a valid 4B run fail at step
+    # zero for no reason visible from the training config itself.
     try:
-        from finetune_studio.webui.app import inference_engine
-
-        if getattr(inference_engine, "model", None) is not None:
-            inference_engine.unload()
+        from finetune_studio.models.llama_loader import unload_all_models
+        unload_all_models()
     except Exception:
-        log.exception("Failed to unload global inference model before training")
+        log.exception("Failed to unload resident models before training")
     training_engine.start(config, training_data, system_prompt)
     return {"status": "started", "steps": training_engine.state.total_steps, "run_id": run_id}
 

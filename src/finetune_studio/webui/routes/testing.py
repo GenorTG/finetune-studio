@@ -47,6 +47,11 @@ async def load_model(request: Request):
             kwargs["max_seq_length"] = int(body["max_seq_length"])
         if "load_in_4bit" in body:
             kwargs["load_in_4bit"] = bool(body["load_in_4bit"])
+        # Free whatever ModelManager (data-prep's helper, /api/providers/*)
+        # has resident before loading into inference_engine — otherwise both
+        # sit in VRAM simultaneously until someone happens to click Unload.
+        from finetune_studio.models.manager import get_manager
+        get_manager().unload()
         async with ENGINE_LOCK:
             await asyncio.to_thread(inference_engine.load, model_path, **kwargs)
         return {"status": "loaded", "model": model_path}
@@ -56,7 +61,9 @@ async def load_model(request: Request):
 
 @router.post("/unload")
 async def unload_model():
-    inference_engine.unload()
+    """Unload the currently loaded model (both engines — see E2E-22)."""
+    from finetune_studio.models.llama_loader import unload_all_models
+    unload_all_models()
     return {"status": "unloaded"}
 
 

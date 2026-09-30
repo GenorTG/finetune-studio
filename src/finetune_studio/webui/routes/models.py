@@ -259,6 +259,11 @@ async def load_model_endpoint(request: Request):
         # activity row is visible and the UI stays live.
         from finetune_studio.models.llama_loader import resolve_loader_overrides
         overrides = resolve_loader_overrides(body, caller="models/load", model_path=model_path)
+        # Free whatever ModelManager (data-prep's helper, /api/providers/*)
+        # has resident before loading into inference_engine — otherwise both
+        # sit in VRAM simultaneously until someone happens to click Unload.
+        from finetune_studio.models.manager import get_manager
+        get_manager().unload()
         async with ENGINE_LOCK:
             await asyncio.to_thread(inference_engine.load, model_path, **overrides)
     except Exception as e:  # noqa: BLE001
@@ -279,14 +284,10 @@ async def load_model_endpoint(request: Request):
 
 @router.post("/unload")
 async def unload_model_endpoint():
-    """Manually unload the currently loaded model."""
-    from finetune_studio.webui.app import inference_engine
+    """Manually unload the currently loaded model (both engines — E2E-22)."""
+    from finetune_studio.models.llama_loader import unload_all_models
     try:
-        inference_engine.unload()
-        # Agent chat / data-prep can load a provider into the model manager too;
-        # there is no separate UI for it, so "Unload" frees both (E2E-22).
-        from finetune_studio.models.manager import get_manager
-        get_manager().unload()
+        unload_all_models()
         return {"status": "unloaded"}
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
