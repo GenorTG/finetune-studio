@@ -109,19 +109,19 @@ def _find_convert_script() -> str | None:
 @router.post("/projects/{pid}/runs/{rid}/export")
 async def export_run(pid: str, rid: str, request: Request,
                      background: BackgroundTasks):
-    """Export a run to GGUF / GPTQ / abliterated / merged safetensors.
+    """Export a run to GGUF / abliterated / merged safetensors.
 
     Two modes:
 
     1. **UI / multi-format (sync)** — body includes ``quants`` (list) and/or
-       ``format`` in {gptq, abliterated, merged}. Merges the adapter onto
+       ``format`` in {abliterated, merged}. Merges the adapter onto
        ``base_model`` (optional override) when ``merged/`` is missing.
 
     2. **Legacy async GGUF** — body uses singular ``quant`` (default Q4_K_M)
        without ``quants``. Queues a background job and returns an export_id.
 
     Body (common):
-      format: gguf | gptq | abliterated | merged (default gguf).
+      format: gguf | abliterated | merged (default gguf).
       force: overwrite existing outputs (sync path)
       base_model: optional compatible 16-bit base for merge-at-export
       auto_merge: bool (default true; legacy async path)
@@ -159,11 +159,12 @@ async def export_run(pid: str, rid: str, request: Request,
         return JSONResponse(payload, status_code=status_code)
 
     # Sync multi-format path used by the Export page (quants list / non-gguf).
-    # AWQ is not a supported format; route it through export_trained_run so the
-    # response carries the clear removal message (not a generic unsupported).
+    # AWQ and GPTQ are not supported formats; route them through
+    # export_trained_run so the response carries the clear removal message
+    # (not a generic unsupported).
     use_sync = (
         "quants" in body
-        or fmt in ("gptq", "abliterated", "merged", "awq")
+        or fmt in ("abliterated", "merged", "awq", "gptq")
         or bool(body.get("force")) and "quant" not in body
     )
     if use_sync:
@@ -192,10 +193,10 @@ async def export_run(pid: str, rid: str, request: Request,
                 status_code=400,
             )
 
-        # Register successful sync artifacts (merged / abliterated / gptq /
+        # Register successful sync artifacts (merged / abliterated /
         # verified GGUF) so Export + Models pages list them after reload.
         if payload.status in ("exported", "skipped") and fmt in (
-            "merged", "abliterated", "gptq", "gguf",
+            "merged", "abliterated", "gguf",
         ):
             art = payload.artifact_path()
             if art:

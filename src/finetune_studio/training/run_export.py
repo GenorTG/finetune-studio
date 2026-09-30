@@ -1,13 +1,12 @@
 """Post-training export: ensure merged weights, then convert to deployable formats.
 
 Supports raw adapter-only runs by merging onto a compatible 16-bit base at
-export time (``base_model`` override or the run's stored base). AWQ was
-removed (unmaintained); supported formats are ``gguf``, ``gptq``,
+export time (``base_model`` override or the run's stored base). AWQ and
+GPTQ were removed (unmaintained); supported formats are ``gguf``,
 ``abliterated``, and ``merged`` (safetensors only).
 
 GGUF exports only report success when the requested ``.gguf`` artifact(s)
 exist on disk and are non-empty — never on HTTP 200 / empty dirs alone.
-GPTQ success requires a non-empty quantized directory (config + weights).
 """
 
 from __future__ import annotations
@@ -28,7 +27,7 @@ from finetune_studio.training.gguf_convert import (  # noqa: F401 — re-export
 )
 
 SUPPORTED_EXPORT_FORMATS: frozenset[str] = frozenset(
-    {"gguf", "gptq", "abliterated", "merged"}
+    {"gguf", "abliterated", "merged"}
 )
 
 DEFAULT_GGUF_QUANTS: list[str] = ["f16", "q8_0", "q4_k_m", "q5_k_m"]
@@ -302,8 +301,15 @@ def export_trained_run(
     if fmt_norm == "awq":
         return _export_failure(
             "AWQ export was removed (autoawq unmaintained). "
-            "Use format=gptq, gguf, or merged instead.",
+            "Use format=gguf or merged instead.",
             format="awq",
+        )
+    if fmt_norm == "gptq":
+        return _export_failure(
+            "GPTQ export was removed (gptqmodel's fragile upstream "
+            "packaging metadata made it unreliable to install). "
+            "Use format=gguf or merged instead.",
+            format="gptq",
         )
     if fmt_norm not in SUPPORTED_EXPORT_FORMATS:
         return _export_failure(
@@ -386,64 +392,4 @@ def export_trained_run(
             "strength": float(result.get("strength") or 1.0),
         }
 
-    # gptq — fail fast when no backend; verify artifacts on success
-    from finetune_studio.training.advanced_quant import (
-        gptq_missing_backend_message,
-        is_gptq_available,
-        verify_gptq_artifacts,
-    )
-
-    if not is_gptq_available():
-        return _export_failure(
-            gptq_missing_backend_message(),
-            format="gptq",
-        )
-
-    gptq_dir = os.path.join(output_path, "gptq")
-    existing_gptq = verify_gptq_artifacts(gptq_dir)
-    if existing_gptq["ok"] and not force:
-        return {
-            "ok": True,
-            "status": "skipped",
-            "format": "gptq",
-            "output_path": gptq_dir,
-            "files": existing_gptq.get("files") or [],
-            "size_bytes": existing_gptq.get("size_bytes", 0),
-            "message": "GPTQ already exists. Use force=true to overwrite.",
-        }
-
-    result = engine._do_export_gptq(output_path)
-    if result.get("error"):
-        return _export_failure(
-            str(result["error"]),
-            format="gptq",
-            output_path=gptq_dir,
-        )
-    if result.get("skipped"):
-        return _export_failure(
-            str(result.get("reason", "gptq skipped")),
-            format="gptq",
-            output_path=gptq_dir,
-        )
-
-    verified = verify_gptq_artifacts(
-        str(result.get("output_dir") or result.get("output_path") or gptq_dir)
-    )
-    if not verified["ok"]:
-        return _export_failure(
-            str(verified.get("error") or "GPTQ artifacts missing or empty"),
-            format="gptq",
-            output_path=gptq_dir,
-            files=verified.get("files") or [],
-        )
-    return {
-        "ok": True,
-        "status": "exported",
-        "format": "gptq",
-        "output_path": verified.get("output_dir") or gptq_dir,
-        "files": verified.get("files") or [],
-        "size_bytes": verified.get("size_bytes") or result.get("size_bytes"),
-        "size_human": result.get("size_human"),
-        "bits": result.get("bits"),
-        "group_size": result.get("group_size"),
-    }
+    return _export_failure(f"unknown format: {fmt_norm}", format=fmt_norm)

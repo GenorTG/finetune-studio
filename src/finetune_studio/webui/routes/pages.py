@@ -51,7 +51,6 @@ _EXPORT_FORMATS = {
     "merged": "safetensors",
     "abliterated": "safetensors",
     "gguf": "gguf",
-    "gptq": "gptq",
 }
 
 
@@ -72,7 +71,7 @@ def _scan_run_models(runs: list[dict]) -> list[dict]:
     """Find exported models on disk for a project's training runs.
 
     Each run writes its exports into subdirectories of its output_path
-    (merged/, gguf/, gptq/, abliterated/). Only non-empty directories that
+    (merged/, gguf/, abliterated/). Only non-empty directories that
     exist are reported.
     """
     import os

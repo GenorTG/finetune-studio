@@ -352,9 +352,9 @@ class TestExportRoute:
         body = r.json()
         assert body.get("ok") is False
         assert body.get("status") == "failed"
-        # AWQ is explicitly removed; message must steer to gptq/gguf/merged.
+        # AWQ is explicitly removed; message must steer to gguf/merged.
         assert "AWQ" in body["error"]
-        assert "gptq" in body["error"].lower()
+        assert "gguf" in body["error"].lower()
 
     def test_unknown_quant_returns_400(self, client, mock_settings):
         from finetune_studio import db

@@ -1,4 +1,4 @@
-"""Focused tests: GGUF converter discovery, artifacts, GPTQ verify/fail."""
+"""Focused tests: GGUF converter discovery and artifact verification."""
 
 from __future__ import annotations
 
@@ -113,101 +113,6 @@ class TestGgufArtifacts:
         )
         assert result["ok"] is False
         assert "convert_hf_to_gguf" in (result.get("error") or "")
-
-
-class TestGptqArtifacts:
-    def test_verify_requires_config_and_weights(self, tmp_path: Path) -> None:
-        from finetune_studio.training.advanced_quant import verify_gptq_artifacts
-
-        gptq = tmp_path / "gptq"
-        gptq.mkdir()
-        assert verify_gptq_artifacts(str(gptq))["ok"] is False
-
-        (gptq / "config.json").write_text("{}", encoding="utf-8")
-        assert verify_gptq_artifacts(str(gptq))["ok"] is False
-
-        (gptq / "model.safetensors").write_bytes(b"weights")
-        ok = verify_gptq_artifacts(str(gptq))
-        assert ok["ok"] is True
-        assert ok["size_bytes"] > 0
-
-    def test_export_gptq_success_requires_artifacts(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        from finetune_studio.training import run_export as re
-        from finetune_studio.training.engine import TrainingEngine
-
-        out = tmp_path / "run"
-        merged = out / "merged"
-        merged.mkdir(parents=True)
-        (merged / "config.json").write_text("{}", encoding="utf-8")
-        (merged / "model.safetensors").write_bytes(b"x" * 32)
-        run = {
-            "id": "r",
-            "output_path": str(out),
-            "base_model": "Qwen/Qwen3-0.6B",
-            "status": "done",
-        }
-
-        monkeypatch.setattr(
-            "finetune_studio.training.advanced_quant.is_gptq_available",
-            lambda: True,
-        )
-
-        def _fake_empty(self: TrainingEngine, output_dir: str) -> dict:
-            gptq_dir = os.path.join(output_dir, "gptq")
-            os.makedirs(gptq_dir, exist_ok=True)
-            return {"output_dir": gptq_dir, "size_bytes": 0}
-
-        monkeypatch.setattr(TrainingEngine, "_do_export_gptq", _fake_empty)
-        result = re.export_trained_run(run, fmt="gptq", force=True)
-        assert result.get("ok") is False
-        assert result.get("status") == "failed"
-        assert "GPTQ" in (result.get("error") or "") or "artifact" in (
-            result.get("error") or ""
-        ).lower()
-
-    def test_export_gptq_ok_when_artifacts_present(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        from finetune_studio.training import run_export as re
-        from finetune_studio.training.engine import TrainingEngine
-
-        out = tmp_path / "run"
-        merged = out / "merged"
-        merged.mkdir(parents=True)
-        (merged / "config.json").write_text("{}", encoding="utf-8")
-        (merged / "model.safetensors").write_bytes(b"x" * 32)
-        run = {
-            "id": "r",
-            "output_path": str(out),
-            "base_model": "Qwen/Qwen3-0.6B",
-            "status": "done",
-        }
-        monkeypatch.setattr(
-            "finetune_studio.training.advanced_quant.is_gptq_available",
-            lambda: True,
-        )
-
-        def _fake_ok(self: TrainingEngine, output_dir: str) -> dict:
-            gptq_dir = os.path.join(output_dir, "gptq")
-            os.makedirs(gptq_dir, exist_ok=True)
-            (Path(gptq_dir) / "config.json").write_text("{}", encoding="utf-8")
-            (Path(gptq_dir) / "model.safetensors").write_bytes(b"gptq")
-            return {
-                "output_dir": gptq_dir,
-                "size_bytes": 4,
-                "size_human": "4 B",
-                "bits": 4,
-                "group_size": 128,
-            }
-
-        monkeypatch.setattr(TrainingEngine, "_do_export_gptq", _fake_ok)
-        result = re.export_trained_run(run, fmt="gptq", force=True)
-        assert result.get("ok") is True
-        assert result.get("status") == "exported"
-        assert result.get("format") == "gptq"
-        assert os.path.isdir(result["output_path"])
 
 
 class TestSyncGgufExportUsesConverter:

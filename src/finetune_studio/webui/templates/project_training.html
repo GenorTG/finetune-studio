@@ -129,7 +129,7 @@
     <input type="hidden" name="data_path" id="data-path-input" value="">
 
     <label>
-      <span class="block text-xs muted mb-1" title="Hugging Face / safetensors causal LM used as the training base. GGUF and GPTQ exports are inference-only — use Inference or Chat for those.">Base Model</span>
+      <span class="block text-xs muted mb-1" title="Hugging Face / safetensors causal LM used as the training base. GGUF exports are inference-only — use Inference or Chat for those.">Base Model</span>
       <select name="model_path" id="train-base-model" class="select"{% if not models %} disabled{% endif %}>
         {% if models %}
           {% for model in models %}
@@ -141,13 +141,13 @@
       </select>
       {% if not models %}
       <div class="text-xs muted mt-1" id="train-base-model-empty" role="status">
-        Training needs a Hugging Face / safetensors causal LM (not GGUF or GPTQ).
+        Training needs a Hugging Face / safetensors causal LM (not GGUF).
         Download one under <a href="/models" data-link>Models</a>, then refresh this page.
         Local-helper GGUFs stay available on <a href="/projects/{{ pid }}/chat" data-link>Chat</a> / Inference.
       </div>
       {% else %}
       <div class="text-xs muted mt-1" id="train-base-model-hint">
-        Only Transformers-compatible bases are listed. GGUF / GPTQ exports are for inference only.
+        Only Transformers-compatible bases are listed. GGUF exports are for inference only.
       </div>
       {% endif %}
     </label>

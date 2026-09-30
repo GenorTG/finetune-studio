@@ -66,7 +66,7 @@ pip_install() {
 
 # Keep the CUDA-matched torch family pinned during dep sync: install.sh writes
 # .venv/torch-constraints.txt after install_torch. Without it, a later resolve
-# (unsloth/gptq/`-e .`) silently upgrades torch to the default PyPI build and
+# (unsloth/`-e .`) silently upgrades torch to the default PyPI build and
 # breaks the venv on older drivers (undefined symbol: ncclCommResume, 535).
 torch_constraint_args() {
     local f="$VENV_DIR/torch-constraints.txt"
@@ -85,8 +85,8 @@ for name in ("torch", "torchvision", "torchaudio"):
 
 # torchao >= 0.17 needs torch 2.7+ (torch.utils._pytree.register_constant) and
 # transformers 5.x imports it eagerly, so a torchao left uncapped breaks every
-# transformers import on a torch-2.6 pin. gptqmodel/unsloth_zoo hard-require
-# torchao, so cap rather than remove. See install.sh write_torch_constraints.
+# transformers import on a torch-2.6 pin. unsloth_zoo hard-requires torchao,
+# so cap rather than remove. See install.sh write_torch_constraints.
 try:
     major, minor = (int(p) for p in m.version("torch").split(".")[:2])
     if (major, minor) < (2, 7):
@@ -177,13 +177,6 @@ if [ "$CHECK_MODE" = "0" ]; then
     # shellcheck disable=SC2046
     pip_install --quiet $(torch_constraint_args) -e . 2>&1 | tail -5 \
         || warn "pip install -e . failed — deps may be stale"
-    # Keep the gptq extra in sync too (install.sh installs it): without this,
-    # updated hosts keep whatever gptqmodel/kernels/transformers family was
-    # resolved at install time — a stale mismatched family raises ValueError
-    # at import and takes down the /export page.
-    # shellcheck disable=SC2046
-    pip_install --quiet $(torch_constraint_args) -e '.[gptq]' 2>&1 | tail -3 \
-        || warn "gptq extra sync failed — GPTQ export may stay disabled"
 else
     log "check mode: skipping pip install"
 fi

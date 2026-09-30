@@ -165,7 +165,7 @@
       <blockquote>"I want to teach a small open model how my company talks."</blockquote>
       <p>Point at a JSONL or your mined dataset, pick a base model, run
       LoRA / QLoRA. Live loss curves, VRAM profiles, adapter merge, then
-      export (merged / abliterated; GGUF and GPTQ when host tools are
+      export (merged / abliterated; GGUF when host tools are
       installed). Per past-run Actions (⭐ Set Production, ▶ Inference, ⬇
       Download).</p>
       <div class="pillbox"><span class="pill">LoRA</span><span class="pill">QLoRA</span><span class="pill">MERGE</span><span class="pill">EXPORT</span></div>
@@ -240,7 +240,7 @@
     <figure><img src="screenshots/08_models.png" alt="Models with expand rows" loading="lazy">
       <figcaption><b>MODELS · STEP 5</b> — trained-exports table; expand any row for the parent run, settings, dir contents, ▶ Open in inference.</figcaption></figure>
     <figure><img src="screenshots/09_export.png" alt="Export page" loading="lazy">
-      <figcaption><b>EXPORT</b> — merged / abliterated first-class; GGUF + GPTQ when host tools are present; failures land in the run row, never silent.</figcaption></figure>
+      <figcaption><b>EXPORT</b> — merged / abliterated first-class; GGUF when host tools are present; failures land in the run row, never silent.</figcaption></figure>
     <figure><img src="screenshots/13_chat.png" alt="Chat" loading="lazy">
       <figcaption><b>CHAT</b> — safetensors or GGUF, streaming with sprite feedback, RAG-attach, Agent mode for tool-driven dataset curation.</figcaption></figure>
     <figure><img src="screenshots/11_benchmarks.png" alt="Benchmarks" loading="lazy">
@@ -260,7 +260,7 @@
              └─► <span class="g">Q&amp;A mining</span>      batch prep job  OR  <span class="a">agentic tool-calling chat</span>
                   └─► <span class="g">review</span>           approve / reject / edit pairs ──► JSONL datasets
                        └─► <span class="a">train</span>           LoRA / QLoRA / full · live loss · VRAM profiles · per-run Actions
-                            └─► <span class="a">merge + export</span> adapter → merged → optional GGUF/GPTQ when tools installed
+                            └─► <span class="a">merge + export</span> adapter → merged → optional GGUF when tools installed
                                  └─► <span class="g">benchmark</span>     offline smoke suites · compare tab (Δ = B − A, colored)
                                       └─► <span class="g">chat</span>          single-model engine · vision · RAG context · log tail</pre>
 </div></section>

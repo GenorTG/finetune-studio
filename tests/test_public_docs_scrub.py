@@ -60,10 +60,9 @@ def test_public_doc_has_no_private_infra_leaks(path: Path) -> None:
 
 
 def test_readme_documents_honest_export_caveats() -> None:
-    """Public README should not over-advertise GGUF/GPTQ as always-on."""
+    """Public README should not over-advertise GGUF as always-on."""
     text = (_ROOT / "README.md").read_text(encoding="utf-8")
     assert "llama.cpp" in text
-    assert "auto-gptq" in text or "auto_gptq" in text
     assert "fails" in text.lower() or "when" in text.lower()
     # Full HF benchmark names as if shipped wholesale are stale.
     assert "Winogrande" not in text

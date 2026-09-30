@@ -19,8 +19,8 @@
 <div class="page-head">
   <h1>Export models</h1>
   <div class="sub"><b>Step 5 · Train a model.</b> Take a finished training run out of the
-    studio: <b>GGUF</b> to run it in llama.cpp / LM Studio / Ollama, <b>GPTQ</b> for
-    quantised GPU serving, or <b>abliterated</b> for an uncensored variant. Adapter-only
+    studio: <b>GGUF</b> to run it in llama.cpp / LM Studio / Ollama, or
+    <b>abliterated</b> for an uncensored variant. Adapter-only
     runs are merged onto their base automatically at export time.
     Want to talk to it instead? <a href="/projects/{{ pid }}/chat" data-link>Open chat</a>.</div>
 </div>
@@ -86,7 +86,7 @@
 </div>
 
 {# ── Export options ───────────────────────────────────────────────── #}
-{% set caps = export_caps if export_caps is defined else {'gguf': false, 'gptq': false, 'gguf_hint': '', 'gptq_hint': ''} %}
+{% set caps = export_caps if export_caps is defined else {'gguf': false, 'gguf_hint': ''} %}
 <div class="card mb-4">
   <div class="card-head">
     <div>
@@ -96,15 +96,9 @@
   </div>
   <div id="export-caps" class="p-2 pt-0 text-xs"
        data-gguf="{{ '1' if caps.gguf else '0' }}"
-       data-gptq="{{ '1' if caps.gptq else '0' }}"
-       {% if not caps.gguf or not caps.gptq %}role="status"{% endif %}>
+       {% if not caps.gguf %}role="status"{% endif %}>
     {% if not caps.gguf %}
     <div class="err mb-1" id="export-gguf-unavailable">GGUF unavailable — {{ caps.gguf_hint }}</div>
-    {% endif %}
-    {% if not caps.gptq %}
-    <div class="err mb-1" id="export-gptq-unavailable">GPTQ unavailable — {{ caps.gptq_hint }}</div>
-    {% elif caps.gptq_hint %}
-    <div class="warn mb-1" id="export-gptq-optimum-hint" role="status">{{ caps.gptq_hint }}</div>
     {% endif %}
   </div>
   <div class="grid grid-2 gap-3 p-2">
@@ -114,14 +108,6 @@
       <div>
         <div class="text-sm font-bold">GGUF{% if not caps.gguf %} <span class="pill outline">unavailable</span>{% endif %}</div>
         <div class="text-xs dim">For llama.cpp, Ollama, LM Studio. Most compatible.</div>
-      </div>
-    </label>
-    <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);{% if not caps.gptq %}opacity:0.55;cursor:not-allowed;{% else %}cursor:pointer;{% endif %}">
-      <input type="checkbox" name="export-format" value="gptq" class="mt-1"
-             {% if not caps.gptq %}disabled title="{{ caps.gptq_hint }}"{% endif %}>
-      <div>
-        <div class="text-sm font-bold">GPTQ{% if not caps.gptq %} <span class="pill outline">unavailable</span>{% elif not caps.gptq_inference_hf %} <span class="pill outline" title="{{ caps.gptq_hint }}">export only</span>{% endif %}</div>
-        <div class="text-xs dim">Quantized export (gptqmodel/auto_gptq). HF Transformers load also needs optimum.</div>
       </div>
     </label>
     <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
@@ -349,7 +335,7 @@ async function startExport() {
   const formats = Array.from(document.querySelectorAll('input[name="export-format"]:checked:not(:disabled)'))
     .map(cb => cb.value);
   if (formats.length === 0) {
-    const msg = 'Select at least one available export format (GGUF/GPTQ stay disabled until converters are installed)';
+    const msg = 'Select at least one available export format (GGUF stays disabled until converters are installed)';
     if (window.fts && window.fts.notify) fts.notify(msg, 'error');
     else fts.notify(msg, 'error');
     return;
@@ -357,16 +343,9 @@ async function startExport() {
   // Never POST disabled formats even if the DOM was tampered with.
   const capsEl = document.getElementById('export-caps');
   const ggufOk = !capsEl || capsEl.getAttribute('data-gguf') === '1';
-  const gptqOk = !capsEl || capsEl.getAttribute('data-gptq') === '1';
   if (formats.includes('gguf') && !ggufOk) {
     const msg = (document.getElementById('export-gguf-unavailable') || {}).textContent
       || 'GGUF converter unavailable';
-    if (window.fts && window.fts.notify) fts.notify(msg, 'error');
-    return;
-  }
-  if (formats.includes('gptq') && !gptqOk) {
-    const msg = (document.getElementById('export-gptq-unavailable') || {}).textContent
-      || 'GPTQ converter unavailable';
     if (window.fts && window.fts.notify) fts.notify(msg, 'error');
     return;
   }

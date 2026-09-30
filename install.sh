@@ -303,9 +303,9 @@ for name in ("torch", "torchvision", "torchaudio"):
 # CUDA-12.4 / driver-535 pin (torch 2.6) that AttributeError takes down EVERY
 # transformers class import -- peft, TrainingArguments, BloomPreTrainedModel
 # all die with a misleading "Are this object's requirements defined
-# correctly?". gptqmodel (>=0.16.0) and unsloth_zoo (>=0.13.0) hard-require
-# torchao, so capping it (not removing it) is the only fix that keeps those
-# importable. Verified: 0.16.0 is the last release without the pytree call.
+# correctly?". unsloth_zoo (>=0.13.0) hard-requires torchao, so capping it
+# (not removing it) is the only fix that keeps it importable. Verified:
+# 0.16.0 is the last release without the pytree call.
 try:
     major, minor = (int(p) for p in m.version("torch").split(".")[:2])
     if (major, minor) < (2, 7):
@@ -446,19 +446,16 @@ mkdir -p data
 install_llama_cpp_cli
 
 # ── Install optional but recommended packages ──
-# These are used by advanced features (abliteration, GPTQ export, Unsloth).
+# These are used by advanced features (abliteration, Unsloth).
 # They're installed silently — if they fail, the app still works.
 install_optional_packages() {
-    log "Installing optional packages (unsloth, gptq extra, numpy, scipy)..."
+    log "Installing optional packages (unsloth, numpy, scipy)..."
     # numpy and scipy are needed for abliteration (always useful)
     uv pip install --python "$PYTHON_CMD" "numpy>=1.24.0" "scipy>=1.10.0" 2>&1 | tail -1 \
         || warn "numpy/scipy install failed — abliteration may not work."
     # unsloth for faster training
     uv pip install --python "$PYTHON_CMD" "${CONSTRAINT_ARGS[@]}" "unsloth>=2024.10.0" 2>&1 | tail -1 \
         || warn "unsloth install failed — will use standard training."
-    # GPTQ export (gptqmodel) + Transformers GPTQ load (optimum) via pyproject extra
-    uv pip install --python "$PYTHON_CMD" "${CONSTRAINT_ARGS[@]}" -e '.[gptq]' 2>&1 | tail -1 \
-        || warn "gptq extra install failed — try: uv pip install -e '.[gptq]' (gptqmodel + optimum)."
 }
 install_optional_packages
 

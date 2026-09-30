@@ -447,9 +447,6 @@ async def start_training(request: Request):
             project_id=project_id,
             abliterate=bool(body.get("abliterate", False)),
             abliteration_strength=float(body.get("abliteration_strength", 1.0)),
-            export_gptq=bool(body.get("export_gptq", False)),
-            gptq_bits=int(body.get("gptq_bits", 4)),
-            gptq_group_size=int(body.get("gptq_group_size", 128)),
             export_imatrix=bool(body.get("export_imatrix", False)),
             imatrix_calibration=body.get("imatrix_calibration", ""),
         )
@@ -536,8 +533,7 @@ async def export_run(run_id: str, request: Request):
     """Export a trained run to deployable formats (standalone, post-training).
 
     Body:
-        format: gguf | gptq | abliterated | merged (default: gguf).
-                Use gptq / gguf / merged / abliterated.
+        format: gguf | abliterated | merged (default: gguf).
         quants: GGUF quant list (default: f16, q8_0, q4_k_m, q5_k_m)
         force: overwrite existing exports (default: false)
         base_model: optional 16-bit base path/id for merge-at-export when
@@ -713,7 +709,7 @@ async def quantize_run(run_id: str, request: Request):
     """Export a trained model using advanced quantization."""
     from finetune_studio import db
     body = await request.json()
-    method = body.get("method", "gptq")
+    method = body.get("method", "imatrix")
     run = db.get_run(run_id)
     if not run:
         return {"error": "run not found"}
@@ -723,16 +719,7 @@ async def quantize_run(run_id: str, request: Request):
     merged_dir = os.path.join(output_path, "merged")
     if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
         return {"error": "no merged model to quantize"}
-    if method == "gptq":
-        output_dir = os.path.join(output_path, "gptq")
-        from finetune_studio.training.advanced_quant import quantize_gptq
-        result = quantize_gptq(
-            model_path=merged_dir,
-            output_dir=output_dir,
-            bits=int(body.get("bits", 4)),
-            group_size=int(body.get("group_size", 128)),
-        )
-    elif method == "imatrix":
+    if method == "imatrix":
         output_dir = os.path.join(output_path, "imatrix")
         from finetune_studio.training.advanced_quant import quantize_gguf_imatrix
         result = quantize_gguf_imatrix(

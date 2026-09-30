@@ -177,6 +177,6 @@ def test_export_page_shows_adapter_merge_copy(
     assert "merge at export" in body.lower() or "adapter-only" in body.lower()
     assert "Compatible base model" in body
     assert 'value="awq"' not in body
+    assert 'value="gptq"' not in body
     assert "GGUF" in body
-    assert "GPTQ" in body
     assert "Abliterated" in body

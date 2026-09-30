@@ -334,7 +334,6 @@ Pick a run, pick a format, hit RUN. Supported formats today:
 - **abliterated** — refusal-direction edit of a merged checkpoint
 - **GGUF** — when llama.cpp conversion tools are installed on the host;
   otherwise the API fails with a clear install hint
-- **GPTQ** — when `auto-gptq` is installed; otherwise fails honestly
 
 The trained-exports table uses the same expand-row pattern as Models —
 click a row to inspect its contents, then ▶ Open in inference.
@@ -446,8 +445,8 @@ each one from its official source.
 - **Inference:** HuggingFace Transformers for safetensors / LoRA merges;
   llama.cpp (via `llama-cpp-python`) for GGUF when available.
 - **Export:** merged and abliterated are first-class; GGUF needs llama.cpp
-  conversion tools on the host; GPTQ needs `auto-gptq`. Missing tools
-  return clear errors instead of fake success.
+  conversion tools on the host. Missing tools return clear errors instead
+  of fake success.
 - **Testing:** Playwright live-browser smoke in `tests/e2e_ui_qa.py`
   (override target with `FTS_BASE`).
 - **Updates:** self-healing pipeline — `./update.sh` or Settings → Apply

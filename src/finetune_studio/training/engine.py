@@ -151,9 +151,6 @@ class TrainingConfig:
     # "none" = no system prompt at all
     system_prompt_mode: str = "bake"
     # Advanced quantization
-    export_gptq: bool = False
-    gptq_bits: int = 4
-    gptq_group_size: int = 128
     export_imatrix: bool = False
     imatrix_calibration: str = ""
     lora_target_modules: list = field(default_factory=lambda: [
@@ -793,8 +790,6 @@ class TrainingEngine:
                 self.state.message = self.state.error
                 self._notify()  # copy into run.error so the run row is honest
                 self._sync_run_error(self.state.error)
-        if cfg.export_gptq:
-            self._do_export_gptq(cfg.output_dir)
         if cfg.export_imatrix:
             self._do_export_imatrix(cfg.output_dir)
         try:
@@ -1048,31 +1043,6 @@ class TrainingEngine:
         except Exception as e:
             log.exception("Abliteration failed")
             self.state.message = f"Abliteration failed: {e}"
-            self._notify()
-            return {"error": str(e)}
-
-    def _do_export_gptq(self, output_dir: str) -> dict:
-        """Export the merged model using GPTQ quantization."""
-        merged_dir = os.path.join(output_dir, "merged")
-        if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
-            return {"skipped": True, "reason": "no merged model"}
-        gptq_dir = os.path.join(output_dir, "gptq")
-        self.state.message = "Exporting GPTQ..."
-        self._notify()
-        try:
-            from finetune_studio.training.advanced_quant import quantize_gptq
-            result = quantize_gptq(
-                model_path=merged_dir,
-                output_dir=gptq_dir,
-                bits=getattr(self.config, 'gptq_bits', 4),
-                group_size=getattr(self.config, 'gptq_group_size', 128),
-            )
-            self.state.message = f"GPTQ exported: {result.get('size_human', 'unknown')}."
-            self._notify()
-            return result
-        except Exception as e:
-            log.exception("GPTQ export failed")
-            self.state.message = f"GPTQ export failed: {e}"
             self._notify()
             return {"error": str(e)}
 

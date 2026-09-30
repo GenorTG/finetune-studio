@@ -80,7 +80,7 @@ handoff; it opens Training with the dataset preselected.
 
 ### 4. Train (step **3 · train**)
 
-1. **Base model** — pick a local transformers-compatible base (GGUF/GPTQ
+1. **Base model** — pick a local transformers-compatible base (GGUF
    exports are inference-only; they can't be trained on). The preset picker
    recommends rank/LR/epochs from base + dataset size.
 2. **Training data** — *From this project* is your exported dataset;
@@ -118,8 +118,7 @@ substitute for the project test.
 - **Export** (project **export** page): **merged** (adapter onto a 16-bit
   base — auto-merged before GGUF; failures land on the run row, never
   silent), **GGUF** (q4_K_M … q8_0, needs llama.cpp tools on the host),
-  **abliterated** (refusal-direction edit of a merged checkpoint), **GPTQ**
-  (needs `auto-gptq`; honest failure if missing).
+  **abliterated** (refusal-direction edit of a merged checkpoint).
 - **Models** page: every export in one table — click a row to expand the
   parent run, settings, and directory contents; ▶ Open in inference.
 - **Chat**: load a safetensors **or GGUF** model, stream, image input for

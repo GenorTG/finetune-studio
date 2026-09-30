@@ -20,14 +20,6 @@ _TRAIN_TMPL = (
     / "templates"
     / "project_training.html"
 )
-_EXPORT_TMPL = (
-    Path(__file__).resolve().parents[1]
-    / "src"
-    / "finetune_studio"
-    / "webui"
-    / "templates"
-    / "export_models.html"
-)
 _BENCH_TMPL = (
     Path(__file__).resolve().parents[1]
     / "src"
@@ -55,12 +47,6 @@ def test_train_status_badge_idle_is_not_amber() -> None:
     )
     snippet = html.split('id="train-status-badge"', 1)[1][:120]
     assert "solid-amber" not in snippet
-
-
-def test_export_gptq_export_only_badge_when_optimum_missing() -> None:
-    html = _EXPORT_TMPL.read_text(encoding="utf-8")
-    assert "export only" in html
-    assert "export-gptq-optimum-hint" in html
 
 
 def test_benchmarks_recent_scores_show_judged_column() -> None:

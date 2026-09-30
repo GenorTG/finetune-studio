@@ -26,22 +26,11 @@ git clone https://github.com/GenorTG/finetune-studio && cd finetune-studio
 6. `scripts/install_diagnose.py` — deep health check (mixed installs, missing deps,
    broken torchaudio, service status); `--repair` autofixes.
 
-### Optional: GPTQ export + Transformers load (`.[gptq]`)
-
-GPTQ **export** is gated until `gptqmodel` (preferred) or `auto_gptq` imports.
-Loading GPTQ checkpoints with Transformers also needs **`optimum`** (included in
-the `gptq` extra). Install into the app venv on the GPU host:
-
-```bash
-cd /path/to/finetune-studio
-uv pip install --python .venv/bin/python -e '.[gptq]'
-# installs gptqmodel + optimum; legacy fallback: auto-gptq separately
-systemctl --user restart finetune-studio
-```
-
-If the wheel build fails against the host CUDA/torch pair, leave GPTQ disabled —
-merged / GGUF / abliterated remain available. Do not commit secrets or HF tokens
-into this doc; use the host login / `huggingface-cli login` as usual.
+GPTQ export support was removed (`gptqmodel`'s wheel metadata declared zero of
+its real runtime deps, making it unreliable to install on fresh machines).
+Merged / GGUF / abliterated remain the supported export formats. Do not
+commit secrets or HF tokens into this doc; use the host login /
+`huggingface-cli login` as usual.
 
 ## 2. Runtime layout
 

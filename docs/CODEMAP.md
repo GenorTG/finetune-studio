@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-383 files · 70179 lines
-- `finetune_studio`: 223 files, 42484 lines
+381 files · 69083 lines
+- `finetune_studio`: 222 files, 41926 lines
 - `scripts`: 9 files, 2283 lines
-- `tests`: 151 files, 25412 lines
+- `tests`: 150 files, 24874 lines
 
 
 # finetune_studio
@@ -1243,29 +1243,24 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `_slugify(text: str) -> str` (L279) — Convert text to a safe filename slug.
   - imports: finetune_studio.testing.suite
 
-## `src/finetune_studio/testing/gptq_load.py` (80 lines)
-- `gptq_inference_missing_message() -> str` (L15) — Actionable error when gptqmodel / GPTQ_TORCH cannot be used for load.
-- `is_local_gptq_checkpoint(model_path: str) -> bool` (L24) — True for a local dir that looks like a GPTQ export.
-- `load_gptq_model_torch(model_path: str, *, device_map: str | dict[str, Any] | None = None) -> Any` (L55) — Load a GPTQ dir with ``GPTQModel.from_quantized`` + ``BACKEND.GPTQ_TORCH``.
-
-## `src/finetune_studio/testing/inference.py` (637 lines)
+## `src/finetune_studio/testing/inference.py` (625 lines)
 - `class InferenceEngine` (L32)
   - `def __init__(self)` (L33)
   - `def load(self, model_path, device = 'auto', n_ctx = 4096, n_gpu_layers = -1, n_batch =…` (L49)
   - `def _looks_like_qwen3(model_path: str) -> bool` (L76)
   - `def _load_hf_bnb_4bit(self, model_path: str, device_map: str | dict)` (L96)
   - `def _load_hf(self, model_path, device, max_seq_length = None, load_in_4bit = False)` (L114)
-  - `def _load_gguf(self, gguf_path, n_ctx = 4096, n_gpu_layers = -1, n_batch = 512, mmap = True,…` (L192)
-  - `def _start_idle_timer(self)` (L278)
-  - `def _auto_unload(self)` (L287)
-  - `def unload(self)` (L296)
-  - `def idle_seconds(self)` (L357)
-  - `def generate(self, messages, max_tokens = 1024, temperature = 0.7, top_p = 0.9, top_k = 40…` (L363)
-  - `def _generate_hf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop, …` (L372)
-  - `def estimate_memory(model_path, n_ctx = 4096, n_gpu_layers = -1)` (L400)
-  - `def read_model_metadata(model_path)` (L455)
-  - `def _generate_gguf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop)` (L602)
-  - imports: finetune_studio.config, finetune_studio.templates.renderer, finetune_studio.testing.gptq_load
+  - `def _load_gguf(self, gguf_path, n_ctx = 4096, n_gpu_layers = -1, n_batch = 512, mmap = True,…` (L180)
+  - `def _start_idle_timer(self)` (L266)
+  - `def _auto_unload(self)` (L275)
+  - `def unload(self)` (L284)
+  - `def idle_seconds(self)` (L345)
+  - `def generate(self, messages, max_tokens = 1024, temperature = 0.7, top_p = 0.9, top_k = 40…` (L351)
+  - `def _generate_hf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop, …` (L360)
+  - `def estimate_memory(model_path, n_ctx = 4096, n_gpu_layers = -1)` (L388)
+  - `def read_model_metadata(model_path)` (L443)
+  - `def _generate_gguf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop)` (L590)
+  - imports: finetune_studio.config, finetune_studio.templates.renderer
 
 ## `src/finetune_studio/testing/judge.py` (247 lines)
 - `_key_words(text: str) -> set[str]` (L100) — Content words of a text: lowercased, punctuation-stripped, stopwords removed.
@@ -1343,26 +1338,10 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `abliterate_model(model_path: str, output_dir: str, layer_indices: Optional[list[int]] = None, …` (L129) — Abliterate (de-censor) a model by removing its refusal direction.
 - `test_refusals(model, tokenizer, device: str = 'cuda') -> dict` (L207) — Test how often a model refuses to answer.
 
-## `src/finetune_studio/training/advanced_quant.py` (491 lines)
-- `is_gptqmodel_available() -> bool` (L21) — Return True when the modern ``gptqmodel`` package imports.
-- `is_auto_gptq_available() -> bool` (L38) — Return True when legacy ``auto_gptq`` imports.
-- `is_gptq_available() -> bool` (L47) — Return True when any supported GPTQ backend is importable.
-- `is_optimum_available() -> bool` (L52) — Return True when ``optimum`` imports (needed for HF GPTQ inference).
-- `preferred_gptq_backend() -> GptqBackendName | None` (L61) — Prefer ``gptqmodel``; fall back to ``auto_gptq``; else None.
-- `gptq_missing_backend_message() -> str` (L70) — Actionable error when neither GPTQ backend is installed.
-- `gptq_optimum_inference_hint() -> str` (L80) — Hint when export backend is present but HF GPTQ load needs optimum.
-- `gptq_dependency_hints() -> dict[str, Any]` (L89) — Capability flags + actionable hints for export vs inference deps.
-- `verify_gptq_artifacts(gptq_dir: str) -> dict[str, Any]` (L108) — Require a non-empty GPTQ export dir (config + weight file).
-- `calibration_example_texts(count: int = _CALIBRATION_EXAMPLE_COUNT) -> list[str]` (L168) — Default GPTQ calibration sentences (shared across backends).
-- `quantize_gptq(model_path: str, output_dir: str, bits: int = 4, group_size: int = 128, damp_…` (L179) — Quantize a model using GPTQ (Post-training Quantization).
-- `_quantize_with_gptqmodel(model_path: str, output_dir: str, bits: int, group_size: int, damp_percent: f…` (L243) — Run GPTQ via ``gptqmodel`` (GPTQModel + GPTQConfig/QuantizeConfig).
-- `_quantize_with_auto_gptq(model_path: str, output_dir: str, bits: int, group_size: int, damp_percent: f…` (L292) — Run GPTQ via legacy ``auto_gptq``.
-- `_copy_runtime_sidecars(model_path: str, output_dir: str) -> None` (L327) — Copy optional prompt / chat-template files next to the GPTQ weights.
-- `quantize_gguf_imatrix(model_path: str, output_dir: str, imatrix_path: str, quants: list[str] | None…` (L335) — Quantize a model to GGUF using an importance matrix for higher quality.
-- `generate_imatrix(model_path: str, output_path: str, calibration_data: str | None = None, n_ctx…` (L410) — Generate an importance matrix for GGUF quantization.
-- `_default_calibration_path() -> str` (L460) — Get or create a default calibration text file.
-- `_dir_size(path: str) -> int` (L473)
-- `_human_size(n: int) -> str` (L486)
+## `src/finetune_studio/training/advanced_quant.py` (148 lines)
+- `quantize_gguf_imatrix(model_path: str, output_dir: str, imatrix_path: str, quants: list[str] | None…` (L13) — Quantize a model to GGUF using an importance matrix for higher quality.
+- `generate_imatrix(model_path: str, output_path: str, calibration_data: str | None = None, n_ctx…` (L88) — Generate an importance matrix for GGUF quantization.
+- `_default_calibration_path() -> str` (L138) — Get or create a default calibration text file.
 
 ## `src/finetune_studio/training/config_optimizer.py` (215 lines)
 - `class TrainingRecommendation` (L28)
@@ -1413,7 +1392,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def _calculate_severity(self)` (L225)
 - `generate_fixes(analysis: dict) -> list` (L234) — Generate specific fixes based on analysis.
 
-## `src/finetune_studio/training/engine.py` (1265 lines)
+## `src/finetune_studio/training/engine.py` (1235 lines)
 - `_format_exc(exc: BaseException) -> str` (L47) — ``Type: msg`` without a trailing empty ``: `` when msg is blank.
 - `_unsloth_preimport_blockers() -> list[str]` (L57) — Critical modules already in ``sys.modules`` before unsloth is imported.
 - `_merged_dir_complete(merged_dir: str) -> bool` (L75) — True when merged/ has weight files (not just a partial config dump).
@@ -1421,47 +1400,46 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `_dir_size(path: str) -> int` (L100) — Sum of file sizes under `path`, in bytes. Missing dir → 0.
 - `_human_size(n: int) -> int` (L114) — 1.4 GB / 235 MB / 12 KB style.
 - `class TrainingConfig` (L124)
-- `class TrainingState` (L165)
-- `apply_trainer_log(state: TrainingState, logs: dict, *, global_step: int, epoch: float | None, t…` (L180) — Fold one ``TrainerCallback.on_log`` payload into ``state``.
-- `class _ThreadChild` (L218)
-  - `def __init__(self, thread: threading.Thread) -> None` (L221)
-  - `def is_alive(self) -> bool` (L225)
-  - `def join(self, timeout: float | None = None) -> None` (L228)
-  - `def terminate(self) -> None` (L233)
-  - `def kill(self) -> None` (L237)
-- `class TrainingEngine` (L241)
-  - `def __init__(self)` (L242)
-  - `def on_update(self, callback)` (L255)
-  - `def _notify(self)` (L265)
-  - `def start(self, config, training_data, system_prompt = '', *, _worker_target = None)` (L274)
-  - `def _apply_state_dict(self, payload: dict) -> None` (L332)
-  - `def _listen_child(self) -> None` (L344)
-  - `def _cleanup_child_handles(self) -> None` (L388)
-  - `def stop(self) -> None` (L401)
-  - `def _stop_requested(self) -> bool` (L445)
-  - `def _mark_stopped(self) -> None` (L451)
-  - `def _sync_run_error(self, message: str) -> None` (L472)
-  - `def _maybe_merge(self, model: object, tokenizer: object, output_dir: str) -> None` (L483)
-  - `def _train(self, training_data, system_prompt)` (L495)
-  - `def _persist_run_error(self, error_msg: str) -> None` (L555)
-  - `def _persist_run_output(self) -> None` (L570)
-  - `def _load_model_with_fallback(self, model_path, tokenizer)` (L594)
-  - `def _train_unsloth(self, train_data)` (L635)
-  - `def _train_standard(self, train_data)` (L818)
-  - `def _do_merge(self, model, tokenizer, output_dir: str) -> dict` (L950)
-  - `def _do_abliteration(self) -> dict` (L1030)
-  - `def _do_export_gptq(self, output_dir: str) -> dict` (L1054)
-  - `def _do_export_imatrix(self, output_dir: str) -> dict` (L1079)
-  - `def _auto_generate_suite(self) -> dict` (L1104)
-  - `def _do_export_gguf(self, output_dir: str, force: bool = False) -> dict` (L1144)
-- `merge_adapter_for_run(run: dict, force: bool = False) -> dict` (L1187) — Merge a persisted run's adapter on disk into a standalone model.
+- `class TrainingState` (L162)
+- `apply_trainer_log(state: TrainingState, logs: dict, *, global_step: int, epoch: float | None, t…` (L177) — Fold one ``TrainerCallback.on_log`` payload into ``state``.
+- `class _ThreadChild` (L215)
+  - `def __init__(self, thread: threading.Thread) -> None` (L218)
+  - `def is_alive(self) -> bool` (L222)
+  - `def join(self, timeout: float | None = None) -> None` (L225)
+  - `def terminate(self) -> None` (L230)
+  - `def kill(self) -> None` (L234)
+- `class TrainingEngine` (L238)
+  - `def __init__(self)` (L239)
+  - `def on_update(self, callback)` (L252)
+  - `def _notify(self)` (L262)
+  - `def start(self, config, training_data, system_prompt = '', *, _worker_target = None)` (L271)
+  - `def _apply_state_dict(self, payload: dict) -> None` (L329)
+  - `def _listen_child(self) -> None` (L341)
+  - `def _cleanup_child_handles(self) -> None` (L385)
+  - `def stop(self) -> None` (L398)
+  - `def _stop_requested(self) -> bool` (L442)
+  - `def _mark_stopped(self) -> None` (L448)
+  - `def _sync_run_error(self, message: str) -> None` (L469)
+  - `def _maybe_merge(self, model: object, tokenizer: object, output_dir: str) -> None` (L480)
+  - `def _train(self, training_data, system_prompt)` (L492)
+  - `def _persist_run_error(self, error_msg: str) -> None` (L552)
+  - `def _persist_run_output(self) -> None` (L567)
+  - `def _load_model_with_fallback(self, model_path, tokenizer)` (L591)
+  - `def _train_unsloth(self, train_data)` (L632)
+  - `def _train_standard(self, train_data)` (L813)
+  - `def _do_merge(self, model, tokenizer, output_dir: str) -> dict` (L945)
+  - `def _do_abliteration(self) -> dict` (L1025)
+  - `def _do_export_imatrix(self, output_dir: str) -> dict` (L1049)
+  - `def _auto_generate_suite(self) -> dict` (L1074)
+  - `def _do_export_gguf(self, output_dir: str, force: bool = False) -> dict` (L1114)
+- `merge_adapter_for_run(run: dict, force: bool = False) -> dict` (L1157) — Merge a persisted run's adapter on disk into a standalone model.
   - imports: finetune_studio.db.connection, finetune_studio.db.runs, finetune_studio.testing.generate_suite, finetune_studio.training.abliteration, finetune_studio.training.advanced_quant, finetune_studio.training.data, finetune_studio.training.gguf_convert, finetune_studio.training.merge_base, finetune_studio.training.sft_args, finetune_studio.training.worker
 
-## `src/finetune_studio/training/export_capabilities.py` (66 lines)
-- `class ExportCapabilities` (L28)
-  - `def as_dict(self) -> dict[str, Any]` (L39)
-- `probe_export_capabilities() -> ExportCapabilities` (L44) — Probe the filesystem / imports for GGUF and GPTQ converters.
-  - imports: finetune_studio.training.advanced_quant, finetune_studio.training.run_export
+## `src/finetune_studio/training/export_capabilities.py` (40 lines)
+- `class ExportCapabilities` (L20)
+  - `def as_dict(self) -> dict[str, Any]` (L27)
+- `probe_export_capabilities() -> ExportCapabilities` (L32) — Probe the filesystem for the GGUF converter.
+  - imports: finetune_studio.training.run_export
 
 ## `src/finetune_studio/training/export_response.py` (177 lines)
 - `_is_json_primitive(value: Any) -> bool` (L18)
@@ -1538,15 +1516,15 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `dataset_stats(jsonl_path: str | Path) -> tuple[int, float]` (L124) — (pair_count, avg_chars_per_pair) for a ShareGPT/openai JSONL file.
 - `propose(*, tier: str, base_model_ref: str, dataset_path: str | None = None, pair_coun…` (L147) — Compute recommended settings for a base model + dataset at a tier.
 
-## `src/finetune_studio/training/run_export.py` (449 lines)
-- `validate_base_model(base_model: str) -> str` (L37) — Validate a merge-base path or Hub id; return the stripped value.
-- `merged_dir_ready(output_path: str) -> bool` (L76) — True when ``<output_path>/merged/`` has weight files.
-- `adapter_dir_ready(output_path: str) -> bool` (L88) — True when ``<output_path>/adapter/`` exists and is non-empty.
-- `ensure_merged_for_export(run: dict[str, Any], *, base_model: str | None = None, force: bool = False) -…` (L99) — Ensure ``merged/`` exists for ``run``, merging the adapter if needed.
-- `_export_failure(error: str, *, format: str | None = None, **extra: Any) -> dict[str, Any]` (L152) — Structured failure payload for sync export (never look like success).
-- `_export_gguf(engine: Any, *, output_path: str, quant_list: list[str], force: bool) -> dict…` (L169) — Run GGUF conversion and only succeed when artifacts verify non-empty.
-- `export_trained_run(run: dict[str, Any], *, fmt: str = 'gguf', quants: list[str] | None = None, f…` (L288) — Merge if needed, then export ``run`` to ``fmt``.
-  - imports: finetune_studio.training.advanced_quant, finetune_studio.training.engine, finetune_studio.training.gguf_convert, finetune_studio.training.merge_base
+## `src/finetune_studio/training/run_export.py` (395 lines)
+- `validate_base_model(base_model: str) -> str` (L36) — Validate a merge-base path or Hub id; return the stripped value.
+- `merged_dir_ready(output_path: str) -> bool` (L75) — True when ``<output_path>/merged/`` has weight files.
+- `adapter_dir_ready(output_path: str) -> bool` (L87) — True when ``<output_path>/adapter/`` exists and is non-empty.
+- `ensure_merged_for_export(run: dict[str, Any], *, base_model: str | None = None, force: bool = False) -…` (L98) — Ensure ``merged/`` exists for ``run``, merging the adapter if needed.
+- `_export_failure(error: str, *, format: str | None = None, **extra: Any) -> dict[str, Any]` (L151) — Structured failure payload for sync export (never look like success).
+- `_export_gguf(engine: Any, *, output_path: str, quant_list: list[str], force: bool) -> dict…` (L168) — Run GGUF conversion and only succeed when artifacts verify non-empty.
+- `export_trained_run(run: dict[str, Any], *, fmt: str = 'gguf', quants: list[str] | None = None, f…` (L287) — Merge if needed, then export ``run`` to ``fmt``.
+  - imports: finetune_studio.training.engine, finetune_studio.training.gguf_convert, finetune_studio.training.merge_base
 
 ## `src/finetune_studio/training/run_persistence.py` (106 lines)
 - `make_run_state_persister(run_id: str, output_dir: str, *, update_run: Callable[..., Any] | None = None…` (L22) — Return an engine ``on_update`` callback bound to one run row.
@@ -1802,19 +1780,19 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `delete_dataset_route(pid: str, did: str, remove_file: bool = False)` (L163)
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.db.datasets
 
-## `src/finetune_studio/webui/routes/exports.py` (397 lines)
+## `src/finetune_studio/webui/routes/exports.py` (398 lines)
 - `_project_404(pid: str) -> JSONResponse | None` (L33) — Return a 404 response when the project does not exist, else None.
 - `_project_root_llama_cpp() -> str` (L62)
 - `_human_size(n: int) -> str` (L76)
 - `_safe_name(s: str) -> str` (L84)
 - `_find_llama_tool(name: str) -> str | None` (L88) — Find an executable in PATH or common llama.cpp install locations.
 - `_find_convert_script() -> str | None` (L103) — Find llama.cpp's convert_hf_to_gguf.py script.
-- `export_run(pid: str, rid: str, request: Request, background: BackgroundTasks)` (L110) — Export a run to GGUF / GPTQ / abliterated / merged safetensors.
-- `get_export(pid: str, eid: str)` (L291)
-- `export_events(pid: str, eid: str)` (L299) — SSE stream of a single export row until it reaches a terminal status.
-- `list_run_exports(pid: str, rid: str)` (L331)
-- `list_project_exports(pid: str, limit: int = 100)` (L339)
-- `_export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None` (L346) — Background GGUF export worker.
+- `export_run(pid: str, rid: str, request: Request, background: BackgroundTasks)` (L110) — Export a run to GGUF / abliterated / merged safetensors.
+- `get_export(pid: str, eid: str)` (L292)
+- `export_events(pid: str, eid: str)` (L300) — SSE stream of a single export row until it reaches a terminal status.
+- `list_run_exports(pid: str, rid: str)` (L332)
+- `list_project_exports(pid: str, limit: int = 100)` (L340)
+- `_export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None` (L347) — Background GGUF export worker.
   - imports: finetune_studio, finetune_studio.training.export_response, finetune_studio.training.gguf_convert, finetune_studio.training.run_export, finetune_studio.webui.live_sse
 
 ## `src/finetune_studio/webui/routes/file_library.py` (536 lines)
@@ -1893,36 +1871,36 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `inference_memory_estimate(request: Request)` (L432) — Estimate VRAM needed for a model with given loader params.
   - imports: finetune_studio, finetune_studio.config, finetune_studio.models.gguf_layers, finetune_studio.models.loader, finetune_studio.models.manager, finetune_studio.models.registry, finetune_studio.testing.inference, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.routes.system, finetune_studio.webui.thinking
 
-## `src/finetune_studio/webui/routes/pages.py` (738 lines)
+## `src/finetune_studio/webui/routes/pages.py` (737 lines)
 - `_sum_benchmarks(runs)` (L31) — Sum total benchmark count across all runs.
 - `_require_project(pid: str)` (L43) — Return project dict or None (caller redirects to /projects).
-- `_dir_size_gb(path: str) -> float` (L58) — Total size of a directory tree in GB, rounded to 2 decimals.
-- `_scan_run_models(runs: list[dict]) -> list[dict]` (L71) — Find exported models on disk for a project's training runs.
-- `_project_ctx(pid: str) -> dict` (L128) — Build common template context for project pages.
-- `index(request: Request)` (L146) — Home page — project list + system overview.
-- `inference_page(request: Request)` (L165) — Global inference page — load any model, chat, run benchmarks.
-- `hf_models_page(request: Request)` (L203) — HuggingFace model browser + downloader (LM Studio-style).
-- `models_index(request: Request)` (L214) — Local model library — all discovered models with categories.
-- `hf_models_alias(request: Request)` (L228) — Alias for /models/explore — renders the same HF model browser.
-- `export_page(pid: str, request: Request)` (L239) — Model export page — choose format, quant, and browse trained exports.
-- `projects_page(request: Request)` (L272) — Project list / create page.
-- `project_overview_alias(request: Request, pid: str)` (L286) — Alias used by the sticky breadcrumb (QABUG-009).
-- `project_detail_page(request: Request, pid: str)` (L292) — Project overview dashboard — stats, recent runs/models/files, activity.
-- `project_data_page(request: Request, pid: str)` (L312) — File browser for a project (library + trash + upload).
-- `project_training_page(request: Request, pid: str)` (L330) — Training config + progress for a project.
-- `_recent_suite_runs(pid: str, limit: int = 5) -> list[dict]` (L364) — Return the most recent benchmark suite runs for a project (newest first).
-- `project_testing_page(request: Request, pid: str)` (L400) — Testing / inference playground for a project.
-- `project_models_page(request: Request, pid: str)` (L444) — Model browser for a project — trained exports with expand-row detail.
-- `project_rag_page(request: Request, pid: str)` (L459) — RAG page — corpus build/chat plus docs-indexed inventory panel.
-- `data_editor_page(request: Request, pid: str, dataset_path: str)` (L485) — Project-scoped data editor for a JSONL dataset.
-- `benchmarks_page(request: Request, pid: str)` (L506) — Benchmarks tab — run suites, view scores, compare runs.
-- `project_chat_page(request: Request, pid: str)` (L595) — Project chat page — chat with the project's production model, optionally
-- `project_settings_page(request: Request, pid: str)` (L611) — Project settings + WebUI log tail (no SSH needed for uvicorn.log).
-- `project_wizard_page(request: Request, pid: str)` (L624) — Project wizard: Quick start runs files → QA → dataset → train → test
-- `project_flow_page(request: Request, pid: str)` (L641) — Old name for the wizard — keep bookmarks and links working.
-- `project_work_page(request: Request, pid: str)` (L647) — Canonical name of the quick-work page (routes keep /wizard for history).
-- `settings_page(request: Request)` (L655) — Settings, debug info, replay tutorial, system status.
-- `debug_info()` (L671) — Return system debug info for the Settings page.
+- `_dir_size_gb(path: str) -> float` (L57) — Total size of a directory tree in GB, rounded to 2 decimals.
+- `_scan_run_models(runs: list[dict]) -> list[dict]` (L70) — Find exported models on disk for a project's training runs.
+- `_project_ctx(pid: str) -> dict` (L127) — Build common template context for project pages.
+- `index(request: Request)` (L145) — Home page — project list + system overview.
+- `inference_page(request: Request)` (L164) — Global inference page — load any model, chat, run benchmarks.
+- `hf_models_page(request: Request)` (L202) — HuggingFace model browser + downloader (LM Studio-style).
+- `models_index(request: Request)` (L213) — Local model library — all discovered models with categories.
+- `hf_models_alias(request: Request)` (L227) — Alias for /models/explore — renders the same HF model browser.
+- `export_page(pid: str, request: Request)` (L238) — Model export page — choose format, quant, and browse trained exports.
+- `projects_page(request: Request)` (L271) — Project list / create page.
+- `project_overview_alias(request: Request, pid: str)` (L285) — Alias used by the sticky breadcrumb (QABUG-009).
+- `project_detail_page(request: Request, pid: str)` (L291) — Project overview dashboard — stats, recent runs/models/files, activity.
+- `project_data_page(request: Request, pid: str)` (L311) — File browser for a project (library + trash + upload).
+- `project_training_page(request: Request, pid: str)` (L329) — Training config + progress for a project.
+- `_recent_suite_runs(pid: str, limit: int = 5) -> list[dict]` (L363) — Return the most recent benchmark suite runs for a project (newest first).
+- `project_testing_page(request: Request, pid: str)` (L399) — Testing / inference playground for a project.
+- `project_models_page(request: Request, pid: str)` (L443) — Model browser for a project — trained exports with expand-row detail.
+- `project_rag_page(request: Request, pid: str)` (L458) — RAG page — corpus build/chat plus docs-indexed inventory panel.
+- `data_editor_page(request: Request, pid: str, dataset_path: str)` (L484) — Project-scoped data editor for a JSONL dataset.
+- `benchmarks_page(request: Request, pid: str)` (L505) — Benchmarks tab — run suites, view scores, compare runs.
+- `project_chat_page(request: Request, pid: str)` (L594) — Project chat page — chat with the project's production model, optionally
+- `project_settings_page(request: Request, pid: str)` (L610) — Project settings + WebUI log tail (no SSH needed for uvicorn.log).
+- `project_wizard_page(request: Request, pid: str)` (L623) — Project wizard: Quick start runs files → QA → dataset → train → test
+- `project_flow_page(request: Request, pid: str)` (L640) — Old name for the wizard — keep bookmarks and links working.
+- `project_work_page(request: Request, pid: str)` (L646) — Canonical name of the quick-work page (routes keep /wizard for history).
+- `settings_page(request: Request)` (L654) — Settings, debug info, replay tutorial, system status.
+- `debug_info()` (L670) — Return system debug info for the Settings page.
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.db, finetune_studio.models.helper, finetune_studio.models.loader, finetune_studio.models.registry, finetune_studio.training.export_capabilities, finetune_studio.webui.app, finetune_studio.webui.model_labels, finetune_studio.webui.project_dashboard, finetune_studio.webui.project_data_browser, finetune_studio.webui.routes.benchmarks, finetune_studio.webui.routes.project_export, finetune_studio.webui.routes.project_rag, finetune_studio.webui.testing_models
 
 ## `src/finetune_studio/webui/routes/project_export.py` (48 lines)
@@ -2066,7 +2044,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `evaluate_training_dataset(request: Request)` (L375) — Run heuristic evaluation against a project's approved training dataset.
   - imports: finetune_studio, finetune_studio.db, finetune_studio.testing.rag_suite, finetune_studio.testing.suite, finetune_studio.testing.training_eval, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.live_sse, finetune_studio.webui.testing_models
 
-## `src/finetune_studio/webui/routes/training.py` (818 lines)
+## `src/finetune_studio/webui/routes/training.py` (805 lines)
 - `_coerce_bool(value: object) -> bool` (L23) — Parse JSON/FormData bool-ish values (``"1"``, ``"true"``, ``true``, …).
 - `_optional_body_bool(body: dict, key: str, overrides: dict | None = None) -> bool | None` (L37) — Return coerced bool when ``key`` is present on body or overrides; else None.
 - `_resolve_model_path(model_path: str, allow_download: bool) -> tuple[str, str | None]` (L49) — Resolve a trainable base to a local dir; block silent multi-GB hub pulls.
@@ -2083,16 +2061,16 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `list_training_runs()` (L373) — List ALL training runs (across all projects).
 - `list_training_runs_for_project(pid: str)` (L380) — List training runs for a specific project.
 - `start_training(request: Request)` (L393)
-- `stop_training()` (L529)
-- `export_run(run_id: str, request: Request)` (L535) — Export a trained run to deployable formats (standalone, post-training).
-- `list_auto_suites(run_id: str)` (L576) — List all auto-generated suites for a training run.
-- `trigger_auto_suite(run_id: str, request: Request)` (L585) — Trigger auto-generation of a benchmark suite from training data.
-- `abliterate_run(run_id: str)` (L655) — Abliterate (de-censor) a trained model.
-- `get_abliteration(run_id: str)` (L703) — Get abliteration status for a run.
-- `quantize_run(run_id: str, request: Request)` (L712) — Export a trained model using advanced quantization.
-- `list_quant_exports(run_id: str)` (L768) — List all quantization exports for a run.
-- `set_run_output(run_id: str, request: Request)` (L777) — Update a run's output_path.
-- `list_exports(run_id: str)` (L789) — List all exports (merged, gguf, adapter) for a training run.
+- `stop_training()` (L526)
+- `export_run(run_id: str, request: Request)` (L532) — Export a trained run to deployable formats (standalone, post-training).
+- `list_auto_suites(run_id: str)` (L572) — List all auto-generated suites for a training run.
+- `trigger_auto_suite(run_id: str, request: Request)` (L581) — Trigger auto-generation of a benchmark suite from training data.
+- `abliterate_run(run_id: str)` (L651) — Abliterate (de-censor) a trained model.
+- `get_abliteration(run_id: str)` (L699) — Get abliteration status for a run.
+- `quantize_run(run_id: str, request: Request)` (L708) — Export a trained model using advanced quantization.
+- `list_quant_exports(run_id: str)` (L755) — List all quantization exports for a run.
+- `set_run_output(run_id: str, request: Request)` (L764) — Update a run's output_path.
+- `list_exports(run_id: str)` (L776) — List all exports (merged, gguf, adapter) for a training run.
   - imports: finetune_studio, finetune_studio.db.connection, finetune_studio.db.runs, finetune_studio.models.helper, finetune_studio.testing.generate_suite, finetune_studio.training.abliteration, finetune_studio.training.advanced_quant, finetune_studio.training.data, finetune_studio.training.engine, finetune_studio.training.monitor, finetune_studio.training.preset_advisor, finetune_studio.training.run_export, finetune_studio.training.run_persistence, finetune_studio.webui.app, finetune_studio.webui.live_sse
 
 ## `src/finetune_studio/webui/routes/updates.py` (256 lines)
@@ -2265,26 +2243,6 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_rag_query_wins_over_data_prep_chat() -> None` (L63) — The more specific rag_query kind must win over the broader chat-in-data-prep rule.
 - `test_inference_wins_over_rag_query_for_chat_v2() -> None` (L68) — Inference endpoints are classified before rag_query even if 'chat' appears.
   - imports: finetune_studio.webui.app
-
-## `tests/test_advanced_quant.py` (271 lines)
-- `class TestGptqCapabilityDetection` (L11)
-  - `def test_neither_backend(self, monkeypatch: pytest.MonkeyPatch) -> None` (L12)
-  - `def test_prefers_gptqmodel_over_auto_gptq(self, monkeypatch: pytest.MonkeyPatch) -> None` (L23)
-  - `def test_falls_back_to_auto_gptq(self, monkeypatch: pytest.MonkeyPatch) -> None` (L33)
-  - `def test_optimum_inference_hint_when_export_ok(self, monkeypatch: pytest.MonkeyPatch) -> None` (L42)
-  - `def test_gptqmodel_import_time_valueerror_is_treated_as_unavailable(self, monkeypatch: pytest.MonkeyPatch) -> None` (L57)
-  - `def test_pyproject_gptq_extra_includes_optimum(self) -> None` (L78)
-- `class TestCalibrationExamples` (L93)
-  - `def test_shared_calibration_texts(self) -> None` (L94)
-- `class TestVerifyGptqArtifacts` (L105)
-  - `def test_ok_with_config_and_weights(self, tmp_path: Path) -> None` (L106)
-  - `def test_accepts_quantize_config_json(self, tmp_path: Path) -> None` (L118)
-- `class TestQuantizeGptqDispatch` (L128)
-  - `def test_raises_when_no_backend(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L129)
-  - `def test_uses_gptqmodel_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L138)
-  - `def test_uses_auto_gptq_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L177)
-  - `def test_gptqmodel_loader_wires_calibration(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L205)
-  - imports: finetune_studio.training, finetune_studio.training.advanced_quant
 
 ## `tests/test_agent_chat_model_resolution.py` (244 lines)
 - `fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L27)
@@ -2778,12 +2736,11 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def test_list_run_exports_returns_rows(self, client, mock_settings)` (L427)
   - imports: finetune_studio, finetune_studio.training, finetune_studio.webui.routes, finetune_studio.webui.routes.exports
 
-## `tests/test_export_capabilities.py` (117 lines)
-- `test_probe_export_capabilities_shape() -> None` (L25)
-- `test_export_template_surfaces_optimum_hint() -> None` (L47)
-- `test_export_template_disables_unavailable_formats() -> None` (L55)
-- `test_export_page_marks_gguf_gptq_unavailable(client) -> None` (L68)
-- `test_export_page_enables_gguf_when_converter_present(client) -> None` (L96)
+## `tests/test_export_capabilities.py` (82 lines)
+- `test_probe_export_capabilities_shape() -> None` (L24)
+- `test_export_template_disables_unavailable_formats() -> None` (L34)
+- `test_export_page_marks_gguf_unavailable(client) -> None` (L45)
+- `test_export_page_enables_gguf_when_converter_present(client) -> None` (L67)
   - imports: finetune_studio.training.export_capabilities, finetune_studio.training.run_export
 
 ## `tests/test_export_response.py` (203 lines)
@@ -2880,7 +2837,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_discover_suites_keeps_auto_and_local(project_fs: Path, tmp_path: Path) -> None` (L245)
   - imports: finetune_studio, finetune_studio.benchmarks.suite_defs, finetune_studio.config, finetune_studio.data.fs, finetune_studio.testing.full_corpus_suite
 
-## `tests/test_gguf_convert.py` (239 lines)
+## `tests/test_gguf_convert.py` (144 lines)
 - `class TestGgufDiscovery` (L11)
   - `def test_find_script_none_when_absent(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L12)
   - `def test_find_script_and_quantize_in_search_root(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L23)
@@ -2889,13 +2846,9 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def test_verify_rejects_empty_and_accepts_nonempty(self, tmp_path: Path) -> None` (L61)
   - `def test_convert_skip_writes_nonempty_markers(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L78)
   - `def test_convert_fails_without_converter(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L101)
-- `class TestGptqArtifacts` (L118)
-  - `def test_verify_requires_config_and_weights(self, tmp_path: Path) -> None` (L119)
-  - `def test_export_gptq_success_requires_artifacts(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L134)
-  - `def test_export_gptq_ok_when_artifacts_present(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L170)
-- `class TestSyncGgufExportUsesConverter` (L213)
-  - `def test_export_q8_0_via_skip_marker(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L214)
-  - imports: finetune_studio.training, finetune_studio.training.advanced_quant, finetune_studio.training.engine, finetune_studio.training.gguf_convert, finetune_studio.training.run_export
+- `class TestSyncGgufExportUsesConverter` (L118)
+  - `def test_export_q8_0_via_skip_marker(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L119)
+  - imports: finetune_studio.training, finetune_studio.training.gguf_convert, finetune_studio.training.run_export
 
 ## `tests/test_gguf_layers.py` (112 lines)
 - `_write_minimal_gguf(path: Path, arch: str = 'qwen3', block_count: int = 36, ctx: int = 40960) -> …` (L23) — Hand-rolled minimal GGUF v3 header with two uint32 scalar fields.
@@ -2907,6 +2860,15 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_gguf_header_values_scalar_only(tmp_path: Path) -> None` (L69)
 - `test_manager_translates_legacy_99(monkeypatch: pytest.MonkeyPatch) -> None` (L75) — load() must rewrite legacy n_gpu_layers=99 to -1, never pass 99 on.
   - imports: finetune_studio.models, finetune_studio.models.gguf_layers
+
+## `tests/test_gptq_removed.py` (79 lines)
+- `_merged_run(tmp_path: Path) -> dict` (L15)
+- `test_supported_formats_exclude_gptq() -> None` (L29)
+- `test_export_trained_run_rejects_gptq_with_clear_message(tmp_path: Path) -> None` (L36)
+- `test_export_page_has_no_gptq_choice(client) -> None` (L44)
+- `test_export_api_rejects_gptq(client, tmp_path: Path) -> None` (L55)
+- `test_supported_format_names_are_non_gptq(fmt: str) -> None` (L78)
+  - imports: finetune_studio, finetune_studio.training.run_export
 
 ## `tests/test_header_nav.py` (206 lines)
 - `_render_base(*, pid: str | None = None) -> str` (L35)
@@ -2975,17 +2937,6 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `_load(module: str, attribute: str | None) -> None` (L48)
 - `test_core_training_stack_imports() -> None` (L54) — The core stack must import. This is the torchao-class regression guard.
 - `test_optional_accelerator_stack_is_reported() -> None` (L74) — Optional packages are informational — a missing one must not fail CI.
-
-## `tests/test_inference_gptq_load.py` (189 lines)
-- `test_detects_quantize_config_json(tmp_path: Path) -> None` (L18)
-- `test_detects_quantization_config_metadata(tmp_path: Path) -> None` (L29)
-- `test_plain_hf_dir_is_not_gptq(tmp_path: Path) -> None` (L48)
-- `test_file_path_is_not_gptq(tmp_path: Path) -> None` (L58)
-- `test_load_gptq_uses_from_quantized_gptq_torch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L64)
-- `test_load_gptq_missing_package_raises_actionable(monkeypatch: pytest.MonkeyPatch) -> None` (L98)
-- `test_load_gptq_missing_backend_raises_actionable(monkeypatch: pytest.MonkeyPatch) -> None` (L113)
-- `test_inference_load_hf_routes_gptq_to_torch_backend(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L128)
-  - imports: finetune_studio.testing, finetune_studio.testing.inference
 
 ## `tests/test_inference_unsloth_load.py` (162 lines)
 - `test_looks_like_qwen3_from_path() -> None` (L16)
@@ -3347,11 +3298,11 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_export_page_accepts_run_query(client) -> None` (L88)
   - imports: finetune_studio, finetune_studio.webui.project_dashboard
 
-## `tests/test_public_docs_scrub.py` (79 lines)
+## `tests/test_public_docs_scrub.py` (78 lines)
 - `test_public_doc_exists(path: Path) -> None` (L47)
 - `test_public_doc_has_no_private_infra_leaks(path: Path) -> None` (L52)
-- `test_readme_documents_honest_export_caveats() -> None` (L62) — Public README should not over-advertise GGUF/GPTQ as always-on.
-- `test_pages_index_avoids_stale_benchmark_and_e2e_badges() -> None` (L74)
+- `test_readme_documents_honest_export_caveats() -> None` (L62) — Public README should not over-advertise GGUF as always-on.
+- `test_pages_index_avoids_stale_benchmark_and_e2e_badges() -> None` (L73)
 
 ## `tests/test_rag_build_registration.py` (119 lines)
 - `_project(client) -> str` (L10)
@@ -3542,7 +3493,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `_upload(pid: str, fid_ref: list[str], name: str, payload: bytes, client: Any) -> dict` (L15)
 - `test_reupload_after_softdelete_lands(client: Any) -> None` (L28)
 
-## `tests/test_run_export.py` (418 lines)
+## `tests/test_run_export.py` (406 lines)
 - `_adapter_run(tmp_path: Path, *, base_model: str = 'Qwen/Qwen3-4B') -> dict` (L12) — Create an adapter-only (no merged/) run directory + dict.
 - `_merged_run(tmp_path: Path) -> dict` (L27)
 - `class TestValidateBaseModel` (L41)
@@ -3556,20 +3507,20 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def test_no_adapter_no_merged_errors(self, tmp_path: Path) -> None` (L108)
 - `class TestExportTrainedRun` (L119)
   - `def test_awq_rejected_with_clear_message(self, tmp_path: Path) -> None` (L120)
-  - `def test_gptq_missing_backend_is_structured_failure(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L130)
-  - `def test_merged_format_returns_path(self, tmp_path: Path) -> None` (L147)
-  - `def test_unknown_format(self, tmp_path: Path) -> None` (L156)
-- `class TestGgufArtifactVerification` (L165)
-  - `def test_verify_requires_nonempty_matching_files(self, tmp_path: Path) -> None` (L168)
-  - `def test_missing_converter_is_structured_failure(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L187)
-  - `def test_engine_false_success_without_artifacts_fails(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L203)
-  - `def test_existing_artifacts_skip_as_success(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L233)
-  - `def test_post_gguf_missing_converter_returns_400(self, client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L252)
-- `class TestExportApiAdapterOnly` (L283)
-  - `def test_page_lists_adapter_only_run(self, client, tmp_path: Path) -> None` (L286)
-  - `def test_post_export_merged_with_base_override(self, client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L314)
-  - `def test_post_rejects_awq(self, client, tmp_path: Path) -> None` (L357)
-  - `def test_post_gptq_missing_module_returns_400(self, client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L385)
+  - `def test_gptq_rejected_with_clear_message(self, tmp_path: Path) -> None` (L130)
+  - `def test_merged_format_returns_path(self, tmp_path: Path) -> None` (L141)
+  - `def test_unknown_format(self, tmp_path: Path) -> None` (L150)
+- `class TestGgufArtifactVerification` (L159)
+  - `def test_verify_requires_nonempty_matching_files(self, tmp_path: Path) -> None` (L162)
+  - `def test_missing_converter_is_structured_failure(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L181)
+  - `def test_engine_false_success_without_artifacts_fails(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L197)
+  - `def test_existing_artifacts_skip_as_success(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L227)
+  - `def test_post_gguf_missing_converter_returns_400(self, client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L246)
+- `class TestExportApiAdapterOnly` (L277)
+  - `def test_page_lists_adapter_only_run(self, client, tmp_path: Path) -> None` (L280)
+  - `def test_post_export_merged_with_base_override(self, client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L308)
+  - `def test_post_rejects_awq(self, client, tmp_path: Path) -> None` (L351)
+  - `def test_post_rejects_gptq(self, client, tmp_path: Path) -> None` (L379)
   - imports: finetune_studio, finetune_studio.training, finetune_studio.training.engine, finetune_studio.training.run_export
 
 ## `tests/test_run_labels.py` (37 lines)
@@ -3629,11 +3580,10 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `test_spa_js_references_page_scripts_and_rewrites_decls() -> None` (L36)
 - `test_projects_page_puts_selectTemplate_in_page_scripts(client) -> None` (L50)
 
-## `tests/test_status_badge_honesty.py` (72 lines)
-- `test_case_results_hide_pass_rate_when_unjudged() -> None` (L41)
-- `test_train_status_badge_idle_is_not_amber() -> None` (L49)
-- `test_export_gptq_export_only_badge_when_optimum_missing() -> None` (L60)
-- `test_benchmarks_recent_scores_show_judged_column() -> None` (L66)
+## `tests/test_status_badge_honesty.py` (58 lines)
+- `test_case_results_hide_pass_rate_when_unjudged() -> None` (L33)
+- `test_train_status_badge_idle_is_not_amber() -> None` (L41)
+- `test_benchmarks_recent_scores_show_judged_column() -> None` (L52)
 
 ## `tests/test_strict_scoring.py` (328 lines)
 - `test_detect_mcq_and_numeric() -> None` (L21)
