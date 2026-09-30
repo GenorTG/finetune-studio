@@ -368,7 +368,7 @@
       });
     }
     if (!which || which === "train") {
-      api("/api/training/runs?project_id=" + PID).then(function (rows) {
+      api("/api/training/runs/" + PID).then(function (rows) {
         rows = Array.isArray(rows) ? rows : [];
         var done = rows.filter(function (r) { return ["done", "completed"].indexOf(r.status) >= 0; });
         var txt = done.length + " completed run(s)" + (done[0] && done[0].final_loss != null ? " · last loss " + done[0].final_loss : "");
@@ -380,7 +380,7 @@
       }).catch(function (e) { pill("wiz-train", "error", false); line("training: ERROR " + e); });
     }
     if (!which || which === "test") {
-      api("/api/training/runs?project_id=" + PID).then(function (rows) {
+      api("/api/training/runs/" + PID).then(function (rows) {
         rows = Array.isArray(rows) ? rows : [];
         var done = rows.filter(function (r) { return ["done", "completed"].indexOf(r.status) >= 0; });
         var checks = done.slice(0, 3).map(function (r) {
@@ -569,7 +569,7 @@
     if (busy) { line("Already running — wait for the current step."); return false; }
     setBusy(true);
     try {
-      var rows = await api("/api/training/runs?project_id=" + PID);
+      var rows = await api("/api/training/runs/" + PID);
       var done = (rows || []).filter(function (r) { return ["done", "completed"].indexOf(r.status) >= 0; });
       if (!done.length) { line("Step 5: no completed training run to test yet."); return false; }
       var run = null;
