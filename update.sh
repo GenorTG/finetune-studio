@@ -173,10 +173,13 @@ fi
 
 # ── Step 3: pip sync ────────────────────────────────────────────────────
 if [ "$CHECK_MODE" = "0" ]; then
-    log "Syncing deps via 'pip install -e .'..."
+    log "Syncing deps via 'pip install -e .[parsers]'..."
+    # [parsers] kept in sync like install.sh does — without it, updated
+    # hosts keep whatever parser-dep set (if any) was resolved at install
+    # time, and PDF/DOCX/XLSX/PPTX/HTML/RTF sources silently stop parsing.
     # shellcheck disable=SC2046
-    pip_install --quiet $(torch_constraint_args) -e . 2>&1 | tail -5 \
-        || warn "pip install -e . failed — deps may be stale"
+    pip_install --quiet $(torch_constraint_args) -e '.[parsers]' 2>&1 | tail -5 \
+        || warn "pip install -e .[parsers] failed — deps may be stale"
 else
     log "check mode: skipping pip install"
 fi

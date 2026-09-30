@@ -441,7 +441,12 @@ install_torch
 write_torch_constraints
 install_gguf
 log "Installing base packages from pyproject.toml..."
-uv pip install --python "$PYTHON_CMD" "${CONSTRAINT_ARGS[@]}" -e .
+# [parsers] is folded into the base install (not an optional extra): file
+# upload/parse is core functionality, not an advanced feature like unsloth
+# or abliteration. Without pypdf/python-docx/openpyxl/xlrd/python-pptx/
+# beautifulsoup4/striprtf/Pillow, PDF/DOCX/XLSX/PPTX/HTML/RTF sources
+# silently fail to parse on a fresh install.
+uv pip install --python "$PYTHON_CMD" "${CONSTRAINT_ARGS[@]}" -e '.[parsers]'
 mkdir -p data
 install_llama_cpp_cli
 

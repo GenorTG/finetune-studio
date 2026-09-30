@@ -85,7 +85,7 @@ class LocalGGUFProvider(ModelProvider):
     def __init__(self, config: ProviderConfig):
         super().__init__(config)
         self._llama = None  # the llama_cpp.Llama instance
-        self._n_ctx: int = int(config.extra.get("n_ctx", 16384))
+        self._n_ctx: int = int(config.extra.get("n_ctx", 32768))
         # n_gpu_layers: -1 = all layers (llama.cpp native idiom). Legacy 99
         # is translated by ModelManager.load() before reaching here.
         self._n_gpu_layers: int = int(config.extra.get("n_gpu_layers", -1))

@@ -283,7 +283,7 @@ async def load_model_endpoint(request: Request):
                 "loading all %d layers on GPU (no mixed offload).",
                 requested_layers, model_path, requested_layers,
             )
-        n_ctx = body.get("n_ctx", 16384)
+        n_ctx = body.get("n_ctx", 32768)
         async with ENGINE_LOCK:
             await asyncio.to_thread(
                 inference_engine.load,
@@ -439,7 +439,7 @@ async def inference_memory_estimate(request: Request):
     try:
         est = inference_engine.estimate_memory(
             model_path,
-            n_ctx=body.get("n_ctx", 16384),
+            n_ctx=body.get("n_ctx", 32768),
             n_gpu_layers=body.get("n_gpu_layers", -1),
         )
         try:

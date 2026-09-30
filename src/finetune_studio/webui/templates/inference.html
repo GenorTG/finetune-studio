@@ -67,17 +67,17 @@
 
       <div class="mt-3">
         <label class="block text-xs muted mb-1"
-               title="Maximum number of tokens the model can attend to at once — the size of its short-term memory. KV cache size. Larger = longer conversations / bigger prompts / more VRAM. 16384 (~16k tokens ≈ 12k words) is the default and fits most tasks; raise for long documents.">
-          Context length <span id="n-ctx-val" class="mono violet">16384</span>
+               title="Maximum number of tokens the model can attend to at once — the size of its short-term memory. KV cache size. Larger = longer conversations / bigger prompts / more VRAM. 32768 (~32k tokens ≈ 24k words) is the default floor and fits most tasks; raise for long documents. If it doesn't fit in VRAM, the loader shrinks this automatically instead of falling back to CPU offload.">
+          Context length <span id="n-ctx-val" class="mono violet">32768</span>
         </label>
-        <input type="range" id="n-ctx" class="range" min="512" max="131072" step="512" value="16384"
+        <input type="range" id="n-ctx" class="range" min="512" max="131072" step="512" value="32768"
                oninput="document.getElementById('n-ctx-val').textContent=this.value; updateMemEstimate()">
         <div class="text-[10px] dim mt-0.5">KV cache size. Larger = more VRAM.</div>
       </div>
 
       <div class="mt-3">
         <label class="block text-xs muted mb-1"
-               title="How many transformer layers to offload to GPU VRAM. 0 = full CPU inference (slow). Max = all layers on GPU (fastest, requires enough VRAM for the whole model + KV cache). Partial offload is supported — e.g. 20 layers on GPU + the rest on CPU. The real layer count comes from the model file itself.">
+               title="How many transformer layers run on GPU VRAM. Always all of them — mixed CPU/GPU offload is not supported by design (it's much slower); if a model doesn't fit, the loader shrinks context length instead of moving layers to CPU. The real layer count comes from the model file itself.">
           GPU offload layers <span id="n-gpu-val" class="mono violet">all</span>
         </label>
         <input type="range" id="n-gpu-layers" class="range" min="0" max="0" step="1" value="0" disabled

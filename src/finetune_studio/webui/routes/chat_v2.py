@@ -166,7 +166,7 @@ async def load_model(request: Request):
             await asyncio.to_thread(
                 inference_engine.load,
                 model_path,
-                n_ctx=body.get("n_ctx", 16384),
+                n_ctx=body.get("n_ctx", 32768),
                 n_gpu_layers=body.get("n_gpu_layers", -1),
                 n_batch=body.get("n_batch", 512),
                 mmap=body.get("mmap", True),
@@ -232,7 +232,7 @@ async def memory_estimate(request: Request):
     from finetune_studio.testing.inference import InferenceEngine
     body = await request.json()
     model_path = body.get("model_path", "")
-    n_ctx = body.get("n_ctx", 16384)
+    n_ctx = body.get("n_ctx", 32768)
     n_gpu_layers = body.get("n_gpu_layers", -1)
     if not model_path:
         return {"error": "No model_path"}
