@@ -20,6 +20,8 @@ from collections import OrderedDict
 
 import torch
 
+from finetune_studio.models.llama_loader import DEFAULT_N_CTX
+
 # Module-level cache for GGUF metadata reads (fast header-only parser is still
 # cheap, but for 16 GB files we don't want to walk the header twice).
 _GGUF_META_CACHE: "OrderedDict[tuple, dict]" = OrderedDict()
@@ -46,9 +48,9 @@ class InferenceEngine:
         self._loading_path: str | None = None
         self._loading_started: float = 0.0
 
-    def load(self, model_path, device="auto", n_ctx=32768, n_gpu_layers=-1, n_batch=512, mmap=True, mlock=False,
+    def load(self, model_path, device="auto", n_ctx=DEFAULT_N_CTX, n_gpu_layers=-1, n_batch=512, mmap=True, mlock=False,
               n_threads=None, flash_attn=True, seed=None, rope_freq_base=0.0, rope_freq_scale=0.0,
-              max_seq_length=None, load_in_4bit=False):
+              type_k=0, type_v=0, max_seq_length=None, load_in_4bit=False):
         from pathlib import Path
         self._loading_path = model_path
         self._loading_started = time.time()
@@ -58,7 +60,8 @@ class InferenceEngine:
             if path.is_file() and path.suffix == ".gguf":
                 self._load_gguf(str(path), n_ctx=n_ctx, n_gpu_layers=n_gpu_layers, n_batch=n_batch,
                                 mmap=mmap, mlock=mlock, n_threads=n_threads, flash_attn=flash_attn,
-                                seed=seed, rope_freq_base=rope_freq_base, rope_freq_scale=rope_freq_scale)
+                                seed=seed, rope_freq_base=rope_freq_base, rope_freq_scale=rope_freq_scale,
+                                type_k=type_k, type_v=type_v)
             else:
                 self._load_hf(
                     model_path,
@@ -177,84 +180,21 @@ class InferenceEngine:
             )
         self.is_gguf = False
 
-    def _load_gguf(self, gguf_path, n_ctx=32768, n_gpu_layers=-1, n_batch=512, mmap=True, mlock=False,
-                   n_threads=None, flash_attn=True, seed=None, rope_freq_base=0.0, rope_freq_scale=0.0):
-        from pathlib import Path
-
-        from llama_cpp import Llama
+    def _load_gguf(self, gguf_path, n_ctx=DEFAULT_N_CTX, n_gpu_layers=-1, n_batch=512, mmap=True, mlock=False,
+                   n_threads=None, flash_attn=True, seed=None, rope_freq_base=0.0, rope_freq_scale=0.0,
+                   type_k=0, type_v=0):
+        from finetune_studio.models.llama_loader import load_llama_gguf
         self.is_gguf = True
-        self.vision = False
-        self.mmproj_path = None
 
-        # Auto-detect mmproj in same directory
-        gguf_dir = Path(gguf_path).parent
-        base_name = Path(gguf_path).stem.replace("-Q4_K_M", "").replace("-Q8_0", "").replace("-F16", "").replace("-BF16", "")
-        for candidate in gguf_dir.glob("mmproj*.gguf"):
-            self.mmproj_path = str(candidate)
-            break
-        if not self.mmproj_path:
-            # Also check for files matching base model name
-            for candidate in gguf_dir.glob(f"*mmproj*{base_name}*.gguf"):
-                self.mmproj_path = str(candidate)
-                break
-
-        chat_handler = None
-        if self.mmproj_path:
-            try:
-                from llama_cpp.llama_chat_format import Qwen25VLChatHandler
-                chat_handler = Qwen25VLChatHandler(clip_model_path=self.mmproj_path, verbose=False)
-                self.vision = True
-                print(f"Vision enabled: mmproj={Path(self.mmproj_path).name}")
-            except Exception as e:  # noqa: BLE001
-                print(f"mmproj load failed ({e}), running text-only")
-                self.mmproj_path = None
-
-        import multiprocessing
-        if n_threads is None or n_threads <= 0:
-            n_threads = multiprocessing.cpu_count()
-
-        kwargs = {
-            "model_path": gguf_path, "n_ctx": n_ctx, "n_gpu_layers": n_gpu_layers,
-            "n_batch": n_batch, "mmap": mmap, "mlock": mlock,
-            "chat_handler": chat_handler, "verbose": False,
-            "n_threads": n_threads,
-        }
-        if flash_attn:
-            kwargs["flash_attn"] = True
-        if seed is not None and seed >= 0:
-            kwargs["seed"] = seed
-        if rope_freq_base > 0:
-            kwargs["rope_freq_base"] = rope_freq_base
-        if rope_freq_scale > 0:
-            kwargs["rope_freq_scale"] = rope_freq_scale
-        # GH-AAA: load with full GPU offload (n_gpu_layers=-1). If the
-        # model + KV cache don't fit in VRAM, retry with a halved n_ctx —
-        # NEVER silently fall back to mixed offload (some layers on CPU).
-        last_err: Exception | None = None
-        for attempt in range(6):
-            try:
-                self.model = Llama(**kwargs)
-                last_err = None
-                break
-            except Exception as e:
-                msg = str(e).lower()
-                if "out of memory" not in msg and "cuda" not in msg and "vram" not in msg:
-                    raise
-                last_err = e
-                # Halve n_ctx and retry. Floor at 512 so we never silently
-                # load with an absurdly small context.
-                new_ctx = max(512, kwargs["n_ctx"] // 2)
-                if new_ctx == kwargs["n_ctx"]:
-                    # Already at the floor; give up.
-                    break
-                print(
-                    f"GGUF load OOM at n_ctx={kwargs['n_ctx']} "
-                    f"(attempt {attempt+1}/6); retrying with n_ctx={new_ctx}. "
-                    f"Model layers stay on GPU — only KV cache shrinks."
-                )
-                kwargs["n_ctx"] = new_ctx
-        if self.model is None and last_err is not None:
-            raise last_err
+        result = load_llama_gguf(
+            gguf_path, n_ctx=n_ctx, n_gpu_layers=n_gpu_layers, n_batch=n_batch,
+            n_threads=n_threads, seed=seed, rope_freq_base=rope_freq_base,
+            rope_freq_scale=rope_freq_scale, flash_attn=flash_attn, mmap=mmap,
+            mlock=mlock, type_k=type_k, type_v=type_v,
+        )
+        self.model = result.llama
+        self.vision = result.vision
+        self.mmproj_path = result.mmproj_path
         self.tokenizer = None
         # Cache the GGUF's own chat template + tokens so we don't re-extract per call.
         try:
@@ -385,7 +325,7 @@ class InferenceEngine:
         return response
 
     @staticmethod
-    def estimate_memory(model_path, n_ctx=32768, n_gpu_layers=-1):
+    def estimate_memory(model_path, n_ctx=DEFAULT_N_CTX, n_gpu_layers=-1):
         """Estimate VRAM/RAM usage for a model. Returns dict with estimates in GB."""
         from pathlib import Path
         path = Path(model_path)

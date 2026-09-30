@@ -12,6 +12,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from finetune_studio.models.llama_loader import DEFAULT_N_CTX
+
 # Stable provider id seeded by ModelManager._ensure_db.
 DEFAULT_HELPER_PROVIDER_ID: str = "local-default"
 
@@ -36,7 +38,7 @@ ALTERNATE_HELPER_GGUF_BASENAME: str = "Qwen3-30B-A3B-Instruct-2507-IQ4_XS.gguf"
 # 32k ctx per Genor (agentic tool-calling needs room); q8_0 KV cache keeps
 # the f16 KV cache from eating ~9.4GB at that depth (8 = GGML q8_0).
 DEFAULT_HELPER_EXTRA: dict[str, Any] = {
-    "n_ctx": 32768,
+    "n_ctx": DEFAULT_N_CTX,
     "n_gpu_layers": -1,  # all layers — real count comes from the GGUF header
     "n_batch": 512,
     "n_threads": 0,

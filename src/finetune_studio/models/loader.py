@@ -46,20 +46,3 @@ def load_model_info(model_path: str) -> dict:
             total_size = sum(f.stat().st_size for f in safetensors_files)
             info["size_gb"] = round(total_size / (1024**3), 2)
     return info
-
-def load_for_inference(model_path: str, device: str = "auto", **kwargs):
-    import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-    path = Path(model_path)
-    if path.is_file() and path.suffix == ".gguf":
-        return load_gguf_inference(str(path), **kwargs)
-    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_path, torch_dtype=torch.float16, device_map=device, trust_remote_code=True,
-    )
-    return model, tokenizer
-
-def load_gguf_inference(gguf_path: str, n_ctx: int = 32768, n_gpu_layers: int = -1):
-    from llama_cpp import Llama
-    model = Llama(model_path=gguf_path, n_ctx=n_ctx, n_gpu_layers=n_gpu_layers, verbose=False)
-    return model, None

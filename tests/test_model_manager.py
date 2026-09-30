@@ -170,6 +170,55 @@ class TestModelManagerLoadFastPath:
             assert FakeProvider.instances[1]._load_calls == 1
             assert FakeProvider.instances[1]._used_extra["n_ctx"] == 32768
 
+    def test_explicit_override_persists_for_next_load_from_any_caller(self):
+        """A user-chosen n_ctx must become the shared default for every
+        future load of this provider — not just the one in-memory call.
+
+        Regression for the "nine places, one has the option" bug: setting
+        n_ctx from one page (e.g. Inference) used to apply only to that
+        single load(); the very next auto-load from a different page
+        (data-prep's helper, RAG's ask-the-model, testing's Load model, ...)
+        called load(pid) with no override and silently fell back to the
+        stale persisted default, discarding the user's choice."""
+        from finetune_studio.models import manager as mgr_mod
+
+        mm = mgr_mod.ModelManager()
+
+        with patch.object(mgr_mod, "build_provider", FakeProvider):
+            # Simulate a real DB row so upsert_provider has something to update.
+            mm.upsert_provider(id="local-default", name="Local GGUF",
+                                kind="local_gguf", model_id="/fake/model.gguf",
+                                extra={"n_ctx": 16384, "n_gpu_layers": -1})
+
+            # Page A (e.g. Inference) loads with an explicit override.
+            mm.load("local-default", extra={"n_ctx": 65536})
+            assert FakeProvider.instances[0]._used_extra["n_ctx"] == 65536
+
+            # Force a clean re-read as if a different request/page were
+            # calling now: unload and load again with NO override, exactly
+            # like data-prep's `dpEnsureHelperLoaded()` sending `body: '{}'`.
+            mm.unload()
+            mm.load("local-default")
+            assert FakeProvider.instances[1]._used_extra["n_ctx"] == 65536, (
+                "explicit override from an earlier call must have persisted "
+                "to the provider row, not been silently discarded"
+            )
+
+    def test_empty_extra_does_not_touch_persisted_row(self):
+        """An auto-trigger calling load(pid) with no override must never
+        write to the DB — only an explicit, real value counts as a user
+        choice worth persisting."""
+        from finetune_studio.models import manager as mgr_mod
+
+        mm = mgr_mod.ModelManager()
+        with patch.object(mgr_mod, "build_provider", FakeProvider):
+            mm.upsert_provider(id="local-default", name="Local GGUF",
+                                kind="local_gguf", model_id="/fake/model.gguf",
+                                extra={"n_ctx": 16384})
+            mm.upsert_provider = MagicMock(wraps=mm.upsert_provider)
+            mm.load("local-default")
+            mm.upsert_provider.assert_not_called()
+
     def test_load_explicit_none_does_not_overwrite_persisted(self):
         """Passing extra={'n_ctx': None} must NOT clobber the persisted
         n_ctx — None signals 'not set this call'."""

@@ -19,6 +19,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from finetune_studio.models.llama_loader import DEFAULT_N_CTX
+
 log = logging.getLogger(__name__)
 
 
@@ -85,7 +87,7 @@ class LocalGGUFProvider(ModelProvider):
     def __init__(self, config: ProviderConfig):
         super().__init__(config)
         self._llama = None  # the llama_cpp.Llama instance
-        self._n_ctx: int = int(config.extra.get("n_ctx", 32768))
+        self._n_ctx: int = int(config.extra.get("n_ctx", DEFAULT_N_CTX))
         # n_gpu_layers: -1 = all layers (llama.cpp native idiom). Legacy 99
         # is translated by ModelManager.load() before reaching here.
         self._n_gpu_layers: int = int(config.extra.get("n_gpu_layers", -1))
@@ -99,44 +101,14 @@ class LocalGGUFProvider(ModelProvider):
         self._mlock: bool = bool(config.extra.get("mlock", False))
         self._kv_type_k: int = int(config.extra.get("type_k", 0) or 0)
         self._kv_type_v: int = int(config.extra.get("type_v", 0) or 0)
+        self._mmproj_path: str | None = None
+        self._vision: bool = False
         # Real layer count from the GGUF header (None for non-GGUF paths).
         from finetune_studio.models.gguf_layers import resolve_block_count
         self._topology = resolve_block_count(self.config.model_id)
 
     def load(self) -> None:
-        from llama_cpp import Llama
-        log.info(
-            "LocalGGUFProvider loading %s (n_ctx=%d, n_gpu=%d, n_batch=%d, "
-            "n_threads=%d, seed=%d, rope_base=%s, rope_scale=%s, "
-            "flash=%s, mmap=%s, mlock=%s)",
-            self.config.model_id, self._n_ctx, self._n_gpu_layers,
-            self._n_batch, self._n_threads, self._seed,
-            self._rope_freq_base, self._rope_freq_scale,
-            self._flash_attn, self._mmap, self._mlock,
-        )
-        kwargs = {
-            "model_path": self.config.model_id,
-            "n_ctx": self._n_ctx,
-            "n_gpu_layers": self._n_gpu_layers,
-            "n_batch": self._n_batch,
-            "mmap": self._mmap,
-            "flash_attn": self._flash_attn,
-            "verbose": False,
-        }
-        if self._n_threads > 0:
-            kwargs["n_threads"] = self._n_threads
-        if self._seed >= 0:
-            kwargs["seed"] = self._seed
-        if self._mlock:
-            kwargs["use_mlock"] = True
-        if self._rope_freq_base > 0:
-            kwargs["rope_freq_base"] = self._rope_freq_base
-        if self._rope_freq_scale > 0:
-            kwargs["rope_freq_scale"] = self._rope_freq_scale
-        if self._kv_type_k > 0:
-            kwargs["type_k"] = self._kv_type_k
-        if self._kv_type_v > 0:
-            kwargs["type_v"] = self._kv_type_v
+        from finetune_studio.models.llama_loader import load_llama_gguf
         if self._topology.get("block_count") is not None:
             log.info(
                 "LocalGGUFProvider topology: %d transformer blocks, "
@@ -145,7 +117,27 @@ class LocalGGUFProvider(ModelProvider):
                 self._topology.get("context_length"), self._n_gpu_layers,
             )
         with self._lock:
-            self._llama = Llama(**kwargs)
+            result = load_llama_gguf(
+                self.config.model_id,
+                n_ctx=self._n_ctx,
+                n_gpu_layers=self._n_gpu_layers,
+                n_batch=self._n_batch,
+                n_threads=self._n_threads or None,
+                seed=self._seed if self._seed >= 0 else None,
+                rope_freq_base=self._rope_freq_base,
+                rope_freq_scale=self._rope_freq_scale,
+                flash_attn=self._flash_attn,
+                mmap=self._mmap,
+                mlock=self._mlock,
+                type_k=self._kv_type_k,
+                type_v=self._kv_type_v,
+            )
+            self._llama = result.llama
+            # OOM-retry may have shrunk n_ctx below what was requested —
+            # describe() must report what's actually loaded, not the ask.
+            self._n_ctx = result.final_n_ctx or self._n_ctx
+            self._mmproj_path = result.mmproj_path
+            self._vision = result.vision
         self._loaded_at = time.time()
 
     def describe(self) -> dict:
@@ -158,6 +150,7 @@ class LocalGGUFProvider(ModelProvider):
             "n_ctx": self._n_ctx,
             "n_gpu_layers": self._n_gpu_layers,
             "n_batch": self._n_batch,
+            "vision": self._vision,
         }
         # Real topology when the model is a GGUF (UI shows "36/36").
         block_count = self._topology.get("block_count")
@@ -179,6 +172,8 @@ class LocalGGUFProvider(ModelProvider):
                 with contextlib.suppress(Exception):
                     del self._llama
                 self._llama = None
+                self._mmproj_path = None
+                self._vision = False
         with contextlib.suppress(ImportError, AttributeError, RuntimeError):
             import torch
             if torch.cuda.is_available():

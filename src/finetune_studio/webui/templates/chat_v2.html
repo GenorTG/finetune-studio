@@ -78,6 +78,8 @@
         <p>Load a model here to start chatting — or switch the global one on the <a href="/inference" data-link>Inference</a> tab.</p>
         <div class="dp-chat-warn-load" id="chat-inline-load" hidden>
           <select id="chat-inline-model" class="select"></select>
+          <input id="chat-inline-ctx" type="number" class="input" style="width:6.5rem" value="32768" min="512" max="131072" step="512"
+                 title="Context window to load with (in tokens). Changing this here changes the shared default for every other page that loads this model too.">
           <button class="btn small" id="chat-inline-load-btn" onclick="chatInlineLoad()">Load</button>
         </div>
       </div>
@@ -831,14 +833,16 @@ function _chatStop() {
 async function chatInlineLoad() {
   const sel = document.getElementById('chat-inline-model');
   const btn = document.getElementById('chat-inline-load-btn');
+  const ctxEl = document.getElementById('chat-inline-ctx');
   if (!sel || !sel.value) return;
   btn.disabled = true;
   btn.textContent = 'Loading…';
   try {
+    const nCtx = ctxEl ? (parseInt(ctxEl.value, 10) || 32768) : 32768;
     const r = await fetch('/api/chat-v2/load', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model_path: sel.value }),
+      body: JSON.stringify({ model_path: sel.value, n_ctx: nCtx }),
     });
     const d = await r.json();
     if (d.ok) {

@@ -366,6 +366,7 @@ async def load_provider(pid: str, request: Request):
     rope_freq_base, rope_freq_scale, flash_attn, mmap, mlock) which are
     merged into the provider's persisted extras for this load. Pass
     through to ModelManager.load(pid, extra=...)."""
+    from finetune_studio.models.llama_loader import resolve_loader_overrides
     from finetune_studio.models.manager import get_manager
     extra = {}
     try:
@@ -375,16 +376,10 @@ async def load_provider(pid: str, request: Request):
     except (json.JSONDecodeError, ValueError, TypeError) as e:
         # No body / empty body / non-JSON -> just reload with persisted extras.
         log.debug("load_provider body ignored: %s", e)
-    # GH-AAA: helper models are used for data-prep Q/A generation. They
-    # MUST be fully on GPU (no mixed offload) so generation runs at GPU
-    # speed. Override any client-supplied n_gpu_layers to -1.
-    if "n_gpu_layers" in extra and extra["n_gpu_layers"] != -1:
-        log.warning(
-            "providers/load: helper model %s requested n_gpu_layers=%s; "
-            "forcing -1 (all on GPU).",
-            pid, extra["n_gpu_layers"],
-        )
-    extra["n_gpu_layers"] = -1
+    # default_ctx=False: an unset n_ctx must fall through to the provider's
+    # persisted value (ModelManager.load's own merge), not get overwritten
+    # with the generic 32k floor on every single load.
+    extra = resolve_loader_overrides(extra, caller="providers/load", model_path=pid, default_ctx=False)
     try:
         return {"ok": True, "active": get_manager().load(pid, extra=extra)}
     except Exception as e:

@@ -88,9 +88,35 @@ def temp_db(monkeypatch):
     # Initialise schema with the real init_db
     _conn.init_db()
 
+    # models.manager keeps ITS OWN separate SQLite file (model_providers,
+    # app_state) at a module-level ``_DB_PATH`` computed from FTS_DB at
+    # import time — entirely independent of ``cfg.settings.db_path`` above.
+    # A test that exercises the real ModelManager (not a get_provider/
+    # list_providers mock) writes straight through to the real dev
+    # ~/.finetune-studio/fts.db otherwise: confirmed live when
+    # test_model_manager.py's persistence tests overwrote the real
+    # ``local-default`` helper provider row with fake test data
+    # (model_id=/fake/model.gguf) before this fixture covered it.
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f2:
+        models_db_path = f2.name
+    import finetune_studio.models.manager as _mgr_mod
+    monkeypatch.setattr(_mgr_mod, "_DB_PATH", Path(models_db_path))
+    # get_manager() caches a process-wide ModelManager() singleton in
+    # _mgr_mod._manager. Redirecting _DB_PATH above has no effect on a
+    # singleton some EARLIER test already constructed — it keeps its
+    # original sqlite3 connection to that earlier test's (now-deleted)
+    # temp file, so any route calling get_manager() 500s with "no such
+    # table". Reset the singleton per test so it re-reads _ensure_db()
+    # against THIS test's fresh path on first use.
+    monkeypatch.setattr(_mgr_mod, "_manager", None)
+
     yield db_path
     try:
         os.unlink(db_path)
+    except OSError:
+        pass
+    try:
+        os.unlink(models_db_path)
     except OSError:
         pass
 

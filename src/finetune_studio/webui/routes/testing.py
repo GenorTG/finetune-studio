@@ -41,7 +41,8 @@ async def load_model(request: Request):
     if not model_path:
         return {"error": "No model_path"}
     try:
-        kwargs: dict = {}
+        from finetune_studio.models.llama_loader import resolve_loader_overrides
+        kwargs = resolve_loader_overrides(body, caller="testing/load", model_path=model_path)
         if "max_seq_length" in body:
             kwargs["max_seq_length"] = int(body["max_seq_length"])
         if "load_in_4bit" in body:

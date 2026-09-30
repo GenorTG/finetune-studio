@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Request
 from finetune_studio.webui.engine_guard import ENGINE_LOCK
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 
 def _is_portable_corpus(store_path: str) -> bool:
@@ -162,23 +164,12 @@ async def load_model(request: Request):
     if not model_path:
         return {"error": "No model_path"}
     try:
+        from finetune_studio.models.llama_loader import resolve_loader_overrides
+        kwargs = resolve_loader_overrides(body, caller="chat-v2/load", model_path=model_path)
+        kwargs["max_seq_length"] = body.get("max_seq_length")
+        kwargs["load_in_4bit"] = body.get("load_in_4bit", True)
         async with ENGINE_LOCK:
-            await asyncio.to_thread(
-                inference_engine.load,
-                model_path,
-                n_ctx=body.get("n_ctx", 32768),
-                n_gpu_layers=body.get("n_gpu_layers", -1),
-                n_batch=body.get("n_batch", 512),
-                mmap=body.get("mmap", True),
-                mlock=body.get("mlock", False),
-                n_threads=body.get("n_threads"),
-                flash_attn=body.get("flash_attn", True),
-                seed=body.get("seed"),
-                rope_freq_base=body.get("rope_freq_base", 0.0),
-                rope_freq_scale=body.get("rope_freq_scale", 0.0),
-                max_seq_length=body.get("max_seq_length"),
-                load_in_4bit=body.get("load_in_4bit", True),
-            )
+            await asyncio.to_thread(inference_engine.load, model_path, **kwargs)
         vision = getattr(inference_engine, "vision", False)
         return {"status": "loaded", "model": model_path, "vision": vision}
     except Exception as e:  # noqa: BLE001
@@ -229,10 +220,11 @@ async def model_info(request: Request):
 @router.post("/memory-estimate")
 async def memory_estimate(request: Request):
     """Estimate VRAM/RAM usage for a model with given settings."""
+    from finetune_studio.models.llama_loader import DEFAULT_N_CTX
     from finetune_studio.testing.inference import InferenceEngine
     body = await request.json()
     model_path = body.get("model_path", "")
-    n_ctx = body.get("n_ctx", 32768)
+    n_ctx = body.get("n_ctx", DEFAULT_N_CTX)
     n_gpu_layers = body.get("n_gpu_layers", -1)
     if not model_path:
         return {"error": "No model_path"}

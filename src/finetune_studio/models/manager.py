@@ -275,15 +275,30 @@ class ModelManager:
             raise ValueError(f"Unknown provider: {pid}")
         # Merge any runtime-provided loader params on top of the persisted
         # extra JSON. None / unknown keys are dropped so the provider's own
-        # defaults kick in. This lets every page (data-prep, inference,
-        # ...) load the same provider with different n_ctx / n_gpu_layers /
-        # n_batch / n_threads / seed / rope / flash_attn / mmap / mlock /
-        # keep_in_memory without a DB write.
+        # defaults kick in.
         merged_extra = dict(cfg_row.get("extra") or {})
+        explicit_keys = {k for k in _LOADER_KEYS if extra and k in extra and extra[k] is not None}
         if extra:
-            for k in _LOADER_KEYS:
-                if k in extra and extra[k] is not None:
-                    merged_extra[k] = extra[k]
+            for k in explicit_keys:
+                merged_extra[k] = extra[k]
+        # An explicit override (the user actually chose a value, not an
+        # auto-trigger loading with an empty/default body) is written back
+        # to the provider's persisted extra. Without this, a value set on
+        # one page (e.g. Inference) only applied to that single in-memory
+        # load — the very next auto-load from a DIFFERENT page (data-prep's
+        # "Generate pairs", RAG's "Ask the model", testing's "Load model",
+        # benchmarks' judge-model load, ...) would reload from the stale
+        # persisted default and silently discard it. One override now
+        # becomes the shared default everywhere the provider loads next,
+        # instead of nine independent copies of "what context should this
+        # use" drifting out of sync with each other.
+        if explicit_keys:
+            persisted = dict(cfg_row.get("extra") or {})
+            persisted.update({k: merged_extra[k] for k in explicit_keys})
+            try:
+                self.upsert_provider(id=pid, extra=persisted)
+            except Exception:
+                log.exception("load %s: failed to persist explicit loader override %s", pid, explicit_keys)
         # Resolve real model topology from the GGUF header. Legacymagic
         # n_gpu_layers=99 meant "all layers" — translate it to llama.cpp's
         # true idiom (-1) and expose the actual block count so the UI can
