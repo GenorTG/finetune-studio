@@ -204,21 +204,24 @@ def resolve_loader_overrides(
 
 
 def unload_all_models() -> None:
-    """Free every model this app can hold resident, on both engines.
+    """Free the resident model and reset ModelManager's bookkeeping.
 
-    There are two independent "currently loaded model" trackers: the
-    global ``inference_engine`` (testing.py, chat_v2.py, benchmarks.py,
-    RAG) and ``ModelManager``'s active provider (data-prep's helper,
-    `/api/providers/*`). Nothing enforces that only one is ever loaded at
-    once. `/api/models/unload` already coordinates both (comment there:
-    "there is no separate UI for it, so Unload frees both" — a prior bug,
-    E2E-22) but `benchmarks.py`'s judge-model load and `training.py`'s
-    pre-training unload each only unloaded `inference_engine` — if a
-    data-prep helper was loaded via ModelManager at the time, it stayed
-    resident through the whole judge run or training run, competing for
-    VRAM with whatever just tried to load. One function every one of
-    those call sites should use instead of re-deciding which engine(s)
-    to unload each time.
+    There is now exactly ONE model-holding object in this process — the
+    ``inference_engine`` global IS ``ModelManager().engine`` (see
+    webui/app.py and models/manager.py's ``engine`` property), not a
+    second independent tracker. Two calls remain here on purpose, for two
+    different reasons, not two engines to coordinate:
+
+    1. ``inference_engine.unload()`` frees the actual model/VRAM — correct
+       regardless of whether it was loaded via a named provider or a raw
+       path, since both go through this one object now.
+    2. ``get_manager().unload()`` clears ModelManager's own
+       ``_provider``/``_active_id`` bookkeeping. Without this, a model
+       loaded directly via ``inference_engine.load()`` (bypassing
+       ``ModelManager.load()``, as testing.py/chat_v2.py do) and then
+       freed by step 1 would leave ModelManager still reporting a stale
+       "active" provider in ``/api/providers`` even though nothing is
+       actually loaded anymore.
     """
     try:
         from finetune_studio.webui.app import inference_engine

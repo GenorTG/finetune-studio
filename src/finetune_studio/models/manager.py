@@ -201,7 +201,29 @@ class ModelManager:
         self._invoke_lock = threading.Lock()
         self._provider: ModelProvider | None = None
         self._active_id: str = ""
+        self._engine_instance = None
         _ensure_db()
+
+    @property
+    def engine(self):
+        """The ONE InferenceEngine every local model load goes through.
+
+        webui/app.py's global ``inference_engine`` points at this exact
+        object, so a model loaded via a named provider (data-prep's helper)
+        and a model loaded via a raw path (testing/chat/benchmarks) can
+        never both be resident — there is structurally only one holder of
+        local model state in this process, not two coordinated ones.
+
+        getattr-guarded rather than assuming __init__ ran: a test subclass
+        that skips ModelManager.__init__ (to avoid touching the real DB)
+        must still get a working engine on first access.
+        """
+        eng = getattr(self, "_engine_instance", None)
+        if eng is None:
+            from finetune_studio.testing.inference import InferenceEngine
+            eng = InferenceEngine()
+            self._engine_instance = eng
+        return eng
 
     # ── provider CRUD (DB) ─────────────────────────────────────
 
@@ -332,7 +354,7 @@ class ModelManager:
             api_key=cfg_row.get("api_key", ""),
             extra=merged_extra,
         )
-        new_provider = build_provider(cfg)
+        new_provider = build_provider(cfg, engine=self.engine)
         new_provider._used_extra = dict(merged_extra)  # snapshot for fast-path
         with self._lock:
             # Unload previous local model (mutual exclusion)

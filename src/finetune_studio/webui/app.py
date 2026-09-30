@@ -28,12 +28,17 @@ from fastapi.staticfiles import StaticFiles
 
 from finetune_studio import db
 from finetune_studio.config import settings
+from finetune_studio.models.manager import get_manager
 from finetune_studio.models.registry import ModelInfo, scan_models
-from finetune_studio.testing.inference import InferenceEngine
 from finetune_studio.training.engine import TrainingEngine
 
 training_engine = TrainingEngine()
-inference_engine = InferenceEngine()
+# The ONE InferenceEngine instance in this process. ModelManager owns it
+# (via the .engine property) — every named-provider load (data-prep's
+# helper, /api/providers/*) delegates to this exact object, so this name
+# and ModelManager's internal engine can never independently hold a model
+# at the same time. Do not construct a second InferenceEngine() anywhere.
+inference_engine = get_manager().engine
 discovered_models: list[ModelInfo] = []
 
 @asynccontextmanager

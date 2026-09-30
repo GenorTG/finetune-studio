@@ -100,7 +100,7 @@ def test_manager_translates_legacy_99(monkeypatch: pytest.MonkeyPatch) -> None:
             self._active_id = ""
 
     m = FakeMgr2()
-    monkeypatch.setattr(mgr_mod, "build_provider", lambda cfg: FakeProv(cfg))
+    monkeypatch.setattr(mgr_mod, "build_provider", lambda cfg, engine=None: FakeProv(cfg))
     monkeypatch.setattr(
         m, "get_provider",
         lambda pid: {"id": pid, "name": "t", "kind": "local_gguf",

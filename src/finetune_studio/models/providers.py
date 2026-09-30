@@ -12,7 +12,6 @@ API keys live in that table (or env vars for server-side use).
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import threading
 import time
@@ -79,14 +78,29 @@ class ModelProvider:
         }
 
 
-# ── Local GGUF provider ────────────────────────────────────────────────
+# ── Local model provider (GGUF or HF/safetensors) ───────────────────────
 
 class LocalGGUFProvider(ModelProvider):
-    """Backed by llama-cpp-python. Mutually exclusive — only one instance at a time."""
+    """One config-holding wrapper around the ONE shared InferenceEngine.
 
-    def __init__(self, config: ProviderConfig):
+    This class used to build its own ``llama_cpp.Llama`` instance directly,
+    independent of the global ``inference_engine`` used by testing.py,
+    chat_v2.py, benchmarks.py, and RAG. Two independent "currently loaded
+    model" objects meant a data-prep helper loaded here and a test model
+    loaded there could both hold VRAM at once, with nothing structurally
+    preventing it (see HANDOFF.md — the prior fix was unload_all_models(),
+    which coordinated the two; this replaces "coordinate two" with "there
+    is only one"). Every load/unload/chat/generate call below delegates to
+    ``self.engine`` — the ModelManager-owned InferenceEngine instance that
+    ``webui/app.py``'s ``inference_engine`` global now also points at, so
+    both are the exact same object. The name stays GGUF-flavored for
+    minimal reference churn, but InferenceEngine.load() already dispatches
+    on file extension, so this transparently handles HF/safetensors too.
+    """
+
+    def __init__(self, config: ProviderConfig, engine: Any | None = None):
         super().__init__(config)
-        self._llama = None  # the llama_cpp.Llama instance
+        self._engine = engine
         self._n_ctx: int = int(config.extra.get("n_ctx", DEFAULT_N_CTX))
         # n_gpu_layers: -1 = all layers (llama.cpp native idiom). Legacy 99
         # is translated by ModelManager.load() before reaching here.
@@ -101,14 +115,23 @@ class LocalGGUFProvider(ModelProvider):
         self._mlock: bool = bool(config.extra.get("mlock", False))
         self._kv_type_k: int = int(config.extra.get("type_k", 0) or 0)
         self._kv_type_v: int = int(config.extra.get("type_v", 0) or 0)
-        self._mmproj_path: str | None = None
-        self._vision: bool = False
         # Real layer count from the GGUF header (None for non-GGUF paths).
         from finetune_studio.models.gguf_layers import resolve_block_count
         self._topology = resolve_block_count(self.config.model_id)
 
+    @property
+    def engine(self):
+        if self._engine is None:
+            from finetune_studio.testing.inference import InferenceEngine
+            self._engine = InferenceEngine()
+        return self._engine
+
+    def _mine(self) -> bool:
+        """True when the shared engine's currently-loaded model is THIS provider's."""
+        eng = self.engine
+        return eng.model is not None and eng.model_path == self.config.model_id
+
     def load(self) -> None:
-        from finetune_studio.models.llama_loader import load_llama_gguf
         if self._topology.get("block_count") is not None:
             log.info(
                 "LocalGGUFProvider topology: %d transformer blocks, "
@@ -116,41 +139,38 @@ class LocalGGUFProvider(ModelProvider):
                 self._topology["block_count"],
                 self._topology.get("context_length"), self._n_gpu_layers,
             )
-        with self._lock:
-            result = load_llama_gguf(
-                self.config.model_id,
-                n_ctx=self._n_ctx,
-                n_gpu_layers=self._n_gpu_layers,
-                n_batch=self._n_batch,
-                n_threads=self._n_threads or None,
-                seed=self._seed if self._seed >= 0 else None,
-                rope_freq_base=self._rope_freq_base,
-                rope_freq_scale=self._rope_freq_scale,
-                flash_attn=self._flash_attn,
-                mmap=self._mmap,
-                mlock=self._mlock,
-                type_k=self._kv_type_k,
-                type_v=self._kv_type_v,
-            )
-            self._llama = result.llama
-            # OOM-retry may have shrunk n_ctx below what was requested —
-            # describe() must report what's actually loaded, not the ask.
-            self._n_ctx = result.final_n_ctx or self._n_ctx
-            self._mmproj_path = result.mmproj_path
-            self._vision = result.vision
+        self.engine.load(
+            self.config.model_id,
+            n_ctx=self._n_ctx,
+            n_gpu_layers=self._n_gpu_layers,
+            n_batch=self._n_batch,
+            n_threads=self._n_threads or None,
+            seed=self._seed if self._seed >= 0 else None,
+            rope_freq_base=self._rope_freq_base,
+            rope_freq_scale=self._rope_freq_scale,
+            flash_attn=self._flash_attn,
+            mmap=self._mmap,
+            mlock=self._mlock,
+            type_k=self._kv_type_k,
+            type_v=self._kv_type_v,
+        )
+        # OOM-retry may have shrunk n_ctx below what was requested —
+        # describe() must report what's actually loaded, not the ask.
+        self._n_ctx = self.engine.n_ctx or self._n_ctx
         self._loaded_at = time.time()
 
     def describe(self) -> dict:
+        mine = self._mine()
         d = {
             "kind": "local_gguf",
             "id": self.config.id,
             "name": self.config.name,
             "model_id": self.config.model_id,
-            "loaded": self._llama is not None,
-            "n_ctx": self._n_ctx,
-            "n_gpu_layers": self._n_gpu_layers,
+            "loaded": mine,
+            "n_ctx": self.engine.n_ctx if mine else self._n_ctx,
+            "n_gpu_layers": self.engine.n_gpu_layers if mine else self._n_gpu_layers,
             "n_batch": self._n_batch,
-            "vision": self._vision,
+            "vision": self.engine.vision if mine else False,
         }
         # Real topology when the model is a GGUF (UI shows "36/36").
         block_count = self._topology.get("block_count")
@@ -166,47 +186,28 @@ class LocalGGUFProvider(ModelProvider):
         return d
 
     def unload(self) -> None:
-        with self._lock:
-            if self._llama is not None:
-                # llama-cpp free can raise on a partially-init handle; drop ref anyway.
-                with contextlib.suppress(Exception):
-                    del self._llama
-                self._llama = None
-                self._mmproj_path = None
-                self._vision = False
-        with contextlib.suppress(ImportError, AttributeError, RuntimeError):
-            import torch
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+        if self._mine():
+            self.engine.unload()
         self._loaded_at = 0.0
         log.info("LocalGGUFProvider unloaded")
 
     def is_loaded(self) -> bool:
-        return self._llama is not None
-
-    def _gen_kwargs(self, gen: dict) -> dict:
-        return {
-            "max_tokens": int(gen.get("max_tokens", 1024)),
-            "temperature": float(gen.get("temperature", 0.7)),
-            "top_p": float(gen.get("top_p", 0.9)),
-            "top_k": int(gen.get("top_k", 40)),
-            "repeat_penalty": float(gen.get("repeat_penalty", 1.1)),
-        }
+        return self._mine()
 
     def chat(self, messages: list[dict], **gen) -> str:
-        if self._llama is None:
+        if not self._mine():
             raise RuntimeError("Local model not loaded")
-        kwargs = self._gen_kwargs(gen)
-        result = self._llama.create_chat_completion(messages=messages, **kwargs)
-        content = result["choices"][0]["message"]["content"]
-        return content.strip() if isinstance(content, str) else str(content).strip()
+        return self.engine.generate(
+            messages,
+            max_tokens=int(gen.get("max_tokens", 1024)),
+            temperature=float(gen.get("temperature", 0.7)),
+            top_p=float(gen.get("top_p", 0.9)),
+            top_k=int(gen.get("top_k", 40)),
+            repeat_penalty=float(gen.get("repeat_penalty", 1.1)),
+        )
 
     def generate(self, prompt: str, **gen) -> str:
-        if self._llama is None:
-            raise RuntimeError("Local model not loaded")
-        kwargs = self._gen_kwargs(gen)
-        out = self._llama(prompt, **kwargs)
-        return out["choices"][0]["text"].strip()
+        return self.chat([{"role": "user", "content": prompt}], **gen)
 
 
 # ── OpenAI-compat provider ─────────────────────────────────────────────
@@ -272,9 +273,12 @@ class OpenAICompatProvider(ModelProvider):
             return self.chat([{"role": "user", "content": prompt}], **gen)
 
 
-def build_provider(config: ProviderConfig) -> ModelProvider:
+def build_provider(config: ProviderConfig, engine: Any | None = None) -> ModelProvider:
+    """``engine`` is the single shared InferenceEngine local providers must
+    delegate to (see LocalGGUFProvider) — omit only in tests that don't
+    exercise real loading; a default instance is created lazily otherwise."""
     if config.kind == "local_gguf":
-        return LocalGGUFProvider(config)
+        return LocalGGUFProvider(config, engine=engine)
     if config.kind == "openai_compat":
         return OpenAICompatProvider(config)
     raise ValueError(f"Unknown provider kind: {config.kind}")

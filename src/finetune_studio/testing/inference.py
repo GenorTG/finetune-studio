@@ -39,6 +39,11 @@ class InferenceEngine:
         self.is_gguf = False
         self.vision = False
         self.mmproj_path = None
+        # Real loader params the currently-held model was actually built
+        # with — not the ask. OOM-retry can shrink n_ctx below what the
+        # caller requested; describe()-style callers need the truth.
+        self.n_ctx: int | None = None
+        self.n_gpu_layers: int | None = None
         self._gguf_template = None
         self._last_used = 0.0
         self._idle_timer = None
@@ -195,6 +200,8 @@ class InferenceEngine:
         self.model = result.llama
         self.vision = result.vision
         self.mmproj_path = result.mmproj_path
+        self.n_ctx = result.final_n_ctx
+        self.n_gpu_layers = n_gpu_layers
         self.tokenizer = None
         # Cache the GGUF's own chat template + tokens so we don't re-extract per call.
         try:
@@ -258,6 +265,8 @@ class InferenceEngine:
         self.is_gguf = False
         self.vision = False
         self.mmproj_path = None
+        self.n_ctx = None
+        self.n_gpu_layers = None
         self._gguf_template = None
         self._last_used = 0.0
 
