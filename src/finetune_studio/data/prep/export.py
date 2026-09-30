@@ -18,13 +18,24 @@ from finetune_studio.training.data import clean_answer_for_training
 
 
 def deduplicate_qa_pairs(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Return one deterministic training target per normalized question.
+    """Return one deterministic training target per (source, chunk, normalized question).
 
     Curated answers outrank ordinary source-grounded answers, which outrank
     generated augmentation. Within the same class the shorter answer wins so
     a concise target is preferred over a whole serialized source record.
+
+    The key is scoped to (source_id, chunk_idx) as well as the question text.
+    Two DIFFERENT sources/chunks can legitimately produce the same auto-
+    generated question — e.g. coverage_fill's extractive templates reuse a
+    chunk's own leading text as the question "subject", so two CSVs sharing
+    an identical header row collide on question text despite holding
+    completely different row data. A question-only key silently dropped the
+    losing source's entire answer, breaking the per-chunk coverage guarantee
+    the export gate had just certified. Scoping by source+chunk keeps the
+    original intent (collapse a chunk re-asked the same question twice)
+    without ever discarding a different chunk's unique content.
     """
-    selected: dict[str, tuple[tuple[int, int], int, dict[str, Any]]] = {}
+    selected: dict[tuple[str, str, str], tuple[tuple[int, int], int, dict[str, Any]]] = {}
     for index, item in enumerate(items):
         question = re.sub(r"\s+", " ", str(item.get("question") or "")).strip()
         answer = clean_answer_for_training(str(item.get("answer") or "")).strip()
@@ -34,7 +45,7 @@ def deduplicate_qa_pairs(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
         priority = 3 if category == "source-grounded-curated" else (
             1 if category == "source-grounded-augmented" else 2
         )
-        key = question.casefold()
+        key = (str(item.get("source_id") or ""), str(item.get("chunk_idx") or ""), question.casefold())
         rank = (priority, -len(answer))
         candidate = {**item, "question": question, "answer": answer}
         current = selected.get(key)
