@@ -7,25 +7,25 @@ Correctness is judged from actual data flow and reviewed transcripts, not optimi
 ## State (verified 2026-10-01)
 | Area | State |
 |---|---|
-| Branch | `main` at `1c7790a`; origin/main matched at session start. Current work is uncommitted. |
-| Inventory | 525 tracked repo files at audit start: 214 Python app modules, 180 test paths (28,385 lines), 15 scripts, 47 docs, plus UI/assets. Current untracked audit additions are separate. |
-| Audit | App module lanes and UI/ops audits are documented; all 4,995 lines of `app.css` read. Test audit: 175/180 paths read as text/code (all 167 Python + 8 text/code paths); five PDF/image/Office fixtures were classified but not line-readable. |
-| Fixes | RAG clear now removes text/indexes/metadata consistently; export detail/SSE/run-list enforce project ownership; UI injection/lifecycle/wizard defects, installer bounds, and QA-runner status/log handling fixed. |
-| Test-quality | Install-diagnose JSON assertion parses output; optional-import smoke checks distinguish absent vs broken packages; live training/E2E drivers require explicit opt-in and report failed training; nightly runner is gated; MCP uninstall test uses isolated HOME/stub systemctl. |
-| Public docs | README, install guide, tutorial, and Pages source corrected for Python 3.12–3.13, third-party/network caveats, and realistic dataset/model-learning claims. Not pushed. |
-| Visibility | Repository is public; protected branches are public too. Existing module audit docs are already in the public tree. User decision on developer-doc publication/separation is pending. |
-| Verification | Focused suites: 60, 44, and 13 passed in separate runs (overlapping; do not sum). Ruff on changed files passed. `bash -n`, `py_compile` for live scripts, and `git diff --check` passed. Full `ruff check src/` still reports 129 pre-existing findings (many public re-export facade F401s); no blind autofix. CODEMAP regeneration is deterministic; `make codemap-check` compares against HEAD and fails while the map is modified in this worktree. |
+| Branch | `main` at `cffbe04`, pushed. History was rewritten 2026-10-01 to purge `.openclaw/trajectory-exports/` (leaked internal session data); old clones/forks must re-clone. |
+| Audit | Every app module, test, script and `app.css` read; per-module docs in `docs/modules/*.md`, overview in `docs/ARCHITECTURE.md` + `docs/DEVELOPER.md`. Dead code deleted (parsers/prep/unsloth_engine/compare/samplers/tool_calling/cli, legacy benchmark class hierarchy). |
+| Fixes | Multi-quant export DB rows; quality routes (augment/optimize/hallucination/convert); project delete now removes files on disk; run_benchmark unloads shared engine first (GH-AAA); RAG clear/remove_source; export ownership checks; upload traversal + awaited writes; DOCX tables; coverage_fill; purge_trash; suite pass_rate; create_case columns; UI/installer/QA-runner fixes. |
+| Pipeline proof | Run `ff471547`: loss 0.0842, benchmark 91.1% pass / 91.9 weighted. |
+| Verification | Full pytest: 1250 passed; sole failure was the untracked-files hygiene test, which passes after commit. `git diff --check` clean. |
+| Visibility | Repo is public, including developer docs. |
 
-## Next steps
-1. Finish validation after the latest E2E guard/test changes; classify the five non-text fixtures as the line-audit boundary.
-2. Resolve developer-doc visibility/separation; do not push developer material to this public repo as private.
-3. Inspect final docs/diff and HANDOFF; commit and push only content authorized for the selected visibility.
+## Known issues
+1. Three overlapping export-list routes.
+2. Orphaned `/rags/*` and `/api/compare/*` routes; legacy `rag/` package only live via those plus the `chat_v2` fallback.
+3. Duplicate RAG settings fields in `config.py`.
+4. `ruff check src/` still has ~129 pre-existing findings (mostly facade F401 re-exports); no blind autofix.
+5. Local branches `backup/pre-history-rewrite` and `openclaw/fix-gptqmodel-...` still hold the pre-purge history (local only; delete when no longer needed).
+
+## Rules
+- After every test run, delete leftover artifacts (exported GGUFs, test projects, output runs). Fixtures kept in `~/.finetune-studio/test-fixtures/`.
+- GTX 1070 is never used; RTX 3090 only.
+- Live E2E needs `FTS_ALLOW_LIVE_E2E=1`; the external E2E runner sends Discord notifications, so don't invoke it locally.
 
 ## Commands
-- Focused route/RAG: `.venv/bin/python -m pytest tests/test_rag_audit.py tests/test_webui_routes_core_audit.py tests/test_webui_routes_workflow_audit.py -q`
+- Full: `.venv/bin/python -m pytest -q -p no:cacheprovider` (~16 min)
 - Lint: `.venv/bin/ruff check <changed-python-files>`
-- E2E runner is external and sends Discord notifications; do not invoke during local checks.
-
-## Blockers
-- Awaiting user choice: keep developer docs unpublished until repository-private, or accept their visibility on a protected public dev branch.
-- No remote `dev` branch existed at audit start; GitHub CLI unavailable.
