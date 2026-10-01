@@ -137,6 +137,7 @@ async def delete_project(pid: str):
         fts_root() / "projects" / pid,
         Path(settings.db_path).parent / "projects" / pid,
         Path("output") / "projects" / pid,
+        Path.home() / ".finetune-studio" / "rag_corpora" / pid,
     ):
         shutil.rmtree(project_dir, ignore_errors=True)
 

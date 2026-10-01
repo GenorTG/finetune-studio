@@ -278,6 +278,7 @@
   <div class="flex gap-2">
     <input id="q-text" type="text" placeholder="Ask a question about this project's documents…"
            class="input" style="flex:1;"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();runQuery();}"
            title="Run a retrieval-only query (no LLM generation). Shows the top-K chunks the system would feed to the chat model, with their retrieval scores. Useful for tuning chunk size / overlap / embedder before training.">
     <button onclick="runQuery()" id="q-btn" class="btn primary"
             title="Embed your query and retrieve the top-K most similar chunks from the corpus. Doesn't call the LLM — just shows what the retriever found.">Search</button>
