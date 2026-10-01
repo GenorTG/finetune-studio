@@ -10,10 +10,9 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Optional
 
 
-def find_matching_bracket(s: str, start: int) -> Optional[int]:
+def find_matching_bracket(s: str, start: int) -> int | None:
     """Return the index of the ']' that balances the '[' at `start`. String-aware."""
     if start >= len(s) or s[start] != "[":
         return None

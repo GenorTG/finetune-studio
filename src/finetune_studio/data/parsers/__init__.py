@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import importlib
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # Version of the parser output schema. Bump when format changes.
 PARSER_SCHEMA_VERSION = "1"
@@ -96,7 +96,7 @@ def list_parsers() -> list[dict]:
     return out
 
 
-def get_parser_for(path: str | Path) -> Optional[Any]:
+def get_parser_for(path: str | Path) -> Any | None:
     """Returns the parse function for the given path, or None if unsupported."""
     ext = Path(path).suffix.lower()
     info = PARSERS.get(ext)

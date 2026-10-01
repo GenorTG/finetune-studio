@@ -6,13 +6,12 @@ import datetime as _dt
 import json as _json
 import sys
 from pathlib import Path
-from typing import Any
 
 SCHEMA_VERSION = "1"
 
 
 def now_iso() -> str:
-    return _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds")
+    return _dt.datetime.now(_dt.UTC).isoformat(timespec="seconds")
 
 
 def make_result(text: str, structured: dict, parser: str, warnings: list[str] | None = None, **extra) -> dict:

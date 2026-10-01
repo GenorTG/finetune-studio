@@ -23,7 +23,6 @@ from finetune_studio.data.fs.metadata import (
     _safe_filename,
     hash_bytes,
     read_file_metadata,
-    update_file_metadata,
 )
 from finetune_studio.data.fs.paths import file_dir, project_dir
 
@@ -49,14 +48,12 @@ def store_file(
     existing_files = [p for p in fd.iterdir() if p.is_file() and p.suffix.lower() == ext] if fd.exists() else []
     now = time.time()
 
-    if existing_files:
-        # Rename existing file to the new name so the disk reflects what the
-        # user most recently called it.
-        if existing_files[0].name != safe_name:
-            try:
-                existing_files[0].rename(canonical)
-            except OSError:
-                pass  # cross-device or other rename failure — fall through to write
+    # Rename existing file so the disk reflects the user's most recent name.
+    if existing_files and existing_files[0].name != safe_name:
+        try:
+            existing_files[0].rename(canonical)
+        except OSError:
+            pass  # cross-device or other rename failure — fall through to write
     if not canonical.exists() or canonical.stat().st_size != len(data):
         canonical.write_bytes(data)
 

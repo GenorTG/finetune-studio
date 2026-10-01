@@ -136,7 +136,7 @@ def load_llama_gguf(
             result.final_n_ctx = kwargs["n_ctx"]
             last_err = None
             break
-        except Exception as e:  # noqa: BLE001 — inspected below, re-raised if not an OOM signature
+        except Exception as e:
             msg = str(e).lower()
             if "out of memory" not in msg and "cuda" not in msg and "vram" not in msg:
                 raise
@@ -227,10 +227,10 @@ def unload_all_models() -> None:
         from finetune_studio.webui.app import inference_engine
         if getattr(inference_engine, "model", None) is not None:
             inference_engine.unload()
-    except Exception:  # noqa: BLE001 — best-effort; a missing/broken engine must not block the caller
+    except Exception:
         log.exception("unload_all_models: failed to unload the global inference engine")
     try:
         from finetune_studio.models.manager import get_manager
         get_manager().unload()
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.exception("unload_all_models: failed to unload the ModelManager active provider")

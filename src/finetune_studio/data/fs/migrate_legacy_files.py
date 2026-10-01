@@ -15,9 +15,7 @@ import json
 import os
 import sqlite3
 import sys
-import time
 from pathlib import Path
-
 
 PROJECTS_ROOT = Path(os.path.expanduser("~/.finetune-studio/projects"))
 DB_CANDIDATES = [

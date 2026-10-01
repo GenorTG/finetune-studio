@@ -52,7 +52,6 @@ def profile_training(
         for i in range(max(batch_size * 2, 10))
     ]
 
-    peak_vram_before = torch.cuda.max_memory_allocated() / (1024**3) if torch.cuda.is_available() else 0
     torch.cuda.reset_peak_memory_stats()
 
     start_time = time.time()
@@ -132,8 +131,8 @@ def profile_training(
         # looks up the original class. Re-patch sys.modules.
         import sys as _sys
         try:
-            import trl.trainer.sft_trainer as _sft_tm
             import trl.trainer.sft_config as _sft_cm
+            import trl.trainer.sft_trainer as _sft_tm
             _sys.modules["trl.trainer.sft_trainer"].SFTTrainer = _sft_tm.SFTTrainer
             _sys.modules["trl.trainer.sft_config"].SFTConfig = _sft_cm.SFTConfig
         except (ImportError, AttributeError):

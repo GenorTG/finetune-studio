@@ -14,12 +14,12 @@ import threading
 import time
 from pathlib import Path
 
+from finetune_studio.models.gguf_layers import resolve_block_count
 from finetune_studio.models.providers import (
     ModelProvider,
     ProviderConfig,
     build_provider,
 )
-from finetune_studio.models.gguf_layers import resolve_block_count
 
 log = logging.getLogger(__name__)
 

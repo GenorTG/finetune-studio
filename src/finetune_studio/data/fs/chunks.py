@@ -6,12 +6,11 @@ write them to files/<sha>/chunks/NNNN.txt, and write a manifest.json.
 from __future__ import annotations
 
 import json
-from typing import Optional
 
 from finetune_studio.data.fs.paths import file_dir
 
 
-def write_chunks(pid: str, sha256: str, chunks: list[str], chunk_meta: Optional[list[dict]] = None) -> None:
+def write_chunks(pid: str, sha256: str, chunks: list[str], chunk_meta: list[dict] | None = None) -> None:
     fd = file_dir(pid, sha256)
     chunks_dir = fd / "chunks"
     chunks_dir.mkdir(parents=True, exist_ok=True)

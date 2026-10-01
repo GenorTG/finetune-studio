@@ -145,10 +145,12 @@ async def delete_project(pid: str):
 
 
 @router.get("/{pid}/export")
-async def export_project(pid: str, name: str = None, fmt: str = "tar.gz"):
+async def export_project(pid: str, name: str | None = None, fmt: str = "tar.gz"):
     """Export a project as a self-contained archive."""
-    import tarfile, io
+    import io
+    import tarfile
     from pathlib import Path
+
     from fastapi.responses import StreamingResponse
 
     if not db.get_project(pid):
@@ -181,7 +183,9 @@ async def export_project(pid: str, name: str = None, fmt: str = "tar.gz"):
 @router.post("/import")
 async def import_project(request: Request):
     """Import a project from an uploaded archive."""
-    import tarfile, io, json
+    import io
+    import json
+    import tarfile
     from pathlib import Path
 
     form = await request.form()
@@ -222,7 +226,7 @@ async def import_project(request: Request):
                     proj_name = manifest.get('project_name', f'Imported {old_id[:8]}')
                     new_proj = db.create_project(
                         name=proj_name,
-                        description=manifest.get('description', f'Imported from archive'),
+                        description=manifest.get('description', 'Imported from archive'),
                         base_model=manifest.get('base_model', ''),
                         system_prompt=manifest.get('system_prompt', 'You are a helpful assistant.'),
                         tags=manifest.get('tags', 'imported'),
@@ -530,7 +534,7 @@ async def run_benchmark(pid: str, rid: str, request: Request):
              "response": r.response[:300]}
             for r in results
         ]}
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         log.exception("benchmark suite failed")
         return {"error": f"benchmark failed: {e}", "benchmark": None}
     finally:
@@ -563,7 +567,7 @@ async def merge_run(pid: str, rid: str, request: Request, force: str = "false"):
         result = merge_adapter_for_run(run, force=force)
     except ValueError as e:
         return {"error": str(e), "status": "skipped"}
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         log.exception("merge failed")
         return {"error": f"merge failed: {e}", "status": "failed"}
     # Backfill output_path on the run if it was empty before — the merge

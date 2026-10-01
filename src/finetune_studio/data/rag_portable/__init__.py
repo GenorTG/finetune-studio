@@ -36,19 +36,54 @@ data/rag_portable/
   query.py       — PortableRAGQuery (search, format_context)
 """
 
-from finetune_studio.data.rag_portable.constants import (
-    DEFAULT_EMBEDDER, DEFAULT_RERANKER, EMBEDDER_FALLBACK, EMBEDDER_LOCAL_PREFIX,
-    RERANKER_LOCAL_PREFIX, RRF_K, SCHEMA_VERSION,
-)
-from finetune_studio.data.rag_portable.schema import (
-    ChunkSettings, EmbeddingModelInfo, Manifest, RagSettings,
-)
 from finetune_studio.data.rag_portable.bm25 import BM25Index
+from finetune_studio.data.rag_portable.constants import (
+    DEFAULT_EMBEDDER,
+    DEFAULT_RERANKER,
+    EMBEDDER_FALLBACK,
+    EMBEDDER_LOCAL_PREFIX,
+    RERANKER_LOCAL_PREFIX,
+    RRF_K,
+    SCHEMA_VERSION,
+)
 from finetune_studio.data.rag_portable.embedders import get_embedder
+from finetune_studio.data.rag_portable.io import (
+    read_json,
+    try_import_pandas,
+    write_json,
+)
+from finetune_studio.data.rag_portable.query import PortableRAGQuery
 from finetune_studio.data.rag_portable.rerankers import get_reranker
 from finetune_studio.data.rag_portable.rrf import rrf_fuse
+from finetune_studio.data.rag_portable.schema import (
+    ChunkSettings,
+    EmbeddingModelInfo,
+    Manifest,
+    RagSettings,
+)
 from finetune_studio.data.rag_portable.store import PortableRAG
-from finetune_studio.data.rag_portable.query import PortableRAGQuery
-
 from finetune_studio.data.rag_portable.tokenize import tokenize
-from finetune_studio.data.rag_portable.io import read_json, write_json, try_import_pandas
+
+__all__ = [
+    "DEFAULT_EMBEDDER",
+    "DEFAULT_RERANKER",
+    "EMBEDDER_FALLBACK",
+    "EMBEDDER_LOCAL_PREFIX",
+    "RERANKER_LOCAL_PREFIX",
+    "RRF_K",
+    "SCHEMA_VERSION",
+    "BM25Index",
+    "ChunkSettings",
+    "EmbeddingModelInfo",
+    "Manifest",
+    "PortableRAG",
+    "PortableRAGQuery",
+    "RagSettings",
+    "get_embedder",
+    "get_reranker",
+    "read_json",
+    "rrf_fuse",
+    "tokenize",
+    "try_import_pandas",
+    "write_json",
+]

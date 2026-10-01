@@ -17,7 +17,8 @@ from pathlib import Path
 
 from finetune_studio.data import shared_models as _sm
 from finetune_studio.data.rag_portable.constants import (
-    EMBEDDER_LOCAL_PREFIX, RERANKER_LOCAL_PREFIX,
+    EMBEDDER_LOCAL_PREFIX,
+    RERANKER_LOCAL_PREFIX,
 )
 
 
@@ -50,6 +51,6 @@ def resolve_model_ref(name: str, kind: str) -> str:
             # load will produce a clearer error than we can fabricate here.
             return name
         magic = EMBEDDER_LOCAL_PREFIX if kind == "embedder" else RERANKER_LOCAL_PREFIX
-        return f"{magic}{str(local_path.resolve())}"
+        return f"{magic}{local_path.resolve()!s}"
     # Already a usable form.
     return name

@@ -8,7 +8,6 @@ from pathlib import Path
 
 from ._base import cli_run, make_result
 
-
 _CONTENT_FILES = {
     ".odt": "content.xml",
     ".ods": "content.xml",
@@ -17,7 +16,6 @@ _CONTENT_FILES = {
 
 
 def parse(path: Path) -> dict:
-    warnings = []
     ext = path.suffix.lower()
     try:
         with zipfile.ZipFile(path) as z:

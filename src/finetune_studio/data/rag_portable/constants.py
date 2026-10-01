@@ -5,7 +5,6 @@ in a way that's not backwards-compatible — readers can refuse old corpora.
 """
 from __future__ import annotations
 
-
 SCHEMA_VERSION = "2"
 
 # Default models

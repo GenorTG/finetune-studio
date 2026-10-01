@@ -206,7 +206,7 @@ def read_qa_source(pid: str, source_id: str) -> dict:
         return {}
     try:
         return json.loads(p.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.warning("qa source %s/%s is corrupt/unreadable at %s", pid, source_id, p, exc_info=True)
         return {}
 
@@ -220,7 +220,7 @@ def list_qa_pairs(pid: str, source_id: str | None = None, status: str | None = N
     for p in sorted(pairs_dir.glob("*.json")):
         try:
             qa = json.loads(p.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001, S112
+        except Exception:  # noqa: BLE001
             skipped += 1
             continue
         if source_id and qa.get("source_id") != source_id:
@@ -242,7 +242,7 @@ def list_qa_sources(pid: str) -> list[dict]:
     for p in src_dir.glob("*.json"):
         try:
             out.append(json.loads(p.read_text(encoding="utf-8")))
-        except Exception:  # noqa: BLE001, S112
+        except Exception:  # noqa: BLE001
             skipped += 1
             continue
     if skipped:
@@ -256,7 +256,7 @@ def update_qa_pair(pid: str, qa_id: str, **fields) -> dict | None:
         return None
     try:
         qa = json.loads(p.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.warning("update_qa_pair(%s, %s): pair file corrupt/unreadable at %s", pid, qa_id, p, exc_info=True)
         return None
     for k, v in fields.items():
@@ -276,7 +276,7 @@ def delete_qa_source(pid: str, source_id: str) -> bool:
                 qa = json.loads(p.read_text(encoding="utf-8"))
                 if qa.get("source_id") == source_id:
                     p.unlink()
-            except Exception:  # noqa: BLE001, S112
+            except Exception:
                 log.warning(
                     "delete_qa_source(%s, %s): could not inspect %s to decide "
                     "whether it belongs to this source; it will NOT be deleted",

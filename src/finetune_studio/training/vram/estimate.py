@@ -14,7 +14,9 @@ gradient checkpointing is on.
 from __future__ import annotations
 
 from finetune_studio.training.vram.constants import (
-    ACTIVATION_SAFETY_MARGIN, CUDA_OVERHEAD_GB, DTYPE_BYTES,
+    ACTIVATION_SAFETY_MARGIN,
+    CUDA_OVERHEAD_GB,
+    DTYPE_BYTES,
 )
 from finetune_studio.training.vram.gpu import detect as detect_gpu
 from finetune_studio.training.vram.schema import VRAMEstimate

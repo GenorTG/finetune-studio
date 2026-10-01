@@ -4,7 +4,6 @@ Single responsibility: numbers and lookup tables used everywhere else in this pa
 """
 from __future__ import annotations
 
-
 # Bytes per parameter by dtype
 DTYPE_BYTES = {
     "float32": 4,

@@ -102,7 +102,7 @@ def cmd_vram(args) -> None:
             }, indent=2))
         else:
             if result.success:
-                print(f"✅ Profile complete")
+                print("✅ Profile complete")
                 print(f"   Peak VRAM:    {result.peak_vram_gb:.2f} GB")
                 print(f"   Model load:   {result.measured_model_gb:.2f} GB")
                 print(f"   Adapters:     {result.measured_adapters_gb:.2f} GB")

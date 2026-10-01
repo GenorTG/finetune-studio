@@ -4,7 +4,7 @@ Single responsibility: type definitions for GPU info, estimates, profiles, and r
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass

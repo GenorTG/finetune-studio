@@ -1,13 +1,25 @@
 """RAG subpackage — retrieval-augmented generation."""
 
-from finetune_studio.rag.store import VectorStore, SearchResult
-from finetune_studio.rag.ingest import Document, Chunk, chunk_text, ingest_file, ingest_directory
-from finetune_studio.rag.query import RAGConfig, RAGQuery
+from finetune_studio.rag.ingest import (
+    Chunk,
+    Document,
+    chunk_text,
+    ingest_directory,
+    ingest_file,
+)
 from finetune_studio.rag.manager import RAGManager
+from finetune_studio.rag.query import RAGConfig, RAGQuery
+from finetune_studio.rag.store import SearchResult, VectorStore
 
 __all__ = [
-    "VectorStore", "SearchResult",
-    "Document", "Chunk", "chunk_text", "ingest_file", "ingest_directory",
-    "RAGConfig", "RAGQuery",
+    "Chunk",
+    "Document",
+    "RAGConfig",
     "RAGManager",
+    "RAGQuery",
+    "SearchResult",
+    "VectorStore",
+    "chunk_text",
+    "ingest_directory",
+    "ingest_file",
 ]

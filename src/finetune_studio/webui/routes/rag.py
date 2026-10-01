@@ -176,7 +176,7 @@ async def rag_patch_settings(pid: str, req: SettingsPatch):
         m.rag_settings.rrf_k = req.rrf_k
     m.updated_at = time.time()
     write_json(_corpus_dir(pid) / "manifest.json", m.to_json())
-    return {"ok": True, "updated": req.dict(exclude_none=True)}
+    return {"ok": True, "updated": req.model_dump(exclude_none=True)}
 
 
 @router.post("/{pid}/rag/build")

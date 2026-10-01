@@ -13,7 +13,7 @@ def print_vram_check(label: str, est) -> None:
     print(f"  Gradients:        {est.gradients_gb:.2f} GB")
     print(f"  Optimizer:        {est.optimizer_states_gb:.2f} GB")
     print(f"  Activations:      {est.activations_gb:.2f} GB")
-    print(f"  ─────────────────────────")
+    print("  ─────────────────────────")
     print(f"  Total estimated:  {est.total_gb:.2f} GB")
     print(f"  Available:        {est.available_gb:.2f} GB")
     print(f"  Headroom:         {est.headroom_gb:.2f} GB")

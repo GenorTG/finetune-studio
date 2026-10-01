@@ -6,7 +6,10 @@ Special name prefixes:
 """
 from __future__ import annotations
 
-from finetune_studio.data.rag_portable.constants import DEFAULT_RERANKER, RERANKER_LOCAL_PREFIX
+from finetune_studio.data.rag_portable.constants import (
+    DEFAULT_RERANKER,
+    RERANKER_LOCAL_PREFIX,
+)
 
 
 def get_reranker(name: str = DEFAULT_RERANKER, device: str = "cpu"):

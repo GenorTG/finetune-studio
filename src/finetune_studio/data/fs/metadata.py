@@ -8,8 +8,6 @@ import hashlib
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
-from typing import Optional
 
 from finetune_studio.data.fs.paths import file_dir
 
@@ -52,7 +50,7 @@ def _safe_filename(name: str) -> str:
     return name or "upload"
 
 
-def read_file_metadata(pid: str, sha256: str) -> Optional[FileMetadata]:
+def read_file_metadata(pid: str, sha256: str) -> FileMetadata | None:
     p = file_dir(pid, sha256) / "metadata.json"
     if not p.exists():
         return None
@@ -64,7 +62,7 @@ def read_file_metadata(pid: str, sha256: str) -> Optional[FileMetadata]:
         return None
 
 
-def update_file_metadata(pid: str, sha256: str, **fields) -> Optional[FileMetadata]:
+def update_file_metadata(pid: str, sha256: str, **fields) -> FileMetadata | None:
     """Update specific fields (e.g. char_count, chunk_count, parser) and persist."""
     meta = read_file_metadata(pid, sha256)
     if meta is None:

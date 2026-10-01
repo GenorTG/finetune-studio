@@ -21,12 +21,10 @@ Based on the ablation technique by fmartin-gh and others.
 
 from __future__ import annotations
 
-import json
 import os
-import torch
-import numpy as np
-from typing import Optional
 
+import numpy as np
+import torch
 
 # Prompts known to trigger refusals in RLHF-trained models
 REFUSAL_TEST_PROMPTS = [
@@ -60,7 +58,7 @@ SAFE_TEST_PROMPTS = [
 def detect_refusal_direction(
     model,
     tokenizer,
-    layer_indices: Optional[list[int]] = None,
+    layer_indices: list[int] | None = None,
     max_length: int = 256,
     device: str = "cuda",
 ) -> dict:
@@ -113,7 +111,7 @@ def detect_refusal_direction(
     diff = refusal_mean - safe_mean
 
     # SVD to find the dominant direction
-    u, s, vh = np.linalg.svd(diff)
+    _u, s, vh = np.linalg.svd(diff)
     refusal_direction = vh[0]  # First singular vector = dominant direction
     refusal_magnitude = s[0]  # How strong the refusal signal is
 
@@ -129,7 +127,7 @@ def detect_refusal_direction(
 def abliterate_model(
     model_path: str,
     output_dir: str,
-    layer_indices: Optional[list[int]] = None,
+    layer_indices: list[int] | None = None,
     strength: float = 1.0,
     device: str = "cuda",
 ) -> dict:
@@ -145,8 +143,8 @@ def abliterate_model(
     Returns:
         {output_dir, refusal_magnitude, layers_modified, strength}
     """
-    from transformers import AutoModelForCausalLM, AutoTokenizer
     import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
 
     os.makedirs(output_dir, exist_ok=True)
 

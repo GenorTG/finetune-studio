@@ -42,10 +42,6 @@ def recommend_config(
                     available_vram_gb=available_vram_gb,
                 )
                 if est.fits:
-                    # Quality score: prefer longer seq, bigger batch, higher method quality
-                    method_quality = {"full_ft": 3, "lora": 2, "qlora": 1}[method]
-                    score = method_quality * 1000 + seq * 10 + bs * 100
-
                     notes_parts = []
                     if method == "qlora":
                         notes_parts.append("4-bit quantized — slight quality tradeoff")

@@ -228,10 +228,11 @@ async def resume_stale_data_prep_runs() -> dict[str, int]:
     `QueuedSourcePrep` the original request would have built and re-enqueue
     it. Only runs whose source is now missing fall back to `failed`.
     """
+    from starlette.concurrency import run_in_threadpool
+
     from finetune_studio import db
     from finetune_studio.data import project_filesystem as pfs
     from finetune_studio.data.prep.queued import QueuedSourcePrep
-    from starlette.concurrency import run_in_threadpool
 
     resumed = 0
     failed = 0
@@ -387,7 +388,7 @@ async def load_provider(pid: str, request: Request):
         from finetune_studio.webui.app import inference_engine
         if getattr(inference_engine, "model", None) is not None:
             inference_engine.unload()
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.exception("providers/load: failed to unload the global inference engine first")
     try:
         return {"ok": True, "active": get_manager().load(pid, extra=extra)}

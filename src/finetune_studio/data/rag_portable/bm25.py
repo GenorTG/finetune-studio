@@ -29,7 +29,7 @@ class BM25Index:
         self.b: float = 0.75
 
     @classmethod
-    def build(cls, docs: list[str]) -> "BM25Index":
+    def build(cls, docs: list[str]) -> BM25Index:
         idx = cls()
         idx.doc_count = len(docs)
         if idx.doc_count == 0:
@@ -83,7 +83,7 @@ class BM25Index:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "BM25Index":
+    def from_dict(cls, d: dict) -> BM25Index:
         idx = cls()
         idx.terms = {t: [(d_id, tf) for d_id, tf in postings] for t, postings in d["terms"].items()}
         idx.doc_lens = d["doc_lens"]

@@ -12,6 +12,8 @@ cli/
 """
 from finetune_studio.cli._registry import COMMANDS, main
 
+__all__ = ["COMMANDS", "cli_main", "main"]
+
 
 def cli_main() -> None:
     """Alias for `main()` — used by `python -m finetune_studio.cli`."""

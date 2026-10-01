@@ -27,7 +27,9 @@ from finetune_studio.cli.commands.suite import cmd_suite
 from finetune_studio.cli.commands.test import cmd_test
 from finetune_studio.cli.commands.train import cmd_train
 from finetune_studio.cli.commands.validate import cmd_validate
-from finetune_studio.cli.commands.validate_hallucination import cmd_validate_hallucination
+from finetune_studio.cli.commands.validate_hallucination import (
+    cmd_validate_hallucination,
+)
 from finetune_studio.cli.commands.vram import cmd_vram
 from finetune_studio.cli.commands.webui import cmd_webui
 

@@ -52,7 +52,7 @@ class Manifest:
         return asdict(self)
 
     @classmethod
-    def from_json(cls, d: dict) -> "Manifest":
+    def from_json(cls, d: dict) -> Manifest:
         return cls(
             name=d["name"],
             version=d.get("version", "2"),

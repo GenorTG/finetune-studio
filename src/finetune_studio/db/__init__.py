@@ -53,10 +53,10 @@ from finetune_studio.db.data_prep_runs import (
     list_for_project as list_data_prep_for_project,
 )
 from finetune_studio.db.data_prep_runs import (
-    list_stale as list_stale_data_prep_runs,
+    list_recent as list_data_prep_recent,
 )
 from finetune_studio.db.data_prep_runs import (
-    list_recent as list_data_prep_recent,
+    list_stale as list_stale_data_prep_runs,
 )
 from finetune_studio.db.data_prep_runs import (
     mark_done as mark_data_prep_done,
