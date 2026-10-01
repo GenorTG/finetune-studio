@@ -20,18 +20,6 @@ KEY CONCEPTS
 
 """Benchmark scoring module for Finetune Studio WebUI."""
 import re
-from dataclasses import dataclass, field
-
-
-@dataclass
-class BenchmarkResult:
-    benchmark: str
-    question: str
-    prediction: str
-    expected: str
-    correct: bool
-    score: float = 0.0
-    details: dict = field(default_factory=dict)
 
 
 class BenchmarkScorer:

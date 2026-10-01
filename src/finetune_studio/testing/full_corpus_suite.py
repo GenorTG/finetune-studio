@@ -9,6 +9,7 @@ project id.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,8 @@ from typing import Any
 from finetune_studio.data.fs.paths import project_dir
 from finetune_studio.data.fs.qa import list_qa_pairs
 from finetune_studio.data.prep.export import deduplicate_qa_pairs
+
+_log = logging.getLogger(__name__)
 
 FULL_CORPUS_SUITE_NAME = "full-ingested-corpus"
 FULL_CORPUS_CATEGORY = "full-corpus"
@@ -159,12 +162,17 @@ def cases_from_pairs_directory(pairs_dir: Path) -> list[FullCorpusCase]:
     if not pairs_dir.is_dir():
         return []
     pairs: list[dict[str, Any]] = []
+    unreadable = 0
     for pair_path in sorted(pairs_dir.glob("*.json")):
         try:
             pair = json.loads(pair_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError) as exc:
+            unreadable += 1
+            _log.warning("full_corpus_suite: skipping unreadable pair file %s: %s", pair_path, exc)
             continue
         if not isinstance(pair, dict):
+            unreadable += 1
+            _log.warning("full_corpus_suite: skipping non-object pair file %s", pair_path)
             continue
         pair.setdefault("id", pair_path.stem)
         pairs.append(pair)

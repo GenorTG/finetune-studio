@@ -30,6 +30,20 @@ def test_app_and_inference_engine_never_import_unsloth(
         ),
     )
 
+    # ModelManager caches a process-wide singleton (models/manager.py's
+    # module-level `_manager`), and its `.engine` property lazily caches
+    # the InferenceEngine instance it builds the first time it's read. If
+    # an earlier test in the same process constructed that singleton while
+    # `InferenceEngine` was itself monkeypatched (a MagicMock subclass, as
+    # several route-level tests do), the cached `.engine` stays a MagicMock
+    # forever after — reverting that test's monkeypatch only un-patches the
+    # class, not the already-cached instance. This test reloads webui.app
+    # specifically to get a genuinely fresh import, so it must also force a
+    # fresh ModelManager/engine rather than silently inheriting whatever a
+    # prior test left cached.
+    import finetune_studio.models.manager as mgr_mod
+    monkeypatch.setattr(mgr_mod, "_manager", None)
+
     with patch("finetune_studio.models.registry.scan_models", return_value=[]):
         import finetune_studio.webui.app as app_module
 

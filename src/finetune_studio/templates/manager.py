@@ -14,8 +14,6 @@ KEY CONCEPTS
 - Model name resolution: callers can use "chris-ai-v21" instead of
   the full path; we look up the path in a registry.
 """
-
-"""Chat template manager - extracts templates from GGUF and handles tool calling."""
 import json
 from dataclasses import dataclass
 from typing import Any

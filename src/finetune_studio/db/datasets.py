@@ -74,8 +74,13 @@ def list_datasets(project_id: str) -> list[dict]:
 
 
 def update_dataset(did: str, **fields: Any) -> dict | None:
-    """Update qa_count/size_bytes last-modified time etc."""
-    allowed = {"name", "qa_count", "size_bytes", "last_used_at"}
+    """Update qa_count/size_bytes last-modified time etc.
+
+    `last_used_at` is always stamped to now below; it is excluded from
+    `allowed` so a caller-supplied value can't be silently overwritten by
+    a duplicate `SET last_used_at = ?` clause.
+    """
+    allowed = {"name", "qa_count", "size_bytes"}
     sets, vals = [], []
     for k, v in fields.items():
         if k in allowed:

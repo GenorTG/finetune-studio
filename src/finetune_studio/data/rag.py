@@ -130,21 +130,5 @@ def main():
     args.func(args)
 
 
-def run_eval_on_corpus(corpus: str, qa_set_path: str):
-    """Back-compat shim — prefer ``finetune_studio.data.rag_eval.run_eval_on_corpus``."""
-    from finetune_studio.data.rag_eval import run_eval_on_corpus as _run
-
-    report = _run(corpus, qa_set_path)
-    print(f"Recall@1: {report.recall_at_k.get(1, 0)*100:.1f}%")
-    print(f"Recall@5: {report.recall_at_k.get(5, 0)*100:.1f}%")
-    print(f"MRR: {report.mrr:.3f}")
-    print(
-        f"Fact coverage (must_contain substring; NOT llm-judge): "
-        f"{report.fact_coverage_pass_rate*100:.1f}%"
-    )
-    print(f"Portability: {report.portability_test.get('status')}")
-    return report
-
-
 if __name__ == "__main__":
     main()

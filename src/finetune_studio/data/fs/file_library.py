@@ -630,6 +630,9 @@ def purge_trash(pid: str, older_than_days: int = 7) -> dict:
     from finetune_studio import db
     cutoff = time.time() - older_than_days * 86400
     purged_files: list[str] = []
+    disk_errors: list[str] = []
+    raw_trash = raw_trash_dir(pid)
+    conv_trash = converted_trash_dir(pid)
     with db.cursor() as c:
         rows = c.execute(
             "SELECT id, original_name, deleted_at FROM project_files WHERE project_id = ? AND deleted_at IS NOT NULL AND deleted_at < ?",
@@ -637,7 +640,14 @@ def purge_trash(pid: str, older_than_days: int = 7) -> dict:
         ).fetchall()
         for r in rows:
             fid = r["id"]
-            # Remove files from disk
+            # Remove files from disk. soft_delete_file() moves bytes into
+            # .RAW_TRASH/.CONVERTED_TRASH WITHOUT updating file_versions.raw_path
+            # or file_conversions.converted_path (same invariant documented on
+            # _current_raw_path()), so the DB-recorded path is stale and almost
+            # never exists post-delete. Check the recorded path (covers the rare
+            # case the soft-delete rename itself failed and bytes never moved)
+            # AND the actual trash directory (the normal case) so purge doesn't
+            # silently leave orphaned bytes on disk while deleting the DB rows.
             versions = c.execute(
                 "SELECT raw_path FROM file_versions WHERE file_id = ?", (fid,)
             ).fetchall()
@@ -646,8 +656,14 @@ def purge_trash(pid: str, older_than_days: int = 7) -> dict:
                 if p.exists() and _RAW_TRASH_DIR in p.parts:
                     try:
                         p.unlink()
-                    except OSError:
-                        pass
+                    except OSError as e:
+                        disk_errors.append(f"{fid}:{p.name}: {e}")
+            if raw_trash.exists():
+                for cand in raw_trash.glob(f"{fid}_*"):
+                    try:
+                        cand.unlink()
+                    except OSError as e:
+                        disk_errors.append(f"{fid}:{cand.name}: {e}")
             convs = c.execute(
                 "SELECT converted_path FROM file_conversions WHERE file_id = ?", (fid,)
             ).fetchall()
@@ -656,15 +672,25 @@ def purge_trash(pid: str, older_than_days: int = 7) -> dict:
                 if p.exists() and _CONVERTED_TRASH_DIR in p.parts:
                     try:
                         p.unlink()
-                    except OSError:
-                        pass
+                    except OSError as e:
+                        disk_errors.append(f"{fid}:{p.name}: {e}")
+            if conv_trash.exists():
+                for cand in conv_trash.iterdir():
+                    # Best-effort: converted trash names don't always include file_id.
+                    if cand.is_file() and fid in cand.name:
+                        try:
+                            cand.unlink()
+                        except OSError as e:
+                            disk_errors.append(f"{fid}:{cand.name}: {e}")
             # Cascade DB rows
             c.execute("DELETE FROM file_conversions WHERE file_id = ?", (fid,))
             c.execute("DELETE FROM file_versions WHERE file_id = ?", (fid,))
             c.execute("DELETE FROM folder_membership WHERE file_id = ?", (fid,))
             c.execute("DELETE FROM project_files WHERE id = ?", (fid,))
             purged_files.append(r["original_name"])
-    return {"purged": purged_files, "count": len(purged_files)}
+    if disk_errors:
+        log.warning("purge_trash(%s): %d disk unlink failures: %s", pid, len(disk_errors), disk_errors)
+    return {"purged": purged_files, "count": len(purged_files), "disk_errors": disk_errors}
 
 
 def list_trash(pid: str) -> list[dict]:

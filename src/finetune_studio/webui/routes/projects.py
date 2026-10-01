@@ -41,6 +41,27 @@ def _project_404(pid: str) -> JSONResponse | None:
     return None
 
 
+def _get_owned_run(pid: str, rid: str) -> tuple[dict | None, JSONResponse | None]:
+    """Fetch a run and verify it belongs to ``pid``.
+
+    Returns ``(run, None)`` on success or ``(None, 404 response)`` when the
+    run is missing or belongs to a different project — a run id from another
+    project must never be readable/mutable through this project's URL.
+    """
+    run = db.get_run(rid)
+    if not run or (run.get("project_id") and run.get("project_id") != pid):
+        return None, JSONResponse({"error": "run not found"}, status_code=404)
+    return run, None
+
+
+def _get_owned_rag(pid: str, rid: str) -> tuple[dict | None, JSONResponse | None]:
+    """Fetch a rag and verify it belongs to ``pid`` (see ``_get_owned_run``)."""
+    rag = db.get_rag(rid)
+    if not rag or (rag.get("project_id") and rag.get("project_id") != pid):
+        return None, JSONResponse({"error": "rag not found"}, status_code=404)
+    return rag, None
+
+
 # ── Projects ─────────────────────────────────────────────────────────────
 
 @router.get("")
@@ -81,13 +102,44 @@ async def get_project(pid: str):
 
 @router.patch("/{pid}")
 async def update_project(pid: str, request: Request):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     body = await request.json()
     return db.update_project(pid, **body)
 
 
 @router.delete("/{pid}")
 async def delete_project(pid: str):
+    """Delete a project's DB rows and every on-disk tree that stores its data.
+
+    Audit fix (2026-10-01): this previously only called ``db.delete_project``
+    — a project's file library/QA pairs/logs (``~/.finetune-studio/projects/
+    <pid>/``), its datasets (``data/projects/<pid>/``), and every training
+    run's merged weights + GGUF exports (``output/projects/<pid>/``) were
+    left on disk forever. The DB row disappeared so the project vanished
+    from the UI, but the delete call had claimed success while silently
+    leaving the actual data behind — found while a 121GB cleanup turned up
+    three "deleted" projects whose files were all still resident.
+    """
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     db.delete_project(pid)
+
+    import shutil
+    from pathlib import Path
+
+    from finetune_studio.config import settings
+    from finetune_studio.data.fs.paths import root as fts_root
+
+    for project_dir in (
+        fts_root() / "projects" / pid,
+        Path(settings.db_path).parent / "projects" / pid,
+        Path("output") / "projects" / pid,
+    ):
+        shutil.rmtree(project_dir, ignore_errors=True)
+
     return {"ok": True}
 
 
@@ -192,11 +244,9 @@ async def promote_run(pid: str, request: Request):
     """Set a Training Run as the Project's production model."""
     body = await request.json()
     run_id = body.get("run_id", "")
-    run = db.get_run(run_id)
-    if not run:
-        return {"error": "run not found"}
-    if run.get("project_id") and run.get("project_id") != pid:
-        return {"error": "run does not belong to this project"}
+    run, err = _get_owned_run(pid, run_id)
+    if err is not None:
+        return err
     db.update_project(pid, production_run=run_id)
     return {"ok": True, "run": run}
 
@@ -213,6 +263,9 @@ async def list_rags(pid: str):
 
 @router.post("/{pid}/rags")
 async def create_rag(pid: str, request: Request):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     body = await request.json()
     rag = db.create_rag(
         project_id=pid,
@@ -226,12 +279,18 @@ async def create_rag(pid: str, request: Request):
 
 @router.patch("/{pid}/rags/{rid}")
 async def update_rag(pid: str, rid: str, request: Request):
+    _rag, err = _get_owned_rag(pid, rid)
+    if err is not None:
+        return err
     body = await request.json()
     return db.update_rag(rid, **body)
 
 
 @router.delete("/{pid}/rags/{rid}")
 async def delete_rag(pid: str, rid: str):
+    _rag, err = _get_owned_rag(pid, rid)
+    if err is not None:
+        return err
     db.delete_rag(rid)
     return {"ok": True}
 
@@ -247,9 +306,9 @@ async def ingest_into_rag(pid: str, rid: str, request: Request):
     path = body.get("path", "")
     if not path or not os.path.exists(path):
         return {"error": "path not found"}
-    rag = db.get_rag(rid)
-    if not rag:
-        return {"error": "rag not found"}
+    rag, err = _get_owned_rag(pid, rid)
+    if err is not None:
+        return err
     # Mark the rag as building + create a history row.
     build_row = db.create_rag_build(project_id=pid, rag_id=rid)
     db.update_rag(rid, status="building", last_build_at=time.time(),
@@ -288,9 +347,9 @@ async def query_rag(pid: str, rid: str, request: Request):
     top_k = int(body.get("top_k", 5))
     if not query:
         return {"error": "no query"}
-    rag = db.get_rag(rid)
-    if not rag:
-        return {"error": "rag not found"}
+    rag, err = _get_owned_rag(pid, rid)
+    if err is not None:
+        return err
     mgr = RAGManager(rag["store_path"])
     chunks = mgr.store.search(query, top_k=top_k)
     return {"chunks": [
@@ -301,12 +360,9 @@ async def query_rag(pid: str, rid: str, request: Request):
 
 @router.get("/{pid}/rags/{rid}/stats")
 async def rag_stats(pid: str, rid: str):
-    missing = _project_404(pid)
-    if missing is not None:
-        return missing
-    rag = db.get_rag(rid)
-    if not rag:
-        return {"error": "rag not found"}
+    rag, err = _get_owned_rag(pid, rid)
+    if err is not None:
+        return err
     mgr = RAGManager(rag["store_path"])
     return mgr.stats()
 
@@ -323,6 +379,9 @@ async def list_runs(pid: str):
 
 @router.post("/{pid}/runs")
 async def create_run(pid: str, request: Request):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     body = await request.json()
     run = db.create_run(
         project_id=pid,
@@ -340,24 +399,27 @@ async def create_run(pid: str, request: Request):
 
 @router.get("/{pid}/runs/{rid}")
 async def get_run(pid: str, rid: str):
-    missing = _project_404(pid)
-    if missing is not None:
-        return missing
-    run = db.get_run(rid)
-    if not run:
-        return {"error": "not found"}
+    run, err = _get_owned_run(pid, rid)
+    if err is not None:
+        return err
     run["benchmarks"] = db.list_benchmarks(rid)
     return run
 
 
 @router.patch("/{pid}/runs/{rid}")
 async def update_run(pid: str, rid: str, request: Request):
+    _run, err = _get_owned_run(pid, rid)
+    if err is not None:
+        return err
     body = await request.json()
     return db.update_run(rid, **body)
 
 
 @router.delete("/{pid}/runs/{rid}")
 async def delete_run(pid: str, rid: str):
+    _run, err = _get_owned_run(pid, rid)
+    if err is not None:
+        return err
     db.delete_run(rid)
     return {"ok": True}
 
@@ -370,9 +432,9 @@ async def start_run(pid: str, rid: str, request: Request):
     Engine state gets tagged with the run_id so progress events can
     update the DB row.
     """
-    run = db.get_run(rid)
-    if not run:
-        return {"error": "run not found"}
+    run, err = _get_owned_run(pid, rid)
+    if err is not None:
+        return err
     if run["status"] not in ("created", "idle", "error", "stopped"):
         return {"error": f"cannot start run in status {run['status']}"}
     body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
@@ -407,6 +469,9 @@ async def start_run(pid: str, rid: str, request: Request):
 
 @router.post("/{pid}/runs/{rid}/stop")
 async def stop_run(pid: str, rid: str):
+    _run, err = _get_owned_run(pid, rid)
+    if err is not None:
+        return err
     training_engine.stop()
     db.update_run(rid, status="stopped", finished_at=time.time())
     return {"ok": True}
@@ -431,12 +496,19 @@ async def run_benchmark(pid: str, rid: str, request: Request):
     from finetune_studio.testing.inference import InferenceEngine
     from finetune_studio.testing.suite import load_test_suite, run_suite, score_results
 
-    run = db.get_run(rid)
-    if not run:
-        return {"error": "run not found"}
+    run, err = _get_owned_run(pid, rid)
+    if err is not None:
+        return err
     target_model = run.get("output_path") or run.get("base_model")
     if not target_model:
         return {"error": "run has no model to benchmark"}
+    # Free the shared persistent inference_engine's VRAM first — mirrors
+    # webui/routes/benchmarks.py's _unload_global_inference(), required by
+    # the GH-AAA no-mixed-offload contract (models/llama_loader.py). Without
+    # this, a model already loaded via the Testing tab stays resident while
+    # this route tries to load a second model onto the same GPU.
+    from finetune_studio.models.llama_loader import unload_all_models
+    unload_all_models()
     engine = InferenceEngine()
     try:
         engine.load(target_model)
@@ -480,9 +552,9 @@ async def merge_run(pid: str, rid: str, request: Request, force: str = "false"):
     output_path / metrics.
     """
     force = str(force).lower() in ("1", "true", "yes")
-    run = db.get_run(rid)
-    if not run:
-        return {"error": "run not found"}
+    run, err = _get_owned_run(pid, rid)
+    if err is not None:
+        return err
     # Lazy import — keeps the training/PEFT stack out of the projects module
     # path until a merge is actually requested.
     from finetune_studio.training.engine import merge_adapter_for_run

@@ -69,6 +69,7 @@ class PortableRAGQuery:
             bm25_scores = self.bm25.score(query)
             bm25_rank = [self._chunk_ids[i] for i in np.argsort(-bm25_scores)]
         else:
+            bm25_scores = None
             bm25_rank = dense_rank
 
         # RRF
@@ -86,7 +87,7 @@ class PortableRAGQuery:
                 "rank": rank, "chunk_id": cid, "score": float(sc),
                 "rrf_score": float(sc),
                 "dense_score": float(dense_scores[i]),
-                "bm25_score": float(self.bm25.score(query)[i]) if use_hybrid else 0.0,
+                "bm25_score": float(bm25_scores[i]) if use_hybrid else 0.0,
                 "text": self.chunks.iloc[i]["text"],
                 "source": raw_source,
                 "filename": prettify_source_label(

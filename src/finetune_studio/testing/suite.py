@@ -284,7 +284,17 @@ def apply_heuristic_judging(results: list[CaseResult]) -> None:
 
 
 def score_results(results: list[CaseResult]) -> dict:
-    """Aggregate stats over judged results. Only counts cases with a verdict."""
+    """Aggregate stats over judged results.
+
+    ``pass_rate`` and ``weighted_score`` are computed against ``total``, not
+    just the judged subset: a case that errored (engine crash, judge API
+    failure, no judge configured) ends up with an empty ``verdict`` and is
+    excluded from ``judged``, but it must still count against the score —
+    otherwise a run where half the cases errored out would silently report
+    100% on the half that happened to pass, inflating the reported accuracy.
+    ``unjudged`` remains in the output so callers can see how many cases
+    never got a verdict at all.
+    """
     judged = [r for r in results if r.verdict]
     total = len(results)
     n_judged = len(judged)
@@ -294,8 +304,10 @@ def score_results(results: list[CaseResult]) -> dict:
     unjudged = total - n_judged
     avg_time = (sum(r.time_ms for r in results) / max(total, 1)) if total else 0
 
-    # Compute weighted score: pass=1.0, partial=0.5, fail=0.0
-    weighted = (passed * 1.0 + partial * 0.5) / max(n_judged, 1) * 100 if n_judged else 0
+    # Compute weighted score: pass=1.0, partial=0.5, fail=0.0, unjudged=0.0 —
+    # denominator is total cases, so errored/unjudged cases drag the score
+    # down instead of being silently excluded from it.
+    weighted = (passed * 1.0 + partial * 0.5) / max(total, 1) * 100 if total else 0
 
     # Category breakdown
     cats: dict[str, dict] = {}
@@ -313,7 +325,7 @@ def score_results(results: list[CaseResult]) -> dict:
         "passed": passed,
         "partial": partial,
         "failed": failed,
-        "pass_rate": round(passed / max(n_judged, 1) * 100, 1) if n_judged else 0,
+        "pass_rate": round(passed / max(total, 1) * 100, 1) if total else 0,
         "weighted_score": round(weighted, 1),
         "avg_time_ms": round(avg_time, 1),
         "categories": cats,

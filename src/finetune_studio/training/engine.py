@@ -569,9 +569,9 @@ class TrainingEngine:
         endpoint can find the adapter after training completes."""
         if not self.current_run_id or not self.config.output_dir:
             return
+        run_id = self.current_run_id.split("-")[-1] if "-" in self.current_run_id else self.current_run_id
         try:
             from finetune_studio.db.runs import update_run
-            run_id = self.current_run_id.split("-")[-1] if "-" in self.current_run_id else self.current_run_id
             fields: dict = {
                 "output_path": self.config.output_dir,
                 "status": "done",

@@ -222,10 +222,6 @@ def _apply_pooling_compat(data: dict[str, Any], fallback_dim: int) -> bool:
             mode = "cls"
         elif data.get("pooling_mode_max_tokens"):
             mode = "max"
-        elif data.get("pooling_mode_mean_tokens") is False and data.get(
-            "pooling_mode_cls_token"
-        ):
-            mode = "cls"
         data["pooling_mode"] = mode
         changed = True
     return changed

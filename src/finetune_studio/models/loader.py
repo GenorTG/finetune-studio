@@ -1,25 +1,13 @@
-from typing import Any
+"""Inspect a model path on disk and return display metadata.
 
-"""Load GGUF and HuggingFace models.
-
-WHAT THIS FILE DOES
-==================
-Wraps the inference engine's loading logic with metadata tracking:
-  - Model name
-  - Path
-  - Format (GGUF or HF)
-  - Size in bytes
-  - Quantization level (for GGUF)
-  - Parameter count
-
-KEY CONCEPTS
-============
-- Model metadata: useful for the web UI to display model info.
-- Multiple model support: load several models and switch between them.
-- Lazy loading: only load a model when it's actually needed.
+Despite the broader docstring this module used to carry, it does not load
+or wrap any inference engine — ``load_model_info`` only reads a GGUF header
+size or a safetensors ``config.json`` to describe a model for the UI. The
+real GGUF loader lives in ``finetune_studio.models.llama_loader``.
 """
 
 from pathlib import Path
+from typing import Any
 
 
 def load_model_info(model_path: str) -> dict:

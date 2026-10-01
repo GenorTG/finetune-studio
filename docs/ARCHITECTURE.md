@@ -3,7 +3,13 @@
 > Self-hosted fine-tuning studio for local LLMs: file library → RAG prep → agentic
 > Q&A mining → LoRA/QLoRA training → GGUF export → benchmarks → single-model
 > inference chat. FastAPI + Jinja2 SSR with a terminal (tmux/neovim) aesthetic.
-> ~21k LOC Python, one SQLite DB, zero cloud dependencies.
+> ~42k LOC Python (223 files), one SQLite DB, zero cloud dependencies.
+>
+> For file-by-file detail, see **§10 Module reference** — 11 docs totaling
+> ~4,700 lines, produced by a full from-scratch read-every-file audit
+> (2026-10-01) that also found and fixed ~35 real bugs and deleted ~2,000
+> lines of confirmed-dead code along the way. This file stays the
+> 10,000-foot map; the module docs are the ground truth for any given file.
 
 ## 1. Entry points
 
@@ -33,9 +39,14 @@ src/finetune_studio/
 │   └── shared_models.py, converter.py, organizer.py, validator.py, rag_eval.py
 ├── models/
 │   ├── registry.py      GGUF/safetensors discovery (scan_models)
-│   ├── manager.py       ModelManager (legacy — slated for deletion in Stage 8)
+│   ├── manager.py       ModelManager — owns the one shared InferenceEngine
+│   │                    via its `.engine` property (see §4; NOT legacy, live)
+│   ├── llama_loader.py  ★ the one true `llama_cpp.Llama()` builder — every
+│   │                    GGUF load (provider, engine, helper) goes through
+│   │                    `load_llama_gguf()`; GH-AAA no-mixed-offload contract
 │   ├── providers.py     provider rows (local_gguf / external_api) + OpenAI-compat calls
-│   └── loader.py        model info (arch, size, quant) for UI
+│   └── loader.py        model info (arch, size, quant) for UI — live, used by
+│                        routes/models.py + routes/pages.py
 ├── training/
 │   ├── engine.py        TrainingEngine: TRL SFTTrainer, LoRA/QLoRA/full, on_update hook
 │   ├── data.py          JSONL → datasets.Dataset
@@ -48,9 +59,14 @@ src/finetune_studio/
 │   │                    GGUF (llama-cpp-python) or HF (transformers). Idle auto-unload
 │   │                    (FTS_IDLE_TIMEOUT, default 1800s). Chat-template aware.
 │   └── suite.py         prompt/response test suites
-├── benchmarks/          real_benchmarks (public sets), tool_calling, scoring, samplers
-├── templates/           chat-template renderer (GGUF metadata / Jinja2) — Stage 8 core
-├── compare/engine.py    A-vs-B model comparison (requests → external APIs)
+├── benchmarks/          real_benchmarks.py (public MMLU/GSM8K/HellaSwag sets,
+│                        real + offline), suite_defs.py (WebUI suite discovery),
+│                        comparison.py (the live A-vs-B model comparator)
+├── templates/           chat-template renderer (GGUF metadata / Jinja2) — the
+│                        canonical Jinja2 rendering path, single source of truth
+├── compare/             retired 2026-10-01 — was a fully dead, unwired
+│                        duplicate of benchmarks/comparison.py's ModelComparator;
+│                        deleted, `__init__.py` kept as a pointer docstring
 └── webui/
     ├── app.py           ★ composition root: singletons + router mounts (see §3)
     ├── routes/          one module per domain (see §3)
@@ -76,7 +92,6 @@ src/finetune_studio/
 | `/api/training` | `training.py` | run start/status/events (SSE) |
 | `/api/testing`, `/api/compare`, `/api/benchmarks` | `testing.py`, `comparison.py`, `benchmarks.py` | suites, A/B, benchmarks |
 | `/api/projects` | `projects.py`, `rag.py` | CRUD + RAG corpora |
-| `/api/agentic` | `agentic.py` | tool-using agent (legacy surface, Stage 5 absorbs) |
 | `/api/system` | `system.py` | resources (RAM/VRAM), update endpoints via updates |
 | `/api/activity` | `activity.py` | live task feed via SSE (`GET /api/activity/events`); `GET /api/activity` is the one-shot snapshot fallback |
 | `/api/data*` | `data.py`, `data_editor.py`, `quality.py` | uploads, editor, quality scoring |
@@ -87,15 +102,20 @@ catch-alls (`/files/{fid}`) — FastAPI matches in declaration order.
 ## 4. Runtime state (app.py)
 
 ```python
-training_engine   = TrainingEngine()      # one active run; on_update → db persistence
-inference_engine  = InferenceEngine()     # THE single loaded model (Stage 8 rule)
-discovered_models = []                    # rescanned at lifespan startup
+training_engine   = TrainingEngine()          # one active run; on_update → db persistence
+inference_engine  = get_manager().engine      # THE single loaded model
+discovered_models = []                        # rescanned at lifespan startup
 ```
 
-- **Single-model rule:** exactly one model in VRAM at a time. Tabs differ only by
-  which tools/system-prompt they hand it (Stage 8 unifies this fully — see
-  `REFACTOR-SPEC.md`). `ModelManager` is legacy; chat falls back to matching
-  `inference_engine.model_path` against provider rows.
+- **Single-model rule:** exactly one model in VRAM at a time. `inference_engine`
+  IS `ModelManager`'s own `.engine` — the same object, not two coordinated
+  trackers (merged 2026-09-30; `models/manager.py` is live, not legacy). A
+  model loaded via any path (data-prep helper, Testing tab, chat) is
+  immediately visible to every other path that reads `inference_engine`. A
+  short-lived *second* `InferenceEngine()` is legitimately constructed by a
+  few one-shot benchmark/judge call sites — always only safe when the caller
+  frees the persistent engine's VRAM first via
+  `models.llama_loader.unload_all_models()` (GH-AAA contract).
 - **Lazy imports:** heavy ML libs (torch/transformers/trl/peft/llama_cpp) are
   imported *inside functions* — `uvicorn` boots in ~2s despite the ML stack.
   Don't "clean up" these into top-level imports.
@@ -156,3 +176,31 @@ Soft delete everywhere: `files/.RAW_TRASH/`, `.CONVERTED_TRASH/`, 7-day purge
 - `DEPENDENCIES.md` — what each Python dep is for, where it's imported
 - `DEPLOYMENT.md` — install, service, **update pipeline** (API + Settings UI)
 - `.agent/AGENT-WORKFLOW.md` (gitignored, local) — agentic working playbook
+
+## 10. Module reference (file-by-file, 2026-10-01 audit)
+
+Every `.py` file in `src/finetune_studio/` was read in full and documented
+in one of the 11 docs below, each covering a cohesive slice. Each doc
+states a file's actual behavior (not guessed), how it's wired into the
+rest of the app, and any gotchas/invariants — plus every discrepancy found
+and fixed during the read (dead code, silently dropped data, wrong
+signatures, etc.), with file:line evidence.
+
+| Doc | Covers |
+|---|---|
+| [`modules/data-parsers.md`](modules/data-parsers.md) | `data/parsers/` + `data/parsers.py`, `ocr.py`, `converter.py`, `sentence_transformer_local.py`, `validator.py` — file-format extraction |
+| [`modules/data-prep.md`](modules/data-prep.md) | `data/prep/` — QA-pair mining, coverage audit, dataset export |
+| [`modules/data-fs.md`](modules/data-fs.md) | `data/fs/` — project filesystem: files, chunks, parsed content, QA records |
+| [`modules/rag.md`](modules/rag.md) | `data/rag_portable/` (live) + `rag/` (legacy, still used in 3 places) — both RAG stacks, fully reconciled |
+| [`modules/webui-routes-core.md`](modules/webui-routes-core.md) | `webui/routes/{data,projects,models,exports,chat_v2,file_library,...}.py` — project lifecycle, data, settings, models |
+| [`modules/webui-routes-workflow.md`](modules/webui-routes-workflow.md) | `webui/routes/{training,data_prep,data_prep_chat,benchmarks,testing,rag,pages,activity}.py` |
+| [`modules/training.md`](modules/training.md) | `training/` — `TrainingEngine`, GGUF export, VRAM estimation, augmentation/guard modules |
+| [`modules/db-models.md`](modules/db-models.md) | `db/` (SQLite CRUD) + `models/` (loading, registry, providers) |
+| [`modules/testing-engine.md`](modules/testing-engine.md) | `testing/` — `InferenceEngine`, suite builders/runners, judging, scoring |
+| [`modules/benchmarks-compare.md`](modules/benchmarks-compare.md) | `benchmarks/` (public MMLU/GSM8K/HellaSwag + comparison) — `compare/` retired as a dead duplicate |
+| [`modules/core-cli-entrypoints.md`](modules/core-cli-entrypoints.md) | `webui/app.py` + non-route helpers, `cli/`, top-level `config.py`/`naming.py`/`__init__.py`, `templates/` |
+
+**Known gaps not fixed in the 2026-10-01 pass** (flagged by multiple lanes, need a product decision rather than a blind fix — see `HANDOFF.md`):
+- Three overlapping export-listing routes (`training.py`, `exports.py` ×2) — pick one, delete the others.
+- `webui/routes/projects.py`'s `/rags/{rid}/*` (legacy RAGManager) and `webui/routes/comparison.py`'s `/api/compare/*` have no frontend caller — migrate onto `rag_portable`/delete, or document as intentional back-compat.
+- `config.py`'s `Settings.rag_store_path`/`rag_embedding_model` duplicate `Settings.rag.store_path`/`embedding_model` with nothing syncing them.

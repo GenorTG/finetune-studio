@@ -101,13 +101,16 @@ def create_case(benchmark_id: str, run_id: str, name: str, category: str,
         c.execute(
             "INSERT INTO benchmark_cases (id, benchmark_id, run_id, case_name, category, "
             "question, correct_answer, model_answer, transcript, judge, judge_model, "
-            "verdict, judge_reasoning, scored_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "verdict, judge_reasoning, scored_at, scoring_method, validity, error, "
+            "judge_input, source_id, chunk_idx) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 cid, benchmark_id, run_id, name, category,
                 question, correct_answer, model_answer,
                 json.dumps(transcript), judge, judge_model,
                 verdict, judge_reasoning, scored_at,
+                scoring_method, validity, error,
+                json.dumps(judge_input or {}), source_id, int(chunk_idx or 0),
             ),
         )
     return cid

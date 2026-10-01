@@ -717,13 +717,64 @@ python -m finetune_studio.data.rag rebuild-vectors /path/to/corpus [--embedder N
         )
 
     def remove_source(self, source_id: str) -> bool:
-        """Remove a single source from the corpus by its document id."""
+        """Remove a single source — and its chunks/vectors/BM25 entries — by document id.
+
+        Purges every row whose ``document_id`` matches *source_id* from
+        chunks.parquet, vectors.npy, vectors.idx.json and bm25.json, and drops
+        the matching entry from the manifest's ``documents_meta``. Without this,
+        a "removed" source's chunks stayed fully searchable and still appeared
+        in ``list_sources()`` — the DELETE endpoint reported success while the
+        source remained live in search results.
+        """
         removed = False
         sources_dir = self.dir / "sources"
         if sources_dir.exists():
             for f in sources_dir.glob(f"{source_id}*.txt"):
                 f.unlink()
                 removed = True
+
+        if not self.chunks_path.exists():
+            return removed
+
+        pd = try_import_pandas()
+        chunks_df = pd.read_parquet(self.chunks_path)
+        if "document_id" not in chunks_df.columns:
+            return removed
+        keep_mask = (chunks_df["document_id"] != source_id).to_numpy()
+        if keep_mask.all():
+            return removed
+        removed = True
+
+        kept_df = chunks_df[keep_mask].reset_index(drop=True)
+        kept_df.to_parquet(self.chunks_path, index=False)
+
+        if self.vectors_path.exists():
+            vectors = np.load(self.vectors_path)
+            np.save(self.vectors_path, vectors[keep_mask])
+
+        idx_map = {row["id"]: i for i, row in enumerate(kept_df.to_dict("records"))}
+        write_json(self.idx_path, idx_map)
+
+        bm25 = BM25Index.build(kept_df["text"].tolist())
+        write_json(self.bm25_path, bm25.to_dict())
+
+        if self.manifest_path.exists():
+            manifest = Manifest.from_json(read_json(self.manifest_path))
+            extra = manifest.extra or {}
+            meta = extra.get("documents_meta")
+            if isinstance(meta, list):
+                extra["documents_meta"] = [
+                    d for d in meta
+                    if str(d.get("document_id") or d.get("id") or "") != source_id
+                ]
+                manifest.extra = extra
+            manifest.documents = (
+                int(kept_df["document_id"].nunique()) if len(kept_df) else 0
+            )
+            manifest.chunks = len(kept_df)
+            manifest.updated_at = time.time()
+            write_json(self.manifest_path, manifest.to_json())
+
         return removed
 
     def clear_sources(self) -> None:

@@ -10,7 +10,13 @@ from ._base import cli_run, make_result
 
 def parse(path: Path) -> dict:
     raw = path.read_text(encoding="utf-8", errors="replace")
-    data = json.loads(raw) if raw.strip() else None
+    try:
+        data = json.loads(raw) if raw.strip() else None
+    except json.JSONDecodeError as e:
+        # Fall back to raw text so a malformed JSON file degrades to a
+        # warning instead of crashing whatever is iterating many files.
+        return make_result(raw, {"type": "json", "parse_error": str(e), "fallback": "text"},
+                           parser="json_v1", warnings=[f"JSON parse failed: {e}"])
     # Pretty-printed JSON is great AI-readable text
     text = json.dumps(data, indent=2, ensure_ascii=False) if data is not None else ""
     structured = {

@@ -5,9 +5,12 @@ Single responsibility: durable, append-only event log of every project action.
 from __future__ import annotations
 
 import json
+import logging
 import time
 
 from finetune_studio.data.fs.paths import project_dir
+
+log = logging.getLogger(__name__)
 
 
 def log_ingestion(pid: str, event: dict) -> None:
@@ -26,6 +29,7 @@ def read_ingestion_log(pid: str, limit: int = 200) -> list[dict]:
     if not log_path.exists():
         return []
     out = []
+    skipped = 0
     lines = log_path.read_text(encoding="utf-8").splitlines()
     for line in lines[-limit:]:
         line = line.strip()
@@ -34,5 +38,8 @@ def read_ingestion_log(pid: str, limit: int = 200) -> list[dict]:
         try:
             out.append(json.loads(line))
         except Exception:
+            skipped += 1
             continue
+    if skipped:
+        log.warning("read_ingestion_log(%s): skipped %d malformed line(s) in %s", pid, skipped, log_path)
     return out

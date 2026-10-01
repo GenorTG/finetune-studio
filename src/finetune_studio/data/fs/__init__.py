@@ -43,20 +43,20 @@ data/fs/
   ingestion.py    — logs/ingestions.jsonl append + read
   qa.py           — qa/pairs and qa/sources on disk
 """
-from finetune_studio.data.fs.chunks import write_chunks  # noqa: I001
-from finetune_studio.data.fs.files import delete_file, list_files, store_file
-from finetune_studio.data.fs.ingestion import log_ingestion, read_ingestion_log
-from finetune_studio.data.fs.metadata import (
+from finetune_studio.data.fs.chunks import write_chunks  # noqa: F401, I001
+from finetune_studio.data.fs.files import delete_file, list_files, store_file  # noqa: F401
+from finetune_studio.data.fs.ingestion import log_ingestion, read_ingestion_log  # noqa: F401
+from finetune_studio.data.fs.metadata import (  # noqa: F401
     FileMetadata,
     _safe_filename,
     hash_bytes,
     read_file_metadata,
     update_file_metadata,
 )
-from finetune_studio.data.fs.parsed import write_parsed_outputs
-from finetune_studio.data.fs.paths import file_dir, project_dir, root
-from finetune_studio.data.fs.project import read_project_json, write_project_json
-from finetune_studio.data.fs.qa import (
+from finetune_studio.data.fs.parsed import write_parsed_outputs  # noqa: F401
+from finetune_studio.data.fs.paths import file_dir, project_dir, root  # noqa: F401
+from finetune_studio.data.fs.project import read_project_json, write_project_json  # noqa: F401
+from finetune_studio.data.fs.qa import (  # noqa: F401
     delete_qa_source,
     list_qa_pairs,
     list_qa_sources,
@@ -66,26 +66,3 @@ from finetune_studio.data.fs.qa import (
     write_qa_pair,
     write_qa_source,
 )
-from finetune_studio.data.fs.chunks import write_chunks  # noqa: F401, F811
-from finetune_studio.data.fs.files import delete_file, list_files, store_file  # noqa: F401, F811
-from finetune_studio.data.fs.ingestion import log_ingestion, read_ingestion_log  # noqa: F401, F811
-from finetune_studio.data.fs.metadata import (
-    FileMetadata,  # noqa: F401, F811
-    _safe_filename,  # noqa: F401, F811
-    hash_bytes,  # noqa: F401, F811
-    read_file_metadata,  # noqa: F401, F811
-    update_file_metadata,  # noqa: F401, F811
-)  # noqa: F401, RUF100
-from finetune_studio.data.fs.parsed import write_parsed_outputs  # noqa: F401, F811
-from finetune_studio.data.fs.paths import file_dir, project_dir, root  # noqa: F401, F811
-from finetune_studio.data.fs.project import read_project_json, write_project_json  # noqa: F401, F811
-from finetune_studio.data.fs.qa import (
-    delete_qa_source,  # noqa: F401, F811
-    list_qa_pairs,  # noqa: F401, F811
-    list_qa_sources,  # noqa: F401, F811
-    read_qa_source,  # noqa: F401, F811
-    register_qa_source,  # noqa: F401, F811
-    update_qa_pair,  # noqa: F401, F811
-    write_qa_pair,  # noqa: F401, F811
-    write_qa_source,  # noqa: F401, F811
-)  # noqa: F401, RUF100

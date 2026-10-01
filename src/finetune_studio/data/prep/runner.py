@@ -216,6 +216,14 @@ class DataPrepRunner:
             # Parsing fallbacks stay in parse_qa_json; validation is post-parse.
             pairs = parse_qa_json(raw, self.qa_per_chunk)
             if not pairs:
+                # The model replied but no {"q","a"} pair could be extracted
+                # (empty array, malformed JSON, refusal prose, etc). Record
+                # it — otherwise this chunk vanishes from the ingestion log
+                # with no trace until coverage_fill silently backfills it.
+                pfs.log_ingestion(self.pid, {
+                    "event": "qa_chunk_unparsed", "sha256": meta.sha256,
+                    "chunk_index": i, "raw_preview": raw[:200],
+                })
                 continue
             batch = validate_qa_batch(
                 pairs, chunk, seen_questions=seen_questions,
@@ -275,6 +283,7 @@ class DataPrepRunner:
             fill = fill_coverage_gaps(
                 self.pid, self.source_id, meta.sha256,
                 chunk_texts={i: c for i, c in enumerate(chunks, 1)},
+                filename=self.filename,
             )
             fill_summary = fill.as_dict()
             fill_pairs = fill.pairs_created

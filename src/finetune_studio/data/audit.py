@@ -16,6 +16,7 @@ from finetune_studio.data import project_filesystem as pfs
 from finetune_studio.data.fs.paths import file_dir
 from finetune_studio.data.parsers import parse_bytes
 from finetune_studio.data.prep.chunker import chunk_text
+from finetune_studio.data.prep.export import deduplicate_qa_pairs
 from finetune_studio.data.prep.qa_validate import content_tokens, token_overlap_ratio
 
 
@@ -145,6 +146,16 @@ def audit_qa_pairs(pid: str, *, exported_path: str | None = None) -> dict[str, A
             "uncovered_chunks": [i for i in range(1, total + 1) if i not in covered],
         }
 
+    # The export step legitimately collapses duplicates that share the same
+    # (source, chunk, normalized question) — e.g. two mining runs approving
+    # the same question for the same chunk. Comparing the raw export line
+    # count against len(pairs) flagged that EXPECTED collapse as data loss,
+    # which would mask a real loss (parser/write failure) behind the same
+    # noisy error. Run the same dedup the exporter uses so only an
+    # unexplained shortfall is reported.
+    expected_export_count = len(deduplicate_qa_pairs(pairs))
+    duplicate_pairs_collapsed = len(pairs) - expected_export_count
+
     export_count = None
     export_errors: list[str] = []
     if exported_path:
@@ -161,12 +172,14 @@ def audit_qa_pairs(pid: str, *, exported_path: str | None = None) -> dict[str, A
                     export_count += 1
                 except json.JSONDecodeError:
                     export_errors.append(f"invalid_jsonl_line:{line_no}")
-            if export_count != len(pairs):
+            if export_count != expected_export_count:
                 export_errors.append("approved_pair_count_differs_from_export_count")
 
     return {
         "project_id": pid,
         "approved_pair_count": len(pairs),
+        "expected_export_count": expected_export_count,
+        "duplicate_pairs_collapsed": duplicate_pairs_collapsed,
         "source_count": len(sources),
         "source_coverage": source_coverage,
         "errors": errors + [{"error": e} for e in export_errors],

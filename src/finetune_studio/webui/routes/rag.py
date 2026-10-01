@@ -410,12 +410,27 @@ async def rag_build_progress(pid: str):
 @router.post("/{pid}/rag/rebuild-vectors")
 async def rag_rebuild_vectors(pid: str, req: RebuildVectorsRequest):
     """Re-embed with (possibly new) embedder. Loads + replaces vectors.npy."""
-    from finetune_studio.data.rag_portable import PortableRAG
+    from finetune_studio.data.rag_portable import Manifest, PortableRAG
     rag = PortableRAG(_corpus_dir(pid))
     if not rag.exists():
         return JSONResponse({"error": "no corpus"}, status_code=404)
+    embedder = req.embedder
+    if not embedder:
+        # ``POST /rag/settings`` writes a changed embedder to
+        # ``rag_settings.embedder`` only (see rag_patch_settings) — the
+        # active vectors still carry the OLD embedder in
+        # ``embedding_model.name`` until a rebuild runs. Without this
+        # fallback, rebuild_vectors(embedder=None) defaults to
+        # ``embedding_model.name`` (store.py), so a settings-patched
+        # embedder change is silently dropped on the very rebuild call
+        # the settings endpoint's docstring says is required to apply it.
+        try:
+            m = Manifest.from_json(json.loads((_corpus_dir(pid) / "manifest.json").read_text()))
+            embedder = m.rag_settings.embedder or None
+        except Exception:  # noqa: BLE001
+            embedder = None
     try:
-        result = rag.rebuild_vectors(embedder=req.embedder)
+        result = rag.rebuild_vectors(embedder=embedder)
         return {"ok": True, **result}
     except Exception as e:
         log.exception("rebuild failed")

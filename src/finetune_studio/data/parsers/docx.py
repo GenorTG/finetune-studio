@@ -27,12 +27,17 @@ def parse(path: Path) -> dict:
                 level = 0
             headings.append({"level": level, "text": p.text.strip()})
     tables = []
+    table_lines = []
     for t in doc.tables:
         rows = []
         for row in t.rows:
-            rows.append([cell.text.strip() for cell in row.cells])
+            cells = [cell.text.strip() for cell in row.cells]
+            rows.append(cells)
+            table_lines.append(" | ".join(cells))
         tables.append({"rows": rows})
     text = "\n".join(paragraphs)
+    if table_lines:
+        text = text + ("\n\n" if text else "") + "\n".join(table_lines)
     structured = {
         "type": "docx",
         "paragraph_count": len(paragraphs),

@@ -331,6 +331,17 @@ class InferenceEngine:
         # Bare </think> preambles (thinking disabled but model still emits the closer)
         response = re.sub(r"^</think>\s*", "", response).strip()
         response = response.lstrip("\n")
+        # Honor stop sequences the same way the GGUF path does (llama.cpp
+        # truncates at the first match) — HF has no native `stop=` kwarg for
+        # `generate()`, so without this the parameter was silently ignored
+        # for every non-GGUF model.
+        if stop:
+            cut = min(
+                (idx for idx in (response.find(s) for s in stop if s) if idx != -1),
+                default=-1,
+            )
+            if cut != -1:
+                response = response[:cut]
         return response
 
     @staticmethod

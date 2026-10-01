@@ -33,11 +33,17 @@ from finetune_studio.models.registry import ModelInfo, scan_models
 from finetune_studio.training.engine import TrainingEngine
 
 training_engine = TrainingEngine()
-# The ONE InferenceEngine instance in this process. ModelManager owns it
-# (via the .engine property) — every named-provider load (data-prep's
+# The ONE *persistent* InferenceEngine instance in this process. ModelManager
+# owns it (via the .engine property) — every named-provider load (data-prep's
 # helper, /api/providers/*) delegates to this exact object, so this name
 # and ModelManager's internal engine can never independently hold a model
-# at the same time. Do not construct a second InferenceEngine() anywhere.
+# at the same time. Some routes (benchmarks.py, projects.py) do construct a
+# short-lived second InferenceEngine() for a one-shot judge/benchmark run —
+# that's fine ONLY if they free this engine's VRAM first via
+# llama_loader.unload_all_models() (see benchmarks.py's
+# _unload_global_inference) and unload their temp engine in a finally block.
+# A second engine constructed without unloading this one first silently
+# risks mixed GPU/CPU offload (GH-AAA) from two models resident at once.
 inference_engine = get_manager().engine
 discovered_models: list[ModelInfo] = []
 

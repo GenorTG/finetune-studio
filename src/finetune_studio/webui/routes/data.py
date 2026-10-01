@@ -18,11 +18,14 @@ async def list_files():
 
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):  # noqa: B008
-    dest = os.path.join(settings.data_dir, file.filename)
+    # Strip any directory components from the client-supplied filename —
+    # otherwise a name like "../../etc/cron.d/x" escapes settings.data_dir.
+    safe_name = os.path.basename(file.filename or "upload")
+    dest = os.path.join(settings.data_dir, safe_name)
     content = await file.read()
     async with aiofiles.open(dest, "wb") as f:
-        f.write(content)
-    return {"path": dest, "name": file.filename, "size": len(content)}
+        await f.write(content)
+    return {"path": dest, "name": safe_name, "size": len(content)}
 
 @router.get("/validate")
 async def validate(path: str):

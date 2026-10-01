@@ -207,6 +207,7 @@ def read_qa_source(pid: str, source_id: str) -> dict:
     try:
         return json.loads(p.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
+        log.warning("qa source %s/%s is corrupt/unreadable at %s", pid, source_id, p, exc_info=True)
         return {}
 
 
@@ -215,16 +216,20 @@ def list_qa_pairs(pid: str, source_id: str | None = None, status: str | None = N
     if not pairs_dir.exists():
         return []
     out = []
+    skipped = 0
     for p in sorted(pairs_dir.glob("*.json")):
         try:
             qa = json.loads(p.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001, S112
+            skipped += 1
             continue
         if source_id and qa.get("source_id") != source_id:
             continue
         if status and qa.get("status") != status:
             continue
         out.append(qa)
+    if skipped:
+        log.warning("list_qa_pairs(%s): skipped %d corrupt/unreadable pair file(s) under %s", pid, skipped, pairs_dir)
     return out
 
 
@@ -233,11 +238,15 @@ def list_qa_sources(pid: str) -> list[dict]:
     if not src_dir.exists():
         return []
     out = []
+    skipped = 0
     for p in src_dir.glob("*.json"):
         try:
             out.append(json.loads(p.read_text(encoding="utf-8")))
         except Exception:  # noqa: BLE001, S112
+            skipped += 1
             continue
+    if skipped:
+        log.warning("list_qa_sources(%s): skipped %d corrupt/unreadable source file(s) under %s", pid, skipped, src_dir)
     return sorted(out, key=lambda x: x.get("uploaded_at", 0), reverse=True)
 
 
@@ -248,6 +257,7 @@ def update_qa_pair(pid: str, qa_id: str, **fields) -> dict | None:
     try:
         qa = json.loads(p.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
+        log.warning("update_qa_pair(%s, %s): pair file corrupt/unreadable at %s", pid, qa_id, p, exc_info=True)
         return None
     for k, v in fields.items():
         qa[k] = v
@@ -267,6 +277,11 @@ def delete_qa_source(pid: str, source_id: str) -> bool:
                 if qa.get("source_id") == source_id:
                     p.unlink()
             except Exception:  # noqa: BLE001, S112
+                log.warning(
+                    "delete_qa_source(%s, %s): could not inspect %s to decide "
+                    "whether it belongs to this source; it will NOT be deleted",
+                    pid, source_id, p, exc_info=True,
+                )
                 continue
     if src.exists():
         src.unlink()

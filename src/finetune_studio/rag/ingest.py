@@ -51,27 +51,6 @@ def extract_text(file_path: str) -> str:
     return result.get("text", "")
 
 
-def extract_pdf(path: Path) -> str:
-    """Kept as a fallback for callers that want PDF-only extraction. Prefers
-    pypdf, falls back to pdftotext, then OCR. Use extract_text() for the
-    full multi-format pipeline.
-    """
-    try:
-        from finetune_studio.data.parsers.pdf import parse as pdf_parse
-        return pdf_parse(path).get("text", "")
-    except Exception as e:  # noqa: BLE001
-        return f"[extract_pdf failed: {e}]"
-
-
-def extract_docx(path: Path) -> str:
-    """Kept for backward-compat. Use extract_text() for full pipeline."""
-    try:
-        from finetune_studio.data.parsers.docx import parse as docx_parse
-        return docx_parse(path).get("text", "")
-    except Exception as e:  # noqa: BLE001
-        return f"[extract_docx failed: {e}]"
-
-
 def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50,
                metadata: dict | None = None, doc_id: str = "") -> list[Chunk]:
     """Split text into overlapping word-based chunks. Each Chunk has a unique
@@ -143,7 +122,6 @@ def ingest_directory(directory: str, chunk_size: int = 512, overlap: int = 50,
             uniq.append(f)
     for path in uniq:
         if not path.is_file():
-            continue
             continue
         try:
             doc = ingest_file(str(path), chunk_size=chunk_size, overlap=overlap)

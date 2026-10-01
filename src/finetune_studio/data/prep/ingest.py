@@ -5,6 +5,7 @@ so both write ``files/<sha12>/parsed.txt`` where ``read_source`` looks.
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,8 @@ from typing import Any
 from finetune_studio.data import project_filesystem as pfs
 from finetune_studio.data.fs.paths import file_dir
 from finetune_studio.data.prep.chunker import chunk_text
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -56,16 +59,44 @@ def is_already_parsed(pid: str, sha256: str) -> bool:
 
 
 def load_existing_chunks(pid: str, sha256: str) -> list[str]:
-    """Load chunk texts previously written under files/<sha>/chunks/."""
+    """Load chunk texts previously written under files/<sha>/chunks/.
+
+    Chunks are written as ``NNNN.txt`` by index (see ``fs.chunks.write_chunks``).
+    Earlier this walked ``sorted(glob("*.txt"))`` and appended in that order
+    regardless of the actual filename — if ``0002.txt`` was ever missing
+    (partial write, manual deletion), every chunk after the gap silently
+    shifted down one 1-based index. Callers (coverage_fill, the mining
+    runner) key everything off that index, so the shift would mislabel
+    chunk 3's text as chunk 2 with no error anywhere. Indexing by the
+    filename's own number keeps a gap a gap (an empty placeholder) instead
+    of quietly renumbering everything after it.
+    """
     chunks_dir = file_dir(pid, sha256) / "chunks"
     if not chunks_dir.is_dir():
         return []
+    paths = sorted(chunks_dir.glob("*.txt"))
+    if not paths:
+        return []
     out: list[str] = []
-    for p in sorted(chunks_dir.glob("*.txt")):
+    next_idx = 0
+    for p in paths:
+        try:
+            idx = int(p.stem)
+        except ValueError:
+            continue
+        while next_idx < idx:
+            log.warning(
+                "chunk file %04d.txt missing under %s — leaving a gap instead "
+                "of reindexing later chunks",
+                next_idx, chunks_dir,
+            )
+            out.append("")
+            next_idx += 1
         try:
             out.append(p.read_text(encoding="utf-8"))
         except OSError:
-            continue
+            out.append("")
+        next_idx = idx + 1
     return out
 
 

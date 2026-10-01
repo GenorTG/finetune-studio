@@ -191,9 +191,21 @@ class DataAugmenter:
         augmented = list(data)
 
         for weakness in weaknesses:
-            if weakness in self.generators:
-                new_data = self.generators[weakness](count=min(50, len(data)))
-                augmented.extend(new_data)
+            if weakness not in self.generators:
+                continue
+            generator = self.generators[weakness]
+            n = min(50, len(data))
+            # generate_language_balanced_data/generate_persona_preservation
+            # transform existing dataset items (they need the source data,
+            # not just a count) and use different second-parameter names
+            # than the other three count-only generators.
+            if weakness == "language_balance":
+                new_data = generator(data, target_en=n)
+            elif weakness == "persona_preservation":
+                new_data = generator(data, count=n)
+            else:
+                new_data = generator(count=n)
+            augmented.extend(new_data)
 
         random.shuffle(augmented)
         return augmented

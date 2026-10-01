@@ -82,12 +82,14 @@ def fill_all_project_gaps(pid: str) -> dict[str, Any]:
     for src in sources:
         sid = str(src.get("id") or "")
         sha = str(src.get("sha256") or "")
+        filename = str(src.get("filename") or src.get("name") or "")
         declared_chunks = int(src.get("chunk_count") or 0)
         try:
             chunks = load_existing_chunks(pid, sha) if sha else []
             result = fill_coverage_gaps(
                 pid, sid, sha,
                 chunk_texts={i: c for i, c in enumerate(chunks, 1)} or None,
+                filename=filename,
             )
         except Exception as exc:
             # a source whose parsed artifacts are gone must surface, not vanish
@@ -131,12 +133,14 @@ def fill_sources_gaps(pid: str, source_ids: list[str]) -> dict[str, Any]:
     for src in sources:
         sid = str(src.get("id") or "")
         sha = str(src.get("sha256") or "")
+        filename = str(src.get("filename") or src.get("name") or "")
         declared_chunks = int(src.get("chunk_count") or 0)
         try:
             chunks = load_existing_chunks(pid, sha) if sha else []
             result = fill_coverage_gaps(
                 pid, sid, sha,
                 chunk_texts={i: c for i, c in enumerate(chunks, 1)} or None,
+                filename=filename,
             )
         except Exception as exc:
             log.exception("coverage fill failed for source %s", sid)
@@ -254,6 +258,7 @@ def fill_coverage_gaps(
     sha256: str = "",
     *,
     chunk_texts: dict[int, str] | None = None,
+    filename: str = "",
 ) -> FillResult:
     """Create approved extractive pairs for every chunk with no accepted pair.
 
@@ -261,6 +266,10 @@ def fill_coverage_gaps(
     omitted (the normal case), chunks are loaded from the stored parsed
     artifacts via the source's sha256 — the same files the mining runner
     read, so the filler covers exactly what was parsed.
+
+    ``sha256``/``filename`` are stamped onto each pair's provenance when the
+    caller has them, so an extractive pair carries the same traceability as
+    a model-mined one instead of leaving those fields blank.
 
     Reads current pairs from disk to decide what is uncovered, writes new
     pairs with ``origin="coverage_fill"``, and returns a FillResult.
@@ -278,7 +287,18 @@ def fill_coverage_gaps(
     for idx in gaps:
         text = chunk_texts[idx]
         if not text or not text.strip():
+            # Module contract says uncoverable chunks are "surfaced as
+            # uncovered — never silently dropped" (see module docstring).
+            # A no-content chunk (deleted/missing chunk file, blank text)
+            # used to increment skipped_no_content and `continue` WITHOUT
+            # appending to chunks_still_uncovered — the export gate in
+            # DataPrepRunner only reads chunks_still_uncovered, so a chunk
+            # that lost its text entirely passed silently as "covered"
+            # while still never getting a training pair.
             result.skipped_no_content += 1
+            result.chunks_still_uncovered.append(
+                {"chunk_idx": idx, "chars": 0, "reason": "no_content"}
+            )
             continue
         made = _make_pairs_from_chunk(
             text, idx,
@@ -292,8 +312,8 @@ def fill_coverage_gaps(
             qa = build_qa_record(
                 qa_id=qa_id,
                 pair=_SimplePair(question=q, answer=a),
-                provenance=Provenance(source_id=source_id, sha256="",
-                                      filename="", chunk_idx=idx),
+                provenance=Provenance(source_id=source_id, sha256=sha256,
+                                      filename=filename, chunk_idx=idx),
                 chunk_text=text[:1500],
                 difficulty="medium",
                 style="extractive",

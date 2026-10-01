@@ -44,7 +44,7 @@ class VectorStore:
         self.store_path = store_path
         self._client = None
         self._collection = None
-        self._embedder = None
+        self._embedders: dict[str, object] = {}
 
     def _get_client(self):
         if self._client is None:
@@ -62,10 +62,19 @@ class VectorStore:
         return self._collection
 
     def _get_embedder(self, embedding_model: str | None = None):
-        if self._embedder is None:
+        """Return a SentenceTransformer for *embedding_model*, caching per model name.
+
+        Previously this ignored ``embedding_model`` entirely and always loaded
+        "all-MiniLM-L6-v2" — callers that passed a configured model (e.g.
+        ``settings.rag.embedding_model``) silently got a different embedder,
+        with no error even when the cached embeddings were built from another
+        model's vector space.
+        """
+        name = embedding_model or "all-MiniLM-L6-v2"
+        if name not in self._embedders:
             from sentence_transformers import SentenceTransformer
-            self._embedder = SentenceTransformer("all-MiniLM-L6-v2")
-        return self._embedder
+            self._embedders[name] = SentenceTransformer(name)
+        return self._embedders[name]
 
     def add_chunks(self, chunks: list, batch_size: int = 100, embedding_model: str | None = None) -> int:
         """Add chunks to the vector store. Returns count added."""

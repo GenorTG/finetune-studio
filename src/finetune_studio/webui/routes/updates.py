@@ -163,7 +163,7 @@ async def update_events():
 
 
 @router.get("/system/update/{uid}")
-async def get_update_status(uid: str):
+async def get_update_status(uid: str, full: bool = False):
     """Status + log tail for one update attempt."""
     row = db.get_update(uid)
     if not row:
@@ -171,7 +171,6 @@ async def get_update_status(uid: str):
     # Compact the log_text in the response by default \u2014 a full 256KB
     # blob is too big for a poll request. The UI can ask for the full
     # text via ?full=1 if needed.
-    full = False  # parsed from query in real route; static here for clarity
     log_text = row.get("log_text") or ""
     row["log_tail"] = log_text[-4000:] if not full else log_text
     row["log_length"] = len(log_text)

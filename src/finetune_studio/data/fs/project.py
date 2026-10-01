@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from finetune_studio.data.fs.paths import project_dir
+
+log = logging.getLogger(__name__)
 
 
 def write_project_json(pid: str, data: dict) -> Path:
@@ -20,4 +23,5 @@ def read_project_json(pid: str) -> dict:
     try:
         return json.loads(p.read_text(encoding="utf-8"))
     except Exception:
+        log.warning("project.json for %s is corrupt/unreadable at %s", pid, p, exc_info=True)
         return {}

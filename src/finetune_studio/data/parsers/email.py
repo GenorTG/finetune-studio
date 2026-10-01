@@ -38,8 +38,15 @@ def parse(path: Path) -> dict:
             body = part.get_payload()
         if isinstance(body, str) and body.strip():
             parts_text.append(f"[{ctype}]\n{body}")
-    text = "\n\n".join(parts_text) if parts_text else msg.get_body(preferencelist=("plain",))
-    if not text:
+    if parts_text:
+        text = "\n\n".join(parts_text)
+    else:
+        body_part = msg.get_body(preferencelist=("plain", "html"))
+        try:
+            text = body_part.get_content() if body_part is not None else ""
+        except Exception:  # noqa: BLE001 — malformed MIME part content
+            text = ""
+    if not isinstance(text, str) or not text:
         text = raw  # last resort
     structured = {
         "type": "email",

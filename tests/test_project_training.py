@@ -68,9 +68,16 @@ def test_promote_returns_ok_and_run(client) -> None:
 
 
 def test_promote_unknown_run_errors(client) -> None:
+    """A missing run is a 404, like every other project sub-resource route.
+
+    Was previously a 200 with an {"error": ...} body — the same
+    200-with-error-body anti-pattern fixed elsewhere for missing projects
+    (see test_project_not_found_404.py); promote_run now shares the
+    _get_owned_run() guard used by the rest of routes/projects.py.
+    """
     pid = _project(client)
     r = client.post(f"/api/projects/{pid}/promote", json={"run_id": "nope"})
-    assert r.status_code == 200
+    assert r.status_code == 404
     assert r.json().get("error") == "run not found"
 
 

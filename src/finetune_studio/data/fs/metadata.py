@@ -6,11 +6,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Optional
 
 from finetune_studio.data.fs.paths import file_dir
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -57,6 +60,7 @@ def read_file_metadata(pid: str, sha256: str) -> Optional[FileMetadata]:
         d = json.loads(p.read_text(encoding="utf-8"))
         return FileMetadata(**d)
     except Exception:
+        log.warning("metadata.json for %s/%s is corrupt/unreadable at %s", pid, sha256, p, exc_info=True)
         return None
 
 
@@ -68,6 +72,8 @@ def update_file_metadata(pid: str, sha256: str, **fields) -> Optional[FileMetada
     for k, v in fields.items():
         if hasattr(meta, k):
             setattr(meta, k, v)
+        else:
+            log.warning("update_file_metadata(%s, %s): ignoring unknown field %r", pid, sha256, k)
     p = file_dir(pid, sha256) / "metadata.json"
     p.write_text(json.dumps(meta.to_json(), indent=2, ensure_ascii=False), encoding="utf-8")
     return meta

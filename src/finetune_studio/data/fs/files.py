@@ -13,6 +13,7 @@ Idempotent — re-uploading identical bytes is a no-op except for last_seen_at
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import time
 from pathlib import Path
@@ -25,6 +26,8 @@ from finetune_studio.data.fs.metadata import (
     update_file_metadata,
 )
 from finetune_studio.data.fs.paths import file_dir, project_dir
+
+log = logging.getLogger(__name__)
 
 
 def store_file(
@@ -63,6 +66,10 @@ def store_file(
         try:
             existing = json.loads(meta_path.read_text(encoding="utf-8"))
         except Exception:
+            # Corrupt metadata.json: fall back to an empty dict so the upload
+            # still succeeds, but this silently drops any prior aliases /
+            # history that existing metadata held — surface it.
+            log.warning("store_file(%s): metadata.json corrupt at %s, discarding prior history", pid, meta_path, exc_info=True)
             existing = {}
         aliases = list(existing.get("aliases", []))
         old_canonical = existing.get("original_filename")
