@@ -437,3 +437,69 @@ class TestExportRoute:
         assert len(rows) == 2
         quants = {row["quant"] for row in rows}
         assert quants == {"Q4_K_M", "Q8_0"}
+
+    def test_sync_multi_quant_registers_one_row_per_quant(
+        self, client, mock_settings, monkeypatch, tmp_path,
+    ):
+        """Regression (2026-10-01): a sync multi-quant GGUF export (the
+        ``quants`` list path used by the Export page) wrote 4 real .gguf
+        files to disk but only ONE row to model_exports — quants[0] (f16)
+        — and that row's size_bytes was the sum of every quant's bytes
+        (dir_size_bytes(gguf_dir)) misattributed to the single f16 file.
+        One DB row must exist per produced quant, each sized from its own
+        file, not the whole gguf/ directory.
+        """
+        from finetune_studio import db
+        from finetune_studio.training import run_export
+
+        pid = db.create_project(name="R", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r", base_model="m",
+                            settings_obj={})["id"]
+        out_dir = str(tmp_path / "run")
+        db.update_run(rid, output_path=out_dir)
+
+        gguf_dir = os.path.join(out_dir, "gguf")
+        os.makedirs(gguf_dir, exist_ok=True)
+        sizes = {"f16": 400, "Q4_K_M": 100}
+        files = []
+        for quant, size in sizes.items():
+            p = os.path.join(gguf_dir, f"model-{quant}.gguf")
+            with open(p, "wb") as f:
+                f.write(b"\x00" * size)
+            files.append(p)
+
+        def fake_export_trained_run(run, *, fmt, quants, force, base_model):
+            return {
+                "ok": True,
+                "status": "exported",
+                "format": "gguf",
+                "gguf_path": gguf_dir,
+                "files": files,
+                "quants": quants,
+            }
+
+        monkeypatch.setattr(
+            run_export, "export_trained_run", fake_export_trained_run,
+        )
+
+        r = client.post(
+            f"/api/projects/{pid}/runs/{rid}/export",
+            json={"format": "gguf", "quants": list(sizes)},
+        )
+        assert r.status_code == 200
+
+        rows = db.list_exports_for_run(rid)
+        assert len(rows) == 2, f"expected one row per quant, got {rows}"
+        by_quant = {row["quant"]: row for row in rows}
+        assert set(by_quant) == set(sizes)
+        for quant, size in sizes.items():
+            row = by_quant[quant]
+            assert row["status"] == "done"
+            assert row["size_bytes"] == size, (
+                f"{quant} row should be sized from its own file "
+                f"({size} bytes), not the combined gguf/ dir "
+                f"({row['size_bytes']} bytes)"
+            )
+            assert row["output_path"] == os.path.join(
+                gguf_dir, f"model-{quant}.gguf",
+            )

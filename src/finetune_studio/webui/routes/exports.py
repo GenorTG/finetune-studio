@@ -200,33 +200,80 @@ async def export_run(pid: str, rid: str, request: Request,
         ):
             art = payload.artifact_path()
             if art:
-                size = dir_size_bytes(art)
-                quant_label = (
-                    (payload.quants[0] if payload.quants else None)
-                    or payload.quant
-                    or ("safetensors" if fmt != "gguf" else DEFAULT_QUANT)
+                # A multi-quant GGUF request produces one file per quant
+                # (payload.files[i] <-> payload.quants[i], same order —
+                # see gguf_convert.verify_gguf_artifacts). One DB row per
+                # artifact, each sized from its own file, not the whole
+                # gguf/ directory's combined size attributed to a single
+                # row (that previously only recorded quants[0] = f16 with
+                # size_bytes equal to the sum of every quant's bytes).
+                per_quant = (
+                    fmt == "gguf"
+                    and payload.quants
+                    and payload.files
+                    and len(payload.files) == len(payload.quants)
                 )
                 try:
-                    row = db.create_export(
-                        project_id=pid,
-                        run_id=rid,
-                        format=fmt,
-                        quant=str(quant_label),
-                    )
-                    db.mark_export_done(
-                        row["id"],
-                        output_path=art,
-                        size_bytes=size,
-                        size_human=human_size(size),
-                    )
-                    payload = payload.model_copy(
-                        update={
-                            "export_id": row["id"],
-                            "output_path": payload.output_path or art,
-                            "size_bytes": size,
-                            "size_human": human_size(size),
-                        }
-                    )
+                    if per_quant:
+                        first_row_id: str | None = None
+                        for quant_label, file_path in zip(
+                            payload.quants, payload.files, strict=True,
+                        ):
+                            file_size = (
+                                os.path.getsize(file_path)
+                                if os.path.isfile(file_path)
+                                else 0
+                            )
+                            row = db.create_export(
+                                project_id=pid,
+                                run_id=rid,
+                                format=fmt,
+                                quant=str(quant_label),
+                            )
+                            db.mark_export_done(
+                                row["id"],
+                                output_path=file_path,
+                                size_bytes=file_size,
+                                size_human=human_size(file_size),
+                            )
+                            if first_row_id is None:
+                                first_row_id = row["id"]
+                        size = dir_size_bytes(art)
+                        payload = payload.model_copy(
+                            update={
+                                "export_id": first_row_id,
+                                "output_path": payload.output_path or art,
+                                "size_bytes": size,
+                                "size_human": human_size(size),
+                            }
+                        )
+                    else:
+                        size = dir_size_bytes(art)
+                        quant_label = (
+                            (payload.quants[0] if payload.quants else None)
+                            or payload.quant
+                            or ("safetensors" if fmt != "gguf" else DEFAULT_QUANT)
+                        )
+                        row = db.create_export(
+                            project_id=pid,
+                            run_id=rid,
+                            format=fmt,
+                            quant=str(quant_label),
+                        )
+                        db.mark_export_done(
+                            row["id"],
+                            output_path=art,
+                            size_bytes=size,
+                            size_human=human_size(size),
+                        )
+                        payload = payload.model_copy(
+                            update={
+                                "export_id": row["id"],
+                                "output_path": payload.output_path or art,
+                                "size_bytes": size,
+                                "size_human": human_size(size),
+                            }
+                        )
                 except Exception:
                     log.exception(
                         "failed to register sync export row for %s/%s",
