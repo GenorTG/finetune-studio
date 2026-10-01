@@ -3,15 +3,13 @@
    ------------------------------------------------------------
    Center-screen overlay, fuzzy-matched across:
      • Static nav (dashboard / projects / hf / inference)
-     • All projects × their 9 sub-pages
+     • All projects × their sub-pages
      • Recent destinations (localStorage, MRU-style)
    Multi-token query: every whitespace-separated token must
    match somewhere in the haystack (name, group, href).
    ============================================================ */
 (function () {
-  const PALETTE_OPEN = "fts.palette.open";
   const RECENT_KEY  = "fts.palette.recent";
-  const PROJ_CACHE  = "fts.palette.projects";      // cached list
   const PROJ_TTL_MS = 60 * 1000;                   // 1 min freshness
 
   const $ = (id) => document.getElementById(id);
@@ -168,7 +166,8 @@
       const recentItems = recent
         .map((href) => navIndex.find((it) => it.href === href))
         .filter(Boolean);
-      const restStatic = STATIC_NAV.slice(0, 4);
+      const recentHrefs = new Set(recentItems.map((it) => it.href));
+      const restStatic = STATIC_NAV.filter((it) => !recentHrefs.has(it.href));
       scored = [
         ...recentItems.map((it) => ({ ...it, _section: "recent" })),
         ...restStatic.map((it) => ({ ...it, _section: "static" })),
@@ -245,9 +244,12 @@
     }
   }
 
+  let _hideTimer = null;
+
   async function openPalette() {
     if (!palette) return;
     await rebuildIndex();
+    clearTimeout(_hideTimer);
     palette.hidden = false;
     backdrop.hidden = false;
     palette.getBoundingClientRect();
@@ -257,17 +259,15 @@
     input.focus();
     cursor = 0;
     renderResults("");
-    try { sessionStorage.setItem(PALETTE_OPEN, "1"); } catch (e) {}
   }
   function closePalette() {
     if (!palette) return;
     palette.classList.remove("open");
     backdrop.classList.remove("open");
-    setTimeout(() => {
+    _hideTimer = setTimeout(() => {
       palette.hidden = true;
       backdrop.hidden = true;
     }, 180);
-    try { sessionStorage.removeItem(PALETTE_OPEN); } catch (e) {}
   }
 
   /* ── Event wiring ─────────────────────────────────────────── */

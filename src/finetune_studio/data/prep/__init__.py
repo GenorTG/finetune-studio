@@ -9,16 +9,19 @@ strict validate -> persist accepted Q&A to qa/pairs/<id>.json + log ingestions
 LAYOUT
 ======
 data/prep/
-  __init__.py    — public API (re-exports the back-compat names)
-  chunker.py     — paragraph/sentence-aware text splitter
-  prompts.py     — system + user prompts for Q&A generation
-  parsers.py     — parse raw model JSON / line-list Q&A output
-  qa_validate.py — strict deterministic post-parse Q&A gates
-  scorer.py      — heuristic quality score for a single Q&A pair
-  generator.py   — resolve chat callable (manager or inference_engine)
-  ingest.py      — shared parse+chunk (promote path + DataPrepRunner)
-  runner.py      — DataPrepRunner + PrepProgress (the orchestrator)
-  export.py      — JSONL exporters (sharegpt / alpaca / openai)
+  __init__.py      — public API re-exports
+  chunker.py       — paragraph/sentence-aware text splitter
+  prompts.py       — system + user prompts for Q&A generation
+  parsers.py       — parse raw model JSON / line-list Q&A output
+  qa_validate.py   — strict deterministic post-parse Q&A gates
+  scorer.py        — heuristic quality score for a single Q&A pair
+  generator.py     — resolve the loaded helper's chat callable (helper only)
+  ingest.py        — shared parse+chunk (promote path + DataPrepRunner)
+  runner.py        — DataPrepRunner + PrepProgress (the orchestrator)
+  queued.py        — QueuedSourcePrep: path-only lazy wrapper for per-file queues
+  coverage_fill.py — deterministic extractive pairs for chunks with no approved pair
+  source_state.py  — derived per-source readiness/coverage summary
+  export.py        — JSONL exporters (sharegpt / alpaca / openai) + dedupe
 """
 
 from finetune_studio.data.prep.chunker import chunk_text

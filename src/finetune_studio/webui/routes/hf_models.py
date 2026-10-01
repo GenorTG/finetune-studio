@@ -5,6 +5,8 @@ inspect model cards, download a specific file or full repo to a local cache.
 
 Local cache: ~/.finetune-studio/hf_models/<repo_id>/<file>  (NOT the default
 HF hub cache, because we want a single user-facing directory listing).
+On disk ``/`` in the repo id becomes ``__``; ``GET /hf/local`` therefore
+reports that mangled directory name as ``repo_id``.
 """
 
 from __future__ import annotations
@@ -15,15 +17,34 @@ import re
 import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+from finetune_studio.webui.routes.models import (
+    refresh_model_registry as _refresh_model_registry,
+)
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 
 _LOCAL = Path.home() / ".finetune-studio" / "hf_models"
 _DOWNLOADS: dict[str, dict] = {}  # job_id -> progress dict (process-wide)
+_REPO_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def _local_dir(repo_id: str) -> Path:
+    """Cache dir for ``repo_id``; 400 on anything that could escape ``_LOCAL``.
+
+    Every ``/``-separated segment must be ``[A-Za-z0-9._-]+`` and not ``.`` or
+    ``..`` — otherwise ``DELETE /hf/local/..`` would ``rmtree`` the parent.
+    """
+    segments = repo_id.split("/")
+    if not all(
+        _REPO_SEGMENT.match(seg) and seg not in (".", "..") for seg in segments
+    ):
+        raise HTTPException(status_code=400, detail="invalid repo_id")
+    return _LOCAL / repo_id.replace("/", "__")
 
 
 # ── DTOs ────────────────────────────────────────────────────────────────
@@ -34,7 +55,6 @@ class SearchRequest(BaseModel):
     library: str | None = None           # transformers, sentence-transformers, ...
     sort: str = "downloads"                  # downloads | likes | trending
     limit: int = 24
-    full: bool = False                       # if True, no client-side filtering
 
 
 # ── Local model library ────────────────────────────────────────────────
@@ -47,13 +67,15 @@ def _local_models() -> list[dict]:
         if not repo_dir.is_dir():
             continue
         # Each repo can have a "snapshots" subdir (HF cache layout) or just files.
-        size = sum(p.stat().st_size for p in repo_dir.rglob("*") if p.is_file())
         files = []
+        size = 0
         for p in sorted(repo_dir.rglob("*")):
             if p.is_file():
+                n = p.stat().st_size
+                size += n
                 files.append({
                     "path": str(p.relative_to(_LOCAL)),
-                    "size_bytes": p.stat().st_size,
+                    "size_bytes": n,
                 })
         out.append({
             "repo_id": repo_dir.name,
@@ -96,6 +118,7 @@ def _search_hf(req: SearchRequest) -> list[dict]:
             models = api.list_models(
                 search=req.query or None,
                 pipeline_tag=pipeline_tag or None,
+                library=req.library or None,
                 sort=sort,
                 limit=req.limit * 4 + 20,
             )
@@ -163,7 +186,7 @@ def _model_info(repo_id: str) -> dict | None:
 @router.get("/hf/search")
 async def hf_search(q: str = "", task: str = "text-generation",
                    library: str | None = None,
-                   sort: str = "downloads", limit: int = 24):
+                   sort: str = "downloads", limit: int = Query(24, ge=1, le=100)):
     req = SearchRequest(query=q, task=task, library=library, sort=sort, limit=limit)
     return {"results": _search_hf(req), "task": task, "query": q}
 
@@ -187,6 +210,7 @@ async def hf_download(req: DownloadRequest, background: BackgroundTasks):
     """Start a background download; return immediately with a job_id.
     Track progress via /hf/download/progress?job_id=..."""
     from finetune_studio import db
+    _local_dir(req.repo_id)  # reject traversal before queueing
     job_row = db.create_hf_download(repo_id=req.repo_id, filename=req.filename or "")
     job_id = job_row["id"]
     _DOWNLOADS[job_id] = {
@@ -229,8 +253,12 @@ async def hf_download_cancel(job_id: str):
         row = db.get_hf_download(job_id)
         if row is None:
             return JSONResponse({"error": "unknown job_id"}, status_code=404)
+        if row.get("status") in ("completed", "error", "cancelled"):
+            return {"ok": True, "job_id": job_id, "status": row["status"]}
         db.mark_hf_download_cancelled(job_id)
         return {"ok": True, "job_id": job_id, "status": "cancelled"}
+    if p.get("status") in ("completed", "error", "cancelled"):
+        return {"ok": True, "job_id": job_id, "status": p["status"]}
     p["status"] = "cancelled"
     p["error"] = "user cancelled"
     try:
@@ -241,22 +269,6 @@ async def hf_download_cancel(job_id: str):
     return {"ok": True, "job_id": job_id, "status": "cancelled"}
 
 
-def _refresh_model_registry() -> int:
-    """Rescan model dirs (incl. HF Explorer cache) into ``discovered_models``."""
-    from finetune_studio.config import settings
-    from finetune_studio.models.registry import scan_models
-    from finetune_studio.webui import app as webui_app
-
-    dirs = list(settings.model_dirs)
-    for d in settings.model_dirs_extra:
-        if d not in dirs:
-            dirs.append(d)
-    discovered = scan_models(dirs)
-    webui_app.discovered_models.clear()
-    webui_app.discovered_models.extend(discovered)
-    return len(discovered)
-
-
 def _download_worker(job_id: str, repo_id: str, filename: str | None, revision: str):
     """Background download via huggingface_hub.snapshot_download or hf_hub_download."""
     from finetune_studio import db
@@ -265,7 +277,7 @@ def _download_worker(job_id: str, repo_id: str, filename: str | None, revision: 
         db.mark_hf_download_running(job_id)
         if job_id in _DOWNLOADS:
             _DOWNLOADS[job_id].update({"status": "downloading", "bytes_done": 0})
-        dest_root = _LOCAL / repo_id.replace("/", "__")
+        dest_root = _local_dir(repo_id)
         dest_root.mkdir(parents=True, exist_ok=True)
         if filename:
             # Single-file download
@@ -323,10 +335,9 @@ def _download_worker(job_id: str, repo_id: str, filename: str | None, revision: 
 def restore_in_progress_downloads() -> int:
     """Re-populate the in-memory _DOWNLOADS dict from the DB on startup.
 
-    Jobs that were 'downloading' when the service died get flipped to
-    'cancelled' (we can't resume a partial download — the child process
-    is gone). 'queued' jobs are restored as-is so a queued download
-    started by the previous session can be observed.
+    Jobs that were 'queued' or 'downloading' when the service died are
+    marked 'error' (the BackgroundTasks entry / worker is gone, nothing
+    resumes them) and restored in that state so they remain observable.
 
     Returns the count of restored rows.
     """
@@ -337,13 +348,13 @@ def restore_in_progress_downloads() -> int:
         job_id = row["id"]
         if job_id in _DOWNLOADS:
             continue
-        # A status='downloading' from a dead process is no longer valid.
+        # A queued/downloading job from a dead process will never progress.
         status = row["status"]
-        if status == "downloading":
-            db.mark_hf_download_failed(job_id, "service restarted while downloading")
+        if status in ("queued", "downloading"):
+            db.mark_hf_download_failed(job_id, "service restarted before download finished")
             status = "error"
             row["status"] = status
-            row["error"] = "service restarted while downloading"
+            row["error"] = "service restarted before download finished"
         _DOWNLOADS[job_id] = {
             "job_id": job_id,
             "status": status,
@@ -372,7 +383,7 @@ async def hf_local():
 @router.delete("/hf/local/{repo_id:path}")
 async def hf_delete_local(repo_id: str):
     """Delete a locally cached model."""
-    target = _LOCAL / repo_id.replace("/", "__")
+    target = _local_dir(repo_id)
     if not target.exists():
         return JSONResponse({"error": "not found"}, status_code=404)
     shutil.rmtree(target)
@@ -382,7 +393,7 @@ async def hf_delete_local(repo_id: str):
 @router.get("/hf/local/{repo_id:path}/files")
 async def hf_local_files(repo_id: str):
     """List files in a local model dir with sizes."""
-    target = _LOCAL / repo_id.replace("/", "__")
+    target = _local_dir(repo_id)
     if not target.exists():
         return JSONResponse({"error": "not found"}, status_code=404)
     files = []
@@ -418,11 +429,18 @@ async def list_favorites():
 async def add_favorite(request: Request):
     """Add a model to favorites."""
     from finetune_studio import db
-    body = await request.json() if request.headers.get('content-type') == 'application/json' else {}
+    body: object = {}
+    if request.headers.get("content-type", "").startswith("application/json"):
+        try:
+            body = await request.json()
+        except ValueError:
+            body = {}
+    if not isinstance(body, dict):
+        body = {}
     path = body.get('path', '')
     name = body.get('name', path.split('/')[-1] if path else '')
     note = body.get('note', '')
-    if not path:
+    if not path or not isinstance(path, str):
         return JSONResponse({"error": "path required"}, status_code=400)
     db.add_model_favorite(model_path=path, name=name, note=note)
     return {"ok": True}

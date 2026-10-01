@@ -5,14 +5,6 @@
 {% block breadcrumb_tab %}settings{% endblock %}
 {% block workspace %}model{% endblock %}
 
-{% block crumbs %}
-  <a href="/projects" data-link>Projects</a>
-  <span class="sep">/</span>
-  <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a>
-  <span class="sep">/</span>
-  <span class="here">Settings</span>
-{% endblock %}
-
 {% block content %}
 {% include "_resources.html" %}
 
@@ -139,9 +131,10 @@
   window.flRefreshLogs = flRefreshLogs;
   window.flToggleAutoRefresh = flToggleAutoRefresh;
 
-  document.addEventListener("DOMContentLoaded", function () {
-    flRefreshLogs();
-  });
+  flRefreshLogs();
+  document.addEventListener("fts:beforeNavigate", function () {
+    if (_autoTimer) clearInterval(_autoTimer);
+  }, { once: true });
 })();
 </script>
 {% endblock %}

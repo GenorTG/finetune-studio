@@ -46,20 +46,12 @@ from typing import Any
 # like "Hello {{ name }}" and replace {{ name }} with actual data.
 # We use two specific classes from it:
 #   - BaseLoader: loads templates from strings (not files)
-#   - Environment: the main Jinja2 object that holds configuration
-from jinja2 import BaseLoader, Environment
-
-# ─── CONSTANTS ───────────────────────────────────────────────────────────
-# CHATML_CLOSE is the token that ends each message in our fallback
-# ChatML format. ChatML uses tags like <|user|>/<|im_end|> to mark
-# message boundaries. We put the closing token name in a constant
-# so the rest of the code can refer to it by name and we can change
-# it in one place if needed.
-#
-# Why is it in a constant? Because some shell heredocs and tooling
-# treat specific closing tags like `</parameter>` as special tokens,
-# and indirection through a constant avoids those edge cases.
-CHATML_CLOSE = "im_end"
+#   - ImmutableSandboxedEnvironment: Jinja2 environment that blocks attribute
+#     access to Python internals — GGUF templates come from downloaded,
+#     untrusted files and must never be able to run arbitrary code
+from jinja2 import BaseLoader
+from jinja2.exceptions import TemplateError
+from jinja2.sandbox import ImmutableSandboxedEnvironment
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -132,13 +124,20 @@ def render_chat(
         # We use BaseLoader because our template is a string (not a file).
         # autoescape=False means we don't HTML-escape the output (we want
         # raw model input, not HTML safety).
-        env = Environment(loader=BaseLoader(), autoescape=False)
+        env = ImmutableSandboxedEnvironment(loader=BaseLoader(), autoescape=False)
 
         # Add a custom filter called "tojson" that converts Python
         # objects to JSON strings. Templates can use it like:
         #   {{ my_dict | tojson }}
         # This is how templates handle tool/function definitions.
         env.filters["tojson"] = lambda x: json.dumps(x, ensure_ascii=False)
+
+        # HF-style templates call raise_exception(...) to reject bad role
+        # orders; without the global they die with UndefinedError.
+        def _raise_exception(message: str) -> None:
+            raise TemplateError(message)
+
+        env.globals["raise_exception"] = _raise_exception
 
         # Parse the template string into a Jinja2 Template object.
         # This compiles the template so it can be rendered quickly.
@@ -169,35 +168,9 @@ def render_chat(
 
 
 # ─── HELPER: _chatml_wrap ────────────────────────────────────────────────
-def _chatml_wrap(tag, content_str):
-    """Wrap content in ChatML tags.
-
-    Helper function for the fallback renderer. Takes a tag name
-    (like "user" or "system") and content, and wraps it like:
-        <|user|>content</im_end|>
-
-    The leading underscore in the name signals "this is internal —
-    don't call me from outside the file" (Python convention).
-
-    Parameters
-    ----------
-    tag : str
-        The tag name (e.g., "user", "system", "assistant")
-    content_str : str
-        The text to wrap
-
-    Returns
-    -------
-    str
-        The wrapped text with ChatML tags
-    """
-    # Build the opening tag like <|user|>
-    open_tag = f"<|{tag}|>"
-    # Build the closing tag like </im_end|>
-    # We use CHATML_CLOSE constant instead of writing "</im_end|>" directly
-    close_tag = f"</{CHATML_CLOSE}>"
-    # Concatenate open + content + close
-    return f"{open_tag}{content_str}{close_tag}"
+def _chatml_wrap(role: str, content: str) -> str:
+    """Wrap one message in real ChatML: im_start + role, newline, content, im_end, newline."""
+    return f"<|im_start|>{role}\n{content}<|im_end|>\n"
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -225,7 +198,7 @@ def _render_chatml_fallback(
     bos_token : str
         Beginning-of-sequence token to prepend.
     add_generation_prompt : bool
-        If True, adds "<|assistant|>\n" at the end so the model
+        If True, adds "<|im_start|>assistant\n" at the end so the model
         knows to start its response.
 
     Returns
@@ -249,24 +222,24 @@ def _render_chatml_fallback(
         # lookup because the formatting is slightly different for each.
         if role == "system":
             # System messages: instructions to the model (e.g., "You are a helpful assistant")
-            parts.append(_chatml_wrap("system", f"\n{content}"))
+            parts.append(_chatml_wrap("system", content))
         elif role == "user":
             # User messages: the human's input
-            parts.append(_chatml_wrap("user", f"\n{content}"))
+            parts.append(_chatml_wrap("user", content))
         elif role == "assistant":
             # Assistant messages: the model's previous responses
-            parts.append(_chatml_wrap("assistant", f"\n{content}"))
+            parts.append(_chatml_wrap("assistant", content))
         elif role == "tool":
             # Tool messages: results from a tool call (e.g., calculator returned "4")
-            parts.append(_chatml_wrap("tool", f"\n{content}"))
+            parts.append(_chatml_wrap("tool", content))
         # If the role is something else, we silently skip it.
 
     # ── Add the "generation prompt" ──
     # This is the marker that says "now it's your turn to talk".
-    # For ChatML, it's just "<|assistant|>\n" — the model sees this
+    # For ChatML, it's "<|im_start|>assistant\n" — the model sees this
     # and knows to start generating its response.
     if add_generation_prompt:
-        parts.append("<|assistant|>\n")
+        parts.append("<|im_start|>assistant\n")
 
     # Join all parts into a single string. "".join() concatenates
     # every element of the list with no separator between them.
@@ -301,9 +274,8 @@ def extract_template_from_gguf(model_path: str) -> dict[str, Any]:
 
     Notes
     -----
-    We load the model with a tiny context (n_ctx=512) and 1 thread
-    just to access the metadata. We don't actually generate anything.
-    This is a fast way to read GGUF metadata.
+    We open the file with llama.cpp's ``vocab_only`` mode, which parses the
+    header/metadata/vocabulary without loading any weights.
     """
     try:
         # Lazy import: only load llama_cpp when actually needed.
@@ -313,11 +285,14 @@ def extract_template_from_gguf(model_path: str) -> dict[str, Any]:
         # Load the model with minimal settings. We just need the metadata,
         # so small context and 1 thread is enough. verbose=False suppresses
         # llama.cpp's logging output.
-        llm = Llama(model_path=model_path, n_ctx=512, n_threads=1, verbose=False)
+        # vocab_only=True skips the weights entirely (no second full model
+        # copy in RAM/VRAM while the real engine already holds one).
+        llm = Llama(model_path=model_path, vocab_only=True, verbose=False)
 
         # Get the full metadata dict. GGUF metadata is a flat dict of
         # string keys to various value types (int, float, str, bool).
-        meta = llm.metadata
+        meta = dict(llm.metadata)
+        llm.close()
 
         # Extract the template string. The key "tokenizer.chat_template"
         # is the standard GGUF key for Jinja2 chat templates.
@@ -341,7 +316,6 @@ def extract_template_from_gguf(model_path: str) -> dict[str, Any]:
             "tool_call",                    # Common in many templates
             "AVAILABLE_TOOLS",              # Some custom templates
             "tool_response",                 # Response block marker
-            "<\u200Btool_call>",                  # Qwen-style tool call marker
         ]
         # If ANY of these patterns appear in the template, we assume
         # the model supports tool calling. `any()` returns True if at

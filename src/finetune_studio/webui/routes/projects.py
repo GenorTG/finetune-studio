@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 
 from fastapi import APIRouter, Request
@@ -87,8 +88,6 @@ async def get_project(pid: str):
     if missing is not None:
         return missing
     p = db.get_project(pid)
-    if not p:
-        return {"error": "not found"}
     p["rags"] = db.list_rags(pid)
     p["runs"] = db.list_runs(pid)
     # Attach model exports found on disk for each run.
@@ -153,8 +152,11 @@ async def export_project(pid: str, name: str | None = None, fmt: str = "tar.gz")
 
     from fastapi.responses import StreamingResponse
 
-    if not db.get_project(pid):
-        return JSONResponse({"error": "not found"}, status_code=404)
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    if fmt not in ("tar.gz", "tar"):
+        return JSONResponse({"error": "fmt must be tar.gz or tar"}, status_code=400)
 
     def stream():
         buf = io.BytesIO()
@@ -169,12 +171,14 @@ async def export_project(pid: str, name: str | None = None, fmt: str = "tar.gz")
             import json
             manifest = json.dumps({"project_id": pid, "exported_at": time.time(), "version": "1.0"}, indent=2)
             info = tarfile.TarInfo(name="manifest.json")
-            info.size = len(manifest)
-            tar.addfile(info, io.BytesIO(manifest.encode()))
+            manifest_bytes = manifest.encode()
+            info.size = len(manifest_bytes)
+            tar.addfile(info, io.BytesIO(manifest_bytes))
         buf.seek(0)
         yield buf.read()
 
-    filename = (name or f"project-{pid}") + "." + fmt
+    safe_name = re.sub(r"[^\w.\-]", "_", name or f"project-{pid}")
+    filename = f"{safe_name}.{fmt}"
     media = "application/gzip" if fmt == "tar.gz" else "application/x-tar"
     return StreamingResponse(stream(), media_type=media,
         headers={"Content-Disposition": f"attachment; filename={filename}"})
@@ -209,7 +213,7 @@ async def import_project(request: Request):
             # Extract to temp dir first
             import tempfile
             with tempfile.TemporaryDirectory() as tmpdir:
-                tar.extractall(tmpdir)
+                tar.extractall(tmpdir, filter="data")
 
                 # Find the projects dir
                 src_projects = Path(tmpdir) / "projects"
@@ -229,9 +233,9 @@ async def import_project(request: Request):
                         description=manifest.get('description', 'Imported from archive'),
                         base_model=manifest.get('base_model', ''),
                         system_prompt=manifest.get('system_prompt', 'You are a helpful assistant.'),
-                        tags=manifest.get('tags', 'imported'),
                     )
                     new_id = new_proj['id']
+                    db.update_project(new_id, tags=manifest.get('tags', 'imported'))
                     # Copy files
                     dest_dir = Path.home() / ".finetune-studio" / "projects" / new_id
                     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -240,7 +244,7 @@ async def import_project(request: Request):
                     results.append({"old_id": old_id, "new_id": new_id, "name": proj_name})
 
                 return {"ok": True, "imported": results, "count": len(results)}
-    except tarfile.TarError as e:
+    except (tarfile.TarError, EOFError) as e:
         return JSONResponse({"error": f"invalid archive: {e}"}, status_code=400)
 
 
@@ -339,8 +343,8 @@ async def ingest_into_rag(pid: str, rid: str, request: Request):
             db.mark_rag_build_failed(build_row["id"], str(e))
             db.update_rag(rid, status="error", last_build_status="failed",
                           error=str(e)[:500])
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception:
+            log.exception("marking rag build failed also failed")
         return {"error": f"ingest failed: {e}", "rag": db.get_rag(rid),
                 "build": build_row}
 
@@ -349,7 +353,10 @@ async def ingest_into_rag(pid: str, rid: str, request: Request):
 async def query_rag(pid: str, rid: str, request: Request):
     body = await request.json()
     query = body.get("query", "")
-    top_k = int(body.get("top_k", 5))
+    try:
+        top_k = int(body.get("top_k", 5))
+    except (TypeError, ValueError):
+        return {"error": "top_k must be an integer"}
     if not query:
         return {"error": "no query"}
     rag, err = _get_owned_rag(pid, rid)
@@ -466,9 +473,17 @@ async def start_run(pid: str, rid: str, request: Request):
     # A bare "output" dir is shared by every run and gets overwritten (E2E-25).
     if (config.output_dir or "output").rstrip("/") == "output":
         config.output_dir = f"output/projects/{pid}/runs/{rid}"
+    # Checked before attach_run: attaching would re-point the busy engine's
+    # persister at this run and corrupt the run that is actually training.
+    if training_engine.state.status in ("training", "loading", "saving"):
+        return {"error": "another training run is in progress"}
     db.update_run(rid, status="running", started_at=time.time(), output_path=config.output_dir)
     attach_run(training_engine, rid, config.output_dir, project_id=pid)
-    training_engine.start(config, training_data, run.get("system_prompt", ""))
+    try:
+        training_engine.start(config, training_data, run.get("system_prompt", ""))
+    except Exception as e:  # noqa: BLE001
+        db.update_run(rid, status="error", error=str(e)[:500])
+        return {"error": f"start failed: {e}", "run_id": rid}
     return {"status": "started", "run_id": rid, "run": db.get_run(rid)}
 
 
@@ -477,7 +492,11 @@ async def stop_run(pid: str, rid: str):
     _run, err = _get_owned_run(pid, rid)
     if err is not None:
         return err
-    training_engine.stop()
+    # The engine is a singleton: only stop it when it is training THIS run.
+    if getattr(training_engine, "current_db_run_id", None) == rid and training_engine.state.status in (
+        "training", "loading", "saving",
+    ):
+        training_engine.stop()
     db.update_run(rid, status="stopped", finished_at=time.time())
     return {"ok": True}
 
@@ -504,6 +523,8 @@ async def run_benchmark(pid: str, rid: str, request: Request):
     run, err = _get_owned_run(pid, rid)
     if err is not None:
         return err
+    if not suite_path:
+        return {"error": "suite_path required", "benchmark": None}
     target_model = run.get("output_path") or run.get("base_model")
     if not target_model:
         return {"error": "run has no model to benchmark"}
@@ -519,12 +540,9 @@ async def run_benchmark(pid: str, rid: str, request: Request):
         engine.load(target_model)
     except Exception as e:  # noqa: BLE001
         return {"error": f"load failed: {e}", "benchmark": None}
-    if not suite_path:
-        engine.unload()
-        return {"error": "suite_path required", "benchmark": None}
-    cases = load_test_suite(suite_path)
     t0 = time.time()
     try:
+        cases = load_test_suite(suite_path)
         results = run_suite(engine, cases)
         scores = score_results(results)
         dt_ms = int((time.time() - t0) * 1000)
@@ -540,8 +558,8 @@ async def run_benchmark(pid: str, rid: str, request: Request):
     finally:
         try:
             engine.unload()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception:
+            log.exception("benchmark engine unload failed")
 
 
 @router.post("/{pid}/runs/{rid}/merge")
@@ -592,7 +610,7 @@ async def merge_run(pid: str, rid: str, request: Request, force: str = "false"):
 
 @router.get("/{pid}/runs/{rid}/benchmarks")
 async def list_run_benchmarks(pid: str, rid: str):
-    missing = _project_404(pid)
-    if missing is not None:
-        return missing
+    _run, err = _get_owned_run(pid, rid)
+    if err is not None:
+        return err
     return db.list_benchmarks(rid)

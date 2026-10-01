@@ -22,6 +22,7 @@ class _FakeEngine:
 
         class _State:
             total_steps = 0
+            status = "idle"
 
         self.state = _State()
 

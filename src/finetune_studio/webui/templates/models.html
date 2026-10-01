@@ -39,7 +39,7 @@
           {% if loaded and loaded.path == m.path %}
           <span class="pill solid-green">● loaded</span>
           {% else %}
-          <button class="btn sm primary" data-action="/api/models/load" data-body='{"path":"{{ m.path }}"}' data-reload="true">Load</button>
+          <button class="btn sm primary" data-action="/api/models/load" data-body='{{ {"path": m.path}|tojson }}' data-reload="true">Load</button>
           {% endif %}
         </td>
       </tr>

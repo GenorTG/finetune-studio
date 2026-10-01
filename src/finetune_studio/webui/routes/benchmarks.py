@@ -48,18 +48,40 @@ def _project_404(pid: str) -> JSONResponse | None:
     return None
 
 
+def _benchmark_for_project(bid: str, pid: str) -> dict[str, Any] | JSONResponse:
+    """Load a benchmark only when its parent run belongs to ``pid``."""
+    benchmark = db.get_benchmark(bid)
+    if not benchmark:
+        return JSONResponse({"error": "benchmark not found"}, status_code=404)
+    run = db.get_run(str(benchmark.get("run_id") or ""))
+    if not run or run.get("project_id") != pid:
+        return JSONResponse({"error": "benchmark not found"}, status_code=404)
+    return benchmark
+
+
+def _int_field(body: dict[str, Any], key: str, default: int) -> int:
+    """Read an integer field from a request body; ValueError names the key."""
+    try:
+        return int(body.get(key, default))
+    except (TypeError, ValueError):
+        raise ValueError(f"{key} must be an integer") from None
+
+
 def _parse_sample_knobs(body: dict[str, Any]) -> tuple[int | None, bool, int, str]:
-    """Parse num_samples / full_run / seed / order from a run request body."""
+    """Parse num_samples / full_run / seed / order from a run request body.
+
+    Raises ValueError (caller returns 400) on non-integer seed / num_samples.
+    """
     full_run = bool(body.get("full_run", False))
-    seed = int(body.get("seed", DEFAULT_SEED))
+    seed = _int_field(body, "seed", DEFAULT_SEED)
     order_raw = str(body.get("order") or "dataset").strip().lower()
     order = order_raw if order_raw in {"dataset", "seeded_shuffle"} else "dataset"
     if full_run:
         return None, True, seed, order
     if "num_samples" not in body or body.get("num_samples") in (None, "", "full"):
         return DEFAULT_SAMPLE_LIMIT, False, seed, order
-    num = int(body["num_samples"])
-    return num, False, seed, order
+    return _int_field(body, "num_samples", DEFAULT_SAMPLE_LIMIT), False, seed, order
+
 
 def _validate_suite_file(
     suite_path: str,
@@ -192,7 +214,6 @@ async def _execute_benchmark(
     *,
     rid: str,
     suite_name: str,
-    suite_path: str,
     judge_mode: str,
     max_tokens: int,
     target_model: str,
@@ -358,8 +379,11 @@ async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] 
     suite_name = body.get("suite_name", "default")
     suite_path = body.get("suite_path", "")
     judge_mode = body.get("judge_mode", "heuristic")
-    max_tokens = int(body.get("max_tokens", 512))
-    num_samples, full_run, seed, order = _parse_sample_knobs(body)
+    try:
+        max_tokens = _int_field(body, "max_tokens", 512)
+        num_samples, full_run, seed, order = _parse_sample_knobs(body)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
 
     run = db.get_run(rid)
     if not run:
@@ -411,7 +435,6 @@ async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] 
         return await _execute_benchmark(
             rid=rid,
             suite_name=str(suite_name),
-            suite_path=str(suite_path),
             judge_mode=str(judge_mode),
             max_tokens=max_tokens,
             target_model=target_model,
@@ -429,8 +452,11 @@ async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSO
     suite_name = body.get("suite_name", "default")
     suite_path = body.get("suite_path", "")
     judge_mode = body.get("judge_mode", "heuristic")
-    max_tokens = int(body.get("max_tokens", 512))
-    num_samples, full_run, seed, order = _parse_sample_knobs(body)
+    try:
+        max_tokens = _int_field(body, "max_tokens", 512)
+        num_samples, full_run, seed, order = _parse_sample_knobs(body)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
 
     project = db.get_project(pid)
     if not project:
@@ -479,7 +505,6 @@ async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSO
         return await _execute_benchmark(
             rid=base_run["id"],
             suite_name=str(suite_name),
-            suite_path=str(suite_path),
             judge_mode=str(judge_mode),
             max_tokens=max_tokens,
             target_model=target_model,
@@ -515,9 +540,12 @@ async def delete_run(pid: str, rid: str) -> dict[str, Any] | JSONResponse:
     return {"ok": True}
 
 
-@router.delete("/projects/{pid}/benchmarks/{bid}")
-async def delete_benchmark(pid: str, bid: str) -> dict[str, bool]:
+@router.delete("/projects/{pid}/benchmarks/{bid}", response_model=None)
+async def delete_benchmark(pid: str, bid: str) -> dict[str, bool] | JSONResponse:
     """Delete a specific benchmark result."""
+    benchmark = _benchmark_for_project(bid, pid)
+    if isinstance(benchmark, JSONResponse):
+        return benchmark
     with db.cursor() as c:
         c.execute(
             "DELETE FROM benchmark_runs WHERE id = ? AND project_id = ?",
@@ -535,9 +563,9 @@ async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any
     judge_mode = body.get("judge_mode") or ("ai" if DEFAULT_JUDGE_KEY else "heuristic")
     judge_model = body.get("judge_model", "")
 
-    benchmark = db.get_benchmark(bid)
-    if not benchmark:
-        return JSONResponse({"error": "benchmark not found"}, status_code=404)
+    benchmark = _benchmark_for_project(bid, pid)
+    if isinstance(benchmark, JSONResponse):
+        return benchmark
 
     cases = db.list_cases(bid)
     if not cases:
@@ -711,18 +739,18 @@ async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any
 @router.get("/projects/{pid}/benchmarks/{bid}/cases", response_model=None)
 async def list_benchmark_cases(pid: str, bid: str) -> list[dict[str, Any]] | JSONResponse:
     """List all cases + judge verdicts for a benchmark."""
-    missing = _project_404(pid)
-    if missing is not None:
-        return missing
+    benchmark = _benchmark_for_project(bid, pid)
+    if isinstance(benchmark, JSONResponse):
+        return benchmark
     return db.list_cases(bid)
 
 
 @router.get("/projects/{pid}/benchmarks/{bid}/audit", response_model=None)
 async def audit_benchmark(pid: str, bid: str) -> dict[str, Any] | JSONResponse:
     """Return every persisted transcript plus an independent score recomputation."""
-    benchmark = db.get_benchmark(bid)
-    if not benchmark:
-        return JSONResponse({"error": "benchmark not found"}, status_code=404)
+    benchmark = _benchmark_for_project(bid, pid)
+    if isinstance(benchmark, JSONResponse):
+        return benchmark
     from finetune_studio.testing.audit import recompute_cases
 
     cases = db.list_cases(bid)
@@ -730,11 +758,16 @@ async def audit_benchmark(pid: str, bid: str) -> dict[str, Any] | JSONResponse:
             "independent_audit": recompute_cases(cases)}
 
 
-@router.post("/projects/{pid}/benchmarks/{bid}/cases/{cid}/verdict")
+@router.post("/projects/{pid}/benchmarks/{bid}/cases/{cid}/verdict", response_model=None)
 async def set_verdict(
     pid: str, bid: str, cid: str, request: Request
-) -> dict[str, bool]:
+) -> dict[str, bool] | JSONResponse:
     """Human overrides/sets a verdict."""
+    benchmark = _benchmark_for_project(bid, pid)
+    if isinstance(benchmark, JSONResponse):
+        return benchmark
+    if not any(case.get("id") == cid for case in db.list_cases(bid)):
+        return JSONResponse({"error": "case not found"}, status_code=404)
     body = await request.json()
     db.update_case(
         cid,
@@ -835,8 +868,11 @@ async def evaluate_training_for_run(
     """
     body = await request.json()
     dataset_id = (body.get("dataset_id") or "").strip() or None
-    max_cases = int(body.get("max_cases", 200))
-    max_tokens = int(body.get("max_tokens", 512))
+    try:
+        max_cases = _int_field(body, "max_cases", 200)
+        max_tokens = _int_field(body, "max_tokens", 512)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
     judge_mode = str(body.get("judge_mode", "heuristic"))
 
     run = db.get_run(rid)
@@ -872,7 +908,6 @@ async def evaluate_training_for_run(
     result = await _execute_benchmark(
         rid=rid,
         suite_name=suite_label_for_training_eval(meta),
-        suite_path=meta.dataset_path,
         judge_mode=judge_mode,
         max_tokens=max_tokens,
         target_model=target_model,

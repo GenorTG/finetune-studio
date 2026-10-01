@@ -1,13 +1,17 @@
 """File library routes — Stage 1 of REFACTOR-SPEC.
 
 Endpoints:
-  POST   /api/projects/{pid}/files/upload         — single + bulk upload
+  POST   /api/projects/{pid}/files/upload         — upload (multipart field ``files``, repeatable)
   GET    /api/projects/{pid}/files                — list files (filterable)
+  GET    /api/projects/{pid}/files/pipeline       — per-file parse/RAG status flags
   GET    /api/projects/{pid}/files/trash          — list trashed files
   POST   /api/projects/{pid}/files/trash/purge    — hard-delete old trashed files
   GET    /api/projects/{pid}/files/{fid}          — get one file's metadata
   GET    /api/projects/{pid}/files/{fid}/raw      — download raw bytes (?version=N)
-  GET    /api/projects/{pid}/files/{fid}/parsed   — stream parsed markdown preview
+  GET    /api/projects/{pid}/files/{fid}/parsed   — parsed markdown preview
+  PUT    /api/projects/{pid}/files/{fid}/parsed   — save hand-edited parsed text
+  POST   /api/projects/{pid}/files/{fid}/reparse  — drop the override, re-run the parser
+  PATCH  /api/projects/{pid}/files/{fid}/tags     — set tags + notes
   GET    /api/projects/{pid}/files/{fid}/versions — list all raw versions
   GET    /api/projects/{pid}/files/{fid}/conversions — list converted versions
   PATCH  /api/projects/{pid}/files/{fid}/rename   — rename file (DB + disk)
@@ -36,6 +40,7 @@ import hashlib
 import logging
 import tempfile
 from pathlib import Path
+from typing import Any
 
 from fastapi import (
     APIRouter,
@@ -49,7 +54,10 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse, JSONResponse, Response
 
+from finetune_studio import db
 from finetune_studio.data.fs import file_library as fl
+from finetune_studio.data.fs.qa import stage_file_library_upload
+from finetune_studio.data.parsers import PARSERS
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -94,9 +102,19 @@ def _parse_source_background(pid: str, source_id: str) -> None:
 # ── Helpers ──────────────────────────────────────────────────────────────
 
 def _project_or_404(pid: str) -> None:
-    from finetune_studio import db
     if not db.get_project(pid):
         raise HTTPException(status_code=404, detail="project not found")
+
+
+async def _json_body(request: Request) -> dict[str, Any]:
+    """Parse the request body as a JSON object (400 otherwise, never 500)."""
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid JSON body") from None
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="JSON object body required")
+    return body
 
 
 # ── File upload (single + bulk) ──────────────────────────────────────────
@@ -104,14 +122,13 @@ def _project_or_404(pid: str) -> None:
 @router.post("/projects/{pid}/files/upload")
 async def upload_files(
     pid: str,
-    request: Request,
     background: BackgroundTasks,
     files: list[UploadFile] = File(...),  # noqa: B008  # FastAPI requires File() default at def site
     folder_id: str | None = Form(None),
     uploaded_by: str = Form("user"),
 ):
-    """Upload one or more files. Supports both single-file (curl -F file=@x)
-    and bulk upload (curl -F files=@x -F files=@y).
+    """Upload one or more files (curl -F files=@x -F files=@y; the field is
+    always ``files``, also for a single file).
 
     For bulk: each file is processed independently; the response is a
     structured report listing uploaded, duplicate, and error items.
@@ -163,9 +180,6 @@ async def upload_files(
                 "duplicate_of": existing["original_name"],
                 "duplicate_file_id": existing["id"],
             }
-            from finetune_studio.data.fs.qa import stage_file_library_upload
-            from finetune_studio.data.parsers import PARSERS
-
             if Path(name).suffix.lower() in PARSERS:
                 source = stage_file_library_upload(
                     pid,
@@ -206,14 +220,13 @@ async def upload_files(
         # Optionally move to a user folder (if folder_id was provided and is
         # a USER folder, not an auto raw folder).
         if folder_id:
-            from finetune_studio import db
             with db.cursor() as c:
                 row = c.execute(
                     "SELECT kind FROM file_folders WHERE id = ? AND project_id = ?",
                     (folder_id, pid),
                 ).fetchone()
-                if row and row["kind"] == "user":
-                    fl.move_file_to_folder(pid, meta.file_id, folder_id)
+            if row and row["kind"] == "user":
+                fl.move_file_to_folder(pid, meta.file_id, folder_id)
 
         item = {
             "filename": name,
@@ -227,9 +240,6 @@ async def upload_files(
         # Stage every parser-supported file immediately, then parse it after
         # the response. Hundreds of PDFs/DOCX files no longer make Upload wait
         # for extraction one-by-one in the request path.
-        from finetune_studio.data.fs.qa import stage_file_library_upload
-        from finetune_studio.data.parsers import PARSERS
-
         if Path(name).suffix.lower() in PARSERS:
             source = stage_file_library_upload(
                 pid, meta.file_id, mime_type=meta.mime_type or "", filename=name
@@ -271,7 +281,10 @@ async def list_files_route(
     )
     # Authoritative project-wide live count (ignores folder/search filters).
     # The "all files" tree badge must not use the filtered page length.
-    total_count = len(fl.list_files(pid, include_deleted=False))
+    if folder_id or mime_prefix or search or include_deleted:
+        total_count = len(fl.list_files(pid, include_deleted=False))
+    else:
+        total_count = len(files)
     return {"files": files, "count": len(files), "total_count": total_count}
 
 
@@ -306,7 +319,7 @@ async def files_bulk_route(pid: str, request: Request):
     tag-remove. Per-file isolation — one bad id never aborts the batch."""
     from finetune_studio.data.fs import workbench as wb
     _project_or_404(pid)
-    body = await request.json()
+    body = await _json_body(request)
     ids = [str(i) for i in (body.get("ids") or [])]
     action = str(body.get("action") or "")
     return wb.bulk_action(pid, ids, action, body)
@@ -317,7 +330,7 @@ async def files_download_zip_route(pid: str, request: Request):
     """Zip the raw bytes of the selected files (collision-safe entry names)."""
     from finetune_studio.data.fs import workbench as wb
     _project_or_404(pid)
-    body = await request.json()
+    body = await _json_body(request)
     ids = [str(i) for i in (body.get("ids") or [])]
     payload, filename = wb.download_zip(pid, ids)
     return Response(
@@ -328,7 +341,9 @@ async def files_download_zip_route(pid: str, request: Request):
 
 
 @router.get("/projects/{pid}/files/search-content")
-async def files_search_content_route(pid: str, q: str = Query(""), limit: int = 25):
+async def files_search_content_route(
+    pid: str, q: str = Query(""), limit: int = Query(25, ge=1, le=200),
+):
     """Substring search inside PARSED text of project files (name search
     stays client-side). Returns snippet per match."""
     from finetune_studio.data.fs import workbench as wb
@@ -357,7 +372,6 @@ async def download_raw_route(
 ):
     """Download raw bytes. If version is None, serves the current version.
     Also works for files in trash (so the user can recover + inspect)."""
-    from pathlib import Path
     _project_or_404(pid)
     f = fl.get_file(pid, fid, include_deleted=True)
     if not f:
@@ -404,7 +418,7 @@ async def save_parsed_route(pid: str, fid: str, request: Request):
     """
     from finetune_studio.data.parsed_edit import save_parsed_override
     _project_or_404(pid)
-    body = await request.json()
+    body = await _json_body(request)
     text = body.get("text")
     if text is None:
         raise HTTPException(status_code=400, detail="text required")
@@ -447,7 +461,7 @@ async def rename_file_route(pid: str, fid: str, request: Request):
     Body accepts ``new_name`` (preferred) or ``name`` (data-prep UI compat).
     """
     _project_or_404(pid)
-    body = await request.json()
+    body = await _json_body(request)
     new_name = body.get("new_name")
     if new_name is None:
         new_name = body.get("name")
@@ -466,7 +480,7 @@ async def purge_file_route(pid: str, fid: str):
 @router.post("/projects/{pid}/files/{fid}/move")
 async def move_file_route(pid: str, fid: str, request: Request):
     _project_or_404(pid)
-    body = await request.json()
+    body = await _json_body(request)
     folder_id = body.get("folder_id")
     if not folder_id:
         raise HTTPException(status_code=400, detail="folder_id required")
@@ -490,7 +504,7 @@ async def restore_file_route(pid: str, fid: str):
 @router.post("/projects/{pid}/folders")
 async def create_folder_route(pid: str, request: Request):
     _project_or_404(pid)
-    body = await request.json()
+    body = await _json_body(request)
     name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="name required")
@@ -505,25 +519,30 @@ async def list_folders_route(pid: str, include_auto: bool = Query(True)):
 
 @router.patch("/projects/{pid}/files/{fid}/tags")
 async def update_file_tags(pid: str, fid: str, request: Request):
-    """Update tags and notes for a file."""
-    from finetune_studio import db
+    """Update tags (comma-separated string) and notes for a file."""
     _project_or_404(pid)
-    body = await request.json()
+    body = await _json_body(request)
     tags = body.get("tags", "")
     notes = body.get("notes", "")
+    if isinstance(tags, list):
+        tags = ", ".join(str(t).strip() for t in tags if str(t).strip())
+    if not isinstance(tags, str) or not isinstance(notes, str):
+        raise HTTPException(status_code=400, detail="tags and notes must be strings")
     with db.cursor() as c:
-        c.execute(
+        updated = c.execute(
             "UPDATE project_files SET tags = ?, notes = ? "
             "WHERE id = ? AND project_id = ?",
             (tags, notes, fid, pid),
-        )
+        ).rowcount
+    if not updated:
+        raise HTTPException(status_code=404, detail="file not found")
     return {"ok": True, "tags": tags, "notes": notes}
 
 
 @router.patch("/projects/{pid}/folders/{fid}")
 async def rename_folder_route(pid: str, fid: str, request: Request):
     _project_or_404(pid)
-    body = await request.json()
+    body = await _json_body(request)
     name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="name required")

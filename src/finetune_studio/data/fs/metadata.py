@@ -44,14 +44,22 @@ def hash_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+# Files the store itself writes into files/<sha12>/; an upload must not reuse them.
+_RESERVED_NAMES = frozenset({"parsed.txt", "parsed.json", "metadata.json", "manifest.json", "chunks"})
+
+
 def _safe_filename(name: str) -> str:
     """Strip path separators and other dangerous chars from an upload filename."""
     name = name.replace("/", "_").replace("\\", "_").replace("\x00", "_").strip()
-    return name or "upload"
+    if not name or name in {".", ".."}:
+        return "upload"
+    if name.lower() in _RESERVED_NAMES:
+        return f"upload_{name}"
+    return name
 
 
 def read_file_metadata(pid: str, sha256: str) -> FileMetadata | None:
-    p = file_dir(pid, sha256) / "metadata.json"
+    p = file_dir(pid, sha256, create=False) / "metadata.json"
     if not p.exists():
         return None
     try:
@@ -72,6 +80,6 @@ def update_file_metadata(pid: str, sha256: str, **fields) -> FileMetadata | None
             setattr(meta, k, v)
         else:
             log.warning("update_file_metadata(%s, %s): ignoring unknown field %r", pid, sha256, k)
-    p = file_dir(pid, sha256) / "metadata.json"
+    p = file_dir(pid, sha256, create=False) / "metadata.json"
     p.write_text(json.dumps(meta.to_json(), indent=2, ensure_ascii=False), encoding="utf-8")
     return meta

@@ -160,15 +160,13 @@ def render(files: dict[str, tuple[list[Symbol], list[str], int]]) -> str:
             if not syms or all(s.name.startswith("_") and s.kind == "def" and not s.doc for s in syms) and len(syms) < 3 and not any(s.kind != "def" for s in syms):
                 pass  # still show, tiny modules matter too
             for s in syms:
-                deco = s.kind
-                head = f"- `{deco} {s.name}{s.signature}` (L{s.lineno})"
                 if s.kind == "class":
                     out.append(f"- `class {s.name}{s.signature}` (L{s.lineno})")
                     for c in s.children:
                         out.append(f"  - `{c.kind} {c.name}{c.signature}` (L{c.lineno})")
                 else:
                     suffix = f" — {s.doc}" if s.doc else ""
-                    out.append(f"- `{s.name}{s.signature}` (L{s.lineno}){suffix}")
+                    out.append(f"- `{s.kind} {s.name}{s.signature}` (L{s.lineno}){suffix}")
             if imports:
                 out.append(f"  - imports: {', '.join(imports)}")
             out.append("")

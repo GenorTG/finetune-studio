@@ -6,14 +6,6 @@
 {% block workspace %}rag{% endblock %}
 {% block workspace_nav %}rag{% endblock %}
 
-{% block crumbs %}
-  <a href="/projects" data-link>Projects</a>
-  <span class="sep">/</span>
-  <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a>
-  <span class="sep">/</span>
-  <span class="here">RAG</span>
-{% endblock %}
-
 {% block content %}
 {% include "_resources.html" %}
 
@@ -193,8 +185,8 @@
       </div>
     </div>
     <div class="flex gap-2">
-      <button class="btn small" onclick="loadIndexedDocs()" title="Refresh inventory">⟲ Refresh</button>
-      <button class="btn small danger" onclick="clearAllSources()" title="Remove all parsed source files from the corpus. After this, press Build again to re-index from whatever sources remain.">Remove all sources</button>
+      <button class="btn sm" onclick="loadIndexedDocs()" title="Refresh inventory">⟲ Refresh</button>
+      <button class="btn sm danger" onclick="clearAllSources()" title="Remove all parsed source files from the corpus. After this, press Build again to re-index from whatever sources remain.">Remove all sources</button>
     </div>
   </div>
   <div id="rag-docs-body">
@@ -230,8 +222,8 @@
           <td class="dim text-xs rag-col-indexed">{{ d.last_indexed or '—' }}</td>
           <td class="rag-col-actions">
             <div class="rag-doc-actions">
-              <button class="btn small" data-rebuild="{{ d.id }}" onclick="rebuildDoc(this)" title="Rebuild corpus (whole project)">Rebuild</button>
-              <button class="btn small ghost" data-view="{{ d.id }}" onclick="viewDocChunks('{{ d.id }}', {{ d.name | tojson }})" title="View chunks">View chunks</button>
+              <button class="btn sm" data-rebuild="{{ d.id }}" onclick="rebuildDoc(this)" title="Rebuild corpus (whole project)">Rebuild</button>
+              <button class="btn sm ghost" data-view="{{ d.id }}" data-name="{{ d.name }}" onclick="viewDocChunks(this.dataset.view, this.dataset.name)" title="View chunks">View chunks</button>
             </div>
           </td>
         </tr>
@@ -434,7 +426,6 @@
       + '</tr></thead><tbody>'
       + list.map(function(d) {
           const id = esc(d.id);
-          const nameJson = JSON.stringify(d.name || d.id);
           return '<tr data-doc-id="' + id + '">'
             + '<td class="mono cell-wrap rag-col-name" title="' + esc(d.name) + '">' + esc(d.name) + '</td>'
             + '<td class="dim text-xs rag-col-type">' + esc(d.mime || 'text/plain') + '</td>'
@@ -442,8 +433,8 @@
             + '<td class="rag-col-status">' + statusPill(d.status) + '</td>'
             + '<td class="dim text-xs rag-col-indexed">' + esc(d.last_indexed || '—') + '</td>'
             + '<td class="rag-col-actions"><div class="rag-doc-actions">'
-            + '<button class="btn small" data-rebuild="' + id + '" onclick="rebuildDoc(this)" title="Rebuild corpus (whole project)">Rebuild</button>'
-            + '<button class="btn small ghost" onclick=\'viewDocChunks(' + JSON.stringify(d.id) + ', ' + nameJson + ')\' title="View chunks">View chunks</button>'
+            + '<button class="btn sm" data-rebuild="' + id + '" onclick="rebuildDoc(this)" title="Rebuild corpus (whole project)">Rebuild</button>'
+            + '<button class="btn sm ghost" data-view="' + id + '" data-name="' + esc(d.name || d.id) + '" onclick="viewDocChunks(this.dataset.view, this.dataset.name)" title="View chunks">View chunks</button>'
             + '</div></td></tr>';
         }).join('')
       + '</tbody></table></div>';
@@ -558,13 +549,6 @@
       else { loadIndexedDocs(); notify('All sources cleared', 'success'); }
     } catch (e) { notify('Failed: ' + e.message, 'error'); }
   };
-
-  document.addEventListener('DOMContentLoaded', function() {
-    // Refresh from API so counts stay current after SPA navigations.
-    if (typeof loadIndexedDocs === 'function') loadIndexedDocs();
-    if (typeof loadRagStatus === 'function') loadRagStatus();
-    if (typeof loadSharedModels === 'function') loadSharedModels();
-  });
 
   // ── Corpus status card (readable fields, not JSON) ─────────────────
   window.loadRagStatus = async function() {
@@ -792,6 +776,35 @@
     }
   };
 
+  // Fill the form controls from the saved manifest so "Save" doesn't
+  // silently overwrite stored settings with the hardcoded defaults.
+  window.loadRagSettings = async function() {
+    try {
+      const r = await fetch('/api/projects/' + PID + '/rag/settings');
+      if (!r.ok) return;
+      const s = await r.json();
+      const setVal = function(id, v) {
+        const el = document.getElementById(id);
+        if (!el || v == null) return;
+        if (el.tagName === 'SELECT' && ![].some.call(el.options, function(o) { return o.value === String(v); })) return;
+        el.value = v;
+      };
+      const setChk = function(id, v) {
+        const el = document.getElementById(id);
+        if (el && v != null) el.checked = !!v;
+      };
+      setVal('s-reranker', s.reranker);
+      setVal('s-rerank-top-n', s.rerank_top_n);
+      setChk('s-rerank-enabled', s.rerank_enabled);
+      setChk('s-hybrid-enabled', s.hybrid_enabled);
+      setVal('b-embedder', s.embedder);
+      if (s.chunk_settings) {
+        setVal('b-chunk', s.chunk_settings.size);
+        setVal('b-overlap', s.chunk_settings.overlap);
+      }
+    } catch (_e) { /* no corpus yet: keep defaults */ }
+  };
+
   window.quickIndex = async function () {
     const status = document.getElementById('build-status');
     const btn = document.getElementById('quick-index-btn');
@@ -902,6 +915,9 @@
       const sub = window.fts && window.fts.subscribe;
       if (sub) {
         stopLive = sub(sseUrl, applyProgress, { pollUrl: pollUrl, fallbackMs: 5000 });
+        document.addEventListener('fts:beforeNavigate', function() {
+          if (stopLive) { stopLive(); stopLive = null; }
+        }, { once: true });
       } else {
         // Slow fallback only — never a 2s full redraw.
         const tick = async () => {
@@ -923,6 +939,17 @@
       if (rebuildBtn) rebuildBtn.disabled = false;
     }
   };
+
+  // DOMContentLoaded fires on a full load (this script runs before app.js);
+  // after an SPA swap it never fires, so run immediately in that case.
+  function init() {
+    loadRagSettings();
+    loadIndexedDocs();
+    loadRagStatus();
+    loadSharedModels();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
 </script>
 {% endblock %}

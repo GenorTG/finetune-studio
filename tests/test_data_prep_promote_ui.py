@@ -97,10 +97,10 @@ def test_older_upload_without_auto_promote_then_manual_promote(client_and_db, mo
     client, _ = client_and_db
     pid = _create_project(client)
 
-    from finetune_studio.data.fs import qa as qa_fs
+    from finetune_studio.webui.routes import file_library
 
-    original_stage = qa_fs.stage_file_library_upload
-    monkeypatch.setattr(qa_fs, "stage_file_library_upload", lambda *a, **k: None)
+    original_stage = file_library.stage_file_library_upload
+    monkeypatch.setattr(file_library, "stage_file_library_upload", lambda *a, **k: None)
     body = b"# Older notes\n\n" + (b"Chunkable markdown body. " * 40)
     up = client.post(
         f"/api/projects/{pid}/files/upload",
@@ -111,7 +111,7 @@ def test_older_upload_without_auto_promote_then_manual_promote(client_and_db, mo
     assert item["status"] == "uploaded"
     assert not item.get("source_id")
     fid = item["file_id"]
-    monkeypatch.setattr(qa_fs, "stage_file_library_upload", original_stage)
+    monkeypatch.setattr(file_library, "stage_file_library_upload", original_stage)
 
     listed_before = client.get(f"/api/projects/{pid}/data-prep/sources").json()["sources"]
     assert listed_before == []

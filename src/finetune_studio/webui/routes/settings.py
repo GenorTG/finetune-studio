@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -21,14 +21,16 @@ def _load() -> dict[str, Any]:
         return {}
     try:
         return json.loads(SETTINGS_PATH.read_text())
-    except Exception as e:
+    except (OSError, ValueError) as e:
         log.warning("settings read failed: %s", e)
         return {}
 
 
 def _save(data: dict[str, Any]) -> None:
     SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    SETTINGS_PATH.write_text(json.dumps(data, indent=2))
+    tmp = SETTINGS_PATH.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, indent=2))
+    tmp.replace(SETTINGS_PATH)
 
 
 # ── Default settings (used when settings.json doesn't exist) ──
@@ -43,11 +45,6 @@ DEFAULTS: dict[str, Any] = {
 }
 
 
-def get_defaults() -> dict[str, Any]:
-    """Return default settings."""
-    return DEFAULTS.copy()
-
-
 @router.get("/api/settings")
 async def get_settings():
     """Return current settings merged with defaults."""
@@ -57,9 +54,12 @@ async def get_settings():
 
 
 @router.patch("/api/settings")
-async def update_settings(request: Any):
+async def update_settings(request: Request):
     """Partial update of settings."""
-    body = await request.json()
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid JSON") from None
     if not isinstance(body, dict):
         raise HTTPException(status_code=400, detail="expected JSON object")
     current = _load()

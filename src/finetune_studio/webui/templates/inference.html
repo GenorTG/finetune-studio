@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Inference · Finetune Studio{% endblock %}
 {% block nav_inference %}active{% endblock %}
-{% block crumbs_leaf %}Inference{% endblock %}
 {% block sb_path %}~ / tools / inference{% endblock %}
 
 {% block content %}
@@ -24,7 +23,7 @@
       <div class="flex items-baseline gap-2 mb-1">
         <span class="font-bold mono">{{ loaded.name or loaded.path.split('/')[-1] }}</span>
         <span class="pill solid-blue">{{ loaded.format|upper }}</span>
-        {% if loaded.vision %}<span class="pill solid-violet">vision</span>{% endif %}
+        {% if loaded.vision %}<span class="pill solid-purple">vision</span>{% endif %}
       </div>
       <div class="grid grid-cols-auto gap-x-4 gap-y-1 text-xs dim mt-2" style="grid-template-columns:auto 1fr;">
         <span>Size</span><span class="mono">{{ "%.1f"|format(loaded.size_gb) }} GB</span>
@@ -114,22 +113,19 @@
           <div>
             <label class="block text-xs muted mb-1"
                    title="RNG seed. -1 = random each load (recommended for varied sampling). Fixed value = reproducible outputs (useful for benchmarking + tests).">Seed</label>
-            <input type="number" id="seed" min="-1" placeholder="random" class="input"
-                   oninput="document.getElementById('seed-val').textContent=this.value||'random'">
+            <input type="number" id="seed" min="-1" placeholder="random" class="input">
             <div class="text-[10px] dim mt-0.5">-1 = random</div>
           </div>
           <div>
             <label class="block text-xs muted mb-1"
                    title="Rotary Position Embedding base frequency. 0 = use the model's default. Override to extend the context window beyond what the model was trained for — risky but can work. Most users should leave at 0.">RoPE freq base</label>
-            <input type="number" id="rope-freq-base" min="0" step="1" value="0" class="input"
-                   oninput="document.getElementById('rope-base-val').textContent=this.value||'auto'">
+            <input type="number" id="rope-freq-base" min="0" step="1" value="0" class="input">
             <div class="text-[10px] dim mt-0.5">0 = model default</div>
           </div>
           <div>
             <label class="block text-xs muted mb-1"
                    title="Rotary Position Embedding frequency scale. 0 = model default. >1 = stretch position encoding to support longer context. Most users should leave at 0 unless extending context.">RoPE freq scale</label>
-            <input type="number" id="rope-freq-scale" min="0" step="0.01" value="0" class="input"
-                   oninput="document.getElementById('rope-scale-val').textContent=this.value||'auto'">
+            <input type="number" id="rope-freq-scale" min="0" step="0.01" value="0" class="input">
             <div class="text-[10px] dim mt-0.5">0 = model default</div>
           </div>
         </div>
@@ -310,10 +306,6 @@ function applyModelMeta(meta) {
     slider.disabled = true;
     if (hint) hint.textContent = 'Layer count unknown for this model — loading uses -1 (all layers) by default.';
   }
-  const capEl = document.getElementById('mem-label');
-  if (capEl && maxLayers > 0) {
-    capEl && (capEl.title = 'GPU offload for a model with ' + maxLayers + ' layers.');
-  }
 }
 let memTimer = null;
 function updateMemEstimate() {
@@ -440,21 +432,18 @@ async function send() {
   }
 }
 
-// Auto-refresh memory estimate when model changes
-document.getElementById('model-select').addEventListener('change', async function() {
+// Refresh memory estimate + layer topology for the selected model.
+async function refreshSelectedModel() {
   updateMemEstimate();
-  const sel = document.getElementById('model-select');
-  const path = sel ? sel.value : '';
-  if (path) {
-    try {
-      const meta = await getModelMeta(path);
-      applyModelMeta(meta);
-    } catch (e) {
-      fts.notify('Model info failed: ' + (e.message || e), 'error');
-    }
+  const path = $('model-select').value;
+  if (!path) return;
+  try {
+    applyModelMeta(await getModelMeta(path));
+  } catch (e) {
+    fts.notify('Model info failed: ' + (e.message || e), 'error');
   }
-});
-// Run once on load if a model is already loaded (to refresh mem-bar status)
-updateMemEstimate();
+}
+$('model-select').addEventListener('change', refreshSelectedModel);
+refreshSelectedModel();
 </script>
 {% endblock %}

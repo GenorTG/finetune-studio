@@ -11,6 +11,7 @@ import asyncio
 import logging
 import mimetypes
 import re
+import shutil
 import time
 from pathlib import Path
 from typing import Any
@@ -228,7 +229,7 @@ async def rag_docs_inventory(pid: str) -> dict[str, Any]:
 
     if not db.get_project(pid):
         raise HTTPException(status_code=404, detail="project not found")
-    docs = list_indexed_docs(pid)
+    docs = await asyncio.to_thread(list_indexed_docs, pid)
     return {
         "docs": docs,
         "document_count": len(docs),
@@ -243,7 +244,7 @@ async def rag_doc_chunks(pid: str, doc_id: str) -> dict[str, Any]:
 
     if not db.get_project(pid):
         raise HTTPException(status_code=404, detail="project not found")
-    chunks = list_doc_chunks(pid, doc_id)
+    chunks = await asyncio.to_thread(list_doc_chunks, pid, doc_id)
     return {"doc_id": doc_id, "chunks": chunks, "count": len(chunks)}
 
 
@@ -326,9 +327,7 @@ async def rag_rebuild(pid: str, req: RebuildRequest | None = None) -> dict[str, 
     name = proj["name"] if proj else pid
     corpus = corpus_dir(pid)
     if body.reset and corpus.exists():
-        import shutil
-
-        shutil.rmtree(corpus)
+        await asyncio.to_thread(shutil.rmtree, corpus)
 
     # Ensure a project_rags row exists so we have a rag_id for build tracking.
     existing_rags = db.list_rags(pid)
@@ -338,8 +337,8 @@ async def rag_rebuild(pid: str, req: RebuildRequest | None = None) -> dict[str, 
     build = db.create_rag_build(pid, rag_id)
     db.mark_rag_build_running(build["id"])
 
-    rag = PortableRAG(corpus)
     try:
+        rag = PortableRAG(corpus)
         result = await asyncio.to_thread(
             rag.build_from_directory,
             source_dir=str(files_dir),
@@ -370,7 +369,7 @@ async def rag_rebuild(pid: str, req: RebuildRequest | None = None) -> dict[str, 
     except Exception:
         log.exception("Failed to register project_rags for PortableRAG corpus")
 
-    docs = list_indexed_docs(pid)
+    docs = await asyncio.to_thread(list_indexed_docs, pid)
     return {
         "ok": True,
         "doc_id": body.doc_id,

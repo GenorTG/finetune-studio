@@ -16,19 +16,28 @@ def root() -> Path:
     return _ROOT
 
 
+def _safe_segment(value: str, what: str) -> str:
+    """Reject values that could escape their parent directory."""
+    if not value or value in {".", ".."} or any(c in value for c in "/\\\x00"):
+        raise ValueError(f"invalid {what}: {value!r}")
+    return value
+
+
 def project_dir(pid: str) -> Path:
-    p = _PROJECTS / pid
+    p = _PROJECTS / _safe_segment(pid, "project id")
     p.mkdir(parents=True, exist_ok=True)
     return p
 
 
-def file_dir(pid: str, sha256: str) -> Path:
-    """files/<sha256-12>/ — content-addressed. Used by the legacy data-prep
-    runner for parsed files. The new file library lives at files/ root, with
-    its own raw/ + converted/ structure (see data.fs.file_library)."""
-    short = sha256[:12]
+def file_dir(pid: str, sha256: str, *, create: bool = True) -> Path:
+    """files/<sha256-12>/ — content-addressed. Used by the data-prep runner
+    for parsed files. The file library lives at files/ root, with its own
+    raw/ + converted/ structure (see data.fs.file_library). Pass
+    ``create=False`` for read-only lookups so they don't mkdir."""
+    short = _safe_segment(sha256[:12], "sha256")
     d = project_dir(pid) / "files" / short
-    d.mkdir(parents=True, exist_ok=True)
+    if create:
+        d.mkdir(parents=True, exist_ok=True)
     return d
 
 

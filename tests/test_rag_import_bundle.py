@@ -245,11 +245,15 @@ def test_import_route_accepts_tar_gz_suffix(tmp_path: Path, monkeypatch) -> None
     src = tmp_path / "srccorpus"
     _write_minimal_corpus(src, with_local_models=True)
     _write_real_payloads(src)
-    archive = PortableRAG(src).export_bundle(out_path=None, fmt="tar.gz", include_models=True)
+    archive = PortableRAG(src).export_bundle(
+        out_path=tmp_path / "route-bundle.tar.gz", fmt="tar.gz", include_models=True
+    )
     data = Path(archive).read_bytes()
     _stub_embedder(monkeypatch)
 
-    pid = "routecheck01"
+    from finetune_studio import db
+
+    pid = db.create_project("routecheck", "", "", "")["id"]
     r = client.post(
         f"/{pid}/rag/import?overwrite=false",
         files={"file": ("vael-bundle.tar.gz", io.BytesIO(data), "application/gzip")},

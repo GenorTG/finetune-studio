@@ -260,13 +260,9 @@ class DataPrepRunner:
                     "chunk_index": i,
                     "rejected": len(batch.rejected),
                     "accepted": len(batch.accepted),
-                    "reasons": {
-                        r: c for r, c in Counter(
-                            reason
-                            for p in batch.rejected
-                            for reason in p.reasons
-                        ).items()
-                    },
+                    "reasons": dict(Counter(
+                        reason for p in batch.rejected for reason in p.reasons
+                    )),
                 })
             pct = 30 + (i / max(1, len(chunks))) * 65
             self._emit(stage="generating", pct=pct, chunks_done=i, qa_total=total_qa)

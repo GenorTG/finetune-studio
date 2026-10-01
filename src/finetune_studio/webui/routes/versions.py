@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 import time
 from pathlib import Path
@@ -49,6 +50,8 @@ async def _save_version(pid: str, body: dict[str, Any]) -> dict | JSONResponse:
     if parent_vid and (not parent or parent.get("project_id") != pid):
         return JSONResponse({"error": f"parent version {parent_vid!r} not found"}, status_code=404)
     manifest = body.get("manifest") or {}
+    if not isinstance(manifest, dict):
+        return JSONResponse({"error": "manifest must be an object"}, status_code=400)
 
     # Auto-fill runnable inputs when the caller doesn't pin them explicitly:
     # current datasets, latest rag corpus build, recent training runs.
@@ -101,7 +104,13 @@ async def list_versions(pid: str):
 
 @router.post("/projects/{pid}/versions")
 async def save_version(pid: str, request: Request):
-    return await _save_version(pid, await request.json())
+    try:
+        body = await request.json()
+    except ValueError:
+        return JSONResponse({"error": "invalid JSON"}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "expected JSON object"}, status_code=400)
+    return await _save_version(pid, body)
 
 
 @router.get("/projects/{pid}/versions/{vid}")
@@ -188,7 +197,8 @@ async def build_subset_dataset(pid: str, request: Request):
 
     ds_dir = datasets_dir(pid)
     ts = time.strftime("%Y%m%d-%H%M%S")
-    base_name = body.get("name") or f"subset-{len(source_ids)}src"
+    base_name = re.sub(r"[^\w.\-]", "_", str(body.get("name") or "")).strip("._") \
+        or f"subset-{len(source_ids)}src"
     target = ds_dir / f"{pid}-{base_name}-{ts}.jsonl"
     target.write_text(payload, encoding="utf-8")
     existing = get_dataset_by_path(pid, str(target))
@@ -221,8 +231,6 @@ async def rag_coverage(pid: str):
     Corpus side = PortableRAG manifest documents_meta (per-document ids/names).
     Returns per-source rows + summary; missing sources are listed explicitly.
     """
-    import json as _json
-
     from finetune_studio.data.fs import qa as qafs
 
     sources = qafs.list_qa_sources(pid)
@@ -235,7 +243,7 @@ async def rag_coverage(pid: str):
     if not manifest_path.exists():
         return JSONResponse({"error": "no RAG corpus built for this project"}, status_code=400)
     try:
-        raw = _json.loads(manifest_path.read_text(encoding="utf-8"))
+        raw = json.loads(manifest_path.read_text(encoding="utf-8"))
         meta = (raw.get("extra") or {}).get("documents_meta") or []
     except (OSError, ValueError, AttributeError, TypeError):
         meta = []

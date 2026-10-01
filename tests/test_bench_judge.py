@@ -23,7 +23,7 @@ def client_and_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings, "db_path", str(db_path))
     # The shared autouse fixture patches db.connection.settings separately;
     # keep this module's custom path aligned with the connection actually used.
-    import finetune_studio.db.connection as connection
+    from finetune_studio.db import connection
     monkeypatch.setattr(connection.settings, "db_path", str(db_path))
     db.init_db()
     return TestClient(app), db_path
@@ -202,3 +202,58 @@ def test_secondary_local_judge_is_persisted_without_overwriting_source_score(
     assert case["verdict"] == original_verdict
     assert case["judge"] == "heuristic"
     assert case["judge_input"]["secondary_judge"]["model"] == "judge-model"
+
+
+def test_benchmark_routes_reject_another_projects_benchmark(
+    client_and_db: tuple[TestClient, Path],
+    tmp_path: Path,
+) -> None:
+    client, _db_path = client_and_db
+    owner_pid, rid = _create_project_and_run(client, tmp_path)
+    outsider = client.post(
+        "/api/projects",
+        json={"name": f"outsider-{uuid.uuid4().hex[:6]}", "base_model": "x/test"},
+    )
+    assert outsider.status_code == 200, outsider.text
+    outsider_pid = outsider.json()["id"]
+    benchmark = db.create_benchmark(
+        rid,
+        "private-suite",
+        {"total": 1, "judged": 1, "passed": 1, "pass_rate": 100.0},
+        cases=[
+            {
+                "name": "secret-case",
+                "question": "Secret question?",
+                "correct_answer": "secret answer",
+                "model_answer": "secret answer",
+                "verdict": "pass",
+                "judge": "heuristic",
+            }
+        ],
+    )
+    case = db.list_cases(benchmark["id"])[0]
+    bid = benchmark["id"]
+
+    assert client.get(
+        f"/api/benchmarks/projects/{outsider_pid}/benchmarks/{bid}/cases"
+    ).status_code == 404
+    assert client.get(
+        f"/api/benchmarks/projects/{outsider_pid}/benchmarks/{bid}/audit"
+    ).status_code == 404
+    assert client.post(
+        f"/api/benchmarks/projects/{outsider_pid}/benchmarks/{bid}/judge",
+        json={"judge_mode": "secondary_local", "judge_model": "judge-model"},
+    ).status_code == 404
+    assert client.post(
+        f"/api/benchmarks/projects/{outsider_pid}/benchmarks/{bid}/cases/{case['id']}/verdict",
+        json={"verdict": "fail", "reasoning": "tamper"},
+    ).status_code == 404
+    assert client.delete(
+        f"/api/benchmarks/projects/{outsider_pid}/benchmarks/{bid}"
+    ).status_code == 404
+
+    assert db.get_benchmark(bid) is not None
+    assert db.list_cases(bid)[0]["verdict"] == "pass"
+    assert client.get(
+        f"/api/benchmarks/projects/{owner_pid}/benchmarks/{bid}/cases"
+    ).status_code == 200

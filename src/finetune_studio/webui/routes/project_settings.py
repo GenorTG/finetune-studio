@@ -7,8 +7,10 @@ non-service process is treated as stale/unavailable so the UI never claims
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import subprocess
+from collections import deque
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -20,7 +22,7 @@ router = APIRouter(tags=["project-settings"])
 
 LOG_CANDIDATES: tuple[str, ...] = (
     "/tmp/uvicorn.log",
-    "/home/genortg/.finetune-studio/uvicorn.log",
+    str(Path.home() / ".finetune-studio" / "uvicorn.log"),
     "/var/log/finetune-studio/uvicorn.log",
 )
 
@@ -50,13 +52,14 @@ def read_log_tail(path: str, n: int) -> list[str]:
     p = Path(path)
     if not p.is_file():
         return [f"(no log file found at {path})"]
-    try:
-        text = p.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return [f"(no log file found at {path})"]
     if n <= 0:
         return []
-    return text.splitlines()[-n:]
+    try:
+        # Stream through a bounded deque: logs can be gigabytes.
+        with p.open(encoding="utf-8", errors="replace") as fh:
+            return [line.rstrip("\r\n") for line in deque(fh, maxlen=n)]
+    except OSError:
+        return [f"(no log file found at {path})"]
 
 
 def _iso_now() -> str:
@@ -207,4 +210,5 @@ async def project_logs(
 
     if not db.get_project(pid):
         raise HTTPException(status_code=404, detail="project not found")
-    return build_logs_payload(lines)
+    # systemctl/journalctl/file reads block: keep them off the event loop.
+    return await asyncio.to_thread(build_logs_payload, lines)

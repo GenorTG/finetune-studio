@@ -1,15 +1,22 @@
 """Routes for the per-project RAG.
 
-Endpoints the UI uses (mirror of the existing style):
+Mounted under ``/api/projects``. Endpoints (all keyed by ``{pid}``):
 
-  GET  /api/projects/{pid}/rag              -- status + manifest summary
-  GET  /api{pid}/rag/settings      -- settings (embedder, reranker, hybrid, etc.)
-  POST /api{pid}/rag/settings      -- update settings (no rebuild)
-  POST /api{pid}/rag/build        -- (re)build corpus from project's files dir
-  POST /api{pid}/rag/rebuild-vectors  -- re-embed with current settings
-  POST /api{pid}/rag/search       -- {query, top_k, hybrid?, rerank?, rerank_top_n?}
-                                              -> {hits: [{rank, score, text, filename, ...}]}
-  POST /api{pid}/rag/chat         -- {messages, top_k?} -> {reply, sources, citations}
+  GET    /{pid}/rag                  -- status + manifest summary
+  GET    /{pid}/rag/settings         -- settings (embedder, reranker, hybrid, etc.)
+  POST   /{pid}/rag/settings         -- update settings (no rebuild)
+  POST   /{pid}/rag/build            -- (re)build corpus from project's parsed files
+  POST   /{pid}/rag/quick            -- promote unparsed files, then build
+  GET    /{pid}/rag/build/status     -- one-shot build progress
+  GET    /{pid}/rag/build/progress   -- SSE build progress
+  POST   /{pid}/rag/rebuild-vectors  -- re-embed with current settings
+  GET    /{pid}/rag/sources          -- list corpus sources
+  DELETE /{pid}/rag/sources[/{id}]   -- remove one / all sources
+  POST   /{pid}/rag/search           -- {query, top_k, hybrid?, rerank?, rerank_top_n?}
+  GET    /{pid}/rag/bundle           -- download corpus archive
+  POST   /{pid}/rag/import           -- upload a corpus archive
+  POST   /{pid}/rag/chat             -- {messages, top_k?} -> {reply, sources, hits}
+  GET    /shared-models/stats        -- shared model pool stats
 """
 
 from __future__ import annotations
@@ -51,11 +58,6 @@ def _project_404(pid: str) -> JSONResponse | None:
     if not db.get_project(pid):
         return JSONResponse({"error": "project not found"}, status_code=404)
     return None
-
-
-def _build_meta(pid: str, name: str) -> dict:
-    """Sidecar DB-like info stored next to the project. For now: just counts."""
-    return {"name": name, "pid": pid}
 
 
 # ── DTOs ────────────────────────────────────────────────────────────────
@@ -190,6 +192,9 @@ async def rag_build(pid: str, req: BuildRequest):
     """
     from finetune_studio.data.rag_portable import PortableRAG
 
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     # Find source dir: project's files/<sha>/*.txt
     project_files_dir = Path.home() / ".finetune-studio" / "projects" / pid / "files"
     if not project_files_dir.exists():
@@ -197,12 +202,10 @@ async def rag_build(pid: str, req: BuildRequest):
                             status_code=400)
     # Use the project name as corpus name if available
     from finetune_studio import db
-    proj = db.get_project(pid)
-    name = proj["name"] if proj else pid
+    name = db.get_project(pid)["name"]
 
     corpus = _corpus_dir(pid)
     if req.reset and corpus.exists():
-        import shutil
         shutil.rmtree(corpus)
     rag = PortableRAG(corpus)
 
@@ -213,11 +216,13 @@ async def rag_build(pid: str, req: BuildRequest):
     queued_files = sum(1 for f in txt_files if f.is_file())
     queued_chars = sum(f.stat().st_size for f in txt_files)
 
-    # Run synchronously — embedding 45 small files takes ~30s.
-    # Background tasks were silently failing because they don't inherit
-    # the HF_HOME environment variable set by the systemd unit.
+    # The request stays open until the build finishes (embedding 45 small
+    # files takes ~30s), but runs in a worker thread so the event loop can
+    # still serve /build/progress. A thread inherits HF_HOME from the systemd
+    # unit; detached background tasks did not.
     try:
-        result = rag.build_from_directory(
+        result = await asyncio.to_thread(
+            rag.build_from_directory,
             source_dir=str(project_files_dir),
             name=name,
             embedder=req.embedder or "intfloat/multilingual-e5-large",
@@ -308,7 +313,10 @@ async def rag_quick(pid: str, req: QuickRequest):
                 failed.append({"name": f.get("original_name"), "error": str(e)})
 
     build = await rag_build(pid, BuildRequest())
-    build_dict = build if isinstance(build, dict) else {"error": "build failed"}
+    if isinstance(build, JSONResponse):
+        build_dict = {"ok": False, **json.loads(build.body)}
+    else:
+        build_dict = build
     return {"ok": bool(build_dict.get("ok", True)),
             "promoted": len(promoted), "promoted_files": promoted,
             "failed": failed, "build": build_dict}
@@ -371,14 +379,12 @@ async def rag_build_progress(pid: str):
     """Server-Sent Events stream that reports corpus build progress.
 
     Emits JSON events:
-        {"phase":"queued|chunking|embedding|done|error|timeout",
+        {"phase":"queued|chunking|embedding|done|timeout",
          "files_done":N,"files_total":M,"chunks":K,"elapsed_s":S}
-    Stream terminates once ``phase`` is ``done``/``error``/``timeout``,
+    Stream terminates once ``phase`` is ``done`` or ``timeout``,
     or after 10 min. Prefer this over polling; clients may fall back to
     ``GET .../rag/build/status`` via fts.subscribe (fallbackMs ≥ 5s).
     """
-    import asyncio
-
     missing = _project_404(pid)
     if missing is not None:
         return missing
@@ -430,7 +436,7 @@ async def rag_rebuild_vectors(pid: str, req: RebuildVectorsRequest):
         except Exception:  # noqa: BLE001
             embedder = None
     try:
-        result = rag.rebuild_vectors(embedder=embedder)
+        result = await asyncio.to_thread(rag.rebuild_vectors, embedder=embedder)
         return {"ok": True, **result}
     except Exception as e:
         log.exception("rebuild failed")
@@ -532,6 +538,9 @@ async def rag_import(pid: str, file: UploadFile, overwrite: bool = False):
     """
     from finetune_studio.data.rag_portable import PortableRAG
 
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     filename = file.filename or "bundle"
     name_lower = filename.lower()
     # Path.suffix only sees the last dot, so "x.tar.gz" reports ".gz" —

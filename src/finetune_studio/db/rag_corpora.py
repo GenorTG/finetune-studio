@@ -109,10 +109,9 @@ def reconcile_stale(error: str = "interrupted by service restart") -> int:
 
     Returns the number of rows updated.
     """
-    import time as _time
     stale = ("queued", "running")
     placeholders = ", ".join("?" for _ in stale)
-    now = _time.time()
+    now = time.time()
     with cursor() as c:
         rows = c.execute(
             f"SELECT id FROM rag_corpora WHERE status IN ({placeholders})",

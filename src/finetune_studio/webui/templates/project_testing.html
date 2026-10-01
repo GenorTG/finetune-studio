@@ -157,7 +157,7 @@
       <div class="card-sub">Last {{ recent_suite_runs|length }} suite run{{ '' if (recent_suite_runs|length == 1) else 's' }} for this project.</div>
     </div>
   </div>
-  <table class="data-table w-full text-xs">
+  <table class="table w-full text-xs">
     <thead><tr><th>Suite</th><th>Run</th><th>Pass rate</th><th>When</th></tr></thead>
     <tbody>
       {% for r in recent_suite_runs %}

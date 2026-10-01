@@ -22,7 +22,7 @@ def parse(path: Path) -> dict:
     structured = {
         "type": "json",
         "schema": _type_of(data),
-        "size_bytes": len(raw),
+        "size_bytes": path.stat().st_size,
     }
     return make_result(text, structured, parser="json_v1")
 

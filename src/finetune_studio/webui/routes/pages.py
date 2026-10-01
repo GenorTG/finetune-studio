@@ -526,10 +526,10 @@ async def benchmarks_page(request: Request, pid: str):
         for b in db.list_benchmarks(run["id"]):
             b["_run_name"] = run_name_map.get(run["id"], run["id"])
             b["_ran_at_str"] = _time.strftime(
-                "%Y-%m-%d %H:%M", _time.localtime(b["ran_at"])
+                "%Y-%m-%d %H:%M", _time.localtime(b.get("ran_at") or 0)
             )
             all_benchmarks.append(b)
-    all_benchmarks.sort(key=lambda x: x["ran_at"], reverse=True)
+    all_benchmarks.sort(key=lambda x: x.get("ran_at") or 0, reverse=True)
     comparison_runs = [runs[0]["id"], runs[1]["id"]] if len(runs) >= 2 else []
     done_runs = [
         r for r in runs
@@ -653,8 +653,6 @@ async def project_work_page(request: Request, pid: str):
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
     """Settings, debug info, replay tutorial, system status."""
-    from finetune_studio import __release_channel__ as RELEASE_CHANNEL
-    from finetune_studio import __version__ as APP_VERSION
     return templates.TemplateResponse(
         request,
         "settings.html",
@@ -673,9 +671,6 @@ async def debug_info():
     import platform
     import sys
     from pathlib import Path
-
-    from finetune_studio import __release_channel__ as RELEASE_CHANNEL
-    from finetune_studio import __version__ as APP_VERSION
 
     info = {
         "app_version": APP_VERSION,

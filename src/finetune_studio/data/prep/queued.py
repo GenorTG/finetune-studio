@@ -35,8 +35,11 @@ class QueuedSourcePrep:
             stage="queued", message="Waiting for earlier files"
         )
         self._delegate: DataPrepRunner | None = None
+        self._cancelled = False
 
     def run(self) -> dict[str, Any]:
+        if self._cancelled:
+            return {"ok": False, "error": "cancelled"}
         data = self.path.read_bytes()
         self._delegate = DataPrepRunner(
             pid=self.pid,
@@ -54,6 +57,7 @@ class QueuedSourcePrep:
         if self._delegate is not None:
             self._delegate.cancel()
         else:
+            self._cancelled = True
             self._queued_progress = PrepProgress(stage="error", message="Cancelled")
 
     @property

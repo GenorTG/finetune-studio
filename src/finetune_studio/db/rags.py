@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import time
 from typing import Any
 
 from finetune_studio.db.connection import cursor, new_id, row_to_dict
@@ -16,7 +17,7 @@ def _get(rid: str) -> dict | None:
 def create_rag(project_id: str, name: str, description: str = "",
                tags: str = "", store_path: str = "") -> dict:
     rid = new_id()
-    now = time_now()
+    now = time.time()
     if not store_path:
         store_path = os.path.join("data", "rags", project_id, rid)
     with cursor() as c:
@@ -82,7 +83,7 @@ def ensure_portable_rag(
     stay in sync after every build/rebuild.
     """
     store_path = os.path.abspath(store_path)
-    now = time_now()
+    now = time.time()
     for rag in list_rags(project_id):
         existing = os.path.abspath(str(rag.get("store_path") or ""))
         if existing == store_path:
@@ -113,8 +114,3 @@ def ensure_portable_rag(
         error="",
     )
     return updated or created
-
-
-def time_now() -> float:
-    import time as _t
-    return _t.time()

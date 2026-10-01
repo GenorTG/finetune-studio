@@ -3,17 +3,8 @@
 WHAT THIS FILE DOES
 ==================
 Cleans up a directory of training files:
-  - Removes duplicates (by content hash)
-  - Sorts files by size, name, or date
-  - Renames files to a consistent pattern
-  - Reports statistics (total files, total size, duplicates removed)
-
-KEY CONCEPTS
-============
-- Content hashing: SHA-256 hash of file contents. Two files with the
-  same hash are byte-identical (duplicates).
-- Idempotent operations: running the organizer twice doesn't change
-  the result (idempotent means "same output for same input").
+  - scan_data_files: lists data files (.jsonl/.json/.csv/.txt), newest first
+  - dedup_data: drops rows whose canonical JSON is identical
 """
 
 import json
@@ -42,9 +33,8 @@ def dedup_data(data):
     dupes = 0
     for item in data:
         key = json.dumps(item, sort_keys=True, ensure_ascii=False)
-        h = hash(key)
-        if h not in seen:
-            seen.add(h)
+        if key not in seen:
+            seen.add(key)
             unique.append(item)
         else:
             dupes += 1

@@ -450,10 +450,11 @@
           var tr = document.createElement("tr");
           var dCls = deltaClass(row.delta);
           tr.innerHTML =
-            '<td class="mono">' + (row.suite || "—") + "</td>" +
+            '<td class="mono"></td>' +
             '<td class="mono">' + fmtScore(row.run_a) + "</td>" +
             '<td class="mono">' + fmtScore(row.run_b) + "</td>" +
             '<td class="mono' + (dCls ? " " + dCls : "") + '">' + fmtDelta(row.delta) + "</td>";
+          tr.firstChild.textContent = row.suite || "—";
           tbody.appendChild(tr);
         });
       }

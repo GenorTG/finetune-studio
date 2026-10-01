@@ -16,6 +16,7 @@ KEY CONCEPTS
 """
 import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from .renderer import extract_template_from_gguf, render_chat
@@ -41,7 +42,7 @@ class TemplateManager:
 
     def register_from_gguf(self, model_path: str, model_name: str | None = None) -> ChatTemplate:
         """Extract and register template from a GGUF file."""
-        name = model_name or model_path.split("/")[-1].replace(".gguf", "")
+        name = model_name or Path(model_path).stem
         info = extract_template_from_gguf(model_path)
 
         # Detect format from template
@@ -104,13 +105,14 @@ class TemplateManager:
 # ══════════════════════════════════════════════════════════════
 
 FORMAT_PATTERNS = {
-    "qwen": ["<im_start>", "<tool_call>", "<|tool_call|>", "format_function_declaration"],
-    "hermes": ["<|system|>", "<|user|>", "<|assistant|>", "<tool_call>"],
+    # Order matters: first match wins, so the most specific formats go first.
+    "gemma4": ["<|turn>", "<|tool_response>", "format_function_declaration"],
+    "qwen": ["<tool_call>", "<|tool_call|>"],
+    "hermes": ["<|system|>", "<|user|>", "<|assistant|>"],
     "llama3": ["<|start_header_id|>", "<|end_header_id|>"],
     "mistral": ["[INST]", "[/INST]", "[AVAILABLE_TOOLS]", "[/AVAILABLE_TOOLS]"],
     "gemma": ["<start_of_turn>", "<end_of_turn>"],
-    "gemma4": ["<|turn>", "<|tool_response>", "format_function_declaration"],
-    "chatml": ["<im_start>", "<im_end>"],
+    "chatml": ["<|im_start|>", "<|im_end|>"],
     "phi3": ["<|system|>", "<|user|>", "<|end|>"],
 }
 

@@ -7,6 +7,7 @@ Ground-truth facts live in facts.json for later judging.
 """
 from __future__ import annotations
 
+import io
 import json
 import random
 from pathlib import Path
@@ -89,7 +90,7 @@ def house_profile(i: int) -> str:
         f"House colors: {['ash-grey','verdigris','bone-white','rust-red','ocean-slate'][i % 5]} "
         f"quartered with {['a双 tide-spiral','moth-wings split','a bell cracked','three pearls sunk'][i % 4]}.\n"
         f"Standing guard at the seat: {120 + i * 35} warded soldiers under a "
-        f"{RANKS[(i + 2) % len(RANKS)]}{'' if (i + 2) % 10 == 0 else ''}. Annual tithe to the Concord vault: "
+        f"{RANKS[(i + 2) % len(RANKS)]}. Annual tithe to the Concord vault: "
         f"{400 + i * 90} crowns. The house seal is cut into {9 + i} margin-stones."
     )
     fact("houses", f"What is the recorded population of {h[0]}?",
@@ -117,11 +118,10 @@ def event_saga(i: int) -> str:
     fact("events", f"In what year did {name} occur?", f"{year}", txt[:60])
     fact("events", f"How many casualties did {name} cause among warded soldiers?",
          f"{60 + i * 13}", txt[:60])
-    try:
+    import contextlib
+    with contextlib.suppress(IndexError):
         fact("events", f"What was the Compensation fixed after {name}?",
              f"{1100 + i * 350} crowns", txt[:60])
-    except IndexError:
-        pass
     return txt
 
 
@@ -162,7 +162,6 @@ def rank_charter(i: int) -> str:
 
 
 def misc_lore(i: int) -> str:
-    creatures = ["the Vael-stork", "the Drevmorian howler-toad", "the Osthelm glasswyr"]
     beasts = [("the Vael-stork", "nine-foot marsh bird that swallows lit coals"),
               ("the howler-toad", "sings in fifths during the Grellock fog"),
               ("the glasswyr", "eats sand and excretes brittle glass thread")]
@@ -234,12 +233,6 @@ def to_plain_text(body: str, ext: str, idx: int = 0) -> str:
     h = HOUSES[idx % 9]
     h2 = HOUSES[(idx + 3) % 9]
     ev = EVENTS[idx % len(EVENTS)]
-    unique_head = (
-    f"annal {idx}\n"
-    f"house: {h[0]} (continent {h[1]}, craft {h[2]}, seat {h[7]})\n"
-    f"archon: {h[4]}, population {h[3]:,}\n"
-    f"event: {ev[0]} in {ev[1]}\n"
-)
     if ext in (".csv", ".tsv"):
         sep = "," if ext == ".csv" else "\t"
         rows = [f"item{sep}house{sep}price_crowns\n"]
@@ -375,9 +368,7 @@ def to_plain_text(body: str, ext: str, idx: int = 0) -> str:
 
 def build_binary(ext: str, body: str, idx: int) -> bytes:
     """Build a real binary doc for the optional-deps extensions."""
-    import io
     h = HOUSES[idx % 9]
-    h2 = HOUSES[(idx + 3) % 9]
     ev = EVENTS[idx % len(EVENTS)]
     if ext == ".xls":
         import xlwt

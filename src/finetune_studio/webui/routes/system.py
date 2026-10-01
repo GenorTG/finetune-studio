@@ -134,17 +134,22 @@ async def version():
     """
     from pathlib import Path
 
-    from finetune_studio import __release_channel__, __version__
+    from finetune_studio import __release_channel__, build_version
 
+    # Anchored to the package, not the cwd; VERSION is re-read per request so a
+    # long-lived service never reports the build it booted with.
+    git_dir = Path(__file__).resolve().parents[4] / ".git"
     commit = ""
     try:
-        head = Path(".git") / "HEAD"
+        head = git_dir / "HEAD"
         if head.is_file():
             ref = head.read_text(encoding="utf-8").strip()
             if ref.startswith("ref:"):
-                refpath = Path(".git") / ref.split(": ", 1)[1]
+                refpath = git_dir / ref.split(": ", 1)[1]
                 if refpath.is_file():
                     commit = refpath.read_text(encoding="utf-8").strip()[:8]
+            else:
+                commit = ref[:8]  # detached HEAD
     except OSError:
         pass
-    return {"version": __version__, "channel": __release_channel__, "git_commit": commit}
+    return {"version": build_version(), "channel": __release_channel__, "git_commit": commit}

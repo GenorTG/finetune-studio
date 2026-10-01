@@ -135,7 +135,7 @@ def _dir_size(path: str) -> int:
     return total
 
 
-def _human_size(n: int) -> int:
+def _human_size(n: float) -> str:
     """1.4 GB / 235 MB / 12 KB style."""
     for unit in ("B", "KB", "MB", "GB", "TB"):
         if n < 1024:
@@ -290,7 +290,7 @@ class TrainingEngine:
             except Exception:  # one bad callback must not kill training
                 # Not log.exception: _notify runs per step, so a broken
                 # callback would flood the journal with tracebacks.
-                log.warning("Training state callback failed: %s", exc_info=True)
+                log.warning("Training state callback failed", exc_info=True)
 
     def start(self, config, training_data, system_prompt="", *, _worker_target=None):
         """Start training in a spawn child process (never in the uvicorn process).
@@ -520,20 +520,13 @@ class TrainingEngine:
             self.state.message = "Loading model..."
             self._notify()
             mode = getattr(self.config, 'system_prompt_mode', 'bake')
-            if mode == "none":
-                system_prompt = ""
-            elif mode == "runtime":
-                # Don't bake into training data, but save for later use
-                bake_prompt = ""
-            else:
-                # "bake" — prepend to every training example (current behavior)
-                bake_prompt = system_prompt
-            formatted = format_for_sft(training_data, bake_prompt if mode != "runtime" else "")
+            # "none"/"runtime" never bake the prompt into training examples.
+            bake_prompt = "" if mode in ("none", "runtime") else system_prompt
+            formatted = format_for_sft(training_data, bake_prompt)
             if mode == "runtime" and system_prompt:
-                # Save system prompt to a file alongside the output for later use
-                prompt_path = os.path.join(self.config.output_dir, "system_prompt.txt")
-                os.makedirs(os.path.dirname(prompt_path) or ".", exist_ok=True)
+                # Save system prompt next to the output for inference-time use.
                 os.makedirs(self.config.output_dir, exist_ok=True)
+                prompt_path = os.path.join(self.config.output_dir, "system_prompt.txt")
                 with open(prompt_path, "w") as f:
                     f.write(system_prompt)
             train_data, val_data = split_data(formatted)
@@ -644,7 +637,7 @@ class TrainingEngine:
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
             except Exception:  # OOM cleanup must never mask the retry
-                log.warning("Failed to free VRAM before retry: %s", exc_info=True)
+                log.warning("Failed to free VRAM before retry", exc_info=True)
         # Attempt 2: Mixed device map
         self.state.message = "Loading model with CPU offload (RAM+VRAM mix)..."
         self._notify()
@@ -652,6 +645,45 @@ class TrainingEngine:
             model_path, torch_dtype="auto", device_map="auto",
             trust_remote_code=True,
         )
+
+    def _save_adapter(self, model, tokenizer, *, with_chat_template: bool = False) -> None:
+        """Write the PEFT adapter + tokenizer to ``<output_dir>/adapter/``."""
+        adapter_dir = os.path.join(self.config.output_dir, "adapter")
+        os.makedirs(self.config.output_dir, exist_ok=True)
+        model.save_pretrained(adapter_dir)
+        tokenizer.save_pretrained(adapter_dir)
+        if with_chat_template and getattr(tokenizer, "chat_template", None):
+            try:
+                with open(os.path.join(adapter_dir, "chat_template.jinja"), "w") as f:
+                    f.write(tokenizer.chat_template)
+            except Exception:
+                log.warning("Could not persist chat_template.jinja", exc_info=True)
+
+    def _export_gguf_after_train(self, model, tokenizer) -> None:
+        """Post-train GGUF export; failures are non-fatal and surfaced on the run.
+
+        The export converts ``<output_dir>/merged/``, so with no merge it would
+        be a silent no-op (QABUG run 8a1962c3 asked for q8_0, got nothing).
+        Auto-merge first when the user asked for GGUF but unchecked merge.
+        """
+        output_dir = self.config.output_dir
+        merged_dir = os.path.join(output_dir, "merged")
+        if not self.config.merge_on_save and (
+            not os.path.isdir(merged_dir) or not os.listdir(merged_dir)
+        ):
+            self._maybe_merge(model, tokenizer, output_dir)
+        try:
+            gguf_result = self._do_export_gguf(output_dir)
+            if not gguf_result.get("ok"):
+                err = gguf_result.get("error") or gguf_result.get("reason") or "GGUF export failed"
+                self.state.error = f"Training complete — GGUF export failed: {err}"
+        except Exception as e:
+            log.exception("GGUF export failed (non-fatal)")
+            self.state.error = f"Training complete — GGUF export failed: {_format_exc(e)}"
+        if self.state.error:
+            self.state.message = self.state.error
+            self._notify()  # copy into run.error so the run row is honest
+            self._sync_run_error(self.state.error)
 
     def _train_unsloth(self, train_data):
         from datasets import Dataset
@@ -747,12 +779,9 @@ class TrainingEngine:
         self._notify()
         trainer.train()
         if self._stop_requested():
-            # Persist partial adapter so the work is not lost, then stop.
+            # Persist the partial adapter so the work is not lost, then stop.
             try:
-                os.makedirs(cfg.output_dir, exist_ok=True)
-                adapter_dir = os.path.join(cfg.output_dir, "adapter")
-                model.save_pretrained(adapter_dir)
-                tokenizer.save_pretrained(adapter_dir)
+                self._save_adapter(model, tokenizer)
             except Exception:
                 log.exception("Failed to save adapter after stop")
             self._mark_stopped()
@@ -760,52 +789,14 @@ class TrainingEngine:
         self.state.status = "saving"
         self.state.message = "Saving model..."
         self._notify()
-        os.makedirs(cfg.output_dir, exist_ok=True)
-        adapter_dir = os.path.join(cfg.output_dir, "adapter")
-        model.save_pretrained(adapter_dir)
-        tokenizer.save_pretrained(adapter_dir)
-        if hasattr(tokenizer, "chat_template") and tokenizer.chat_template:
-            try:
-                with open(os.path.join(adapter_dir, "chat_template.jinja"), "w") as f:
-                    f.write(tokenizer.chat_template)
-            except Exception:
-                log.warning(
-                    "Could not persist chat_template.jinja: %s", exc_info=True
-                )
+        self._save_adapter(model, tokenizer, with_chat_template=True)
         if self._stop_requested():
             self._mark_stopped()
             return
         if cfg.merge_on_save:
             self._maybe_merge(model, tokenizer, cfg.output_dir)
         if cfg.export_gguf:
-            # export_gguf converts <output_dir>/merged/ — with no merge the
-            # export is a guaranteed "no merged model" no-op (QABUG: run
-            # 8a1962c3 asked for q8_0, got silence). Auto-merge first when
-            # the user asked for GGUF but unchecked merge.
-            merged_dir = os.path.join(cfg.output_dir, "merged")
-            if not cfg.merge_on_save and (
-                not os.path.isdir(merged_dir) or not os.listdir(merged_dir)
-            ):
-                try:
-                    self._maybe_merge(model, tokenizer, cfg.output_dir)
-                except Exception:
-                    log.exception("Pre-GGUF auto-merge failed")
-            try:
-                gguf_result = self._do_export_gguf(cfg.output_dir)
-                if not gguf_result.get("ok"):
-                    err = gguf_result.get("error") or gguf_result.get("reason") or "GGUF export failed"
-                    self.state.error = (
-                        f"Training complete — GGUF export failed: {err}"
-                    )
-            except Exception as e:
-                log.exception("GGUF export failed (non-fatal)")
-                self.state.error = (
-                    f"Training complete — GGUF export failed: {_format_exc(e)}"
-                )
-            if self.state.error:
-                self.state.message = self.state.error
-                self._notify()  # copy into run.error so the run row is honest
-                self._sync_run_error(self.state.error)
+            self._export_gguf_after_train(model, tokenizer)
         if cfg.export_imatrix:
             self._do_export_imatrix(cfg.output_dir)
         try:
@@ -888,11 +879,9 @@ class TrainingEngine:
         self._notify()
         trainer.train()
         if self._stop_requested():
+            # Persist the partial adapter so the work is not lost, then stop.
             try:
-                os.makedirs(cfg.output_dir, exist_ok=True)
-                adapter_dir = os.path.join(cfg.output_dir, "adapter")
-                model.save_pretrained(adapter_dir)
-                tokenizer.save_pretrained(adapter_dir)
+                self._save_adapter(model, tokenizer)
             except Exception:
                 log.exception("Failed to save adapter after stop")
             self._mark_stopped()
@@ -900,51 +889,14 @@ class TrainingEngine:
         self.state.status = "saving"
         self.state.message = "Saving model..."
         self._notify()
-        os.makedirs(cfg.output_dir, exist_ok=True)
-        adapter_dir = os.path.join(cfg.output_dir, "adapter")
-        model.save_pretrained(adapter_dir)
-        tokenizer.save_pretrained(adapter_dir)
-        if hasattr(tokenizer, "chat_template") and tokenizer.chat_template:
-            try:
-                with open(os.path.join(adapter_dir, "chat_template.jinja"), "w") as f:
-                    f.write(tokenizer.chat_template)
-            except Exception:
-                log.warning(
-                    "Could not persist chat_template.jinja: %s", exc_info=True
-                )
+        self._save_adapter(model, tokenizer, with_chat_template=True)
         if self._stop_requested():
             self._mark_stopped()
             return
         if cfg.merge_on_save:
             self._maybe_merge(model, tokenizer, cfg.output_dir)
         if cfg.export_gguf:
-            # Same auto-merge as the chat_template path: export converts
-            # <output_dir>/merged/, so without a merge it is a silent no-op
-            # (run 6e9e2672 asked for q8_0, got silence).
-            merged_dir = os.path.join(cfg.output_dir, "merged")
-            if not cfg.merge_on_save and (
-                not os.path.isdir(merged_dir) or not os.listdir(merged_dir)
-            ):
-                try:
-                    self._maybe_merge(model, tokenizer, cfg.output_dir)
-                except Exception:
-                    log.exception("Pre-GGUF auto-merge failed")
-            try:
-                gguf_result = self._do_export_gguf(cfg.output_dir)
-                if not gguf_result.get("ok"):
-                    err = gguf_result.get("error") or gguf_result.get("reason") or "GGUF export failed"
-                    self.state.error = (
-                        f"Training complete — GGUF export failed: {err}"
-                    )
-            except Exception as exc:
-                log.exception("GGUF export failed (non-fatal)")
-                self.state.error = (
-                    f"Training complete — GGUF export failed: {_format_exc(exc)}"
-                )
-            if self.state.error:
-                self.state.message = self.state.error
-                self._notify()
-                self._sync_run_error(self.state.error)
+            self._export_gguf_after_train(model, tokenizer)
         self.state.status = "done"
         if not (self.state.message or "").startswith("Training complete —"):
             self.state.message = "Training complete!"
@@ -1189,7 +1141,7 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
         size = _dir_size(merged_dir)
         return {"merged_path": merged_dir, "size_bytes": size,
                 "size_human": _human_size(size), "skipped": True, "run": run}
-    if os.path.isdir(merged_dir) and (force or not _merged_dir_complete(merged_dir)):
+    if os.path.isdir(merged_dir):
         shutil.rmtree(merged_dir, ignore_errors=True)
     if os.environ.get("FTS_SKIP_MERGE") == "1":
         os.makedirs(merged_dir, exist_ok=True)

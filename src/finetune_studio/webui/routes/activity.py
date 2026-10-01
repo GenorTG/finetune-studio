@@ -334,26 +334,20 @@ def collect_activity() -> dict[str, Any]:
             # dedups cleanly (both use run_id == db_run_id).
             pid = run_id.split("-", 1)[0] if "-" in run_id else ""
             bare_run_id = run_id.split("-", 1)[1] if "-" in run_id else run_id
-            proj_name = "(running)"
-            if pid:
-                proj = db.get_project(pid)
-                if not proj:
-                    # A deleted project must not leave a ghost run in the
-                    # global activity drawer.
-                    proj_name = ""
-                else:
-                    proj_name = proj["name"]
-            if not (pid and not proj):
+            proj = db.get_project(pid) if pid else None
+            # A deleted project must not leave a ghost run in the global
+            # activity drawer.
+            if not pid or proj:
                 tasks.append({
-                "kind": "training",
-                "project_id": pid,
-                "project_name": proj_name,
-                "status": s.status or "running",
-                "progress": (s.current_step / max(1, s.total_steps)),
-                "message": f"step {s.current_step}/{s.total_steps} · loss {s.loss:.4f} · {s.message or ''}",
-                "started_at": _now() - int(s.elapsed or 0),
-                "url": f"/projects/{pid}/training" if pid else "/projects",
-                "run_id": bare_run_id or None,
+                    "kind": "training",
+                    "project_id": pid,
+                    "project_name": proj["name"] if proj else "(running)",
+                    "status": s.status or "running",
+                    "progress": (s.current_step / max(1, s.total_steps)),
+                    "message": f"step {s.current_step}/{s.total_steps} · loss {s.loss:.4f} · {s.message or ''}",
+                    "started_at": _now() - int(s.elapsed or 0),
+                    "url": f"/projects/{pid}/training" if pid else "/projects",
+                    "run_id": bare_run_id or None,
                 })
     except Exception as e:  # noqa: BLE001
         tasks.append({"kind": "_error", "message": f"training: {e}"})
@@ -407,7 +401,7 @@ def collect_activity() -> dict[str, Any]:
                 "project_name": proj["name"] if proj else "?",
                 "status": "done" if stage == "done" else ("error" if stage == "error" else "running"),
                 "progress": pct / 100.0,
-                "message": last.get("message", entry.get("filename", ""))[:80],
+                "message": (last.get("message") or entry.get("filename") or "")[:80],
                 "started_at": log[0].get("ts", _now()) if log else _now(),
                 "url": f"/projects/{pid}/data-prep",
                 "run_id": run_id,
@@ -527,7 +521,7 @@ def collect_activity() -> dict[str, Any]:
 @router.get("/api/activity")
 async def activity() -> dict[str, Any]:
     """One-shot activity snapshot (fallback for non-SSE clients)."""
-    return collect_activity()
+    return await asyncio.to_thread(collect_activity)
 
 
 @router.get("/api/activity/events")
@@ -540,7 +534,7 @@ async def activity_events():
     async def gen():
         last: str | None = None
         while True:
-            payload = collect_activity()
+            payload = await asyncio.to_thread(collect_activity)
             # Fingerprint without volatile started_at drift on training rows.
             stable = []
             for t in payload.get("tasks") or []:

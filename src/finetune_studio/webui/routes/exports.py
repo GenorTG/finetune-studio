@@ -20,7 +20,7 @@ import logging
 import os
 import shutil
 
-from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi import APIRouter, BackgroundTasks, Query, Request
 from fastapi.responses import JSONResponse
 
 from finetune_studio import db
@@ -128,9 +128,19 @@ async def export_run(pid: str, rid: str, request: Request,
       quants: list of GGUF quants (sync UI path)
       quant: single GGUF quant (legacy async path)
     """
-    body = await request.json() if request.headers.get(
-        "content-type", "").startswith("application/json") else {}
-    fmt = (body.get("format") or "gguf").lower()
+    body: object = {}
+    if request.headers.get("content-type", "").startswith("application/json"):
+        try:
+            body = await request.json()
+        except ValueError:
+            body = None
+    if not isinstance(body, dict):
+        return JSONResponse(
+            {"ok": False, "status": "failed",
+             "error": "request body must be a JSON object"},
+            status_code=400,
+        )
+    fmt = str(body.get("format") or "gguf").lower()
     auto_merge = bool(body.get("auto_merge", True))
     base_model_raw = body.get("base_model")
     base_model = (
@@ -284,10 +294,13 @@ async def export_run(pid: str, rid: str, request: Request,
 
     if fmt != "gguf":
         return _err(f"unsupported format: {fmt}", format=fmt)
-    quant = (body.get("quant") or DEFAULT_QUANT).upper()
-    if quant not in SUPPORTED_QUANTS:
+    quant_raw = str(body.get("quant") or DEFAULT_QUANT)
+    # SUPPORTED_QUANTS mixes case (f16 vs Q8_0): match case-insensitively
+    # and keep the canonical spelling.
+    quant = {q.upper(): q for q in SUPPORTED_QUANTS}.get(quant_raw.upper())
+    if quant is None:
         return _err(
-            f"unsupported quant: {quant}",
+            f"unsupported quant: {quant_raw}",
             supported=sorted(SUPPORTED_QUANTS),
         )
 
@@ -321,9 +334,7 @@ async def export_run(pid: str, rid: str, request: Request,
     export_row = db.create_export(project_id=pid, run_id=rid,
                                   format=fmt, quant=quant)
 
-    base = os.path.basename(
-        base_model or run.get("base_model") or "model"
-    ).replace("/", "__")
+    base = os.path.basename(base_model or run.get("base_model") or "model")
     gguf_dir = os.path.join(output_path, "gguf")
     os.makedirs(gguf_dir, exist_ok=True)
     out_filename = f"{_safe_name(base)}-{quant}.gguf"
@@ -395,7 +406,7 @@ async def list_run_exports(pid: str, rid: str):
 
 
 @router.get("/projects/{pid}/exports")
-async def list_project_exports(pid: str, limit: int = 100):
+async def list_project_exports(pid: str, limit: int = Query(100, ge=1, le=1000)):
     missing = _project_404(pid)
     if missing is not None:
         return missing

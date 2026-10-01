@@ -54,30 +54,34 @@ def deduplicate_qa_pairs(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [entry[2] for entry in sorted(selected.values(), key=lambda entry: entry[1])]
 
 
-def export_qa_jsonl(pid: str, fmt: str = "sharegpt", only: str = "approved") -> str:
-    items = pfs.list_qa_pairs(pid, status=only if only != "all" else None)
-    if only == "all":
-        items = [q for q in items if q.get("status") != "rejected"]
-    items = deduplicate_qa_pairs(items)
+def _to_jsonl(items: list[dict[str, Any]], fmt: str) -> str:
+    # items are already cleaned by deduplicate_qa_pairs
     if fmt == "sharegpt":
         out = [{"conversations": [
             {"from": "human", "value": it["question"]},
-            {"from": "gpt", "value": clean_answer_for_training(it["answer"])},
+            {"from": "gpt", "value": it["answer"]},
         ], "source_id": it.get("source_id", ""),
            "chunk_idx": it.get("chunk_idx", 0),
            "score": it.get("score", 0.0)} for it in items]
     elif fmt == "alpaca":
-        out = [{"instruction": it["question"], "input": "", "output": clean_answer_for_training(it["answer"]),
+        out = [{"instruction": it["question"], "input": "", "output": it["answer"],
                 "source_id": it.get("source_id", ""), "chunk_idx": it.get("chunk_idx", 0)} for it in items]
     elif fmt == "openai":
         out = [{"messages": [
             {"role": "user", "content": it["question"]},
-            {"role": "assistant", "content": clean_answer_for_training(it["answer"])},
+            {"role": "assistant", "content": it["answer"]},
         ], "source_id": it.get("source_id", ""),
            "chunk_idx": it.get("chunk_idx", 0)} for it in items]
     else:
         raise ValueError(f"Unknown format: {fmt}")
     return "\n".join(json.dumps(o, ensure_ascii=False) for o in out) + ("\n" if out else "")
+
+
+def export_qa_jsonl(pid: str, fmt: str = "sharegpt", only: str = "approved") -> str:
+    items = pfs.list_qa_pairs(pid, status=only if only != "all" else None)
+    if only == "all":
+        items = [q for q in items if q.get("status") != "rejected"]
+    return _to_jsonl(deduplicate_qa_pairs(items), fmt)
 
 
 def export_qa_jsonl_from_sources(
@@ -98,23 +102,4 @@ def export_qa_jsonl_from_sources(
              if q.get("source_id") in wanted]
     if only == "all":
         items = [q for q in items if q.get("status") != "rejected"]
-    items = deduplicate_qa_pairs(items)
-    if fmt == "sharegpt":
-        out = [{"conversations": [
-            {"from": "human", "value": it["question"]},
-            {"from": "gpt", "value": clean_answer_for_training(it["answer"])},
-        ], "source_id": it.get("source_id", ""),
-           "chunk_idx": it.get("chunk_idx", 0),
-           "score": it.get("score", 0.0)} for it in items]
-    elif fmt == "alpaca":
-        out = [{"instruction": it["question"], "input": "", "output": clean_answer_for_training(it["answer"]),
-                "source_id": it.get("source_id", ""), "chunk_idx": it.get("chunk_idx", 0)} for it in items]
-    elif fmt == "openai":
-        out = [{"messages": [
-            {"role": "user", "content": it["question"]},
-            {"role": "assistant", "content": clean_answer_for_training(it["answer"])},
-        ], "source_id": it.get("source_id", ""),
-           "chunk_idx": it.get("chunk_idx", 0)} for it in items]
-    else:
-        raise ValueError(f"Unknown format: {fmt}")
-    return "\n".join(json.dumps(o, ensure_ascii=False) for o in out) + ("\n" if out else "")
+    return _to_jsonl(deduplicate_qa_pairs(items), fmt)

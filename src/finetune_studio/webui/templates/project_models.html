@@ -5,14 +5,6 @@
 {% block breadcrumb_tab %}models{% endblock %}
 {% block workspace %}model{% endblock %}
 
-{% block crumbs %}
-  <a href="/projects" data-link>Projects</a>
-  <span class="sep">/</span>
-  <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a>
-  <span class="sep">/</span>
-  <span class="here">Models</span>
-{% endblock %}
-
 {% block content %}
 {% include "_resources.html" %}
 
@@ -83,7 +75,7 @@
           data-model-path="{{ m.path }}"
           data-run-id="{{ m.run_id }}">
         <td class="name exports-col-name" title="{{ m.name }}">
-          <button type="button" class="name-btn" onclick="flToggleExportRow({{ m.path|tojson }})">{{ m.name }}</button>
+          <button type="button" class="name-btn" onclick='flToggleExportRow({{ m.path|tojson }})'>{{ m.name }}</button>
         </td>
         <td class="exports-col-format"><span class="pill outline">{{ m.format }}</span></td>
         <td class="num mono exports-col-size">{{ m.size_gb }} GB</td>
@@ -95,7 +87,7 @@
         </td>
         <td class="exports-col-actions">
           <button type="button" class="btn sm primary"
-                  onclick="flOpenInInference({{ m.path|tojson }})">▶ Open in inference</button>
+                  onclick='flOpenInInference({{ m.path|tojson }})'>▶ Open in inference</button>
         </td>
       </tr>
       <tr class="export-detail" data-for="{{ row_id }}" data-model-path="{{ m.path }}">
@@ -150,7 +142,7 @@
             </div>
             <div class="flex gap-1 wrap" style="margin-top:12px;">
               <button type="button" class="btn sm primary"
-                      onclick="flOpenInInference({{ m.path|tojson }})">▶ Open in inference</button>
+                      onclick='flOpenInInference({{ m.path|tojson }})'>▶ Open in inference</button>
               <a class="btn sm" href="/projects/{{ pid }}/training?run={{ m.run_id }}" data-link>View run →</a>
             </div>
           </div>
@@ -207,7 +199,8 @@
       const r = await fetch(contentsUrl(path));
       const data = await r.json().catch(function () { return {}; });
       if (!r.ok) {
-        list.innerHTML = '<li class="dim">' + (data.detail || data.error || ("HTTP " + r.status)) + "</li>";
+        list.innerHTML = '<li class="dim"></li>';
+        list.firstChild.textContent = String(data.detail || data.error || ("HTTP " + r.status));
         return;
       }
       const files = data.files || [];
@@ -217,7 +210,7 @@
         list.innerHTML = files.map(function (f) {
           const label = f.is_dir ? (f.name + "/") : f.name;
           const sz = f.is_dir ? "dir" : formatBytes(f.size_bytes);
-          return "<li><span>" + label.replace(/</g, "&lt;") +
+          return "<li><span>" + label.replace(/&/g, "&amp;").replace(/</g, "&lt;") +
             '</span><span class="sz">' + sz + "</span></li>";
         }).join("");
         if (data.truncated) {
@@ -226,7 +219,8 @@
       }
       list.dataset.loaded = "1";
     } catch (e) {
-      list.innerHTML = '<li class="dim">Failed to load: ' + (e.message || e) + "</li>";
+      list.innerHTML = '<li class="dim"></li>';
+      list.firstChild.textContent = "Failed to load: " + (e.message || e);
     }
   }
 

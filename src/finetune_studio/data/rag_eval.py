@@ -542,7 +542,7 @@ def portability_roundtrip(
             tar.add(str(corpus.dir), arcname="corpus")
         fresh_dir = Path(tmp) / "fresh_copy"
         with tarfile.open(tar_path, "r:gz") as tar:
-            tar.extractall(fresh_dir)
+            tar.extractall(fresh_dir, filter="data")
         src_inner = fresh_dir / "corpus"
         if not src_inner.exists():
             src_inner = fresh_dir
@@ -607,6 +607,8 @@ def write_results(corpus_dir: Path, report: EvalReport) -> Path:
             history = json.loads(history_path.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001
             history = {"runs": []}
+    if not isinstance(history, dict):
+        history = {"runs": []}
     history.setdefault("runs", []).append({"run": stamp, **report.to_json()})
     history_path.write_text(
         json.dumps(history, indent=2, ensure_ascii=False),

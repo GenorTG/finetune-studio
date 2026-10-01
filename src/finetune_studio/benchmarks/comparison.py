@@ -18,8 +18,13 @@ KEY CONCEPTS
 """
 
 """Comparison module for Finetune Studio — compare models side-by-side."""
+import threading
 import time
 from dataclasses import dataclass
+
+
+class NoModelsLoadedError(RuntimeError):
+    """Raised when comparison is requested after all engines were unloaded."""
 
 
 @dataclass
@@ -37,27 +42,46 @@ class ModelComparator:
 
     def __init__(self):
         self.engines = {}
+        # A WebUI worker can receive load/run/cleanup requests concurrently.
+        # Protect the engine map and the lifetime of its GPU-backed engines.
+        self._lock = threading.RLock()
 
     def load_model(self, name: str, path: str):
-        from finetune_studio.testing.inference import InferenceEngine
-        engine = InferenceEngine()
-        engine.load(path)
-        self.engines[name] = engine
+        with self._lock:
+            from finetune_studio.testing.inference import InferenceEngine
+            engine = InferenceEngine()
+            engine.load(path)
+            previous = self.engines.get(name)
+            self.engines[name] = engine
+            if previous is not None:
+                previous.unload()
+
+    def model_names(self) -> list[str]:
+        with self._lock:
+            return list(self.engines)
 
     def unload_all(self):
-        for engine in self.engines.values():
-            engine.unload()
-        self.engines.clear()
+        with self._lock:
+            for engine in self.engines.values():
+                engine.unload()
+            self.engines.clear()
 
     def cleanup(self):
-        for engine in self.engines.values():
-            try:
-                engine.unload()
-            except Exception:  # noqa: BLE001, S110
-                pass
-        self.engines.clear()
+        with self._lock:
+            for engine in self.engines.values():
+                try:
+                    engine.unload()
+                except Exception:  # noqa: BLE001, S110
+                    pass
+            self.engines.clear()
 
     def run_comparison(self, test_suite, config: dict | None = None) -> dict:
+        with self._lock:
+            if not self.engines:
+                raise NoModelsLoadedError("No models loaded. Use /compare/load first.")
+            return self._run_comparison_locked(test_suite, config)
+
+    def _run_comparison_locked(self, test_suite, config: dict | None = None) -> dict:
         config = config or {"max_tokens": 512, "temperature": 0.7}
         results = []
 

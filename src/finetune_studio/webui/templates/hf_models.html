@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}HF Explorer · Finetune Studio{% endblock %}
 {% block nav_models_explore %}active{% endblock %}
-{% block crumbs_leaf %}HF Explorer{% endblock %}
 {% block sb_path %}~ / tools / hf-explorer{% endblock %}
 
 {% block content %}
@@ -42,42 +41,11 @@
 </div>
 
 <div id="hf-results">
-  <div class="hf-grid" id="hf-grid">
-    {% if results %}
-    {% for r in results %}
-    <div class="hf-card">
-      <div class="head">
-        <div class="icon">{{ r.repo_id.split('/')[-1][0]|upper }}</div>
-        <div style="flex:1;min-width:0;">
-          <div class="name truncate" title="{{ r.repo_id }}">{{ r.repo_id }}</div>
-          <div class="text-xs dim mono truncate">{{ r.id }}</div>
-        </div>
-      </div>
-      <div class="pills">
-        {% for t in (r.tags or [])[:4] %}
-          <span class="pill {{ ['solid-blue','solid-green','solid-purple','solid-orange','solid-pink','solid-cyan','solid-amber']|random }}">{{ t }}</span>
-        {% endfor %}
-      </div>
-      <div class="meta">
-        <span class="stat" title="Downloads">⬇ <span class="num">{{ '%0.1fM'|format((r.downloads or 0)/1000000) }}</span></span>
-        <span class="stat" title="Likes">♥ <span class="num">{{ '%0.1fK'|format((r.likes or 0)/1000) }}</span></span>
-        {% if r.pipeline_tag %}<span class="pill outline">{{ r.pipeline_tag }}</span>{% endif %}
-      </div>
-      <div class="actions">
-        <button class="btn sm primary" data-action="/api/hf/info/{{ r.repo_id }}" onclick="showInfo(this.dataset.action, this)">View</button>
-        <button class="btn sm" onclick="showFiles('{{ r.repo_id }}', this)">Files</button>
-        <button class="btn sm" data-confirm="Pull all files of {{ r.repo_id }}?" data-action="/api/hf/download" data-body='{"repo_id":"{{ r.repo_id }}"}' data-method="POST">Pull</button>
-      </div>
-    </div>
-    {% endfor %}
-    {% endif %}
-  </div>
-  {% if not results %}
+  <div class="hf-grid" id="hf-grid"></div>
   <div class="empty" id="hf-empty">
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
     <div>Loading...</div>
   </div>
-  {% endif %}
 </div>
 
 {# Modal for model info / file picker #}
@@ -99,11 +67,6 @@
 
 {% block scripts %}
 <script>
-let hfTimer = null;
-function scheduleSearch() {
-  clearTimeout(hfTimer);
-  hfTimer = setTimeout(doSearch, 280);
-}
 async function doSearch() {
   const q = document.getElementById('hf-q').value.trim();
   const task = document.getElementById('hf-task').value;
@@ -176,9 +139,6 @@ async function toggleFavorite(repoId, btn) {
     if (window.fts) window.fts.notify('Added to favorites', 'success');
   }
 }
-// Load favorites on page load
-document.addEventListener('DOMContentLoaded', () => loadFavorites());
-
 function renderResults(results) {
   const grid = document.getElementById('hf-grid');
   const empty = document.getElementById('hf-empty');
@@ -194,6 +154,7 @@ function renderResults(results) {
   const safeColor = (i, j) => (COLORS[(i + j) % COLORS.length] || '');
   grid.innerHTML = results.map((r, i) => {
     const repo = r.repo_id || '?';
+    const fav = isFavorited(repo);
     const tagPills = (r.tags || []).slice(0, 4).map((t, j) =>
       `<span class="pill ${safeColor(i, j)}">${esc(t)}</span>`).join('');
     return `
@@ -215,7 +176,7 @@ function renderResults(results) {
           <button class="btn sm primary" onclick="showInfo('${esc(repo)}', this)">View</button>
           <button class="btn sm" onclick="showFiles('${esc(repo)}', this)">Files</button>
           <button class="btn sm" data-confirm="Pull all files of ${esc(repo)}?" data-action="/api/hf/download" data-body='${JSON.stringify({repo_id: repo})}' data-method="POST">Pull</button>
-          <button class="btn sm fav-btn" data-repo="${esc(repo)}" onclick="toggleFavorite('${esc(repo)}', this)" title="Add to favorites">☆</button>
+          <button class="btn sm fav-btn${fav ? ' fav-active' : ''}" data-repo="${esc(repo)}" onclick="toggleFavorite('${esc(repo)}', this)" title="${fav ? 'Remove from favorites' : 'Add to favorites'}">${fav ? '★' : '☆'}</button>
         </div>
       </div>`;
   }).join('');
@@ -300,7 +261,7 @@ async function showFiles(repo, btn) {
       <div class="text-sm">
         ${files.map(f => `
           <div class="src">
-            <span class="pill ${colors[(f.path||'').length % colors.length]}">${(f.path||'').split('.').pop().toUpperCase()}</span>
+            <span class="pill ${colors[(f.path||'').length % colors.length]}">${esc((f.path||'').split('.').pop().toUpperCase())}</span>
             <div class="body">
               <div class="mono truncate">${esc(f.path)}</div>
               <div class="meta">${(f.size_bytes/1024/1024).toFixed(1)} MB</div>
@@ -312,12 +273,7 @@ async function showFiles(repo, btn) {
   }
 }
 
-// Initial load — page is not server-rendered with results, so fetch them
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => setTimeout(doSearch, 0));
-} else {
-  setTimeout(doSearch, 0);
-}
-document.getElementById('hf-q').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+// Initial load — results are never server-rendered; favorites first so stars render right.
+loadFavorites().then(doSearch);
 </script>
 {% endblock %}

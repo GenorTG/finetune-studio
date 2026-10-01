@@ -3,11 +3,9 @@
 WHAT THIS FILE DOES
 ==================
 Checks training data for common errors before training:
-  - Valid JSON syntax
+  - Valid JSON syntax (each JSONL row must be an object)
   - Required fields (messages, role, content)
-  - Consistent role alternation (user → assistant → user → assistant)
-  - No empty messages
-  - Length limits (too long = truncation, too short = noise)
+  - Rows with neither "messages" nor "text" produce a warning
 
 KEY CONCEPTS
 ============
@@ -32,12 +30,12 @@ def validate_file(path):
         if p.suffix == ".jsonl":
             return validate_jsonl(p, report)
         elif p.suffix == ".json":
-            with open(p) as f:
+            with open(p, encoding="utf-8") as f:
                 data = json.load(f)
             report["stats"] = {"rows": len(data) if isinstance(data, list) else "dict"}
             return report
         elif p.suffix == ".txt":
-            with open(p) as f:
+            with open(p, encoding="utf-8") as f:
                 lines = f.readlines()
             report["stats"] = {"lines": len(lines)}
             return report
@@ -52,7 +50,7 @@ def validate_file(path):
 def validate_jsonl(p, report):
     rows = 0
     msg_count = 0
-    with open(p) as f:
+    with open(p, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -64,6 +62,10 @@ def validate_jsonl(p, report):
                 report["errors"].append(f"Row {rows}: invalid JSON - {e}")
                 report["valid"] = False
                 continue
+            if not isinstance(item, dict):
+                report["errors"].append(f"Row {rows}: expected an object, got {type(item).__name__}")
+                report["valid"] = False
+                continue
             if "messages" in item:
                 msgs = item["messages"]
                 if not isinstance(msgs, list):
@@ -71,6 +73,11 @@ def validate_jsonl(p, report):
                     report["valid"] = False
                 else:
                     for j, msg in enumerate(msgs):
+                        if not isinstance(msg, dict):
+                            report["errors"].append(f"Row {rows}, msg {j}: message must be an object")
+                            report["valid"] = False
+                            msg_count += 1
+                            continue
                         if "role" not in msg:
                             report["errors"].append(f"Row {rows}, msg {j}: missing role")
                             report["valid"] = False

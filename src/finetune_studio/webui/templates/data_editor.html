@@ -3,16 +3,7 @@
 {% block nav_data %}active{% endblock %}
 {% block sb_path %}~ / projects / {{ project.name }} / data / {{ filename }}{% endblock %}
 {% block breadcrumb_tab %}files{% endblock %}
-
-{% block crumbs %}
-  <a href="/projects" data-link>Projects</a>
-  <span class="sep">/</span>
-  <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a>
-  <span class="sep">/</span>
-  <a href="/projects/{{ pid }}/data" data-link>Data</a>
-  <span class="sep">/</span>
-  <span class="here">{{ filename }}</span>
-{% endblock %}
+{% block workspace %}model{% endblock %}
 
 {% block topbar_right %}
   <a class="btn sm" href="/projects/{{ pid }}/data-prep" data-link>← Data Prep</a>
@@ -52,7 +43,7 @@
     <button class="btn sm success" type="button" id="de-bulk-approve">Approve all visible</button>
     <button class="btn sm danger" type="button" id="de-bulk-reject">Reject all visible</button>
     <span class="flex-1"></span>
-    <a class="btn sm" href="/projects/{{ pid }}/data-prep" data-link>Save + back to Data Prep</a>
+    <a class="btn sm" href="/projects/{{ pid }}/data-prep" data-link>Done — back to Data Prep</a>
   </div>
 </div>
 

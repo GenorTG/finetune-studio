@@ -59,18 +59,18 @@ def mark_cancelled(uid: str) -> dict | None:
     return update_update(uid, status="cancelled", finished_at=time.time())
 
 
-def append_log(uid: str, chunk: str, max_bytes: int = 256_000) -> dict | None:
+def append_log(uid: str, chunk: str, max_chars: int = 256_000) -> dict | None:
     """Append a chunk to log_text. Truncates from the top when it grows
-    past max_bytes so the DB row doesn't balloon on huge logs."""
+    past max_chars characters so the DB row doesn't balloon on huge logs."""
     if not chunk:
         return _get(uid)
     with cursor() as c:
         row = c.execute("SELECT log_text FROM system_updates WHERE id = ?", (uid,)).fetchone()
         existing = row["log_text"] if row else ""
         combined = existing + chunk
-        if len(combined) > max_bytes:
-            # Trim from the top, keep the most recent max_bytes.
-            combined = combined[-max_bytes:]
+        if len(combined) > max_chars:
+            # Trim from the top, keep the most recent max_chars.
+            combined = combined[-max_chars:]
         c.execute("UPDATE system_updates SET log_text = ? WHERE id = ?",
                   (combined, uid))
     return _get(uid)

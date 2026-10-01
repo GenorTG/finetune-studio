@@ -1,2 +1,2 @@
-"""WebUI subpackage — Gradio web interface."""
+"""WebUI subpackage — FastAPI + Jinja2 web interface."""
 

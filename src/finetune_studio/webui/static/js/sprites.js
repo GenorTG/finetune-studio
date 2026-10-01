@@ -99,6 +99,8 @@
     // hacky counter that goes up forever
     let n = 0;
     const tick = () => {
+      // Stop once the sprite was removed (SPA navigation) instead of leaking the timer.
+      if (!wrap.isConnected) { clearInterval(iv); return; }
       n += Math.floor(Math.random() * 80) + 40;
       const el = wrap.querySelector('[data-counter]');
       if (el) el.textContent = String(n).padStart(6, '0');
@@ -709,10 +711,6 @@
     auto();
   }
 
-  // SPA re-run
-  document.addEventListener('fts:page-loaded', auto);
-  // also re-run after SPA innerHTML replace
-  const _origDispatch = window.dispatchEvent;
-  // expose a helper for spa.js to call
+  // spa.js calls this after each content swap.
   window.spritesInit = auto;
 })();

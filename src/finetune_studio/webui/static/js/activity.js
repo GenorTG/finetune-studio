@@ -268,8 +268,11 @@
     }
   }
 
+  let _hideTimer = null;
+
   function open() {
     if (!drawer || !backdrop) return;
+    clearTimeout(_hideTimer);
     drawer.hidden = false;
     backdrop.hidden = false;
     drawer.getBoundingClientRect();
@@ -282,7 +285,7 @@
     if (!drawer || !backdrop) return;
     drawer.classList.remove("open");
     backdrop.classList.remove("open");
-    setTimeout(() => {
+    _hideTimer = setTimeout(() => {
       drawer.hidden = true;
       backdrop.hidden = true;
     }, 220);
@@ -302,18 +305,11 @@
     }
   });
 
-  // Prefer SSE; fall back to silent /api/activity poll only if needed.
-  const subscribe = (window.fts && window.fts.subscribe) || null;
-  if (subscribe) {
-    subscribe("/api/activity/events", applySnapshot, {
-      pollUrl: "/api/activity",
-      fallbackMs: 5000,
-    });
-  } else {
-    refresh();
-    // Last-resort path when app.js has not loaded yet.
-    setInterval(refresh, 5000);
-  }
+  // SSE with silent /api/activity poll fallback (app.js always loads first).
+  window.fts.subscribe("/api/activity/events", applySnapshot, {
+    pollUrl: "/api/activity",
+    fallbackMs: 5000,
+  });
 
   // base.html filter <select onchange="activityApplyFilter()">
   window.activityApplyFilter = activityApplyFilter;

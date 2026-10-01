@@ -52,7 +52,7 @@ def audit_source(pid: str, source: dict[str, Any]) -> dict[str, Any]:
     if expected_sha and actual_sha != expected_sha:
         result["errors"].append("raw_hash_mismatch")
 
-    parsed_path = file_dir(pid, actual_sha) / "parsed.txt"
+    parsed_path = file_dir(pid, actual_sha, create=False) / "parsed.txt"
     if not parsed_path.is_file():
         result["errors"].append("parsed_text_missing")
         return result
@@ -72,7 +72,7 @@ def audit_source(pid: str, source: dict[str, Any]) -> dict[str, Any]:
     if not parsed.strip():
         result["errors"].append("empty_parsed_text")
 
-    chunks_dir = file_dir(pid, actual_sha) / "chunks"
+    chunks_dir = file_dir(pid, actual_sha, create=False) / "chunks"
     chunks = [p.read_text(encoding="utf-8", errors="replace")
               for p in sorted(chunks_dir.glob("*.txt"))] if chunks_dir.is_dir() else []
     expected_chunks = chunk_text(parsed)

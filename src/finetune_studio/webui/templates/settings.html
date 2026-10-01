@@ -1,6 +1,5 @@
 {% extends "base.html" %}
 {% block title %}Settings · Finetune Studio{% endblock %}
-{% block crumbs_leaf %}Settings{% endblock %}
 {% block sb_path %}~ / settings{% endblock %}
 
 {% block content %}
@@ -14,9 +13,9 @@
         <div class="card-sub">Self-healing pipeline: git pull → venv health → deps → migrations → restart.</div>
       </div>
       <div class="flex gap-2 wrap mb-3">
-        <button class="btn small" id="btn-update-check" title="Dry run: report drift + venv health, changes nothing">Check</button>
-        <button class="btn small primary" id="btn-update-apply" title="Pull main, sync deps, migrate DB, restart service (~10s downtime)">Apply update</button>
-        <button class="btn small" id="btn-update-repair" title="Recreate the venv from scratch (slow, thorough)">Repair</button>
+        <button class="btn sm" id="btn-update-check" title="Dry run: report drift + venv health, changes nothing">Check</button>
+        <button class="btn sm primary" id="btn-update-apply" title="Pull main, sync deps, migrate DB, restart service (~10s downtime)">Apply update</button>
+        <button class="btn sm" id="btn-update-repair" title="Recreate the venv from scratch (slow, thorough)">Repair</button>
       </div>
       <div id="update-status" class="text-xs dim mb-2">Idle.</div>
       <pre id="update-log" class="text-xs" style="display:none;max-height:220px;overflow-y:auto;border:1px solid var(--border);padding:8px;white-space:pre-wrap"></pre>
@@ -54,16 +53,16 @@
     <div class="card">
       <div class="card-head">
         <div class="card-title">About</div>
-      <div class="card-sub">Finetune Studio · <strong class="text-accent">EARLY BETA</strong> · v{{ app_version }}</div>
+      <div class="card-sub">Finetune Studio · <strong style="color:var(--accent)">EARLY BETA</strong> · v{{ app_version }}</div>
       </div>
       <div class="text-sm">
         <p class="mb-2">
-          <strong class="text-accent">EARLY BETA:</strong> A self-hosted training studio for local LLMs: build RAG corpora,
+          <strong style="color:var(--accent)">EARLY BETA:</strong> A self-hosted training studio for local LLMs: build RAG corpora,
           fine-tune models on your own hardware, run benchmarks, chat —
           all in one place. No cloud, no lock-in.
         </p>
         <p class="dim text-xs">
-          See <a href="/README.md" target="_blank">README</a> for the full
+          See <code>README.md</code> for the full
           rationale, <code>docs/INSTALL.md</code> for installation, and
           <code>docs/ATTRIBUTIONS.md</code> for package licenses.
         </p>
@@ -132,7 +131,7 @@
       </div>
 
       <div class="flex gap-2 mt-3">
-        <button class="btn small primary" id="btn-hosting-save" title="Save hosting settings (restart required to take effect)">Save &amp; Restart</button>
+        <button class="btn sm primary" id="btn-hosting-save" title="Save hosting settings (restart required to take effect)">Save &amp; Restart</button>
         <span id="hosting-status" class="text-xs dim">Idle.</span>
       </div>
     </div>
@@ -161,5 +160,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/settings.js?v=4"></script>
+<script src="/static/js/settings.js?v=5"></script>
 {% endblock %}

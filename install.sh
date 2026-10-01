@@ -18,7 +18,9 @@
 #                   of just warning). Equivalent to FTS_AUTO_REPAIR=1.
 #   --cpu           force CPU-only (skip GPU wheel selection)
 #   --no-gguf       skip llama-cpp-python entirely
-#   --help      show usage
+#   --no-llama-cpp  skip building the llama.cpp CLI (.llama.cpp/)
+#   --llama-cpp-only  build ONLY the llama.cpp CLI (skip torch + packages)
+#   --help          show usage
 
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
@@ -57,7 +59,7 @@ for arg in "$@"; do
         --no-gguf)        SKIP_GGUF=1 ;;
         --no-llama-cpp)   SKIP_LLAMA_CPP=1 ;;
         --llama-cpp-only) LLAMA_CPP_ONLY=1 ;;
-        --help|-h) sed -n '2,18p' "$0" | sed 's/^# *//'; exit 0 ;;
+        --help|-h) sed -n '2,23p' "$0" | sed 's/^# *//'; exit 0 ;;
         *) die "Unknown arg: $arg  (try --help)" ;;
     esac
 done
@@ -185,7 +187,9 @@ case "$MODE" in
         fi
         # verify: deep diagnostic, exit code reflects health
         #   0 = ok   1 = warnings only   2+ = critical
-        run_diagnose --check
+        DIAG_RC=0
+        run_diagnose --check || DIAG_RC=$?
+        exit "$DIAG_RC"
         ;;
     repair)
         # Diagnose + autofix. If the diagnostic finds issues that bash
@@ -359,7 +363,7 @@ install_gguf() {
     case "$GPU_VENDOR" in
         nvidia)
             # abetlen's prebuilt CUDA wheel index (no nvcc/build needed).
-            # cu124 for driver 525+, cu121 for 520+, cu118 for 470+.
+            # CUDA_VER is picked from the driver version in detect_gpu().
             log "Installing llama-cpp-python ($CUDA_VER prebuilt wheel — no compilation)..."
             uv pip install --python "$PYTHON_CMD" --reinstall \
                 --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/$CUDA_VER/llama-cpp-python/" \

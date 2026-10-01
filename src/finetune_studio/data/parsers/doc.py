@@ -12,9 +12,9 @@ from ._base import cli_run, make_result
 
 
 def parse(path: Path) -> dict:
-    text, method = _try_cli(path, "antiword", ["antiword", str(path)])
+    text, method = _try_cli("antiword", ["antiword", str(path)])
     if not text:
-        text, method = _try_cli(path, "catdoc", ["catdoc", str(path)])
+        text, method = _try_cli("catdoc", ["catdoc", str(path)])
     if not text:
         try:
             import textract
@@ -37,8 +37,8 @@ def parse(path: Path) -> dict:
 def _olefile_extract(path: Path) -> str:
     """Pure-Python legacy .doc text extraction via olefile + raw decode.
 
-    Scans the WordDocument stream for runs of printable text, stopping per
-    at control chars. Quality is below antiword but far above a placeholder:
+    Scans the WordDocument stream for runs of printable text, stopping at
+    control chars. Quality is below antiword but far above a placeholder:
     body text survives well enough for chunking + Q&A mining.
     """
     try:
@@ -61,8 +61,7 @@ def _olefile_extract(path: Path) -> str:
 
     runs: list[str] = []
     cur: list[str] = []
-    # Modern Word 97+ stores body text as UTF-16LE primarily — scan both
-    # byte-wise (CP1252-ish) and 16-bit-wise, keeping the richer harvest.
+    # Modern Word 97+ stores body text as UTF-16LE primarily — scan 16-bit units.
     i = 0
     while i + 1 < len(data):
         ch = data[i] | (data[i + 1] << 8)
@@ -83,12 +82,12 @@ def _olefile_extract(path: Path) -> str:
     return body
 
 
-def _try_cli(path: Path, name: str, cmd: list[str]) -> tuple[str, str]:
+def _try_cli(name: str, cmd: list[str]) -> tuple[str, str]:
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, check=False)
+        r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=60, check=False)
         if r.returncode == 0 and r.stdout.strip():
             return r.stdout, name
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired):
         pass
     return "", name + "-failed"
 

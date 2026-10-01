@@ -118,7 +118,7 @@ def build_augmented_pairs(project_dir: pathlib.Path) -> list[dict]:
                 continue
             try:
                 snippet = find_fact(d / "parsed.txt", ans_sig, term)
-            except Exception as exc:  # noqa: BLE001 — defensively skip unreadable parsed files
+            except OSError as exc:
                 log.debug("find_fact skipped %s: %s", d, exc)
                 continue
             if snippet and ans_sig.lower() in snippet.lower():
@@ -137,7 +137,8 @@ def build_augmented_pairs(project_dir: pathlib.Path) -> list[dict]:
             print(f"  SKIP: no source for {term!r}")
             continue
         src_id, snippet = found
-        answer = snippet if len(snippet) <= 800 else snippet[:800].rsplit(".", 1)[0] + "."
+        MAX_ANSWER_LEN = 800
+        answer = snippet if len(snippet) <= MAX_ANSWER_LEN else snippet[:MAX_ANSWER_LEN].rsplit(".", 1)[0] + "."
         augmented.append({
             "name": f"aug-v2-{i:03d}",
             "question": question,

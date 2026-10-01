@@ -4,9 +4,6 @@
 {% block sb_path %}~ / projects / {{ project.name }} / chat{% endblock %}
 {% block breadcrumb_tab %}chat{% endblock %}
 {% block workspace %}model{% endblock %}
-{% block crumb %}
-<a href="/projects" data-link>Projects</a> <span class="sep">/</span> <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a> <span class="sep">/</span> <span>Chat</span>
-{% endblock %}
 {% block content %}
 <div class="page-head flex items-baseline justify-between gap-3 wrap">
   <div>
@@ -35,7 +32,7 @@
     <label class="flex items-start gap-3 p-3 card-inner" style="cursor:pointer; border:1px solid var(--border);">
       <input type="radio" name="chat-mode" value="agent" class="mt-1">
       <div>
-        <div class="font-bold">Agent <span class="pill solid-violet text-[10px] ml-1">tool-calling</span></div>
+        <div class="font-bold">Agent <span class="pill solid-purple text-[10px] ml-1">tool-calling</span></div>
         <div class="text-xs muted">The model gets tools: <code>list_sources</code>, <code>read_source</code>, <code>list_qa_pairs</code>, <code>create_qa_pairs</code>. Ask it to mine Q&amp;A pairs from your documents. Defaults to the configured helper provider — not a silent fallback to whatever else is loaded. The pairs end up in <code>project_datasets</code> ready for fine-tuning. Best for: building training data with AI help.</div>
       </div>
     </label>
@@ -65,10 +62,10 @@
       <div class="card-title">Conversation</div>
       <div class="card-sub">Messages render below. In Agent mode each <code>tool_call</code> is shown inline with its result so you can audit what the AI did.</div>
     </div>
-    <button class="btn small" id="chat-stop" onclick="_chatStop()" title="Stop generation" disabled>⏹ Stop</button>
-    <button class="btn small" id="chat-copy" onclick="_chatCopyAll()" title="Copy conversation to clipboard">⎘ Copy all</button>
-    <button class="btn small" id="chat-export" onclick="_chatExport()" title="Download conversation as Markdown">⇩ Export</button>
-    <button class="btn small" id="chat-clear" onclick="_chatClear()" title="Forget all messages in this session">Clear</button>
+    <button class="btn sm" id="chat-stop" onclick="_chatStop()" title="Stop generation" disabled>⏹ Stop</button>
+    <button class="btn sm" id="chat-copy" onclick="_chatCopyAll()" title="Copy conversation to clipboard">⎘ Copy all</button>
+    <button class="btn sm" id="chat-export" onclick="_chatExport()" title="Download conversation as Markdown">⇩ Export</button>
+    <button class="btn sm" id="chat-clear" onclick="_chatClear()" title="Forget all messages in this session">Clear</button>
   </div>
 
   <div id="chat-model-warn" class="dp-chat-warn" hidden>
@@ -80,7 +77,7 @@
           <select id="chat-inline-model" class="select"></select>
           <input id="chat-inline-ctx" type="number" class="input" style="width:6.5rem" value="32768" min="512" max="131072" step="512"
                  title="Context window to load with (in tokens). Changing this here changes the shared default for every other page that loads this model too.">
-          <button class="btn small" id="chat-inline-load-btn" onclick="chatInlineLoad()">Load</button>
+          <button class="btn sm" id="chat-inline-load-btn" onclick="chatInlineLoad()">Load</button>
         </div>
       </div>
     </div>
@@ -121,10 +118,10 @@
   </label>
   <div class="flex gap-2 mt-2" style="font-size:11px;flex-wrap:wrap;">
     <span class="dim" style="align-self:center;">Preset:</span>
-    <button type="button" class="btn small" onclick="document.querySelector('[name=system_prompt]').value='You are a helpful assistant.'" title="Reset to default">Default</button>
-    <button type="button" class="btn small" onclick="document.querySelector('[name=system_prompt]').value='You are an expert tutor. Always show your work step by step.'" title="Tutor mode">Tutor</button>
-    <button type="button" class="btn small" onclick="document.querySelector('[name=system_prompt]').value='You are a research assistant. Answer based on the provided context. If you don\'t know, say so.'" title="RAG mode">RAG</button>
-    <button type="button" class="btn small" onclick="document.querySelector('[name=system_prompt]').value='You are a creative writer. Be vivid and imaginative.'" title="Creative mode">Creative</button>
+    <button type="button" class="btn sm" onclick="document.querySelector('[name=system_prompt]').value='You are a helpful assistant.'" title="Reset to default">Default</button>
+    <button type="button" class="btn sm" onclick="document.querySelector('[name=system_prompt]').value='You are an expert tutor. Always show your work step by step.'" title="Tutor mode">Tutor</button>
+    <button type="button" class="btn sm" onclick="document.querySelector('[name=system_prompt]').value='You are a research assistant. Answer based on the provided context. If you don\'t know, say so.'" title="RAG mode">RAG</button>
+    <button type="button" class="btn sm" onclick="document.querySelector('[name=system_prompt]').value='You are a creative writer. Be vivid and imaginative.'" title="Creative mode">Creative</button>
   </div>
 
   {# Chat parameter controls #}
@@ -917,20 +914,6 @@ function _chatExport() {
   if (window.fts) window.fts.notify('Chat exported as Markdown', 'success');
 }
 
-function _chatRegenerate() {
-  if (_chatHistory.length < 2) return;
-  const lastMsg = _chatHistory[_chatHistory.length - 1];
-  if (lastMsg.role === 'assistant') {
-    _chatHistory.pop();
-    const msgs = document.getElementById('chat-msgs');
-    const lastEl = msgs.querySelector('.dp-chat-msg:last-child');
-    if (lastEl) lastEl.remove();
-    _chatSaveHistory();
-    const userMsg = _chatHistory[_chatHistory.length - 1];
-    if (userMsg && userMsg.role === 'user') _chatSend(userMsg.content, true);
-  }
-}
-
 function _chatClear() {
   _chatHistory.length = 0;
   _chatSaveHistory();
@@ -987,8 +970,11 @@ document.getElementById('chat-input').addEventListener('keydown', (e) => {
   }
 });
 
-// Check model status on load + every 5s
-_chatCheckModel();
-setInterval(_chatCheckModel, 5000);
+// Poll model status every 5s; stop when the SPA navigates away.
+var _chatPoll = setInterval(_chatCheckModel, 5000);
+document.addEventListener('fts:beforeNavigate', () => {
+  clearInterval(_chatPoll);
+  if (_chatAbort) _chatAbort.abort();
+}, { once: true });
 </script>
 {% endblock %}

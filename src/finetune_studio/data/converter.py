@@ -22,24 +22,24 @@ import json
 
 def jsonl_to_json(jsonl_path, json_path):
     data = []
-    with open(jsonl_path) as f:
+    with open(jsonl_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:
                 data.append(json.loads(line))
-    with open(json_path, "w") as f:
+    with open(json_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 def json_to_jsonl(json_path, jsonl_path):
-    with open(json_path) as f:
+    with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
-    with open(jsonl_path, "w") as f:
+    with open(jsonl_path, "w", encoding="utf-8") as f:
         f.writelines(json.dumps(item, ensure_ascii=False) + "\n" for item in data)
 
 def csv_to_jsonl(csv_path, jsonl_path, text_column="text", system_prompt=""):
-    with open(csv_path) as f:
+    with open(csv_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        with open(jsonl_path, "w") as out:
+        with open(jsonl_path, "w", encoding="utf-8") as out:
             for row in reader:
                 text = row.get(text_column, "")
                 messages = []
@@ -49,10 +49,10 @@ def csv_to_jsonl(csv_path, jsonl_path, text_column="text", system_prompt=""):
                 out.write(json.dumps({"messages": messages}, ensure_ascii=False) + "\n")
 
 def simple_to_chat(text_path, jsonl_path, system_prompt=""):
-    with open(text_path) as f:
+    with open(text_path, encoding="utf-8") as f:
         content = f.read()
     blocks = content.strip().split("\n\n")
-    with open(jsonl_path, "w") as out:
+    with open(jsonl_path, "w", encoding="utf-8") as out:
         for block in blocks:
             lines = block.strip().split("\n")
             messages = []

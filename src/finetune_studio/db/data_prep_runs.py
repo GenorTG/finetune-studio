@@ -124,7 +124,6 @@ def reconcile_stale(error: str = "interrupted by service restart") -> int:
     Used only as the fallback for runs `list_stale` callers could not
     resume (e.g. the source file is gone). Returns the number updated.
     """
-    import time
     stale = ("queued", "running")
     placeholders = ", ".join("?" for _ in stale)
     now = time.time()

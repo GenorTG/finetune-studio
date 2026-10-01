@@ -35,20 +35,23 @@
       const overlay = document.createElement("div");
       overlay.className = "modal-overlay";
       // Use data-fts-modal (not data-action): global [data-action] delegation
-      // would otherwise treat "ok"/"cancel" as API URLs. Close the class="…"
-      // quote after the interpolated variant or the browser parses
-      // class="btn primary data-action=" and breaks the OK handler.
+      // would otherwise treat "ok"/"cancel" as API URLs. Message/title/okText
+      // are set via textContent: callers interpolate user-controlled file and
+      // folder names, so they must never be parsed as HTML.
       const variant = opts.danger ? "danger" : "primary";
       overlay.innerHTML = `
         <div class="modal-dialog" role="dialog" aria-modal="true">
-          <div class="modal-head">${opts.title || "Confirm"}</div>
-          <div class="modal-body">${message}</div>
+          <div class="modal-head"></div>
+          <div class="modal-body"></div>
           <div class="modal-actions">
             <button type="button" class="btn" data-fts-modal="cancel">Cancel</button>
-            <button type="button" class="btn ${variant}" data-fts-modal="ok">${opts.okText || "OK"}</button>
+            <button type="button" class="btn ${variant}" data-fts-modal="ok"></button>
           </div>
         </div>
       `;
+      overlay.querySelector(".modal-head").textContent = opts.title || "Confirm";
+      overlay.querySelector(".modal-body").textContent = message;
+      overlay.querySelector("[data-fts-modal=ok]").textContent = opts.okText || "OK";
       document.body.appendChild(overlay);
       const cleanup = () => overlay.remove();
       overlay.addEventListener("click", (e) => {
@@ -74,7 +77,7 @@
       overlay.innerHTML = `
         <div class="modal-dialog" role="dialog" aria-modal="true">
           <div class="modal-head">Input required</div>
-          <div class="modal-body"><p>${message}</p>
+          <div class="modal-body"><p data-fts-prompt-msg></p>
             <input class="input" data-fts-prompt-input type="text">
           </div>
           <div class="modal-actions">
@@ -82,6 +85,7 @@
             <button type="button" class="btn primary" data-fts-modal="ok">OK</button>
           </div>
         </div>`;
+      overlay.querySelector("[data-fts-prompt-msg]").textContent = message;
       document.body.appendChild(overlay);
       const input = overlay.querySelector("[data-fts-prompt-input]");
       input.value = initialValue || "";
@@ -96,8 +100,7 @@
     });
   }
 
-  // ── API ─────────────────────────────────────────────────────────────
-  // ── Fetch helper: throw on non-2xx so callers can handle errors ──
+  // ── API: fetch helpers throw on non-2xx so callers can handle errors ──
   function _errorMessage(body, status) {
     if (body && typeof body === "object") {
       let detail = body.error || body.detail || "";
@@ -147,7 +150,10 @@
   // ── Polling helper (dashboard tiles / legacy data-poll) ────────────
   function poll(url, el, field, interval) {
     interval = interval || 3000;
+    let timer = null;
     const fn = () => api.get(url).then((d) => {
+      // SPA swaps detach the element without clearing the interval.
+      if (!el.isConnected) { clearInterval(timer); return; }
       if (!d) return;
       if (field) {
         if (d[field] !== undefined) el.textContent = d[field];
@@ -155,8 +161,9 @@
         el.textContent = d;
       }
     });
-    fn();
-    return setInterval(fn, interval);
+    fn().catch(() => { /* transient; next tick retries */ });
+    timer = setInterval(() => fn().catch(() => {}), interval);
+    return timer;
   }
 
   /**
@@ -272,8 +279,8 @@
         } else {
           const data = Object.fromEntries(new FormData(form));
           api.post(url, data).then((d) => {
-            if (d.error) notify(d.error, "error");
-            else if (d.run_id) { notify("Training started · run " + d.run_id.slice(0, 8), "success"); window.ftsActivity?.open(); }
+            if (d && d.error) notify(d.error, "error");
+            else if (d && d.run_id) { notify("Training started · run " + d.run_id.slice(0, 8), "success"); window.ftsActivity?.open(); }
             else notify("Done", "success");
             if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
           })
@@ -457,7 +464,7 @@
 
   // ── Keyboard navigation ──────────────────────────────────────────
   const _kbShortcuts = [
-    { key: 'g', action: () => { window.location.href = '/'; } },  // 'g' then 'd' pattern
+    { key: 'g', action: () => { window.location.href = '/'; } },
     { key: 'p', action: () => { window.location.href = '/projects'; } },
     { key: 'h', action: () => { window.location.href = '/models/explore'; } },
     { key: 'i', action: () => { window.location.href = '/inference'; } },
@@ -468,7 +475,7 @@
   document.addEventListener('keydown', (e) => {
     // Don't hijack when typing in inputs
     const tag = (e.target.tagName || '').toLowerCase();
-    if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+    if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const match = _kbShortcuts.find(s => s.key === e.key);
     if (match) { e.preventDefault(); match.action(); }

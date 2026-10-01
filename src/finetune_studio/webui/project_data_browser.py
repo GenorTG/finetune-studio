@@ -6,7 +6,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from finetune_studio.webui.project_dashboard import truncate_description
+from finetune_studio.webui.project_dashboard import (
+    runs_started_max,
+    truncate_description,
+)
 
 
 def format_bytes(n: float | None) -> str:
@@ -45,20 +48,6 @@ def file_browser_stats(files: list[dict]) -> dict[str, Any]:
         "storage_bytes": storage,
         "storage_label": format_bytes(storage),
     }
-
-
-def runs_started_max(runs: list[dict]) -> float | None:
-    """Latest ``started_at`` across project runs (for drift badges)."""
-    vals: list[float] = []
-    for run in runs:
-        started = run.get("started_at")
-        if started is None:
-            continue
-        try:
-            vals.append(float(started))
-        except (TypeError, ValueError):
-            continue
-    return max(vals) if vals else None
 
 
 def build_file_browser_ctx(

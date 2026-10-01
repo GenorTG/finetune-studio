@@ -48,7 +48,7 @@ def _load_jsonl(path: str) -> list[dict]:
     WebUI and CLI paths see the same data for the same file.
     """
     data = []
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -96,12 +96,12 @@ def data_augment(req: DataJobRequest) -> DataJobResponse:
                 weaknesses.append("hallucination_guard")
             elif "empty" in issue_type:
                 weaknesses.append("refusal")
-        weaknesses = list(set(weaknesses)) or ["knowledge", "refusal"]
+        weaknesses = sorted(set(weaknesses)) or ["knowledge", "refusal"]
 
         augmented = DataAugmenter().augment_dataset(data, weaknesses)
 
         output_path = req.output or str(Path(req.path).with_suffix(".augmented.jsonl"))
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             f.writelines(
                 json_mod.dumps(item, ensure_ascii=False) + "\n" for item in augmented
             )

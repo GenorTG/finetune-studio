@@ -1,22 +1,15 @@
-"""Gradio web app composition.
+"""FastAPI app composition.
 
-WHAT THIS FILE DOES
-==================
-The main entry point for the web UI. Composes all the tabs
-(data, models, training, testing, comparison) into a single Gradio
-interface and launches it on port 7860.
-
-KEY CONCEPTS
-============
-- Gradio: a Python library for creating web UIs for ML models.
-  Defines UI as Python objects, no HTML/JS needed.
-- Tab-based layout: each major feature gets its own tab.
-- Event handlers: when the user clicks a button, we run a Python function.
-- State management: the UI keeps state across interactions (which
-  model is loaded, what test suite is selected, etc.).
+Builds the ``app`` object served on port 7860: lifespan startup (model scan,
+DB init, restart reconciliation), the mutating-request activity middleware,
+CORS / proxy-header middleware from ``~/.finetune-studio/settings.json``, the
+no-cache static mount, and every router include. Also owns the process-wide
+``training_engine`` / ``inference_engine`` / ``discovered_models`` singletons
+that route modules import lazily from here.
 """
 
 import json
+import logging
 import os
 import time
 from contextlib import asynccontextmanager
@@ -32,6 +25,7 @@ from finetune_studio.models.manager import get_manager
 from finetune_studio.models.registry import ModelInfo, scan_models
 from finetune_studio.training.engine import TrainingEngine
 
+_log = logging.getLogger(__name__)
 training_engine = TrainingEngine()
 # The ONE *persistent* InferenceEngine instance in this process. ModelManager
 # owns it (via the .engine property) — every named-provider load (data-prep's
@@ -73,7 +67,7 @@ async def lifespan(app: FastAPI):
         from finetune_studio.webui.routes.hf_models import restore_in_progress_downloads
         restore_in_progress_downloads()
     except Exception:  # noqa: BLE001
-        pass
+        _log.exception("Failed to restore in-progress HF downloads")
     # Finalize system_updates / training_runs orphaned when the previous
     # process was restarted (APPLY UPDATE kills its streaming worker; a hard
     # kill leaves training rows in loading/training/saving).
@@ -85,7 +79,18 @@ async def lifespan(app: FastAPI):
         if n_runs:
             print(f"Reconciled {n_runs} stale training_runs row(s)")
     except Exception:  # noqa: BLE001
-        pass
+        _log.exception("Failed to reconcile stale updates/training runs")
+    # Independent reconciles first, so a failed data-prep resume below cannot
+    # skip them.
+    try:
+        n = db.reconcile_stale_rag_builds()
+        if n:
+            print(f"Reconciled {n} stale rag_corpora row(s)")
+        n = db.reconcile_stale_exports()
+        if n:
+            print(f"Reconciled {n} stale model_exports row(s)")
+    except Exception:  # noqa: BLE001
+        _log.exception("Failed to reconcile stale RAG builds/exports")
     # Resume data-prep runs interrupted mid-flight by the restart instead of
     # marking a whole batch failed (each queued run is durable: project_id +
     # source_id + settings_json + the source's on-disk path all persist).
@@ -97,12 +102,6 @@ async def lifespan(app: FastAPI):
                 f"Data-prep restart recovery: resumed {outcome['resumed']}, "
                 f"failed {outcome['failed']} (source missing)"
             )
-        n = db.reconcile_stale_rag_builds()
-        if n:
-            print(f"Reconciled {n} stale rag_corpora row(s)")
-        n = db.reconcile_stale_exports()
-        if n:
-            print(f"Reconciled {n} stale model_exports row(s)")
     except Exception:  # noqa: BLE001
         pass
     yield
@@ -141,9 +140,7 @@ def _activity_kind(path: str) -> str:
         return "benchmark"
     if "/export" in p or p.endswith("/merge"):
         return "export"
-    if "/runs" in p and p.endswith("/start"):
-        return "training"
-    if p == "/api/training/start" or "/training/" in p and p.endswith("/start"):
+    if p.endswith("/start") and ("/runs" in p or "/training/" in p):
         return "training"
     if p.startswith("/api/hf/"):
         return "download"
@@ -176,7 +173,7 @@ async def record_activity_operations(request: Request, call_next):
     return response
 
 
-def _activity_summary(path: str, method: str, http_status: int) -> str:
+def _activity_summary(path: str, method: str) -> str:
     """Human one-liner for the activity feed (replaces 'POST /api/x → 200').
 
     Screen-scrapes the path for the resource the user actually acted on:
@@ -209,7 +206,7 @@ def _activity_summary(path: str, method: str, http_status: int) -> str:
             return "Unload model"
         if "/download/start" in path or path.startswith("/api/hf/"):
             return "HF download"
-        if "/projects" in path and path.count("/") <= 3:
+        if method.upper() == "POST" and path.rstrip("/") == "/api/projects":
             return "Create project"
         verb = {
             "POST": "Create", "PUT": "Update", "PATCH": "Update",
@@ -234,16 +231,17 @@ def _record_activity_event(request: Request, started: float, http_status: int) -
             project_id=project_id,
             status=status,
             http_status=http_status,
-            message=_activity_summary(request.url.path, request.method, http_status),
+            message=_activity_summary(request.url.path, request.method),
             started_at=started,
             finished_at=time.time(),
         )
     except Exception:  # noqa: BLE001, S110 — activity logging must never break the API response
         pass
 
-# ── CORS + Trusted Hosts (configured via Settings page) ──
+# ── CORS + proxy headers (configured via Settings page) ──
+# trusted_hosts / root_path are stored by /api/settings but not applied here.
 def _apply_hosting_middleware():
-    """Apply CORS and trusted-host middleware from user settings."""
+    """Apply CORS and proxy-header middleware from user settings."""
     settings_path = Path.home() / ".finetune-studio" / "settings.json"
     user: dict = {}
     if settings_path.exists():
@@ -281,7 +279,6 @@ class _NoCacheStatic(StaticFiles):
 
     async def get_response(self, path, scope):
         resp = await super().get_response(path, scope)
-        # Cache-bust css/js so the modal-CSS fix and similar ship immediately.
         if path.endswith((".css", ".js")):
             resp.headers["Cache-Control"] = "no-cache, must-revalidate"
             resp.headers["Pragma"] = "no-cache"

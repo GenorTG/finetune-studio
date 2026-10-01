@@ -10,6 +10,7 @@ index, not the payload.
 """
 from __future__ import annotations
 
+import json
 import time
 from typing import Any
 
@@ -29,7 +30,6 @@ def _clean_manifest(manifest: dict[str, Any] | None) -> str:
     if not manifest:
         return "{}"
     cleaned = {k: v for k, v in manifest.items() if k in _ALLOWED_MANIFEST_KEYS}
-    import json
     return json.dumps(cleaned, ensure_ascii=False)
 
 

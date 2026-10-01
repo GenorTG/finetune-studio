@@ -20,15 +20,15 @@ def parse(path: Path, languages: str = DEFAULT_LANGS) -> dict:
     """
     warnings: list[str] = []
     pages_text, n_pages, method = _extract_with_pypdf(path)
-    if not pages_text:
+    if not any(pages_text):
         pages_text, n_pages, method = _extract_with_pypdf2(path)
-    if not pages_text:
+    if not any(pages_text):
         pages_text, n_pages, method = _extract_with_pdftotext(path)
-    if not pages_text:
+    if not any(pages_text):
         # Last resort: OCR each page as an image.
         try:
             ocr_pages = ocr_pdf(path, languages=languages)
-            pages_text = [p["text"] for p in ocr_pages if p.get("text")]
+            pages_text = [p.get("text") or "" for p in ocr_pages]
             n_pages = len(ocr_pages)
             method = f"ocr_{languages}"
             warnings.append(f"PDF had no extractable text; ran OCR ({languages})")
@@ -36,15 +36,16 @@ def parse(path: Path, languages: str = DEFAULT_LANGS) -> dict:
             warnings.append(f"OCR fallback also failed: {e}")
             method = "ocr-failed"
             n_pages = 0
-    text = "\n\n".join(pages_text) if pages_text else ""
+    # Blank pages stay in pages_text so structured page numbers match the PDF.
+    text = "\n\n".join(p for p in pages_text if p)
     structured = {
         "type": "pdf",
         "page_count": n_pages,
         "extraction_method": method,
-        "pages": [{"page": i + 1, "text": p} for i, p in enumerate(pages_text[:500])],
+        "pages": [{"page": i + 1, "text": p} for i, p in enumerate(pages_text[:500]) if p],
         "languages": languages,
     }
-    if not pages_text:
+    if not any(pages_text):
         warnings.append("No text extracted — install pypdf, poppler (pdftotext), or tesseract")
     return make_result(text, structured, parser=f"pdf_v1_{method}", warnings=warnings)
 
@@ -57,7 +58,7 @@ def _extract_with_pypdf(path: Path):
     try:
         reader = PdfReader(str(path))
         pages = [(p.extract_text() or "").strip() for p in reader.pages]
-        return [p for p in pages if p], len(reader.pages), "pypdf"
+        return pages, len(reader.pages), "pypdf"
     except Exception as e:  # noqa: BLE001
         return [], 0, f"pypdf-error:{e}"
 
@@ -70,19 +71,21 @@ def _extract_with_pypdf2(path: Path):
     try:
         reader = PdfReader(str(path))
         pages = [(p.extract_text() or "").strip() for p in reader.pages]
-        return [p for p in pages if p], len(reader.pages), "pypdf2"
+        return pages, len(reader.pages), "pypdf2"
     except Exception as e:  # noqa: BLE001
         return [], 0, f"pypdf2-error:{e}"
 
 
 def _extract_with_pdftotext(path: Path):
     try:
-        r = subprocess.run(["pdftotext", str(path), "-"], capture_output=True, text=True, timeout=120, check=False)
+        r = subprocess.run(["pdftotext", str(path), "-"], capture_output=True, text=True, errors="replace", timeout=120, check=False)
         if r.returncode == 0 and r.stdout.strip():
             pages = r.stdout.split("\x0c")  # form-feed between pages
-            pages = [(p or "").strip() for p in pages]
-            return [p for p in pages if p], len(pages), "pdftotext"
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+            if pages and not pages[-1].strip():
+                pages.pop()  # pdftotext ends with a form feed
+            pages = [p.strip() for p in pages]
+            return pages, len(pages), "pdftotext"
+    except (OSError, subprocess.TimeoutExpired):
         pass
     return [], 0, "pdftotext-empty"
 

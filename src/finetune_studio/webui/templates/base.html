@@ -67,7 +67,7 @@
   </style>
   <title>{% block title %}Finetune Studio{% endblock %} · {{ release_channel }}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/css/app.css?v=66">
+  <link rel="stylesheet" href="/static/css/app.css?v=67">
 </head>
 <body>
   <div id="toasts" class="toasts" aria-live="polite"></div>
@@ -203,7 +203,7 @@
 
       {# Right cluster — all top-bar buttons on one visible line #}
       <div class="sb-right">
-        <button id="theme-toggle" class="btn small" type="button"
+        <button id="theme-toggle" class="btn sm" type="button"
                 onclick="window.ftsThemeToggle && window.ftsThemeToggle()"
                 title="Toggle dark/light theme" aria-label="Toggle dark/light theme">🌙</button>
         <button class="sb-activity" id="sb-activity" title="Activity feed — running tasks" aria-label="Open activity feed">
@@ -262,15 +262,15 @@
       <span class="ws-steps-label" aria-hidden="true">steps</span>
       <a href="/projects/{{ pid }}" data-link class="ws-link {% if bc in ('overview', 'models') %}here{% endif %}" title="Project home">home</a>
       <a href="/projects/{{ pid }}/wizard" data-link class="ws-link {% if bc == 'quick work' %}here{% endif %}" title="All steps on one page, in order">⚡ quick work</a>
-      <a href="/projects/{{ pid }}/data" data-link class="ws-link {% if bc == 'files' %}here{% endif %}" title="1 · Upload + organise your files">1 files</a>
-      <a href="/projects/{{ pid }}/data-prep" data-link class="ws-link {% if bc == 'data-prep' %}here{% endif %}" title="2 · Question-answer pairs → dataset">2 pairs</a>
+      <a href="/projects/{{ pid }}/data" data-link class="ws-link {% if bc in ('files', 'data') %}here{% endif %}" title="1 · Upload + organise your files">1 files</a>
+      <a href="/projects/{{ pid }}/data-prep" data-link class="ws-link {% if bc in ('pairs', 'data-prep') %}here{% endif %}" title="2 · Question-answer pairs → dataset">2 pairs</a>
       <a href="/projects/{{ pid }}/training" data-link class="ws-link {% if bc == 'training' %}here{% endif %}" title="3 · Fine-tune on the dataset">3 train</a>
       <a href="/projects/{{ pid }}/testing" data-link class="ws-link {% if bc == 'testing' %}here{% endif %}" title="4 · Score it on your own data">4 test</a>
       <a href="/projects/{{ pid }}/export" data-link class="ws-link {% if bc == 'export' %}here{% endif %}" title="5 · Export / use the trained model">5 use it</a>
       {% elif ws == 'rag' %}
       <span class="ws-steps-label" aria-hidden="true">steps</span>
       <a href="/projects/{{ pid }}/rag" data-link class="ws-link {% if bc == 'rag' %}here{% endif %}" title="RAG home — index status">home</a>
-      <a href="/projects/{{ pid }}/data" data-link class="ws-link {% if bc == 'files' %}here{% endif %}" title="1 · Upload the documents to index">1 files</a>
+      <a href="/projects/{{ pid }}/data" data-link class="ws-link {% if bc in ('files', 'data') %}here{% endif %}" title="1 · Upload the documents to index">1 files</a>
       <a href="/projects/{{ pid }}/rag#rag-ingest" data-link class="ws-link" title="2 · Build the search index">2 build</a>
       <a href="/projects/{{ pid }}/rag#rag-search" data-link class="ws-link" title="3 · Test a search against the index">3 search</a>
       <a href="/projects/{{ pid }}/chat" data-link class="ws-link {% if bc == 'chat' %}here{% endif %}" title="4 · Chat grounded in your documents">4 chat</a>
@@ -348,13 +348,13 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=21"></script>
-  <script src="/static/js/sprites.js?v=16"></script>
+  <script src="/static/js/app.js?v=22"></script>
+  <script src="/static/js/sprites.js?v=17"></script>
   <script src="/static/js/nav_overflow.js?v=1"></script>
-  <script src="/static/js/spa.js?v=16"></script>
-  <script src="/static/js/palette.js?v=13"></script>
-  <script src="/static/js/tutorial.js?v=13"></script>
-  <script src="/static/js/activity.js?v=15"></script>
+  <script src="/static/js/spa.js?v=17"></script>
+  <script src="/static/js/palette.js?v=14"></script>
+  <script src="/static/js/tutorial.js?v=14"></script>
+  <script src="/static/js/activity.js?v=16"></script>
   <script>
     window.ftsCopyText = async function (text) {
       try {
@@ -381,9 +381,8 @@
     // any page (data-prep, rag, inference, training, testing) so the user
     // can see at a glance whether a model is loaded from anywhere. The
     // label is the model file's basename for local_gguf providers,
-    // otherwise the provider's name. Clicking the pill jumps to the
-    // data-prep chat loader when not loaded, or to the inference tab
-    // when loaded.
+    // otherwise the provider's name. Clicking the pill opens the
+    // inference/chat tab (project chat when a project is active).
     (function () {
       const dot  = document.getElementById('model-status-dot');
       const lbl  = document.getElementById('model-status-label');
@@ -401,7 +400,7 @@
       }
       function render(d) {
         const active = d && d.active;
-        const fingerprint = active ? active.id + ':' + (active.model_id || '') : 'none';
+        const fingerprint = active ? active.id + ':' + (active.model_id || '') + ':' + (active.loaded ? '1' : '0') : 'none';
         if (fingerprint === lastState) return;
         lastState = fingerprint;
         const unloadBtn = document.getElementById('model-unload-btn');
@@ -432,10 +431,9 @@
         } catch (e) { /* ignore */ }
       }
       pill.addEventListener('click', () => {
-        // Soft navigation: don't break the SPA if it's running.
-        const infLink = document.querySelector('a[data-tab="inference"]');
-        const target = infLink ? (infLink.getAttribute('href') || '/inference') : '/projects';
-        window.location.href = target;
+        // Click the real nav link so the SPA (data-link) handles navigation.
+        const infLink = document.querySelector('#sb-tabs a[data-tab="inference"]');
+        if (infLink) infLink.click(); else window.location.href = '/inference';
       });
       const unloadBtn = document.getElementById('model-unload-btn');
       if (unloadBtn) {

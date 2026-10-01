@@ -141,4 +141,3 @@ def test_list_indexed_docs_prettifies_opaque_parquet(
     docs = list_indexed_docs(pid)
     assert len(docs) == 1
     assert docs[0]["name"] == "Handbook.md (parsed)"
-    assert "parsed.txt" not in docs[0]["name"] or "Handbook" in docs[0]["name"]

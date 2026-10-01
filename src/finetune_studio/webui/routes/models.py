@@ -5,7 +5,7 @@ import logging
 import os
 import subprocess
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 
 from finetune_studio.models.gguf_layers import is_gguf_path, resolve_block_count
@@ -14,6 +14,17 @@ from finetune_studio.webui.engine_guard import ENGINE_LOCK
 
 router = APIRouter()
 log = logging.getLogger(__name__)
+
+
+async def _json_body(request: Request) -> dict:
+    """Parse the request body as a JSON object (400 otherwise, never 500)."""
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid JSON body") from None
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="JSON object body required")
+    return body
 
 
 def _identify_process(args_line: str, pid: int) -> str:
@@ -219,8 +230,12 @@ def _guess_context_length(info: dict) -> int:
         return 131072 if '3' in name or '4' in name else 4096
     return 0
 
-@router.post("/refresh")
-async def refresh_models():
+def refresh_model_registry() -> int:
+    """Rescan model dirs (incl. HF Explorer cache) into ``discovered_models``.
+
+    Blocking (disk walk). The list is replaced in one slice assignment so
+    concurrent readers never observe it empty. Returns the model count.
+    """
     from finetune_studio.config import settings
     from finetune_studio.models.registry import scan_models
     from finetune_studio.webui.app import discovered_models
@@ -228,9 +243,14 @@ async def refresh_models():
     for d in settings.model_dirs_extra:
         if d not in dirs:
             dirs.append(d)
-    discovered_models.clear()
-    discovered_models.extend(scan_models(dirs))
-    return {"count": len(discovered_models)}
+    discovered = scan_models(dirs)
+    discovered_models[:] = discovered
+    return len(discovered)
+
+
+@router.post("/refresh")
+async def refresh_models():
+    return {"count": await asyncio.to_thread(refresh_model_registry)}
 
 
 @router.post("/load")
@@ -247,10 +267,10 @@ async def load_model_endpoint(request: Request):
     unless the engine actually holds a model.
     """
     from finetune_studio.webui.app import inference_engine
-    body = await request.json()
+    body = await _json_body(request)
     model_path = body.get("path") or body.get("model_path") or ""
     if not model_path:
-        return _load_failure_payload("No model path provided")
+        return await asyncio.to_thread(_load_failure_payload, "No model path provided")
     try:
         # Run the blocking load off the event loop. Loading a multi-GB model
         # can take seconds-to-minutes; doing it inline froze the entire WebUI
@@ -263,15 +283,16 @@ async def load_model_endpoint(request: Request):
         # has resident before loading into inference_engine — otherwise both
         # sit in VRAM simultaneously until someone happens to click Unload.
         from finetune_studio.models.manager import get_manager
-        get_manager().unload()
         async with ENGINE_LOCK:
+            await asyncio.to_thread(get_manager().unload)
             await asyncio.to_thread(inference_engine.load, model_path, **overrides)
     except Exception as e:  # noqa: BLE001
-        return _load_failure_payload(str(e), model_path)
+        return await asyncio.to_thread(_load_failure_payload, str(e), model_path)
 
     if getattr(inference_engine, "model", None) is None:
-        return _load_failure_payload(
-            "Load finished but no model is held in memory", model_path
+        return await asyncio.to_thread(
+            _load_failure_payload,
+            "Load finished but no model is held in memory", model_path,
         )
     vision = getattr(inference_engine, "vision", False)
     return {
@@ -354,10 +375,10 @@ async def inference_chat(request: Request):
             {"error": "No model loaded. Click 'Load model' first."}, status_code=409
         )
 
-    body = await request.json()
+    body = await _json_body(request)
     messages = body.get("messages") or []
     # Prepend system prompt if provided
-    sp = body.get("system_prompt", "").strip()
+    sp = str(body.get("system_prompt") or "").strip()
     if sp:
         messages = [{"role": "system", "content": sp}] + messages
 
@@ -396,7 +417,7 @@ async def inference_memory_estimate(request: Request):
     """Estimate VRAM needed for a model with given loader params."""
     from finetune_studio.models.llama_loader import DEFAULT_N_CTX
     from finetune_studio.webui.app import inference_engine
-    body = await request.json()
+    body = await _json_body(request)
     model_path = body.get("model_path") or body.get("path") or ""
     if not model_path:
         return {"error": "No model_path provided"}

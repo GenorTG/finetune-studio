@@ -257,7 +257,12 @@ def stats() -> dict:
             if not d.is_dir():
                 continue
             meta_path = d / "META.json"
-            meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
+            try:
+                meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
+            except (OSError, ValueError):
+                meta = {}
+            if not isinstance(meta, dict):
+                meta = {}
             size = sum(p.stat().st_size for p in d.rglob("*") if p.is_file())
             out["total_size_bytes"] += size
             entry = {

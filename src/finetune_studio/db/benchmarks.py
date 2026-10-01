@@ -140,10 +140,21 @@ def list_cases(benchmark_id: str) -> list[dict]:
     return out
 
 
+_CASE_COLUMNS = frozenset({
+    "case_name", "category", "question", "correct_answer", "model_answer",
+    "transcript", "judge", "judge_model", "verdict", "judge_reasoning",
+    "scored_at", "scoring_method", "validity", "error", "judge_input",
+    "source_id", "chunk_idx",
+})
+
+
 def update_case(cid: str, **kwargs) -> None:
     """Partial update of a case row (used by judge)."""
     if not kwargs:
         return
+    unknown = set(kwargs) - _CASE_COLUMNS
+    if unknown:
+        raise ValueError(f"unknown benchmark_cases columns: {sorted(unknown)}")
     # JSON-encode transcript if present
     if "transcript" in kwargs and not isinstance(kwargs["transcript"], str):
         kwargs["transcript"] = json.dumps(kwargs["transcript"])

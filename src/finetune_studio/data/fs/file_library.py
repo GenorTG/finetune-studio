@@ -1128,7 +1128,7 @@ def _current_raw_path(pid: str, file_id: str, current_version: int) -> Path | No
         for cand in trash.glob(f"{file_id}_*"):
             if cand.is_file():
                 return cand
-    return p if p.exists() else None
+    return None
 
 
 def rename_file(pid: str, file_id: str, new_name: str) -> dict:

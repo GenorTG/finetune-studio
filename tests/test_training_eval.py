@@ -54,6 +54,44 @@ def test_cases_from_training_jsonl_sharegpt(tmp_path: Path) -> None:
     assert "Paris" in cases[1].correct_answer
 
 
+def test_cases_from_training_jsonl_selects_user_and_assistant_roles(
+    tmp_path: Path,
+) -> None:
+    p = tmp_path / "system-prefixed.jsonl"
+    p.write_text(
+        json.dumps(
+            {
+                "conversations": [
+                    {"from": "system", "value": "Answer briefly."},
+                    {"from": "human", "value": "What is 2 + 2?"},
+                    {"from": "gpt", "value": "4"},
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    cases, skipped = cases_from_training_jsonl(str(p))
+    assert skipped == 0
+    assert len(cases) == 1
+    assert cases[0].question == "What is 2 + 2?"
+    assert cases[0].correct_answer == "4"
+
+
+def test_cases_from_training_jsonl_skips_malformed_message_entries(
+    tmp_path: Path,
+) -> None:
+    p = tmp_path / "malformed.jsonl"
+    p.write_text(
+        json.dumps({"messages": ["bad-entry", {"role": "user", "content": "Q?"}]})
+        + "\n",
+        encoding="utf-8",
+    )
+    cases, skipped = cases_from_training_jsonl(str(p))
+    assert cases == []
+    assert skipped == 1
+
+
 def test_cases_preserve_source_provenance(tmp_path: Path) -> None:
     p = tmp_path / "provenance.jsonl"
     p.write_text(json.dumps({

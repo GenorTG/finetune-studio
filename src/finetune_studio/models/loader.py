@@ -6,6 +6,7 @@ size or a safetensors ``config.json`` to describe a model for the UI. The
 real GGUF loader lives in ``finetune_studio.models.llama_loader``.
 """
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -13,16 +14,17 @@ from typing import Any
 def load_model_info(model_path: str) -> dict:
     path = Path(model_path)
     info: dict[str, Any] = {"path": str(path), "name": path.name}
-    if path.is_file() and path.suffix == ".gguf":
+    if path.is_file() and path.suffix.lower() == ".gguf":
         info["format"] = "gguf"
         info["size_gb"] = round(path.stat().st_size / (1024**3), 2)
         return info
     if path.is_dir():
         config_path = path / "config.json"
         if config_path.exists():
-            import json
-            with open(config_path) as f:
-                cfg = json.load(f)
+            try:
+                cfg = json.loads(config_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return info  # unreadable/corrupt config.json: name + path only
             info["format"] = "safetensors"
             info["architectures"] = cfg.get("architectures", [])
             info["model_type"] = cfg.get("model_type", "")

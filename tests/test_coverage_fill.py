@@ -15,9 +15,7 @@ from finetune_studio.data.prep.coverage_fill import (
 def proj(tmp_path, monkeypatch):
     """Point the fs root into tmp; project_dir creates itself on demand."""
     monkeypatch.setenv("FTS_ROOT", str(tmp_path))
-    import importlib
-
-    import finetune_studio.data.fs.paths as paths
+    from finetune_studio.data.fs import paths
 
     paths._ROOT = tmp_path
     paths._PROJECTS = tmp_path / "projects"
@@ -44,8 +42,8 @@ def test_split_sentences_basic() -> None:
 
 
 def test_make_pairs_deterministic_and_grounded() -> None:
-    a = _make_pairs_from_chunk(CHARTER, 1, seen_questions=set())
-    b = _make_pairs_from_chunk(CHARTER, 1, seen_questions=set())
+    a = _make_pairs_from_chunk(CHARTER, seen_questions=set())
+    b = _make_pairs_from_chunk(CHARTER, seen_questions=set())
     assert a == b  # deterministic
     assert a
     for q, ans in a:

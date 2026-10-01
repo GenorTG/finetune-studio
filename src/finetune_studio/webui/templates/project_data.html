@@ -5,14 +5,6 @@
 {% block breadcrumb_tab %}data{% endblock %}
 {% block workspace %}model{% endblock %}
 
-{% block crumbs %}
-  <a href="/projects" data-link>Projects</a>
-  <span class="sep">/</span>
-  <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a>
-  <span class="sep">/</span>
-  <span class="here">Data</span>
-{% endblock %}
-
 {% block content %}
 {% include "_resources.html" %}
 
@@ -493,8 +485,8 @@
       if (deleted) {
         actions =
           '<div class="flex gap-1">' +
-          '<button class="btn sm" type="button" onclick="fbRestore(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">Restore</button>' +
-          '<button class="btn sm danger" type="button" title="Hard-delete this file" onclick="fbPurgeOne(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">Purge</button>' +
+          '<button class="btn sm" type="button" data-fid="' + esc(f.id) + '" data-name="' + esc(f.original_name) + '" onclick="fbRestore(this.dataset.fid, this.dataset.name)">Restore</button>' +
+          '<button class="btn sm danger" type="button" title="Hard-delete this file" data-fid="' + esc(f.id) + '" data-name="' + esc(f.original_name) + '" onclick="fbPurgeOne(this.dataset.fid, this.dataset.name)">Purge</button>' +
           '</div>';
       } else {
         const mime = f.mime_type || '';
@@ -504,18 +496,18 @@
           '<button class="btn sm" type="button" title="View / edit this file" onclick="wbOpen(\'' + esc(f.id) + '\',\'original\')">👁</button>' +
           '<button class="btn sm" type="button" title="Edit parsed text (feeds training + RAG)" onclick="wbOpen(\'' + esc(f.id) + '\',\'parsed\')">✎p</button>' +
           '<button class="btn sm" type="button" title="Usage — where this file\'s content went (source / RAG / pairs / datasets / runs)" onclick="fbUsage(\'' + esc(f.id) + '\')">ℹ️</button>' +
-          (p.has_parsed ? '<button class="btn sm" type="button" title="Discard manual edits, re-run the parser" onclick="wbReparse(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">↻</button>' : '') +
+          (p.has_parsed ? '<button class="btn sm" type="button" title="Discard manual edits, re-run the parser" data-fid="' + esc(f.id) + '" data-name="' + esc(f.original_name) + '" onclick="wbReparse(this.dataset.fid, this.dataset.name)">↻</button>' : '') +
           (!p.source_id ? '<button class="btn sm" type="button" title="Send to pairs (parse + chunk)" onclick="wbPromote(\'' + esc(f.id) + '\')">⚡</button>' : '') +
           '<a class="btn sm" title="Download raw" href="/api/projects/' + PID + '/files/' + encodeURIComponent(f.id) + '/raw" download="' + esc(f.original_name) + '">⬇</a>' +
-          '<button class="btn sm" type="button" title="Tags &amp; notes" onclick="fbEditTags(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">🏷</button>' +
-          '<button class="btn sm" type="button" title="Rename" onclick="fbRename(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">✎</button>' +
-          '<button class="btn sm danger" type="button" title="Delete" onclick="fbDelete(\'' + esc(f.id) + '\',\'' + esc(f.original_name) + '\')">🗑</button>' +
+          '<button class="btn sm" type="button" title="Tags &amp; notes" data-fid="' + esc(f.id) + '" data-name="' + esc(f.original_name) + '" onclick="fbEditTags(this.dataset.fid, this.dataset.name)">🏷</button>' +
+          '<button class="btn sm" type="button" title="Rename" data-fid="' + esc(f.id) + '" data-name="' + esc(f.original_name) + '" onclick="fbRename(this.dataset.fid, this.dataset.name)">✎</button>' +
+          '<button class="btn sm danger" type="button" title="Delete" data-fid="' + esc(f.id) + '" data-name="' + esc(f.original_name) + '" onclick="fbDelete(this.dataset.fid, this.dataset.name)">🗑</button>' +
           '</div>';
       }
       const thumb = (f.mime_type || '').startsWith('image/')
         ? '<img class="fb-thumb" loading="lazy" src="/api/projects/' + PID + '/files/' + encodeURIComponent(f.id) + '/raw" alt="">' : '';
       const tagPills = String(f.tags || '').split(',').map((s) => s.trim()).filter(Boolean)
-        .map((t) => '<span class="fb-tag-pill" title="Filter by this tag" onclick="fbTagFilter(\'' + esc(t) + '\')">' + esc(t) + '</span>').join('');
+        .map((t) => '<span class="fb-tag-pill" title="Filter by this tag" data-tag="' + esc(t) + '" onclick="fbTagFilter(this.dataset.tag)">' + esc(t) + '</span>').join('');
       return '<tr class="row-hover' + (deleted ? ' dim' : '') + '" draggable="true" data-fid="' + esc(f.id) + '">' +
         '<td><input type="checkbox" ' + checked + ' onclick="fbToggleSelect(event,\'' + esc(f.id) + '\')"></td>' +
         '<td class="name cell-wrap" title="' + esc(f.original_name) + '">' +
@@ -610,54 +602,6 @@
     if (s) s.value = t;
     page = 0;
     renderTable();
-  };
-
-  window.fbPreview = function (fid, name, mime) {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    let inner;
-    if (mime && mime.startsWith('image/')) {
-      inner = '<img src="/api/projects/' + PID + '/files/' + fid + '/raw" alt="' + esc(name) + '" style="max-width:100%;max-height:70vh;border-radius:4px;">';
-    } else if (mime === 'application/pdf') {
-      inner = '<iframe src="/api/projects/' + PID + '/files/' + fid + '/raw" style="width:100%;height:70vh;border:none;border-radius:4px;"></iframe>';
-    } else if (isTextish(mime) || isMarkdown(mime, name)) {
-      const cls = isMarkdown(mime, name) ? 'lang-md mono text-xs' : 'mono text-xs';
-      inner = '<pre id="fb-preview-content" class="' + cls + '" style="max-height:70vh;overflow:auto;padding:12px;background:var(--bg-panel);border:1px solid var(--border);">Loading…</pre>';
-    } else {
-      const size = (files.find((x) => x.id === fid) || {}).size_bytes;
-      inner = '<div class="dim" style="padding:24px;text-align:center">' +
-        'No inline preview for this type.<br><br>' +
-        '<a class="btn primary" href="/api/projects/' + PID + '/files/' + encodeURIComponent(fid) + '/raw" download="' + esc(name) + '">⬇ Download raw</a>' +
-        '<div class="text-xs mt-2 mono">' + formatBytes(size) + ' · ' + esc(mime || 'unknown') + '</div></div>';
-    }
-    modal.innerHTML = '<div class="modal-dialog" style="max-width:860px;">' +
-      '<div class="modal-head">' + esc(name) + '</div>' +
-      '<div class="modal-body">' + inner + '</div>' +
-      '<div class="modal-actions">' +
-      '<button class="btn" type="button" data-action="versions">Versions</button>' +
-      '<button class="btn" type="button" data-action="close">Close</button></div></div>';
-    document.body.appendChild(modal);
-    const cleanup = () => modal.remove();
-    modal.addEventListener('click', (e) => { if (e.target === modal) cleanup(); });
-    modal.querySelector('[data-action=close]').addEventListener('click', cleanup);
-    modal.querySelector('[data-action=versions]').addEventListener('click', () => {
-      cleanup();
-      fbShowVersions(fid, name);
-    });
-    if (isTextish(mime) || isMarkdown(mime, name)) {
-      if (!(mime && mime.startsWith('image/')) && mime !== 'application/pdf') {
-        fetch('/api/projects/' + PID + '/files/' + fid + '/raw')
-          .then((r) => r.text())
-          .then((t) => {
-            const el = document.getElementById('fb-preview-content');
-            if (el) el.textContent = t;
-          })
-          .catch(() => {
-            const el = document.getElementById('fb-preview-content');
-            if (el) el.textContent = 'Failed to load';
-          });
-      }
-    }
   };
 
   window.fbShowVersions = function (fid, name) {
@@ -797,7 +741,8 @@
     });
     if (!ok) return;
     try {
-      await fetch('/api/projects/' + PID + '/files/' + fid, { method: 'DELETE' });
+      const r = await fetch('/api/projects/' + PID + '/files/' + fid, { method: 'DELETE' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
       notify(name + ' moved to trash', 'success');
       selected.delete(fid);
       await loadFiles();
@@ -808,7 +753,8 @@
 
   window.fbRestore = async function (fid, name) {
     try {
-      await fetch('/api/projects/' + PID + '/files/' + fid + '/restore', { method: 'POST' });
+      const r = await fetch('/api/projects/' + PID + '/files/' + fid + '/restore', { method: 'POST' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
       notify(name + ' restored', 'success');
       await loadFiles();
     } catch (e) {
@@ -826,7 +772,8 @@
     );
     if (!ok) return;
     try {
-      await fetch('/api/projects/' + PID + '/files/trash/purge?older_than_days=' + encodeURIComponent(days), { method: 'POST' });
+      const r = await fetch('/api/projects/' + PID + '/files/trash/purge?older_than_days=' + encodeURIComponent(days), { method: 'POST' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
       notify('Trash purged', 'success');
       selected.clear();
       await loadFiles();
@@ -1053,7 +1000,9 @@
     const menu = document.getElementById('fb-cols-menu');
     if (!btn || !menu) return;
     btn.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; });
-    document.addEventListener('click', (e) => { if (!menu.hidden && !menu.contains(e.target)) menu.hidden = true; });
+    const onDocClick = (e) => { if (!menu.hidden && !menu.contains(e.target)) menu.hidden = true; };
+    document.addEventListener('click', onDocClick);
+    document.addEventListener('fts:beforeNavigate', () => document.removeEventListener('click', onDocClick), { once: true });
     menu.querySelectorAll('input[data-col]').forEach((cb) => {
       const c = cb.getAttribute('data-col');
       cb.checked = !hiddenCols.has(c);
@@ -1278,13 +1227,6 @@
     notify('Pairs: ' + done + ' source(s) ready' + (errs ? ', ' + errs + ' failed' : ''), errs ? 'error' : 'success');
     selected.clear();
     await loadFiles();
-  }
-
-  function formatBytes(b) {
-    if (!b && b !== 0) return '?';
-    if (b < 1024) return b + ' B';
-    if (b < 1024*1024) return (b/1024).toFixed(0) + ' KB';
-    return (b/(1024*1024)).toFixed(1) + ' MB';
   }
 
   function uploadFiles(fileList) {

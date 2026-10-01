@@ -73,7 +73,7 @@ def list_datasets(project_id: str) -> list[dict]:
 
 
 def update_dataset(did: str, **fields: Any) -> dict | None:
-    """Update qa_count/size_bytes last-modified time etc.
+    """Update name/qa_count/size_bytes and stamp ``last_used_at``.
 
     `last_used_at` is always stamped to now below; it is excluded from
     `allowed` so a caller-supplied value can't be silently overwritten by
@@ -104,7 +104,7 @@ def delete_dataset(did: str, remove_file: bool = False) -> dict:
         try:
             Path(ds["data_path"]).unlink(missing_ok=True)
         except Exception as e:  # noqa: BLE001
-            return {"ok": False, "error": f"db deleted but file remove failed: {e}"}
+            return {"ok": False, "error": f"file remove failed, dataset row kept: {e}"}
     with cursor() as c:
         c.execute("DELETE FROM project_datasets WHERE id = ?", (did,))
     return {"ok": True}

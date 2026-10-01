@@ -360,8 +360,6 @@ when you allow downloads. Two tabs: **Recent scores** (live history) and
 **Compare two runs** (pickers + a per-suite Δ table). The BenchBars sprite
 fills in as scores arrive.
 
-![Benchmarks](docs/screenshots/11_benchmarks.png)
-
 ### Settings (`/settings`, per-project under `/projects/{pid}/settings`)
 
 Per-project settings including a **WebUI log tail** card (Refresh +

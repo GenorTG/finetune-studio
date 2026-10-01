@@ -47,8 +47,8 @@ def coerce_pairs(arr, n_expected: int) -> list[dict]:
     if isinstance(arr, list):
         for it in arr:
             if isinstance(it, dict):
-                q = (it.get("q") or it.get("question") or "").strip()
-                a = (it.get("a") or it.get("answer") or "").strip()
+                q = str(it.get("q") or it.get("question") or "").strip()
+                a = str(it.get("a") or it.get("answer") or "").strip()
                 if q and a:
                     out.append({"q": q, "a": a})
     return out[:n_expected]
@@ -106,4 +106,4 @@ def parse_qa_lines(s: str, n_expected: int) -> list[dict]:
             out.append({"q": q, "a": a})
             if len(out) >= n_expected:
                 break
-    return out[:n_expected]
+    return out

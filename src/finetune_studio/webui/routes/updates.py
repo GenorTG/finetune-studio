@@ -74,9 +74,15 @@ async def trigger_update(request: Request, background: BackgroundTasks):
 
     Returns: {ok, update_id, status: 'queued'}
     """
-    body = await request.json() if request.headers.get(
-        "content-type", "").startswith("application/json") else {}
-    mode = (body.get("mode") or "update").lower()
+    body: Any = {}
+    if request.headers.get("content-type", "").startswith("application/json"):
+        try:
+            body = await request.json()
+        except ValueError:
+            return JSONResponse({"error": "invalid JSON"}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "expected JSON object"}, status_code=400)
+    mode = str(body.get("mode") or "update").lower()
     if mode not in ("update", "check", "repair"):
         return {"error": f"invalid mode: {mode}"}
     options = {
@@ -84,7 +90,7 @@ async def trigger_update(request: Request, background: BackgroundTasks):
         "no_llama": bool(body.get("no_llama", False)),
         "no_restart": bool(body.get("no_restart", False)),
     }
-    triggered_by = (body.get("triggered_by") or "user")[:32]
+    triggered_by = str(body.get("triggered_by") or "user")[:32]
     row = db.create_update(mode=mode, options=options,
                            triggered_by=triggered_by)
     background.add_task(_update_worker, row["id"], mode, options)

@@ -15,9 +15,7 @@
 
   const content = () => document.getElementById("content");
   const pageScriptsEl = () => document.getElementById("page-scripts");
-  const app     = () => document.getElementById("app");
   const sessionBar = () => document.getElementById("session-bar");
-  const crumbLeaf = () => document.getElementById("crumb-leaf");
 
   function setActiveNav(url) {
     const path = url.split("?")[0];
@@ -153,8 +151,13 @@
   }
 
   let inFlight = null;
+  // path+query of the page currently rendered; lets popstate ignore
+  // hash-only history entries instead of refetching the page.
+  const pageKey = () => location.pathname + location.search;
+  let renderedKey = pageKey();
   async function navigate(url, push = true) {
-    if (url === location.href) return;
+    if (push && url === location.href) return;
+    if (!push && pageKey() === renderedKey) return;
     if (inFlight) {
       try { await inFlight; } catch (e) {}
     }
@@ -219,6 +222,7 @@
       // Re-mount sprites & animations for the new page
       window.spritesInit && window.spritesInit();
       if (push) history.pushState({}, "", url);
+      renderedKey = pageKey();
       // Scroll to top on new page
       c.scrollTo({ top: 0, behavior: "instant" });
       document.dispatchEvent(new CustomEvent("fts:navigated", {
@@ -226,7 +230,16 @@
       }));
     })();
     inFlight = nav_promise;
-    try { await nav_promise; } finally { inFlight = null; }
+    try {
+      await nav_promise;
+    } catch (_e) {
+      // Fetch/parse/swap failure: restore the shell and do a full load.
+      c.classList.remove("is-loading");
+      c.style.opacity = "1";
+      location.href = url;
+    } finally {
+      inFlight = null;
+    }
   }
 
   // ── Wire clicks ─────────────────────────────────────────────────────
@@ -239,11 +252,6 @@
     ev.preventDefault();
     navigate(href);
   });
-
-  // ── Apply persisted collapsed state ──────────────────────────────
-  if (app().classList.contains("collapsed-nav")) {
-    app().classList.add("collapsed-nav");
-  }
 
   // ── Browser back/forward ──────────────────────────────────────────
   window.addEventListener("popstate", () => {

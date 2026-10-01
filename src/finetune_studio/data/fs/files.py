@@ -19,6 +19,7 @@ import time
 from pathlib import Path
 
 from finetune_studio.data.fs.metadata import (
+    _RESERVED_NAMES,
     FileMetadata,
     _safe_filename,
     hash_bytes,
@@ -27,6 +28,23 @@ from finetune_studio.data.fs.metadata import (
 from finetune_studio.data.fs.paths import file_dir, project_dir
 
 log = logging.getLogger(__name__)
+
+
+def _find_raw_file(fd: Path, ext: str) -> Path | None:
+    """The stored raw upload in *fd*: named by metadata, else an ext match
+    that isn't one of our own parsed/metadata artefacts."""
+    meta_path = fd / "metadata.json"
+    if meta_path.exists():
+        try:
+            name = json.loads(meta_path.read_text(encoding="utf-8")).get("original_filename")
+        except Exception:  # noqa: BLE001
+            name = None
+        if name and (fd / name).is_file():
+            return fd / name
+    for p in fd.iterdir():
+        if p.is_file() and p.suffix.lower() == ext and p.name not in _RESERVED_NAMES:
+            return p
+    return None
 
 
 def store_file(
@@ -45,13 +63,13 @@ def store_file(
     safe_name = _safe_filename(original_filename)
     ext = Path(safe_name).suffix.lower() or ""
     canonical = fd / safe_name
-    existing_files = [p for p in fd.iterdir() if p.is_file() and p.suffix.lower() == ext] if fd.exists() else []
     now = time.time()
 
-    # Rename existing file so the disk reflects the user's most recent name.
-    if existing_files and existing_files[0].name != safe_name:
+    # Rename existing raw file so the disk reflects the user's most recent name.
+    prior = _find_raw_file(fd, ext)
+    if prior is not None and prior.name != safe_name:
         try:
-            existing_files[0].rename(canonical)
+            prior.rename(canonical)
         except OSError:
             pass  # cross-device or other rename failure — fall through to write
     if not canonical.exists() or canonical.stat().st_size != len(data):
@@ -86,7 +104,7 @@ def store_file(
             "aliases": aliases,
             "last_seen_at": now,
         })
-        meta = FileMetadata(**{k: existing.get(k, v) for k, v in FileMetadata.__dataclass_fields__.items()})
+        meta = FileMetadata(**{k: existing[k] for k in FileMetadata.__dataclass_fields__ if k in existing})
     else:
         meta = FileMetadata(
             sha256=sha,
@@ -120,7 +138,7 @@ def list_files(pid: str) -> list[FileMetadata]:
 
 
 def delete_file(pid: str, sha256: str) -> bool:
-    fd = file_dir(pid, sha256)
+    fd = file_dir(pid, sha256, create=False)
     if fd.exists():
         shutil.rmtree(fd)
         return True

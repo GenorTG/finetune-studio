@@ -5,14 +5,6 @@
 {% block breadcrumb_tab %}training{% endblock %}
 {% block workspace %}model{% endblock %}
 
-{% block crumbs %}
-  <a href="/projects" data-link>Projects</a>
-  <span class="sep">/</span>
-  <a href="/projects/{{ pid }}" data-link>{{ project.name }}</a>
-  <span class="sep">/</span>
-  <span class="here">Training</span>
-{% endblock %}
-
 {% block content %}
 {% include "_resources.html" %}
 
@@ -322,7 +314,7 @@
           <span class="pill solid-green prod-pill">⭐ production</span>
           {% endif %}
           {% if run.status == 'failed' and run.error %}
-          <div class="text-xs solid-rose" style="color:var(--err);max-width:28ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+          <div class="text-xs" style="color:var(--err);max-width:28ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
                title="{{ run.error }}">{{ run.error[:120] }}{% if run.error|length > 120 %}…{% endif %}</div>
           {% endif %}
         </td>
@@ -423,8 +415,6 @@
         base_model: baseSel ? (baseSel.selectedOptions[0]?.value || "") : "",
         dataset: dsSel ? (dsSel.selectedOptions[0]?.getAttribute("data-path") || "") : "",
       });
-      const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || /[.]/.test(window.location.hostname);
-      void isLocal; // same-origin fetch; keep logic tolerant of proxy setups
       try {
         const r = await fetch(`/api/training/recommend?${params}`);
         const d = await r.json();
@@ -452,7 +442,6 @@
     const dsSel = gid("dataset-select");
     if (baseSel) baseSel.addEventListener("change", () => { if (presetSel.value) fetchAdvisory(); });
     if (dsSel) dsSel.addEventListener("change", () => { if (presetSel.value) fetchAdvisory(); });
-    const p = PRESETS[presetSel.value];
     if (presetSel.value) fetchAdvisory();
   }
 
@@ -682,7 +671,6 @@
     }
     if (empty) empty.hidden = true;
     if (!tbody) {
-      const card = document.querySelector("#past-runs-table") || document.querySelector(".card:last-of-type");
       // Table may be missing if page started empty — rebuild wrapper.
       const host = document.getElementById("past-runs-table");
       if (!host) return;
@@ -796,7 +784,7 @@
     }
   }
 
-  document.addEventListener("click", (ev) => {
+  const onRunsClick = (ev) => {
     const prodBtn = ev.target.closest(".js-set-prod");
     if (prodBtn && !prodBtn.disabled) {
       ev.preventDefault();
@@ -808,12 +796,19 @@
       ev.preventDefault();
       openInInference(infBtn.dataset.path || "");
     }
-  });
-
-  window.addEventListener("production_run_changed", (ev) => {
+  };
+  const onProdChanged = (ev) => {
     const d = ev.detail || {};
     updateProductionPill(d.run_id, d.name);
-  });
+  };
+  document.addEventListener("click", onRunsClick);
+  window.addEventListener("production_run_changed", onProdChanged);
+  // SPA: document/window outlive the page, so drop listeners on leave
+  // (otherwise each revisit stacks another handler and double-prompts).
+  document.addEventListener("fts:beforeNavigate", () => {
+    document.removeEventListener("click", onRunsClick);
+    window.removeEventListener("production_run_changed", onProdChanged);
+  }, { once: true });
 
   // ── Live training monitor: SSE /api/training/progress (fallback: /status) ──
   (function trainMonitor() {

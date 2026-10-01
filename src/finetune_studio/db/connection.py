@@ -6,7 +6,7 @@ import os
 import secrets
 import sqlite3
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 
 from finetune_studio.config import settings
 
@@ -180,9 +180,7 @@ CREATE TABLE IF NOT EXISTS project_datasets (
 );
 CREATE INDEX IF NOT EXISTS idx_datasets_project ON project_datasets(project_id);
 
--- data_prep_runs: per-run persistence for the data-prep pipeline.
--- The in-memory _RUNS dict in routes/data_prep.py stays for in-progress
--- polling, but the DB is the durable record.
+-- project_versions: pinned snapshots (datasets/files/rags/runs/base model).
 CREATE TABLE IF NOT EXISTS project_versions (
     id                TEXT PRIMARY KEY,
     project_id        TEXT NOT NULL,
@@ -198,6 +196,9 @@ CREATE TABLE IF NOT EXISTS project_versions (
 CREATE INDEX IF NOT EXISTS idx_project_versions_project
     ON project_versions(project_id, version_number DESC);
 
+-- data_prep_runs: per-run persistence for the data-prep pipeline.
+-- The in-memory _RUNS dict in routes/data_prep.py stays for in-progress
+-- polling, but the DB is the durable record.
 CREATE TABLE IF NOT EXISTS data_prep_runs (
     id            TEXT PRIMARY KEY,
     project_id    TEXT NOT NULL,
@@ -433,8 +434,9 @@ def _connect() -> sqlite3.Connection:
 
 @contextmanager
 def cursor() -> Iterator[sqlite3.Cursor]:
-    """Short-lived cursor context. Commits on exit, rolls back on error."""
-    with _connect() as conn:
+    """Short-lived cursor context. Commits on exit, rolls back on error, always closes."""
+    # sqlite3's own ``with conn`` only commits/rolls back; it never closes.
+    with closing(_connect()) as conn:
         cur = conn.cursor()
         try:
             yield cur
@@ -501,29 +503,6 @@ def init_db() -> None:
             "UPDATE training_runs SET name = 'Run ' || id || ' · ' || substr(name, 7) "
             "WHERE name LIKE 'Run · %' AND instr(name, id) = 0"
         )
-        # Create benchmark_cases if it doesn't exist (new in v2)
-        c.executescript("""
-            CREATE TABLE IF NOT EXISTS benchmark_cases (
-                id              TEXT PRIMARY KEY,
-                benchmark_id    TEXT NOT NULL,
-                run_id          TEXT NOT NULL,
-                case_name       TEXT NOT NULL,
-                category        TEXT NOT NULL DEFAULT 'general',
-                question        TEXT NOT NULL,
-                correct_answer  TEXT NOT NULL DEFAULT '',
-                model_answer    TEXT NOT NULL DEFAULT '',
-                transcript      TEXT NOT NULL DEFAULT '',
-                judge           TEXT NOT NULL DEFAULT 'none',
-                judge_model     TEXT NOT NULL DEFAULT '',
-                verdict         TEXT NOT NULL DEFAULT '',
-                judge_reasoning TEXT NOT NULL DEFAULT '',
-                scored_at       REAL,
-                FOREIGN KEY (benchmark_id) REFERENCES benchmark_runs(id) ON DELETE CASCADE,
-                FOREIGN KEY (run_id) REFERENCES training_runs(id) ON DELETE CASCADE
-            );
-            CREATE INDEX IF NOT EXISTS idx_bc_benchmark ON benchmark_cases(benchmark_id);
-            CREATE INDEX IF NOT EXISTS idx_bc_run ON benchmark_cases(run_id);
-        """)
 
 
 def row_to_dict(row: sqlite3.Row | None) -> dict | None:

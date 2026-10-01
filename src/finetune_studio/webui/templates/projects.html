@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Projects · Finetune Studio{% endblock %}
 {% block nav_projects %}active{% endblock %}
-{% block crumbs_leaf %}Projects{% endblock %}
 {% block sb_path %}~ / projects{% endblock %}
 
 {% block topbar_right %}
@@ -29,10 +28,10 @@
     <div class="mb-4">
       <span class="muted text-xs">Template</span>
       <div class="flex gap-2 mt-1" id="np-templates">
-        <button type="button" class="btn small template-btn active" data-template="blank" onclick="selectTemplate('blank')">📄 Blank</button>
-        <button type="button" class="btn small template-btn" data-template="chat" onclick="selectTemplate('chat')">💬 Chat-focused</button>
-        <button type="button" class="btn small template-btn" data-template="training" onclick="selectTemplate('training')">🎯 Training</button>
-        <button type="button" class="btn small template-btn" data-template="rag" onclick="selectTemplate('rag')">🔍 RAG</button>
+        <button type="button" class="btn sm template-btn active" data-template="blank" onclick="selectTemplate('blank')">📄 Blank</button>
+        <button type="button" class="btn sm template-btn" data-template="chat" onclick="selectTemplate('chat')">💬 Chat-focused</button>
+        <button type="button" class="btn sm template-btn" data-template="training" onclick="selectTemplate('training')">🎯 Training</button>
+        <button type="button" class="btn sm template-btn" data-template="rag" onclick="selectTemplate('rag')">🔍 RAG</button>
       </div>
     </div>
     <div class="grid" style="grid-template-columns:1fr 1fr;">
@@ -118,19 +117,16 @@
         <div class="flex gap-2 mt-1" style="font-size:11px;">
           {% if p.base_model %}<span class="pill solid-blue">base: {{ p.base_model.split('/')[-1] }}</span>{% endif %}
           {% if p.production_run %}<span class="pill solid-green">● production</span>{% endif %}
-          {% if p.tags %}{% for t in p.tags.split(',') %}<span class="pill solid-violet">{{ t.strip() }}</span>{% endfor %}{% endif %}
+          {% if p.tags %}{% for t in p.tags.split(',') %}<span class="pill solid-purple">{{ t.strip() }}</span>{% endfor %}{% endif %}
           <span class="dim mono">{{ p.id[:8] }}</span>
         </div>
-      </div>
-      <div class="meta" style="font-size:11px;color:var(--text-dim);">
-        {{ p.created_at|int|fts_format_date if false else '' }}
       </div>
     </a>
     {% endfor %}
   </div>
 {% endif %}
 
-{# Confirm modal. Single instance reused for both single + bulk delete. #}
+{# Import modal. #}
 <div class="modal-back" id="import-project-modal" hidden onclick="if(event.target===this)this.hidden=true">
   <div class="modal">
     <h3 style="margin-top:0;">Import project</h3>
@@ -146,6 +142,7 @@
   </div>
 </div>
 
+{# Delete-confirm modal; one instance reused for single + bulk delete. #}
 <div class="modal-bg" id="delete-modal-bg" onclick="if(event.target===this)closeModal()">
   <div class="modal">
     <h3 id="delete-modal-title" style="margin-top:0;">Confirm delete</h3>
@@ -285,7 +282,8 @@ function confirmDelete(ids, name) {
 }
 
 function closeModal() {
-  document.getElementById('delete-modal-bg').classList.remove('visible');
+  const bg = document.getElementById('delete-modal-bg');
+  if (bg) bg.classList.remove('visible');
 }
 
 async function doDelete(ids) {
@@ -375,8 +373,12 @@ async function submitImport() {
 }
 
 // ESC closes the modal.
-document.addEventListener('keydown', (e) => {
+function _projEscClose(e) {
   if (e.key === 'Escape') closeModal();
-});
+}
+document.addEventListener('keydown', _projEscClose);
+document.addEventListener('fts:beforeNavigate', () => {
+  document.removeEventListener('keydown', _projEscClose);
+}, { once: true });
 </script>
 {% endblock %}

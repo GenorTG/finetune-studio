@@ -81,6 +81,47 @@ def test_live_comparator_singleton_still_importable() -> None:
     ).source_name == "m"
 
 
+def test_comparator_serializes_run_and_cleanup() -> None:
+    """Cleanup must not unload an engine while comparison is using it."""
+    import threading
+
+    from finetune_studio.benchmarks.comparison import ModelComparator
+
+    started = threading.Event()
+    release = threading.Event()
+    unloaded = threading.Event()
+
+    class BlockingEngine:
+        def generate(self, *_args, **_kwargs):
+            started.set()
+            assert release.wait(timeout=2)
+            return "answer"
+
+        def unload(self):
+            unloaded.set()
+
+    instance = ModelComparator()
+    instance.engines["test"] = BlockingEngine()
+    runner = threading.Thread(
+        target=instance.run_comparison,
+        args=([{"name": "case", "messages": [], "expected": {}}],),
+    )
+    cleaner = threading.Thread(target=instance.cleanup)
+
+    runner.start()
+    assert started.wait(timeout=2)
+    cleaner.start()
+    assert not unloaded.wait(timeout=0.05)
+    release.set()
+    runner.join(timeout=2)
+    cleaner.join(timeout=2)
+
+    assert not runner.is_alive()
+    assert not cleaner.is_alive()
+    assert unloaded.is_set()
+    assert instance.model_names() == []
+
+
 def test_compare_package_still_imports_cleanly() -> None:
     # The __init__.py docstring was updated to document the retirement;
     # the package itself must still import without error.

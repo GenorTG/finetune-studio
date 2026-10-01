@@ -129,10 +129,6 @@ def prepare_local_sentence_transformer_dir(model_dir: Path) -> Path:
         mod_dir.mkdir(parents=True, exist_ok=True)
         if _is_pooling_module(mod_type):
             _ensure_pooling_config(mod_dir, dim, model_dir=model_dir)
-        else:
-            cfg = mod_dir / "config.json"
-            if cfg.is_file():
-                _normalize_pooling_keys_in_place(cfg)
 
     return model_dir
 
@@ -225,12 +221,3 @@ def _apply_pooling_compat(data: dict[str, Any], fallback_dim: int) -> bool:
         data["pooling_mode"] = mode
         changed = True
     return changed
-
-
-def _normalize_pooling_keys_in_place(cfg_path: Path) -> None:
-    try:
-        data = json.loads(cfg_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return
-    if _apply_pooling_compat(data, 0):
-        cfg_path.write_text(json.dumps(data, indent=4) + "\n", encoding="utf-8")

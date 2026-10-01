@@ -123,7 +123,14 @@ async def run_test_suite(request: Request):
         body.get("model_path") or body.get("path") or ""
     ).strip()
 
-    cases = load_test_suite(suite_path)
+    if not suite_path:
+        return JSONResponse({"error": "suite_path required"}, status_code=400)
+    try:
+        cases = load_test_suite(suite_path)
+    except FileNotFoundError as e:
+        return JSONResponse({"error": str(e)}, status_code=404)
+    except (TypeError, ValueError, OSError) as e:
+        return JSONResponse({"error": f"invalid suite: {e}"}, status_code=400)
 
     def _blocking():
         err = _ensure_model_loaded(str(project_id or ""), override_path)
@@ -133,8 +140,7 @@ async def run_test_suite(request: Request):
 
     async with ENGINE_LOCK:
         result = await asyncio.to_thread(_blocking)
-    from fastapi.responses import JSONResponse as _JSONResponse
-    if isinstance(result, _JSONResponse):
+    if isinstance(result, JSONResponse):
         return result
     results = result
     apply_heuristic_judging(results)
@@ -225,9 +231,6 @@ async def run_rag_test_suite(request: Request):
     try:
         async with ENGINE_LOCK:
             result = await asyncio.to_thread(_blocking)
-        from fastapi.responses import JSONResponse as _JSONResponse
-        if isinstance(result, _JSONResponse):
-            return result
         return result
     except FileNotFoundError as e:
         return JSONResponse({"error": str(e)}, status_code=404)
@@ -455,7 +458,4 @@ async def evaluate_training_dataset(request: Request):
 
     async with ENGINE_LOCK:
         result = await asyncio.to_thread(_blocking)
-    from fastapi.responses import JSONResponse as _JSONResponse
-    if isinstance(result, _JSONResponse):
-        return result
     return result

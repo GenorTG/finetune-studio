@@ -117,7 +117,10 @@ async def inference_chat(request: Request):
     top_k = body.get("top_k", 40)
     repeat_penalty = body.get("repeat_penalty", 1.1)
     thinking = body.get("thinking", False)
-    reasoning_effort = body.get("reasoning_effort", 5)
+    try:
+        reasoning_effort = int(body.get("reasoning_effort", 5))
+    except (TypeError, ValueError):
+        return {"error": "reasoning_effort must be an integer"}
     if not messages:
         return {"error": "No messages"}
     if inference_engine.model is None:
@@ -172,8 +175,8 @@ async def load_model(request: Request):
         # has resident before loading into inference_engine — otherwise both
         # sit in VRAM simultaneously until someone happens to click Unload.
         from finetune_studio.models.manager import get_manager
-        get_manager().unload()
         async with ENGINE_LOCK:
+            await asyncio.to_thread(get_manager().unload)
             await asyncio.to_thread(inference_engine.load, model_path, **kwargs)
         vision = getattr(inference_engine, "vision", False)
         return {"status": "loaded", "model": model_path, "vision": vision}
@@ -258,7 +261,10 @@ async def inference_benchmark(request: Request):
     if inference_engine.model is None:
         return {"error": "No model loaded. Load a model first."}
 
-    num_samples = int(body.get("num_samples", 20))
+    try:
+        num_samples = int(body.get("num_samples", 20))
+    except (TypeError, ValueError):
+        return {"error": "num_samples must be an integer"}
     full_run = bool(body.get("full_run", False))
     benchmarks = body.get("benchmarks")
     if isinstance(benchmarks, str):
@@ -346,7 +352,8 @@ async def chat(request: Request, pid: str):
                         "rag_name": rag["name"],
                         "chunk_id": r["chunk_id"],
                     })
-            except Exception:  # noqa: BLE001,S112
+            except Exception:
+                log.warning("RAG search failed for rag %s", rag_id, exc_info=True)
                 continue
 
     # Deduplicate by chunk_id, sort by score desc, take top 8

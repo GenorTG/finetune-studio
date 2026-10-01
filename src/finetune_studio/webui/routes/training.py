@@ -68,7 +68,7 @@ def _resolve_model_path(model_path: str, allow_download: bool) -> tuple[str, str
         / ".cache"
         / "huggingface"
         / "hub"
-        / f"models--{org}--{name.replace('/', '--')}"
+        / f"models--{org}--{name}"
         / "snapshots"
     )
     if hub_snap.is_dir() and any(hub_snap.iterdir()):
@@ -437,17 +437,17 @@ async def start_training(request: Request):
             weight_decay=float(body.get("weight_decay", 0.01)),
             save_steps=int(body.get("save_steps", 100)),
             logging_steps=int(body.get("logging_steps", 10)),
-            bf16=bool(body.get("bf16", True)),
+            bf16=_coerce_bool(body.get("bf16", True)),
             # Omitted → standard TRL (no Unsloth status wording) for stock Qwen3-4B flow.
             unsloth=False if unsloth_flag is None else unsloth_flag,
             merge_on_save=False if merge_flag is None else merge_flag,
-            export_gguf=bool(body.get("export_gguf", False)),
+            export_gguf=_coerce_bool(body.get("export_gguf", False)),
             gguf_quants=body.get("gguf_quants", ["f16", "q8_0", "q4_k_m", "q5_k_m"]),
             data_path=data_path,
             project_id=project_id,
-            abliterate=bool(body.get("abliterate", False)),
+            abliterate=_coerce_bool(body.get("abliterate", False)),
             abliteration_strength=float(body.get("abliteration_strength", 1.0)),
-            export_imatrix=bool(body.get("export_imatrix", False)),
+            export_imatrix=_coerce_bool(body.get("export_imatrix", False)),
             imatrix_calibration=body.get("imatrix_calibration", ""),
         )
     merge_on_save = config.merge_on_save
@@ -468,6 +468,9 @@ async def start_training(request: Request):
     # prompt used to silently train with none (E2E-26). Use the project's.
     if not system_prompt and system_prompt_mode != "none" and project_id:
         system_prompt = (db.get_project(project_id) or {}).get("system_prompt", "") or ""
+
+    if training_engine.state.status in ("training", "loading", "saving"):
+        return {"error": "another training run is in progress"}
 
     # Create a run record
     run = db.create_run(
@@ -519,7 +522,12 @@ async def start_training(request: Request):
         unload_all_models()
     except Exception:
         log.exception("Failed to unload resident models before training")
-    training_engine.start(config, training_data, system_prompt)
+    try:
+        training_engine.start(config, training_data, system_prompt)
+    except Exception as e:
+        log.exception("training start failed")
+        db.update_run(run_id, status="error")
+        return {"error": f"start failed: {e}"}
     return {"status": "started", "steps": training_engine.state.total_steps, "run_id": run_id}
 
 @router.post("/stop")
@@ -765,9 +773,11 @@ async def set_run_output(run_id: str, request: Request):
     """Update a run's output_path."""
     from finetune_studio import db
     body = await request.json()
-    output_path = body.get("output_path", "").strip()
+    output_path = str(body.get("output_path") or "").strip()
     if not output_path:
         return {"error": "no output_path"}
+    if not db.get_run(run_id):
+        return {"error": "run not found"}
     db.update_run(run_id, output_path=output_path)
     return {"ok": True, "run_id": run_id, "output_path": output_path}
 

@@ -32,17 +32,18 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-log = logging.getLogger(__name__)
-
 from finetune_studio.data import project_filesystem as pfs
 from finetune_studio.data.prep.ingest import load_existing_chunks
 from finetune_studio.data.prep.qa_validate import (
+    PairValidation,
     Provenance,
     build_qa_record,
     content_tokens,
     normalize_question,
     token_overlap_ratio,
 )
+
+log = logging.getLogger(__name__)
 
 # Sentences shorter than this rarely carry a learnable fact.
 _MIN_SENT_CHARS = 25
@@ -68,15 +69,8 @@ class FillResult:
 
 # ── project-wide entry ──────────────────────────────────────────────────
 
-def fill_all_project_gaps(pid: str) -> dict[str, Any]:
-    """Run the fill pass for every qa source in the project.
-
-    Returns an aggregate summary used by the export gate:
-    ``{sources_filled, pairs_created, uncovered_chunks, sources_skipped}``.
-    This is the function the export pipeline calls so a dataset can never
-    ship with silently-unmined chunks.
-    """
-    sources = pfs.list_qa_sources(pid)
+def _fill_sources(pid: str, sources: list[dict[str, Any]]) -> dict[str, Any]:
+    """Fill the given qa source manifests; aggregate into one summary."""
     total = FillResult()
     uncovered: list[dict[str, Any]] = []
     for src in sources:
@@ -118,6 +112,16 @@ def fill_all_project_gaps(pid: str) -> dict[str, Any]:
     return summary
 
 
+def fill_all_project_gaps(pid: str) -> dict[str, Any]:
+    """Run the fill pass for every qa source in the project.
+
+    Returns an aggregate summary used by the export gate:
+    ``{pairs_created, chunks_filled, skipped_no_content, uncovered_chunks}``. This is the function the export pipeline calls so a
+    dataset can never ship with silently-unmined chunks.
+    """
+    return _fill_sources(pid, pfs.list_qa_sources(pid))
+
+
 def fill_sources_gaps(pid: str, source_ids: list[str]) -> dict[str, Any]:
     """Coverage-fill ONLY the given sources (subset builds).
 
@@ -126,44 +130,10 @@ def fill_sources_gaps(pid: str, source_ids: list[str]) -> dict[str, Any]:
     no-skips guarantee for exactly the files it derives from. Unknown ids
     contribute nothing; callers validate counts against their own request.
     """
-    wanted = [s for s in source_ids if s]
-    sources = [s for s in pfs.list_qa_sources(pid) if str(s.get("id") or "") in set(wanted)]
-    total = FillResult()
-    uncovered: list[dict[str, Any]] = []
-    for src in sources:
-        sid = str(src.get("id") or "")
-        sha = str(src.get("sha256") or "")
-        filename = str(src.get("filename") or src.get("name") or "")
-        declared_chunks = int(src.get("chunk_count") or 0)
-        try:
-            chunks = load_existing_chunks(pid, sha) if sha else []
-            result = fill_coverage_gaps(
-                pid, sid, sha,
-                chunk_texts={i: c for i, c in enumerate(chunks, 1)} or None,
-                filename=filename,
-            )
-        except Exception as exc:
-            log.exception("coverage fill failed for source %s", sid)
-            n = declared_chunks if declared_chunks else 1
-            uncovered.extend(
-                {"source": sid, "chunk_idx": i, "error": f"fill failed: {exc}"}
-                for i in range(1, n + 1)
-            )
-            continue
-        total.pairs_created += result.pairs_created
-        total.chunks_filled += result.chunks_filled
-        total.skipped_no_content += result.skipped_no_content
-        for unc in result.chunks_still_uncovered:
-            unc["source"] = sid
-            uncovered.append(unc)
-        if declared_chunks and not chunks:
-            uncovered.extend(
-                {"source": sid, "chunk_idx": i, "error": "parsed chunks missing"}
-                for i in range(1, declared_chunks + 1)
-            )
-    summary = total.as_dict()
-    summary["uncovered_chunks"] = uncovered
-    return summary
+    wanted = {s for s in source_ids if s}
+    return _fill_sources(
+        pid, [s for s in pfs.list_qa_sources(pid) if str(s.get("id") or "") in wanted]
+    )
 
 
 # ── sentence splitting ───────────────────────────────────────────────────
@@ -200,7 +170,6 @@ def _subject_of(sentence: str) -> str:
 
 def _make_pairs_from_chunk(
     chunk_text: str,
-    chunk_idx: int,
     *,
     seen_questions: set[str],
     max_pairs: int = _MAX_PER_CHUNK,
@@ -224,10 +193,9 @@ def _make_pairs_from_chunk(
     candidates.sort(reverse=True)
 
     out: list[tuple[str, str]] = []
-    used = 0
     seen_pairs: set[tuple[str, str]] = set()
     for _, _, sent in candidates:
-        if used >= max_pairs:
+        if len(out) >= max_pairs:
             break
         answer = sent
         # evidence gate: answer must ground itself in the chunk verbatim-ish
@@ -238,11 +206,10 @@ def _make_pairs_from_chunk(
             title="the source document", subject=subject.rstrip("?:")
         )
         key = (normalize_question(q), norm_ans(answer))
-        if q.lower() in seen_questions or key in seen_pairs:
+        if key[0] in seen_questions or key in seen_pairs:
             continue
         seen_pairs.add(key)
         out.append((q, answer))
-        used += 1
     return out
 
 
@@ -279,7 +246,7 @@ def fill_coverage_gaps(
         chunks = load_existing_chunks(pid, sha256)
         chunk_texts = {i: c for i, c in enumerate(chunks, 1)}
     existing = pfs.list_qa_pairs(pid, source_id=source_id)
-    covered = {int(r.get("chunk_idx", 0)) for r in existing if r.get("status") == "approved"}
+    covered = {int(r.get("chunk_idx") or 0) for r in existing if r.get("status") == "approved"}
     gaps = sorted(i for i in chunk_texts if i not in covered)
 
     result = FillResult()
@@ -287,21 +254,14 @@ def fill_coverage_gaps(
     for idx in gaps:
         text = chunk_texts[idx]
         if not text or not text.strip():
-            # Module contract says uncoverable chunks are "surfaced as
-            # uncovered — never silently dropped" (see module docstring).
-            # A no-content chunk (deleted/missing chunk file, blank text)
-            # used to increment skipped_no_content and `continue` WITHOUT
-            # appending to chunks_still_uncovered — the export gate in
-            # DataPrepRunner only reads chunks_still_uncovered, so a chunk
-            # that lost its text entirely passed silently as "covered"
-            # while still never getting a training pair.
+            # surfaced as uncovered: the export gate only reads chunks_still_uncovered
             result.skipped_no_content += 1
             result.chunks_still_uncovered.append(
                 {"chunk_idx": idx, "chars": 0, "reason": "no_content"}
             )
             continue
         made = _make_pairs_from_chunk(
-            text, idx,
+            text,
             seen_questions={normalize_question(r.get("question", "")) for r in existing},
         )
         if not made:
@@ -311,7 +271,7 @@ def fill_coverage_gaps(
             qa_id = uuid.uuid4().hex[:12]
             qa = build_qa_record(
                 qa_id=qa_id,
-                pair=_SimplePair(question=q, answer=a),
+                pair=PairValidation(accepted=True, question=q, answer=a),
                 provenance=Provenance(source_id=source_id, sha256=sha256,
                                       filename=filename, chunk_idx=idx),
                 chunk_text=text[:1500],
@@ -326,12 +286,3 @@ def fill_coverage_gaps(
             result.pairs_created += 1
         result.chunks_filled += 1
     return result
-
-
-class _SimplePair:
-    """Adapter matching the PairValidation surface build_qa_record touches."""
-
-    def __init__(self, question: str, answer: str) -> None:
-        self.question = question
-        self.answer = answer
-        self.reasons: list[str] = []

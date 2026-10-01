@@ -51,16 +51,50 @@ class TrainingEvalMeta:
 def _extract_qa(example: dict[str, Any]) -> tuple[str, str] | None:
     """Pull (question, answer) from ShareGPT conversations or messages formats."""
     conversations = example.get("conversations")
-    if isinstance(conversations, list) and len(conversations) >= 2:
-        q = str(conversations[0].get("value") or conversations[0].get("content") or "").strip()
-        a = str(conversations[1].get("value") or conversations[1].get("content") or "").strip()
+    if isinstance(conversations, list):
+        user = next(
+            (
+                turn
+                for turn in conversations
+                if isinstance(turn, dict)
+                and str(turn.get("from") or turn.get("role") or "").lower()
+                in {"human", "user"}
+            ),
+            None,
+        )
+        assistant = next(
+            (
+                turn
+                for turn in conversations
+                if isinstance(turn, dict)
+                and str(turn.get("from") or turn.get("role") or "").lower()
+                in {"gpt", "assistant"}
+            ),
+            None,
+        )
+        q = str((user or {}).get("value") or (user or {}).get("content") or "").strip()
+        a = str((assistant or {}).get("value") or (assistant or {}).get("content") or "").strip()
         if q and a:
             return q, clean_answer_for_training(a)
 
     messages = example.get("messages")
     if isinstance(messages, list):
-        user = next((m for m in messages if m.get("role") == "user"), None)
-        asst = next((m for m in messages if m.get("role") == "assistant"), None)
+        user = next(
+            (
+                m
+                for m in messages
+                if isinstance(m, dict) and m.get("role") in {"user", "human"}
+            ),
+            None,
+        )
+        asst = next(
+            (
+                m
+                for m in messages
+                if isinstance(m, dict) and m.get("role") in {"assistant", "gpt"}
+            ),
+            None,
+        )
         if user and asst:
             q = str(user.get("content") or "").strip()
             a = str(asst.get("content") or "").strip()

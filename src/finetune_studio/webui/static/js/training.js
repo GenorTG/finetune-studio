@@ -12,6 +12,15 @@
   let selectedPreset = null;
   let pollTimer = null;
 
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+
+  function stopPolling() {
+    if (typeof pollTimer === "function") pollTimer();
+    pollTimer = null;
+  }
+
   async function loadPresets() {
     const r = await fetch("/api/training/presets");
     presets = await r.json();
@@ -23,11 +32,11 @@
       card.dataset.id = p.id;
       card.innerHTML = `
         <div class="flex items-center gap-2 mb-1">
-          <input type="radio" name="preset" value="${p.id}" />
-          <span class="font-bold text-sm">${p.name}</span>
-          <span class="badge">${p.min_vram_gb}GB VRAM</span>
+          <input type="radio" name="preset" value="${esc(p.id)}" />
+          <span class="font-bold text-sm">${esc(p.name)}</span>
+          <span class="badge">${esc(p.min_vram_gb)}GB VRAM</span>
         </div>
-        <div class="text-xs dim">${p.description}</div>
+        <div class="text-xs dim">${esc(p.description)}</div>
         <div class="text-xs mt-2 grid grid-4 gap-2">
           <div><span class="dim">epochs</span><br><span class="mono">${p.num_epochs}</span></div>
           <div><span class="dim">rank</span><br><span class="mono">${p.lora_rank}</span></div>
@@ -135,7 +144,7 @@
 
   function updateSummary() {
     const summary = `
-      <span class="dim">Selected:</span> <b>${selectedPreset ? selectedPreset.name : "Custom"}</b>
+      <span class="dim">Selected:</span> <b>${esc(selectedPreset ? selectedPreset.name : "Custom")}</b>
       <span class="dim"> · epochs=</span>${$("ov-num_epochs").value}
       <span class="dim"> rank=</span>${$("ov-lora_rank").value}
       <span class="dim"> batch=</span>${$("ov-batch_size").value}
@@ -150,7 +159,7 @@
     const hasAll = model && dataset && ($("train-project").value);
     $("btn-start-training").disabled = !hasAll;
     $("launch-summary").innerHTML = hasAll ?
-      `Ready: <b>${selectedPreset ? selectedPreset.name : "Custom config"}</b> on <b>${model.split("/").pop()}</b>` :
+      `Ready: <b>${esc(selectedPreset ? selectedPreset.name : "Custom config")}</b> on <b>${esc(model.split("/").pop())}</b>` :
       "Select a preset, project, model, and dataset first.";
   }
 
@@ -190,9 +199,9 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const d = await r.json();
-      if (d.error) {
-        status(`Error: ${d.error}`);
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d.error) {
+        status(`Error: ${d.error || (typeof d.detail === "string" ? d.detail : "HTTP " + r.status)}`);
         return;
       }
       status("Started! Tracking progress...");
@@ -215,21 +224,11 @@
   }
 
   function startPolling() {
-    if (pollTimer) {
-      if (typeof pollTimer === "function") pollTimer();
-      else clearInterval(pollTimer);
-      pollTimer = null;
-    }
-    const sub = window.fts && window.fts.subscribe;
-    if (sub) {
-      pollTimer = sub("/api/training/progress", applyLiveStatus, {
-        pollUrl: "/api/training/status",
-        fallbackMs: 5000,
-      });
-    } else {
-      pollTimer = setInterval(pollStatus, 5000);
-      pollStatus();
-    }
+    stopPolling();
+    pollTimer = window.fts.subscribe("/api/training/progress", applyLiveStatus, {
+      pollUrl: "/api/training/status",
+      fallbackMs: 5000,
+    });
   }
 
   function applyLiveStatus(s) {
@@ -263,25 +262,12 @@
     }
 
     if (s.status === "done" || s.status === "error") {
-      if (typeof pollTimer === "function") {
-        pollTimer();
-        pollTimer = null;
-      } else if (pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-      }
+      stopPolling();
       status(s.status === "done" ? "Training complete!" : `Error: ${s.error || "unknown"}`);
       $("btn-start-training").disabled = false;
       $("btn-stop-training").disabled = true;
       loadPastRuns();
     }
-  }
-
-  async function pollStatus() {
-    try {
-      const r = await fetch("/api/training/status");
-      applyLiveStatus(await r.json());
-    } catch (e) { /* polling failed, ignore */ }
   }
 
   async function loadPastRuns() {
@@ -290,6 +276,7 @@
     try {
       const r = await fetch(`/api/training/runs/${pid}`);
       const runs = await r.json();
+      if (!Array.isArray(runs)) throw new Error("bad response");
       const el = $("past-runs");
       if (runs.length === 0) {
         el.innerHTML = `<div class="text-xs dim">No past runs.</div>`;
@@ -297,8 +284,8 @@
       }
       el.innerHTML = runs.map(r => `
         <div class="flex items-center gap-3 text-xs mb-2">
-          <span class="status-badge status-${r.status}">${r.status}</span>
-          <span class="mono">${(r.name || r.id).slice(0, 50)}</span>
+          <span class="status-badge status-${esc(r.status)}">${esc(r.status)}</span>
+          <span class="mono">${esc((r.name || r.id).slice(0, 50))}</span>
           <span class="dim">${r.created_at ? new Date(r.created_at * 1000).toLocaleString() : ""}</span>
           ${r.final_loss ? `<span class="mono">loss=${r.final_loss.toFixed(4)}</span>` : ""}
         </div>
@@ -335,6 +322,8 @@
         $("progress-card").style.display = "block";
         startPolling();
       }
-    });
+    }).catch(() => {});
   })();
+  // The SSE stream must not outlive this page after an SPA navigation.
+  document.addEventListener("fts:beforeNavigate", stopPolling, { once: true });
 })();

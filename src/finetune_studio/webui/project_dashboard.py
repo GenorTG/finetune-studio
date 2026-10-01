@@ -8,6 +8,9 @@ from __future__ import annotations
 import time
 from typing import Any
 
+# In-flight training_runs statuses (mirrors db.runs._STALE_RUN_STATUSES).
+_ACTIVE_STATUSES = frozenset({"queued", "loading", "training", "saving", "running"})
+
 
 def format_relative(ts: float | None, *, now: float | None = None) -> str:
     """Human relative time from a Unix timestamp (seconds)."""
@@ -63,13 +66,27 @@ def run_status_counts(runs: list[dict]) -> dict[str, int]:
     done = running = failed = 0
     for run in runs:
         status = (run.get("status") or "").lower()
-        if status == "done":
+        if status in ("done", "completed"):
             done += 1
-        elif status == "running":
+        elif status in _ACTIVE_STATUSES:
             running += 1
         elif status == "failed":
             failed += 1
     return {"done": done, "running": running, "failed": failed}
+
+
+def runs_started_max(runs: list[dict]) -> float | None:
+    """Latest ``started_at`` across project runs (for drift badges)."""
+    vals: list[float] = []
+    for run in runs:
+        started = run.get("started_at")
+        if started is None:
+            continue
+        try:
+            vals.append(float(started))
+        except (TypeError, ValueError):
+            continue
+    return max(vals) if vals else None
 
 
 def models_size_gb(models: list[dict]) -> float:
@@ -100,16 +117,12 @@ def recent_runs(runs: list[dict], *, limit: int = 5) -> list[dict]:
 
 
 def recent_models(models: list[dict], *, limit: int = 5) -> list[dict]:
-    """Last N exports sorted by mtime desc (fallback: created_at string ignored)."""
+    """Last N exports sorted by mtime desc (missing/invalid mtime sorts last)."""
     def _key(m: dict) -> float:
-        for field in ("mtime",):
-            val = m.get(field)
-            if val is not None:
-                try:
-                    return float(val)
-                except (TypeError, ValueError):
-                    continue
-        return 0.0
+        try:
+            return float(m.get("mtime") or 0)
+        except (TypeError, ValueError):
+            return 0.0
 
     ordered = sorted(models, key=_key, reverse=True)
     return ordered[:limit]
@@ -234,8 +247,8 @@ def resolve_production_run(
 ) -> dict[str, str] | None:
     """Resolve the project's production run to ``{id, name}`` for header pills.
 
-    Returns ``None`` when no production run is set or the run cannot be found
-    in the provided ``runs`` list (or via a name already on the project).
+    Returns ``None`` when no production run is set. If the run is not in the
+    provided ``runs`` list the name falls back to the first 8 id characters.
     """
     run_id = (project.get("production_run") or "").strip()
     if not run_id:
@@ -264,17 +277,6 @@ def build_dashboard_ctx(
     desc = truncate_description(project.get("description"))
     production = resolve_production_run(project, runs)
 
-    started_vals: list[float] = []
-    for run in runs:
-        started = run.get("started_at")
-        if started is None:
-            continue
-        try:
-            started_vals.append(float(started))
-        except (TypeError, ValueError):
-            continue
-    runs_started_max: float | None = max(started_vals) if started_vals else None
-
     return {
         "desc_short": desc["short"],
         "desc_long": desc["long"],
@@ -300,6 +302,6 @@ def build_dashboard_ctx(
             limit=10,
             now=now,
         ),
-        "runs_started_max": runs_started_max,
+        "runs_started_max": runs_started_max(runs),
         "format_relative": format_relative,
     }

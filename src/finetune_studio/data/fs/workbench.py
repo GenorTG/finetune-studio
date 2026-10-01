@@ -81,7 +81,7 @@ def bulk_action(pid: str, ids: list[str], action: str, payload: dict) -> dict:
             log.exception("bulk %s failed for %s", action, fid)
             results.append({"file_id": fid, "ok": False, "error": str(e)})
     return {"action": action, "requested": len(ids), "succeeded": ok,
-            "failed": len(ids) - ok, "results": results}
+            "failed": len(results) - ok, "results": results}
 
 
 def _apply_tag(pid: str, fid: str, action: str, payload: dict) -> dict:
@@ -154,11 +154,14 @@ def download_zip(pid: str, ids: list[str]) -> tuple[bytes, str]:
 def _unique_arcname(name: str, seen: set[str]) -> str:
     arc = re.sub(r"[/\\]+", "_", name).strip("_") or "file"
     if arc in seen:
-        stem, _, ext = arc.rpartition(".")
+        stem, dot, ext = arc.rpartition(".")
+        if not dot:
+            stem, ext = arc, ""
+        suffix = f".{ext}" if ext else ""
         n = 2
-        while f"{stem}-{n}.{ext}" in seen:
+        while f"{stem}-{n}{suffix}" in seen:
             n += 1
-        arc = f"{stem}-{n}.{ext}"
+        arc = f"{stem}-{n}{suffix}"
     seen.add(arc)
     return arc
 
@@ -226,7 +229,7 @@ def file_usage(pid: str, file_id: str) -> dict:
 
 
 def _jsonl_contains_ids(path: str, pair_ids: set[str]) -> bool:
-    """True when any line's id (or provenance source_id) is one of pair_ids.
+    """True when any line's id/qa_id is one of pair_ids.
     Bounded scan — datasets are small by design; cap keeps worst case sane."""
     try:
         with open(path, encoding="utf-8", errors="replace") as fh:
@@ -238,6 +241,8 @@ def _jsonl_contains_ids(path: str, pair_ids: set[str]) -> bool:
                 try:
                     row = json.loads(line)
                 except ValueError:
+                    continue
+                if not isinstance(row, dict):
                     continue
                 rid = str(row.get("id") or row.get("qa_id") or "")
                 if rid and rid in pair_ids:

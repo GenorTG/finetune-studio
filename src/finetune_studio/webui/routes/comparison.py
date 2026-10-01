@@ -1,6 +1,4 @@
-"""Comparison tab — side-by-side model output."""
-
-"""Comparison and RAG testing routes for WebUI."""
+"""Comparison tab (side-by-side model output) and RAG chat routes."""
 import asyncio
 
 from fastapi import APIRouter, Request
@@ -21,7 +19,7 @@ async def compare_load(request: Request):
     try:
         from finetune_studio.benchmarks.comparison import comparator
         await asyncio.to_thread(comparator.load_model, name, path)
-        return {"status": "loaded", "name": name, "models": list(comparator.engines.keys())}
+        return {"status": "loaded", "name": name, "models": comparator.model_names()}
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
 
@@ -36,11 +34,11 @@ async def compare_run(request: Request):
     if not test_suite:
         return {"error": "No test suite provided"}
 
-    from finetune_studio.benchmarks.comparison import comparator
-    if not comparator.engines:
-        return {"error": "No models loaded. Use /compare/load first."}
-
-    result = await asyncio.to_thread(comparator.run_comparison, test_suite, config)
+    from finetune_studio.benchmarks.comparison import NoModelsLoadedError, comparator
+    try:
+        result = await asyncio.to_thread(comparator.run_comparison, test_suite, config)
+    except NoModelsLoadedError as e:
+        return {"error": str(e)}
     return result
 
 
@@ -48,7 +46,7 @@ async def compare_run(request: Request):
 async def compare_cleanup():
     """Unload all comparison models."""
     from finetune_studio.benchmarks.comparison import comparator
-    comparator.cleanup()
+    await asyncio.to_thread(comparator.cleanup)
     return {"status": "cleaned", "models": []}
 
 
@@ -71,8 +69,12 @@ async def rag_chat(request: Request):
             user_msg = msg.get("content", "")
             break
 
-    if not user_msg:
+    if not user_msg or not isinstance(user_msg, str):
         return {"error": "No user message found"}
+
+    from finetune_studio.webui.app import inference_engine
+    if not inference_engine or inference_engine.model is None:
+        return {"error": "No model loaded"}
 
     # Retrieve context from RAG
     from finetune_studio.config import settings
@@ -103,10 +105,6 @@ async def rag_chat(request: Request):
     augmented_messages.extend(messages)
 
     # Generate response
-    from finetune_studio.webui.app import inference_engine
-    if not inference_engine or inference_engine.model is None:
-        return {"error": "No model loaded"}
-
     async with ENGINE_LOCK:
         result = await asyncio.to_thread(
             inference_engine.generate,

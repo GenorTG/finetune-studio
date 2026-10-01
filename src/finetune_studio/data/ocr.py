@@ -17,6 +17,7 @@ import os
 import platform
 import shutil
 import subprocess
+import tempfile
 import threading
 from pathlib import Path
 
@@ -157,7 +158,7 @@ def _ensure_tessdata(languages: str = DEFAULT_LANGS) -> None:
                     "OCR tessdata download failed for "
                     + ", ".join(sorted(missing))
                     + ": "
-                    + "; ".join(result["errors"])
+                    + "; ".join(f"{e['lang']}: {e['error']}" for e in result["errors"])
                 )
         _AUTO_INSTALL_DONE = True
 
@@ -188,8 +189,10 @@ def ocr_image(image_path: str | Path, languages: str = DEFAULT_LANGS,
     _ensure_tessdata(languages)
     env = os.environ.copy()
     env["TESSDATA_PREFIX"] = _tessdata_prefix()
-    out_base = Path("/tmp") / f"_ocr_{os.getpid()}_{abs(hash(str(image_path))) % 100000}"
-    out_path = Path(str(out_base) + ".txt")
+    fd, tmp = tempfile.mkstemp(prefix="_ocr_")
+    os.close(fd)
+    out_base = Path(tmp)
+    out_path = Path(tmp + ".txt")
     try:
         r = subprocess.run(
             cmd + [str(image_path), str(out_base), "-l", languages, "--psm", str(psm), "--oem", str(oem)],
@@ -200,10 +203,11 @@ def ocr_image(image_path: str | Path, languages: str = DEFAULT_LANGS,
         return out_path.read_text(encoding="utf-8", errors="replace")
     finally:
         # Clean up the temp output file tesseract writes
-        try:
-            out_path.unlink()
-        except OSError:
-            pass
+        for leftover in (out_path, out_base):
+            try:
+                leftover.unlink()
+            except OSError:
+                pass
 
 
 def ocr_image_object(img, languages: str = DEFAULT_LANGS,

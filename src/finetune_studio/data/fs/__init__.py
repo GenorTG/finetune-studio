@@ -1,6 +1,6 @@
 """Structured per-project filesystem.
 
-LAYOUT (under ~/.finetune-studio/projects/<pid>/):
+LAYOUT (under $FTS_ROOT/projects/<pid>/, default ~/.finetune-studio):
 
   project.json                     # project metadata
   files/<sha256-12>/               # content-addressed file store (dedupes)
@@ -9,8 +9,8 @@ LAYOUT (under ~/.finetune-studio/projects/<pid>/):
     parsed.json                    # structured + metadata
     metadata.json                  # {sha256, original_filename, mime, char_count, ...}
     chunks/                        # semantic chunks (one file per chunk)
-      000.txt
-      001.txt
+      0000.txt
+      0001.txt
       ...
       manifest.json                # [{index, char_count, source_section}, ...]
   qa/                              # Q&A pairs (one file per pair)
@@ -23,8 +23,8 @@ DESIGN
 ------
 - Content-addressed (sha256) storage means uploading the same file twice
   doesn't create duplicate copies.
-- All operations are append-only or create-only — no in-place mutation of
-  files/<sha256>/ directories. Deletes happen at the project level only.
+- The raw copy is never modified; parsed.*, metadata.json and chunks/ are
+  rewritten on re-parse (write_chunks clears old chunks first).
 - The audit log is the source of truth for "what happened to this project".
 - The original filename is preserved on disk under files/<sha>/<name>.
   When the same content arrives under a different name, the old name is
@@ -42,6 +42,8 @@ data/fs/
   metadata.py     — FileMetadata dataclass + read/update + safe filenames
   ingestion.py    — logs/ingestions.jsonl append + read
   qa.py           — qa/pairs and qa/sources on disk
+  file_library.py — DB-backed file library (raw/ + converted/ + trash dirs)
+  workbench.py    — bulk actions / export over the library
 """
 from finetune_studio.data.fs.chunks import write_chunks  # noqa: F401, I001
 from finetune_studio.data.fs.files import delete_file, list_files, store_file  # noqa: F401

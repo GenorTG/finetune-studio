@@ -11,7 +11,6 @@ from ._base import cli_run, make_result
 
 def parse(path: Path) -> dict:
     chapters = []
-    warnings = []
     try:
         with zipfile.ZipFile(path) as z:
             for name in z.namelist():
@@ -30,7 +29,7 @@ def parse(path: Path) -> dict:
         "chapter_count": len(chapters),
         "chapters": [{"file": c["file"], "char_count": c["char_count"]} for c in chapters],
     }
-    return make_result(text, structured, parser="epub_v1", warnings=warnings)
+    return make_result(text, structured, parser="epub_v1")
 
 
 def _html_to_text(content: str) -> str:

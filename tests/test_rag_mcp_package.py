@@ -190,7 +190,7 @@ def test_standalone_mcp_stdio(corpus_dir: Path, tmp_path: Path) -> None:
     r = subprocess.run(
         [sys.executable, str(root / "server.py"), "--mcp"],
         input=stdin, capture_output=True, text=True, timeout=60, check=False,
-        env={**dict(__import__("os").environ), "PYTHONPATH": ""},
+        env={**os.environ, "PYTHONPATH": ""},
     )
     assert r.returncode == 0, r.stderr
     responses = {}

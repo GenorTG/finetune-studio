@@ -5,7 +5,7 @@ Endpoints:
   GET    /api/projects/{pid}/datasets/{did}      — single dataset metadata
   POST   /api/projects/{pid}/datasets            — register an existing file (json body)
   POST   /api/projects/{pid}/datasets/upload     — multipart upload; saves + registers
-  PATCH  /api/projects/{pid}/datasets/{did}      — rename / update stats
+  PATCH  /api/projects/{pid}/datasets/{did}      — rename (only ``name`` is patchable)
   DELETE /api/projects/{pid}/datasets/{did}      — unregister (+ optionally delete file)
 """
 
@@ -67,7 +67,11 @@ async def register_existing_route(pid: str, request: Request):
     Body accepts either ``data_path`` (absolute path) **or** ``file_id``
     (a row id from ``project_files``; we resolve to ``stored_path``).
     """
+    if not db.get_project(pid):
+        return JSONResponse({"error": "project not found"}, status_code=404)
     body = await request.json()
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON object body required"}, status_code=400)
     data_path = body.get("data_path") or ""
     # Fallback: WebUI data-prep sends {file_id}; resolve via project_files.
     if not data_path:
@@ -97,7 +101,7 @@ async def register_existing_route(pid: str, request: Request):
             {"error": "data_path or file_id required"}, status_code=400
         )
     p = Path(data_path)
-    if not p.exists():
+    if not p.is_file():
         return JSONResponse({"error": f"file not found: {data_path}"}, status_code=404)
     # Dedup by path
     existing = get_dataset_by_path(pid, str(p))
@@ -128,9 +132,7 @@ async def upload_dataset_route(pid: str, file: UploadFile = File(...)):  # noqa:
     # Coerce .json / .txt / etc → .jsonl so downstream loaders recognise it.
     fname = file.filename or "uploaded.jsonl"
     p = Path(fname)
-    stem, suf = p.stem, p.suffix.lower()
-    if suf != ".jsonl":
-        suf = ".jsonl"
+    stem, suf = p.stem, ".jsonl"
     out_dir = datasets_dir(pid)
     target = out_dir / f"{stem}{suf}"
     # Avoid clobbering: append suffix if file exists.
@@ -156,7 +158,10 @@ async def patch_dataset_route(pid: str, did: str, request: Request):
     ds = db.get_dataset(did)
     if not ds or ds.get("project_id") != pid:
         return JSONResponse({"error": "not found"}, status_code=404)
-    return db.update_dataset(did, **{k: v for k, v in body.items() if k in {"name"}})
+    name = body.get("name") if isinstance(body, dict) else None
+    if not isinstance(name, str) or not name.strip():
+        return JSONResponse({"error": "name (non-empty string) required"}, status_code=400)
+    return db.update_dataset(did, name=name.strip())
 
 
 @router.delete("/projects/{pid}/datasets/{did}")

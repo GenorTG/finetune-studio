@@ -4,6 +4,12 @@
 (async function () {
   const $ = (id) => document.getElementById(id);
 
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
   function row(label, value) {
     return `<div class="debug-label">${label}</div><div class="debug-value">${value || "—"}</div>`;
   }
@@ -28,24 +34,24 @@
         gpuHtml = d.gpus.map((g, i) =>
           `<div class="gpu-line">
              <span class="gpu-idx">[${i}]</span>
-             <span class="gpu-name">${g.name}</span>
+             <span class="gpu-name">${esc(g.name)}</span>
              <span class="gpu-vram">${humanBytes(g.vram_total_mb * 1024 * 1024)} (${humanBytes(g.vram_free_mb * 1024 * 1024)} free)</span>
-             <span class="gpu-driver dim">driver ${g.driver}</span>
+             <span class="gpu-driver dim">driver ${esc(g.driver)}</span>
            </div>`
         ).join("");
       } else {
-        gpuHtml = `<div class="dim text-xs">No NVIDIA GPU detected${d.gpu_error ? ` — ${d.gpu_error}` : ""}.</div>`;
+        gpuHtml = `<div class="dim text-xs">No NVIDIA GPU detected${d.gpu_error ? ` — ${esc(d.gpu_error)}` : ""}.</div>`;
       }
 
       const pkgHtml = Object.entries(d.packages || {})
-        .map(([k, v]) => `<tr><td class="mono">${k}</td><td class="mono dim">${v}</td></tr>`)
+        .map(([k, v]) => `<tr><td class="mono">${esc(k)}</td><td class="mono dim">${esc(v)}</td></tr>`)
         .join("");
 
       el.innerHTML = `
-        ${row("Release", `<span class="text-accent mono">${d.release_channel || "EARLY BETA"}</span> · <span class="mono">v${d.app_version}</span>`)}
-        ${row("Python", `<span class="mono">${d.python}</span>`)}
-        ${row("Platform", d.platform)}
-        ${row("Hostname", d.hostname)}
+        ${row("Release", `<span class="text-accent mono">${esc(d.release_channel || "EARLY BETA")}</span> · <span class="mono">v${esc(d.app_version)}</span>`)}
+        ${row("Python", `<span class="mono">${esc(d.python)}</span>`)}
+        ${row("Platform", esc(d.platform))}
+        ${row("Hostname", esc(d.hostname))}
         ${row("GPU", gpuHtml)}
         <div class="debug-label">Packages</div>
         <div class="debug-value">
@@ -55,12 +61,12 @@
 
       const p = d.paths || {};
       pathsEl.innerHTML = `
-        <tr><td class="dim text-xs">Data directory</td><td class="mono text-xs">${p.data_dir}</td></tr>
-        <tr><td class="dim text-xs">HF cache</td><td class="mono text-xs">${p.hf_cache}</td></tr>
-        <tr><td class="dim text-xs">Shared models</td><td class="mono text-xs">${p.shared_models}</td></tr>
+        <tr><td class="dim text-xs">Data directory</td><td class="mono text-xs">${esc(p.data_dir)}</td></tr>
+        <tr><td class="dim text-xs">HF cache</td><td class="mono text-xs">${esc(p.hf_cache)}</td></tr>
+        <tr><td class="dim text-xs">Shared models</td><td class="mono text-xs">${esc(p.shared_models)}</td></tr>
       `;
     } catch (e) {
-      el.innerHTML = `<div class="text-err">Failed to load debug info: ${e}</div>`;
+      el.innerHTML = `<div class="text-err">Failed to load debug info: ${esc(e)}</div>`;
     }
   }
 
@@ -107,7 +113,7 @@
       const rows = await (await fetch('/api/system/updates?limit=5')).json();
       if (!Array.isArray(rows) || !rows.length) { el.innerHTML = ''; return; }
       el.innerHTML = 'Recent: ' + rows.map(u =>
-        `${u.mode}→<b>${u.status}</b> ${new Date(((u.finished_at || u.created_at) || 0) * 1000).toLocaleString()}`
+        `${esc(u.mode)}→<b>${esc(u.status)}</b> ${new Date(((u.finished_at || u.created_at) || 0) * 1000).toLocaleString()}`
       ).join(' · ');
     } catch (e) { /* history is decorative — never block the page */ }
   }
@@ -151,24 +157,10 @@
 
   function updStartLive() {
     updStopLive();
-    const sub = window.fts && window.fts.subscribe;
-    if (sub) {
-      stopLive = sub('/api/system/update/events', updApplySnapshot, {
-        pollUrl: '/api/system/update/latest',
-        fallbackMs: 5000,
-      });
-      return;
-    }
-    // No fts.subscribe (very old page load) — slow poll only, never 2s redraw.
-    const tick = async () => {
-      try {
-        const d = await (await fetch('/api/system/update/latest', { cache: 'no-store' })).json();
-        updApplySnapshot(d);
-      } catch (e) { /* mid-restart */ }
-    };
-    tick();
-    const t = setInterval(tick, 5000);
-    stopLive = () => clearInterval(t);
+    stopLive = window.fts.subscribe('/api/system/update/events', updApplySnapshot, {
+      pollUrl: '/api/system/update/latest',
+      fallbackMs: 5000,
+    });
   }
 
   async function updTickSilent() {
@@ -193,8 +185,8 @@
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode, triggered_by: 'settings-ui' }),
       });
-      const d = await r.json();
-      if (d.error) throw new Error(d.error);
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d.error) throw new Error(d.error || d.detail || 'HTTP ' + r.status);
       updStartLive();
     } catch (e) {
       updStatus().textContent = 'Failed to start: ' + e.message;
@@ -214,6 +206,8 @@
   });
   updHistory();
   updTickSilent();  // resume the live view if an update is already running
+  // The SSE stream must not outlive this page after an SPA navigation.
+  document.addEventListener('fts:beforeNavigate', updStopLive, { once: true });
 
   wireReplay();
   await loadDebug();
@@ -272,9 +266,10 @@ function wireHosting() {
         body: JSON.stringify(body),
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || 'HTTP ' + r.status);
+      if (!r.ok) {
+        throw new Error(typeof d.detail === 'string' ? d.detail : 'HTTP ' + r.status);
+      }
       setStatus('Saved. Restarting service…');
-      // Trigger a restart via the existing update endpoint (but just restart, no pull)
       try {
         await fetch('/api/settings/reload', { method: 'POST' });
       } catch (e) { /* ignore — the restart will happen via systemd */ }

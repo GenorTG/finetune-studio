@@ -44,6 +44,16 @@ def _project_404(pid: str) -> JSONResponse | None:
 # In-memory run registry. Keyed by (pid, run_id).
 _RUNS: dict[tuple[str, str], dict] = {}
 
+# Strong refs to fire-and-forget tasks so the event loop cannot GC them mid-run.
+_BG_TASKS: set[asyncio.Task] = set()
+_QA_EDITABLE_FIELDS = frozenset({"question", "answer", "status", "chunk_idx"})
+
+
+def _spawn_bg(coro) -> None:
+    task = asyncio.get_running_loop().create_task(coro)
+    _BG_TASKS.add(task)
+    task.add_done_callback(_BG_TASKS.discard)
+
 Difficulty = Literal["easy", "medium", "hard", "expert"]
 Style = Literal["socratic", "direct", "factual", "eli5", "code"]
 
@@ -139,7 +149,7 @@ def enqueue_prep_run(
 ) -> str:
     """Create a DB run row, register the runner, queue background work.
 
-    Returns the run_id. Shared by ``/upload`` and ``/start``.
+    Returns the run_id. Used by ``/upload`` (``/start`` uses ``enqueue_source_prep_run``).
     """
     from finetune_studio import db
     from finetune_studio.data.prep import DataPrepRunner
@@ -278,7 +288,7 @@ async def resume_stale_data_prep_runs() -> dict[str, int]:
             "runner": runner, "log": progress_log,
             "filename": filename, "byte_count": row.get("byte_count") or 0,
         }
-        asyncio.create_task(run_in_threadpool(_run_prep_background, rid, runner, progress_log))
+        _spawn_bg(run_in_threadpool(_run_prep_background, rid, runner, progress_log))
         resumed += 1
     return {"resumed": resumed, "failed": failed}
 
@@ -537,11 +547,11 @@ async def stream_events(pid: str, run_id: str):
             return
         last, log_list, runner = 0, run["log"], run["runner"]
         while True:
+            finished = runner.progress.stage in ("done", "error")
             while last < len(log_list):
                 yield "data: " + json.dumps(log_list[last]) + "\n\n"
                 last += 1
-            if runner.progress.stage in ("done", "error"):
-                yield "data: " + json.dumps(log_list[-1]) + "\n\n"
+            if finished:
                 return
             await asyncio.sleep(0.5)
     return StreamingResponse(gen(), media_type="text/event-stream",
@@ -670,9 +680,20 @@ async def list_qa_route(pid: str, source_id: str | None = None, status: str | No
 
 @router.patch("/projects/{pid}/data-prep/qa/{qa_id}")
 async def update_qa_route(pid: str, qa_id: str, request: Request):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     body = await request.json()
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON object body required"}, status_code=400)
+    fields = {k: v for k, v in body.items() if k in _QA_EDITABLE_FIELDS}
+    if not fields:
+        return JSONResponse(
+            {"error": f"no editable fields; allowed: {sorted(_QA_EDITABLE_FIELDS)}"},
+            status_code=400,
+        )
     from finetune_studio.data import project_filesystem as pfs
-    updated = pfs.update_qa_pair(pid, qa_id, **body)
+    updated = pfs.update_qa_pair(pid, qa_id, **fields)
     if updated is None:
         return JSONResponse({"error": "not found"}, status_code=404)
     return updated
@@ -680,6 +701,9 @@ async def update_qa_route(pid: str, qa_id: str, request: Request):
 
 @router.post("/projects/{pid}/data-prep/qa/bulk")
 async def bulk_action(pid: str, request: Request):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     body = await request.json()
     ids, action = body.get("ids", []), body.get("action", "")
     new_status = {"approve": "approved", "reject": "rejected"}.get(action)
@@ -693,6 +717,9 @@ async def bulk_action(pid: str, request: Request):
 
 @router.delete("/projects/{pid}/data-prep/source/{source_id}")
 async def delete_source_route(pid: str, source_id: str):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     from finetune_studio.data import project_filesystem as pfs
     return {"ok": pfs.delete_qa_source(pid, source_id)}
 
@@ -703,6 +730,8 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
     missing = _project_404(pid)
     if missing is not None:
         return missing
+    if only not in ("approved", "pending", "rejected", "all"):
+        return JSONResponse({"error": f"unknown only filter: {only}"}, status_code=400)
     from finetune_studio.data.prep import export_qa_jsonl
     # 100%-coverage gate: run the deterministic fill pass first so chunks the
     # stochastic mining pass never converted still land as approved extractive
@@ -818,6 +847,9 @@ async def data_prep_audit(pid: str) -> dict:
 @router.post("/projects/{pid}/data-prep/reprocess/{source_id}")
 async def reprocess_source(pid: str, source_id: str):
     """Re-run the parser + Q&A generation for an existing source."""
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     from finetune_studio.data import project_filesystem as pfs
     src = pfs.read_qa_source(pid, source_id)
     if not src:
@@ -828,9 +860,11 @@ async def reprocess_source(pid: str, source_id: str):
     fd = pfs.file_dir(pid, sha)
     # Find the original file inside the sha dir (any name, any extension)
     candidates = [p for p in fd.iterdir() if p.is_file() and p.suffix.lower()]
-    # Prefer the file matching src['filename']; otherwise any file that isn't metadata/parsed/chunks
-    original = fd / src.get("filename", "")
-    if not original.exists():
+    # Prefer the file matching src['filename'] (basename only — a ".." in the
+    # manifest name must not escape the sha dir); otherwise any file that
+    # isn't metadata/parsed/chunks
+    original = fd / Path(src.get("filename") or "").name
+    if not original.is_file():
         # Fallback: find any file with a recognized extension (skip the metadata/parsed artifacts)
         skip_names = {"metadata.json", "parsed.txt", "parsed.json"}
         skip_dirs = {"chunks"}
@@ -841,9 +875,9 @@ async def reprocess_source(pid: str, source_id: str):
                 continue
             original = p
             break
-    if not original.exists():
+    if not original.is_file():
         return JSONResponse({"error": f"original bytes missing in {fd}"}, status_code=400)
-    data = original.read_bytes()
+    data = await asyncio.to_thread(original.read_bytes)
     # Persist a DB row so this reprocess shows up in the activity feed.
     # Schedule via asyncio (historical behaviour) rather than BackgroundTasks.
     from finetune_studio import db
@@ -865,8 +899,5 @@ async def reprocess_source(pid: str, source_id: str):
         "filename": original.name, "byte_count": len(data),
     }
 
-    async def _bg() -> None:
-        await asyncio.to_thread(_run_prep_background, run_id, runner, progress_log)
-
-    asyncio.get_event_loop().create_task(_bg())
+    _spawn_bg(asyncio.to_thread(_run_prep_background, run_id, runner, progress_log))
     return {"ok": True, "run_id": run_id, "filename": original.name}

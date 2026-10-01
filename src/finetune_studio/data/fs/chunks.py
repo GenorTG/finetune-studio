@@ -24,7 +24,7 @@ def write_chunks(pid: str, sha256: str, chunks: list[str], chunk_meta: list[dict
         manifest.append({
             "index": i,
             "char_count": len(text),
-            "source_section": (chunk_meta or [{}] * len(chunks))[i].get("source_section", ""),
+            "source_section": (chunk_meta[i] if chunk_meta and i < len(chunk_meta) else {}).get("source_section", ""),
             "chunk_path": str(chunk_path.relative_to(fd.parent)),
         })
     (chunks_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")

@@ -10,8 +10,6 @@ from pathlib import Path
 from ..ocr import DEFAULT_LANGS, ocr_image
 from ._base import cli_run, make_result
 
-SUPPORTED = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp", ".gif"}
-
 
 def parse(path: Path, languages: str = DEFAULT_LANGS) -> dict:
     warnings = []

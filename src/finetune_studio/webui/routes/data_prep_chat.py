@@ -206,6 +206,8 @@ def _run_tool(pid: str, name: str, args: dict) -> dict:
                 return {"error": "source_id and pairs required"}
             written = 0
             for pair in pairs:
+                if not isinstance(pair, dict):
+                    continue
                 q = (pair.get("question") or "").strip()
                 a = (pair.get("answer") or "").strip()
                 if not q or not a:
@@ -384,12 +386,19 @@ async def data_prep_chat(pid: str, request: Request):
       {ok, reply, tool_calls, rounds}
     """
     body = await request.json()
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON object body required"}, status_code=400)
     messages: list[dict] = body.get("messages") or []
-    if not messages:
+    if not messages or not isinstance(messages, list):
         return {"error": "messages required"}
     provider_id: str | None = body.get("provider_id")
     external: dict | None = body.get("external_api")
-    max_rounds = max(1, min(int(body.get("max_rounds") or MAX_TOOL_ROUNDS), 12))
+    if external is not None and not isinstance(external, dict):
+        return {"error": "external_api must be an object"}
+    try:
+        max_rounds = max(1, min(int(body.get("max_rounds") or MAX_TOOL_ROUNDS), 12))
+    except (TypeError, ValueError):
+        return {"error": "max_rounds must be an integer"}
 
     # Generation kwargs — allow per-request override. Anything not supplied
     # falls back to sane defaults for tool-calling (low temperature, roomy
@@ -506,9 +515,9 @@ async def data_prep_chat(pid: str, request: Request):
             # free it first. Otherwise it stays resident alongside whatever
             # manager.load() below loads, both competing for VRAM.
             if getattr(inference_engine, "model", None) is not None:
-                inference_engine.unload()
+                await asyncio.to_thread(inference_engine.unload)
             try:
-                mgr.load(provider_id)
+                await asyncio.to_thread(mgr.load, provider_id)
             except Exception as e:
                 log.exception("failed to load provider %s", provider_id)
                 return {"error": f"failed to load provider: {e}"}
@@ -581,14 +590,16 @@ async def data_prep_chat(pid: str, request: Request):
             break
 
         # Execute each tool call, append results to the message history.
+        full_messages.append({"role": "assistant", "content": visible_reply})
         for tc in tool_calls:
-            result = _run_tool(pid, tc["name"], tc.get("arguments") or {})
+            result = await asyncio.to_thread(
+                _run_tool, pid, tc["name"], tc.get("arguments") or {}
+            )
             all_tool_calls.append({
                 "name": tc["name"],
                 "arguments": tc.get("arguments") or {},
                 "result": result,
             })
-            full_messages.append({"role": "assistant", "content": visible_reply})
             full_messages.append({
                 "role": "user",
                 "content": f"TOOL_RESULT {tc['name']}: {json.dumps(result, ensure_ascii=False)}",
