@@ -11,12 +11,14 @@ Start here when onboarding a human or a fresh agent session.
 | [`PRODUCT-BRIEF.md`](PRODUCT-BRIEF.md) | **North star:** what “good” means, how to verify, Genor’s quality bar |
 | [`../AGENTS.md`](../AGENTS.md) | **How to work:** hosts, commands, session protocol, gotchas |
 | [`../RESTART.md`](../RESTART.md) | Fan-dragon service restart / squat uvicorn |
+| [`DEVELOPER.md`](DEVELOPER.md) | **Developer index:** architecture, code maps, audited module docs, operations |
 
 ## Reference (read on demand)
 
 | Doc | Role |
 |-----|------|
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Layers, URL truth table, load-bearing modules |
+| [`modules/webui-frontend.md`](modules/webui-frontend.md) / [`modules/ops-and-packaging.md`](modules/ops-and-packaging.md) | Frontend lifecycle/assets and canonical vs legacy scripts |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | Install, update pipeline, systemd |
 | [`INSTALL.md`](INSTALL.md) | First-time install detail |
 | [`DEPENDENCIES.md`](DEPENDENCIES.md) | Dep / CUDA notes |

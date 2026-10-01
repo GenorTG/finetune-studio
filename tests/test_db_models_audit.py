@@ -66,5 +66,5 @@ def test_models_loader_docstring_is_real_and_has_live_callers():
     import finetune_studio.models.loader as m
 
     assert m.__doc__ is not None
-    assert "load_model_info" not in ""  # sanity: module imported without error
+    assert "does not load" in m.__doc__
     assert callable(m.load_model_info)

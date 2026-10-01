@@ -337,8 +337,11 @@ async def export_run(pid: str, rid: str, request: Request,
 
 @router.get("/projects/{pid}/exports/{eid}")
 async def get_export(pid: str, eid: str):
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     row = db.get_export(eid)
-    if not row:
+    if not row or row.get("project_id") != pid:
         return JSONResponse({"error": "not found"}, status_code=404)
     return row
 
@@ -349,6 +352,9 @@ async def export_events(pid: str, eid: str):
     missing = _project_404(pid)
     if missing is not None:
         return missing
+    export = db.get_export(eid)
+    if export and export.get("project_id") != pid:
+        return JSONResponse({"error": "not found"}, status_code=404)
 
     async def gen():
         last: str | None = None
@@ -357,7 +363,9 @@ async def export_events(pid: str, eid: str):
             if not row:
                 yield sse_data({"error": "not found", "status": "failed", "id": eid})
                 return
-            # Ignore project mismatches quietly — row still streams.
+            if row.get("project_id") != pid:
+                yield sse_data({"error": "not found", "status": "failed", "id": eid})
+                return
             status = row.get("status") or ""
             fingerprint = (
                 f"{status}|{row.get('output_path') or ''}|"
@@ -380,6 +388,9 @@ async def list_run_exports(pid: str, rid: str):
     missing = _project_404(pid)
     if missing is not None:
         return missing
+    run = db.get_run(rid)
+    if not run or run.get("project_id") != pid:
+        return JSONResponse({"error": "not found"}, status_code=404)
     return db.list_exports_for_run(rid)
 
 

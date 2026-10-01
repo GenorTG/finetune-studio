@@ -7,8 +7,8 @@ $pythonCmd = $null
 foreach ($cmd in @("python3.13", "python3.12", "python")) {
     try {
         $ver = & $cmd --version 2>&1 | Select-String -Pattern "\d+\.\d+" | ForEach-Object { $_.Matches.Value }
-        $parts = $ver -split "\."
-        if ([int]$parts[0] -ge 3 -and [int]$parts[1] -ge 12) {
+        $version = [version]$ver
+        if ($version -ge [version]"3.12" -and $version -lt [version]"3.14") {
             $pythonCmd = $cmd
             Write-Host "Found: $cmd ($ver)"
             break
@@ -17,7 +17,7 @@ foreach ($cmd in @("python3.13", "python3.12", "python")) {
 }
 
 if (-not $pythonCmd) {
-    Write-Host "ERROR: Python 3.12+ not found." -ForegroundColor Red
+    Write-Host "ERROR: Python 3.12 or 3.13 not found." -ForegroundColor Red
     Write-Host "Install from https://www.python.org/downloads/"
     exit 1
 }
@@ -36,7 +36,7 @@ uv venv .venv --python $pythonCmd
 
 # Install packages
 Write-Host "Installing packages..."
-uv pip install -e "."
+uv pip install -e ".[parsers]"
 
 # Generate lock file if missing
 if (-not (Test-Path uv.lock)) {

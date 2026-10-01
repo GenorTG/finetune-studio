@@ -295,7 +295,7 @@ def test_css_cache_bust_bumped() -> None:
     assert "app.css?v=66" in base
     assert "sprites.js?v=16" in base
     assert "nav_overflow.js?v=1" in base
-    assert "spa.js?v=15" in base
+    assert "spa.js?v=16" in base
 
 
 def test_workflow_steps_vertical_at_desktop() -> None:

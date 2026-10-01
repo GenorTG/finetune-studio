@@ -74,12 +74,26 @@ def test_core_training_stack_imports() -> None:
 def test_optional_accelerator_stack_is_reported() -> None:
     """Optional packages are informational — a missing one must not fail CI."""
     missing: list[str] = []
+    failures: list[str] = []
     for module, attribute in OPTIONAL:
         try:
             _load(module, attribute)
-        except Exception:  # noqa: BLE001 - absence is acceptable here
-            missing.append(module)
+        except ModuleNotFoundError as exc:
+            if exc.name == module:
+                missing.append(module)
+            else:
+                target = f"{module}.{attribute}" if attribute else module
+                failures.append(f"  {target}: missing dependency {exc.name!r}")
+        except Exception as exc:  # noqa: BLE001 - broken installs must fail
+            target = f"{module}.{attribute}" if attribute else module
+            failures.append(f"  {target}: {type(exc).__name__}: {exc}")
 
-    # Never fails; recorded so a broken-optional regression is visible in -v.
+    assert not failures, (
+        "optional accelerator packages are installed but broken; fix the "
+        "dependency/API mismatch rather than treating it as absence:\n"
+        + "\n".join(failures)
+    )
+
+    # A genuinely absent optional package is reported without failing CI.
     if missing:
         pytest.skip(f"optional stack not installed on this host: {', '.join(missing)}")

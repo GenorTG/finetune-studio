@@ -13,17 +13,22 @@ All 19 files in this lane were read in full (not grepped) for this audit.
 
 ## `routes/data.py` (44 lines, mounted at `/api/data`)
 
-Legacy, **non-project-scoped** data page (`templates/data.html`): list files
-under `settings.data_dir`, upload, validate, preview, dedup. Superseded for
-project work by `file_library.py` and `datasets.py`, but still the live
-backend for the standalone `/data` page's upload form
-(`data-api="/api/data/upload"` in `data.html`) — not dead code.
+Legacy, **non-project-scoped** data API: list files under `settings.data_dir`,
+upload, validate, preview, dedup. Project work uses `file_library.py` and
+`datasets.py`. The old `templates/data.html` is orphaned: there is no `/data`
+page renderer, and its multipart form submits `files`/`project_id` while this
+API accepts one `file`. The API routes remain mounted for direct/legacy API
+clients, but the template is not a working UI for them.
 
 - `list_files()` → `scan_data_files(settings.data_dir)`.
 - `upload_file(file)` → writes `file.filename` under `settings.data_dir`.
 - `validate(path)` → `validate_file(path)`, arbitrary absolute path accepted (CLI-equivalent, not project-scoped).
 - `preview(path, limit)` → `load_jsonl(path)[:limit]`, wrapped so a bad file returns `{"error": ...}` instead of 500.
 - `dedup(path)` → read-only report of `dedup_data()`'s `(unique, dupes)`; does not persist the deduped file.
+
+**Wiring discrepancy (2026-10-01):** an earlier audit draft called the
+orphaned template a live page. The only matching page route is the project
+file browser at `/projects/{pid}/data`, which renders `project_data.html`.
 
 **Gotchas / invariants**
 - `upload_file` now does `os.path.basename(file.filename)` before joining

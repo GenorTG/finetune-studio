@@ -128,6 +128,6 @@ def test_missing_binary_error_is_actionable(monkeypatch: pytest.MonkeyPatch) -> 
     msg = str(ei.value)
     assert "tesseract" in msg.lower()
     # Must contain the install hint, not just say "not found".
-    assert any(verb in msg for verb in ("brew install", "sudo apt", "sudo pacman", "sudo dfn")), (
+    assert any(verb in msg for verb in ("brew install", "sudo apt", "sudo pacman", "sudo dnf")), (
         "missing-binary error should include a platform-correct install command; got: " + msg
     )

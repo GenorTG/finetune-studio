@@ -168,6 +168,9 @@
         location.href = url;
         return;
       }
+      document.dispatchEvent(new CustomEvent("fts:beforeNavigate", {
+        detail: { from: location.href, to: url },
+      }));
       // Fade-out current
       c.style.transition = "opacity 120ms ease";
       c.style.opacity = "0";
@@ -218,6 +221,9 @@
       if (push) history.pushState({}, "", url);
       // Scroll to top on new page
       c.scrollTo({ top: 0, behavior: "instant" });
+      document.dispatchEvent(new CustomEvent("fts:navigated", {
+        detail: { url: location.href },
+      }));
     })();
     inFlight = nav_promise;
     try { await nav_promise; } finally { inFlight = null; }

@@ -435,17 +435,19 @@
       var srcs = await api("/api/projects/" + PID + "/data-prep/sources");
       var sources = srcs.sources || [];
       if (!sources.length) { line("Step 2: no parsed documents yet — upload files (step 1) first."); return false; }
+      var qaBefore = await api("/api/projects/" + PID + "/data-prep/qa");
+      var existingQaIds = new Set((qaBefore.items || []).map(function (item) { return item.id; }));
       // Mining needs a helper model resident; the chain used to fail every
       // document silently and continue into a coverage-fill-only dataset.
       var prov = await api("/api/providers");
-      if (!prov.active) {
-        var hid = prov.helper_provider_id || "local-default";
-        line("Loading helper (" + (prov.helper_label || hid) + ")…");
-        var lr = await post("/api/providers/" + hid + "/load", {});
+      var helperId = prov.helper_provider_id || "local-default";
+      if (!prov.active || prov.active.id !== helperId) {
+        line("Loading helper (" + (prov.helper_label || helperId) + ")…");
+        var lr = await post("/api/providers/" + helperId + "/load", {});
         if (!lr || lr.ok === false || lr.error) throw new Error("helper load failed: " + ((lr && lr.error) || "unknown"));
         line("Helper ready.");
       }
-      var started = 0, failed = 0;
+      var succeededSourceIds = new Set(), failed = 0;
       for (var i = 0; i < sources.length; i++) {
         var s = sources[i];
         line("Generating pairs from document " + (i + 1) + "/" + sources.length + ": " + s.filename);
@@ -455,26 +457,27 @@
             { source_id: s.id, qa_per_chunk: 3, difficulty: "medium", style: "socratic" });
         } catch (e) { failed++; line("  failed to start: " + e.message); continue; }
         if (r.error) { failed++; line("  failed: " + r.error); continue; }
-        started++;
         var lastPct = -1;
         for (;;) {
           await sleep(4000);
           var st;
           try { st = await api("/api/projects/" + PID + "/data-prep/runs/" + r.run_id); }
           catch (e) { line("  lost track of this document (" + e.message + ")"); break; }
-          if (st.stage === "done") { line("  done: " + (st.qa_total || 0) + " pairs"); break; }
-          if (st.stage === "error") { line("  error: " + (st.message || "unknown")); break; }
+          if (st.stage === "done") { succeededSourceIds.add(s.id); line("  done: " + (st.qa_total || 0) + " pairs"); break; }
+          if (st.stage === "error") { failed++; line("  error: " + (st.message || "unknown")); break; }
           var pct = Math.round(st.pct || 0);
           if (pct !== lastPct) { lastPct = pct; set("wiz-qa", s.filename + " — " + pct + "%"); }
         }
       }
-      if (!started) { line("Step 2 failed: no document could be mined (" + failed + " error(s)) — fix the error above and retry."); return false; }
+      if (!succeededSourceIds.size) { line("Step 2 failed: no document completed mining (" + failed + " error(s)) — fix the error above and retry."); return false; }
       var qa = await api("/api/projects/" + PID + "/data-prep/qa");
-      var pending = (qa.items || []).filter(function (i) { return i.status === "pending"; })
+      var pending = (qa.items || []).filter(function (i) {
+        return i.status === "pending" && !existingQaIds.has(i.id) && succeededSourceIds.has(i.source_id);
+      })
         .map(function (i) { return i.id; });
       if (pending.length) {
         await post("/api/projects/" + PID + "/data-prep/qa/bulk", { ids: pending, action: "approve" });
-        line("Approved " + pending.length + " new pair(s) automatically (review them any time on the pairs page).");
+        line("Approved " + pending.length + " pending pair(s) from successfully mined documents (review them any time on the pairs page).");
       }
       wizRefresh("qa");
       return true;

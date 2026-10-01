@@ -23,13 +23,7 @@ set -uo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 
 VENV_DIR="${VENV_DIR:-.venv}"
-LLAMA_CPP_DIR="${LLAMA_CPP_DIR:-$HOME/llama.cpp}"
-# install.sh builds the CLI project-local (.llama.cpp); honour that here too
-# so update.sh never rebuilds a second copy under $HOME (2026-09-25).
-if [ ! -e "$LLAMA_CPP_DIR/build/bin/llama-quantize" ] \
-        && [ -e "$PWD/.llama.cpp/build/bin/llama-quantize" ]; then
-    LLAMA_CPP_DIR="$PWD/.llama.cpp"
-fi
+LLAMA_CPP_DIR="${LLAMA_CPP_DIR:-$PWD/.llama.cpp}"
 NO_PULL=0
 NO_LLAMA=0
 NO_RESTART=0

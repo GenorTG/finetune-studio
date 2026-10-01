@@ -48,8 +48,8 @@ class TestExportHelpers:
         """If llama.cpp isn't on PATH or in the common install paths,
         _find_llama_tool returns None. We simulate this by clearing PATH
         and pointing search paths at a temp dir that has nothing in it."""
-        from finetune_studio.webui.routes import exports
         from finetune_studio.training import gguf_convert
+        from finetune_studio.webui.routes import exports
         monkeypatch.setattr(exports, "LLAMA_CPP_SEARCH_PATHS",
                             [tempfile.mkdtemp()])
         # Quantizer/script discovery is shared with the training exporter and
@@ -423,6 +423,38 @@ class TestExportRoute:
         assert body["id"] == eid
         assert body["quant"] == "Q4_K_M"
         assert body["status"] == "queued"
+
+    def test_export_routes_enforce_project_ownership(self, client, mock_settings):
+        from finetune_studio import db
+
+        owner = db.create_project(name="Owner", description="")["id"]
+        other = db.create_project(name="Other", description="")["id"]
+        rid = db.create_run(project_id=owner, name="r", base_model="m",
+                            settings_obj={})["id"]
+        eid = db.create_export(project_id=owner, run_id=rid, quant="Q4_K_M")["id"]
+
+        assert client.get(f"/api/projects/{other}/exports/{eid}").status_code == 404
+        assert client.get(
+            f"/api/projects/{other}/exports/{eid}/events",
+        ).status_code == 404
+        assert client.get(
+            f"/api/projects/{other}/runs/{rid}/exports",
+        ).status_code == 404
+
+    def test_run_export_listing_does_not_expose_another_projects_exports(
+        self, client, mock_settings,
+    ):
+        from finetune_studio import db
+
+        owner = db.create_project(name="Owner", description="")["id"]
+        other = db.create_project(name="Other", description="")["id"]
+        rid = db.create_run(project_id=owner, name="r", base_model="m",
+                            settings_obj={})["id"]
+        db.create_export(project_id=owner, run_id=rid, quant="Q4_K_M")
+
+        assert client.get(
+            f"/api/projects/{other}/runs/{rid}/exports",
+        ).status_code == 404
 
     def test_list_run_exports_returns_rows(self, client, mock_settings):
         from finetune_studio import db

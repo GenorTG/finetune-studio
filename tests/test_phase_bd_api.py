@@ -21,6 +21,7 @@ Outputs into /home/genorbox1/.openclaw/media/outbound/:
   phase-api-summary.json      - full timeline + results
 """
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -31,7 +32,6 @@ import requests
 from playwright.sync_api import sync_playwright
 
 OUT = Path("/home/genorbox1/.openclaw/media/outbound")
-OUT.mkdir(parents=True, exist_ok=True)
 BASE = "http://fan-dragon:7860"
 PROJECT_ID = "264f8765"
 SMALL_CONFIG = {
@@ -127,6 +127,10 @@ def wait_for_terminal(timeout_sec: int, log_fn) -> tuple[str, dict]:
 
 
 def main() -> int:
+    if os.environ.get("FTS_ALLOW_LIVE_E2E") != "1":
+        print("Refusing live training/benchmark run; set FTS_ALLOW_LIVE_E2E=1 to opt in.", file=sys.stderr)
+        return 2
+    OUT.mkdir(parents=True, exist_ok=True)
     print("== Phase B+D via API ==")
     print(f"  base: {BASE}")
     print(f"  config: {json.dumps(SMALL_CONFIG, indent=2)}")
@@ -283,8 +287,12 @@ def main() -> int:
                 bench_result["response_body"] = body
                 bench_result["bench_elapsed_sec"] = round(time.time() - t_b0, 1)
                 print(f"  POST /benchmark -> HTTP {code} ({bench_result['bench_elapsed_sec']}s)")
-                if isinstance(body, dict) and body.get("error"):
-                    print(f"  benchmark error: {body['error']}")
+                if code != 200 or (isinstance(body, dict) and body.get("error")):
+                    bench_result["error"] = (
+                        body.get("error") if isinstance(body, dict)
+                        else f"benchmark HTTP {code}: {body}"
+                    )
+                    print(f"  benchmark error: {bench_result['error']}")
 
                 # Final benchmarks page screenshot
                 page.goto(f"{BASE}/projects/{PROJECT_ID}/benchmarks?bust=phase-api-bench-result",
@@ -303,8 +311,11 @@ def main() -> int:
                     latest = hist[0]
                     print(f"  benchmark scores: {latest.get('scores')}")
                     print(f"  duration_ms: {latest.get('duration_ms')}")
+                elif "error" not in bench_result:
+                    bench_result["error"] = f"benchmark history unavailable (HTTP {code})"
             else:
                 print("  skipping benchmark — no run_id or no suite")
+                bench_result["error"] = "benchmark could not be started"
 
             summary["phase_d"] = bench_result
             ctx.close()
@@ -315,6 +326,13 @@ def main() -> int:
     summary_path = OUT / "phase-api-summary.json"
     summary_path.write_text(json.dumps(summary, indent=2, default=str))
     print(f"\nJSON summary: {summary_path}")
+    if summary.get("training_final_state") != "done":
+        print("FAILED: training did not reach done state.")
+        return 1
+    phase_d = summary.get("phase_d", {})
+    if phase_d.get("attempted") and phase_d.get("error"):
+        print("FAILED: benchmark run reported an error.")
+        return 1
     print("DONE.")
     return 0
 

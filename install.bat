@@ -6,17 +6,15 @@ set PYTHON_CMD=
 for %%V in (python3.13 python3.12 python3 python) do (
     where %%V >nul 2>&1
     if not errorlevel 1 (
-        for /f "tokens=2 delims= " %%A in ('%%V --version 2^>^&1') do (
-            set VER=%%A
-            set MAJOR=!VER:~0,1!
-            set MINOR=!VER:~2,2!
+        %%V -c "import sys; raise SystemExit(0 if (3,12) <= sys.version_info[:2] < (3,14) else 1)" >nul 2>&1
+        if not errorlevel 1 (
+            set PYTHON_CMD=%%V
+            goto :found_python
         )
-        set PYTHON_CMD=%%V
-        goto :found_python
     )
 )
 
-echo ERROR: Python 3.12+ not found.
+echo ERROR: Python 3.12 or 3.13 not found.
 echo Install from https://www.python.org/downloads/
 pause
 exit /b 1
@@ -41,10 +39,10 @@ call .venv\Scripts\activate.bat
 REM Install
 if exist uv.lock (
     echo Installing from lock file...
-    uv sync
+    uv sync --extra parsers
 ) else (
     echo Installing from pyproject.toml...
-    uv sync
+    uv sync --extra parsers
     uv lock
 )
 

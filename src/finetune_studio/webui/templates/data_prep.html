@@ -727,9 +727,9 @@ function flRenderFolders() {
     const sel = _flCurrentFolder === f.id ? 'fl-tree-sel' : '';
     const icon = opts.icon || '📁';
     const actions = opts.actions || '';
-    return '<li class="fl-tree-row ' + sel + '" data-folder-id="' + f.id + '">' +
+    return '<li class="fl-tree-row ' + sel + '" data-folder-id="' + escapeHtml(f.id) + '" data-folder-name="' + escapeHtml(f.name) + '">' +
       '<span class="fl-tree-icon">' + icon + '</span>' +
-      '<a href="#" class="fl-tree-name" onclick="flSelectFolder(\'' + f.id + '\', \'' + escapeHtml(f.name) + '\'); return false;">' + escapeHtml(f.name) + '</a>' +
+      '<a href="#" class="fl-tree-name" onclick="flSelectFolder(' + jsArg(f.id) + ', ' + jsArg(f.name) + '); return false;">' + escapeHtml(f.name) + '</a>' +
       '<span class="fl-tree-actions">' + actions + '</span>' +
     '</li>';
   }
@@ -748,8 +748,8 @@ function flRenderFolders() {
     html += '<li class="fl-tree-section">USER</li>';
     html += user.map(f => row(f, {
       icon: '📁',
-      actions: '<span class="fl-act" title="Rename" onclick="flPromptRenameFolder(\'' + f.id + '\', \'' + escapeHtml(f.name) + '\')">✎</span>' +
-               '<span class="fl-act fl-act-del" title="Delete folder (files survive)" onclick="flDeleteFolder(\'' + f.id + '\', \'' + escapeHtml(f.name) + '\')">✕</span>',
+      actions: '<span class="fl-act" title="Rename" onclick="flPromptRenameFolder(' + jsArg(f.id) + ', ' + jsArg(f.name) + ')">✎</span>' +
+               '<span class="fl-act fl-act-del" title="Delete folder (files survive)" onclick="flDeleteFolder(' + jsArg(f.id) + ', ' + jsArg(f.name) + ')">✕</span>',
     })).join('');
   } else {
     html += '<li class="fl-tree-empty dim text-xs">No user folders yet. Click <b>+ new</b> above.</li>';
@@ -807,19 +807,19 @@ function flRenderFiles() {
       promoteAct =
         '<button type="button" class="btn small fl-use-source" data-file-id="' + f.id + '"' +
         ' title="Parse and add this file to the Source file picker"' +
-        ' onclick="flUseAsSource(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\')">' +
+        ' onclick="flUseAsSource(' + jsArg(f.id) + ', ' + jsArg(f.original_name) + ')">' +
         'Use as source</button>';
     }
     const actions = '<div class="fl-row-actions">' +
       promoteAct +
-      '<span class="fl-act" title="Tags & Notes" onclick="flEditTags(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\')">🏷</span>' +
-      '<span class="fl-act" title="Rename" onclick="flRenameFile(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\')">✎</span>' +
-      '<span class="fl-act" title="Preview" onclick="flPreviewFile(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\', \'' + (f.mime_type||'') + '\')">👁</span>' +
+      '<span class="fl-act" title="Tags & Notes" onclick="flEditTags(' + jsArg(f.id) + ', ' + jsArg(f.original_name) + ')">🏷</span>' +
+      '<span class="fl-act" title="Rename" onclick="flRenameFile(' + jsArg(f.id) + ', ' + jsArg(f.original_name) + ')">✎</span>' +
+      '<span class="fl-act" title="Preview" onclick="flPreviewFile(' + jsArg(f.id) + ', ' + jsArg(f.original_name) + ', ' + jsArg(f.mime_type || '') + ')">👁</span>' +
       '<a class="fl-act" title="Download raw" href="/api/projects/' + _flPid + '/files/' + f.id + '/raw" download="' + escapeHtml(f.original_name) + '">↓</a>' +
-      '<span class="fl-act fl-act-del" title="Delete (soft, to trash)" onclick="flDeleteFile(\'' + f.id + '\', \'' + escapeHtml(f.original_name) + '\')">🗑</span>' +
+      '<span class="fl-act fl-act-del" title="Delete (soft, to trash)" onclick="flDeleteFile(' + jsArg(f.id) + ', ' + jsArg(f.original_name) + ')">🗑</span>' +
     '</div>';
     return '<tr class="fl-file-row">' +
-      '<td class="fl-col-check"><input type="checkbox" ' + checked + ' onchange="flToggleSelect(\'' + f.id + '\', this.checked)"></td>' +
+      '<td class="fl-col-check"><input type="checkbox" ' + checked + ' onchange="flToggleSelect(' + jsArg(f.id) + ', this.checked)"></td>' +
       '<td class="fl-name" title="' + escapeHtml(f.original_name) + '">' +
         '<span class="fl-name-text">' + escapeHtml(f.original_name) + '</span>' + drift +
       '</td>' +
@@ -852,7 +852,7 @@ function flRenderTrash() {
       '<span class="fl-tree-icon">🗑</span>' +
       '<span class="fl-tree-name">' + escapeHtml(it.original_name) + '</span>' +
       '<span class="fl-tree-actions">' +
-        '<span class="fl-act" title="Restore" onclick="flRestoreFile(\'' + it.id + '\', \'' + escapeHtml(it.original_name) + '\')">↶</span>' +
+        '<span class="fl-act" title="Restore" onclick="flRestoreFile(' + jsArg(it.id) + ', ' + jsArg(it.original_name) + ')">↶</span>' +
         '<span class="fl-act fl-act-del" title="Hard-delete now" onclick="flPurgeOne(\'' + it.id + '\')">✕</span>' +
       '</span>' +
     '</li>'
@@ -1843,6 +1843,11 @@ function escapeHtml(s) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+// HTML escaping alone does not protect a value interpolated into JavaScript.
+function jsArg(value) {
+  return escapeHtml(JSON.stringify(String(value)));
 }
 
 function prepRefresh() {

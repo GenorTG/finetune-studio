@@ -3,19 +3,25 @@
 > Self-hosted fine-tuning studio for local LLMs: file library → RAG prep → agentic
 > Q&A mining → LoRA/QLoRA training → GGUF export → benchmarks → single-model
 > inference chat. FastAPI + Jinja2 SSR with a terminal (tmux/neovim) aesthetic.
-> ~42k LOC Python (223 files), one SQLite DB, zero cloud dependencies.
+> 40,468 lines across 214 tracked Python modules in `src/finetune_studio/`
+> (260 tracked app files including UI/assets); 525 tracked files across the
+> repository. One SQLite DB. The app is self-hosted; model downloads, OCR
+> language-data bootstrap, and optional integrations can contact external
+> services.
 >
-> For file-by-file detail, see **§10 Module reference** — 11 docs totaling
-> ~4,700 lines, produced by a full from-scratch read-every-file audit
-> (2026-10-01) that also found and fixed ~35 real bugs and deleted ~2,000
-> lines of confirmed-dead code along the way. This file stays the
-> 10,000-foot map; the module docs are the ground truth for any given file.
+> For module detail, see **§10 Module reference**. Backend Python modules were
+> documented in 11 lane docs; frontend assets and operations are now covered
+> by `docs/modules/webui-frontend.md`; operational commands live in
+> `docs/INSTALL.md`, `docs/DEPLOYMENT.md`, and the repo `AGENTS.md`. This does
+> not mean every tracked test/fixture has received a
+> line-by-line audit. This file stays the 10,000-foot map; read the owning
+> module doc and current implementation before changing behavior.
 
 ## 1. Entry points
 
 | Entry | Command | What it does |
 |---|---|---|
-| CLI | `fts …` / `finetune-studio …` (`pyproject [project.scripts]` → `finetune_studio.cli:main`) | 19 subcommands: `webui`, `train`, `convert`, `benchmark`, `rag`, `files`, `analyze`, `augment`, `compare`, `models`, `optimize`, `test`, `suite`, `validate`, `validate_hallucination`, `vram`, `analyze`… (`cli/commands/*.py`, registered in `cli/_registry.py`) |
+| CLI | `fts …` / `finetune-studio …` (`pyproject [project.scripts]` → `finetune_studio.cli:main`) | 17 registered subcommands: `models`, `train`, `test`, `suite`, `validate`, `convert`, `webui`, `rag`, `compare`, `benchmark`, `analyze`, `augment`, `optimize`, `validate-hallucination`, `rag-test`, `vram`, `files` (`cli/_registry.py`) |
 | Web | `fts webui` → `uvicorn finetune_studio.webui.app:app --host 0.0.0.0 --port 7860` | The studio itself (optional systemd user service) |
 
 ## 2. Layer map
@@ -24,13 +30,13 @@
 src/finetune_studio/
 ├── config.py            Settings dataclass + env overrides (single source of defaults)
 ├── db/                  SQLite (stdlib sqlite3, WAL)
-│   ├── connection.py    SCHEMA (16 tables), migrations via CREATE IF NOT EXISTS
+│   ├── connection.py    SCHEMA (23 tables), migrations via CREATE IF NOT EXISTS
 │   ├── system_updates.py  update-pipeline rows (queued|running|done|error|cancelled)
 │   ├── datasets.py      project_datasets + HF-dataset counting
 │   └── reviews.py       data_review rows
 ├── data/
 │   ├── fs/              Stage 1A file library: paths.py (FTS_ROOT layout),
-│   │                    file_library.py (742 LOC — upload/dedup/folders/trash/versions)
+│   │                    file_library.py (upload/dedup/folders/trash/versions)
 │   ├── parsers/ + parsers.py   MIME → text (pdf/docx/xlsx/csv/xml/images→OCR)
 │   ├── ocr.py           image OCR pass
 │   ├── prep/            prep jobs: chunk→embed→LLM Q&A drafts (runner.py, export.py)
@@ -141,7 +147,7 @@ Soft delete everywhere: `files/.RAW_TRASH/`, `.CONVERTED_TRASH/`, 7-day purge
 ## 6. Persistence
 
 - **SQLite** at `Settings.db_path` (default `data/finetune_studio.db`), WAL mode,
-  schema applied idempotently in `db/connection.py` (16 tables: core runs/projects
+  schema applied idempotently in `db/connection.py` (23 tables: core runs/projects
   + Stage 1A file library set + `system_updates`).
 - **Disk is truth for content** (files, JSONL, GGUFs, qa/pairs); the DB stores
   metadata/indexes only. `FTS_ROOT` env (default `~/.finetune-studio`) roots all
@@ -149,8 +155,8 @@ Soft delete everywhere: `files/.RAW_TRASH/`, `.CONVERTED_TRASH/`, 7-day purge
 
 ## 7. Frontend conventions
 
-- `base.html`: session bar (horizontal tmux-style tab strip — **never** a vertical
-  rail; mobile keeps it horizontal + scrollable), global model pill (polls
+- `base.html`: session bar (desktop tmux-style tab strip; mobile uses the compact
+  overflow menu), global model pill (polls
   `/api/providers` **and** `/api/inference/status` every 3s), activity drawer
   (live via SSE `/api/activity/events`, silent poll fallback only if EventSource
   fails), command palette (Ctrl-K), SPA link interception (`data-link`).
@@ -177,14 +183,13 @@ Soft delete everywhere: `files/.RAW_TRASH/`, `.CONVERTED_TRASH/`, 7-day purge
 - `DEPLOYMENT.md` — install, service, **update pipeline** (API + Settings UI)
 - `.agent/AGENT-WORKFLOW.md` (gitignored, local) — agentic working playbook
 
-## 10. Module reference (file-by-file, 2026-10-01 audit)
+## 10. Module reference (2026-10-01 audit and continuation)
 
-Every `.py` file in `src/finetune_studio/` was read in full and documented
-in one of the 11 docs below, each covering a cohesive slice. Each doc
-states a file's actual behavior (not guessed), how it's wired into the
-rest of the app, and any gotchas/invariants — plus every discrepancy found
-and fixed during the read (dead code, silently dropped data, wrong
-signatures, etc.), with file:line evidence.
+The 11 backend docs below cover Python modules by cohesive subsystem.
+`webui-frontend.md` covers the CSS, shared JavaScript, and all page templates;
+`ops-and-packaging.md` covers installers, launchers, update scripts, and
+deployment helpers. `docs/CODEMAP.md` is the generated symbol map, not proof
+that a file was read. The test-suite audit remains incomplete; see HANDOFF.
 
 | Doc | Covers |
 |---|---|
@@ -199,6 +204,8 @@ signatures, etc.), with file:line evidence.
 | [`modules/testing-engine.md`](modules/testing-engine.md) | `testing/` — `InferenceEngine`, suite builders/runners, judging, scoring |
 | [`modules/benchmarks-compare.md`](modules/benchmarks-compare.md) | `benchmarks/` (public MMLU/GSM8K/HellaSwag + comparison) — `compare/` retired as a dead duplicate |
 | [`modules/core-cli-entrypoints.md`](modules/core-cli-entrypoints.md) | `webui/app.py` + non-route helpers, `cli/`, top-level `config.py`/`naming.py`/`__init__.py`, `templates/` |
+| [`modules/webui-frontend.md`](modules/webui-frontend.md) | `webui/static/{css,js}/` and the Jinja page templates; lifecycle, navigation, UI contracts |
+| [`modules/ops-and-packaging.md`](modules/ops-and-packaging.md) | Installers, launchers, service unit, update scripts, packaging and QA runner |
 
 **Known gaps not fixed in the 2026-10-01 pass** (flagged by multiple lanes, need a product decision rather than a blind fix — see `HANDOFF.md`):
 - Three overlapping export-listing routes (`training.py`, `exports.py` ×2) — pick one, delete the others.

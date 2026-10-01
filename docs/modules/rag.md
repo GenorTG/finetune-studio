@@ -169,11 +169,12 @@ and `webui/routes/chat_v2.py` (for post-migration corpora) actually use.
     `chunks.parquet` + `vectors.npy` by a boolean mask, rebuild
     `vectors.idx.json` and the BM25 index from the surviving chunks, and
     drop the matching `documents_meta` entry (updating `manifest.documents`/
-    `chunks` counts). `clear_sources()` (the bulk sibling) is **not** a bug —
-    its docstring and the route's comment both say "requires rebuild",
-    so leaving chunks/vectors stale until a follow-up rebuild is the
-    documented contract there; `remove_source()` had no such disclaimer and
-    its caller's response implied full removal.
+    `chunks` counts). `clear_sources()` (the bulk sibling) was also
+    incomplete: it deleted source text and reset manifest
+    metadata but left chunks/vectors/BM25 searchable. Fixed in this
+    continuation (2026-10-01) to empty the parquet rows and vectors, reset
+    the vector map and BM25 index, and clear manifest counts/source metadata
+    while retaining corpus/model files.
   - `rebuild_vectors()` — re-embeds all chunks with a (possibly different)
     embedder and rebuilds BM25 too ("cheap, keeps state consistent").
 - **`mcp_package.py`** — builds a hostable, self-installing export: a plain
@@ -296,9 +297,9 @@ See "The duplication question" above for the full reachability analysis.
 - `PortableRAG.remove_source()` is the only safe way to delete one source —
   it now keeps chunks/vectors/bm25/manifest in sync. Don't hand-delete files
   under `sources/` directly; that reproduces the exact bug fixed above.
-- `clear_sources()` is intentionally partial (text files only) — the route
-  and docstring both say "requires rebuild." Don't treat it as equivalent to
-  calling `remove_source()` on every id.
+- `clear_sources()` clears searchable indexes and source text but retains
+  corpus files and bundled models. Rebuild from the intended source directory
+  to repopulate the corpus.
 - A corpus's embedder is load-bearing for its `vectors.npy` — `load()`
   deliberately raises instead of silently substituting a different-dimension
   embedder. If you see a dimension-mismatch error, rebuild the corpus or fix

@@ -33,6 +33,7 @@ Also visits all project pages during Phase B for visibility (continuation
 of Phase C).
 """
 import json
+import os
 import re
 import sys
 import time
@@ -40,7 +41,6 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 OUT = Path("/home/genorbox1/.openclaw/media/outbound")
-OUT.mkdir(parents=True, exist_ok=True)
 PROJECT_ID = "264f8765"
 BASE = f"http://fan-dragon:7860"
 
@@ -181,6 +181,10 @@ def visit_pages(page, names: list) -> list:
 
 
 def main() -> int:
+    if os.environ.get("FTS_ALLOW_LIVE_E2E") != "1":
+        print("Refusing live training/benchmark run; set FTS_ALLOW_LIVE_E2E=1 to opt in.", file=sys.stderr)
+        return 2
+    OUT.mkdir(parents=True, exist_ok=True)
     summary = {"phase_a": "see phase-ac-summary.json",
                "phase_b_started": time.time()}
     print(f"== Phase B + D driver ==")
@@ -365,7 +369,27 @@ def main() -> int:
                 run_summary["attempted"] = True
                 try:
                     btn_sel = f"#{run_btn['id']}" if run_btn.get("id") else f"button:has-text('{run_btn['text']}')"
-                    page.click(btn_sel)
+                    with page.expect_response(
+                        lambda response: (
+                            response.request.method == "POST"
+                            and "/api/benchmarks/projects/" in response.url
+                            and response.url.endswith("/run")
+                        ),
+                        timeout=180000,
+                    ) as response_info:
+                        page.click(btn_sel)
+                    response = response_info.value
+                    run_summary["response_status"] = response.status
+                    response_body = response.json()
+                    run_summary["response_body"] = response_body
+                    if not response.ok or (
+                        isinstance(response_body, dict) and response_body.get("error")
+                    ):
+                        raise RuntimeError(
+                            f"benchmark request failed ({response.status}): "
+                            f"{response_body}"
+                        )
+                    run_summary["completed"] = True
                     time.sleep(3)
                     p, _ = shot(page, "phase-d-benchmarks-running.png")
                     run_summary["shots"].append(p)
@@ -388,6 +412,7 @@ def main() -> int:
                     f"no model select + run button combo "
                     f"(select={bool(model_select)}, run_btn={bool(run_btn)})")
                 print(f"  skipping run: {run_summary['reason_skipped']}")
+                run_summary["error"] = "benchmark could not be started"
 
             summary["phase_d_run"] = run_summary
             summary["phase_d_idle_shot"] = idle_path
@@ -401,6 +426,15 @@ def main() -> int:
     summary_path = OUT / "phase-bd-summary.json"
     summary_path.write_text(json.dumps(summary, indent=2, default=str))
     print(f"\nJSON summary: {summary_path}")
+    success = bool(summary.get("phase_b_training", {}).get("completed"))
+    if not success:
+        print("FAILED: training did not reach completed state.")
+        return 1
+    attempted = summary.get("phase_d_run", {}).get("attempted")
+    error = summary.get("phase_d_run", {}).get("error")
+    if attempted and error:
+        print("FAILED: benchmark run reported an error.")
+        return 1
     print("DONE.")
     return 0
 

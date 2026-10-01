@@ -33,7 +33,7 @@ dependencies = [
 [project.optional-dependencies]
 # GGUF is also in [project.dependencies] so `pip install -e .` includes it.
 # install.sh installs llama-cpp-python with GPU-aware wheel selection and
-# builds the llama.cpp CLI binaries (~/llama.cpp) for the export endpoint.
+# builds the llama.cpp CLI binaries (.llama.cpp/) for the export endpoint.
 # Optional extras below add bitsandbytes for 4-bit base-model loading.
 bitsandbytes = ["bitsandbytes>=0.43.0"]
 unsloth = ["unsloth>=2024.10.0"]

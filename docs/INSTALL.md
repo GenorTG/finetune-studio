@@ -25,7 +25,7 @@ If something fails, read the relevant section below.
 
 | Prerequisite | Why | Install |
 |---|---|---|
-| **Python ≥ 3.10** | Required by transformers/peft/torch | https://www.python.org/downloads/ |
+| **Python 3.12 or 3.13** | Supported runtime range (`>=3.12,<3.14`) | https://www.python.org/downloads/ |
 | **Git** | Clones the repo, pulls updates | https://git-scm.com/downloads |
 | **NVIDIA GPU + CUDA driver** (recommended) | Fast training & inference | https://www.nvidia.com/drivers |
 | **NVIDIA CUDA Toolkit 12.x** | Required to build PyTorch + llama-cpp-python with GPU support | https://developer.nvidia.com/cuda-toolkit |
@@ -73,7 +73,7 @@ This will:
 1. Create a Python venv in `.venv/`
 2. Upgrade pip
 3. Install PyTorch (GPU or CPU variant based on your hardware)
-4. Install all dependencies from `pyproject.toml`
+4. Install the app dependencies and the `parsers` extra used for document ingestion
 5. Install Playwright browsers (only if Node is detected)
 6. Print a "next steps" message
 
@@ -87,7 +87,7 @@ python -m pip install --upgrade pip wheel
 python -m pip install torch --index-url https://download.pytorch.org/whl/cu121
 # CPU-only:
 # python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-python -m pip install -e .
+python -m pip install -e ".[parsers]"
 ```
 
 ### 3. Install llama-cpp-python (only if you want GGUF inference)
@@ -177,7 +177,7 @@ brew install python@3.12 git cmake
    .venv\Scripts\Activate.ps1
    python -m pip install --upgrade pip
    python -m pip install torch --index-url https://download.pytorch.org/whl/cu121
-   python -m pip install -e .
+   python -m pip install -e ".[parsers]"
    fts web --host 0.0.0.0 --port 7860
    ```
 5. Allow Python through Windows Firewall when prompted
@@ -191,7 +191,7 @@ Finetune Studio's training path uses PyTorch ROCm. To install:
 
 ```bash
 python -m pip install torch --index-url https://download.pytorch.org/whl/rocm6.0
-python -m pip install -e .
+python -m pip install -e ".[parsers]"
 ```
 
 Inference via GGUF (llama-cpp-python) requires a custom build with HIP
@@ -205,7 +205,7 @@ Works fine for small models and inference. Training is slow.
 
 ```bash
 python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-python -m pip install -e .
+python -m pip install -e ".[parsers]"
 python -m pip install llama-cpp-python    # GGUF CPU inference
 ```
 
@@ -238,7 +238,7 @@ If you see a JSON array (or `[]`), you're good. Open http://localhost:7860.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `ERROR: No matching distribution found for torch` | Wrong Python version | Use Python 3.10–3.13 |
+| `ERROR: No matching distribution found for torch` | Wrong Python version | Use Python 3.12 or 3.13 |
 | `nvcc: command not found` when building llama-cpp | CUDA toolkit not installed | Install CUDA toolkit 12.x |
 | Training is invisible / no progress | GPU not detected by torch | Reinstall torch with correct CUDA index URL |
 | `libstdc++.so.6: version not found` | Old base image | `conda install -c conda-forge libstdcxx-ng` or use newer Ubuntu |
@@ -255,7 +255,7 @@ If you see a JSON array (or `[]`), you're good. Open http://localhost:7860.
 cd finetune-studio
 git pull
 source .venv/bin/activate
-python -m pip install -e . --upgrade
+python -m pip install -e ".[parsers]" --upgrade
 ```
 
 Models and RAG corpora live in `~/.finetune-studio/` — they persist across

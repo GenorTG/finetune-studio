@@ -468,7 +468,7 @@ async def rag_delete_source(pid: str, source_id: str):
 
 @router.delete("/{pid}/rag/sources")
 async def rag_clear_sources(pid: str):
-    """Clear all sources from the corpus (requires rebuild)."""
+    """Clear source text and all search indexes while retaining the corpus directory."""
     from finetune_studio.data.rag_portable import PortableRAG
     rag = PortableRAG(_corpus_dir(pid))
     if not rag.exists():

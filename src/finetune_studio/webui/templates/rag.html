@@ -378,9 +378,9 @@
   <div class="card-head">
     <div>
       <div class="card-title err">Danger zone</div>
-      <div class="card-sub">Wipes the entire corpus directory. Models in the shared store stay put.</div>
+      <div class="card-sub">Clears source text and all search indexes; keeps the corpus directory and bundled model files.</div>
     </div>
-    <button class="btn danger" onclick="wipeCorpus()">Delete corpus</button>
+    <button class="btn danger" onclick="wipeCorpus()">Clear indexed corpus</button>
   </div>
 </div>
 
@@ -773,7 +773,7 @@
   };
 
   window.wipeCorpus = async function() {
-    if (!await fts.confirm('Delete the entire RAG corpus for this project?', {danger: true, okText: 'Delete corpus'})) return;
+    if (!await fts.confirm('Clear all source text and search indexes for this project? This keeps the corpus directory and bundled model files.', {danger: true, okText: 'Clear corpus'})) return;
     try {
       // rebuild with reset=true wipes the corpus dir; we only need the wipe
       // when there are no files — fall back to clearing sources.

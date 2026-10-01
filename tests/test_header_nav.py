@@ -76,7 +76,7 @@ def test_header_nav_overflow_affordance_markup() -> None:
     assert "app.css?v=66" in base
     assert "{{ release_channel }}" in base
     assert "· {{ release_channel }}</title>" in base
-    assert "spa.js?v=15" in base
+    assert "spa.js?v=16" in base
 
 
 def test_header_nav_css_overflow_contract() -> None:

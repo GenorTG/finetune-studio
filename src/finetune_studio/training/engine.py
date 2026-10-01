@@ -40,6 +40,7 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 import threading
 import time
 from dataclasses import dataclass, field
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +48,16 @@ log = logging.getLogger(__name__)
 def _format_exc(exc: BaseException) -> str:
     """``Type: msg`` without a trailing empty ``: `` when msg is blank."""
     return f"{type(exc).__name__}: {exc}".rstrip(": ")
+
+
+def _register_patched_trl_classes(
+    trainer_module: Any, config_module: Any,
+) -> None:
+    """Make patched TRL classes resolvable by pickle's module lookup."""
+    import sys
+
+    sys.modules["trl.trainer.sft_trainer"].SFTTrainer = trainer_module.SFTTrainer
+    sys.modules["trl.trainer.sft_config"].SFTConfig = config_module.SFTConfig
 
 
 # Mirrors unsloth/_gpu_init.py: critical modules it patches at import time.
@@ -80,6 +91,19 @@ def _merged_dir_complete(merged_dir: str) -> bool:
         if name.endswith((".safetensors", ".bin")):
             return True
     return False
+
+
+def _stop_training_callback(engine: "TrainingEngine") -> Any:
+    """Create the Trainer callback that turns a stop request into a stop flag."""
+    from transformers import TrainerCallback
+
+    class StopCallback(TrainerCallback):
+        def on_step_end(self, args: Any, state: Any, control: Any, **kwargs: Any) -> Any:
+            if engine._stop_requested():
+                control.should_training_stop = True
+            return control
+
+    return StopCallback()
 
 
 def _free_cuda() -> None:
@@ -630,8 +654,6 @@ class TrainingEngine:
         )
 
     def _train_unsloth(self, train_data):
-        import sys
-
         from datasets import Dataset
 
         # Read the precondition BEFORE importing unsloth: once unsloth is in
@@ -673,8 +695,7 @@ class TrainingEngine:
         # so pickle finds the patched classes.
         import trl.trainer.sft_config as _sft_config_mod
         import trl.trainer.sft_trainer as _sft_trainer_mod
-        sys.modules["trl.trainer.sft_trainer"].SFTTrainer = _sft_trainer_mod.SFTTrainer
-        sys.modules["trl.trainer.sft_config"].SFTConfig = _sft_config_mod.SFTConfig
+        _register_patched_trl_classes(_sft_trainer_mod, _sft_config_mod)
 
         # Monkey-patch Trainer._save to avoid PicklingError when saving
         # training args. Unsloth's class replacement chain breaks pickle.
@@ -717,14 +738,9 @@ class TrainingEngine:
                         elapsed=time.time() - start_time,
                     )
                     engine._notify()
-        class StopCallback(TrainerCallback):
-            def on_step_end(self2, args, state, control, **kwargs):
-                if engine._stop_requested():
-                    control.should_training_stop = True
-                return control
         trainer = SFTTrainer(
             model=model, processing_class=tokenizer, train_dataset=dataset,
-            args=args, callbacks=[ProgressCallback(), StopCallback()],
+            args=args, callbacks=[ProgressCallback(), _stop_training_callback(engine)],
         )
         self.state.status = "training"
         self.state.message = "Training…"
@@ -811,8 +827,6 @@ class TrainingEngine:
         self._notify()
 
     def _train_standard(self, train_data):
-        import sys
-
         from peft import LoraConfig, get_peft_model
         from transformers import AutoTokenizer
 
@@ -848,8 +862,7 @@ class TrainingEngine:
         # Fix PicklingError: re-patch sys.modules after any unsloth/trl patches
         import trl.trainer.sft_config as _sft_config_mod
         import trl.trainer.sft_trainer as _sft_trainer_mod
-        sys.modules["trl.trainer.sft_trainer"].SFTTrainer = _sft_trainer_mod.SFTTrainer
-        sys.modules["trl.trainer.sft_config"].SFTConfig = _sft_config_mod.SFTConfig
+        _register_patched_trl_classes(_sft_trainer_mod, _sft_config_mod)
 
         from trl import SFTTrainer
         # SFTConfig (not TrainingArguments): avoids TRL KeyError push_to_hub_token.
@@ -866,14 +879,9 @@ class TrainingEngine:
                         elapsed=time.time() - start_time,
                     )
                     engine._notify()
-        class StopCallback(TrainerCallback):
-            def on_step_end(self2, args, state, control, **kwargs):
-                if engine._stop_requested():
-                    control.should_training_stop = True
-                return control
         trainer = SFTTrainer(
             model=model, processing_class=tokenizer, train_dataset=dataset,
-            args=args, callbacks=[ProgressCallback(), StopCallback()],
+            args=args, callbacks=[ProgressCallback(), _stop_training_callback(engine)],
         )
         self.state.status = "training"
         self.state.message = "Training…"

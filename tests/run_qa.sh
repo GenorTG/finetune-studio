@@ -5,11 +5,16 @@
 
 set -uo pipefail
 
+if [ "${FTS_ALLOW_LIVE_E2E:-0}" != "1" ]; then
+    echo "Refusing live QA; set FTS_ALLOW_LIVE_E2E=1 to opt in." >&2
+    exit 2
+fi
+
 REPO=/home/genorbox1/work/finetune-studio
 SHOTS=/home/genorbox1/.openclaw/workspace/media/qa_nightly
-REPORT=$SHOTS/report.json
 LOG=/home/genorbox1/.openclaw/workspace/media/qa_nightly.log
 WEBUI=http://fan-dragon:7860
+RUN_LOG="$SHOTS/run-$(date +%Y%m%d-%H%M%S)-$$.log"
 
 mkdir -p "$SHOTS"
 
@@ -22,24 +27,36 @@ if ! curl -fsS --max-time 5 "$WEBUI/" >/dev/null 2>&1; then
 fi
 
 cd "$REPO"
-FTS_BASE="$WEBUI" .venv/bin/python tests/e2e_ui_qa.py \
-    >> "$LOG" 2>&1 \
-    || true  # don't crash on non-zero; we report from results
+if FTS_BASE="$WEBUI" .venv/bin/python tests/e2e_ui_qa.py \
+    > "$RUN_LOG" 2>&1; then
+    QA_STATUS=0
+else
+    QA_STATUS=$?
+fi
+cat "$RUN_LOG" >> "$LOG"
 
 # Summarise.
-PASS=$(grep -c '\[PASS\]' "$LOG" 2>/dev/null | tail -1)
-FAIL=$(grep -c '\[FAIL\]' "$LOG" 2>/dev/null | tail -1)
+PASS=$(awk '/\[PASS\]/{n++} END{print n+0}' "$RUN_LOG")
+FAIL=$(awk '/\[FAIL\]/{n++} END{print n+0}' "$RUN_LOG")
 TOTAL=$((PASS + FAIL))
+if [ "$TOTAL" -eq 0 ]; then
+    QA_STATUS=1
+fi
 
-echo "=== $(date -Iseconds) done: $PASS pass / $FAIL fail ===" >> "$LOG"
+echo "=== $(date -Iseconds) done: $PASS pass / $FAIL fail (exit $QA_STATUS) ===" >> "$LOG"
 
 # Push to Discord via the openclaw message tool if available.
 # (Falls back to log-only if the gateway isn't reachable from cron.)
 if command -v openclaw >/dev/null 2>&1; then
     MSG="🟢 QA nightly: ${PASS}/${TOTAL} PASS"
-    [ "$FAIL" -gt 0 ] && MSG="🔴 QA nightly: ${FAIL} FAIL / ${PASS} PASS — see ${LOG}"
+    if [ "$FAIL" -gt 0 ] || [ "$QA_STATUS" -ne 0 ]; then
+        MSG="🔴 QA nightly: ${FAIL} FAIL / ${PASS} PASS (runner exit ${QA_STATUS}) — see ${LOG}"
+    fi
     openclaw message send --channel discord --target "user:1484556791588065330" \
         --message "$MSG" 2>>"$LOG" || true
 fi
 
-exit 0
+if [ "$QA_STATUS" -ne 0 ]; then
+    exit "$QA_STATUS"
+fi
+[ "$FAIL" -eq 0 ]

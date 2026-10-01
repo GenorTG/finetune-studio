@@ -1,81 +1,56 @@
-"""Tests for training engine — pickle fix and multimodal model compat."""
-import pytest
+"""Tests for training engine class registration and configuration defaults."""
+from types import ModuleType, SimpleNamespace
 
 
-def _has_trl():
-    try:
-        import trl  # noqa: F401
-        return True
-    except ImportError:
-        return False
-
-
-class TestPickleFix:
-    """Regression tests for the SFTConfig PicklingError fix.
-    These require trl (only in chris-ai env, not CI).
-    """
-
-    @pytest.mark.skipif(not _has_trl(), reason="trl not installed (needs chris-ai env)")
-    def test_sys_modules_patched_after_unsloth_import(self):
-        """After importing unsloth, sys.modules should have patched SFTTrainer."""
+class TestTrlPickleRegistration:
+    def test_registers_patched_classes_on_pickle_lookup_modules(self, monkeypatch):
         import sys
-        import trl.trainer.sft_trainer as sft_mod
-        import trl.trainer.sft_config as cfg_mod
 
-        original_trainer = sft_mod.SFTTrainer
-        original_config = cfg_mod.SFTConfig
+        from finetune_studio.training.engine import _register_patched_trl_classes
 
-        sys.modules["trl.trainer.sft_trainer"].SFTTrainer = original_trainer
-        sys.modules["trl.trainer.sft_config"].SFTConfig = original_config
+        trainer_registry = ModuleType("trl.trainer.sft_trainer")
+        config_registry = ModuleType("trl.trainer.sft_config")
+        monkeypatch.setitem(sys.modules, trainer_registry.__name__, trainer_registry)
+        monkeypatch.setitem(sys.modules, config_registry.__name__, config_registry)
+        patched_trainer = object()
+        patched_config = object()
 
-        assert sft_mod.SFTTrainer is original_trainer
-        assert cfg_mod.SFTConfig is original_config
+        _register_patched_trl_classes(
+            SimpleNamespace(SFTTrainer=patched_trainer),
+            SimpleNamespace(SFTConfig=patched_config),
+        )
 
-    @pytest.mark.skipif(not _has_trl(), reason="trl not installed (needs chris-ai env)")
-    def test_pickle_roundtrip_after_patch(self):
-        """SFTConfig should be picklable after the sys.modules fix."""
-        import pickle
-        import sys
-        import trl.trainer.sft_config as cfg_mod
-
-        sys.modules["trl.trainer.sft_config"].SFTConfig = cfg_mod.SFTConfig
-
-        cls = pickle.dumps(cfg_mod.SFTConfig)
-        restored = pickle.loads(cls)
-        assert restored is cfg_mod.SFTConfig
+        assert trainer_registry.SFTTrainer is patched_trainer
+        assert config_registry.SFTConfig is patched_config
 
 
-class TestPickleFixStructure:
-    """Structural tests that don't need trl installed."""
-
-    def test_save_safetensors_false_in_engine(self):
-        """Training engine should set save_safetensors=False."""
+class TestTrainingConfig:
+    def test_config_paths_are_retained(self):
         from finetune_studio.training.engine import TrainingConfig
+
         cfg = TrainingConfig(model_path="test", output_dir="/tmp/test")
         assert cfg.model_path == "test"
         assert cfg.output_dir == "/tmp/test"
 
-
-class TestVisionModelCompat:
-    """Tests for Qwen3.5 vision-language model compatibility."""
-
-    def test_training_config_defaults_work(self):
-        """Default training config should be valid for any model."""
+    def test_defaults_are_valid(self):
         from finetune_studio.training.engine import TrainingConfig
+
         cfg = TrainingConfig()
         assert cfg.batch_size >= 1
         assert cfg.max_seq_length >= 512
         assert cfg.lora_rank >= 4
 
+
+class TestTrainingEngineLifecycle:
     def test_engine_instantiate(self):
-        """TrainingEngine should instantiate without errors."""
         from finetune_studio.training.engine import TrainingEngine
+
         engine = TrainingEngine()
         assert engine.state.status == "idle"
 
     def test_engine_stop_from_idle(self):
-        """Stop should not crash when idle."""
         from finetune_studio.training.engine import TrainingEngine
+
         engine = TrainingEngine()
         engine.stop()
         assert engine.state.status == "idle"

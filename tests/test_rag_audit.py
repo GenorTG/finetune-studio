@@ -127,6 +127,42 @@ def test_remove_source_unknown_id_is_noop(
     assert len(rag.list_sources()) == 1
 
 
+def test_clear_sources_removes_all_searchable_corpus_data(
+    tmp_path: Path, patched_embedder: None,
+) -> None:
+    src_dir = tmp_path / "source"
+    src_dir.mkdir()
+    (src_dir / "alpha.txt").write_text(
+        "Alpha document about zebras and giraffes.", encoding="utf-8",
+    )
+    (src_dir / "beta.txt").write_text(
+        "Beta document about rockets and planets.", encoding="utf-8",
+    )
+
+    corpus_dir = tmp_path / "corpus"
+    rag = PortableRAG(corpus_dir)
+    rag.build_from_directory(src_dir, name="audit-clear-test")
+    assert rag.list_sources()
+
+    rag.clear_sources()
+
+    import pandas as pd
+
+    chunks_df = pd.read_parquet(corpus_dir / "chunks.parquet")
+    vectors = np.load(corpus_dir / "vectors.npy")
+    assert chunks_df.empty
+    assert vectors.shape[0] == 0
+    assert not list((corpus_dir / "sources").glob("*.txt"))
+    assert rag.list_sources() == []
+
+    loaded = rag.load()
+    assert loaded.bm25.doc_count == 0
+    assert loaded.idx_map == {}
+    assert loaded.search("zebras rockets", top_k=5) == []
+    assert loaded.manifest.documents == 0
+    assert loaded.manifest.chunks == 0
+
+
 def test_vector_store_get_embedder_respects_embedding_model(monkeypatch):
     """finetune_studio.rag.store.VectorStore previously always loaded
     all-MiniLM-L6-v2 regardless of the embedding_model argument."""

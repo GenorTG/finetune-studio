@@ -162,13 +162,10 @@ def client(mock_settings, monkeypatch):
          patch("finetune_studio.training.engine.TrainingEngine"), \
          patch("finetune_studio.testing.inference.InferenceEngine"):
         mock_scan.return_value = []
-        try:
-            import importlib
+        import importlib
 
-            import finetune_studio.webui.app as app_module
-            importlib.reload(app_module)
-            app = app_module.app
-        except Exception as e:  # noqa: BLE001 — broad catch is intentional so test setup never crashes pytest
-            pytest.skip(f"webui app not importable: {e}")
+        import finetune_studio.webui.app as app_module
+        importlib.reload(app_module)
+        app = app_module.app
         with TestClient(app) as c:
             yield c

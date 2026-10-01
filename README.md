@@ -1,6 +1,6 @@
 # ⚡ Finetune Studio
 
-**Train, run, and evaluate large language models — entirely on your own hardware.**
+**A self-hosted workshop for local-model training, inference, and evaluation.**
 
 A self-hosted workshop that gives you full control over the model training
 lifecycle: build RAG corpora, fine-tune with LoRA, chat with local models,
@@ -8,7 +8,7 @@ run evaluation suites, compare runs side-by-side — all from one dark-themed
 WebUI that lives in your browser. The UI, the data pipeline, and the test
 suite all live in one repo.
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12–3.13](https://img.shields.io/badge/python-3.12--3.13-blue.svg)](https://www.python.org/downloads/)
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-ff8800.svg)](LICENSE)
 [![GPU: CUDA](https://img.shields.io/badge/GPU-CUDA-76b900.svg)](#installation)
 [![WebUI](https://img.shields.io/badge/WebUI-FastAPI%20%2B%20Jinja2-009688.svg)](#how-it-works)
@@ -54,8 +54,9 @@ three terminal windows, and a Notion page of "things to remember."
 
 Finetune Studio exists to fix that. It is a **browser-based control room**
 for everything between *raw documents* and *a chat-ready, evaluated,
-fine-tuned model* — running entirely on your hardware, with no cloud
-dependency.
+fine-tuned model* — self-hosted on your hardware. Model downloads and
+optional integrations may contact third-party services; inference and
+corpus processing can run locally.
 
 The goal isn't to compete with industrial training platforms. It's to give
 independent researchers, hackers, hobbyists, small teams, and educators a
@@ -94,8 +95,8 @@ The **RAG** workflow takes a folder of files, chunks them, embeds them
 into a vector store, and exposes them for similarity search. The studio
 handles:
 
-- File ingestion (PDF, DOCX, TXT, MD, HTML, code, CSV, JSON, images via
-  OCR)
+- File ingestion for common text, code, data, office, email, and image
+  formats; OCR uses Tesseract and may fetch language data on first use.
 - Configurable chunking strategy
 - Embedder model selection (any SentenceTransformer-compatible model)
 - Live build progress via Server-Sent Events
@@ -179,9 +180,10 @@ Since v2 the app grew a spine — and a lot of muscle:
   actions, zip export, per-file usage chain (file → pairs → datasets →
   runs → RAG), parsed-content search, thumbnails, columns picker, 7-day
   trash with restore-all.
-- **100 % data guarantee** — every dataset export fills un-mined chunks
-  with verbatim extractive pairs; a dataset can never ship with silent
-  holes.
+- **Chunk-coverage fallback** — dataset export can fill chunks without an
+  approved generated pair with verbatim extractive pairs. The project data
+  audit reports coverage issues; this is a data-coverage check, not a
+  guarantee that a model learned every fact.
 - **Full-coverage test suites** — auto-suites test every dataset row
   (N rows → N questions); sampling is an explicit, labeled opt-in.
 - **Project versions** — immutable manifests pinning datasets + sources +
@@ -194,9 +196,8 @@ Since v2 the app grew a spine — and a lot of muscle:
 - **Per-commit build chip + self-update** — the header pins the exact
   deployed version (`v0.1.0.N`); Settings → Apply update pulls, repairs,
   migrates and restarts.
-- **Dual-theme visual QA** — every route probed at 1920/1440/1270/768/375
-  in dark and light: no clipped actions, no sub-11px text, WCAG-checked
-  contrast, both themes.
+- **Dark and light themes** — switch themes in the UI; responsive layout
+  and theme behavior have dedicated regression checks.
 
 ---
 
@@ -272,8 +273,9 @@ Question-answer pairs: mine training pairs from your parsed sources with an
 extractive prep job (no LLM), the Chat Agent, or manual JSONL upload; triage
 with bulk approve / reject. **Export approved → Training** writes a ShareGPT
 JSONL dataset — and the coverage gate fills any chunk mining missed with
-verbatim extractive pairs, so a dataset can never ship with silent holes:
-**100 % of your material is always in the training data.**
+verbatim extractive pairs. The project data-audit endpoint reports chunks
+that could not be filled; chunk coverage is not a guarantee that the model
+learned every fact.
 
 ![Pairs](docs/screenshots/05_pairs.png)
 
@@ -399,10 +401,9 @@ onboarding tour.
 
 ## Installation
 
-See **[docs/INSTALL.md](docs/INSTALL.md)** for full step-by-step
-instructions covering Linux (Ubuntu / Fedora / Arch), Windows 10/11 (WSL2),
-and macOS (Intel + Apple Silicon), with prerequisites and how to install
-each one from its official source.
+See **[docs/INSTALL.md](docs/INSTALL.md)** for prerequisites and
+step-by-step installation instructions. The supported Python range is
+3.12–3.13; check the guide for current OS-specific paths and limitations.
 
 ---
 
@@ -447,8 +448,9 @@ each one from its official source.
 - **Export:** merged and abliterated are first-class; GGUF needs llama.cpp
   conversion tools on the host. Missing tools return clear errors instead
   of fake success.
-- **Testing:** Playwright live-browser smoke in `tests/e2e_ui_qa.py`
-  (override target with `FTS_BASE`).
+- **Testing:** Playwright live-browser E2E in `tests/e2e_ui_qa.py`; it can
+  mutate project data or load a GPU model, so run only with explicit
+  `FTS_ALLOW_LIVE_E2E=1` (override target with `FTS_BASE`).
 - **Updates:** self-healing pipeline — `./update.sh` or Settings → Apply
   update (pull → venv repair → dep sync → migrations → restart), with
   startup reconciliation of interrupted runs.
@@ -457,7 +459,7 @@ each one from its official source.
 
 ## Tech stack
 
-Python — `fastapi` `uvicorn` `jinja2` `sqlite3` (stdlib) `pydantic`
+Python 3.12–3.13 — `fastapi` `uvicorn` `jinja2` `sqlite3` (stdlib) `pydantic`
 ML — `torch` `transformers` `trl` `peft` `bitsandbytes`
 RAG — `sentence-transformers` `PortableRAG` (parquet + sources) `llama-cpp-python`
 Web — vanilla HTML/CSS/JS, Google Fonts (JetBrains Mono, Share Tech Mono,
@@ -513,6 +515,7 @@ on.
 
 <div align="center">
 
-Built by a hacker, for hackers. No cloud, no telemetry, no lock-in.
+Built by a hacker, for hackers. Self-hosted by default; optional downloads
+and integrations may use external services.
 
 </div>

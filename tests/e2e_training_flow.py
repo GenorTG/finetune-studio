@@ -25,7 +25,6 @@ from pathlib import Path
 BASE = os.environ.get("FTS_BASE", "http://localhost:7860")
 MODEL_QUERY = "Qwen3-0.6B"
 SHOTS = Path("/home/genorbox1/.openclaw/workspace/media/qa_train_flow")
-SHOTS.mkdir(parents=True, exist_ok=True)
 
 
 def make_synthetic_jsonl(path: Path, n: int = 24):
@@ -87,6 +86,10 @@ async () => {{
 
 
 async def main():
+    if os.environ.get("FTS_ALLOW_LIVE_E2E") != "1":
+        print("Refusing live download/training E2E; set FTS_ALLOW_LIVE_E2E=1 to opt in.", file=sys.stderr)
+        return 2
+    SHOTS.mkdir(parents=True, exist_ok=True)
     from playwright.async_api import async_playwright
 
     tmp = Path(tempfile.mkdtemp(prefix="fts_trainflow_"))

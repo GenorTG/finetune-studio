@@ -6,7 +6,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from finetune_studio.training.engine import TrainingConfig, TrainingEngine
+from finetune_studio.training.engine import (
+    TrainingConfig,
+    TrainingEngine,
+    _stop_training_callback,
+)
 
 
 def test_stop_before_merge_skips_merge_and_marks_stopped(
@@ -51,15 +55,16 @@ def test_stop_before_merge_skips_merge_and_marks_stopped(
 
 
 def test_stop_callback_sets_should_training_stop() -> None:
-    """The TrainerCallback used during train flips should_training_stop."""
+    """The production TrainerCallback flips should_training_stop on request."""
     eng = TrainingEngine()
     eng._stop_event.set()
 
     class Control:
         should_training_stop = False
 
-    # Inline the same logic as StopCallback.on_step_end
     control = Control()
-    if eng._stop_requested():
-        control.should_training_stop = True
+    result = _stop_training_callback(eng).on_step_end(
+        MagicMock(), MagicMock(), control,
+    )
+    assert result is control
     assert control.should_training_stop is True

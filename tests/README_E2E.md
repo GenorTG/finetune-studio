@@ -11,11 +11,11 @@ The suite points at `http://fan-dragon:7860` by default. Override with the
 `FTS_BASE` env var:
 
 ```bash
-# Default: against fan-dragon
-python tests/e2e_ui_qa.py
+# Live suite against fan-dragon (mutates project data and can load a GPU model)
+FTS_ALLOW_LIVE_E2E=1 python tests/e2e_ui_qa.py
 
 # Against local dev server
-FTS_BASE=http://localhost:7860 python tests/e2e_ui_qa.py
+FTS_ALLOW_LIVE_E2E=1 FTS_BASE=http://localhost:7860 python tests/e2e_ui_qa.py
 ```
 
 Outputs:
@@ -23,6 +23,10 @@ Outputs:
 - JSON report: `~/.openclaw/workspace/media/qa_v2/report.json`
 
 Exit code is non-zero on any failed check.
+Live E2E scripts and `run_qa.sh` require `FTS_ALLOW_LIVE_E2E=1`; they can
+download models, load GPU memory, train, or mutate project data. The nightly
+runner refuses to contact the service or send its Discord report without the
+same explicit opt-in.
 
 ## What it checks
 
@@ -48,6 +52,8 @@ Plus interactive flow tests:
 - **project sub-pages** — home / data / rag / testing / training /
   benchmarks / chat / data-prep all render cleanly.
 
-## Last run
+## Last recorded run (historical)
 
 `59 / 59 PASS · 0 FAIL` against `http://fan-dragon:7860` (2026-09-07).
+This is historical evidence, not a claim about the current checkout; rerun the
+suite to verify current behavior.

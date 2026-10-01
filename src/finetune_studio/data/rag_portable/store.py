@@ -778,14 +778,30 @@ python -m finetune_studio.data.rag rebuild-vectors /path/to/corpus [--embedder N
         return removed
 
     def clear_sources(self) -> None:
-        """Clear all sources from the corpus."""
+        """Clear source text and every persisted index derived from it."""
         sources_dir = self.dir / "sources"
         if sources_dir.exists():
             for f in sources_dir.glob("*.txt"):
                 f.unlink()
-        # Reset manifest
+
+        pd = try_import_pandas()
+        if self.chunks_path.exists():
+            chunks_df = pd.read_parquet(self.chunks_path)
+            chunks_df.iloc[0:0].to_parquet(self.chunks_path, index=False)
+        if self.vectors_path.exists():
+            vectors = np.load(self.vectors_path)
+            np.save(self.vectors_path, vectors[:0])
+        write_json(self.idx_path, {})
+        write_json(self.bm25_path, BM25Index.build([]).to_dict())
+
         if self.manifest_path.exists():
             manifest = Manifest.from_json(read_json(self.manifest_path))
+            extra = manifest.extra or {}
+            extra["documents_meta"] = []
+            extra["file_extensions"] = []
+            manifest.extra = extra
+            manifest.documents = 0
+            manifest.chunks = 0
             manifest.updated_at = time.time()
             write_json(self.manifest_path, manifest.to_json())
 

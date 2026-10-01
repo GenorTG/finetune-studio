@@ -84,6 +84,9 @@
   }
 
   poll();
-  setInterval(poll, 3000);
+  const pollTimer = setInterval(poll, 3000);
+  document.addEventListener('fts:beforeNavigate', function stopResourcePolling() {
+    clearInterval(pollTimer);
+  }, { once: true });
 })();
 </script>

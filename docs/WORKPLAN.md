@@ -4,7 +4,7 @@
 > follow steps in order, no reordering, no skipping. If a step is blocked, STOP and
 > report the blocker in one line — do not improvise around it.
 
-Last updated: 2026-09-18 (by Amy, ordered by Genor)
+Last updated: 2026-10-01 (by Amy, during the repository audit)
 Source of truth for ordering: this file. HANDOFF.md describes state, not order.
 
 ## Iron rules (every session, every model)
@@ -43,13 +43,18 @@ Source of truth for ordering: this file. HANDOFF.md describes state, not order.
 
 ## THE PLAN (in order)
 
-### Step 1 — Finish local WIP, commit, push  [BLOCKED-NO: nothing; current blocker = step 1 itself]
-- Repo is dirty: `HANDOFF.md`, `AGENTS.md`, `README.md`, `docs/*`,
-  `src/finetune_studio/webui/routes/hf_models.py` (HF search WIP), `tests/test_activity_kind_classifier.py`.
-- Finish or consciously commit the HF-models search WIP (it must not be half-broken —
-  run `.venv/bin/python -m pytest tests/test_activity_kind_classifier.py -v` and ruff on
-  `src/` before pushing).
-- `git push`. Only when `origin/main` == local main → Step 2.
+### Step 1 — Complete the requested code audit and documentation split
+- Inventory every tracked file; mark explicit read/audit coverage instead of using an
+  earlier "full codebase" claim as evidence. Current inventory: 525 tracked files,
+  including 180 tests/fixtures; app.css (4,995 lines) has now been read, test-tree
+  line-by-line review is still incomplete.
+- Close remaining source discrepancies and focused regressions. Current continuation
+  edits are uncommitted; run the focused test files and Ruff before committing.
+- Reconcile developer/module docs and public-facing README/Pages against current code.
+  Do not describe a protected public branch as private. Keep developer documentation
+  unpublished until its visibility is decided.
+- Only after audit scope, docs, tests, and visibility are resolved: commit/push the
+  authorized content. Then proceed to Step 2.
 
 ### Step 2 — Update fan-dragon to origin/main (scripted route)  [depends: Step 1]
 ```bash

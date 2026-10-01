@@ -22,7 +22,6 @@ from playwright.async_api import async_playwright
 BASE = os.environ.get("FTS_BASE", "http://fan-dragon:7860").rstrip("/")
 PROJECT_ID = os.environ.get("FTS_PROJECT_ID", "").strip()
 SHOTS = Path("/home/genorbox1/.openclaw/workspace/media/qa_v2")
-SHOTS.mkdir(parents=True, exist_ok=True)
 RESULTS = []
 
 def rec(name, ok, detail=""):
@@ -501,6 +500,10 @@ async def test_settings_ssr(ctx):
 
 
 async def main():
+    if os.environ.get("FTS_ALLOW_LIVE_E2E") != "1":
+        print("Refusing live WebUI E2E; set FTS_ALLOW_LIVE_E2E=1 to opt in.", file=sys.stderr)
+        return 2
+    SHOTS.mkdir(parents=True, exist_ok=True)
     print("━" * 70)
     print(f"Finetune Studio — E2E QA V2  ({datetime.now().isoformat()})")
     print(f"Target: {BASE}")
@@ -550,9 +553,8 @@ async def main():
     with open(SHOTS / "report.json", "w") as f:
         json.dump(report, f, indent=2)
 
-    if failed:
-        sys.exit(1)
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    sys.exit(asyncio.run(main()))

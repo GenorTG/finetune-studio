@@ -72,9 +72,11 @@ model doesn't learn to parrot internal keys.
 ### 3. Export pairs → dataset
 
 Click **Export approved → Training**. This writes a ShareGPT JSONL and
-registers it under the project. **The 100 % guarantee:** any chunk mining
-missed is filled with verbatim extractive pairs at export time, so every
-parsed chunk of every source is present in the dataset — no silent holes.
+registers it under the project. At export, the coverage gate adds verbatim
+extractive pairs for chunks without an approved generated pair. If a chunk
+cannot be covered, export reports the gap rather than treating it as covered.
+This checks dataset coverage; it does not guarantee that the trained model
+learned or can reproduce every fact.
 A green **Start training with this dataset →** button appears — that's your
 handoff; it opens Training with the dataset preselected.
 
@@ -178,7 +180,9 @@ Both work against the same parsed sources.
 output/projects/{pid}/runs/  checkpoints, merged/, gguf/, logs
 ```
 
-Everything is files on your disk — no invisible cloud copies, no lock-in.
+Project content is stored in the configured local data roots. Optional
+external model, embedding, or integration services may receive requests you
+send to them; choose local endpoints when data must stay on your host.
 
 ## Where to go next
 

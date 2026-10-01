@@ -7,13 +7,11 @@ that through subprocess so a broken venv on disk can't poison us.
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import subprocess
 import sys
-from dataclasses import asdict
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -22,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import install_diagnose as diag  # noqa: E402
+import install_diagnose as diag  # noqa: I001
 
 
 # ── Fixtures ────────────────────────────────────────────────────────────
@@ -316,8 +314,8 @@ class TestRepairTorchCommand:
              patch.object(d, "subprocess") as sb:
             gi.detect.return_value = gpu_stub
             sb.run.return_value = _fake_run(returncode=0)
-            ok, actions = d.repair(issues, venv, tmp_path / "llama.cpp",
-                                   log=lambda *a, **k: None)
+            _ = d.repair(issues, venv, tmp_path / "llama.cpp",
+                         log=lambda *a, **k: None)
 
         # argv[0] must be a python interpreter (sys.executable is "/usr/bin/python3"
         # on Linux); argv[1]='-m'; argv[2]='pip'
@@ -476,14 +474,17 @@ class TestCLI:
         ])
         assert rc >= 2
 
-    def test_json_output(self, tmp_path):
+    def test_json_output(self, tmp_path, capsys):
         venv = tmp_path / "no-such"
         llcpp = tmp_path / "llama.cpp"
         rc = diag._main([
             "--venv", str(venv), "--llama-cpp", str(llcpp),
             "--json", "--no-service-check",
         ])
-        # Should still print valid JSON
-        out = sys.stdout.getvalue() if hasattr(sys.stdout, "getvalue") else None
-        # argparse --json emits to stdout; just ensure rc is non-zero
+        out = capsys.readouterr().out
+        payload = json.loads(out)
+        assert isinstance(payload, list)
+        assert payload
+        assert all({"code", "severity", "detail", "suggested_fix"} <= issue.keys()
+                   for issue in payload)
         assert rc != 0

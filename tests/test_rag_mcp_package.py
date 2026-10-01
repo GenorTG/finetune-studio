@@ -11,6 +11,7 @@ endpoint is configured, so everything runs offline and deterministically.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tarfile
@@ -132,12 +133,23 @@ def test_setup_script_shipped(corpus_dir: Path, tmp_path: Path) -> None:
 
 
 def test_setup_uninstall_is_safe(corpus_dir: Path, tmp_path: Path) -> None:
-    """`setup.sh --uninstall` with no service installed must exit 0, no prompts."""
+    """Uninstall is exercised with an isolated HOME and stub systemctl."""
     archive = build_package(corpus_dir, tmp_path / "p.tar.gz", name="Test Corpus")
     root = _extract(archive, tmp_path / "x")
+    home = tmp_path / "home"
+    home.mkdir()
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    systemctl = fake_bin / "systemctl"
+    systemctl.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    systemctl.chmod(0o755)
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env["XDG_CONFIG_HOME"] = str(home / ".config")
+    env["PATH"] = f"{fake_bin}{os.pathsep}{env.get('PATH', '')}"
     r = subprocess.run(["bash", str(root / "setup.sh"), "--uninstall"],
                        capture_output=True, text=True, timeout=60, check=False,
-                       cwd=str(root))
+                       cwd=str(root), env=env)
     assert r.returncode == 0, r.stderr
     assert "nothing to remove" in (r.stdout + r.stderr).lower()
 

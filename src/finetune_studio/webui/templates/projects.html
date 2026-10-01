@@ -104,7 +104,7 @@
              onclick="event.preventDefault(); event.stopPropagation(); toggleSelect('{{ p.id }}', this.checked);"
              aria-label="Select {{ p.name|e }}">
       <button type="button" class="proj-delete"
-              onclick="event.preventDefault(); event.stopPropagation(); confirmDelete(['{{ p.id }}'], '{{ p.name|e }}');"
+              onclick="event.preventDefault(); event.stopPropagation(); confirmDelete(['{{ p.id }}'], this.closest('.proj-card').dataset.name);"
               aria-label="Delete {{ p.name|e }}">✕</button>
       <button type="button" class="proj-work"
               onclick="event.preventDefault(); event.stopPropagation(); window.location='/projects/{{ p.id }}/wizard';"
@@ -275,10 +275,10 @@ function confirmDelete(ids, name) {
   const body = document.getElementById('delete-modal-body');
   if (ids.length === 1) {
     title.textContent = 'Delete project?';
-    body.innerHTML = `Permanently delete <code>${name || ids[0]}</code> along with all its runs, datasets, RAGs, and activity. <strong>This cannot be undone.</strong>`;
+    body.textContent = `Permanently delete ${name || ids[0]} along with all its runs, datasets, RAGs, and activity. This cannot be undone.`;
   } else {
     title.textContent = `Delete ${ids.length} projects?`;
-    body.innerHTML = `Permanently delete ${ids.length} projects along with all their runs, datasets, RAGs, and activity. <strong>This cannot be undone.</strong>`;
+    body.textContent = `Permanently delete ${ids.length} projects along with all their runs, datasets, RAGs, and activity. This cannot be undone.`;
   }
   document.getElementById('delete-modal-confirm').onclick = () => doDelete(ids);
   document.getElementById('delete-modal-bg').classList.add('visible');

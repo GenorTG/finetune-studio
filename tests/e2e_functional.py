@@ -55,6 +55,9 @@ async def wait_for(fn, timeout_ms=30000, interval_ms=500, label="condition"):
 
 
 async def main():
+    if os.environ.get("FTS_ALLOW_LIVE_E2E") != "1":
+        print("Refusing live mutating E2E; set FTS_ALLOW_LIVE_E2E=1 to opt in.", file=sys.stderr)
+        return 2
     tmp = Path(tempfile.mkdtemp(prefix="fts_p4_"))
     sample_jsonl = tmp / "sample.jsonl"
     make_sample_jsonl(sample_jsonl)
