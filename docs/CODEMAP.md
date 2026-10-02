@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-415 files · 74333 lines
-- `finetune_studio`: 217 files, 42149 lines
+416 files · 74513 lines
+- `finetune_studio`: 217 files, 42225 lines
 - `scripts`: 9 files, 2344 lines
-- `tests`: 189 files, 29840 lines
+- `tests`: 190 files, 29944 lines
 
 
 # finetune_studio
@@ -468,17 +468,17 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def _pack_sentences(prefix: str, para: str, target_chars: int) -> tuple[list[str], str]` (L18) — Greedy-pack ``para``'s sentences after ``prefix``.
 - `def chunk_text(text: str, target_chars: int = 1200, overlap: int = 200) -> list[str]` (L37) — Split on paragraph boundaries; fall back to sentence boundaries; then hard wrap.
 
-## `src/finetune_studio/data/prep/coverage_fill.py` (288 lines)
+## `src/finetune_studio/data/prep/coverage_fill.py` (291 lines)
 - `class FillResult` (L55)
   - `def as_dict(self) -> dict[str, Any]` (L61)
 - `def _fill_sources(pid: str, sources: list[dict[str, Any]]) -> dict[str, Any]` (L72) — Fill the given qa source manifests; aggregate into one summary.
-- `def fill_all_project_gaps(pid: str) -> dict[str, Any]` (L115) — Run the fill pass for every qa source in the project.
-- `def fill_sources_gaps(pid: str, source_ids: list[str]) -> dict[str, Any]` (L125) — Coverage-fill ONLY the given sources (subset builds).
-- `def split_sentences(text: str) -> list[str]` (L144) — Deterministic sentence split (same convention as augment_dataset).
-- `def _subject_of(sentence: str) -> str` (L160) — Lightweight subject extraction: first ~10 words, cleaned for a question.
-- `def _make_pairs_from_chunk(chunk_text: str, *, seen_questions: set[str], max_pairs: int = _MAX_PER_CHUNK…` (L171) — Deterministic (question, answer) extractive pairs for one chunk.
-- `def norm_ans(a: str) -> str` (L216)
-- `def fill_coverage_gaps(pid: str, source_id: str, sha256: str = '', *, chunk_texts: dict[int, str] | …` (L222) — Create approved extractive pairs for every chunk with no accepted pair.
+- `def fill_all_project_gaps(pid: str) -> dict[str, Any]` (L118) — Run the fill pass for every qa source in the project.
+- `def fill_sources_gaps(pid: str, source_ids: list[str]) -> dict[str, Any]` (L128) — Coverage-fill ONLY the given sources (subset builds).
+- `def split_sentences(text: str) -> list[str]` (L147) — Deterministic sentence split (same convention as augment_dataset).
+- `def _subject_of(sentence: str) -> str` (L163) — Lightweight subject extraction: first ~10 words, cleaned for a question.
+- `def _make_pairs_from_chunk(chunk_text: str, *, seen_questions: set[str], max_pairs: int = _MAX_PER_CHUNK…` (L174) — Deterministic (question, answer) extractive pairs for one chunk.
+- `def norm_ans(a: str) -> str` (L219)
+- `def fill_coverage_gaps(pid: str, source_id: str, sha256: str = '', *, chunk_texts: dict[int, str] | …` (L225) — Create approved extractive pairs for every chunk with no accepted pair.
   - imports: finetune_studio.data, finetune_studio.data.prep.ingest, finetune_studio.data.prep.qa_validate
 
 ## `src/finetune_studio/data/prep/export.py` (105 lines)
@@ -957,14 +957,14 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def list_review(project_id: str, dataset: str) -> list[dict]` (L27)
   - imports: finetune_studio.db.connection
 
-## `src/finetune_studio/db/runs.py` (123 lines)
+## `src/finetune_studio/db/runs.py` (130 lines)
 - `def _get(rid: str) -> dict | None` (L11)
 - `def create_run(project_id: str, name: str, base_model: str = '', data_path: str = '', rag_id…` (L17)
 - `def get_run(rid: str) -> dict | None` (L36)
-- `def list_runs(project_id: str | None = None) -> list[dict]` (L40)
-- `def update_run(rid: str, **fields: Any) -> dict | None` (L67)
-- `def delete_run(rid: str) -> bool` (L91)
-- `def reconcile_stale_runs() -> int` (L103) — Mark in-flight training_runs as failed after a process restart.
+- `def list_runs(project_id: str | None = None, *, include_base_probe: bool = False) -> list[d…` (L43) — List runs newest-first. The hidden base-model benchmark placeholder is
+- `def update_run(rid: str, **fields: Any) -> dict | None` (L74)
+- `def delete_run(rid: str) -> bool` (L98)
+- `def reconcile_stale_runs() -> int` (L110) — Mark in-flight training_runs as failed after a process restart.
   - imports: finetune_studio.db.connection
 
 ## `src/finetune_studio/db/system_updates.py` (150 lines)
@@ -1540,15 +1540,16 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 
 ## `src/finetune_studio/webui/__init__.py` (2 lines)
 
-## `src/finetune_studio/webui/app.py` (371 lines)
-- `async def lifespan(app: FastAPI)` (L45)
-- `def _activity_kind(path: str) -> str` (L112) — Classify mutating API paths for the global operation feed.
-- `async def record_activity_operations(request: Request, call_next)` (L157) — Persist every mutating API operation after its response completes.
-- `def _activity_summary(path: str, method: str) -> str` (L176) — Human one-liner for the activity feed (replaces 'POST /api/x → 200').
-- `def _record_activity_event(request: Request, started: float, http_status: int) -> None` (L220) — Best-effort event write; logging must never break the API response.
-- `def _apply_hosting_middleware()` (L243) — Apply CORS and proxy-header middleware from user settings.
-- `class _NoCacheStatic(StaticFiles)` (L274)
-  - `async def get_response(self, path, scope)` (L280)
+## `src/finetune_studio/webui/app.py` (397 lines)
+- `async def lifespan(app: FastAPI)` (L50)
+- `async def _http_exception_handler(request: Request, exc: StarletteHTTPException)` (L130) — Styled 404 for browser page loads; API/JSON callers keep the JSON body.
+- `def _activity_kind(path: str) -> str` (L138) — Classify mutating API paths for the global operation feed.
+- `async def record_activity_operations(request: Request, call_next)` (L183) — Persist every mutating API operation after its response completes.
+- `def _activity_summary(path: str, method: str) -> str` (L202) — Human one-liner for the activity feed (replaces 'POST /api/x → 200').
+- `def _record_activity_event(request: Request, started: float, http_status: int) -> None` (L246) — Best-effort event write; logging must never break the API response.
+- `def _apply_hosting_middleware()` (L269) — Apply CORS and proxy-header middleware from user settings.
+- `class _NoCacheStatic(StaticFiles)` (L300)
+  - `async def get_response(self, path, scope)` (L306)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.models.manager, finetune_studio.models.registry, finetune_studio.training.engine, finetune_studio.webui.routes, finetune_studio.webui.routes.data_prep, finetune_studio.webui.routes.hf_models
 
 ## `src/finetune_studio/webui/engine_guard.py` (25 lines)
@@ -1626,20 +1627,20 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `async def evaluate_training_for_run(pid: str, rid: str, request: Request) -> dict[str, Any] | JSONResponse` (L868) — Benchmark a trained run against the project's training dataset.
   - imports: finetune_studio, finetune_studio.benchmarks.real_benchmarks, finetune_studio.benchmarks.suite_defs, finetune_studio.models.llama_loader, finetune_studio.testing.audit, finetune_studio.testing.inference, finetune_studio.testing.judge, finetune_studio.testing.suite, finetune_studio.testing.training_eval
 
-## `src/finetune_studio/webui/routes/chat_v2.py` (417 lines)
-- `def _is_portable_corpus(store_path: str) -> bool` (L18) — True when ``store_path`` is a PortableRAG directory (manifest + vectors).
-- `def _search_rag_attachment(store_path: str, query: str, *, top_k: int = 5) -> list[dict[str, Any]]` (L24) — Search a project_rags store — PortableRAG when present, else Chroma VectorStore.
-- `async def list_chat_projects()` (L59) — List projects with RAG counts for the picker.
-- `async def project_context(pid: str)` (L76) — Return project's production model path, system prompt, RAGs, and discovered models.
-- `async def inference_chat(request: Request)` (L108) — Global inference chat — supports text and vision (images).
-- `async def load_model(request: Request)` (L161) — Load a model into the inference engine.
-- `async def inference_status()` (L188) — Current inference engine status.
-- `async def unload_model()` (L205) — Manually unload the current model (both engines — see E2E-22).
-- `async def model_info(request: Request)` (L215) — Read model metadata (layer count, etc.) for UI configuration.
-- `async def memory_estimate(request: Request)` (L230) — Estimate VRAM/RAM usage for a model with given settings.
-- `async def inference_benchmark(request: Request)` (L248) — Run quick real benchmarks on the loaded model.
-- `async def chat(request: Request, pid: str)` (L296) — RAG-enhanced chat for a project.
-  - imports: finetune_studio, finetune_studio.benchmarks.real_benchmarks, finetune_studio.data.rag_portable, finetune_studio.models.llama_loader, finetune_studio.models.manager, finetune_studio.rag.store, finetune_studio.testing.inference, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.thinking
+## `src/finetune_studio/webui/routes/chat_v2.py` (430 lines)
+- `def _is_portable_corpus(store_path: str) -> bool` (L19) — True when ``store_path`` is a PortableRAG directory (manifest + vectors).
+- `def _search_rag_attachment(store_path: str, query: str, *, top_k: int = 5) -> list[dict[str, Any]]` (L25) — Search a project_rags store — PortableRAG when present, else Chroma VectorStore.
+- `async def list_chat_projects()` (L60) — List projects with RAG counts for the picker.
+- `async def project_context(pid: str)` (L77) — Return project's production model path, system prompt, RAGs, and discovered models.
+- `async def inference_chat(request: Request)` (L121) — Global inference chat — supports text and vision (images).
+- `async def load_model(request: Request)` (L174) — Load a model into the inference engine.
+- `async def inference_status()` (L201) — Current inference engine status.
+- `async def unload_model()` (L218) — Manually unload the current model (both engines — see E2E-22).
+- `async def model_info(request: Request)` (L228) — Read model metadata (layer count, etc.) for UI configuration.
+- `async def memory_estimate(request: Request)` (L243) — Estimate VRAM/RAM usage for a model with given settings.
+- `async def inference_benchmark(request: Request)` (L261) — Run quick real benchmarks on the loaded model.
+- `async def chat(request: Request, pid: str)` (L309) — RAG-enhanced chat for a project.
+  - imports: finetune_studio, finetune_studio.benchmarks.real_benchmarks, finetune_studio.data.rag_portable, finetune_studio.models.llama_loader, finetune_studio.models.manager, finetune_studio.rag.store, finetune_studio.testing.inference, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.testing_models, finetune_studio.webui.thinking
 
 ## `src/finetune_studio/webui/routes/comparison.py` (138 lines)
 - `async def _json_object(request: Request) -> dict` (L11)
@@ -1674,7 +1675,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `async def batch_save(pid: str, request: Request)` (L177)
   - imports: finetune_studio, finetune_studio.data.fs.paths, finetune_studio.db.datasets, finetune_studio.training.data
 
-## `src/finetune_studio/webui/routes/data_prep.py` (922 lines)
+## `src/finetune_studio/webui/routes/data_prep.py` (931 lines)
 - `def _project_404(pid: str) -> JSONResponse | None` (L41) — Return a 404 response when the project does not exist, else None.
 - `def _spawn_bg(coro) -> None` (L61)
 - `class StartPrepBody(BaseModel)` (L70)
@@ -1702,10 +1703,10 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `async def bulk_action(pid: str, request: Request)` (L722)
 - `async def delete_source_route(pid: str, source_id: str)` (L738)
 - `async def export_qa(pid: str, fmt: str = 'sharegpt', only: str = 'approved', force: bool = False)` (L747)
-- `async def file_metadata_route(pid: str, sha256: str)` (L837) — Read structured metadata for a content-addressed file.
-- `async def ingestion_log_route(pid: str, limit: int = 200)` (L847)
-- `async def data_prep_audit(pid: str) -> dict` (L856) — Return deterministic raw-file and curated-dataset fidelity evidence.
-- `async def reprocess_source(pid: str, source_id: str)` (L867) — Re-run the parser + Q&A generation for an existing source.
+- `async def file_metadata_route(pid: str, sha256: str)` (L846) — Read structured metadata for a content-addressed file.
+- `async def ingestion_log_route(pid: str, limit: int = 200)` (L856)
+- `async def data_prep_audit(pid: str) -> dict` (L865) — Return deterministic raw-file and curated-dataset fidelity evidence.
+- `async def reprocess_source(pid: str, source_id: str)` (L876) — Re-run the parser + Q&A generation for an existing source.
   - imports: finetune_studio, finetune_studio.data, finetune_studio.data.audit, finetune_studio.data.fs.paths, finetune_studio.data.fs.qa, finetune_studio.data.parsers, finetune_studio.data.prep, finetune_studio.data.prep.coverage_fill, finetune_studio.data.prep.generator, finetune_studio.data.prep.queued, finetune_studio.data.prep.source_state, finetune_studio.db.datasets, finetune_studio.models.helper, finetune_studio.models.llama_loader, finetune_studio.models.manager, finetune_studio.webui.app
 
 ## `src/finetune_studio/webui/routes/data_prep_chat.py` (807 lines)
@@ -1731,7 +1732,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `async def delete_dataset_route(pid: str, did: str, remove_file: bool = False)` (L172)
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.db.datasets
 
-## `src/finetune_studio/webui/routes/exports.py` (467 lines)
+## `src/finetune_studio/webui/routes/exports.py` (480 lines)
 - `def _project_404(pid: str) -> JSONResponse | None` (L33) — Return a 404 response when the project does not exist, else None.
 - `def _project_root_llama_cpp() -> str` (L62)
 - `def _human_size(n: int) -> str` (L76)
@@ -1739,12 +1740,13 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def _find_llama_tool(name: str) -> str | None` (L88) — Find an executable in PATH or common llama.cpp install locations.
 - `def _find_convert_script() -> str | None` (L103) — Find llama.cpp's convert_hf_to_gguf.py script.
 - `async def export_run(pid: str, rid: str, request: Request, background: BackgroundTasks)` (L110) — Export a run to GGUF / abliterated / merged safetensors.
-- `async def get_export(pid: str, eid: str)` (L350)
-- `async def export_events(pid: str, eid: str)` (L361) — SSE stream of a single export row until it reaches a terminal status.
-- `async def list_run_exports(pid: str, rid: str)` (L398)
-- `async def list_project_exports(pid: str, limit: int = Query(100, ge=1, le=1000))` (L409)
-- `def _export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None` (L416) — Background GGUF export worker.
-  - imports: finetune_studio, finetune_studio.training.export_response, finetune_studio.training.gguf_convert, finetune_studio.training.run_export, finetune_studio.webui.live_sse
+- `async def get_export(pid: str, eid: str)` (L352)
+- `async def export_events(pid: str, eid: str)` (L363) — SSE stream of a single export row until it reaches a terminal status.
+- `async def list_run_exports(pid: str, rid: str)` (L400)
+- `async def list_project_exports(pid: str, limit: int = Query(100, ge=1, le=1000))` (L411)
+- `def _refresh_registry_quietly() -> None` (L418) — Make new exports visible to Chat/Inference without a restart.
+- `def _export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None` (L428) — Background GGUF export worker.
+  - imports: finetune_studio, finetune_studio.training.export_response, finetune_studio.training.gguf_convert, finetune_studio.training.run_export, finetune_studio.webui.live_sse, finetune_studio.webui.routes.models
 
 ## `src/finetune_studio/webui/routes/file_library.py` (568 lines)
 - `async def _stage_upload(pid: str, upload: UploadFile) -> tuple[Path, int, str]` (L69) — Stream one multipart upload to disk while hashing it.
@@ -1826,7 +1828,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `async def inference_memory_estimate(request: Request)` (L421) — Estimate VRAM needed for a model with given loader params.
   - imports: finetune_studio, finetune_studio.config, finetune_studio.models.gguf_layers, finetune_studio.models.llama_loader, finetune_studio.models.loader, finetune_studio.models.manager, finetune_studio.models.registry, finetune_studio.testing.inference, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.routes.system, finetune_studio.webui.thinking
 
-## `src/finetune_studio/webui/routes/pages.py` (732 lines)
+## `src/finetune_studio/webui/routes/pages.py` (735 lines)
 - `def _sum_benchmarks(runs)` (L31) — Sum total benchmark count across all runs.
 - `def _require_project(pid: str)` (L43) — Return project dict or None (caller redirects to /projects).
 - `def _dir_size_gb(path: str) -> float` (L57) — Total size of a directory tree in GB, rounded to 2 decimals.
@@ -1849,13 +1851,13 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `async def project_rag_page(request: Request, pid: str)` (L458) — RAG page — corpus build/chat plus docs-indexed inventory panel.
 - `async def data_editor_page(request: Request, pid: str, dataset_path: str)` (L484) — Project-scoped data editor for a JSONL dataset.
 - `async def benchmarks_page(request: Request, pid: str)` (L505) — Benchmarks tab — run suites, view scores, compare runs.
-- `async def project_chat_page(request: Request, pid: str)` (L594) — Project chat page — chat with the project's production model, optionally
-- `async def project_settings_page(request: Request, pid: str)` (L610) — Project settings + WebUI log tail (no SSH needed for uvicorn.log).
-- `async def project_wizard_page(request: Request, pid: str)` (L623) — Project wizard: Quick start runs files → QA → dataset → train → test
-- `async def project_flow_page(request: Request, pid: str)` (L640) — Old name for the wizard — keep bookmarks and links working.
-- `async def project_work_page(request: Request, pid: str)` (L646) — Canonical name of the quick-work page (routes keep /wizard for history).
-- `async def settings_page(request: Request)` (L654) — Settings, debug info, replay tutorial, system status.
-- `async def debug_info()` (L668) — Return system debug info for the Settings page.
+- `async def project_chat_page(request: Request, pid: str)` (L597) — Project chat page — chat with the project's production model, optionally
+- `async def project_settings_page(request: Request, pid: str)` (L613) — Project settings + WebUI log tail (no SSH needed for uvicorn.log).
+- `async def project_wizard_page(request: Request, pid: str)` (L626) — Project wizard: Quick start runs files → QA → dataset → train → test
+- `async def project_flow_page(request: Request, pid: str)` (L643) — Old name for the wizard — keep bookmarks and links working.
+- `async def project_work_page(request: Request, pid: str)` (L649) — Canonical name of the quick-work page (routes keep /wizard for history).
+- `async def settings_page(request: Request)` (L657) — Settings, debug info, replay tutorial, system status.
+- `async def debug_info()` (L671) — Return system debug info for the Settings page.
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.db, finetune_studio.models.helper, finetune_studio.models.loader, finetune_studio.models.registry, finetune_studio.training.export_capabilities, finetune_studio.webui.app, finetune_studio.webui.model_labels, finetune_studio.webui.project_dashboard, finetune_studio.webui.project_data_browser, finetune_studio.webui.routes.benchmarks, finetune_studio.webui.routes.project_export, finetune_studio.webui.routes.project_rag, finetune_studio.webui.testing_models
 
 ## `src/finetune_studio/webui/routes/project_export.py` (48 lines)
@@ -1954,7 +1956,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def data_convert(req: ConvertRequest) -> DataJobResponse` (L197) — Convert training data between formats (csv/json/jsonl).
   - imports: finetune_studio.config, finetune_studio.data.converter, finetune_studio.data.fs.paths, finetune_studio.training.config_optimizer, finetune_studio.training.data_augmentation, finetune_studio.training.data_quality, finetune_studio.training.hallucination_guard
 
-## `src/finetune_studio/webui/routes/rag.py` (742 lines)
+## `src/finetune_studio/webui/routes/rag.py` (744 lines)
 - `def _corpus_dir(pid: str) -> Path` (L48)
 - `def _project_404(pid: str) -> JSONResponse | None` (L52) — Return a 404 response when the project does not exist, else None.
 - `class SearchRequest(BaseModel)` (L68)
@@ -1964,25 +1966,25 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `class SettingsPatch(BaseModel)` (L95)
 - `async def rag_status(pid: str)` (L107)
 - `async def rag_get_settings(pid: str)` (L135)
-- `async def rag_patch_settings(pid: str, req: SettingsPatch)` (L157) — Update settings. Changes to embedder/rerank_top_n don't break anything,
-- `async def rag_build(pid: str, req: BuildRequest)` (L188) — (Re)build the project's RAG from the project's files dir.
-- `class QuickRequest(BaseModel)` (L267)
-- `async def rag_quick(pid: str, req: QuickRequest)` (L273) — ⚡ Quick index: promote every not-yet-parsed library file into QA
-- `def _rag_build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict` (L328) — One progress snapshot for SSE frames and the /build/status poll.
-- `async def rag_build_status(pid: str)` (L370) — One-shot corpus-build progress (SSE silent fallback for /build/progress).
-- `async def rag_build_progress(pid: str)` (L379) — Server-Sent Events stream that reports corpus build progress.
-- `async def rag_rebuild_vectors(pid: str, req: RebuildVectorsRequest)` (L418) — Re-embed with (possibly new) embedder. Loads + replaces vectors.npy.
-- `async def rag_list_sources(pid: str)` (L448) — List all sources in the corpus.
-- `async def rag_delete_source(pid: str, source_id: str)` (L462) — Remove a single source from the corpus.
-- `async def rag_clear_sources(pid: str)` (L477) — Clear source text and all search indexes while retaining the corpus directory.
-- `async def rag_search(pid: str, req: SearchRequest)` (L491)
-- `class BundleRequest(BaseModel)` (L506)
-- `def _bundle_dir(pid: str) -> Path` (L514)
-- `async def rag_bundle(pid: str, body: BundleRequest | None = None)` (L519) — Export the corpus as an encrypted ``.ftsrag`` file inside the project dir.
-- `async def rag_bundle_download(pid: str, file: str)` (L553)
-- `async def rag_import(pid: str, file: UploadFile, overwrite: bool = False, passphrase: str = Form('…` (L569) — Import a corpus bundle: encrypted ``.ftsrag`` (needs ``passphrase``) or a
-- `async def shared_model_stats()` (L666) — Dashboard stats for the shared model pool. Shows which models are stored,
-- `async def rag_chat(pid: str, req: ChatRequest)` (L674) — RAG-augmented chat. Retrieves top-k from project corpus, prepends to
+- `async def rag_patch_settings(pid: str, req: SettingsPatch)` (L159) — Update settings. Changes to embedder/rerank_top_n don't break anything,
+- `async def rag_build(pid: str, req: BuildRequest)` (L190) — (Re)build the project's RAG from the project's files dir.
+- `class QuickRequest(BaseModel)` (L269)
+- `async def rag_quick(pid: str, req: QuickRequest)` (L275) — ⚡ Quick index: promote every not-yet-parsed library file into QA
+- `def _rag_build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict` (L330) — One progress snapshot for SSE frames and the /build/status poll.
+- `async def rag_build_status(pid: str)` (L372) — One-shot corpus-build progress (SSE silent fallback for /build/progress).
+- `async def rag_build_progress(pid: str)` (L381) — Server-Sent Events stream that reports corpus build progress.
+- `async def rag_rebuild_vectors(pid: str, req: RebuildVectorsRequest)` (L420) — Re-embed with (possibly new) embedder. Loads + replaces vectors.npy.
+- `async def rag_list_sources(pid: str)` (L450) — List all sources in the corpus.
+- `async def rag_delete_source(pid: str, source_id: str)` (L464) — Remove a single source from the corpus.
+- `async def rag_clear_sources(pid: str)` (L479) — Clear source text and all search indexes while retaining the corpus directory.
+- `async def rag_search(pid: str, req: SearchRequest)` (L493)
+- `class BundleRequest(BaseModel)` (L508)
+- `def _bundle_dir(pid: str) -> Path` (L516)
+- `async def rag_bundle(pid: str, body: BundleRequest | None = None)` (L521) — Export the corpus as an encrypted ``.ftsrag`` file inside the project dir.
+- `async def rag_bundle_download(pid: str, file: str)` (L555)
+- `async def rag_import(pid: str, file: UploadFile, overwrite: bool = False, passphrase: str = Form('…` (L571) — Import a corpus bundle: encrypted ``.ftsrag`` (needs ``passphrase``) or a
+- `async def shared_model_stats()` (L668) — Dashboard stats for the shared model pool. Shows which models are stored,
+- `async def rag_chat(pid: str, req: ChatRequest)` (L676) — RAG-augmented chat. Retrieves top-k from project corpus, prepends to
   - imports: finetune_studio, finetune_studio.data, finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.data.fs.qa, finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.rag_container, finetune_studio.data.shared_models, finetune_studio.models.manager, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.live_sse, finetune_studio.webui.thinking
 
 ## `src/finetune_studio/webui/routes/settings.py` (78 lines)
@@ -2437,13 +2439,13 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def check_at_width(page, width: int)` (L45) — Set viewport and verify each DEFINED_RULE matches iff width <= its threshold.
 - `def main() -> int` (L65)
 
-## `tests/test_breakpoints_visual.py` (238 lines)
-- `def parse_width(rule: str) -> int` (L54)
-- `def inspect_layout(page) -> dict` (L60) — Return layout metrics we want to spot-check per viewport.
-- `def check_rules(page, actual_w: int)` (L100) — Verify each DEFINED_RULE matches iff actual_w <= threshold.
-- `def multi_viewport_suite(page) -> tuple[bool, list]` (L117) — Run all viewport checks on /training. Return (all_ok, results).
-- `def multi_page_suite(page) -> tuple[bool, list]` (L150) — Snapshot every project page at canonical 1200px viewport.
-- `def main() -> int` (L178)
+## `tests/test_breakpoints_visual.py` (239 lines)
+- `def parse_width(rule: str) -> int` (L55)
+- `def inspect_layout(page) -> dict` (L61) — Return layout metrics we want to spot-check per viewport.
+- `def check_rules(page, actual_w: int)` (L101) — Verify each DEFINED_RULE matches iff actual_w <= threshold.
+- `def multi_viewport_suite(page) -> tuple[bool, list]` (L118) — Run all viewport checks on /training. Return (all_ok, results).
+- `def multi_page_suite(page) -> tuple[bool, list]` (L151) — Snapshot every project page at canonical 1200px viewport.
+- `def main() -> int` (L179)
 
 ## `tests/test_browser_result_surfaces.py` (105 lines)
 - `def test_benchmarks_template_clears_empty_chrome_on_compare_results() -> None` (L26)
@@ -2672,7 +2674,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_older_upload_without_auto_promote_then_manual_promote(client_and_db, monkeypatch) -> None` (L95) — Simulate a pre-auto-promote library file: in project_files, not in sources.
   - imports: finetune_studio, finetune_studio.config, finetune_studio.data.fs.qa, finetune_studio.webui.app, finetune_studio.webui.routes
 
-## `tests/test_data_prep_review_export_ui.py` (206 lines)
+## `tests/test_data_prep_review_export_ui.py` (210 lines)
 - `def client_and_db(tmp_path, monkeypatch)` (L41)
 - `def _create_project(client: TestClient) -> str` (L54)
 - `def _seed_pending_pair(pid: str, projects: Path, *, qid: str | None = None) -> str` (L63)
@@ -2681,7 +2683,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_data_prep_page_renders_bridge_controls(client_and_db) -> None` (L111)
 - `def test_approve_then_export_registers_training_dataset(client_and_db) -> None` (L125)
 - `def test_export_blocks_when_coverage_still_has_holes(client_and_db, monkeypatch: pytest.MonkeyPatch) -> None` (L172)
-- `def test_export_without_approved_still_empty_or_empty_file(client_and_db) -> None` (L189) — Pending-only projects must not silently populate Training.
+- `def test_export_without_approved_still_empty_or_empty_file(client_and_db) -> None` (L193) — Pending-only projects must not silently populate Training.
   - imports: finetune_studio, finetune_studio.config, finetune_studio.data.fs, finetune_studio.webui.app
 
 ## `tests/test_data_prep_route.py` (129 lines)
@@ -2970,6 +2972,15 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_run_suite_sends_system_prompt()` (L49)
 - `def test_no_direct_apply_chat_template_in_train_or_eval_paths()` (L64)
   - imports: finetune_studio.testing, finetune_studio.training, finetune_studio.training.data, finetune_studio.training.formatting, finetune_studio.training.vram
+
+## `tests/test_fresh_run_regressions.py` (84 lines)
+- `def test_base_model_benchmark_listed_on_page(client) -> None` (L14)
+- `def test_base_probe_placeholder_hidden_from_run_lists(client) -> None` (L31)
+- `def test_chat_context_offers_tuned_merged_model(client, tmp_path) -> None` (L43) — Chat must offer the project's fine-tuned (merged) model, not only bases.
+- `def test_export_worker_refreshes_model_registry(monkeypatch)` (L60)
+- `def test_rag_settings_before_index_is_not_a_404(client)` (L69)
+- `def test_unknown_page_gets_styled_404_but_api_stays_json(client)` (L76)
+  - imports: finetune_studio, finetune_studio.webui.routes
 
 ## `tests/test_full_corpus_suite.py` (293 lines)
 - `def isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L26)
@@ -3809,7 +3820,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_training_page_empty_copy_when_no_trainable(client, monkeypatch) -> None` (L196)
   - imports: finetune_studio.models.registry, finetune_studio.webui
 
-## `tests/test_repo_hygiene.py` (234 lines)
+## `tests/test_repo_hygiene.py` (249 lines)
 - `def _git(*args: str) -> str | None` (L75) — Run a git command in the repo, returning stdout, or None if unavailable.
 - `def tracked_files() -> set[str]` (L96) — Set of repo-relative paths git currently tracks, or skip if unavailable.
 - `def untracked_files() -> set[str]` (L105) — Untracked, NOT-ignored paths — exactly what ``git add -A`` would add.
@@ -3819,6 +3830,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_nothing_is_left_untracked_and_unignored(untracked_files: set[str]) -> None` (L158) — The whole tree must be either tracked or deliberately ignored.
 - `def test_required_runtime_seeds_are_still_tracked(tracked_files: set[str]) -> None` (L178) — The ignore rules must not swallow shipped assets the app needs.
 - `def test_ignore_rules_actually_work_on_disk() -> None` (L186) — Probe ``git check-ignore`` on representative runtime paths.
+- `def test_tests_never_write_into_docs_or_user_media()` (L237) — Screenshots/READMEs are hand-made; test output goes to .tmp/qa-shots only.
 
 ## `tests/test_reupload_after_delete.py` (44 lines)
 - `def _upload(pid: str, fid_ref: list[str], name: str, payload: bytes, client: Any) -> dict` (L15)

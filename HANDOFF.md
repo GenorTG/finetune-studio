@@ -17,6 +17,7 @@ Local fine-tune + data-prep WebUI. Current thread: act on `docs/audit/APP-AUDIT-
 | Dead code | Removed in lanes A-D (see git diff); `_CORPORA` constant gone from `routes/rag.py`. |
 | Ruff | `ruff check src/ scripts/` clean (broad handlers narrowed; intentional boundaries carry a justified `noqa`). `tests/` still has ~108 legacy findings (deferred with test review). |
 | Fixed (with tests) | Chat RAG ownership; file versions/conversions project scoping; RAG run attribution; RAG source root honors `FTS_ROOT`; CLI no-op flags removed, `fts suite` judges before scoring, `fts validate` exits nonzero; VRAM profiler init + safe cleanup; installer diagnostics (3 defects); augment holdout/training disjoint. |
+| Fresh-DB browser run 2026-10-02 | Fresh instance (:7871, throwaway root), real browser: project, files, RAG (index/search/encrypted export+import), pair gen, LoRA train, merged+GGUF export, testing 95.2%, benchmark base 9.5% vs tuned 95.2%, set production, Chat with tuned model + RAG. Fixed (with tests, `tests/test_fresh_run_regressions.py`): base benchmark results hidden; `__base_model__` placeholder leaking into run lists; Chat missing the tuned model; model registry stale after export; export gate now names the files with no Q&A + UI "export anyway"; styled 404; `rag/settings` 200 before index; pair-gen status scrolls into view. Full suite 1417 passed. |
 | CODEMAP | Regenerated 2026-10-02 (`make codemap`). |
 
 ## Next steps
@@ -29,6 +30,10 @@ Local fine-tune + data-prep WebUI. Current thread: act on `docs/audit/APP-AUDIT-
 6. Holdout disjointness is exact-question only; reworded duplicates can still leak.
 7. **E2E findings NOT fixed:** CLI has no project-dir fence (design call); `/api/data/*` relative `output` resolves to project dir but relative `path` to cwd; `rag/sources` lists raw + parsed copies (double-index?); imported-corpus hit `source` paths point at old project; engine has no resume-from-checkpoint; many endpoints return 200 `{error}`; `compare/load` missing path still shows HF repo-id text; project-flow `start_run` ignores `lora_alpha`/grad-accum overrides; `compare` vs `suite` score differ (judge); `compare --models` swallows trailing positional; `validate` accepts empty jsonl, `rag ingest` accepts binary; Windows installers diverge (no GPU pin, no run.ps1/update.ps1); `FTS_ROOT`/`FTS_DB` ignored by app (tests leak empty dirs into `~/.finetune-studio/projects`); `install.sh --repair` wipes venv. Untested: chat-with-RAG, QA mining (need LM Studio), dark/light visual pass, `rag.config.json`-only launch.
 8. Finish test-file review (158 left) and tests-scope Ruff. Follow-up filed: `training/data_quality.generate_fixes` suggests nonexistent CLI commands (`tests/test_data_quality_fixes.py` is its test).
+
+## Known open (fresh-run UI findings, unfixed)
+
+Files table collapses at 780px and actions overflow at 1440; project overview Files tile links to /data-prep; empty UPLOAD click is silent; project card shows folder name not `Qwen/Qwen3-0.6B`; upload list stale until reload; corrupt/unsupported upload gives raw parser code; RAG indexes people.txt twice (raw + parsed); RAG export passphrase easy to miss; precision-preset advice contradicts itself; Testing step gives no pointer to Export; unrequested f16 intermediate kept; export rows have identical truncated names; csv coverage-fill pairs are junk; pairs-table timestamps are UTC unlabeled. Not exercised: file rename/delete/versions, archive export/import round-trip, PortableRAG launch, settings/HF/inference pages, themes/responsive sweep, compare-two-runs.
 
 ## Commands
 
