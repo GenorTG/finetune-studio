@@ -90,7 +90,8 @@ def _fill_sources(pid: str, sources: list[dict[str, Any]]) -> dict[str, Any]:
             log.exception("coverage fill failed for source %s", sid)
             n = declared_chunks if declared_chunks else 1
             uncovered.extend(
-                {"source": sid, "chunk_idx": i, "error": f"fill failed: {exc}"}
+                {"source": sid, "filename": filename, "chunk_idx": i,
+                 "error": f"fill failed: {exc}"}
                 for i in range(1, n + 1)
             )
             continue
@@ -99,12 +100,14 @@ def _fill_sources(pid: str, sources: list[dict[str, Any]]) -> dict[str, Any]:
         total.skipped_no_content += result.skipped_no_content
         for unc in result.chunks_still_uncovered:
             unc["source"] = sid
+            unc["filename"] = filename
             uncovered.append(unc)
         # Parsed-artifact loss: the source declares chunks but none could be
         # loaded — a silent hole in the dataset unless surfaced here.
         if declared_chunks and not chunks:
             uncovered.extend(
-                {"source": sid, "chunk_idx": i, "error": "parsed chunks missing"}
+                {"source": sid, "filename": filename, "chunk_idx": i,
+                 "error": "parsed chunks missing"}
                 for i in range(1, declared_chunks + 1)
             )
     summary = total.as_dict()

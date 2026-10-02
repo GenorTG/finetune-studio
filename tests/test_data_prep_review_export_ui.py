@@ -177,13 +177,17 @@ def test_export_blocks_when_coverage_still_has_holes(
     monkeypatch.setattr(
         "finetune_studio.data.prep.coverage_fill.fill_all_project_gaps",
         lambda project_id: {
-            "uncovered_chunks": [{"source": "src-gap", "chunk_idx": 2}]
+            "uncovered_chunks": [
+                {"source": "src-gap", "filename": "notes.xyz", "chunk_idx": 2}
+            ]
         },
     )
     r = client.get(f"/api/projects/{pid}/data-prep/export")
     assert r.status_code == 409
     assert r.json()["uncovered_count"] == 1
     assert "blocked" in r.json()["error"]
+    assert "notes.xyz" in r.json()["error"]
+    assert r.json()["uncovered_files"] == ["notes.xyz"]
 
 
 def test_export_without_approved_still_empty_or_empty_file(client_and_db) -> None:

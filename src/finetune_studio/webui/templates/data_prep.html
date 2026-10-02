@@ -1785,6 +1785,14 @@ async function dpExportApproved() {
     var url = '/api/projects/' + encodeURIComponent(_prepPid) +
       '/data-prep/export?fmt=sharegpt&only=approved';
     var r = await fetch(url, { cache: 'no-store' });
+    if (r.status === 409) {
+      var gap = {};
+      try { gap = await r.json(); } catch (e3) { /* ignore */ }
+      if (gap && gap.uncovered_files && window.confirm(
+        (gap.error || 'Some chunks have no Q&A.') + '\n\nExport anyway without them?')) {
+        r = await fetch(url + '&force=true', { cache: 'no-store' });
+      }
+    }
     if (!r.ok) {
       var err = {};
       try { err = await r.json(); } catch (e2) { /* ignore */ }

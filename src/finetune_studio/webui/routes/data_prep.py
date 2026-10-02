@@ -760,9 +760,18 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
         from finetune_studio.data.prep.coverage_fill import fill_all_project_gaps
         fill_summary = fill_all_project_gaps(pid)
         if fill_summary and fill_summary.get("uncovered_chunks") and not force:
+            names = sorted({
+                str(u.get("filename") or u.get("source") or "?")
+                for u in fill_summary["uncovered_chunks"]
+            })
             return JSONResponse(
                 {
-                    "error": "dataset export blocked: parsed chunks remain uncovered",
+                    "error": (
+                        "dataset export blocked: no usable Q&A could be made from "
+                        + ", ".join(names[:5]) + (" and more" if len(names) > 5 else "")
+                        + ". Delete that file, or export anyway without it."
+                    ),
+                    "uncovered_files": names,
                     "uncovered_chunks": fill_summary["uncovered_chunks"][:50],
                     "uncovered_count": len(fill_summary["uncovered_chunks"]),
                     "hint": "pass ?force=true to export anyway with those chunks missing",
