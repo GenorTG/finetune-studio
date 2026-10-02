@@ -64,3 +64,21 @@ def test_export_worker_refreshes_model_registry(monkeypatch):
     monkeypatch.setattr(models, "refresh_model_registry", lambda: calls.append(1) or 0)
     exports._refresh_registry_quietly()
     assert calls == [1]
+
+
+def test_rag_settings_before_index_is_not_a_404(client):
+    pid = client.post("/api/projects", json={"name": "Rag Fresh"}).json()["id"]
+    r = client.get(f"/api/projects/{pid}/rag/settings")
+    assert r.status_code == 200
+    assert r.json() == {"exists": False}
+
+
+def test_unknown_page_gets_styled_404_but_api_stays_json(client):
+    page = client.get("/projects/nope/files", headers={"accept": "text/html"})
+    assert page.status_code == 404
+    assert "Page not found" in page.text
+    api = client.get("/api/nope", headers={"accept": "text/html"})
+    assert api.status_code == 404
+    assert api.json() == {"detail": "Not Found"}
+    bare = client.get("/projects/nope/files")
+    assert bare.json() == {"detail": "Not Found"}

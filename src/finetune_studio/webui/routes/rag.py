@@ -136,9 +136,11 @@ async def rag_get_settings(pid: str):
     from finetune_studio.data.rag_portable import PortableRAG
     rag = PortableRAG(_corpus_dir(pid))
     if not rag.exists():
-        return JSONResponse({"error": "no corpus"}, status_code=404)
+        # Not an error: the page asks before any index exists.
+        return {"exists": False}
     m = rag.load().manifest
     return {
+        "exists": True,
         "embedder": m.embedding_model.name,
         "reranker": m.rag_settings.reranker,
         "rerank_enabled": m.rag_settings.rerank_enabled,

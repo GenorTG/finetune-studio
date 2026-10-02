@@ -1978,6 +1978,7 @@ function prepSetStatus(msg, state) {
   el.textContent = msg;
   el.dataset.state = state || 'info';
   el.hidden = false;
+  if (el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
 function prepSetBusy(busy) {

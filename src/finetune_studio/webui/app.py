@@ -16,8 +16,13 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.exception_handlers import (
+    http_exception_handler as fastapi_http_exception_handler,
+)
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from finetune_studio import db
 from finetune_studio.config import settings
@@ -107,6 +112,27 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="Finetune Studio", version="0.1.0", lifespan=lifespan)
+
+_NOT_FOUND_HTML = (
+    "<!DOCTYPE html><html lang=en><head><meta charset=utf-8>"
+    "<meta name=viewport content='width=device-width,initial-scale=1'>"
+    "<title>Not found</title><style>"
+    "body{font-family:system-ui,sans-serif;background:#12161a;color:#dde;"
+    "display:grid;place-items:center;min-height:100vh;margin:0}"
+    "main{text-align:center;padding:24px}a{color:#7fd48a}</style></head>"
+    "<body><main><h1>Page not found</h1>"
+    "<p>That address does not exist in Finetune Studio.</p>"
+    "<p><a href='/'>Back to the dashboard</a></p></main></body></html>"
+)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def _http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Styled 404 for browser page loads; API/JSON callers keep the JSON body."""
+    wants_html = "text/html" in request.headers.get("accept", "")
+    if exc.status_code == 404 and wants_html and not request.url.path.startswith("/api/"):
+        return HTMLResponse(_NOT_FOUND_HTML, status_code=404)
+    return await fastapi_http_exception_handler(request, exc)
 
 
 def _activity_kind(path: str) -> str:
