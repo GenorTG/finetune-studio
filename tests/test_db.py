@@ -23,8 +23,8 @@ class TestProjects:
         assert p["system_prompt"] == "You are helpful."
 
     def test_update_project(self, mock_settings):
+
         import finetune_studio.db as db
-        import time
         pid = db.create_project(name="Before", description="old")["id"]
         db.update_project(pid, name="After", description="new")
         p = db.get_project(pid)
@@ -96,8 +96,8 @@ class TestRags:
 
 class TestRuns:
     def test_create_and_get_run(self, mock_settings):
+
         import finetune_studio.db as db
-        import time
         pid = db.create_project(name="Run Test", description="")["id"]
         rid = db.create_run(
             project_id=pid, name="Run 1",

@@ -29,7 +29,7 @@ def detect() -> GPUInfo:
             supports_flash_attention=supports_fa2,
             supports_bf16=supports_bf16,
         )
-    except Exception:
+    except (ImportError, OSError, RuntimeError):
         return GPUInfo(
             name="Unknown (CUDA not available)",
             total_vram_gb=0,

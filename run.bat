@@ -6,4 +6,4 @@ if not exist .venv (
 )
 call .venv\Scripts\activate.bat
 echo Starting Finetune Studio on http://localhost:7860
-python -m finetune_studio %*
+python -m finetune_studio webui %*

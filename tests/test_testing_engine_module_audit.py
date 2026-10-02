@@ -77,28 +77,28 @@ def test_score_results_all_judged_is_unaffected() -> None:
 
 
 class _FakeBatch(dict):
-    def to(self, device):  # noqa: ARG002
+    def to(self, device):
         return self
 
 
 class _FakeTokenizer:
     pad_token_id = 0
 
-    def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=True,  # noqa: ARG002
+    def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=True,
                               enable_thinking=None):
         return "PROMPT"
 
-    def __call__(self, text, return_tensors="pt"):  # noqa: ARG002
+    def __call__(self, text, return_tensors="pt"):
         return _FakeBatch({"input_ids": torch.zeros((1, 3), dtype=torch.long)})
 
-    def decode(self, generated, skip_special_tokens=True):  # noqa: ARG002
+    def decode(self, generated, skip_special_tokens=True):
         return "answer before STOPMARK answer after"
 
 
 class _FakeModel:
     device = "cpu"
 
-    def generate(self, **kwargs):  # noqa: ARG002
+    def generate(self, **kwargs):
         return torch.zeros((1, 8), dtype=torch.long)
 
 
@@ -145,7 +145,7 @@ def test_generate_hf_stop_picks_earliest_match_among_multiple() -> None:
 
 
 def test_cases_from_pairs_directory_logs_unreadable_files(
-    tmp_path: Path, caplog: "logging.LogCaptureFixture",
+    tmp_path: Path, caplog: logging.LogCaptureFixture,
 ) -> None:
     pairs_dir = tmp_path / "pairs"
     pairs_dir.mkdir()

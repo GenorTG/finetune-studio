@@ -19,22 +19,20 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from finetune_studio.data.fs.paths import project_files_root, rag_corpus_dir
 from finetune_studio.data.rag_portable.source_labels import prettify_source_label
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["project-rag"])
 
-_CORPORA_ROOT = Path.home() / ".finetune-studio" / "rag_corpora"
-
-
 def corpus_dir(pid: str) -> Path:
     """Return the on-disk corpus directory for ``pid``."""
-    return _CORPORA_ROOT / pid
+    return rag_corpus_dir(pid)
 
 
 def project_files_dir(pid: str) -> Path:
     """Return the project's parsed-files directory used as RAG build input."""
-    return Path.home() / ".finetune-studio" / "projects" / pid / "files"
+    return project_files_root(pid, create=False)
 
 
 def _guess_mime(filename: str) -> str:
@@ -248,53 +246,160 @@ async def rag_doc_chunks(pid: str, doc_id: str) -> dict[str, Any]:
     return {"doc_id": doc_id, "chunks": chunks, "count": len(chunks)}
 
 
-@router.get("/projects/{pid}/rag/mcp-package")
-async def rag_mcp_package(pid: str, name: str | None = None,
-                          fmt: str = "tar.gz",
-                          include_models: str = "false"):
-    """Download a hostable, self-installing RAG package (MCP + HTTP server).
+class ExportConfigPatch(BaseModel):
+    """Partial export settings (all optional; see ``RagExportConfig``)."""
 
-    Contains the corpus (manifest, chunks.jsonl, vectors, bm25), a
-    standalone ``server.py`` (keyword search out of the box; semantic when
-    pointed at any OpenAI-compatible /v1/embeddings endpoint), ``install.sh``,
-    run scripts, an MCP config example, and a README. With
-    ``include_models=true`` the embedding model (+ reranker) the corpus was
-    built with ship inside — full offline semantic search, no provider.
-    """
-    from fastapi.responses import FileResponse
+    archive_format: str | None = None
+    include_models: bool | None = None
+    include_reranker: bool | None = None
+    reranker_enabled: bool | None = None
+    device: str | None = None
+    host: str | None = None
+    port: int | None = None
+    top_k: int | None = None
+    encrypt: bool | None = None
+    kdf_log_n: int | None = None
 
+
+class ExportConfigSave(BaseModel):
+    scope: str = "studio"            # "studio" defaults | "project" override
+    values: ExportConfigPatch = Field(default_factory=ExportConfigPatch)
+    clear: bool = False              # project scope only: drop the override
+
+
+class McpPackageRequest(ExportConfigPatch):
+    """Export request: optional overrides + the (never stored) passphrase."""
+
+    name: str | None = None
+    passphrase: str | None = Field(default=None, repr=False)
+
+
+def _patch_values(p: ExportConfigPatch) -> dict[str, Any]:
+    return {k: v for k, v in p.model_dump().items() if v is not None}
+
+
+def _require_project(pid: str) -> dict:
     from finetune_studio import db
+    proj = db.get_project(pid)
+    if not proj:
+        raise HTTPException(status_code=404, detail="project not found")
+    return proj
+
+
+def _export_config_payload(pid: str) -> dict[str, Any]:
+    from finetune_studio.data.rag_portable import export_config as ec
+    return {
+        "defaults": ec.load_defaults().model_dump(),
+        "project_override": ec.load_project_override(pid),
+        "effective": ec.effective_config(pid).model_dump(),
+    }
+
+
+@router.get("/projects/{pid}/rag/export-config")
+async def rag_export_config(pid: str) -> dict[str, Any]:
+    """Studio-wide export defaults, this project's override, and the merge."""
+    _require_project(pid)
+    return _export_config_payload(pid)
+
+
+@router.put("/projects/{pid}/rag/export-config")
+async def rag_export_config_save(pid: str, body: ExportConfigSave) -> dict[str, Any]:
+    """Save studio defaults (``scope=studio``) or a project override
+    (``scope=project``; ``clear=true`` removes it). Never stores a passphrase."""
+    from finetune_studio.data.rag_portable import export_config as ec
+    _require_project(pid)
+    try:
+        if body.scope == "studio":
+            ec.save_defaults(_patch_values(body.values))
+        elif body.scope == "project":
+            ec.save_project_override(pid, None if body.clear else _patch_values(body.values))
+        else:
+            raise HTTPException(status_code=400, detail="scope must be 'studio' or 'project'")
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return _export_config_payload(pid)
+
+
+def _package_dir(pid: str) -> Path:
+    return Path("output") / "projects" / pid / "rag-packages"
+
+
+_SAFE_PKG_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(tar\.gz|tar|zip)$")
+
+
+@router.post("/projects/{pid}/rag/mcp-package")
+async def rag_mcp_package(pid: str, body: McpPackageRequest | None = None):
+    """Build a hostable, self-installing RAG package and return its metadata.
+
+    Options come from studio defaults < project override < this request.
+    Encryption (AES-256-GCM, key from a passphrase) is ON unless the request
+    or saved settings turn it off. A blank ``passphrase`` generates one; it is
+    returned **once** in this response and never stored. Download the file via
+    ``GET .../rag/mcp-package/download?file=<filename>``.
+    """
+    from fastapi.responses import JSONResponse
+
+    from finetune_studio.data.rag_portable import export_config as ec
     from finetune_studio.data.rag_portable.mcp_package import build_package
 
-    if not db.get_project(pid):
-        raise HTTPException(status_code=404, detail="project not found")
+    proj = _require_project(pid)
+    req = body or McpPackageRequest()
     corpus = corpus_dir(pid)
     if not (corpus / "manifest.json").is_file():
         raise HTTPException(
             status_code=404,
             detail="no corpus yet — build one first (section 2 on this page)",
         )
-    inc_models = str(include_models).lower() not in ("0", "false", "no", "")
-    proj = db.get_project(pid)
-    title = name or (proj["name"] if proj else pid)
-    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", title)[:48] or pid
-    ext = "zip" if fmt == "zip" else "tar.gz"
-    out_dir = Path("output") / "projects" / pid / "rag-packages"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    suffix = "-with-models" if inc_models else ""
-    out_path = out_dir / f"{safe}-rag-package{suffix}.{ext}"
     try:
-        await asyncio.to_thread(build_package, corpus, out_path,
-                                name=title, fmt=ext,
-                                include_models=inc_models)
+        cfg = ec.effective_config(pid, _patch_values(req))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    title = req.name or proj["name"] or pid
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", title).strip(".-")[:48] or "project"
+    out_dir = _package_dir(pid)
+    suffix = "-with-models" if cfg.include_models else ""
+    plain = "" if cfg.encrypt else "-PLAINTEXT"
+    ext = "zip" if cfg.archive_format == "zip" else cfg.archive_format
+    out_path = out_dir / f"{safe}-rag-package{suffix}{plain}.{ext}"
+    try:
+        result = await asyncio.to_thread(
+            build_package, corpus, out_path, name=title, config=cfg,
+            passphrase=(req.passphrase or None))
     except FileNotFoundError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
     except Exception as e:
-        log.exception("rag package build failed")
-        raise HTTPException(status_code=500, detail=f"package build failed: {e}") from e
-    media = ("application/zip" if ext == "zip"
-             else "application/gzip")
-    return FileResponse(path=str(out_path), media_type=media, filename=out_path.name)
+        log.exception("rag package build failed")  # never includes the passphrase
+        raise HTTPException(status_code=500, detail=f"package build failed: {type(e).__name__}") from e
+    return JSONResponse(
+        {
+            "filename": result.path.name,
+            "download_url": f"/projects/{pid}/rag/mcp-package/download?file={result.path.name}",
+            "size": result.size,
+            "encrypted": result.encrypted,
+            # Shown once; only set when generated here.
+            "passphrase": result.passphrase,
+            "config": cfg.model_dump(),
+        },
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.get("/projects/{pid}/rag/mcp-package/download")
+async def rag_mcp_package_download(pid: str, file: str):
+    """Download a previously built package (filename validated; no paths)."""
+    from fastapi.responses import FileResponse
+
+    _require_project(pid)
+    if not _SAFE_PKG_NAME.match(file):
+        raise HTTPException(status_code=400, detail="invalid package filename")
+    path = _package_dir(pid) / file
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="package not found — export again")
+    media = "application/zip" if file.endswith(".zip") else "application/gzip"
+    return FileResponse(path=str(path), media_type=media, filename=file,
+                        headers={"Cache-Control": "no-store"})
 
 
 @router.post("/projects/{pid}/rag/rebuild")

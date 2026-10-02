@@ -24,12 +24,28 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from finetune_studio.config import settings
+from finetune_studio.data.fs.paths import resolve_in_project, resolve_within
+
 router = APIRouter(prefix="/api/data", tags=["data-quality"])
 
 
 class DataJobRequest(BaseModel):
     path: str = "data/training.jsonl"
     output: str | None = None
+    project_id: str | None = None  # fence to this project's dir; default: settings.data_dir
+
+
+def _fence(req: Any) -> None:  # DataJobRequest | ConvertRequest
+    """Confine ``req.path`` and ``req.output`` to the project dir (400/403 otherwise)."""
+    def one(ref: str, what: str) -> str:
+        if req.project_id:
+            return str(resolve_in_project(req.project_id, ref, what=what))
+        return str(resolve_within(ref, [Path(settings.data_dir)], what=what))
+
+    req.path = one(req.path, "path")
+    if req.output:
+        req.output = one(req.output, "output")
 
 
 class DataJobResponse(BaseModel):
@@ -64,6 +80,7 @@ def _load_jsonl(path: str) -> list[dict]:
 @router.post("/analyze", response_model=DataJobResponse)
 def data_analyze(req: DataJobRequest) -> DataJobResponse:
     """Analyze training-data quality (length, dup ratio, persona consistency)."""
+    _fence(req)
     if not Path(req.path).exists():
         raise HTTPException(status_code=404, detail=f"File not found: {req.path}")
     try:
@@ -79,6 +96,7 @@ def data_analyze(req: DataJobRequest) -> DataJobResponse:
 @router.post("/augment", response_model=DataJobResponse)
 def data_augment(req: DataJobRequest) -> DataJobResponse:
     """Augment training data to address weaknesses identified by analyze."""
+    _fence(req)
     if not Path(req.path).exists():
         raise HTTPException(status_code=404, detail=f"File not found: {req.path}")
     try:
@@ -121,6 +139,7 @@ def data_augment(req: DataJobRequest) -> DataJobResponse:
 @router.post("/optimize", response_model=DataJobResponse)
 def data_optimize(req: DataJobRequest) -> DataJobResponse:
     """Recommend training hyperparameters based on dataset characteristics."""
+    _fence(req)
     if not Path(req.path).exists():
         raise HTTPException(status_code=404, detail=f"File not found: {req.path}")
     try:
@@ -150,6 +169,7 @@ def data_optimize(req: DataJobRequest) -> DataJobResponse:
 @router.post("/hallucination-check", response_model=DataJobResponse)
 def data_hallucination_check(req: DataJobRequest) -> DataJobResponse:
     """Scan training data for hallucination risk patterns."""
+    _fence(req)
     if not Path(req.path).exists():
         raise HTTPException(status_code=404, detail=f"File not found: {req.path}")
     try:
@@ -167,6 +187,7 @@ def data_hallucination_check(req: DataJobRequest) -> DataJobResponse:
 # ── CLI: fts convert ─────────────────────────────────────────────────────
 class ConvertRequest(BaseModel):
     path: str
+    project_id: str | None = None
     target_format: str = "jsonl"
     output: str | None = None
     system_prompt: str = ""
@@ -175,6 +196,7 @@ class ConvertRequest(BaseModel):
 @router.post("/convert", response_model=DataJobResponse)
 def data_convert(req: ConvertRequest) -> DataJobResponse:
     """Convert training data between formats (csv/json/jsonl)."""
+    _fence(req)
     src = Path(req.path)
     if not src.exists():
         raise HTTPException(status_code=404, detail=f"File not found: {req.path}")

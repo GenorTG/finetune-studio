@@ -14,11 +14,12 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, File, Request, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 
 from finetune_studio import db
 from finetune_studio.data.fs import file_library as fl
+from finetune_studio.data.fs.paths import resolve_in_project
 from finetune_studio.db.datasets import (
     count_qa_pairs,
     datasets_dir,
@@ -64,7 +65,7 @@ async def get_dataset_route(pid: str, did: str):
 async def register_existing_route(pid: str, request: Request):
     """Register an existing file on disk (e.g. written by data-prep export).
 
-    Body accepts either ``data_path`` (absolute path) **or** ``file_id``
+    Body accepts either ``data_path`` (path inside the project dir) **or** ``file_id``
     (a row id from ``project_files``; we resolve to ``stored_path``).
     """
     if not db.get_project(pid):
@@ -100,7 +101,10 @@ async def register_existing_route(pid: str, request: Request):
         return JSONResponse(
             {"error": "data_path or file_id required"}, status_code=400
         )
-    p = Path(data_path)
+    try:
+        p = resolve_in_project(pid, data_path, what="data_path")
+    except HTTPException as exc:
+        return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
     if not p.is_file():
         return JSONResponse({"error": f"file not found: {data_path}"}, status_code=404)
     # Dedup by path

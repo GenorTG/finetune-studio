@@ -18,6 +18,7 @@ Usage: python3 tests/test_breakpoints_visual.py
 import json
 import sys
 from pathlib import Path
+
 from playwright.sync_api import sync_playwright
 
 REPO = Path(__file__).resolve().parent.parent
@@ -175,7 +176,7 @@ def multi_page_suite(page) -> tuple[bool, list]:
 
 
 def main() -> int:
-    print(f"== breakpoints test (visual) ==")
+    print("== breakpoints test (visual) ==")
     print(f"  output dir: {OUT}")
     print(f"  viewports:  {BREAKPOINTS}")
     print(f"  pages @1200:{len(PAGES_1200)}")

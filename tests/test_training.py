@@ -1,4 +1,8 @@
-from finetune_studio.training.engine import TrainingConfig, TrainingState, TrainingEngine
+from finetune_studio.training.engine import (
+    TrainingConfig,
+    TrainingEngine,
+    TrainingState,
+)
 
 
 class TestFormatForSft:

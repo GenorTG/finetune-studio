@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 SAMPLE_ROWS = [
     {"messages": [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello there"}]},
     {"messages": [{"role": "user", "content": "bye"}, {"role": "assistant", "content": "goodbye"}]},
@@ -26,6 +28,14 @@ def _write_jsonl(tmp_path, name="training.jsonl"):
         for row in SAMPLE_ROWS:
             f.write(json.dumps(row) + "\n")
     return p
+
+
+@pytest.fixture(autouse=True)
+def _data_dir_is_tmp(tmp_path, monkeypatch):
+    """Quality routes are fenced to settings.data_dir (2026-10-02 decision)."""
+    from finetune_studio.webui.routes import quality
+
+    monkeypatch.setattr(quality.settings, "data_dir", str(tmp_path))
 
 
 class TestQualityRoutes:

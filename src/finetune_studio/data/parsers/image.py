@@ -25,8 +25,8 @@ def parse(path: Path, languages: str = DEFAULT_LANGS) -> dict:
         with Image.open(path) as img:
             width, height = img.size
             fmt = img.format
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001 - metadata is best-effort; PIL raises many unrelated types
+        warnings.append(f"image metadata unavailable: {e}")
     structured = {
         "type": "image",
         "image_format": fmt,

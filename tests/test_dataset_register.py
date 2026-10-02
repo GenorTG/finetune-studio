@@ -90,7 +90,19 @@ def test_register_accepts_file_id(client_and_db):
     assert any(d["id"] == body["id"] for d in listed)
 
 
-def test_register_accepts_data_path_directly(client_and_db):
+def test_register_accepts_in_project_data_path_directly(client_and_db):
+    client, db_path = client_and_db
+    pid = _create_project(client, db_path)
+    fid = _register_uploaded_file(client, pid, b'{"prompt":"a","completion":"b"}\n')
+    via_file = client.post(f"/api/projects/{pid}/datasets", json={"file_id": fid})
+    assert via_file.status_code == 200, via_file.text
+    path = via_file.json()["data_path"]
+    r = client.post(f"/api/projects/{pid}/datasets", json={"data_path": path})
+    assert r.status_code == 200, r.text
+    assert r.json()["data_path"] == path
+
+
+def test_register_rejects_data_path_outside_project(client_and_db):
     client, db_path = client_and_db
     pid = _create_project(client, db_path)
     with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as f:
@@ -98,8 +110,8 @@ def test_register_accepts_data_path_directly(client_and_db):
         path = f.name
     try:
         r = client.post(f"/api/projects/{pid}/datasets", json={"data_path": path})
-        assert r.status_code == 200, r.text
-        assert r.json()["data_path"] == path
+        assert r.status_code == 403, r.text
+        assert "outside the project directory" in r.json()["error"]
     finally:
         os.unlink(path)
 

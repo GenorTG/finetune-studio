@@ -102,8 +102,8 @@ async def lifespan(app: FastAPI):
                 f"Data-prep restart recovery: resumed {outcome['resumed']}, "
                 f"failed {outcome['failed']} (source missing)"
             )
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception:  # noqa: BLE001 - startup recovery must never block boot
+        _log.exception("Data-prep restart recovery failed")
     yield
 
 app = FastAPI(title="Finetune Studio", version="0.1.0", lifespan=lifespan)
@@ -247,8 +247,8 @@ def _apply_hosting_middleware():
     if settings_path.exists():
         try:
             user = json.loads(settings_path.read_text())
-        except Exception:
-            pass
+        except (OSError, ValueError) as e:
+            _log.warning("Ignoring unreadable %s: %s", settings_path, e)
     origins = [o for o in user.get("cors_origins", []) if o]
     if origins:
         app.add_middleware(

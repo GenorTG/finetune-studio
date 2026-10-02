@@ -48,4 +48,4 @@ if (-not (Test-Path data)) { New-Item -ItemType Directory -Name data | Out-Null 
 
 Write-Host ""
 Write-Host "=== Install complete! ===" -ForegroundColor Green
-Write-Host "Run: .\.venv\Scripts\activate.ps1; python -m finetune_studio"
+Write-Host "Run the WebUI with: .\.venv\Scripts\python.exe -m finetune_studio webui"

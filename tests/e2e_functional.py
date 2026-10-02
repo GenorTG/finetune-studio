@@ -14,12 +14,13 @@ Run with: FTS_BASE=http://localhost:7860 python tests/e2e_functional.py
 """
 
 import asyncio
+import json
 import os
 import sys
-import time
 import tempfile
-import json
+import time
 from pathlib import Path
+
 from playwright.async_api import async_playwright
 
 BASE = os.environ.get("FTS_BASE", "http://localhost:7860")
@@ -35,8 +36,7 @@ def make_sample_jsonl(path: Path):
         ("Color of the sky?", "Blue"),
     ]
     with open(path, "w") as f:
-        for q, a in pairs:
-            f.write(json.dumps({"prompt": q, "completion": a}) + "\n")
+        f.writelines(json.dumps({"prompt": q, "completion": a}) + "\n" for q, a in pairs)
 
 
 async def wait_for(fn, timeout_ms=30000, interval_ms=500, label="condition"):

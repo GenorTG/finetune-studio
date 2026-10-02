@@ -13,8 +13,9 @@ Mounted under ``/api/projects``. Endpoints (all keyed by ``{pid}``):
   GET    /{pid}/rag/sources          -- list corpus sources
   DELETE /{pid}/rag/sources[/{id}]   -- remove one / all sources
   POST   /{pid}/rag/search           -- {query, top_k, hybrid?, rerank?, rerank_top_n?}
-  GET    /{pid}/rag/bundle           -- download corpus archive
-  POST   /{pid}/rag/import           -- upload a corpus archive
+  POST   /{pid}/rag/bundle           -- export encrypted .ftsrag corpus bundle
+  GET    /{pid}/rag/bundle/download  -- download it
+  POST   /{pid}/rag/import           -- upload a bundle (+passphrase if .ftsrag)
   POST   /{pid}/rag/chat             -- {messages, top_k?} -> {reply, sources, hits}
   GET    /shared-models/stats        -- shared model pool stats
 """
@@ -24,26 +25,28 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import shutil
-import tempfile
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, UploadFile
+from fastapi import APIRouter, Form, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from finetune_studio.data.fs.paths import (
+    project_dir,
+    project_files_root,
+    rag_corpus_dir,
+)
 from finetune_studio.webui.engine_guard import ENGINE_LOCK
 from finetune_studio.webui.live_sse import sse_data, sse_response
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 
-_CORPORA = Path.home() / ".finetune-studio" / "rag_corpora"
-
-
 def _corpus_dir(pid: str) -> Path:
-    return _CORPORA / pid
+    return rag_corpus_dir(pid)
 
 
 def _project_404(pid: str) -> JSONResponse | None:
@@ -185,7 +188,7 @@ async def rag_patch_settings(pid: str, req: SettingsPatch):
 async def rag_build(pid: str, req: BuildRequest):
     """(Re)build the project's RAG from the project's files dir.
 
-    The corpus lives at `~/.finetune-studio/rag_corpora/<pid>/`. We source
+    The corpus lives at `$FTS_ROOT/rag_corpora/<pid>/`. We source
     chunks from the project's structured filesystem (parsed.txt files), NOT
     from raw uploads — these are the OCR/parsed outputs that the data-prep
     pipeline already produced.
@@ -196,7 +199,7 @@ async def rag_build(pid: str, req: BuildRequest):
     if missing is not None:
         return missing
     # Find source dir: project's files/<sha>/*.txt
-    project_files_dir = Path.home() / ".finetune-studio" / "projects" / pid / "files"
+    project_files_dir = project_files_root(pid, create=False)
     if not project_files_dir.exists():
         return JSONResponse({"error": "no parsed files in this project yet — upload & parse first"},
                             status_code=400)
@@ -325,9 +328,7 @@ async def rag_quick(pid: str, req: QuickRequest):
 def _rag_build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
     """One progress snapshot for SSE frames and the /build/status poll."""
     corpus = _corpus_dir(pid)
-    project_files_dir = (
-        Path.home() / ".finetune-studio" / "projects" / pid / "files"
-    )
+    project_files_dir = project_files_root(pid, create=False)
     total_files = (
         sum(1 for f in project_files_dir.rglob("*.txt") if f.is_file())
         if project_files_dir.exists() else 0
@@ -502,41 +503,82 @@ async def rag_search(pid: str, req: SearchRequest):
     return {"hits": hits, "count": len(hits), "query": req.query}
 
 
-@router.get("/{pid}/rag/bundle")
-async def rag_bundle(pid: str, name: str | None = None,
-                     fmt: str = "tar",
-                     include_models: str = "true"):
-    """Download a self-contained archive of the corpus."""
-    from fastapi.responses import FileResponse
+class BundleRequest(BaseModel):
+    name: str | None = None
+    passphrase: str | None = None  # blank -> generated, returned once, never stored
 
-    from finetune_studio.data.rag_portable import PortableRAG
-    rag = PortableRAG(_corpus_dir(pid))
-    if not rag.exists():
+
+_SAFE_BUNDLE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.ftsrag$")
+
+
+def _bundle_dir(pid: str) -> Path:
+    return project_dir(pid) / "rag-bundles"
+
+
+@router.post("/{pid}/rag/bundle")
+async def rag_bundle(pid: str, body: BundleRequest | None = None):
+    """Export the corpus as an encrypted ``.ftsrag`` file inside the project dir.
+
+    AES-256-GCM, key derived from a passphrase that is returned once (when
+    generated here) and never stored. Download it with ``GET .../rag/bundle/download``.
+    """
+    from finetune_studio.data.rag_portable import secure_bundle as sb
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    req = body or BundleRequest()
+    corpus = _corpus_dir(pid)
+    if not (corpus / "manifest.json").is_file():
         return JSONResponse({"error": "no corpus to bundle"}, status_code=404)
-    inc_models = str(include_models).lower() not in ("0", "false", "no", "")
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "-", req.name or "").strip(".-")[:48] or f"{pid}-corpus"
+    out = _bundle_dir(pid) / f"{stem}{sb.BUNDLE_EXT}"
     try:
-        out = rag.export_bundle(name=name, fmt=fmt, include_models=inc_models)
+        path, generated = await asyncio.to_thread(
+            sb.export_secure_bundle, corpus, out, req.passphrase or None)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=422)
     except Exception as e:
-        log.exception("bundle export failed")
-        return JSONResponse({"error": f"bundle export failed: {e}"}, status_code=500)
-    if not out.exists():
-        return JSONResponse({"error": "bundle export produced no file"}, status_code=500)
-    return FileResponse(
-        path=str(out),
-        media_type="application/x-tar" if fmt != "zip" else "application/zip",
-        filename=out.name,
+        log.exception("bundle export failed")  # never includes the passphrase
+        return JSONResponse({"error": f"bundle export failed: {type(e).__name__}"}, status_code=500)
+    return JSONResponse(
+        {"filename": path.name, "size": path.stat().st_size, "encrypted": True,
+         "passphrase": generated,
+         "download_url": f"/projects/{pid}/rag/bundle/download?file={path.name}"},
+        headers={"Cache-Control": "no-store"},
     )
 
 
-@router.post("/{pid}/rag/import")
-async def rag_import(pid: str, file: UploadFile, overwrite: bool = False):
-    """Import a corpus bundle (.tar/.tar.gz/.zip) produced by ``GET .../rag/bundle``.
+@router.get("/{pid}/rag/bundle/download")
+async def rag_bundle_download(pid: str, file: str):
+    from fastapi.responses import FileResponse
 
-    The uploaded archive replaces (or, with ``overwrite=false``, refuses to
-    replace) the existing corpus directory for this project. The returned
-    stats mirror :func:`rag_status` so the UI can refresh in place.
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    if not _SAFE_BUNDLE.match(file):
+        return JSONResponse({"error": "invalid bundle filename"}, status_code=400)
+    path = _bundle_dir(pid) / file
+    if not path.is_file():
+        return JSONResponse({"error": "bundle not found — export again"}, status_code=404)
+    return FileResponse(path=str(path), media_type="application/octet-stream",
+                        filename=file, headers={"Cache-Control": "no-store"})
+
+
+@router.post("/{pid}/rag/import")
+async def rag_import(pid: str, file: UploadFile, overwrite: bool = False,
+                     passphrase: str = Form("")):
+    """Import a corpus bundle: encrypted ``.ftsrag`` (needs ``passphrase``) or a
+    legacy ``.tar/.tar.gz/.zip``.
+
+    The upload is staged inside the project directory (never the system temp
+    dir) and removed afterwards. The corpus is replaced only when
+    ``overwrite=true`` or none exists. Returns the same stats as
+    :func:`rag_status`.
     """
     from finetune_studio.data.rag_portable import PortableRAG
+    from finetune_studio.data.rag_portable import secure_bundle as sb
+    from finetune_studio.data.rag_portable.rag_container import ContainerError
 
     missing = _project_404(pid)
     if missing is not None:
@@ -545,7 +587,9 @@ async def rag_import(pid: str, file: UploadFile, overwrite: bool = False):
     name_lower = filename.lower()
     # Path.suffix only sees the last dot, so "x.tar.gz" reports ".gz" —
     # match compound suffixes explicitly.
-    if name_lower.endswith((".tar.gz", ".tgz")):
+    if name_lower.endswith(sb.BUNDLE_EXT):
+        suffix = sb.BUNDLE_EXT
+    elif name_lower.endswith((".tar.gz", ".tgz")):
         suffix = ".tar.gz"
     elif name_lower.endswith(".tar"):
         suffix = ".tar"
@@ -557,24 +601,42 @@ async def rag_import(pid: str, file: UploadFile, overwrite: bool = False):
             status_code=400,
         )
 
-    # Stage the upload to a temp file so PortableRAG.import_bundle can stream
-    # it without holding the whole thing in memory.
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        shutil.copyfileobj(file.file, tmp)
-        tmp_path = Path(tmp.name)
+    staging = project_dir(pid) / "rag-import-staging"
+    staging.mkdir(parents=True, exist_ok=True)
+    tmp_path = staging / f"upload-{time.time_ns()}{suffix}"
+
+    def _stage() -> None:
+        with open(tmp_path, "wb") as tmp:
+            shutil.copyfileobj(file.file, tmp)
+
+    await asyncio.to_thread(_stage)
 
     rag = PortableRAG(_corpus_dir(pid))
     try:
-        stats = rag.import_bundle(tmp_path, overwrite=overwrite)
+        if suffix == sb.BUNDLE_EXT:
+            if not passphrase:
+                return JSONResponse({"error": "this bundle is encrypted; a passphrase is required"},
+                                    status_code=400)
+            if rag.exists() and not overwrite:
+                raise FileExistsError(
+                    f"Corpus already exists at {rag.dir}; pass overwrite=True to replace.")
+            await asyncio.to_thread(sb.import_secure_bundle, tmp_path, passphrase,
+                                    rag.dir, overwrite=True)
+            stats = rag.load().manifest.to_json()
+            stats = {"documents": stats.get("documents", 0), "chunks": stats.get("chunks", 0)}
+        else:
+            stats = rag.import_bundle(tmp_path, overwrite=overwrite)
     except FileNotFoundError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     except FileExistsError as e:
         return JSONResponse({"error": str(e)}, status_code=409)
+    except ContainerError as e:  # wrong passphrase / tampered / not a bundle
+        return JSONResponse({"error": str(e)}, status_code=400)
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     except Exception as e:
         log.exception("bundle import failed")
-        return JSONResponse({"error": f"bundle import failed: {e}"}, status_code=500)
+        return JSONResponse({"error": f"bundle import failed: {type(e).__name__}"}, status_code=500)
     finally:
         tmp_path.unlink(missing_ok=True)
 

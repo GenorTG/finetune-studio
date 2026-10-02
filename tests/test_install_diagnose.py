@@ -6,6 +6,7 @@ that through subprocess so a broken venv on disk can't poison us.
 """
 from __future__ import annotations
 
+import itertools
 import json
 import shutil
 import subprocess
@@ -448,7 +449,9 @@ class TestCLI:
     def test_check_returns_0_when_healthy(self, fake_venv):
         venv, llcpp = fake_venv
         with patch("install_diagnose._run") as r:
-            r.side_effect = [
+            # _main inspects the venv twice (diagnose + summary print), so cycle
+            # the 8 probe responses instead of exhausting a one-shot list.
+            r.side_effect = itertools.cycle([
                 _fake_run(stdout=json.dumps({"py": "3.13.0", "executable": "x"})),
                 _fake_run(returncode=0),
                 _fake_run(stdout=_healthy_torch_payload()),
@@ -457,7 +460,7 @@ class TestCLI:
                 _fake_run(returncode=0, stdout="0.3.35"),
                 _fake_run(returncode=0, stdout="0.20.0"),
                 _fake_run(returncode=0, stdout="1.12.0"),
-            ]
+            ])
             rc = diag._main([
                 "--venv", str(venv), "--llama-cpp", str(llcpp),
                 "--check", "--no-service-check",

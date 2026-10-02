@@ -12,7 +12,7 @@ git clone https://github.com/GenorTG/finetune-studio.git
 cd finetune-studio
 ./install.sh                       # does everything below
 source .venv/bin/activate
-fts web --host 0.0.0.0 --port 7860
+fts webui --host 0.0.0.0 --port 7860
 ```
 
 Then open http://localhost:7860.
@@ -74,8 +74,11 @@ This will:
 2. Upgrade pip
 3. Install PyTorch (GPU or CPU variant based on your hardware)
 4. Install the app dependencies and the `parsers` extra used for document ingestion
-5. Install Playwright browsers (only if Node is detected)
-6. Print a "next steps" message
+5. Run the install-time diagnostics and print next steps
+
+The installer does not install Playwright or browser binaries. See
+[`../tests/README_E2E.md`](../tests/README_E2E.md) for the separate browser-test
+setup.
 
 If `./install.sh` doesn't exist or is broken, do it manually:
 
@@ -111,9 +114,9 @@ CMAKE_ARGS="-DGGML_METAL=on" python -m pip install llama-cpp-python --force-rein
 
 ```bash
 source .venv/bin/activate
-fts web --host 0.0.0.0 --port 7860
+fts webui --host 0.0.0.0 --port 7860
 # or directly:
-python -m finetune_studio.webui.app
+python -m finetune_studio webui
 ```
 
 Open http://localhost:7860 in any modern browser. First visit triggers the
@@ -178,7 +181,7 @@ brew install python@3.12 git cmake
    python -m pip install --upgrade pip
    python -m pip install torch --index-url https://download.pytorch.org/whl/cu121
    python -m pip install -e ".[parsers]"
-   fts web --host 0.0.0.0 --port 7860
+fts webui --host 0.0.0.0 --port 7860
    ```
 5. Allow Python through Windows Firewall when prompted
 6. Open http://localhost:7860
@@ -225,7 +228,7 @@ print('peft:', peft.__version__)
 print('fastapi:', fastapi.__version__)
 print('CUDA available:', torch.cuda.is_available())
 "
-fts web --host 0.0.0.0 --port 7860 &
+fts webui --host 0.0.0.0 --port 7860 &
 sleep 5
 curl -s http://localhost:7860/api/projects | head -c 200
 ```

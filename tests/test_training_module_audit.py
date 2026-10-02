@@ -13,10 +13,13 @@ from __future__ import annotations
 
 import os
 import sys
-import tempfile
 from unittest.mock import patch
 
-from finetune_studio.training.engine import TrainingConfig, TrainingEngine, TrainingState
+from finetune_studio.training.engine import (
+    TrainingConfig,
+    TrainingEngine,
+    TrainingState,
+)
 from finetune_studio.training.gguf_convert import convert_merged_to_gguf
 
 

@@ -212,8 +212,8 @@ def test_rag_coverage_gate(client, project, temp_db, monkeypatch):
             {"id": sid, "filename": fn, "sha256": "h-" + sid, "chunk_count": 3,
              "uploaded_at": 1.0}))
     # Point rag corpora root at temp (single source of truth: rag route module)
-    import finetune_studio.webui.routes.rag as ragmod
-    monkeypatch.setattr(ragmod, "_CORPORA", tmp / "rag_corpora")
+    import finetune_studio.data.fs.paths as _paths
+    monkeypatch.setattr(_paths, "_ROOT", tmp)
     corpus = tmp / "rag_corpora" / project
     corpus.mkdir(parents=True)
     manifest = {"extra": {"documents_meta": [

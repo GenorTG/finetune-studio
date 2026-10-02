@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
+from finetune_studio.data.fs.paths import rag_corpus_dir
 from finetune_studio.data.rag_eval import UNKNOWN_REPLY
 from finetune_studio.testing.suite import (
     BenchmarkCase,
@@ -36,7 +37,6 @@ RAG_SYSTEM_PROMPT = (
     "from the underlying values, not a variance or unrelated row."
 )
 
-_CORPORA_ROOT = Path.home() / ".finetune-studio" / "rag_corpora"
 
 
 class RagSearchEngine(Protocol):
@@ -67,7 +67,7 @@ class ChatEngine(Protocol):
 
 def default_corpus_path(pid: str) -> Path:
     """Canonical PortableRAG directory for a project id."""
-    return _CORPORA_ROOT / str(pid)
+    return rag_corpus_dir(pid)
 
 
 def resolve_corpus_path(pid: str = "", corpus_path: str = "") -> Path:

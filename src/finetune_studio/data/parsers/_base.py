@@ -46,7 +46,7 @@ def cli_run(parse_fn) -> None:
     pretty = "--pretty" in sys.argv
     try:
         result = parse_fn(path)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - CLI boundary: any parser failure becomes a JSON error + exit 1
         print(_json.dumps({"error": str(e), "parser": parse_fn.__name__}), file=sys.stderr)
         sys.exit(1)
     indent = 2 if pretty else None

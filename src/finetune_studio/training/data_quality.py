@@ -232,19 +232,22 @@ class DataQualityAnalyzer:
 
 
 def generate_fixes(analysis: dict) -> list:
-    """Generate specific fixes based on analysis."""
+    """Generate suggested fixes. ``command`` is only set when a real ``fts`` command exists."""
     fixes = []
     for issue in analysis["issues"]:
         if issue["type"] == "duplicates":
             fixes.append({"action": "deduplicate", "priority": "high",
-                         "command": "fts dedup INPUT OUTPUT"})
+                         "advice": "Remove duplicate examples from the JSONL file "
+                                   "(e.g. `sort -u INPUT > OUTPUT`) before training."})
         elif issue["type"] == "empty":
             fixes.append({"action": "remove_empty", "priority": "high",
-                         "command": "fts clean INPUT --remove-empty"})
+                         "advice": "Delete examples with empty messages from the JSONL file, "
+                                   "then re-run `fts analyze` to confirm."})
         elif issue["type"] == "language":
             fixes.append({"action": "augment_language", "priority": "medium",
-                         "command": "fts augment INPUT --target-lang EN --count 100"})
+                         "command": "fts augment INPUT --output OUTPUT --type language"})
         elif issue["type"] == "length":
             fixes.append({"action": "balance_length", "priority": "medium",
-                         "command": "fts augment INPUT --min-words 5 --max-words 200"})
+                         "advice": "Trim or split examples that are far longer or shorter than "
+                                   "the rest so response lengths are more even."})
     return fixes

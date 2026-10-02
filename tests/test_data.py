@@ -1,5 +1,9 @@
-import json, tempfile, os
-from finetune_studio.training.data import load_jsonl, validate_messages, format_for_sft
+import json
+import os
+import tempfile
+
+from finetune_studio.training.data import format_for_sft, load_jsonl, validate_messages
+
 
 def test_load_jsonl():
     with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False, mode="w") as f:

@@ -7,47 +7,50 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-394 files · 70000 lines
-- `finetune_studio`: 214 files, 40472 lines
-- `scripts`: 9 files, 2283 lines
-- `tests`: 171 files, 27245 lines
+408 files · 73785 lines
+- `finetune_studio`: 216 files, 41909 lines
+- `scripts`: 9 files, 2343 lines
+- `tests`: 183 files, 29533 lines
 
 
 # finetune_studio
 
 ## `src/finetune_studio/__init__.py` (45 lines)
-- `build_version() -> str` (L23) — Full per-commit build version ``MAJOR.MINOR.PATCH.BUILD``.
+- `def build_version() -> str` (L23) — Full per-commit build version ``MAJOR.MINOR.PATCH.BUILD``.
 
 ## `src/finetune_studio/__main__.py` (18 lines)
   - imports: finetune_studio.cli
 
 ## `src/finetune_studio/benchmarks/__init__.py` (17 lines)
 
-## `src/finetune_studio/benchmarks/comparison.py` (150 lines)
-- `class ComparisonResult` (L26)
-- `class ModelComparator` (L35)
-  - `def __init__(self)` (L38)
-  - `def load_model(self, name: str, path: str)` (L41)
-  - `def unload_all(self)` (L47)
-  - `def cleanup(self)` (L52)
-  - `def run_comparison(self, test_suite, config: dict | None = None) -> dict` (L60)
-  - `def _score_response(self, response, expected: dict) -> dict` (L133)
+## `src/finetune_studio/benchmarks/comparison.py` (174 lines)
+- `class NoModelsLoadedError(RuntimeError)` (L26)
+- `class ComparisonResult` (L31)
+- `class ModelComparator` (L40)
+  - `def __init__(self)` (L43)
+  - `def load_model(self, name: str, path: str)` (L49)
+  - `def model_names(self) -> list[str]` (L59)
+  - `def unload_all(self)` (L63)
+  - `def cleanup(self)` (L69)
+  - `def run_comparison(self, test_suite, config: dict | None = None) -> dict` (L78)
+  - `def _run_comparison_locked(self, test_suite, config: dict | None = None) -> dict` (L84)
+  - `def _score_response(self, response, expected: dict) -> dict` (L157)
   - imports: finetune_studio.benchmarks.scoring, finetune_studio.testing.inference
 
 ## `src/finetune_studio/benchmarks/offline_fixture_data.py` (510 lines)
-- `_mcq(name: str, category: str, question: str, letter: str, answer_text: str) -> di…` (L15) — Build a multiple-choice case with letter+text keywords for heuristic score.
-- `_math(name: str, category: str, question: str, answer: str, *extra_keywords: str) -…` (L32)
-- `_completion(name: str, category: str, question: str, correct: str, *keywords: str) -> dic…` (L49)
-- `mmlu_offline_cases() -> list[dict[str, Any]]` (L65) — ~48 synthetic knowledge MCQs across STEM / humanities / common facts.
-- `gsm8k_offline_cases() -> list[dict[str, Any]]` (L217) — ~40 synthetic grade-school arithmetic word problems with exact answers.
-- `hellaswag_offline_cases() -> list[dict[str, Any]]` (L345) — ~40 synthetic sentence-completion / commonsence MCQs.
+- `def _mcq(name: str, category: str, question: str, letter: str, answer_text: str) -> di…` (L15) — Build a multiple-choice case with letter+text keywords for heuristic score.
+- `def _math(name: str, category: str, question: str, answer: str, *extra_keywords: str) -…` (L32)
+- `def _completion(name: str, category: str, question: str, correct: str, *keywords: str) -> dic…` (L49)
+- `def mmlu_offline_cases() -> list[dict[str, Any]]` (L65) — ~48 synthetic knowledge MCQs across STEM / humanities / common facts.
+- `def gsm8k_offline_cases() -> list[dict[str, Any]]` (L217) — ~40 synthetic grade-school arithmetic word problems with exact answers.
+- `def hellaswag_offline_cases() -> list[dict[str, Any]]` (L345) — ~40 synthetic sentence-completion / commonsence MCQs.
 
 ## `src/finetune_studio/benchmarks/offline_suites.py` (133 lines)
-- `fixtures_dir() -> Path` (L70) — Directory containing versioned suite JSON fixtures.
-- `offline_suite_metas() -> list[dict[str, Any]]` (L75) — Metadata for discoverable offline suites (without builder callables).
-- `build_suite_document(meta: dict[str, Any], cases: list[dict[str, Any]]) -> dict[str, Any]` (L90) — Assemble the on-disk suite JSON object.
-- `write_offline_fixtures(*, force: bool = False) -> list[Path]` (L110) — Write offline fixture JSON files under ``fixtures/``. Returns paths written.
-- `ensure_offline_fixtures() -> list[Path]` (L131) — Ensure offline fixtures exist on disk (idempotent).
+- `def fixtures_dir() -> Path` (L70) — Directory containing versioned suite JSON fixtures.
+- `def offline_suite_metas() -> list[dict[str, Any]]` (L75) — Metadata for discoverable offline suites (without builder callables).
+- `def build_suite_document(meta: dict[str, Any], cases: list[dict[str, Any]]) -> dict[str, Any]` (L90) — Assemble the on-disk suite JSON object.
+- `def write_offline_fixtures(*, force: bool = False) -> list[Path]` (L110) — Write offline fixture JSON files under ``fixtures/``. Returns paths written.
+- `def ensure_offline_fixtures() -> list[Path]` (L131) — Ensure offline fixtures exist on disk (idempotent).
   - imports: finetune_studio.benchmarks.offline_fixture_data
 
 ## `src/finetune_studio/benchmarks/real_benchmarks.py` (849 lines)
@@ -59,24 +62,24 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `class CaseEvalResult` (L111)
 - `class RealBenchmarkResult` (L128)
   - `def as_dict(self) -> dict[str, Any]` (L139)
-- `real_suite_path(family: RealFamily | str) -> str` (L224) — Virtual suite path used by discovery / WebUI selection.
-- `parse_real_suite_path(path: str) -> RealFamily | None` (L229) — Return family when ``path`` is a real:// suite, else None.
-- `is_real_suite_path(path: str) -> bool` (L240) — True when path references a built-in real HF suite.
-- `list_real_families() -> list[RealFamily]` (L245) — Ordered list of supported real benchmark families.
-- `_coerce_response(raw: str | dict[str, Any]) -> str` (L250)
-- `_parse_listish(value: Any) -> list[Any]` (L256)
-- `format_mmlu_prompt(question: str, choices: Sequence[str]) -> str` (L271) — Zero-shot MCQ prompt; expects a single letter reply.
-- `format_hellaswag_prompt(ctx: str, endings: Sequence[str]) -> str` (L287) — Zero-shot completion MCQ prompt.
-- `format_gsm8k_prompt(question: str) -> str` (L303) — Zero-shot GSM8K prompt with #### final-answer convention.
-- `extract_gsm8k_gold(answer_field: str) -> str` (L308) — Official GSM8K gold is the token after the last ####.
-- `_default_load_dataset(path: str, name: str | None = None, *, split: str, cache_dir: str | None = No…` (L316)
-- `resolve_sample_count(*, split_size: int, num_samples: int | None, full_run: bool) -> int` (L334) — Clamp requested sample count; ``full_run`` uses the entire split.
-- `select_indices(split_size: int, sample_count: int, *, seed: int = DEFAULT_SEED, order: Sampl…` (L349) — Deterministic index selection over ``[0, split_size)``.
-- `_row_get(row: Mapping[str, Any] | Any, key: str) -> Any` (L367)
-- `mmlu_row_to_case(row: Mapping[str, Any] | Any, index: int) -> BenchmarkCase` (L373) — Convert one cais/mmlu row into a BenchmarkCase.
-- `hellaswag_row_to_case(row: Mapping[str, Any] | Any, index: int) -> BenchmarkCase` (L394) — Convert one Rowan/hellaswag row into a BenchmarkCase.
-- `gsm8k_row_to_case(row: Mapping[str, Any] | Any, index: int) -> BenchmarkCase` (L415) — Convert one openai/gsm8k row into a BenchmarkCase.
-- `build_metadata(family: RealFamily, *, sample_count: int, seed: int = DEFAULT_SEED, order: Sa…` (L435) — Assemble explicit metadata for a real suite run.
+- `def real_suite_path(family: RealFamily | str) -> str` (L224) — Virtual suite path used by discovery / WebUI selection.
+- `def parse_real_suite_path(path: str) -> RealFamily | None` (L229) — Return family when ``path`` is a real:// suite, else None.
+- `def is_real_suite_path(path: str) -> bool` (L240) — True when path references a built-in real HF suite.
+- `def list_real_families() -> list[RealFamily]` (L245) — Ordered list of supported real benchmark families.
+- `def _coerce_response(raw: str | dict[str, Any]) -> str` (L250)
+- `def _parse_listish(value: Any) -> list[Any]` (L256)
+- `def format_mmlu_prompt(question: str, choices: Sequence[str]) -> str` (L271) — Zero-shot MCQ prompt; expects a single letter reply.
+- `def format_hellaswag_prompt(ctx: str, endings: Sequence[str]) -> str` (L287) — Zero-shot completion MCQ prompt.
+- `def format_gsm8k_prompt(question: str) -> str` (L303) — Zero-shot GSM8K prompt with #### final-answer convention.
+- `def extract_gsm8k_gold(answer_field: str) -> str` (L308) — Official GSM8K gold is the token after the last ####.
+- `def _default_load_dataset(path: str, name: str | None = None, *, split: str, cache_dir: str | None = No…` (L316)
+- `def resolve_sample_count(*, split_size: int, num_samples: int | None, full_run: bool) -> int` (L334) — Clamp requested sample count; ``full_run`` uses the entire split.
+- `def select_indices(split_size: int, sample_count: int, *, seed: int = DEFAULT_SEED, order: Sampl…` (L349) — Deterministic index selection over ``[0, split_size)``.
+- `def _row_get(row: Mapping[str, Any] | Any, key: str) -> Any` (L367)
+- `def mmlu_row_to_case(row: Mapping[str, Any] | Any, index: int) -> BenchmarkCase` (L373) — Convert one cais/mmlu row into a BenchmarkCase.
+- `def hellaswag_row_to_case(row: Mapping[str, Any] | Any, index: int) -> BenchmarkCase` (L394) — Convert one Rowan/hellaswag row into a BenchmarkCase.
+- `def gsm8k_row_to_case(row: Mapping[str, Any] | Any, index: int) -> BenchmarkCase` (L415) — Convert one openai/gsm8k row into a BenchmarkCase.
+- `def build_metadata(family: RealFamily, *, sample_count: int, seed: int = DEFAULT_SEED, order: Sa…` (L435) — Assemble explicit metadata for a real suite run.
 - `class RealBenchmarkSuite` (L465)
   - `def __init__(self, cache_dir: str = 'data/benchmarks/hf_cache', *, dataset_loader: Dataset…` (L468)
   - `def list_available(self) -> dict[str, str]` (L478)
@@ -88,7 +91,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def evaluate_hellaswag(self, inference_engine: InferenceLike, num_samples: int | None = DEFAULT_SAMP…` (L681)
   - `def _evaluate_cases(self, family: RealFamily, inference_engine: InferenceLike, cases: list[Benchm…` (L702)
   - `def run_all(self, inference_engine: InferenceLike, num_samples: int | None = DEFAULT_SAMP…` (L768)
-- `overall_accuracy_from_run_all(payload: Mapping[str, Any]) -> float` (L827) — Extract a scalar overall accuracy from ``run_all`` output.
+- `def overall_accuracy_from_run_all(payload: Mapping[str, Any]) -> float` (L827) — Extract a scalar overall accuracy from ``run_all`` output.
   - imports: finetune_studio.testing.strict_scoring, finetune_studio.testing.suite
 
 ## `src/finetune_studio/benchmarks/scoring.py` (218 lines)
@@ -106,407 +109,405 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `class SuiteDefinition` (L95)
   - `def label(self) -> str` (L116)
   - `def as_dict(self) -> dict[str, Any]` (L147)
-- `fixtures_dir() -> Path` (L172) — Directory containing versioned suite JSON fixtures.
-- `_case_count_from_file(path: Path) -> int | None` (L177)
-- `list_builtin_smoke_suites() -> list[SuiteDefinition]` (L191) — Return built-in synthetic smoke suites whose fixture files exist.
-- `list_builtin_offline_suites() -> list[SuiteDefinition]` (L215) — Return substantive synthetic offline suites (ensure fixtures on disk).
-- `list_builtin_industry_suites() -> list[SuiteDefinition]` (L245) — Smoke + substantive offline built-ins (legacy name; all synthetic).
-- `list_builtin_real_suites() -> list[SuiteDefinition]` (L250) — Official HuggingFace MMLU / GSM8K / HellaSwag suites (virtual paths).
-- `format_auto_suite_label(suite_name: str, case_count: int) -> str` (L286) — Label for a project auto-generated suite.
-- `_sort_key(entry: dict[str, Any]) -> tuple[int, str]` (L291) — Real first, then offline, smoke, local, auto.
-- `discover_suites(project_id: str | None = None) -> list[dict[str, Any]]` (L307) — Discover selectable suites: real HF, offline, smoke, local JSON, auto.
-- `selectable_paths(project_id: str | None = None) -> set[str]` (L396) — Paths currently offered by discovery (for selection validation).
-- `is_selectable_suite(suite_path: str, project_id: str | None = None) -> bool` (L401) — True when suite_path is among discovered selectable suites.
+- `def fixtures_dir() -> Path` (L172) — Directory containing versioned suite JSON fixtures.
+- `def _case_count_from_file(path: Path) -> int | None` (L177)
+- `def list_builtin_smoke_suites() -> list[SuiteDefinition]` (L191) — Return built-in synthetic smoke suites whose fixture files exist.
+- `def list_builtin_offline_suites() -> list[SuiteDefinition]` (L215) — Return substantive synthetic offline suites (ensure fixtures on disk).
+- `def list_builtin_industry_suites() -> list[SuiteDefinition]` (L245) — Smoke + substantive offline built-ins (legacy name; all synthetic).
+- `def list_builtin_real_suites() -> list[SuiteDefinition]` (L250) — Official HuggingFace MMLU / GSM8K / HellaSwag suites (virtual paths).
+- `def format_auto_suite_label(suite_name: str, case_count: int) -> str` (L286) — Label for a project auto-generated suite.
+- `def _sort_key(entry: dict[str, Any]) -> tuple[int, str]` (L291) — Real first, then offline, smoke, local, auto.
+- `def discover_suites(project_id: str | None = None) -> list[dict[str, Any]]` (L307) — Discover selectable suites: real HF, offline, smoke, local JSON, auto.
+- `def selectable_paths(project_id: str | None = None) -> set[str]` (L396) — Paths currently offered by discovery (for selection validation).
+- `def is_selectable_suite(suite_path: str, project_id: str | None = None) -> bool` (L401) — True when suite_path is among discovered selectable suites.
   - imports: finetune_studio, finetune_studio.benchmarks.offline_suites, finetune_studio.benchmarks.real_benchmarks, finetune_studio.testing.full_corpus_suite
 
-## `src/finetune_studio/cli/__init__.py` (18 lines)
-- `cli_main() -> None` (L16) — Alias for `main()` — used by `python -m finetune_studio.cli`.
+## `src/finetune_studio/cli/__init__.py` (20 lines)
+- `def cli_main() -> None` (L18) — Alias for `main()` — used by `python -m finetune_studio.cli`.
   - imports: finetune_studio.cli._registry
 
-## `src/finetune_studio/cli/__main__.py` (6 lines)
+## `src/finetune_studio/cli/__main__.py` (5 lines)
   - imports: finetune_studio.cli
 
-## `src/finetune_studio/cli/_parser.py` (215 lines)
-- `build_parser() -> argparse.ArgumentParser` (L16)
+## `src/finetune_studio/cli/_parser.py` (207 lines)
+- `def build_parser() -> argparse.ArgumentParser` (L16)
 
-## `src/finetune_studio/cli/_registry.py` (61 lines)
-- `main() -> None` (L55)
+## `src/finetune_studio/cli/_registry.py` (63 lines)
+- `def main() -> None` (L57)
   - imports: finetune_studio.cli._parser, finetune_studio.cli.commands.analyze, finetune_studio.cli.commands.augment, finetune_studio.cli.commands.benchmark, finetune_studio.cli.commands.compare, finetune_studio.cli.commands.convert, finetune_studio.cli.commands.files, finetune_studio.cli.commands.models, finetune_studio.cli.commands.optimize, finetune_studio.cli.commands.rag, finetune_studio.cli.commands.rag_test, finetune_studio.cli.commands.suite, finetune_studio.cli.commands.test, finetune_studio.cli.commands.train, finetune_studio.cli.commands.validate, finetune_studio.cli.commands.validate_hallucination, finetune_studio.cli.commands.vram, finetune_studio.cli.commands.webui
 
 ## `src/finetune_studio/cli/_vram_print.py` (23 lines)
-- `print_vram_check(label: str, est) -> None` (L5) — Pretty-print a VRAM check result.
+- `def print_vram_check(label: str, est) -> None` (L5) — Pretty-print a VRAM check result.
 
 ## `src/finetune_studio/cli/commands/__init__.py` (7 lines)
 
 ## `src/finetune_studio/cli/commands/analyze.py` (46 lines)
-- `cmd_analyze(args) -> None` (L7)
+- `def cmd_analyze(args) -> None` (L7)
   - imports: finetune_studio.training.data_quality
 
-## `src/finetune_studio/cli/commands/augment.py` (56 lines)
-- `cmd_augment(args) -> None` (L7)
+## `src/finetune_studio/cli/commands/augment.py` (78 lines)
+- `def cmd_augment(args) -> None` (L20)
   - imports: finetune_studio.training.data_augmentation, finetune_studio.training.data_quality
 
-## `src/finetune_studio/cli/commands/benchmark.py` (79 lines)
-- `cmd_benchmark(args) -> None` (L9)
+## `src/finetune_studio/cli/commands/benchmark.py` (78 lines)
+- `def cmd_benchmark(args) -> None` (L9)
   - imports: finetune_studio.benchmarks.real_benchmarks, finetune_studio.testing.inference
 
 ## `src/finetune_studio/cli/commands/compare.py` (56 lines)
-- `cmd_compare(args) -> None` (L9)
+- `def cmd_compare(args) -> None` (L9)
   - imports: finetune_studio.benchmarks.comparison, finetune_studio.testing.suite
 
 ## `src/finetune_studio/cli/commands/convert.py` (32 lines)
-- `cmd_convert(args) -> None` (L8)
+- `def cmd_convert(args) -> None` (L8)
   - imports: finetune_studio.data.converter
 
-## `src/finetune_studio/cli/commands/files.py` (100 lines)
-- `cmd_files(args) -> None` (L19)
-- `_cmd_files_trash(args) -> None` (L31) — List or purge trash. Args:
+## `src/finetune_studio/cli/commands/files.py` (99 lines)
+- `def cmd_files(args) -> None` (L18)
+- `def _cmd_files_trash(args) -> None` (L30) — List or purge trash. Args:
   - imports: finetune_studio, finetune_studio.data.fs
 
 ## `src/finetune_studio/cli/commands/models.py` (24 lines)
-- `cmd_models(args) -> None` (L7)
+- `def cmd_models(args) -> None` (L7)
   - imports: finetune_studio.config, finetune_studio.models.registry
 
 ## `src/finetune_studio/cli/commands/optimize.py` (40 lines)
-- `cmd_optimize(args) -> None` (L7)
+- `def cmd_optimize(args) -> None` (L7)
   - imports: finetune_studio.training.config_optimizer
 
 ## `src/finetune_studio/cli/commands/rag.py` (64 lines)
-- `cmd_rag(args) -> None` (L9)
+- `def cmd_rag(args) -> None` (L9)
   - imports: finetune_studio.rag.manager
 
 ## `src/finetune_studio/cli/commands/rag_test.py` (42 lines)
-- `cmd_rag_test(args) -> None` (L9)
+- `def cmd_rag_test(args) -> None` (L9)
   - imports: finetune_studio.rag.query, finetune_studio.rag.store, finetune_studio.testing.inference
 
-## `src/finetune_studio/cli/commands/suite.py` (47 lines)
-- `cmd_suite(args) -> None` (L9)
+## `src/finetune_studio/cli/commands/suite.py` (85 lines)
+- `def _result_row(r) -> dict` (L9)
+- `def cmd_suite(args) -> None` (L22)
   - imports: finetune_studio.testing.inference, finetune_studio.testing.suite
 
 ## `src/finetune_studio/cli/commands/test.py` (38 lines)
-- `cmd_test(args) -> None` (L8)
+- `def cmd_test(args) -> None` (L8)
   - imports: finetune_studio.testing.inference
 
 ## `src/finetune_studio/cli/commands/train.py` (51 lines)
-- `cmd_train(args) -> None` (L9)
+- `def cmd_train(args) -> None` (L9)
   - imports: finetune_studio.training.data, finetune_studio.training.engine
 
-## `src/finetune_studio/cli/commands/validate.py` (14 lines)
-- `cmd_validate(args) -> None` (L5)
+## `src/finetune_studio/cli/commands/validate.py` (22 lines)
+- `def cmd_validate(args) -> None` (L7) — Report on every file, then exit 1 if any file is invalid.
   - imports: finetune_studio.data.validator
 
 ## `src/finetune_studio/cli/commands/validate_hallucination.py` (31 lines)
-- `cmd_validate_hallucination(args) -> None` (L7)
+- `def cmd_validate_hallucination(args) -> None` (L7)
   - imports: finetune_studio.training.hallucination_guard
 
 ## `src/finetune_studio/cli/commands/vram.py` (113 lines)
-- `cmd_vram(args) -> None` (L10)
+- `def cmd_vram(args) -> None` (L10)
   - imports: finetune_studio.cli._vram_print, finetune_studio.training.vram_profiler
 
 ## `src/finetune_studio/cli/commands/webui.py` (10 lines)
-- `cmd_webui(args) -> None` (L5)
+- `def cmd_webui(args) -> None` (L5)
 
 ## `src/finetune_studio/compare/__init__.py` (10 lines)
 
-## `src/finetune_studio/config.py` (65 lines)
-- `class RAGSettings` (L24)
-- `class Settings` (L40)
+## `src/finetune_studio/config.py` (53 lines)
+- `class RAGSettings` (L13)
+- `class Settings` (L29)
 
 ## `src/finetune_studio/data/__init__.py` (2 lines)
 
 ## `src/finetune_studio/data/audit.py` (226 lines)
-- `_sha256(data: bytes) -> str` (L23)
-- `_source_raw_path(pid: str, source: dict[str, Any]) -> Path` (L27)
-- `audit_source(pid: str, source: dict[str, Any]) -> dict[str, Any]` (L33) — Audit one persisted source from raw bytes through chunk artefacts.
-- `audit_project_sources(pid: str) -> dict[str, Any]` (L101) — Audit every QA source and its raw/file manifest.
-- `audit_qa_pairs(pid: str, *, exported_path: str | None = None) -> dict[str, Any]` (L115) — Check pair provenance, chunk coverage, grounding, and export loss.
-- `audit_suite_cases(suite_path: str, dataset_path: str | None = None) -> dict[str, Any]` (L193) — Audit suite completeness and metadata against its source dataset.
+- `def _sha256(data: bytes) -> str` (L23)
+- `def _source_raw_path(pid: str, source: dict[str, Any]) -> Path` (L27)
+- `def audit_source(pid: str, source: dict[str, Any]) -> dict[str, Any]` (L33) — Audit one persisted source from raw bytes through chunk artefacts.
+- `def audit_project_sources(pid: str) -> dict[str, Any]` (L101) — Audit every QA source and its raw/file manifest.
+- `def audit_qa_pairs(pid: str, *, exported_path: str | None = None) -> dict[str, Any]` (L115) — Check pair provenance, chunk coverage, grounding, and export loss.
+- `def audit_suite_cases(suite_path: str, dataset_path: str | None = None) -> dict[str, Any]` (L193) — Audit suite completeness and metadata against its source dataset.
   - imports: finetune_studio.data, finetune_studio.data.fs.paths, finetune_studio.data.parsers, finetune_studio.data.prep.chunker, finetune_studio.data.prep.export, finetune_studio.data.prep.qa_validate
 
-## `src/finetune_studio/data/converter.py` (67 lines)
-- `jsonl_to_json(jsonl_path, json_path)` (L23)
-- `json_to_jsonl(json_path, jsonl_path)` (L33)
-- `csv_to_jsonl(csv_path, jsonl_path, text_column = 'text', system_prompt = '')` (L39)
-- `simple_to_chat(text_path, jsonl_path, system_prompt = '')` (L51)
+## `src/finetune_studio/data/converter.py` (49 lines)
+- `def jsonl_to_json(jsonl_path, json_path)` (L23)
+- `def json_to_jsonl(json_path, jsonl_path)` (L33)
+- `def csv_to_jsonl(csv_path, jsonl_path, text_column = 'text', system_prompt = '')` (L39)
 
-## `src/finetune_studio/data/fs/__init__.py` (68 lines)
+## `src/finetune_studio/data/fs/__init__.py` (70 lines)
   - imports: finetune_studio.data.fs.chunks, finetune_studio.data.fs.files, finetune_studio.data.fs.ingestion, finetune_studio.data.fs.metadata, finetune_studio.data.fs.parsed, finetune_studio.data.fs.paths, finetune_studio.data.fs.project, finetune_studio.data.fs.qa
 
-## `src/finetune_studio/data/fs/chunks.py` (31 lines)
-- `write_chunks(pid: str, sha256: str, chunks: list[str], chunk_meta: Optional[list[dict]] = …` (L14)
+## `src/finetune_studio/data/fs/chunks.py` (30 lines)
+- `def write_chunks(pid: str, sha256: str, chunks: list[str], chunk_meta: list[dict] | None = Non…` (L13)
   - imports: finetune_studio.data.fs.paths
 
-## `src/finetune_studio/data/fs/file_library.py` (1469 lines)
-- `_sniff_mime(filename: str, sniffed: str | None = None) -> str` (L63) — Best-effort MIME detection: prefer the python-magic 'sniffed' value
-- `auto_kind_for(mime: str) -> str` (L75) — Map a MIME type to one of the six raw subfolders.
-- `_ext_for_filename(name: str) -> str` (L90) — Return lowercase extension WITHOUT the dot, or '' if none.
-- `_safe_stem(name: str) -> str` (L97) — Stem suitable for embedding in a filename. Strips directories, replaces
-- `sha256_of_bytes(data: bytes) -> str` (L116)
+## `src/finetune_studio/data/fs/file_library.py` (1442 lines)
+- `def _sniff_mime(filename: str, sniffed: str | None = None) -> str` (L63) — Best-effort MIME detection: prefer the python-magic 'sniffed' value
+- `def auto_kind_for(mime: str) -> str` (L75) — Map a MIME type to one of the six raw subfolders.
+- `def _ext_for_filename(name: str) -> str` (L90) — Return lowercase extension WITHOUT the dot, or '' if none.
+- `def _safe_stem(name: str) -> str` (L97) — Stem suitable for embedding in a filename. Strips directories, replaces
+- `def sha256_of_bytes(data: bytes) -> str` (L116)
 - `class FileMetadata` (L121)
   - `def raw_filename(self) -> str` (L132)
-- `class UploadReportItem` (L137)
-  - `def to_dict(self) -> dict` (L146)
-- `raw_subdir(pid: str, auto_kind: str) -> Path` (L159) — The directory where raw files of this MIME kind live for this project.
-- `raw_trash_dir(pid: str) -> Path` (L166)
-- `converted_trash_dir(pid: str) -> Path` (L170)
-- `raw_path_for(pid: str, file_id: str, original_name: str, auto_kind: str) -> Path` (L174) — Build the on-disk path for a raw file. Includes file_id prefix so
-- `converted_filename_for(original_name: str, when_ts: float) -> str` (L182) — Naming convention for converted files. Includes date for traceability
-- `converted_path_for(pid: str, user_folder: str, converted_filename: str) -> Path` (L191) — Path for a converted file inside a user-named folder.
-- `ensure_dirs(pid: str) -> None` (L197) — Create the full directory tree (idempotent).
-- `get_or_create_auto_folder(pid: str, auto_kind: str) -> dict` (L209) — Get the DB row for a raw auto-folder, creating it if missing.
-- `find_existing_hash(pid: str, raw_hash: str) -> dict | None` (L235) — Look up an existing live file (deleted_at IS NULL) by its raw hash.
-- `record_uploaded_file(*, pid: str, file_id: str, original_name: str, mime_type: str, size_bytes: in…` (L251) — Insert a new project_files row + first file_versions row, and add the
-- `list_files(pid: str, *, folder_id: str | None = None, include_deleted: bool = False, mim…` (L293) — List files for a project. If folder_id is given, restrict to files
-- `list_folders(pid: str, *, include_auto: bool = True) -> list[dict]` (L331)
-- `get_file(pid: str, file_id: str, *, include_deleted: bool = False) -> dict | None` (L347)
-- `list_versions(pid: str, file_id: str) -> list[dict]` (L365) — Return all raw versions of a file, newest first.
-- `list_conversions(pid: str, file_id: str) -> list[dict]` (L379)
-- `create_folder(pid: str, name: str) -> dict` (L393)
-- `rename_folder(pid: str, folder_id: str, new_name: str) -> dict` (L420)
-- `delete_folder(pid: str, folder_id: str) -> dict` (L460) — Delete a user folder. The files in it remain — only the membership
-- `move_file_to_folder(pid: str, file_id: str, folder_id: str) -> dict` (L478) — Move a file to a different folder.
-- `soft_delete_file(pid: str, file_id: str) -> dict` (L538) — Soft-delete: move the file (and any converted siblings) to the trash
-- `restore_file(pid: str, file_id: str) -> dict` (L582) — Restore a soft-deleted file from trash back to its original auto-folder.
-- `purge_trash(pid: str, older_than_days: int = 7) -> dict` (L628) — Hard-delete everything in trash older than N days.
-- `list_trash(pid: str) -> list[dict]` (L696) — List files currently in trash, with how many days until purge.
-- `_revive_deleted_file(pid: str, file_id: str, original_name: str, data: bytes, mime: str, kind: str…` (L718) — Undelete a soft-deleted row for a re-upload of the same filename.
-- `write_uploaded_file(pid: str, data: bytes, original_name: str, *, mime_hint: str | None = None, u…` (L773) — Write bytes to the correct MIME-segregated raw subfolder. Compute
-- `write_staged_upload(pid: str, staged_path: Path, original_name: str, *, raw_hash: str, size_bytes…` (L877) — Atomically adopt a streamed upload without loading it back into RAM.
-- `_cache_key(pid: str, file_id: str) -> str` (L987)
-- `invalidate_parsed_cache(pid: str, file_id: str) -> None` (L991) — Drop any in-memory parsed-MD cache entry for this file.
-- `_project_files_columns() -> set[str]` (L996) — Return the live column names on project_files (for optional parsed_* cols).
-- `_validate_rename_name(new_name: str) -> str` (L1011) — Validate a user-facing rename target. Returns the stripped name.
-- `_csv_to_md_table(text: str) -> str` (L1040) — Convert CSV/TSV text to a simple GitHub-flavoured markdown table.
-- `_convert_raw_to_md(path: Path, original_name: str) -> str` (L1071) — Convert a text-like file on disk into markdown. Raises HTTPException 422
-- `_current_raw_path(pid: str, file_id: str, current_version: int) -> Path | None` (L1108) — Resolve the on-disk path for the file's current version.
-- `rename_file(pid: str, file_id: str, new_name: str) -> dict` (L1134) — Rename a live file: update project_files.original_name and rename on disk.
-- `purge_file(pid: str, file_id: str) -> dict` (L1252) — Hard-delete a single trashed file (disk + DB rows).
-- `get_parsed_markdown(pid: str, file_id: str) -> dict` (L1325) — Resolve a file's parsed-markdown representation.
+- `def raw_subdir(pid: str, auto_kind: str) -> Path` (L138) — The directory where raw files of this MIME kind live for this project.
+- `def raw_trash_dir(pid: str) -> Path` (L145)
+- `def converted_trash_dir(pid: str) -> Path` (L149)
+- `def raw_path_for(pid: str, file_id: str, original_name: str, auto_kind: str) -> Path` (L153) — Build the on-disk path for a raw file. Includes file_id prefix so
+- `def ensure_dirs(pid: str) -> None` (L161) — Create the full directory tree (idempotent).
+- `def get_or_create_auto_folder(pid: str, auto_kind: str) -> dict` (L173) — Get the DB row for a raw auto-folder, creating it if missing.
+- `def find_existing_hash(pid: str, raw_hash: str) -> dict | None` (L199) — Look up an existing live file (deleted_at IS NULL) by its raw hash.
+- `def record_uploaded_file(*, pid: str, file_id: str, original_name: str, mime_type: str, size_bytes: in…` (L215) — Insert a new project_files row + first file_versions row, and add the
+- `def list_files(pid: str, *, folder_id: str | None = None, include_deleted: bool = False, mim…` (L257) — List files for a project. If folder_id is given, restrict to files
+- `def list_folders(pid: str, *, include_auto: bool = True) -> list[dict]` (L295)
+- `def get_file(pid: str, file_id: str, *, include_deleted: bool = False) -> dict | None` (L311)
+- `def list_versions(pid: str, file_id: str) -> list[dict]` (L329) — Return all raw versions of a file, newest first.
+- `def list_conversions(pid: str, file_id: str) -> list[dict]` (L349) — Return a file's conversions, newest first, scoped to ``pid``.
+- `def create_folder(pid: str, name: str) -> dict` (L366)
+- `def rename_folder(pid: str, folder_id: str, new_name: str) -> dict` (L393)
+- `def delete_folder(pid: str, folder_id: str) -> dict` (L433) — Delete a user folder. The files in it remain — only the membership
+- `def move_file_to_folder(pid: str, file_id: str, folder_id: str) -> dict` (L451) — Move a file to a different folder.
+- `def soft_delete_file(pid: str, file_id: str) -> dict` (L511) — Soft-delete: move the file (and any converted siblings) to the trash
+- `def restore_file(pid: str, file_id: str) -> dict` (L555) — Restore a soft-deleted file from trash back to its original auto-folder.
+- `def purge_trash(pid: str, older_than_days: int = 7) -> dict` (L601) — Hard-delete everything in trash older than N days.
+- `def list_trash(pid: str) -> list[dict]` (L669) — List files currently in trash, with how many days until purge.
+- `def _revive_deleted_file(pid: str, file_id: str, original_name: str, data: bytes, mime: str, kind: str…` (L691) — Undelete a soft-deleted row for a re-upload of the same filename.
+- `def write_uploaded_file(pid: str, data: bytes, original_name: str, *, mime_hint: str | None = None, u…` (L746) — Write bytes to the correct MIME-segregated raw subfolder. Compute
+- `def write_staged_upload(pid: str, staged_path: Path, original_name: str, *, raw_hash: str, size_bytes…` (L850) — Atomically adopt a streamed upload without loading it back into RAM.
+- `def _cache_key(pid: str, file_id: str) -> str` (L960)
+- `def invalidate_parsed_cache(pid: str, file_id: str) -> None` (L964) — Drop any in-memory parsed-MD cache entry for this file.
+- `def _project_files_columns() -> set[str]` (L969) — Return the live column names on project_files (for optional parsed_* cols).
+- `def _validate_rename_name(new_name: str) -> str` (L984) — Validate a user-facing rename target. Returns the stripped name.
+- `def _csv_to_md_table(text: str) -> str` (L1013) — Convert CSV/TSV text to a simple GitHub-flavoured markdown table.
+- `def _convert_raw_to_md(path: Path, original_name: str) -> str` (L1044) — Convert a text-like file on disk into markdown. Raises HTTPException 422
+- `def _current_raw_path(pid: str, file_id: str, current_version: int) -> Path | None` (L1081) — Resolve the on-disk path for the file's current version.
+- `def rename_file(pid: str, file_id: str, new_name: str) -> dict` (L1107) — Rename a live file: update project_files.original_name and rename on disk.
+- `def purge_file(pid: str, file_id: str) -> dict` (L1225) — Hard-delete a single trashed file (disk + DB rows).
+- `def get_parsed_markdown(pid: str, file_id: str) -> dict` (L1298) — Resolve a file's parsed-markdown representation.
   - imports: finetune_studio, finetune_studio.data.fs.paths
 
-## `src/finetune_studio/data/fs/files.py` (130 lines)
-- `store_file(pid: str, data: bytes, *, original_filename: str, mime_type: str = '', upload…` (L33) — Store uploaded bytes content-addressed, preserving the ORIGINAL filename on disk.
-- `list_files(pid: str) -> list[FileMetadata]` (L111)
-- `delete_file(pid: str, sha256: str) -> bool` (L125)
+## `src/finetune_studio/data/fs/files.py` (145 lines)
+- `def _find_raw_file(fd: Path, ext: str) -> Path | None` (L33) — The stored raw upload in *fd*: named by metadata, else an ext match
+- `def store_file(pid: str, data: bytes, *, original_filename: str, mime_type: str = '', upload…` (L50) — Store uploaded bytes content-addressed, preserving the ORIGINAL filename on disk.
+- `def list_files(pid: str) -> list[FileMetadata]` (L126)
+- `def delete_file(pid: str, sha256: str) -> bool` (L140)
   - imports: finetune_studio.data.fs.metadata, finetune_studio.data.fs.paths
 
 ## `src/finetune_studio/data/fs/ingestion.py` (45 lines)
-- `log_ingestion(pid: str, event: dict) -> None` (L16) — Append an event to logs/ingestions.jsonl. Creates dir if needed.
-- `read_ingestion_log(pid: str, limit: int = 200) -> list[dict]` (L27)
+- `def log_ingestion(pid: str, event: dict) -> None` (L16) — Append an event to logs/ingestions.jsonl. Creates dir if needed.
+- `def read_ingestion_log(pid: str, limit: int = 200) -> list[dict]` (L27)
   - imports: finetune_studio.data.fs.paths
 
-## `src/finetune_studio/data/fs/metadata.py` (79 lines)
-- `class FileMetadata` (L20)
-  - `def to_json(self) -> dict` (L41)
-- `hash_bytes(data: bytes) -> str` (L45)
-- `_safe_filename(name: str) -> str` (L49) — Strip path separators and other dangerous chars from an upload filename.
-- `read_file_metadata(pid: str, sha256: str) -> Optional[FileMetadata]` (L55)
-- `update_file_metadata(pid: str, sha256: str, **fields) -> Optional[FileMetadata]` (L67) — Update specific fields (e.g. char_count, chunk_count, parser) and persist.
+## `src/finetune_studio/data/fs/metadata.py` (85 lines)
+- `class FileMetadata` (L18)
+  - `def to_json(self) -> dict` (L39)
+- `def hash_bytes(data: bytes) -> str` (L43)
+- `def _safe_filename(name: str) -> str` (L51) — Strip path separators and other dangerous chars from an upload filename.
+- `def read_file_metadata(pid: str, sha256: str) -> FileMetadata | None` (L61)
+- `def update_file_metadata(pid: str, sha256: str, **fields) -> FileMetadata | None` (L73) — Update specific fields (e.g. char_count, chunk_count, parser) and persist.
   - imports: finetune_studio.data.fs.paths
-
-## `src/finetune_studio/data/fs/migrate_legacy_files.py` (146 lines)
-- `find_db() -> Path | None` (L30)
-- `migrate_project(pid: str, db_path: Path) -> tuple[int, int, int]` (L37) — Index all filesystem files for a project into project_files.
-- `main()` (L113)
 
 ## `src/finetune_studio/data/fs/parsed.py` (12 lines)
-- `write_parsed_outputs(pid: str, sha256: str, parsed_text: str, parsed_json: dict) -> None` (L9)
+- `def write_parsed_outputs(pid: str, sha256: str, parsed_text: str, parsed_json: dict) -> None` (L9)
   - imports: finetune_studio.data.fs.paths
 
-## `src/finetune_studio/data/fs/paths.py` (41 lines)
-- `root() -> Path` (L14)
-- `project_dir(pid: str) -> Path` (L19)
-- `file_dir(pid: str, sha256: str) -> Path` (L25) — files/<sha256-12>/ — content-addressed. Used by the legacy data-prep
-- `project_files_root(pid: str) -> Path` (L35) — files/ — root of the project's file library. Contains raw/, converted/,
+## `src/finetune_studio/data/fs/paths.py` (135 lines)
+- `def root() -> Path` (L17)
+- `def rag_corpora_root() -> Path` (L22) — Root of PortableRAG corpora (``<FTS_ROOT>/rag_corpora``); never creates it.
+- `def rag_corpus_dir(pid: str) -> Path` (L27) — Corpus directory for a project id; never creates it.
+- `def _safe_segment(value: str, what: str) -> str` (L32) — Reject values that could escape their parent directory.
+- `def project_dir(pid: str) -> Path` (L39)
+- `def file_dir(pid: str, sha256: str, *, create: bool = True) -> Path` (L45) — files/<sha256-12>/ — content-addressed. Used by the data-prep runner
+- `def project_files_root(pid: str, *, create: bool = True) -> Path` (L57) — files/ — root of the project's file library. Contains raw/, converted/,
+- `def project_roots(pid: str) -> list[Path]` (L69) — Resolved directories that make up project ``pid`` (never created here).
+- `def resolve_within(ref: object, roots: Iterable[Path], *, what: str = 'path') -> Path` (L89) — Resolve a user-supplied path reference and confine it to ``roots``.
+- `def resolve_in_project(pid: str, ref: object, *, what: str = 'path') -> Path` (L133) — ``resolve_within`` against project ``pid``'s directories.
+  - imports: finetune_studio.db
 
 ## `src/finetune_studio/data/fs/project.py` (27 lines)
-- `write_project_json(pid: str, data: dict) -> Path` (L13)
-- `read_project_json(pid: str) -> dict` (L19)
+- `def write_project_json(pid: str, data: dict) -> Path` (L13)
+- `def read_project_json(pid: str) -> dict` (L19)
   - imports: finetune_studio.data.fs.paths
 
 ## `src/finetune_studio/data/fs/qa.py` (289 lines)
-- `should_auto_promote(filename: str) -> bool` (L28) — True when *filename* should become a parsed QA source on upload.
-- `promote_file_library_upload(pid: str, file_id: str, *, mime_type: str = '', filename: str | None = None) …` (L33) — Resolve, register, and synchronously parse one library upload.
-- `stage_file_library_upload(pid: str, file_id: str, *, mime_type: str = '', filename: str | None = None) …` (L49) — Create a queued per-file source manifest without parsing it inline.
-- `parse_staged_qa_source(pid: str, source_id: str) -> dict` (L101) — Parse one staged source, persisting success or error on its manifest.
-- `maybe_auto_promote_upload(pid: str, file_id: str, filename: str, *, mime_type: str = '') -> dict | None` (L113) — Promote text uploads into the source picker; return source or None.
-- `register_qa_source(pid: str, path: str, *, mime_type: str = '', filename: str | None = None) -> …` (L132) — Register a file path as a QA source (idempotent on ``pid`` + path).
-- `write_qa_pair(pid: str, qa: dict) -> None` (L191)
-- `write_qa_source(pid: str, source: dict) -> None` (L197)
-- `read_qa_source(pid: str, source_id: str) -> dict` (L203)
-- `list_qa_pairs(pid: str, source_id: str | None = None, status: str | None = None) -> list[di…` (L214)
-- `list_qa_sources(pid: str) -> list[dict]` (L236)
-- `update_qa_pair(pid: str, qa_id: str, **fields) -> dict | None` (L253)
-- `delete_qa_source(pid: str, source_id: str) -> bool` (L269) — Delete a source AND all its Q&A pairs (filesystem-side).
+- `def should_auto_promote(filename: str) -> bool` (L28) — True when *filename* should become a parsed QA source on upload.
+- `def promote_file_library_upload(pid: str, file_id: str, *, mime_type: str = '', filename: str | None = None) …` (L33) — Resolve, register, and synchronously parse one library upload.
+- `def stage_file_library_upload(pid: str, file_id: str, *, mime_type: str = '', filename: str | None = None) …` (L49) — Create a queued per-file source manifest without parsing it inline.
+- `def parse_staged_qa_source(pid: str, source_id: str) -> dict` (L101) — Parse one staged source, persisting success or error on its manifest.
+- `def maybe_auto_promote_upload(pid: str, file_id: str, filename: str, *, mime_type: str = '') -> dict | None` (L113) — Promote text uploads into the source picker; return source or None.
+- `def register_qa_source(pid: str, path: str, *, mime_type: str = '', filename: str | None = None) -> …` (L132) — Register a file path as a QA source (idempotent on ``pid`` + path).
+- `def write_qa_pair(pid: str, qa: dict) -> None` (L191)
+- `def write_qa_source(pid: str, source: dict) -> None` (L197)
+- `def read_qa_source(pid: str, source_id: str) -> dict` (L203)
+- `def list_qa_pairs(pid: str, source_id: str | None = None, status: str | None = None) -> list[di…` (L214)
+- `def list_qa_sources(pid: str) -> list[dict]` (L236)
+- `def update_qa_pair(pid: str, qa_id: str, **fields) -> dict | None` (L253)
+- `def delete_qa_source(pid: str, source_id: str) -> bool` (L269) — Delete a source AND all its Q&A pairs (filesystem-side).
   - imports: finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.data.prep.ingest
 
-## `src/finetune_studio/data/fs/workbench.py` (291 lines)
-- `_current_raw(pid: str, file_id: str) -> tuple[dict, Path, str]` (L36)
-- `bulk_action(pid: str, ids: list[str], action: str, payload: dict) -> dict` (L52) — Apply one action to many files. Returns per-id results, never partial-crashes.
-- `_apply_tag(pid: str, fid: str, action: str, payload: dict) -> dict` (L87)
-- `_parse_tags(raw) -> list[str]` (L108)
-- `download_zip(pid: str, ids: list[str]) -> tuple[bytes, str]` (L119) — Zip the raw bytes of the selected files. Returns (payload, filename).
-- `_unique_arcname(name: str, seen: set[str]) -> str` (L154)
-- `file_usage(pid: str, file_id: str) -> dict` (L169) — Where this file's content actually went: source → pairs → datasets → runs,
-- `_jsonl_contains_ids(path: str, pair_ids: set[str]) -> bool` (L228) — True when any line's id (or provenance source_id) is one of pair_ids.
-- `search_content(pid: str, q: str, limit: int = 25) -> dict` (L253) — Substring search inside parsed text of every file (name-search stays
+## `src/finetune_studio/data/fs/workbench.py` (296 lines)
+- `def _current_raw(pid: str, file_id: str) -> tuple[dict, Path, str]` (L36)
+- `def bulk_action(pid: str, ids: list[str], action: str, payload: dict) -> dict` (L52) — Apply one action to many files. Returns per-id results, never partial-crashes.
+- `def _apply_tag(pid: str, fid: str, action: str, payload: dict) -> dict` (L87)
+- `def _parse_tags(raw) -> list[str]` (L108)
+- `def download_zip(pid: str, ids: list[str]) -> tuple[bytes, str]` (L119) — Zip the raw bytes of the selected files. Returns (payload, filename).
+- `def _unique_arcname(name: str, seen: set[str]) -> str` (L154)
+- `def file_usage(pid: str, file_id: str) -> dict` (L172) — Where this file's content actually went: source → pairs → datasets → runs,
+- `def _jsonl_contains_ids(path: str, pair_ids: set[str]) -> bool` (L231) — True when any line's id/qa_id is one of pair_ids.
+- `def search_content(pid: str, q: str, limit: int = 25) -> dict` (L258) — Substring search inside parsed text of every file (name-search stays
   - imports: finetune_studio, finetune_studio.data, finetune_studio.data.fs, finetune_studio.data.parsed_edit
 
-## `src/finetune_studio/data/ocr.py` (300 lines)
-- `install_hint() -> str` (L49) — One-line platform-correct install hint for the tesseract binary.
-- `tessdata_dir() -> Path` (L68) — Where we look for user-installed tessdata. Creates the dir if needed.
-- `install(languages: list[str] | None = None) -> dict` (L74) — Download tessdata_fast .traineddata files for the given languages.
-- `_tessdata_prefix() -> str` (L101) — Return the directory tesseract should look in for .traineddata files.
-- `_tesseract_cmd() -> list[str] | None` (L108) — Find the tesseract binary, or None if not installed.
-- `is_available(languages: str = DEFAULT_LANGS) -> bool` (L114) — Is tesseract usable from this app right now?
-- `_ensure_tessdata(languages: str = DEFAULT_LANGS) -> None` (L134) — Self-heal: download any missing tessdata, one-shot per process.
-- `installed_languages() -> list[str]` (L165) — List languages whose .traineddata is present in our user tessdata dir.
-- `ocr_image(image_path: str | Path, languages: str = DEFAULT_LANGS, psm: int = 3, oem: in…` (L171) — OCR a single image. Returns extracted text.
-- `ocr_image_object(img, languages: str = DEFAULT_LANGS, psm: int = 3, oem: int = 1) -> str` (L209) — OCR a PIL.Image directly (no disk roundtrip).
-- `ocr_pdf(pdf_path: str | Path, languages: str = DEFAULT_LANGS, dpi: int = 200) -> list…` (L234) — OCR every page of a PDF. Returns [{"page": i, "text": "..."}, ...].
-- `_cli() -> int` (L262)
+## `src/finetune_studio/data/ocr.py` (304 lines)
+- `def install_hint() -> str` (L50) — One-line platform-correct install hint for the tesseract binary.
+- `def tessdata_dir() -> Path` (L69) — Where we look for user-installed tessdata. Creates the dir if needed.
+- `def install(languages: list[str] | None = None) -> dict` (L75) — Download tessdata_fast .traineddata files for the given languages.
+- `def _tessdata_prefix() -> str` (L102) — Return the directory tesseract should look in for .traineddata files.
+- `def _tesseract_cmd() -> list[str] | None` (L109) — Find the tesseract binary, or None if not installed.
+- `def is_available(languages: str = DEFAULT_LANGS) -> bool` (L115) — Is tesseract usable from this app right now?
+- `def _ensure_tessdata(languages: str = DEFAULT_LANGS) -> None` (L135) — Self-heal: download any missing tessdata, one-shot per process.
+- `def installed_languages() -> list[str]` (L166) — List languages whose .traineddata is present in our user tessdata dir.
+- `def ocr_image(image_path: str | Path, languages: str = DEFAULT_LANGS, psm: int = 3, oem: in…` (L172) — OCR a single image. Returns extracted text.
+- `def ocr_image_object(img, languages: str = DEFAULT_LANGS, psm: int = 3, oem: int = 1) -> str` (L213) — OCR a PIL.Image directly (no disk roundtrip).
+- `def ocr_pdf(pdf_path: str | Path, languages: str = DEFAULT_LANGS, dpi: int = 200) -> list…` (L238) — OCR every page of a PDF. Returns [{"page": i, "text": "..."}, ...].
+- `def _cli() -> int` (L266)
 
-## `src/finetune_studio/data/organizer.py` (51 lines)
-- `scan_data_files(directory)` (L23)
-- `dedup_data(data)` (L39)
+## `src/finetune_studio/data/organizer.py` (41 lines)
+- `def scan_data_files(directory)` (L14)
+- `def dedup_data(data)` (L30)
 
-## `src/finetune_studio/data/parsed_edit.py` (271 lines)
-- `_current_raw_path(pid: str, file_id: str) -> tuple[dict, Path, str]` (L35)
-- `_source_for_file(pid: str, raw: Path, raw_hash: str = '') -> dict | None` (L51) — Find the QA source for a library file — by content sha256 first (the
-- `_rewrite_source_chunks(pid: str, source: dict, text: str) -> dict` (L70) — Point a QA source at hand-edited text: parsed.txt + chunks + manifest.
-- `_override_path(raw: Path) -> Path` (L97) — Manual-edit override file — never the raw file itself (a ``.md``
-- `save_parsed_override(pid: str, file_id: str, text: str) -> dict` (L104) — Save a human-edited parsed text for a library file.
-- `reparse_file(pid: str, file_id: str) -> dict` (L141) — Discard the manual override and re-run the real parser from raw bytes.
-- `corpus_sha12s(pid: str) -> set[str]` (L185) — sha12 dirs indexed in the project's RAG corpus, from the manifest.
-- `pipeline_status(pid: str) -> dict[str, dict]` (L214) — Per-file pipeline flags for the browser: parsed / prep / rag.
+## `src/finetune_studio/data/parsed_edit.py` (270 lines)
+- `def _current_raw_path(pid: str, file_id: str) -> tuple[dict, Path, str]` (L35)
+- `def _source_for_file(pid: str, raw: Path, raw_hash: str = '') -> dict | None` (L51) — Find the QA source for a library file — by content sha256 first (the
+- `def _rewrite_source_chunks(pid: str, source: dict, text: str) -> dict` (L70) — Point a QA source at hand-edited text: parsed.txt + chunks + manifest.
+- `def _override_path(raw: Path) -> Path` (L97) — Manual-edit override file — never the raw file itself (a ``.md``
+- `def save_parsed_override(pid: str, file_id: str, text: str) -> dict` (L104) — Save a human-edited parsed text for a library file.
+- `def reparse_file(pid: str, file_id: str) -> dict` (L141) — Discard the manual override and re-run the real parser from raw bytes.
+- `def corpus_sha12s(pid: str) -> set[str]` (L185) — sha12 dirs indexed in the project's RAG corpus, from the manifest.
+- `def pipeline_status(pid: str) -> dict[str, dict]` (L213) — Per-file pipeline flags for the browser: parsed / prep / rag.
   - imports: finetune_studio.data, finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.data.prep.chunker, finetune_studio.data.prep.ingest
 
-## `src/finetune_studio/data/parsers/__init__.py` (175 lines)
-- `list_parsers() -> list[dict]` (L91) — All supported parsers + which one handles which extension.
-- `get_parser_for(path: str | Path) -> Optional[Any]` (L99) — Returns the parse function for the given path, or None if unsupported.
-- `parse(path: str | Path) -> dict` (L113) — Parse a file using the appropriate parser.
-- `parse_bytes(filename: str, data: bytes) -> dict` (L159) — Parse from in-memory bytes (e.g. an upload). Writes to temp file, dispatches.
+## `src/finetune_studio/data/parsers/__init__.py` (167 lines)
+- `def get_parser_for(path: str | Path) -> Any | None` (L91) — Returns the parse function for the given path, or None if unsupported.
+- `def parse(path: str | Path) -> dict` (L105) — Parse a file using the appropriate parser.
+- `def parse_bytes(filename: str, data: bytes) -> dict` (L151) — Parse from in-memory bytes (e.g. an upload). Writes to temp file, dispatches.
 
-## `src/finetune_studio/data/parsers/_base.py` (55 lines)
-- `now_iso() -> str` (L14)
-- `make_result(text: str, structured: dict, parser: str, warnings: list[str] | None = None, …` (L18) — Build the standard parser output envelope.
-- `cli_run(parse_fn) -> None` (L35) — Common __main__ entry: read path from argv, call parse_fn, print JSON to stdout.
+## `src/finetune_studio/data/parsers/_base.py` (54 lines)
+- `def now_iso() -> str` (L13)
+- `def make_result(text: str, structured: dict, parser: str, warnings: list[str] | None = None, …` (L17) — Build the standard parser output envelope.
+- `def cli_run(parse_fn) -> None` (L34) — Common __main__ entry: read path from argv, call parse_fn, print JSON to stdout.
 
 ## `src/finetune_studio/data/parsers/csv.py` (54 lines)
-- `parse(path: Path) -> dict` (L11)
+- `def parse(path: Path) -> dict` (L11)
 
-## `src/finetune_studio/data/parsers/doc.py` (97 lines)
-- `parse(path: Path) -> dict` (L14)
-- `_olefile_extract(path: Path) -> str` (L37) — Pure-Python legacy .doc text extraction via olefile + raw decode.
-- `_try_cli(path: Path, name: str, cmd: list[str]) -> tuple[str, str]` (L86)
+## `src/finetune_studio/data/parsers/doc.py` (96 lines)
+- `def parse(path: Path) -> dict` (L14)
+- `def _olefile_extract(path: Path) -> str` (L37) — Pure-Python legacy .doc text extraction via olefile + raw decode.
+- `def _try_cli(name: str, cmd: list[str]) -> tuple[str, str]` (L85)
 
 ## `src/finetune_studio/data/parsers/docx.py` (52 lines)
-- `parse(path: Path) -> dict` (L10)
+- `def parse(path: Path) -> dict` (L10)
 
 ## `src/finetune_studio/data/parsers/email.py` (67 lines)
-- `parse(path: Path) -> dict` (L13)
+- `def parse(path: Path) -> dict` (L13)
 
-## `src/finetune_studio/data/parsers/epub.py` (51 lines)
-- `parse(path: Path) -> dict` (L12)
-- `_html_to_text(content: str) -> str` (L36)
+## `src/finetune_studio/data/parsers/epub.py` (50 lines)
+- `def parse(path: Path) -> dict` (L12)
+- `def _html_to_text(content: str) -> str` (L35)
 
 ## `src/finetune_studio/data/parsers/html.py` (49 lines)
-- `parse(path: Path) -> dict` (L11)
+- `def parse(path: Path) -> dict` (L11)
 
-## `src/finetune_studio/data/parsers/image.py` (45 lines)
-- `parse(path: Path, languages: str = DEFAULT_LANGS) -> dict` (L17)
+## `src/finetune_studio/data/parsers/image.py` (42 lines)
+- `def parse(path: Path, languages: str = DEFAULT_LANGS) -> dict` (L14)
 
 ## `src/finetune_studio/data/parsers/json.py` (41 lines)
-- `parse(path: Path) -> dict` (L11)
-- `_type_of(obj) -> str` (L30)
+- `def parse(path: Path) -> dict` (L11)
+- `def _type_of(obj) -> str` (L30)
 
 ## `src/finetune_studio/data/parsers/jsonl.py` (37 lines)
-- `parse(path: Path) -> dict` (L11)
+- `def parse(path: Path) -> dict` (L11)
 
-## `src/finetune_studio/data/parsers/odf.py` (45 lines)
-- `parse(path: Path) -> dict` (L19)
+## `src/finetune_studio/data/parsers/odf.py` (43 lines)
+- `def parse(path: Path) -> dict` (L18)
 
-## `src/finetune_studio/data/parsers/pdf.py` (91 lines)
-- `parse(path: Path, languages: str = DEFAULT_LANGS) -> dict` (L15) — Parse a PDF into plain text. Try cheap text extractors first, OCR as fallback.
-- `_extract_with_pypdf(path: Path)` (L52)
-- `_extract_with_pypdf2(path: Path)` (L65)
-- `_extract_with_pdftotext(path: Path)` (L78)
+## `src/finetune_studio/data/parsers/pdf.py` (94 lines)
+- `def parse(path: Path, languages: str = DEFAULT_LANGS) -> dict` (L15) — Parse a PDF into plain text. Try cheap text extractors first, OCR as fallback.
+- `def _extract_with_pypdf(path: Path)` (L53)
+- `def _extract_with_pypdf2(path: Path)` (L66)
+- `def _extract_with_pdftotext(path: Path)` (L79)
 
 ## `src/finetune_studio/data/parsers/pptx.py` (36 lines)
-- `parse(path: Path) -> dict` (L10)
+- `def parse(path: Path) -> dict` (L10)
 
 ## `src/finetune_studio/data/parsers/rtf.py` (30 lines)
-- `parse(path: Path) -> dict` (L11)
+- `def parse(path: Path) -> dict` (L11)
 
 ## `src/finetune_studio/data/parsers/text.py` (35 lines)
-- `parse(path: Path) -> dict` (L13)
-- `_guess_language(path: Path) -> str` (L23)
+- `def parse(path: Path) -> dict` (L13)
+- `def _guess_language(path: Path) -> str` (L23)
 
-## `src/finetune_studio/data/parsers/xls.py` (35 lines)
-- `parse(path: Path) -> dict` (L10)
+## `src/finetune_studio/data/parsers/xls.py` (38 lines)
+- `def parse(path: Path) -> dict` (L10)
 
-## `src/finetune_studio/data/parsers/xlsx.py` (41 lines)
-- `parse(path: Path) -> dict` (L10)
+## `src/finetune_studio/data/parsers/xlsx.py` (44 lines)
+- `def parse(path: Path) -> dict` (L10)
 
 ## `src/finetune_studio/data/parsers/xml.py` (41 lines)
-- `parse(path: Path) -> dict` (L11)
-- `_strip_ns(tag: str) -> str` (L36)
+- `def parse(path: Path) -> dict` (L11)
+- `def _strip_ns(tag: str) -> str` (L36)
 
-## `src/finetune_studio/data/prep/__init__.py` (81 lines)
+## `src/finetune_studio/data/prep/__init__.py` (84 lines)
   - imports: finetune_studio.data.prep.chunker, finetune_studio.data.prep.export, finetune_studio.data.prep.ingest, finetune_studio.data.prep.parsers, finetune_studio.data.prep.prompts, finetune_studio.data.prep.qa_validate, finetune_studio.data.prep.runner, finetune_studio.data.prep.scorer
 
 ## `src/finetune_studio/data/prep/chunker.py` (74 lines)
-- `_pack_sentences(prefix: str, para: str, target_chars: int) -> tuple[list[str], str]` (L18) — Greedy-pack ``para``'s sentences after ``prefix``.
-- `chunk_text(text: str, target_chars: int = 1200, overlap: int = 200) -> list[str]` (L37) — Split on paragraph boundaries; fall back to sentence boundaries; then hard wrap.
+- `def _pack_sentences(prefix: str, para: str, target_chars: int) -> tuple[list[str], str]` (L18) — Greedy-pack ``para``'s sentences after ``prefix``.
+- `def chunk_text(text: str, target_chars: int = 1200, overlap: int = 200) -> list[str]` (L37) — Split on paragraph boundaries; fall back to sentence boundaries; then hard wrap.
 
-## `src/finetune_studio/data/prep/coverage_fill.py` (337 lines)
-- `class FillResult` (L54)
-  - `def as_dict(self) -> dict[str, Any]` (L60)
-- `fill_all_project_gaps(pid: str) -> dict[str, Any]` (L71) — Run the fill pass for every qa source in the project.
-- `fill_sources_gaps(pid: str, source_ids: list[str]) -> dict[str, Any]` (L121) — Coverage-fill ONLY the given sources (subset builds).
-- `split_sentences(text: str) -> list[str]` (L174) — Deterministic sentence split (same convention as augment_dataset).
-- `_subject_of(sentence: str) -> str` (L190) — Lightweight subject extraction: first ~10 words, cleaned for a question.
-- `_make_pairs_from_chunk(chunk_text: str, chunk_idx: int, *, seen_questions: set[str], max_pairs: int …` (L201) — Deterministic (question, answer) extractive pairs for one chunk.
-- `norm_ans(a: str) -> str` (L249)
-- `fill_coverage_gaps(pid: str, source_id: str, sha256: str = '', *, chunk_texts: dict[int, str] | …` (L255) — Create approved extractive pairs for every chunk with no accepted pair.
-- `class _SimplePair` (L331)
-  - `def __init__(self, question: str, answer: str) -> None` (L334)
+## `src/finetune_studio/data/prep/coverage_fill.py` (288 lines)
+- `class FillResult` (L55)
+  - `def as_dict(self) -> dict[str, Any]` (L61)
+- `def _fill_sources(pid: str, sources: list[dict[str, Any]]) -> dict[str, Any]` (L72) — Fill the given qa source manifests; aggregate into one summary.
+- `def fill_all_project_gaps(pid: str) -> dict[str, Any]` (L115) — Run the fill pass for every qa source in the project.
+- `def fill_sources_gaps(pid: str, source_ids: list[str]) -> dict[str, Any]` (L125) — Coverage-fill ONLY the given sources (subset builds).
+- `def split_sentences(text: str) -> list[str]` (L144) — Deterministic sentence split (same convention as augment_dataset).
+- `def _subject_of(sentence: str) -> str` (L160) — Lightweight subject extraction: first ~10 words, cleaned for a question.
+- `def _make_pairs_from_chunk(chunk_text: str, *, seen_questions: set[str], max_pairs: int = _MAX_PER_CHUNK…` (L171) — Deterministic (question, answer) extractive pairs for one chunk.
+- `def norm_ans(a: str) -> str` (L216)
+- `def fill_coverage_gaps(pid: str, source_id: str, sha256: str = '', *, chunk_texts: dict[int, str] | …` (L222) — Create approved extractive pairs for every chunk with no accepted pair.
   - imports: finetune_studio.data, finetune_studio.data.prep.ingest, finetune_studio.data.prep.qa_validate
 
-## `src/finetune_studio/data/prep/export.py` (120 lines)
-- `deduplicate_qa_pairs(items: list[dict[str, Any]]) -> list[dict[str, Any]]` (L20) — Return one deterministic training target per (source, chunk, normalized question).
-- `export_qa_jsonl(pid: str, fmt: str = 'sharegpt', only: str = 'approved') -> str` (L57)
-- `export_qa_jsonl_from_sources(pid: str, source_ids: list[str], fmt: str = 'sharegpt', only: str = 'approved…` (L83) — Export a dataset built ONLY from the hand-picked sources (subset build).
+## `src/finetune_studio/data/prep/export.py` (105 lines)
+- `def deduplicate_qa_pairs(items: list[dict[str, Any]]) -> list[dict[str, Any]]` (L20) — Return one deterministic training target per (source, chunk, normalized question).
+- `def _to_jsonl(items: list[dict[str, Any]], fmt: str) -> str` (L57)
+- `def export_qa_jsonl(pid: str, fmt: str = 'sharegpt', only: str = 'approved') -> str` (L80)
+- `def export_qa_jsonl_from_sources(pid: str, source_ids: list[str], fmt: str = 'sharegpt', only: str = 'approved…` (L87) — Export a dataset built ONLY from the hand-picked sources (subset build).
   - imports: finetune_studio.data, finetune_studio.training.data
 
 ## `src/finetune_studio/data/prep/generator.py` (178 lines)
 - `class LoadedBackend(TypedDict)` (L36)
-- `_manager_helper_backend() -> LoadedBackend | None` (L46)
-- `_inference_helper_backend() -> LoadedBackend | None` (L61)
-- `_loaded_non_helper_path() -> str | None` (L78) — Path of a loaded non-helper model, if any (for clear error messages).
-- `resolve_helper_backend() -> LoadedBackend | None` (L101) — Return a backend only when the configured helper is loaded.
-- `resolve_loaded_backend(*, prefer_inference: bool = False) -> LoadedBackend | None` (L113) — Compatibility wrapper — always resolves the helper only.
-- `helper_resolution_error() -> str` (L123) — Explain why helper resolution failed (wrong model vs not loaded).
-- `resolve_generator() -> ChatFn | None` (L137) — Return a chat callable for the loaded helper, else None.
+- `def _manager_helper_backend() -> LoadedBackend | None` (L46)
+- `def _inference_helper_backend() -> LoadedBackend | None` (L61)
+- `def _loaded_non_helper_path() -> str | None` (L78) — Path of a loaded non-helper model, if any (for clear error messages).
+- `def resolve_helper_backend() -> LoadedBackend | None` (L101) — Return a backend only when the configured helper is loaded.
+- `def resolve_loaded_backend(*, prefer_inference: bool = False) -> LoadedBackend | None` (L113) — Compatibility wrapper — always resolves the helper only.
+- `def helper_resolution_error() -> str` (L123) — Explain why helper resolution failed (wrong model vs not loaded).
+- `def resolve_generator() -> ChatFn | None` (L137) — Return a chat callable for the loaded helper, else None.
   - imports: finetune_studio.models.helper, finetune_studio.models.manager, finetune_studio.webui.app
 
 ## `src/finetune_studio/data/prep/ingest.py` (261 lines)
 - `class IngestResult` (L21)
-- `_parsed_path(pid: str, sha256: str) -> Path` (L37)
-- `is_already_parsed(pid: str, sha256: str) -> bool` (L41) — True when parsed.txt exists, is non-trivial, and is not a placeholder.
-- `load_existing_chunks(pid: str, sha256: str) -> list[str]` (L61) — Load chunk texts previously written under files/<sha>/chunks/.
-- `parse_and_chunk(pid: str, data: bytes, filename: str, *, sha256: str, max_chunks: int = 0, mi…` (L103) — Parse bytes, write parsed outputs + chunks, update file metadata.
-- `ensure_qa_source_parsed(pid: str, source: dict) -> dict` (L198) — Parse + chunk a registered QA source if not already ready.
+- `def _parsed_path(pid: str, sha256: str) -> Path` (L37)
+- `def is_already_parsed(pid: str, sha256: str) -> bool` (L41) — True when parsed.txt exists, is non-trivial, and is not a placeholder.
+- `def load_existing_chunks(pid: str, sha256: str) -> list[str]` (L61) — Load chunk texts previously written under files/<sha>/chunks/.
+- `def parse_and_chunk(pid: str, data: bytes, filename: str, *, sha256: str, max_chunks: int = 0, mi…` (L103) — Parse bytes, write parsed outputs + chunks, update file metadata.
+- `def ensure_qa_source_parsed(pid: str, source: dict) -> dict` (L198) — Parse + chunk a registered QA source if not already ready.
   - imports: finetune_studio.data, finetune_studio.data.fs.paths, finetune_studio.data.parsers, finetune_studio.data.prep.chunker
 
-## `src/finetune_studio/data/prep/parsers.py` (110 lines)
-- `find_matching_bracket(s: str, start: int) -> Optional[int]` (L16) — Return the index of the ']' that balances the '[' at `start`. String-aware.
-- `coerce_pairs(arr, n_expected: int) -> list[dict]` (L45) — Accept whatever the model returned; normalise to [{"q":..., "a":...}].
-- `parse_qa_json(raw: str, n_expected: int) -> list[dict]` (L58) — The main entry point. Tries each fallback in turn.
-- `parse_qa_lines(s: str, n_expected: int) -> list[dict]` (L97) — Last-resort: extract Q/A pairs from numbered lists like '1 Q: ... A: ...'.
+## `src/finetune_studio/data/prep/parsers.py` (109 lines)
+- `def find_matching_bracket(s: str, start: int) -> int | None` (L15) — Return the index of the ']' that balances the '[' at `start`. String-aware.
+- `def coerce_pairs(arr, n_expected: int) -> list[dict]` (L44) — Accept whatever the model returned; normalise to [{"q":..., "a":...}].
+- `def parse_qa_json(raw: str, n_expected: int) -> list[dict]` (L57) — The main entry point. Tries each fallback in turn.
+- `def parse_qa_lines(s: str, n_expected: int) -> list[dict]` (L96) — Last-resort: extract Q/A pairs from numbered lists like '1 Q: ... A: ...'.
 
 ## `src/finetune_studio/data/prep/prompts.py` (42 lines)
-- `style_hint(style: str) -> str` (L34) — Translate a style name into the prose instruction embedded in the user prompt.
+- `def style_hint(style: str) -> str` (L34) — Translate a style name into the prose instruction embedded in the user prompt.
 
 ## `src/finetune_studio/data/prep/qa_validate.py` (357 lines)
 - `class QAPairInput` (L74)
@@ -524,23 +525,23 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def as_dict(self) -> dict[str, Any]` (L172)
 - `class BatchValidationResult` (L188)
   - `def as_dict(self) -> dict[str, Any]` (L195)
-- `normalize_question(q: str) -> str` (L205) — Canonical form for duplicate detection.
-- `content_tokens(text: str) -> set[str]` (L213) — Lowercased content tokens excluding stopwords and single-char noise.
-- `token_overlap_ratio(needle: set[str], haystack: set[str]) -> float` (L223)
-- `is_refusal_or_meta(answer: str) -> bool` (L229)
-- `validate_qa_pair(question: str, answer: str, chunk: str, *, seen_questions: set[str] | None = …` (L236) — Validate one Q&A against its source chunk. Deterministic; no model calls.
-- `validate_qa_batch(pairs: Sequence[Mapping[str, Any]], chunk: str, *, seen_questions: set[str] |…` (L293) — Validate a list of parser outputs against one chunk.
-- `build_qa_record(*, qa_id: str, pair: PairValidation, provenance: Provenance, chunk_text: str,…` (L324) — Assemble the on-disk Q&A dict with provenance + validation stamp.
+- `def normalize_question(q: str) -> str` (L205) — Canonical form for duplicate detection.
+- `def content_tokens(text: str) -> set[str]` (L213) — Lowercased content tokens excluding stopwords and single-char noise.
+- `def token_overlap_ratio(needle: set[str], haystack: set[str]) -> float` (L223)
+- `def is_refusal_or_meta(answer: str) -> bool` (L229)
+- `def validate_qa_pair(question: str, answer: str, chunk: str, *, seen_questions: set[str] | None = …` (L236) — Validate one Q&A against its source chunk. Deterministic; no model calls.
+- `def validate_qa_batch(pairs: Sequence[Mapping[str, Any]], chunk: str, *, seen_questions: set[str] |…` (L293) — Validate a list of parser outputs against one chunk.
+- `def build_qa_record(*, qa_id: str, pair: PairValidation, provenance: Provenance, chunk_text: str,…` (L324) — Assemble the on-disk Q&A dict with provenance + validation stamp.
 
-## `src/finetune_studio/data/prep/queued.py` (64 lines)
+## `src/finetune_studio/data/prep/queued.py` (68 lines)
 - `class QueuedSourcePrep` (L11)
   - `def __init__(self, *, pid: str, path: Path, filename: str, qa_per_chunk: int, difficulty: …` (L14)
-  - `def run(self) -> dict[str, Any]` (L39)
-  - `def cancel(self) -> None` (L53)
-  - `def progress(self) -> PrepProgress` (L60)
+  - `def run(self) -> dict[str, Any]` (L40)
+  - `def cancel(self) -> None` (L56)
+  - `def progress(self) -> PrepProgress` (L64)
   - imports: finetune_studio.data.prep.runner
 
-## `src/finetune_studio/data/prep/runner.py` (384 lines)
+## `src/finetune_studio/data/prep/runner.py` (380 lines)
 - `class PrepProgress` (L46)
 - `class DataPrepRunner` (L57)
   - `def __init__(self, pid: str, data: bytes, filename: str, *, qa_per_chunk: int = 3, difficu…` (L58)
@@ -551,25 +552,25 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - imports: finetune_studio.data, finetune_studio.data.fs.metadata, finetune_studio.data.prep.coverage_fill, finetune_studio.data.prep.generator, finetune_studio.data.prep.ingest, finetune_studio.data.prep.parsers, finetune_studio.data.prep.prompts, finetune_studio.data.prep.qa_validate, finetune_studio.data.prep.scorer
 
 ## `src/finetune_studio/data/prep/scorer.py` (35 lines)
-- `heuristic_score(q: str, a: str, source: str) -> float` (L16)
+- `def heuristic_score(q: str, a: str, source: str) -> float` (L16)
 
 ## `src/finetune_studio/data/prep/source_state.py` (56 lines)
-- `summarize_source(pid: str, source: dict[str, Any]) -> dict[str, Any]` (L14) — Return parse, review, coverage, and training-readiness for one source.
+- `def summarize_source(pid: str, source: dict[str, Any]) -> dict[str, Any]` (L14) — Return parse, review, coverage, and training-readiness for one source.
   - imports: finetune_studio.data
 
 ## `src/finetune_studio/data/project_filesystem.py` (32 lines)
   - imports: finetune_studio.data.fs
 
 ## `src/finetune_studio/data/rag.py` (134 lines)
-- `_cmd_build(args)` (L11)
-- `_cmd_search(args)` (L29)
-- `_cmd_eval(args)` (L41) — Run the eval suite against a corpus + question set.
-- `_cmd_rebuild(args)` (L78)
-- `_cmd_info(args)` (L85)
-- `main()` (L91)
+- `def _cmd_build(args)` (L11)
+- `def _cmd_search(args)` (L29)
+- `def _cmd_eval(args)` (L41) — Run the eval suite against a corpus + question set.
+- `def _cmd_rebuild(args)` (L78)
+- `def _cmd_info(args)` (L85)
+- `def main()` (L91)
   - imports: finetune_studio.data.rag_eval, finetune_studio.data.rag_portable
 
-## `src/finetune_studio/data/rag_eval.py` (839 lines)
+## `src/finetune_studio/data/rag_eval.py` (841 lines)
 - `class RagSearchEngine(Protocol)` (L55)
   - `def search(self, query: str, top_k: int = 5) -> list[dict]` (L58)
   - `def format_context(self, results: list[dict], max_chars: int = 4000) -> str` (L61)
@@ -583,54 +584,77 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `class EvalReport` (L168)
   - `def to_json(self) -> dict[str, Any]` (L190)
   - `def _per_case_rows(self) -> list[dict[str, Any]]` (L260)
-- `load_qa_entries(path: str | Path) -> list[QAEntry]` (L288) — Load a JSON list of QAEntry-shaped objects.
-- `_content_tokens(text: str) -> set[str]` (L303)
-- `_overlap_ratio(needle: set[str], haystack: set[str]) -> float` (L310)
-- `looks_like_unknown(answer: str) -> bool` (L316)
-- `evaluate_retrieval(rag_query: RagSearchEngine, qa: list[QAEntry], ks: Sequence[int] = (1, 3, 5))…` (L325) — For each question, search and record whether expected source is in top-k.
-- `evaluate_answer_grounding(rag_query: RagSearchEngine, qa: list[QAEntry], answers: Mapping[str, str], *,…` (L371) — Score model answers against retrieved context (lexical) + must_contain.
-- `evaluate_fact_coverage(answers: Mapping[str, str], qa: list[QAEntry]) -> list[FactCoverageResult]` (L406) — Substring must_contain check — formerly mislabelled as LLM-as-judge.
-- `evaluate_no_context_unknown(qa: list[QAEntry], answer_fn: AnswerFn) -> list[NoContextResult]` (L427) — With empty context, answers must refuse / claim unknown.
-- `collect_rag_answers(mgr: Any, rag_query: RagSearchEngine, qa: list[QAEntry], *, top_k: int = 5, m…` (L447) — Ask a chat manager to answer each question using retrieved context only.
-- `llm_as_judge(mgr: Any, rag_query: RagSearchEngine, qa: list[QAEntry], top_k: int = 5, max_…` (L485) — Back-compat wrapper: retrieve + answer + must_contain check.
-- `portability_roundtrip(corpus: PortableRAG, *, probe_query: str = 'portability probe query') -> dict…` (L508) — Build corpus → tar → untar → load → compare top-1 + vectors.
-- `write_results(corpus_dir: Path, report: EvalReport) -> Path` (L592)
-- `run_rag_evaluation(*, rag_query: RagSearchEngine, qa: list[QAEntry], corpus_name: str = '', corp…` (L620) — Evaluate retrieval + optional grounding / unknown / portability.
-- `run_eval_on_corpus(corpus: str, qa_set_path: str, *, run_portability: bool = True, use_llm: bool…` (L789) — Stand-alone runner used by the portable-RAG CLI.
+- `def load_qa_entries(path: str | Path) -> list[QAEntry]` (L288) — Load a JSON list of QAEntry-shaped objects.
+- `def _content_tokens(text: str) -> set[str]` (L303)
+- `def _overlap_ratio(needle: set[str], haystack: set[str]) -> float` (L310)
+- `def looks_like_unknown(answer: str) -> bool` (L316)
+- `def evaluate_retrieval(rag_query: RagSearchEngine, qa: list[QAEntry], ks: Sequence[int] = (1, 3, 5))…` (L325) — For each question, search and record whether expected source is in top-k.
+- `def evaluate_answer_grounding(rag_query: RagSearchEngine, qa: list[QAEntry], answers: Mapping[str, str], *,…` (L371) — Score model answers against retrieved context (lexical) + must_contain.
+- `def evaluate_fact_coverage(answers: Mapping[str, str], qa: list[QAEntry]) -> list[FactCoverageResult]` (L406) — Substring must_contain check — formerly mislabelled as LLM-as-judge.
+- `def evaluate_no_context_unknown(qa: list[QAEntry], answer_fn: AnswerFn) -> list[NoContextResult]` (L427) — With empty context, answers must refuse / claim unknown.
+- `def collect_rag_answers(mgr: Any, rag_query: RagSearchEngine, qa: list[QAEntry], *, top_k: int = 5, m…` (L447) — Ask a chat manager to answer each question using retrieved context only.
+- `def llm_as_judge(mgr: Any, rag_query: RagSearchEngine, qa: list[QAEntry], top_k: int = 5, max_…` (L485) — Back-compat wrapper: retrieve + answer + must_contain check.
+- `def portability_roundtrip(corpus: PortableRAG, *, probe_query: str = 'portability probe query') -> dict…` (L508) — Build corpus → tar → untar → load → compare top-1 + vectors.
+- `def write_results(corpus_dir: Path, report: EvalReport) -> Path` (L592)
+- `def run_rag_evaluation(*, rag_query: RagSearchEngine, qa: list[QAEntry], corpus_name: str = '', corp…` (L622) — Evaluate retrieval + optional grounding / unknown / portability.
+- `def run_eval_on_corpus(corpus: str, qa_set_path: str, *, run_portability: bool = True, use_llm: bool…` (L791) — Stand-alone runner used by the portable-RAG CLI.
   - imports: finetune_studio.data.rag_portable, finetune_studio.models.manager
 
-## `src/finetune_studio/data/rag_portable.py` (26 lines)
-  - imports: finetune_studio.data.rag_portable
-
-## `src/finetune_studio/data/rag_portable/__init__.py` (54 lines)
+## `src/finetune_studio/data/rag_portable/__init__.py` (89 lines)
   - imports: finetune_studio.data.rag_portable.bm25, finetune_studio.data.rag_portable.constants, finetune_studio.data.rag_portable.embedders, finetune_studio.data.rag_portable.io, finetune_studio.data.rag_portable.query, finetune_studio.data.rag_portable.rerankers, finetune_studio.data.rag_portable.rrf, finetune_studio.data.rag_portable.schema, finetune_studio.data.rag_portable.store, finetune_studio.data.rag_portable.tokenize
 
 ## `src/finetune_studio/data/rag_portable/bm25.py` (95 lines)
 - `class BM25Index` (L19)
   - `def __init__(self)` (L22)
-  - `def build(cls, docs: list[str]) -> 'BM25Index'` (L32)
+  - `def build(cls, docs: list[str]) -> BM25Index` (L32)
   - `def score(self, query: str) -> np.ndarray` (L53)
   - `def to_dict(self) -> dict` (L72)
-  - `def from_dict(cls, d: dict) -> 'BM25Index'` (L86)
+  - `def from_dict(cls, d: dict) -> BM25Index` (L86)
   - imports: finetune_studio.data.rag_portable.tokenize
 
-## `src/finetune_studio/data/rag_portable/constants.py` (19 lines)
+## `src/finetune_studio/data/rag_portable/constants.py` (18 lines)
 
 ## `src/finetune_studio/data/rag_portable/embedders.py` (82 lines)
-- `_load_sentence_transformer(load_target: str, *, device: str, cache_dir: Path) -> object` (L22) — Load a SentenceTransformer from HF id or local path.
-- `get_embedder(name: str = DEFAULT_EMBEDDER, device: str = 'cpu') -> tuple[object, Embedding…` (L46) — Return (encode, info) where encode(text|list[str]) -> ndarray(float32).
+- `def _load_sentence_transformer(load_target: str, *, device: str, cache_dir: Path) -> object` (L22) — Load a SentenceTransformer from HF id or local path.
+- `def get_embedder(name: str = DEFAULT_EMBEDDER, device: str = 'cpu') -> tuple[object, Embedding…` (L46) — Return (encode, info) where encode(text|list[str]) -> ndarray(float32).
   - imports: finetune_studio.data.rag_portable.constants, finetune_studio.data.rag_portable.schema, finetune_studio.data.sentence_transformer_local, finetune_studio.data.shared_models
 
-## `src/finetune_studio/data/rag_portable/io.py` (27 lines)
-- `write_json(path: Path, data: dict, indent: int = 2) -> None` (L11)
-- `read_json(path: Path) -> dict` (L15)
-- `try_import_pandas()` (L19) — Lazily import pandas, raising a clear error if it's missing.
+## `src/finetune_studio/data/rag_portable/export_config.py` (148 lines)
+- `class RagExportConfig(BaseModel)` (L28)
+  - `def _device(cls, v: str) -> str` (L44)
+  - `def _host(cls, v: str) -> str` (L52)
+  - `def runtime_config(self) -> dict[str, Any]` (L58)
+- `def _settings_path() -> Path` (L66)
+- `def _read() -> dict[str, Any]` (L71)
+- `def _write(data: dict[str, Any]) -> None` (L83)
+- `def _clean(raw: Any) -> dict[str, Any]` (L91) — Keep only known, valid fields (a stale/invalid key never breaks export).
+- `def load_defaults() -> RagExportConfig` (L107)
+- `def save_defaults(values: dict[str, Any]) -> RagExportConfig` (L111)
+- `def load_project_override(pid: str) -> dict[str, Any]` (L119)
+- `def save_project_override(pid: str, values: dict[str, Any] | None) -> dict[str, Any]` (L123) — Persist a partial override for one project (``None``/{} clears it).
+- `def effective_config(pid: str | None = None, overrides: dict[str, Any] | None = None) -> RagExport…` (L142)
+  - imports: finetune_studio.webui.routes
 
-## `src/finetune_studio/data/rag_portable/mcp_package.py` (504 lines)
-- `_slug(name: str) -> str` (L349)
-- `_tar_data_filter(ti: tarfile.TarInfo) -> tarfile.TarInfo` (L354) — Portable equivalent of tarfile's ``filter="data"`` (older Pythons
-- `_copy_shared_model(ref: str, kind: str, dest: Path) -> str | None` (L369) — Copy a ``shared:<kind>:<short_id>`` model dir into ``dest``.
-- `build_package(corpus_dir: str | Path, out_path: str | Path, *, name: str | None = None, fmt…` (L398) — Assemble the hostable package for a built corpus and archive it.
+## `src/finetune_studio/data/rag_portable/io.py` (27 lines)
+- `def write_json(path: Path, data: dict, indent: int = 2) -> None` (L11)
+- `def read_json(path: Path) -> dict` (L15)
+- `def try_import_pandas()` (L19) — Lazily import pandas, raising a clear error if it's missing.
+
+## `src/finetune_studio/data/rag_portable/mcp_package.py` (751 lines)
+- `class PackageResult` (L64)
+- `def _slug(name: str) -> str` (L474)
+- `class _Sink` (L483)
+  - `def __init__(self, path: Path, fmt: str, *, fast: bool) -> None` (L491)
+  - `def add_stream(self, arc: str, fp: BinaryIO, size: int, mode: int = 420) -> None` (L507)
+  - `def add_bytes(self, arc: str, data: bytes | str, mode: int = 420) -> None` (L519)
+  - `def add_file(self, arc: str, path: Path, mode: int = 420) -> None` (L524)
+  - `def close(self) -> None` (L528)
+- `def _resolve_shared(ref: str, kind: str) -> tuple[str, Path] | None` (L532) — ``shared:<kind>:<short_id>`` -> (short_id, source dir); None otherwise.
+- `def _add_model_dir(sink: _Sink, src: Path, arc_dir: str) -> None` (L543)
+- `def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool, models: bool, cf…` (L553)
+- `def _mcp_config_example(slug: str, root: str, encrypted: bool) -> str` (L580)
+- `def _generate_passphrase() -> str` (L588)
+- `def build_package(corpus_dir: str | Path, out_path: str | Path, *, name: str | None = None, fmt…` (L592) — Assemble the hostable package for a built corpus and archive it.
   - imports: finetune_studio.data
 
 ## `src/finetune_studio/data/rag_portable/query.py` (171 lines)
@@ -642,12 +666,35 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def format_context(self, results: list[dict], max_chars: int = 4000) -> str` (L160)
   - imports: finetune_studio.data.rag_portable.bm25, finetune_studio.data.rag_portable.rerankers, finetune_studio.data.rag_portable.rrf, finetune_studio.data.rag_portable.schema, finetune_studio.data.rag_portable.source_labels
 
-## `src/finetune_studio/data/rag_portable/rerankers.py` (39 lines)
-- `get_reranker(name: str = DEFAULT_RERANKER, device: str = 'cpu')` (L12) — Return (rerank, name) where rerank(query, docs) -> list[float].
+## `src/finetune_studio/data/rag_portable/rag_container.py` (274 lines)
+- `class ContainerError(Exception)` (L52)
+- `class WrongPassphraseOrTampered(ContainerError)` (L56)
+- `def _aesgcm(key: bytes)` (L60)
+- `def _derive_key(passphrase: bytes, salt: bytes, n: int, r: int, p: int) -> bytes` (L70)
+- `def _nonce(prefix: bytes, counter: int) -> bytes` (L78)
+- `def _aad(header_hash: bytes, kind: bytes, counter: int) -> bytes` (L82)
+- `class ContainerWriter` (L86)
+  - `def __init__(self, fp: BinaryIO, passphrase: str | bytes, *, log_n: int = DEFAULT_LOG_N, r…` (L90)
+  - `def _write_frame(self, chunk: bytes) -> None` (L116)
+  - `def add(self, name: str, data: bytes | BinaryIO) -> None` (L123)
+  - `def close(self) -> None` (L152)
+- `class ContainerReader` (L165)
+  - `def __init__(self, path: str | os.PathLike, passphrase: str | bytes) -> None` (L168)
+  - `def close(self) -> None` (L178)
+  - `def __enter__(self) -> ContainerReader` (L181)
+  - `def __exit__(self, *exc: object) -> None` (L184)
+  - `def _open(self, pw: bytes) -> None` (L187)
+  - `def names(self) -> list[str]` (L241)
+  - `def __contains__(self, name: str) -> bool` (L244)
+  - `def size(self, name: str) -> int` (L247)
+  - `def read(self, name: str) -> bytes` (L250)
+
+## `src/finetune_studio/data/rag_portable/rerankers.py` (42 lines)
+- `def get_reranker(name: str = DEFAULT_RERANKER, device: str = 'cpu')` (L15) — Return (rerank, name) where rerank(query, docs) -> list[float].
   - imports: finetune_studio.data.rag_portable.constants, finetune_studio.data.rag_portable.shared_refs
 
 ## `src/finetune_studio/data/rag_portable/rrf.py` (17 lines)
-- `rrf_fuse(ranked_lists: list[list[str]], k: int = RRF_K) -> dict[str, float]` (L11) — Each ranked_lists[i] is a list of doc-ids from rank 1 down. Returns {doc_id: rrf_score}.
+- `def rrf_fuse(ranked_lists: list[list[str]], k: int = RRF_K) -> dict[str, float]` (L11) — Each ranked_lists[i] is a list of doc-ids from rank 1 down. Returns {doc_id: rrf_score}.
   - imports: finetune_studio.data.rag_portable.constants
 
 ## `src/finetune_studio/data/rag_portable/schema.py` (67 lines)
@@ -656,41 +703,62 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `class ChunkSettings` (L32)
 - `class Manifest` (L39)
   - `def to_json(self) -> dict` (L51)
-  - `def from_json(cls, d: dict) -> 'Manifest'` (L55)
+  - `def from_json(cls, d: dict) -> Manifest` (L55)
 
-## `src/finetune_studio/data/rag_portable/shared_refs.py` (55 lines)
-- `resolve_model_ref(name: str, kind: str) -> str` (L24) — Resolve a model name to one get_embedder/get_reranker understands.
+## `src/finetune_studio/data/rag_portable/secure_bundle.py` (121 lines)
+- `def is_secure_bundle(path: str | Path) -> bool` (L30)
+- `def generate_passphrase() -> str` (L38)
+- `def export_secure_bundle(corpus_dir: str | Path, out_path: str | Path, passphrase: str | None = None, …` (L42) — Write the corpus at ``corpus_dir`` to ``out_path`` (encrypted).
+- `def import_secure_bundle(archive: str | Path, passphrase: str, dest_dir: str | Path, *, overwrite: boo…` (L88) — Decrypt ``archive`` into ``dest_dir`` (the project's live corpus dir).
+
+## `src/finetune_studio/data/rag_portable/shared_refs.py` (56 lines)
+- `def resolve_model_ref(name: str, kind: str) -> str` (L25) — Resolve a model name to one get_embedder/get_reranker understands.
   - imports: finetune_studio.data, finetune_studio.data.rag_portable.constants
 
 ## `src/finetune_studio/data/rag_portable/source_labels.py` (197 lines)
-- `is_opaque_source_name(name: str) -> bool` (L21) — True when *name* is a pipeline artifact, not a user-facing filename.
-- `_read_original_filename(file_dir: Path) -> str | None` (L31) — Return ``original_filename`` from ``metadata.json`` if present.
-- `_fallback_original_in_dir(file_dir: Path) -> str | None` (L54) — Pick a non-opaque sibling file name when metadata is missing.
-- `original_name_for_file_dir(file_dir: Path) -> str` (L70) — Best-effort original upload name for a content-addressed file directory.
-- `display_name_for_path(path: str | Path) -> str` (L81) — Resolve a filesystem path to a citation-friendly display name.
-- `prettify_source_label(filename: str | None, source: str | Path | None = None) -> str` (L111) — Pretty-print a stored filename, optionally using the source path.
-- `_files_root_for_raw_path(path: Path) -> Path | None` (L141) — Return ``…/files`` when *path* lives under ``files/raw/…``.
-- `_is_file_library_raw(path: Path) -> bool` (L149) — True for immutable file-library uploads under ``files/raw/``.
-- `_has_canonical_parsed_for_raw(path: Path) -> bool` (L154) — True when a content-addressed ``files/<sha12>/parsed.txt`` exists.
-- `should_ingest_source_file(path: Path) -> bool` (L170) — Whether *path* should be indexed into a project RAG corpus.
+- `def is_opaque_source_name(name: str) -> bool` (L21) — True when *name* is a pipeline artifact, not a user-facing filename.
+- `def _read_original_filename(file_dir: Path) -> str | None` (L31) — Return ``original_filename`` from ``metadata.json`` if present.
+- `def _fallback_original_in_dir(file_dir: Path) -> str | None` (L54) — Pick a non-opaque sibling file name when metadata is missing.
+- `def original_name_for_file_dir(file_dir: Path) -> str` (L70) — Best-effort original upload name for a content-addressed file directory.
+- `def display_name_for_path(path: str | Path) -> str` (L81) — Resolve a filesystem path to a citation-friendly display name.
+- `def prettify_source_label(filename: str | None, source: str | Path | None = None) -> str` (L111) — Pretty-print a stored filename, optionally using the source path.
+- `def _files_root_for_raw_path(path: Path) -> Path | None` (L141) — Return ``…/files`` when *path* lives under ``files/raw/…``.
+- `def _is_file_library_raw(path: Path) -> bool` (L149) — True for immutable file-library uploads under ``files/raw/``.
+- `def _has_canonical_parsed_for_raw(path: Path) -> bool` (L154) — True when a content-addressed ``files/<sha12>/parsed.txt`` exists.
+- `def should_ingest_source_file(path: Path) -> bool` (L170) — Whether *path* should be indexed into a project RAG corpus.
 
-## `src/finetune_studio/data/rag_portable/standalone_server.py` (411 lines)
-- `tokenize(text: str) -> list[str]` (L46)
-- `class Corpus` (L50)
-  - `def __init__(self, corpus_dir: Path = CORPUS_DIR)` (L53)
-  - `def _looks_like_model(d: Path) -> bool` (L81)
-  - `def local_embedder(self)` (L89)
-  - `def local_reranker(self)` (L108)
-  - `def bm25_scores(self, query: str) -> np.ndarray` (L127)
-  - `def embed_query(self, query: str) -> np.ndarray | None` (L147)
-  - `def search(self, query: str, top_k: int = 5) -> list[dict]` (L176)
-  - `def info(self) -> dict` (L235)
-- `serve_http(corpus: Corpus, port: int) -> None` (L257)
-- `mcp_responder(corpus: Corpus)` (L323)
-- `serve_mcp(corpus: Corpus) -> None` (L367)
-- `main(argv: list[str] | None = None) -> int` (L384)
+## `src/finetune_studio/data/rag_portable/standalone_server.py` (719 lines)
+- `class ConfigError(Exception)` (L82)
+- `def _coerce(key: str, value: object) -> object` (L86)
+- `def resolve_config(flags: Mapping[str, object], env: Mapping[str, str], file_cfg: Mapping[str, o…` (L104) — Merge flags > env > file > defaults. Returns (config, origin-per-key).
+- `def load_config_file(path: str | None, env: Mapping[str, str]) -> tuple[dict, Path | None]` (L132)
+- `def redact(cfg: Mapping[str, object]) -> dict` (L151)
+- `def is_loopback(host: str) -> bool` (L155)
+- `def check_bind_security(cfg: Mapping[str, object]) -> None` (L164) — Refuse to expose the corpus on the network without authentication.
+- `def tokens_equal(supplied: str, expected: str) -> bool` (L174)
+- `def read_passphrase(keyfile: str | None, env: Mapping[str, str]) -> str` (L178) — --keyfile > RAG_PASSPHRASE > RAG_KEYFILE > interactive prompt.
+- `def tokenize(text: str) -> list[str]` (L206)
+- `def _load_container_module()` (L210)
+- `class Corpus` (L219)
+  - `def __init__(self, corpus_dir: Path = CORPUS_DIR, cfg: Mapping | None = None, passphrase: …` (L226)
+  - `def read_source(self, name: str) -> str` (L267)
+  - `def _looks_like_model(d: Path) -> bool` (L274)
+  - `def local_embedder(self)` (L282)
+  - `def local_reranker(self)` (L301)
+  - `def bm25_scores(self, query: str) -> np.ndarray` (L320)
+  - `def embed_query(self, query: str) -> np.ndarray | None` (L340)
+  - `def search(self, query: str, top_k: int | None = None) -> list[dict]` (L369)
+  - `def info(self) -> dict` (L429)
+- `def make_handler(corpus: Corpus, token: str = '')` (L452) — Request handler class. ``token`` non-empty => Bearer auth required.
+- `class _Server(ThreadingHTTPServer)` (L527)
+- `class _Server6(_Server)` (L531)
+- `def serve_http(corpus: Corpus, cfg: Mapping) -> None` (L536)
+- `def mcp_responder(corpus: Corpus)` (L569)
+- `def serve_mcp(corpus: Corpus) -> None` (L613)
+- `def build_parser() -> argparse.ArgumentParser` (L630)
+- `def main(argv: list[str] | None = None) -> int` (L664)
 
-## `src/finetune_studio/data/rag_portable/store.py` (881 lines)
+## `src/finetune_studio/data/rag_portable/store.py` (880 lines)
 - `class PortableRAG` (L53)
   - `def __init__(self, corpus_dir: str | Path)` (L56)
   - `def exists(self) -> bool` (L66)
@@ -699,251 +767,249 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def bundle_models(self, embedder_ref: str | None = None, reranker_ref: str | None = None) -> di…` (L239)
   - `def unshare_models(self) -> dict` (L297)
   - `def export_bundle(self, out_path: str | Path | None = None, fmt: str = 'tar', name: str | None …` (L331)
-  - `def import_bundle(self, archive_path: str | Path, *, overwrite: bool = False) -> dict` (L359)
-  - `def _stage_corpus_for_export(self, stage: Path, *, include_models: bool) -> None` (L480)
-  - `def _copy_models_into_stage(self, stage: Path, m: Manifest, shared_paths: dict) -> None` (L508)
-  - `def _ensure_shared_refs_in_manifest(self, m: Manifest, shared_paths: dict, kinds: tuple[str, ...] = ('embedder', …` (L568)
-  - `def _archive_directory(self, archive_root: Path, out_path: Path, *, fmt: str) -> Path` (L613)
-  - `def _write_readme(self, manifest: Manifest) -> None` (L640)
-  - `def load(self)` (L678)
-  - `def remove_source(self, source_id: str) -> bool` (L719)
-  - `def clear_sources(self) -> None` (L780)
-  - `def list_sources(self) -> list[dict]` (L808)
-  - `def rebuild_vectors(self, embedder: str | None = None, device: str = 'cpu') -> dict` (L862)
+  - `def import_bundle(self, archive_path: str | Path, *, overwrite: bool = False) -> dict` (L358)
+  - `def _stage_corpus_for_export(self, stage: Path, *, include_models: bool) -> None` (L479)
+  - `def _copy_models_into_stage(self, stage: Path, m: Manifest, shared_paths: dict) -> None` (L507)
+  - `def _ensure_shared_refs_in_manifest(self, m: Manifest, shared_paths: dict, kinds: tuple[str, ...] = ('embedder', …` (L567)
+  - `def _archive_directory(self, archive_root: Path, out_path: Path, *, fmt: str) -> Path` (L612)
+  - `def _write_readme(self, manifest: Manifest) -> None` (L639)
+  - `def load(self)` (L677)
+  - `def remove_source(self, source_id: str) -> bool` (L718)
+  - `def clear_sources(self) -> None` (L779)
+  - `def list_sources(self) -> list[dict]` (L807)
+  - `def rebuild_vectors(self, embedder: str | None = None, device: str = 'cpu') -> dict` (L861)
   - imports: finetune_studio.data, finetune_studio.data.parsers, finetune_studio.data.rag_portable.bm25, finetune_studio.data.rag_portable.constants, finetune_studio.data.rag_portable.embedders, finetune_studio.data.rag_portable.io, finetune_studio.data.rag_portable.query, finetune_studio.data.rag_portable.schema, finetune_studio.data.rag_portable.shared_refs, finetune_studio.data.rag_portable.source_labels, finetune_studio.rag.ingest
 
 ## `src/finetune_studio/data/rag_portable/tokenize.py` (17 lines)
-- `tokenize(text: str) -> list[str]` (L15) — Lowercased, unicode-aware word tokens. Works for English, Polish diacritics, etc.
+- `def tokenize(text: str) -> list[str]` (L15) — Lowercased, unicode-aware word tokens. Works for English, Polish diacritics, etc.
 
-## `src/finetune_studio/data/sentence_transformer_local.py` (236 lines)
-- `copy_sentence_transformer_tree(src: Path, dest: Path) -> None` (L21) — Copy a sentence-transformers save directory, preserving module subdirs.
-- `move_sentence_transformer_tree(src: Path, dest: Path) -> None` (L43) — Move staged ST save contents into ``dest``, preserving module subdirs.
-- `is_complete_sentence_transformer_dir(model_dir: Path) -> bool` (L60) — True when ``modules.json`` module paths exist with required configs.
-- `prepare_local_sentence_transformer_dir(model_dir: Path) -> Path` (L93) — Repair/normalize a local ST dir so current sentence-transformers can load it.
-- `_is_pooling_module(mod_type: str) -> bool` (L140)
-- `_infer_embedding_dimension(model_dir: Path) -> int` (L145) — Best-effort dim from existing pooling config or transformer configs.
-- `_ensure_pooling_config(mod_dir: Path, dim: int, *, model_dir: Path) -> None` (L169)
-- `_apply_pooling_compat(data: dict[str, Any], fallback_dim: int) -> bool` (L209) — Normalize legacy pooling keys. Returns True if ``data`` was mutated.
-- `_normalize_pooling_keys_in_place(cfg_path: Path) -> None` (L230)
+## `src/finetune_studio/data/sentence_transformer_local.py` (223 lines)
+- `def copy_sentence_transformer_tree(src: Path, dest: Path) -> None` (L21) — Copy a sentence-transformers save directory, preserving module subdirs.
+- `def move_sentence_transformer_tree(src: Path, dest: Path) -> None` (L43) — Move staged ST save contents into ``dest``, preserving module subdirs.
+- `def is_complete_sentence_transformer_dir(model_dir: Path) -> bool` (L60) — True when ``modules.json`` module paths exist with required configs.
+- `def prepare_local_sentence_transformer_dir(model_dir: Path) -> Path` (L93) — Repair/normalize a local ST dir so current sentence-transformers can load it.
+- `def _is_pooling_module(mod_type: str) -> bool` (L136)
+- `def _infer_embedding_dimension(model_dir: Path) -> int` (L141) — Best-effort dim from existing pooling config or transformer configs.
+- `def _ensure_pooling_config(mod_dir: Path, dim: int, *, model_dir: Path) -> None` (L165)
+- `def _apply_pooling_compat(data: dict[str, Any], fallback_dim: int) -> bool` (L205) — Normalize legacy pooling keys. Returns True if ``data`` was mutated.
 
-## `src/finetune_studio/data/shared_models.py` (277 lines)
-- `hf_cache_dir() -> Path` (L37) — Canonical HuggingFace cache root for finetune-studio.
-- `_safe_repo_name(name: str) -> str` (L51) — HuggingFace 'org/name' becomes 'org__name' for filesystem safety.
+## `src/finetune_studio/data/shared_models.py` (282 lines)
+- `def hf_cache_dir() -> Path` (L37) — Canonical HuggingFace cache root for finetune-studio.
+- `def _safe_repo_name(name: str) -> str` (L51) — HuggingFace 'org/name' becomes 'org__name' for filesystem safety.
 - `class ModelRef` (L57)
   - `def to_compact(self) -> str` (L64)
 - `class ModelMeta` (L69)
   - `def to_json(self) -> dict` (L78)
-- `_dir_for(kind: str) -> Path` (L82)
-- `_ensure_dirs() -> None` (L90)
-- `content_hash(path: Path) -> str` (L96) — SHA-256 of the model.safetensors OR the whole directory tree.
-- `_dir_path(kind: str, name: str, hash16: str) -> Path` (L123)
-- `register(model_name: str, kind: str, src_dir: Path | None = None, prefer_cached: bool …` (L128) — Register a model in the shared store.
-- `_touch_use(path: Path) -> None` (L210)
-- `resolve(short_id: str, kind: str) -> Path` (L223) — Resolve a short_id like 'intfloat__multilingual-e5-large@abc12345' to its dir.
-- `human_size(n: int) -> str` (L232) — Format byte counts for UI tables (e.g. ``1.2 GB``).
-- `stats() -> dict` (L244) — Global stats for the model store UI.
+- `def _dir_for(kind: str) -> Path` (L82)
+- `def _ensure_dirs() -> None` (L90)
+- `def content_hash(path: Path) -> str` (L96) — SHA-256 of the model.safetensors OR the whole directory tree.
+- `def _dir_path(kind: str, name: str, hash16: str) -> Path` (L123)
+- `def register(model_name: str, kind: str, src_dir: Path | None = None, prefer_cached: bool …` (L128) — Register a model in the shared store.
+- `def _touch_use(path: Path) -> None` (L210)
+- `def resolve(short_id: str, kind: str) -> Path` (L223) — Resolve a short_id like 'intfloat__multilingual-e5-large@abc12345' to its dir.
+- `def human_size(n: int) -> str` (L232) — Format byte counts for UI tables (e.g. ``1.2 GB``).
+- `def stats() -> dict` (L244) — Global stats for the model store UI.
   - imports: finetune_studio.data.sentence_transformer_local
 
-## `src/finetune_studio/data/validator.py` (84 lines)
-- `validate_file(path)` (L24)
-- `validate_jsonl(p, report)` (L52)
+## `src/finetune_studio/data/validator.py` (91 lines)
+- `def validate_file(path)` (L22)
+- `def validate_jsonl(p, report)` (L50)
 
 ## `src/finetune_studio/db/__init__.py` (270 lines)
   - imports: finetune_studio.db.activity_events, finetune_studio.db.benchmarks, finetune_studio.db.connection, finetune_studio.db.data_prep_runs, finetune_studio.db.datasets, finetune_studio.db.hf_downloads, finetune_studio.db.model_exports, finetune_studio.db.project_versions, finetune_studio.db.projects, finetune_studio.db.rag_corpora, finetune_studio.db.rags, finetune_studio.db.reviews, finetune_studio.db.runs, finetune_studio.db.system_updates
 
 ## `src/finetune_studio/db/activity_events.py` (50 lines)
-- `record(*, kind: str, operation: str, method: str, path: str, project_id: str = '', s…` (L10) — Persist one completed request operation and return its row.
-- `list_recent(limit: int = 100) -> list[dict[str, Any]]` (L43) — Return newest operation events across all projects.
+- `def record(*, kind: str, operation: str, method: str, path: str, project_id: str = '', s…` (L10) — Persist one completed request operation and return its row.
+- `def list_recent(limit: int = 100) -> list[dict[str, Any]]` (L43) — Return newest operation events across all projects.
   - imports: finetune_studio.db.connection
 
-## `src/finetune_studio/db/benchmarks.py` (164 lines)
-- `_get(bid: str) -> dict | None` (L11)
-- `create_benchmark(run_id: str, suite_name: str, scores: dict, time_ms: int = 0, cases: list[dic…` (L17) — Create a benchmark run + (optionally) its per-case results.
-- `get_benchmark(bid: str) -> dict | None` (L63)
-- `list_benchmarks(run_id: str | None = None) -> list[dict]` (L67)
-- `list_recent(limit: int = 50) -> list[dict]` (L79) — Across all runs — for the global activity feed.
-- `create_case(benchmark_id: str, run_id: str, name: str, category: str, question: str, corr…` (L91) — Insert a single benchmark case row. Returns the new id.
-- `list_cases(benchmark_id: str) -> list[dict]` (L119) — Return all cases for a benchmark run.
-- `update_case(cid: str, **kwargs) -> None` (L143) — Partial update of a case row (used by judge).
-- `update_benchmark_scores(bid: str, scores: dict) -> None` (L158) — Update the scores_json for a benchmark run (used after judging).
+## `src/finetune_studio/db/benchmarks.py` (175 lines)
+- `def _get(bid: str) -> dict | None` (L11)
+- `def create_benchmark(run_id: str, suite_name: str, scores: dict, time_ms: int = 0, cases: list[dic…` (L17) — Create a benchmark run + (optionally) its per-case results.
+- `def get_benchmark(bid: str) -> dict | None` (L63)
+- `def list_benchmarks(run_id: str | None = None) -> list[dict]` (L67)
+- `def list_recent(limit: int = 50) -> list[dict]` (L79) — Across all runs — for the global activity feed.
+- `def create_case(benchmark_id: str, run_id: str, name: str, category: str, question: str, corr…` (L91) — Insert a single benchmark case row. Returns the new id.
+- `def list_cases(benchmark_id: str) -> list[dict]` (L119) — Return all cases for a benchmark run.
+- `def update_case(cid: str, **kwargs) -> None` (L151) — Partial update of a case row (used by judge).
+- `def update_benchmark_scores(bid: str, scores: dict) -> None` (L169) — Update the scores_json for a benchmark run (used after judging).
   - imports: finetune_studio.db.connection
 
-## `src/finetune_studio/db/connection.py` (547 lines)
-- `new_id() -> str` (L414) — 8-char hex id.
-- `_connect() -> sqlite3.Connection` (L419) — Open a connection with foreign keys enabled and row factory set.
-- `cursor() -> Iterator[sqlite3.Cursor]` (L435) — Short-lived cursor context. Commits on exit, rolls back on error.
-- `_safe_alter(cur: sqlite3.Cursor, sql: str) -> None` (L447) — Run an ALTER TABLE; ignore `duplicate column name` errors.
-- `init_db() -> None` (L460) — Create tables if they don't exist, then run additive migrations.
-- `row_to_dict(row: sqlite3.Row | None) -> dict | None` (L529)
+## `src/finetune_studio/db/connection.py` (526 lines)
+- `def new_id() -> str` (L415) — 8-char hex id.
+- `def _connect() -> sqlite3.Connection` (L420) — Open a connection with foreign keys enabled and row factory set.
+- `def cursor() -> Iterator[sqlite3.Cursor]` (L436) — Short-lived cursor context. Commits on exit, rolls back on error, always closes.
+- `def _safe_alter(cur: sqlite3.Cursor, sql: str) -> None` (L449) — Run an ALTER TABLE; ignore `duplicate column name` errors.
+- `def init_db() -> None` (L462) — Create tables if they don't exist, then run additive migrations.
+- `def row_to_dict(row: sqlite3.Row | None) -> dict | None` (L508)
   - imports: finetune_studio.config
 
-## `src/finetune_studio/db/data_prep_runs.py` (141 lines)
-- `_get(rid: str) -> dict | None` (L16)
-- `create_run(project_id: str, filename: str = '', byte_count: int = 0, source_id: str = ''…` (L22) — Insert a fresh `queued` row. Caller sets started_at via mark_running.
-- `mark_running(rid: str) -> dict | None` (L39)
-- `mark_done(rid: str, *, qa_total: int = 0, qa_approved: int = 0, output_path: str = '') …` (L43) — Mark the run as `done`, computing duration_ms from started_at.
-- `mark_failed(rid: str, error: str) -> dict | None` (L56)
-- `update_run(rid: str, **fields: Any) -> dict | None` (L61)
-- `get_run(rid: str) -> dict | None` (L83)
-- `list_for_project(project_id: str, limit: int = 100) -> list[dict]` (L87) — Return recent runs for the activity feed / project dashboard.
-- `list_recent(limit: int = 50) -> list[dict]` (L98) — Across all projects — for the global activity feed.
-- `list_stale() -> list[dict]` (L108) — Return full rows for in-flight (queued/running) runs after a restart.
-- `reconcile_stale(error: str = 'interrupted by service restart') -> int` (L121) — Mark in-flight data_prep_runs as failed after a process restart.
+## `src/finetune_studio/db/data_prep_runs.py` (140 lines)
+- `def _get(rid: str) -> dict | None` (L16)
+- `def create_run(project_id: str, filename: str = '', byte_count: int = 0, source_id: str = ''…` (L22) — Insert a fresh `queued` row. Caller sets started_at via mark_running.
+- `def mark_running(rid: str) -> dict | None` (L39)
+- `def mark_done(rid: str, *, qa_total: int = 0, qa_approved: int = 0, output_path: str = '') …` (L43) — Mark the run as `done`, computing duration_ms from started_at.
+- `def mark_failed(rid: str, error: str) -> dict | None` (L56)
+- `def update_run(rid: str, **fields: Any) -> dict | None` (L61)
+- `def get_run(rid: str) -> dict | None` (L83)
+- `def list_for_project(project_id: str, limit: int = 100) -> list[dict]` (L87) — Return recent runs for the activity feed / project dashboard.
+- `def list_recent(limit: int = 50) -> list[dict]` (L98) — Across all projects — for the global activity feed.
+- `def list_stale() -> list[dict]` (L108) — Return full rows for in-flight (queued/running) runs after a restart.
+- `def reconcile_stale(error: str = 'interrupted by service restart') -> int` (L121) — Mark in-flight data_prep_runs as failed after a process restart.
   - imports: finetune_studio.db.connection
 
-## `src/finetune_studio/db/datasets.py` (124 lines)
-- `datasets_dir(pid: str) -> Path` (L19) — Per-project datasets directory. Created on demand.
-- `create_dataset(project_id: str, name: str, data_path: str, source: str = 'upload', qa_count:…` (L31) — Register a jsonl file as a dataset for a project.
-- `get_dataset(did: str) -> dict | None` (L51)
-- `get_dataset_by_path(pid: str, data_path: str) -> dict | None` (L57) — Look up by absolute path; used to dedupe registrations.
-- `list_datasets(project_id: str) -> list[dict]` (L67)
-- `update_dataset(did: str, **fields: Any) -> dict | None` (L76) — Update qa_count/size_bytes last-modified time etc.
-- `delete_dataset(did: str, remove_file: bool = False) -> dict` (L99) — Delete a dataset. If remove_file=True, also delete the underlying jsonl file.
-- `count_qa_pairs(jsonl_path: str) -> int` (L114) — Count non-empty lines in a jsonl file (best-effort).
+## `src/finetune_studio/db/datasets.py` (123 lines)
+- `def datasets_dir(pid: str) -> Path` (L18) — Per-project datasets directory. Created on demand.
+- `def create_dataset(project_id: str, name: str, data_path: str, source: str = 'upload', qa_count:…` (L30) — Register a jsonl file as a dataset for a project.
+- `def get_dataset(did: str) -> dict | None` (L50)
+- `def get_dataset_by_path(pid: str, data_path: str) -> dict | None` (L56) — Look up by absolute path; used to dedupe registrations.
+- `def list_datasets(project_id: str) -> list[dict]` (L66)
+- `def update_dataset(did: str, **fields: Any) -> dict | None` (L75) — Update name/qa_count/size_bytes and stamp ``last_used_at``.
+- `def delete_dataset(did: str, remove_file: bool = False) -> dict` (L98) — Delete a dataset. If remove_file=True, also delete the underlying jsonl file.
+- `def count_qa_pairs(jsonl_path: str) -> int` (L113) — Count non-empty lines in a jsonl file (best-effort).
   - imports: finetune_studio.config, finetune_studio.db.connection
 
 ## `src/finetune_studio/db/hf_downloads.py` (100 lines)
-- `_get(rid: str) -> dict | None` (L14)
-- `create_job(repo_id: str, filename: str = '') -> dict` (L20)
-- `mark_running(rid: str) -> dict | None` (L33)
-- `mark_done(rid: str, *, path: str = '', bytes_total: int | None = None, bytes_done: int …` (L37)
-- `mark_failed(rid: str, error: str) -> dict | None` (L49)
-- `mark_cancelled(rid: str) -> dict | None` (L54)
-- `update_job(rid: str, **fields: Any) -> dict | None` (L59)
-- `get_job(rid: str) -> dict | None` (L77)
-- `list_recent(limit: int = 50) -> list[dict]` (L81) — Across all repos — for the dashboard / activity feed.
-- `list_in_progress(limit: int = 50) -> list[dict]` (L91) — All jobs that are queued or actively downloading — restored on startup
+- `def _get(rid: str) -> dict | None` (L14)
+- `def create_job(repo_id: str, filename: str = '') -> dict` (L20)
+- `def mark_running(rid: str) -> dict | None` (L33)
+- `def mark_done(rid: str, *, path: str = '', bytes_total: int | None = None, bytes_done: int …` (L37)
+- `def mark_failed(rid: str, error: str) -> dict | None` (L49)
+- `def mark_cancelled(rid: str) -> dict | None` (L54)
+- `def update_job(rid: str, **fields: Any) -> dict | None` (L59)
+- `def get_job(rid: str) -> dict | None` (L77)
+- `def list_recent(limit: int = 50) -> list[dict]` (L81) — Across all repos — for the dashboard / activity feed.
+- `def list_in_progress(limit: int = 50) -> list[dict]` (L91) — All jobs that are queued or actively downloading — restored on startup
   - imports: finetune_studio.db.connection
 
 ## `src/finetune_studio/db/model_exports.py` (129 lines)
-- `_get(eid: str) -> dict | None` (L16)
-- `create_export(project_id: str, run_id: str, *, format: str = 'gguf', quant: str = 'Q4_K_M')…` (L22)
-- `mark_running(eid: str) -> dict | None` (L36)
-- `mark_done(eid: str, *, output_path: str = '', size_bytes: int = 0, size_human: str = ''…` (L40)
-- `mark_failed(eid: str, error: str) -> dict | None` (L53)
-- `update_export(eid: str, **fields: Any) -> dict | None` (L58)
-- `get_export(eid: str) -> dict | None` (L78)
-- `list_for_run(run_id: str, limit: int = 50) -> list[dict]` (L82)
-- `list_for_project(project_id: str, limit: int = 100) -> list[dict]` (L92)
-- `list_recent(limit: int = 50) -> list[dict]` (L102)
-- `reconcile_stale(error: str = 'interrupted by service restart') -> int` (L111) — Mark in-flight model_exports as failed after a process restart.
+- `def _get(eid: str) -> dict | None` (L16)
+- `def create_export(project_id: str, run_id: str, *, format: str = 'gguf', quant: str = 'Q4_K_M')…` (L22)
+- `def mark_running(eid: str) -> dict | None` (L36)
+- `def mark_done(eid: str, *, output_path: str = '', size_bytes: int = 0, size_human: str = ''…` (L40)
+- `def mark_failed(eid: str, error: str) -> dict | None` (L53)
+- `def update_export(eid: str, **fields: Any) -> dict | None` (L58)
+- `def get_export(eid: str) -> dict | None` (L78)
+- `def list_for_run(run_id: str, limit: int = 50) -> list[dict]` (L82)
+- `def list_for_project(project_id: str, limit: int = 100) -> list[dict]` (L92)
+- `def list_recent(limit: int = 50) -> list[dict]` (L102)
+- `def reconcile_stale(error: str = 'interrupted by service restart') -> int` (L111) — Mark in-flight model_exports as failed after a process restart.
   - imports: finetune_studio.db.connection
 
 ## `src/finetune_studio/db/project_versions.py` (117 lines)
-- `_clean_manifest(manifest: dict[str, Any] | None) -> str` (L28)
-- `create_version(project_id: str, *, version_number: int | None = None, label: str = '', notes…` (L36) — Register a new immutable project version.
-- `get_version(vid: str) -> dict | None` (L65)
-- `get_version_by_number(project_id: str, version_number: int) -> dict | None` (L71)
-- `list_versions(project_id: str) -> list[dict]` (L79)
-- `latest_version(project_id: str) -> dict | None` (L92)
-- `delete_version(vid: str) -> bool` (L97) — Delete a manifest row only — never the artifacts it references.
-- `version_lineage(project_id: str, vid: str) -> list[dict]` (L104) — Walk parent_version_id links from `vid` back to the root, oldest first.
+- `def _clean_manifest(manifest: dict[str, Any] | None) -> str` (L29)
+- `def create_version(project_id: str, *, version_number: int | None = None, label: str = '', notes…` (L36) — Register a new immutable project version.
+- `def get_version(vid: str) -> dict | None` (L65)
+- `def get_version_by_number(project_id: str, version_number: int) -> dict | None` (L71)
+- `def list_versions(project_id: str) -> list[dict]` (L79)
+- `def latest_version(project_id: str) -> dict | None` (L92)
+- `def delete_version(vid: str) -> bool` (L97) — Delete a manifest row only — never the artifacts it references.
+- `def version_lineage(project_id: str, vid: str) -> list[dict]` (L104) — Walk parent_version_id links from `vid` back to the root, oldest first.
   - imports: finetune_studio.db.connection
 
 ## `src/finetune_studio/db/projects.py` (124 lines)
-- `_get(pid: str) -> dict | None` (L10)
-- `create_project(name: str, description: str = '', base_model: str = '', system_prompt: str = …` (L16)
-- `get_project(pid: str) -> dict | None` (L29)
-- `list_projects() -> list[dict]` (L33)
-- `update_project(pid: str, **fields: Any) -> dict | None` (L39)
-- `delete_project(pid: str) -> bool` (L56)
-- `add_model_favorite(model_path: str, name: str = '', note: str = '') -> dict` (L62) — Insert or update a model favorite.
-- `remove_model_favorite(model_path: str) -> None` (L90)
-- `list_model_favorites() -> list[dict]` (L98)
-- `is_model_favorited(model_path: str) -> bool` (L116)
+- `def _get(pid: str) -> dict | None` (L10)
+- `def create_project(name: str, description: str = '', base_model: str = '', system_prompt: str = …` (L16)
+- `def get_project(pid: str) -> dict | None` (L29)
+- `def list_projects() -> list[dict]` (L33)
+- `def update_project(pid: str, **fields: Any) -> dict | None` (L39)
+- `def delete_project(pid: str) -> bool` (L56)
+- `def add_model_favorite(model_path: str, name: str = '', note: str = '') -> dict` (L62) — Insert or update a model favorite.
+- `def remove_model_favorite(model_path: str) -> None` (L90)
+- `def list_model_favorites() -> list[dict]` (L98)
+- `def is_model_favorited(model_path: str) -> bool` (L116)
   - imports: finetune_studio.db.connection
 
-## `src/finetune_studio/db/rag_corpora.py` (126 lines)
-- `_get(rid: str) -> dict | None` (L15)
-- `create_build(project_id: str, rag_id: str) -> dict` (L21)
-- `mark_running(rid: str) -> dict | None` (L34)
-- `mark_done(rid: str, *, doc_count: int = 0, chunk_count: int = 0) -> dict | None` (L38)
-- `mark_failed(rid: str, error: str) -> dict | None` (L49)
-- `update_build(rid: str, **fields: Any) -> dict | None` (L54)
-- `get_build(rid: str) -> dict | None` (L72)
-- `list_for_rag(rag_id: str, limit: int = 50) -> list[dict]` (L76)
-- `list_recent(limit: int = 50) -> list[dict]` (L86) — Across all RAGs/projects — for the global activity feed.
-- `latest_for_rag(rag_id: str) -> dict | None` (L96) — The most recent build attempt for a RAG — what the UI shows as 'last build'.
-- `reconcile_stale(error: str = 'interrupted by service restart') -> int` (L107) — Mark in-flight rag_corpora rows as failed after a process restart.
+## `src/finetune_studio/db/rag_corpora.py` (125 lines)
+- `def _get(rid: str) -> dict | None` (L15)
+- `def create_build(project_id: str, rag_id: str) -> dict` (L21)
+- `def mark_running(rid: str) -> dict | None` (L34)
+- `def mark_done(rid: str, *, doc_count: int = 0, chunk_count: int = 0) -> dict | None` (L38)
+- `def mark_failed(rid: str, error: str) -> dict | None` (L49)
+- `def update_build(rid: str, **fields: Any) -> dict | None` (L54)
+- `def get_build(rid: str) -> dict | None` (L72)
+- `def list_for_rag(rag_id: str, limit: int = 50) -> list[dict]` (L76)
+- `def list_recent(limit: int = 50) -> list[dict]` (L86) — Across all RAGs/projects — for the global activity feed.
+- `def latest_for_rag(rag_id: str) -> dict | None` (L96) — The most recent build attempt for a RAG — what the UI shows as 'last build'.
+- `def reconcile_stale(error: str = 'interrupted by service restart') -> int` (L107) — Mark in-flight rag_corpora rows as failed after a process restart.
   - imports: finetune_studio.db.connection
 
-## `src/finetune_studio/db/rags.py` (120 lines)
-- `_get(rid: str) -> dict | None` (L10)
-- `create_rag(project_id: str, name: str, description: str = '', tags: str = '', store_path…` (L16)
-- `get_rag(rid: str) -> dict | None` (L31)
-- `list_rags(project_id: str) -> list[dict]` (L35)
-- `update_rag(rid: str, **fields: Any) -> dict | None` (L44)
-- `delete_rag(rid: str) -> bool` (L63)
-- `ensure_portable_rag(project_id: str, store_path: str, *, name: str | None = None, doc_count: int …` (L69) — Create or update the ``project_rags`` row for a PortableRAG corpus path.
-- `time_now() -> float` (L118)
+## `src/finetune_studio/db/rags.py` (116 lines)
+- `def _get(rid: str) -> dict | None` (L11)
+- `def create_rag(project_id: str, name: str, description: str = '', tags: str = '', store_path…` (L17)
+- `def get_rag(rid: str) -> dict | None` (L32)
+- `def list_rags(project_id: str) -> list[dict]` (L36)
+- `def update_rag(rid: str, **fields: Any) -> dict | None` (L45)
+- `def delete_rag(rid: str) -> bool` (L64)
+- `def ensure_portable_rag(project_id: str, store_path: str, *, name: str | None = None, doc_count: int …` (L70) — Create or update the ``project_rags`` row for a PortableRAG corpus path.
   - imports: finetune_studio.db.connection
 
 ## `src/finetune_studio/db/reviews.py` (33 lines)
-- `record_review(project_id: str, dataset: str, row_index: int, decision: str, edited_json: st…` (L9) — Record a row-level review decision. Overwrites prior decision for (project, dataset, row).
-- `list_review(project_id: str, dataset: str) -> list[dict]` (L27)
+- `def record_review(project_id: str, dataset: str, row_index: int, decision: str, edited_json: st…` (L9) — Record a row-level review decision. Overwrites prior decision for (project, dataset, row).
+- `def list_review(project_id: str, dataset: str) -> list[dict]` (L27)
   - imports: finetune_studio.db.connection
 
 ## `src/finetune_studio/db/runs.py` (123 lines)
-- `_get(rid: str) -> dict | None` (L11)
-- `create_run(project_id: str, name: str, base_model: str = '', data_path: str = '', rag_id…` (L17)
-- `get_run(rid: str) -> dict | None` (L36)
-- `list_runs(project_id: str | None = None) -> list[dict]` (L40)
-- `update_run(rid: str, **fields: Any) -> dict | None` (L67)
-- `delete_run(rid: str) -> bool` (L91)
-- `reconcile_stale_runs() -> int` (L103) — Mark in-flight training_runs as failed after a process restart.
+- `def _get(rid: str) -> dict | None` (L11)
+- `def create_run(project_id: str, name: str, base_model: str = '', data_path: str = '', rag_id…` (L17)
+- `def get_run(rid: str) -> dict | None` (L36)
+- `def list_runs(project_id: str | None = None) -> list[dict]` (L40)
+- `def update_run(rid: str, **fields: Any) -> dict | None` (L67)
+- `def delete_run(rid: str) -> bool` (L91)
+- `def reconcile_stale_runs() -> int` (L103) — Mark in-flight training_runs as failed after a process restart.
   - imports: finetune_studio.db.connection
 
 ## `src/finetune_studio/db/system_updates.py` (150 lines)
-- `_get(uid: str) -> dict | None` (L16)
-- `create_update(*, mode: str = 'update', options: dict | None = None, triggered_by: str = 'us…` (L22)
-- `mark_running(uid: str) -> dict | None` (L36)
-- `mark_done(uid: str) -> dict | None` (L40) — Mark the update as done. Does NOT touch log_text — use
-- `mark_failed(uid: str, *, error: str) -> dict | None` (L52) — Mark the update as failed. Does NOT touch log_text.
-- `mark_cancelled(uid: str) -> dict | None` (L58)
-- `append_log(uid: str, chunk: str, max_bytes: int = 256000) -> dict | None` (L62) — Append a chunk to log_text. Truncates from the top when it grows
-- `update_update(uid: str, **fields: Any) -> dict | None` (L79)
-- `get_update(uid: str) -> dict | None` (L100)
-- `list_recent(limit: int = 50) -> list[dict]` (L104)
-- `latest_in_progress() -> dict | None` (L113) — Most recent queued or running update — what the UI polls for status.
-- `reconcile_stale() -> int` (L123) — Finalize update rows orphaned by a service restart; returns count.
+- `def _get(uid: str) -> dict | None` (L16)
+- `def create_update(*, mode: str = 'update', options: dict | None = None, triggered_by: str = 'us…` (L22)
+- `def mark_running(uid: str) -> dict | None` (L36)
+- `def mark_done(uid: str) -> dict | None` (L40) — Mark the update as done. Does NOT touch log_text — use
+- `def mark_failed(uid: str, *, error: str) -> dict | None` (L52) — Mark the update as failed. Does NOT touch log_text.
+- `def mark_cancelled(uid: str) -> dict | None` (L58)
+- `def append_log(uid: str, chunk: str, max_chars: int = 256000) -> dict | None` (L62) — Append a chunk to log_text. Truncates from the top when it grows
+- `def update_update(uid: str, **fields: Any) -> dict | None` (L79)
+- `def get_update(uid: str) -> dict | None` (L100)
+- `def list_recent(limit: int = 50) -> list[dict]` (L104)
+- `def latest_in_progress() -> dict | None` (L113) — Most recent queued or running update — what the UI polls for status.
+- `def reconcile_stale() -> int` (L123) — Finalize update rows orphaned by a service restart; returns count.
   - imports: finetune_studio.db.connection
 
 ## `src/finetune_studio/models/__init__.py` (2 lines)
 
 ## `src/finetune_studio/models/gguf_layers.py` (68 lines)
-- `is_gguf_path(model_path: str) -> bool` (L21)
-- `gguf_header_values(path: str) -> dict[str, Any]` (L25) — Return selected integer header values for ``path`` (empty on any error).
-- `resolve_block_count(model_path: str) -> dict[str, Any]` (L51) — Return ``{"block_count": int|None, "context_length": int|None}`` for a GGUF.
+- `def is_gguf_path(model_path: str) -> bool` (L21)
+- `def gguf_header_values(path: str) -> dict[str, Any]` (L25) — Return selected integer header values for ``path`` (empty on any error).
+- `def resolve_block_count(model_path: str) -> dict[str, Any]` (L51) — Return ``{"block_count": int|None, "context_length": int|None}`` for a GGUF.
 
 ## `src/finetune_studio/models/helper.py` (222 lines)
-- `default_helper_gguf_path() -> str` (L62) — Absolute path to the configured helper GGUF on this host.
-- `alternate_helper_gguf_path() -> str` (L76) — Absolute path to the secondary helper GGUF on this host.
-- `normalize_model_path(path: str | None) -> str` (L90) — Absolute normalised path for equality checks (empty if unset).
-- `paths_match(a: str | None, b: str | None) -> bool` (L101) — True when two model paths refer to the same file/dir.
-- `helper_basename(path: str | None) -> str` (L110) — Last path segment of a model path (GGUF filename or dir name).
-- `is_helper_gguf_path(path: str | None) -> bool` (L118) — True when ``path`` is the configured helper GGUF (env or default).
-- `is_helper_provider(row: dict[str, Any] | None) -> bool` (L129) — True when a provider row is a configured local helper (default OR alternate).
-- `helper_display_label(*, name: str | None = None, model_id: str | None = None) -> str` (L139) — Human-readable helper label for UI / API (always prefixed Helper ·).
-- `annotate_provider(row: dict[str, Any]) -> dict[str, Any]` (L172) — Copy a provider dict and add ``is_helper`` + display ``label``.
-- `get_configured_helper_provider() -> dict[str, Any] | None` (L190) — Return the helper provider row from ModelManager, or None.
-- `wrong_model_message(loaded_path: str | None = None) -> str` (L204) — Error when a non-helper model is loaded for a helper-only workflow.
-- `no_helper_message() -> str` (L215) — Error when the helper is not loaded.
+- `def default_helper_gguf_path() -> str` (L62) — Absolute path to the configured helper GGUF on this host.
+- `def alternate_helper_gguf_path() -> str` (L76) — Absolute path to the secondary helper GGUF on this host.
+- `def normalize_model_path(path: str | None) -> str` (L90) — Absolute normalised path for equality checks (empty if unset).
+- `def paths_match(a: str | None, b: str | None) -> bool` (L101) — True when two model paths refer to the same file/dir.
+- `def helper_basename(path: str | None) -> str` (L110) — Last path segment of a model path (GGUF filename or dir name).
+- `def is_helper_gguf_path(path: str | None) -> bool` (L118) — True when ``path`` is the configured helper GGUF (env or default).
+- `def is_helper_provider(row: dict[str, Any] | None) -> bool` (L129) — True when a provider row is a configured local helper (default OR alternate).
+- `def helper_display_label(*, name: str | None = None, model_id: str | None = None) -> str` (L139) — Human-readable helper label for UI / API (always prefixed Helper ·).
+- `def annotate_provider(row: dict[str, Any]) -> dict[str, Any]` (L172) — Copy a provider dict and add ``is_helper`` + display ``label``.
+- `def get_configured_helper_provider() -> dict[str, Any] | None` (L190) — Return the helper provider row from ModelManager, or None.
+- `def wrong_model_message(loaded_path: str | None = None) -> str` (L204) — Error when a non-helper model is loaded for a helper-only workflow.
+- `def no_helper_message() -> str` (L215) — Error when the helper is not loaded.
   - imports: finetune_studio.models.llama_loader, finetune_studio.models.manager
 
 ## `src/finetune_studio/models/llama_loader.py` (236 lines)
 - `class LlamaLoadResult` (L34)
-- `load_llama_gguf(gguf_path: str, *, n_ctx: int = 32768, n_gpu_layers: int = -1, n_batch: int =…` (L42) — Build one `llama_cpp.Llama` instance. The single canonical loader.
-- `resolve_loader_overrides(body: dict[str, Any], *, caller: str, model_path: str = '', default_ctx: bool…` (L165) — The one place every `/load` route derives its Llama kwargs from a
-- `unload_all_models() -> None` (L206) — Free the resident model and reset ModelManager's bookkeeping.
+- `def load_llama_gguf(gguf_path: str, *, n_ctx: int = 32768, n_gpu_layers: int = -1, n_batch: int =…` (L42) — Build one `llama_cpp.Llama` instance. The single canonical loader.
+- `def resolve_loader_overrides(body: dict[str, Any], *, caller: str, model_path: str = '', default_ctx: bool…` (L165) — The one place every `/load` route derives its Llama kwargs from a
+- `def unload_all_models() -> None` (L206) — Free the resident model and reset ModelManager's bookkeeping.
   - imports: finetune_studio.models.manager, finetune_studio.webui.app
 
-## `src/finetune_studio/models/loader.py` (36 lines)
-- `load_model_info(model_path: str) -> dict` (L13)
+## `src/finetune_studio/models/loader.py` (38 lines)
+- `def load_model_info(model_path: str) -> dict` (L14)
 
 ## `src/finetune_studio/models/manager.py` (412 lines)
-- `_ensure_db() -> None` (L29)
-- `json_dumps(d: dict) -> str` (L175)
-- `json_loads(s: str) -> dict` (L180)
+- `def _ensure_db() -> None` (L29)
+- `def json_dumps(d: dict) -> str` (L175)
+- `def json_loads(s: str) -> dict` (L180)
 - `class ModelManager` (L188)
   - `def __init__(self)` (L196)
   - `def engine(self)` (L208)
@@ -957,7 +1023,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def _safe_unload(self) -> None` (L376)
   - `def chat(self, messages: list[dict], **gen) -> str` (L385)
   - `def generate(self, prompt: str, **gen) -> str` (L393)
-- `get_manager() -> ModelManager` (L407)
+- `def get_manager() -> ModelManager` (L407)
   - imports: finetune_studio.models.gguf_layers, finetune_studio.models.helper, finetune_studio.models.providers, finetune_studio.testing.inference
 
 ## `src/finetune_studio/models/providers.py` (333 lines)
@@ -987,46 +1053,46 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def unload(self) -> None` (L235)
   - `def chat(self, messages: list[dict], **gen) -> str` (L240)
   - `def generate(self, prompt: str, **gen) -> str` (L256)
-- `build_provider(config: ProviderConfig, engine: Any | None = None) -> ModelProvider` (L276) — ``engine`` is the single shared InferenceEngine local providers must
-- `_local_helper_preset() -> dict` (L289)
-- `_alternate_helper_preset() -> dict` (L306) — Second local helper (Qwen3-30B-A3B) — swap via the Inference picker.
+- `def build_provider(config: ProviderConfig, engine: Any | None = None) -> ModelProvider` (L276) — ``engine`` is the single shared InferenceEngine local providers must
+- `def _local_helper_preset() -> dict` (L289)
+- `def _alternate_helper_preset() -> dict` (L306) — Second local helper (Qwen3-30B-A3B) — swap via the Inference picker.
   - imports: finetune_studio.models.gguf_layers, finetune_studio.models.helper, finetune_studio.models.llama_loader, finetune_studio.testing.inference
 
 ## `src/finetune_studio/models/registry.py` (393 lines)
 - `class ModelInfo` (L28)
-- `_readable_file_size(path: str) -> int | None` (L65) — Return byte size, or None when the path is missing / a broken symlink.
-- `_weight_bytes(root: str, files: list[str]) -> int` (L75) — Sum readable weight-file sizes; ignore dangling HF hub symlinks.
-- `models_for_selectors(models: list) -> list` (L88) — Filter discovered models for Inference (and chat) dropdowns.
-- `_model_attr(m: object, key: str, default: str = '') -> str` (L113) — Read a ModelInfo field or dict key as a string.
-- `is_trainable_base_model(m: object) -> bool` (L122) — True when ``m`` is a Transformers-compatible training base.
-- `models_for_training(models: list) -> list` (L145) — Filter for Training base-model selectors only.
-- `_safe_model_name(root: str, cfg: dict, project_name: str = '') -> str` (L155) — Extract a human-readable model name from config or directory path.
-- `_lookup_project_name(output_path: str) -> tuple[str, str]` (L214) — Look up (project_id, project_name) for a model path.
-- `scan_models(directories: list) -> list` (L252)
+- `def _readable_file_size(path: str) -> int | None` (L65) — Return byte size, or None when the path is missing / a broken symlink.
+- `def _weight_bytes(root: str, files: list[str]) -> int` (L75) — Sum readable weight-file sizes; ignore dangling HF hub symlinks.
+- `def models_for_selectors(models: list) -> list` (L88) — Filter discovered models for Inference (and chat) dropdowns.
+- `def _model_attr(m: object, key: str, default: str = '') -> str` (L113) — Read a ModelInfo field or dict key as a string.
+- `def is_trainable_base_model(m: object) -> bool` (L122) — True when ``m`` is a Transformers-compatible training base.
+- `def models_for_training(models: list) -> list` (L145) — Filter for Training base-model selectors only.
+- `def _safe_model_name(root: str, cfg: dict, project_name: str = '') -> str` (L155) — Extract a human-readable model name from config or directory path.
+- `def _lookup_project_name(output_path: str) -> tuple[str, str]` (L214) — Look up (project_id, project_name) for a model path.
+- `def scan_models(directories: list) -> list` (L252)
   - imports: finetune_studio, finetune_studio.models.helper
 
 ## `src/finetune_studio/naming.py` (191 lines)
-- `detect_quant(name_or_path: str) -> str | None` (L50)
-- `detect_abliterated(name_or_path: str) -> bool` (L61)
-- `short_base(name_or_path: str) -> str` (L65) — ``Qwen/Qwen3-4B`` / ``models--Qwen--Qwen3-4B/snapshots/<hash>`` /
-- `_looks_hash(seg: str) -> bool` (L91)
-- `kind_label(dirname: str) -> str` (L95)
-- `model_full_name(project: str = '', base: str = '', version: str = '', kind: str = '', quant: …` (L99)
-- `_version_label_for_run(project_id: str, run_id: str) -> str` (L115) — ``v3 my-label`` if a pinned project version references this run id.
-- `resolve_run_path(path: str) -> dict | None` (L138) — Parse ``projects/<pid>/runs/<rid>/<kind>`` and enrich from the DB.
-- `display_for_path(path: str, size_hint: str = '') -> str` (L170) — Best human-readable name for a model path (run export or plain dir).
+- `def detect_quant(name_or_path: str) -> str | None` (L50)
+- `def detect_abliterated(name_or_path: str) -> bool` (L61)
+- `def short_base(name_or_path: str) -> str` (L65) — ``Qwen/Qwen3-4B`` / ``models--Qwen--Qwen3-4B/snapshots/<hash>`` /
+- `def _looks_hash(seg: str) -> bool` (L91)
+- `def kind_label(dirname: str) -> str` (L95)
+- `def model_full_name(project: str = '', base: str = '', version: str = '', kind: str = '', quant: …` (L99)
+- `def _version_label_for_run(project_id: str, run_id: str) -> str` (L115) — ``v3 my-label`` if a pinned project version references this run id.
+- `def resolve_run_path(path: str) -> dict | None` (L138) — Parse ``projects/<pid>/runs/<rid>/<kind>`` and enrich from the DB.
+- `def display_for_path(path: str, size_hint: str = '') -> str` (L170) — Best human-readable name for a model path (run export or plain dir).
   - imports: finetune_studio
 
-## `src/finetune_studio/rag/__init__.py` (13 lines)
+## `src/finetune_studio/rag/__init__.py` (25 lines)
   - imports: finetune_studio.rag.ingest, finetune_studio.rag.manager, finetune_studio.rag.query, finetune_studio.rag.store
 
-## `src/finetune_studio/rag/ingest.py` (132 lines)
-- `class Document` (L21)
-- `class Chunk` (L32)
-- `extract_text(file_path: str) -> str` (L40) — Extract text via the unified parser package.
-- `chunk_text(text: str, chunk_size: int = 512, overlap: int = 50, metadata: dict | None = …` (L54) — Split text into overlapping word-based chunks. Each Chunk has a unique
-- `ingest_file(file_path: str, chunk_size: int = 512, overlap: int = 50) -> Document` (L78) — Ingest a single file. Routes through extract_text() which uses the
-- `ingest_directory(directory: str, chunk_size: int = 512, overlap: int = 50, extensions: list | …` (L98) — Ingest all files in a directory whose extension is in the supported list.
+## `src/finetune_studio/rag/ingest.py` (131 lines)
+- `class Document` (L20)
+- `class Chunk` (L31)
+- `def extract_text(file_path: str) -> str` (L39) — Extract text via the unified parser package.
+- `def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50, metadata: dict | None = …` (L53) — Split text into overlapping word-based chunks. Each Chunk has a unique
+- `def ingest_file(file_path: str, chunk_size: int = 512, overlap: int = 50) -> Document` (L77) — Ingest a single file. Routes through extract_text() which uses the
+- `def ingest_directory(directory: str, chunk_size: int = 512, overlap: int = 50, extensions: list | …` (L97) — Ingest all files in a directory whose extension is in the supported list.
   - imports: finetune_studio.data.parsers
 
 ## `src/finetune_studio/rag/manager.py` (85 lines)
@@ -1066,62 +1132,62 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 
 ## `src/finetune_studio/templates/__init__.py` (28 lines)
 
-## `src/finetune_studio/templates/manager.py` (173 lines)
-- `class ChatTemplate` (L25)
-- `class TemplateManager` (L36)
-  - `def __init__(self)` (L39)
-  - `def register_from_gguf(self, model_path: str, model_name: str | None = None) -> ChatTemplate` (L42)
-  - `def get_template(self, model_name: str) -> ChatTemplate` (L62)
-  - `def render(self, model_name: str, messages: list[dict[str, Any]], tools: list[dict] | No…` (L65)
-  - `def build_tool_system_prompt(self, model_name: str | None = None, tools: list | None = None) -> str` (L83)
-- `_detect_format(template_str: str) -> str` (L118)
-- `_build_generic_tool_prompt(tools: list) -> str` (L141)
-- `_build_qwen_tool_prompt(tools: list) -> str` (L152)
-- `_build_gemma4_tool_prompt(tools: list) -> str` (L156)
-- `_build_mistral_tool_prompt(tools: list) -> str` (L168)
+## `src/finetune_studio/templates/manager.py` (175 lines)
+- `class ChatTemplate` (L26)
+- `class TemplateManager` (L37)
+  - `def __init__(self)` (L40)
+  - `def register_from_gguf(self, model_path: str, model_name: str | None = None) -> ChatTemplate` (L43)
+  - `def get_template(self, model_name: str) -> ChatTemplate` (L63)
+  - `def render(self, model_name: str, messages: list[dict[str, Any]], tools: list[dict] | No…` (L66)
+  - `def build_tool_system_prompt(self, model_name: str | None = None, tools: list | None = None) -> str` (L84)
+- `def _detect_format(template_str: str) -> str` (L120)
+- `def _build_generic_tool_prompt(tools: list) -> str` (L143)
+- `def _build_qwen_tool_prompt(tools: list) -> str` (L154)
+- `def _build_gemma4_tool_prompt(tools: list) -> str` (L158)
+- `def _build_mistral_tool_prompt(tools: list) -> str` (L170)
 
-## `src/finetune_studio/templates/renderer.py` (420 lines)
-- `render_chat(template_str: str, messages: list[dict[str, Any]], tools: list[dict] | None =…` (L68) — Render messages using a Jinja2 chat template.
-- `_chatml_wrap(tag, content_str)` (L172) — Wrap content in ChatML tags.
-- `_render_chatml_fallback(messages: list[dict[str, Any]], tools: list[dict] | None = None, bos_token: s…` (L206) — ChatML fallback for models without templates.
-- `extract_template_from_gguf(model_path: str) -> dict[str, Any]` (L279) — Extract chat template and tokens from a GGUF file.
-- `render_with_model_template(model_path: str, messages: list[dict[str, Any]], tools: list[dict] | None = N…` (L377) — One-shot: extract template from GGUF and render messages.
+## `src/finetune_studio/templates/renderer.py` (394 lines)
+- `def render_chat(template_str: str, messages: list[dict[str, Any]], tools: list[dict] | None =…` (L60) — Render messages using a Jinja2 chat template.
+- `def _chatml_wrap(role: str, content: str) -> str` (L171) — Wrap one message in real ChatML: im_start + role, newline, content, im_end, newline.
+- `def _render_chatml_fallback(messages: list[dict[str, Any]], tools: list[dict] | None = None, bos_token: s…` (L179) — ChatML fallback for models without templates.
+- `def extract_template_from_gguf(model_path: str) -> dict[str, Any]` (L252) — Extract chat template and tokens from a GGUF file.
+- `def render_with_model_template(model_path: str, messages: list[dict[str, Any]], tools: list[dict] | None = N…` (L351) — One-shot: extract template from GGUF and render messages.
 
 ## `src/finetune_studio/testing/__init__.py` (2 lines)
 
 ## `src/finetune_studio/testing/audit.py` (62 lines)
-- `recompute_cases(cases: list[dict[str, Any]]) -> dict[str, Any]` (L15) — Re-score persisted raw cases without trusting stored verdict fields.
+- `def recompute_cases(cases: list[dict[str, Any]]) -> dict[str, Any]` (L15) — Re-score persisted raw cases without trusting stored verdict fields.
   - imports: finetune_studio.testing.suite
 
 ## `src/finetune_studio/testing/full_corpus_suite.py` (275 lines)
 - `class FullCorpusCase` (L29)
   - `def as_dict(self) -> dict[str, Any]` (L40)
 - `class FullCorpusBuildResult` (L53)
-- `suite_path_for_project(project_id: str) -> Path` (L62) — Canonical on-disk path for this project's full-ingested-corpus suite.
-- `_message_value(message: dict[str, Any]) -> str` (L67)
-- `_pair_messages(pair: dict[str, Any]) -> list[dict[str, Any]]` (L71)
-- `extract_qa_text(pair: dict[str, Any]) -> tuple[str, str]` (L81) — Return ``(question, answer)`` from pair fields or message roles.
-- `case_from_pair(pair: dict[str, Any], *, fallback_name: str = '') -> FullCorpusCase | None` (L109) — Build a suite case from one pair, or None if it cannot be used.
-- `_deduplicated_pairs(pairs: list[dict[str, Any]]) -> list[dict[str, Any]]` (L135) — Apply the same one-question/one-target contract as dataset export.
-- `cases_from_approved_pairs(project_id: str) -> list[FullCorpusCase]` (L149) — Collect typed cases from every usable approved pair in the project.
-- `cases_from_pairs_directory(pairs_dir: Path) -> list[FullCorpusCase]` (L160) — Collect cases by reading ``*.json`` pair files under ``pairs_dir``.
-- `build_suite_document(cases: list[FullCorpusCase]) -> dict[str, Any]` (L187) — Serialize cases into the on-disk suite JSON shape.
-- `_write_cases(path: Path, cases: list[FullCorpusCase]) -> FullCorpusBuildResult` (L197)
-- `write_full_corpus_suite(project_id: str, *, output_path: Path | None = None) -> FullCorpusBuildResult` (L221) — Write ``full-ingested-corpus.json`` from approved source-grounded pairs.
-- `write_full_corpus_suite_from_project_dir(project_root: Path, output_path: Path) -> FullCorpusBuildResult` (L235) — Write suite JSON from ``project_root/qa/pairs`` (CLI / offline use).
-- `ensure_full_corpus_suite(project_id: str) -> FullCorpusBuildResult` (L243) — Regenerate the project-local full-corpus suite from current approved QA.
-- `suite_definition_from_build(result: FullCorpusBuildResult) -> Any` (L248) — Map a successful build into a discoverable ``SuiteDefinition``.
-- `ensure_full_corpus_suite_definition(project_id: str) -> Any` (L273) — Ensure the suite file exists and return its discovery definition, or None.
+- `def suite_path_for_project(project_id: str) -> Path` (L62) — Canonical on-disk path for this project's full-ingested-corpus suite.
+- `def _message_value(message: dict[str, Any]) -> str` (L67)
+- `def _pair_messages(pair: dict[str, Any]) -> list[dict[str, Any]]` (L71)
+- `def extract_qa_text(pair: dict[str, Any]) -> tuple[str, str]` (L81) — Return ``(question, answer)`` from pair fields or message roles.
+- `def case_from_pair(pair: dict[str, Any], *, fallback_name: str = '') -> FullCorpusCase | None` (L109) — Build a suite case from one pair, or None if it cannot be used.
+- `def _deduplicated_pairs(pairs: list[dict[str, Any]]) -> list[dict[str, Any]]` (L135) — Apply the same one-question/one-target contract as dataset export.
+- `def cases_from_approved_pairs(project_id: str) -> list[FullCorpusCase]` (L149) — Collect typed cases from every usable approved pair in the project.
+- `def cases_from_pairs_directory(pairs_dir: Path) -> list[FullCorpusCase]` (L160) — Collect cases by reading ``*.json`` pair files under ``pairs_dir``.
+- `def build_suite_document(cases: list[FullCorpusCase]) -> dict[str, Any]` (L187) — Serialize cases into the on-disk suite JSON shape.
+- `def _write_cases(path: Path, cases: list[FullCorpusCase]) -> FullCorpusBuildResult` (L197)
+- `def write_full_corpus_suite(project_id: str, *, output_path: Path | None = None) -> FullCorpusBuildResult` (L221) — Write ``full-ingested-corpus.json`` from approved source-grounded pairs.
+- `def write_full_corpus_suite_from_project_dir(project_root: Path, output_path: Path) -> FullCorpusBuildResult` (L235) — Write suite JSON from ``project_root/qa/pairs`` (CLI / offline use).
+- `def ensure_full_corpus_suite(project_id: str) -> FullCorpusBuildResult` (L243) — Regenerate the project-local full-corpus suite from current approved QA.
+- `def suite_definition_from_build(result: FullCorpusBuildResult) -> Any` (L248) — Map a successful build into a discoverable ``SuiteDefinition``.
+- `def ensure_full_corpus_suite_definition(project_id: str) -> Any` (L273) — Ensure the suite file exists and return its discovery definition, or None.
   - imports: finetune_studio.benchmarks.suite_defs, finetune_studio.data.fs.paths, finetune_studio.data.fs.qa, finetune_studio.data.prep.export
 
 ## `src/finetune_studio/testing/generate_suite.py` (284 lines)
-- `generate_suite_from_training_data(data_path: str, output_dir: str, suite_name: str | None = None, max_cases: in…` (L38) — Convert a training JSONL file into a benchmark suite.
-- `_categorize(question: str, answer: str) -> str` (L205) — Categorize a Q&A pair by its question type.
-- `_analyze_difficulty(question: str, answer: str) -> tuple[str, str]` (L257) — Analyze answer characteristics to determine difficulty and judging strategy.
-- `_slugify(text: str) -> str` (L279) — Convert text to a safe filename slug.
+- `def generate_suite_from_training_data(data_path: str, output_dir: str, suite_name: str | None = None, max_cases: in…` (L38) — Convert a training JSONL file into a benchmark suite.
+- `def _categorize(question: str, answer: str) -> str` (L205) — Categorize a Q&A pair by its question type.
+- `def _analyze_difficulty(question: str, answer: str) -> tuple[str, str]` (L257) — Analyze answer characteristics to determine difficulty and judging strategy.
+- `def _slugify(text: str) -> str` (L279) — Convert text to a safe filename slug.
   - imports: finetune_studio.testing.suite
 
-## `src/finetune_studio/testing/inference.py` (585 lines)
+## `src/finetune_studio/testing/inference.py` (579 lines)
 - `class InferenceEngine` (L34)
   - `def __init__(self)` (L35)
   - `def load(self, model_path, device = 'auto', n_ctx = DEFAULT_N_CTX, n_gpu_layers = -1, …` (L56)
@@ -1135,17 +1201,17 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def idle_seconds(self)` (L294)
   - `def generate(self, messages, max_tokens = 1024, temperature = 0.7, top_p = 0.9, top_k = 40…` (L300)
   - `def _generate_hf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop, …` (L309)
-  - `def estimate_memory(model_path, n_ctx = DEFAULT_N_CTX, n_gpu_layers = -1)` (L348)
-  - `def read_model_metadata(model_path)` (L403)
-  - `def _generate_gguf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop)` (L550)
-  - imports: finetune_studio.config, finetune_studio.models.llama_loader, finetune_studio.templates.renderer
+  - `def estimate_memory(model_path, n_ctx = DEFAULT_N_CTX, n_gpu_layers = -1)` (L342)
+  - `def read_model_metadata(model_path)` (L397)
+  - `def _generate_gguf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop)` (L544)
+  - imports: finetune_studio.config, finetune_studio.models.llama_loader, finetune_studio.templates.renderer, finetune_studio.training.formatting
 
 ## `src/finetune_studio/testing/judge.py` (247 lines)
-- `_key_words(text: str) -> set[str]` (L100) — Content words of a text: lowercased, punctuation-stripped, stopwords removed.
-- `judge_case_heuristic(question: str, correct_answer: str, model_answer: str) -> tuple[Verdict, str,…` (L108) — Judge locally with no API key and no model — key-word overlap.
-- `build_judge_messages(question: str, correct_answer: str, model_answer: str, transcript: list[dict]…` (L147) — Build the chat messages for the judge prompt.
-- `judge_case_ai(question: str, correct_answer: str, model_answer: str, model: str = DEFAULT_J…` (L167) — Send one case to an AI judge. Returns (verdict, reasoning, confidence).
-- `judge_case_local(engine, question: str, correct_answer: str, model_answer: str, think: bool = …` (L220) — Judge using a local model (the inference engine).
+- `def _key_words(text: str) -> set[str]` (L100) — Content words of a text: lowercased, punctuation-stripped, stopwords removed.
+- `def judge_case_heuristic(question: str, correct_answer: str, model_answer: str) -> tuple[Verdict, str,…` (L108) — Judge locally with no API key and no model — key-word overlap.
+- `def build_judge_messages(question: str, correct_answer: str, model_answer: str, transcript: list[dict]…` (L147) — Build the chat messages for the judge prompt.
+- `def judge_case_ai(question: str, correct_answer: str, model_answer: str, model: str = DEFAULT_J…` (L167) — Send one case to an AI judge. Returns (verdict, reasoning, confidence).
+- `def judge_case_local(engine, question: str, correct_answer: str, model_answer: str, think: bool = …` (L220) — Judge using a local model (the inference engine).
 
 ## `src/finetune_studio/testing/rag_suite.py` (422 lines)
 - `class RagSearchEngine(Protocol)` (L42)
@@ -1153,96 +1219,94 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def format_context(self, results: list[dict], max_chars: int = 4000) -> str` (L48)
 - `class ChatEngine(Protocol)` (L52)
   - `def generate(self, messages: list[dict], *, max_tokens: int = 512, temperature: float = 0.…` (L55)
-- `default_corpus_path(pid: str) -> Path` (L68) — Canonical PortableRAG directory for a project id.
-- `resolve_corpus_path(pid: str = '', corpus_path: str = '') -> Path` (L73) — Resolve corpus path: explicit override, then project_rags, then default.
-- `load_portable_rag_query(corpus_path: str | Path) -> Any` (L96) — Load a PortableRAG query engine from ``corpus_path``.
-- `provenance_from_hit(hit: dict[str, Any]) -> dict[str, Any]` (L109) — Normalize a search hit into stable provenance fields.
-- `build_grounded_messages(question: str, context: str) -> list[dict[str, str]]` (L125) — System + user messages that enforce context-only answering.
-- `_needs_table_arithmetic_retry(question: str, response: str, context: str) -> bool` (L138) — Detect the common actual-hours/variance mix-up in tabular answers.
-- `hit_matches_source(hit: dict[str, Any], source_id: str, chunk_idx: int = 0) -> bool` (L149) — True when a retrieval hit plausibly matches suite ``source_id`` / chunk.
+- `def default_corpus_path(pid: str) -> Path` (L68) — Canonical PortableRAG directory for a project id.
+- `def resolve_corpus_path(pid: str = '', corpus_path: str = '') -> Path` (L73) — Resolve corpus path: explicit override, then project_rags, then default.
+- `def load_portable_rag_query(corpus_path: str | Path) -> Any` (L96) — Load a PortableRAG query engine from ``corpus_path``.
+- `def provenance_from_hit(hit: dict[str, Any]) -> dict[str, Any]` (L109) — Normalize a search hit into stable provenance fields.
+- `def build_grounded_messages(question: str, context: str) -> list[dict[str, str]]` (L125) — System + user messages that enforce context-only answering.
+- `def _needs_table_arithmetic_retry(question: str, response: str, context: str) -> bool` (L138) — Detect the common actual-hours/variance mix-up in tabular answers.
+- `def hit_matches_source(hit: dict[str, Any], source_id: str, chunk_idx: int = 0) -> bool` (L149) — True when a retrieval hit plausibly matches suite ``source_id`` / chunk.
 - `class RagCaseResult` (L178)
   - `def as_api_dict(self) -> dict[str, Any]` (L186)
 - `class RagSuiteReport` (L215)
   - `def as_api_dict(self) -> dict[str, Any]` (L226)
-- `compute_retrieval_metrics(rag_results: list[RagCaseResult]) -> dict[str, Any]` (L238) — Hit counts / recall for cases that declare ``source_id``.
-- `run_rag_suite(engine: ChatEngine, rag_query: RagSearchEngine, cases: list[BenchmarkCase], *…` (L252) — Retrieve → ground prompt → generate → collect CaseResult + provenance.
-- `run_rag_suite_evaluation(engine: ChatEngine, *, suite_path: str, corpus_path: str = '', project_id: st…` (L356) — Load suite + corpus, run grounded eval, judge, and aggregate metrics.
-  - imports: finetune_studio.data.rag_eval, finetune_studio.data.rag_portable, finetune_studio.db.rags, finetune_studio.testing.suite
+- `def compute_retrieval_metrics(rag_results: list[RagCaseResult]) -> dict[str, Any]` (L238) — Hit counts / recall for cases that declare ``source_id``.
+- `def run_rag_suite(engine: ChatEngine, rag_query: RagSearchEngine, cases: list[BenchmarkCase], *…` (L252) — Retrieve → ground prompt → generate → collect CaseResult + provenance.
+- `def run_rag_suite_evaluation(engine: ChatEngine, *, suite_path: str, corpus_path: str = '', project_id: st…` (L356) — Load suite + corpus, run grounded eval, judge, and aggregate metrics.
+  - imports: finetune_studio.data.fs.paths, finetune_studio.data.rag_eval, finetune_studio.data.rag_portable, finetune_studio.db.rags, finetune_studio.testing.suite
 
 ## `src/finetune_studio/testing/strict_scoring.py` (543 lines)
-- `strip_provenance_suffix(text: str) -> str` (L83) — Ignore an approved source citation when scoring the answer body.
-- `extract_critical_facts(text: str) -> set[str]` (L88) — Extract dates, times, IDs, percentages, and explicit numeric facts.
-- `extract_content_terms(text: str) -> set[str]` (L101) — Return meaningful lexical anchors for source-grounded open answers.
-- `_focused_expected_answer(question: str, answer: str) -> str` (L111) — Drop unrelated rows from legacy table/record-shaped expected answers.
-- `_normalise_phrase(text: str) -> str` (L140)
-- `_question_requests_date(question: str) -> bool` (L144)
-- `score_source_grounded(*, question: str = '', correct_answer: str, model_answer: str) -> StrictScore…` (L152) — Require facts and meaningful content coverage for source-grounded answers.
+- `def strip_provenance_suffix(text: str) -> str` (L83) — Ignore an approved source citation when scoring the answer body.
+- `def extract_critical_facts(text: str) -> set[str]` (L88) — Extract dates, times, IDs, percentages, and explicit numeric facts.
+- `def extract_content_terms(text: str) -> set[str]` (L101) — Return meaningful lexical anchors for source-grounded open answers.
+- `def _focused_expected_answer(question: str, answer: str) -> str` (L111) — Drop unrelated rows from legacy table/record-shaped expected answers.
+- `def _normalise_phrase(text: str) -> str` (L140)
+- `def _question_requests_date(question: str) -> bool` (L144)
+- `def score_source_grounded(*, question: str = '', correct_answer: str, model_answer: str) -> StrictScore…` (L152) — Require facts and meaningful content coverage for source-grounded answers.
 - `class StrictScore` (L260)
-- `detect_task_kind(question: str, correct_answer: str) -> TaskKind` (L269) — Infer whether a case is multiple-choice, numeric, or open-ended.
-- `_is_numeric_answer(text: str) -> bool` (L283)
-- `expected_mc_letter(correct_answer: str) -> str | None` (L289) — Extract the expected option letter from ``correct_answer``.
-- `_normalize_number(raw: str) -> str` (L297)
-- `extract_selected_letters(model_answer: str) -> list[str]` (L309) — Return positively asserted option letters (negations removed).
-- `extract_final_numbers(model_answer: str) -> list[str]` (L327) — Extract candidate final numeric answers (normalized strings).
-- `score_multiple_choice(*, correct_answer: str, model_answer: str) -> StrictScore` (L344) — Score an MCQ: exact selected option letter; reject wrong extras.
-- `score_numeric(*, correct_answer: str, model_answer: str) -> StrictScore` (L419) — Score a numeric case: normalized final answer must match exactly.
-- `score_strict(*, question: str, correct_answer: str, model_answer: str) -> StrictScore | No…` (L522) — Score with the strict scorer when the task kind is MCQ or numeric.
+- `def detect_task_kind(question: str, correct_answer: str) -> TaskKind` (L269) — Infer whether a case is multiple-choice, numeric, or open-ended.
+- `def _is_numeric_answer(text: str) -> bool` (L283)
+- `def expected_mc_letter(correct_answer: str) -> str | None` (L289) — Extract the expected option letter from ``correct_answer``.
+- `def _normalize_number(raw: str) -> str` (L297)
+- `def extract_selected_letters(model_answer: str) -> list[str]` (L309) — Return positively asserted option letters (negations removed).
+- `def extract_final_numbers(model_answer: str) -> list[str]` (L327) — Extract candidate final numeric answers (normalized strings).
+- `def score_multiple_choice(*, correct_answer: str, model_answer: str) -> StrictScore` (L344) — Score an MCQ: exact selected option letter; reject wrong extras.
+- `def score_numeric(*, correct_answer: str, model_answer: str) -> StrictScore` (L419) — Score a numeric case: normalized final answer must match exactly.
+- `def score_strict(*, question: str, correct_answer: str, model_answer: str) -> StrictScore | No…` (L522) — Score with the strict scorer when the task kind is MCQ or numeric.
 
-## `src/finetune_studio/testing/suite.py` (332 lines)
-- `class BenchmarkCase` (L49)
-- `class CaseResult` (L63)
-- `load_test_suite(path: str) -> list[BenchmarkCase]` (L84) — Load a v2 Q&A benchmark suite from JSON.
-- `extract_answer(transcript: list) -> str` (L142) — Pull the last assistant message from a transcript as the model's answer.
-- `run_suite(engine, cases: list[BenchmarkCase], max_tokens: int = 512, temperature: float…` (L150) — Run each case through the model. No judging yet — just collect transcripts.
-- `apply_heuristic_judging(results: list[CaseResult]) -> None` (L194) — Mutate results in place: set verdict/judge via strict or legacy scoring.
-- `score_results(results: list[CaseResult]) -> dict` (L286) — Aggregate stats over judged results.
-  - imports: finetune_studio.testing.judge, finetune_studio.testing.strict_scoring
+## `src/finetune_studio/testing/suite.py` (327 lines)
+- `class BenchmarkCase` (L51)
+- `class CaseResult` (L65)
+- `def load_test_suite(path: str) -> list[BenchmarkCase]` (L86) — Load a v2 Q&A benchmark suite from JSON.
+- `def run_suite(engine, cases: list[BenchmarkCase], max_tokens: int = 512, temperature: float…` (L144) — Run each case through the model. No judging yet — just collect transcripts.
+- `def apply_heuristic_judging(results: list[CaseResult]) -> None` (L189) — Mutate results in place: set verdict/judge via strict or legacy scoring.
+- `def score_results(results: list[CaseResult]) -> dict` (L281) — Aggregate stats over judged results.
+  - imports: finetune_studio.testing.judge, finetune_studio.testing.strict_scoring, finetune_studio.training.formatting
 
-## `src/finetune_studio/testing/training_eval.py` (229 lines)
+## `src/finetune_studio/testing/training_eval.py` (263 lines)
 - `class TrainingEvalMeta` (L34)
   - `def as_dict(self) -> dict[str, Any]` (L47)
-- `_extract_qa(example: dict[str, Any]) -> tuple[str, str] | None` (L51) — Pull (question, answer) from ShareGPT conversations or messages formats.
-- `cases_from_training_jsonl(data_path: str, *, max_cases: int | None = 200) -> tuple[list[BenchmarkCase],…` (L78) — Convert a training JSONL file into BenchmarkCase rows.
-- `resolve_project_dataset(project_id: str, dataset_id: str | None = None) -> dict[str, Any]` (L136) — Pick a project dataset (explicit id or most recent with qa_count > 0).
-- `build_training_eval(project_id: str, *, dataset_id: str | None = None, max_cases: int = 200) -> t…` (L158) — Resolve dataset + build leakage-eval cases and metadata.
-- `build_heldout_eval(project_id: str, *, dataset_id: str | None = None, max_cases: int = 200) -> t…` (L187) — Build the deterministic 10% validation slice used by the trainer.
-- `suite_label_for_training_eval(meta: TrainingEvalMeta) -> str` (L227) — Human-readable suite name for DB / UI.
+- `def _extract_qa(example: dict[str, Any]) -> tuple[str, str] | None` (L51) — Pull (question, answer) from ShareGPT conversations or messages formats.
+- `def cases_from_training_jsonl(data_path: str, *, max_cases: int | None = 200) -> tuple[list[BenchmarkCase],…` (L112) — Convert a training JSONL file into BenchmarkCase rows.
+- `def resolve_project_dataset(project_id: str, dataset_id: str | None = None) -> dict[str, Any]` (L170) — Pick a project dataset (explicit id or most recent with qa_count > 0).
+- `def build_training_eval(project_id: str, *, dataset_id: str | None = None, max_cases: int = 200) -> t…` (L192) — Resolve dataset + build leakage-eval cases and metadata.
+- `def build_heldout_eval(project_id: str, *, dataset_id: str | None = None, max_cases: int = 200) -> t…` (L221) — Build the deterministic 10% validation slice used by the trainer.
+- `def suite_label_for_training_eval(meta: TrainingEvalMeta) -> str` (L261) — Human-readable suite name for DB / UI.
   - imports: finetune_studio.db, finetune_studio.testing.generate_suite, finetune_studio.testing.suite, finetune_studio.training.data
 
 ## `src/finetune_studio/training/__init__.py` (2 lines)
 
-## `src/finetune_studio/training/abliteration.py` (245 lines)
-- `detect_refusal_direction(model, tokenizer, layer_indices: Optional[list[int]] = None, max_length: int …` (L60) — Detect the refusal direction in a model's hidden states.
-- `abliterate_model(model_path: str, output_dir: str, layer_indices: Optional[list[int]] = None, …` (L129) — Abliterate (de-censor) a model by removing its refusal direction.
-- `test_refusals(model, tokenizer, device: str = 'cuda') -> dict` (L207) — Test how often a model refuses to answer.
+## `src/finetune_studio/training/abliteration.py` (243 lines)
+- `def detect_refusal_direction(model, tokenizer, layer_indices: list[int] | None = None, max_length: int = 2…` (L58) — Detect the refusal direction in a model's hidden states.
+- `def abliterate_model(model_path: str, output_dir: str, layer_indices: list[int] | None = None, str…` (L127) — Abliterate (de-censor) a model by removing its refusal direction.
+- `def test_refusals(model, tokenizer, device: str = 'cuda') -> dict` (L205) — Test how often a model refuses to answer.
 
-## `src/finetune_studio/training/advanced_quant.py` (148 lines)
-- `quantize_gguf_imatrix(model_path: str, output_dir: str, imatrix_path: str, quants: list[str] | None…` (L13) — Quantize a model to GGUF using an importance matrix for higher quality.
-- `generate_imatrix(model_path: str, output_path: str, calibration_data: str | None = None, n_ctx…` (L88) — Generate an importance matrix for GGUF quantization.
-- `_default_calibration_path() -> str` (L138) — Get or create a default calibration text file.
+## `src/finetune_studio/training/advanced_quant.py` (86 lines)
+- `def quantize_gguf_imatrix(model_path: str, output_dir: str, imatrix_path: str, quants: list[str] | None…` (L20) — Quantize a merged HF model to GGUF using a precomputed importance matrix.
+  - imports: finetune_studio.training.gguf_convert
 
-## `src/finetune_studio/training/config_optimizer.py` (215 lines)
-- `class TrainingRecommendation` (L28)
-- `class TrainingConfigOptimizer` (L36)
-  - `def __init__(self)` (L39)
-  - `def analyze_and_recommend(self, data: list, current_config: dict | None = None) -> list` (L48)
-  - `def _calculate_pl_ratio(self, data: list) -> float` (L75)
-  - `def _calculate_persona_ratio(self, data: list) -> float` (L88)
-  - `def _small_dataset_rules(self, current: dict) -> list` (L100)
-  - `def _large_dataset_rules(self, current: dict) -> list` (L132)
-  - `def _language_imbalance_rules(self, current: dict, pl_ratio: float) -> list` (L150)
-  - `def _persona_focus_rules(self, current: dict) -> list` (L168)
-  - `def _knowledge_preservation_rules(self, current: dict) -> list` (L179)
-  - `def generate_report(self, recommendations: list) -> str` (L197)
+## `src/finetune_studio/training/config_optimizer.py` (199 lines)
+- `class TrainingRecommendation` (L12)
+- `class TrainingConfigOptimizer` (L20)
+  - `def __init__(self)` (L23)
+  - `def analyze_and_recommend(self, data: list, current_config: dict | None = None) -> list` (L32)
+  - `def _calculate_pl_ratio(self, data: list) -> float` (L59)
+  - `def _calculate_persona_ratio(self, data: list) -> float` (L72)
+  - `def _small_dataset_rules(self, current: dict) -> list` (L84)
+  - `def _large_dataset_rules(self, current: dict) -> list` (L116)
+  - `def _language_imbalance_rules(self, current: dict, pl_ratio: float) -> list` (L134)
+  - `def _persona_focus_rules(self, current: dict) -> list` (L152)
+  - `def _knowledge_preservation_rules(self, current: dict) -> list` (L163)
+  - `def generate_report(self, recommendations: list) -> str` (L181)
 
 ## `src/finetune_studio/training/data.py` (138 lines)
-- `clean_answer_for_training(answer: str) -> str` (L35) — Remove display-only provenance from the learned assistant response.
-- `load_jsonl(path: str) -> list` (L47)
-- `save_jsonl(data: list, path: str)` (L56)
-- `validate_messages(data: list) -> list` (L60)
-- `_conversations_to_messages(conversations: list) -> list` (L87) — Convert sharegpt `conversations: [{from, value}]` to OpenAI
-- `format_for_sft(data: list, system_prompt: str = '') -> list` (L101)
-- `split_data(data: list, train_ratio: float = 0.9, seed: int = 42)` (L133)
+- `def clean_answer_for_training(answer: str) -> str` (L35) — Remove display-only provenance from the learned assistant response.
+- `def load_jsonl(path: str) -> list` (L47)
+- `def save_jsonl(data: list, path: str)` (L56)
+- `def validate_messages(data: list) -> list` (L60)
+- `def _conversations_to_messages(conversations: list) -> list` (L87) — Convert sharegpt `conversations: [{from, value}]` to OpenAI
+- `def format_for_sft(data: list, system_prompt: str = '') -> list` (L101)
+- `def split_data(data: list, train_ratio: float = 0.9, seed: int = 42)` (L133)
 
 ## `src/finetune_studio/training/data_augmentation.py` (211 lines)
 - `class DataAugmenter` (L25)
@@ -1254,7 +1318,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def generate_persona_preservation(self, persona_data: list, count: int = 50) -> list` (L175)
   - `def augment_dataset(self, data: list, weaknesses: list | None = None) -> list` (L186)
 
-## `src/finetune_studio/training/data_quality.py` (250 lines)
+## `src/finetune_studio/training/data_quality.py` (253 lines)
 - `class DataQualityAnalyzer` (L28)
   - `def __init__(self)` (L31)
   - `def analyze(self, data_path: str) -> dict` (L35)
@@ -1268,20 +1332,20 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def _check_empty_responses(self, data)` (L196)
   - `def _check_hallucination_risks(self, data)` (L209)
   - `def _calculate_severity(self)` (L225)
-- `generate_fixes(analysis: dict) -> list` (L234) — Generate specific fixes based on analysis.
+- `def generate_fixes(analysis: dict) -> list` (L234) — Generate suggested fixes. ``command`` is only set when a real ``fts`` command exists.
 
-## `src/finetune_studio/training/engine.py` (1243 lines)
-- `_format_exc(exc: BaseException) -> str` (L48) — ``Type: msg`` without a trailing empty ``: `` when msg is blank.
-- `_register_patched_trl_classes(trainer_module: Any, config_module: Any) -> None` (L53) — Make patched TRL classes resolvable by pickle's module lookup.
-- `_unsloth_preimport_blockers() -> list[str]` (L68) — Critical modules already in ``sys.modules`` before unsloth is imported.
-- `_merged_dir_complete(merged_dir: str) -> bool` (L86) — True when merged/ has weight files (not just a partial config dump).
-- `_stop_training_callback(engine: 'TrainingEngine') -> Any` (L96) — Create the Trainer callback that turns a stop request into a stop flag.
-- `_free_cuda() -> None` (L109) — Drop refs the caller already deleted and clear the CUDA cache.
-- `_dir_size(path: str) -> int` (L124) — Sum of file sizes under `path`, in bytes. Missing dir → 0.
-- `_human_size(n: int) -> int` (L138) — 1.4 GB / 235 MB / 12 KB style.
+## `src/finetune_studio/training/engine.py` (1197 lines)
+- `def _format_exc(exc: BaseException) -> str` (L48) — ``Type: msg`` without a trailing empty ``: `` when msg is blank.
+- `def _register_patched_trl_classes(trainer_module: Any, config_module: Any) -> None` (L53) — Make patched TRL classes resolvable by pickle's module lookup.
+- `def _unsloth_preimport_blockers() -> list[str]` (L68) — Critical modules already in ``sys.modules`` before unsloth is imported.
+- `def _merged_dir_complete(merged_dir: str) -> bool` (L86) — True when merged/ has weight files (not just a partial config dump).
+- `def _stop_training_callback(engine: 'TrainingEngine') -> Any` (L96) — Create the Trainer callback that turns a stop request into a stop flag.
+- `def _free_cuda() -> None` (L109) — Drop refs the caller already deleted and clear the CUDA cache.
+- `def _dir_size(path: str) -> int` (L124) — Sum of file sizes under `path`, in bytes. Missing dir → 0.
+- `def _human_size(n: float) -> str` (L138) — 1.4 GB / 235 MB / 12 KB style.
 - `class TrainingConfig` (L148)
 - `class TrainingState` (L186)
-- `apply_trainer_log(state: TrainingState, logs: dict, *, global_step: int, epoch: float | None, t…` (L201) — Fold one ``TrainerCallback.on_log`` payload into ``state``.
+- `def apply_trainer_log(state: TrainingState, logs: dict, *, global_step: int, epoch: float | None, t…` (L201) — Fold one ``TrainerCallback.on_log`` payload into ``state``.
 - `class _ThreadChild` (L239)
   - `def __init__(self, thread: threading.Thread) -> None` (L242)
   - `def is_alive(self) -> bool` (L246)
@@ -1302,46 +1366,52 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def _sync_run_error(self, message: str) -> None` (L493)
   - `def _maybe_merge(self, model: object, tokenizer: object, output_dir: str) -> None` (L504)
   - `def _train(self, training_data, system_prompt)` (L516)
-  - `def _persist_run_error(self, error_msg: str) -> None` (L576)
-  - `def _persist_run_output(self) -> None` (L591)
-  - `def _load_model_with_fallback(self, model_path, tokenizer)` (L615)
-  - `def _train_unsloth(self, train_data)` (L656)
-  - `def _train_standard(self, train_data)` (L829)
-  - `def _do_merge(self, model, tokenizer, output_dir: str) -> dict` (L953)
-  - `def _do_abliteration(self) -> dict` (L1033)
-  - `def _do_export_imatrix(self, output_dir: str) -> dict` (L1057)
-  - `def _auto_generate_suite(self) -> dict` (L1082)
-  - `def _do_export_gguf(self, output_dir: str, force: bool = False) -> dict` (L1122)
-- `merge_adapter_for_run(run: dict, force: bool = False) -> dict` (L1165) — Merge a persisted run's adapter on disk into a standalone model.
-  - imports: finetune_studio.db.connection, finetune_studio.db.runs, finetune_studio.testing.generate_suite, finetune_studio.training.abliteration, finetune_studio.training.advanced_quant, finetune_studio.training.data, finetune_studio.training.gguf_convert, finetune_studio.training.merge_base, finetune_studio.training.sft_args, finetune_studio.training.worker
+  - `def _persist_run_error(self, error_msg: str) -> None` (L569)
+  - `def _persist_run_output(self) -> None` (L584)
+  - `def _load_model_with_fallback(self, model_path, tokenizer)` (L608)
+  - `def _save_adapter(self, model, tokenizer, *, with_chat_template: bool = False) -> None` (L649)
+  - `def _export_gguf_after_train(self, model, tokenizer) -> None` (L662)
+  - `def _train_unsloth(self, train_data)` (L688)
+  - `def _train_standard(self, train_data)` (L821)
+  - `def _do_merge(self, model, tokenizer, output_dir: str) -> dict` (L907)
+  - `def _do_abliteration(self) -> dict` (L987)
+  - `def _do_export_imatrix(self, output_dir: str) -> dict` (L1011)
+  - `def _auto_generate_suite(self) -> dict` (L1036)
+  - `def _do_export_gguf(self, output_dir: str, force: bool = False) -> dict` (L1076)
+- `def merge_adapter_for_run(run: dict, force: bool = False) -> dict` (L1119) — Merge a persisted run's adapter on disk into a standalone model.
+  - imports: finetune_studio.db.connection, finetune_studio.db.runs, finetune_studio.testing.generate_suite, finetune_studio.training.abliteration, finetune_studio.training.advanced_quant, finetune_studio.training.data, finetune_studio.training.formatting, finetune_studio.training.gguf_convert, finetune_studio.training.merge_base, finetune_studio.training.sft_args, finetune_studio.training.worker
 
 ## `src/finetune_studio/training/export_capabilities.py` (40 lines)
 - `class ExportCapabilities` (L20)
   - `def as_dict(self) -> dict[str, Any]` (L27)
-- `probe_export_capabilities() -> ExportCapabilities` (L32) — Probe the filesystem for the GGUF converter.
+- `def probe_export_capabilities() -> ExportCapabilities` (L32) — Probe the filesystem for the GGUF converter.
   - imports: finetune_studio.training.run_export
 
 ## `src/finetune_studio/training/export_response.py` (177 lines)
-- `_is_json_primitive(value: Any) -> bool` (L18)
-- `_to_jsonable(value: Any) -> Any` (L22) — Coerce one value to a JSON-serializable form, or drop it.
-- `sanitize_export_dict(raw: dict[str, Any]) -> dict[str, Any]` (L64) — Strip non-JSON values and normalize path field names.
+- `def _is_json_primitive(value: Any) -> bool` (L18)
+- `def _to_jsonable(value: Any) -> Any` (L22) — Coerce one value to a JSON-serializable form, or drop it.
+- `def sanitize_export_dict(raw: dict[str, Any]) -> dict[str, Any]` (L64) — Strip non-JSON values and normalize path field names.
 - `class ExportResult(BaseModel)` (L82)
   - `def from_raw(cls, raw: dict[str, Any]) -> ExportResult` (L111)
   - `def artifact_path(self) -> str` (L137)
-- `dir_size_bytes(path: str) -> int` (L148) — Total bytes under ``path`` (files only); 0 if missing.
-- `human_size(n: int) -> str` (L170) — Human-readable size string for export rows.
+- `def dir_size_bytes(path: str) -> int` (L148) — Total bytes under ``path`` (files only); 0 if missing.
+- `def human_size(n: int) -> str` (L170) — Human-readable size string for export rows.
+
+## `src/finetune_studio/training/formatting.py` (35 lines)
+- `def with_system_prompt(messages: list, system_prompt: str = '') -> list` (L10) — Prepend ``system_prompt`` unless empty or the first turn is already a system turn.
+- `def render_chat_text(tokenizer, messages: list, *, generation: bool = False, enable_thinking: bool…` (L21) — Render ``messages`` with the tokenizer's chat template.
 
 ## `src/finetune_studio/training/gguf_convert.py` (435 lines)
-- `_project_root() -> str` (L44) — Repo root (``src/finetune_studio/training/`` → three levels up).
-- `llama_cpp_search_paths() -> list[str]` (L50) — Ordered roots where ``convert_hf_to_gguf.py`` / build bins may live.
-- `find_gguf_convert_script() -> str | None` (L74) — Locate llama.cpp ``convert_hf_to_gguf.py``, or None if missing.
-- `find_llama_quantize() -> str | None` (L91) — Locate ``llama-quantize`` executable (PATH + common build dirs).
-- `normalize_gguf_quant(quant: str) -> str` (L117) — Normalize a quant label for filenames (``Q4_K_M`` → ``q4_k_m``).
-- `gguf_filename_matches_quant(filename: str, quant: str) -> bool` (L122) — True when ``filename`` is a ``.gguf`` whose stem ends with the quant.
-- `verify_gguf_artifacts(gguf_dir: str, quants: list[str] | None = None) -> dict[str, Any]` (L136) — Require non-empty ``.gguf`` files for ``quants`` (or any if unset).
-- `_run_cmd(cmd: list[str], *, timeout: int = 3600) -> None` (L219) — Run a subprocess; raise RuntimeError with stderr tail on failure.
-- `_needs_quantize_bin(quants: list[str]) -> bool` (L232)
-- `convert_merged_to_gguf(merged_dir: str, gguf_dir: str, quants: list[str], *, force: bool = False) ->…` (L238) — Convert a merged HF directory to GGUF files for each quant.
+- `def _project_root() -> str` (L44) — Repo root (``src/finetune_studio/training/`` → three levels up).
+- `def llama_cpp_search_paths() -> list[str]` (L50) — Ordered roots where ``convert_hf_to_gguf.py`` / build bins may live.
+- `def find_gguf_convert_script() -> str | None` (L74) — Locate llama.cpp ``convert_hf_to_gguf.py``, or None if missing.
+- `def find_llama_quantize() -> str | None` (L91) — Locate ``llama-quantize`` executable (PATH + common build dirs).
+- `def normalize_gguf_quant(quant: str) -> str` (L117) — Normalize a quant label for filenames (``Q4_K_M`` → ``q4_k_m``).
+- `def gguf_filename_matches_quant(filename: str, quant: str) -> bool` (L122) — True when ``filename`` is a ``.gguf`` whose stem ends with the quant.
+- `def verify_gguf_artifacts(gguf_dir: str, quants: list[str] | None = None) -> dict[str, Any]` (L136) — Require non-empty ``.gguf`` files for ``quants`` (or any if unset).
+- `def _run_cmd(cmd: list[str], *, timeout: int = 3600) -> None` (L219) — Run a subprocess; raise RuntimeError with stderr tail on failure.
+- `def _needs_quantize_bin(quants: list[str]) -> bool` (L232)
+- `def convert_merged_to_gguf(merged_dir: str, gguf_dir: str, quants: list[str], *, force: bool = False) ->…` (L238) — Convert a merged HF directory to GGUF files for each quant.
 
 ## `src/finetune_studio/training/hallucination_guard.py` (176 lines)
 - `class GuardrailResult` (L28)
@@ -1369,78 +1439,78 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 
 ## `src/finetune_studio/training/merge_base.py` (274 lines)
 - `class MergeBaseNotFound(Exception)` (L26)
-- `_hub_cache_root() -> Path` (L30) — HuggingFace hub cache directory (``~/.cache/huggingface/hub`` by default).
-- `_app_hf_models_root() -> Path` (L41) — App-local HF download dir used by ``/api/hf/local``.
-- `_read_config_dict(model_path: str | Path) -> dict | None` (L46) — Load ``config.json`` from a local dir or return None if missing.
-- `is_quantized_config(config: dict | None) -> bool` (L65) — True if ``config`` looks like bitsandbytes / nf4 / 4-bit.
-- `strip_quant_suffixes(repo: str) -> str` (L84) — Strip ``-unsloth-bnb-4bit`` / ``-bnb-4bit`` / ``-4bit`` from a repo name.
-- `_parse_base_identity(base_model: str) -> tuple[str | None, str]` (L93) — Return ``(org_or_None, bare_repo)`` derived from a path or HF id.
-- `_snapshot_is_complete(snap: Path) -> bool` (L117) — Snapshot must have config.json and at least one weight file.
-- `_best_snapshot_in_repo_dir(repo_dir: Path) -> Path | None` (L129) — Pick a snapshots/<hash> under a HF cache repo dir, or the dir itself.
-- `_find_in_hub_cache(bare_repo: str, preferred_orgs: tuple[str, ...] | None = None) -> str | None` (L147) — Search ``~/.cache/huggingface/hub/models--*`` for a matching non-quant base.
-- `_find_in_app_hf_models(bare_repo: str, preferred_orgs: tuple[str, ...] | None = None) -> str | None` (L181) — Search ``~/.finetune-studio/hf_models/<Org>__<Repo>``.
-- `_suggested_16bit_repo(bare_repo: str) -> str` (L209) — Human-facing Hub id to download when nothing is local.
-- `resolve_merge_base(base_model: str) -> str` (L227) — Return a local path or id suitable for a 16-bit PEFT merge.
+- `def _hub_cache_root() -> Path` (L30) — HuggingFace hub cache directory (``~/.cache/huggingface/hub`` by default).
+- `def _app_hf_models_root() -> Path` (L41) — App-local HF download dir used by ``/api/hf/local``.
+- `def _read_config_dict(model_path: str | Path) -> dict | None` (L46) — Load ``config.json`` from a local dir or return None if missing.
+- `def is_quantized_config(config: dict | None) -> bool` (L65) — True if ``config`` looks like bitsandbytes / nf4 / 4-bit.
+- `def strip_quant_suffixes(repo: str) -> str` (L84) — Strip ``-unsloth-bnb-4bit`` / ``-bnb-4bit`` / ``-4bit`` from a repo name.
+- `def _parse_base_identity(base_model: str) -> tuple[str | None, str]` (L93) — Return ``(org_or_None, bare_repo)`` derived from a path or HF id.
+- `def _snapshot_is_complete(snap: Path) -> bool` (L117) — Snapshot must have config.json and at least one weight file.
+- `def _best_snapshot_in_repo_dir(repo_dir: Path) -> Path | None` (L129) — Pick a snapshots/<hash> under a HF cache repo dir, or the dir itself.
+- `def _find_in_hub_cache(bare_repo: str, preferred_orgs: tuple[str, ...] | None = None) -> str | None` (L147) — Search ``~/.cache/huggingface/hub/models--*`` for a matching non-quant base.
+- `def _find_in_app_hf_models(bare_repo: str, preferred_orgs: tuple[str, ...] | None = None) -> str | None` (L181) — Search ``~/.finetune-studio/hf_models/<Org>__<Repo>``.
+- `def _suggested_16bit_repo(bare_repo: str) -> str` (L209) — Human-facing Hub id to download when nothing is local.
+- `def resolve_merge_base(base_model: str) -> str` (L227) — Return a local path or id suitable for a 16-bit PEFT merge.
 
 ## `src/finetune_studio/training/monitor.py` (74 lines)
-- `training_snapshot(engine: Any) -> dict[str, Any]` (L31) — Build a JSON-serializable status dict from the training engine.
-- `training_events(engine: Any)` (L51) — SSE generator: emit status whenever training progress changes.
+- `def training_snapshot(engine: Any) -> dict[str, Any]` (L31) — Build a JSON-serializable status dict from the training engine.
+- `async def training_events(engine: Any)` (L51) — SSE generator: emit status whenever training progress changes.
   - imports: finetune_studio.webui.live_sse
 
 ## `src/finetune_studio/training/preset_advisor.py` (250 lines)
-- `_rank_factor(params_b: float) -> float` (L42)
-- `_lr_for(params_b: float, tier_lr: str) -> str` (L52)
-- `guess_base_params_b(model_ref: str) -> tuple[float | None, str]` (L63) — Best-effort parameter count (in billions) from a model name/path.
+- `def _rank_factor(params_b: float) -> float` (L42)
+- `def _lr_for(params_b: float, tier_lr: str) -> str` (L52)
+- `def guess_base_params_b(model_ref: str) -> tuple[float | None, str]` (L63) — Best-effort parameter count (in billions) from a model name/path.
 - `class Advisory` (L90)
   - `def to_dict(self) -> dict[str, Any]` (L108)
-- `dataset_stats(jsonl_path: str | Path) -> tuple[int, float]` (L124) — (pair_count, avg_chars_per_pair) for a ShareGPT/openai JSONL file.
-- `propose(*, tier: str, base_model_ref: str, dataset_path: str | None = None, pair_coun…` (L147) — Compute recommended settings for a base model + dataset at a tier.
+- `def dataset_stats(jsonl_path: str | Path) -> tuple[int, float]` (L124) — (pair_count, avg_chars_per_pair) for a ShareGPT/openai JSONL file.
+- `def propose(*, tier: str, base_model_ref: str, dataset_path: str | None = None, pair_coun…` (L147) — Compute recommended settings for a base model + dataset at a tier.
 
 ## `src/finetune_studio/training/run_export.py` (395 lines)
-- `validate_base_model(base_model: str) -> str` (L36) — Validate a merge-base path or Hub id; return the stripped value.
-- `merged_dir_ready(output_path: str) -> bool` (L75) — True when ``<output_path>/merged/`` has weight files.
-- `adapter_dir_ready(output_path: str) -> bool` (L87) — True when ``<output_path>/adapter/`` exists and is non-empty.
-- `ensure_merged_for_export(run: dict[str, Any], *, base_model: str | None = None, force: bool = False) -…` (L98) — Ensure ``merged/`` exists for ``run``, merging the adapter if needed.
-- `_export_failure(error: str, *, format: str | None = None, **extra: Any) -> dict[str, Any]` (L151) — Structured failure payload for sync export (never look like success).
-- `_export_gguf(engine: Any, *, output_path: str, quant_list: list[str], force: bool) -> dict…` (L168) — Run GGUF conversion and only succeed when artifacts verify non-empty.
-- `export_trained_run(run: dict[str, Any], *, fmt: str = 'gguf', quants: list[str] | None = None, f…` (L287) — Merge if needed, then export ``run`` to ``fmt``.
+- `def validate_base_model(base_model: str) -> str` (L36) — Validate a merge-base path or Hub id; return the stripped value.
+- `def merged_dir_ready(output_path: str) -> bool` (L75) — True when ``<output_path>/merged/`` has weight files.
+- `def adapter_dir_ready(output_path: str) -> bool` (L87) — True when ``<output_path>/adapter/`` exists and is non-empty.
+- `def ensure_merged_for_export(run: dict[str, Any], *, base_model: str | None = None, force: bool = False) -…` (L98) — Ensure ``merged/`` exists for ``run``, merging the adapter if needed.
+- `def _export_failure(error: str, *, format: str | None = None, **extra: Any) -> dict[str, Any]` (L151) — Structured failure payload for sync export (never look like success).
+- `def _export_gguf(engine: Any, *, output_path: str, quant_list: list[str], force: bool) -> dict…` (L168) — Run GGUF conversion and only succeed when artifacts verify non-empty.
+- `def export_trained_run(run: dict[str, Any], *, fmt: str = 'gguf', quants: list[str] | None = None, f…` (L287) — Merge if needed, then export ``run`` to ``fmt``.
   - imports: finetune_studio.training.engine, finetune_studio.training.gguf_convert, finetune_studio.training.merge_base
 
 ## `src/finetune_studio/training/run_persistence.py` (106 lines)
-- `make_run_state_persister(run_id: str, output_dir: str, *, update_run: Callable[..., Any] | None = None…` (L22) — Return an engine ``on_update`` callback bound to one run row.
-- `attach_run(engine: Any, run_id: str, output_dir: str, *, project_id: str | None, update_…` (L89) — Tag ``engine`` with ``run_id`` and bind exactly one persister to it.
+- `def make_run_state_persister(run_id: str, output_dir: str, *, update_run: Callable[..., Any] | None = None…` (L22) — Return an engine ``on_update`` callback bound to one run row.
+- `def attach_run(engine: Any, run_id: str, output_dir: str, *, project_id: str | None, update_…` (L89) — Tag ``engine`` with ``run_id`` and bind exactly one persister to it.
   - imports: finetune_studio
 
 ## `src/finetune_studio/training/sft_args.py` (78 lines)
-- `build_sft_training_args(*, output_dir: str, num_train_epochs: float | None = None, max_steps: int | N…` (L14) — Return an ``SFTConfig`` with Hub push disabled (local training default).
-- `build_sft_args_from_config(cfg: Any) -> Any` (L65) — Map a ``TrainingConfig`` onto local ``SFTConfig`` defaults.
+- `def build_sft_training_args(*, output_dir: str, num_train_epochs: float | None = None, max_steps: int | N…` (L14) — Return an ``SFTConfig`` with Hub push disabled (local training default).
+- `def build_sft_args_from_config(cfg: Any) -> Any` (L65) — Map a ``TrainingConfig`` onto local ``SFTConfig`` defaults.
 
-## `src/finetune_studio/training/vram/__init__.py` (38 lines)
+## `src/finetune_studio/training/vram/__init__.py` (67 lines)
   - imports: finetune_studio.training.vram.constants, finetune_studio.training.vram.estimate, finetune_studio.training.vram.gpu, finetune_studio.training.vram.profile, finetune_studio.training.vram.recommend, finetune_studio.training.vram.report, finetune_studio.training.vram.schema
 
-## `src/finetune_studio/training/vram/constants.py` (37 lines)
+## `src/finetune_studio/training/vram/constants.py` (36 lines)
 
-## `src/finetune_studio/training/vram/estimate.py` (131 lines)
-- `estimate_vram(model_size_b: float, method: str = 'qlora', batch_size: int = 2, seq_length: …` (L23) — Estimate VRAM usage for a training configuration.
+## `src/finetune_studio/training/vram/estimate.py` (133 lines)
+- `def estimate_vram(model_size_b: float, method: str = 'qlora', batch_size: int = 2, seq_length: …` (L25) — Estimate VRAM usage for a training configuration.
   - imports: finetune_studio.training.vram.constants, finetune_studio.training.vram.gpu, finetune_studio.training.vram.schema
 
 ## `src/finetune_studio/training/vram/gpu.py` (40 lines)
-- `detect() -> GPUInfo` (L10) — Auto-detect GPU properties. Falls back to a 'Unknown' GPUInfo if no CUDA.
+- `def detect() -> GPUInfo` (L10) — Auto-detect GPU properties. Falls back to a 'Unknown' GPUInfo if no CUDA.
   - imports: finetune_studio.training.vram.schema
 
-## `src/finetune_studio/training/vram/profile.py` (252 lines)
-- `profile_training(model_path: str, method: str = 'qlora', batch_size: int = 1, seq_length: int …` (L21) — Run a short training job and measure actual peak VRAM.
-- `profile_all_sizes(model_paths: dict[str, str], available_vram_gb: float | None = None, methods:…` (L209) — Profile multiple model sizes and produce a comparison table.
-  - imports: finetune_studio.training.sft_args, finetune_studio.training.vram.estimate, finetune_studio.training.vram.gpu, finetune_studio.training.vram.report, finetune_studio.training.vram.schema
+## `src/finetune_studio/training/vram/profile.py` (260 lines)
+- `def profile_training(model_path: str, method: str = 'qlora', batch_size: int = 1, seq_length: int …` (L21) — Run a short training job and measure actual peak VRAM.
+- `def profile_all_sizes(model_paths: dict[str, str], available_vram_gb: float | None = None, methods:…` (L217) — Profile multiple model sizes and produce a comparison table.
+  - imports: finetune_studio.training.formatting, finetune_studio.training.sft_args, finetune_studio.training.vram.estimate, finetune_studio.training.vram.gpu, finetune_studio.training.vram.report, finetune_studio.training.vram.schema
 
-## `src/finetune_studio/training/vram/recommend.py` (105 lines)
-- `recommend_config(model_size_b: float, available_vram_gb: float | None = None, target_seq_lengt…` (L14) — Generate recommended training configs for a model size + VRAM budget.
-- `recommend_for_model(model_name: str, available_vram_gb: float | None = None) -> list[RecommendedC…` (L82) — Get recommendations for a known model name.
+## `src/finetune_studio/training/vram/recommend.py` (101 lines)
+- `def recommend_config(model_size_b: float, available_vram_gb: float | None = None, target_seq_lengt…` (L14) — Generate recommended training configs for a model size + VRAM budget.
+- `def recommend_for_model(model_name: str, available_vram_gb: float | None = None) -> list[RecommendedC…` (L78) — Get recommendations for a known model name.
   - imports: finetune_studio.training.vram.constants, finetune_studio.training.vram.estimate, finetune_studio.training.vram.gpu, finetune_studio.training.vram.schema
 
 ## `src/finetune_studio/training/vram/report.py` (125 lines)
-- `_parse_size(label: str) -> float` (L13) — Parse '7B', '1.5B', '27b' etc. to float.
-- `generate_vram_report(available_vram_gb: float | None = None, output_path: str | None = None) -> str` (L22) — Generate a full VRAM report for the current GPU.
+- `def _parse_size(label: str) -> float` (L13) — Parse '7B', '1.5B', '27b' etc. to float.
+- `def generate_vram_report(available_vram_gb: float | None = None, output_path: str | None = None) -> str` (L22) — Generate a full VRAM report for the current GPU.
   - imports: finetune_studio.training.vram.constants, finetune_studio.training.vram.gpu, finetune_studio.training.vram.recommend
 
 ## `src/finetune_studio/training/vram/schema.py` (81 lines)
@@ -1454,605 +1524,631 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - imports: finetune_studio.training.vram
 
 ## `src/finetune_studio/training/worker.py` (121 lines)
-- `_config_from_dict(raw: dict[str, Any]) -> Any` (L30)
-- `_state_payload(state: Any) -> dict[str, Any]` (L37)
-- `training_worker(config_dict: dict[str, Any], training_data: list, system_prompt: str, out_que…` (L54) — Child entry: run ``TrainingEngine._train`` and push state to ``out_queue``.
-- `config_to_dict(config: Any) -> dict[str, Any]` (L119) — Serialize ``TrainingConfig`` for the spawn queue.
+- `def _config_from_dict(raw: dict[str, Any]) -> Any` (L30)
+- `def _state_payload(state: Any) -> dict[str, Any]` (L37)
+- `def training_worker(config_dict: dict[str, Any], training_data: list, system_prompt: str, out_que…` (L54) — Child entry: run ``TrainingEngine._train`` and push state to ``out_queue``.
+- `def config_to_dict(config: Any) -> dict[str, Any]` (L119) — Serialize ``TrainingConfig`` for the spawn queue.
   - imports: finetune_studio.training.engine
 
 ## `src/finetune_studio/webui/__init__.py` (2 lines)
 
-## `src/finetune_studio/webui/app.py` (374 lines)
-- `lifespan(app: FastAPI)` (L51)
-- `_activity_kind(path: str) -> str` (L113) — Classify mutating API paths for the global operation feed.
-- `record_activity_operations(request: Request, call_next)` (L160) — Persist every mutating API operation after its response completes.
-- `_activity_summary(path: str, method: str, http_status: int) -> str` (L179) — Human one-liner for the activity feed (replaces 'POST /api/x → 200').
-- `_record_activity_event(request: Request, started: float, http_status: int) -> None` (L223) — Best-effort event write; logging must never break the API response.
-- `_apply_hosting_middleware()` (L245) — Apply CORS and trusted-host middleware from user settings.
-- `class _NoCacheStatic(StaticFiles)` (L276)
-  - `async def get_response(self, path, scope)` (L282)
+## `src/finetune_studio/webui/app.py` (371 lines)
+- `async def lifespan(app: FastAPI)` (L45)
+- `def _activity_kind(path: str) -> str` (L112) — Classify mutating API paths for the global operation feed.
+- `async def record_activity_operations(request: Request, call_next)` (L157) — Persist every mutating API operation after its response completes.
+- `def _activity_summary(path: str, method: str) -> str` (L176) — Human one-liner for the activity feed (replaces 'POST /api/x → 200').
+- `def _record_activity_event(request: Request, started: float, http_status: int) -> None` (L220) — Best-effort event write; logging must never break the API response.
+- `def _apply_hosting_middleware()` (L243) — Apply CORS and proxy-header middleware from user settings.
+- `class _NoCacheStatic(StaticFiles)` (L274)
+  - `async def get_response(self, path, scope)` (L280)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.models.manager, finetune_studio.models.registry, finetune_studio.training.engine, finetune_studio.webui.routes, finetune_studio.webui.routes.data_prep, finetune_studio.webui.routes.hf_models
 
 ## `src/finetune_studio/webui/engine_guard.py` (25 lines)
 
 ## `src/finetune_studio/webui/live_sse.py` (41 lines)
-- `sse_data(payload: Any) -> str` (L25) — Format a JSON payload as one SSE ``data:`` frame.
-- `sse_comment(text: str = 'keepalive') -> str` (L30) — SSE comment frame (ignored by EventSource; keeps the connection warm).
-- `sse_response(generator: Any) -> StreamingResponse` (L35) — Wrap an async generator as a non-buffered event-stream response.
+- `def sse_data(payload: Any) -> str` (L25) — Format a JSON payload as one SSE ``data:`` frame.
+- `def sse_comment(text: str = 'keepalive') -> str` (L30) — SSE comment frame (ignored by EventSource; keeps the connection warm).
+- `def sse_response(generator: Any) -> StreamingResponse` (L35) — Wrap an async generator as a non-buffered event-stream response.
 
 ## `src/finetune_studio/webui/model_labels.py` (39 lines)
-- `model_label(path: str | None) -> str` (L10) — Render a short display name for a model path or Hugging Face id.
+- `def model_label(path: str | None) -> str` (L10) — Render a short display name for a model path or Hugging Face id.
 
-## `src/finetune_studio/webui/project_dashboard.py` (305 lines)
-- `format_relative(ts: float | None, *, now: float | None = None) -> str` (L12) — Human relative time from a Unix timestamp (seconds).
-- `truncate_description(text: str | None, *, limit: int = 120) -> dict[str, Any]` (L42) — Return short one-liner + whether a 'details' link is needed.
-- `run_status_counts(runs: list[dict]) -> dict[str, int]` (L61) — Count runs by status bucket for the Runs stat subtitle.
-- `models_size_gb(models: list[dict]) -> float` (L75) — Sum of export sizes in GB, rounded to 2 decimals.
-- `recent_runs(runs: list[dict], *, limit: int = 5) -> list[dict]` (L86) — Last N runs sorted by started_at desc (fallback: created_at).
-- `recent_models(models: list[dict], *, limit: int = 5) -> list[dict]` (L102) — Last N exports sorted by mtime desc (fallback: created_at string ignored).
-- `build_activity(*, runs: list[dict], models: list[dict], files: list[dict], pid: str, limit: …` (L118) — Merge run / benchmark / model / file events into a timeline.
-- `resolve_production_run(project: dict, runs: list[dict] | None = None) -> dict[str, str] | None` (L231) — Resolve the project's production run to ``{id, name}`` for header pills.
-- `build_dashboard_ctx(project: dict, pid: str, *, files: list[dict] | None = None, now: float | Non…` (L250) — Assemble template extras for ``project.html``.
+## `src/finetune_studio/webui/project_dashboard.py` (307 lines)
+- `def format_relative(ts: float | None, *, now: float | None = None) -> str` (L15) — Human relative time from a Unix timestamp (seconds).
+- `def truncate_description(text: str | None, *, limit: int = 120) -> dict[str, Any]` (L45) — Return short one-liner + whether a 'details' link is needed.
+- `def run_status_counts(runs: list[dict]) -> dict[str, int]` (L64) — Count runs by status bucket for the Runs stat subtitle.
+- `def runs_started_max(runs: list[dict]) -> float | None` (L78) — Latest ``started_at`` across project runs (for drift badges).
+- `def models_size_gb(models: list[dict]) -> float` (L92) — Sum of export sizes in GB, rounded to 2 decimals.
+- `def recent_runs(runs: list[dict], *, limit: int = 5) -> list[dict]` (L103) — Last N runs sorted by started_at desc (fallback: created_at).
+- `def recent_models(models: list[dict], *, limit: int = 5) -> list[dict]` (L119) — Last N exports sorted by mtime desc (missing/invalid mtime sorts last).
+- `def build_activity(*, runs: list[dict], models: list[dict], files: list[dict], pid: str, limit: …` (L131) — Merge run / benchmark / model / file events into a timeline.
+- `def resolve_production_run(project: dict, runs: list[dict] | None = None) -> dict[str, str] | None` (L244) — Resolve the project's production run to ``{id, name}`` for header pills.
+- `def build_dashboard_ctx(project: dict, pid: str, *, files: list[dict] | None = None, now: float | Non…` (L263) — Assemble template extras for ``project.html``.
 
-## `src/finetune_studio/webui/project_data_browser.py` (80 lines)
-- `format_bytes(n: float | None) -> str` (L12) — Humanise a byte count (B / KB / MB / GB).
-- `file_browser_stats(files: list[dict]) -> dict[str, Any]` (L27) — Counts + storage from ``list_files(include_deleted=True)`` rows.
-- `runs_started_max(runs: list[dict]) -> float | None` (L50) — Latest ``started_at`` across project runs (for drift badges).
-- `build_file_browser_ctx(project: dict, *, files: list[dict] | None = None) -> dict[str, Any]` (L64) — Assemble template extras for ``project_data.html``.
+## `src/finetune_studio/webui/project_data_browser.py` (69 lines)
+- `def format_bytes(n: float | None) -> str` (L15) — Humanise a byte count (B / KB / MB / GB).
+- `def file_browser_stats(files: list[dict]) -> dict[str, Any]` (L30) — Counts + storage from ``list_files(include_deleted=True)`` rows.
+- `def build_file_browser_ctx(project: dict, *, files: list[dict] | None = None) -> dict[str, Any]` (L53) — Assemble template extras for ``project_data.html``.
   - imports: finetune_studio.webui.project_dashboard
 
 ## `src/finetune_studio/webui/routes/__init__.py` (2 lines)
 
-## `src/finetune_studio/webui/routes/activity.py` (568 lines)
-- `_now() -> float` (L27)
-- `_norm_status(raw: str) -> str` (L41) — Collapse per-subsystem status strings into the activity vocabulary.
-- `_progress_for(status: str) -> float` (L55) — A coarse progress value for persisted rows (no live step counter).
-- `_task_key(t: dict[str, Any]) -> str` (L66) — Stable identity so a live row and its persisted row collapse to one.
+## `src/finetune_studio/webui/routes/activity.py` (562 lines)
+- `def _now() -> float` (L27)
+- `def _norm_status(raw: str) -> str` (L41) — Collapse per-subsystem status strings into the activity vocabulary.
+- `def _progress_for(status: str) -> float` (L55) — A coarse progress value for persisted rows (no live step counter).
+- `def _task_key(t: dict[str, Any]) -> str` (L66) — Stable identity so a live row and its persisted row collapse to one.
 - `class _ProjCache` (L76)
   - `def __init__(self) -> None` (L79)
   - `def get(self, pid: str) -> dict | None` (L82)
   - `def name(self, pid: str) -> str | None` (L89)
-- `_persistent_tasks(projs: _ProjCache) -> list[dict[str, Any]]` (L94) — Recent finished/queued work read from the durable DB tables.
-- `collect_activity() -> dict[str, Any]` (L319) — Aggregate live + persisted tasks across all subsystems (sync snapshot).
-- `activity() -> dict[str, Any]` (L528) — One-shot activity snapshot (fallback for non-SSE clients).
-- `activity_events()` (L534) — SSE stream of activity snapshots.
+- `def _persistent_tasks(projs: _ProjCache) -> list[dict[str, Any]]` (L94) — Recent finished/queued work read from the durable DB tables.
+- `def collect_activity() -> dict[str, Any]` (L319) — Aggregate live + persisted tasks across all subsystems (sync snapshot).
+- `async def activity() -> dict[str, Any]` (L522) — One-shot activity snapshot (fallback for non-SSE clients).
+- `async def activity_events()` (L528) — SSE stream of activity snapshots.
   - imports: finetune_studio, finetune_studio.webui.app, finetune_studio.webui.live_sse, finetune_studio.webui.routes.data_prep, finetune_studio.webui.routes.hf_models
 
-## `src/finetune_studio/webui/routes/benchmarks.py` (895 lines)
-- `_discover_suites(project_id: str | None = None) -> list[dict[str, Any]]` (L33) — Return selectable suites (real HF + synthetic + local JSON + auto).
-- `_project_404(pid: str) -> JSONResponse | None` (L38) — Return a 404 response when the project does not exist, else None.
-- `_parse_sample_knobs(body: dict[str, Any]) -> tuple[int | None, bool, int, str]` (L51) — Parse num_samples / full_run / seed / order from a run request body.
-- `_validate_suite_file(suite_path: str, *, project_id: str | None = None, require_selectable: bool =…` (L64) — Ensure suite_path is usable. Returns (cases, real_meta, error).
-- `_run_is_benchmarkable(run: dict[str, Any]) -> bool` (L131) — True when the run finished successfully and has a trained artifact path.
-- `_resolve_trained_target(run: dict[str, Any]) -> str` (L138) — Prefer merged/ under output_path when present.
-- `_unload_global_inference() -> None` (L149) — Free VRAM before loading a judge model — both engines, not just one.
-- `_latest_benchmark(run_id: str) -> dict | None` (L160) — Return the most recent benchmark for a run, or None.
-- `_primary_score(scores: dict | None) -> float | None` (L166) — Pick a comparable numeric score from a benchmark scores dict.
-- `_suite_scores_for_run(run_id: str) -> dict[str, float | None]` (L180) — Latest primary score per suite_name for a training run.
-- `_execute_benchmark(*, rid: str, suite_name: str, suite_path: str, judge_mode: str, max_tokens: i…` (L191) — Load model, run suite, judge, persist. Always unloads the bench engine.
-- `get_benchmark_run(rid: str) -> dict[str, Any]` (L328) — Get a single benchmark run.
-- `list_suites(project_id: str | None = None) -> list[dict[str, Any]]` (L334) — List available benchmark suites (files that exist + optional auto-suites).
-- `list_runs_with_benchmarks(pid: str) -> list[dict[str, Any]] | JSONResponse` (L340) — List training runs for a project, augmented with latest benchmark score.
-- `run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] | JSONResponse` (L355) — Run a benchmark suite against a run's trained output model.
-- `run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSONResponse` (L426) — Benchmark the project's untrained base model (explicit, never a silent fallback).
-- `run_history(pid: str, rid: str) -> list[dict[str, Any]] | dict[str, str] | JSONResponse` (L493) — List all benchmarks for a specific run.
-- `delete_run(pid: str, rid: str) -> dict[str, Any] | JSONResponse` (L505) — Delete a training run and its benchmark results.
-- `delete_benchmark(pid: str, bid: str) -> dict[str, bool]` (L519) — Delete a specific benchmark result.
-- `judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any] | JSONResponse` (L530) — Run AI/human judge over all cases in a benchmark.
-- `list_benchmark_cases(pid: str, bid: str) -> list[dict[str, Any]] | JSONResponse` (L712) — List all cases + judge verdicts for a benchmark.
-- `audit_benchmark(pid: str, bid: str) -> dict[str, Any] | JSONResponse` (L721) — Return every persisted transcript plus an independent score recomputation.
-- `set_verdict(pid: str, bid: str, cid: str, request: Request) -> dict[str, bool]` (L734) — Human overrides/sets a verdict.
-- `compare_runs(pid: str, run_a: str = '', run_b: str = '') -> dict[str, Any] | JSONResponse` (L750) — Side-by-side per-suite score comparison of two training runs.
-- `evaluate_training_for_run(pid: str, rid: str, request: Request) -> dict[str, Any] | JSONResponse` (L828) — Benchmark a trained run against the project's training dataset.
+## `src/finetune_studio/webui/routes/benchmarks.py` (930 lines)
+- `def _discover_suites(project_id: str | None = None) -> list[dict[str, Any]]` (L33) — Return selectable suites (real HF + synthetic + local JSON + auto).
+- `def _project_404(pid: str) -> JSONResponse | None` (L38) — Return a 404 response when the project does not exist, else None.
+- `def _benchmark_for_project(bid: str, pid: str) -> dict[str, Any] | JSONResponse` (L51) — Load a benchmark only when its parent run belongs to ``pid``.
+- `def _int_field(body: dict[str, Any], key: str, default: int) -> int` (L62) — Read an integer field from a request body; ValueError names the key.
+- `def _parse_sample_knobs(body: dict[str, Any]) -> tuple[int | None, bool, int, str]` (L70) — Parse num_samples / full_run / seed / order from a run request body.
+- `def _validate_suite_file(suite_path: str, *, project_id: str | None = None, require_selectable: bool =…` (L86) — Ensure suite_path is usable. Returns (cases, real_meta, error).
+- `def _run_is_benchmarkable(run: dict[str, Any]) -> bool` (L153) — True when the run finished successfully and has a trained artifact path.
+- `def _resolve_trained_target(run: dict[str, Any]) -> str` (L160) — Prefer merged/ under output_path when present.
+- `def _unload_global_inference() -> None` (L171) — Free VRAM before loading a judge model — both engines, not just one.
+- `def _latest_benchmark(run_id: str) -> dict | None` (L182) — Return the most recent benchmark for a run, or None.
+- `def _primary_score(scores: dict | None) -> float | None` (L188) — Pick a comparable numeric score from a benchmark scores dict.
+- `def _suite_scores_for_run(run_id: str) -> dict[str, float | None]` (L202) — Latest primary score per suite_name for a training run.
+- `async def _execute_benchmark(*, rid: str, suite_name: str, judge_mode: str, max_tokens: int, target_model:…` (L213) — Load model, run suite, judge, persist. Always unloads the bench engine.
+- `async def get_benchmark_run(rid: str) -> dict[str, Any]` (L349) — Get a single benchmark run.
+- `async def list_suites(project_id: str | None = None) -> list[dict[str, Any]]` (L355) — List available benchmark suites (files that exist + optional auto-suites).
+- `async def list_runs_with_benchmarks(pid: str) -> list[dict[str, Any]] | JSONResponse` (L361) — List training runs for a project, augmented with latest benchmark score.
+- `async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] | JSONResponse` (L376) — Run a benchmark suite against a run's trained output model.
+- `async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSONResponse` (L449) — Benchmark the project's untrained base model (explicit, never a silent fallback).
+- `async def run_history(pid: str, rid: str) -> list[dict[str, Any]] | dict[str, str] | JSONResponse` (L518) — List all benchmarks for a specific run.
+- `async def delete_run(pid: str, rid: str) -> dict[str, Any] | JSONResponse` (L530) — Delete a training run and its benchmark results.
+- `async def delete_benchmark(pid: str, bid: str) -> dict[str, bool] | JSONResponse` (L544) — Delete a specific benchmark result.
+- `async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any] | JSONResponse` (L558) — Run AI/human judge over all cases in a benchmark.
+- `async def list_benchmark_cases(pid: str, bid: str) -> list[dict[str, Any]] | JSONResponse` (L740) — List all cases + judge verdicts for a benchmark.
+- `async def audit_benchmark(pid: str, bid: str) -> dict[str, Any] | JSONResponse` (L749) — Return every persisted transcript plus an independent score recomputation.
+- `async def set_verdict(pid: str, bid: str, cid: str, request: Request) -> dict[str, bool] | JSONResp…` (L762) — Human overrides/sets a verdict.
+- `async def compare_runs(pid: str, run_a: str = '', run_b: str = '') -> dict[str, Any] | JSONResponse` (L783) — Side-by-side per-suite score comparison of two training runs.
+- `async def evaluate_training_for_run(pid: str, rid: str, request: Request) -> dict[str, Any] | JSONResponse` (L861) — Benchmark a trained run against the project's training dataset.
   - imports: finetune_studio, finetune_studio.benchmarks.real_benchmarks, finetune_studio.benchmarks.suite_defs, finetune_studio.models.llama_loader, finetune_studio.testing.audit, finetune_studio.testing.inference, finetune_studio.testing.judge, finetune_studio.testing.suite, finetune_studio.testing.training_eval
 
-## `src/finetune_studio/webui/routes/chat_v2.py` (408 lines)
-- `_is_portable_corpus(store_path: str) -> bool` (L18) — True when ``store_path`` is a PortableRAG directory (manifest + vectors).
-- `_search_rag_attachment(store_path: str, query: str, *, top_k: int = 5) -> list[dict[str, Any]]` (L24) — Search a project_rags store — PortableRAG when present, else Chroma VectorStore.
-- `list_chat_projects()` (L59) — List projects with RAG counts for the picker.
-- `project_context(pid: str)` (L76) — Return project's production model path, system prompt, RAGs, and discovered models.
-- `inference_chat(request: Request)` (L108) — Global inference chat — supports text and vision (images).
-- `load_model(request: Request)` (L158) — Load a model into the inference engine.
-- `inference_status()` (L185) — Current inference engine status.
-- `unload_model()` (L202) — Manually unload the current model (both engines — see E2E-22).
-- `model_info(request: Request)` (L212) — Read model metadata (layer count, etc.) for UI configuration.
-- `memory_estimate(request: Request)` (L227) — Estimate VRAM/RAM usage for a model with given settings.
-- `inference_benchmark(request: Request)` (L245) — Run quick real benchmarks on the loaded model.
-- `chat(request: Request, pid: str)` (L290) — RAG-enhanced chat for a project.
+## `src/finetune_studio/webui/routes/chat_v2.py` (417 lines)
+- `def _is_portable_corpus(store_path: str) -> bool` (L18) — True when ``store_path`` is a PortableRAG directory (manifest + vectors).
+- `def _search_rag_attachment(store_path: str, query: str, *, top_k: int = 5) -> list[dict[str, Any]]` (L24) — Search a project_rags store — PortableRAG when present, else Chroma VectorStore.
+- `async def list_chat_projects()` (L59) — List projects with RAG counts for the picker.
+- `async def project_context(pid: str)` (L76) — Return project's production model path, system prompt, RAGs, and discovered models.
+- `async def inference_chat(request: Request)` (L108) — Global inference chat — supports text and vision (images).
+- `async def load_model(request: Request)` (L161) — Load a model into the inference engine.
+- `async def inference_status()` (L188) — Current inference engine status.
+- `async def unload_model()` (L205) — Manually unload the current model (both engines — see E2E-22).
+- `async def model_info(request: Request)` (L215) — Read model metadata (layer count, etc.) for UI configuration.
+- `async def memory_estimate(request: Request)` (L230) — Estimate VRAM/RAM usage for a model with given settings.
+- `async def inference_benchmark(request: Request)` (L248) — Run quick real benchmarks on the loaded model.
+- `async def chat(request: Request, pid: str)` (L296) — RAG-enhanced chat for a project.
   - imports: finetune_studio, finetune_studio.benchmarks.real_benchmarks, finetune_studio.data.rag_portable, finetune_studio.models.llama_loader, finetune_studio.models.manager, finetune_studio.rag.store, finetune_studio.testing.inference, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.thinking
 
-## `src/finetune_studio/webui/routes/comparison.py` (125 lines)
-- `compare_load(request: Request)` (L14) — Load a model for comparison.
-- `compare_run(request: Request)` (L30) — Run comparison on test suite.
-- `compare_cleanup()` (L48) — Unload all comparison models.
-- `rag_chat(request: Request)` (L56) — RAG-enhanced chat endpoint.
+## `src/finetune_studio/webui/routes/comparison.py` (123 lines)
+- `async def compare_load(request: Request)` (L12) — Load a model for comparison.
+- `async def compare_run(request: Request)` (L28) — Run comparison on test suite.
+- `async def compare_cleanup()` (L46) — Unload all comparison models.
+- `async def rag_chat(request: Request)` (L54) — RAG-enhanced chat endpoint.
   - imports: finetune_studio.benchmarks.comparison, finetune_studio.config, finetune_studio.rag.store, finetune_studio.webui.app, finetune_studio.webui.engine_guard
 
-## `src/finetune_studio/webui/routes/data.py` (46 lines)
-- `list_files()` (L16)
-- `upload_file(file: UploadFile = File(...))` (L20)
-- `validate(path: str)` (L31)
-- `preview(path: str, limit: int = 10)` (L35)
-- `dedup(path: str)` (L43)
-  - imports: finetune_studio.config, finetune_studio.data.organizer, finetune_studio.data.validator, finetune_studio.training.data
+## `src/finetune_studio/webui/routes/data.py` (62 lines)
+- `def _data_path(path: str) -> str` (L19) — Confine a client-supplied path to ``settings.data_dir`` (400/403 otherwise).
+- `async def list_files()` (L25)
+- `async def upload_file(file: UploadFile = File(...))` (L29)
+- `async def validate(path: str)` (L42)
+- `async def preview(path: str, limit: int = 10)` (L46)
+- `async def dedup(path: str)` (L55)
+  - imports: finetune_studio.config, finetune_studio.data.fs.paths, finetune_studio.data.organizer, finetune_studio.data.validator, finetune_studio.training.data
 
-## `src/finetune_studio/webui/routes/data_editor.py` (254 lines)
-- `_has_traversal(raw: str) -> bool` (L26) — True if any path component is ``..`` (rejects encoded traversal too after decode).
-- `_project_root(pid: str) -> Path` (L31) — Filesystem root for a project's stored artifacts (datasets live under this).
-- `_normalize_raw_path(dataset: str) -> Path` (L36) — Map stored/API path forms to a Path without double-prefixing data_dir.
-- `_paths_equal(a: Path, b: Path) -> bool` (L68) — Compare paths, preferring resolve() but falling back to string equality.
-- `_is_under(path: Path, root: Path) -> bool` (L78)
-- `_assert_project_scope(pid: str, path: Path) -> None` (L86) — Reject paths outside this project unless registered to the project.
-- `_resolve_path(dataset: str, *, pid: str) -> Path` (L100) — Resolve a dataset path for a project with safe normalization and scoping.
-- `_load(dataset: str, *, pid: str) -> list[dict]` (L121)
-- `_save(rows: list[dict], dataset: str, *, pid: str) -> None` (L128)
-- `preview(pid: str, dataset: str = '', limit: int = 50, offset: int = 0)` (L137)
-- `get_row(pid: str, dataset: str = '', index: int = 0)` (L150)
-- `update_row(pid: str, request: Request)` (L161)
-- `approve_row(pid: str, request: Request)` (L183)
-- `reject_row(pid: str, request: Request)` (L197)
-- `delete_row(pid: str, request: Request)` (L213)
-- `review_list(pid: str, dataset: str = '')` (L234)
-- `batch_save(pid: str, request: Request)` (L244)
-  - imports: finetune_studio, finetune_studio.config, finetune_studio.db.datasets, finetune_studio.training.data
+## `src/finetune_studio/webui/routes/data_editor.py` (189 lines)
+- `def _resolve_path(dataset: str, *, pid: str) -> Path` (L19) — Resolve a dataset reference to a path inside project ``pid`` (400/403 otherwise).
+- `def _load(dataset: str, *, pid: str) -> list[dict]` (L31)
+- `def _save(rows: list[dict], dataset: str, *, pid: str) -> None` (L38)
+- `def _parse_index(raw: object) -> int` (L44) — Coerce a JSON ``index`` to int; 400 on bool/str junk instead of a 500.
+- `async def _json_body(request: Request) -> dict` (L54)
+- `async def preview(pid: str, dataset: str = '', limit: int = 50, offset: int = 0)` (L64)
+- `async def get_row(pid: str, dataset: str = '', index: int = 0)` (L79)
+- `async def update_row(pid: str, request: Request)` (L90)
+- `async def approve_row(pid: str, request: Request)` (L115)
+- `async def reject_row(pid: str, request: Request)` (L129)
+- `async def delete_row(pid: str, request: Request)` (L145)
+- `async def review_list(pid: str, dataset: str = '')` (L167)
+- `async def batch_save(pid: str, request: Request)` (L177)
+  - imports: finetune_studio, finetune_studio.data.fs.paths, finetune_studio.db.datasets, finetune_studio.training.data
 
-## `src/finetune_studio/webui/routes/data_prep.py` (871 lines)
-- `_project_404(pid: str) -> JSONResponse | None` (L32) — Return a 404 response when the project does not exist, else None.
-- `class StartPrepBody(BaseModel)` (L51)
-- `class BulkPrepBody(BaseModel)` (L58)
-- `_progress_cb(progress_log: list[dict]) -> object` (L65) — Build a PrepProgress callback that appends to ``progress_log``.
-- `_run_prep_background(run_id: str, runner: object, progress_log: list[dict]) -> None` (L79) — Shared background body for upload / start / reprocess prep runs.
-- `enqueue_prep_run(pid: str, background: BackgroundTasks, *, data: bytes, filename: str, qa_per_…` (L127) — Create a DB run row, register the runner, queue background work.
-- `enqueue_source_prep_run(pid: str, background: BackgroundTasks, *, source: dict, qa_per_chunk: int, di…` (L166) — Queue one source without retaining its potentially large bytes in RAM.
-- `resume_stale_data_prep_runs() -> dict[str, int]` (L220) — Resume queued/running data-prep runs left behind by a process restart.
-- `data_prep_page(request: Request, pid: str)` (L288)
-- `list_providers()` (L331)
-- `upsert_provider(request: Request)` (L350)
-- `delete_provider(pid: str)` (L357)
-- `load_provider(pid: str, request: Request)` (L363) — Load a model provider. Accepts an optional JSON body of loader
-- `unload_active()` (L400) — Unload the active provider (both engines — see E2E-22).
-- `upload_file(pid: str, background: BackgroundTasks, file: UploadFile = File(...), qa_per_c…` (L410) — Read bytes, then start a prep run in background. NO auto-load of model.
-- `start_prep(pid: str, body: StartPrepBody, background: BackgroundTasks)` (L433) — Start prep from an existing QA source (source picker → Start prep).
-- `start_bulk_prep(pid: str, body: BulkPrepBody, background: BackgroundTasks)` (L473) — Queue selected parsed files as sequential, source-scoped prep jobs.
-- `stream_events(pid: str, run_id: str)` (L527)
-- `get_prep_run(pid: str, run_id: str)` (L551) — One-shot prep-run progress (SSE silent fallback for /events).
-- `list_sources_route(pid: str)` (L588)
-- `promote_source_route(pid: str, request: Request)` (L609) — Promote a file-library upload into the data-prep source picker (QABUG-003).
-- `list_qa_route(pid: str, source_id: str | None = None, status: str | None = None)` (L662)
-- `update_qa_route(pid: str, qa_id: str, request: Request)` (L671)
-- `bulk_action(pid: str, request: Request)` (L681)
-- `delete_source_route(pid: str, source_id: str)` (L694)
-- `export_qa(pid: str, fmt: str = 'sharegpt', only: str = 'approved', force: bool = False)` (L700)
-- `file_metadata_route(pid: str, sha256: str)` (L788) — Read structured metadata for a content-addressed file.
-- `ingestion_log_route(pid: str, limit: int = 200)` (L798)
-- `data_prep_audit(pid: str) -> dict` (L807) — Return deterministic raw-file and curated-dataset fidelity evidence.
-- `reprocess_source(pid: str, source_id: str)` (L818) — Re-run the parser + Q&A generation for an existing source.
-  - imports: finetune_studio, finetune_studio.data, finetune_studio.data.audit, finetune_studio.data.fs.qa, finetune_studio.data.parsers, finetune_studio.data.prep, finetune_studio.data.prep.coverage_fill, finetune_studio.data.prep.generator, finetune_studio.data.prep.queued, finetune_studio.data.prep.source_state, finetune_studio.db.datasets, finetune_studio.models.helper, finetune_studio.models.llama_loader, finetune_studio.models.manager, finetune_studio.webui.app
+## `src/finetune_studio/webui/routes/data_prep.py` (922 lines)
+- `def _project_404(pid: str) -> JSONResponse | None` (L41) — Return a 404 response when the project does not exist, else None.
+- `def _spawn_bg(coro) -> None` (L61)
+- `class StartPrepBody(BaseModel)` (L70)
+- `class BulkPrepBody(BaseModel)` (L77)
+- `def _progress_cb(progress_log: list[dict]) -> object` (L84) — Build a PrepProgress callback that appends to ``progress_log``.
+- `def _run_prep_background(run_id: str, runner: object, progress_log: list[dict]) -> None` (L98) — Shared background body for upload / start / reprocess prep runs.
+- `def enqueue_prep_run(pid: str, background: BackgroundTasks, *, data: bytes, filename: str, qa_per_…` (L146) — Create a DB run row, register the runner, queue background work.
+- `def enqueue_source_prep_run(pid: str, background: BackgroundTasks, *, source: dict, qa_per_chunk: int, di…` (L185) — Queue one source without retaining its potentially large bytes in RAM.
+- `async def resume_stale_data_prep_runs() -> dict[str, int]` (L241) — Resume queued/running data-prep runs left behind by a process restart.
+- `async def data_prep_page(request: Request, pid: str)` (L313)
+- `async def list_providers()` (L356)
+- `async def upsert_provider(request: Request)` (L375)
+- `async def delete_provider(pid: str)` (L382)
+- `async def load_provider(pid: str, request: Request)` (L388) — Load a model provider. Accepts an optional JSON body of loader
+- `async def unload_active()` (L425) — Unload the active provider (both engines — see E2E-22).
+- `async def upload_file(pid: str, background: BackgroundTasks, file: UploadFile = File(...), qa_per_c…` (L435) — Read bytes, then start a prep run in background. NO auto-load of model.
+- `async def start_prep(pid: str, body: StartPrepBody, background: BackgroundTasks)` (L458) — Start prep from an existing QA source (source picker → Start prep).
+- `async def start_bulk_prep(pid: str, body: BulkPrepBody, background: BackgroundTasks)` (L501) — Queue selected parsed files as sequential, source-scoped prep jobs.
+- `async def stream_events(pid: str, run_id: str)` (L555)
+- `async def get_prep_run(pid: str, run_id: str)` (L579) — One-shot prep-run progress (SSE silent fallback for /events).
+- `async def list_sources_route(pid: str)` (L616)
+- `async def promote_source_route(pid: str, request: Request)` (L637) — Promote a file-library upload into the data-prep source picker (QABUG-003).
+- `async def list_qa_route(pid: str, source_id: str | None = None, status: str | None = None)` (L692)
+- `async def update_qa_route(pid: str, qa_id: str, request: Request)` (L701)
+- `async def bulk_action(pid: str, request: Request)` (L722)
+- `async def delete_source_route(pid: str, source_id: str)` (L738)
+- `async def export_qa(pid: str, fmt: str = 'sharegpt', only: str = 'approved', force: bool = False)` (L747)
+- `async def file_metadata_route(pid: str, sha256: str)` (L837) — Read structured metadata for a content-addressed file.
+- `async def ingestion_log_route(pid: str, limit: int = 200)` (L847)
+- `async def data_prep_audit(pid: str) -> dict` (L856) — Return deterministic raw-file and curated-dataset fidelity evidence.
+- `async def reprocess_source(pid: str, source_id: str)` (L867) — Re-run the parser + Q&A generation for an existing source.
+  - imports: finetune_studio, finetune_studio.data, finetune_studio.data.audit, finetune_studio.data.fs.paths, finetune_studio.data.fs.qa, finetune_studio.data.parsers, finetune_studio.data.prep, finetune_studio.data.prep.coverage_fill, finetune_studio.data.prep.generator, finetune_studio.data.prep.queued, finetune_studio.data.prep.source_state, finetune_studio.db.datasets, finetune_studio.models.helper, finetune_studio.models.llama_loader, finetune_studio.models.manager, finetune_studio.webui.app
 
-## `src/finetune_studio/webui/routes/data_prep_chat.py` (796 lines)
-- `_run_tool(pid: str, name: str, args: dict) -> dict` (L133) — Execute a single tool against the project's filesystem. Returns a
-- `_strip_thinking(text: str) -> str` (L232) — Remove Qwen3 thinking blocks from model output.
-- `_extract_tool_calls(text: str) -> list[dict]` (L245) — Pull `<tool_call>{...}</tool_call>` blocks out of a model reply.
-- `_strip_thinking_reply(text: str) -> str` (L325) — Strip thinking blocks from a model reply before it becomes the
-- `_looks_truncated(text: str) -> bool` (L336) — True when generation likely hit max_tokens mid-tool-call or think.
-- `_messages_to_prompt(messages: list[dict]) -> tuple[str, list[dict]]` (L347) — Flatten OpenAI-style messages into a single prompt string for local
-- `data_prep_chat(pid: str, request: Request)` (L365) — Server-side chat with tool calling for organizing training data.
-- `_chat_external(backend: dict, messages: list[dict], gen: dict | None = None) -> str` (L607) — One round of chat via an OpenAI-compatible HTTP endpoint.
-- `_chat_global_engine(backend: dict, messages: list[dict], gen: dict | None = None) -> str` (L651) — One round of chat via the global inference engine (the single
-- `_chat_local(backend: dict, messages: list[dict], gen: dict | None = None) -> str` (L690) — One round of chat via the local ModelManager provider.
-- `list_tools(pid: str)` (L790) — Catalog of tools the chat exposes to the model (useful for debugging
+## `src/finetune_studio/webui/routes/data_prep_chat.py` (807 lines)
+- `def _run_tool(pid: str, name: str, args: dict) -> dict` (L133) — Execute a single tool against the project's filesystem. Returns a
+- `def _strip_thinking(text: str) -> str` (L234) — Remove Qwen3 thinking blocks from model output.
+- `def _extract_tool_calls(text: str) -> list[dict]` (L247) — Pull `<tool_call>{...}</tool_call>` blocks out of a model reply.
+- `def _strip_thinking_reply(text: str) -> str` (L327) — Strip thinking blocks from a model reply before it becomes the
+- `def _looks_truncated(text: str) -> bool` (L338) — True when generation likely hit max_tokens mid-tool-call or think.
+- `def _messages_to_prompt(messages: list[dict]) -> tuple[str, list[dict]]` (L349) — Flatten OpenAI-style messages into a single prompt string for local
+- `async def data_prep_chat(pid: str, request: Request)` (L367) — Server-side chat with tool calling for organizing training data.
+- `def _chat_external(backend: dict, messages: list[dict], gen: dict | None = None) -> str` (L618) — One round of chat via an OpenAI-compatible HTTP endpoint.
+- `def _chat_global_engine(backend: dict, messages: list[dict], gen: dict | None = None) -> str` (L662) — One round of chat via the global inference engine (the single
+- `def _chat_local(backend: dict, messages: list[dict], gen: dict | None = None) -> str` (L701) — One round of chat via the local ModelManager provider.
+- `async def list_tools(pid: str)` (L801) — Catalog of tools the chat exposes to the model (useful for debugging
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.data.prep.generator, finetune_studio.models.manager, finetune_studio.webui.app
 
-## `src/finetune_studio/webui/routes/datasets.py` (167 lines)
-- `list_datasets_route(pid: str)` (L34) — List all registered datasets for a project.
-- `get_dataset_route(pid: str, did: str)` (L45)
-- `register_existing_route(pid: str, request: Request)` (L64) — Register an existing file on disk (e.g. written by data-prep export).
-- `upload_dataset_route(pid: str, file: UploadFile = File(...))` (L120) — Multipart upload: save to the project's datasets dir and register.
-- `patch_dataset_route(pid: str, did: str, request: Request)` (L154)
-- `delete_dataset_route(pid: str, did: str, remove_file: bool = False)` (L163)
-  - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.db.datasets
+## `src/finetune_studio/webui/routes/datasets.py` (176 lines)
+- `async def list_datasets_route(pid: str)` (L35) — List all registered datasets for a project.
+- `async def get_dataset_route(pid: str, did: str)` (L46)
+- `async def register_existing_route(pid: str, request: Request)` (L65) — Register an existing file on disk (e.g. written by data-prep export).
+- `async def upload_dataset_route(pid: str, file: UploadFile = File(...))` (L128) — Multipart upload: save to the project's datasets dir and register.
+- `async def patch_dataset_route(pid: str, did: str, request: Request)` (L160)
+- `async def delete_dataset_route(pid: str, did: str, remove_file: bool = False)` (L172)
+  - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.db.datasets
 
-## `src/finetune_studio/webui/routes/exports.py` (456 lines)
-- `_project_404(pid: str) -> JSONResponse | None` (L33) — Return a 404 response when the project does not exist, else None.
-- `_project_root_llama_cpp() -> str` (L62)
-- `_human_size(n: int) -> str` (L76)
-- `_safe_name(s: str) -> str` (L84)
-- `_find_llama_tool(name: str) -> str | None` (L88) — Find an executable in PATH or common llama.cpp install locations.
-- `_find_convert_script() -> str | None` (L103) — Find llama.cpp's convert_hf_to_gguf.py script.
-- `export_run(pid: str, rid: str, request: Request, background: BackgroundTasks)` (L110) — Export a run to GGUF / abliterated / merged safetensors.
-- `get_export(pid: str, eid: str)` (L339)
-- `export_events(pid: str, eid: str)` (L350) — SSE stream of a single export row until it reaches a terminal status.
-- `list_run_exports(pid: str, rid: str)` (L387)
-- `list_project_exports(pid: str, limit: int = 100)` (L398)
-- `_export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None` (L405) — Background GGUF export worker.
+## `src/finetune_studio/webui/routes/exports.py` (467 lines)
+- `def _project_404(pid: str) -> JSONResponse | None` (L33) — Return a 404 response when the project does not exist, else None.
+- `def _project_root_llama_cpp() -> str` (L62)
+- `def _human_size(n: int) -> str` (L76)
+- `def _safe_name(s: str) -> str` (L84)
+- `def _find_llama_tool(name: str) -> str | None` (L88) — Find an executable in PATH or common llama.cpp install locations.
+- `def _find_convert_script() -> str | None` (L103) — Find llama.cpp's convert_hf_to_gguf.py script.
+- `async def export_run(pid: str, rid: str, request: Request, background: BackgroundTasks)` (L110) — Export a run to GGUF / abliterated / merged safetensors.
+- `async def get_export(pid: str, eid: str)` (L350)
+- `async def export_events(pid: str, eid: str)` (L361) — SSE stream of a single export row until it reaches a terminal status.
+- `async def list_run_exports(pid: str, rid: str)` (L398)
+- `async def list_project_exports(pid: str, limit: int = Query(100, ge=1, le=1000))` (L409)
+- `def _export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None` (L416) — Background GGUF export worker.
   - imports: finetune_studio, finetune_studio.training.export_response, finetune_studio.training.gguf_convert, finetune_studio.training.run_export, finetune_studio.webui.live_sse
 
-## `src/finetune_studio/webui/routes/file_library.py` (536 lines)
-- `_stage_upload(pid: str, upload: UploadFile) -> tuple[Path, int, str]` (L60) — Stream one multipart upload to disk while hashing it.
-- `_parse_source_background(pid: str, source_id: str) -> None` (L84) — Parse one staged upload after the HTTP response has been sent.
-- `_project_or_404(pid: str) -> None` (L96)
-- `upload_files(pid: str, request: Request, background: BackgroundTasks, files: list[UploadFi…` (L105) — Upload one or more files. Supports both single-file (curl -F file=@x)
-- `list_files_route(pid: str, folder_id: str | None = None, include_deleted: bool = False, mime_p…` (L257)
-- `list_trash_route(pid: str)` (L281)
-- `purge_trash_route(pid: str, older_than_days: int = Query(7, ge=0))` (L287)
-- `files_pipeline_route(pid: str)` (L295) — Per-file workbench flags: {file_id: {has_parsed, source_id, chunk_count,
-- `files_bulk_route(pid: str, request: Request)` (L304) — Bulk action over file ids: delete | restore | move | reparse | tag-add |
-- `files_download_zip_route(pid: str, request: Request)` (L316) — Zip the raw bytes of the selected files (collision-safe entry names).
-- `files_search_content_route(pid: str, q: str = Query(''), limit: int = 25)` (L331) — Substring search inside PARSED text of project files (name search
-- `get_file_route(pid: str, fid: str)` (L342)
-- `download_raw_route(pid: str, fid: str, version: int | None = None)` (L353) — Download raw bytes. If version is None, serves the current version.
-- `get_parsed_route(pid: str, fid: str)` (L386) — Return the file's parsed-markdown representation.
-- `save_parsed_route(pid: str, fid: str, request: Request)` (L398) — Save a hand-edited parsed text for a file (built-in editor).
-- `reparse_file_route(pid: str, fid: str)` (L415) — Discard the manual parsed override and re-run the real parser.
-- `file_usage_route(pid: str, fid: str)` (L423) — Where this file's content actually went: prep source, RAG corpus,
-- `list_versions_route(pid: str, fid: str)` (L432)
-- `list_conversions_route(pid: str, fid: str)` (L438)
-- `rename_file_route(pid: str, fid: str, request: Request)` (L444) — Rename a live file (DB original_name + on-disk path).
-- `purge_file_route(pid: str, fid: str)` (L460) — Hard-delete one trashed file (disk + DB). Must already be in trash.
-- `move_file_route(pid: str, fid: str, request: Request)` (L467)
-- `delete_file_route(pid: str, fid: str)` (L477)
-- `restore_file_route(pid: str, fid: str)` (L483)
-- `create_folder_route(pid: str, request: Request)` (L491)
-- `list_folders_route(pid: str, include_auto: bool = Query(True))` (L501)
-- `update_file_tags(pid: str, fid: str, request: Request)` (L507) — Update tags and notes for a file.
-- `rename_folder_route(pid: str, fid: str, request: Request)` (L524)
-- `delete_folder_route(pid: str, fid: str)` (L534)
-  - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.data.fs.qa, finetune_studio.data.parsed_edit, finetune_studio.data.parsers
+## `src/finetune_studio/webui/routes/file_library.py` (568 lines)
+- `async def _stage_upload(pid: str, upload: UploadFile) -> tuple[Path, int, str]` (L69) — Stream one multipart upload to disk while hashing it.
+- `def _parse_source_background(pid: str, source_id: str) -> None` (L93) — Parse one staged upload after the HTTP response has been sent.
+- `def _project_or_404(pid: str) -> None` (L105)
+- `def _file_or_404(pid: str, fid: str) -> None` (L110) — 404 unless ``fid`` is a file of project ``pid`` (trashed files count).
+- `async def _json_body(request: Request) -> dict[str, Any]` (L120) — Parse the request body as a JSON object (400 otherwise, never 500).
+- `async def upload_files(pid: str, background: BackgroundTasks, files: list[UploadFile] = File(...), f…` (L134) — Upload one or more files (curl -F files=@x -F files=@y; the field is
+- `async def list_files_route(pid: str, folder_id: str | None = None, include_deleted: bool = False, mime_p…` (L278)
+- `async def list_trash_route(pid: str)` (L305)
+- `async def purge_trash_route(pid: str, older_than_days: int = Query(7, ge=0))` (L311)
+- `async def files_pipeline_route(pid: str)` (L319) — Per-file workbench flags: {file_id: {has_parsed, source_id, chunk_count,
+- `async def files_bulk_route(pid: str, request: Request)` (L328) — Bulk action over file ids: delete | restore | move | reparse | tag-add |
+- `async def files_download_zip_route(pid: str, request: Request)` (L340) — Zip the raw bytes of the selected files (collision-safe entry names).
+- `async def files_search_content_route(pid: str, q: str = Query(''), limit: int = Query(25, ge=1, le=200))` (L355) — Substring search inside PARSED text of project files (name search
+- `async def get_file_route(pid: str, fid: str)` (L368)
+- `async def download_raw_route(pid: str, fid: str, version: int | None = None)` (L379) — Download raw bytes. If version is None, serves the current version.
+- `async def get_parsed_route(pid: str, fid: str)` (L411) — Return the file's parsed-markdown representation.
+- `async def save_parsed_route(pid: str, fid: str, request: Request)` (L423) — Save a hand-edited parsed text for a file (built-in editor).
+- `async def reparse_file_route(pid: str, fid: str)` (L440) — Discard the manual parsed override and re-run the real parser.
+- `async def file_usage_route(pid: str, fid: str)` (L448) — Where this file's content actually went: prep source, RAG corpus,
+- `async def list_versions_route(pid: str, fid: str)` (L457)
+- `async def list_conversions_route(pid: str, fid: str)` (L464)
+- `async def rename_file_route(pid: str, fid: str, request: Request)` (L471) — Rename a live file (DB original_name + on-disk path).
+- `async def purge_file_route(pid: str, fid: str)` (L487) — Hard-delete one trashed file (disk + DB). Must already be in trash.
+- `async def move_file_route(pid: str, fid: str, request: Request)` (L494)
+- `async def delete_file_route(pid: str, fid: str)` (L504)
+- `async def restore_file_route(pid: str, fid: str)` (L510)
+- `async def create_folder_route(pid: str, request: Request)` (L518)
+- `async def list_folders_route(pid: str, include_auto: bool = Query(True))` (L528)
+- `async def update_file_tags(pid: str, fid: str, request: Request)` (L534) — Update tags (comma-separated string) and notes for a file.
+- `async def rename_folder_route(pid: str, fid: str, request: Request)` (L556)
+- `async def delete_folder_route(pid: str, fid: str)` (L566)
+  - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.data.fs.qa, finetune_studio.data.parsed_edit, finetune_studio.data.parsers
 
-## `src/finetune_studio/webui/routes/hf_models.py` (435 lines)
-- `class SearchRequest(BaseModel)` (L31)
-- `_local_models() -> list[dict]` (L42) — Walk the local cache and return one entry per (repo_id, branch_or_file).
-- `_search_hf(req: SearchRequest) -> list[dict]` (L70) — Query the HuggingFace Hub.
-- `_model_info(repo_id: str) -> dict | None` (L128)
-- `hf_search(q: str = '', task: str = 'text-generation', library: str | None = None, sort:…` (L164)
-- `hf_info(repo_id: str)` (L172)
-- `class DownloadRequest(BaseModel)` (L179)
-- `hf_download(req: DownloadRequest, background: BackgroundTasks)` (L186) — Start a background download; return immediately with a job_id.
-- `hf_download_progress(job_id: str)` (L209)
-- `hf_download_cancel(job_id: str)` (L223) — Mark a job as cancelled (best-effort — child subprocesses may continue briefly).
-- `_refresh_model_registry() -> int` (L244) — Rescan model dirs (incl. HF Explorer cache) into ``discovered_models``.
-- `_download_worker(job_id: str, repo_id: str, filename: str | None, revision: str)` (L260) — Background download via huggingface_hub.snapshot_download or hf_hub_download.
-- `restore_in_progress_downloads() -> int` (L323) — Re-populate the in-memory _DOWNLOADS dict from the DB on startup.
-- `hf_local()` (L367) — List models already downloaded into our local cache.
-- `hf_delete_local(repo_id: str)` (L373) — Delete a locally cached model.
-- `hf_local_files(repo_id: str)` (L383) — List files in a local model dir with sizes.
-- `shared_model_stats_endpoint()` (L401)
-- `list_favorites()` (L408) — List favorited models. Never 500 the page — empty list on error.
-- `add_favorite(request: Request)` (L418) — Add a model to favorites.
-- `remove_favorite(path: str)` (L431) — Remove a model from favorites.
-  - imports: finetune_studio, finetune_studio.config, finetune_studio.data.shared_models, finetune_studio.models.registry, finetune_studio.webui
+## `src/finetune_studio/webui/routes/hf_models.py` (453 lines)
+- `def _local_dir(repo_id: str) -> Path` (L36) — Cache dir for ``repo_id``; 400 on anything that could escape ``_LOCAL``.
+- `class SearchRequest(BaseModel)` (L52)
+- `def _local_models() -> list[dict]` (L62) — Walk the local cache and return one entry per (repo_id, branch_or_file).
+- `def _search_hf(req: SearchRequest) -> list[dict]` (L92) — Query the HuggingFace Hub.
+- `def _model_info(repo_id: str) -> dict | None` (L151)
+- `async def hf_search(q: str = '', task: str = 'text-generation', library: str | None = None, sort:…` (L187)
+- `async def hf_info(repo_id: str)` (L195)
+- `class DownloadRequest(BaseModel)` (L202)
+- `async def hf_download(req: DownloadRequest, background: BackgroundTasks)` (L209) — Start a background download; return immediately with a job_id.
+- `async def hf_download_progress(job_id: str)` (L233)
+- `async def hf_download_cancel(job_id: str)` (L247) — Mark a job as cancelled (best-effort — child subprocesses may continue briefly).
+- `def _download_worker(job_id: str, repo_id: str, filename: str | None, revision: str)` (L272) — Background download via huggingface_hub.snapshot_download or hf_hub_download.
+- `def restore_in_progress_downloads() -> int` (L335) — Re-populate the in-memory _DOWNLOADS dict from the DB on startup.
+- `async def hf_local()` (L378) — List models already downloaded into our local cache.
+- `async def hf_delete_local(repo_id: str)` (L384) — Delete a locally cached model.
+- `async def hf_local_files(repo_id: str)` (L394) — List files in a local model dir with sizes.
+- `async def shared_model_stats_endpoint()` (L412)
+- `async def list_favorites()` (L419) — List favorited models. Never 500 the page — empty list on error.
+- `async def add_favorite(request: Request)` (L429) — Add a model to favorites.
+- `async def remove_favorite(path: str)` (L449) — Remove a model from favorites.
+  - imports: finetune_studio, finetune_studio.data.shared_models, finetune_studio.webui.routes.models
 
-## `src/finetune_studio/webui/routes/models.py` (419 lines)
-- `_identify_process(args_line: str, pid: int) -> str` (L19) — Human-identifiable name for a GPU consumer. `ps comm` truncates
-- `_gpu_snapshot()` (L42) — Return (free_mib, top consumers) from nvidia-smi, or (None, []).
-- `_vram_hint(model_path: str) -> str` (L79) — Actionable VRAM-capacity note appended to load errors, or '' if fine.
-- `_resource_snapshot_detail(model_path: str = '') -> str` (L102) — Always-on VRAM/RAM/process note for load failures (actionable UI copy).
-- `_load_failure_payload(error: str, model_path: str = '') -> dict` (L135) — Explicit failure body — HTTP 200 kept for callers that only check JSON.
-- `models_root(for_selector: bool = False, for_training: bool = False)` (L148) — Root models endpoint — returns list of discovered models.
-- `list_models(for_selector: bool = False, for_training: bool = False)` (L154)
-- `count_models()` (L182)
-- `model_info(path: str)` (L187)
-- `_guess_context_length(info: dict) -> int` (L205) — Guess context length from architecture or model name.
-- `refresh_models()` (L223)
-- `load_model_endpoint(request: Request)` (L237) — Load a model into the global inference engine.
-- `unload_model_endpoint()` (L286) — Manually unload the currently loaded model (both engines — E2E-22).
-- `inference_status()` (L305)
-- `inference_load(request: Request)` (L333) — Alias for /api/models/load — same handler.
-- `inference_unload()` (L339) — Alias for /api/models/unload.
-- `inference_chat(request: Request)` (L345) — Generate a chat completion using the global inference engine.
-- `inference_memory_estimate(request: Request)` (L395) — Estimate VRAM needed for a model with given loader params.
+## `src/finetune_studio/webui/routes/models.py` (440 lines)
+- `async def _json_body(request: Request) -> dict` (L19) — Parse the request body as a JSON object (400 otherwise, never 500).
+- `def _identify_process(args_line: str, pid: int) -> str` (L30) — Human-identifiable name for a GPU consumer. `ps comm` truncates
+- `def _gpu_snapshot()` (L53) — Return (free_mib, top consumers) from nvidia-smi, or (None, []).
+- `def _vram_hint(model_path: str) -> str` (L90) — Actionable VRAM-capacity note appended to load errors, or '' if fine.
+- `def _resource_snapshot_detail(model_path: str = '') -> str` (L113) — Always-on VRAM/RAM/process note for load failures (actionable UI copy).
+- `def _load_failure_payload(error: str, model_path: str = '') -> dict` (L146) — Explicit failure body — HTTP 200 kept for callers that only check JSON.
+- `async def models_root(for_selector: bool = False, for_training: bool = False)` (L159) — Root models endpoint — returns list of discovered models.
+- `async def list_models(for_selector: bool = False, for_training: bool = False)` (L165)
+- `async def count_models()` (L193)
+- `async def model_info(path: str)` (L198)
+- `def _guess_context_length(info: dict) -> int` (L216) — Guess context length from architecture or model name.
+- `def refresh_model_registry() -> int` (L233) — Rescan model dirs (incl. HF Explorer cache) into ``discovered_models``.
+- `async def refresh_models()` (L252)
+- `async def load_model_endpoint(request: Request)` (L257) — Load a model into the global inference engine.
+- `async def unload_model_endpoint()` (L307) — Manually unload the currently loaded model (both engines — E2E-22).
+- `async def inference_status()` (L326)
+- `async def inference_load(request: Request)` (L354) — Alias for /api/models/load — same handler.
+- `async def inference_unload()` (L360) — Alias for /api/models/unload.
+- `async def inference_chat(request: Request)` (L366) — Generate a chat completion using the global inference engine.
+- `async def inference_memory_estimate(request: Request)` (L416) — Estimate VRAM needed for a model with given loader params.
   - imports: finetune_studio, finetune_studio.config, finetune_studio.models.gguf_layers, finetune_studio.models.llama_loader, finetune_studio.models.loader, finetune_studio.models.manager, finetune_studio.models.registry, finetune_studio.testing.inference, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.routes.system, finetune_studio.webui.thinking
 
-## `src/finetune_studio/webui/routes/pages.py` (737 lines)
-- `_sum_benchmarks(runs)` (L31) — Sum total benchmark count across all runs.
-- `_require_project(pid: str)` (L43) — Return project dict or None (caller redirects to /projects).
-- `_dir_size_gb(path: str) -> float` (L57) — Total size of a directory tree in GB, rounded to 2 decimals.
-- `_scan_run_models(runs: list[dict]) -> list[dict]` (L70) — Find exported models on disk for a project's training runs.
-- `_project_ctx(pid: str) -> dict` (L127) — Build common template context for project pages.
-- `index(request: Request)` (L145) — Home page — project list + system overview.
-- `inference_page(request: Request)` (L164) — Global inference page — load any model, chat, run benchmarks.
-- `hf_models_page(request: Request)` (L202) — HuggingFace model browser + downloader (LM Studio-style).
-- `models_index(request: Request)` (L213) — Local model library — all discovered models with categories.
-- `hf_models_alias(request: Request)` (L227) — Alias for /models/explore — renders the same HF model browser.
-- `export_page(pid: str, request: Request)` (L238) — Model export page — choose format, quant, and browse trained exports.
-- `projects_page(request: Request)` (L271) — Project list / create page.
-- `project_overview_alias(request: Request, pid: str)` (L285) — Alias used by the sticky breadcrumb (QABUG-009).
-- `project_detail_page(request: Request, pid: str)` (L291) — Project overview dashboard — stats, recent runs/models/files, activity.
-- `project_data_page(request: Request, pid: str)` (L311) — File browser for a project (library + trash + upload).
-- `project_training_page(request: Request, pid: str)` (L329) — Training config + progress for a project.
-- `_recent_suite_runs(pid: str, limit: int = 5) -> list[dict]` (L363) — Return the most recent benchmark suite runs for a project (newest first).
-- `project_testing_page(request: Request, pid: str)` (L399) — Testing / inference playground for a project.
-- `project_models_page(request: Request, pid: str)` (L443) — Model browser for a project — trained exports with expand-row detail.
-- `project_rag_page(request: Request, pid: str)` (L458) — RAG page — corpus build/chat plus docs-indexed inventory panel.
-- `data_editor_page(request: Request, pid: str, dataset_path: str)` (L484) — Project-scoped data editor for a JSONL dataset.
-- `benchmarks_page(request: Request, pid: str)` (L505) — Benchmarks tab — run suites, view scores, compare runs.
-- `project_chat_page(request: Request, pid: str)` (L594) — Project chat page — chat with the project's production model, optionally
-- `project_settings_page(request: Request, pid: str)` (L610) — Project settings + WebUI log tail (no SSH needed for uvicorn.log).
-- `project_wizard_page(request: Request, pid: str)` (L623) — Project wizard: Quick start runs files → QA → dataset → train → test
-- `project_flow_page(request: Request, pid: str)` (L640) — Old name for the wizard — keep bookmarks and links working.
-- `project_work_page(request: Request, pid: str)` (L646) — Canonical name of the quick-work page (routes keep /wizard for history).
-- `settings_page(request: Request)` (L654) — Settings, debug info, replay tutorial, system status.
-- `debug_info()` (L670) — Return system debug info for the Settings page.
+## `src/finetune_studio/webui/routes/pages.py` (732 lines)
+- `def _sum_benchmarks(runs)` (L31) — Sum total benchmark count across all runs.
+- `def _require_project(pid: str)` (L43) — Return project dict or None (caller redirects to /projects).
+- `def _dir_size_gb(path: str) -> float` (L57) — Total size of a directory tree in GB, rounded to 2 decimals.
+- `def _scan_run_models(runs: list[dict]) -> list[dict]` (L70) — Find exported models on disk for a project's training runs.
+- `def _project_ctx(pid: str) -> dict` (L127) — Build common template context for project pages.
+- `async def index(request: Request)` (L145) — Home page — project list + system overview.
+- `async def inference_page(request: Request)` (L164) — Global inference page — load any model, chat, run benchmarks.
+- `async def hf_models_page(request: Request)` (L202) — HuggingFace model browser + downloader (LM Studio-style).
+- `async def models_index(request: Request)` (L213) — Local model library — all discovered models with categories.
+- `async def hf_models_alias(request: Request)` (L227) — Alias for /models/explore — renders the same HF model browser.
+- `async def export_page(pid: str, request: Request)` (L238) — Model export page — choose format, quant, and browse trained exports.
+- `async def projects_page(request: Request)` (L271) — Project list / create page.
+- `async def project_overview_alias(request: Request, pid: str)` (L285) — Alias used by the sticky breadcrumb (QABUG-009).
+- `async def project_detail_page(request: Request, pid: str)` (L291) — Project overview dashboard — stats, recent runs/models/files, activity.
+- `async def project_data_page(request: Request, pid: str)` (L311) — File browser for a project (library + trash + upload).
+- `async def project_training_page(request: Request, pid: str)` (L329) — Training config + progress for a project.
+- `def _recent_suite_runs(pid: str, limit: int = 5) -> list[dict]` (L363) — Return the most recent benchmark suite runs for a project (newest first).
+- `async def project_testing_page(request: Request, pid: str)` (L399) — Testing / inference playground for a project.
+- `async def project_models_page(request: Request, pid: str)` (L443) — Model browser for a project — trained exports with expand-row detail.
+- `async def project_rag_page(request: Request, pid: str)` (L458) — RAG page — corpus build/chat plus docs-indexed inventory panel.
+- `async def data_editor_page(request: Request, pid: str, dataset_path: str)` (L484) — Project-scoped data editor for a JSONL dataset.
+- `async def benchmarks_page(request: Request, pid: str)` (L505) — Benchmarks tab — run suites, view scores, compare runs.
+- `async def project_chat_page(request: Request, pid: str)` (L594) — Project chat page — chat with the project's production model, optionally
+- `async def project_settings_page(request: Request, pid: str)` (L610) — Project settings + WebUI log tail (no SSH needed for uvicorn.log).
+- `async def project_wizard_page(request: Request, pid: str)` (L623) — Project wizard: Quick start runs files → QA → dataset → train → test
+- `async def project_flow_page(request: Request, pid: str)` (L640) — Old name for the wizard — keep bookmarks and links working.
+- `async def project_work_page(request: Request, pid: str)` (L646) — Canonical name of the quick-work page (routes keep /wizard for history).
+- `async def settings_page(request: Request)` (L654) — Settings, debug info, replay tutorial, system status.
+- `async def debug_info()` (L668) — Return system debug info for the Settings page.
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.db, finetune_studio.models.helper, finetune_studio.models.loader, finetune_studio.models.registry, finetune_studio.training.export_capabilities, finetune_studio.webui.app, finetune_studio.webui.model_labels, finetune_studio.webui.project_dashboard, finetune_studio.webui.project_data_browser, finetune_studio.webui.routes.benchmarks, finetune_studio.webui.routes.project_export, finetune_studio.webui.routes.project_rag, finetune_studio.webui.testing_models
 
 ## `src/finetune_studio/webui/routes/project_export.py` (48 lines)
-- `runs_by_id(runs: list[dict]) -> dict[str, dict]` (L14) — Index training runs by id for expand-row source-run lookups.
-- `export_path_row_id(path: str) -> str` (L19) — Stable DOM id / URL hash slug for an export path (``#m-…``).
-- `annotate_runs_for_export(runs: list[dict]) -> list[dict]` (L30) — Copy runs with ``has_merged`` / ``has_adapter`` / ``exportable`` flags.
+- `def runs_by_id(runs: list[dict]) -> dict[str, dict]` (L14) — Index training runs by id for expand-row source-run lookups.
+- `def export_path_row_id(path: str) -> str` (L19) — Stable DOM id / URL hash slug for an export path (``#m-…``).
+- `def annotate_runs_for_export(runs: list[dict]) -> list[dict]` (L30) — Copy runs with ``has_merged`` / ``has_adapter`` / ``exportable`` flags.
   - imports: finetune_studio.training.run_export
 
 ## `src/finetune_studio/webui/routes/project_models.py` (87 lines)
-- `list_dir_contents(path: str, *, limit: int = _MAX_CONTENTS) -> list[dict]` (L14) — Return up to ``limit`` top-level entries in ``path`` with sizes.
-- `_normalize_export_path(raw: str) -> str` (L38) — Turn a path:path capture into an absolute filesystem path.
-- `export_belongs_to_project(pid: str, export_path: str) -> bool` (L49) — True if ``export_path`` sits under a training run of ``pid``.
-- `model_export_contents(pid: str, export_path: str) -> dict` (L73) — List top-level files in a trained export directory (max 20).
+- `def list_dir_contents(path: str, *, limit: int = _MAX_CONTENTS) -> list[dict]` (L14) — Return up to ``limit`` top-level entries in ``path`` with sizes.
+- `def _normalize_export_path(raw: str) -> str` (L38) — Turn a path:path capture into an absolute filesystem path.
+- `def export_belongs_to_project(pid: str, export_path: str) -> bool` (L49) — True if ``export_path`` sits under a training run of ``pid``.
+- `async def model_export_contents(pid: str, export_path: str) -> dict` (L73) — List top-level files in a trained export directory (max 20).
   - imports: finetune_studio
 
-## `src/finetune_studio/webui/routes/project_rag.py` (381 lines)
-- `corpus_dir(pid: str) -> Path` (L29) — Return the on-disk corpus directory for ``pid``.
-- `project_files_dir(pid: str) -> Path` (L34) — Return the project's parsed-files directory used as RAG build input.
-- `_guess_mime(filename: str) -> str` (L39) — Guess a MIME type from ``filename``; default to text/plain.
-- `_format_ts(ts: float) -> str` (L45) — Format a unix timestamp for display; empty string if unset.
-- `list_indexed_docs(pid: str) -> list[dict[str, Any]]` (L55) — Inventory of documents indexed into the project's RAG corpus.
-- `list_doc_chunks(pid: str, doc_id: str) -> list[dict[str, Any]]` (L175) — Return chunk previews for one document (id + first 120 chars of text).
-- `total_chunk_count(docs: list[dict[str, Any]]) -> int` (L204) — Sum of ``chunks`` across indexed-doc dicts.
-- `class RebuildRequest(BaseModel)` (L209)
-- `rag_docs_inventory(pid: str) -> dict[str, Any]` (L225) — List indexed documents with per-doc chunk counts and status.
-- `rag_doc_chunks(pid: str, doc_id: str) -> dict[str, Any]` (L240) — List chunk id + text preview for one indexed document.
-- `rag_mcp_package(pid: str, name: str | None = None, fmt: str = 'tar.gz', include_models: str =…` (L251) — Download a hostable, self-installing RAG package (MCP + HTTP server).
-- `rag_rebuild(pid: str, req: RebuildRequest | None = None) -> dict[str, Any]` (L300) — Rebuild the project RAG corpus (whole-project scope).
-  - imports: finetune_studio, finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.io, finetune_studio.data.rag_portable.mcp_package, finetune_studio.data.rag_portable.source_labels
+## `src/finetune_studio/webui/routes/project_rag.py` (485 lines)
+- `def corpus_dir(pid: str) -> Path` (L28) — Return the on-disk corpus directory for ``pid``.
+- `def project_files_dir(pid: str) -> Path` (L33) — Return the project's parsed-files directory used as RAG build input.
+- `def _guess_mime(filename: str) -> str` (L38) — Guess a MIME type from ``filename``; default to text/plain.
+- `def _format_ts(ts: float) -> str` (L44) — Format a unix timestamp for display; empty string if unset.
+- `def list_indexed_docs(pid: str) -> list[dict[str, Any]]` (L54) — Inventory of documents indexed into the project's RAG corpus.
+- `def list_doc_chunks(pid: str, doc_id: str) -> list[dict[str, Any]]` (L174) — Return chunk previews for one document (id + first 120 chars of text).
+- `def total_chunk_count(docs: list[dict[str, Any]]) -> int` (L203) — Sum of ``chunks`` across indexed-doc dicts.
+- `class RebuildRequest(BaseModel)` (L208)
+- `async def rag_docs_inventory(pid: str) -> dict[str, Any]` (L224) — List indexed documents with per-doc chunk counts and status.
+- `async def rag_doc_chunks(pid: str, doc_id: str) -> dict[str, Any]` (L239) — List chunk id + text preview for one indexed document.
+- `class ExportConfigPatch(BaseModel)` (L249)
+- `class ExportConfigSave(BaseModel)` (L264)
+- `class McpPackageRequest(ExportConfigPatch)` (L270)
+- `def _patch_values(p: ExportConfigPatch) -> dict[str, Any]` (L277)
+- `def _require_project(pid: str) -> dict` (L281)
+- `def _export_config_payload(pid: str) -> dict[str, Any]` (L289)
+- `async def rag_export_config(pid: str) -> dict[str, Any]` (L299) — Studio-wide export defaults, this project's override, and the merge.
+- `async def rag_export_config_save(pid: str, body: ExportConfigSave) -> dict[str, Any]` (L306) — Save studio defaults (``scope=studio``) or a project override
+- `def _package_dir(pid: str) -> Path` (L323)
+- `async def rag_mcp_package(pid: str, body: McpPackageRequest | None = None)` (L331) — Build a hostable, self-installing RAG package and return its metadata.
+- `async def rag_mcp_package_download(pid: str, file: str)` (L390) — Download a previously built package (filename validated; no paths).
+- `async def rag_rebuild(pid: str, req: RebuildRequest | None = None) -> dict[str, Any]` (L406) — Rebuild the project RAG corpus (whole-project scope).
+  - imports: finetune_studio, finetune_studio.data.fs.paths, finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.io, finetune_studio.data.rag_portable.mcp_package, finetune_studio.data.rag_portable.source_labels
 
-## `src/finetune_studio/webui/routes/project_settings.py` (210 lines)
-- `resolve_log_path(candidates: tuple[str, ...] | None = None) -> str` (L35) — Return the first existing candidate path, else the primary candidate.
-- `read_log_tail(path: str, n: int) -> list[str]` (L44) — Return the last ``n`` lines of ``path``.
-- `_iso_now() -> str` (L62) — UTC timestamp for the response ``updated_at`` field.
-- `systemd_unit_active(unit: str = SYSTEMD_UNIT) -> bool` (L67) — True when the user systemd unit is reported active.
-- `journal_tail(n: int, *, unit: str = SYSTEMD_UNIT) -> list[str] | None` (L82) — Return last ``n`` journal lines for the unit, or None if unavailable.
-- `file_mtime_age_seconds(path: str) -> float | None` (L113) — Seconds since mtime, or None if missing/unreadable.
-- `build_logs_payload(lines: int, *, candidates: tuple[str, ...] | None = None, prefer_systemd: boo…` (L121) — Build the JSON body for ``GET .../logs``.
-- `project_logs(pid: str, lines: int = Query(DEFAULT_LINES, ge=1, le=MAX_LINES)) -> dict[str,…` (L201) — Return the last ``lines`` of the WebUI process log (default 80, max 500).
+## `src/finetune_studio/webui/routes/project_settings.py` (214 lines)
+- `def resolve_log_path(candidates: tuple[str, ...] | None = None) -> str` (L37) — Return the first existing candidate path, else the primary candidate.
+- `def read_log_tail(path: str, n: int) -> list[str]` (L46) — Return the last ``n`` lines of ``path``.
+- `def _iso_now() -> str` (L65) — UTC timestamp for the response ``updated_at`` field.
+- `def systemd_unit_active(unit: str = SYSTEMD_UNIT) -> bool` (L70) — True when the user systemd unit is reported active.
+- `def journal_tail(n: int, *, unit: str = SYSTEMD_UNIT) -> list[str] | None` (L85) — Return last ``n`` journal lines for the unit, or None if unavailable.
+- `def file_mtime_age_seconds(path: str) -> float | None` (L116) — Seconds since mtime, or None if missing/unreadable.
+- `def build_logs_payload(lines: int, *, candidates: tuple[str, ...] | None = None, prefer_systemd: boo…` (L124) — Build the JSON body for ``GET .../logs``.
+- `async def project_logs(pid: str, lines: int = Query(DEFAULT_LINES, ge=1, le=MAX_LINES)) -> dict[str,…` (L204) — Return the last ``lines`` of the WebUI process log (default 80, max 500).
   - imports: finetune_studio
 
-## `src/finetune_studio/webui/routes/projects.py` (593 lines)
-- `_project_404(pid: str) -> JSONResponse | None` (L32) — Return a 404 response when the project does not exist, else None.
-- `_get_owned_run(pid: str, rid: str) -> tuple[dict | None, JSONResponse | None]` (L44) — Fetch a run and verify it belongs to ``pid``.
-- `_get_owned_rag(pid: str, rid: str) -> tuple[dict | None, JSONResponse | None]` (L57) — Fetch a rag and verify it belongs to ``pid`` (see ``_get_owned_run``).
-- `list_projects()` (L68)
-- `create_project(request: Request)` (L73)
-- `get_project(pid: str)` (L85)
-- `update_project(pid: str, request: Request)` (L104)
-- `delete_project(pid: str)` (L113) — Delete a project's DB rows and every on-disk tree that stores its data.
-- `export_project(pid: str, name: str = None, fmt: str = 'tar.gz')` (L147) — Export a project as a self-contained archive.
-- `import_project(request: Request)` (L181) — Import a project from an uploaded archive.
-- `promote_run(pid: str, request: Request)` (L243) — Set a Training Run as the Project's production model.
-- `list_rags(pid: str)` (L257)
-- `create_rag(pid: str, request: Request)` (L265)
-- `update_rag(pid: str, rid: str, request: Request)` (L281)
-- `delete_rag(pid: str, rid: str)` (L290)
-- `ingest_into_rag(pid: str, rid: str, request: Request)` (L299) — Ingest a file or directory into a project RAG.
-- `query_rag(pid: str, rid: str, request: Request)` (L344)
-- `rag_stats(pid: str, rid: str)` (L362)
-- `list_runs(pid: str)` (L373)
-- `create_run(pid: str, request: Request)` (L381)
-- `get_run(pid: str, rid: str)` (L401)
-- `update_run(pid: str, rid: str, request: Request)` (L410)
-- `delete_run(pid: str, rid: str)` (L419)
-- `start_run(pid: str, rid: str, request: Request)` (L428) — Wire a persisted Run into the training engine and start it.
-- `stop_run(pid: str, rid: str)` (L471)
-- `run_benchmark(pid: str, rid: str, request: Request)` (L481) — Run a benchmark suite against a run's output model.
-- `merge_run(pid: str, rid: str, request: Request, force: str = 'false')` (L543) — Merge a persisted run's adapter on disk into a standalone model.
-- `list_run_benchmarks(pid: str, rid: str)` (L589)
+## `src/finetune_studio/webui/routes/projects.py` (688 lines)
+- `def _project_404(pid: str) -> JSONResponse | None` (L33) — Return a 404 response when the project does not exist, else None.
+- `def _get_owned_run(pid: str, rid: str) -> tuple[dict | None, JSONResponse | None]` (L45) — Fetch a run and verify it belongs to ``pid``.
+- `def _get_owned_rag(pid: str, rid: str) -> tuple[dict | None, JSONResponse | None]` (L58) — Fetch a rag and verify it belongs to ``pid`` (see ``_get_owned_run``).
+- `async def list_projects()` (L69)
+- `async def create_project(request: Request)` (L74)
+- `async def get_project(pid: str)` (L86)
+- `async def update_project(pid: str, request: Request)` (L103)
+- `async def delete_project(pid: str)` (L112) — Delete a project's DB rows and every on-disk tree that stores its data.
+- `def _projects_root()` (L151)
+- `def _corpora_root()` (L157)
+- `def _safe_member_parts(name: str) -> tuple[str, ...] | None` (L163) — Split an archive member name; None if absolute or containing ``..``.
+- `async def export_project(pid: str, name: str | None = None, fmt: str = 'tar.gz')` (L175) — Export one project as a self-contained archive.
+- `async def import_project(request: Request)` (L226) — Import ONE project from an archive produced by ``export_project``.
+- `async def promote_run(pid: str, request: Request)` (L324) — Set a Training Run as the Project's production model.
+- `async def list_rags(pid: str)` (L338)
+- `async def create_rag(pid: str, request: Request)` (L346)
+- `async def update_rag(pid: str, rid: str, request: Request)` (L362)
+- `async def delete_rag(pid: str, rid: str)` (L371)
+- `async def ingest_into_rag(pid: str, rid: str, request: Request)` (L380) — Ingest a file or directory into a project RAG.
+- `async def query_rag(pid: str, rid: str, request: Request)` (L425)
+- `async def rag_stats(pid: str, rid: str)` (L446)
+- `async def list_runs(pid: str)` (L457)
+- `async def create_run(pid: str, request: Request)` (L465)
+- `async def get_run(pid: str, rid: str)` (L485)
+- `async def update_run(pid: str, rid: str, request: Request)` (L494)
+- `async def delete_run(pid: str, rid: str)` (L503)
+- `async def start_run(pid: str, rid: str, request: Request)` (L512) — Wire a persisted Run into the training engine and start it.
+- `async def stop_run(pid: str, rid: str)` (L563)
+- `async def run_benchmark(pid: str, rid: str, request: Request)` (L577) — Run a benchmark suite against a run's output model.
+- `async def merge_run(pid: str, rid: str, request: Request, force: str = 'false')` (L638) — Merge a persisted run's adapter on disk into a standalone model.
+- `async def list_run_benchmarks(pid: str, rid: str)` (L684)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.data.fs.paths, finetune_studio.models.llama_loader, finetune_studio.rag.manager, finetune_studio.testing.inference, finetune_studio.testing.suite, finetune_studio.training.data, finetune_studio.training.engine, finetune_studio.training.run_persistence, finetune_studio.webui.app, finetune_studio.webui.routes.pages
 
-## `src/finetune_studio/webui/routes/quality.py` (204 lines)
-- `class DataJobRequest(BaseModel)` (L30)
-- `class DataJobResponse(BaseModel)` (L35)
-- `_load_jsonl(path: str) -> list[dict]` (L43) — Read one JSON object per line, skipping malformed lines.
-- `data_analyze(req: DataJobRequest) -> DataJobResponse` (L65) — Analyze training-data quality (length, dup ratio, persona consistency).
-- `data_augment(req: DataJobRequest) -> DataJobResponse` (L80) — Augment training data to address weaknesses identified by analyze.
-- `data_optimize(req: DataJobRequest) -> DataJobResponse` (L122) — Recommend training hyperparameters based on dataset characteristics.
-- `data_hallucination_check(req: DataJobRequest) -> DataJobResponse` (L151) — Scan training data for hallucination risk patterns.
-- `class ConvertRequest(BaseModel)` (L168)
-- `data_convert(req: ConvertRequest) -> DataJobResponse` (L176) — Convert training data between formats (csv/json/jsonl).
-  - imports: finetune_studio.data.converter, finetune_studio.training.config_optimizer, finetune_studio.training.data_augmentation, finetune_studio.training.data_quality, finetune_studio.training.hallucination_guard
+## `src/finetune_studio/webui/routes/quality.py` (226 lines)
+- `class DataJobRequest(BaseModel)` (L33)
+- `def _fence(req: Any) -> None` (L39) — Confine ``req.path`` and ``req.output`` to the project dir (400/403 otherwise).
+- `class DataJobResponse(BaseModel)` (L51)
+- `def _load_jsonl(path: str) -> list[dict]` (L59) — Read one JSON object per line, skipping malformed lines.
+- `def data_analyze(req: DataJobRequest) -> DataJobResponse` (L81) — Analyze training-data quality (length, dup ratio, persona consistency).
+- `def data_augment(req: DataJobRequest) -> DataJobResponse` (L97) — Augment training data to address weaknesses identified by analyze.
+- `def data_optimize(req: DataJobRequest) -> DataJobResponse` (L140) — Recommend training hyperparameters based on dataset characteristics.
+- `def data_hallucination_check(req: DataJobRequest) -> DataJobResponse` (L170) — Scan training data for hallucination risk patterns.
+- `class ConvertRequest(BaseModel)` (L188)
+- `def data_convert(req: ConvertRequest) -> DataJobResponse` (L197) — Convert training data between formats (csv/json/jsonl).
+  - imports: finetune_studio.config, finetune_studio.data.converter, finetune_studio.data.fs.paths, finetune_studio.training.config_optimizer, finetune_studio.training.data_augmentation, finetune_studio.training.data_quality, finetune_studio.training.hallucination_guard
 
-## `src/finetune_studio/webui/routes/rag.py` (671 lines)
-- `_corpus_dir(pid: str) -> Path` (L38)
-- `_project_404(pid: str) -> JSONResponse | None` (L42) — Return a 404 response when the project does not exist, else None.
-- `_build_meta(pid: str, name: str) -> dict` (L56) — Sidecar DB-like info stored next to the project. For now: just counts.
-- `class SearchRequest(BaseModel)` (L63)
-- `class ChatRequest(BaseModel)` (L71)
-- `class BuildRequest(BaseModel)` (L79)
-- `class RebuildVectorsRequest(BaseModel)` (L86)
-- `class SettingsPatch(BaseModel)` (L90)
-- `rag_status(pid: str)` (L102)
-- `rag_get_settings(pid: str)` (L130)
-- `rag_patch_settings(pid: str, req: SettingsPatch)` (L152) — Update settings. Changes to embedder/rerank_top_n don't break anything,
-- `rag_build(pid: str, req: BuildRequest)` (L183) — (Re)build the project's RAG from the project's files dir.
-- `class QuickRequest(BaseModel)` (L259)
-- `rag_quick(pid: str, req: QuickRequest)` (L265) — ⚡ Quick index: promote every not-yet-parsed library file into QA
-- `_rag_build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict` (L317) — One progress snapshot for SSE frames and the /build/status poll.
-- `rag_build_status(pid: str)` (L361) — One-shot corpus-build progress (SSE silent fallback for /build/progress).
-- `rag_build_progress(pid: str)` (L370) — Server-Sent Events stream that reports corpus build progress.
-- `rag_rebuild_vectors(pid: str, req: RebuildVectorsRequest)` (L411) — Re-embed with (possibly new) embedder. Loads + replaces vectors.npy.
-- `rag_list_sources(pid: str)` (L441) — List all sources in the corpus.
-- `rag_delete_source(pid: str, source_id: str)` (L455) — Remove a single source from the corpus.
-- `rag_clear_sources(pid: str)` (L470) — Clear source text and all search indexes while retaining the corpus directory.
-- `rag_search(pid: str, req: SearchRequest)` (L484)
-- `rag_bundle(pid: str, name: str | None = None, fmt: str = 'tar', include_models: str = 't…` (L500) — Download a self-contained archive of the corpus.
-- `rag_import(pid: str, file: UploadFile, overwrite: bool = False)` (L526) — Import a corpus bundle (.tar/.tar.gz/.zip) produced by ``GET .../rag/bundle``.
-- `shared_model_stats()` (L595) — Dashboard stats for the shared model pool. Shows which models are stored,
-- `rag_chat(pid: str, req: ChatRequest)` (L603) — RAG-augmented chat. Retrieves top-k from project corpus, prepends to
-  - imports: finetune_studio, finetune_studio.data, finetune_studio.data.fs, finetune_studio.data.fs.qa, finetune_studio.data.rag_portable, finetune_studio.data.shared_models, finetune_studio.models.manager, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.live_sse, finetune_studio.webui.thinking
+## `src/finetune_studio/webui/routes/rag.py` (742 lines)
+- `def _corpus_dir(pid: str) -> Path` (L48)
+- `def _project_404(pid: str) -> JSONResponse | None` (L52) — Return a 404 response when the project does not exist, else None.
+- `class SearchRequest(BaseModel)` (L68)
+- `class ChatRequest(BaseModel)` (L76)
+- `class BuildRequest(BaseModel)` (L84)
+- `class RebuildVectorsRequest(BaseModel)` (L91)
+- `class SettingsPatch(BaseModel)` (L95)
+- `async def rag_status(pid: str)` (L107)
+- `async def rag_get_settings(pid: str)` (L135)
+- `async def rag_patch_settings(pid: str, req: SettingsPatch)` (L157) — Update settings. Changes to embedder/rerank_top_n don't break anything,
+- `async def rag_build(pid: str, req: BuildRequest)` (L188) — (Re)build the project's RAG from the project's files dir.
+- `class QuickRequest(BaseModel)` (L267)
+- `async def rag_quick(pid: str, req: QuickRequest)` (L273) — ⚡ Quick index: promote every not-yet-parsed library file into QA
+- `def _rag_build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict` (L328) — One progress snapshot for SSE frames and the /build/status poll.
+- `async def rag_build_status(pid: str)` (L370) — One-shot corpus-build progress (SSE silent fallback for /build/progress).
+- `async def rag_build_progress(pid: str)` (L379) — Server-Sent Events stream that reports corpus build progress.
+- `async def rag_rebuild_vectors(pid: str, req: RebuildVectorsRequest)` (L418) — Re-embed with (possibly new) embedder. Loads + replaces vectors.npy.
+- `async def rag_list_sources(pid: str)` (L448) — List all sources in the corpus.
+- `async def rag_delete_source(pid: str, source_id: str)` (L462) — Remove a single source from the corpus.
+- `async def rag_clear_sources(pid: str)` (L477) — Clear source text and all search indexes while retaining the corpus directory.
+- `async def rag_search(pid: str, req: SearchRequest)` (L491)
+- `class BundleRequest(BaseModel)` (L506)
+- `def _bundle_dir(pid: str) -> Path` (L514)
+- `async def rag_bundle(pid: str, body: BundleRequest | None = None)` (L519) — Export the corpus as an encrypted ``.ftsrag`` file inside the project dir.
+- `async def rag_bundle_download(pid: str, file: str)` (L553)
+- `async def rag_import(pid: str, file: UploadFile, overwrite: bool = False, passphrase: str = Form('…` (L569) — Import a corpus bundle: encrypted ``.ftsrag`` (needs ``passphrase``) or a
+- `async def shared_model_stats()` (L666) — Dashboard stats for the shared model pool. Shows which models are stored,
+- `async def rag_chat(pid: str, req: ChatRequest)` (L674) — RAG-augmented chat. Retrieves top-k from project corpus, prepends to
+  - imports: finetune_studio, finetune_studio.data, finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.data.fs.qa, finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.rag_container, finetune_studio.data.shared_models, finetune_studio.models.manager, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.live_sse, finetune_studio.webui.thinking
 
-## `src/finetune_studio/webui/routes/settings.py` (79 lines)
-- `_load() -> dict[str, Any]` (L20)
-- `_save(data: dict[str, Any]) -> None` (L30)
-- `get_defaults() -> dict[str, Any]` (L47) — Return default settings.
-- `get_settings()` (L53) — Return current settings merged with defaults.
-- `update_settings(request: Any)` (L61) — Partial update of settings.
-- `reload_settings()` (L73) — Tell the app to reload settings from disk (e.g. after port change).
+## `src/finetune_studio/webui/routes/settings.py` (78 lines)
+- `def _load() -> dict[str, Any]` (L19)
+- `def _save(data: dict[str, Any]) -> None` (L29)
+- `async def get_settings()` (L49) — Return current settings merged with defaults.
+- `async def update_settings(request: Request)` (L57) — Partial update of settings.
+- `async def reload_settings()` (L72) — Tell the app to reload settings from disk (e.g. after port change).
 
-## `src/finetune_studio/webui/routes/system.py` (150 lines)
-- `_ram() -> dict` (L16) — Host RAM in GB.
-- `_vram() -> list[dict]` (L34) — Per-GPU VRAM in GB. Uses torch.cuda when present, else nvidia-smi via subprocess.
-- `resources()` (L90) — Host RAM + per-GPU VRAM snapshot for UI bars.
-- `gpu_summary()` (L103) — Short VRAM string for dashboard stat tile (plain text for SPA poll).
-- `gpu_text()` (L117) — Sub-line for dashboard stat tile — GPU name + percent (plain text).
-- `version()` (L128) — Exact build identity of the running service.
+## `src/finetune_studio/webui/routes/system.py` (155 lines)
+- `def _ram() -> dict` (L16) — Host RAM in GB.
+- `def _vram() -> list[dict]` (L34) — Per-GPU VRAM in GB. Uses torch.cuda when present, else nvidia-smi via subprocess.
+- `async def resources()` (L90) — Host RAM + per-GPU VRAM snapshot for UI bars.
+- `async def gpu_summary()` (L103) — Short VRAM string for dashboard stat tile (plain text for SPA poll).
+- `async def gpu_text()` (L117) — Sub-line for dashboard stat tile — GPU name + percent (plain text).
+- `async def version()` (L128) — Exact build identity of the running service.
   - imports: finetune_studio
 
-## `src/finetune_studio/webui/routes/testing.py` (461 lines)
-- `_resolve_merged_model(pid: str) -> str | None` (L27) — Return path to the most-recent completed run's merged model, or None.
-- `load_model(request: Request)` (L33) — Load a model into the global inference engine.
-- `unload_model()` (L63) — Unload the currently loaded model (both engines — see E2E-22).
-- `_testing_status_payload() -> dict` (L70)
-- `model_status()` (L79) — One-shot testing/inference load status (fallback for non-SSE clients).
-- `testing_events()` (L85) — SSE stream of testing model-load status for live suite progress.
-- `chat(request: Request)` (L103)
-- `run_test_suite(request: Request)` (L117)
-- `run_rag_test_suite(request: Request)` (L175) — Run a Q&A suite with PortableRAG retrieval grounding.
-- `_persist_rag_report(*, project_id: str, requested_run_id: str, suite_path: str, report: dict[str,…` (L242) — Persist a grounded report without discarding transcript provenance.
-- `_ensure_model_loaded(project_id: str, override_path: str) -> JSONResponse | None` (L315) — Load override or latest merged model; return error response or None.
-- `list_training_datasets_for_eval(pid: str)` (L355) — List project datasets that can be used for training-data evaluation.
-- `evaluate_training_dataset(request: Request)` (L383) — Run heuristic evaluation against a project's approved training dataset.
+## `src/finetune_studio/webui/routes/testing.py` (473 lines)
+- `def _resolve_merged_model(pid: str) -> str | None` (L27) — Return path to the most-recent completed run's merged model, or None.
+- `async def load_model(request: Request)` (L33) — Load a model into the global inference engine.
+- `async def unload_model()` (L63) — Unload the currently loaded model (both engines — see E2E-22).
+- `def _testing_status_payload() -> dict` (L70)
+- `async def model_status()` (L79) — One-shot testing/inference load status (fallback for non-SSE clients).
+- `async def testing_events()` (L85) — SSE stream of testing model-load status for live suite progress.
+- `async def chat(request: Request)` (L103)
+- `async def run_test_suite(request: Request)` (L117)
+- `async def run_rag_test_suite(request: Request)` (L181) — Run a Q&A suite with PortableRAG retrieval grounding.
+- `def _persist_rag_report(*, project_id: str, requested_run_id: str, suite_path: str, report: dict[str,…` (L245) — Persist a grounded report without discarding transcript provenance.
+- `def _ensure_model_loaded(project_id: str, override_path: str) -> JSONResponse | None` (L330) — Load override or latest merged model; return error response or None.
+- `async def list_training_datasets_for_eval(pid: str)` (L370) — List project datasets that can be used for training-data evaluation.
+- `async def evaluate_training_dataset(request: Request)` (L398) — Run heuristic evaluation against a project's approved training dataset.
   - imports: finetune_studio, finetune_studio.db, finetune_studio.models.llama_loader, finetune_studio.models.manager, finetune_studio.testing.rag_suite, finetune_studio.testing.suite, finetune_studio.testing.training_eval, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.live_sse, finetune_studio.webui.testing_models
 
-## `src/finetune_studio/webui/routes/training.py` (805 lines)
-- `_coerce_bool(value: object) -> bool` (L23) — Parse JSON/FormData bool-ish values (``"1"``, ``"true"``, ``true``, …).
-- `_optional_body_bool(body: dict, key: str, overrides: dict | None = None) -> bool | None` (L37) — Return coerced bool when ``key`` is present on body or overrides; else None.
-- `_resolve_model_path(model_path: str, allow_download: bool) -> tuple[str, str | None]` (L49) — Resolve a trainable base to a local dir; block silent multi-GB hub pulls.
-- `_get_presets() -> list[dict]` (L241) — Return all presets with their IDs.
-- `_get_preset(preset_id: str) -> dict | None` (L246) — Return a specific preset by ID.
-- `_apply_preset(preset_id: str, overrides: dict | None = None) -> TrainingConfig` (L254) — Build a TrainingConfig from a preset, with optional field overrides.
-- `list_presets()` (L266) — Return all training presets.
-- `get_preset(preset_id: str)` (L272) — Return a specific preset.
-- `recommend_config(tier: str = 'balanced', base_model: str = '', dataset: str = '', pairs: int |…` (L282) — Propose training settings for a base model + dataset at a quality tier.
-- `status()` (L307)
-- `status_text()` (L324)
-- `progress()` (L341) — SSE live training status (preferred over polling ``/status``).
-- `progress_text()` (L347) — Plain-text one-shot progress string for dashboard polling.
-- `list_training_runs()` (L373) — List ALL training runs (across all projects).
-- `list_training_runs_for_project(pid: str)` (L380) — List training runs for a specific project.
-- `start_training(request: Request)` (L393)
-- `stop_training()` (L526)
-- `export_run(run_id: str, request: Request)` (L532) — Export a trained run to deployable formats (standalone, post-training).
-- `list_auto_suites(run_id: str)` (L572) — List all auto-generated suites for a training run.
-- `trigger_auto_suite(run_id: str, request: Request)` (L581) — Trigger auto-generation of a benchmark suite from training data.
-- `abliterate_run(run_id: str)` (L651) — Abliterate (de-censor) a trained model.
-- `get_abliteration(run_id: str)` (L699) — Get abliteration status for a run.
-- `quantize_run(run_id: str, request: Request)` (L708) — Export a trained model using advanced quantization.
-- `list_quant_exports(run_id: str)` (L755) — List all quantization exports for a run.
-- `set_run_output(run_id: str, request: Request)` (L764) — Update a run's output_path.
-- `list_exports(run_id: str)` (L776) — List all exports (merged, gguf, adapter) for a training run.
+## `src/finetune_studio/webui/routes/training.py` (815 lines)
+- `def _coerce_bool(value: object) -> bool` (L23) — Parse JSON/FormData bool-ish values (``"1"``, ``"true"``, ``true``, …).
+- `def _optional_body_bool(body: dict, key: str, overrides: dict | None = None) -> bool | None` (L37) — Return coerced bool when ``key`` is present on body or overrides; else None.
+- `def _resolve_model_path(model_path: str, allow_download: bool) -> tuple[str, str | None]` (L49) — Resolve a trainable base to a local dir; block silent multi-GB hub pulls.
+- `def _get_presets() -> list[dict]` (L241) — Return all presets with their IDs.
+- `def _get_preset(preset_id: str) -> dict | None` (L246) — Return a specific preset by ID.
+- `def _apply_preset(preset_id: str, overrides: dict | None = None) -> TrainingConfig` (L254) — Build a TrainingConfig from a preset, with optional field overrides.
+- `async def list_presets()` (L266) — Return all training presets.
+- `async def get_preset(preset_id: str)` (L272) — Return a specific preset.
+- `async def recommend_config(tier: str = 'balanced', base_model: str = '', dataset: str = '', pairs: int |…` (L282) — Propose training settings for a base model + dataset at a quality tier.
+- `async def status()` (L307)
+- `async def status_text()` (L324)
+- `async def progress()` (L341) — SSE live training status (preferred over polling ``/status``).
+- `async def progress_text()` (L347) — Plain-text one-shot progress string for dashboard polling.
+- `async def list_training_runs()` (L373) — List ALL training runs (across all projects).
+- `async def list_training_runs_for_project(pid: str)` (L380) — List training runs for a specific project.
+- `async def start_training(request: Request)` (L393)
+- `async def stop_training()` (L534)
+- `async def export_run(run_id: str, request: Request)` (L540) — Export a trained run to deployable formats (standalone, post-training).
+- `async def list_auto_suites(run_id: str)` (L580) — List all auto-generated suites for a training run.
+- `async def trigger_auto_suite(run_id: str, request: Request)` (L589) — Trigger auto-generation of a benchmark suite from training data.
+- `async def abliterate_run(run_id: str)` (L659) — Abliterate (de-censor) a trained model.
+- `async def get_abliteration(run_id: str)` (L707) — Get abliteration status for a run.
+- `async def quantize_run(run_id: str, request: Request)` (L716) — Export a trained model using advanced quantization.
+- `async def list_quant_exports(run_id: str)` (L763) — List all quantization exports for a run.
+- `async def set_run_output(run_id: str, request: Request)` (L772) — Update a run's output_path.
+- `async def list_exports(run_id: str)` (L786) — List all exports (merged, gguf, adapter) for a training run.
   - imports: finetune_studio, finetune_studio.db.connection, finetune_studio.db.runs, finetune_studio.models.helper, finetune_studio.models.llama_loader, finetune_studio.testing.generate_suite, finetune_studio.training.abliteration, finetune_studio.training.advanced_quant, finetune_studio.training.data, finetune_studio.training.engine, finetune_studio.training.monitor, finetune_studio.training.preset_advisor, finetune_studio.training.run_export, finetune_studio.training.run_persistence, finetune_studio.webui.app, finetune_studio.webui.live_sse
 
-## `src/finetune_studio/webui/routes/updates.py` (255 lines)
-- `_find_update_script() -> Path | None` (L47) — Locate update.sh. Prefers the path next to the package; falls
-- `trigger_update(request: Request, background: BackgroundTasks)` (L65) — Queue a self-healing update.
-- `_latest_update_payload() -> dict[str, Any]` (L95) — Compact snapshot for SSE frames and the one-shot /latest poll.
-- `list_updates(limit: int = 50)` (L109)
-- `latest_update()` (L114) — One-shot snapshot of the in-progress update.
-- `update_events()` (L124) — SSE stream of the latest in-progress update until it finishes.
-- `get_update_status(uid: str, full: bool = False)` (L166) — Status + log tail for one update attempt.
-- `_update_worker(uid: str, mode: str, options: dict) -> None` (L180) — Spawn update.sh as subprocess, stream output to the DB row.
+## `src/finetune_studio/webui/routes/updates.py` (261 lines)
+- `def _find_update_script() -> Path | None` (L47) — Locate update.sh. Prefers the path next to the package; falls
+- `async def trigger_update(request: Request, background: BackgroundTasks)` (L65) — Queue a self-healing update.
+- `def _latest_update_payload() -> dict[str, Any]` (L101) — Compact snapshot for SSE frames and the one-shot /latest poll.
+- `async def list_updates(limit: int = 50)` (L115)
+- `async def latest_update()` (L120) — One-shot snapshot of the in-progress update.
+- `async def update_events()` (L130) — SSE stream of the latest in-progress update until it finishes.
+- `async def get_update_status(uid: str, full: bool = False)` (L172) — Status + log tail for one update attempt.
+- `def _update_worker(uid: str, mode: str, options: dict) -> None` (L186) — Spawn update.sh as subprocess, stream output to the DB row.
   - imports: finetune_studio, finetune_studio.webui.live_sse
 
-## `src/finetune_studio/webui/routes/versions.py` (266 lines)
-- `_manifest_of(v: dict) -> dict[str, Any]` (L35)
-- `_save_version(pid: str, body: dict[str, Any]) -> dict | JSONResponse` (L42) — Shared save logic for both the JSON route and the multipart-free CLI path.
-- `list_versions(pid: str)` (L96)
-- `save_version(pid: str, request: Request)` (L103)
-- `get_version(vid: str, pid: str)` (L108)
-- `get_lineage(vid: str, pid: str)` (L118)
-- `delete_version(vid: str, pid: str)` (L129)
-- `build_subset_dataset(pid: str, request: Request)` (L137) — Specialized build: hand-picked sources → coverage-filled → registered dataset.
-- `rag_coverage(pid: str)` (L217) — 100%-facts gate for RAG: every parsed source present in the corpus?
+## `src/finetune_studio/webui/routes/versions.py` (274 lines)
+- `def _manifest_of(v: dict) -> dict[str, Any]` (L36)
+- `async def _save_version(pid: str, body: dict[str, Any]) -> dict | JSONResponse` (L43) — Shared save logic for both the JSON route and the multipart-free CLI path.
+- `async def list_versions(pid: str)` (L99)
+- `async def save_version(pid: str, request: Request)` (L106)
+- `async def get_version(vid: str, pid: str)` (L117)
+- `async def get_lineage(vid: str, pid: str)` (L127)
+- `async def delete_version(vid: str, pid: str)` (L138)
+- `async def build_subset_dataset(pid: str, request: Request)` (L146) — Specialized build: hand-picked sources → coverage-filled → registered dataset.
+- `async def rag_coverage(pid: str)` (L227) — 100%-facts gate for RAG: every parsed source present in the corpus?
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.data.prep.coverage_fill, finetune_studio.data.prep.export, finetune_studio.db.datasets, finetune_studio.db.runs, finetune_studio.webui.routes.rag
 
 ## `src/finetune_studio/webui/testing_models.py` (75 lines)
-- `is_run_done(run: dict[str, Any]) -> bool` (L22) — True when a training run is finished successfully.
-- `resolve_latest_merged_model(pid: str, *, list_runs_fn: Any = None) -> str | None` (L27) — Return path to the newest completed run's ready ``merged/`` dir.
-- `models_for_testing_page(project_models: list[dict[str, Any]]) -> list[dict[str, Any]]` (L52) — Filter + sort project export rows for the Testing model selector.
-- `default_model_path_for_testing(models: list[dict[str, Any]]) -> str | None` (L67) — Path of the preferred default selection (latest merged safetensors).
+- `def is_run_done(run: dict[str, Any]) -> bool` (L22) — True when a training run is finished successfully.
+- `def resolve_latest_merged_model(pid: str, *, list_runs_fn: Any = None) -> str | None` (L27) — Return path to the newest completed run's ready ``merged/`` dir.
+- `def models_for_testing_page(project_models: list[dict[str, Any]]) -> list[dict[str, Any]]` (L52) — Filter + sort project export rows for the Testing model selector.
+- `def default_model_path_for_testing(models: list[dict[str, Any]]) -> str | None` (L67) — Path of the preferred default selection (latest merged safetensors).
   - imports: finetune_studio, finetune_studio.training.run_export
 
 ## `src/finetune_studio/webui/thinking.py` (47 lines)
-- `split_thinking(raw: str) -> dict` (L21) — Pull reasoning out of `raw` if present.
+- `def split_thinking(raw: str) -> dict` (L21) — Pull reasoning out of `raw` if present.
 
 
 # scripts
 
-## `scripts/augment_dataset.py` (310 lines)
-- `split_sentences(text: str) -> list[str]` (L33) — Crude sentence split on .!? or blank-line boundaries.
-- `find_fact(parsed_txt: pathlib.Path, ans_sig: str, term: str) -> str | None` (L38) — Return the sentence(s) in *parsed_txt* containing *term* and (when
-- `build_augmented_pairs(project_dir: pathlib.Path) -> list[dict]` (L99) — Walk every parsed.txt under project/files/ and build one augmented pair
-- `to_chat(qa: dict) -> dict` (L153)
-- `split_held_out(pairs: list[dict], seed: int = 42, ratio: float = 0.9) -> tuple[list, list]` (L165)
-- `write_held_out_suite(held: list[dict], path: pathlib.Path) -> None` (L171)
-- `merge_into_qa_pairs(project_dir: pathlib.Path, augmented: list[dict]) -> int` (L196)
-- `rebuild_sharegpt_dataset(project_dir: pathlib.Path, dataset_dir: pathlib.Path) -> int` (L233)
-- `main() -> int` (L268)
+## `scripts/augment_dataset.py` (339 lines)
+- `def split_sentences(text: str) -> list[str]` (L33) — Crude sentence split on .!? or blank-line boundaries.
+- `def find_fact(parsed_txt: pathlib.Path, ans_sig: str, term: str) -> str | None` (L38) — Return the sentence(s) in *parsed_txt* containing *term* and (when
+- `def build_augmented_pairs(project_dir: pathlib.Path) -> list[dict]` (L99) — Walk every parsed.txt under project/files/ and build one augmented pair
+- `def to_chat(qa: dict) -> dict` (L154)
+- `def normalize_question(question: object) -> str` (L166) — Whitespace/case-insensitive question key used to keep train and held-out disjoint.
+- `def load_approved_pairs(project_dir: pathlib.Path) -> list[dict]` (L171) — Every approved, de-duplicated qa pair currently on disk (incl. merged additions).
+- `def split_held_out(pairs: list[dict], seed: int = 42, ratio: float = 0.9) -> tuple[list, list]` (L184)
+- `def held_out_questions(held: list[dict]) -> set[str]` (L193) — Normalized user questions of a held-out split (``to_chat`` rows).
+- `def write_held_out_suite(held: list[dict], path: pathlib.Path) -> None` (L201)
+- `def merge_into_qa_pairs(project_dir: pathlib.Path, augmented: list[dict]) -> int` (L226)
+- `def rebuild_sharegpt_dataset(project_dir: pathlib.Path, dataset_dir: pathlib.Path, holdout_questions: set[…` (L263) — Write the training ShareGPT export, never including a held-out question.
+- `def main() -> int` (L296)
   - imports: finetune_studio.data.prep.export, finetune_studio.training.data
 
 ## `scripts/build_full_qa_suite.py` (36 lines)
-- `build_suite(project_dir: Path, output_path: Path) -> dict[str, int]` (L18) — Write suite JSON for a project directory; returns case/source counts.
-- `main() -> int` (L24)
+- `def build_suite(project_dir: Path, output_path: Path) -> dict[str, int]` (L18) — Write suite JSON for a project directory; returns case/source counts.
+- `def main() -> int` (L24)
   - imports: finetune_studio.testing.full_corpus_suite
 
 ## `scripts/build_source_disjoint_split.py` (75 lines)
-- `build_split(project_dir: Path, train_path: Path, suite_path: Path, *, seed: int = 42) -> …` (L11)
-- `main() -> int` (L64)
+- `def build_split(project_dir: Path, train_path: Path, suite_path: Path, *, seed: int = 42) -> …` (L11)
+- `def main() -> int` (L64)
 
-## `scripts/capture_shots.py` (61 lines)
-- `main() -> int` (L32)
+## `scripts/capture_shots.py` (63 lines)
+- `def main() -> int` (L33)
 
-## `scripts/codemap.py` (215 lines)
+## `scripts/codemap.py` (213 lines)
 - `class Symbol` (L31)
-- `_fmt_args(node: ast.AST) -> str` (L40)
-- `_first_doc_line(node: ast.AST) -> str` (L72)
-- `_walk_node(node: ast.AST, prefix: str = '') -> list[Symbol]` (L80)
-- `parse_file(path: Path) -> tuple[list[Symbol], list[str]]` (L101) — Return (top-level symbols, import sources).
-- `collect() -> dict[str, tuple[list[Symbol], list[str], int]]` (L118)
-- `render(files: dict[str, tuple[list[Symbol], list[str], int]]) -> str` (L130)
-- `grep_map(files: dict[str, tuple[list[Symbol], list[str], int]], needle: str) -> str` (L179) — Return map lines whose file/symbol names contain needle (case-insensitive).
-- `main() -> None` (L195)
+- `def _fmt_args(node: ast.AST) -> str` (L40)
+- `def _first_doc_line(node: ast.AST) -> str` (L72)
+- `def _walk_node(node: ast.AST, prefix: str = '') -> list[Symbol]` (L80)
+- `def parse_file(path: Path) -> tuple[list[Symbol], list[str]]` (L101) — Return (top-level symbols, import sources).
+- `def collect() -> dict[str, tuple[list[Symbol], list[str], int]]` (L118)
+- `def render(files: dict[str, tuple[list[Symbol], list[str], int]]) -> str` (L130)
+- `def grep_map(files: dict[str, tuple[list[Symbol], list[str], int]], needle: str) -> str` (L177) — Return map lines whose file/symbol names contain needle (case-insensitive).
+- `def main() -> None` (L193)
 
-## `scripts/gen_vaelindrath_corpus.py` (616 lines)
-- `fact(domain: str, q: str, a: str, src: str) -> None` (L70)
-- `prose_seed(title: str, body_lines: list[str]) -> str` (L74)
-- `house_profile(i: int) -> str` (L80)
-- `event_saga(i: int) -> str` (L103)
-- `trade_ledger(i: int) -> str` (L128)
-- `rank_charter(i: int) -> str` (L147)
-- `misc_lore(i: int) -> str` (L164)
-- `treaty_record(i: int) -> str` (L187)
-- `to_plain_text(body: str, ext: str, idx: int = 0) -> str` (L227) — Wrap the lore body into the shape each text parser expects.
-- `build_binary(ext: str, body: str, idx: int) -> bytes` (L376) — Build a real binary doc for the optional-deps extensions.
+## `scripts/gen_vaelindrath_corpus.py` (609 lines)
+- `def fact(domain: str, q: str, a: str, src: str) -> None` (L71)
+- `def prose_seed(title: str, body_lines: list[str]) -> str` (L75)
+- `def house_profile(i: int) -> str` (L81)
+- `def event_saga(i: int) -> str` (L104)
+- `def trade_ledger(i: int) -> str` (L128)
+- `def rank_charter(i: int) -> str` (L147)
+- `def misc_lore(i: int) -> str` (L164)
+- `def treaty_record(i: int) -> str` (L186)
+- `def to_plain_text(body: str, ext: str, idx: int = 0) -> str` (L226) — Wrap the lore body into the shape each text parser expects.
+- `def build_binary(ext: str, body: str, idx: int) -> bytes` (L369) — Build a real binary doc for the optional-deps extensions.
 
-## `scripts/generate_dataset.py` (110 lines)
-- `generate_dataset(n: int, output_path: str, seed: int = 42) -> int` (L60) — Generate n unique training examples.
+## `scripts/generate_dataset.py` (109 lines)
+- `def generate_dataset(n: int, output_path: str, seed: int = 42) -> int` (L60) — Generate n unique training examples.
 
-## `scripts/gguf_layer_probe.py` (21 lines)
+## `scripts/gguf_layer_probe.py` (36 lines)
+- `def dump_gguf_headers(path: Path) -> None` (L11) — Print GGUF header keys relevant to layer counts.
+- `def main() -> int` (L27)
 
-## `scripts/install_diagnose.py` (839 lines)
-- `class Issue` (L56)
-  - `def to_dict(self) -> dict` (L62)
-  - `def from_dict(cls, d: dict) -> 'Issue'` (L66)
-- `class GpuInfo` (L73)
-  - `def detect(cls, force_cpu: bool = False) -> 'GpuInfo'` (L82)
-- `class VenvInfo` (L159)
-  - `def exists(self) -> bool` (L179)
-  - `def healthy(self) -> bool` (L183)
-- `_run(cmd: list[str], timeout: int = 30) -> subprocess.CompletedProcess` (L194)
-- `inspect_venv(venv_dir: Path) -> VenvInfo` (L201) — Read installed package versions + importability WITHOUT loading
-- `inspect_llama_cpp(llama_cpp_dir: Path) -> dict` (L289) — Check whether llama.cpp CLI tools are built and reachable.
-- `inspect_service() -> dict` (L302) — Check whether finetune-studio systemd unit is installed + active.
-- `diagnose(venv_dir: Path, llama_cpp_dir: Path, *, force_cpu: bool = False, check_servic…` (L338) — Return a list of issues found. Empty list = fully healthy.
-- `repair(issues: Iterable[Issue], venv_dir: Path, llama_cpp_dir: Path, *, log: Callabl…` (L549) — Apply fixes for each issue in dependency order.
-- `_detect_distro() -> str` (L740) — Best-effort distro detection. Returns one of: debian, ubuntu,
-- `_main(argv: list[str]) -> int` (L760)
+## `scripts/install_diagnose.py` (863 lines)
+- `class Issue` (L62)
+  - `def to_dict(self) -> dict` (L68)
+  - `def from_dict(cls, d: dict) -> Issue` (L72)
+- `class GpuInfo` (L79)
+  - `def detect(cls, force_cpu: bool = False) -> GpuInfo` (L88)
+- `class VenvInfo` (L166)
+  - `def exists(self) -> bool` (L186)
+  - `def healthy(self) -> bool` (L190)
+- `def _run(cmd: list[str], timeout: int = 30) -> subprocess.CompletedProcess` (L201)
+- `def _parse_missing_deps(r: subprocess.CompletedProcess) -> set[str]` (L223) — Modules the dependency probe reported absent; everything if it never reported.
+- `def inspect_venv(venv_dir: Path) -> VenvInfo` (L234) — Read installed package versions + importability WITHOUT loading
+- `def inspect_llama_cpp(llama_cpp_dir: Path) -> dict` (L328) — Check whether llama.cpp CLI tools are built and reachable.
+- `def inspect_service() -> dict` (L341) — Check whether finetune-studio systemd unit is installed + active.
+- `def diagnose(venv_dir: Path, llama_cpp_dir: Path, *, force_cpu: bool = False, check_servic…` (L377) — Return a list of issues found. Empty list = fully healthy.
+- `def _run_step(label: str, cmd: list[str], timeout: int, actions: list[str], log_fn: Callabl…` (L584) — Run one repair command; record ``"<label>: ok|FAIL"`` and log failure output.
+- `def repair(issues: Iterable[Issue], venv_dir: Path, llama_cpp_dir: Path, *, log: Callabl…` (L616) — Apply fixes for each issue in dependency order.
+- `def _detect_distro() -> str` (L764) — Best-effort distro detection. Returns one of: debian, ubuntu,
+- `def _main(argv: list[str]) -> int` (L784)
 
 
 # tests
@@ -2060,92 +2156,92 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 ## `tests/__init__.py` (0 lines)
 
 ## `tests/conftest.py` (171 lines)
-- `_ensure_ocr_tessdata() -> None` (L25) — Pre-install tessdata so OCR tests are green on a fresh clone.
-- `temp_db(monkeypatch)` (L52) — Redirect the database at a temp SQLite file, yield its path, clean up.
-- `mock_settings(temp_db, monkeypatch)` (L125) — MagicMock with full settings interface, patched into config singleton.
-- `client(mock_settings, monkeypatch)` (L148) — FastAPI TestClient for the webui app with heavy deps mocked.
+- `def _ensure_ocr_tessdata() -> None` (L25) — Pre-install tessdata so OCR tests are green on a fresh clone.
+- `def temp_db(monkeypatch)` (L52) — Redirect the database at a temp SQLite file, yield its path, clean up.
+- `def mock_settings(temp_db, monkeypatch)` (L125) — MagicMock with full settings interface, patched into config singleton.
+- `def client(mock_settings, monkeypatch)` (L148) — FastAPI TestClient for the webui app with heavy deps mocked.
   - imports: finetune_studio.config, finetune_studio.data, finetune_studio.db.connection, finetune_studio.models.manager, finetune_studio.webui.app
 
 ## `tests/e2e_functional.py` (393 lines)
-- `make_sample_jsonl(path: Path)` (L30) — A 3-sample instruction dataset — enough to exercise the trainer quickly.
-- `wait_for(fn, timeout_ms = 30000, interval_ms = 500, label = 'condition')` (L42) — Poll a function returning truthy until timeout.
-- `main()` (L57)
+- `def make_sample_jsonl(path: Path)` (L31) — A 3-sample instruction dataset — enough to exercise the trainer quickly.
+- `async def wait_for(fn, timeout_ms = 30000, interval_ms = 500, label = 'condition')` (L42) — Poll a function returning truthy until timeout.
+- `async def main()` (L57)
 
 ## `tests/e2e_training_flow.py` (406 lines)
-- `make_synthetic_jsonl(path: Path, n: int = 24)` (L30) — Tiny QA dataset — capital-of-country pairs.
-- `wait_for(fn, timeout_ms, label, interval_ms = 2000)` (L48)
-- `_hf_repo_ready(page, repo_underscored: str) -> bool` (L64) — True iff the WebUI's /api/hf/local reports the model fully downloaded.
-- `main()` (L88)
+- `def make_synthetic_jsonl(path: Path, n: int = 24)` (L30) — Tiny QA dataset — capital-of-country pairs.
+- `async def wait_for(fn, timeout_ms, label, interval_ms = 2000)` (L48)
+- `async def _hf_repo_ready(page, repo_underscored: str) -> bool` (L64) — True iff the WebUI's /api/hf/local reports the model fully downloaded.
+- `async def main()` (L88)
 
 ## `tests/e2e_ui_qa.py` (560 lines)
-- `rec(name, ok, detail = '')` (L27)
-- `check_aesthetic(page, label)` (L38) — Check that the new hacker-station aesthetic is present and the old
-- `visit(ctx, url, name, wait_ms = 1500)` (L80)
-- `test_dashboard(ctx)` (L99)
-- `test_inference(ctx)` (L135)
-- `test_hf_explore(ctx)` (L180)
-- `test_hf_local_api(ctx)` (L214) — Verify HF local-models endpoints (list + delete) work end-to-end.
-- `test_projects(ctx)` (L275)
-- `test_palette(ctx)` (L316)
-- `test_spa(ctx)` (L422)
-- `test_settings_ssr(ctx)` (L454) — Visits project sub-pages and ensures they load without console errors.
-- `main()` (L502)
+- `def rec(name, ok, detail = '')` (L27)
+- `async def check_aesthetic(page, label)` (L38) — Check that the new hacker-station aesthetic is present and the old
+- `async def visit(ctx, url, name, wait_ms = 1500)` (L80)
+- `async def test_dashboard(ctx)` (L99)
+- `async def test_inference(ctx)` (L135)
+- `async def test_hf_explore(ctx)` (L180)
+- `async def test_hf_local_api(ctx)` (L214) — Verify HF local-models endpoints (list + delete) work end-to-end.
+- `async def test_projects(ctx)` (L275)
+- `async def test_palette(ctx)` (L316)
+- `async def test_spa(ctx)` (L422)
+- `async def test_settings_ssr(ctx)` (L454) — Visits project sub-pages and ensures they load without console errors.
+- `async def main()` (L502)
 
 ## `tests/test_activity_feed.py` (284 lines)
-- `iso_db(monkeypatch)` (L22) — A truly isolated SQLite DB for this test.
-- `_stub_live(monkeypatch)` (L51) — Stub the heavy live-state imports so collect_activity stays fast/clean.
-- `_kinds(payload: dict[str, Any]) -> set[str]` (L82)
-- `test_empty_db_has_no_tasks(iso_db, _stub_live)` (L86)
-- `test_every_persisted_kind_shows(iso_db, _stub_live)` (L93)
-- `test_finished_training_survives_without_live_state(iso_db, _stub_live)` (L146)
-- `test_live_training_dedups_with_persisted_row(iso_db, monkeypatch)` (L161) — A running engine + its DB row collapse to ONE training task.
-- `test_in_flight_model_load_shows(iso_db, monkeypatch)` (L202) — A model mid-load surfaces as a running model_load row.
-- `test_deleted_project_rows_are_skipped(iso_db, _stub_live)` (L239)
-- `test_operation_events_are_persisted_and_visible(iso_db, _stub_live)` (L253)
-- `test_mutating_api_request_creates_operation_event(client)` (L274)
+- `def iso_db(monkeypatch)` (L22) — A truly isolated SQLite DB for this test.
+- `def _stub_live(monkeypatch)` (L51) — Stub the heavy live-state imports so collect_activity stays fast/clean.
+- `def _kinds(payload: dict[str, Any]) -> set[str]` (L82)
+- `def test_empty_db_has_no_tasks(iso_db, _stub_live)` (L86)
+- `def test_every_persisted_kind_shows(iso_db, _stub_live)` (L93)
+- `def test_finished_training_survives_without_live_state(iso_db, _stub_live)` (L146)
+- `def test_live_training_dedups_with_persisted_row(iso_db, monkeypatch)` (L161) — A running engine + its DB row collapse to ONE training task.
+- `def test_in_flight_model_load_shows(iso_db, monkeypatch)` (L202) — A model mid-load surfaces as a running model_load row.
+- `def test_deleted_project_rows_are_skipped(iso_db, _stub_live)` (L239)
+- `def test_operation_events_are_persisted_and_visible(iso_db, _stub_live)` (L253)
+- `def test_mutating_api_request_creates_operation_event(client)` (L274)
   - imports: finetune_studio, finetune_studio.db.connection, finetune_studio.webui.routes.activity
 
 ## `tests/test_activity_js.py` (79 lines)
-- `_src() -> str` (L20)
-- `test_task_identity_helper_exists() -> None` (L24)
-- `test_expanded_set_restored_on_render() -> None` (L38)
-- `test_render_uses_filtered_not_raw_tasks_index() -> None` (L50)
-- `test_filter_state_synced_from_dom_and_exported() -> None` (L62)
-- `test_activity_prefers_sse_events() -> None` (L76)
+- `def _src() -> str` (L20)
+- `def test_task_identity_helper_exists() -> None` (L24)
+- `def test_expanded_set_restored_on_render() -> None` (L38)
+- `def test_render_uses_filtered_not_raw_tasks_index() -> None` (L50)
+- `def test_filter_state_synced_from_dom_and_exported() -> None` (L62)
+- `def test_activity_prefers_sse_events() -> None` (L76)
 
 ## `tests/test_activity_kind_classifier.py` (70 lines)
-- `test_activity_kind_classification(path: str, expected: str) -> None` (L59)
-- `test_rag_query_wins_over_data_prep_chat() -> None` (L63) — The more specific rag_query kind must win over the broader chat-in-data-prep rule.
-- `test_inference_wins_over_rag_query_for_chat_v2() -> None` (L68) — Inference endpoints are classified before rag_query even if 'chat' appears.
+- `def test_activity_kind_classification(path: str, expected: str) -> None` (L59)
+- `def test_rag_query_wins_over_data_prep_chat() -> None` (L63) — The more specific rag_query kind must win over the broader chat-in-data-prep rule.
+- `def test_inference_wins_over_rag_query_for_chat_v2() -> None` (L68) — Inference endpoints are classified before rag_query even if 'chat' appears.
   - imports: finetune_studio.webui.app
 
 ## `tests/test_agent_chat_model_resolution.py` (244 lines)
-- `fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L27)
-- `_project(client: Any) -> str` (L37)
-- `_loaded_engine(path: str = _HELPER_PATH, reply: str = 'ok from inference engine') -> MagicMo…` (L43)
-- `_manager_helper(*, active: dict[str, Any] | None) -> MagicMock` (L56) — Manager that knows the helper provider; load must not run when omitted.
-- `test_omitted_provider_id_uses_helper_on_inference(client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L73) — Helper GGUF on Inference + manager inactive → engine, no load.
-- `test_omitted_provider_id_uses_helper_manager_when_active(client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L101) — Helper already active in manager → manager chat, no load.
-- `test_omitted_provider_id_rejects_non_helper_inference(client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L137) — Merged 4B on Inference is not a silent fallback — clear 409.
-- `test_omitted_provider_id_409_when_nothing_loaded(client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L166)
-- `test_resolve_loaded_backend_is_helper_only(monkeypatch: pytest.MonkeyPatch) -> None` (L195) — resolve_loaded_backend never returns a non-helper Inference load.
-- `test_agent_created_pairs_keep_one_based_chunk_provenance(fts_root: Path) -> None` (L230) — Agent-created pairs satisfy the same provenance contract as prep jobs.
+- `def fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L27)
+- `def _project(client: Any) -> str` (L37)
+- `def _loaded_engine(path: str = _HELPER_PATH, reply: str = 'ok from inference engine') -> MagicMo…` (L43)
+- `def _manager_helper(*, active: dict[str, Any] | None) -> MagicMock` (L56) — Manager that knows the helper provider; load must not run when omitted.
+- `def test_omitted_provider_id_uses_helper_on_inference(client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L73) — Helper GGUF on Inference + manager inactive → engine, no load.
+- `def test_omitted_provider_id_uses_helper_manager_when_active(client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L101) — Helper already active in manager → manager chat, no load.
+- `def test_omitted_provider_id_rejects_non_helper_inference(client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L137) — Merged 4B on Inference is not a silent fallback — clear 409.
+- `def test_omitted_provider_id_409_when_nothing_loaded(client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L166)
+- `def test_resolve_loaded_backend_is_helper_only(monkeypatch: pytest.MonkeyPatch) -> None` (L195) — resolve_loaded_backend never returns a non-helper Inference load.
+- `def test_agent_created_pairs_keep_one_based_chunk_provenance(fts_root: Path) -> None` (L230) — Agent-created pairs satisfy the same provenance contract as prep jobs.
   - imports: finetune_studio.data.fs, finetune_studio.data.prep, finetune_studio.models.helper, finetune_studio.webui.routes.data_prep_chat
 
 ## `tests/test_agent_chat_thinking.py` (59 lines)
-- `test_strip_bare_think_closing_tag() -> None` (L13) — Qwen3 chat template injects opening <think>; reply has only </think>.
-- `test_strip_paired_think_still_works() -> None` (L23)
-- `test_tool_call_after_bare_think_is_parsed() -> None` (L28)
-- `test_truncated_tool_call_produces_cutoff_message() -> None` (L43) — Incomplete <tool_call> JSON → truncation detector + user-facing msg.
-- `test_unclosed_think_block_looks_truncated() -> None` (L57)
+- `def test_strip_bare_think_closing_tag() -> None` (L13) — Qwen3 chat template injects opening <think>; reply has only </think>.
+- `def test_strip_paired_think_still_works() -> None` (L23)
+- `def test_tool_call_after_bare_think_is_parsed() -> None` (L28)
+- `def test_truncated_tool_call_produces_cutoff_message() -> None` (L43) — Incomplete <tool_call> JSON → truncation detector + user-facing msg.
+- `def test_unclosed_think_block_looks_truncated() -> None` (L57)
   - imports: finetune_studio.webui.routes.data_prep_chat
 
 ## `tests/test_agent_chat_tool_render.py` (55 lines)
-- `_src() -> str` (L17)
-- `test_tool_render_shows_no_sources_status() -> None` (L21)
-- `test_raw_json_is_behind_debug_details() -> None` (L28)
-- `test_empty_rag_sources_array_renders_status() -> None` (L39)
-- `test_chat_request_keeps_abort_controller_per_request() -> None` (L48)
+- `def _src() -> str` (L17)
+- `def test_tool_render_shows_no_sources_status() -> None` (L21)
+- `def test_raw_json_is_behind_debug_details() -> None` (L28)
+- `def test_empty_rag_sources_array_renders_status() -> None` (L39)
+- `def test_chat_request_keeps_abort_controller_per_request() -> None` (L48)
 
 ## `tests/test_api.py` (264 lines)
 - `class TestHealthRoutes` (L3)
@@ -2192,193 +2288,228 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def test_flow_redirects_to_wizard(self, client)` (L260)
 
 ## `tests/test_app_js_delegate.py` (72 lines)
-- `_app_js() -> str` (L12)
-- `_data_prep() -> str` (L16)
-- `test_doc_click_listeners_once_guard() -> None` (L20)
-- `test_json_form_branch_has_catch() -> None` (L29)
-- `test_data_action_checks_ok() -> None` (L38)
-- `test_data_prep_no_fake_starting_timeout() -> None` (L54)
-- `test_data_prep_status_and_eventsource() -> None` (L67)
+- `def _app_js() -> str` (L12)
+- `def _data_prep() -> str` (L16)
+- `def test_doc_click_listeners_once_guard() -> None` (L20)
+- `def test_json_form_branch_has_catch() -> None` (L29)
+- `def test_data_action_checks_ok() -> None` (L38)
+- `def test_data_prep_no_fake_starting_timeout() -> None` (L54)
+- `def test_data_prep_status_and_eventsource() -> None` (L67)
 
-## `tests/test_augment_dataset.py` (178 lines)
-- `synth_project(tmp_path: Path) -> Path` (L56) — Set up a project root with qa/pairs/ and files/<sha>/parsed.txt.
-- `test_augment_writes_qa_pairs_and_sharegpt(synth_project: Path) -> None` (L77) — End-to-end: run augment_dataset.main() on a synthetic project and assert outputs.
-- `test_augment_pair_answers_hold_real_source_facts(synth_project: Path) -> None` (L125) — The RK-04 row's answer must name Elian Mertens from the risk register.
-- `test_export_deduplicates_questions_and_prefers_original_pair(synth_project: Path) -> None` (L145)
+## `tests/test_augment_dataset.py` (179 lines)
+- `def synth_project(tmp_path: Path) -> Path` (L56) — Set up a project root with qa/pairs/ and files/<sha>/parsed.txt.
+- `def test_augment_writes_qa_pairs_and_sharegpt(synth_project: Path) -> None` (L77) — End-to-end: run augment_dataset.main() on a synthetic project and assert outputs.
+- `def test_augment_pair_answers_hold_real_source_facts(synth_project: Path) -> None` (L126) — The RK-04 row's answer must name Elian Mertens from the risk register.
+- `def test_export_deduplicates_questions_and_prefers_original_pair(synth_project: Path) -> None` (L146)
+
+## `tests/test_augment_holdout.py` (79 lines)
+- `def _norm(q: str) -> str` (L25)
+- `def project(tmp_path: Path) -> Path` (L30)
+- `def _run(root: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[set[str], set[str]]` (L46)
+- `def test_held_out_and_training_are_disjoint(project: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L59)
+- `def test_every_approved_question_lands_in_exactly_one_side(project: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L66)
+- `def test_split_is_stable_across_reruns(project: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L75)
 
 ## `tests/test_awq_removed.py` (78 lines)
-- `_merged_run(tmp_path: Path) -> dict` (L15)
-- `test_supported_formats_exclude_awq() -> None` (L29)
-- `test_export_trained_run_rejects_awq_with_clear_message(tmp_path: Path) -> None` (L36)
-- `test_export_page_has_no_awq_choice(client) -> None` (L44)
-- `test_export_api_rejects_awq(client, tmp_path: Path) -> None` (L54)
-- `test_supported_format_names_are_non_awq(fmt: str) -> None` (L77)
+- `def _merged_run(tmp_path: Path) -> dict` (L15)
+- `def test_supported_formats_exclude_awq() -> None` (L29)
+- `def test_export_trained_run_rejects_awq_with_clear_message(tmp_path: Path) -> None` (L36)
+- `def test_export_page_has_no_awq_choice(client) -> None` (L44)
+- `def test_export_api_rejects_awq(client, tmp_path: Path) -> None` (L54)
+- `def test_supported_format_names_are_non_awq(fmt: str) -> None` (L77)
   - imports: finetune_studio, finetune_studio.training.run_export
 
-## `tests/test_bench_judge.py` (204 lines)
-- `client_and_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)` (L21)
-- `_create_project_and_run(client: TestClient, tmp_path: Path) -> tuple[str, str]` (L32)
-- `_stub_engine(monkeypatch: pytest.MonkeyPatch, answer: str) -> None` (L48) — Replace InferenceEngine so generate returns a fixed answer.
-- `_write_suite(tmp_path: Path, keywords: list[str], correct: str = 'Paris') -> str` (L78)
-- `test_bench_judge_invokes_heuristic(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L93)
-- `test_bench_judge_records_verdict_in_db(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L120)
-- `test_bench_judge_marks_fail_when_keywords_missed(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L155)
-- `test_secondary_local_judge_is_persisted_without_overwriting_source_score(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L178)
-  - imports: finetune_studio, finetune_studio.config, finetune_studio.db.connection, finetune_studio.webui.app
+## `tests/test_bench_judge.py` (259 lines)
+- `def client_and_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)` (L21)
+- `def _create_project_and_run(client: TestClient, tmp_path: Path) -> tuple[str, str]` (L32)
+- `def _stub_engine(monkeypatch: pytest.MonkeyPatch, answer: str) -> None` (L48) — Replace InferenceEngine so generate returns a fixed answer.
+- `def _write_suite(tmp_path: Path, keywords: list[str], correct: str = 'Paris') -> str` (L78)
+- `def test_bench_judge_invokes_heuristic(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L93)
+- `def test_bench_judge_records_verdict_in_db(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L120)
+- `def test_bench_judge_marks_fail_when_keywords_missed(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L155)
+- `def test_secondary_local_judge_is_persisted_without_overwriting_source_score(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L178)
+- `def test_benchmark_routes_reject_another_projects_benchmark(client_and_db: tuple[TestClient, Path], tmp_path: Path) -> None` (L207)
+  - imports: finetune_studio, finetune_studio.config, finetune_studio.db, finetune_studio.webui.app
 
 ## `tests/test_benchmarks_compare.py` (164 lines)
-- `_project(client) -> str` (L7)
-- `_run(pid: str, name: str, status: str = 'done') -> dict` (L13)
-- `test_benchmarks_page_renders_both_tabs(client) -> None` (L23)
-- `test_compare_tab_default_shows_pickers_no_results(client) -> None` (L38)
-- `test_compare_load_returns_per_suite_shape(client) -> None` (L57)
-- `test_compare_load_missing_run_ids_returns_400(client) -> None` (L105)
-- `test_compare_load_unknown_run_returns_404(client) -> None` (L118)
-- `test_compare_defaults_prefer_done_runs(client) -> None` (L129) — Oldest done → Run A; newest done → Run B.
+- `def _project(client) -> str` (L7)
+- `def _run(pid: str, name: str, status: str = 'done') -> dict` (L13)
+- `def test_benchmarks_page_renders_both_tabs(client) -> None` (L23)
+- `def test_compare_tab_default_shows_pickers_no_results(client) -> None` (L38)
+- `def test_compare_load_returns_per_suite_shape(client) -> None` (L57)
+- `def test_compare_load_missing_run_ids_returns_400(client) -> None` (L105)
+- `def test_compare_load_unknown_run_returns_404(client) -> None` (L118)
+- `def test_compare_defaults_prefer_done_runs(client) -> None` (L129) — Oldest done → Run A; newest done → Run B.
   - imports: finetune_studio, finetune_studio.db.connection
 
-## `tests/test_benchmarks_compare_module_audit.py` (87 lines)
-- `test_benchmarks_init_has_no_dead_class_hierarchy() -> None` (L29)
-- `test_dead_modules_no_longer_importable(module_name: str) -> None` (L62)
-- `test_scoring_module_has_no_dead_benchmark_result_dataclass() -> None` (L67)
-- `test_live_comparator_singleton_still_importable() -> None` (L75)
-- `test_compare_package_still_imports_cleanly() -> None` (L84)
+## `tests/test_benchmarks_compare_module_audit.py` (128 lines)
+- `def test_benchmarks_init_has_no_dead_class_hierarchy() -> None` (L29)
+- `def test_dead_modules_no_longer_importable(module_name: str) -> None` (L62)
+- `def test_scoring_module_has_no_dead_benchmark_result_dataclass() -> None` (L67)
+- `def test_live_comparator_singleton_still_importable() -> None` (L75)
+- `def test_comparator_serializes_run_and_cleanup() -> None` (L84) — Cleanup must not unload an engine while comparison is using it.
+- `def test_compare_package_still_imports_cleanly() -> None` (L125)
   - imports: finetune_studio.benchmarks, finetune_studio.benchmarks.comparison, finetune_studio.compare
 
 ## `tests/test_benchmarks_industry_smoke.py` (186 lines)
-- `isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L23)
-- `test_builtin_smoke_suites_are_present() -> None` (L30)
-- `test_smoke_labels_are_readable() -> None` (L44)
-- `test_discover_includes_synthetic_without_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L59)
-- `test_discover_keeps_local_and_auto_alongside_synthetic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L85)
-- `test_versioned_fixtures_load_via_load_test_suite() -> None` (L124)
-- `test_selection_validation_accepts_synthetic_rejects_unknown(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L132)
-- `test_api_suites_lists_synthetic_labels(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L160)
+- `def isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L23)
+- `def test_builtin_smoke_suites_are_present() -> None` (L30)
+- `def test_smoke_labels_are_readable() -> None` (L44)
+- `def test_discover_includes_synthetic_without_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L59)
+- `def test_discover_keeps_local_and_auto_alongside_synthetic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L85)
+- `def test_versioned_fixtures_load_via_load_test_suite() -> None` (L124)
+- `def test_selection_validation_accepts_synthetic_rejects_unknown(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L132)
+- `def test_api_suites_lists_synthetic_labels(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L160)
   - imports: finetune_studio, finetune_studio.benchmarks.suite_defs, finetune_studio.config, finetune_studio.testing.suite, finetune_studio.webui.app, finetune_studio.webui.routes.benchmarks
 
 ## `tests/test_benchmarks_offline_suites.py` (107 lines)
-- `test_offline_fixtures_are_substantive() -> None` (L29)
-- `test_offline_suites_discovered_and_labeled(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L48)
-- `test_smoke_labels_mark_not_industry() -> None` (L72)
-- `test_offline_strict_scoring_is_deterministic() -> None` (L78)
+- `def test_offline_fixtures_are_substantive() -> None` (L29)
+- `def test_offline_suites_discovered_and_labeled(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L48)
+- `def test_smoke_labels_mark_not_industry() -> None` (L72)
+- `def test_offline_strict_scoring_is_deterministic() -> None` (L78)
   - imports: finetune_studio.benchmarks.offline_suites, finetune_studio.benchmarks.suite_defs, finetune_studio.testing.suite
 
 ## `tests/test_benchmarks_run_validation.py` (234 lines)
-- `client_and_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)` (L20)
-- `_create_project(client: TestClient) -> str` (L27)
-- `_write_suite(tmp_path: Path) -> str` (L36)
+- `def client_and_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)` (L20)
+- `def _create_project(client: TestClient) -> str` (L27)
+- `def _write_suite(tmp_path: Path) -> str` (L36)
 - `class _TrackingEngine` (L55)
   - `def __init__(self) -> None` (L60)
   - `def load(self, path: str, **_kwargs: Any) -> None` (L67)
   - `def unload(self) -> None` (L72)
   - `def generate(self, messages: list, **_kwargs: Any) -> str` (L76)
-- `_install_tracking_engine(monkeypatch: pytest.MonkeyPatch, *, global_model: object | None = object()) -…` (L80)
-- `test_missing_suite_returns_404_without_loading(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L101)
-- `test_failed_run_returns_409(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L133)
-- `test_done_run_loads_and_unloads_even_when_run_suite_raises(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L166)
-- `test_done_run_accepts_explicit_export_and_records_target(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L209)
+- `def _install_tracking_engine(monkeypatch: pytest.MonkeyPatch, *, global_model: object | None = object()) -…` (L80)
+- `def test_missing_suite_returns_404_without_loading(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L101)
+- `def test_failed_run_returns_409(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L133)
+- `def test_done_run_loads_and_unloads_even_when_run_suite_raises(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L166)
+- `def test_done_run_accepts_explicit_export_and_records_target(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L209)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.webui.app
 
 ## `tests/test_benchmarks_suite_discovery.py` (199 lines)
-- `isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L29)
-- `_names_of_type(suites: list[dict[str, Any]], suite_type: str) -> set[str]` (L36)
-- `test_missing_known_suite_files_not_listed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L44)
-- `test_existing_json_file_is_listed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L78)
-- `test_auto_suites_rows_listed_for_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L104)
-- `test_auto_suites_not_listed_without_project_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L145)
-- `test_auto_suite_regeneration_lists_newest_case_count(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L170) — Same suite file re-generated (500→554) must show the NEWEST row.
+- `def isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L29)
+- `def _names_of_type(suites: list[dict[str, Any]], suite_type: str) -> set[str]` (L36)
+- `def test_missing_known_suite_files_not_listed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L44)
+- `def test_existing_json_file_is_listed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L78)
+- `def test_auto_suites_rows_listed_for_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L104)
+- `def test_auto_suites_not_listed_without_project_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L145)
+- `def test_auto_suite_regeneration_lists_newest_case_count(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> None` (L170) — Same suite file re-generated (500→554) must show the NEWEST row.
   - imports: finetune_studio, finetune_studio.config, finetune_studio.webui.routes.benchmarks
 
 ## `tests/test_benchmarks_template.py` (173 lines)
-- `_render_cases(cases: list[dict], scores: dict | None = None) -> str` (L27)
-- `test_benchmarks_template_renders_per_case_table() -> None` (L33)
-- `test_benchmarks_template_shows_scores_summary() -> None` (L66)
-- `test_benchmarks_template_exposes_secondary_judge_contract() -> None` (L80)
-- `test_case_results_table_is_horizontally_scrollable() -> None` (L88) — Long question/expected must not clip verdict/time at ~930px viewports.
-- `test_benchmarks_template_suite_catalog_not_raw_json() -> None` (L133)
-- `test_benchmarks_base_row_visible_without_training_runs() -> None` (L144) — Base-model RUN must remain available when suites exist but runs is empty.
-- `test_benchmarks_page_shows_base_row_with_zero_runs(client) -> None` (L161)
+- `def _render_cases(cases: list[dict], scores: dict | None = None) -> str` (L27)
+- `def test_benchmarks_template_renders_per_case_table() -> None` (L33)
+- `def test_benchmarks_template_shows_scores_summary() -> None` (L66)
+- `def test_benchmarks_template_exposes_secondary_judge_contract() -> None` (L80)
+- `def test_case_results_table_is_horizontally_scrollable() -> None` (L88) — Long question/expected must not clip verdict/time at ~930px viewports.
+- `def test_benchmarks_template_suite_catalog_not_raw_json() -> None` (L133)
+- `def test_benchmarks_base_row_visible_without_training_runs() -> None` (L144) — Base-model RUN must remain available when suites exist but runs is empty.
+- `def test_benchmarks_page_shows_base_row_with_zero_runs(client) -> None` (L161)
 
 ## `tests/test_breadcrumb.py` (41 lines)
-- `_render_base(**kwargs: object) -> str` (L18)
-- `test_breadcrumb_present_when_pid_defined() -> None` (L30)
-- `test_breadcrumb_absent_when_no_pid() -> None` (L37)
+- `def _render_base(**kwargs: object) -> str` (L18)
+- `def test_breadcrumb_present_when_pid_defined() -> None` (L30)
+- `def test_breadcrumb_absent_when_no_pid() -> None` (L37)
 
 ## `tests/test_breadcrumb_page_label.py` (80 lines)
-- `test_project_templates_set_breadcrumb_tab() -> None` (L28)
-- `test_rendered_training_breadcrumb_not_overview() -> None` (L36)
-- `test_spa_swaps_breadcrumb_on_navigate() -> None` (L57)
-- `test_no_updated_every_2s_user_facing() -> None` (L67) — SSE surfaces must not claim a 2s poll cadence.
+- `def test_project_templates_set_breadcrumb_tab() -> None` (L28)
+- `def test_rendered_training_breadcrumb_not_overview() -> None` (L36)
+- `def test_spa_swaps_breadcrumb_on_navigate() -> None` (L57)
+- `def test_no_updated_every_2s_user_facing() -> None` (L67) — SSE surfaces must not claim a 2s poll cadence.
 
 ## `tests/test_breakpoints.py` (94 lines)
-- `parse_width(rule: str) -> int` (L40)
-- `check_at_width(page, width: int)` (L45) — Set viewport and verify each DEFINED_RULE matches iff width <= its threshold.
-- `main() -> int` (L65)
+- `def parse_width(rule: str) -> int` (L40)
+- `def check_at_width(page, width: int)` (L45) — Set viewport and verify each DEFINED_RULE matches iff width <= its threshold.
+- `def main() -> int` (L65)
 
-## `tests/test_breakpoints_visual.py` (237 lines)
-- `parse_width(rule: str) -> int` (L53)
-- `inspect_layout(page) -> dict` (L59) — Return layout metrics we want to spot-check per viewport.
-- `check_rules(page, actual_w: int)` (L99) — Verify each DEFINED_RULE matches iff actual_w <= threshold.
-- `multi_viewport_suite(page) -> tuple[bool, list]` (L116) — Run all viewport checks on /training. Return (all_ok, results).
-- `multi_page_suite(page) -> tuple[bool, list]` (L149) — Snapshot every project page at canonical 1200px viewport.
-- `main() -> int` (L177)
+## `tests/test_breakpoints_visual.py` (238 lines)
+- `def parse_width(rule: str) -> int` (L54)
+- `def inspect_layout(page) -> dict` (L60) — Return layout metrics we want to spot-check per viewport.
+- `def check_rules(page, actual_w: int)` (L100) — Verify each DEFINED_RULE matches iff actual_w <= threshold.
+- `def multi_viewport_suite(page) -> tuple[bool, list]` (L117) — Run all viewport checks on /training. Return (all_ok, results).
+- `def multi_page_suite(page) -> tuple[bool, list]` (L150) — Snapshot every project page at canonical 1200px viewport.
+- `def main() -> int` (L178)
 
 ## `tests/test_browser_result_surfaces.py` (105 lines)
-- `test_benchmarks_template_clears_empty_chrome_on_compare_results() -> None` (L26)
-- `test_css_strips_no_data_when_empty_hidden() -> None` (L44)
-- `test_benchmarks_page_omits_cases_empty_when_results_exist(client) -> None` (L51)
-- `test_benchmarks_page_enables_run_for_completed_status(client) -> None` (L93)
+- `def test_benchmarks_template_clears_empty_chrome_on_compare_results() -> None` (L26)
+- `def test_css_strips_no_data_when_empty_hidden() -> None` (L44)
+- `def test_benchmarks_page_omits_cases_empty_when_results_exist(client) -> None` (L51)
+- `def test_benchmarks_page_enables_run_for_completed_status(client) -> None` (L93)
   - imports: finetune_studio
 
 ## `tests/test_chat_v2_template_fixes.py` (67 lines)
-- `_src() -> str` (L24)
-- `test_mode_query_param_selects_radio() -> None` (L28)
-- `test_inline_picker_uses_hf_local_fields() -> None` (L34)
-- `test_no_native_alerts() -> None` (L40)
-- `test_presets_target_a_real_system_prompt_field() -> None` (L44)
-- `test_idle_chat_keeps_empty_state_not_live_success() -> None` (L51) — Saved localStorage history must not look like a live agent success on idle load.
+- `def _src() -> str` (L24)
+- `def test_mode_query_param_selects_radio() -> None` (L28)
+- `def test_inline_picker_uses_hf_local_fields() -> None` (L34)
+- `def test_no_native_alerts() -> None` (L40)
+- `def test_presets_target_a_real_system_prompt_field() -> None` (L44)
+- `def test_idle_chat_keeps_empty_state_not_live_success() -> None` (L51) — Saved localStorage history must not look like a live agent success on idle load.
+
+## `tests/test_cli_truthfulness.py` (281 lines)
+- `def run_cli(monkeypatch, capsys, *argv: str) -> tuple[int, str]` (L27) — Run ``fts <argv>`` through ``main()``; return (exit code, stdout+stderr).
+- `def test_validate_invalid_file_exits_nonzero(monkeypatch, capsys, tmp_path: Path) -> None` (L42)
+- `def test_validate_missing_file_exits_nonzero(monkeypatch, capsys, tmp_path: Path) -> None` (L50)
+- `def test_validate_valid_file_exits_zero(monkeypatch, capsys, tmp_path: Path) -> None` (L56)
+- `def test_validate_reports_every_file_then_fails(monkeypatch, capsys, tmp_path: Path) -> None` (L68)
+- `class _FakeEngine` (L85)
+  - `def load(self, _path: str) -> None` (L91)
+  - `def unload(self) -> None` (L94)
+  - `def generate(self, messages, **_kw) -> str` (L97)
+- `def suite_env(monkeypatch, tmp_path: Path)` (L104)
+- `def test_suite_judges_results_before_scoring(monkeypatch, capsys, suite_env) -> None` (L122)
+- `def test_suite_json_includes_verdicts(monkeypatch, capsys, suite_env) -> None` (L131)
+- `def test_suite_with_no_judged_cases_fails_without_score(monkeypatch, capsys, suite_env) -> None` (L142)
+- `def test_suite_json_with_no_judged_cases_reports_no_score(monkeypatch, capsys, suite_env) -> None` (L151)
+- `def test_no_op_flags_are_rejected(monkeypatch, capsys, argv: tuple[str, ...]) -> None` (L177)
+- `def _handler_module_source(command: str) -> str` (L183)
+- `def _subparser_flags(parser: argparse.ArgumentParser) -> list[tuple[str, str]]` (L188) — (command-path, dest) for every real option under every subcommand.
+- `def test_every_parser_option_is_read_by_its_handler() -> None` (L204) — A flag that no handler line reads is a silent no-op (the audit finding).
+- `def _write_jsonl(path: Path) -> Path` (L219)
+- `def test_augment_type_aliases_reach_generators(monkeypatch, capsys, tmp_path: Path) -> None` (L228)
+- `def test_augment_unknown_type_fails_instead_of_being_ignored(monkeypatch, capsys, tmp_path: Path) -> None` (L247)
+- `def test_benchmark_output_does_not_claim_temperature(monkeypatch, capsys, tmp_path: Path) -> None` (L260)
+  - imports: finetune_studio.benchmarks.real_benchmarks, finetune_studio.cli, finetune_studio.cli._parser, finetune_studio.testing, finetune_studio.training
 
 ## `tests/test_confirm_modal_markup.py` (49 lines)
-- `_confirm_dialog_src() -> str` (L22)
-- `test_confirm_ok_button_closes_class_attribute() -> None` (L31)
-- `test_confirm_modal_does_not_use_data_action() -> None` (L39) — Modal chrome must not collide with global [data-action] API delegation.
-- `test_data_action_listener_skips_modal_overlay() -> None` (L47)
+- `def _confirm_dialog_src() -> str` (L22)
+- `def test_confirm_ok_button_closes_class_attribute() -> None` (L31)
+- `def test_confirm_modal_does_not_use_data_action() -> None` (L39) — Modal chrome must not collide with global [data-action] API delegation.
+- `def test_data_action_listener_skips_modal_overlay() -> None` (L47)
 
 ## `tests/test_core_entrypoints_audit.py` (88 lines)
-- `test_cli_py_shim_file_removed()` (L14) — src/finetune_studio/cli.py was dead code — unreachable because the
-- `test_finetune_studio_cli_resolves_to_package()` (L26)
-- `test_entry_point_target_is_importable_and_callable()` (L36) — pyproject.toml's `finetune_studio.cli:main` entry point must resolve
-- `test_python_dash_m_finetune_studio_runs_cli_help()` (L46)
-- `test_python_dash_m_finetune_studio_cli_runs_cli_help()` (L57)
-- `test_templates_package_has_no_dead_duplicate_docstring_statement()` (L68) — templates/__init__.py and templates/manager.py each used to carry a
+- `def test_cli_py_shim_file_removed()` (L14) — src/finetune_studio/cli.py was dead code — unreachable because the
+- `def test_finetune_studio_cli_resolves_to_package()` (L26)
+- `def test_entry_point_target_is_importable_and_callable()` (L36) — pyproject.toml's `finetune_studio.cli:main` entry point must resolve
+- `def test_python_dash_m_finetune_studio_runs_cli_help()` (L46)
+- `def test_python_dash_m_finetune_studio_cli_runs_cli_help()` (L57)
+- `def test_templates_package_has_no_dead_duplicate_docstring_statement()` (L68) — templates/__init__.py and templates/manager.py each used to carry a
   - imports: finetune_studio.cli
 
-## `tests/test_coverage_fill.py` (139 lines)
-- `proj(tmp_path, monkeypatch)` (L15) — Point the fs root into tmp; project_dir creates itself on demand.
-- `test_split_sentences_basic() -> None` (L40)
-- `test_make_pairs_deterministic_and_grounded() -> None` (L46)
-- `test_fill_creates_pairs_for_uncovered_chunk(proj: str) -> None` (L57)
-- `test_fill_is_idempotent(proj: str) -> None` (L71)
-- `test_fill_reports_uncoverable_chunk(proj: str) -> None` (L81)
-- `test_fill_only_touches_uncovered_chunks(proj: str) -> None` (L90)
-- `test_fill_all_project_gaps_aggregates_and_registers(proj: str) -> None` (L105)
-- `test_fill_all_handles_missing_parsed_artifacts(proj: str) -> None` (L127) — A source whose declared chunks can't be loaded surfaces, never crashes.
-  - imports: finetune_studio.data, finetune_studio.data.fs.paths, finetune_studio.data.prep.coverage_fill
+## `tests/test_coverage_fill.py` (137 lines)
+- `def proj(tmp_path, monkeypatch)` (L15) — Point the fs root into tmp; project_dir creates itself on demand.
+- `def test_split_sentences_basic() -> None` (L38)
+- `def test_make_pairs_deterministic_and_grounded() -> None` (L44)
+- `def test_fill_creates_pairs_for_uncovered_chunk(proj: str) -> None` (L55)
+- `def test_fill_is_idempotent(proj: str) -> None` (L69)
+- `def test_fill_reports_uncoverable_chunk(proj: str) -> None` (L79)
+- `def test_fill_only_touches_uncovered_chunks(proj: str) -> None` (L88)
+- `def test_fill_all_project_gaps_aggregates_and_registers(proj: str) -> None` (L103)
+- `def test_fill_all_handles_missing_parsed_artifacts(proj: str) -> None` (L125) — A source whose declared chunks can't be loaded surfaces, never crashes.
+  - imports: finetune_studio.data, finetune_studio.data.fs, finetune_studio.data.prep.coverage_fill
 
 ## `tests/test_dark_light_toggle.py` (48 lines)
-- `test_base_html_has_theme_toggle_button() -> None` (L26)
-- `test_base_html_default_theme_is_dark() -> None` (L32)
-- `test_base_html_persists_theme_in_localstorage() -> None` (L42)
+- `def test_base_html_has_theme_toggle_button() -> None` (L26)
+- `def test_base_html_default_theme_is_dark() -> None` (L32)
+- `def test_base_html_persists_theme_in_localstorage() -> None` (L42)
 
 ## `tests/test_dashboard_template.py` (43 lines)
-- `test_dashboard_hero_has_no_fake_static_stats() -> None` (L25)
-- `test_dashboard_includes_shared_resources_partial() -> None` (L36)
+- `def test_dashboard_hero_has_no_fake_static_stats() -> None` (L25)
+- `def test_dashboard_includes_shared_resources_partial() -> None` (L36)
 
-## `tests/test_data.py` (23 lines)
-- `test_load_jsonl()` (L4)
-- `test_validate_good()` (L12)
-- `test_validate_bad()` (L16)
-- `test_format_sft()` (L20)
+## `tests/test_data.py` (27 lines)
+- `def test_load_jsonl()` (L8)
+- `def test_validate_good()` (L16)
+- `def test_validate_bad()` (L20)
+- `def test_format_sft()` (L24)
   - imports: finetune_studio.training.data
 
 ## `tests/test_data_augmentation_generators.py` (53 lines)
@@ -2389,42 +2520,42 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - imports: finetune_studio.training.data_augmentation
 
 ## `tests/test_data_editor.py` (223 lines)
-- `_write_dataset(pid: str, name: str, rows: list[dict]) -> Path` (L15) — Write a JSONL under the project's datasets dir; return absolute Path.
-- `_project(client) -> str` (L25)
-- `test_data_editor_page_renders(client) -> None` (L31)
-- `test_preview_approve_reject_save_flow(client) -> None` (L41)
-- `test_preview_missing_file_404(client) -> None` (L123)
-- `test_resolve_relative_under_data_dir(mock_settings, tmp_path, monkeypatch) -> None` (L133) — Normal relative form under data_dir resolves without double-prefix.
-- `test_resolve_stored_data_projects_path(mock_settings, tmp_path, monkeypatch) -> None` (L152) — Stored ``data/projects/...`` must not become ``data/data/projects/...``.
-- `test_resolve_absolute_under_project(client) -> None` (L180)
-- `test_resolve_rejects_traversal(tmp_path, monkeypatch) -> None` (L193)
-- `test_resolve_rejects_cross_project(client) -> None` (L210)
+- `def _write_dataset(pid: str, name: str, rows: list[dict]) -> Path` (L15) — Write a JSONL under the project's datasets dir; return absolute Path.
+- `def _project(client) -> str` (L25)
+- `def test_data_editor_page_renders(client) -> None` (L31)
+- `def test_preview_approve_reject_save_flow(client) -> None` (L41)
+- `def test_preview_missing_file_404(client) -> None` (L123)
+- `def test_resolve_relative_under_data_dir(mock_settings, tmp_path, monkeypatch) -> None` (L133) — Normal relative form under data_dir resolves without double-prefix.
+- `def test_resolve_stored_data_projects_path(mock_settings, tmp_path, monkeypatch) -> None` (L152) — Stored ``data/projects/...`` must not become ``data/data/projects/...``.
+- `def test_resolve_absolute_under_project(client) -> None` (L180)
+- `def test_resolve_rejects_traversal(tmp_path, monkeypatch) -> None` (L193)
+- `def test_resolve_rejects_cross_project(client) -> None` (L210)
   - imports: finetune_studio.config, finetune_studio.db.connection, finetune_studio.db.datasets, finetune_studio.webui.routes
 
 ## `tests/test_data_fs_audit.py` (96 lines)
-- `fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L22) — Point the file-library disk root at a temp dir for isolated tests.
-- `_project(client) -> str` (L34)
-- `_upload(client, pid: str, name: str, content: bytes) -> str` (L40)
-- `test_purge_trash_removes_bytes_from_raw_trash(client, fts_root: Path) -> None` (L51) — purge_trash() must delete the physical bytes it claims to purge.
+- `def fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L22) — Point the file-library disk root at a temp dir for isolated tests.
+- `def _project(client) -> str` (L34)
+- `def _upload(client, pid: str, name: str, content: bytes) -> str` (L40)
+- `def test_purge_trash_removes_bytes_from_raw_trash(client, fts_root: Path) -> None` (L51) — purge_trash() must delete the physical bytes it claims to purge.
   - imports: finetune_studio, finetune_studio.data.fs
 
 ## `tests/test_data_parsers_audit.py` (161 lines)
-- `test_top_level_parsers_module_was_removed() -> None` (L31) — data/parsers.py duplicated the live parsers/ package and could never
-- `test_parsers_import_resolves_to_the_package() -> None` (L40)
-- `test_docx_table_content_is_included_in_text(tmp_path: Path) -> None` (L49)
-- `test_json_parser_degrades_on_malformed_json_instead_of_raising(tmp_path: Path) -> None` (L72)
-- `test_json_parser_still_parses_valid_json(tmp_path: Path) -> None` (L87)
-- `test_dispatcher_survives_one_malformed_json_in_a_batch(tmp_path: Path) -> None` (L97) — Mirrors how data/audit.py loops `parse_bytes`/`parse` over every
-- `test_email_parser_returns_string_text_when_no_plain_part_has_content() -> None` (L114)
-- `test_pooling_compat_cls_token_branch_is_reachable_and_not_duplicated() -> None` (L147)
+- `def test_top_level_parsers_module_was_removed() -> None` (L31) — data/parsers.py duplicated the live parsers/ package and could never
+- `def test_parsers_import_resolves_to_the_package() -> None` (L40)
+- `def test_docx_table_content_is_included_in_text(tmp_path: Path) -> None` (L49)
+- `def test_json_parser_degrades_on_malformed_json_instead_of_raising(tmp_path: Path) -> None` (L72)
+- `def test_json_parser_still_parses_valid_json(tmp_path: Path) -> None` (L87)
+- `def test_dispatcher_survives_one_malformed_json_in_a_batch(tmp_path: Path) -> None` (L97) — Mirrors how data/audit.py loops `parse_bytes`/`parse` over every
+- `def test_email_parser_returns_string_text_when_no_plain_part_has_content() -> None` (L114)
+- `def test_pooling_compat_cls_token_branch_is_reachable_and_not_duplicated() -> None` (L147)
   - imports: finetune_studio.data.parsers, finetune_studio.data.parsers.docx, finetune_studio.data.parsers.email, finetune_studio.data.parsers.json, finetune_studio.data.sentence_transformer_local
 
 ## `tests/test_data_prep_audit.py` (131 lines)
-- `proj(tmp_path, monkeypatch)` (L33) — Point the fs root into tmp; project_dir creates itself on demand.
-- `test_fill_coverage_gaps_stamps_sha256_and_filename_provenance(proj: str) -> None` (L54)
-- `test_fill_coverage_gaps_surfaces_no_content_chunk_as_uncovered(proj: str) -> None` (L70)
-- `test_load_existing_chunks_preserves_index_across_gap(proj: str) -> None` (L82)
-- `test_audit_qa_pairs_does_not_flag_legitimate_dedup_as_loss(proj: str) -> None` (L99)
+- `def proj(tmp_path, monkeypatch)` (L33) — Point the fs root into tmp; project_dir creates itself on demand.
+- `def test_fill_coverage_gaps_stamps_sha256_and_filename_provenance(proj: str) -> None` (L54)
+- `def test_fill_coverage_gaps_surfaces_no_content_chunk_as_uncovered(proj: str) -> None` (L70)
+- `def test_load_existing_chunks_preserves_index_across_gap(proj: str) -> None` (L82)
+- `def test_audit_qa_pairs_does_not_flag_legitimate_dedup_as_loss(proj: str) -> None` (L99)
   - imports: finetune_studio.data, finetune_studio.data.audit, finetune_studio.data.fs.paths, finetune_studio.data.prep.coverage_fill, finetune_studio.data.prep.ingest
 
 ## `tests/test_data_prep_chat.py` (339 lines)
@@ -2457,90 +2588,118 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.data.fs.qa, finetune_studio.data.prep.generator, finetune_studio.testing.inference, finetune_studio.webui.routes.data_prep_chat
 
 ## `tests/test_data_prep_chat_gen.py` (108 lines)
-- `fake_mgr()` (L13) — MagicMock that stands in for ModelManager; chat/generate capture
-- `test_chat_local_passes_gen_to_manager(fake_mgr)` (L32) — _chat_local must forward the gen dict (clamped/defaulted) to the
-- `test_chat_local_clamps_out_of_range_gen(fake_mgr)` (L48) — Out-of-range gen kwargs must be clamped to llama_cpp-safe values
-- `test_load_provider_route_forwards_extra(monkeypatch, fake_mgr)` (L74) — load_provider(pid, request) parses the JSON body and passes extra
+- `def fake_mgr()` (L13) — MagicMock that stands in for ModelManager; chat/generate capture
+- `def test_chat_local_passes_gen_to_manager(fake_mgr)` (L32) — _chat_local must forward the gen dict (clamped/defaulted) to the
+- `def test_chat_local_clamps_out_of_range_gen(fake_mgr)` (L48) — Out-of-range gen kwargs must be clamped to llama_cpp-safe values
+- `def test_load_provider_route_forwards_extra(monkeypatch, fake_mgr)` (L74) — load_provider(pid, request) parses the JSON body and passes extra
   - imports: finetune_studio.models, finetune_studio.webui.routes.data_prep, finetune_studio.webui.routes.data_prep_chat
 
-## `tests/test_data_prep_promote.py` (180 lines)
-- `client_and_db(tmp_path, monkeypatch)` (L26) — Route the DB + FTS filesystem into temp dirs.
-- `_create_project(client, db_path: object) -> str` (L40)
-- `_register_uploaded_file(client, pid: str, contents: bytes, name: str = 'sample.txt') -> str` (L49)
-- `test_promote_with_file_id_resolves_and_returns_source(client_and_db)` (L60)
-- `test_promote_parses_markdown_and_read_source_returns_text(client_and_db)` (L82) — E2E-17: promote must parse+chunk; read_source must see file text.
-- `test_promote_with_data_path_directly(client_and_db)` (L120)
-- `test_promote_cross_project_file_id_is_403(client_and_db)` (L139)
-- `test_promote_empty_body_is_400(client_and_db)` (L153)
-- `test_promote_is_idempotent(client_and_db)` (L161)
+## `tests/test_data_prep_path_fence.py` (264 lines)
+- `def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)` (L23) — (client, project_id, project_dir, outside_dir) with FTS root + DB in tmp.
+- `def _jsonl(path: Path) -> Path` (L43)
+- `def test_helper_rejects_absolute_outside(env) -> None` (L51)
+- `def test_helper_rejects_dotdot(env) -> None` (L59)
+- `def test_helper_rejects_symlink_escape(env) -> None` (L69)
+- `def test_helper_accepts_inside_absolute_and_relative(env) -> None` (L83)
+- `def test_helper_rejects_empty_and_other_project(env) -> None` (L90)
+- `def test_data_editor_rejects_outside_and_accepts_inside(env) -> None` (L104)
+- `def test_datasets_register_rejects_outside(env) -> None` (L133)
+- `def test_data_prep_sources_promote_rejects_outside(env) -> None` (L150)
+- `def test_data_prep_start_rejects_legacy_external_source(env) -> None` (L163)
+- `def test_flat_data_routes_confined_to_data_dir(env, tmp_path: Path) -> None` (L178)
+- `def test_file_library_raw_download_fenced(env) -> None` (L190)
+- `def _quality_body(route: str, path: str, output: str | None = None, **extra) -> dict` (L212)
+- `def test_quality_routes_fenced(env, route: str, use_project: bool) -> None` (L223)
+- `def test_quality_augment_writes_inside_project(env) -> None` (L254)
+  - imports: finetune_studio, finetune_studio.config, finetune_studio.data.fs, finetune_studio.webui.app
+
+## `tests/test_data_prep_promote.py` (196 lines)
+- `def client_and_db(tmp_path, monkeypatch)` (L26) — Route the DB + FTS filesystem into temp dirs.
+- `def _create_project(client, db_path: object) -> str` (L40)
+- `def _register_uploaded_file(client, pid: str, contents: bytes, name: str = 'sample.txt') -> str` (L49)
+- `def test_promote_with_file_id_resolves_and_returns_source(client_and_db)` (L60)
+- `def test_promote_parses_markdown_and_read_source_returns_text(client_and_db)` (L82) — E2E-17: promote must parse+chunk; read_source must see file text.
+- `def test_promote_with_data_path_directly(client_and_db)` (L120) — An absolute data_path INSIDE the project directory is accepted.
+- `def test_promote_external_data_path_is_rejected(client_and_db)` (L138) — Decision 2026-10-02: data prep never ingests files outside the project dir.
+- `def test_promote_cross_project_file_id_is_403(client_and_db)` (L155)
+- `def test_promote_empty_body_is_400(client_and_db)` (L169)
+- `def test_promote_is_idempotent(client_and_db)` (L177)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.data.fs.paths, finetune_studio.webui.app, finetune_studio.webui.routes.data_prep_chat
 
 ## `tests/test_data_prep_promote_ui.py` (137 lines)
-- `client_and_db(tmp_path, monkeypatch)` (L33)
-- `_create_project(client: TestClient) -> str` (L45)
-- `test_template_exposes_use_as_source_action() -> None` (L54)
-- `test_template_promote_exts_match_server() -> None` (L71)
-- `test_data_prep_page_injects_promote_extensions(client_and_db) -> None` (L78)
-- `test_older_upload_without_auto_promote_then_manual_promote(client_and_db, monkeypatch) -> None` (L95) — Simulate a pre-auto-promote library file: in project_files, not in sources.
-  - imports: finetune_studio, finetune_studio.config, finetune_studio.data.fs, finetune_studio.data.fs.qa, finetune_studio.webui.app
+- `def client_and_db(tmp_path, monkeypatch)` (L33)
+- `def _create_project(client: TestClient) -> str` (L45)
+- `def test_template_exposes_use_as_source_action() -> None` (L54)
+- `def test_template_promote_exts_match_server() -> None` (L71)
+- `def test_data_prep_page_injects_promote_extensions(client_and_db) -> None` (L78)
+- `def test_older_upload_without_auto_promote_then_manual_promote(client_and_db, monkeypatch) -> None` (L95) — Simulate a pre-auto-promote library file: in project_files, not in sources.
+  - imports: finetune_studio, finetune_studio.config, finetune_studio.data.fs.qa, finetune_studio.webui.app, finetune_studio.webui.routes
 
 ## `tests/test_data_prep_review_export_ui.py` (206 lines)
-- `client_and_db(tmp_path, monkeypatch)` (L41)
-- `_create_project(client: TestClient) -> str` (L54)
-- `_seed_pending_pair(pid: str, projects: Path, *, qid: str | None = None) -> str` (L63)
-- `test_template_exposes_review_approve_export_bridge() -> None` (L81)
-- `test_training_empty_state_points_at_approve_export() -> None` (L105)
-- `test_data_prep_page_renders_bridge_controls(client_and_db) -> None` (L111)
-- `test_approve_then_export_registers_training_dataset(client_and_db) -> None` (L125)
-- `test_export_blocks_when_coverage_still_has_holes(client_and_db, monkeypatch: pytest.MonkeyPatch) -> None` (L172)
-- `test_export_without_approved_still_empty_or_empty_file(client_and_db) -> None` (L189) — Pending-only projects must not silently populate Training.
+- `def client_and_db(tmp_path, monkeypatch)` (L41)
+- `def _create_project(client: TestClient) -> str` (L54)
+- `def _seed_pending_pair(pid: str, projects: Path, *, qid: str | None = None) -> str` (L63)
+- `def test_template_exposes_review_approve_export_bridge() -> None` (L81)
+- `def test_training_empty_state_points_at_approve_export() -> None` (L105)
+- `def test_data_prep_page_renders_bridge_controls(client_and_db) -> None` (L111)
+- `def test_approve_then_export_registers_training_dataset(client_and_db) -> None` (L125)
+- `def test_export_blocks_when_coverage_still_has_holes(client_and_db, monkeypatch: pytest.MonkeyPatch) -> None` (L172)
+- `def test_export_without_approved_still_empty_or_empty_file(client_and_db) -> None` (L189) — Pending-only projects must not silently populate Training.
   - imports: finetune_studio, finetune_studio.config, finetune_studio.data.fs, finetune_studio.webui.app
 
 ## `tests/test_data_prep_route.py` (129 lines)
-- `client(monkeypatch, tmp_path)` (L16) — Isolated FastAPI TestClient backed by a temp SQLite db + temp fs root.
-- `_make_project(client) -> str` (L62) — Create a project + return its id (uses the real /api/projects route).
-- `test_data_prep_route_returns_200(client)` (L77) — GET /projects/{pid}/data-prep returns 200 — not 404 (the bug).
-- `test_data_prep_route_renders_main_content(client)` (L89) — Response body contains the data_prep.html template content (not just the base layout).
-- `test_data_prep_route_renders_sources_or_empty(client)` (L116) — The Source file dropdown iterates `sources or []` — empty list is fine
+- `def client(monkeypatch, tmp_path)` (L16) — Isolated FastAPI TestClient backed by a temp SQLite db + temp fs root.
+- `def _make_project(client) -> str` (L62) — Create a project + return its id (uses the real /api/projects route).
+- `def test_data_prep_route_returns_200(client)` (L77) — GET /projects/{pid}/data-prep returns 200 — not 404 (the bug).
+- `def test_data_prep_route_renders_main_content(client)` (L89) — Response body contains the data_prep.html template content (not just the base layout).
+- `def test_data_prep_route_renders_sources_or_empty(client)` (L116) — The Source file dropdown iterates `sources or []` — empty list is fine
   - imports: finetune_studio, finetune_studio.db.connection, finetune_studio.webui.app
 
 ## `tests/test_data_prep_start.py` (338 lines)
-- `fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L24) — Point the file-library disk root at a temp dir for isolated tests.
-- `_project(client: Any) -> str` (L36)
-- `_upload_and_promote(client: Any, pid: str) -> str` (L42)
-- `_start_body(source_id: str, **overrides: Any) -> dict[str, Any]` (L67)
-- `_empty_manager() -> MagicMock` (L78)
-- `_helper_manager() -> MagicMock` (L84)
-- `_loaded_helper_engine() -> MagicMock` (L99)
-- `_loaded_other_engine() -> MagicMock` (L109)
-- `_unloaded_engine() -> MagicMock` (L117)
-- `test_start_unknown_source_404(client: Any, fts_root: Path) -> None` (L124)
-- `test_start_no_model_409(client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L134) — Neither manager nor inference_engine loaded → 409 naming the helper.
-- `test_start_rejects_non_helper_model(client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L161) — A loaded non-helper model must 409 — no silent fallback.
-- `test_start_ok_when_helper_manager_active(client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L186) — Helper active on manager is enough even if inference_engine is empty.
-- `test_start_ok_when_helper_on_inference(client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L227) — Manager inactive + helper GGUF on inference_engine → 200.
-- `test_start_invalid_difficulty_422(client: Any, fts_root: Path) -> None` (L258)
-- `test_resolve_generator_helper_manager(monkeypatch: pytest.MonkeyPatch) -> None` (L267)
-- `test_resolve_generator_helper_on_engine(monkeypatch: pytest.MonkeyPatch) -> None` (L296)
-- `test_resolve_generator_none_when_unloaded(monkeypatch: pytest.MonkeyPatch) -> None` (L325)
+- `def fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L24) — Point the file-library disk root at a temp dir for isolated tests.
+- `def _project(client: Any) -> str` (L36)
+- `def _upload_and_promote(client: Any, pid: str) -> str` (L42)
+- `def _start_body(source_id: str, **overrides: Any) -> dict[str, Any]` (L67)
+- `def _empty_manager() -> MagicMock` (L78)
+- `def _helper_manager() -> MagicMock` (L84)
+- `def _loaded_helper_engine() -> MagicMock` (L99)
+- `def _loaded_other_engine() -> MagicMock` (L109)
+- `def _unloaded_engine() -> MagicMock` (L117)
+- `def test_start_unknown_source_404(client: Any, fts_root: Path) -> None` (L124)
+- `def test_start_no_model_409(client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L134) — Neither manager nor inference_engine loaded → 409 naming the helper.
+- `def test_start_rejects_non_helper_model(client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L161) — A loaded non-helper model must 409 — no silent fallback.
+- `def test_start_ok_when_helper_manager_active(client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L186) — Helper active on manager is enough even if inference_engine is empty.
+- `def test_start_ok_when_helper_on_inference(client: Any, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L227) — Manager inactive + helper GGUF on inference_engine → 200.
+- `def test_start_invalid_difficulty_422(client: Any, fts_root: Path) -> None` (L258)
+- `def test_resolve_generator_helper_manager(monkeypatch: pytest.MonkeyPatch) -> None` (L267)
+- `def test_resolve_generator_helper_on_engine(monkeypatch: pytest.MonkeyPatch) -> None` (L296)
+- `def test_resolve_generator_none_when_unloaded(monkeypatch: pytest.MonkeyPatch) -> None` (L325)
   - imports: finetune_studio.data.fs, finetune_studio.data.prep, finetune_studio.data.prep.generator, finetune_studio.models.helper, finetune_studio.webui.routes
 
 ## `tests/test_data_prep_upload_nonblocking.py` (42 lines)
-- `_src() -> str` (L23)
-- `test_data_prep_has_no_blocking_alerts() -> None` (L27)
-- `test_upload_report_renders_inline_status() -> None` (L31)
-- `test_upload_input_targetable_by_automation() -> None` (L40)
+- `def _src() -> str` (L23)
+- `def test_data_prep_has_no_blocking_alerts() -> None` (L27)
+- `def test_upload_report_renders_inline_status() -> None` (L31)
+- `def test_upload_input_targetable_by_automation() -> None` (L40)
+
+## `tests/test_data_quality_fixes.py` (59 lines)
+- `def _registered_subcommands() -> set[str]` (L19)
+- `def _all_fixes() -> list[dict]` (L27)
+- `def test_every_suggested_fts_command_is_a_registered_subcommand() -> None` (L32)
+- `def test_every_suggested_fts_command_parses_with_real_flags() -> None` (L42)
+- `def test_every_fix_without_a_command_carries_plain_advice() -> None` (L57)
+  - imports: finetune_studio.cli._parser, finetune_studio.training.data_quality
 
 ## `tests/test_dataset_register.py` (135 lines)
-- `client_and_db(tmp_path, monkeypatch)` (L22) — Route the DB into a temp file so tests don't touch fan-dragon state.
-- `_create_project(client, db_path) -> str` (L38) — Helper: create a fresh project + return its pid.
-- `_register_uploaded_file(client, pid: str, contents: bytes) -> str` (L48) — Helper: simulate a file upload and return the file id.
-- `_cleanup_rows(db_path) -> None` (L58) — Wipe project-scoped rows between tests so ids don't collide.
-- `test_register_accepts_file_id(client_and_db)` (L76) — QABUG-001: when the UI sends {file_id}, the route must resolve stored_path.
-- `test_register_accepts_data_path_directly(client_and_db)` (L93)
-- `test_register_rejects_when_neither_field_supplied(client_and_db)` (L107)
-- `test_register_file_id_from_other_project_is_403(client_and_db)` (L115) — Cross-project file_id must NOT resolve to a different project's path.
-- `test_register_file_id_unknown_is_400(client_and_db)` (L127)
+- `def client_and_db(tmp_path, monkeypatch)` (L22) — Route the DB into a temp file so tests don't touch fan-dragon state.
+- `def _create_project(client, db_path) -> str` (L38) — Helper: create a fresh project + return its pid.
+- `def _register_uploaded_file(client, pid: str, contents: bytes) -> str` (L48) — Helper: simulate a file upload and return the file id.
+- `def _cleanup_rows(db_path) -> None` (L58) — Wipe project-scoped rows between tests so ids don't collide.
+- `def test_register_accepts_file_id(client_and_db)` (L76) — QABUG-001: when the UI sends {file_id}, the route must resolve stored_path.
+- `def test_register_accepts_data_path_directly(client_and_db)` (L93)
+- `def test_register_rejects_when_neither_field_supplied(client_and_db)` (L107)
+- `def test_register_file_id_from_other_project_is_403(client_and_db)` (L115) — Cross-project file_id must NOT resolve to a different project's path.
+- `def test_register_file_id_unknown_is_400(client_and_db)` (L127)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.webui.app
 
 ## `tests/test_db.py` (189 lines)
@@ -2570,13 +2729,13 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - imports: finetune_studio.db
 
 ## `tests/test_db_facade_exports.py` (78 lines)
-- `_imported_names() -> set[str]` (L27) — Every name bound by a module-level ``from ... import`` in the facade.
-- `test_all_is_declared() -> None` (L38) — The facade must export an explicit list (this is what silences F401).
-- `test_every_import_is_exported() -> None` (L44) — An imported-but-unlisted name reappears as F401 and can be 'fixed' away.
-- `test_every_exported_name_exists() -> None` (L53) — A stale __all__ entry would raise AttributeError only at the call site.
-- `test_all_is_sorted_and_unique() -> None` (L59) — Keeps diffs stable and prevents duplicate entries accumulating.
-- `test_core_api_is_still_exported() -> None` (L65) — Spot-check the calls used across the app, not just any name.
-- `test_exports_are_callable_in_a_temp_db(name: str, tmp_path: Path) -> None` (L74) — Attribute access must still work, which is the whole point of the facade.
+- `def _imported_names() -> set[str]` (L27) — Every name bound by a module-level ``from ... import`` in the facade.
+- `def test_all_is_declared() -> None` (L38) — The facade must export an explicit list (this is what silences F401).
+- `def test_every_import_is_exported() -> None` (L44) — An imported-but-unlisted name reappears as F401 and can be 'fixed' away.
+- `def test_every_exported_name_exists() -> None` (L53) — A stale __all__ entry would raise AttributeError only at the call site.
+- `def test_all_is_sorted_and_unique() -> None` (L59) — Keeps diffs stable and prevents duplicate entries accumulating.
+- `def test_core_api_is_still_exported() -> None` (L65) — Spot-check the calls used across the app, not just any name.
+- `def test_exports_are_callable_in_a_temp_db(name: str, tmp_path: Path) -> None` (L74) — Attribute access must still work, which is the whole point of the facade.
   - imports: finetune_studio.db
 
 ## `tests/test_db_lifecycle.py` (642 lines)
@@ -2631,9 +2790,9 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - imports: finetune_studio, finetune_studio.training.engine
 
 ## `tests/test_db_models_audit.py` (70 lines)
-- `test_create_case_persists_all_declared_fields(mock_settings)` (L17)
-- `test_update_dataset_does_not_clobber_explicit_last_used_at(mock_settings, tmp_path)` (L44)
-- `test_models_loader_docstring_is_real_and_has_live_callers()` (L65)
+- `def test_create_case_persists_all_declared_fields(mock_settings)` (L17)
+- `def test_update_dataset_does_not_clobber_explicit_last_used_at(mock_settings, tmp_path)` (L44)
+- `def test_models_loader_docstring_is_real_and_has_live_callers()` (L65)
   - imports: finetune_studio, finetune_studio.models.loader
 
 ## `tests/test_delete_project_cleans_filesystem.py` (62 lines)
@@ -2642,10 +2801,10 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - imports: finetune_studio, finetune_studio.data.fs
 
 ## `tests/test_doc_parser_olefile.py` (111 lines)
-- `_make_fake_ole_doc(path: Path, text: str) -> None` (L13) — Build a minimal-but-valid OLE2 container with a WordDocument stream.
-- `_real_doc_bytes() -> bytes | None` (L31) — Construct one true OLE2 .doc by converting tiny RTF via soffice.
-- `test_doc_parses_without_cli_tools(tmp_path: Path, monkeypatch) -> None` (L66) — OLE2 .doc must parse via olefile-scan when antiword/catdoc are absent.
-- `test_doc_placeholder_when_not_ole2(tmp_path: Path) -> None` (L104) — A garbage .doc (not OLE2) still returns the placeholder, never raises.
+- `def _make_fake_ole_doc(path: Path, text: str) -> None` (L13) — Build a minimal-but-valid OLE2 container with a WordDocument stream.
+- `def _real_doc_bytes() -> bytes | None` (L31) — Construct one true OLE2 .doc by converting tiny RTF via soffice.
+- `def test_doc_parses_without_cli_tools(tmp_path: Path, monkeypatch) -> None` (L66) — OLE2 .doc must parse via olefile-scan when antiword/catdoc are absent.
+- `def test_doc_placeholder_when_not_ole2(tmp_path: Path) -> None` (L104) — A garbage .doc (not OLE2) still returns the placeholder, never raises.
   - imports: finetune_studio.data.parsers
 
 ## `tests/test_export.py` (537 lines)
@@ -2676,10 +2835,10 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - imports: finetune_studio, finetune_studio.training, finetune_studio.webui.routes, finetune_studio.webui.routes.exports
 
 ## `tests/test_export_capabilities.py` (82 lines)
-- `test_probe_export_capabilities_shape() -> None` (L24)
-- `test_export_template_disables_unavailable_formats() -> None` (L34)
-- `test_export_page_marks_gguf_unavailable(client) -> None` (L45)
-- `test_export_page_enables_gguf_when_converter_present(client) -> None` (L67)
+- `def test_probe_export_capabilities_shape() -> None` (L24)
+- `def test_export_template_disables_unavailable_formats() -> None` (L34)
+- `def test_export_page_marks_gguf_unavailable(client) -> None` (L45)
+- `def test_export_page_enables_gguf_when_converter_present(client) -> None` (L67)
   - imports: finetune_studio.training.export_capabilities, finetune_studio.training.run_export
 
 ## `tests/test_export_response.py` (203 lines)
@@ -2695,85 +2854,96 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - imports: finetune_studio, finetune_studio.training, finetune_studio.training.engine, finetune_studio.training.export_response
 
 ## `tests/test_fidelity_audit.py` (104 lines)
-- `test_source_audit_catches_raw_and_parse_drift(tmp_path, monkeypatch) -> None` (L15)
-- `test_empty_audit_is_not_reported_as_pass(tmp_path, monkeypatch) -> None` (L31)
-- `test_dataset_audit_flags_unknown_source_and_export_loss(tmp_path, monkeypatch) -> None` (L39)
-- `test_suite_audit_detects_truncation_and_suite_preserves_provenance(tmp_path) -> None` (L58)
-- `test_recompute_cases_preserves_source_grounded_scoring() -> None` (L77)
-- `test_recompute_cases_does_not_trust_stored_verdict() -> None` (L96)
+- `def test_source_audit_catches_raw_and_parse_drift(tmp_path, monkeypatch) -> None` (L15)
+- `def test_empty_audit_is_not_reported_as_pass(tmp_path, monkeypatch) -> None` (L31)
+- `def test_dataset_audit_flags_unknown_source_and_export_loss(tmp_path, monkeypatch) -> None` (L39)
+- `def test_suite_audit_detects_truncation_and_suite_preserves_provenance(tmp_path) -> None` (L58)
+- `def test_recompute_cases_preserves_source_grounded_scoring() -> None` (L77)
+- `def test_recompute_cases_does_not_trust_stored_verdict() -> None` (L96)
   - imports: finetune_studio.data, finetune_studio.data.audit, finetune_studio.data.fs, finetune_studio.data.fs.metadata, finetune_studio.data.prep.ingest, finetune_studio.testing.audit, finetune_studio.testing.generate_suite
 
 ## `tests/test_file_browser_v2.py` (224 lines)
-- `fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L17)
-- `_project(client) -> str` (L26)
-- `_upload(client, pid: str, name: str, content: bytes) -> str` (L32)
-- `_doc(label: str) -> bytes` (L41)
-- `_bulk(client, pid, ids, action, **extra)` (L49)
-- `test_bulk_tag_add_remove(fts_root: Path, client) -> None` (L57)
-- `test_bulk_delete_restore_cycle(fts_root: Path, client) -> None` (L73)
-- `test_bulk_reparse_discards_override(fts_root: Path, client) -> None` (L82)
-- `test_bulk_move_requires_folder_and_works(fts_root: Path, client) -> None` (L91)
-- `test_bulk_unknown_action_400(fts_root: Path, client) -> None` (L102)
-- `test_download_zip_contains_raw_bytes(fts_root: Path, client) -> None` (L110)
-- `test_download_zip_empty_ids_400(fts_root: Path, client) -> None` (L127)
-- `test_usage_chains_file_to_runs(fts_root: Path, client) -> None` (L136)
-- `test_usage_no_source(fts_root: Path, client) -> None` (L163)
-- `test_search_content_finds_snippet(fts_root: Path, client) -> None` (L174)
-- `test_search_content_validation(fts_root: Path, client) -> None` (L187)
-- `test_folder_rename_delete_survives_files(fts_root: Path, client) -> None` (L196)
-- `test_data_page_renders_v2_controls(client) -> None` (L218)
+- `def fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L17)
+- `def _project(client) -> str` (L26)
+- `def _upload(client, pid: str, name: str, content: bytes) -> str` (L32)
+- `def _doc(label: str) -> bytes` (L41)
+- `def _bulk(client, pid, ids, action, **extra)` (L49)
+- `def test_bulk_tag_add_remove(fts_root: Path, client) -> None` (L57)
+- `def test_bulk_delete_restore_cycle(fts_root: Path, client) -> None` (L73)
+- `def test_bulk_reparse_discards_override(fts_root: Path, client) -> None` (L82)
+- `def test_bulk_move_requires_folder_and_works(fts_root: Path, client) -> None` (L91)
+- `def test_bulk_unknown_action_400(fts_root: Path, client) -> None` (L102)
+- `def test_download_zip_contains_raw_bytes(fts_root: Path, client) -> None` (L110)
+- `def test_download_zip_empty_ids_400(fts_root: Path, client) -> None` (L127)
+- `def test_usage_chains_file_to_runs(fts_root: Path, client) -> None` (L136)
+- `def test_usage_no_source(fts_root: Path, client) -> None` (L163)
+- `def test_search_content_finds_snippet(fts_root: Path, client) -> None` (L174)
+- `def test_search_content_validation(fts_root: Path, client) -> None` (L187)
+- `def test_folder_rename_delete_survives_files(fts_root: Path, client) -> None` (L196)
+- `def test_data_page_renders_v2_controls(client) -> None` (L218)
   - imports: finetune_studio, finetune_studio.data, finetune_studio.data.fs
 
 ## `tests/test_file_library_apis.py` (287 lines)
-- `fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L12) — Point the file-library disk root at a temp dir for isolated tests.
-- `_project(client) -> str` (L24)
-- `_upload(client, pid: str, name: str, content: bytes, content_type: str = 'text/plain'…` (L30)
-- `_unique(label: str) -> bytes` (L47) — Unique payload so sha256-based file ids never collide across tests.
-- `test_parsed_converts_txt(client, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L56)
-- `test_parsed_converts_json(client, fts_root: Path) -> None` (L78)
-- `test_parsed_converts_csv(client, fts_root: Path) -> None` (L90)
-- `test_parsed_sibling_md(client, fts_root: Path) -> None` (L102)
-- `test_parsed_binary_pdf_422(client, fts_root: Path) -> None` (L118)
-- `test_parsed_404(client, fts_root: Path) -> None` (L134)
-- `test_parsed_cache_hit(client, fts_root: Path) -> None` (L140)
-- `test_rename_ok(client, fts_root: Path) -> None` (L157)
-- `test_rename_accepts_name_alias(client, fts_root: Path) -> None` (L176) — data-prep UI historically sent {name: ...}; accept both keys.
-- `test_rename_conflict_409(client, fts_root: Path) -> None` (L188)
-- `test_rename_path_sep_400(client, fts_root: Path) -> None` (L199)
-- `test_rename_404(client, fts_root: Path) -> None` (L209)
-- `test_purge_requires_trash(client, fts_root: Path) -> None` (L221)
-- `test_purge_trashed_file(client, fts_root: Path) -> None` (L228)
-- `test_purge_404(client, fts_root: Path) -> None` (L248)
-- `test_schema_has_no_parsed_columns(client, fts_root: Path) -> None` (L254) — Documented blocker check: project_files has no parsed_md/parsed_path.
-- `test_list_files_total_count_unfiltered(client, fts_root: Path) -> None` (L264) — total_count is project-wide even when folder_id / search filter the page.
+- `def fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L12) — Point the file-library disk root at a temp dir for isolated tests.
+- `def _project(client) -> str` (L24)
+- `def _upload(client, pid: str, name: str, content: bytes, content_type: str = 'text/plain'…` (L30)
+- `def _unique(label: str) -> bytes` (L47) — Unique payload so sha256-based file ids never collide across tests.
+- `def test_parsed_converts_txt(client, fts_root: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L56)
+- `def test_parsed_converts_json(client, fts_root: Path) -> None` (L78)
+- `def test_parsed_converts_csv(client, fts_root: Path) -> None` (L90)
+- `def test_parsed_sibling_md(client, fts_root: Path) -> None` (L102)
+- `def test_parsed_binary_pdf_422(client, fts_root: Path) -> None` (L118)
+- `def test_parsed_404(client, fts_root: Path) -> None` (L134)
+- `def test_parsed_cache_hit(client, fts_root: Path) -> None` (L140)
+- `def test_rename_ok(client, fts_root: Path) -> None` (L157)
+- `def test_rename_accepts_name_alias(client, fts_root: Path) -> None` (L176) — data-prep UI historically sent {name: ...}; accept both keys.
+- `def test_rename_conflict_409(client, fts_root: Path) -> None` (L188)
+- `def test_rename_path_sep_400(client, fts_root: Path) -> None` (L199)
+- `def test_rename_404(client, fts_root: Path) -> None` (L209)
+- `def test_purge_requires_trash(client, fts_root: Path) -> None` (L221)
+- `def test_purge_trashed_file(client, fts_root: Path) -> None` (L228)
+- `def test_purge_404(client, fts_root: Path) -> None` (L248)
+- `def test_schema_has_no_parsed_columns(client, fts_root: Path) -> None` (L254) — Documented blocker check: project_files has no parsed_md/parsed_path.
+- `def test_list_files_total_count_unfiltered(client, fts_root: Path) -> None` (L264) — total_count is project-wide even when folder_id / search filter the page.
   - imports: finetune_studio.data.fs
 
 ## `tests/test_file_workbench.py` (205 lines)
-- `fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L18)
-- `_project(client) -> str` (L27)
-- `_upload(client, pid: str, name: str, content: bytes) -> str` (L33)
-- `_doc(label: str) -> bytes` (L44)
-- `test_parsed_edit_roundtrip_and_override(fts_root: Path, client) -> None` (L53)
-- `test_reparse_discards_override(fts_root: Path, client) -> None` (L76)
-- `test_edit_rechunks_data_prep_source(fts_root: Path, client) -> None` (L90)
-- `test_pipeline_flags(fts_root: Path, client) -> None` (L118)
-- `test_rag_quick_promotes_then_builds(fts_root: Path, client, monkeypatch) -> None` (L134)
-- `test_parsed_put_validation(fts_root: Path, client) -> None` (L164)
-- `test_pipeline_in_rag_from_manifest(fts_root: Path, client) -> None` (L173) — Corpus document ids are md5(path) — the badge must match the sha12
-- `test_data_page_renders_workbench_controls(client) -> None` (L197)
+- `def fts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L18)
+- `def _project(client) -> str` (L27)
+- `def _upload(client, pid: str, name: str, content: bytes) -> str` (L33)
+- `def _doc(label: str) -> bytes` (L44)
+- `def test_parsed_edit_roundtrip_and_override(fts_root: Path, client) -> None` (L53)
+- `def test_reparse_discards_override(fts_root: Path, client) -> None` (L76)
+- `def test_edit_rechunks_data_prep_source(fts_root: Path, client) -> None` (L90)
+- `def test_pipeline_flags(fts_root: Path, client) -> None` (L118)
+- `def test_rag_quick_promotes_then_builds(fts_root: Path, client, monkeypatch) -> None` (L134)
+- `def test_parsed_put_validation(fts_root: Path, client) -> None` (L164)
+- `def test_pipeline_in_rag_from_manifest(fts_root: Path, client) -> None` (L173) — Corpus document ids are md5(path) — the badge must match the sha12
+- `def test_data_page_renders_workbench_controls(client) -> None` (L197)
   - imports: finetune_studio.data, finetune_studio.data.fs, finetune_studio.webui.routes
 
+## `tests/test_formatter_parity.py` (66 lines)
+- `class FakeTok` (L12)
+  - `def __init__(self)` (L15)
+  - `def apply_chat_template(self, messages, tokenize = False, add_generation_prompt = False, **kw)` (L18)
+- `def test_train_text_is_prefix_of_eval_text()` (L24)
+- `def test_with_system_prompt_matches_bake_rule()` (L35)
+- `def test_enable_thinking_only_forwarded_when_given()` (L42)
+- `def test_run_suite_sends_system_prompt()` (L49)
+- `def test_no_direct_apply_chat_template_in_train_or_eval_paths()` (L64)
+  - imports: finetune_studio.testing, finetune_studio.training, finetune_studio.training.data, finetune_studio.training.formatting, finetune_studio.training.vram
+
 ## `tests/test_full_corpus_suite.py` (293 lines)
-- `isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L26)
-- `project_fs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> Path` (L34) — Isolate project_dir under tmp_path for both paths and qa modules.
-- `_write_pair(project_root: Path, pid: str, pair_id: str, *, status: str = 'approved', sour…` (L53)
-- `test_case_from_pair_requires_approved_and_source() -> None` (L82)
-- `test_case_from_pair_reads_messages_when_fields_empty() -> None` (L101)
-- `test_ensure_writes_suite_and_definition(project_fs: Path) -> None` (L118)
-- `test_ensure_deduplicates_questions_with_training_export_contract(project_fs: Path) -> None` (L163)
-- `test_ensure_no_pairs_returns_none_and_clears_stale(project_fs: Path) -> None` (L198)
-- `test_discover_suites_includes_full_corpus_for_project(project_fs: Path) -> None` (L213)
-- `test_discover_suites_keeps_auto_and_local(project_fs: Path, tmp_path: Path) -> None` (L245)
+- `def isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L26)
+- `def project_fs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path) -> Path` (L34) — Isolate project_dir under tmp_path for both paths and qa modules.
+- `def _write_pair(project_root: Path, pid: str, pair_id: str, *, status: str = 'approved', sour…` (L53)
+- `def test_case_from_pair_requires_approved_and_source() -> None` (L82)
+- `def test_case_from_pair_reads_messages_when_fields_empty() -> None` (L101)
+- `def test_ensure_writes_suite_and_definition(project_fs: Path) -> None` (L118)
+- `def test_ensure_deduplicates_questions_with_training_export_contract(project_fs: Path) -> None` (L163)
+- `def test_ensure_no_pairs_returns_none_and_clears_stale(project_fs: Path) -> None` (L198)
+- `def test_discover_suites_includes_full_corpus_for_project(project_fs: Path) -> None` (L213)
+- `def test_discover_suites_keeps_auto_and_local(project_fs: Path, tmp_path: Path) -> None` (L245)
   - imports: finetune_studio, finetune_studio.benchmarks.suite_defs, finetune_studio.config, finetune_studio.data.fs, finetune_studio.testing.full_corpus_suite
 
 ## `tests/test_gguf_convert.py` (144 lines)
@@ -2790,168 +2960,184 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - imports: finetune_studio.training, finetune_studio.training.gguf_convert, finetune_studio.training.run_export
 
 ## `tests/test_gguf_layers.py` (112 lines)
-- `_write_minimal_gguf(path: Path, arch: str = 'qwen3', block_count: int = 36, ctx: int = 40960) -> …` (L23) — Hand-rolled minimal GGUF v3 header with two uint32 scalar fields.
-- `test_is_gguf_path(tmp_path: Path) -> None` (L38)
-- `test_resolve_block_count_reads_real_value(tmp_path: Path) -> None` (L44)
-- `test_resolve_llama_arch_prefix(tmp_path: Path) -> None` (L52)
-- `test_resolve_missing_file_is_empty(tmp_path: Path) -> None` (L58)
-- `test_non_gguf_paths_return_none() -> None` (L63)
-- `test_gguf_header_values_scalar_only(tmp_path: Path) -> None` (L69)
-- `test_manager_translates_legacy_99(monkeypatch: pytest.MonkeyPatch) -> None` (L75) — load() must rewrite legacy n_gpu_layers=99 to -1, never pass 99 on.
+- `def _write_minimal_gguf(path: Path, arch: str = 'qwen3', block_count: int = 36, ctx: int = 40960) -> …` (L23) — Hand-rolled minimal GGUF v3 header with two uint32 scalar fields.
+- `def test_is_gguf_path(tmp_path: Path) -> None` (L38)
+- `def test_resolve_block_count_reads_real_value(tmp_path: Path) -> None` (L44)
+- `def test_resolve_llama_arch_prefix(tmp_path: Path) -> None` (L52)
+- `def test_resolve_missing_file_is_empty(tmp_path: Path) -> None` (L58)
+- `def test_non_gguf_paths_return_none() -> None` (L63)
+- `def test_gguf_header_values_scalar_only(tmp_path: Path) -> None` (L69)
+- `def test_manager_translates_legacy_99(monkeypatch: pytest.MonkeyPatch) -> None` (L75) — load() must rewrite legacy n_gpu_layers=99 to -1, never pass 99 on.
   - imports: finetune_studio.models, finetune_studio.models.gguf_layers
 
 ## `tests/test_gptq_removed.py` (79 lines)
-- `_merged_run(tmp_path: Path) -> dict` (L15)
-- `test_supported_formats_exclude_gptq() -> None` (L29)
-- `test_export_trained_run_rejects_gptq_with_clear_message(tmp_path: Path) -> None` (L36)
-- `test_export_page_has_no_gptq_choice(client) -> None` (L44)
-- `test_export_api_rejects_gptq(client, tmp_path: Path) -> None` (L55)
-- `test_supported_format_names_are_non_gptq(fmt: str) -> None` (L78)
+- `def _merged_run(tmp_path: Path) -> dict` (L15)
+- `def test_supported_formats_exclude_gptq() -> None` (L29)
+- `def test_export_trained_run_rejects_gptq_with_clear_message(tmp_path: Path) -> None` (L36)
+- `def test_export_page_has_no_gptq_choice(client) -> None` (L44)
+- `def test_export_api_rejects_gptq(client, tmp_path: Path) -> None` (L55)
+- `def test_supported_format_names_are_non_gptq(fmt: str) -> None` (L78)
   - imports: finetune_studio, finetune_studio.training.run_export
 
 ## `tests/test_header_nav.py` (206 lines)
-- `_render_base(*, pid: str | None = None) -> str` (L35)
-- `_href_for_tab(html: str, tab: str) -> str` (L52)
-- `test_header_nav_overflow_affordance_markup() -> None` (L64) — Narrow/desktop markup must expose scroll + [nav] menu affordances.
-- `test_header_nav_css_overflow_contract() -> None` (L82) — CSS must keep tabs scrollable inside the header without page blowout.
-- `test_header_nav_js_module_present() -> None` (L120)
-- `test_project_nav_links_present_and_reachable() -> None` (L131)
-- `test_global_nav_hides_project_tabs() -> None` (L152)
-- `test_active_route_state_on_testing_tab() -> None` (L162)
-- `test_project_pages_serve_nav_affordance(client: TestClient) -> None` (L182)
-- `test_css_cache_bust_header_nav() -> None` (L203)
+- `def _render_base(*, pid: str | None = None) -> str` (L35)
+- `def _href_for_tab(html: str, tab: str) -> str` (L52)
+- `def test_header_nav_overflow_affordance_markup() -> None` (L64) — Narrow/desktop markup must expose scroll + [nav] menu affordances.
+- `def test_header_nav_css_overflow_contract() -> None` (L82) — CSS must keep tabs scrollable inside the header without page blowout.
+- `def test_header_nav_js_module_present() -> None` (L120)
+- `def test_project_nav_links_present_and_reachable() -> None` (L131)
+- `def test_global_nav_hides_project_tabs() -> None` (L152)
+- `def test_active_route_state_on_testing_tab() -> None` (L162)
+- `def test_project_pages_serve_nav_affordance(client: TestClient) -> None` (L182)
+- `def test_css_cache_bust_header_nav() -> None` (L203)
 
 ## `tests/test_helper_defaults.py` (204 lines)
-- `test_default_helper_constants_are_explicit() -> None` (L28)
-- `test_fts_helper_gguf_env_override(monkeypatch: Any, tmp_path: Path) -> None` (L43)
-- `test_fts_alt_helper_gguf_env_override(monkeypatch: Any, tmp_path: Path) -> None` (L52)
-- `test_is_helper_gguf_path_by_basename() -> None` (L60)
-- `test_is_helper_provider_recognizes_both_default_and_alternate() -> None` (L67)
-- `test_is_helper_provider_by_id_and_path() -> None` (L81)
-- `test_annotate_provider_renames_legacy_local_gguf() -> None` (L91)
-- `test_helper_display_label_prefixes() -> None` (L105)
-- `test_wrong_and_no_helper_messages_name_provider() -> None` (L113)
-- `test_provider_presets_lead_with_helpers() -> None` (L121)
-- `test_registry_generic_dirs_exclude_awq() -> None` (L131)
-- `test_providers_api_exposes_helper(client: Any) -> None` (L138)
-- `test_data_prep_page_shows_helper(client: Any) -> None` (L149)
-- `test_testing_page_shows_helper(client: Any) -> None` (L161)
-- `test_auto_suite_generate_names_helper(client: Any, tmp_path: Path, monkeypatch: Any) -> None` (L170)
-- `test_architecture_docs_activity_is_sse() -> None` (L200)
+- `def test_default_helper_constants_are_explicit() -> None` (L28)
+- `def test_fts_helper_gguf_env_override(monkeypatch: Any, tmp_path: Path) -> None` (L43)
+- `def test_fts_alt_helper_gguf_env_override(monkeypatch: Any, tmp_path: Path) -> None` (L52)
+- `def test_is_helper_gguf_path_by_basename() -> None` (L60)
+- `def test_is_helper_provider_recognizes_both_default_and_alternate() -> None` (L67)
+- `def test_is_helper_provider_by_id_and_path() -> None` (L81)
+- `def test_annotate_provider_renames_legacy_local_gguf() -> None` (L91)
+- `def test_helper_display_label_prefixes() -> None` (L105)
+- `def test_wrong_and_no_helper_messages_name_provider() -> None` (L113)
+- `def test_provider_presets_lead_with_helpers() -> None` (L121)
+- `def test_registry_generic_dirs_exclude_awq() -> None` (L131)
+- `def test_providers_api_exposes_helper(client: Any) -> None` (L138)
+- `def test_data_prep_page_shows_helper(client: Any) -> None` (L149)
+- `def test_testing_page_shows_helper(client: Any) -> None` (L161)
+- `def test_auto_suite_generate_names_helper(client: Any, tmp_path: Path, monkeypatch: Any) -> None` (L170)
+- `def test_architecture_docs_activity_is_sse() -> None` (L200)
   - imports: finetune_studio, finetune_studio.models.helper, finetune_studio.models.providers, finetune_studio.models.registry
 
 ## `tests/test_helper_model.py` (240 lines)
-- `test_helper_constants_and_label() -> None` (L25)
-- `test_annotate_provider_marks_helper() -> None` (L36)
-- `test_providers_api_exposes_helper(client: Any) -> None` (L49)
-- `test_data_prep_page_shows_helper_label(client: Any) -> None` (L65)
-- `test_testing_page_shows_helper_label(client: Any) -> None` (L76)
-- `test_resolve_generator_rejects_non_helper_inference(monkeypatch: pytest.MonkeyPatch) -> None` (L84)
-- `test_resolve_generator_accepts_helper_on_inference(monkeypatch: pytest.MonkeyPatch) -> None` (L110)
-- `test_resolve_generator_accepts_helper_manager_active(monkeypatch: pytest.MonkeyPatch) -> None` (L138)
-- `test_omitted_provider_id_409_when_non_helper_loaded(client: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L172)
-- `test_architecture_doc_describes_activity_sse() -> None` (L215)
-- `test_registry_generic_dirs_exclude_awq() -> None` (L222)
-- `test_no_helper_message_names_label() -> None` (L237)
+- `def test_helper_constants_and_label() -> None` (L25)
+- `def test_annotate_provider_marks_helper() -> None` (L36)
+- `def test_providers_api_exposes_helper(client: Any) -> None` (L49)
+- `def test_data_prep_page_shows_helper_label(client: Any) -> None` (L65)
+- `def test_testing_page_shows_helper_label(client: Any) -> None` (L76)
+- `def test_resolve_generator_rejects_non_helper_inference(monkeypatch: pytest.MonkeyPatch) -> None` (L84)
+- `def test_resolve_generator_accepts_helper_on_inference(monkeypatch: pytest.MonkeyPatch) -> None` (L110)
+- `def test_resolve_generator_accepts_helper_manager_active(monkeypatch: pytest.MonkeyPatch) -> None` (L138)
+- `def test_omitted_provider_id_409_when_non_helper_loaded(client: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L172)
+- `def test_architecture_doc_describes_activity_sse() -> None` (L215)
+- `def test_registry_generic_dirs_exclude_awq() -> None` (L222)
+- `def test_no_helper_message_names_label() -> None` (L237)
   - imports: finetune_studio.data.prep, finetune_studio.models.helper, finetune_studio.models.registry
 
 ## `tests/test_hf_pull_activity.py` (146 lines)
-- `client_db(tmp_path, monkeypatch)` (L18)
-- `test_hf_download_returns_job_id_and_appears_in_activity(client_db)` (L43)
-- `test_hf_download_completion_refreshes_registry(client_db, monkeypatch)` (L91)
-- `test_app_js_opens_activity_on_job_id() -> None` (L134)
-- `test_config_includes_hf_explorer_cache() -> None` (L144)
+- `def client_db(tmp_path, monkeypatch)` (L18)
+- `def test_hf_download_returns_job_id_and_appears_in_activity(client_db)` (L43)
+- `def test_hf_download_completion_refreshes_registry(client_db, monkeypatch)` (L91)
+- `def test_app_js_opens_activity_on_job_id() -> None` (L134)
+- `def test_config_includes_hf_explorer_cache() -> None` (L144)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.webui.app, finetune_studio.webui.routes
 
 ## `tests/test_hf_search.py` (77 lines)
-- `_m(model_id: str, tags: list[str] | None = None) -> SimpleNamespace` (L10)
-- `test_free_text_query_matches_repo_id_with_token_split() -> None` (L21) — A query like 'qwen3 gguf' must match repos containing those tokens.
-- `test_exact_repo_id_still_matches() -> None` (L37)
-- `test_pipeline_tag_filter_relaxes_when_zero_results() -> None` (L45) — If pipeline_tag='text-generation' yields nothing, retry without it.
-- `test_pipeline_tag_strict_filter_kept_when_results_present() -> None` (L63)
-- `test_empty_query_returns_anything_in_pipeline_tag() -> None` (L72)
+- `def _m(model_id: str, tags: list[str] | None = None) -> SimpleNamespace` (L10)
+- `def test_free_text_query_matches_repo_id_with_token_split() -> None` (L21) — A query like 'qwen3 gguf' must match repos containing those tokens.
+- `def test_exact_repo_id_still_matches() -> None` (L37)
+- `def test_pipeline_tag_filter_relaxes_when_zero_results() -> None` (L45) — If pipeline_tag='text-generation' yields nothing, retry without it.
+- `def test_pipeline_tag_strict_filter_kept_when_results_present() -> None` (L63)
+- `def test_empty_query_returns_anything_in_pipeline_tag() -> None` (L72)
   - imports: finetune_studio.webui.routes.hf_models
 
 ## `tests/test_import_smoke.py` (99 lines)
-- `_load(module: str, attribute: str | None) -> None` (L48)
-- `test_core_training_stack_imports() -> None` (L54) — The core stack must import. This is the torchao-class regression guard.
-- `test_optional_accelerator_stack_is_reported() -> None` (L74) — Optional packages are informational — a missing one must not fail CI.
+- `def _load(module: str, attribute: str | None) -> None` (L48)
+- `def test_core_training_stack_imports() -> None` (L54) — The core stack must import. This is the torchao-class regression guard.
+- `def test_optional_accelerator_stack_is_reported() -> None` (L74) — Optional packages are informational — a missing one must not fail CI.
 
 ## `tests/test_inference_unsloth_load.py` (162 lines)
-- `test_looks_like_qwen3_from_path() -> None` (L16)
-- `test_looks_like_qwen3_from_config(tmp_path: Path) -> None` (L21)
-- `test_load_hf_uses_transformers_not_unsloth(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L31)
-- `test_load_hf_4bit_uses_bitsandbytes_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L85)
-- `test_generate_hf_strips_bare_think_closer() -> None` (L132)
+- `def test_looks_like_qwen3_from_path() -> None` (L16)
+- `def test_looks_like_qwen3_from_config(tmp_path: Path) -> None` (L21)
+- `def test_load_hf_uses_transformers_not_unsloth(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L31)
+- `def test_load_hf_4bit_uses_bitsandbytes_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L85)
+- `def test_generate_hf_strips_bare_think_closer() -> None` (L132)
   - imports: finetune_studio.testing.inference
 
-## `tests/test_install_diagnose.py` (490 lines)
-- `fake_venv(tmp_path)` (L29) — Create a fake venv dir with a working python that returns
-- `_fake_run(stdout = '', stderr = '', returncode = 0)` (L49)
-- `_healthy_torch_payload(version: str = '2.11.0+cu130', cuda: bool = True) -> str` (L56)
-- `class TestGpuDetect` (L62)
-  - `def test_force_cpu(self)` (L63)
-  - `def test_nvidia_detected(self)` (L68)
-  - `def test_nvidia_driver_525_maps_to_cu124(self)` (L78)
-  - `def test_nvidia_driver_470_maps_to_cu118(self)` (L85)
-  - `def test_nvidia_smi_fails_falls_through(self)` (L92)
-  - `def test_rocm_detected(self)` (L105)
-- `class TestDiagnoseBrokenVenv` (L118)
-  - `def test_missing_venv_returns_recreate(self, tmp_path)` (L119)
-  - `def test_venv_python_broken_returns_recreate(self, tmp_path)` (L125)
-- `class TestDiagnoseMixedTorch` (L142)
-  - `def test_torch_cpu_with_gpu_detected(self, tmp_path)` (L146)
-  - `def test_torchaudio_broken_triggers_reinstall_even_if_torch_ok(self, tmp_path)` (L185)
-- `class TestDiagnoseMissingParts` (L219)
-  - `def test_missing_fastapi_flagged(self, tmp_path)` (L220)
-  - `def test_llama_cpp_cli_missing(self, fake_venv, tmp_path)` (L241)
-- `class TestDiagnoseHealthy` (L262)
-  - `def test_healthy_returns_empty(self, fake_venv)` (L263)
-- `class TestRepairTorchCommand` (L288)
-  - `def test_torch_repair_uses_python_m_pip(self, tmp_path)` (L295)
-  - `def test_cpu_torch_repair_uses_cpu_index(self, tmp_path)` (L344)
-  - `def test_repair_returns_false_when_torch_install_fails(self, tmp_path)` (L367)
-  - `def test_blackwell_sm120_triggers_source_build(self, tmp_path)` (L389)
-- `class TestCLI` (L447)
-  - `def test_check_returns_0_when_healthy(self, fake_venv)` (L448)
-  - `def test_check_returns_2_when_critical(self, tmp_path)` (L467)
-  - `def test_json_output(self, tmp_path, capsys)` (L477)
+## `tests/test_install_diagnose.py` (493 lines)
+- `def fake_venv(tmp_path)` (L30) — Create a fake venv dir with a working python that returns
+- `def _fake_run(stdout = '', stderr = '', returncode = 0)` (L50)
+- `def _healthy_torch_payload(version: str = '2.11.0+cu130', cuda: bool = True) -> str` (L57)
+- `class TestGpuDetect` (L63)
+  - `def test_force_cpu(self)` (L64)
+  - `def test_nvidia_detected(self)` (L69)
+  - `def test_nvidia_driver_525_maps_to_cu124(self)` (L79)
+  - `def test_nvidia_driver_470_maps_to_cu118(self)` (L86)
+  - `def test_nvidia_smi_fails_falls_through(self)` (L93)
+  - `def test_rocm_detected(self)` (L106)
+- `class TestDiagnoseBrokenVenv` (L119)
+  - `def test_missing_venv_returns_recreate(self, tmp_path)` (L120)
+  - `def test_venv_python_broken_returns_recreate(self, tmp_path)` (L126)
+- `class TestDiagnoseMixedTorch` (L143)
+  - `def test_torch_cpu_with_gpu_detected(self, tmp_path)` (L147)
+  - `def test_torchaudio_broken_triggers_reinstall_even_if_torch_ok(self, tmp_path)` (L186)
+- `class TestDiagnoseMissingParts` (L220)
+  - `def test_missing_fastapi_flagged(self, tmp_path)` (L221)
+  - `def test_llama_cpp_cli_missing(self, fake_venv, tmp_path)` (L242)
+- `class TestDiagnoseHealthy` (L263)
+  - `def test_healthy_returns_empty(self, fake_venv)` (L264)
+- `class TestRepairTorchCommand` (L289)
+  - `def test_torch_repair_uses_python_m_pip(self, tmp_path)` (L296)
+  - `def test_cpu_torch_repair_uses_cpu_index(self, tmp_path)` (L345)
+  - `def test_repair_returns_false_when_torch_install_fails(self, tmp_path)` (L368)
+  - `def test_blackwell_sm120_triggers_source_build(self, tmp_path)` (L390)
+- `class TestCLI` (L448)
+  - `def test_check_returns_0_when_healthy(self, fake_venv)` (L449)
+  - `def test_check_returns_2_when_critical(self, tmp_path)` (L470)
+  - `def test_json_output(self, tmp_path, capsys)` (L480)
+
+## `tests/test_install_diagnose_regressions.py` (148 lines)
+- `def _cp(stdout: str = '', stderr: str = '', returncode: int = 0) -> subprocess.Comple…` (L18)
+- `def test_detect_on_cpu_only_host_without_any_gpu_tool() -> None` (L24)
+- `def test_detect_when_nvidia_smi_times_out_keeps_empty_compute_cap() -> None` (L31)
+- `def fake_venv(tmp_path: Path) -> Path` (L46)
+- `def _inspect_with_probe(venv: Path, probe: subprocess.CompletedProcess) -> d.VenvInfo` (L55)
+- `def test_single_missing_package_does_not_mark_the_other_five_missing(fake_venv: Path) -> None` (L67)
+- `def test_all_present_and_all_unknown_probe_outcomes(fake_venv: Path) -> None` (L74)
+- `def test_diagnose_names_only_the_actually_missing_package(fake_venv: Path, tmp_path: Path) -> None` (L82)
+- `def _repair(issues: list[d.Issue], tmp_path: Path, run_side_effect) -> tuple[bool, list[s…` (L97)
+- `def test_failed_cpu_torch_reinstall_is_not_reported_as_ok(tmp_path: Path) -> None` (L105)
+- `def test_later_success_does_not_hide_earlier_failure(tmp_path: Path) -> None` (L114)
+- `def test_every_failed_step_flips_status(tmp_path: Path, code: str, label: str) -> None` (L130)
+- `def test_command_that_cannot_run_is_a_recorded_failure_not_a_crash(tmp_path: Path) -> None` (L136)
+- `def test_all_commands_succeed_reports_ok(tmp_path: Path) -> None` (L145)
 
 ## `tests/test_installer_contract.py` (40 lines)
-- `test_windows_batch_installer_selects_only_supported_python_and_parser_extra() -> None` (L7)
-- `test_windows_powershell_installer_uses_supported_range_and_parser_extra() -> None` (L14)
-- `test_updater_defaults_to_installer_project_local_llama_cpp() -> None` (L20)
-- `test_legacy_launcher_uses_the_checkout_venv_not_a_fixed_home_path() -> None` (L25)
-- `test_pip_fallback_contains_version_bounds_and_parser_packages() -> None` (L32)
+- `def test_windows_batch_installer_selects_only_supported_python_and_parser_extra() -> None` (L7)
+- `def test_windows_powershell_installer_uses_supported_range_and_parser_extra() -> None` (L14)
+- `def test_updater_defaults_to_installer_project_local_llama_cpp() -> None` (L20)
+- `def test_legacy_launcher_uses_the_checkout_venv_not_a_fixed_home_path() -> None` (L25)
+- `def test_pip_fallback_contains_version_bounds_and_parser_packages() -> None` (L32)
 
 ## `tests/test_live_e2e_optin.py` (33 lines)
-- `test_live_e2e_python_drivers_require_opt_in_before_side_effects() -> None` (L15)
-- `test_nightly_runner_requires_opt_in_before_contacting_services() -> None` (L28)
+- `def test_live_e2e_python_drivers_require_opt_in_before_side_effects() -> None` (L15)
+- `def test_nightly_runner_requires_opt_in_before_contacting_services() -> None` (L28)
 
-## `tests/test_live_updates.py` (251 lines)
-- `test_app_js_exposes_subscribe_helper() -> None` (L29)
-- `test_activity_uses_sse_not_2s_poll() -> None` (L39)
-- `test_training_monitor_uses_progress_sse() -> None` (L50)
-- `test_testing_page_uses_testing_events() -> None` (L62)
-- `test_export_page_wires_export_events() -> None` (L70)
-- `test_rag_build_uses_subscribe_not_1_5s_poll() -> None` (L77)
-- `test_rag_build_sync_response_not_building(client, tmp_path, monkeypatch) -> None` (L93) — POST /rag/build is synchronous — response must not say building=true.
-- `test_data_prep_uses_subscribe_with_status_fallback() -> None` (L133)
-- `test_settings_update_uses_sse_not_2s_poll() -> None` (L143)
-- `test_sse_routes_registered(client) -> None` (L151) — One-shot fallbacks stay available; OpenAPI lists the SSE endpoints.
-- `test_training_events_emits_snapshot() -> None` (L169)
-- `test_activity_collect_snapshot() -> None` (L189)
-- `test_activity_collect_handles_none_started_at(monkeypatch) -> None` (L198) — Regression: explicit started_at=None must not break sort (unary -).
-- `test_export_events_unknown_export(client) -> None` (L220)
-- `test_update_events_idle_exits(client) -> None` (L230)
-- `test_rag_build_status_snapshot(client) -> None` (L237)
-- `test_data_prep_run_status_unknown(client) -> None` (L247)
+## `tests/test_live_updates.py` (249 lines)
+- `def test_app_js_exposes_subscribe_helper() -> None` (L29)
+- `def test_activity_uses_sse_not_2s_poll() -> None` (L39)
+- `def test_training_monitor_uses_progress_sse() -> None` (L50)
+- `def test_testing_page_uses_testing_events() -> None` (L62)
+- `def test_export_page_wires_export_events() -> None` (L70)
+- `def test_rag_build_uses_subscribe_not_1_5s_poll() -> None` (L77)
+- `def test_rag_build_sync_response_not_building(client, tmp_path, monkeypatch) -> None` (L93) — POST /rag/build is synchronous — response must not say building=true.
+- `def test_data_prep_uses_subscribe_with_status_fallback() -> None` (L131)
+- `def test_settings_update_uses_sse_not_2s_poll() -> None` (L141)
+- `def test_sse_routes_registered(client) -> None` (L149) — One-shot fallbacks stay available; OpenAPI lists the SSE endpoints.
+- `def test_training_events_emits_snapshot() -> None` (L167)
+- `def test_activity_collect_snapshot() -> None` (L187)
+- `def test_activity_collect_handles_none_started_at(monkeypatch) -> None` (L196) — Regression: explicit started_at=None must not break sort (unary -).
+- `def test_export_events_unknown_export(client) -> None` (L218)
+- `def test_update_events_idle_exits(client) -> None` (L228)
+- `def test_rag_build_status_snapshot(client) -> None` (L235)
+- `def test_data_prep_run_status_unknown(client) -> None` (L245)
   - imports: finetune_studio.training.monitor, finetune_studio.webui.app, finetune_studio.webui.routes, finetune_studio.webui.routes.activity
 
 ## `tests/test_llama_loader.py` (234 lines)
 - `class FakeLlama` (L19)
   - `def __init__(self, **kwargs)` (L23)
-- `_reset()` (L27)
+- `def _reset()` (L27)
 - `class TestLoadLlamaGguf` (L31)
   - `def setup_method(self)` (L32)
   - `def test_basic_load_passes_core_kwargs(self, tmp_path)` (L35)
@@ -2970,20 +3156,20 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - imports: finetune_studio.models
 
 ## `tests/test_merge_base_resolution.py` (81 lines)
-- `_write_config(dir_path: Path, *, quantized: bool) -> None` (L16)
-- `test_strip_quant_suffixes() -> None` (L31)
-- `test_nf4_unsloth_cache_resolves_to_qwen_sibling(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L38)
-- `test_non_quantized_base_returned_unchanged(tmp_path: Path) -> None` (L59)
-- `test_nothing_local_raises_naming_16bit_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L65)
+- `def _write_config(dir_path: Path, *, quantized: bool) -> None` (L16)
+- `def test_strip_quant_suffixes() -> None` (L31)
+- `def test_nf4_unsloth_cache_resolves_to_qwen_sibling(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L38)
+- `def test_non_quantized_base_returned_unchanged(tmp_path: Path) -> None` (L59)
+- `def test_nothing_local_raises_naming_16bit_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L65)
   - imports: finetune_studio.training.merge_base
 
 ## `tests/test_model_label_filter.py` (41 lines)
-- `test_hf_cache_snapshot_path_to_org_repo() -> None` (L9)
-- `test_hf_cache_with_nested_repo_name() -> None` (L17)
-- `test_plain_hf_id_kept() -> None` (L25)
-- `test_local_dir_uses_last_segment() -> None` (L29)
-- `test_empty_and_none() -> None` (L33)
-- `test_filter_registered_on_pages_templates() -> None` (L39)
+- `def test_hf_cache_snapshot_path_to_org_repo() -> None` (L9)
+- `def test_hf_cache_with_nested_repo_name() -> None` (L17)
+- `def test_plain_hf_id_kept() -> None` (L25)
+- `def test_local_dir_uses_last_segment() -> None` (L29)
+- `def test_empty_and_none() -> None` (L33)
+- `def test_filter_registered_on_pages_templates() -> None` (L39)
   - imports: finetune_studio.webui.model_labels, finetune_studio.webui.routes.pages
 
 ## `tests/test_model_manager.py` (242 lines)
@@ -3008,101 +3194,101 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - imports: finetune_studio.models
 
 ## `tests/test_models.py` (19 lines)
-- `test_scan_empty()` (L7)
-- `test_scan_gguf()` (L12)
+- `def test_scan_empty()` (L7)
+- `def test_scan_gguf()` (L12)
   - imports: finetune_studio.models.registry
 
 ## `tests/test_models_unload_all.py` (26 lines)
-- `test_unload_frees_engine_and_manager(client, monkeypatch: pytest.MonkeyPatch) -> None` (L13)
+- `def test_unload_frees_engine_and_manager(client, monkeypatch: pytest.MonkeyPatch) -> None` (L13)
   - imports: finetune_studio.models.manager, finetune_studio.webui.app
 
 ## `tests/test_naming.py` (152 lines)
-- `test_detect_quant() -> None` (L14)
-- `test_detect_abliterated() -> None` (L23)
-- `test_short_base() -> None` (L28)
-- `test_model_full_name_scheme() -> None` (L37)
-- `test_kind_label() -> None` (L45)
-- `test_display_for_path_run_export(client) -> None` (L55)
-- `test_display_for_path_with_pinned_version(client) -> None` (L76)
-- `test_registry_lookup_uses_app_db(client) -> None` (L92)
-- `test_status_has_model_display(client, monkeypatch) -> None` (L104)
-- `test_dataset_export_name_is_readable(client) -> None` (L131)
+- `def test_detect_quant() -> None` (L14)
+- `def test_detect_abliterated() -> None` (L23)
+- `def test_short_base() -> None` (L28)
+- `def test_model_full_name_scheme() -> None` (L37)
+- `def test_kind_label() -> None` (L45)
+- `def test_display_for_path_run_export(client) -> None` (L55)
+- `def test_display_for_path_with_pinned_version(client) -> None` (L76)
+- `def test_registry_lookup_uses_app_db(client) -> None` (L92)
+- `def test_status_has_model_display(client, monkeypatch) -> None` (L104)
+- `def test_dataset_export_name_is_readable(client) -> None` (L131)
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.models.registry, finetune_studio.webui.app
 
 ## `tests/test_nav_routes.py` (80 lines)
-- `client_and_db(tmp_path, monkeypatch)` (L31)
-- `test_inference_nav_link_points_to_chat() -> None` (L38) — With a stub pid, tools→inference must href to /projects/<pid>/chat.
-- `test_projects_pid_chat_route_returns_200(client_and_db) -> None` (L71)
+- `def client_and_db(tmp_path, monkeypatch)` (L31)
+- `def test_inference_nav_link_points_to_chat() -> None` (L38) — With a stub pid, tools→inference must href to /projects/<pid>/chat.
+- `def test_projects_pid_chat_route_returns_200(client_and_db) -> None` (L71)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.webui.app
 
 ## `tests/test_ocr_service.py` (133 lines)
-- `test_install_hint_is_a_real_command() -> None` (L21)
-- `test_installed_languages_reports_what_tesseract_can_use() -> None` (L33)
-- `test_is_available_matches_installed_languages() -> None` (L44)
-- `test_ensure_tessdata_is_idempotent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L57)
-- `test_ensure_tessdata_passes_missing_languages_to_installer(monkeypatch: pytest.MonkeyPatch) -> None` (L72)
-- `test_ocr_image_round_trips_a_real_png(tmp_path: Path) -> None` (L89) — The image parser must return extracted text via OCR end-to-end.
-- `_has_usable_ocr() -> bool` (L115)
-- `test_missing_binary_error_is_actionable(monkeypatch: pytest.MonkeyPatch) -> None` (L121) — When tesseract is not on PATH, the error names the install command.
+- `def test_install_hint_is_a_real_command() -> None` (L21)
+- `def test_installed_languages_reports_what_tesseract_can_use() -> None` (L33)
+- `def test_is_available_matches_installed_languages() -> None` (L44)
+- `def test_ensure_tessdata_is_idempotent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L57)
+- `def test_ensure_tessdata_passes_missing_languages_to_installer(monkeypatch: pytest.MonkeyPatch) -> None` (L72)
+- `def test_ocr_image_round_trips_a_real_png(tmp_path: Path) -> None` (L89) — The image parser must return extracted text via OCR end-to-end.
+- `def _has_usable_ocr() -> bool` (L115)
+- `def test_missing_binary_error_is_actionable(monkeypatch: pytest.MonkeyPatch) -> None` (L121) — When tesseract is not on PATH, the error names the install command.
   - imports: finetune_studio, finetune_studio.data, finetune_studio.data.parsers.image
 
 ## `tests/test_parse_qa_json_thinking.py` (22 lines)
-- `test_bare_close_think_preamble_is_dropped() -> None` (L7)
-- `test_paired_think_block_still_stripped() -> None` (L18)
+- `def test_bare_close_think_preamble_is_dropped() -> None` (L7)
+- `def test_paired_think_block_still_stripped() -> None` (L18)
   - imports: finetune_studio.data.prep.parsers
 
 ## `tests/test_parsers_coverage.py` (374 lines)
-- `_normalized(text: str) -> str` (L26)
-- `_has_module(name: str) -> bool` (L52)
-- `_write_text(path: Path, body: str) -> None` (L56)
-- `_minimal_png(path: Path) -> None` (L60) — 1x1 opaque PNG without Pillow (stdlib zlib + CRC).
-- `_write_ocr_image(path: Path) -> None` (L82) — Create a real, high-contrast image so OCR-enabled installs are tested.
-- `_write_odf(path: Path, ext: str) -> None` (L91)
-- `_write_epub(path: Path) -> None` (L111)
-- `_write_pdf(path: Path) -> None` (L128) — Minimal PDF with a Helvetica text show operator (extractable by pypdf).
-- `_write_docx(path: Path) -> None` (L161)
-- `_write_xlsx(path: Path) -> None` (L169)
-- `_write_pptx(path: Path) -> None` (L177)
-- `_write_xls(path: Path) -> None` (L186)
-- `_fixture_for(ext: str, dest: Path) -> str` (L195) — Write a minimal fixture for ``ext``. Returns mode: expect_text|dep_warn|skip.
-- `_warnings_look_clear(warnings: list[str]) -> bool` (L303)
+- `def _normalized(text: str) -> str` (L26)
+- `def _has_module(name: str) -> bool` (L52)
+- `def _write_text(path: Path, body: str) -> None` (L56)
+- `def _minimal_png(path: Path) -> None` (L60) — 1x1 opaque PNG without Pillow (stdlib zlib + CRC).
+- `def _write_ocr_image(path: Path) -> None` (L82) — Create a real, high-contrast image so OCR-enabled installs are tested.
+- `def _write_odf(path: Path, ext: str) -> None` (L91)
+- `def _write_epub(path: Path) -> None` (L111)
+- `def _write_pdf(path: Path) -> None` (L128) — Minimal PDF with a Helvetica text show operator (extractable by pypdf).
+- `def _write_docx(path: Path) -> None` (L161)
+- `def _write_xlsx(path: Path) -> None` (L169)
+- `def _write_pptx(path: Path) -> None` (L177)
+- `def _write_xls(path: Path) -> None` (L186)
+- `def _fixture_for(ext: str, dest: Path) -> str` (L195) — Write a minimal fixture for ``ext``. Returns mode: expect_text|dep_warn|skip.
+- `def _warnings_look_clear(warnings: list[str]) -> bool` (L303)
 - `class TestParsersExtraDeclared` (L308)
   - `def test_pyproject_parsers_extra_and_all(self) -> None` (L309)
-- `test_every_registered_extension(ext: str, tmp_path: Path) -> None` (L330)
-- `test_html_missing_bs4_warns_or_extracts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L365)
+- `def test_every_registered_extension(ext: str, tmp_path: Path) -> None` (L330)
+- `def test_html_missing_bs4_warns_or_extracts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L365)
   - imports: finetune_studio.data.parsers
 
 ## `tests/test_per_file_data_pipeline.py` (301 lines)
-- `pipeline_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[TestClient, Path]` (L21)
-- `_project(client: TestClient) -> str` (L35)
-- `_source(source_id: str = 'src-one', chunks: int = 2) -> dict[str, Any]` (L44)
-- `test_training_ready_is_derived_from_approved_chunk_coverage(pipeline_env: tuple[TestClient, Path]) -> None` (L57)
-- `test_bulk_upload_stages_parser_supported_files_for_background_parse(pipeline_env: tuple[TestClient, Path], monkeypatch: pytest.MonkeyPatch) -> No…` (L101)
-- `test_upload_streams_large_files_in_bounded_chunks() -> None` (L128)
-- `test_bulk_generation_queues_source_scoped_lazy_jobs(pipeline_env: tuple[TestClient, Path], monkeypatch: pytest.MonkeyPatch) -> No…` (L139)
-- `test_resume_stale_data_prep_runs_requeues_instead_of_failing(pipeline_env: tuple[TestClient, Path], monkeypatch: pytest.MonkeyPatch) -> No…` (L183) — A restart used to mark every in-flight run `failed` outright
-- `test_data_prep_ui_exposes_per_file_queue_and_assembler() -> None` (L257)
-- `test_sources_endpoint_exposes_per_file_readiness(pipeline_env: tuple[TestClient, Path]) -> None` (L276)
+- `def pipeline_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[TestClient, Path]` (L21)
+- `def _project(client: TestClient) -> str` (L35)
+- `def _source(source_id: str = 'src-one', chunks: int = 2) -> dict[str, Any]` (L44)
+- `def test_training_ready_is_derived_from_approved_chunk_coverage(pipeline_env: tuple[TestClient, Path]) -> None` (L57)
+- `def test_bulk_upload_stages_parser_supported_files_for_background_parse(pipeline_env: tuple[TestClient, Path], monkeypatch: pytest.MonkeyPatch) -> No…` (L101)
+- `def test_upload_streams_large_files_in_bounded_chunks() -> None` (L128)
+- `def test_bulk_generation_queues_source_scoped_lazy_jobs(pipeline_env: tuple[TestClient, Path], monkeypatch: pytest.MonkeyPatch) -> No…` (L139)
+- `def test_resume_stale_data_prep_runs_requeues_instead_of_failing(pipeline_env: tuple[TestClient, Path], monkeypatch: pytest.MonkeyPatch) -> No…` (L183) — A restart used to mark every in-flight run `failed` outright
+- `def test_data_prep_ui_exposes_per_file_queue_and_assembler() -> None` (L257)
+- `def test_sources_endpoint_exposes_per_file_readiness(pipeline_env: tuple[TestClient, Path]) -> None` (L276)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.data.fs, finetune_studio.data.prep.source_state, finetune_studio.webui.app, finetune_studio.webui.routes, finetune_studio.webui.routes.data_prep
 
-## `tests/test_phase_bd.py` (422 lines)
-- `shot(page, name, full_page: bool = True)` (L64) — Save screenshot, return absolute path.
-- `get_state(page) -> str` (L72) — Extract current training state from DOM as best we can.
-- `dismiss_overlays(page)` (L108) — Hide any tutorial/modal overlays that block page interactions.
-- `page_text(page) -> str` (L154)
-- `visit_pages(page, names: list) -> list` (L158) — Screenshot every project page. Returns list of dicts.
-- `main() -> int` (L183)
+## `tests/test_phase_bd.py` (443 lines)
+- `def shot(page, name, full_page: bool = True)` (L64) — Save screenshot, return absolute path.
+- `def get_state(page) -> str` (L72) — Extract current training state from DOM as best we can.
+- `def dismiss_overlays(page)` (L108) — Hide any tutorial/modal overlays that block page interactions.
+- `def page_text(page) -> str` (L154)
+- `def visit_pages(page, names: list) -> list` (L158) — Screenshot every project page. Returns list of dicts.
+- `def main() -> int` (L183)
 
-## `tests/test_phase_bd_api.py` (334 lines)
-- `post(path: str, body: dict | None = None, timeout: float = 30) -> tuple[int, dict …` (L51)
-- `get(path: str, timeout: float = 15) -> tuple[int, object]` (L69)
-- `get_suites() -> list[dict]` (L84)
-- `get_status() -> dict` (L91)
-- `get_training_run_id_from_engine() -> str | None` (L96) — Try to read the engine's current run id from the status-text endpoint
-- `wait_for_terminal(timeout_sec: int, log_fn) -> tuple[str, dict]` (L108) — Poll until status is in ('done', 'error', 'stopped') or timeout.
-- `main() -> int` (L129)
+## `tests/test_phase_bd_api.py` (340 lines)
+- `def post(path: str, body: dict | None = None, timeout: float = 30) -> tuple[int, dict …` (L50)
+- `def get(path: str, timeout: float = 15) -> tuple[int, object]` (L68)
+- `def get_suites() -> list[dict]` (L83)
+- `def get_status() -> dict` (L90)
+- `def get_training_run_id_from_engine() -> str | None` (L95) — Try to read the engine's current run id from the status-text endpoint
+- `def wait_for_terminal(timeout_sec: int, log_fn) -> tuple[str, dict]` (L107) — Poll until status is in ('done', 'error', 'stopped') or timeout.
+- `def main() -> int` (L128)
 
-## `tests/test_prep.py` (308 lines)
+## `tests/test_prep.py` (313 lines)
 - `class TestChunker` (L6)
   - `def test_empty_string(self)` (L9)
   - `def test_single_short_paragraph(self)` (L14)
@@ -3126,11 +3312,11 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def test_qa_user_template(self)` (L163)
 - `class TestExportQA` (L172)
   - `def test_export_formats_are_valid_jsonl(self)` (L175)
-  - `def test_export_unknown_format_raises(self)` (L203)
-  - `def test_export_tolerates_minimal_pair_schema(self)` (L211)
-  - `def test_export_alpaca_tolerates_minimal_pair_schema(self)` (L245)
-  - `def test_export_openai_tolerates_minimal_pair_schema(self)` (L257)
-  - `def test_export_deduplicates_questions_and_prefers_curated_answer(self, fmt)` (L273)
+  - `def test_export_unknown_format_raises(self)` (L204)
+  - `def test_export_tolerates_minimal_pair_schema(self)` (L213)
+  - `def test_export_alpaca_tolerates_minimal_pair_schema(self)` (L248)
+  - `def test_export_openai_tolerates_minimal_pair_schema(self)` (L261)
+  - `def test_export_deduplicates_questions_and_prefers_curated_answer(self, fmt)` (L278)
   - imports: finetune_studio.data.prep.chunker, finetune_studio.data.prep.export, finetune_studio.data.prep.parsers, finetune_studio.data.prep.prompts
 
 ## `tests/test_prep_qa_validate.py` (305 lines)
@@ -3160,84 +3346,127 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - imports: finetune_studio.data.prep.parsers, finetune_studio.data.prep.qa_validate, finetune_studio.data.prep.runner
 
 ## `tests/test_prep_source_data_path.py` (56 lines)
-- `_fake_backend(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[dict[str, Any]]` (L19) — Fake generator: one deterministic Q&A JSON block, no model needed.
-- `test_source_manifest_keeps_data_path(client: Any, _fake_backend: list[dict[str, Any]]) -> None` (L39) — After a prep run, the source row must have a data_path that exists.
+- `def _fake_backend(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[dict[str, Any]]` (L19) — Fake generator: one deterministic Q&A JSON block, no model needed.
+- `def test_source_manifest_keeps_data_path(client: Any, _fake_backend: list[dict[str, Any]]) -> None` (L39) — After a prep run, the source row must have a data_path that exists.
   - imports: finetune_studio.data
 
 ## `tests/test_preset_advisor.py` (90 lines)
-- `test_parse_base_size_from_names() -> None` (L15)
-- `test_precision_reference_dataset_hits_evidence_scale() -> None` (L24)
-- `test_small_dataset_raises_epochs_to_hit_steps_floor() -> None` (L34)
-- `test_big_dataset_does_not_explode_epochs() -> None` (L41)
-- `test_lr_drops_for_larger_base() -> None` (L47)
-- `test_unknown_base_warns_and_assumes() -> None` (L54)
-- `test_smoke_tier_has_no_step_floor_warning() -> None` (L61)
-- `test_dataset_stats_reads_sharegpt_lines(tmp_path) -> None` (L66)
-- `test_missing_dataset_falls_back_to_reference(tmp_path) -> None` (L81)
-- `test_invalid_tier_raises() -> None` (L88)
+- `def test_parse_base_size_from_names() -> None` (L15)
+- `def test_precision_reference_dataset_hits_evidence_scale() -> None` (L24)
+- `def test_small_dataset_raises_epochs_to_hit_steps_floor() -> None` (L34)
+- `def test_big_dataset_does_not_explode_epochs() -> None` (L41)
+- `def test_lr_drops_for_larger_base() -> None` (L47)
+- `def test_unknown_base_warns_and_assumes() -> None` (L54)
+- `def test_smoke_tier_has_no_step_floor_warning() -> None` (L61)
+- `def test_dataset_stats_reads_sharegpt_lines(tmp_path) -> None` (L66)
+- `def test_missing_dataset_falls_back_to_reference(tmp_path) -> None` (L81)
+- `def test_invalid_tier_raises() -> None` (L88)
   - imports: finetune_studio.training.preset_advisor
 
+## `tests/test_project_archive_roundtrip.py` (111 lines)
+- `def roots(client, tmp_path, monkeypatch)` (L12)
+- `def _tar(members: list[tuple[str, bytes | None, bytes]]) -> bytes` (L21) — members: (name, payload, type); payload None => no data.
+- `def _import(client, data: bytes)` (L37)
+- `def _manifest(pid = 'oldpid', **meta) -> tuple[str, bytes, bytes]` (L41)
+- `def test_roundtrip_preserves_metadata_and_files(client, roots)` (L46)
+- `def test_export_unknown_project_404(client, roots)` (L68)
+- `def test_import_rejects_path_traversal(client, roots, tmp_path, name)` (L74)
+- `def test_import_rejects_symlink_member(client, roots)` (L84)
+- `def test_import_rejects_foreign_project_data(client, roots)` (L89)
+- `def test_import_rejects_unexpected_top_level(client, roots)` (L95)
+- `def test_import_requires_projects_dir(client, roots)` (L101)
+- `def test_import_legacy_archive_without_metadata(client, roots)` (L105)
+  - imports: finetune_studio.webui.routes
+
 ## `tests/test_project_dashboard.py` (92 lines)
-- `test_format_relative_buckets() -> None` (L16)
-- `test_truncate_description() -> None` (L24)
-- `test_run_status_counts_and_recent() -> None` (L33)
-- `test_recent_models_by_mtime() -> None` (L48)
-- `test_build_activity_and_dashboard_ctx() -> None` (L59)
+- `def test_format_relative_buckets() -> None` (L16)
+- `def test_truncate_description() -> None` (L24)
+- `def test_run_status_counts_and_recent() -> None` (L33)
+- `def test_recent_models_by_mtime() -> None` (L48)
+- `def test_build_activity_and_dashboard_ctx() -> None` (L59)
   - imports: finetune_studio.webui.project_dashboard
 
 ## `tests/test_project_data_browser.py` (47 lines)
-- `test_format_bytes() -> None` (L12)
-- `test_file_browser_stats() -> None` (L19)
-- `test_runs_started_max() -> None` (L32)
-- `test_build_file_browser_ctx() -> None` (L37)
+- `def test_format_bytes() -> None` (L12)
+- `def test_file_browser_stats() -> None` (L19)
+- `def test_runs_started_max() -> None` (L32)
+- `def test_build_file_browser_ctx() -> None` (L37)
   - imports: finetune_studio.webui.project_data_browser
 
 ## `tests/test_project_export.py` (183 lines)
-- `_project(client) -> str` (L14)
-- `_run_with_export(pid: str, tmp_path: Path, *, name: str = 'exp-run') -> tuple[dict, Path]` (L20) — Create a done run whose output_path/merged/ has a couple of files.
-- `test_export_page_renders_trained_exports_table(client, tmp_path: Path) -> None` (L59)
-- `test_expand_toggle_js_adds_expanded_class(client, tmp_path: Path) -> None` (L88) — HTML includes flToggleExportRow that toggles .expanded.
-- `test_export_contents_endpoint_lists_files(client, tmp_path: Path) -> None` (L101)
-- `test_open_in_inference_handler_posts_load(client, tmp_path: Path) -> None` (L120) — Page JS posts {path} to /api/models/load; API accepts that body.
-- `test_project_export_helpers() -> None` (L142) — Typed helpers used by the export page context.
-- `test_annotate_runs_marks_adapter_only(tmp_path: Path) -> None` (L150)
-- `test_export_page_shows_adapter_merge_copy(client, tmp_path: Path) -> None` (L172)
+- `def _project(client) -> str` (L14)
+- `def _run_with_export(pid: str, tmp_path: Path, *, name: str = 'exp-run') -> tuple[dict, Path]` (L20) — Create a done run whose output_path/merged/ has a couple of files.
+- `def test_export_page_renders_trained_exports_table(client, tmp_path: Path) -> None` (L59)
+- `def test_expand_toggle_js_adds_expanded_class(client, tmp_path: Path) -> None` (L88) — HTML includes flToggleExportRow that toggles .expanded.
+- `def test_export_contents_endpoint_lists_files(client, tmp_path: Path) -> None` (L101)
+- `def test_open_in_inference_handler_posts_load(client, tmp_path: Path) -> None` (L120) — Page JS posts {path} to /api/models/load; API accepts that body.
+- `def test_project_export_helpers() -> None` (L142) — Typed helpers used by the export page context.
+- `def test_annotate_runs_marks_adapter_only(tmp_path: Path) -> None` (L150)
+- `def test_export_page_shows_adapter_merge_copy(client, tmp_path: Path) -> None` (L172)
   - imports: finetune_studio, finetune_studio.webui.routes.project_export
 
 ## `tests/test_project_models.py` (142 lines)
-- `_project(client) -> str` (L9)
-- `_run_with_export(pid: str, tmp_path: Path, *, name: str = 'exp-run') -> tuple[dict, Path]` (L15) — Create a done run whose output_path/merged/ has a couple of files.
-- `test_models_page_renders_trained_exports_table(client, tmp_path: Path) -> None` (L54)
-- `test_expand_toggle_js_adds_expanded_class(client, tmp_path: Path) -> None` (L79) — HTML includes flToggleExportRow that toggles .expanded.
-- `test_export_contents_endpoint_lists_files(client, tmp_path: Path) -> None` (L92)
-- `test_export_contents_rejects_foreign_path(client, tmp_path: Path) -> None` (L112)
-- `test_open_in_inference_handler_posts_load(client, tmp_path: Path) -> None` (L124) — Page JS posts {path} to /api/models/load; API accepts that body.
+- `def _project(client) -> str` (L9)
+- `def _run_with_export(pid: str, tmp_path: Path, *, name: str = 'exp-run') -> tuple[dict, Path]` (L15) — Create a done run whose output_path/merged/ has a couple of files.
+- `def test_models_page_renders_trained_exports_table(client, tmp_path: Path) -> None` (L54)
+- `def test_expand_toggle_js_adds_expanded_class(client, tmp_path: Path) -> None` (L79) — HTML includes flToggleExportRow that toggles .expanded.
+- `def test_export_contents_endpoint_lists_files(client, tmp_path: Path) -> None` (L92)
+- `def test_export_contents_rejects_foreign_path(client, tmp_path: Path) -> None` (L112)
+- `def test_open_in_inference_handler_posts_load(client, tmp_path: Path) -> None` (L124) — Page JS posts {path} to /api/models/load; API accepts that body.
   - imports: finetune_studio
 
 ## `tests/test_project_not_found_404.py` (257 lines)
-- `client() -> TestClient` (L30)
-- `test_chat_v2_missing_project_is_404(client: TestClient, url: str) -> None` (L41) — The two chat_v2 sites that used to answer 200 with an error body.
-- `test_context_response_model_does_not_swallow_the_404(client: TestClient) -> None` (L52) — A 200 body must never be the only signal that a project is missing.
-- `test_compare_reports_the_project_before_the_params(client: TestClient, query: str, label: str) -> None` (L67) — A missing project outranks missing run params (regression: was 400).
-- `test_compare_still_reports_missing_runs_as_400_when_project_exists(client: TestClient) -> None` (L81) — The fix must not swallow the genuine run-param error.
-- `_fill(template: str) -> str` (L151) — Substitute a bogus pid plus a bogus sub-resource id.
-- `test_missing_project_is_404(client: TestClient, template: str) -> None` (L160) — Every project-scoped GET route owes a caller a 404, never a 200.
-- `test_streaming_routes_reject_before_the_stream(client: TestClient, template: str) -> None` (L184) — No SSE route may answer 200 and bury the failure in a data frame.
-- `test_rag_status_does_not_leak_a_corpus_path(client: TestClient) -> None` (L199) — A bad pid must not get a real absolute ``corpus_dir`` back.
-- `test_a_real_project_still_answers_200(client: TestClient, template: str) -> None` (L221) — The guard must not turn a valid project into a 404 (regression gate).
-- `test_a_real_project_with_no_runs_still_returns_an_empty_list(client: TestClient) -> None` (L244) — A brand-new project's run list is ``[]``, not a 404 or an error body.
+- `def client() -> TestClient` (L30)
+- `def test_chat_v2_missing_project_is_404(client: TestClient, url: str) -> None` (L41) — The two chat_v2 sites that used to answer 200 with an error body.
+- `def test_context_response_model_does_not_swallow_the_404(client: TestClient) -> None` (L52) — A 200 body must never be the only signal that a project is missing.
+- `def test_compare_reports_the_project_before_the_params(client: TestClient, query: str, label: str) -> None` (L67) — A missing project outranks missing run params (regression: was 400).
+- `def test_compare_still_reports_missing_runs_as_400_when_project_exists(client: TestClient) -> None` (L81) — The fix must not swallow the genuine run-param error.
+- `def _fill(template: str) -> str` (L151) — Substitute a bogus pid plus a bogus sub-resource id.
+- `def test_missing_project_is_404(client: TestClient, template: str) -> None` (L160) — Every project-scoped GET route owes a caller a 404, never a 200.
+- `def test_streaming_routes_reject_before_the_stream(client: TestClient, template: str) -> None` (L184) — No SSE route may answer 200 and bury the failure in a data frame.
+- `def test_rag_status_does_not_leak_a_corpus_path(client: TestClient) -> None` (L199) — A bad pid must not get a real absolute ``corpus_dir`` back.
+- `def test_a_real_project_still_answers_200(client: TestClient, template: str) -> None` (L221) — The guard must not turn a valid project into a 404 (regression gate).
+- `def test_a_real_project_with_no_runs_still_returns_an_empty_list(client: TestClient) -> None` (L244) — A brand-new project's run list is ``[]``, not a 404 or an error body.
   - imports: finetune_studio, finetune_studio.webui.app
 
-## `tests/test_project_rag.py` (199 lines)
-- `_project(client) -> str` (L11)
-- `_write_fake_corpus(root: Path, *, doc_id: str = 'abc123def456') -> Path` (L17) — Minimal PortableRAG-shaped corpus: manifest + sources + chunks.parquet.
-- `test_rag_page_renders_docs_indexed_panel(client, tmp_path: Path, monkeypatch) -> None` (L58)
-- `test_rag_page_empty_state(client) -> None` (L87)
-- `test_list_indexed_docs_helper(tmp_path: Path, monkeypatch) -> None` (L99)
-- `test_docs_api_returns_inventory(client, tmp_path: Path, monkeypatch) -> None` (L118)
-- `test_chunks_api_returns_previews(client, tmp_path: Path, monkeypatch) -> None` (L135)
-- `test_rebuild_endpoint_mocked(client, tmp_path: Path, monkeypatch) -> None` (L153)
-- `test_docs_api_404_unknown_project(client) -> None` (L197)
+## `tests/test_project_ownership.py` (269 lines)
+- `def _mk_project(client, name: str) -> str` (L24)
+- `def fts_root(tmp_path: Path, monkeypatch) -> Path` (L31) — A custom FTS_ROOT (what the env var yields at import) under tmp_path.
+- `def test_chat_ignores_rag_owned_by_another_project(client, monkeypatch) -> None` (L47)
+- `def _upload(client, pid: str, name: str, data: bytes) -> str` (L77)
+- `def _add_conversion(file_id: str) -> None` (L87)
+- `def two_file_projects(client, fts_root)` (L98)
+- `def test_list_versions_and_conversions_scoped_to_project(two_file_projects) -> None` (L107)
+- `def test_file_routes_404_for_foreign_file_id(client, two_file_projects, suffix) -> None` (L120)
+- `def test_file_routes_still_serve_own_file(client, two_file_projects) -> None` (L127)
+- `def test_mutating_file_routes_404_for_foreign_file_id(client, two_file_projects, method, suffix, body) -> None` (L148)
+- `def _report() -> dict` (L162)
+- `def test_persist_rag_report_does_not_link_foreign_run(client) -> None` (L172)
+- `def test_persist_rag_report_links_own_run(client) -> None` (L190)
+- `def test_persist_rag_report_without_project_rejects_requested_run(client) -> None` (L204) — No project to prove ownership against -> fail closed, never link the run.
+- `def _seed_parsed(fts_root: Path, pid: str) -> Path` (L223)
+- `def test_rag_build_sources_from_fts_root(client, fts_root, tmp_path, monkeypatch) -> None` (L230)
+- `def test_rag_build_snapshot_counts_fts_root_files(client, fts_root) -> None` (L246)
+- `def test_project_rag_files_dir_follows_fts_root(client, fts_root) -> None` (L254)
+- `def test_rag_build_still_400_when_project_has_no_files_dir(client, fts_root) -> None` (L261) — Resolving the shared path must not mkdir it (that would defeat the 400).
+  - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.webui.routes.project_rag, finetune_studio.webui.routes.rag, finetune_studio.webui.routes.testing
+
+## `tests/test_project_rag.py` (304 lines)
+- `def _project(client) -> str` (L16)
+- `def _write_fake_corpus(root: Path, *, doc_id: str = 'abc123def456') -> Path` (L22) — Minimal PortableRAG-shaped corpus: manifest + sources + chunks.parquet.
+- `def test_rag_page_renders_docs_indexed_panel(client, tmp_path: Path, monkeypatch) -> None` (L63)
+- `def test_rag_page_empty_state(client) -> None` (L92)
+- `def test_list_indexed_docs_helper(tmp_path: Path, monkeypatch) -> None` (L104)
+- `def test_docs_api_returns_inventory(client, tmp_path: Path, monkeypatch) -> None` (L123)
+- `def test_chunks_api_returns_previews(client, tmp_path: Path, monkeypatch) -> None` (L140)
+- `def test_rebuild_endpoint_mocked(client, tmp_path: Path, monkeypatch) -> None` (L158)
+- `def test_docs_api_404_unknown_project(client) -> None` (L202)
+- `def export_env(client, tmp_path: Path, monkeypatch, _full_corpus: Path)` (L209) — Project wired to a full on-disk corpus, isolated settings + output dir.
+- `def test_export_config_defaults_and_overrides(client, export_env) -> None` (L221)
+- `def test_mcp_package_encrypted_flow(client, export_env, tmp_path: Path) -> None` (L246)
+- `def test_mcp_package_plaintext_is_explicit_and_labelled(client, export_env) -> None` (L273)
+- `def test_mcp_package_download_validation_and_old_get_gone(client, export_env) -> None` (L288)
+- `def test_mcp_package_no_corpus_404(client, tmp_path: Path, monkeypatch) -> None` (L299)
   - imports: finetune_studio.webui.routes
 
 ## `tests/test_project_run_benchmark_unload.py` (65 lines)
@@ -3246,94 +3475,132 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - imports: finetune_studio
 
 ## `tests/test_project_settings.py` (147 lines)
-- `_project(client) -> str` (L9)
-- `test_settings_page_renders_log_tail_card(client) -> None` (L15)
-- `test_logs_endpoint_shape(client, tmp_path: Path, monkeypatch) -> None` (L34)
-- `test_logs_missing_file_fallback(client, tmp_path: Path, monkeypatch) -> None` (L58)
-- `test_logs_lines_param_respected(client, tmp_path: Path, monkeypatch) -> None` (L79)
-- `test_logs_prefer_systemd_journal_when_active(tmp_path: Path, monkeypatch) -> None` (L102)
-- `test_logs_stale_file_when_systemd_active_but_journal_missing(tmp_path: Path, monkeypatch) -> None` (L124)
+- `def _project(client) -> str` (L9)
+- `def test_settings_page_renders_log_tail_card(client) -> None` (L15)
+- `def test_logs_endpoint_shape(client, tmp_path: Path, monkeypatch) -> None` (L34)
+- `def test_logs_missing_file_fallback(client, tmp_path: Path, monkeypatch) -> None` (L58)
+- `def test_logs_lines_param_respected(client, tmp_path: Path, monkeypatch) -> None` (L79)
+- `def test_logs_prefer_systemd_journal_when_active(tmp_path: Path, monkeypatch) -> None` (L102)
+- `def test_logs_stale_file_when_systemd_active_but_journal_missing(tmp_path: Path, monkeypatch) -> None` (L124)
   - imports: finetune_studio.webui.routes
 
 ## `tests/test_project_testing.py` (150 lines)
-- `_project(client) -> str` (L7)
-- `test_testing_page_renders_suite_select(client) -> None` (L13)
-- `test_testing_page_lists_project_merged_export(client, tmp_path) -> None` (L45) — After merge-at-export, the merged path must appear in the selector.
-- `test_testing_page_suite_options_match_discover(client) -> None` (L69)
-- `test_recent_suite_runs_helper(temp_db) -> None` (L82)
-- `test_testing_page_shows_recent_runs(client) -> None` (L103)
-- `test_recent_suite_runs_respects_limit(temp_db) -> None` (L124)
+- `def _project(client) -> str` (L7)
+- `def test_testing_page_renders_suite_select(client) -> None` (L13)
+- `def test_testing_page_lists_project_merged_export(client, tmp_path) -> None` (L45) — After merge-at-export, the merged path must appear in the selector.
+- `def test_testing_page_suite_options_match_discover(client) -> None` (L69)
+- `def test_recent_suite_runs_helper(temp_db) -> None` (L82)
+- `def test_testing_page_shows_recent_runs(client) -> None` (L103)
+- `def test_recent_suite_runs_respects_limit(temp_db) -> None` (L124)
   - imports: finetune_studio, finetune_studio.db.connection, finetune_studio.webui.routes.benchmarks, finetune_studio.webui.routes.pages
 
 ## `tests/test_project_training.py` (101 lines)
-- `_project(client) -> str` (L5)
-- `_done_run(pid: str, name: str = 'good-run') -> dict` (L11)
-- `test_resolve_production_run() -> None` (L21)
-- `test_training_page_has_actions_column(client) -> None` (L34)
-- `test_promote_returns_ok_and_run(client) -> None` (L54)
-- `test_promote_unknown_run_errors(client) -> None` (L70) — A missing run is a 404, like every other project sub-resource route.
-- `test_training_page_shows_production_pill_after_promote(client) -> None` (L84)
-- `test_export_page_accepts_run_query(client) -> None` (L95)
+- `def _project(client) -> str` (L5)
+- `def _done_run(pid: str, name: str = 'good-run') -> dict` (L11)
+- `def test_resolve_production_run() -> None` (L21)
+- `def test_training_page_has_actions_column(client) -> None` (L34)
+- `def test_promote_returns_ok_and_run(client) -> None` (L54)
+- `def test_promote_unknown_run_errors(client) -> None` (L70) — A missing run is a 404, like every other project sub-resource route.
+- `def test_training_page_shows_production_pill_after_promote(client) -> None` (L84)
+- `def test_export_page_accepts_run_query(client) -> None` (L95)
   - imports: finetune_studio, finetune_studio.webui.project_dashboard
 
 ## `tests/test_public_docs_scrub.py` (78 lines)
-- `test_public_doc_exists(path: Path) -> None` (L47)
-- `test_public_doc_has_no_private_infra_leaks(path: Path) -> None` (L52)
-- `test_readme_documents_honest_export_caveats() -> None` (L62) — Public README should not over-advertise GGUF as always-on.
-- `test_pages_index_avoids_stale_benchmark_and_e2e_badges() -> None` (L73)
+- `def test_public_doc_exists(path: Path) -> None` (L47)
+- `def test_public_doc_has_no_private_infra_leaks(path: Path) -> None` (L52)
+- `def test_readme_documents_honest_export_caveats() -> None` (L62) — Public README should not over-advertise GGUF as always-on.
+- `def test_pages_index_avoids_stale_benchmark_and_e2e_badges() -> None` (L73)
 
 ## `tests/test_qa_export_dedup.py` (79 lines)
-- `_pair(source_id: str, chunk_idx: int, question: str, answer: str) -> dict` (L21)
-- `test_same_question_different_sources_both_survive()` (L31) — Two CSVs with an identical header-derived question must both export.
-- `test_same_question_different_chunks_same_source_both_survive()` (L47) — Two chunks of the SAME source with a colliding question must both export.
-- `test_true_duplicate_within_same_chunk_collapses_to_one()` (L59) — A chunk re-asked the identical question twice still collapses to one target.
-- `test_curated_category_outranks_source_grounded_within_same_key()` (L72)
+- `def _pair(source_id: str, chunk_idx: int, question: str, answer: str) -> dict` (L21)
+- `def test_same_question_different_sources_both_survive()` (L31) — Two CSVs with an identical header-derived question must both export.
+- `def test_same_question_different_chunks_same_source_both_survive()` (L47) — Two chunks of the SAME source with a colliding question must both export.
+- `def test_true_duplicate_within_same_chunk_collapses_to_one()` (L59) — A chunk re-asked the identical question twice still collapses to one target.
+- `def test_curated_category_outranks_source_grounded_within_same_key()` (L72)
   - imports: finetune_studio.data.prep.export
 
 ## `tests/test_qa_runner_contract.py` (17 lines)
-- `test_qa_counts_are_scoped_to_unique_run_log() -> None` (L7)
-- `test_qa_runner_preserves_nonzero_e2e_status() -> None` (L14)
+- `def test_qa_counts_are_scoped_to_unique_run_log() -> None` (L7)
+- `def test_qa_runner_preserves_nonzero_e2e_status() -> None` (L14)
 
-## `tests/test_quality_routes.py` (85 lines)
-- `_write_jsonl(tmp_path, name = 'training.jsonl')` (L23)
-- `class TestQualityRoutes` (L31)
-  - `def test_optimize_uses_real_class_and_succeeds(self, client, mock_settings, tmp_path)` (L32)
-  - `def test_augment_uses_real_class_and_succeeds(self, client, mock_settings, tmp_path)` (L40)
-  - `def test_hallucination_check_uses_real_class_and_succeeds(self, client, mock_settings, tmp_path)` (L52)
-  - `def test_convert_jsonl_to_json_uses_real_converter(self, client, mock_settings, tmp_path)` (L60)
-  - `def test_convert_unsupported_pair_reports_error_not_crash(self, client, mock_settings, tmp_path)` (L75)
+## `tests/test_quality_routes.py` (95 lines)
+- `def _write_jsonl(tmp_path, name = 'training.jsonl')` (L25)
+- `def _data_dir_is_tmp(tmp_path, monkeypatch)` (L34) — Quality routes are fenced to settings.data_dir (2026-10-02 decision).
+- `class TestQualityRoutes` (L41)
+  - `def test_optimize_uses_real_class_and_succeeds(self, client, mock_settings, tmp_path)` (L42)
+  - `def test_augment_uses_real_class_and_succeeds(self, client, mock_settings, tmp_path)` (L50)
+  - `def test_hallucination_check_uses_real_class_and_succeeds(self, client, mock_settings, tmp_path)` (L62)
+  - `def test_convert_jsonl_to_json_uses_real_converter(self, client, mock_settings, tmp_path)` (L70)
+  - `def test_convert_unsupported_pair_reports_error_not_crash(self, client, mock_settings, tmp_path)` (L85)
+  - imports: finetune_studio.webui.routes
 
 ## `tests/test_rag_audit.py` (222 lines)
-- `_fake_get_embedder(name: str = 'fake-deterministic', device: str = 'cpu')` (L28)
-- `patched_embedder(monkeypatch: pytest.MonkeyPatch) -> None` (L52)
-- `test_remove_source_purges_chunks_vectors_bm25_and_manifest(tmp_path: Path, patched_embedder: None) -> None` (L59)
-- `test_remove_source_unknown_id_is_noop(tmp_path: Path, patched_embedder: None) -> None` (L114)
-- `test_clear_sources_removes_all_searchable_corpus_data(tmp_path: Path, patched_embedder: None) -> None` (L130)
-- `test_vector_store_get_embedder_respects_embedding_model(monkeypatch)` (L166) — finetune_studio.rag.store.VectorStore previously always loaded
-- `test_search_reuses_bm25_scores_instead_of_recomputing(tmp_path: Path, patched_embedder: None, monkeypatch: pytest.MonkeyPatch) -> N…` (L193) — search() must call BM25Index.score() exactly once per query, not once
+- `def _fake_get_embedder(name: str = 'fake-deterministic', device: str = 'cpu')` (L28)
+- `def patched_embedder(monkeypatch: pytest.MonkeyPatch) -> None` (L52)
+- `def test_remove_source_purges_chunks_vectors_bm25_and_manifest(tmp_path: Path, patched_embedder: None) -> None` (L59)
+- `def test_remove_source_unknown_id_is_noop(tmp_path: Path, patched_embedder: None) -> None` (L114)
+- `def test_clear_sources_removes_all_searchable_corpus_data(tmp_path: Path, patched_embedder: None) -> None` (L130)
+- `def test_vector_store_get_embedder_respects_embedding_model(monkeypatch)` (L166) — finetune_studio.rag.store.VectorStore previously always loaded
+- `def test_search_reuses_bm25_scores_instead_of_recomputing(tmp_path: Path, patched_embedder: None, monkeypatch: pytest.MonkeyPatch) -> N…` (L193) — search() must call BM25Index.score() exactly once per query, not once
   - imports: finetune_studio.data.rag_portable.bm25, finetune_studio.data.rag_portable.schema, finetune_studio.data.rag_portable.store, finetune_studio.rag.store
 
-## `tests/test_rag_build_registration.py` (119 lines)
-- `_project(client) -> str` (L10)
-- `_patch_build_env(monkeypatch, tmp_path: Path, pid: str) -> Path` (L16) — Point corpus + project files under tmp_path; return corpus dir.
-- `test_rag_build_registers_project_rags_row(client, tmp_path: Path, monkeypatch) -> None` (L34) — Canonical POST …/rag/build writes a project_rags row at the corpus dir.
-- `test_rag_build_updates_existing_row_same_corpus(client, tmp_path: Path, monkeypatch) -> None` (L78) — Second build updates the same project_rags row (no duplicate).
-- `test_ensure_portable_rag_helper_idempotent(temp_db, tmp_path: Path) -> None` (L110)
+## `tests/test_rag_build_registration.py` (118 lines)
+- `def _project(client) -> str` (L10)
+- `def _patch_build_env(monkeypatch, tmp_path: Path, pid: str) -> Path` (L16) — Point corpus + project files under tmp_path; return corpus dir.
+- `def test_rag_build_registers_project_rags_row(client, tmp_path: Path, monkeypatch) -> None` (L33) — Canonical POST …/rag/build writes a project_rags row at the corpus dir.
+- `def test_rag_build_updates_existing_row_same_corpus(client, tmp_path: Path, monkeypatch) -> None` (L77) — Second build updates the same project_rags row (no duplicate).
+- `def test_ensure_portable_rag_helper_idempotent(temp_db, tmp_path: Path) -> None` (L109)
   - imports: finetune_studio
 
+## `tests/test_rag_corpora_root.py` (51 lines)
+- `def fts_root(tmp_path, monkeypatch)` (L12)
+- `def test_helper_honors_root(fts_root)` (L18)
+- `def test_helper_rejects_traversal(fts_root)` (L24)
+- `def test_rag_route_corpus_dir(fts_root)` (L29)
+- `def test_project_rag_corpus_dir(fts_root)` (L34)
+- `def test_rag_suite_default_corpus_path(fts_root)` (L39)
+- `def test_parsed_edit_corpus_sha12s_reads_fts_root(fts_root)` (L44)
+  - imports: finetune_studio.data.fs, finetune_studio.data.parsed_edit, finetune_studio.testing.rag_suite, finetune_studio.webui.routes
+
 ## `tests/test_rag_embedder_dims.py` (136 lines)
-- `_write_corpus(root: Path, *, dim: int = 384, embedder: str = 'mini-fake') -> Path` (L16)
-- `test_load_rejects_dimension_mismatch(tmp_path: Path) -> None` (L76) — Loaded embedder dim must match vectors.npy — no silent wrong-dim fallback.
-- `test_load_raises_actionable_error_when_embedder_fails(tmp_path: Path) -> None` (L100) — Missing/broken embedder must not fall back to DEFAULT_EMBEDDER.
-- `test_search_rejects_query_dim_mismatch(tmp_path: Path) -> None` (L114) — Even if load is forced, search must refuse matmul across dims.
+- `def _write_corpus(root: Path, *, dim: int = 384, embedder: str = 'mini-fake') -> Path` (L16)
+- `def test_load_rejects_dimension_mismatch(tmp_path: Path) -> None` (L76) — Loaded embedder dim must match vectors.npy — no silent wrong-dim fallback.
+- `def test_load_raises_actionable_error_when_embedder_fails(tmp_path: Path) -> None` (L100) — Missing/broken embedder must not fall back to DEFAULT_EMBEDDER.
+- `def test_search_rejects_query_dim_mismatch(tmp_path: Path) -> None` (L114) — Even if load is forced, search must refuse matmul across dims.
   - imports: finetune_studio.data.rag_portable.schema, finetune_studio.data.rag_portable.store
+
+## `tests/test_rag_encrypted_package.py` (425 lines)
+- `def _build(corpus: Path, out: Path, **kw) -> PackageResult` (L50)
+- `def _extract(archive: Path, dest: Path) -> Path` (L56)
+- `def _run(root: Path, *args: str, env: dict | None = None, timeout: int = 120)` (L68)
+- `def _query(root: Path, q: str, env: dict | None = None) -> list[dict]` (L80)
+- `def _load_server()` (L86)
+- `def _all_bytes(root: Path) -> dict[str, bytes]` (L96)
+- `def test_roundtrip_matches_plaintext_baseline(corpus_dir: Path, tmp_path: Path) -> None` (L101)
+- `def test_keyfile_and_generated_passphrase(corpus_dir: Path, tmp_path: Path) -> None` (L123)
+- `def test_passphrase_validation(corpus_dir: Path, tmp_path: Path) -> None` (L140)
+- `def test_archive_has_no_plaintext_content(corpus_dir: Path, tmp_path: Path, fmt: str) -> None` (L149)
+- `def test_plaintext_opt_out_is_labelled(corpus_dir: Path, tmp_path: Path) -> None` (L171)
+- `def test_wrong_passphrase_fails_closed(corpus_dir: Path, tmp_path: Path) -> None` (L181)
+- `def test_flipped_byte_fails_everywhere(tmp_path: Path) -> None` (L196)
+- `def test_flipped_byte_in_built_package_fails_via_cli(corpus_dir: Path, tmp_path: Path) -> None` (L226)
+- `def test_no_plaintext_left_in_tempdir(corpus_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L240)
+- `def test_config_precedence_flag_env_file_default() -> None` (L266)
+- `def test_print_config_merges_and_redacts(corpus_dir: Path, tmp_path: Path) -> None` (L286)
+- `def test_scripts_pass_flags_through(corpus_dir: Path, tmp_path: Path) -> None` (L309)
+- `def test_non_loopback_bind_requires_token(corpus_dir: Path, tmp_path: Path) -> None` (L337)
+- `def test_http_bearer_auth_and_no_cors(corpus_dir: Path, tmp_path: Path) -> None` (L358)
+- `def test_export_config_defaults_and_validation() -> None` (L387)
+- `def test_export_config_layers_and_no_secret_persisted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L397)
+- `def test_build_uses_config_models_and_zip(corpus_dir: Path, tmp_path: Path) -> None` (L418)
+  - imports: finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.export_config, finetune_studio.data.rag_portable.mcp_package, finetune_studio.data.rag_portable.rag_container, finetune_studio.webui.routes
 
 ## `tests/test_rag_eval.py` (200 lines)
 - `class FakeRAGEngine` (L18)
   - `def __init__(self, docs: list[dict[str, str]]) -> None` (L21)
   - `def search(self, query: str, top_k: int = 5) -> list[dict]` (L24)
   - `def format_context(self, results: list[dict], max_chars: int = 4000) -> str` (L47)
-- `_oracle_answer(query: str, context: str) -> str` (L93)
+- `def _oracle_answer(query: str, context: str) -> str` (L93)
 - `class TestRetrievalMetrics` (L104)
   - `def test_recall_and_mrr(self) -> None` (L105)
 - `class TestGroundingAndUnknown` (L114)
@@ -3346,68 +3613,80 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - imports: finetune_studio.data.rag_eval
 
 ## `tests/test_rag_export_isolation.py` (221 lines)
-- `_write_minimal_corpus(corpus: Path, *, with_local_models: bool = False) -> Manifest` (L22) — Create a tiny PortableRAG-shaped corpus with shared refs (+ optional staged models).
-- `_archive_names(archive: Path) -> list[str]` (L69)
-- `_archive_manifest(archive: Path, corpus_name: str) -> dict` (L74)
-- `test_include_models_false_excludes_staged_embedder(tmp_path: Path) -> None` (L82) — Even if a prior with-models export left embedder/ on disk, slim export omits it.
-- `test_include_models_true_stages_without_mutating_live(tmp_path: Path, monkeypatch) -> None` (L119) — With-models export ships weights from shared paths but does not mutate corpus.
-- `test_slim_after_fat_stays_small(tmp_path: Path, monkeypatch) -> None` (L169) — Regression: fat then slim must not leave ~model-sized slim archives.
+- `def _write_minimal_corpus(corpus: Path, *, with_local_models: bool = False) -> Manifest` (L22) — Create a tiny PortableRAG-shaped corpus with shared refs (+ optional staged models).
+- `def _archive_names(archive: Path) -> list[str]` (L69)
+- `def _archive_manifest(archive: Path, corpus_name: str) -> dict` (L74)
+- `def test_include_models_false_excludes_staged_embedder(tmp_path: Path) -> None` (L82) — Even if a prior with-models export left embedder/ on disk, slim export omits it.
+- `def test_include_models_true_stages_without_mutating_live(tmp_path: Path, monkeypatch) -> None` (L119) — With-models export ships weights from shared paths but does not mutate corpus.
+- `def test_slim_after_fat_stays_small(tmp_path: Path, monkeypatch) -> None` (L169) — Regression: fat then slim must not leave ~model-sized slim archives.
   - imports: finetune_studio.data.rag_portable.constants, finetune_studio.data.rag_portable.io, finetune_studio.data.rag_portable.schema, finetune_studio.data.rag_portable.store
 
-## `tests/test_rag_import_bundle.py` (260 lines)
-- `_write_minimal_corpus(corpus: Path, *, with_local_models: bool = False) -> Manifest` (L32) — Local fixture (mirrors test_rag_export_isolation, self-contained).
-- `_write_real_payloads(corpus: Path, dim: int = 4) -> None` (L76) — Write load()-compatible tiny parquet/vectors/bm25 (placeholders die).
-- `test_import_round_trip_tar(tmp_path: Path, monkeypatch) -> None` (L105) — Export → import into a fresh dir; parquet/chunks survive intact.
-- `_stub_embedder(monkeypatch, dim: int = 4) -> None` (L126) — make load()'s embedder resolution succeed without a real model.
-- `test_import_local_models_repointed(tmp_path: Path, monkeypatch) -> None` (L145) — include_models bundle: after import, embedder/reranker refs target dst.
-- `test_import_refuses_existing_corpus_without_overwrite(tmp_path: Path, monkeypatch) -> None` (L163)
-- `test_import_rejects_missing_archive_and_bad_manifest(tmp_path: Path) -> None` (L188)
-- `test_import_rejects_path_traversal(tmp_path: Path) -> None` (L203) — A bundle with ../ escape entries must be refused, not extracted.
-- `test_import_route_accepts_tar_gz_suffix(tmp_path: Path, monkeypatch) -> None` (L228) — The upload route must accept 'x.tar.gz' — Path.suffix sees '.gz' only.
-  - imports: finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.store, finetune_studio.webui.routes.rag
+## `tests/test_rag_import_bundle.py` (264 lines)
+- `def _write_minimal_corpus(corpus: Path, *, with_local_models: bool = False) -> Manifest` (L32) — Local fixture (mirrors test_rag_export_isolation, self-contained).
+- `def _write_real_payloads(corpus: Path, dim: int = 4) -> None` (L76) — Write load()-compatible tiny parquet/vectors/bm25 (placeholders die).
+- `def test_import_round_trip_tar(tmp_path: Path, monkeypatch) -> None` (L105) — Export → import into a fresh dir; parquet/chunks survive intact.
+- `def _stub_embedder(monkeypatch, dim: int = 4) -> None` (L126) — make load()'s embedder resolution succeed without a real model.
+- `def test_import_local_models_repointed(tmp_path: Path, monkeypatch) -> None` (L145) — include_models bundle: after import, embedder/reranker refs target dst.
+- `def test_import_refuses_existing_corpus_without_overwrite(tmp_path: Path, monkeypatch) -> None` (L163)
+- `def test_import_rejects_missing_archive_and_bad_manifest(tmp_path: Path) -> None` (L188)
+- `def test_import_rejects_path_traversal(tmp_path: Path) -> None` (L203) — A bundle with ../ escape entries must be refused, not extracted.
+- `def test_import_route_accepts_tar_gz_suffix(tmp_path: Path, monkeypatch) -> None` (L228) — The upload route must accept 'x.tar.gz' — Path.suffix sees '.gz' only.
+  - imports: finetune_studio, finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.store, finetune_studio.webui.routes.rag
 
-## `tests/test_rag_mcp_package.py` (299 lines)
-- `corpus_dir(tmp_path: Path) -> Path` (L42) — A real (tiny) PortableRAG corpus dir with all on-disk artifacts.
-- `_extract(archive: Path, dest: Path) -> Path` (L85)
-- `test_build_package_contents(corpus_dir: Path, tmp_path: Path) -> None` (L93)
-- `test_setup_script_shipped(corpus_dir: Path, tmp_path: Path) -> None` (L119) — setup.sh: guided one-command deploy, shipped executable and valid bash.
-- `test_setup_uninstall_is_safe(corpus_dir: Path, tmp_path: Path) -> None` (L135) — Uninstall is exercised with an isolated HOME and stub systemctl.
-- `test_standalone_keyword_search(corpus_dir: Path, tmp_path: Path) -> None` (L157) — server.py --query works offline (no embedding endpoint) via BM25.
-- `test_standalone_mcp_stdio(corpus_dir: Path, tmp_path: Path) -> None` (L175) — MCP handshake + tools/list + tools/call over stdio, JSON-RPC 2.0.
-- `test_missing_corpus_files_raises(tmp_path: Path) -> None` (L216)
-- `_fake_shared_store(tmp_path: Path, monkeypatch) -> Path` (L223) — Point shared_models.resolve at fake embedder/reranker dirs.
-- `_point_manifest_at_shared(corpus: Path) -> None` (L243)
-- `test_build_package_with_models(corpus_dir: Path, tmp_path: Path, monkeypatch) -> None` (L252) — include_models bundles the shared embedder + reranker into the package.
-- `test_include_models_requires_shared_ref(corpus_dir: Path, tmp_path: Path) -> None` (L277) — No shared: embedder in the manifest → honest error, not a silent small pkg.
-- `test_server_offline_with_bundled_models(corpus_dir: Path, tmp_path: Path, monkeypatch) -> None` (L283) — A package with bundled (broken) models still answers — keyword fallback,
+## `tests/test_rag_mcp_package.py` (305 lines)
+- `def corpus_dir(tmp_path: Path) -> Path` (L43) — A real (tiny) PortableRAG corpus dir with all on-disk artifacts.
+- `def _plain(corpus: Path, out: Path, **kw) -> Path` (L86) — Legacy plaintext layout (explicit opt-out; encryption is the default).
+- `def _extract(archive: Path, dest: Path) -> Path` (L91)
+- `def test_build_package_contents(corpus_dir: Path, tmp_path: Path) -> None` (L99)
+- `def test_setup_script_shipped(corpus_dir: Path, tmp_path: Path) -> None` (L125) — setup.sh: guided one-command deploy, shipped executable and valid bash.
+- `def test_setup_uninstall_is_safe(corpus_dir: Path, tmp_path: Path) -> None` (L141) — Uninstall is exercised with an isolated HOME and stub systemctl.
+- `def test_standalone_keyword_search(corpus_dir: Path, tmp_path: Path) -> None` (L163) — server.py --query works offline (no embedding endpoint) via BM25.
+- `def test_standalone_mcp_stdio(corpus_dir: Path, tmp_path: Path) -> None` (L181) — MCP handshake + tools/list + tools/call over stdio, JSON-RPC 2.0.
+- `def test_missing_corpus_files_raises(tmp_path: Path) -> None` (L222)
+- `def _fake_shared_store(tmp_path: Path, monkeypatch) -> Path` (L229) — Point shared_models.resolve at fake embedder/reranker dirs.
+- `def _point_manifest_at_shared(corpus: Path) -> None` (L249)
+- `def test_build_package_with_models(corpus_dir: Path, tmp_path: Path, monkeypatch) -> None` (L258) — include_models bundles the shared embedder + reranker into the package.
+- `def test_include_models_requires_shared_ref(corpus_dir: Path, tmp_path: Path) -> None` (L283) — No shared: embedder in the manifest → honest error, not a silent small pkg.
+- `def test_server_offline_with_bundled_models(corpus_dir: Path, tmp_path: Path, monkeypatch) -> None` (L289) — A package with bundled (broken) models still answers — keyword fallback,
   - imports: finetune_studio.data, finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.bm25, finetune_studio.data.rag_portable.mcp_package
 
 ## `tests/test_rag_mime_ingestion.py` (168 lines)
-- `_hash_embed(texts: list[str] | str, dim: int = 64) -> np.ndarray` (L22) — Bag-of-token hashing → L2-normalised vectors (deterministic, offline).
-- `_fake_get_embedder(name: str = 'fake-deterministic', device: str = 'cpu')` (L37)
-- `_write_mime_corpus(root: Path) -> None` (L53) — Several MIME families that parsers handle without optional binaries.
-- `patched_embedder(monkeypatch: pytest.MonkeyPatch) -> None` (L84)
-- `test_varied_mime_ingestion_then_rag_eval(tmp_path: Path, patched_embedder: None) -> None` (L96)
+- `def _hash_embed(texts: list[str] | str, dim: int = 64) -> np.ndarray` (L22) — Bag-of-token hashing → L2-normalised vectors (deterministic, offline).
+- `def _fake_get_embedder(name: str = 'fake-deterministic', device: str = 'cpu')` (L37)
+- `def _write_mime_corpus(root: Path) -> None` (L53) — Several MIME families that parsers handle without optional binaries.
+- `def patched_embedder(monkeypatch: pytest.MonkeyPatch) -> None` (L84)
+- `def test_varied_mime_ingestion_then_rag_eval(tmp_path: Path, patched_embedder: None) -> None` (L96)
   - imports: finetune_studio.data.rag_eval, finetune_studio.data.rag_portable.io, finetune_studio.data.rag_portable.schema, finetune_studio.data.rag_portable.store
 
 ## `tests/test_rag_rebuild_sources.py` (256 lines)
-- `_fake_get_embedder(name: str = 'fake-deterministic', device: str = 'cpu')` (L15)
-- `patched_embedder(monkeypatch: pytest.MonkeyPatch) -> None` (L39)
-- `_sha_dir(root: Path, sha: str, original: str, body: str) -> Path` (L46)
-- `test_rebuild_clears_stale_sources_and_list_sources(tmp_path: Path, patched_embedder: None) -> None` (L60)
-- `test_ingest_dedups_chunks_vs_parsed(tmp_path: Path, patched_embedder: None) -> None` (L114)
-- `test_ingest_skips_raw_library_when_parsed_exists(tmp_path: Path, patched_embedder: None) -> None` (L142) — One logical doc when files/raw twin and files/<sha>/parsed.txt both exist.
-- `test_list_indexed_docs_ignores_orphan_sources(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L187)
-- `test_list_sources_ignores_orphan_txt_without_manifest_meta(tmp_path: Path, patched_embedder: None) -> None` (L235)
+- `def _fake_get_embedder(name: str = 'fake-deterministic', device: str = 'cpu')` (L15)
+- `def patched_embedder(monkeypatch: pytest.MonkeyPatch) -> None` (L39)
+- `def _sha_dir(root: Path, sha: str, original: str, body: str) -> Path` (L46)
+- `def test_rebuild_clears_stale_sources_and_list_sources(tmp_path: Path, patched_embedder: None) -> None` (L60)
+- `def test_ingest_dedups_chunks_vs_parsed(tmp_path: Path, patched_embedder: None) -> None` (L114)
+- `def test_ingest_skips_raw_library_when_parsed_exists(tmp_path: Path, patched_embedder: None) -> None` (L142) — One logical doc when files/raw twin and files/<sha>/parsed.txt both exist.
+- `def test_list_indexed_docs_ignores_orphan_sources(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L187)
+- `def test_list_sources_ignores_orphan_txt_without_manifest_meta(tmp_path: Path, patched_embedder: None) -> None` (L235)
   - imports: finetune_studio.data.rag_portable.schema, finetune_studio.data.rag_portable.store, finetune_studio.webui.routes.project_rag
 
-## `tests/test_rag_source_labels.py` (144 lines)
-- `test_opaque_name_detection() -> None` (L16)
-- `test_display_name_from_metadata(tmp_path: Path) -> None` (L25)
-- `test_should_ingest_skips_chunks_prefers_parsed(tmp_path: Path) -> None` (L41)
-- `test_should_ingest_skips_raw_when_parsed_exists(tmp_path: Path) -> None` (L64) — File-library raw twin must not double-index beside files/<sha12>/parsed.txt.
-- `test_prettify_falls_back_without_path() -> None` (L96)
-- `test_list_indexed_docs_prettifies_opaque_parquet(tmp_path: Path, monkeypatch) -> None` (L102)
+## `tests/test_rag_secure_bundle.py` (137 lines)
+- `def corpus(tmp_path: Path) -> Path` (L26)
+- `def test_round_trip_and_no_plaintext(tmp_path: Path, corpus: Path, monkeypatch) -> None` (L33)
+- `def test_generated_passphrase_returned_once(tmp_path: Path, corpus: Path) -> None` (L52)
+- `def test_short_passphrase_rejected(tmp_path: Path, corpus: Path) -> None` (L58)
+- `def test_wrong_passphrase_and_tamper_fail_closed(tmp_path: Path, corpus: Path) -> None` (L64)
+- `def test_unsafe_entry_name_rejected(tmp_path: Path) -> None` (L79)
+- `def test_refuses_existing_without_overwrite(tmp_path: Path, corpus: Path) -> None` (L91)
+- `def test_routes_export_download_import(tmp_path: Path, corpus: Path, monkeypatch) -> None` (L97)
+  - imports: finetune_studio, finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.rag_container, finetune_studio.webui.routes.rag
+
+## `tests/test_rag_source_labels.py` (143 lines)
+- `def test_opaque_name_detection() -> None` (L16)
+- `def test_display_name_from_metadata(tmp_path: Path) -> None` (L25)
+- `def test_should_ingest_skips_chunks_prefers_parsed(tmp_path: Path) -> None` (L41)
+- `def test_should_ingest_skips_raw_when_parsed_exists(tmp_path: Path) -> None` (L64) — File-library raw twin must not double-index beside files/<sha12>/parsed.txt.
+- `def test_prettify_falls_back_without_path() -> None` (L96)
+- `def test_list_indexed_docs_prettifies_opaque_parquet(tmp_path: Path, monkeypatch) -> None` (L102)
   - imports: finetune_studio.data.rag_portable.source_labels, finetune_studio.webui.routes.project_rag
 
 ## `tests/test_rag_suite.py` (487 lines)
@@ -3420,91 +3699,91 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def load(self, path: str, **_kwargs: Any) -> None` (L67)
   - `def unload(self) -> None` (L71)
   - `def generate(self, messages: list[dict], **_kwargs: Any) -> str` (L75)
-- `test_build_grounded_messages_mentions_unknown_fallback() -> None` (L85)
-- `test_build_grounded_messages_warns_against_variance_for_table_totals() -> None` (L95)
-- `test_table_arithmetic_retry_detects_variance_mixup() -> None` (L100)
-- `test_hit_matches_source_and_chunk() -> None` (L111)
-- `test_provenance_from_hit_normalizes_scores() -> None` (L127)
-- `test_compute_retrieval_metrics() -> None` (L143)
-- `test_run_rag_suite_preserves_transcript_context_hits() -> None` (L170)
-- `test_run_rag_suite_expands_retrieval_when_source_is_missing() -> None` (L209)
-- `test_run_rag_suite_evaluation_scores_and_metrics(tmp_path: Path) -> None` (L228)
-- `test_resolve_corpus_path_explicit_and_default(tmp_path: Path) -> None` (L313)
-- `client_and_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)` (L322)
-- `test_run_rag_suite_route_with_fake_engine_and_rag(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L329)
-- `test_run_rag_suite_route_requires_suite_path(client_and_db: tuple[TestClient, Path], monkeypatch: pytest.MonkeyPatch) -> N…` (L435)
-- `test_run_rag_suite_route_missing_corpus_404(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L451)
+- `def test_build_grounded_messages_mentions_unknown_fallback() -> None` (L85)
+- `def test_build_grounded_messages_warns_against_variance_for_table_totals() -> None` (L95)
+- `def test_table_arithmetic_retry_detects_variance_mixup() -> None` (L100)
+- `def test_hit_matches_source_and_chunk() -> None` (L111)
+- `def test_provenance_from_hit_normalizes_scores() -> None` (L127)
+- `def test_compute_retrieval_metrics() -> None` (L143)
+- `def test_run_rag_suite_preserves_transcript_context_hits() -> None` (L170)
+- `def test_run_rag_suite_expands_retrieval_when_source_is_missing() -> None` (L209)
+- `def test_run_rag_suite_evaluation_scores_and_metrics(tmp_path: Path) -> None` (L228)
+- `def test_resolve_corpus_path_explicit_and_default(tmp_path: Path) -> None` (L313)
+- `def client_and_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)` (L322)
+- `def test_run_rag_suite_route_with_fake_engine_and_rag(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L329)
+- `def test_run_rag_suite_route_requires_suite_path(client_and_db: tuple[TestClient, Path], monkeypatch: pytest.MonkeyPatch) -> N…` (L435)
+- `def test_run_rag_suite_route_missing_corpus_404(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L451)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.data.rag_eval, finetune_studio.testing.rag_suite, finetune_studio.testing.suite, finetune_studio.webui, finetune_studio.webui.app
 
 ## `tests/test_readable_results.py` (100 lines)
-- `test_training_detail_uses_kv_grid_not_json_pre() -> None` (L18)
-- `test_kv_grid_renders_fields() -> None` (L29)
-- `test_case_results_is_table_not_json_dump() -> None` (L47)
-- `test_testing_results_render_table() -> None` (L55)
-- `test_training_detail_debug_is_collapsed() -> None` (L65)
-- `test_rag_and_data_prep_results_are_tables() -> None` (L73)
-- `test_export_result_panel_is_field_grid() -> None` (L85)
+- `def test_training_detail_uses_kv_grid_not_json_pre() -> None` (L18)
+- `def test_kv_grid_renders_fields() -> None` (L29)
+- `def test_case_results_is_table_not_json_dump() -> None` (L47)
+- `def test_testing_results_render_table() -> None` (L55)
+- `def test_training_detail_debug_is_collapsed() -> None` (L65)
+- `def test_rag_and_data_prep_results_are_tables() -> None` (L73)
+- `def test_export_result_panel_is_field_grid() -> None` (L85)
 
 ## `tests/test_real_benchmarks.py` (320 lines)
 - `class _FakeSplit(list)` (L34)
-- `_fake_loader_factory(splits: dict[str, _FakeSplit])` (L38)
+- `def _fake_loader_factory(splits: dict[str, _FakeSplit])` (L38)
 - `class _ScriptedEngine` (L55)
   - `def __init__(self, answers: list[str]) -> None` (L58)
   - `def generate(self, messages: list[dict[str, str]], *, max_tokens: int = 512, temperature: …` (L62)
-- `test_real_suite_paths_and_catalog() -> None` (L82)
-- `test_discover_includes_real_suites(tmp_path, monkeypatch) -> None` (L102)
-- `test_select_indices_deterministic() -> None` (L112)
-- `test_strict_mcq_rejects_ambiguous_and_substring() -> None` (L122)
-- `test_gsm8k_exact_normalized_final() -> None` (L140)
-- `test_evaluate_mmlu_with_mocked_dataset() -> None` (L155)
-- `test_evaluate_gsm8k_and_hellaswag_mocked() -> None` (L189)
-- `test_run_all_summary_not_scalar_map() -> None` (L232)
-- `test_inference_benchmark_endpoint_uses_overall_helper(monkeypatch) -> None` (L275)
+- `def test_real_suite_paths_and_catalog() -> None` (L82)
+- `def test_discover_includes_real_suites(tmp_path, monkeypatch) -> None` (L102)
+- `def test_select_indices_deterministic() -> None` (L112)
+- `def test_strict_mcq_rejects_ambiguous_and_substring() -> None` (L122)
+- `def test_gsm8k_exact_normalized_final() -> None` (L140)
+- `def test_evaluate_mmlu_with_mocked_dataset() -> None` (L155)
+- `def test_evaluate_gsm8k_and_hellaswag_mocked() -> None` (L189)
+- `def test_run_all_summary_not_scalar_map() -> None` (L232)
+- `def test_inference_benchmark_endpoint_uses_overall_helper(monkeypatch) -> None` (L275)
   - imports: finetune_studio.benchmarks, finetune_studio.benchmarks.real_benchmarks, finetune_studio.benchmarks.suite_defs, finetune_studio.testing.strict_scoring, finetune_studio.webui
 
 ## `tests/test_reconcile_stale_runs.py` (36 lines)
-- `test_reconcile_stale_runs_marks_in_flight_failed_leaves_done(mock_settings) -> None` (L10)
-- `test_reconcile_stale_runs_exported_from_db_package() -> None` (L35)
+- `def test_reconcile_stale_runs_marks_in_flight_failed_leaves_done(mock_settings) -> None` (L10)
+- `def test_reconcile_stale_runs_exported_from_db_package() -> None` (L35)
   - imports: finetune_studio, finetune_studio.db.runs
 
 ## `tests/test_registry_model_name.py` (28 lines)
-- `test_hf_snapshot_uses_repo_name() -> None` (L15)
-- `test_distinct_snapshots_get_distinct_names() -> None` (L20)
-- `test_plain_hash_dir_without_snapshots_still_uses_parent() -> None` (L27)
+- `def test_hf_snapshot_uses_repo_name() -> None` (L15)
+- `def test_distinct_snapshots_get_distinct_names() -> None` (L20)
+- `def test_plain_hash_dir_without_snapshots_still_uses_parent() -> None` (L27)
   - imports: finetune_studio.models.registry
 
 ## `tests/test_registry_selector_filter.py` (226 lines)
-- `_sparse_weight(path: Path, size: int) -> None` (L25) — Create a sparse file so size checks see real byte length without disk fill.
-- `_write_model(dir_path: Path, cfg: dict, weight_name: str, weight_bytes: int) -> None` (L33)
-- `test_app_hf_cache_org_repo_display_name() -> None` (L39)
-- `test_scan_skips_embedding_arch(tmp_path: Path) -> None` (L47)
-- `test_scan_skips_broken_symlink_weights_and_keeps_sibling(tmp_path: Path) -> None` (L53)
-- `test_scan_skips_config_only_incomplete_hub_snapshot(tmp_path: Path) -> None` (L69)
-- `test_models_for_selectors_drops_shared_models_keeps_installed() -> None` (L77)
-- `test_models_for_training_excludes_gguf_gptq_keeps_safetensors() -> None` (L108)
-- `test_training_js_uses_training_query() -> None` (L164)
-- `test_training_hf_refresh_skips_incomplete_and_gguf() -> None` (L178)
-- `test_training_page_empty_copy_when_no_trainable(client, monkeypatch) -> None` (L196)
+- `def _sparse_weight(path: Path, size: int) -> None` (L25) — Create a sparse file so size checks see real byte length without disk fill.
+- `def _write_model(dir_path: Path, cfg: dict, weight_name: str, weight_bytes: int) -> None` (L33)
+- `def test_app_hf_cache_org_repo_display_name() -> None` (L39)
+- `def test_scan_skips_embedding_arch(tmp_path: Path) -> None` (L47)
+- `def test_scan_skips_broken_symlink_weights_and_keeps_sibling(tmp_path: Path) -> None` (L53)
+- `def test_scan_skips_config_only_incomplete_hub_snapshot(tmp_path: Path) -> None` (L69)
+- `def test_models_for_selectors_drops_shared_models_keeps_installed() -> None` (L77)
+- `def test_models_for_training_excludes_gguf_gptq_keeps_safetensors() -> None` (L108)
+- `def test_training_js_uses_training_query() -> None` (L164)
+- `def test_training_hf_refresh_skips_incomplete_and_gguf() -> None` (L178)
+- `def test_training_page_empty_copy_when_no_trainable(client, monkeypatch) -> None` (L196)
   - imports: finetune_studio.models.registry, finetune_studio.webui
 
 ## `tests/test_repo_hygiene.py` (234 lines)
-- `_git(*args: str) -> str | None` (L75) — Run a git command in the repo, returning stdout, or None if unavailable.
-- `tracked_files() -> set[str]` (L96) — Set of repo-relative paths git currently tracks, or skip if unavailable.
-- `untracked_files() -> set[str]` (L105) — Untracked, NOT-ignored paths — exactly what ``git add -A`` would add.
-- `test_no_runtime_path_is_tracked(tracked_files: set[str]) -> None` (L118) — No file inside a runtime tree may be committed.
-- `test_no_runtime_payload_suffix_is_tracked(tracked_files: set[str]) -> None` (L131) — No DB/weights/jsonl payload may be tracked, wherever it sits.
-- `test_no_unignored_runtime_paths(untracked_files: set[str]) -> None` (L141) — Nothing untracked-and-unignored may sit in a runtime tree.
-- `test_nothing_is_left_untracked_and_unignored(untracked_files: set[str]) -> None` (L158) — The whole tree must be either tracked or deliberately ignored.
-- `test_required_runtime_seeds_are_still_tracked(tracked_files: set[str]) -> None` (L178) — The ignore rules must not swallow shipped assets the app needs.
-- `test_ignore_rules_actually_work_on_disk() -> None` (L186) — Probe ``git check-ignore`` on representative runtime paths.
+- `def _git(*args: str) -> str | None` (L75) — Run a git command in the repo, returning stdout, or None if unavailable.
+- `def tracked_files() -> set[str]` (L96) — Set of repo-relative paths git currently tracks, or skip if unavailable.
+- `def untracked_files() -> set[str]` (L105) — Untracked, NOT-ignored paths — exactly what ``git add -A`` would add.
+- `def test_no_runtime_path_is_tracked(tracked_files: set[str]) -> None` (L118) — No file inside a runtime tree may be committed.
+- `def test_no_runtime_payload_suffix_is_tracked(tracked_files: set[str]) -> None` (L131) — No DB/weights/jsonl payload may be tracked, wherever it sits.
+- `def test_no_unignored_runtime_paths(untracked_files: set[str]) -> None` (L141) — Nothing untracked-and-unignored may sit in a runtime tree.
+- `def test_nothing_is_left_untracked_and_unignored(untracked_files: set[str]) -> None` (L158) — The whole tree must be either tracked or deliberately ignored.
+- `def test_required_runtime_seeds_are_still_tracked(tracked_files: set[str]) -> None` (L178) — The ignore rules must not swallow shipped assets the app needs.
+- `def test_ignore_rules_actually_work_on_disk() -> None` (L186) — Probe ``git check-ignore`` on representative runtime paths.
 
 ## `tests/test_reupload_after_delete.py` (44 lines)
-- `_upload(pid: str, fid_ref: list[str], name: str, payload: bytes, client: Any) -> dict` (L15)
-- `test_reupload_after_softdelete_lands(client: Any) -> None` (L28)
+- `def _upload(pid: str, fid_ref: list[str], name: str, payload: bytes, client: Any) -> dict` (L15)
+- `def test_reupload_after_softdelete_lands(client: Any) -> None` (L28)
 
 ## `tests/test_run_export.py` (406 lines)
-- `_adapter_run(tmp_path: Path, *, base_model: str = 'Qwen/Qwen3-4B') -> dict` (L12) — Create an adapter-only (no merged/) run directory + dict.
-- `_merged_run(tmp_path: Path) -> dict` (L27)
+- `def _adapter_run(tmp_path: Path, *, base_model: str = 'Qwen/Qwen3-4B') -> dict` (L12) — Create an adapter-only (no merged/) run directory + dict.
+- `def _merged_run(tmp_path: Path) -> dict` (L27)
 - `class TestValidateBaseModel` (L41)
   - `def test_hub_id_accepted(self) -> None` (L42)
   - `def test_empty_rejected(self) -> None` (L47)
@@ -3533,123 +3812,123 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - imports: finetune_studio, finetune_studio.training, finetune_studio.training.engine, finetune_studio.training.run_export
 
 ## `tests/test_run_labels.py` (37 lines)
-- `test_init_db_tags_legacy_auto_run_names_with_run_id(mock_settings) -> None` (L15)
-- `test_trained_gguf_exports_are_labelled_with_their_run_dir(tmp_path: Path) -> None` (L29)
+- `def test_init_db_tags_legacy_auto_run_names_with_run_id(mock_settings) -> None` (L15)
+- `def test_trained_gguf_exports_are_labelled_with_their_run_dir(tmp_path: Path) -> None` (L29)
   - imports: finetune_studio, finetune_studio.models.registry
 
 ## `tests/test_run_state_persistence.py` (98 lines)
 - `class _Recorder` (L19)
   - `def __init__(self) -> None` (L20)
   - `def __call__(self, run_id: str, **fields: Any) -> None` (L23)
-- `_clock(values: list[float])` (L27)
-- `test_persister_records_start_progress_and_done() -> None` (L32)
-- `test_persister_ignores_states_after_terminal_status() -> None` (L52)
-- `test_error_is_persisted_as_failed_with_message() -> None` (L61)
-- `test_stopped_is_persisted() -> None` (L70)
-- `test_on_update_returns_unsubscribe() -> None` (L79)
-- `test_attach_run_replaces_previous_runs_persister() -> None` (L89)
+- `def _clock(values: list[float])` (L27)
+- `def test_persister_records_start_progress_and_done() -> None` (L32)
+- `def test_persister_ignores_states_after_terminal_status() -> None` (L52)
+- `def test_error_is_persisted_as_failed_with_message() -> None` (L61)
+- `def test_stopped_is_persisted() -> None` (L70)
+- `def test_on_update_returns_unsubscribe() -> None` (L79)
+- `def test_attach_run_replaces_previous_runs_persister() -> None` (L89)
   - imports: finetune_studio.training.engine, finetune_studio.training.run_persistence
 
 ## `tests/test_sentence_transformer_local.py` (235 lines)
-- `_write_mini_st_dir(root: Path, *, with_pooling: bool = True, dim: int = 384) -> Path` (L21) — Minimal on-disk SentenceTransformer layout (no real weights needed).
-- `test_incomplete_dir_is_not_complete(tmp_path: Path) -> None` (L76)
-- `test_prepare_repairs_missing_pooling_config(tmp_path: Path) -> None` (L83) — Mirrors production: modules.json present, 1_Pooling/ dropped by flat copy.
-- `test_prepare_normalizes_legacy_word_embedding_dimension(tmp_path: Path) -> None` (L97)
-- `test_prepare_raises_when_dimension_uninferable(tmp_path: Path) -> None` (L114)
-- `test_copy_preserves_pooling_subdir(tmp_path: Path) -> None` (L121)
-- `test_register_from_src_preserves_module_subdirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L130) — Shared-store register must not flatten 1_Pooling into the root.
-- `test_register_replaces_incomplete_cached_embedder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L150)
-- `test_load_sentence_transformer_prepares_before_construct(tmp_path: Path) -> None` (L178) — get_embedder local path must prepare dir before SentenceTransformer().
-- `test_get_embedder_does_not_fallback_on_prepare_failure(tmp_path: Path) -> None` (L225) — Unrepairable local dir must raise — never DEFAULT_EMBEDDER.
+- `def _write_mini_st_dir(root: Path, *, with_pooling: bool = True, dim: int = 384) -> Path` (L21) — Minimal on-disk SentenceTransformer layout (no real weights needed).
+- `def test_incomplete_dir_is_not_complete(tmp_path: Path) -> None` (L76)
+- `def test_prepare_repairs_missing_pooling_config(tmp_path: Path) -> None` (L83) — Mirrors production: modules.json present, 1_Pooling/ dropped by flat copy.
+- `def test_prepare_normalizes_legacy_word_embedding_dimension(tmp_path: Path) -> None` (L97)
+- `def test_prepare_raises_when_dimension_uninferable(tmp_path: Path) -> None` (L114)
+- `def test_copy_preserves_pooling_subdir(tmp_path: Path) -> None` (L121)
+- `def test_register_from_src_preserves_module_subdirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L130) — Shared-store register must not flatten 1_Pooling into the root.
+- `def test_register_replaces_incomplete_cached_embedder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L150)
+- `def test_load_sentence_transformer_prepares_before_construct(tmp_path: Path) -> None` (L178) — get_embedder local path must prepare dir before SentenceTransformer().
+- `def test_get_embedder_does_not_fallback_on_prepare_failure(tmp_path: Path) -> None` (L225) — Unrepairable local dir must raise — never DEFAULT_EMBEDDER.
   - imports: finetune_studio.data, finetune_studio.data.rag_portable.constants, finetune_studio.data.rag_portable.embedders, finetune_studio.data.sentence_transformer_local
 
 ## `tests/test_server_never_imports_unsloth.py` (63 lines)
-- `test_app_and_inference_engine_never_import_unsloth(monkeypatch: pytest.MonkeyPatch) -> None` (L13) — Importing the WebUI + constructing InferenceEngine must leave unsloth out.
+- `def test_app_and_inference_engine_never_import_unsloth(monkeypatch: pytest.MonkeyPatch) -> None` (L13) — Importing the WebUI + constructing InferenceEngine must leave unsloth out.
   - imports: finetune_studio.models.manager, finetune_studio.testing.inference, finetune_studio.webui.app
 
 ## `tests/test_sft_args.py` (75 lines)
-- `test_build_sft_args_returns_sft_config(tmp_path: Path) -> None` (L23) — SFTConfig skips TRL's TrainingArguments→dict conversion that KeyErrors.
-- `test_build_sft_args_local_defaults_need_no_hub_token(tmp_path: Path) -> None` (L39)
-- `test_build_sft_args_from_config_maps_training_config(tmp_path: Path) -> None` (L51)
+- `def test_build_sft_args_returns_sft_config(tmp_path: Path) -> None` (L23) — SFTConfig skips TRL's TrainingArguments→dict conversion that KeyErrors.
+- `def test_build_sft_args_local_defaults_need_no_hub_token(tmp_path: Path) -> None` (L39)
+- `def test_build_sft_args_from_config_maps_training_config(tmp_path: Path) -> None` (L51)
   - imports: finetune_studio.training.engine, finetune_studio.training.sft_args
 
 ## `tests/test_shared_models_stats.py` (89 lines)
-- `test_human_size_formats() -> None` (L10)
-- `test_stats_flattens_embedders_and_rerankers(tmp_path: Path, monkeypatch) -> None` (L16)
-- `test_stats_empty_store_is_truthful(tmp_path: Path, monkeypatch) -> None` (L67)
-- `test_rag_html_normalizes_embedders_rerankers_shape() -> None` (L80)
+- `def test_human_size_formats() -> None` (L10)
+- `def test_stats_flattens_embedders_and_rerankers(tmp_path: Path, monkeypatch) -> None` (L16)
+- `def test_stats_empty_store_is_truthful(tmp_path: Path, monkeypatch) -> None` (L67)
+- `def test_rag_html_normalizes_embedders_rerankers_shape() -> None` (L80)
   - imports: finetune_studio.data
 
 ## `tests/test_source_disjoint_split.py` (28 lines)
-- `test_source_disjoint_split_has_no_source_overlap(tmp_path: Path) -> None` (L9)
+- `def test_source_disjoint_split_has_no_source_overlap(tmp_path: Path) -> None` (L9)
 
 ## `tests/test_spa_page_scripts.py` (61 lines)
-- `test_base_html_wraps_scripts_block_in_page_scripts() -> None` (L14)
-- `test_page_scripts_comes_after_content() -> None` (L27)
-- `test_spa_js_references_page_scripts_and_rewrites_decls() -> None` (L36)
-- `test_projects_page_puts_selectTemplate_in_page_scripts(client) -> None` (L50)
+- `def test_base_html_wraps_scripts_block_in_page_scripts() -> None` (L14)
+- `def test_page_scripts_comes_after_content() -> None` (L27)
+- `def test_spa_js_references_page_scripts_and_rewrites_decls() -> None` (L36)
+- `def test_projects_page_puts_selectTemplate_in_page_scripts(client) -> None` (L50)
 
 ## `tests/test_status_badge_honesty.py` (58 lines)
-- `test_case_results_hide_pass_rate_when_unjudged() -> None` (L33)
-- `test_train_status_badge_idle_is_not_amber() -> None` (L41)
-- `test_benchmarks_recent_scores_show_judged_column() -> None` (L52)
+- `def test_case_results_hide_pass_rate_when_unjudged() -> None` (L33)
+- `def test_train_status_badge_idle_is_not_amber() -> None` (L41)
+- `def test_benchmarks_recent_scores_show_judged_column() -> None` (L52)
 
 ## `tests/test_strict_scoring.py` (328 lines)
-- `test_detect_mcq_and_numeric() -> None` (L21)
-- `test_mcq_pass_on_exact_letter() -> None` (L27)
-- `test_mcq_rejects_keyword_false_positive_mentions_correct_text() -> None` (L37) — Legacy keywords ['Paris','C'] would pass; strict must fail wrong letter.
-- `test_mcq_rejects_wrong_extra_when_both_letters_asserted() -> None` (L47)
-- `test_mcq_rejects_substring_letter_without_selection() -> None` (L57)
-- `test_numeric_pass_on_normalized_final() -> None` (L66)
-- `test_numeric_ignores_approved_filename_citation() -> None` (L73)
-- `test_training_target_strips_citation_but_keeps_answer() -> None` (L81)
-- `test_numeric_rejects_substring_inside_larger_number() -> None` (L93) — Keyword '8' would match inside '18' / '48'; strict must fail.
-- `test_numeric_rejects_wrong_extra_conflicting_finals() -> None` (L100)
-- `test_source_grounded_open_answer_rejects_unrelated_proper_action() -> None` (L109)
-- `test_source_grounded_open_answer_rejects_wrong_named_contact() -> None` (L118)
-- `test_source_grounded_rejects_contradictory_approval_state() -> None` (L127)
-- `test_apply_heuristic_records_scoring_metadata() -> None` (L136)
-- `test_score_strict_returns_none_for_open() -> None` (L176)
-- `test_source_grounded_scoring_rejects_wrong_date() -> None` (L184)
-- `test_source_grounded_scoring_accepts_number_words() -> None` (L193)
-- `test_source_grounded_scoring_accepts_plural_zero_word() -> None` (L202)
-- `test_source_grounded_does_not_require_unasked_date_or_site() -> None` (L212)
-- `test_source_grounded_still_requires_date_when_question_asks_when() -> None` (L227)
-- `test_source_grounded_purpose_answer_can_be_concise() -> None` (L237)
-- `test_source_grounded_ignores_unrelated_rows_in_legacy_table_answer() -> None` (L258)
-- `test_source_grounded_table_focus_still_rejects_wrong_owner() -> None` (L271)
-- `test_question_supplied_identifier_is_not_required_in_answer() -> None` (L281)
-- `test_question_aware_scoring_still_rejects_wrong_date() -> None` (L291)
-- `test_external_api_answer_is_not_penalized_by_unrelated_metrics_table() -> None` (L301)
-- `test_question_focused_scope_and_glossary_answers_pass_without_extra_prose() -> None` (L316)
+- `def test_detect_mcq_and_numeric() -> None` (L21)
+- `def test_mcq_pass_on_exact_letter() -> None` (L27)
+- `def test_mcq_rejects_keyword_false_positive_mentions_correct_text() -> None` (L37) — Legacy keywords ['Paris','C'] would pass; strict must fail wrong letter.
+- `def test_mcq_rejects_wrong_extra_when_both_letters_asserted() -> None` (L47)
+- `def test_mcq_rejects_substring_letter_without_selection() -> None` (L57)
+- `def test_numeric_pass_on_normalized_final() -> None` (L66)
+- `def test_numeric_ignores_approved_filename_citation() -> None` (L73)
+- `def test_training_target_strips_citation_but_keeps_answer() -> None` (L81)
+- `def test_numeric_rejects_substring_inside_larger_number() -> None` (L93) — Keyword '8' would match inside '18' / '48'; strict must fail.
+- `def test_numeric_rejects_wrong_extra_conflicting_finals() -> None` (L100)
+- `def test_source_grounded_open_answer_rejects_unrelated_proper_action() -> None` (L109)
+- `def test_source_grounded_open_answer_rejects_wrong_named_contact() -> None` (L118)
+- `def test_source_grounded_rejects_contradictory_approval_state() -> None` (L127)
+- `def test_apply_heuristic_records_scoring_metadata() -> None` (L136)
+- `def test_score_strict_returns_none_for_open() -> None` (L176)
+- `def test_source_grounded_scoring_rejects_wrong_date() -> None` (L184)
+- `def test_source_grounded_scoring_accepts_number_words() -> None` (L193)
+- `def test_source_grounded_scoring_accepts_plural_zero_word() -> None` (L202)
+- `def test_source_grounded_does_not_require_unasked_date_or_site() -> None` (L212)
+- `def test_source_grounded_still_requires_date_when_question_asks_when() -> None` (L227)
+- `def test_source_grounded_purpose_answer_can_be_concise() -> None` (L237)
+- `def test_source_grounded_ignores_unrelated_rows_in_legacy_table_answer() -> None` (L258)
+- `def test_source_grounded_table_focus_still_rejects_wrong_owner() -> None` (L271)
+- `def test_question_supplied_identifier_is_not_required_in_answer() -> None` (L281)
+- `def test_question_aware_scoring_still_rejects_wrong_date() -> None` (L291)
+- `def test_external_api_answer_is_not_penalized_by_unrelated_metrics_table() -> None` (L301)
+- `def test_question_focused_scope_and_glossary_answers_pass_without_extra_prose() -> None` (L316)
   - imports: finetune_studio.testing.strict_scoring, finetune_studio.testing.suite, finetune_studio.training.data
 
 ## `tests/test_suite_full_coverage.py` (124 lines)
-- `_dataset(tmp_path: Path, n: int, dup: bool = False) -> str` (L19)
-- `test_default_is_full_coverage(tmp_path: Path) -> None` (L36)
-- `test_sampling_is_explicit_deterministic_and_labeled(tmp_path: Path) -> None` (L49)
-- `test_duplicate_questions_get_unique_names(tmp_path: Path) -> None` (L67)
-- `test_row_index_roundtrips_through_loader(tmp_path: Path) -> None` (L76)
-- `run_with_data(client, tmp_path: Path)` (L88)
-- `test_route_default_full_coverage(client, run_with_data) -> None` (L101)
-- `test_route_sample_size_opt_in(client, run_with_data) -> None` (L109)
-- `test_route_rejects_bad_sample_size(client, run_with_data) -> None` (L119)
+- `def _dataset(tmp_path: Path, n: int, dup: bool = False) -> str` (L19)
+- `def test_default_is_full_coverage(tmp_path: Path) -> None` (L36)
+- `def test_sampling_is_explicit_deterministic_and_labeled(tmp_path: Path) -> None` (L49)
+- `def test_duplicate_questions_get_unique_names(tmp_path: Path) -> None` (L67)
+- `def test_row_index_roundtrips_through_loader(tmp_path: Path) -> None` (L76)
+- `def run_with_data(client, tmp_path: Path)` (L88)
+- `def test_route_default_full_coverage(client, run_with_data) -> None` (L101)
+- `def test_route_sample_size_opt_in(client, run_with_data) -> None` (L109)
+- `def test_route_rejects_bad_sample_size(client, run_with_data) -> None` (L119)
   - imports: finetune_studio, finetune_studio.data.audit, finetune_studio.testing.generate_suite, finetune_studio.testing.suite
 
 ## `tests/test_testing_auto_load.py` (256 lines)
-- `client_and_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)` (L25)
-- `_fake_engine(monkeypatch: pytest.MonkeyPatch) -> tuple[Any, list[str]]` (L32)
-- `_suite(tmp_path: Path) -> Path` (L62)
-- `test_testing_auto_loads_merged_model_status_done(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L77) — Live training writes status=done; auto-load must accept it.
-- `test_testing_auto_loads_merged_model_status_completed_compat(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L117) — Older fixtures used status=completed — keep accepting it.
-- `test_testing_skips_done_run_without_merged_weights(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L150)
-- `test_testing_returns_400_when_no_completed_run(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L193)
-- `test_testing_override_model_path(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L227)
+- `def client_and_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)` (L25)
+- `def _fake_engine(monkeypatch: pytest.MonkeyPatch) -> tuple[Any, list[str]]` (L32)
+- `def _suite(tmp_path: Path) -> Path` (L62)
+- `def test_testing_auto_loads_merged_model_status_done(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L77) — Live training writes status=done; auto-load must accept it.
+- `def test_testing_auto_loads_merged_model_status_completed_compat(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L117) — Older fixtures used status=completed — keep accepting it.
+- `def test_testing_skips_done_run_without_merged_weights(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L150)
+- `def test_testing_returns_400_when_no_completed_run(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L193)
+- `def test_testing_override_model_path(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L227)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.webui, finetune_studio.webui.app
 
 ## `tests/test_testing_engine_module_audit.py` (170 lines)
-- `test_score_results_does_not_inflate_pass_rate_with_errored_cases() -> None` (L27) — An errored case with no verdict must count against pass_rate, not be excluded.
-- `test_score_results_all_judged_is_unaffected() -> None` (L61) — When every case has a verdict, judged == total and behavior is unchanged.
+- `def test_score_results_does_not_inflate_pass_rate_with_errored_cases() -> None` (L27) — An errored case with no verdict must count against pass_rate, not be excluded.
+- `def test_score_results_all_judged_is_unaffected() -> None` (L61) — When every case has a verdict, judged == total and behavior is unchanged.
 - `class _FakeBatch(dict)` (L79)
   - `def to(self, device)` (L80)
 - `class _FakeTokenizer` (L84)
@@ -3658,206 +3937,208 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def decode(self, generated, skip_special_tokens = True)` (L94)
 - `class _FakeModel` (L98)
   - `def generate(self, **kwargs)` (L101)
-- `_fake_engine() -> InferenceEngine` (L105)
-- `test_generate_hf_honors_stop_sequence() -> None` (L113) — Previously `stop` was accepted but never used for HF-loaded models.
-- `test_generate_hf_without_stop_returns_full_text() -> None` (L126)
-- `test_generate_hf_stop_picks_earliest_match_among_multiple() -> None` (L136)
-- `test_cases_from_pairs_directory_logs_unreadable_files(tmp_path: Path, caplog: 'logging.LogCaptureFixture') -> None` (L147)
+- `def _fake_engine() -> InferenceEngine` (L105)
+- `def test_generate_hf_honors_stop_sequence() -> None` (L113) — Previously `stop` was accepted but never used for HF-loaded models.
+- `def test_generate_hf_without_stop_returns_full_text() -> None` (L126)
+- `def test_generate_hf_stop_picks_earliest_match_among_multiple() -> None` (L136)
+- `def test_cases_from_pairs_directory_logs_unreadable_files(tmp_path: Path, caplog: logging.LogCaptureFixture) -> None` (L147)
   - imports: finetune_studio.testing.full_corpus_suite, finetune_studio.testing.inference, finetune_studio.testing.suite
 
 ## `tests/test_testing_load_body.py` (91 lines)
-- `client_and_engine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[TestClient, MagicMo…` (L19)
-- `test_testing_load_accepts_model_path(client_and_engine: tuple[TestClient, MagicMock]) -> None` (L47)
-- `test_testing_load_accepts_path_alias(client_and_engine: tuple[TestClient, MagicMock]) -> None` (L59)
-- `test_testing_load_rejects_empty_body(client_and_engine: tuple[TestClient, MagicMock]) -> None` (L69)
-- `test_chat_v2_load_accepts_path_alias(client_and_engine: tuple[TestClient, MagicMock], monkeypatch: pytest.MonkeyPa…` (L79)
+- `def client_and_engine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[TestClient, MagicMo…` (L19)
+- `def test_testing_load_accepts_model_path(client_and_engine: tuple[TestClient, MagicMock]) -> None` (L47)
+- `def test_testing_load_accepts_path_alias(client_and_engine: tuple[TestClient, MagicMock]) -> None` (L59)
+- `def test_testing_load_rejects_empty_body(client_and_engine: tuple[TestClient, MagicMock]) -> None` (L69)
+- `def test_chat_v2_load_accepts_path_alias(client_and_engine: tuple[TestClient, MagicMock], monkeypatch: pytest.MonkeyPa…` (L79)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.webui, finetune_studio.webui.app
 
 ## `tests/test_testing_models.py` (66 lines)
-- `test_is_run_done_accepts_done_and_completed() -> None` (L13)
-- `test_resolve_latest_merged_prefers_ready_merged(tmp_path) -> None` (L20)
-- `test_testing_models_filters_and_defaults() -> None` (L40)
+- `def test_is_run_done_accepts_done_and_completed() -> None` (L13)
+- `def test_resolve_latest_merged_prefers_ready_merged(tmp_path) -> None` (L20)
+- `def test_testing_models_filters_and_defaults() -> None` (L40)
   - imports: finetune_studio.webui.testing_models
 
 ## `tests/test_testing_run_gate.py` (73 lines)
-- `test_testing_template_disables_run_until_suite() -> None` (L19)
-- `test_testing_page_run_starts_disabled(client) -> None` (L32)
-- `test_testing_template_rag_grounded_ui_contract() -> None` (L42) — Project Testing exposes Run with RAG against /api/testing/run-rag-suite.
-- `test_testing_page_renders_rag_controls(client: TestClient) -> None` (L64)
+- `def test_testing_template_disables_run_until_suite() -> None` (L19)
+- `def test_testing_page_run_starts_disabled(client) -> None` (L32)
+- `def test_testing_template_rag_grounded_ui_contract() -> None` (L42) — Project Testing exposes Run with RAG against /api/testing/run-rag-suite.
+- `def test_testing_page_renders_rag_controls(client: TestClient) -> None` (L64)
 
 ## `tests/test_testing_template.py` (78 lines)
-- `_render_cases(cases: list[dict], scores: dict | None = None) -> str` (L27)
-- `test_testing_template_renders_per_case_table() -> None` (L33)
-- `test_testing_template_shows_scores_summary() -> None` (L66)
+- `def _render_cases(cases: list[dict], scores: dict | None = None) -> str` (L27)
+- `def test_testing_template_renders_per_case_table() -> None` (L33)
+- `def test_testing_template_shows_scores_summary() -> None` (L66)
 
-## `tests/test_training.py` (146 lines)
-- `class TestFormatForSft` (L4)
-  - `def test_config(self)` (L13)
-  - `def test_sharegpt_conversations_converted_to_messages(self)` (L18)
-  - `def test_sharegpt_with_system_prompt_prepends(self)` (L36)
-  - `def test_sharegpt_first_message_is_system_does_not_duplicate(self)` (L50)
-  - `def test_sharegpt_alternation_required(self)` (L63)
-  - `def test_sharegpt_mixed_keys_does_not_drop_messages(self)` (L77)
-  - `def test_openai_messages_still_work(self)` (L91)
-  - `def test_alpaca_prompt_completion_still_works(self)` (L101)
-  - `def test_plain_text_still_works(self)` (L111)
-  - `def test_unknown_format_row_is_dropped_not_crashed(self)` (L119)
-  - `def test_split_is_reproducible_and_reports_validation_rows(self)` (L130)
-  - `def test_state(self)` (L140)
-  - `def test_engine(self)` (L144)
+## `tests/test_training.py` (150 lines)
+- `class TestFormatForSft` (L8)
+  - `def test_config(self)` (L17)
+  - `def test_sharegpt_conversations_converted_to_messages(self)` (L22)
+  - `def test_sharegpt_with_system_prompt_prepends(self)` (L40)
+  - `def test_sharegpt_first_message_is_system_does_not_duplicate(self)` (L54)
+  - `def test_sharegpt_alternation_required(self)` (L67)
+  - `def test_sharegpt_mixed_keys_does_not_drop_messages(self)` (L81)
+  - `def test_openai_messages_still_work(self)` (L95)
+  - `def test_alpaca_prompt_completion_still_works(self)` (L105)
+  - `def test_plain_text_still_works(self)` (L115)
+  - `def test_unknown_format_row_is_dropped_not_crashed(self)` (L123)
+  - `def test_split_is_reproducible_and_reports_validation_rows(self)` (L134)
+  - `def test_state(self)` (L144)
+  - `def test_engine(self)` (L148)
   - imports: finetune_studio.training.data, finetune_studio.training.engine
 
 ## `tests/test_training_base_model_dropdown.py` (37 lines)
-- `_refresh_block() -> str` (L21)
-- `test_hf_refresh_does_not_wipe_options() -> None` (L26)
-- `test_hf_refresh_skips_known_paths() -> None` (L30)
-- `test_server_list_preselects_project_base_model() -> None` (L35)
+- `def _refresh_block() -> str` (L21)
+- `def test_hf_refresh_does_not_wipe_options() -> None` (L26)
+- `def test_hf_refresh_skips_known_paths() -> None` (L30)
+- `def test_server_list_preselects_project_base_model() -> None` (L35)
 
-## `tests/test_training_eval.py` (182 lines)
-- `isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L23)
-- `_write_sharegpt(path: Path, pairs: list[tuple[str, str]]) -> None` (L30)
-- `test_cases_from_training_jsonl_sharegpt(tmp_path: Path) -> None` (L44)
-- `test_cases_preserve_source_provenance(tmp_path: Path) -> None` (L57)
-- `test_heldout_eval_is_deterministic_and_excludes_training_slice(isolated_db: Path, tmp_path: Path) -> None` (L73)
-- `test_build_training_eval_meta(isolated_db: Path, tmp_path: Path) -> None` (L91)
-- `test_evaluate_training_api_returns_per_case_table(isolated_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L106)
-- `test_list_training_datasets_endpoint(isolated_db: Path, tmp_path: Path) -> None` (L168)
+## `tests/test_training_eval.py` (220 lines)
+- `def isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L23)
+- `def _write_sharegpt(path: Path, pairs: list[tuple[str, str]]) -> None` (L30)
+- `def test_cases_from_training_jsonl_sharegpt(tmp_path: Path) -> None` (L44)
+- `def test_cases_from_training_jsonl_selects_user_and_assistant_roles(tmp_path: Path) -> None` (L57)
+- `def test_cases_from_training_jsonl_skips_malformed_message_entries(tmp_path: Path) -> None` (L81)
+- `def test_cases_preserve_source_provenance(tmp_path: Path) -> None` (L95)
+- `def test_heldout_eval_is_deterministic_and_excludes_training_slice(isolated_db: Path, tmp_path: Path) -> None` (L111)
+- `def test_build_training_eval_meta(isolated_db: Path, tmp_path: Path) -> None` (L129)
+- `def test_evaluate_training_api_returns_per_case_table(isolated_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L144)
+- `def test_list_training_datasets_endpoint(isolated_db: Path, tmp_path: Path) -> None` (L206)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.db, finetune_studio.testing.training_eval, finetune_studio.webui.app
 
 ## `tests/test_training_merge_nonfatal.py` (84 lines)
-- `test_format_exc_empty_notimplemented() -> None` (L12)
-- `test_do_merge_raising_marks_run_done_with_output_and_message(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L17)
-- `test_train_exception_empty_notimplemented_sets_typed_error(monkeypatch: pytest.MonkeyPatch) -> None` (L60)
+- `def test_format_exc_empty_notimplemented() -> None` (L12)
+- `def test_do_merge_raising_marks_run_done_with_output_and_message(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L17)
+- `def test_train_exception_empty_notimplemented_sets_typed_error(monkeypatch: pytest.MonkeyPatch) -> None` (L60)
   - imports: finetune_studio.training.engine
 
 ## `tests/test_training_metrics_persistence.py` (109 lines)
-- `_wait_until(pred: Any, timeout: float = 5.0) -> None` (L25)
-- `test_worker_payload_carries_final_loss() -> None` (L34)
-- `test_parent_state_receives_final_loss_from_child() -> None` (L39)
-- `test_step_log_updates_loss_and_final_loss() -> None` (L58)
-- `test_summary_and_eval_logs_do_not_reset_loss_to_zero() -> None` (L69)
-- `test_update_run_persists_metrics_and_list_runs_reports_final_loss(mock_settings) -> None` (L86)
-- `test_list_runs_falls_back_to_metrics_loss_for_legacy_rows(mock_settings) -> None` (L103)
+- `def _wait_until(pred: Any, timeout: float = 5.0) -> None` (L25)
+- `def test_worker_payload_carries_final_loss() -> None` (L34)
+- `def test_parent_state_receives_final_loss_from_child() -> None` (L39)
+- `def test_step_log_updates_loss_and_final_loss() -> None` (L58)
+- `def test_summary_and_eval_logs_do_not_reset_loss_to_zero() -> None` (L69)
+- `def test_update_run_persists_metrics_and_list_runs_reports_final_loss(mock_settings) -> None` (L86)
+- `def test_list_runs_falls_back_to_metrics_loss_for_legacy_rows(mock_settings) -> None` (L103)
   - imports: finetune_studio, finetune_studio.training.engine, finetune_studio.training.worker
 
-## `tests/test_training_module_audit.py` (82 lines)
-- `test_persist_run_output_survives_db_import_failure() -> None` (L23) — run_id must be bound before the try so the except branch can log it.
-- `test_convert_merged_to_gguf_files_quants_parallel(tmp_path) -> None` (L43) — On success, `files[i]` must correspond to `quants[i]` in order.
-- `test_unsloth_engine_duplicate_module_removed() -> None` (L74) — training/unsloth_engine.py duplicated TrainingEngine._train_unsloth
+## `tests/test_training_module_audit.py` (85 lines)
+- `def test_persist_run_output_survives_db_import_failure() -> None` (L26) — run_id must be bound before the try so the except branch can log it.
+- `def test_convert_merged_to_gguf_files_quants_parallel(tmp_path) -> None` (L46) — On success, `files[i]` must correspond to `quants[i]` in order.
+- `def test_unsloth_engine_duplicate_module_removed() -> None` (L77) — training/unsloth_engine.py duplicated TrainingEngine._train_unsloth
   - imports: finetune_studio.training.engine, finetune_studio.training.gguf_convert
 
 ## `tests/test_training_monitor_template.py` (50 lines)
-- `_html() -> str` (L16)
-- `test_monitor_polls_training_status_and_updates_bar_log() -> None` (L20)
-- `test_past_run_actions_require_output_path_and_done() -> None` (L42)
+- `def _html() -> str` (L16)
+- `def test_monitor_polls_training_status_and_updates_bar_log() -> None` (L20)
+- `def test_past_run_actions_require_output_path_and_done() -> None` (L42)
 
 ## `tests/test_training_no_fork_pool.py` (40 lines)
-- `test_engine_import_pins_serial_tokenization(monkeypatch: pytest.MonkeyPatch) -> None` (L15)
-- `test_explicit_user_override_is_kept(monkeypatch: pytest.MonkeyPatch) -> None` (L25)
-- `test_worker_module_pins_serial_tokenization(monkeypatch: pytest.MonkeyPatch) -> None` (L33)
+- `def test_engine_import_pins_serial_tokenization(monkeypatch: pytest.MonkeyPatch) -> None` (L15)
+- `def test_explicit_user_override_is_kept(monkeypatch: pytest.MonkeyPatch) -> None` (L25)
+- `def test_worker_module_pins_serial_tokenization(monkeypatch: pytest.MonkeyPatch) -> None` (L33)
   - imports: finetune_studio.training
 
-## `tests/test_training_start_defaults.py` (168 lines)
+## `tests/test_training_start_defaults.py` (169 lines)
 - `class _FakeEngine` (L18)
   - `def __init__(self) -> None` (L19)
-  - `def on_update(self, cb: object) -> None` (L30)
-  - `def start(self, config: object, data: list, system_prompt: str) -> None` (L33)
-- `fake_engine(monkeypatch: pytest.MonkeyPatch) -> _FakeEngine` (L38)
-- `_project(client, system_prompt: str) -> str` (L46)
-- `_jsonl(tmp_path: Path) -> str` (L52)
-- `test_default_output_dir_is_scoped_per_run(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L59)
-- `test_explicit_output_dir_is_kept(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L75)
-- `test_bake_uses_project_system_prompt_when_form_sends_none(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L90)
-- `test_mode_none_keeps_prompt_empty(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L101)
-- `test_merge_on_save_defaults_false_when_omitted(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L110) — Unchecked project form checkbox omits the key — must not force merge.
-- `test_merge_on_save_explicit_true_preserved(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L122)
-- `test_merge_on_save_form_string_one_is_true(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L134) — HTML checkbox FormData sends value "1" as a string.
-- `test_unsloth_defaults_false_when_omitted(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L147) — Project training form has no unsloth field — use standard TRL (no Unsloth status).
-- `test_unsloth_explicit_true_preserved(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L159)
+  - `def on_update(self, cb: object) -> None` (L31)
+  - `def start(self, config: object, data: list, system_prompt: str) -> None` (L34)
+- `def fake_engine(monkeypatch: pytest.MonkeyPatch) -> _FakeEngine` (L39)
+- `def _project(client, system_prompt: str) -> str` (L47)
+- `def _jsonl(tmp_path: Path) -> str` (L53)
+- `def test_default_output_dir_is_scoped_per_run(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L60)
+- `def test_explicit_output_dir_is_kept(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L76)
+- `def test_bake_uses_project_system_prompt_when_form_sends_none(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L91)
+- `def test_mode_none_keeps_prompt_empty(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L102)
+- `def test_merge_on_save_defaults_false_when_omitted(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L111) — Unchecked project form checkbox omits the key — must not force merge.
+- `def test_merge_on_save_explicit_true_preserved(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L123)
+- `def test_merge_on_save_form_string_one_is_true(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L135) — HTML checkbox FormData sends value "1" as a string.
+- `def test_unsloth_defaults_false_when_omitted(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L148) — Project training form has no unsloth field — use standard TRL (no Unsloth status).
+- `def test_unsloth_explicit_true_preserved(client, fake_engine: _FakeEngine, tmp_path: Path) -> None` (L160)
   - imports: finetune_studio, finetune_studio.webui.routes.training
 
-## `tests/test_training_start_guard.py` (115 lines)
+## `tests/test_training_start_guard.py` (116 lines)
 - `class _FakeEngine` (L16)
   - `def __init__(self) -> None` (L17)
-  - `def on_update(self, cb: object) -> None` (L28)
-  - `def start(self, config: object, data: list, system_prompt: str) -> None` (L31)
-- `fake_engine(monkeypatch: pytest.MonkeyPatch) -> _FakeEngine` (L36)
-- `fake_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L45) — Point Path.home() at an empty sandbox so cache probes are deterministic.
-- `_project(client) -> str` (L53)
-- `_jsonl(tmp_path: Path) -> str` (L59)
-- `_start(client, pid: str, data_path: str, model_path: str, **extra)` (L66)
-- `test_remote_repo_id_is_blocked(client, fake_engine, fake_home, tmp_path)` (L72)
-- `test_allow_download_proceeds(client, fake_engine, fake_home, tmp_path)` (L81)
-- `test_hub_cache_hit_passes_through(client, fake_engine, fake_home, tmp_path)` (L88)
-- `test_app_hf_models_dir_is_rewritten_to_local(client, fake_engine, fake_home, tmp_path)` (L99)
-- `test_existing_local_path_untouched(client, fake_engine, fake_home, tmp_path)` (L109)
+  - `def on_update(self, cb: object) -> None` (L29)
+  - `def start(self, config: object, data: list, system_prompt: str) -> None` (L32)
+- `def fake_engine(monkeypatch: pytest.MonkeyPatch) -> _FakeEngine` (L37)
+- `def fake_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L46) — Point Path.home() at an empty sandbox so cache probes are deterministic.
+- `def _project(client) -> str` (L54)
+- `def _jsonl(tmp_path: Path) -> str` (L60)
+- `def _start(client, pid: str, data_path: str, model_path: str, **extra)` (L67)
+- `def test_remote_repo_id_is_blocked(client, fake_engine, fake_home, tmp_path)` (L73)
+- `def test_allow_download_proceeds(client, fake_engine, fake_home, tmp_path)` (L82)
+- `def test_hub_cache_hit_passes_through(client, fake_engine, fake_home, tmp_path)` (L89)
+- `def test_app_hf_models_dir_is_rewritten_to_local(client, fake_engine, fake_home, tmp_path)` (L100)
+- `def test_existing_local_path_untouched(client, fake_engine, fake_home, tmp_path)` (L110)
   - imports: finetune_studio.webui.routes.training
 
 ## `tests/test_training_stop_phases.py` (70 lines)
-- `test_stop_before_merge_skips_merge_and_marks_stopped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L16)
-- `test_stop_callback_sets_should_training_stop() -> None` (L57) — The production TrainerCallback flips should_training_stop on request.
+- `def test_stop_before_merge_skips_merge_and_marks_stopped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None` (L16)
+- `def test_stop_callback_sets_should_training_stop() -> None` (L57) — The production TrainerCallback flips should_training_stop on request.
   - imports: finetune_studio.training.engine
 
 ## `tests/test_training_worker_protocol.py` (148 lines)
-- `_wait_until(pred, timeout: float = 5.0, interval: float = 0.05) -> None` (L11)
-- `test_progress_messages_update_parent_state() -> None` (L20)
-- `test_stop_terminates_child_and_marks_stopped() -> None` (L64)
-- `test_child_crash_empty_exception_sets_typed_error() -> None` (L111)
+- `def _wait_until(pred, timeout: float = 5.0, interval: float = 0.05) -> None` (L11)
+- `def test_progress_messages_update_parent_state() -> None` (L20)
+- `def test_stop_terminates_child_and_marks_stopped() -> None` (L64)
+- `def test_child_crash_empty_exception_sets_typed_error() -> None` (L111)
   - imports: finetune_studio.training.engine
 
 ## `tests/test_ui_audit_regressions.py` (43 lines)
-- `test_project_delete_confirmation_treats_project_name_as_text() -> None` (L8)
-- `test_data_prep_inline_handlers_encode_dynamic_strings_as_js_literals() -> None` (L15)
-- `test_wizard_loads_helper_and_only_approves_new_successful_pairs() -> None` (L24)
-- `test_spa_navigation_emits_lifecycle_events_and_resource_timer_cleans_up() -> None` (L32)
-- `test_rag_clear_copy_does_not_claim_directory_deletion() -> None` (L40)
+- `def test_project_delete_confirmation_treats_project_name_as_text() -> None` (L8)
+- `def test_data_prep_inline_handlers_encode_dynamic_strings_as_js_literals() -> None` (L15)
+- `def test_wizard_loads_helper_and_only_approves_new_successful_pairs() -> None` (L24)
+- `def test_spa_navigation_emits_lifecycle_events_and_resource_timer_cleans_up() -> None` (L32)
+- `def test_rag_clear_copy_does_not_claim_directory_deletion() -> None` (L40)
 
 ## `tests/test_ui_reliability.py` (655 lines)
-- `_project(client: TestClient) -> str` (L26)
-- `test_header_nav_css_readable_floor() -> None` (L32) — Session-bar / workspace nav must stay above the old tiny 10–12px floor.
-- `test_base_workspace_label_and_aria_current() -> None` (L52)
-- `test_table_fixed_layout_and_empty_colspan() -> None` (L59)
-- `test_data_prep_uploaded_files_mobile_column_floors() -> None` (L82) — At ≤780px, uploaded-files columns need rem floors + scroll affordance.
-- `test_upload_refresh_paints_before_prefetch() -> None` (L106) — Successful upload must refresh the list in-place without waiting on conversions.
-- `test_save_settings_defined_on_rag_page() -> None` (L128)
-- `test_inference_ui_requires_loaded_confirmation() -> None` (L135)
-- `test_load_missing_path_returns_explicit_failure(client: TestClient) -> None` (L142)
-- `test_load_exception_returns_failure_not_loaded(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None` (L152)
-- `test_load_success_requires_model_object(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None` (L174) — If load() returns without holding a model, never claim status=loaded.
-- `test_load_success_payload_when_model_held(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None` (L192)
-- `test_load_coerces_cpu_or_partial_offload_to_full_gpu(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None` (L210)
-- `test_data_prep_page_has_upload_refresh_hooks(client: TestClient) -> None` (L227)
-- `test_responsive_header_gutter_and_780_breakpoint() -> None` (L238) — Header/tabs must shrink the absolute .sb-right reserve at mid widths.
-- `test_header_no_page_overflow_contract_at_640() -> None` (L254) — At ≤700px the session bar must not widen the document; tabs stay scrollable.
-- `test_card_head_stacks_below_700() -> None` (L279) — Data Prep Uploaded-files card-head must stack title/actions below ~700px.
-- `test_css_cache_bust_bumped() -> None` (L293)
-- `test_workflow_steps_vertical_at_desktop() -> None` (L301) — `.rag-workflow-steps` must be a vertical list at all widths (not flex-wrap row).
-- `test_rag_docs_table_scroll_and_column_classes() -> None` (L328) — RAG inventory must use fixed columns + scroll shell (not 110px ref-table first col).
-- `test_rag_ia_workflow_and_cta(client: TestClient) -> None` (L353) — RAG page must explain Upload→…→Test and link to Data Prep (no fake upload).
-- `test_data_prep_ia_sections(client: TestClient) -> None` (L387)
-- `test_rag_workspace_active_on_rag_page(client: TestClient) -> None` (L402)
-- `test_sprites_rag_caption_not_embedding_corpus() -> None` (L413)
-- `test_sprites_bench_idle_caption_not_computing() -> None` (L421) — Bench/testing idle mount must not claim scores are computing.
-- `test_sprites_training_idle_not_always_accelerating() -> None` (L434) — Training page must show READY TO TRAIN while idle, not GPU ACCELERATING.
-- `test_file_library_all_files_uses_total_count() -> None` (L455) — Tree 'all files' badge must use API total_count, not filtered _flFiles.length.
-- `test_inference_model_info_uses_get() -> None` (L471) — Client must GET /api/models/info?path=… — POST is not allowed.
-- `test_models_info_get_contract(client: TestClient, tmp_path: Path) -> None` (L481) — GET /api/models/info?path= works; POST must not silently succeed as GET.
-- `test_training_start_disabled_until_dataset(client: TestClient) -> None` (L501) — Start training must look disabled until a dataset/data_path is chosen.
-- `test_models_and_bench_mobile_table_scroll_contract() -> None` (L529) — 375px must keep Load / RUN actions reachable via explicit horizontal scroll.
-- `test_models_index_mobile_table_scroll_contract() -> None` (L547) — Live /models renders models_index.html — must scroll, not crush Copy to 2ch.
-- `test_data_toolbar_actions_wrap_on_mobile() -> None` (L565)
-- `test_inference_load_button_reachable_on_mobile() -> None` (L575) — Fixed-height desktop grid must not clip Load model at ≤780px.
-- `test_hf_modal_escape_close_contract() -> None` (L590)
-- `test_project_and_export_trained_exports_mobile_scroll() -> None` (L611) — project_models + export_models trained-exports tables must scroll at 375px.
-- `test_models_index_filters_discoverable_on_mobile() -> None` (L630) — Filter pills must wrap (or scroll) — .flex-wrap alone was undefined and clipped.
-- `test_training_stop_disabled_while_idle() -> None` (L647) — Stop must be disabled on idle load and only enable while a run is active.
+- `def _project(client: TestClient) -> str` (L26)
+- `def test_header_nav_css_readable_floor() -> None` (L32) — Session-bar / workspace nav must stay above the old tiny 10–12px floor.
+- `def test_base_workspace_label_and_aria_current() -> None` (L52)
+- `def test_table_fixed_layout_and_empty_colspan() -> None` (L59)
+- `def test_data_prep_uploaded_files_mobile_column_floors() -> None` (L82) — At ≤780px, uploaded-files columns need rem floors + scroll affordance.
+- `def test_upload_refresh_paints_before_prefetch() -> None` (L106) — Successful upload must refresh the list in-place without waiting on conversions.
+- `def test_save_settings_defined_on_rag_page() -> None` (L128)
+- `def test_inference_ui_requires_loaded_confirmation() -> None` (L135)
+- `def test_load_missing_path_returns_explicit_failure(client: TestClient) -> None` (L142)
+- `def test_load_exception_returns_failure_not_loaded(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None` (L152)
+- `def test_load_success_requires_model_object(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None` (L174) — If load() returns without holding a model, never claim status=loaded.
+- `def test_load_success_payload_when_model_held(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None` (L192)
+- `def test_load_coerces_cpu_or_partial_offload_to_full_gpu(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None` (L210)
+- `def test_data_prep_page_has_upload_refresh_hooks(client: TestClient) -> None` (L227)
+- `def test_responsive_header_gutter_and_780_breakpoint() -> None` (L238) — Header/tabs must shrink the absolute .sb-right reserve at mid widths.
+- `def test_header_no_page_overflow_contract_at_640() -> None` (L254) — At ≤700px the session bar must not widen the document; tabs stay scrollable.
+- `def test_card_head_stacks_below_700() -> None` (L279) — Data Prep Uploaded-files card-head must stack title/actions below ~700px.
+- `def test_css_cache_bust_bumped() -> None` (L293)
+- `def test_workflow_steps_vertical_at_desktop() -> None` (L301) — `.rag-workflow-steps` must be a vertical list at all widths (not flex-wrap row).
+- `def test_rag_docs_table_scroll_and_column_classes() -> None` (L328) — RAG inventory must use fixed columns + scroll shell (not 110px ref-table first col).
+- `def test_rag_ia_workflow_and_cta(client: TestClient) -> None` (L353) — RAG page must explain Upload→…→Test and link to Data Prep (no fake upload).
+- `def test_data_prep_ia_sections(client: TestClient) -> None` (L387)
+- `def test_rag_workspace_active_on_rag_page(client: TestClient) -> None` (L402)
+- `def test_sprites_rag_caption_not_embedding_corpus() -> None` (L413)
+- `def test_sprites_bench_idle_caption_not_computing() -> None` (L421) — Bench/testing idle mount must not claim scores are computing.
+- `def test_sprites_training_idle_not_always_accelerating() -> None` (L434) — Training page must show READY TO TRAIN while idle, not GPU ACCELERATING.
+- `def test_file_library_all_files_uses_total_count() -> None` (L455) — Tree 'all files' badge must use API total_count, not filtered _flFiles.length.
+- `def test_inference_model_info_uses_get() -> None` (L471) — Client must GET /api/models/info?path=… — POST is not allowed.
+- `def test_models_info_get_contract(client: TestClient, tmp_path: Path) -> None` (L481) — GET /api/models/info?path= works; POST must not silently succeed as GET.
+- `def test_training_start_disabled_until_dataset(client: TestClient) -> None` (L501) — Start training must look disabled until a dataset/data_path is chosen.
+- `def test_models_and_bench_mobile_table_scroll_contract() -> None` (L529) — 375px must keep Load / RUN actions reachable via explicit horizontal scroll.
+- `def test_models_index_mobile_table_scroll_contract() -> None` (L547) — Live /models renders models_index.html — must scroll, not crush Copy to 2ch.
+- `def test_data_toolbar_actions_wrap_on_mobile() -> None` (L565)
+- `def test_inference_load_button_reachable_on_mobile() -> None` (L575) — Fixed-height desktop grid must not clip Load model at ≤780px.
+- `def test_hf_modal_escape_close_contract() -> None` (L590)
+- `def test_project_and_export_trained_exports_mobile_scroll() -> None` (L611) — project_models + export_models trained-exports tables must scroll at 375px.
+- `def test_models_index_filters_discoverable_on_mobile() -> None` (L630) — Filter pills must wrap (or scroll) — .flex-wrap alone was undefined and clipped.
+- `def test_training_stop_disabled_while_idle() -> None` (L647) — Stop must be disabled on idle load and only enable while a run is active.
 
 ## `tests/test_unsloth_import_order.py` (107 lines)
-- `test_critical_modules_match_unsloth_itself() -> None` (L31) — The list must stay aligned with unsloth's own trigger condition.
-- `test_clean_process_reports_no_blockers() -> None` (L45) — A fresh process must report clean, so a first unsloth run is not flagged.
-- `test_poisoned_process_is_detected(poisoned: str) -> None` (L57) — Each critical module, once loaded, must be reported as a blocker.
-- `test_order_follows_the_declared_sequence() -> None` (L71) — With all three loaded, the report is stable and in declaration order.
-- `test_train_unsloth_reads_precondition_before_importing_unsloth() -> None` (L87) — The check must come BEFORE ``from unsloth import ...`` in the source.
+- `def test_critical_modules_match_unsloth_itself() -> None` (L31) — The list must stay aligned with unsloth's own trigger condition.
+- `def test_clean_process_reports_no_blockers() -> None` (L45) — A fresh process must report clean, so a first unsloth run is not flagged.
+- `def test_poisoned_process_is_detected(poisoned: str) -> None` (L57) — Each critical module, once loaded, must be reported as a blocker.
+- `def test_order_follows_the_declared_sequence() -> None` (L71) — With all three loaded, the report is stable and in declaration order.
+- `def test_train_unsloth_reads_precondition_before_importing_unsloth() -> None` (L87) — The check must come BEFORE ``from unsloth import ...`` in the source.
   - imports: finetune_studio.training.engine
 
 ## `tests/test_update.py` (192 lines)
@@ -3883,104 +4164,112 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - imports: finetune_studio, finetune_studio.webui.routes, finetune_studio.webui.routes.updates
 
 ## `tests/test_upload_auto_promote.py` (109 lines)
-- `client_and_db(tmp_path, monkeypatch)` (L16)
-- `_create_project(client) -> str` (L28)
-- `test_text_upload_auto_promotes_to_parsed_source(client_and_db, name, body)` (L46)
-- `test_parser_supported_binary_is_staged_and_parse_failure_is_visible(client_and_db)` (L72)
-- `test_duplicate_text_upload_still_ensures_source(client_and_db)` (L91)
+- `def client_and_db(tmp_path, monkeypatch)` (L16)
+- `def _create_project(client) -> str` (L28)
+- `def test_text_upload_auto_promotes_to_parsed_source(client_and_db, name, body)` (L46)
+- `def test_parser_supported_binary_is_staged_and_parse_failure_is_visible(client_and_db)` (L72)
+- `def test_duplicate_text_upload_still_ensures_source(client_and_db)` (L91)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.webui.app
 
 ## `tests/test_upload_cross_project.py` (64 lines)
-- `test_write_uploaded_file_namespaces_id_by_project(mock_settings) -> None` (L15) — Identical bytes uploaded to two different projects must yield two
-- `test_write_uploaded_file_includes_image_png_metadata(mock_settings) -> None` (L41) — The OCR ingestion path must round-trip an image upload without raising.
+- `def test_write_uploaded_file_namespaces_id_by_project(mock_settings) -> None` (L15) — Identical bytes uploaded to two different projects must yield two
+- `def test_write_uploaded_file_includes_image_png_metadata(mock_settings) -> None` (L41) — The OCR ingestion path must round-trip an image upload without raising.
   - imports: finetune_studio, finetune_studio.data.fs
 
 ## `tests/test_version.py` (99 lines)
-- `test_build_version_format_and_file_agreement() -> None` (L22)
-- `test_system_version_endpoint(client) -> None` (L30)
-- `_git(repo: Path, *args: str, env: dict | None = None) -> str` (L41)
-- `test_precommit_hook_bumps_the_COMMITTED_version(tmp_path: Path) -> None` (L47) — The version inside the commit tree must equal the post-hook value.
-- `test_hook_scripts_are_executable_and_valid_bash() -> None` (L91)
+- `def test_build_version_format_and_file_agreement() -> None` (L22)
+- `def test_system_version_endpoint(client) -> None` (L30)
+- `def _git(repo: Path, *args: str, env: dict | None = None) -> str` (L41)
+- `def test_precommit_hook_bumps_the_COMMITTED_version(tmp_path: Path) -> None` (L47) — The version inside the commit tree must equal the post-hook value.
+- `def test_hook_scripts_are_executable_and_valid_bash() -> None` (L91)
   - imports: finetune_studio
 
 ## `tests/test_versions.py` (232 lines)
-- `project(temp_db)` (L13)
-- `client(temp_db)` (L19)
-- `test_version_crud_and_monotonic_numbers(project)` (L24)
-- `test_version_manifest_key_filtering(project)` (L39)
-- `test_version_lineage_walk(project)` (L47)
-- `test_get_version_by_number(project)` (L55)
-- `test_versions_routesListing_and_lineage(client, project)` (L62)
-- `test_save_version_404_unknown_project(client)` (L80)
-- `test_save_version_rejects_foreign_parent(client, project)` (L85)
-- `test_subset_dataset_build_route(client, project, temp_db, monkeypatch)` (L91) — Subset export: select known sources -> registered dataset with rows.
-- `test_subset_empty_payload_rejected(client, project, temp_db, monkeypatch)` (L153)
-- `test_subset_build_blocks_uncovered_chunks(client, project, monkeypatch)` (L176)
-- `test_rag_coverage_gate(client, project, temp_db, monkeypatch)` (L201)
-  - imports: finetune_studio, finetune_studio.data.fs.qa, finetune_studio.data.prep, finetune_studio.data.prep.qa_validate, finetune_studio.webui.app, finetune_studio.webui.routes.rag
+- `def project(temp_db)` (L13)
+- `def client(temp_db)` (L19)
+- `def test_version_crud_and_monotonic_numbers(project)` (L24)
+- `def test_version_manifest_key_filtering(project)` (L39)
+- `def test_version_lineage_walk(project)` (L47)
+- `def test_get_version_by_number(project)` (L55)
+- `def test_versions_routesListing_and_lineage(client, project)` (L62)
+- `def test_save_version_404_unknown_project(client)` (L80)
+- `def test_save_version_rejects_foreign_parent(client, project)` (L85)
+- `def test_subset_dataset_build_route(client, project, temp_db, monkeypatch)` (L91) — Subset export: select known sources -> registered dataset with rows.
+- `def test_subset_empty_payload_rejected(client, project, temp_db, monkeypatch)` (L153)
+- `def test_subset_build_blocks_uncovered_chunks(client, project, monkeypatch)` (L176)
+- `def test_rag_coverage_gate(client, project, temp_db, monkeypatch)` (L201)
+  - imports: finetune_studio, finetune_studio.data.fs.paths, finetune_studio.data.fs.qa, finetune_studio.data.prep, finetune_studio.data.prep.qa_validate, finetune_studio.webui.app
 
-## `tests/test_vram.py` (176 lines)
-- `class TestConstants` (L8)
-  - `def test_dtype_bytes_known_values(self)` (L9)
-  - `def test_model_presets_known(self)` (L18)
-  - `def test_cuda_overhead_positive(self)` (L29)
-  - `def test_activation_safety_margin_positive(self)` (L33)
-- `class TestVRAMEstimate` (L40)
-  - `def test_estimate_to_dict(self)` (L41)
-- `class TestEstimateVRAM` (L66)
-  - `def test_qlora_smaller_than_lora(self)` (L69)
-  - `def test_qlora_fits_on_24gb(self)` (L78)
-  - `def test_full_ft_needs_more_vram_than_qlora(self)` (L86)
-  - `def test_qlora_factors(self)` (L94)
-  - `def test_headroom_calculation(self)` (L103)
-  - `def test_gradient_checkpointing_reduces_activations(self)` (L111)
-  - `def test_larger_batch_increases_activations(self)` (L121)
-- `class TestRecommendConfig` (L132)
-  - `def test_recommend_returns_list(self)` (L133)
-  - `def test_all_configs_fit_true_or_false(self)` (L141)
-  - `def test_fits_configs_are_under_budget(self)` (L149)
-  - `def test_results_sorted_by_estimated_vram(self)` (L158)
-  - `def test_method_in_results(self)` (L170)
+## `tests/test_vram.py` (175 lines)
+- `class TestConstants` (L7)
+  - `def test_dtype_bytes_known_values(self)` (L8)
+  - `def test_model_presets_known(self)` (L17)
+  - `def test_cuda_overhead_positive(self)` (L28)
+  - `def test_activation_safety_margin_positive(self)` (L32)
+- `class TestVRAMEstimate` (L39)
+  - `def test_estimate_to_dict(self)` (L40)
+- `class TestEstimateVRAM` (L65)
+  - `def test_qlora_smaller_than_lora(self)` (L68)
+  - `def test_qlora_fits_on_24gb(self)` (L77)
+  - `def test_full_ft_needs_more_vram_than_qlora(self)` (L85)
+  - `def test_qlora_factors(self)` (L93)
+  - `def test_headroom_calculation(self)` (L102)
+  - `def test_gradient_checkpointing_reduces_activations(self)` (L110)
+  - `def test_larger_batch_increases_activations(self)` (L120)
+- `class TestRecommendConfig` (L131)
+  - `def test_recommend_returns_list(self)` (L132)
+  - `def test_all_configs_fit_true_or_false(self)` (L140)
+  - `def test_fits_configs_are_under_budget(self)` (L148)
+  - `def test_results_sorted_by_estimated_vram(self)` (L157)
+  - `def test_method_in_results(self)` (L169)
   - imports: finetune_studio.training.vram.constants, finetune_studio.training.vram.estimate, finetune_studio.training.vram.recommend, finetune_studio.training.vram.schema
 
+## `tests/test_vram_profile_safety.py` (79 lines)
+- `def _fake_torch(reset_error: Exception | None = None) -> types.ModuleType` (L13)
+- `def no_ml_stack(monkeypatch: pytest.MonkeyPatch) -> None` (L29) — Make the heavy imports fail fast so the profiling body errors deterministically.
+- `def test_cuda_init_failure_is_structured_result(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None` (L35)
+- `def test_caller_supplied_output_dir_is_never_deleted(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, no_ml_stack: None) -> None` (L43)
+- `def test_profiler_removes_only_scratch_dir_it_created(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, no_ml_stack: None) -> None` (L60)
+  - imports: finetune_studio.training.vram
+
 ## `tests/test_webui_routes_core_audit.py` (219 lines)
-- `client() -> TestClient` (L33)
-- `two_projects()` (L38) — Two real projects, each with a run and a rag, for cross-project checks.
-- `test_get_run_404s_for_run_owned_by_another_project(client, two_projects)` (L50)
-- `test_update_run_404s_for_foreign_run(client, two_projects)` (L59)
-- `test_delete_run_404s_for_foreign_run(client, two_projects)` (L70)
-- `test_start_run_404s_for_foreign_run(client, two_projects)` (L77)
-- `test_stop_run_404s_for_foreign_run(client, two_projects)` (L83)
-- `test_promote_run_404s_for_foreign_run(client, two_projects)` (L90)
-- `test_merge_run_404s_for_foreign_run(client, two_projects)` (L99)
-- `test_benchmark_run_404s_for_foreign_run(client, two_projects)` (L105)
-- `test_update_rag_404s_for_foreign_rag(client, two_projects)` (L113)
-- `test_delete_rag_404s_for_foreign_rag(client, two_projects)` (L122)
-- `test_query_rag_404s_for_foreign_rag(client, two_projects)` (L129)
-- `test_rag_stats_404s_for_foreign_rag(client, two_projects)` (L137)
-- `test_get_run_200s_for_own_project(client, two_projects)` (L143) — The fix must not break the legitimate same-project case.
-- `test_update_project_404s_for_missing_project(client)` (L151)
-- `test_create_rag_404s_for_missing_project(client)` (L156)
-- `test_create_run_404s_for_missing_project(client)` (L161)
-- `test_update_status_full_param_returns_untruncated_log(client)` (L169)
-- `test_upload_sanitizes_path_traversal_filename(client, tmp_path, monkeypatch)` (L191)
+- `def client() -> TestClient` (L33)
+- `def two_projects()` (L38) — Two real projects, each with a run and a rag, for cross-project checks.
+- `def test_get_run_404s_for_run_owned_by_another_project(client, two_projects)` (L50)
+- `def test_update_run_404s_for_foreign_run(client, two_projects)` (L59)
+- `def test_delete_run_404s_for_foreign_run(client, two_projects)` (L70)
+- `def test_start_run_404s_for_foreign_run(client, two_projects)` (L77)
+- `def test_stop_run_404s_for_foreign_run(client, two_projects)` (L83)
+- `def test_promote_run_404s_for_foreign_run(client, two_projects)` (L90)
+- `def test_merge_run_404s_for_foreign_run(client, two_projects)` (L99)
+- `def test_benchmark_run_404s_for_foreign_run(client, two_projects)` (L105)
+- `def test_update_rag_404s_for_foreign_rag(client, two_projects)` (L113)
+- `def test_delete_rag_404s_for_foreign_rag(client, two_projects)` (L122)
+- `def test_query_rag_404s_for_foreign_rag(client, two_projects)` (L129)
+- `def test_rag_stats_404s_for_foreign_rag(client, two_projects)` (L137)
+- `def test_get_run_200s_for_own_project(client, two_projects)` (L143) — The fix must not break the legitimate same-project case.
+- `def test_update_project_404s_for_missing_project(client)` (L151)
+- `def test_create_rag_404s_for_missing_project(client)` (L156)
+- `def test_create_run_404s_for_missing_project(client)` (L161)
+- `def test_update_status_full_param_returns_untruncated_log(client)` (L169)
+- `def test_upload_sanitizes_path_traversal_filename(client, tmp_path, monkeypatch)` (L191)
   - imports: finetune_studio, finetune_studio.webui.app, finetune_studio.webui.routes
 
 ## `tests/test_webui_routes_workflow_audit.py` (103 lines)
-- `_fake_get_embedder(name: str = 'fake-deterministic', device: str = 'cpu')` (L14)
-- `patched_embedder(monkeypatch: pytest.MonkeyPatch) -> None` (L35)
-- `_sha_dir(root: Path, sha: str, original: str, body: str) -> Path` (L42)
-- `test_rebuild_vectors_applies_pending_embedder_from_settings_patch(tmp_path: Path, patched_embedder: None, monkeypatch: pytest.MonkeyPatch) -> N…` (L53) — routes/rag.py:rag_rebuild_vectors must not silently drop an embedder
+- `def _fake_get_embedder(name: str = 'fake-deterministic', device: str = 'cpu')` (L14)
+- `def patched_embedder(monkeypatch: pytest.MonkeyPatch) -> None` (L35)
+- `def _sha_dir(root: Path, sha: str, original: str, body: str) -> Path` (L42)
+- `async def test_rebuild_vectors_applies_pending_embedder_from_settings_patch(tmp_path: Path, patched_embedder: None, monkeypatch: pytest.MonkeyPatch) -> N…` (L53) — routes/rag.py:rag_rebuild_vectors must not silently drop an embedder
   - imports: finetune_studio.data.rag_portable.schema, finetune_studio.data.rag_portable.store, finetune_studio.webui.routes
 
 ## `tests/test_workspace_nav.py` (103 lines)
-- `_project(client) -> str` (L11)
-- `test_spa_syncs_workspace_subnav_outside_content() -> None` (L17) — SPA must create/update #workspace-subnav (base shell), not only #content.
-- `test_projects_list_has_no_workspace_subnav(client) -> None` (L37) — Non-project pages must omit subnav so SPA can detect enter/leave.
-- `test_project_overview_shows_model_workspace_subnav(client) -> None` (L45) — Direct URL render includes Model workspace subnav (full-page load).
-- `test_rag_page_shows_rag_workspace_subnav(client) -> None` (L58)
-- `test_training_page_shows_model_workspace_subnav(client) -> None` (L79)
-- `test_data_prep_page_has_workspace_subnav(client) -> None` (L96) — Flow-scoped nav contract (2026-09-21): the pairs page declares
+- `def _project(client) -> str` (L11)
+- `def test_spa_syncs_workspace_subnav_outside_content() -> None` (L17) — SPA must create/update #workspace-subnav (base shell), not only #content.
+- `def test_projects_list_has_no_workspace_subnav(client) -> None` (L37) — Non-project pages must omit subnav so SPA can detect enter/leave.
+- `def test_project_overview_shows_model_workspace_subnav(client) -> None` (L45) — Direct URL render includes Model workspace subnav (full-page load).
+- `def test_rag_page_shows_rag_workspace_subnav(client) -> None` (L58)
+- `def test_training_page_shows_model_workspace_subnav(client) -> None` (L79)
+- `def test_data_prep_page_has_workspace_subnav(client) -> None` (L96) — Flow-scoped nav contract (2026-09-21): the pairs page declares
 
 ## `tests/unit/test_engine_fixes.py` (56 lines)
 - `class TestTrlPickleRegistration` (L5)
@@ -3993,32 +4282,32 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def test_engine_stop_from_idle(self)` (L51)
   - imports: finetune_studio.training.engine
 
-## `tests/unit/test_vram_profiler.py` (229 lines)
-- `class TestGPUInfo` (L6)
-  - `def test_gpu_info_detect_no_cuda(self)` (L9)
-  - `def test_gpu_info_detect_with_cuda(self)` (L17)
-- `class TestEstimateVRAM` (L36)
-  - `def test_qlora_7b_fits_24gb(self)` (L39)
-  - `def test_full_ft_7b_doesnt_fit_24gb(self)` (L51)
-  - `def test_qlora_14b_fits_24gb(self)` (L61)
-  - `def test_qlora_27b_fits_24gb_tight(self)` (L71)
-  - `def test_qlora_32b_doesnt_fit_24gb(self)` (L82)
-  - `def test_smaller_batch_saves_vram(self)` (L92)
-  - `def test_gradient_checkpointing_saves_vram(self)` (L107)
-  - `def test_to_dict_roundtrip(self)` (L124)
-- `class TestRecommendConfig` (L135)
-  - `def test_returns_configs_for_7b(self)` (L138)
-  - `def test_returns_configs_for_14b(self)` (L145)
-  - `def test_no_configs_for_70b_on_24gb(self)` (L151)
-  - `def test_sorted_by_quality(self)` (L157)
-- `class TestModelPresets` (L169)
-  - `def test_known_models_exist(self)` (L172)
-  - `def test_preset_has_required_fields(self)` (L179)
-- `class TestRecommendForModel` (L191)
-  - `def test_known_model(self)` (L194)
-  - `def test_unknown_model_raises(self)` (L200)
-  - `def test_partial_match(self)` (L206)
-- `class TestGenerateReport` (L213)
-  - `def test_report_contains_gpu_info(self)` (L216)
-  - `def test_report_save_to_file(self, tmp_path)` (L223)
+## `tests/unit/test_vram_profiler.py` (230 lines)
+- `class TestGPUInfo` (L7)
+  - `def test_gpu_info_detect_no_cuda(self)` (L10)
+  - `def test_gpu_info_detect_with_cuda(self)` (L18)
+- `class TestEstimateVRAM` (L37)
+  - `def test_qlora_7b_fits_24gb(self)` (L40)
+  - `def test_full_ft_7b_doesnt_fit_24gb(self)` (L52)
+  - `def test_qlora_14b_fits_24gb(self)` (L62)
+  - `def test_qlora_27b_fits_24gb_tight(self)` (L72)
+  - `def test_qlora_32b_doesnt_fit_24gb(self)` (L83)
+  - `def test_smaller_batch_saves_vram(self)` (L93)
+  - `def test_gradient_checkpointing_saves_vram(self)` (L108)
+  - `def test_to_dict_roundtrip(self)` (L125)
+- `class TestRecommendConfig` (L136)
+  - `def test_returns_configs_for_7b(self)` (L139)
+  - `def test_returns_configs_for_14b(self)` (L146)
+  - `def test_no_configs_for_70b_on_24gb(self)` (L152)
+  - `def test_sorted_by_quality(self)` (L158)
+- `class TestModelPresets` (L170)
+  - `def test_known_models_exist(self)` (L173)
+  - `def test_preset_has_required_fields(self)` (L180)
+- `class TestRecommendForModel` (L192)
+  - `def test_known_model(self)` (L195)
+  - `def test_unknown_model_raises(self)` (L201)
+  - `def test_partial_match(self)` (L207)
+- `class TestGenerateReport` (L214)
+  - `def test_report_contains_gpu_info(self)` (L217)
+  - `def test_report_save_to_file(self, tmp_path)` (L224)
   - imports: finetune_studio.training.vram, finetune_studio.training.vram_profiler

@@ -97,18 +97,16 @@ def test_rag_build_sync_response_not_building(client, tmp_path, monkeypatch) -> 
 
     pid = client.post("/api/projects", json={"name": "RAG sync status"}).json()["id"]
     corpus = tmp_path / "rag_corpora" / pid
-    home = tmp_path / "home"
-    files = home / ".finetune-studio" / "projects" / pid / "files"
+    root = tmp_path / "fts-root"
+    files = root / "projects" / pid / "files"
     files.mkdir(parents=True)
     (files / "a.txt").write_text("hi", encoding="utf-8")
     monkeypatch.setattr(
         "finetune_studio.webui.routes.rag._corpus_dir",
         lambda p: corpus if p == pid else tmp_path / "x" / p,
     )
-    monkeypatch.setattr(
-        "finetune_studio.webui.routes.rag.Path.home",
-        staticmethod(lambda: home),
-    )
+    monkeypatch.setattr("finetune_studio.data.fs.paths._ROOT", root)
+    monkeypatch.setattr("finetune_studio.data.fs.paths._PROJECTS", root / "projects")
     mock_rag = MagicMock()
     mock_rag.build_from_directory.return_value = {
         "documents": 1,

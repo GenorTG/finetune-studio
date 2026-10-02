@@ -163,10 +163,39 @@ def to_chat(qa: dict) -> dict:
     }
 
 
+def normalize_question(question: object) -> str:
+    """Whitespace/case-insensitive question key used to keep train and held-out disjoint."""
+    return re.sub(r"\s+", " ", str(question or "")).strip().casefold()
+
+
+def load_approved_pairs(project_dir: pathlib.Path) -> list[dict]:
+    """Every approved, de-duplicated qa pair currently on disk (incl. merged additions)."""
+    from finetune_studio.data.prep.export import deduplicate_qa_pairs
+
+    pairs: list[dict] = []
+    for p in sorted((project_dir / "qa" / "pairs").glob("*.json")):
+        qa = json.loads(p.read_text(encoding="utf-8"))
+        if qa.get("status") and qa["status"] != "approved":
+            continue
+        pairs.append(qa)
+    return deduplicate_qa_pairs(pairs)
+
+
 def split_held_out(pairs: list[dict], seed: int = 42, ratio: float = 0.9) -> tuple[list, list]:
     from finetune_studio.training.data import split_data
-    formatted = [to_chat(p) for p in pairs]
+    # Sort by question so membership depends on the pair set, not on file
+    # names/timestamps (augmented ids embed the run time).
+    ordered = sorted(pairs, key=lambda p: normalize_question(p.get("question")))
+    formatted = [to_chat(p) for p in ordered]
     return split_data(formatted, train_ratio=ratio, seed=seed)
+
+
+def held_out_questions(held: list[dict]) -> set[str]:
+    """Normalized user questions of a held-out split (``to_chat`` rows)."""
+    return {
+        normalize_question(next((m["content"] for m in ex["messages"] if m.get("role") == "user"), ""))
+        for ex in held
+    }
 
 
 def write_held_out_suite(held: list[dict], path: pathlib.Path) -> None:
@@ -231,19 +260,17 @@ def merge_into_qa_pairs(project_dir: pathlib.Path, augmented: list[dict]) -> int
     return added
 
 
-def rebuild_sharegpt_dataset(project_dir: pathlib.Path, dataset_dir: pathlib.Path) -> int:
-    from finetune_studio.data.prep.export import deduplicate_qa_pairs
-
-    pairs_dir = project_dir / "qa" / "pairs"
-    pairs: list[dict] = []
-    for p in sorted(pairs_dir.glob("*.json")):
-        qa = json.loads(p.read_text(encoding="utf-8"))
-        if qa.get("status") and qa["status"] != "approved":
-            continue
-        pairs.append(qa)
-
+def rebuild_sharegpt_dataset(
+    project_dir: pathlib.Path,
+    dataset_dir: pathlib.Path,
+    holdout_questions: set[str] | None = None,
+) -> int:
+    """Write the training ShareGPT export, never including a held-out question."""
+    blocked = holdout_questions or set()
     rows = []
-    for qa in deduplicate_qa_pairs(pairs):
+    for qa in load_approved_pairs(project_dir):
+        if normalize_question(qa["question"]) in blocked:
+            continue
         category = qa.get("category", "source-grounded")
         row = {
             "conversations": [
@@ -276,10 +303,8 @@ def main() -> int:
     project_dir = pathlib.Path(args.root) / "projects" / args.project_id
     dataset_dir = pathlib.Path(args.root) / "data" / "projects"
 
-    pairs = []
-    for p in sorted((project_dir / "qa" / "pairs").glob("*.json")):
-        pairs.append(json.loads(p.read_text(encoding="utf-8")))
-    print(f"existing pairs: {len(pairs)}")
+    pairs_before = len(list((project_dir / "qa" / "pairs").glob("*.json")))
+    print(f"existing pairs: {pairs_before}")
 
     augmented = build_augmented_pairs(project_dir)
     print(f"built augmented pairs: {len(augmented)}")
@@ -293,17 +318,20 @@ def main() -> int:
     )
     print(f"wrote {aug_path} ({aug_path.stat().st_size} bytes)")
 
-    _, held = split_held_out(pairs)
-    held_path = project_dir / "held-out.json"
-    write_held_out_suite(held, held_path)
-    print(f"wrote {held_path} ({len(held)} held-out cases)")
-
+    # Order matters: merge additions FIRST, split the complete pool ONCE, then
+    # build the training export from the train side only. Splitting before the
+    # merge (or exporting everything afterwards) leaked held-out pairs into training.
     added = merge_into_qa_pairs(project_dir, augmented)
     after = len(list((project_dir / "qa" / "pairs").glob("*.json")))
     print(f"merged {added} augmented pairs into qa/pairs/ (total now {after})")
 
-    n = rebuild_sharegpt_dataset(project_dir, dataset_dir)
-    print(f"rebuilt sharegpt dataset ({n} rows)")
+    _, held = split_held_out(load_approved_pairs(project_dir))
+    held_path = project_dir / "held-out.json"
+    write_held_out_suite(held, held_path)
+    print(f"wrote {held_path} ({len(held)} held-out cases)")
+
+    n = rebuild_sharegpt_dataset(project_dir, dataset_dir, holdout_questions=held_out_questions(held))
+    print(f"rebuilt sharegpt dataset ({n} training rows, {len(held)} held out)")
     return 0
 
 

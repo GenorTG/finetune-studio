@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate a synthetic training dataset for Finetune Studio."""
+import argparse
 import json
 import random
-import argparse
 from pathlib import Path
 
 # Diverse prompt templates covering multiple capabilities
@@ -93,8 +93,7 @@ def generate_dataset(n: int, output_path: str, seed: int = 42) -> int:
     
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as f:
-        for item in data:
-            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(item, ensure_ascii=False) + "\n" for item in data)
     
     return len(data)
 

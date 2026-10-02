@@ -34,7 +34,7 @@ def parse(path: Path) -> dict:
             continue
         try:
             body = part.get_content()
-        except Exception:
+        except (LookupError, ValueError):
             body = part.get_payload()
         if isinstance(body, str) and body.strip():
             parts_text.append(f"[{ctype}]\n{body}")

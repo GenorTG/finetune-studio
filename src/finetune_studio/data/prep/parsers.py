@@ -86,7 +86,7 @@ def parse_qa_json(raw: str, n_expected: int) -> list[dict]:
             try:
                 arr = json.loads(variant)
                 return coerce_pairs(arr, n_expected)
-            except Exception:
+            except (ValueError, TypeError):  # JSONDecodeError is a ValueError
                 continue
 
     # 4. Last resort: numbered-list / Q:/A: extraction

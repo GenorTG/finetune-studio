@@ -174,8 +174,9 @@ class TestExportQA:
 
     def test_export_formats_are_valid_jsonl(self):
         import json
-        from finetune_studio.data.prep.export import export_qa_jsonl
         from unittest.mock import patch
+
+        from finetune_studio.data.prep.export import export_qa_jsonl
 
         # Mock pfs.list_qa_pairs to return sample data
         mock_pairs = [
@@ -201,8 +202,9 @@ class TestExportQA:
                     f"Unexpected format for {fmt}: {list(obj.keys())}"
 
     def test_export_unknown_format_raises(self):
-        from finetune_studio.data.prep.export import export_qa_jsonl
         from unittest.mock import patch
+
+        from finetune_studio.data.prep.export import export_qa_jsonl
         with patch("finetune_studio.data.prep.export.pfs") as mock_pfs:
             mock_pfs.list_qa_pairs.return_value = []
             with pytest.raises(ValueError, match="Unknown format"):
@@ -215,8 +217,9 @@ class TestExportQA:
         still produce valid JSONL (regression test for the 500 we hit
         on fan-dragon when 2 of 29 pairs lacked these fields)."""
         import json
-        from finetune_studio.data.prep.export import export_qa_jsonl
         from unittest.mock import patch
+
+        from finetune_studio.data.prep.export import export_qa_jsonl
 
         minimal_pairs = [
             {
@@ -243,8 +246,9 @@ class TestExportQA:
             assert obj["score"] in (0, 0.0)
 
     def test_export_alpaca_tolerates_minimal_pair_schema(self):
-        from finetune_studio.data.prep.export import export_qa_jsonl
         from unittest.mock import patch
+
+        from finetune_studio.data.prep.export import export_qa_jsonl
         minimal_pairs = [{
             "id": "qa_x", "source_id": "s", "question": "q",
             "answer": "a", "status": "approved",
@@ -256,8 +260,9 @@ class TestExportQA:
 
     def test_export_openai_tolerates_minimal_pair_schema(self):
         import json
-        from finetune_studio.data.prep.export import export_qa_jsonl
         from unittest.mock import patch
+
+        from finetune_studio.data.prep.export import export_qa_jsonl
         minimal_pairs = [{
             "id": "qa_x", "source_id": "s", "question": "q",
             "answer": "a", "status": "approved",

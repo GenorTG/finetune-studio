@@ -130,48 +130,86 @@ async def delete_project(pid: str):
     from pathlib import Path
 
     from finetune_studio.config import settings
+    from finetune_studio.data.fs.paths import rag_corpus_dir
     from finetune_studio.data.fs.paths import root as fts_root
 
     for project_dir in (
         fts_root() / "projects" / pid,
         Path(settings.db_path).parent / "projects" / pid,
         Path("output") / "projects" / pid,
-        Path.home() / ".finetune-studio" / "rag_corpora" / pid,
+        rag_corpus_dir(pid),
     ):
         shutil.rmtree(project_dir, ignore_errors=True)
 
     return {"ok": True}
 
 
+ARCHIVE_VERSION = "2.0"
+_PROJECT_META_FIELDS = ("name", "description", "base_model", "system_prompt", "tags", "notes")
+
+
+def _projects_root():
+    from finetune_studio.data.fs.paths import root as fts_root
+
+    return fts_root() / "projects"
+
+
+def _corpora_root():
+    from finetune_studio.data.fs.paths import rag_corpora_root
+
+    return rag_corpora_root()
+
+
+def _safe_member_parts(name: str) -> tuple[str, ...] | None:
+    """Split an archive member name; None if absolute or containing ``..``."""
+    norm = name.replace("\\", "/")
+    if norm.startswith("/") or "\x00" in norm:
+        return None
+    parts = tuple(p for p in norm.split("/") if p not in ("", "."))
+    if not parts or ".." in parts or ":" in parts[0]:
+        return None
+    return parts
+
+
 @router.get("/{pid}/export")
 async def export_project(pid: str, name: str | None = None, fmt: str = "tar.gz"):
-    """Export a project as a self-contained archive."""
+    """Export one project as a self-contained archive.
+
+    Layout: ``manifest.json`` (project metadata), ``projects/<pid>/...`` and
+    ``rag_corpora/<pid>/...`` — exactly what ``import_project`` reads back.
+    """
     import io
+    import json
     import tarfile
-    from pathlib import Path
 
     from fastapi.responses import StreamingResponse
 
-    missing = _project_404(pid)
-    if missing is not None:
-        return missing
+    project = db.get_project(pid)
+    if not project:
+        return JSONResponse({"error": "project not found"}, status_code=404)
     if fmt not in ("tar.gz", "tar"):
         return JSONResponse({"error": "fmt must be tar.gz or tar"}, status_code=400)
+    if _safe_member_parts(pid) is None or len(_safe_member_parts(pid) or ()) != 1:
+        return JSONResponse({"error": "invalid project id"}, status_code=400)
 
     def stream():
         buf = io.BytesIO()
-        mode = 'w:gz' if fmt == 'tar.gz' else 'w'
+        mode = "w:gz" if fmt == "tar.gz" else "w"
         with tarfile.open(fileobj=buf, mode=mode) as tar:
-            data_dir = Path.home() / ".finetune-studio" / "projects" / pid
+            data_dir = _projects_root() / pid
             if data_dir.exists():
                 tar.add(str(data_dir), arcname=f"projects/{pid}")
-            rag_dir = Path.home() / ".finetune-studio" / "rag_corpora" / pid
+            rag_dir = _corpora_root() / pid
             if rag_dir.exists():
                 tar.add(str(rag_dir), arcname=f"rag_corpora/{pid}")
-            import json
-            manifest = json.dumps({"project_id": pid, "exported_at": time.time(), "version": "1.0"}, indent=2)
-            info = tarfile.TarInfo(name="manifest.json")
+            manifest = json.dumps({
+                "project_id": pid,
+                "exported_at": time.time(),
+                "version": ARCHIVE_VERSION,
+                "project": {k: project.get(k) or "" for k in _PROJECT_META_FIELDS},
+            }, indent=2)
             manifest_bytes = manifest.encode()
+            info = tarfile.TarInfo(name="manifest.json")
             info.size = len(manifest_bytes)
             tar.addfile(info, io.BytesIO(manifest_bytes))
         buf.seek(0)
@@ -186,66 +224,100 @@ async def export_project(pid: str, name: str | None = None, fmt: str = "tar.gz")
 
 @router.post("/import")
 async def import_project(request: Request):
-    """Import a project from an uploaded archive."""
+    """Import ONE project from an archive produced by ``export_project``.
+
+    Nothing is extracted until every member is validated: only regular files
+    and directories under ``projects/<old_id>/`` or ``rag_corpora/<old_id>/``
+    are accepted (no links, devices, absolute or ``..`` paths). Files land
+    under a freshly generated project id, never the archived one.
+    """
     import io
     import json
+    import shutil
     import tarfile
-    from pathlib import Path
 
     form = await request.form()
-    file = form.get('file')
+    file = form.get("file")
     if not file:
         return JSONResponse({"error": "no file"}, status_code=400)
 
-    data = await file.read()
-    buf = io.BytesIO(data)
+    buf = io.BytesIO(await file.read())
+
+    def bad(msg: str):
+        return JSONResponse({"error": f"invalid archive: {msg}"}, status_code=400)
 
     try:
-        with tarfile.open(fileobj=buf, mode='r:*') as tar:
-            # Read manifest
-            try:
-                member = tar.getmember('manifest.json')
-                f = tar.extractfile(member)
-                manifest = json.loads(f.read().decode())
-            except (KeyError, json.JSONDecodeError):
-                manifest = {"version": "1.0"}
+        with tarfile.open(fileobj=buf, mode="r:*") as tar:
+            manifest: dict = {}
+            plan: list[tuple[tarfile.TarInfo, str, tuple[str, ...]]] = []
+            old_ids: set[str] = set()
+            for member in tar.getmembers():
+                parts = _safe_member_parts(member.name)
+                if parts is None:
+                    return bad(f"unsafe member path {member.name!r}")
+                if parts == ("manifest.json",):
+                    f = tar.extractfile(member) if member.isfile() else None
+                    if f is None:
+                        return bad("manifest.json is not a file")
+                    try:
+                        manifest = json.loads(f.read().decode())
+                    except (UnicodeDecodeError, json.JSONDecodeError):
+                        return bad("manifest.json is not valid JSON")
+                    if not isinstance(manifest, dict):
+                        return bad("manifest.json must be an object")
+                    continue
+                if parts[0] not in ("projects", "rag_corpora"):
+                    return bad(f"unexpected member {member.name!r}")
+                if len(parts) == 1:
+                    continue
+                if not (member.isfile() or member.isdir()):
+                    return bad(f"unsupported member type: {member.name!r}")
+                old_ids.add(parts[1])
+                plan.append((member, parts[0], parts[1:]))
 
-            # Extract to temp dir first
-            import tempfile
-            with tempfile.TemporaryDirectory() as tmpdir:
-                tar.extractall(tmpdir, filter="data")
+            declared = manifest.get("project_id")
+            if declared is not None:
+                if not isinstance(declared, str) or _safe_member_parts(declared) != (declared,):
+                    return bad("manifest project_id is invalid")
+                if old_ids - {declared}:
+                    return bad("archive contains data for other projects")
+                old_id = declared
+            elif len(old_ids) == 1:
+                old_id = next(iter(old_ids))
+            else:
+                return bad("expected exactly one project")
+            if not any(root == "projects" for _m, root, _p in plan):
+                return bad("no projects dir")
 
-                # Find the projects dir
-                src_projects = Path(tmpdir) / "projects"
-                if not src_projects.exists():
-                    return JSONResponse({"error": "invalid archive: no projects dir"}, status_code=400)
+            meta = manifest.get("project") if isinstance(manifest.get("project"), dict) else {}
+            meta = {k: str(meta.get(k) or "") for k in _PROJECT_META_FIELDS}
+            proj_name = meta["name"] or f"Imported {old_id[:8]}"
+            new_proj = db.create_project(
+                name=proj_name,
+                description=meta["description"] or "Imported from archive",
+                base_model=meta["base_model"],
+                system_prompt=meta["system_prompt"] or "You are a helpful assistant.",
+            )
+            new_id = new_proj["id"]
+            db.update_project(new_id, tags=meta["tags"] or "imported", notes=meta["notes"])
 
-                # Import each project found
-                results = []
-                for proj_dir in src_projects.iterdir():
-                    if not proj_dir.is_dir():
-                        continue
-                    old_id = proj_dir.name
-                    # Create new project entry
-                    proj_name = manifest.get('project_name', f'Imported {old_id[:8]}')
-                    new_proj = db.create_project(
-                        name=proj_name,
-                        description=manifest.get('description', 'Imported from archive'),
-                        base_model=manifest.get('base_model', ''),
-                        system_prompt=manifest.get('system_prompt', 'You are a helpful assistant.'),
-                    )
-                    new_id = new_proj['id']
-                    db.update_project(new_id, tags=manifest.get('tags', 'imported'))
-                    # Copy files
-                    dest_dir = Path.home() / ".finetune-studio" / "projects" / new_id
-                    dest_dir.mkdir(parents=True, exist_ok=True)
-                    import shutil
-                    shutil.copytree(str(proj_dir), str(dest_dir), dirs_exist_ok=True)
-                    results.append({"old_id": old_id, "new_id": new_id, "name": proj_name})
-
-                return {"ok": True, "imported": results, "count": len(results)}
+            dests = {"projects": _projects_root() / new_id, "rag_corpora": _corpora_root() / new_id}
+            for member, root, parts in plan:
+                dest = dests[root].joinpath(*parts[1:])
+                if member.isdir():
+                    dest.mkdir(parents=True, exist_ok=True)
+                    continue
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                src = tar.extractfile(member)
+                if src is None:
+                    continue
+                with src, dest.open("wb") as out:
+                    shutil.copyfileobj(src, out)
+            dests["projects"].mkdir(parents=True, exist_ok=True)
+            return {"ok": True, "imported": [{"old_id": old_id, "new_id": new_id, "name": proj_name}],
+                    "count": 1}
     except (tarfile.TarError, EOFError) as e:
-        return JSONResponse({"error": f"invalid archive: {e}"}, status_code=400)
+        return bad(str(e))
 
 
 @router.post("/{pid}/promote")

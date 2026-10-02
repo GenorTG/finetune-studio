@@ -389,7 +389,7 @@ git clone https://github.com/GenorTG/finetune-studio.git
 cd finetune-studio
 ./install.sh                       # auto-detects GPU
 source .venv/bin/activate
-fts web --host 0.0.0.0 --port 7860
+fts webui --host 0.0.0.0 --port 7860
 ```
 
 Open http://localhost:7860. The first visit walks you through an 8-step

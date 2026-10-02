@@ -45,7 +45,7 @@ def resolve_model_ref(name: str, kind: str) -> str:
         short_id = name[len(prefix):]
         try:
             local_path: Path = _sm.resolve(short_id, kind)
-        except Exception:
+        except (OSError, ValueError):
             # If resolve fails (e.g. the model wasn't actually registered in
             # the shared store), leave the name unchanged -- the downstream
             # load will produce a clearer error than we can fabricate here.

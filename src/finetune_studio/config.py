@@ -1,20 +1,9 @@
-"""Application settings and constants.
+"""Mutable dataclass defaults for the app and its nested RAG settings.
 
-WHAT THIS FILE DOES
-==================
-Centralizes all the configuration values used by finetune-studio:
-  - File paths (data directories, model directories)
-  - Default hyperparameters (learning rate, batch size, epochs)
-  - Server settings (host, port)
-  - Debug flags
-
-KEY CONCEPTS
-============
-- Pydantic BaseModel: a way to define a typed settings object.
-  Gives you type checking, default values, and validation.
-- Environment variables: settings can be overridden by env vars
-  (useful for production deployments).
-- Frozen dataclass: immutable config that can't be accidentally modified.
+This module defines ``Settings`` and ``RAGSettings`` plus the process-wide
+``settings`` singleton. It does not read environment variables, validate
+values with Pydantic, or freeze the dataclasses; integrations that read their
+own environment or settings files do so at their call sites.
 """
 
 from dataclasses import dataclass, field
@@ -62,4 +51,3 @@ class Settings:
     rag: RAGSettings = field(default_factory=RAGSettings)
 
 settings = Settings()
-

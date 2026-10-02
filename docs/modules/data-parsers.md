@@ -89,9 +89,11 @@ Each file below exposes exactly one function, `parse(path: Path) -> dict`
   title/headings/link_count in `structured` (links themselves not retained
   beyond count — acceptable since anchor text is already inline in `text`).
 - **`pdf.py`** (`.pdf`) — fallback chain pypdf → PyPDF2 → `pdftotext` CLI →
-  OCR (via `data/ocr.py:ocr_pdf`, tesseract). `text` joins **all** extracted
-  pages; `structured.pages` is capped at 500 for size but that cap never
-  affects `text`. `metadata.parser` encodes which method actually won (e.g.
+  OCR (via `data/ocr.py:ocr_pdf`, tesseract). `text` joins **all** non-blank
+  pages; blank pages are kept internally so `structured.pages[].page` numbers
+  match the PDF (blank pages are omitted from the list); `structured.pages`
+  is capped at 500 for size but that cap never affects `text`. The
+  `pdftotext` subprocess decodes with `errors="replace"`. `metadata.parser` encodes which method actually won (e.g.
   `pdf_v1_pypdf`, `pdf_v1_ocr_eng+pol`) — useful for debugging why a given
   PDF came out empty.
 - **`docx.py`** (`.docx`) — paragraphs + headings (by `Heading N` style) +
@@ -199,12 +201,9 @@ extractable text layer) and `parsers/image.py` (primary extraction path).
   `RuntimeError` if the download itself fails. Opt out with
   `FTS_OCR_AUTOINSTALL=0` (e.g. air-gapped CI).
 - `ocr_image(path, languages, psm=3, oem=1)` — shells out to `tesseract`,
-  writing output to a `/tmp/_ocr_{pid}_{hash}.txt` file it then reads and
-  deletes. **Gotcha:** the temp filename is derived from `hash(str(path))`,
-  which is stable within one process — two threads OCR-ing the *same* image
-  path concurrently in the same process could collide on the same temp file.
-  Not hit by current callers (sequential per-file parsing), but worth
-  knowing before adding concurrent OCR.
+  writing output to a `tempfile.mkstemp`-named base (unique per call, so
+  concurrent OCR of the same image is safe) that it reads and deletes.
+  `_ensure_tessdata` reports download failures as `lang: error` pairs.
 - `ocr_image_object(img, ...)` — in-memory PIL image OCR via `pytesseract`,
   avoids the disk round-trip; used internally by `ocr_pdf`.
 - `ocr_pdf(path, languages, dpi=200)` — rasterizes every page via
@@ -224,21 +223,14 @@ expects (`{"messages": [{"role": ..., "content": ...}]}`).
 - `simple_to_chat` — splits a text file on blank lines into Q:/A: blocks,
   each becoming one `{"messages": [...]}` JSONL record.
 - `jsonl_to_json` / `json_to_jsonl` — straight format round-trips.
-- **Gotcha:** unlike every `data/parsers/*.py` file, these `open()` calls
-  don't pass `encoding="utf-8"` or `newline=""`; on a non-UTF-8-locale box or
-  a CSV with embedded newlines this can behave differently from the `csv.py`
-  parser in the main pipeline. Low risk (training data is typically produced
-  on the same box it's consumed on) but inconsistent with the rest of this
-  module's conventions — worth tightening if this path sees more use.
+- All `open()` calls use `encoding="utf-8"` (and `newline=""` for CSV input).
 
 ## `data/validator.py`
 
 Pre-training JSONL/JSON/TXT sanity checker (`cli/commands/validate.py`,
 `webui/routes/data.py`). `validate_jsonl` walks every line, flags invalid
 JSON, missing `role`/`content` keys, and non-list `messages`, accumulating
-`errors`/`warnings`/`stats` rather than raising — a good pattern this audit
-used as a cross-check for the `json.py` parser fix above (validator already
-treated malformed-JSON-per-line as a recoverable warning, not a crash).
+`errors`/`warnings`/`stats` rather than raising — non-object rows/messages are reported as errors rather than crashing.
 
 ## `data/sentence_transformer_local.py`
 
@@ -259,7 +251,7 @@ embedder, when a dir can't be made loadable — see the docstring note about
 - `prepare_local_sentence_transformer_dir` — the repair entry point: creates
   missing module dirs, writes a minimal Pooling config when absent (inferring
   dimension from sibling configs via `_infer_embedding_dimension`), and
-  normalizes legacy pooling keys in every module's config.
+  normalizes legacy pooling keys in the Pooling config only (other modules' configs are left untouched).
 - `_apply_pooling_compat` — migrates `word_embedding_dimension` →
   `embedding_dimension` and legacy boolean `pooling_mode_*_token` flags into
   the single `pooling_mode` string ST ≥5 expects. **Fixed in this audit:**

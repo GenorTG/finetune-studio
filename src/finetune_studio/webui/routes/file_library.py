@@ -56,6 +56,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 
 from finetune_studio import db
 from finetune_studio.data.fs import file_library as fl
+from finetune_studio.data.fs.paths import resolve_in_project
 from finetune_studio.data.fs.qa import stage_file_library_upload
 from finetune_studio.data.parsers import PARSERS
 
@@ -104,6 +105,16 @@ def _parse_source_background(pid: str, source_id: str) -> None:
 def _project_or_404(pid: str) -> None:
     if not db.get_project(pid):
         raise HTTPException(status_code=404, detail="project not found")
+
+
+def _file_or_404(pid: str, fid: str) -> None:
+    """404 unless ``fid`` is a file of project ``pid`` (trashed files count).
+
+    Version/conversion rows are keyed by file id alone; this keeps another
+    project's file id from resolving (and leaking paths) through this URL.
+    """
+    if not fl.get_file(pid, fid, include_deleted=True):
+        raise HTTPException(status_code=404, detail="file not found")
 
 
 async def _json_body(request: Request) -> dict[str, Any]:
@@ -386,7 +397,7 @@ async def download_raw_route(
             status_code=404,
             detail=f"version {target_version} not found",
         )
-    path = Path(match["raw_path"])
+    path = resolve_in_project(pid, match["raw_path"], what="raw_path")
     if not path.exists():
         raise HTTPException(status_code=410, detail="file missing on disk")
     return FileResponse(
@@ -445,12 +456,14 @@ async def file_usage_route(pid: str, fid: str):
 @router.get("/projects/{pid}/files/{fid}/versions")
 async def list_versions_route(pid: str, fid: str):
     _project_or_404(pid)
+    _file_or_404(pid, fid)
     return {"versions": fl.list_versions(pid, fid)}
 
 
 @router.get("/projects/{pid}/files/{fid}/conversions")
 async def list_conversions_route(pid: str, fid: str):
     _project_or_404(pid)
+    _file_or_404(pid, fid)
     return {"conversions": fl.list_conversions(pid, fid)}
 
 

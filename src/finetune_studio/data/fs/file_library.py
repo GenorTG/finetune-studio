@@ -133,27 +133,6 @@ class FileMetadata:
         return Path(self.raw_path).name
 
 
-@dataclass
-class UploadReportItem:
-    """One row in the bulk-upload report."""
-    filename: str
-    status: str                 # 'uploaded' | 'duplicate' | 'error'
-    file_id: str | None = None
-    duplicate_of: str | None = None      # filename the duplicate matched
-    converted: str | None = None        # 'ok' | 'error' | None (skipped)
-    error: str | None = None
-
-    def to_dict(self) -> dict:
-        return {
-            "filename": self.filename,
-            "status": self.status,
-            "file_id": self.file_id,
-            "duplicate_of": self.duplicate_of,
-            "converted": self.converted,
-            "error": self.error,
-        }
-
-
 # ── Path helpers ──────────────────────────────────────────────────────────
 
 def raw_subdir(pid: str, auto_kind: str) -> Path:
@@ -177,21 +156,6 @@ def raw_path_for(pid: str, file_id: str, original_name: str, auto_kind: str) -> 
     ext = _ext_for_filename(original_name)
     stem = _safe_stem(original_name)
     return raw_subdir(pid, auto_kind) / f"{file_id}_{stem}{('.' + ext) if ext else ''}"
-
-
-def converted_filename_for(original_name: str, when_ts: float) -> str:
-    """Naming convention for converted files. Includes date for traceability
-    when a CLI user wants to find the latest conversion."""
-    from datetime import UTC, datetime
-    stem = _safe_stem(original_name)
-    date_str = datetime.fromtimestamp(when_ts, tz=UTC).strftime("%Y-%m-%d")
-    return f"{stem} (converted {date_str}).md"
-
-
-def converted_path_for(pid: str, user_folder: str, converted_filename: str) -> Path:
-    """Path for a converted file inside a user-named folder."""
-    safe_folder = _safe_stem(user_folder) or "default"
-    return project_files_root(pid) / "converted" / safe_folder / converted_filename
 
 
 def ensure_dirs(pid: str) -> None:
@@ -363,29 +327,38 @@ def get_file(pid: str, file_id: str, *, include_deleted: bool = False) -> dict |
 
 
 def list_versions(pid: str, file_id: str) -> list[dict]:
-    """Return all raw versions of a file, newest first."""
+    """Return all raw versions of a file, newest first.
+
+    Scoped to ``pid``: a file id owned by another project yields ``[]`` so its
+    on-disk paths never leak through this project's URL.
+    """
     from finetune_studio import db
     with db.cursor() as c:
         rows = c.execute(
-            """SELECT id, file_id, version, raw_path, raw_hash, raw_size, uploaded_at, uploaded_by
-                 FROM file_versions
-                WHERE file_id = ?
-                ORDER BY version DESC""",
-            (file_id,),
+            """SELECT fv.id, fv.file_id, fv.version, fv.raw_path, fv.raw_hash,
+                      fv.raw_size, fv.uploaded_at, fv.uploaded_by
+                 FROM file_versions fv
+                 JOIN project_files pf ON pf.id = fv.file_id
+                WHERE fv.file_id = ? AND pf.project_id = ?
+                ORDER BY fv.version DESC""",
+            (file_id, pid),
         ).fetchall()
     return [dict(r) for r in rows]
 
 
 def list_conversions(pid: str, file_id: str) -> list[dict]:
+    """Return a file's conversions, newest first, scoped to ``pid``."""
     from finetune_studio import db
     with db.cursor() as c:
         rows = c.execute(
-            """SELECT id, file_id, version, format, converted_path, converted_hash,
-                     converted_size, converter, converted_at, status, error_message
-                 FROM file_conversions
-                WHERE file_id = ?
-                ORDER BY converted_at DESC""",
-            (file_id,),
+            """SELECT fc.id, fc.file_id, fc.version, fc.format, fc.converted_path,
+                      fc.converted_hash, fc.converted_size, fc.converter,
+                      fc.converted_at, fc.status, fc.error_message
+                 FROM file_conversions fc
+                 JOIN project_files pf ON pf.id = fc.file_id
+                WHERE fc.file_id = ? AND pf.project_id = ?
+                ORDER BY fc.converted_at DESC""",
+            (file_id, pid),
         ).fetchall()
     return [dict(r) for r in rows]
 

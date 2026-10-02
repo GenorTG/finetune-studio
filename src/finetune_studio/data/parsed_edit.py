@@ -188,13 +188,12 @@ def corpus_sha12s(pid: str) -> set[str]:
     Corpus ``document_id`` is an md5 of the source path — NOT the content
     sha12 — so the badge must read ``documents_meta[].source`` paths
     (``…/files/<sha12>/parsed.txt``) instead. Best-effort: no manifest →
-    empty set. Checks both the rag.py location (~) and FTS_ROOT for tests.
+    empty set.
     """
-    from finetune_studio.data.fs.paths import root
+    from finetune_studio.data.fs.paths import rag_corpora_root
 
     out: set[str] = set()
-    for base in (Path.home() / ".finetune-studio" / "rag_corpora",
-                 root() / "rag_corpora"):
+    for base in (rag_corpora_root(),):
         manifest = base / pid / "manifest.json"
         if not manifest.is_file():
             continue

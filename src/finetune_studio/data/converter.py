@@ -47,21 +47,3 @@ def csv_to_jsonl(csv_path, jsonl_path, text_column="text", system_prompt=""):
                     messages.append({"role": "system", "content": system_prompt})
                 messages.append({"role": "user", "content": text})
                 out.write(json.dumps({"messages": messages}, ensure_ascii=False) + "\n")
-
-def simple_to_chat(text_path, jsonl_path, system_prompt=""):
-    with open(text_path, encoding="utf-8") as f:
-        content = f.read()
-    blocks = content.strip().split("\n\n")
-    with open(jsonl_path, "w", encoding="utf-8") as out:
-        for block in blocks:
-            lines = block.strip().split("\n")
-            messages = []
-            if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
-            for line in lines:
-                if line.startswith(("Q:", "q:")):
-                    messages.append({"role": "user", "content": line[2:].strip()})
-                elif line.startswith(("A:", "a:")):
-                    messages.append({"role": "assistant", "content": line[2:].strip()})
-            if len(messages) > 1:
-                out.write(json.dumps({"messages": messages}, ensure_ascii=False) + "\n")

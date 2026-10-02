@@ -246,21 +246,17 @@ Called from `engine._do_abliteration()` and `run_export.export_trained_run`
 guard — the pipeline removes refusal behavior but makes no corresponding
 data-quality check.
 
-## `advanced_quant.py` — imatrix GGUF (**not wired into the live engine**)
+## `advanced_quant.py` — imatrix GGUF export (wired into the live engine)
 
-`quantize_gguf_imatrix` / `generate_imatrix` implement importance-matrix
-GGUF quantization against **hardcoded** llama.cpp paths
-(`~/llama.cpp/convert.py`, `~/llama.cpp/quantize`, `~/llama.cpp/imatrix`) —
-a narrower, independent path discovery from `gguf_convert.py`'s
-configurable `llama_cpp_search_paths()`. It *is* reachable from the live
-engine: `TrainingEngine._do_export_imatrix` calls
+`quantize_gguf_imatrix` implements importance-matrix GGUF quantization.
+It imports converter/quantizer discovery and quant normalization from
+`gguf_convert.py`; it does not discover its own hardcoded tool paths. It is
+reachable from the live engine: `TrainingEngine._do_export_imatrix` calls
 `quantize_gguf_imatrix` when `config.export_imatrix` is set, and
 `webui/routes/training.py` exposes an endpoint for it. This is a second,
-narrower GGUF path discovery mechanism living alongside `gguf_convert.py`
-'s — not a bug today (different feature: imatrix vs. plain quant), but a
-candidate for consolidation onto `gguf_convert.llama_cpp_search_paths()`
-if imatrix export ever needs the same configurability (`$LLAMA_CPP_DIR`,
-project-local `.llama.cpp/`) that plain GGUF export already has.
+different export mode from plain quantization, but both use the shared
+`gguf_convert` discovery rules (`$LLAMA_CPP_DIR`, project-local `.llama.cpp/`,
+and the other configured search roots).
 
 ## `monitor.py` — SSE progress feed
 
@@ -304,7 +300,7 @@ suffixes like `Q4_K_M` are never mistaken for a size). Used by
 `webui/routes/training.py`'s preset endpoint; not called from the engine
 itself.
 
-## `config_optimizer.py` / `data_quality.py` / `data_augmentation.py` / `hallucination_guard.py` — CLI/API data tools, not wired into training itself
+## `config_optimizer.py` / `data_quality.py` / `data_augmentation.py` / `hallucination_guard.py` — advisory CLI/API tools, not wired into training itself
 
 These four are pre/post-training **advisory** tools: they analyze or
 augment a JSONL file sitting on disk, independent of any run. None of

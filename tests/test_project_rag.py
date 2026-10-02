@@ -6,6 +6,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
+import pytest
+
+from tests.test_rag_mcp_package import (
+    corpus_dir as _full_corpus,  # noqa: F401  (fixture)
+)
 
 
 def _project(client) -> str:
@@ -197,3 +202,103 @@ def test_rebuild_endpoint_mocked(client, tmp_path: Path, monkeypatch) -> None:
 def test_docs_api_404_unknown_project(client) -> None:
     r = client.get("/api/projects/doesnotexist/rag/docs")
     assert r.status_code == 404
+
+
+# ---------------------------------------------------------------- export API
+@pytest.fixture()
+def export_env(client, tmp_path: Path, monkeypatch, _full_corpus: Path):  # noqa: F811
+    """Project wired to a full on-disk corpus, isolated settings + output dir."""
+    from finetune_studio.webui.routes import settings as settings_mod
+
+    pid = _project(client)
+    monkeypatch.setattr(settings_mod, "SETTINGS_PATH", tmp_path / "settings.json")
+    monkeypatch.setattr(
+        "finetune_studio.webui.routes.project_rag.corpus_dir", lambda p: _full_corpus)
+    monkeypatch.chdir(tmp_path)  # packages land in ./output/projects/<pid>/
+    return pid
+
+
+def test_export_config_defaults_and_overrides(client, export_env) -> None:
+    pid = export_env
+    d = client.get(f"/api/projects/{pid}/rag/export-config").json()
+    assert d["effective"]["encrypt"] is True and d["effective"]["host"] == "127.0.0.1"
+    assert d["project_override"] == {}
+
+    r = client.put(f"/api/projects/{pid}/rag/export-config",
+                   json={"scope": "studio", "values": {"port": 9000, "top_k": 7}})
+    assert r.status_code == 200, r.text
+    r = client.put(f"/api/projects/{pid}/rag/export-config",
+                   json={"scope": "project", "values": {"port": 9100}})
+    eff = r.json()["effective"]
+    assert (eff["port"], eff["top_k"]) == (9100, 7)
+    assert r.json()["defaults"]["port"] == 9000
+    r = client.put(f"/api/projects/{pid}/rag/export-config",
+                   json={"scope": "project", "clear": True})
+    assert r.json()["effective"]["port"] == 9000
+    bad = client.put(f"/api/projects/{pid}/rag/export-config",
+                     json={"scope": "studio", "values": {"device": "tpu"}})
+    assert bad.status_code == 422
+    assert client.put(f"/api/projects/{pid}/rag/export-config",
+                      json={"scope": "nope"}).status_code == 400
+    assert client.get("/api/projects/nope/rag/export-config").status_code == 404
+
+
+def test_mcp_package_encrypted_flow(client, export_env, tmp_path: Path) -> None:
+    pid = export_env
+    client.put(f"/api/projects/{pid}/rag/export-config",
+               json={"scope": "studio", "values": {"kdf_log_n": 10}})
+    r = client.post(f"/api/projects/{pid}/rag/mcp-package", json={})
+    assert r.status_code == 200, r.text
+    assert r.headers["cache-control"] == "no-store"
+    j = r.json()
+    assert j["encrypted"] is True and j["passphrase"] and len(j["passphrase"]) >= 20
+    assert "PLAINTEXT" not in j["filename"]
+
+    dl = client.get("/api" + j["download_url"])
+    assert dl.status_code == 200
+    assert j["passphrase"].encode() not in dl.content
+    assert b"Vaelindrath" not in dl.content
+    # the passphrase is not persisted anywhere under settings/output
+    for f in tmp_path.rglob("*"):
+        if f.is_file() and f.suffix in (".json", ".txt", ".md"):
+            assert j["passphrase"] not in f.read_text(errors="ignore")
+
+    # supplied passphrase is not echoed back
+    r2 = client.post(f"/api/projects/{pid}/rag/mcp-package",
+                     json={"passphrase": "my own long passphrase", "archive_format": "zip"})
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["passphrase"] is None and r2.json()["filename"].endswith(".zip")
+
+
+def test_mcp_package_plaintext_is_explicit_and_labelled(client, export_env) -> None:
+    pid = export_env
+    r = client.post(f"/api/projects/{pid}/rag/mcp-package", json={"encrypt": False})
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["encrypted"] is False and j["passphrase"] is None
+    assert "PLAINTEXT" in j["filename"]
+    # passphrase + encrypt=false is a contradiction, not a silent downgrade
+    bad = client.post(f"/api/projects/{pid}/rag/mcp-package",
+                      json={"encrypt": False, "passphrase": "some long passphrase"})
+    assert bad.status_code == 422
+    short = client.post(f"/api/projects/{pid}/rag/mcp-package", json={"passphrase": "x"})
+    assert short.status_code == 422
+
+
+def test_mcp_package_download_validation_and_old_get_gone(client, export_env) -> None:
+    pid = export_env
+    for bad in ("../../etc/passwd", "a/b.zip", "x.exe", "..%2f..%2fsecret.zip"):
+        r = client.get(f"/api/projects/{pid}/rag/mcp-package/download", params={"file": bad})
+        assert r.status_code == 400, bad
+    assert client.get(f"/api/projects/{pid}/rag/mcp-package/download",
+                      params={"file": "missing.zip"}).status_code == 404
+    # the old GET build endpoint (passphrase-in-URL era / unencrypted) is gone
+    assert client.get(f"/api/projects/{pid}/rag/mcp-package").status_code == 405
+
+
+def test_mcp_package_no_corpus_404(client, tmp_path: Path, monkeypatch) -> None:
+    pid = _project(client)
+    monkeypatch.setattr(
+        "finetune_studio.webui.routes.project_rag.corpus_dir", lambda p: tmp_path / "none")
+    monkeypatch.chdir(tmp_path)
+    assert client.post(f"/api/projects/{pid}/rag/mcp-package", json={}).status_code == 404

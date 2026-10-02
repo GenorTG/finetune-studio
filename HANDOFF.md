@@ -1,31 +1,46 @@
-# HANDOFF — finetune-studio
+# Handoff — finetune-studio
 
 ## Mission
-Self-hosted local-LLM workshop for document prep, RAG, fine-tuning, evaluation, and chat.
-Correctness is judged from actual data flow and reviewed transcripts, not optimistic UI or auto-scores.
 
-## State (verified 2026-10-01)
+Local fine-tune + data-prep WebUI. Current thread: act on `docs/audit/APP-AUDIT-2026-10-02.md` (fix verified bugs with regression tests, keep lint honest).
+
+## State (verified 2026-10-02)
+
 | Area | State |
 |---|---|
-| Branch | `main` at `cffbe04`, pushed. History was rewritten 2026-10-01 to purge `.openclaw/trajectory-exports/` (leaked internal session data); old clones/forks must re-clone. |
-| Audit | Every app module, test, script and `app.css` read; per-module docs in `docs/modules/*.md`, overview in `docs/ARCHITECTURE.md` + `docs/DEVELOPER.md`. Dead code deleted (parsers/prep/unsloth_engine/compare/samplers/tool_calling/cli, legacy benchmark class hierarchy). |
-| Fixes | Multi-quant export DB rows; quality routes (augment/optimize/hallucination/convert); project delete now removes files on disk; run_benchmark unloads shared engine first (GH-AAA); RAG clear/remove_source; export ownership checks; upload traversal + awaited writes; DOCX tables; coverage_fill; purge_trash; suite pass_rate; create_case columns; UI/installer/QA-runner fixes. |
-| Pipeline proof | Run `ff471547`: loss 0.0842, benchmark 91.1% pass / 91.9 weighted. |
-| Verification | Full pytest: 1250 passed; sole failure was the untracked-files hygiene test, which passes after commit. `git diff --check` clean. |
-| Visibility | Repo is public, including developer docs. |
+| Branch | `main` at `e8c358f`. All audit-fix work is **local/uncommitted**; nothing pushed. New test files are `git add -N` (intent-to-add) so `tests/test_repo_hygiene.py` passes. |
+| Source read | Complete: 212 app Python modules, 13 scripts, 37 WebUI Python modules, 28 templates, 11 static assets. See the app audit. |
+| Test read | Incomplete: 8/166 `test_*.py` files in `docs/audit/TEST-AUDIT-2026-10-01.md`. Do not claim complete test review. |
+| Tests | Full suite after lanes A-D (`--ignore=tests/test_vram.py`): 1323 passed, 2 failed. Both fixed and re-run green (7/7): `test_repo_hygiene` (untracked files; resolved via `git add -N`) and `test_rebuild_vectors_applies_pending_embedder_from_settings_patch` (stale test patched removed `rag_routes._CORPORA`; now patches `_corpus_dir`). No second full run yet. |
+| Formatter parity | Done (`docs/audit/FORMATTER-PARITY-2026-10-02.md`). `system_prompt` callers are NOT yet wired to it. |
+| Dead code | Removed in lanes A-D (see git diff); `_CORPORA` constant gone from `routes/rag.py`. |
+| Ruff | `ruff check src/ scripts/` clean (broad handlers narrowed; intentional boundaries carry a justified `noqa`). `tests/` still has ~108 legacy findings (deferred with test review). |
+| Fixed (with tests) | Chat RAG ownership; file versions/conversions project scoping; RAG run attribution; RAG source root honors `FTS_ROOT`; CLI no-op flags removed, `fts suite` judges before scoring, `fts validate` exits nonzero; VRAM profiler init + safe cleanup; installer diagnostics (3 defects); augment holdout/training disjoint. |
+| CODEMAP | Regenerated 2026-10-02 (`make codemap`). |
 
-## Known issues
-1. Three overlapping export-list routes.
-2. Orphaned `/rags/*` and `/api/compare/*` routes; legacy `rag/` package only live via those plus the `chat_v2` fallback.
-3. Duplicate RAG settings fields in `config.py`.
-4. `ruff check src/` still has ~129 pre-existing findings (mostly facade F401 re-exports); no blind autofix.
-5. Local branches `backup/pre-history-rewrite` and `openclaw/fix-gptqmodel-...` still hold the pre-purge history (local only; delete when no longer needed).
+## Next steps
 
-## Rules
-- After every test run, delete leftover artifacts (exported GGUFs, test projects, output runs). Fixtures kept in `~/.finetune-studio/test-fixtures/`.
-- GTX 1070 is never used; RTX 3090 only.
-- Live E2E needs `FTS_ALLOW_LIVE_E2E=1`; the external E2E runner sends Discord notifications, so don't invoke it locally.
+1. ~~External-path ingestion~~ **DONE 2026-10-02 (Genor decision):** data prep never reads/writes outside the project dir; one fence `data.fs.paths.resolve_in_project`/`resolve_within`; `tests/test_data_prep_path_fence.py`. `routes/quality.py` (`/api/data/{analyze,augment,optimize,hallucination-check,convert}`) fenced too (path + `output`; optional `project_id` → project dir, else `settings.data_dir`).
+2. ~~PortableRAG server exposure~~ **DONE 2026-10-02:** shipped server binds 127.0.0.1, non-loopback requires a bearer token, config layered (flags>env>`rag.config.json`>defaults), export encrypted at rest by default (AES-256-GCM, passphrase-derived key never shipped). Studio `/rag/bundle` export is now an encrypted `.ftsrag` (`secure_bundle.py`, kept in `<project>/rag-bundles/`; import stages in project dir). Tests: `tests/test_rag_encrypted_package.py`, `tests/test_rag_secure_bundle.py`.
+3. ~~Project archive round-trip~~ **DONE** (lanes A-D).
+4. ~~`rag_corpora` root on FTS_ROOT helpers~~ **DONE** (`rag_corpus_dir`).
+5. Formatter parity done; wire `system_prompt` callers. RAG coverage claims are filename-based, not content-hash.
+6. Holdout disjointness is exact-question only; reworded duplicates can still leak.
+7. Finish test-file review (158 left) and tests-scope Ruff. Follow-up filed: `training/data_quality.generate_fixes` suggests nonexistent CLI commands (`tests/test_data_quality_fixes.py` is its test).
 
 ## Commands
-- Full: `.venv/bin/python -m pytest -q -p no:cacheprovider` (~16 min)
-- Lint: `.venv/bin/ruff check <changed-python-files>`
+
+- Ruff: `.venv/bin/ruff check src/ scripts/ tests/`
+- Tests: `.venv/bin/python -m pytest -q -p no:cacheprovider --ignore=tests/test_vram.py` (~21 min)
+- Codemap: `make codemap`
+
+## Guardrails
+
+- After test runs, check `~/.finetune-studio/test-fixtures/` (3 pre-existing dirs dated 2026-10-01 are not from this work).
+- Never use the GTX 1070; RTX 3090 only.
+- Live E2E needs `FTS_ALLOW_LIVE_E2E=1`; `tests/run_qa.sh` can contact remote services and mutate data.
+- `docs/audit/*-AUDIT-*.md` are private ledgers (excluded via `.git/info/exclude`). Do not commit/push developer docs or deploy to fan-dragon until visibility and `docs/WORKPLAN.md` gates are decided.
+
+## Blockers
+
+Open policy items 1-2 (as listed in the lane report) need Genor's decision. Nothing committed/pushed without his OK.

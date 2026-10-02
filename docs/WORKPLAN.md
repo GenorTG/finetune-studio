@@ -4,7 +4,7 @@
 > follow steps in order, no reordering, no skipping. If a step is blocked, STOP and
 > report the blocker in one line — do not improvise around it.
 
-Last updated: 2026-10-01 (by Amy, during the repository audit)
+Last updated: 2026-10-02 (by Amy, during the repository audit)
 Source of truth for ordering: this file. HANDOFF.md describes state, not order.
 
 ## Iron rules (every session, every model)
@@ -45,11 +45,34 @@ Source of truth for ordering: this file. HANDOFF.md describes state, not order.
 
 ### Step 1 — Complete the requested code audit and documentation split
 - Inventory every tracked file; mark explicit read/audit coverage instead of using an
-  earlier "full codebase" claim as evidence. Current inventory: 525 tracked files,
-  including 180 tests/fixtures; app.css (4,995 lines) has now been read, test-tree
-  line-by-line review is still incomplete.
+  earlier "full codebase" claim as evidence. Current Git inventory (2026-10-02): 527
+  tracked files, including 184 files under `tests/`; `src/finetune_studio/` has 212
+  tracked Python modules (40,475 lines), plus UI/assets. The stylesheet is 4,467
+  lines, not the previously recorded 4,995. Full read-through is complete for the
+  app Python modules, scripts, WebUI Python, templates, and static assets. Findings
+  and exact scope are in `docs/audit/APP-AUDIT-2026-10-02.md`.
 - Close remaining source discrepancies and focused regressions. Current continuation
-  edits are uncommitted; run the focused test files and Ruff before committing.
+  edits are uncommitted. The full run reported 1247 passed, 3 skipped, and 2 stale
+  test failures; both test defects were corrected, then the affected set passed
+  (28 passed). A current Ruff run over `src/`, `scripts/`, and `tests/` reports 168
+  findings (16/31/108 respectively); resolve or explicitly justify them before
+  declaring lint clean. Re-run the full suite before publishing.
+  `git diff --check` is clean; CODEMAP generation is idempotent, but
+  `make codemap-check` compares against HEAD and therefore reports the existing
+  modified CODEMAP diff as stale until the changes are committed.
+- Test-tree audit remains incomplete: `tests/` contains 166 `test_*.py` files;
+  the strict continuation ledger records 8 test files read in
+  `docs/audit/TEST-AUDIT-2026-10-01.md`. That lane exposed cross-project
+  benchmark access, now guarded and regression-tested (38 lane tests pass).
+  Earlier lane reports were partial/truncated; do not claim full review.
+- Test lint findings remain part of the 155 Ruff total. No tests were run during
+  the 2026-10-02 documentation/lint inventory continuation.
+- GitHub Pages served a benchmark gallery PNG whose pixels were the FastAPI 404
+  body `{"detail":"Not Found"}`. The asset URL returned HTTP 200 because that
+  failed response was saved as a PNG and committed in `44747f0`. Removed its
+  embed from README and Pages HTML; pushed in `e8c358f`. Live Pages verified to
+  show the benchmark description without the broken image. Restore only a real
+  product capture.
 - Reconcile developer/module docs and public-facing README/Pages against current code.
   Do not describe a protected public branch as private. Keep developer documentation
   unpublished until its visibility is decided.

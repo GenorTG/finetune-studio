@@ -1239,7 +1239,7 @@
     for (const f of fileList) { fd.append('files', f, f.name); total += f.size; names.push(f.name); }
     if (input) input.disabled = true;
     // Real-time progress: XHR upload.onprogress → "Uploading 42% (1.2 MB / 2.7 MB)…",
-    // then parsing verdict once the server responds (parse is synchronous in the API).
+    // then the server's queued/parse result (supported-file parsing runs in a background task).
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/projects/' + PID + '/files/upload');
     xhr.upload.onprogress = (ev) => {
@@ -1256,7 +1256,7 @@
           status.textContent = 'Uploaded ' + (c.uploaded || 0) +
             (c.duplicates_skipped ? ', ' + c.duplicates_skipped + ' dup' : '') +
             (c.errors ? ', ' + c.errors + ' err' : '') +
-            ' — parsed ✓';
+            ' — queued for parsing';
         }
         await loadFiles();
       } catch (e) {

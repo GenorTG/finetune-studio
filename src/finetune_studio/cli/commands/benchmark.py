@@ -46,7 +46,6 @@ def cmd_benchmark(args) -> None:
     print(f"{'='*60}")
     print(f"Model: {os.path.basename(args.model)}")
     print(f"Samples per benchmark: {'full' if full_run else args.num_samples}")
-    print(f"Temperature: {args.temperature}")
     print()
 
     for name, data in result["benchmarks"].items():

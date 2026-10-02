@@ -341,8 +341,8 @@ def to_plain_text(body: str, ext: str, idx: int = 0) -> str:
     if ext == ".log":
         lines = [f"=== Concord dispatch log, annal {idx} (Sevric {700 + idx}) ===",
                  f"[{ev[1]}] {ev[0]}: {ev[2][:70]}...",
-                 f"[{700 + idx}] subject house {h[0]} ({h[1]}) audit: "
-                 f"{h[3]} souls, seat {h[7]}.",
+                 (f"[{700 + idx}] subject house {h[0]} ({h[1]}) audit: "
+                 f"{h[3]} souls, seat {h[7]}."),
                  f"[{700 + idx}] archon {h[4]} countersigned; tithe {400 + idx * 90} crowns.",
                  f"[{700 + idx}] writ-count check: 4,100 seals audited; {12 + idx % 7} missing."]
         for e2 in EVENTS[:5]:
@@ -426,7 +426,7 @@ def build_binary(ext: str, body: str, idx: int) -> bytes:
         d.add_heading("Vaelindrath Concord house annal", level=1)
         d.add_paragraph(body[:400])
         d.add_paragraph(f"Annal index {idx}. Copy certified by a Ledger-Keeper of Drevmora.")
-        d.add_paragraph(f"Total tollerooms 144; Saltmoot vote 6-3.")
+        d.add_paragraph("Total tollerooms 144; Saltmoot vote 6-3.")
         buf = io.BytesIO(); d.save(buf); return buf.getvalue()
     if ext == ".xlsx":
         from openpyxl import Workbook
@@ -448,11 +448,11 @@ def build_binary(ext: str, body: str, idx: int) -> bytes:
         s2 = prs.slides.add_slide(prs.slide_layouts[1])
         s2.shapes.title.text = "Key facts"
         tf = s2.placeholders[1].text_frame
-        tf.text = f"Founding: the Saltmoot of 411, vote 6-3"
+        tf.text = "Founding: the Saltmoot of 411, vote 6-3"
         tf.add_paragraph().text = f"Population of {h[0]}: {h[3]:,}"
         tf.add_paragraph().text = f"Annal event: {ev[0]} in {ev[1]}"
-        tf.add_paragraph().text = f"Moth-silk price: 265 crowns per writ"
-        tf.add_paragraph().text = f"Ledgerfire, 1002: 4,100 writs lost"
+        tf.add_paragraph().text = "Moth-silk price: 265 crowns per writ"
+        tf.add_paragraph().text = "Ledgerfire, 1002: 4,100 writs lost"
         buf = io.BytesIO(); prs.save(buf); return buf.getvalue()
     if ext == ".pdf":
         from reportlab.lib.pagesizes import A4
@@ -499,7 +499,7 @@ def build_binary(ext: str, body: str, idx: int) -> bytes:
         return buf.getvalue()
     if ext == ".ods":
         from odf.opendocument import OpenDocumentSpreadsheet
-        from odf.table import Table, TableRow, TableCell
+        from odf.table import Table, TableCell, TableRow
         from odf.text import P as OdfP
         doc = OpenDocumentSpreadsheet()
         table = Table(name=f"ledger_{idx}")
@@ -527,9 +527,11 @@ def build_binary(ext: str, body: str, idx: int) -> bytes:
         # odfpy presentations require a masterpage; simplest valid path is
         # copying the HTML body into a text-frame page via the pptx layout
         # upstream. Here we emit a minimal but valid ODP through raw XML.
+        from odf.draw import Frame
+        from odf.draw import Page as DrawPage
+        from odf.draw import TextBox as DrawTextBox
         from odf.opendocument import OpenDocumentPresentation
         from odf.style import MasterPage, PageLayout, PageLayoutProperties
-        from odf.draw import Frame, TextBox as DrawTextBox, Page as DrawPage
         from odf.text import P as OdfP
         doc = OpenDocumentPresentation()
         pl = PageLayout(name="PL1")

@@ -18,9 +18,11 @@ Pure path helpers, no I/O beyond `mkdir`. `root()` → `~/.finetune-studio`
 content-addressed directory `files/<sha256[:12]>/`, used by the old
 `files.py`/data-prep pipeline. `project_files_root(pid)` → `files/` itself,
 the root the **new** `file_library.py` builds `raw/` and `converted/` under.
-Every function creates its directory eagerly (`mkdir(parents=True,
-exist_ok=True)`) as a side effect of being called — callers rely on this to
-avoid explicit `ensure_dirs()` calls in most places.
+`project_dir`/`file_dir`/`project_files_root` create their directory eagerly
+(`mkdir(parents=True, exist_ok=True)`); `file_dir(..., create=False)` is the
+read-only form (used by `read_file_metadata`, `update_file_metadata`,
+`delete_file`, `data/audit.py`). `pid` and the sha prefix are validated: empty,
+`.`, `..`, or values containing `/`, `\\` or NUL raise `ValueError`.
 
 ## `data/fs/project.py`
 
@@ -38,16 +40,19 @@ it as `metadata.json` inside `file_dir(pid, sha256)`. `update_file_metadata`
 only mutates fields that already exist on the dataclass (`hasattr` check) —
 unknown kwargs are silently ignored by design (callers pass named fields like
 `chunk_count=`, `char_count=`), now logged at `WARNING` if an unknown field is
-passed so a typo'd caller doesn't lose the write silently. `read_file_metadata`
+passed so a typo'd caller doesn't lose the write silently. `_safe_filename` maps `.`/`..`/empty to `upload` and prefixes the store's own
+file names (`parsed.txt`, `parsed.json`, `metadata.json`, `manifest.json`,
+`chunks`) with `upload_` so an upload can't clobber them. `read_file_metadata`
 also now logs at `WARNING` on a corrupt/unreadable `metadata.json` instead of
 returning `None` with no trace.
 
 ## `data/fs/files.py`
 
 The **legacy** content-addressed file store: `store_file`, `list_files`,
-`delete_file`. Stores uploaded bytes at `files/<sha256[:12]>/<safe filename>`;
-re-uploading the same content under a different name renames the on-disk file
-to the latest name and keeps the old name in `metadata.aliases`. Used
+`delete_file` (non-creating; returns False for an unknown sha). Stores uploaded bytes at `files/<sha256[:12]>/<safe filename>`;
+re-uploading the same content under a different name renames the on-disk raw
+file (found via `metadata.original_filename`, else an extension match that
+excludes `parsed.*`/`metadata.json`/`manifest.json`) to the latest name and keeps the old name in `metadata.aliases`. Used
 exclusively by the old data-prep ingestion path
 (`data/prep/ingest.py:parse_and_chunk`, `data/prep/runner.py`) via
 `finetune_studio.data.project_filesystem.store_file` — **not** by the file
@@ -63,7 +68,8 @@ silently discarded (losing alias history with no trace) — now logged at
 chunk (`index`, `char_count`, `source_section`, `chunk_path`). Clears any
 previous chunk files first (`*.txt` glob + unlink) since a fresh parse is
 assumed to fully replace the old chunk set. Manifest length always matches
-`len(chunks)` — no off-by-one or truncation observed.
+`len(chunks)`; a `chunk_meta` shorter than `chunks` is tolerated (missing
+entries get an empty `source_section`).
 
 ## `data/fs/parsed.py`
 
@@ -133,7 +139,7 @@ File-browser backend for bulk/aggregate operations, built on top of
   silent. This file is a good model for the "always report what you
   skipped" pattern the rest of the module is missing in places.
 
-## `data/fs/file_library.py` (1443 lines — the new file-library backend)
+## `data/fs/file_library.py` (~1470 lines — the new file-library backend)
 
 DB-backed file library: `project_files` / `file_versions` / `file_conversions`
 / `file_folders` / `folder_membership` tables (schema owned by the DB lane,
@@ -173,31 +179,11 @@ Results are cached per-process in `_PARSED_CACHE` keyed by `"pid:fid"`;
 `invalidate_parsed_cache` must be called after rename/reparse or the cache
 serves stale content.
 
-## `data/fs/migrate_legacy_files.py`
-
-Standalone one-off CLI (`python -m finetune_studio.data.fs.migrate_legacy_files
-[project_id]`), **never imported by anything else in the app** (confirmed by
-grep). Walks `files/<hash>/metadata.json` under the legacy content-addressed
-layout and `INSERT OR IGNORE`s a row into `project_files` so old files show up
-in the file-library UI. Reports `(inserted, skipped, errors)` per project and
-prints per-item progress — it does not silently drop candidate files: a
-missing/corrupt `metadata.json` is counted as an `error` and printed. Hash-dir
-name filtering (`all(c in "0123456789abcdef" ...)`) correctly excludes the
-new file-library's `raw/`/`converted/` subdirectories (which aren't meant to
-be migrated — they're already in the DB from upload time) but excludes them
-from every counter with no trace; this is a legitimate design choice (those
-aren't migration candidates) rather than a bug, but a future reader scanning
-printed output for "did it see my file_library files" should know this script
-only looks at the legacy sha-dir layout. `DB_CANDIDATES` includes a
-machine-specific absolute path (`/home/genortg/finetune-studio/...`) as one of
-three fallback locations — worth knowing if this script is ever run somewhere
-that path doesn't apply (it just won't be selected, `find_db()` tries the
-next candidate).
-
 ## `data/fs/__init__.py`
 
 Re-exports the public API of the legacy scheme (`chunks`, `files`, `ingestion`,
-`metadata`, `parsed`, `paths`, `project`, `qa`) for `data/project_filesystem.py`'s
+`metadata`, `parsed`, `paths`, `project`, `qa`; `file_library`/`workbench` are
+imported as modules) for `data/project_filesystem.py`'s
 back-compat shim. **Discrepancy fixed in this pass**: the entire import block
 was duplicated verbatim (lines 46–68 repeated byte-for-byte at 69–91, the
 second copy wrapped in `# noqa: F401, F811` to suppress the redefinition
@@ -222,15 +208,10 @@ Standalone directory scanner/deduper used by `webui/routes/data.py`
 (`GET` file-browser listing + a dedup action), unrelated to the per-project
 `fs/` layout — it scans `settings.data_dir` directly. `scan_data_files`
 walks a directory for `.jsonl`/`.json`/`.csv`/`.txt` files, skipping
-dot-directories, sorted newest-first. `dedup_data(data)` dedupes a list of
-dict items by `hash(json.dumps(item, sort_keys=True))` and returns
-`(unique, dupes_count)` — correctness note: Python's built-in `hash()` is not
-collision-free, so in principle two distinct items could theoretically hash
-identically and one would be wrongly treated as a duplicate; the actual
-callers pass small QA-pair-sized datasets where this is not a practical risk,
-so it was left as-is rather than "fixed" by swapping in sha256 (that would be
-a behavior-preserving style change, not a bug fix, for the datasets this is
-actually called on).
+dot-directories, sorted newest-first. `dedup_data(data)` dedupes a list of dict items by their canonical
+`json.dumps(item, sort_keys=True)` string (the key itself is stored, not
+`hash()`, so collisions can't drop distinct items) and returns
+`(unique, dupes_count)`.
 
 ## `data/shared_models.py`
 
@@ -242,13 +223,9 @@ whole tree) so two different "all-MiniLM-L6-v2" versions with different
 weights get distinct cache entries. `resolve(short_id, kind)` looks the dir
 up and bumps `META.json.use_count` via `_touch_use` (best-effort — a corrupt
 `META.json` there is caught and ignored by design, since a use-count miss
-must never block loading a model). `stats()` — used by the model-store UI —
-reads every `META.json` with a bare `json.loads(...)` (no try/except); a
-single corrupted `META.json` among many installed models would raise and
-fail the whole stats listing rather than skipping just that one entry. Left
-undocumented-as-a-gotcha-only (not fixed) since it's an unguarded read rather
-than a silent drop, and fixing it would mean deciding on behavior (skip vs.
-surface) that's a product call outside this audit's scope.
+must never block loading a model). `stats()` — used by the model-store UI — skips an unreadable/corrupt
+`META.json` (name falls back to `?`) instead of failing the whole listing.
+`_ROOT` is `~/.finetune-studio/shared_models` and ignores `FTS_ROOT`.
 
 ## Wiring summary
 

@@ -308,14 +308,8 @@ class InferenceEngine:
 
     def _generate_hf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop, think=False):
         # Qwen3 chat templates honour enable_thinking; keep the kwarg when present.
-        try:
-            text = self.tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True, enable_thinking=think,
-            )
-        except TypeError:
-            text = self.tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True,
-            )
+        from finetune_studio.training.formatting import render_chat_text
+        text = render_chat_text(self.tokenizer, messages, generation=True, enable_thinking=think)
         inputs = self.tokenizer(text, return_tensors="pt").to(self.model.device)
         with torch.no_grad():
             outputs = self.model.generate(

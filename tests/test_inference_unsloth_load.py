@@ -137,7 +137,7 @@ def test_generate_hf_strips_bare_think_closer() -> None:
     import torch
 
     class _Batch(dict):
-        def to(self, _device: Any) -> "_Batch":
+        def to(self, _device: Any) -> _Batch:
             return self
 
     tok = MagicMock()

@@ -41,6 +41,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Literal
 
+from finetune_studio.training.formatting import with_system_prompt
+
 JudgeType = Literal["none", "ai", "human", "heuristic", "local"]
 Verdict = Literal["pass", "fail", "partial", ""]
 
@@ -139,22 +141,15 @@ def load_test_suite(path: str) -> list[BenchmarkCase]:
     return cases
 
 
-def extract_answer(transcript: list) -> str:
-    """Pull the last assistant message from a transcript as the model's answer."""
-    for msg in reversed(transcript):
-        if msg.get("role") == "assistant":
-            return msg.get("content", "")
-    return ""
-
-
 def run_suite(engine, cases: list[BenchmarkCase], max_tokens: int = 512,
-              temperature: float = 0.3, think: bool = False) -> list[CaseResult]:
+              temperature: float = 0.3, think: bool = False,
+              system_prompt: str = "") -> list[CaseResult]:
     """Run each case through the model. No judging yet — just collect transcripts."""
     results = []
     for case in cases:
         start = time.time()
         try:
-            messages = [{"role": "user", "content": case.question}]
+            messages = with_system_prompt([{"role": "user", "content": case.question}], system_prompt)
             response = engine.generate(messages, max_tokens=max_tokens,
                                        temperature=temperature, think=think)
             elapsed_ms = (time.time() - start) * 1000

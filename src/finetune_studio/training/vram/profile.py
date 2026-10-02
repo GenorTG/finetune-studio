@@ -5,8 +5,8 @@ Single responsibility: take a model + config, run a few steps, report real numbe
 from __future__ import annotations
 
 import logging
-import os
 import shutil
+import tempfile
 import time
 from pathlib import Path
 
@@ -25,7 +25,7 @@ def profile_training(
     seq_length: int = 512,
     lora_rank: int = 16,
     num_steps: int = 5,
-    output_dir: str = str(Path.home() / ".cache" / "fts-vram-profile"),
+    output_dir: str | None = None,
 ) -> ProfileResult:
     """Run a short training job and measure actual peak VRAM.
 
@@ -39,26 +39,39 @@ def profile_training(
         seq_length: Sequence length.
         lora_rank: LoRA rank (keep small for profiling).
         num_steps: How many steps to train (5 is enough for measurement).
-        output_dir: Where to save (temporary).
+        output_dir: Parent directory for the profiler's scratch checkpoint dir
+            (default ``~/.cache/fts-vram-profile``). The profiler creates its own
+            fresh ``mkdtemp`` child inside it and deletes only that child; the
+            directory you pass in (and anything in it) is never removed.
 
     Returns:
         ProfileResult with actual measurements.
     """
-    import torch
-
     # Create synthetic training data
     synthetic_data = [
         {"messages": [{"role": "user", "content": f"What is {i}?"}, {"role": "assistant", "content": f"The answer to {i} is {i * 2}."}]}
         for i in range(max(batch_size * 2, 10))
     ]
 
-    torch.cuda.reset_peak_memory_stats()
-
     start_time = time.time()
     success = True
     error = ""
+    peak_vram = 0.0
+    measured_model_gb = 0.0
+    measured_adapters_gb = 0.0
+    step_time = 0.0
+    scratch_dir: Path | None = None
 
     try:
+        import torch
+
+        # Own a private scratch dir; never hand a caller-supplied path to rmtree.
+        scratch_base = Path(output_dir) if output_dir else Path.home() / ".cache" / "fts-vram-profile"
+        scratch_base.mkdir(parents=True, exist_ok=True)
+        scratch_dir = Path(tempfile.mkdtemp(prefix="run-", dir=str(scratch_base)))
+
+        torch.cuda.reset_peak_memory_stats()
+
         if method == "qlora":
             # E2E-40: never import unsloth in this process — use bitsandbytes + PEFT.
             from peft import LoraConfig, get_peft_model
@@ -117,10 +130,9 @@ def profile_training(
 
         # Format synthetic data
         from datasets import Dataset
+        from finetune_studio.training.formatting import render_chat_text
         def format_chat(example):
-            text = tokenizer.apply_chat_template(
-                example["messages"], tokenize=False, add_generation_prompt=False
-            )
+            text = render_chat_text(tokenizer, example["messages"])
             return {"text": text}
 
         dataset = Dataset.from_list(synthetic_data).map(
@@ -143,7 +155,7 @@ def profile_training(
 
         # SFTConfig (not TrainingArguments): avoids TRL KeyError push_to_hub_token.
         args = build_sft_training_args(
-            output_dir=output_dir,
+            output_dir=str(scratch_dir),
             max_steps=num_steps,
             per_device_train_batch_size=batch_size,
             gradient_accumulation_steps=1,
@@ -174,7 +186,7 @@ def profile_training(
 
         step_time = (time.time() - start_time) / max(num_steps, 1)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — profiling must always return a structured result
         success = False
         error = str(e)
         peak_vram = 0
@@ -182,12 +194,9 @@ def profile_training(
         measured_adapters_gb = 0
         step_time = 0
 
-    # Clean up
-    try:
-        if os.path.exists(output_dir):
-            shutil.rmtree(output_dir, ignore_errors=True)
-    except Exception:
-        pass
+    # Clean up only the scratch dir this call created.
+    if scratch_dir is not None:
+        shutil.rmtree(scratch_dir, ignore_errors=True)
 
     return ProfileResult(
         model_name=model_path,

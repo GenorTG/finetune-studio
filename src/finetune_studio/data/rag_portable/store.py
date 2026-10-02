@@ -344,11 +344,10 @@ class PortableRAG:
         Returns the path to the written archive.
         """
         if out_path is None:
-            safe = (name or f"{self.dir.name}-bundle").replace(" ", "_").replace("/", "_")
-            ext = ".tar.gz" if fmt == "tar.gz" else ".tar"
-            out_path = Path("/tmp") / f"{safe}{ext}"
-        else:
-            out_path = Path(out_path)
+            # Plaintext archive: never pick a world-readable default location.
+            # User-facing exports use secure_bundle (encrypted) instead.
+            raise ValueError("export_bundle needs an explicit out_path (plaintext archive)")
+        out_path = Path(out_path)
 
         with tempfile.TemporaryDirectory(prefix="fts-rag-export-") as tmp:
             stage_root = Path(tmp) / self.dir.name

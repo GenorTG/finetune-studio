@@ -16,12 +16,21 @@ import time
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+)
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from finetune_studio import __release_channel__ as RELEASE_CHANNEL
 from finetune_studio import __version__ as APP_VERSION
+from finetune_studio.data.fs.paths import resolve_in_project
 
 log = logging.getLogger(__name__)
 
@@ -187,9 +196,11 @@ def enqueue_source_prep_run(
     from finetune_studio.data.prep.queued import QueuedSourcePrep
 
     path_str = source.get("data_path") or source.get("path") or ""
-    path = Path(path_str)
-    if not path_str or not path.is_file():
-        raise FileNotFoundError(path_str or str(source.get("id") or "source"))
+    if not path_str:
+        raise FileNotFoundError(str(source.get("id") or "source"))
+    path = resolve_in_project(pid, path_str, what="source path")
+    if not path.is_file():
+        raise FileNotFoundError(path_str)
     filename = source.get("filename") or source.get("name") or path.name
     settings_obj = {
         "source": "per-file-queue",
@@ -264,7 +275,10 @@ async def resume_stale_data_prep_runs() -> dict[str, int]:
             except Exception:
                 log.exception("resume_stale_data_prep_runs: list_qa_sources failed for %s", pid)
         path_str = (source or {}).get("data_path") or (source or {}).get("path") or ""
-        path = Path(path_str) if path_str else None
+        try:
+            path = resolve_in_project(pid, path_str, what="source path") if path_str else None
+        except HTTPException:
+            path = None  # legacy out-of-project source: treat as unavailable
         if source is None or path is None or not path.is_file():
             db.mark_data_prep_failed(
                 rid, "interrupted by service restart: source file no longer available"
@@ -458,7 +472,10 @@ async def start_prep(
             status_code=404,
         )
     path_str = src.get("data_path") or src.get("path") or ""
-    path = Path(path_str)
+    try:
+        path = resolve_in_project(pid, path_str, what="source path")
+    except HTTPException as exc:
+        return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
     if not path_str or not path.is_file():
         return JSONResponse(
             {"error": f"source file missing: {path_str or body.source_id}"},
@@ -659,6 +676,8 @@ async def promote_source_route(pid: str, request: Request):
         return JSONResponse(
             {"error": "data_path or file_id required"}, status_code=400
         )
+    # Project-dir fence: never ingest a file outside the project directory.
+    data_path = str(resolve_in_project(pid, data_path, what="data_path"))
     try:
         source = pfs.register_qa_source(
             pid, data_path, mime_type=mime_type, filename=filename

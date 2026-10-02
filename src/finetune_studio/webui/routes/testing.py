@@ -252,9 +252,21 @@ def _persist_rag_report(
     """Persist a grounded report without discarding transcript provenance."""
     from finetune_studio import db
 
-    run_id = requested_run_id if requested_run_id and db.get_run(requested_run_id) else ""
+    if not project_id:
+        # Every benchmark hangs off a run and every run off a project, so
+        # without a project there is nothing to prove a supplied run against
+        # (and no project to own a placeholder run). Fail closed.
+        raise ValueError("project_id is required to persist a RAG evaluation")
+    # A supplied run is linked only when it belongs to ``project_id``. A
+    # foreign run is treated like a missing one: fall through to auto-match /
+    # placeholder so the evaluation is never attributed to another project.
+    run_id = ""
+    if requested_run_id:
+        requested = db.get_run(requested_run_id)
+        if requested and requested.get("project_id") == project_id:
+            run_id = requested_run_id
     model_path = str(report.get("model_path") or "")
-    if not run_id and project_id:
+    if not run_id:
         for run in db.list_runs(project_id):
             output_path = str(run.get("output_path") or "")
             if run.get("status") == "done" and output_path and model_path.startswith(output_path):

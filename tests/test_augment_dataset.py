@@ -119,7 +119,8 @@ def test_augment_writes_qa_pairs_and_sharegpt(synth_project: Path) -> None:
     ds_path = synth_project / "data" / "projects" / "synthpid" / "datasets" / "synthpid-sharegpt-approved.jsonl"
     assert ds_path.is_file()
     ds_rows = [l for l in ds_path.read_text(encoding="utf-8").splitlines() if l.strip()]
-    assert len(ds_rows) == 12 + len(aug)
+    # Training export = every approved pair minus the held-out cases (disjoint).
+    assert len(ds_rows) + len(suite["cases"]) == 12 + len(aug)
 
 
 def test_augment_pair_answers_hold_real_source_facts(synth_project: Path) -> None:

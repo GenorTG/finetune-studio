@@ -2,8 +2,10 @@
 
 This is the pipeline that turns an uploaded document into training Q&A
 pairs and, eventually, an exported JSONL dataset: parse bytes → chunk text →
-have the local helper model mine Q&A per chunk → strictly validate →
-deterministically backfill any chunk the model missed → dedupe → export.
+have the local helper model mine Q&A per chunk → strictly validate model
+outputs → run a separate extractive coverage-fill heuristic → dedupe → export.
+Coverage-fill does not call the strict validator; its acceptance limits and
+parsed-artifact gaps are documented below.
 `data/audit.py` and `data/parsed_edit.py` sit alongside it as the
 verification layer and the human-edit hook into the same pipeline.
 
@@ -46,8 +48,10 @@ when orienting in this package.
 ## `data/prep/chunker.py` — paragraph/sentence-aware text splitter
 
 - `chunk_text(text, target_chars=1200, overlap=200) -> list[str]`: splits on
-  paragraph boundaries (`\n\s*\n`) first, falls back to sentence boundaries
-  via `_pack_sentences`, then hard-wraps as a last resort. Each returned
+  paragraph boundaries (`\n\s*\n`) first, then falls back to sentence
+  boundaries via `_pack_sentences`. It does not hard-wrap an oversized
+  sentence; oversized-paragraph paths also do not consistently apply the
+  promised overlap, so a long sentence can exceed the target without bound. Each returned
   chunk is non-empty — every code path only calls `chunks.append(buf)` when
   `buf` is truthy, so chunk indices downstream can assume a chunk always has
   content *at the time the list is built*.
@@ -69,11 +73,13 @@ when orienting in this package.
 pass in `runner.py` is stochastic — a chunk whose model output parses to
 zero accepted pairs is just skipped, and every progress counter still reads
 "done" while that chunk's information never reaches the training set.
-`fill_coverage_gaps` is a second, fully deterministic pass: for every
-(source, chunk) with no `status="approved"` pair, it extracts verbatim
-sentence-level Q&A pairs (question templated, answer quoted exactly) and
-re-runs grounding checks before writing them with
-`status="approved"`, `origin="coverage_fill"`.
+`fill_coverage_gaps` is a second, deterministic pass: for every loaded
+(source, chunk) with no `status="approved"` pair, it extracts sentence-level
+Q&A candidates and accepts them using a ≥0.9 token-overlap heuristic. It
+constructs `PairValidation(accepted=True, ...)` directly; it does not call
+`validate_qa_pair`, so strict length, refusal/meta, and question-answerability
+rules are bypassed before writing `status="approved"`,
+`origin="coverage_fill"`.
 
 - `fill_coverage_gaps(pid, source_id, sha256="", *, chunk_texts=None, filename="") -> FillResult`
   is the core function. `chunk_texts` maps 1-based chunk index → text; when
@@ -82,15 +88,14 @@ re-runs grounding checks before writing them with
   **Fixed** below — they used to be silently dropped even when the caller
   had them).
 - `fill_all_project_gaps(pid)` / `fill_sources_gaps(pid, source_ids)` are the
-  project-wide and subset-build entry points the export pipeline calls so a
-  dataset can never ship with silently-unmined chunks; both aggregate
-  `FillResult`s across every source and additionally detect **parsed-artifact
-  loss** (`declared_chunks and not chunks` → the source's manifest says N
-  chunks but none could be loaded from disk) as its own uncovered-chunk
-  reason (`"parsed chunks missing"`).
+  project-wide and subset-build entry points the export pipeline calls. The
+  export gate blocks only gaps returned by this pass; it is not a guarantee
+  that every declared chunk artifact exists. Total artifact loss is reported
+  when no chunks load, but partial/trailing missing chunks are not compared
+  against the source's declared `chunk_count`.
 - `_make_pairs_from_chunk` picks the densest fact-bearing sentences (content
-  tokens per char), requires ≥0.9 token overlap between the generated
-  answer and the chunk (near-verbatim grounding gate), skips questions
+  tokens per char), requires ≥0.9 token overlap between the extracted
+  answer and the chunk (a lexical-overlap heuristic, not full grounding), skips questions
   already seen in this batch, and caps at `_MAX_PER_CHUNK = 3` pairs/chunk.
 - `FillResult.chunks_still_uncovered` is the field `DataPrepRunner._run_inner`
   reads (via `fill_summary.get("chunks_still_uncovered", [])`) to decide
@@ -202,7 +207,9 @@ RAG build both look.
   error strings as "already parsed forever" — fixed 2026-09-18 per the
   comment in the code; this audit re-verified the fix is intact.
 - `load_existing_chunks(pid, sha256) -> list[str]`: loads
-  `files/<sha>/chunks/NNNN.txt`. **Fixed in this audit** — see below.
+  `files/<sha>/chunks/NNNN.txt`. Interior gaps before a later file become
+  empty placeholders, but trailing gaps are invisible because the loader
+  does not compare loaded indices/count against manifest `chunk_count`.
 - `parse_and_chunk(pid, data, filename, *, sha256, max_chunks=0, mime_type="", reuse_if_parsed=True) -> IngestResult`:
   the actual parse+chunk+persist steps (stages 2–5 of `DataPrepRunner`).
   When `reuse_if_parsed` and the file is already parsed, it skips
@@ -243,9 +250,10 @@ log, and no way to detect it later (the source's `chunk_count` metadata
 would still read 3, undercounting is the only symptom and only if you
 compare against that field). Fixed by indexing off each filename's own
 `int(p.stem)` and inserting an empty-string placeholder (with a `log.warning`)
-for any skipped index, so a gap stays a gap — and now correctly feeds into
-the coverage_fill fix above (an empty-text chunk is surfaced as uncovered,
-not silently absorbed into a shifted index). Regression test:
+for any skipped index, so interior gaps stay aligned and feed an empty-text
+placeholder into coverage-fill. Trailing missing files still cannot be
+detected without comparing against `chunk_count`; see the limitation above.
+Regression test:
 `test_load_existing_chunks_preserves_index_across_gap` in
 `tests/test_data_prep_audit.py`.
 
@@ -293,9 +301,9 @@ numbered Q:/A: list when the model ignores instructions entirely.
   unknown styles fall back to `"Balanced, clear Q&A."`.
 - **Wiring**: both are formatted per-chunk inside `runner.DataPrepRunner._run_inner`'s
   mining loop (`QA_USER_TEMPLATE.format(chunk=chunk[:6000], n=..., difficulty=..., style_hint=style_hint(self.style))`).
-  Note the chunk is truncated to 6000 chars for the *prompt* even though the
-  full chunk (potentially up to ~1200 target chars from `chunker.py`, so in
-  practice never actually hits this limit) is what gets stored and chunked.
+  Note the chunk is truncated to 6000 chars for the *prompt*. Normal chunks
+  are shorter, but an oversized single sentence can exceed the chunker's
+  target and be truncated here.
 
 ## `data/prep/qa_validate.py` — strict deterministic post-parse gates
 
@@ -309,9 +317,9 @@ are stable string keys used as counters: `empty_question`, `empty_answer`,
   checks length windows (`8 ≤ |q| ≤ 400`, `8 ≤ |a| ≤ 4000`), minimum content
   tokens, cross-chunk duplicate detection via `seen_questions` (a set the
   caller owns and this function reads but does not mutate — see below),
-  **answerability** (question's content tokens must overlap ≥25% with the
+  **answerability** (when chunk text is truthy, question content tokens must overlap ≥25% with the
   chunk's, or share at least one token when the question has <2 content
-  tokens), and **grounding** (answer's content tokens must overlap ≥20% with
+  tokens), and **grounding** (when chunk text is truthy, answer content tokens must overlap ≥20% with
   the chunk's, with a refusal/meta-phrase check — `"as an ai"`, `"i cannot"`,
   etc. — short-circuiting straight to `refusal_or_meta`).
 - `validate_qa_batch(pairs, chunk, *, seen_questions=None) -> BatchValidationResult`:
@@ -355,9 +363,11 @@ are stable string keys used as counters: `empty_question`, `empty_answer`,
 
 The actual pipeline driver for one uploaded file. Stage order: `storing` →
 `parsing` → `chunking` → `generating` → `done` (or `error` at any stage).
-At each stage it emits a `PrepProgress` callback (SSE UI stream), appends an
-entry to `logs/ingestions.jsonl` via `pfs.log_ingestion`, and persists
-per-file artifacts.
+At each stage it emits a `PrepProgress` callback (SSE UI stream). Ingestion
+log entries are emitted only at selected milestones/outcomes (upload,
+parse/reuse, chunking, QA/error outcomes, and final status); parsing and
+chunking progress callbacks do not each create a corresponding log entry.
+The runner persists per-file artifacts.
 
 - `PrepProgress`: a plain dataclass snapshot (`stage`, `pct`, `message`,
   `source_id`, `sha256`, `chunks_total`, `chunks_done`, `qa_total`) pushed to

@@ -107,7 +107,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_cmp.add_argument("--temperature", type=float, default=0.7)
     p_cmp.add_argument("--json", action="store_true", help="Output as JSON")
     p_cmp.add_argument("--report", help="Save report to file")
-    p_cmp.add_argument("--real", action="store_true", default=True, help="Use real HuggingFace datasets")
 
     # ── benchmark ──
     p_bench = sub.add_parser("benchmark", help="Run industry-standard benchmarks")
@@ -128,26 +127,19 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Evaluate the entire official split (can be very slow)",
     )
-    p_bench.add_argument("--max-tokens", type=int, default=10)
-    p_bench.add_argument("--temperature", type=float, default=0.0)
     p_bench.add_argument("--json", action="store_true", help="Output as JSON")
     p_bench.add_argument("--report", help="Save report to file")
-    p_bench.add_argument("--real", action="store_true", default=True, help="Use real HuggingFace datasets")
 
     # ── analyze (data quality) ──
     p_analyze = sub.add_parser("analyze", help="Analyze training data quality")
     p_analyze.add_argument("data", help="Path to training data (JSONL)")
-    p_analyze.add_argument("--fix", action="store_true", help="Auto-fix issues")
-    p_analyze.add_argument("--output", help="Output fixed data to file")
     p_analyze.add_argument("--json", action="store_true")
 
     # ── augment (data augmentation) ──
     p_aug = sub.add_parser("augment", help="Augment training data to fix weaknesses")
     p_aug.add_argument("data", help="Path to training data (JSONL)")
     p_aug.add_argument("--output", required=True, help="Output augmented data")
-    p_aug.add_argument("--type", default="all", help="Augmentation type: knowledge, refusal, language, hallucination, persona, all")
-    p_aug.add_argument("--count", type=int, default=50, help="Number of examples to generate per type")
-    p_aug.add_argument("--ratio", type=float, default=0.7, help="Persona ratio for data mixing (0.0-1.0)")
+    p_aug.add_argument("--type", default="all", help="Comma-separated augmentation types: knowledge, refusal, language, hallucination, persona, all")
 
     # ── optimize (config recommendation) ──
     p_opt = sub.add_parser("optimize", help="Get training config recommendations")

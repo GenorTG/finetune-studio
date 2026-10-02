@@ -38,7 +38,7 @@ def cmd_analyze(args) -> None:
         if fixes:
             print("Suggested fixes:")
             for fix in fixes:
-                print(f"  {fix['action']}: {fix['command']}")
+                print(f"  {fix['action']}: {fix.get('command') or fix['advice']}")
     else:
         print("No issues found!")
 

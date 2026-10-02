@@ -65,7 +65,7 @@ async def test_rebuild_vectors_applies_pending_embedder_from_settings_patch(
 
     src = tmp_path / "files"
     corpus_root = tmp_path / "corpora"
-    monkeypatch.setattr(rag_routes, "_CORPORA", corpus_root)
+    monkeypatch.setattr(rag_routes, "_corpus_dir", lambda pid: corpus_root / pid)
 
     _sha_dir(src, "aaa111bbb222", "doc.txt", "some document body " * 20)
 

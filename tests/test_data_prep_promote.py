@@ -118,20 +118,36 @@ def test_promote_parses_markdown_and_read_source_returns_text(client_and_db):
 
 
 def test_promote_with_data_path_directly(client_and_db):
+    """An absolute data_path INSIDE the project directory is accepted."""
+    from finetune_studio.data.fs.paths import project_dir
+
+    client, db_path = client_and_db
+    pid = _create_project(client, db_path)
+    inside = project_dir(pid) / "direct-promote.txt"
+    inside.write_bytes(b"direct path promote content that is long enough to parse.\n")
+    r = client.post(
+        f"/api/projects/{pid}/data-prep/sources",
+        json={"data_path": str(inside)},
+    )
+    assert r.status_code == 200, r.text
+    source = r.json()["source"]
+    assert source["data_path"] == os.path.realpath(inside) or source["path"] == str(inside)
+    assert int(source.get("chunk_count") or 0) > 0
+
+
+def test_promote_external_data_path_is_rejected(client_and_db):
+    """Decision 2026-10-02: data prep never ingests files outside the project dir."""
     client, db_path = client_and_db
     pid = _create_project(client, db_path)
     with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
-        f.write(b"direct path promote content that is long enough to parse.\n")
+        f.write(b"external content that must never be ingested.\n")
         path = f.name
     try:
         r = client.post(
             f"/api/projects/{pid}/data-prep/sources",
             json={"data_path": path},
         )
-        assert r.status_code == 200, r.text
-        source = r.json()["source"]
-        assert source["data_path"] == os.path.realpath(path) or source["path"] == path
-        assert int(source.get("chunk_count") or 0) > 0
+        assert r.status_code == 403, r.text
     finally:
         os.unlink(path)
 

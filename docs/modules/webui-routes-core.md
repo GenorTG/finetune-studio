@@ -11,7 +11,7 @@ All 19 files in this lane were read in full (not grepped) for this audit.
 
 ---
 
-## `routes/data.py` (44 lines, mounted at `/api/data`)
+## `routes/data.py` (52 lines, mounted at `/api/data`)
 
 Legacy, **non-project-scoped** data API: list files under `settings.data_dir`,
 upload, validate, preview, dedup. Project work uses `file_library.py` and
@@ -21,7 +21,7 @@ API accepts one `file`. The API routes remain mounted for direct/legacy API
 clients, but the template is not a working UI for them.
 
 - `list_files()` → `scan_data_files(settings.data_dir)`.
-- `upload_file(file)` → writes `file.filename` under `settings.data_dir`.
+- `upload_file(file)` → writes the basename of `file.filename` (`""`/`.`/`..` → `upload`) under `settings.data_dir`; silently overwrites an existing file. `dedup` returns 400 on load errors; `preview` clamps negative `limit`. `path` params on validate/preview/dedup are unscoped (legacy local-tool design).
 - `validate(path)` → `validate_file(path)`, arbitrary absolute path accepted (CLI-equivalent, not project-scoped).
 - `preview(path, limit)` → `load_jsonl(path)[:limit]`, wrapped so a bad file returns `{"error": ...}` instead of 500.
 - `dedup(path)` → read-only report of `dedup_data()`'s `(unique, dupes)`; does not persist the deduped file.
@@ -60,13 +60,13 @@ the Export tab's "expand row" UI. No HTTP routes of its own.
 
 **Wired into**: `pages.project_export_page`/`export_page` (not in this lane) imports these three functions directly; depends on `training.run_export.{merged_dir_ready,adapter_dir_ready}`.
 
-## `routes/settings.py` (80 lines, mounted bare — self-prefixed `/api/settings`)
+## `routes/settings.py` (78 lines, mounted bare — self-prefixed `/api/settings`)
 
 Global app settings (host/port/CORS/proxy), persisted at
 `~/.finetune-studio/settings.json`, merged over in-code `DEFAULTS` on read.
 
 - `GET /api/settings` — `DEFAULTS` merged with the saved file.
-- `PATCH /api/settings` — shallow dict merge + rewrite the whole file; 400 if body isn't a JSON object.
+- `PATCH /api/settings` — shallow dict merge + atomic rewrite (tmp file + replace) of the whole file; 400 on invalid JSON or a non-object body (handler takes `request: Request`).
 - `POST /api/settings/reload` — reports `needs_restart=True` if `host`/`port` are present in the saved overrides (the actual listening socket is bound at process start, so changing these here never hot-reloads).
 
 **Gotchas**: `_load()` swallows any JSON parse error and returns `{}` (just
@@ -100,7 +100,7 @@ this page predates the project-scoped 404 convention and there is no
 - `/hallucination-check` → `HallucinationGuard.scan()`
 - `/convert` → `FormatConverter.convert()` (separate `ConvertRequest` model: `target_format` instead of `output`-only)
 
-## `routes/comparison.py` (126 lines, mounted at `/api/compare`)
+## `routes/comparison.py` (123 lines, mounted at `/api/compare`)
 
 Side-by-side model comparison + a **third, independent** RAG-chat
 implementation (global, not project-scoped).
@@ -131,34 +131,36 @@ Host RAM + per-GPU VRAM snapshot, polled every ~3s by page templates.
 - `_vram()` — tries `torch.cuda.mem_get_info()` first, falls back to parsing `nvidia-smi --query-gpu=...` subprocess output if torch/CUDA isn't available; returns `[]` if both fail.
 - `GET /api/system/resources` — `{ram, vram}` for the UI bars.
 - `GET /api/system/gpu` / `/gpu-text` — `PlainTextResponse` one-liners for the dashboard stat tile (not JSON — the frontend polls these as raw text).
-- `GET /api/system/version` — reads `__version__`/`__release_channel__` plus the short git SHA straight from `.git/HEAD` (no `git` subprocess call).
+- `GET /api/system/version` — re-resolves the version via `build_version()` per request, plus the short git SHA read from the package-anchored repo `.git/HEAD` (detached HEAD → first 8 chars; no `git` subprocess call).
 
 **Wired into**: `models.py::inference_memory_estimate` imports `_vram` directly from this module to attach `currently_used_gb`/`total_gpu_gb` to a memory estimate — a private-function cross-module import, acceptable since both are small, closely related modules in the same package, but worth knowing it isn't a public API.
 
-## `routes/datasets.py` (168 lines, self-prefixed `/api/projects/{pid}/datasets`)
+## `routes/datasets.py` (172 lines, self-prefixed `/api/projects/{pid}/datasets`)
 
 Project-scoped JSONL dataset registry — distinct from `data.py` (global,
 unregistered files) and from `file_library.py` (raw uploaded source files,
 pre-dataset-export).
 
 - `list_datasets_route` / `get_dataset_route` — 404 correctly on missing project or on a dataset whose `project_id` doesn't match `pid`. `get_dataset_route` also **refreshes** `qa_count`/`size_bytes` on-the-fly if the file's on-disk size has drifted from the DB row (best-effort, logged on failure, never raises).
-- `register_existing_route` — registers an existing on-disk file as a dataset. Accepts either `data_path` directly or a `file_id` to resolve via `project_files`/`file_versions`; explicitly checks the resolved file's owning project and returns **403** (not 404) if it belongs to a different project — correct ownership-check pattern.
+- `register_existing_route` — registers an existing on-disk file as a dataset. Accepts either `data_path` directly or a `file_id` to resolve via `project_files`/`file_versions`; 404s on a missing project, requires `data_path` to be an existing regular file (the path itself is NOT confined to project roots — design caveat; `data_editor` treats registered paths as in-scope), and explicitly checks the resolved file's owning project and returns **403** (not 404) if it belongs to a different project — correct ownership-check pattern.
 - `upload_dataset_route` — multipart upload; coerces any extension to `.jsonl` and avoids clobbering existing files by appending `-2`, `-3`, ... suffixes.
-- `patch_dataset_route` — only `name` is patchable (an allowlist, not a blind `**body` merge).
+- `patch_dataset_route` — only `name` is patchable; a non-object body or empty/non-string `name` is a 400.
 - `delete_dataset_route` — `remove_file=False` by default (unregisters without touching the file on disk).
 
-## `routes/project_settings.py` (211 lines, tag `project-settings`)
+## `routes/project_settings.py` (214 lines, tag `project-settings`)
 
 One route: the Settings-tab log tail. Prefers the **systemd journal** when
 `finetune-studio.service` is active (fan-dragon production), falls back to
-tailing `/tmp/uvicorn.log` or a couple of other candidate paths in dev.
+tailing `/tmp/uvicorn.log` or a couple of other candidate paths in dev
+(`~/.finetune-studio/uvicorn.log`, `/var/log/finetune-studio/uvicorn.log`).
 
 - `resolve_log_path()` — first existing candidate from `LOG_CANDIDATES`.
 - `systemd_unit_active()` / `journal_tail()` — `systemctl --user is-active` / `journalctl --user -u ... -o cat`, both with short timeouts and `check=False` (never raise on a missing systemd).
 - `build_logs_payload()` — the real contract logic: `live` is only ever `True` for a source believed to be the actual running process. A stale `/tmp/uvicorn.log` (mtime > 120s old) while systemd is active is explicitly reported `live: False, stale: True` rather than silently served as if current — this guards against showing a dead dev process's old log as if it were the live service.
-- `GET /projects/{pid}/logs?lines=N` — 404 via `HTTPException` if project missing (this file is the one place in the lane that raises `HTTPException` directly instead of returning `JSONResponse`; both styles coexist across the lane by file, not inconsistently within one file).
+- `read_log_tail()` streams the file through a bounded `deque` (never loads a multi-GB log into memory); `n <= 0` returns `[]`.
+- `GET /projects/{pid}/logs?lines=N` — runs `build_logs_payload` in `asyncio.to_thread` (systemctl/journalctl subprocesses block); 404 via `HTTPException` if project missing (this file is the one place in the lane that raises `HTTPException` directly instead of returning `JSONResponse`; both styles coexist across the lane by file, not inconsistently within one file).
 
-## `routes/data_editor.py` (255 lines, mounted at `/api/data-editor`)
+## `routes/data_editor.py` (273 lines, mounted at `/api/data-editor`)
 
 Project-scoped JSONL row-level editor (approve/reject/edit/delete individual
 Q&A rows), with careful path-scoping to prevent a `dataset` query param from
@@ -167,6 +169,8 @@ escaping the project.
 - `_has_traversal` / `_normalize_raw_path` / `_resolve_path` — reject any `..` path component, then resolve `dataset` to an absolute path 3 ways in order: (1) a path already registered in `db.datasets` for this project, (2) absolute-as-given, (3) relative under `settings.data_dir`.
 - `_assert_project_scope(pid, path)` — the actual gate: allowed only if the path matches a dataset already registered to `pid`, **or** falls under `_project_root(pid)` (`{db_path parent}/projects/{pid}/`); raises 403 otherwise. This is the strictest and most correct scoping implementation in the lane — worth reusing as the reference pattern if any sibling file needs similar hardening.
 - `preview` / `get_row` / `update_row` / `approve_row` / `reject_row` / `delete_row` / `review_list` / `batch_save` — all require the project to exist (404) and route every write through `db.record_review()` for an audit trail.
+
+`index` is coerced via `_parse_index` (400 on junk); `row`/`rows` must be object/list-of-objects (400); `preview` clamps negative `offset`/`limit`. No Jinja `templates` object lives here (the editor page is rendered by `pages.py`).
 
 **Gotcha**: `update_row`/`delete_row`/`get_row` take a raw integer `index`
 into the currently-loaded row list, not a stable row id — concurrent edits
@@ -202,7 +206,7 @@ hand-picked-source dataset builds, and a RAG coverage gate.
 - `build_subset_dataset` — builds a dataset from only the picked `source_ids`; runs `fill_sources_gaps` as a coverage gate **before** export (409 if any selected source has uncovered chunks — this blocks building a "100% facts" dataset claim from a subset that's actually missing chunks). After export, tallies `per_source` pair counts by re-reading `source_id` out of each exported JSONL line — this is an honest reconciliation step (not a silent count), logging (not swallowing) any line whose `source_id` fails to parse.
 - `rag_coverage` — compares parsed sources (`qa/sources/*.json`) against the RAG manifest's `documents_meta` by filename/stem match; returns per-source `in_corpus` booleans and an overall `coverage_pct`. Imports `_corpus_dir` from `routes/rag.py` (lane B2) — a cross-lane private-function import worth knowing about if `rag.py`'s corpus layout ever changes.
 
-## `routes/project_rag.py` (382 lines, tag `project-rag`)
+## `routes/project_rag.py` (380 lines, tag `project-rag`)
 
 Project RAG document **inventory** (read side) + whole-corpus rebuild.
 Distinct from `routes/rag.py` (lane B2, build/settings/search) and from
@@ -211,7 +215,7 @@ rebuilds.
 
 - `list_indexed_docs(pid)` — reads `chunks.parquet` grouped by `document_id` as the primary source of per-doc chunk counts; falls back to the manifest's `documents_meta` only when the parquet is empty/missing. Explicitly does **not** scan `sources/*.txt` to invent inventory rows — only attaches size/mtime to docs already found via parquet/manifest, so a stale orphan `.txt` file left behind by a reset never resurfaces as a phantom "indexed" document.
 - `list_doc_chunks(pid, doc_id)` — chunk previews (first 120 chars) for one document, sorted by `chunk_index`.
-- `rag_mcp_package` — packages the corpus into a self-installing tarball/zip (MCP server + HTTP server + README) via `data.rag_portable.mcp_package.build_package`; 404 if no corpus yet, 409 on a `FileNotFoundError` from the packager (e.g. missing embedder when `include_models=true`).
+- `rag_mcp_package` (POST, JSON) — builds an **encrypted-by-default** self-installing package via `build_package` using studio defaults < project override < request (`/rag/export-config` GET/PUT manage the first two); returns `{filename, download_url, size, encrypted, passphrase (once, only if generated), config}` with `no-store`; fetch via `GET /rag/mcp-package/download?file=` (regex-validated name). 404 no corpus, 409 missing embedder, 422 bad config/passphrase. The old GET build endpoint is gone.
 - `rag_rebuild` — full-corpus rebuild via `PortableRAG.build_from_directory`; `doc_id` in the request body is accepted but only logged — **PortableRAG has no per-document vector splice**, so "rebuild this one doc" always rebuilds everything. This is documented honestly in both the `RebuildRequest` docstring and the route docstring, not silently ignored.
 
 **Gotcha**: `rag_rebuild` with `reset=True` (the default) does
@@ -222,7 +226,7 @@ marked failed correctly via `mark_rag_build_failed`, so the *history* isn't
 lost, but the on-disk corpus itself has a window of being gone. Pre-existing
 behavior, not changed.
 
-## `routes/chat_v2.py` (409 lines, mounted at `/api/chat-v2`)
+## `routes/chat_v2.py` (415 lines, mounted at `/api/chat-v2`)
 
 Global + per-project inference chat, vision-capable, multi-RAG. This is the
 file `models.py`'s `/api/inference/*` aliases point back to for some
@@ -238,21 +242,23 @@ chat_v2").
 through `resolve_loader_overrides()` — no ad-hoc `Llama(...)` construction
 or hand-rolled `n_gpu_layers`/`n_ctx` defaults found.
 
-## `routes/models.py` (420 lines, mounted at `/api/models` + `/api/inference`)
+## `routes/models.py` (440 lines, mounted at `/api/models` + `/api/inference`)
 
 Local model registry, GPU-aware load-failure diagnostics, and the
 `/api/inference/*` alias surface for the dedicated Inference page.
 
 - `_identify_process`/`_gpu_snapshot`/`_vram_hint`/`_resource_snapshot_detail` — when a model load fails, these build an actionable error message naming exactly which other process (ComfyUI, Ollama, vLLM, ...) is holding GPU memory and how much headroom is actually free, instead of a bare exception string.
 - `_load_failure_payload` — the single place that shapes a load failure into `{"status": "error", "loaded": False, "error": ..., "model": None}`; HTTP 200 is kept deliberately so callers that only branch on the JSON body (not status code) still work.
-- `load_model_endpoint` (`POST /load`) — accepts `path` **or** `model_path` (back-compat with the older chat_v2 body shape). **Goes through the shared loader**: `resolve_loader_overrides()` then `inference_engine.load(model_path, **overrides)`. Also unloads `ModelManager` first, same rationale as `chat_v2.load_model`.
+- `load_model_endpoint` (`POST /load`) — accepts `path` **or** `model_path` (back-compat with the older chat_v2 body shape). **Goes through the shared loader**: `resolve_loader_overrides()` then `inference_engine.load(model_path, **overrides)`. Also unloads `ModelManager` first (inside `ENGINE_LOCK`, via `asyncio.to_thread`), same rationale as `chat_v2.load_model`. Failure payloads (`nvidia-smi`/`ps` subprocesses) are also built off the event loop.
+- `refresh_model_registry()` — the single blocking rescan of `settings.model_dirs` + `model_dirs_extra` into `webui.app.discovered_models` (swapped by slice assignment so readers never see an empty list); `POST /refresh` runs it in a thread and `hf_models` re-exports it as `_refresh_model_registry`.
+- JSON bodies go through `_json_body` (400 on malformed/non-object bodies instead of a 500). Not fixed: `unload_model_endpoint` does not take `ENGINE_LOCK` (can race an in-flight generate).
 - `inference_router` (mounted separately at `/api/inference`) — `/status`, `/chat`, `/memory-estimate` are independent implementations (not delegating to chat_v2), but `/load` and `/unload` are literal aliases: `return await load_model_endpoint(request)` / `return await unload_model_endpoint()`. The inline comment is explicit that chat_v2 "stays single source of truth" for the underlying load/unload *logic* even though two URL namespaces exist for ergonomics.
 - `inference_memory_estimate` imports `_vram` from `routes/system.py` to attach live GPU usage to the estimate.
 
 **Verified (priority check 2)**: `load_model_endpoint` correctly routes
 through `resolve_loader_overrides()`. No bypass found.
 
-## `routes/hf_models.py` (436 lines, mounted at `/api`)
+## `routes/hf_models.py` (453 lines, mounted at `/api`)
 
 HuggingFace Hub browser + background downloader (LM-Studio-style), local
 favorites list, and the shared-model-pool stats endpoint. **Never loads a
@@ -260,22 +266,24 @@ model for inference** — downloads only — so priority check 2 (shared
 loader) does not apply to this file.
 
 - `_search_hf` — fixes two real Hub-search gaps inline (documented in the docstring): free-text queries now require every whitespace-split token to be a substring of the repo id (was: the whole query had to literally match), and a too-strict `pipeline_tag` filter retries once without the filter if it yields zero results (catches `conversational`-tagged chat models that aren't tagged `text-generation`).
-- `hf_download`/`_download_worker` — background job via `huggingface_hub.snapshot_download`/`hf_hub_download` into `~/.finetune-studio/hf_models/<repo_id with "/" → "__">`; on completion calls `_refresh_model_registry()` so the new model shows up without a manual refresh click.
-- `restore_in_progress_downloads()` — called at startup (from `app.py`, not in this lane) to repopulate the in-memory `_DOWNLOADS` dict from the DB. A job that was `downloading` when the process died is explicitly flipped to `error` ("service restarted while downloading") rather than silently left `downloading` forever or silently resumed as if nothing happened.
+- `hf_download`/`_download_worker` — background job via `huggingface_hub.snapshot_download`/`hf_hub_download` into `~/.finetune-studio/hf_models/<repo_id with "/" → "__">` (`GET /hf/local` reports that mangled dir name as `repo_id`); every route that maps a `repo_id` to a dir goes through `_local_dir()`, which 400s on segments outside `[A-Za-z0-9._-]` or equal to `.`/`..` (previously `DELETE /hf/local/..` would `rmtree` the cache's parent). On completion calls `_refresh_model_registry()` (models.py's `refresh_model_registry`) so the new model shows up without a manual refresh click.
+- `restore_in_progress_downloads()` — called at startup (from `app.py`, not in this lane) to repopulate the in-memory `_DOWNLOADS` dict from the DB. A job that was `queued` or `downloading` when the process died is explicitly flipped to `error` ("service restarted before download finished" — queued jobs live in lost `BackgroundTasks`) rather than silently left `downloading` forever or silently resumed as if nothing happened.
+- `hf_download_cancel` is a no-op (returns the existing status) for jobs already `completed`/`error`/`cancelled`; cancelling a live job is best-effort — the worker does not poll the flag and will still overwrite it on completion. `hf_search` passes `library` through to `list_models` and clamps `limit` to 1..100.
 - `list_favorites` — explicitly catches and logs any exception, always returns `[]` rather than ever 500ing the page (docstring: "Never 500 the page").
 
-**Gotcha**: `_DOWNLOADS` is a plain process-wide module-level dict with no
+**Gotcha**: the registry is not refreshed after `DELETE /hf/local/...`, and `_DOWNLOADS` is never pruned. `_DOWNLOADS` is a plain process-wide module-level dict with no
 locking — fine for the FastAPI single-process deployment this app targets,
 but would race under multiple worker processes.
 
-## `routes/exports.py` (445 lines, self-prefixed under `/api/projects/{pid}/...`)
+## `routes/exports.py` (467 lines, self-prefixed under `/api/projects/{pid}/...`)
 
 GGUF / abliterated / merged-safetensors export, driving llama.cpp's
 `convert_hf_to_gguf.py` + `llama-quantize`.
 
-- `export_run` — two modes in one handler, selected by `use_sync` (true when the body has `quants`, or `format` is `abliterated|merged|awq|gptq`, or `force` is set without a singular `quant`): **sync** multi-format path (used by the Export page) calls `export_trained_run()` directly and blocks until done; **legacy async GGUF** path (singular `quant`) queues a `BackgroundTasks` job and returns an `export_id` to poll.
+- `export_run` — two modes in one handler, selected by `use_sync` (true when the body has `quants`, or `format` is `abliterated|merged|awq|gptq`, or `force` is set without a singular `quant`): **sync** multi-format path (used by the Export page) calls `export_trained_run()` directly and blocks until done; **legacy async GGUF** path (singular `quant`) queues a `BackgroundTasks` job and returns an `export_id` to poll. The singular `quant` is matched case-insensitively against `SUPPORTED_QUANTS` (which mixes `f16` and `Q8_0`) and canonicalised; a malformed/non-object JSON body is a 400. `GET /projects/{pid}/exports` clamps `limit` to 1..1000.
 - Ownership check: `run.get("project_id") and pid and run["project_id"] != pid` → 400 "run does not belong to this project" (400, not 404 — a minor inconsistency with the 404-for-foreign-resource convention established elsewhere in this lane today, but pre-existing and outside this audit's fix list since it already correctly refuses the operation rather than leaking data).
 - **Verified intact (per task brief)**: the multi-quant GGUF registration fix from earlier today is still correct — when `per_quant` is true (`fmt == "gguf"` and `len(payload.files) == len(payload.quants)`), the code does `zip(payload.quants, payload.files, strict=True)` and calls `db.create_export()` + `db.mark_export_done()` **once per quant/file pair**, each sized from `os.path.getsize(file_path)` of that specific file — not a single row hardcoded to `quants[0]` with the combined directory size. `strict=True` means a length mismatch between `quants` and `files` raises immediately rather than silently zipping short.
+- `_find_llama_tool` / `_find_convert_script` / `LLAMA_CPP_SEARCH_PATHS` / `_project_root_llama_cpp` are production-dead (only `tests/test_export.py` uses them; real discovery lives in `training.gguf_convert`) — left in place because deleting them needs a test edit outside this lane.
 - `_export_worker` — background GGUF conversion; refuses to call `mark_export_done` if the output file is missing or zero bytes ("Refuse to mark export done without a non-empty artifact").
 
 ## `routes/projects.py` (562 lines, mounted at `/api/projects`)
@@ -286,7 +294,7 @@ enforced.
 
 - Project CRUD: `list/create/get/update/delete`, `export_project` (streams a `tar`/`tar.gz` of the project's data + RAG corpus dirs plus a `manifest.json`), `import_project` (extracts an uploaded archive, creates a **new** project per `projects/<old_id>/` dir found inside, copies files — note: re-imports always mint new ids, never overwrite an existing project by its old id).
 - RAG CRUD + `ingest_into_rag` (file/dir → `RAGManager`, tracks both a live `project_rags` summary row and a `rag_corpora` build-history row) + `query_rag` (raw chunk search, no generation) + `rag_stats`.
-- Run CRUD + `start_run` (builds a `TrainingConfig`, guards against every run sharing the literal `output` dir — rewrites to `output/projects/{pid}/runs/{rid}` — then `training_engine.start()`), `stop_run`, `run_benchmark` (loads the run's output model into a throwaway `InferenceEngine`, always unloads it in a `finally` even on a suite crash), `merge_run` (idempotent unless `?force=true`).
+- Run CRUD + `start_run` (builds a `TrainingConfig`, guards against every run sharing the literal `output` dir — rewrites to `output/projects/{pid}/runs/{rid}` — then `training_engine.start()`; refuses with an error while the engine is training/loading/saving, and marks the run `error` if `start` raises), `stop_run` (only stops the engine when it is bound to this run id), `run_benchmark` (loads the run's output model into a throwaway `InferenceEngine`, always unloads it in a `finally`, including when the suite fails to load), `merge_run` (idempotent unless `?force=true`).
 
 **Fixed 2026-10-01 — cross-project ownership was not enforced on any
 run/rag sub-resource route.** Before today, every route of the shape
@@ -325,7 +333,7 @@ code than the convention `projects.py` now follows. Not changed, since
 `exports.py`'s own behavior wasn't broken and changing its status code was
 outside today's run/rag ownership fix.
 
-## `routes/file_library.py` (537 lines, self-prefixed under `/api/projects/{pid}/...`)
+## `routes/file_library.py` (555 lines, self-prefixed under `/api/projects/{pid}/...`)
 
 The modern file-upload/library system: streamed hashing upload, dedup by
 sha256, versioning, trash/restore/purge, folders, bulk actions, background
@@ -337,6 +345,7 @@ just the route layer.
 
 - `_stage_upload` — streams the multipart body to a temp file in `.uploads/` in 8MB chunks while hashing it with sha256, so a huge upload never has to live fully in memory before being written.
 - `upload_files` — per-file try/except so **one bad file in a bulk upload never aborts the rest**; returns a structured `{uploaded, duplicates_skipped, errors}` count plus a per-file `report` list. Dedup is by exact sha256 match within the project; a duplicate still gets staged as a data-prep source if useful (e.g. uploading the same PDF under a different folder).
+- `_json_body` — every JSON-body route uses it: malformed or non-object bodies are a 400, not a 500. The upload field is always `files` (repeatable), including for a single file. `PATCH .../tags` accepts a string or list of tags plus string notes and 404s when no row matched. `search-content` clamps `limit` to 1..200. `list_files_route` only does a second `list_files` call for `total_count` when a filter/`include_deleted` is active.
 - Route ordering note called out explicitly in the module docstring: FastAPI matches in registration order, so `/files/trash` and `/files/trash/purge` **must** be declared before the generic `/files/{fid}` catch-all or they'd be swallowed as `fid="trash"` — confirmed this ordering is in fact preserved in the file (trash routes at L280-290, pipeline/bulk/zip/search routes at L294-336, generic `{fid}` routes starting L341).
 - `download_raw_route` — works for files already in trash (`include_deleted=True`) so a user can recover+inspect before permanently purging; 410 (not 404) if the DB row exists but the bytes are missing on disk — correctly distinguishes "gone from the index" from "index says it should be here but isn't."
 

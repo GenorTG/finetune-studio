@@ -745,8 +745,9 @@ class TrainingEngine:
                 _json.dump(self_trainer.args.to_dict(), f, indent=2, default=str)
         SFTTrainer._save = _patched_save
 
+        from finetune_studio.training.formatting import render_chat_text
         def format_chat(example):
-            text = tokenizer.apply_chat_template(example["messages"], tokenize=False, add_generation_prompt=False)
+            text = render_chat_text(tokenizer, example["messages"])
             return {"text": text}
         dataset = Dataset.from_list(train_data).map(format_chat, remove_columns=list(train_data[0].keys()))
         if self._stop_requested():
@@ -839,8 +840,9 @@ class TrainingEngine:
             bias="none", task_type="CAUSAL_LM",
         )
         model = get_peft_model(model, lora_config)
+        from finetune_studio.training.formatting import render_chat_text
         def format_chat(example):
-            text = tokenizer.apply_chat_template(example["messages"], tokenize=False, add_generation_prompt=False)
+            text = render_chat_text(tokenizer, example["messages"])
             return {"text": text}
         dataset = Dataset.from_list(train_data).map(format_chat, remove_columns=list(train_data[0].keys()))
         if self._stop_requested():

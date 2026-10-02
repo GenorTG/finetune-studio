@@ -88,14 +88,6 @@ PARSERS: dict[str, tuple[str, str]] = {
 }
 
 
-def list_parsers() -> list[dict]:
-    """All supported parsers + which one handles which extension."""
-    out = []
-    for ext, (mod, fn) in sorted(PARSERS.items()):
-        out.append({"extension": ext, "module": mod, "function": fn})
-    return out
-
-
 def get_parser_for(path: str | Path) -> Any | None:
     """Returns the parse function for the given path, or None if unsupported."""
     ext = Path(path).suffix.lower()
@@ -106,8 +98,8 @@ def get_parser_for(path: str | Path) -> Any | None:
     try:
         mod = importlib.import_module(f".{mod_name}", __name__)
         return getattr(mod, fn_name)
-    except Exception as e:
-        raise RuntimeError(f"Failed to load parser {mod_name}.{fn_name}: {e}")
+    except (ImportError, AttributeError) as e:
+        raise RuntimeError(f"Failed to load parser {mod_name}.{fn_name}: {e}") from e
 
 
 def parse(path: str | Path) -> dict:
@@ -142,7 +134,7 @@ def parse(path: str | Path) -> dict:
                     "warnings": [f"unknown extension {p.suffix}; read as plain text"],
                 },
             }
-        except Exception as e:
+        except OSError as e:
             return {
                 "text": "",
                 "structured": {},

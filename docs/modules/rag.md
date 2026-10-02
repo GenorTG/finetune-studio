@@ -148,7 +148,8 @@ and `webui/routes/chat_v2.py` (for post-migration corpora) actually use.
   - `bundle_models()` / `unshare_models()` — copy the shared embedder/
     reranker into the corpus dir (or back out) so an exported corpus can run
     fully offline with no model download.
-  - `export_bundle()` / `import_bundle()` — tar/zip export and import.
+  - `export_bundle()` / `import_bundle()` — legacy plaintext tar/zip (library/tests only; `out_path` required).
+  - `secure_bundle.py` — `export_secure_bundle()` / `import_secure_bundle()`: encrypted `.ftsrag` studio bundle (the only UI/API export path).
     Import uses `tarfile.extractall(..., filter="data")` (traversal-safe) and
     manually validates zip member paths stay inside the staging dir before
     extracting (zip's `extractall` has no built-in path-traversal filter).
@@ -177,15 +178,42 @@ and `webui/routes/chat_v2.py` (for post-migration corpora) actually use.
     while retaining corpus/model files.
   - `rebuild_vectors()` — re-embeds all chunks with a (possibly different)
     embedder and rebuilds BM25 too ("cheap, keeps state consistent").
-- **`mcp_package.py`** — builds a hostable, self-installing export: a plain
-  directory (`.tar.gz`/`.zip`) with `server.py` (a verbatim copy of
-  `standalone_server.py`), `install.sh`/`run-http.sh`/`run-mcp.sh`/
-  `setup.sh` shell scripts, and an MCP config snippet, so a corpus can be
-  handed to someone with zero Finetune Studio install and still be
-  searchable via HTTP or MCP stdio (Claude Desktop / OpenClaw / Cursor).
-  `include_models=True` copies the shared embedder/reranker in for fully
-  offline semantic search; without it the package still does BM25 keyword
-  search or can point at any OpenAI-compatible `/v1/embeddings` endpoint.
+- **`mcp_package.py`** — `build_package(corpus, out, *, name, fmt, include_models,
+  config, encrypt, passphrase) -> PackageResult` builds a hostable,
+  self-installing export (`tar`/`tar.gz`/`zip`, streamed to `<out>.part` then
+  renamed; nothing plaintext is staged on disk). Ships `server.py` (verbatim
+  `standalone_server.py`), `rag.config.json`, `install.sh`/`run-http.sh`/
+  `run-mcp.sh`/`setup.sh`, an MCP config snippet, README, `requirements.txt`.
+  **Encrypted by default** (AES-256-GCM chunked AEAD, key = scrypt(passphrase);
+  the key is never shipped or stored): corpus lives in `corpus/corpus.enc`
+  (chunks, sources, vectors, BM25, doc names/metadata); only a minimal header
+  (version, KDF params, salt, nonce scheme) is plaintext, and `rag_container.py`
+  ships alongside. A blank passphrase generates one, returned once in
+  `PackageResult.passphrase` (`repr=False`). `encrypt=False` is the explicit
+  opt-out (README says NOT ENCRYPTED; route adds `-PLAINTEXT` to the filename);
+  the legacy plaintext layout stays readable. **Model weights are never
+  encrypted** (README says so). `include_models=True` streams the shared
+  embedder/reranker in for offline semantic search.
+- **`rag_container.py`** — the container format (`ContainerWriter`/
+  `ContainerReader`): 64 KiB frames, nonce = 8-byte prefix + be32 counter,
+  AAD = sha256(header)+kind+counter, encrypted index in a trailer. Decrypts in
+  memory only. Wrong passphrase / any flipped byte / truncation raises
+  `WrongPassphraseOrTampered` (server exits 3). Shipped verbatim; must not
+  import `finetune_studio`.
+- **`export_config.py`** — `RagExportConfig` (archive_format, include_models,
+  include_reranker, reranker_enabled, device, host, port, top_k, encrypt,
+  kdf_log_n). Layers: defaults < studio settings (`rag_export`) < project
+  override (`rag_export_projects[pid]`) < request. Never holds a passphrase.
+  API: `GET/PUT /projects/{pid}/rag/export-config`,
+  `POST /projects/{pid}/rag/mcp-package` (JSON; passphrase in the body, never a
+  URL), `GET .../mcp-package/download?file=`.
+- **Runtime config (shipped server)** — precedence flags > env (`RAG_*`;
+  `RAG_EMBED_MODEL/BASE_URL/API_KEY/DEVICE` still work) > `rag.config.json` >
+  defaults. Flags: `--config --device --host --port --top-k --no-reranker
+  --keyfile --print-config` (redacted effective config + origin per key).
+  Passphrase: prompt, `RAG_PASSPHRASE`, or `--keyfile`. **Bind is 127.0.0.1;
+  a non-loopback host requires an auth token (bearer, constant-time compare) or
+  the server refuses to start (before any passphrase prompt). No CORS.**
 - **`standalone_server.py`** — the file that gets copied into every export.
   **Deliberately duplicates** `tokenize()` and BM25 scoring logic from
   `tokenize.py`/`bm25.py` rather than importing them — this is required, not

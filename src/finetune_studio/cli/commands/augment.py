@@ -2,11 +2,34 @@
 from __future__ import annotations
 
 import json as json_mod
+import sys
+
+# CLI-friendly names -> ``DataAugmenter.generators`` keys.
+_TYPE_ALIASES = {
+    "knowledge": "knowledge",
+    "refusal": "refusal",
+    "language": "language_balance",
+    "language_balance": "language_balance",
+    "hallucination": "hallucination_guard",
+    "hallucination_guard": "hallucination_guard",
+    "persona": "persona_preservation",
+    "persona_preservation": "persona_preservation",
+}
 
 
 def cmd_augment(args) -> None:
     from finetune_studio.training.data_augmentation import DataAugmenter
     from finetune_studio.training.data_quality import DataQualityAnalyzer
+
+    # Resolve --type up front so an unknown name fails instead of being skipped.
+    requested = [t.strip() for t in args.type.split(",") if t.strip()]
+    unknown = [t for t in requested if t != "all" and t not in _TYPE_ALIASES]
+    if unknown:
+        print(
+            f"Error: unknown augmentation type(s): {', '.join(unknown)}. "
+            f"Valid: all, {', '.join(sorted(_TYPE_ALIASES))}"
+        )
+        sys.exit(2)
 
     # Load existing data
     data = []
@@ -35,10 +58,9 @@ def cmd_augment(args) -> None:
             weaknesses.append('refusal')
 
     # Add default augmentations
-    if args.type == 'all':
+    if "all" in requested or not requested:
         weaknesses.extend(['knowledge', 'refusal'])
-    else:
-        weaknesses.extend(args.type.split(','))
+    weaknesses.extend(_TYPE_ALIASES[t] for t in requested if t != "all")
 
     weaknesses = list(set(weaknesses))
     print(f"Augmenting for: {', '.join(weaknesses)}")

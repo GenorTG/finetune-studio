@@ -23,7 +23,7 @@ it under `if __name__ == "__main__"`.
 finetune_studio.cli` work directly (as opposed to `python -m
 finetune_studio`, which goes through the top-level `__main__.py` first).
 
-**`src/finetune_studio/cli/_parser.py`** (215 lines) — the single
+**`src/finetune_studio/cli/_parser.py`** (207 lines) — the single
 `argparse.ArgumentParser` definition for every `fts` subcommand
 (`models`, `train`, `test`, `suite`, `validate`, `convert`, `webui`, `rag`
 + 5 sub-subcommands, `compare`, `benchmark`, `analyze`, `augment`,
@@ -83,8 +83,8 @@ function body, not at module top level, so `fts --help` stays fast.
 | File | Subcommand | Delegates to |
 |---|---|---|
 | `analyze.py` (46 l) | `fts analyze` | `training.data_quality.DataQualityAnalyzer` |
-| `augment.py` (56 l) | `fts augment` | `training.data_augmentation.DataAugmenter` + `data_quality.DataQualityAnalyzer` |
-| `benchmark.py` (79 l) | `fts benchmark` | `benchmarks.real_benchmarks.RealBenchmarkSuite` + `testing.inference.InferenceEngine` |
+| `augment.py` (78 l) | `fts augment` | `training.data_augmentation.DataAugmenter` + `data_quality.DataQualityAnalyzer` |
+| `benchmark.py` (78 l) | `fts benchmark` | `benchmarks.real_benchmarks.RealBenchmarkSuite` + `testing.inference.InferenceEngine` |
 | `compare.py` (56 l) | `fts compare` | `benchmarks.comparison.comparator` (module-level singleton) + `testing.suite` |
 | `convert.py` (32 l) | `fts convert` | `data.converter.{csv_to_jsonl,json_to_jsonl,jsonl_to_json}` |
 | `files.py` (100 l) | `fts files trash` | `data.fs.file_library.{list_trash,purge_trash}` + `db` |
@@ -92,15 +92,33 @@ function body, not at module top level, so `fts --help` stays fast.
 | `optimize.py` (40 l) | `fts optimize` | `training.config_optimizer.TrainingConfigOptimizer` |
 | `rag.py` (64 l) | `fts rag {ingest,query,list,remove,stats,clear}` | `rag.manager.RAGManager` |
 | `rag_test.py` (42 l) | `fts rag-test` | `rag.query.RAGQuery` + `rag.store.VectorStore` + `testing.inference.InferenceEngine` |
-| `suite.py` (47 l) | `fts suite` | `testing.inference.InferenceEngine` + `testing.suite.{load_test_suite,run_suite,score_results}` |
+| `suite.py` (85 l) | `fts suite` | `testing.inference.InferenceEngine` + `testing.suite.{load_test_suite,run_suite,apply_heuristic_judging,score_results}` |
 | `test.py` (38 l) | `fts test` | `testing.inference.InferenceEngine` (interactive REPL loop) |
 | `train.py` (51 l) | `fts train` | `training.engine.{TrainingConfig,TrainingEngine}` + `training.data.load_jsonl` |
-| `validate.py` (14 l) | `fts validate` | `data.validator.validate_file` |
+| `validate.py` (22 l) | `fts validate` | `data.validator.validate_file` |
 | `validate_hallucination.py` (31 l) | `fts validate-hallucination` | `training.hallucination_guard.TrainingDataValidator` |
 | `vram.py` (113 l) | `fts vram {report,check,profile}` | `training.vram_profiler` (shim, see below) |
 | `webui.py` (10 l) | `fts webui` | `uvicorn.run("finetune_studio.webui.app:app", ...)` |
 
 `cli/commands/__init__.py` (7 lines) is docstring-only — no re-exports.
+
+### CLI contract (truthfulness)
+
+Regression-tested in `tests/test_cli_truthfulness.py`:
+
+- Every parser option is read by its handler; there are no accepted-but-
+  ignored flags. Removed no-ops: `analyze --fix/--output` (the analyzer
+  only suggests fixes), `augment --count/--ratio` (`DataAugmenter` fixes
+  the count internally), `benchmark --max-tokens/--temperature/--real` and
+  `compare --real` (`RealBenchmarkSuite` always runs temperature 0.0 with
+  per-family token limits and real datasets).
+- `fts validate` reports every file, then exits 1 if any file is invalid.
+- `fts suite` runs `apply_heuristic_judging` before `score_results`. If any
+  case stays unjudged it exits 1; if none was judged it prints no score
+  (`scores: null` with `--json`).
+- `fts augment --type` accepts `all` or a comma list of `knowledge`,
+  `refusal`, `language`, `hallucination`, `persona` (or the full generator
+  names); an unknown name exits 2 instead of being skipped.
 
 ### CLI/WebUI drift check (Priority Check #4)
 
@@ -362,7 +380,7 @@ duplicated).
   still count toward the displayed storage figure until they're purged,
   which is intentional (trash still occupies disk) but worth knowing if a
   "storage used" stat elsewhere in the UI only counts active files.
-- `runs_started_max(runs)` — latest `started_at` across runs, for drift
+- `runs_started_max(runs)` (single copy in `project_dashboard.py`; `project_data_browser.py` imports it) — latest `started_at` across runs, for drift
   badges.
 - `build_file_browser_ctx(project, *, files=None)` — assembles template
   extras for `project_data.html`.
@@ -476,7 +494,7 @@ non-issue per the audit's explicit priority check.
 
 ---
 
-## `config.py` (65 lines)
+## `config.py`
 
 Two plain (non-Pydantic, despite the module docstring's "Pydantic
 BaseModel" mention — see discrepancy note below) `@dataclass`es:
@@ -504,16 +522,10 @@ here for awareness rather than fixing, since fixing it (collapsing to one
 field) would require checking every caller across the whole repo,
 which spans other lanes' files.
 
-**Module docstring discrepancy (not fixed — see Discrepancies section):**
-the docstring claims "Pydantic BaseModel... Frozen dataclass: immutable
-config that can't be accidentally modified," but the actual code uses
-plain `@dataclass` (mutable, no `frozen=True`, no Pydantic import
-anywhere in the file). `settings.port = 1234` would work fine at runtime.
-Left as a documentation-only note rather than a code fix since correcting
-"what it should say" without knowing whether immutability was an
-abandoned intent (vs. just stale prose) risks asserting something not
-verified from the code; flagged under Discrepancies for the reader's
-attention.
+The stale module docstring previously claimed Pydantic validation, environment
+overrides, and frozen immutability. It was corrected on 2026-10-02 to match the
+implementation: mutable standard-library dataclasses and a process singleton;
+this module does not itself load environment variables.
 
 ---
 

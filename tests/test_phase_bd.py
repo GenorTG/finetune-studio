@@ -34,15 +34,15 @@ of Phase C).
 """
 import json
 import os
-import re
 import sys
 import time
 from pathlib import Path
+
 from playwright.sync_api import sync_playwright
 
 OUT = Path("/home/genorbox1/.openclaw/media/outbound")
 PROJECT_ID = "264f8765"
-BASE = f"http://fan-dragon:7860"
+BASE = "http://fan-dragon:7860"
 
 # Small config — fastest possible training that still proves it works
 SMALL_CONFIG = {
@@ -187,7 +187,7 @@ def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     summary = {"phase_a": "see phase-ac-summary.json",
                "phase_b_started": time.time()}
-    print(f"== Phase B + D driver ==")
+    print("== Phase B + D driver ==")
     print(f"  config: {SMALL_CONFIG}")
     with sync_playwright() as p:
         b = p.chromium.launch()

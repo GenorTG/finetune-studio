@@ -16,18 +16,17 @@ def _project(client) -> str:
 def _patch_build_env(monkeypatch, tmp_path: Path, pid: str) -> Path:
     """Point corpus + project files under tmp_path; return corpus dir."""
     corpus = tmp_path / "rag_corpora" / pid
-    home = tmp_path / "home"
-    files = home / ".finetune-studio" / "projects" / pid / "files"
+    root = tmp_path / "fts-root"
+    files = root / "projects" / pid / "files"
     files.mkdir(parents=True)
     (files / "note.txt").write_text("hello corpus", encoding="utf-8")
     monkeypatch.setattr(
         "finetune_studio.webui.routes.rag._corpus_dir",
         lambda p: corpus if p == pid else tmp_path / "other" / p,
     )
-    monkeypatch.setattr(
-        "finetune_studio.webui.routes.rag.Path.home",
-        staticmethod(lambda: home),
-    )
+    # Project sources resolve through the shared FTS_ROOT-aware path helpers.
+    monkeypatch.setattr("finetune_studio.data.fs.paths._ROOT", root)
+    monkeypatch.setattr("finetune_studio.data.fs.paths._PROJECTS", root / "projects")
     return corpus
 
 

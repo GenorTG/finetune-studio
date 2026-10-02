@@ -7,7 +7,7 @@ and model-discovery stack: it tracks what models exist on disk, how to load
 them (one canonical GGUF loader, no mixed CPU/GPU offload), and which
 provider (local GGUF or remote OpenAI-compatible) is currently active.
 
-## db/connection.py (547 lines)
+## db/connection.py
 
 Low-level SQLite plumbing. Owns the entire schema as one `_SCHEMA` string
 (`CREATE TABLE IF NOT EXISTS ...` for every table in the app — projects,
@@ -29,14 +29,11 @@ file_conversions/folder_membership/model_favorites).
 - `_safe_alter()` — runs an `ALTER TABLE ... ADD COLUMN` and swallows only
   "duplicate column name" errors, so `init_db()` is idempotent across app
   versions that added columns later.
-- `init_db()` — runs `_SCHEMA`, then a list of `_safe_alter` migrations
+- `init_db()` — runs `_SCHEMA`, then additive `_safe_alter` migrations
   (widening pre-existing tables with new columns), then a one-off `UPDATE`
   that disambiguates auto-named `"Run · <dataset>"` training runs that
-  collide across runs on the same dataset, then re-creates `benchmark_cases`
-  defensively (the "new in v2" comment is stale — this duplicate
-  `CREATE TABLE IF NOT EXISTS` block pre-dates the one already in `_SCHEMA`
-  and is a harmless no-op since both target the same table; the first one
-  to run wins and the second is a no-op per `IF NOT EXISTS`).
+  collide across runs on the same dataset. `benchmark_cases` is defined once
+  in `_SCHEMA`; there is no second defensive table-creation block.
 - `row_to_dict()` — converts a `sqlite3.Row` to a `dict` and auto-decodes a
   fixed list of `*_json` TEXT columns into unsuffixed dict/list keys:
   `rag_ids_json`, `settings_json`, `metrics_json`, `scores_json`,
@@ -51,7 +48,7 @@ file_conversions/folder_membership/model_favorites).
 Called by: every other `db/*.py` module (`cursor`, `new_id`, `row_to_dict`).
 `db/__init__.py` calls `init_db()` once at import time.
 
-## db/__init__.py (270 lines)
+## db/__init__.py
 
 Facade: imports every public CRUD function from the per-table modules below
 (often renamed on import, e.g. `model_exports.mark_done` → `mark_export_done`,
@@ -69,7 +66,7 @@ gate (Python attribute access ignores `__all__`; it only affects
 `from db import *`) — but keeping the two in sync is still good hygiene and
 is enforced here.
 
-## db/activity_events.py (50 lines)
+## db/activity_events.py
 
 Append-only log for operations that don't have their own job table (uploads,
 chat/query, model loads, small mutations). `record()` inserts one row and
@@ -78,7 +75,7 @@ simpler than hand-building the dict from the insert's known values).
 `list_recent(limit=100)` — newest-first across all projects, feeds the
 global activity feed. No update/delete; events are immutable once recorded.
 
-## db/benchmarks.py (161 lines) — FIXED
+## db/benchmarks.py — FIXED
 
 CRUD for `benchmark_runs` (parent) and `benchmark_cases` (per-question
 results). Two independent insert paths exist for cases:
@@ -121,7 +118,7 @@ request body here directly.
 
 ## db/connection.py — see above (listed first since every module imports it)
 
-## db/data_prep_runs.py (141 lines)
+## db/data_prep_runs.py
 
 CRUD for `data_prep_runs` — durable record of the data-prep pipeline so the
 in-memory `_RUNS` dict in `webui/routes/data_prep.py` can survive a
@@ -142,7 +139,7 @@ same semantic "did not complete" state. The route layer
 are normalized before display. If you add a new consumer of this table's
 `status` column, check both strings, not just one.
 
-## db/datasets.py (119 lines) — FIXED
+## db/datasets.py — FIXED
 
 CRUD for `project_datasets` — jsonl training files registered to a project
 (from upload or data-prep export). `datasets_dir(pid)` returns (and
@@ -166,7 +163,7 @@ from `allowed`, since the function already always stamps it; the docstring
 now says why. Regression test:
 `tests/test_db_models_audit.py::test_update_dataset_does_not_clobber_explicit_last_used_at`.
 
-## db/hf_downloads.py (100 lines)
+## db/hf_downloads.py
 
 CRUD for `hf_downloads` — durable HF Hub download job tracking, replacing
 the in-memory `_DOWNLOADS` dict in `webui/routes/hf_models.py` so downloads
@@ -175,7 +172,7 @@ survive a restart. Standard `create_job` / `mark_running` / `mark_done` /
 `list_in_progress()` returns `queued`/`downloading` jobs so the UI can
 reattach after a restart. Clean — no discrepancies found.
 
-## db/model_exports.py (129 lines)
+## db/model_exports.py
 
 CRUD for `model_exports` — one row per GGUF export attempt (format/quant
 extensible). `create_export(project_id, run_id, *, format="gguf",
@@ -192,7 +189,7 @@ and the schema; no silent drops found here, unlike `benchmarks.create_case`.
 `reconcile_stale()` mirrors `rag_corpora`/`data_prep_runs`: marks
 in-flight (`queued`/`running`) rows `failed` after a restart.
 
-## db/project_versions.py (117 lines)
+## db/project_versions.py
 
 CRUD for `project_versions` — immutable, append-only snapshots of a
 project's pinned inputs (datasets, source files, RAG corpora, training
@@ -208,7 +205,7 @@ corrupted/cross-project link). See the `manifest_json` gotcha under
 `webui/routes/versions.py` (another lane's file) is the one place that
 `json.loads()`s it.
 
-## db/projects.py (124 lines)
+## db/projects.py
 
 CRUD for `projects` plus `model_favorites` (a separate, unrelated table
 that lives here because it's small and project-adjacent in the UI).
@@ -220,7 +217,7 @@ SQLite would silently coerce it to `0`. `delete_project()` always returns
 check) — harmless today since no caller branches on the return value, but
 if you add one, check `rowcount` instead of trusting this return value.
 
-## db/rag_corpora.py (126 lines)
+## db/rag_corpora.py
 
 CRUD for `rag_corpora` — one row per RAG build/ingest attempt; `project_rags`
 holds the latest summary, this table is the history. Same
@@ -228,7 +225,7 @@ create/mark_running/mark_done/mark_failed/reconcile_stale shape as
 `data_prep_runs`/`hf_downloads`/`model_exports`. `latest_for_rag()` is what
 the UI shows as "last build" (`ORDER BY created_at DESC LIMIT 1`). Clean.
 
-## db/rags.py (120 lines)
+## db/rags.py
 
 CRUD for `project_rags` (the per-project vector-store registration, not the
 build-history table above). `ensure_portable_rag(project_id, store_path, *,
@@ -241,7 +238,7 @@ two-step means a crash between them would leave a `project_rags` row with
 stale `doc_count=0`/`status` defaults rather than losing the row entirely,
 which is the safer failure mode).
 
-## db/reviews.py (33 lines)
+## db/reviews.py
 
 Row-level approve/reject/edit decisions for dataset rows (`data_review`).
 `record_review()` deletes any prior decision for
@@ -249,7 +246,7 @@ Row-level approve/reject/edit decisions for dataset rows (`data_review`).
 true "last decision wins" overwrite, not an append-only history. Smallest
 file in the lane; nothing to flag.
 
-## db/runs.py (123 lines)
+## db/runs.py
 
 CRUD for `training_runs`. `create_run()` JSON-encodes `rag_ids` →
 `rag_ids_json` and `settings_obj` → `settings_json`. `list_runs()`
@@ -269,7 +266,7 @@ arbitrary body keys hitting SQL, not a new regression). `reconcile_stale_runs()`
 treats `queued`/`loading`/`training`/`saving`/`running` as the stale set and
 marks them `failed` with a fixed message after a restart.
 
-## db/system_updates.py (150 lines)
+## db/system_updates.py
 
 CRUD for `system_updates` — one row per self-healing update/check/repair
 attempt, with `log_text` accumulating the script's stdout/stderr via
@@ -288,12 +285,12 @@ reads the accumulated `log_text` and treats `"Update complete."` or
 real step succeeded (→ `mark_done` + an explanatory log line), and anything
 else as a genuine failure (→ `mark_failed`).
 
-## models/__init__.py (2 lines)
+## models/__init__.py
 
 Just a docstring (`"""Models subpackage — model registry and loading."""`).
 No exports.
 
-## models/gguf_layers.py (68 lines)
+## models/gguf_layers.py
 
 Reads real GGUF header values via the `gguf` pip package (ships alongside
 `llama-cpp-python`) instead of trusting a caller-supplied `n_gpu_layers=99`
@@ -310,7 +307,7 @@ non-`.gguf` paths. Called by `models/providers.py` (`LocalGGUFProvider`)
 and `models/manager.py` (`ModelManager.load`) to report true layer counts
 ("36/36") instead of the legacy fake 99.
 
-## models/helper.py (222 lines)
+## models/helper.py
 
 Resolves "the configured local helper model" (used for data-prep mining
 and LLM-assisted suite generation) as a first-class, explicitly-identified
@@ -334,7 +331,7 @@ None" entry point used by data-prep and suite-generation call sites, via
 `ModelManager.get_provider(DEFAULT_HELPER_PROVIDER_ID)` with a fallback
 scan of all providers for any helper-shaped row.
 
-## models/llama_loader.py (236 lines)
+## models/llama_loader.py
 
 **The one true GGUF loader.** `load_llama_gguf(gguf_path, *, n_ctx=32768,
 n_gpu_layers=-1, n_batch=512, n_threads=None, seed=None, rope_freq_base=0.0,
@@ -397,7 +394,7 @@ Called by: `models/providers.py` (`LocalGGUFProvider` doesn't call
 which does), `/load` routes (`resolve_loader_overrides`), and any
 unload/model-switch path (`unload_all_models`).
 
-## models/loader.py (48 lines) — FIXED (docstring, not deletion)
+## models/loader.py — FIXED (docstring, not deletion)
 
 **This file is NOT dead code** despite HANDOFF.md's note about an earlier
 pass deleting `load_for_inference`/`load_gguf_inference` from this module —
@@ -423,7 +420,7 @@ what the module actually does, and pointing at
 `models/llama_loader.py` for the real GGUF loader) to be the file's first
 statement, ahead of the `pathlib`/`typing` imports it needs.
 
-## models/manager.py (412 lines)
+## models/manager.py
 
 `ModelManager` — holds the single active inference provider for the whole
 process; "one local model loaded at a time" is enforced here, not left to
@@ -511,7 +508,7 @@ this class never touches.
   reading `self._provider` while a long generation is in flight.
 - `get_manager()` — process-wide singleton behind `_manager_lock`.
 
-## models/providers.py (333 lines)
+## models/providers.py
 
 Defines the `ModelProvider` abstraction (`load`/`unload`/`chat`/`generate`/
 `describe`/`is_loaded`) and its two concrete implementations, plus the
@@ -567,7 +564,7 @@ Defines the `ModelProvider` abstraction (`load`/`unload`/`chat`/`generate`/
   built from `models/helper.py`'s constants) used to seed the provider
   picker's "add a provider" dropdown.
 
-## models/registry.py (393 lines)
+## models/registry.py
 
 Filesystem/HF-cache model discovery — "what models exist on disk" — plus
 the category-based filtering that the Inference and Training pages use to

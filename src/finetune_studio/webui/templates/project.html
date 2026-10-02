@@ -67,7 +67,7 @@
       <div class="flow-card-title">Search my files (RAG)</div>
       <div class="flow-card-sub">
         Index the documents so a model can look things up while answering.
-        <b>Minutes, no training</b>, and new files are picked up by a rebuild.
+        <b>Minutes, no training</b>; rebuild includes newly parsed documents.
       </div>
       <ol class="flow-card-steps">
         <li>Upload files</li>
@@ -116,7 +116,7 @@
   <a class="btn primary" href="/projects/{{ pid }}/training" data-link>▶ Start training</a>
   <a class="btn" href="/projects/{{ pid }}/chat" data-link>💬 Open chat</a>
   <a class="btn" href="/projects/{{ pid }}/data-prep#upload" data-link>＋ New file</a>
-  <a class="btn" href="/projects/{{ pid }}/export" data-link>📦 Export project</a>
+  <a class="btn" href="/api/projects/{{ pid }}/export">📦 Export project archive</a>
   <a class="btn" href="/projects/{{ pid }}/settings" data-link>⚙ Settings</a>
 </div>
 

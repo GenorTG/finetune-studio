@@ -31,15 +31,21 @@ Detected failure modes (the ones we've hit in production):
 from __future__ import annotations
 
 import json
+import logging
 import os
-import re
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, asdict
+from collections.abc import Callable, Iterable
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Optional
 
+log = logging.getLogger(__name__)
+
+# Failures a probe/repair subprocess can legitimately produce (spawn failure,
+# timeout, unreadable/odd output). Anything else is a bug and should surface.
+_STEP_ERRORS = (subprocess.SubprocessError, OSError)
+_PROBE_ERRORS = (*_STEP_ERRORS, ValueError, KeyError, IndexError)
 
 # ── Issue taxonomy ──────────────────────────────────────────────────────
 
@@ -63,7 +69,7 @@ class Issue:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Issue":
+    def from_dict(cls, d: dict) -> Issue:
         return cls(**d)
 
 
@@ -79,12 +85,13 @@ class GpuInfo:
     cuda_toolkit_path: str # "/opt/cuda" if found
 
     @classmethod
-    def detect(cls, force_cpu: bool = False) -> "GpuInfo":
+    def detect(cls, force_cpu: bool = False) -> GpuInfo:
         vendor = "none"
         name = "(no GPU)"
         driver = ""
         cuda_ver = ""
         cuda_path = ""
+        compute_cap = ""
 
         # CUDA toolkit path (used by llama-cpp source builds + sanity checks)
         for cand in ("/opt/cuda", "/usr/local/cuda", "/usr/lib/cuda"):
@@ -101,7 +108,7 @@ class GpuInfo:
                 r = subprocess.run(
                     ["nvidia-smi", "--query-gpu=name,driver_version",
                      "--format=csv,noheader"],
-                    capture_output=True, text=True, timeout=10,
+                    capture_output=True, text=True, timeout=10, check=False,
                 )
                 if r.returncode == 0 and r.stdout.strip():
                     line = r.stdout.strip().splitlines()[0]
@@ -127,14 +134,14 @@ class GpuInfo:
                 r2 = subprocess.run(
                     ["nvidia-smi", "--query-gpu=compute_cap",
                      "--format=csv,noheader"],
-                    capture_output=True, text=True, timeout=10,
+                    capture_output=True, text=True, timeout=10, check=False,
                 )
                 if r2.returncode == 0 and r2.stdout.strip():
                     compute_cap = r2.stdout.strip().splitlines()[0].strip()
                 else:
                     compute_cap = ""
-            except (subprocess.TimeoutExpired, OSError):
-                pass
+            except (subprocess.TimeoutExpired, OSError) as exc:
+                log.debug("nvidia-smi probe failed: %s", exc)
 
         # AMD ROCm
         if vendor == "none" and (shutil.which("rocm-smi") or Path("/opt/rocm").exists()):
@@ -158,16 +165,16 @@ class GpuInfo:
 @dataclass
 class VenvInfo:
     path: Path
-    python: Optional[Path]
-    py_version: Optional[str]
-    torch_version: Optional[str]
-    torch_has_cuda: Optional[bool]
-    torchaudio_version: Optional[str]
-    torchaudio_importable: Optional[bool]
-    transformers_version: Optional[str]
-    llama_cpp_version: Optional[str]
-    peft_version: Optional[str]
-    trl_version: Optional[str]
+    python: Path | None
+    py_version: str | None
+    torch_version: str | None
+    torch_has_cuda: bool | None
+    torchaudio_version: str | None
+    torchaudio_importable: bool | None
+    transformers_version: str | None
+    llama_cpp_version: str | None
+    peft_version: str | None
+    trl_version: str | None
     has_fastapi: bool
     has_jinja2: bool
     has_datasets: bool
@@ -193,9 +200,35 @@ class VenvInfo:
 
 def _run(cmd: list[str], timeout: int = 30) -> subprocess.CompletedProcess:
     return subprocess.run(
-        cmd, capture_output=True, text=True, timeout=timeout,
+        cmd, capture_output=True, text=True, timeout=timeout, check=False,
         env={**os.environ, "PYTHONPATH": "", "VIRTUAL_ENV": ""},
     )
+
+
+_DEP_MODULES = ("fastapi", "jinja2", "datasets", "accelerate", "safetensors", "huggingface_hub")
+_DEPS_PROBE = (
+    "import importlib, json, sys\n"
+    f"mods = {list(_DEP_MODULES)!r}\n"
+    "missing = []\n"
+    "for m in mods:\n"
+    "    try:\n"
+    "        importlib.import_module(m)\n"
+    "    except Exception:\n"
+    "        missing.append(m)\n"
+    "print(json.dumps({'missing': missing}))\n"
+    "sys.exit(1 if missing else 0)\n"
+)
+
+
+def _parse_missing_deps(r: subprocess.CompletedProcess) -> set[str]:
+    """Modules the dependency probe reported absent; everything if it never reported."""
+    if r.returncode == 0:
+        return set()
+    try:
+        report = json.loads((r.stdout or "").strip().splitlines()[-1])
+        return {m for m in report["missing"] if m in _DEP_MODULES}
+    except _PROBE_ERRORS:
+        return set(_DEP_MODULES)  # probe crashed before reporting: claim nothing
 
 
 def inspect_venv(venv_dir: Path) -> VenvInfo:
@@ -219,39 +252,46 @@ def inspect_venv(venv_dir: Path) -> VenvInfo:
     # Basic python health
     try:
         r = _run([str(info.python), "-c",
-                  "import sys, json; print(json.dumps("
+                  ("import sys, json; print(json.dumps("
                   "{'py': sys.version.split()[0], 'executable': sys.executable}"
-                  "))"], timeout=15)
+                  "))")], timeout=15)
         if r.returncode != 0:
             return info  # venv python broken
         j = json.loads(r.stdout.strip().splitlines()[-1])
         info.py_version = j["py"]
-    except Exception:
+    except _PROBE_ERRORS as exc:
+        log.debug("venv python probe failed: %s", exc)
         return info
 
-    # Stdlib import sanity
+    # Key-dependency import sanity. ONE subprocess, but each package gets its
+    # own verdict: the probe exits 0 iff every import works, otherwise it
+    # prints {"missing": [...]} so one absent package cannot mark the other
+    # five as missing too.
     try:
-        r = _run([str(info.python), "-c",
-                  "import fastapi, jinja2, datasets, accelerate, "
-                  "safetensors, huggingface_hub"], timeout=30)
-        info.has_fastapi = info.has_jinja2 = info.has_datasets = \
-            info.has_accelerate = info.has_safetensors = \
-            info.has_huggingface_hub = (r.returncode == 0)
-    except Exception:
-        pass
+        r = _run([str(info.python), "-c", _DEPS_PROBE], timeout=30)
+        missing = _parse_missing_deps(r)
+    except _PROBE_ERRORS as exc:
+        log.debug("dependency probe failed: %s", exc)
+        missing = set(_DEP_MODULES)
+    info.has_fastapi = "fastapi" not in missing
+    info.has_jinja2 = "jinja2" not in missing
+    info.has_datasets = "datasets" not in missing
+    info.has_accelerate = "accelerate" not in missing
+    info.has_safetensors = "safetensors" not in missing
+    info.has_huggingface_hub = "huggingface_hub" not in missing
 
     # torch (may fail on mixed installs — capture separately)
     try:
         r = _run([str(info.python), "-c",
-                  "import torch, json; print(json.dumps("
+                  ("import torch, json; print(json.dumps("
                   "{'v': torch.__version__, 'cuda': torch.cuda.is_available()}"
-                  "))"], timeout=45)
+                  "))")], timeout=45)
         if r.returncode == 0 and r.stdout.strip():
             j = json.loads(r.stdout.strip().splitlines()[-1])
             info.torch_version = j["v"]
             info.torch_has_cuda = bool(j["cuda"])
-    except Exception:
-        pass
+    except _PROBE_ERRORS as exc:
+        log.debug("torch probe failed: %s", exc)
 
     # torchaudio — separate so a broken torchaudio doesn't mask torch status
     try:
@@ -263,9 +303,8 @@ def inspect_venv(venv_dir: Path) -> VenvInfo:
             info.torchaudio_importable = True
         else:
             info.torchaudio_importable = False
-    except subprocess.TimeoutExpired:
-        info.torchaudio_importable = False
-    except Exception:
+    except _PROBE_ERRORS as exc:
+        log.debug("torchaudio probe failed: %s", exc)
         info.torchaudio_importable = False
 
     # transformers / llama-cpp / peft / trl — optional but expected
@@ -280,8 +319,8 @@ def inspect_venv(venv_dir: Path) -> VenvInfo:
                       f"import {pkg}; print({pkg}.__version__)"], timeout=15)
             if r.returncode == 0:
                 setattr(info, attr, r.stdout.strip().splitlines()[-1])
-        except Exception:
-            pass
+        except _PROBE_ERRORS as exc:
+            log.debug("%s probe failed: %s", pkg, exc)
 
     return info
 
@@ -317,19 +356,19 @@ def inspect_service() -> dict:
         try:
             r = subprocess.run(
                 ["systemctl", "--user", "is-active", "finetune-studio"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True, text=True, timeout=5, check=False,
             )
             out["user_service_active"] = (r.stdout.strip() == "active")
-        except Exception:
-            pass
+        except _STEP_ERRORS as exc:
+            log.debug("systemctl is-active failed: %s", exc)
     try:
         r = subprocess.run(
             ["loginctl", "show-user", os.environ.get("USER", "root"),
-             "-p", "Linger"], capture_output=True, text=True, timeout=5,
+             "-p", "Linger"], capture_output=True, text=True, timeout=5, check=False,
         )
         out["lingering_enabled"] = ("Linger=yes" in r.stdout)
-    except Exception:
-        pass
+    except _STEP_ERRORS as exc:
+        log.debug("loginctl show-user failed: %s", exc)
     return out
 
 
@@ -353,7 +392,7 @@ def diagnose(
         issues.append(Issue(
             RECREATE_VENV,
             f"venv python missing at {venv.path}/bin/python",
-            f"recreate venv:  bash install.sh   (or   bash update.sh --repair)",
+            "recreate venv:  bash install.sh   (or   bash update.sh --repair)",
             severity=3,
         ))
         return issues  # nothing else can be checked without a venv python
@@ -368,17 +407,18 @@ def diagnose(
         return issues
 
     # ── Key deps ──
-    if not (venv.has_fastapi and venv.has_jinja2):
-        missing = [n for n, has in (
-            ("fastapi", venv.has_fastapi), ("jinja2", venv.has_jinja2),
-            ("datasets", venv.has_datasets), ("accelerate", venv.has_accelerate),
-            ("safetensors", venv.has_safetensors),
-            ("huggingface_hub", venv.has_huggingface_hub),
-        ) if not has]
+    key_deps = (
+        ("fastapi", venv.has_fastapi), ("jinja2", venv.has_jinja2),
+        ("datasets", venv.has_datasets), ("accelerate", venv.has_accelerate),
+        ("safetensors", venv.has_safetensors),
+        ("huggingface_hub", venv.has_huggingface_hub),
+    )
+    if not all(has for _, has in key_deps):
+        missing = [n for n, has in key_deps if not has]
         issues.append(Issue(
             PIP_INSTALL_EDITABLE,
             f"missing or broken: {', '.join(missing)}",
-            f"sync deps:  bash update.sh   (or:  pip install -e .)",
+            "sync deps:  bash update.sh   (or:  pip install -e .)",
             severity=2,
         ))
 
@@ -393,9 +433,6 @@ def diagnose(
     else:
         if gpu.vendor == "nvidia" and gpu.cuda_ver:
             expected = gpu.cuda_ver  # e.g. "cu130"
-            torch_tag = "+" + expected if "+" not in venv.torch_version else (
-                "+" + venv.torch_version.split("+", 1)[1]
-            )
             if "+cpu" in venv.torch_version:
                 issues.append(Issue(
                     REINSTALL_TORCH,
@@ -544,6 +581,36 @@ def diagnose(
     return issues
 
 
+def _run_step(
+    label: str,
+    cmd: list[str],
+    timeout: int,
+    actions: list[str],
+    log_fn: Callable[[str], None],
+    *,
+    env: dict[str, str] | None = None,
+    tail: int = 800,
+) -> bool:
+    """Run one repair command; record ``"<label>: ok|FAIL"`` and log failure output.
+
+    A command that cannot run at all (spawn error, timeout) is a recorded
+    failure, never an exception that aborts the remaining repairs."""
+    try:
+        r = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout, check=False,
+            **({"env": env} if env is not None else {}),
+        )
+    except _STEP_ERRORS as exc:
+        actions.append(f"{label}: FAIL ({type(exc).__name__}: {exc})")
+        log_fn(f"[repair] {label} could not run: {exc}")
+        return False
+    ok = r.returncode == 0
+    actions.append(f"{label}: {'ok' if ok else 'FAIL'}")
+    if not ok:
+        log_fn(((r.stderr or r.stdout) or "")[-tail:])
+    return ok
+
+
 # ── Repair ──────────────────────────────────────────────────────────────
 
 def repair(
@@ -567,10 +634,7 @@ def repair(
     gpu = GpuInfo.detect()
     venv_py = venv_dir / "bin" / "python"
 
-    critical_recreate = any(i.code == RECREATE_VENV for i in issues)
-    if critical_recreate or force and any(i.code == RECREATE_VENV for i in issues):
-        if not force and not critical_recreate:
-            pass
+    if any(i.code == RECREATE_VENV for i in issues):
         log(f"[repair] recreating venv at {venv_dir}")
         shutil.rmtree(venv_dir, ignore_errors=True)
         actions.append("removed venv")
@@ -580,32 +644,37 @@ def repair(
         actions.append("DEFER: run 'bash install.sh' to recreate venv")
         return False, actions
 
-    # Order: torch family → llama-cpp → pyproject deps → llama.cpp CLI
+    # Order: torch family → llama-cpp → pyproject deps → llama.cpp CLI.
+    # `all_ok` is sticky: a later successful step can never hide an earlier failure.
+    all_ok = True
     by_code: dict[str, list[Issue]] = {}
     for i in issues:
         by_code.setdefault(i.code, []).append(i)
+
+    def step(label: str, cmd: list[str], timeout: int, *, env: dict[str, str] | None = None,
+             tail: int = 800) -> bool:
+        nonlocal all_ok
+        ok = _run_step(label, cmd, timeout, actions, log, env=env, tail=tail)
+        all_ok = all_ok and ok
+        return ok
 
     if REINSTALL_TORCH in by_code:
         if gpu.vendor == "nvidia" and gpu.cuda_ver:
             idx = f"https://download.pytorch.org/whl/{gpu.cuda_ver}"
             log(f"[repair] reinstalling torch family from {idx}")
-            r = subprocess.run([
+            if not step("torch reinstall", [
                 str(venv_py), "-m", "pip", "install",
                 "--reinstall", "--index-url", idx,
                 "torch", "torchvision", "torchaudio",
-            ], capture_output=True, text=True, timeout=900)
-            actions.append(f"torch reinstall: {'ok' if r.returncode == 0 else 'FAIL'}")
-            if r.returncode != 0:
-                log(r.stderr[-800:])
+            ], 900):
                 return False, actions
         else:
             idx = "https://download.pytorch.org/whl/cpu"
             log(f"[repair] reinstalling torch (CPU) from {idx}")
-            r = subprocess.run([
+            step("torch CPU reinstall", [
                 str(venv_py), "-m", "pip", "install", "--reinstall",
                 "--index-url", idx, "torch", "torchvision", "torchaudio",
-            ], capture_output=True, text=True, timeout=900)
-            actions.append(f"torch CPU reinstall: {'ok' if r.returncode == 0 else 'FAIL'}")
+            ], 900)
 
     if REINSTALL_LLAMA_CPP in by_code:
         # Blackwell sm_120 needs source build (prebuilt wheels lack kernels);
@@ -628,70 +697,38 @@ def repair(
             # a matching wheel is in pip's cache (the cached abetlen wheel
             # is the broken one — no sm_120 kernels). --no-deps prevents
             # torch/peft/etc from being touched.
-            cmd = [
+            step(f"llama-cpp source build (sm_{arch})", [
                 str(venv_py), "-m", "pip", "install",
                 "--force-reinstall", "--no-deps",
                 "--no-binary", "llama-cpp-python",
                 "llama-cpp-python",
-            ]
-            r = subprocess.run(
-                cmd, env=env, capture_output=True, text=True, timeout=1800,
-            )
-            actions.append(
-                f"llama-cpp source build (sm_{arch}): "
-                f"{'ok' if r.returncode == 0 else 'FAIL'}"
-            )
-            if r.returncode != 0:
-                log((r.stderr or r.stdout)[-1200:])
+            ], 1800, env=env, tail=1200)
         elif gpu.vendor == "nvidia" and gpu.cuda_ver:
-            cmd = [
+            log(f"[repair] reinstalling llama-cpp-python (cuda {gpu.cuda_ver})")
+            step("llama-cpp reinstall", [
                 str(venv_py), "-m", "pip", "install", "--reinstall",
                 "--extra-index-url",
-                f"https://abetlen.github.io/llama-cpp-python/whl/"
-                f"{gpu.cuda_ver}/llama-cpp-python/",
+                (f"https://abetlen.github.io/llama-cpp-python/whl/"
+                f"{gpu.cuda_ver}/llama-cpp-python/"),
                 "llama-cpp-python>=0.3.0",
-            ]
-            log(f"[repair] reinstalling llama-cpp-python (cuda {gpu.cuda_ver})")
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
-            actions.append(
-                f"llama-cpp reinstall: {'ok' if r.returncode == 0 else 'FAIL'}"
-            )
-            if r.returncode != 0:
-                log(r.stderr[-800:])
+            ], 900)
         else:
-            cmd = [
+            log("[repair] reinstalling llama-cpp-python (CPU)")
+            step("llama-cpp reinstall", [
                 str(venv_py), "-m", "pip", "install", "--reinstall",
                 "llama-cpp-python>=0.3.0",
-            ]
-            log("[repair] reinstalling llama-cpp-python (CPU)")
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
-            actions.append(
-                f"llama-cpp reinstall: {'ok' if r.returncode == 0 else 'FAIL'}"
-            )
-            if r.returncode != 0:
-                log(r.stderr[-800:])
+            ], 900)
 
     if PIP_INSTALL_EDITABLE in by_code:
         log("[repair] syncing editable deps (pip install -e .)")
-        r = subprocess.run([
-            str(venv_py), "-m", "pip", "install", "-e", ".",
-        ], capture_output=True, text=True, timeout=600)
-        actions.append(f"pip -e .: {'ok' if r.returncode == 0 else 'FAIL'}")
+        step("pip -e .", [str(venv_py), "-m", "pip", "install", "-e", "."], 600)
 
     if BUILD_LLAMA_CPP_CLI in by_code:
         # Delegate to bash — install.sh owns the cmake + pip-deps logic.
         # --llama-cpp-only skips torch / pyproject work and just builds.
         log("[repair] building llama.cpp CLI (cmake + clone if missing)")
         install_sh = Path(__file__).parent.parent / "install.sh"
-        r = subprocess.run(
-            ["bash", str(install_sh), "--llama-cpp-only"],
-            capture_output=True, text=True, timeout=1800,
-        )
-        actions.append(
-            f"llama.cpp CLI build: {'ok' if r.returncode == 0 else 'FAIL'}"
-        )
-        if r.returncode != 0:
-            log((r.stderr or r.stdout)[-1200:])
+        step("llama.cpp CLI build", ["bash", str(install_sh), "--llama-cpp-only"], 1800, tail=1200)
 
     if INSTALL_CUDA_TOOLKIT in by_code:
         # Detect distro + run the right package manager. The toolkit is
@@ -712,29 +749,16 @@ def repair(
                 f"cuda toolkit: SKIP (distro '{distro}' not handled; install manually)"
             )
         else:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
-            actions.append(
-                f"cuda toolkit ({distro}): {'ok' if r.returncode == 0 else 'FAIL'}"
-            )
-            if r.returncode != 0:
-                log((r.stderr or r.stdout)[-1200:])
+            step(f"cuda toolkit ({distro})", cmd, 900, tail=1200)
 
     if INSTALL_SERVICE in by_code:
         # Delegate to install-service.sh which already handles --user/--system,
         # enable-linger, etc.
         log("[repair] installing finetune-studio systemd service")
         service_sh = Path(__file__).parent.parent / "install-service.sh"
-        r = subprocess.run(
-            ["bash", str(service_sh)],
-            capture_output=True, text=True, timeout=300,
-        )
-        actions.append(
-            f"systemd service: {'ok' if r.returncode == 0 else 'FAIL'}"
-        )
-        if r.returncode != 0:
-            log((r.stderr or r.stdout)[-800:])
+        step("systemd service", ["bash", str(service_sh)], 300)
 
-    return True, actions
+    return all_ok, actions
 
 
 def _detect_distro() -> str:
@@ -750,8 +774,8 @@ def _detect_distro() -> str:
                         os_release[k.strip()] = v.strip().strip('"').lower()
             id_ = os_release.get("id", "")
             return id_ if id_ in {"debian", "ubuntu", "fedora", "arch", "garuda"} else "unknown"
-        except Exception:
-            pass
+        except OSError as exc:
+            log.debug("cannot read /etc/os-release: %s", exc)
     return "unknown"
 
 

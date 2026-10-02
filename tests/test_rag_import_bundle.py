@@ -234,7 +234,7 @@ def test_import_route_accepts_tar_gz_suffix(tmp_path: Path, monkeypatch) -> None
 
     import finetune_studio.webui.routes.rag as rag_routes
 
-    monkeypatch.setattr(rag_routes, "_CORPORA", tmp_path / "rag_corpora")
+    monkeypatch.setattr("finetune_studio.data.fs.paths._ROOT", tmp_path)
 
     app = FastAPI()
     app.include_router(rag_routes.router)

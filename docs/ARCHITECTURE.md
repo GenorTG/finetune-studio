@@ -3,9 +3,9 @@
 > Self-hosted fine-tuning studio for local LLMs: file library → RAG prep → agentic
 > Q&A mining → LoRA/QLoRA training → GGUF export → benchmarks → single-model
 > inference chat. FastAPI + Jinja2 SSR with a terminal (tmux/neovim) aesthetic.
-> 40,468 lines across 214 tracked Python modules in `src/finetune_studio/`
-> (260 tracked app files including UI/assets); 525 tracked files across the
-> repository. One SQLite DB. The app is self-hosted; model downloads, OCR
+> 40,475 lines across 212 tracked Python modules in `src/finetune_studio/`
+> (257 tracked files under `src/`, including UI/assets); 527 tracked files
+> across the repository. One SQLite DB. The app is self-hosted; model downloads, OCR
 > language-data bootstrap, and optional integrations can contact external
 > services.
 >
@@ -28,7 +28,7 @@
 
 ```
 src/finetune_studio/
-├── config.py            Settings dataclass + env overrides (single source of defaults)
+├── config.py            Mutable Settings/RAGSettings dataclasses + process singleton
 ├── db/                  SQLite (stdlib sqlite3, WAL)
 │   ├── connection.py    SCHEMA (23 tables), migrations via CREATE IF NOT EXISTS
 │   ├── system_updates.py  update-pipeline rows (queued|running|done|error|cancelled)
@@ -104,6 +104,23 @@ src/finetune_studio/
 
 **Route-ordering rule:** specific paths (`/files/trash`) must register BEFORE
 catch-alls (`/files/{fid}`) — FastAPI matches in declaration order.
+
+### Network and file-access boundary
+
+The FastAPI composition currently installs activity/CORS/proxy middleware but
+does not install authentication middleware or route-level authentication
+dependencies. The CLI and Unix launcher default to `0.0.0.0`, so network
+isolation or an authenticated reverse proxy must be provided outside this app
+when it is reachable by untrusted clients. That deployment layer is not
+verified by this source map.
+
+`POST /api/projects/{pid}/data-prep/sources` has a legacy `data_path` form
+that reads the supplied absolute path and copies its contents into the
+project's content-addressed store; unlike its `file_id` form, it does not
+check project-file ownership. The shipped UI uses `file_id`, but a test
+explicitly preserves external absolute-path ingestion. Treat this as an
+unresolved trust-boundary issue; do not assume project IDs or the session-bar
+UI are authorization. See `docs/modules/webui-routes-workflow.md`.
 
 ## 4. Runtime state (app.py)
 

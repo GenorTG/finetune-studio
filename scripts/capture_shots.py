@@ -8,6 +8,7 @@ from __future__ import annotations
 import pathlib
 import sys
 
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import sync_playwright
 
 BASE = "http://fan-dragon:7860"
@@ -48,7 +49,8 @@ def main() -> int:
                         btn.click(timeout=2000)
                         page.wait_for_timeout(400)
                         break
-                except Exception:
+                except PlaywrightError as e:
+                    print(f"{name}: skip-button probe {sel!r} failed: {e}", file=sys.stderr)
                     continue
             page.wait_for_timeout(1500)
             page.screenshot(path=str(OUT / f"{name}.png"), full_page=True)

@@ -24,11 +24,10 @@ import json
 import os
 import sys
 import time
-from pathlib import Path
-import urllib.request
 import urllib.error
+import urllib.request
+from pathlib import Path
 
-import requests
 from playwright.sync_api import sync_playwright
 
 OUT = Path("/home/genorbox1/.openclaw/media/outbound")

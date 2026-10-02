@@ -222,12 +222,12 @@ def test_resume_stale_data_prep_runs_requeues_instead_of_failing(
         lambda run_id, runner, log: calls.append(run_id),
     )
 
+    import asyncio
+
     from finetune_studio.webui.routes.data_prep import (
         _RUNS,
         resume_stale_data_prep_runs,
     )
-
-    import asyncio
 
     async def _drive() -> dict[str, int]:
         result = await resume_stale_data_prep_runs()

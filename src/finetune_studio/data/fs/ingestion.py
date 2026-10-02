@@ -37,7 +37,7 @@ def read_ingestion_log(pid: str, limit: int = 200) -> list[dict]:
             continue
         try:
             out.append(json.loads(line))
-        except Exception:
+        except json.JSONDecodeError:
             skipped += 1
             continue
     if skipped:

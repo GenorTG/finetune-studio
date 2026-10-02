@@ -1,6 +1,7 @@
 """Tests for the hostable RAG package: builder + standalone server.
 
-Covers: build_package archive contents, parquet→jsonl conversion, the
+Covers (plaintext / --no-encrypt layout; see test_rag_encrypted_package.py for the
+encrypted default): build_package archive contents, parquet→jsonl conversion, the
 standalone server's keyword (BM25) search via --query, and the MCP stdio
 handshake (initialize / tools/list / tools/call rag_search).
 
@@ -82,6 +83,11 @@ def corpus_dir(tmp_path: Path) -> Path:
     return corpus
 
 
+def _plain(corpus: Path, out: Path, **kw) -> Path:
+    """Legacy plaintext layout (explicit opt-out; encryption is the default)."""
+    return build_package(corpus, out, encrypt=False, **kw).path
+
+
 def _extract(archive: Path, dest: Path) -> Path:
     with tarfile.open(archive, "r:gz") as tf:
         tf.extractall(dest, filter="data")
@@ -92,7 +98,7 @@ def _extract(archive: Path, dest: Path) -> Path:
 
 def test_build_package_contents(corpus_dir: Path, tmp_path: Path) -> None:
     out = tmp_path / "pkg" / "test-rag-package.tar.gz"
-    archive = build_package(corpus_dir, out, name="Test Corpus")
+    archive = _plain(corpus_dir, out, name="Test Corpus")
     assert archive == out and out.is_file()
 
     root = _extract(out, tmp_path / "x")
@@ -118,7 +124,7 @@ def test_build_package_contents(corpus_dir: Path, tmp_path: Path) -> None:
 
 def test_setup_script_shipped(corpus_dir: Path, tmp_path: Path) -> None:
     """setup.sh: guided one-command deploy, shipped executable and valid bash."""
-    archive = build_package(corpus_dir, tmp_path / "p.tar.gz", name="Test Corpus")
+    archive = _plain(corpus_dir, tmp_path / "p.tar.gz", name="Test Corpus")
     root = _extract(archive, tmp_path / "x")
     setup = root / "setup.sh"
     assert setup.is_file() and setup.stat().st_mode & 0o111, "setup.sh must ship executable"
@@ -134,7 +140,7 @@ def test_setup_script_shipped(corpus_dir: Path, tmp_path: Path) -> None:
 
 def test_setup_uninstall_is_safe(corpus_dir: Path, tmp_path: Path) -> None:
     """Uninstall is exercised with an isolated HOME and stub systemctl."""
-    archive = build_package(corpus_dir, tmp_path / "p.tar.gz", name="Test Corpus")
+    archive = _plain(corpus_dir, tmp_path / "p.tar.gz", name="Test Corpus")
     root = _extract(archive, tmp_path / "x")
     home = tmp_path / "home"
     home.mkdir()
@@ -156,7 +162,7 @@ def test_setup_uninstall_is_safe(corpus_dir: Path, tmp_path: Path) -> None:
 
 def test_standalone_keyword_search(corpus_dir: Path, tmp_path: Path) -> None:
     """server.py --query works offline (no embedding endpoint) via BM25."""
-    archive = build_package(corpus_dir, tmp_path / "p.tar.gz", name="Test Corpus")
+    archive = _plain(corpus_dir, tmp_path / "p.tar.gz", name="Test Corpus")
     root = _extract(archive, tmp_path / "x")
     r = subprocess.run(
         [sys.executable, str(root / "server.py"),
@@ -174,7 +180,7 @@ def test_standalone_keyword_search(corpus_dir: Path, tmp_path: Path) -> None:
 
 def test_standalone_mcp_stdio(corpus_dir: Path, tmp_path: Path) -> None:
     """MCP handshake + tools/list + tools/call over stdio, JSON-RPC 2.0."""
-    archive = build_package(corpus_dir, tmp_path / "p.tar.gz", name="Test Corpus")
+    archive = _plain(corpus_dir, tmp_path / "p.tar.gz", name="Test Corpus")
     root = _extract(archive, tmp_path / "x")
     reqs = [
         {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
@@ -217,7 +223,7 @@ def test_missing_corpus_files_raises(tmp_path: Path) -> None:
     empty = tmp_path / "nothing"
     empty.mkdir()
     with pytest.raises(FileNotFoundError):
-        build_package(empty, tmp_path / "p.tar.gz")
+        _plain(empty, tmp_path / "p.tar.gz")
 
 
 def _fake_shared_store(tmp_path: Path, monkeypatch) -> Path:
@@ -254,7 +260,7 @@ def test_build_package_with_models(corpus_dir: Path, tmp_path: Path, monkeypatch
     _fake_shared_store(tmp_path, monkeypatch)
     _point_manifest_at_shared(corpus_dir)
     out = tmp_path / "full.tar.gz"
-    build_package(corpus_dir, out, name="Test Corpus", include_models=True)
+    _plain(corpus_dir, out, name="Test Corpus", include_models=True)
     root = _extract(out, tmp_path / "x")
 
     assert (root / "corpus" / "embedder" / "config.json").is_file()
@@ -277,7 +283,7 @@ def test_build_package_with_models(corpus_dir: Path, tmp_path: Path, monkeypatch
 def test_include_models_requires_shared_ref(corpus_dir: Path, tmp_path: Path) -> None:
     """No shared: embedder in the manifest → honest error, not a silent small pkg."""
     with pytest.raises(FileNotFoundError, match="shared embedder"):
-        build_package(corpus_dir, tmp_path / "p.tar.gz", include_models=True)
+        _plain(corpus_dir, tmp_path / "p.tar.gz", include_models=True)
 
 
 def test_server_offline_with_bundled_models(corpus_dir: Path, tmp_path: Path, monkeypatch) -> None:
@@ -285,7 +291,7 @@ def test_server_offline_with_bundled_models(corpus_dir: Path, tmp_path: Path, mo
     never a crash: the whole point of the self-deployable promise."""
     _fake_shared_store(tmp_path, monkeypatch)
     _point_manifest_at_shared(corpus_dir)
-    archive = build_package(corpus_dir, tmp_path / "p.tar.gz",
+    archive = _plain(corpus_dir, tmp_path / "p.tar.gz",
                             name="Test Corpus", include_models=True)
     root = _extract(archive, tmp_path / "x")
     r = subprocess.run(

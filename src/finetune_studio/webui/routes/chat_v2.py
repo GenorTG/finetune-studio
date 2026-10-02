@@ -338,7 +338,9 @@ async def chat(request: Request, pid: str):
     if enabled_rag_ids and user_msg:
         for rag_id in enabled_rag_ids:
             rag = db.get_rag(rag_id)
-            if not rag:
+            # A RAG owned by another project is treated exactly like a
+            # missing one: the chat path must not read foreign corpora.
+            if not rag or rag.get("project_id") != pid:
                 continue
             try:
                 results = _search_rag_attachment(

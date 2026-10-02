@@ -1,27 +1,11 @@
-from typing import Any
+"""Suggest training settings from dataset-size and message-content heuristics.
 
-"""Suggest optimal training hyperparameters.
-
-WHAT THIS FILE DOES
-==================
-Given a dataset and a target model, suggests optimal hyperparameters:
-  - Learning rate (too high = unstable, too low = slow)
-  - Batch size (limited by GPU memory)
-  - Number of epochs (how many times to go through the data)
-  - LoRA rank (how many parameters to train)
-  - Sequence length (max tokens per example)
-
-KEY CONCEPTS
-============
-- Hyperparameter search: instead of guessing, we can use heuristics
-  based on dataset size and model size.
-- Common defaults: learning rate=2e-4, batch size=4, epochs=3, LoRA rank=16.
-- When to deviate: small datasets need fewer epochs; large models
-  need lower learning rates.
+The recommendations are advisory only: this module does not configure or
+launch the training engine. The active rules are defined in the methods below.
 """
 
-"""Training config optimizer — suggest optimal training settings."""
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass

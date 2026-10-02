@@ -22,9 +22,12 @@ git clone https://github.com/GenorTG/finetune-studio && cd finetune-studio
    `llama-quantize` + `convert_hf_to_gguf.py` for the GGUF export endpoint.
    Legacy checkouts at `~/llama.cpp` are still discovered. Override with
    `LLAMA_CPP_DIR=/path/to/llama.cpp`.
-5. systemd **user** service `finetune-studio.service` (port 7860, `--no-access-log`).
-6. `scripts/install_diagnose.py` — deep health check (mixed installs, missing deps,
+5. `scripts/install_diagnose.py` — deep health check (mixed installs, missing deps,
    broken torchaudio, service status); `--repair` autofixes.
+
+`install.sh` does **not** install a systemd unit. On Linux, install it separately
+with `bash install-service.sh`; that script writes the user unit and supports
+`--restart`, `--status`, and `--uninstall`.
 
 GPTQ export support was removed (`gptqmodel`'s wheel metadata declared zero of
 its real runtime deps, making it unreliable to install on fresh machines).

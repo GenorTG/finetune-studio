@@ -11,105 +11,21 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 
 from finetune_studio import db
-from finetune_studio.config import settings
 from finetune_studio.training.data import load_jsonl, save_jsonl
 
 router = APIRouter()
 
 
-def _has_traversal(raw: str) -> bool:
-    """True if any path component is ``..`` (rejects encoded traversal too after decode)."""
-    return ".." in Path(raw).parts
-
-
-def _project_root(pid: str) -> Path:
-    """Filesystem root for a project's stored artifacts (datasets live under this)."""
-    return (Path(settings.db_path).parent / "projects" / pid).resolve()
-
-
-def _normalize_raw_path(dataset: str) -> Path:
-    """Map stored/API path forms to a Path without double-prefixing data_dir.
-
-    Handles:
-    - absolute paths as-is
-    - relative under data_dir (``datasets/foo.jsonl`` → ``{data_dir}/datasets/foo.jsonl``)
-    - already-prefixed forms (``data/projects/...`` when data_dir is ``data``) without
-      joining again into ``data/data/projects/...``
-    """
-    raw = (dataset or "").strip()
-    if not raw:
-        raise HTTPException(400, "dataset required")
-    if _has_traversal(raw):
-        raise HTTPException(400, "path traversal not allowed")
-
-    p = Path(raw)
-    if p.is_absolute():
-        return p
-
-    data_root = Path(settings.data_dir)
-    root_posix = data_root.as_posix().rstrip("/")
-    # Stored relative form already includes data_dir (export writes str(Path) under db parent).
-    if raw == root_posix or raw.startswith(root_posix + "/"):
-        return Path(raw)
-
-    # Cwd-relative path that already exists (common when data_dir == "data" and cwd is repo).
-    if p.exists():
-        return p
-
-    return data_root / raw
-
-
-def _paths_equal(a: Path, b: Path) -> bool:
-    """Compare paths, preferring resolve() but falling back to string equality."""
-    if str(a) == str(b):
-        return True
-    try:
-        return a.resolve() == b.resolve()
-    except OSError:
-        return False
-
-
-def _is_under(path: Path, root: Path) -> bool:
-    try:
-        path.resolve().relative_to(root.resolve())
-        return True
-    except (ValueError, OSError):
-        return False
-
-
-def _assert_project_scope(pid: str, path: Path) -> None:
-    """Reject paths outside this project unless registered to the project."""
-    from finetune_studio.db.datasets import list_datasets
-
-    for ds in list_datasets(pid):
-        if _paths_equal(Path(ds["data_path"]), path):
-            return
-
-    if _is_under(path, _project_root(pid)):
-        return
-
-    raise HTTPException(403, "dataset path outside project scope")
-
-
 def _resolve_path(dataset: str, *, pid: str) -> Path:
-    """Resolve a dataset path for a project with safe normalization and scoping."""
+    """Resolve a dataset reference to a path inside project ``pid`` (400/403 otherwise)."""
+    from finetune_studio.data.fs.paths import resolve_in_project
     from finetune_studio.db.datasets import get_dataset_by_path
 
     raw = (dataset or "").strip()
     if not raw:
         raise HTTPException(400, "dataset required")
-    if _has_traversal(raw):
-        raise HTTPException(400, "path traversal not allowed")
-
     registered = get_dataset_by_path(pid, raw)
-    if registered:
-        path = _normalize_raw_path(registered["data_path"])
-        _assert_project_scope(pid, path)
-        return path
-
-    path = _normalize_raw_path(raw)
-    _assert_project_scope(pid, path)
-    return path
+    return resolve_in_project(pid, registered["data_path"] if registered else raw, what="dataset")
 
 
 def _load(dataset: str, *, pid: str) -> list[dict]:
