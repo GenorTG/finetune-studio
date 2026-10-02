@@ -8,10 +8,10 @@ Local fine-tune + data-prep WebUI. Current thread: act on `docs/audit/APP-AUDIT-
 
 | Area | State |
 |---|---|
-| Branch | `main` at `e8c358f`. All audit-fix work is **local/uncommitted**; nothing pushed. New test files are `git add -N` (intent-to-add) so `tests/test_repo_hygiene.py` passes. |
+| Branch | `main`, audit-fix work committed locally (not pushed; awaiting Genor OK). |
 | Source read | Complete: 212 app Python modules, 13 scripts, 37 WebUI Python modules, 28 templates, 11 static assets. See the app audit. |
 | Test read | Incomplete: 8/166 `test_*.py` files in `docs/audit/TEST-AUDIT-2026-10-01.md`. Do not claim complete test review. |
-| Tests | Full suite after lanes A-D (`--ignore=tests/test_vram.py`): 1323 passed, 2 failed. Both fixed and re-run green (7/7): `test_repo_hygiene` (untracked files; resolved via `git add -N`) and `test_rebuild_vectors_applies_pending_embedder_from_settings_patch` (stale test patched removed `rag_routes._CORPORA`; now patches `_corpus_dir`). No second full run yet. |
+| Tests | Full suite 2026-10-02 (`--ignore=tests/test_vram.py`): 1378 passed, 1 failed (stale `test_dataset_register` registering an outside-project path; rewritten + outside-path 403 test added, re-run green). Committed. |
 | Formatter parity | Done (`docs/audit/FORMATTER-PARITY-2026-10-02.md`). `system_prompt` callers are NOT yet wired to it. |
 | Dead code | Removed in lanes A-D (see git diff); `_CORPORA` constant gone from `routes/rag.py`. |
 | Ruff | `ruff check src/ scripts/` clean (broad handlers narrowed; intentional boundaries carry a justified `noqa`). `tests/` still has ~108 legacy findings (deferred with test review). |
@@ -43,4 +43,4 @@ Local fine-tune + data-prep WebUI. Current thread: act on `docs/audit/APP-AUDIT-
 
 ## Blockers
 
-Open policy items 1-2 (as listed in the lane report) need Genor's decision. Nothing committed/pushed without his OK.
+Policy items resolved. Committed locally; nothing pushed without his OK.
