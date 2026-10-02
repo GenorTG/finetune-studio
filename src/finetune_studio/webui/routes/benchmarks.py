@@ -158,13 +158,20 @@ def _run_is_benchmarkable(run: dict[str, Any]) -> bool:
 
 
 def _resolve_trained_target(run: dict[str, Any]) -> str:
-    """Prefer merged/ under output_path when present."""
+    """Prefer merged/ under output_path, then the LoRA adapter/, else output_path.
+
+    An unmerged run's output dir has no config.json, so loading it directly
+    fails with an opaque transformers "Unrecognized model" error.
+    """
     target_model = str(run.get("output_path") or "").strip()
     merged_candidate = os.path.join(target_model, "merged")
     if os.path.isdir(merged_candidate) and os.path.isfile(
         os.path.join(merged_candidate, "config.json")
     ):
         return merged_candidate
+    adapter_candidate = os.path.join(target_model, "adapter")
+    if os.path.isfile(os.path.join(adapter_candidate, "adapter_config.json")):
+        return adapter_candidate
     return target_model
 
 

@@ -97,7 +97,9 @@ PY
 }
 
 # ── Step 1: git pull ────────────────────────────────────────────────────
-if [ "$NO_PULL" = "0" ]; then
+if [ "$CHECK_MODE" = "1" ]; then
+    log "--check: skipping git pull (dry-run, no changes)."
+elif [ "$NO_PULL" = "0" ]; then
     log "git pull (ff-only)..."
     # Deterministic env for git/ssh: derive HOME from the passwd DB (the
     # service env may lack it). The sandbox (ProtectSystem=full +
@@ -205,9 +207,13 @@ else
 fi
 
 # ── Step 5: DB migrations ───────────────────────────────────────────────
-log "Running DB migrations (init_db)..."
-"$VENV_PY" -c "from finetune_studio.db import init_db; init_db(); print('  schema OK')" 2>&1 \
-    || die "init_db failed"
+if [ "$CHECK_MODE" = "1" ]; then
+    log "--check: skipping DB migrations (dry-run, no changes)."
+else
+    log "Running DB migrations (init_db)..."
+    "$VENV_PY" -c "from finetune_studio.db import init_db; init_db(); print('  schema OK')" 2>&1 \
+        || die "init_db failed"
+fi
 
 # ── Step 6: restart ─────────────────────────────────────────────────────
 if [ "$NO_RESTART" = "0" ] && [ "$CHECK_MODE" = "0" ]; then

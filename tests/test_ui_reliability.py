@@ -150,8 +150,10 @@ def test_load_missing_path_returns_explicit_failure(client: TestClient) -> None:
 
 
 def test_load_exception_returns_failure_not_loaded(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    model_file = tmp_path / "missing-model.bin"
+    model_file.write_bytes(b"x")
     engine = MagicMock()
     engine.model = None
     engine.vision = False
@@ -162,7 +164,7 @@ def test_load_exception_returns_failure_not_loaded(
     engine.load.side_effect = _boom
     monkeypatch.setattr("finetune_studio.webui.app.inference_engine", engine)
 
-    r = client.post("/api/models/load", json={"path": "/tmp/missing-model.bin"})
+    r = client.post("/api/models/load", json={"path": str(model_file)})
     assert r.status_code == 200, r.text
     data = r.json()
     assert data["status"] == "error"
@@ -172,7 +174,7 @@ def test_load_exception_returns_failure_not_loaded(
 
 
 def test_load_success_requires_model_object(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """If load() returns without holding a model, never claim status=loaded."""
     engine = MagicMock()
@@ -181,7 +183,7 @@ def test_load_success_requires_model_object(
     engine.load = MagicMock()
     monkeypatch.setattr("finetune_studio.webui.app.inference_engine", engine)
 
-    r = client.post("/api/models/load", json={"path": "/models/fake"})
+    r = client.post("/api/models/load", json={"path": str(tmp_path)})
     assert r.status_code == 200, r.text
     data = r.json()
     assert data["status"] == "error"
@@ -190,7 +192,7 @@ def test_load_success_requires_model_object(
 
 
 def test_load_success_payload_when_model_held(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     engine = MagicMock()
     engine.model = object()
@@ -198,18 +200,20 @@ def test_load_success_payload_when_model_held(
     engine.load = MagicMock()
     monkeypatch.setattr("finetune_studio.webui.app.inference_engine", engine)
 
-    r = client.post("/api/models/load", json={"path": "/models/ok"})
+    r = client.post("/api/models/load", json={"path": str(tmp_path)})
     assert r.status_code == 200, r.text
     data = r.json()
     assert data["status"] == "loaded"
     assert data["loaded"] is True
-    assert data["model"] == "/models/ok"
+    assert data["model"] == str(tmp_path)
     assert engine.load.call_args.kwargs["n_gpu_layers"] == -1
 
 
 def test_load_coerces_cpu_or_partial_offload_to_full_gpu(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    model_file = tmp_path / "ok.gguf"
+    model_file.write_bytes(b"x")
     engine = MagicMock()
     engine.model = object()
     engine.vision = False
@@ -218,7 +222,7 @@ def test_load_coerces_cpu_or_partial_offload_to_full_gpu(
     for requested in (0, 24):
         response = client.post(
             "/api/models/load",
-            json={"path": "/models/ok.gguf", "n_gpu_layers": requested},
+            json={"path": str(model_file), "n_gpu_layers": requested},
         )
         assert response.status_code == 200, response.text
         assert engine.load.call_args.kwargs["n_gpu_layers"] == -1

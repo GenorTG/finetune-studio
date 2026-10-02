@@ -60,6 +60,8 @@ def _resolve_model_path(model_path: str, allow_download: bool) -> tuple[str, str
     if p.exists():
         return str(p), None
     repo = model_path.split(":", 1)[0]
+    if model_path.startswith(("/", "./", "../", "~")) or re.match(r"^[A-Za-z]:[\\/]", model_path):
+        return model_path, f"model path does not exist: {model_path}"
     if not _HF_REPO_ID_RE.match(repo):
         return model_path, None  # not a repo id — the engine surfaces its own error
     org, name = repo.split("/", 1)
@@ -392,7 +394,12 @@ async def list_training_runs_for_project(pid: str):
 @router.post("/start")
 async def start_training(request: Request):
     from finetune_studio import db
-    body = await request.json()
+    try:
+        body = await request.json()
+    except ValueError:
+        return JSONResponse({"error": "request body must be valid JSON"}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON object body required"}, status_code=400)
 
     # Extract data_path and project_id FIRST
     data_path = body.get("data_path", "")
@@ -411,45 +418,51 @@ async def start_training(request: Request):
     # Project training form omits unchecked boxes; default false (not true).
     merge_flag = _optional_body_bool(body, "merge_on_save", overrides)
     unsloth_flag = _optional_body_bool(body, "unsloth", overrides)
-    if preset_id:
-        try:
-            config = _apply_preset(preset_id, overrides)
-        except ValueError as e:
-            return {"error": str(e)}
-        if not config.model_path and body.get("model_path"):
-            config.model_path = body["model_path"]
-        if merge_flag is not None:
-            config.merge_on_save = merge_flag
-        if unsloth_flag is not None:
-            config.unsloth = unsloth_flag
-    else:
-        config = TrainingConfig(
-            model_path=body.get("model_path", ""),
-            output_dir=body.get("output_dir", "output"),
-            lora_rank=int(body.get("lora_rank", 64)),
-            lora_alpha=int(body.get("lora_alpha", 128)),
-            learning_rate=float(body.get("learning_rate", 2e-4)),
-            num_epochs=int(body.get("num_epochs", 3)),
-            batch_size=int(body.get("batch_size", 2)),
-            gradient_accumulation_steps=int(body.get("gradient_accumulation_steps", 4)),
-            max_seq_length=int(body.get("max_seq_length", 2048)),
-            warmup_steps=int(body.get("warmup_steps", 30)),
-            weight_decay=float(body.get("weight_decay", 0.01)),
-            save_steps=int(body.get("save_steps", 100)),
-            logging_steps=int(body.get("logging_steps", 10)),
-            bf16=_coerce_bool(body.get("bf16", True)),
-            # Omitted → standard TRL (no Unsloth status wording) for stock Qwen3-4B flow.
-            unsloth=False if unsloth_flag is None else unsloth_flag,
-            merge_on_save=False if merge_flag is None else merge_flag,
-            export_gguf=_coerce_bool(body.get("export_gguf", False)),
-            gguf_quants=body.get("gguf_quants", ["f16", "q8_0", "q4_k_m", "q5_k_m"]),
-            data_path=data_path,
-            project_id=project_id,
-            abliterate=_coerce_bool(body.get("abliterate", False)),
-            abliteration_strength=float(body.get("abliteration_strength", 1.0)),
-            export_imatrix=_coerce_bool(body.get("export_imatrix", False)),
-            imatrix_calibration=body.get("imatrix_calibration", ""),
-        )
+    try:
+        if preset_id:
+            try:
+                config = _apply_preset(preset_id, overrides)
+            except (ValueError, TypeError) as e:
+                return {"error": str(e)}
+            if not config.model_path and body.get("model_path"):
+                config.model_path = body["model_path"]
+            if merge_flag is not None:
+                config.merge_on_save = merge_flag
+            if unsloth_flag is not None:
+                config.unsloth = unsloth_flag
+        else:
+            config = TrainingConfig(
+                model_path=body.get("model_path", ""),
+                output_dir=body.get("output_dir", "output"),
+                lora_rank=int(body.get("lora_rank", 64)),
+                lora_alpha=int(body.get("lora_alpha", 128)),
+                learning_rate=float(body.get("learning_rate", 2e-4)),
+                num_epochs=int(body.get("num_epochs", 3)),
+                batch_size=int(body.get("batch_size", 2)),
+                gradient_accumulation_steps=int(body.get("gradient_accumulation_steps", 4)),
+                max_seq_length=int(body.get("max_seq_length", 2048)),
+                warmup_steps=int(body.get("warmup_steps", 30)),
+                weight_decay=float(body.get("weight_decay", 0.01)),
+                save_steps=int(body.get("save_steps", 100)),
+                logging_steps=int(body.get("logging_steps", 10)),
+                bf16=_coerce_bool(body.get("bf16", True)),
+                # Omitted → standard TRL (no Unsloth status wording) for stock Qwen3-4B flow.
+                unsloth=False if unsloth_flag is None else unsloth_flag,
+                merge_on_save=False if merge_flag is None else merge_flag,
+                export_gguf=_coerce_bool(body.get("export_gguf", False)),
+                gguf_quants=body.get("gguf_quants", ["f16", "q8_0", "q4_k_m", "q5_k_m"]),
+                data_path=data_path,
+                project_id=project_id,
+                abliterate=_coerce_bool(body.get("abliterate", False)),
+                abliteration_strength=float(body.get("abliteration_strength", 1.0)),
+                export_imatrix=_coerce_bool(body.get("export_imatrix", False)),
+                imatrix_calibration=body.get("imatrix_calibration", ""),
+            )
+    except (ValueError, TypeError, OverflowError) as e:
+        return JSONResponse({"error": f"invalid training parameter: {e}"}, status_code=400)
+    for _name in ("num_epochs", "batch_size", "gradient_accumulation_steps", "max_seq_length", "lora_rank"):
+        if getattr(config, _name, 1) < 1:
+            return JSONResponse({"error": f"{_name} must be >= 1"}, status_code=400)
     merge_on_save = config.merge_on_save
 
     if not config.model_path:
@@ -550,7 +563,12 @@ async def export_run(run_id: str, request: Request):
     from finetune_studio import db
     from finetune_studio.training.run_export import export_trained_run
 
-    body = await request.json()
+    try:
+        body = await request.json()
+    except ValueError:
+        return JSONResponse({"ok": False, "error": "invalid JSON body"}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"ok": False, "error": "body must be a JSON object"}, status_code=400)
     fmt = body.get("format", "gguf")
     quants = body.get("quants", ["f16", "q8_0", "q4_k_m", "q5_k_m"])
     force = bool(body.get("force", False))

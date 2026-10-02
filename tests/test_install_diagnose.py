@@ -74,7 +74,14 @@ class TestGpuDetect:
         assert g.vendor == "nvidia"
         assert "RTX 3090" in g.name
         assert g.driver_version == "610.57.04"
-        assert g.cuda_ver == "cu130"  # 610 ≥ 550
+        assert g.cuda_ver == "cu132"  # 610 ≥ 555 (matches install.sh)
+
+    def test_nvidia_driver_550_maps_to_cu130(self):
+        with patch("shutil.which", return_value="/usr/bin/nvidia-smi"), \
+             patch("subprocess.run") as sr:
+            sr.return_value = _fake_run(stdout="RTX 3090, 551.10\n")
+            g = diag.GpuInfo.detect()
+        assert g.cuda_ver == "cu130"  # 550 ≤ 551 < 555
 
     def test_nvidia_driver_525_maps_to_cu124(self):
         with patch("shutil.which", return_value="/usr/bin/nvidia-smi"), \

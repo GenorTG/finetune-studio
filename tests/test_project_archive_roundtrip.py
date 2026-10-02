@@ -109,3 +109,36 @@ def test_import_legacy_archive_without_metadata(client, roots):
     assert r.status_code == 200, r.text
     new = r.json()["imported"][0]["new_id"]
     assert (proj / new / "f.txt").read_text() == "z"
+
+
+def test_roundtrip_restores_file_library_and_rebases_source_paths(client, roots, tmp_path):
+    """Imported project lists its files and its sources pass the path fence."""
+    from finetune_studio import db
+    proj, _rag = roots
+    pid = client.post("/api/projects", json={"name": "Lib"}).json()["id"]
+    old_raw = proj / pid / "files" / "raw" / "other" / f"{pid}-abc_a.txt"
+    old_raw.parent.mkdir(parents=True)
+    old_raw.write_text("hello")
+    fid = f"{pid}-abc"
+    with db.cursor() as c:
+        c.execute("INSERT INTO file_folders (id, project_id, name, kind, parent_id, created_at)"
+                  " VALUES ('fld_auto_other_1', ?, 'other', 'auto', NULL, 1)", (pid,))
+        c.execute("INSERT INTO project_files (id, project_id, original_name, current_version,"
+                  " size_bytes, uploaded_at) VALUES (?, ?, 'a.txt', 1, 5, 1)", (fid, pid))
+        c.execute("INSERT INTO file_versions (file_id, version, raw_path, raw_hash, raw_size,"
+                  " uploaded_at) VALUES (?, 1, ?, 'h', 5, 1)", (fid, str(old_raw)))
+        c.execute("INSERT INTO folder_membership VALUES ('fld_auto_other_1', ?)", (fid,))
+    src_dir = proj / pid / "qa" / "sources"
+    src_dir.mkdir(parents=True)
+    (src_dir / "s1.json").write_text(json.dumps(
+        {"id": "s1", "filename": "a.txt", "data_path": str(old_raw)}))
+
+    new = _import(client, client.get(f"/api/projects/{pid}/export").content).json()["imported"][0]["new_id"]
+
+    listed = client.get(f"/api/projects/{new}/files").json()["files"]
+    assert [f["original_name"] for f in listed] == ["a.txt"]
+    assert listed[0]["id"] == f"{new}-abc"
+    data_path = json.loads((proj / new / "qa" / "sources" / "s1.json").read_text())["data_path"]
+    assert f"/projects/{new}/" in data_path and f"/projects/{pid}/" not in data_path
+    assert (proj / new / "files" / "raw" / "other" / f"{pid}-abc_a.txt").is_file()
+    assert len(client.get(f"/api/projects/{pid}/files").json()["files"]) == 1

@@ -51,6 +51,9 @@ def cmd_rag(args) -> None:
     elif args.rag_command == "remove":
         result = manager.remove_document(args.document_id)
         print(json.dumps(result, indent=2))
+        if not result.get("chunks_removed"):
+            print(f"Error: document not found: {args.document_id}", file=sys.stderr)
+            sys.exit(1)
 
     elif args.rag_command == "stats":
         stats = manager.stats()

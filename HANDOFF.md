@@ -11,7 +11,8 @@ Local fine-tune + data-prep WebUI. Current thread: act on `docs/audit/APP-AUDIT-
 | Branch | `main`, audit-fix work committed locally (not pushed; awaiting Genor OK). |
 | Source read | Complete: 212 app Python modules, 13 scripts, 37 WebUI Python modules, 28 templates, 11 static assets. See the app audit. |
 | Test read | Incomplete: 8/166 `test_*.py` files in `docs/audit/TEST-AUDIT-2026-10-01.md`. Do not claim complete test review. |
-| Tests | Full suite 2026-10-02 (`--ignore=tests/test_vram.py`): 1378 passed, 1 failed (stale `test_dataset_register` registering an outside-project path; rewritten + outside-path 403 test added, re-run green). Committed. |
+| Tests | Full suite 2026-10-02 (`--ignore=tests/test_vram.py`): 1410 passed, 0 failed after the e2e pass (3 stale `test_ui_reliability` load tests + 1 `test_install_diagnose` cu132 test updated). |
+| E2E pass 2026-10-02 | Real runs on RTX 3090 in isolated sandboxes: UI 70/70, 12 parsers, RAG, `.ftsrag` + archive round-trips, PortableRAG, LoRA Qwen3-0.6B train/eval/merge/GGUF/chat (learning proven: base invents founder, tuned answers 40/40 held-out), CLI sweep, install scripts in a clone. 16 bugs fixed with regression tests. |
 | Formatter parity | Done (`docs/audit/FORMATTER-PARITY-2026-10-02.md`). `system_prompt` callers are NOT yet wired to it. |
 | Dead code | Removed in lanes A-D (see git diff); `_CORPORA` constant gone from `routes/rag.py`. |
 | Ruff | `ruff check src/ scripts/` clean (broad handlers narrowed; intentional boundaries carry a justified `noqa`). `tests/` still has ~108 legacy findings (deferred with test review). |
@@ -26,7 +27,8 @@ Local fine-tune + data-prep WebUI. Current thread: act on `docs/audit/APP-AUDIT-
 4. ~~`rag_corpora` root on FTS_ROOT helpers~~ **DONE** (`rag_corpus_dir`).
 5. Formatter parity done; wire `system_prompt` callers. RAG coverage claims are filename-based, not content-hash.
 6. Holdout disjointness is exact-question only; reworded duplicates can still leak.
-7. Finish test-file review (158 left) and tests-scope Ruff. Follow-up filed: `training/data_quality.generate_fixes` suggests nonexistent CLI commands (`tests/test_data_quality_fixes.py` is its test).
+7. **E2E findings NOT fixed:** CLI has no project-dir fence (design call); `/api/data/*` relative `output` resolves to project dir but relative `path` to cwd; `rag/sources` lists raw + parsed copies (double-index?); imported-corpus hit `source` paths point at old project; engine has no resume-from-checkpoint; many endpoints return 200 `{error}`; `compare/load` missing path still shows HF repo-id text; project-flow `start_run` ignores `lora_alpha`/grad-accum overrides; `compare` vs `suite` score differ (judge); `compare --models` swallows trailing positional; `validate` accepts empty jsonl, `rag ingest` accepts binary; Windows installers diverge (no GPU pin, no run.ps1/update.ps1); `FTS_ROOT`/`FTS_DB` ignored by app (tests leak empty dirs into `~/.finetune-studio/projects`); `install.sh --repair` wipes venv. Untested: chat-with-RAG, QA mining (need LM Studio), dark/light visual pass, `rag.config.json`-only launch.
+8. Finish test-file review (158 left) and tests-scope Ruff. Follow-up filed: `training/data_quality.generate_fixes` suggests nonexistent CLI commands (`tests/test_data_quality_fixes.py` is its test).
 
 ## Commands
 

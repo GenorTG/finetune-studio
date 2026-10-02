@@ -8,11 +8,13 @@ import sys
 
 def cmd_compare(args) -> None:
     from finetune_studio.benchmarks.comparison import comparator
-    from finetune_studio.testing.suite import load_test_suite
+    from finetune_studio.cli.commands.suite import load_cases_or_exit
 
     if not os.path.exists(args.suite):
         print(f"Error: Suite not found: {args.suite}")
         sys.exit(1)
+
+    test_suite = load_cases_or_exit(args.suite)  # fail before loading any model
 
     # Parse models (format: name=path)
     for m in args.models:
@@ -33,7 +35,6 @@ def cmd_compare(args) -> None:
         print("Error: No models loaded")
         sys.exit(1)
 
-    test_suite = load_test_suite(args.suite)
     config = {"max_tokens": args.max_tokens, "temperature": args.temperature}
 
     print(f"\nRunning comparison on {len(test_suite)} tests...")

@@ -80,7 +80,7 @@ class GpuInfo:
     vendor: str            # "nvidia" | "amd" | "intel" | "none"
     name: str
     driver_version: str
-    cuda_ver: str          # "cu130" / "cu124" / "cu121" / "cu118" / ""
+    cuda_ver: str          # "cu132" / "cu130" / "cu124" / "cu121" / "cu118" / ""
     compute_cap: str       # "12.0" for sm_120 (Blackwell), "8.6" for sm_86, etc.
     cuda_toolkit_path: str # "/opt/cuda" if found
 
@@ -121,7 +121,8 @@ class GpuInfo:
                         major = int(driver.split(".")[0]) if driver else 0
                     except ValueError:
                         major = 0
-                    if   major >= 550: cuda_ver = "cu130"
+                    if   major >= 555: cuda_ver = "cu132"
+                    elif major >= 550: cuda_ver = "cu130"
                     elif major >= 525: cuda_ver = "cu124"
                     elif major >= 520: cuda_ver = "cu121"
                     elif major >= 470: cuda_ver = "cu118"

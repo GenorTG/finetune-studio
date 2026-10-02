@@ -7,7 +7,11 @@ import json
 def cmd_models(args) -> None:
     from finetune_studio.config import settings
     from finetune_studio.models.registry import scan_models
-    dirs = settings.model_dirs + (args.dirs or [])
+    # Same directory set the WebUI scans (app.py lifespan / routes/models.py).
+    dirs = list(settings.model_dirs)
+    for d in [*settings.model_dirs_extra, *(args.dirs or [])]:
+        if d not in dirs:
+            dirs.append(d)
     models = scan_models(dirs)
     if args.json:
         print(json.dumps([{

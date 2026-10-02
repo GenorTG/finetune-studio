@@ -5,6 +5,8 @@ import json as json_mod
 import os
 import sys
 
+_KNOWN_SUITES = ("mmlu", "hellaswag", "gsm8k")
+
 
 def cmd_benchmark(args) -> None:
     from finetune_studio.benchmarks.real_benchmarks import RealBenchmarkSuite
@@ -14,17 +16,24 @@ def cmd_benchmark(args) -> None:
         print(f"Error: Model not found: {args.model}")
         sys.exit(1)
 
+    if args.suite == "all":
+        benchmarks = ["mmlu", "hellaswag", "gsm8k"]
+    else:
+        benchmarks = [b.strip() for b in args.suite.split(",") if b.strip()]
+    unknown = [b for b in benchmarks if b not in _KNOWN_SUITES]
+    if unknown or not benchmarks:
+        print(
+            f"Error: unknown benchmark suite(s): {', '.join(unknown) or args.suite!r}. "
+            f"Valid: all, {', '.join(_KNOWN_SUITES)}"
+        )
+        sys.exit(2)
+
     engine = InferenceEngine()
     print(f"Loading {args.model}...")
     engine.load(args.model)
     print("Model loaded!")
 
     suite = RealBenchmarkSuite()
-
-    if args.suite == "all":
-        benchmarks = ["mmlu", "hellaswag", "gsm8k"]
-    else:
-        benchmarks = [b.strip() for b in args.suite.split(",")]
 
     full_run = bool(getattr(args, "full_run", False))
     num_samples = None if full_run else args.num_samples
@@ -76,3 +85,6 @@ def cmd_benchmark(args) -> None:
         print(f"\nReport saved to: {args.report}")
 
     engine.unload()
+    if any("error" in d for d in result["benchmarks"].values()):
+        print("Error: one or more benchmarks failed", file=sys.stderr)
+        sys.exit(1)

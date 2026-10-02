@@ -271,6 +271,11 @@ async def load_model_endpoint(request: Request):
     model_path = body.get("path") or body.get("model_path") or ""
     if not model_path:
         return await asyncio.to_thread(_load_failure_payload, "No model path provided")
+    _mp = str(model_path)
+    if _mp.startswith(("/", "./", "../", "~")) and not os.path.exists(os.path.expanduser(_mp)):
+        return await asyncio.to_thread(
+            _load_failure_payload, f"model path does not exist: {_mp}", _mp,
+        )
     try:
         # Run the blocking load off the event loop. Loading a multi-GB model
         # can take seconds-to-minutes; doing it inline froze the entire WebUI

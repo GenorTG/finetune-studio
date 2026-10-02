@@ -6,7 +6,7 @@ import asyncio
 import logging
 import time
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from finetune_studio.testing.suite import (
@@ -21,6 +21,16 @@ from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
 from finetune_studio.webui.testing_models import resolve_latest_merged_model
 
 router = APIRouter()
+
+
+async def _json_object(request: Request) -> dict:
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid JSON body") from None
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="body must be a JSON object")
+    return body
 _log = logging.getLogger(__name__)
 
 
@@ -36,7 +46,7 @@ async def load_model(request: Request):
     Accepts ``{"model_path": "..."}`` or ``{"path": "..."}`` (same keys as
     ``/api/models/load`` / chat-v2) so UI callers don't get ``No model_path``.
     """
-    body = await request.json()
+    body = await _json_object(request)
     model_path = body.get("model_path") or body.get("path") or ""
     if not model_path:
         return {"error": "No model_path"}
@@ -101,7 +111,7 @@ async def testing_events():
 
 @router.post("/chat")
 async def chat(request: Request):
-    body = await request.json()
+    body = await _json_object(request)
     messages = body.get("messages", [])
     max_tokens = body.get("max_tokens", 512)
     temperature = body.get("temperature", 0.7)
@@ -115,7 +125,7 @@ async def chat(request: Request):
 
 @router.post("/run-suite")
 async def run_test_suite(request: Request):
-    body = await request.json()
+    body = await _json_object(request)
     suite_path = body.get("suite_path", "")
     max_tokens = body.get("max_tokens", 512)
     project_id = body.get("project_id") or body.get("pid") or ""
@@ -189,7 +199,7 @@ async def run_rag_test_suite(request: Request):
     stays responsive. Response includes transcripts, retrieval hits, context,
     corpus/model paths, scores, and retrieval recall metrics.
     """
-    body = await request.json()
+    body = await _json_object(request)
     suite_path = str(body.get("suite_path") or "").strip()
     if not suite_path:
         return JSONResponse({"error": "suite_path required"}, status_code=400)
@@ -401,13 +411,16 @@ async def evaluate_training_dataset(request: Request):
     Results are labeled ``eval_kind=training_leakage`` — high scores reflect
     in-distribution recall, not generalization.
     """
-    body = await request.json()
+    body = await _json_object(request)
     project_id = str(body.get("project_id") or body.get("pid") or "").strip()
     if not project_id:
         return JSONResponse({"error": "project_id required"}, status_code=400)
     dataset_id = (body.get("dataset_id") or "").strip() or None
-    max_cases = int(body.get("max_cases", 200))
-    max_tokens = int(body.get("max_tokens", 512))
+    try:
+        max_cases = int(body.get("max_cases", 200))
+        max_tokens = int(body.get("max_tokens", 512))
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "max_cases and max_tokens must be integers"}, status_code=400)
     override_path = (body.get("model_path") or body.get("path") or "").strip()
 
     from finetune_studio.testing.training_eval import (

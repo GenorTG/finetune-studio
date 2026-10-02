@@ -87,7 +87,15 @@ class ModelComparator:
 
         for test in test_suite:
             # Handle both TestCase objects and dicts
-            if hasattr(test, 'name'):
+            if hasattr(test, 'question'):
+                # BenchmarkCase from testing.suite.load_test_suite (what `fts compare` loads)
+                test_name = test.name
+                test_messages = [{"role": "user", "content": test.question}]
+                test_expected = {
+                    "keywords": list(test.keywords) or ([test.correct_answer] if test.correct_answer else []),
+                    "forbidden": [],
+                }
+            elif hasattr(test, 'name'):
                 test_name = test.name
                 test_messages = test.messages
                 test_expected = {

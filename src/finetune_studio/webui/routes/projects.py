@@ -184,6 +184,11 @@ async def export_project(pid: str, name: str | None = None, fmt: str = "tar.gz")
 
     from fastapi.responses import StreamingResponse
 
+    from finetune_studio.data.fs.archive_library import (
+        LIBRARY_MEMBER,
+        dump_file_library,
+    )
+
     project = db.get_project(pid)
     if not project:
         return JSONResponse({"error": "project not found"}, status_code=404)
@@ -212,6 +217,10 @@ async def export_project(pid: str, name: str | None = None, fmt: str = "tar.gz")
             info = tarfile.TarInfo(name="manifest.json")
             info.size = len(manifest_bytes)
             tar.addfile(info, io.BytesIO(manifest_bytes))
+            lib_bytes = json.dumps(dump_file_library(pid)).encode()
+            info = tarfile.TarInfo(name=LIBRARY_MEMBER)
+            info.size = len(lib_bytes)
+            tar.addfile(info, io.BytesIO(lib_bytes))
         buf.seek(0)
         yield buf.read()
 
@@ -236,6 +245,12 @@ async def import_project(request: Request):
     import shutil
     import tarfile
 
+    from finetune_studio.data.fs.archive_library import (
+        LIBRARY_MEMBER,
+        rebase_project_files,
+        restore_file_library,
+    )
+
     form = await request.form()
     file = form.get("file")
     if not file:
@@ -249,6 +264,7 @@ async def import_project(request: Request):
     try:
         with tarfile.open(fileobj=buf, mode="r:*") as tar:
             manifest: dict = {}
+            library: object = None
             plan: list[tuple[tarfile.TarInfo, str, tuple[str, ...]]] = []
             old_ids: set[str] = set()
             for member in tar.getmembers():
@@ -265,6 +281,15 @@ async def import_project(request: Request):
                         return bad("manifest.json is not valid JSON")
                     if not isinstance(manifest, dict):
                         return bad("manifest.json must be an object")
+                    continue
+                if parts == (LIBRARY_MEMBER,):
+                    f = tar.extractfile(member) if member.isfile() else None
+                    if f is None:
+                        return bad("file_library.json is not a file")
+                    try:
+                        library = json.loads(f.read().decode())
+                    except (UnicodeDecodeError, json.JSONDecodeError):
+                        return bad("file_library.json is not valid JSON")
                     continue
                 if parts[0] not in ("projects", "rag_corpora"):
                     return bad(f"unexpected member {member.name!r}")
@@ -314,6 +339,8 @@ async def import_project(request: Request):
                 with src, dest.open("wb") as out:
                     shutil.copyfileobj(src, out)
             dests["projects"].mkdir(parents=True, exist_ok=True)
+            rebase_project_files(dests["projects"], old_id)
+            restore_file_library(library, old_id, new_id, dests["projects"])
             return {"ok": True, "imported": [{"old_id": old_id, "new_id": new_id, "name": proj_name}],
                     "count": 1}
     except (tarfile.TarError, EOFError) as e:

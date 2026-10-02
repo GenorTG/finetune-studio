@@ -60,4 +60,9 @@ def main() -> None:
     if args.command is None:
         parser.print_help()
         sys.exit(0)
-    COMMANDS[args.command](args)
+    try:
+        COMMANDS[args.command](args)
+    except OSError as exc:
+        # Missing/unreadable/unwritable user paths are user errors, not crashes.
+        print(f"Error: {exc.strerror or exc}: {exc.filename or ''}".rstrip(": "), file=sys.stderr)
+        sys.exit(1)

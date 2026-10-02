@@ -19,11 +19,25 @@ def _result_row(r) -> dict:
     }
 
 
+def load_cases_or_exit(path: str) -> list:
+    """Load a suite file; malformed JSON/shape or zero usable cases is a clean exit 1."""
+    from finetune_studio.testing.suite import load_test_suite
+
+    try:
+        cases = load_test_suite(path)
+    except (ValueError, TypeError, KeyError, AttributeError) as exc:
+        print(f"Error: invalid suite {path}: {exc}")
+        sys.exit(1)
+    if not cases:
+        print(f"Error: suite {path} has no usable cases (need 'question' or 'messages' per case)")
+        sys.exit(1)
+    return cases
+
+
 def cmd_suite(args) -> None:
     from finetune_studio.testing.inference import InferenceEngine
     from finetune_studio.testing.suite import (
         apply_heuristic_judging,
-        load_test_suite,
         run_suite,
         score_results,
     )
@@ -35,11 +49,12 @@ def cmd_suite(args) -> None:
         print(f"Error: Suite not found: {args.suite}")
         sys.exit(1)
 
+    cases = load_cases_or_exit(args.suite)  # fail before the slow model load
+
     engine = InferenceEngine()
     print(f"Loading {args.model}...")
     engine.load(args.model)
     try:
-        cases = load_test_suite(args.suite)
         print(f"Running {len(cases)} test cases...\n")
         results = run_suite(engine, cases, max_tokens=args.max_tokens)
     finally:
