@@ -21,7 +21,7 @@ from playwright.async_api import async_playwright
 
 BASE = os.environ.get("FTS_BASE", "http://fan-dragon:7860").rstrip("/")
 PROJECT_ID = os.environ.get("FTS_PROJECT_ID", "").strip()
-SHOTS = Path("/home/genorbox1/.openclaw/workspace/media/qa_v2")
+SHOTS = Path(os.environ.get("FTS_QA_SHOTS") or Path(__file__).resolve().parent.parent / ".tmp" / "qa-shots" / "ui")
 RESULTS = []
 
 def rec(name, ok, detail=""):

@@ -11,8 +11,8 @@ if [ "${FTS_ALLOW_LIVE_E2E:-0}" != "1" ]; then
 fi
 
 REPO=/home/genorbox1/work/finetune-studio
-SHOTS=/home/genorbox1/.openclaw/workspace/media/qa_nightly
-LOG=/home/genorbox1/.openclaw/workspace/media/qa_nightly.log
+SHOTS="$REPO/.tmp/qa-shots/nightly"
+LOG="$REPO/.tmp/qa-shots/nightly.log"
 WEBUI=http://fan-dragon:7860
 RUN_LOG="$SHOTS/run-$(date +%Y%m%d-%H%M%S)-$$.log"
 

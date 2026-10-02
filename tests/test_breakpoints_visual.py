@@ -16,13 +16,14 @@ benchmarks) at 1200px to spot visual regressions anywhere.
 Usage: python3 tests/test_breakpoints_visual.py
 """
 import json
+import os
 import sys
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
 REPO = Path(__file__).resolve().parent.parent
-OUT = Path("/home/genorbox1/.openclaw/media/outbound")
+OUT = Path(os.environ.get("FTS_QA_SHOTS") or Path(__file__).resolve().parent.parent / ".tmp" / "qa-shots" / "breakpoints")
 OUT.mkdir(parents=True, exist_ok=True)
 
 # All @media rules DEFINED in app.css (keep in sync)

@@ -20,7 +20,7 @@ D) Benchmark:
    - Poll + screenshot result
 
 Outputs:
-  /home/genorbox1/.openclaw/media/outbound/phase-b-prefill.png
+  .tmp/qa-shots/phase-bd/phase-b-prefill.png
   phase-b-filled.png
   phase-b-started.png
   phase-b-progress-{N}.png
@@ -40,7 +40,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-OUT = Path("/home/genorbox1/.openclaw/media/outbound")
+OUT = Path(os.environ.get("FTS_QA_SHOTS") or Path(__file__).resolve().parent.parent / ".tmp" / "qa-shots" / "phase-bd")
 PROJECT_ID = "264f8765"
 BASE = "http://fan-dragon:7860"
 

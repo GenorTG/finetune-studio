@@ -232,3 +232,18 @@ def test_ignore_rules_actually_work_on_disk() -> None:
         f"shipped assets are now gitignored — the .gitignore negation is too "
         f"broad: {swallowed}"
     )
+
+
+def test_tests_never_write_into_docs_or_user_media():
+    """Screenshots/READMEs are hand-made; test output goes to .tmp/qa-shots only."""
+    import re
+    from pathlib import Path
+
+    bad = re.compile(r"docs/screenshots|/media/qa_|/media/outbound|docs/assets")
+    offenders = [
+        p.name
+        for p in Path(__file__).parent.glob("*")
+        if p.suffix in {".py", ".sh"} and p.name != Path(__file__).name
+        and bad.search(p.read_text(errors="ignore"))
+    ]
+    assert not offenders, f"tests write screenshots outside .tmp/qa-shots: {offenders}"

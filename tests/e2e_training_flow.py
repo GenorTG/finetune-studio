@@ -24,7 +24,7 @@ from pathlib import Path
 
 BASE = os.environ.get("FTS_BASE", "http://localhost:7860")
 MODEL_QUERY = "Qwen3-0.6B"
-SHOTS = Path("/home/genorbox1/.openclaw/workspace/media/qa_train_flow")
+SHOTS = Path(os.environ.get("FTS_QA_SHOTS") or Path(__file__).resolve().parent.parent / ".tmp" / "qa-shots" / "train-flow")
 
 
 def make_synthetic_jsonl(path: Path, n: int = 24):

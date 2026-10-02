@@ -12,7 +12,7 @@ and hits the documented endpoints directly:
 Loads browser context ONLY for screenshots; never relies on UI form
 submission for the actual flow.
 
-Outputs into /home/genorbox1/.openclaw/media/outbound/:
+Outputs into .tmp/qa-shots/phase-bd/:
   phase-api-start.png         - state right after POST start
   phase-api-training-*.png    - training page snapshots every 30s
   phase-api-trained.png       - state right after training done
@@ -30,7 +30,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-OUT = Path("/home/genorbox1/.openclaw/media/outbound")
+OUT = Path(os.environ.get("FTS_QA_SHOTS") or Path(__file__).resolve().parent.parent / ".tmp" / "qa-shots" / "phase-bd")
 BASE = "http://fan-dragon:7860"
 PROJECT_ID = "264f8765"
 SMALL_CONFIG = {
