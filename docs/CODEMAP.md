@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-415 files · 74322 lines
+415 files · 74333 lines
 - `finetune_studio`: 217 files, 42149 lines
 - `scripts`: 9 files, 2344 lines
-- `tests`: 189 files, 29829 lines
+- `tests`: 189 files, 29840 lines
 
 
 # finetune_studio
@@ -3096,37 +3096,38 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_generate_hf_strips_bare_think_closer() -> None` (L132)
   - imports: finetune_studio.testing.inference
 
-## `tests/test_install_diagnose.py` (493 lines)
+## `tests/test_install_diagnose.py` (500 lines)
 - `def fake_venv(tmp_path)` (L30) — Create a fake venv dir with a working python that returns
 - `def _fake_run(stdout = '', stderr = '', returncode = 0)` (L50)
 - `def _healthy_torch_payload(version: str = '2.11.0+cu130', cuda: bool = True) -> str` (L57)
 - `class TestGpuDetect` (L63)
   - `def test_force_cpu(self)` (L64)
   - `def test_nvidia_detected(self)` (L69)
-  - `def test_nvidia_driver_525_maps_to_cu124(self)` (L79)
-  - `def test_nvidia_driver_470_maps_to_cu118(self)` (L86)
-  - `def test_nvidia_smi_fails_falls_through(self)` (L93)
-  - `def test_rocm_detected(self)` (L106)
-- `class TestDiagnoseBrokenVenv` (L119)
-  - `def test_missing_venv_returns_recreate(self, tmp_path)` (L120)
-  - `def test_venv_python_broken_returns_recreate(self, tmp_path)` (L126)
-- `class TestDiagnoseMixedTorch` (L143)
-  - `def test_torch_cpu_with_gpu_detected(self, tmp_path)` (L147)
-  - `def test_torchaudio_broken_triggers_reinstall_even_if_torch_ok(self, tmp_path)` (L186)
-- `class TestDiagnoseMissingParts` (L220)
-  - `def test_missing_fastapi_flagged(self, tmp_path)` (L221)
-  - `def test_llama_cpp_cli_missing(self, fake_venv, tmp_path)` (L242)
-- `class TestDiagnoseHealthy` (L263)
-  - `def test_healthy_returns_empty(self, fake_venv)` (L264)
-- `class TestRepairTorchCommand` (L289)
-  - `def test_torch_repair_uses_python_m_pip(self, tmp_path)` (L296)
-  - `def test_cpu_torch_repair_uses_cpu_index(self, tmp_path)` (L345)
-  - `def test_repair_returns_false_when_torch_install_fails(self, tmp_path)` (L368)
-  - `def test_blackwell_sm120_triggers_source_build(self, tmp_path)` (L390)
-- `class TestCLI` (L448)
-  - `def test_check_returns_0_when_healthy(self, fake_venv)` (L449)
-  - `def test_check_returns_2_when_critical(self, tmp_path)` (L470)
-  - `def test_json_output(self, tmp_path, capsys)` (L480)
+  - `def test_nvidia_driver_550_maps_to_cu130(self)` (L79)
+  - `def test_nvidia_driver_525_maps_to_cu124(self)` (L86)
+  - `def test_nvidia_driver_470_maps_to_cu118(self)` (L93)
+  - `def test_nvidia_smi_fails_falls_through(self)` (L100)
+  - `def test_rocm_detected(self)` (L113)
+- `class TestDiagnoseBrokenVenv` (L126)
+  - `def test_missing_venv_returns_recreate(self, tmp_path)` (L127)
+  - `def test_venv_python_broken_returns_recreate(self, tmp_path)` (L133)
+- `class TestDiagnoseMixedTorch` (L150)
+  - `def test_torch_cpu_with_gpu_detected(self, tmp_path)` (L154)
+  - `def test_torchaudio_broken_triggers_reinstall_even_if_torch_ok(self, tmp_path)` (L193)
+- `class TestDiagnoseMissingParts` (L227)
+  - `def test_missing_fastapi_flagged(self, tmp_path)` (L228)
+  - `def test_llama_cpp_cli_missing(self, fake_venv, tmp_path)` (L249)
+- `class TestDiagnoseHealthy` (L270)
+  - `def test_healthy_returns_empty(self, fake_venv)` (L271)
+- `class TestRepairTorchCommand` (L296)
+  - `def test_torch_repair_uses_python_m_pip(self, tmp_path)` (L303)
+  - `def test_cpu_torch_repair_uses_cpu_index(self, tmp_path)` (L352)
+  - `def test_repair_returns_false_when_torch_install_fails(self, tmp_path)` (L375)
+  - `def test_blackwell_sm120_triggers_source_build(self, tmp_path)` (L397)
+- `class TestCLI` (L455)
+  - `def test_check_returns_0_when_healthy(self, fake_venv)` (L456)
+  - `def test_check_returns_2_when_critical(self, tmp_path)` (L477)
+  - `def test_json_output(self, tmp_path, capsys)` (L487)
 
 ## `tests/test_install_diagnose_regressions.py` (148 lines)
 - `def _cp(stdout: str = '', stderr: str = '', returncode: int = 0) -> subprocess.Comple…` (L18)
@@ -4146,7 +4147,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_spa_navigation_emits_lifecycle_events_and_resource_timer_cleans_up() -> None` (L32)
 - `def test_rag_clear_copy_does_not_claim_directory_deletion() -> None` (L40)
 
-## `tests/test_ui_reliability.py` (655 lines)
+## `tests/test_ui_reliability.py` (659 lines)
 - `def _project(client: TestClient) -> str` (L26)
 - `def test_header_nav_css_readable_floor() -> None` (L32) — Session-bar / workspace nav must stay above the old tiny 10–12px floor.
 - `def test_base_workspace_label_and_aria_current() -> None` (L52)
@@ -4156,35 +4157,35 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_save_settings_defined_on_rag_page() -> None` (L128)
 - `def test_inference_ui_requires_loaded_confirmation() -> None` (L135)
 - `def test_load_missing_path_returns_explicit_failure(client: TestClient) -> None` (L142)
-- `def test_load_exception_returns_failure_not_loaded(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None` (L152)
-- `def test_load_success_requires_model_object(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None` (L174) — If load() returns without holding a model, never claim status=loaded.
-- `def test_load_success_payload_when_model_held(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None` (L192)
-- `def test_load_coerces_cpu_or_partial_offload_to_full_gpu(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None` (L210)
-- `def test_data_prep_page_has_upload_refresh_hooks(client: TestClient) -> None` (L227)
-- `def test_responsive_header_gutter_and_780_breakpoint() -> None` (L238) — Header/tabs must shrink the absolute .sb-right reserve at mid widths.
-- `def test_header_no_page_overflow_contract_at_640() -> None` (L254) — At ≤700px the session bar must not widen the document; tabs stay scrollable.
-- `def test_card_head_stacks_below_700() -> None` (L279) — Data Prep Uploaded-files card-head must stack title/actions below ~700px.
-- `def test_css_cache_bust_bumped() -> None` (L293)
-- `def test_workflow_steps_vertical_at_desktop() -> None` (L301) — `.rag-workflow-steps` must be a vertical list at all widths (not flex-wrap row).
-- `def test_rag_docs_table_scroll_and_column_classes() -> None` (L328) — RAG inventory must use fixed columns + scroll shell (not 110px ref-table first col).
-- `def test_rag_ia_workflow_and_cta(client: TestClient) -> None` (L353) — RAG page must explain Upload→…→Test and link to Data Prep (no fake upload).
-- `def test_data_prep_ia_sections(client: TestClient) -> None` (L387)
-- `def test_rag_workspace_active_on_rag_page(client: TestClient) -> None` (L402)
-- `def test_sprites_rag_caption_not_embedding_corpus() -> None` (L413)
-- `def test_sprites_bench_idle_caption_not_computing() -> None` (L421) — Bench/testing idle mount must not claim scores are computing.
-- `def test_sprites_training_idle_not_always_accelerating() -> None` (L434) — Training page must show READY TO TRAIN while idle, not GPU ACCELERATING.
-- `def test_file_library_all_files_uses_total_count() -> None` (L455) — Tree 'all files' badge must use API total_count, not filtered _flFiles.length.
-- `def test_inference_model_info_uses_get() -> None` (L471) — Client must GET /api/models/info?path=… — POST is not allowed.
-- `def test_models_info_get_contract(client: TestClient, tmp_path: Path) -> None` (L481) — GET /api/models/info?path= works; POST must not silently succeed as GET.
-- `def test_training_start_disabled_until_dataset(client: TestClient) -> None` (L501) — Start training must look disabled until a dataset/data_path is chosen.
-- `def test_models_and_bench_mobile_table_scroll_contract() -> None` (L529) — 375px must keep Load / RUN actions reachable via explicit horizontal scroll.
-- `def test_models_index_mobile_table_scroll_contract() -> None` (L547) — Live /models renders models_index.html — must scroll, not crush Copy to 2ch.
-- `def test_data_toolbar_actions_wrap_on_mobile() -> None` (L565)
-- `def test_inference_load_button_reachable_on_mobile() -> None` (L575) — Fixed-height desktop grid must not clip Load model at ≤780px.
-- `def test_hf_modal_escape_close_contract() -> None` (L590)
-- `def test_project_and_export_trained_exports_mobile_scroll() -> None` (L611) — project_models + export_models trained-exports tables must scroll at 375px.
-- `def test_models_index_filters_discoverable_on_mobile() -> None` (L630) — Filter pills must wrap (or scroll) — .flex-wrap alone was undefined and clipped.
-- `def test_training_stop_disabled_while_idle() -> None` (L647) — Stop must be disabled on idle load and only enable while a run is active.
+- `def test_load_exception_returns_failure_not_loaded(client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None` (L152)
+- `def test_load_success_requires_model_object(client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None` (L176) — If load() returns without holding a model, never claim status=loaded.
+- `def test_load_success_payload_when_model_held(client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None` (L194)
+- `def test_load_coerces_cpu_or_partial_offload_to_full_gpu(client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None` (L212)
+- `def test_data_prep_page_has_upload_refresh_hooks(client: TestClient) -> None` (L231)
+- `def test_responsive_header_gutter_and_780_breakpoint() -> None` (L242) — Header/tabs must shrink the absolute .sb-right reserve at mid widths.
+- `def test_header_no_page_overflow_contract_at_640() -> None` (L258) — At ≤700px the session bar must not widen the document; tabs stay scrollable.
+- `def test_card_head_stacks_below_700() -> None` (L283) — Data Prep Uploaded-files card-head must stack title/actions below ~700px.
+- `def test_css_cache_bust_bumped() -> None` (L297)
+- `def test_workflow_steps_vertical_at_desktop() -> None` (L305) — `.rag-workflow-steps` must be a vertical list at all widths (not flex-wrap row).
+- `def test_rag_docs_table_scroll_and_column_classes() -> None` (L332) — RAG inventory must use fixed columns + scroll shell (not 110px ref-table first col).
+- `def test_rag_ia_workflow_and_cta(client: TestClient) -> None` (L357) — RAG page must explain Upload→…→Test and link to Data Prep (no fake upload).
+- `def test_data_prep_ia_sections(client: TestClient) -> None` (L391)
+- `def test_rag_workspace_active_on_rag_page(client: TestClient) -> None` (L406)
+- `def test_sprites_rag_caption_not_embedding_corpus() -> None` (L417)
+- `def test_sprites_bench_idle_caption_not_computing() -> None` (L425) — Bench/testing idle mount must not claim scores are computing.
+- `def test_sprites_training_idle_not_always_accelerating() -> None` (L438) — Training page must show READY TO TRAIN while idle, not GPU ACCELERATING.
+- `def test_file_library_all_files_uses_total_count() -> None` (L459) — Tree 'all files' badge must use API total_count, not filtered _flFiles.length.
+- `def test_inference_model_info_uses_get() -> None` (L475) — Client must GET /api/models/info?path=… — POST is not allowed.
+- `def test_models_info_get_contract(client: TestClient, tmp_path: Path) -> None` (L485) — GET /api/models/info?path= works; POST must not silently succeed as GET.
+- `def test_training_start_disabled_until_dataset(client: TestClient) -> None` (L505) — Start training must look disabled until a dataset/data_path is chosen.
+- `def test_models_and_bench_mobile_table_scroll_contract() -> None` (L533) — 375px must keep Load / RUN actions reachable via explicit horizontal scroll.
+- `def test_models_index_mobile_table_scroll_contract() -> None` (L551) — Live /models renders models_index.html — must scroll, not crush Copy to 2ch.
+- `def test_data_toolbar_actions_wrap_on_mobile() -> None` (L569)
+- `def test_inference_load_button_reachable_on_mobile() -> None` (L579) — Fixed-height desktop grid must not clip Load model at ≤780px.
+- `def test_hf_modal_escape_close_contract() -> None` (L594)
+- `def test_project_and_export_trained_exports_mobile_scroll() -> None` (L615) — project_models + export_models trained-exports tables must scroll at 375px.
+- `def test_models_index_filters_discoverable_on_mobile() -> None` (L634) — Filter pills must wrap (or scroll) — .flex-wrap alone was undefined and clipped.
+- `def test_training_stop_disabled_while_idle() -> None` (L651) — Stop must be disabled on idle load and only enable while a run is active.
 
 ## `tests/test_unsloth_import_order.py` (107 lines)
 - `def test_critical_modules_match_unsloth_itself() -> None` (L31) — The list must stay aligned with unsloth's own trigger condition.
