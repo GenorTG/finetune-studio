@@ -866,9 +866,21 @@ async function chatPopulateInlineLoad() {
     if (!r.ok) return;
     const d = await r.json();
     const models = Array.isArray(d) ? d : (d.models || []);
-    if (models.length === 0) return;
+    let tuned = '';
+    try {
+      const cr = await fetch('/api/chat-v2/projects/' + _chatPid + '/context');
+      if (cr.ok) tuned = (await cr.json()).tuned_model_path || '';
+    } catch (_) { /* base models still selectable */ }
+    if (models.length === 0 && !tuned) return;
     sel.innerHTML = '';
+    if (tuned) {
+      const opt = document.createElement('option');
+      opt.value = tuned;
+      opt.textContent = '★ Your fine-tuned model (this project)';
+      sel.appendChild(opt);
+    }
     models.forEach((m) => {
+      if (tuned && m.path === tuned) return;
       const opt = document.createElement('option');
       opt.value = m.path;
       // /api/hf/local returns repo_id + size_bytes (no name / size_gb)

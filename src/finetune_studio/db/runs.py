@@ -37,7 +37,12 @@ def get_run(rid: str) -> dict | None:
     return _get(rid)
 
 
-def list_runs(project_id: str | None = None) -> list[dict]:
+BASE_PROBE_RUN_NAME = "__base_model__"
+
+
+def list_runs(project_id: str | None = None, *, include_base_probe: bool = False) -> list[dict]:
+    """List runs newest-first. The hidden base-model benchmark placeholder is
+    excluded unless ``include_base_probe`` is set."""
     with cursor() as c:
         if project_id:
             rows = c.execute(
@@ -47,6 +52,8 @@ def list_runs(project_id: str | None = None) -> list[dict]:
         else:
             rows = c.execute("SELECT * FROM training_runs ORDER BY created_at DESC").fetchall()
     runs = [row_to_dict(r) for r in rows]
+    if not include_base_probe:
+        runs = [r for r in runs if r.get("name") != BASE_PROBE_RUN_NAME]
     # Compute duration from started_at/finished_at if not set
     for run in runs:
         started = run.get("started_at")

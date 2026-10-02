@@ -490,7 +490,7 @@ async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSO
     # Persist results against a synthetic "base" context: create or reuse a
     # placeholder run so create_benchmark has a run_id FK. Prefer an existing
     # run whose name marks it as the base-model probe.
-    runs = db.list_runs(pid)
+    runs = db.list_runs(pid, include_base_probe=True)
     base_run = next(
         (r for r in runs if r.get("name") == "__base_model__"),
         None,

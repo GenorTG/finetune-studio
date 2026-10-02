@@ -512,17 +512,20 @@ async def benchmarks_page(request: Request, pid: str):
     project = db.get_project(pid)
     if not project:
         return RedirectResponse(url="/projects", status_code=302)
-    runs = [
-        r for r in db.list_runs(pid)
-        if r.get("name") != "__base_model__"
-    ]
+    runs = db.list_runs(pid)
+    base_run = next(
+        (r for r in db.list_runs(pid, include_base_probe=True) if r.get("name") == "__base_model__"),
+        None,
+    )
     suites = _discover_suites(pid)
     for run in runs:
         run["latest_benchmark"] = _latest_benchmark(run["id"])
     all_benchmarks = []
     run_name_map = {r["id"]: r["name"] for r in runs}
+    if base_run:
+        run_name_map[base_run["id"]] = "base model (untrained)"
     import time as _time
-    for run in runs:
+    for run in [*runs, *([base_run] if base_run else [])]:
         for b in db.list_benchmarks(run["id"]):
             b["_run_name"] = run_name_map.get(run["id"], run["id"])
             b["_ran_at_str"] = _time.strftime(

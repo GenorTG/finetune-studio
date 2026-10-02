@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -92,8 +93,20 @@ async def project_context(pid: str):
         if run and run.get("output_path"):
             production_model_path = run["output_path"]
 
+    from finetune_studio.webui.testing_models import (
+        merged_dir_ready,
+        resolve_latest_merged_model,
+    )
+
+    tuned_model_path = ""
+    if production_model_path and merged_dir_ready(production_model_path):
+        tuned_model_path = os.path.join(production_model_path, "merged")
+    else:
+        tuned_model_path = resolve_latest_merged_model(pid) or ""
+
     return {
         "production_model_path": production_model_path,
+        "tuned_model_path": tuned_model_path,
         "system_prompt": project.get("system_prompt", ""),
         "base_model": project.get("base_model", ""),
         "rags": [{"id": r["id"], "name": r["name"], "doc_count": r.get("doc_count", 0),

@@ -290,6 +290,8 @@ async def export_run(pid: str, rid: str, request: Request,
                         pid, rid,
                     )
 
+        if payload.ok:
+            await asyncio.to_thread(_refresh_registry_quietly)
         return JSONResponse(payload.model_dump(exclude_none=False))
 
     if fmt != "gguf":
@@ -413,6 +415,16 @@ async def list_project_exports(pid: str, limit: int = Query(100, ge=1, le=1000))
     return db.list_exports_for_project(pid, limit=limit)
 
 
+def _refresh_registry_quietly() -> None:
+    """Make new exports visible to Chat/Inference without a restart."""
+    try:
+        from finetune_studio.webui.routes.models import refresh_model_registry
+
+        refresh_model_registry()
+    except Exception:
+        log.debug("model registry refresh failed", exc_info=True)
+
+
 def _export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None:
     """Background GGUF export worker.
 
@@ -459,6 +471,7 @@ def _export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None
             size_human=_human_size(size),
             intermediate_path=result.get("intermediate_path") or "",
         )
+        _refresh_registry_quietly()
     except Exception as e:
         log.exception("export failed")
         try:
