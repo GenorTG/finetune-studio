@@ -75,3 +75,21 @@ HANDOFF-*.md
 # Session daily-notes logs (memory/YYYY-MM-DD.md) — local continuity, not project code.
 /memory/
 .openclaw/
+# Developer / agent docs stay local (Genor 2026-10-03): kept on disk for agentic
+# development, never published. Public docs (README, TUTORIAL, INSTALL,
+# DEPLOYMENT, DEPENDENCIES, LEGAL, ATTRIBUTIONS, index.html, screenshots/) stay
+# tracked. Guard: tests/test_repo_hygiene.py::test_dev_docs_are_not_tracked.
+/docs/ARCHITECTURE.md
+/docs/CODEMAP.md
+/docs/DEVELOPER.md
+/docs/GOTCHAS.md
+/docs/PRODUCT-BRIEF.md
+/docs/README.md
+/docs/REFACTOR-SPEC.md
+/docs/UI-AUDIT-PLAN.md
+/docs/WORKFLOW-EXECUTION-PLAN.md
+/docs/WORKPLAN.md
+/docs/modules/
+/docs/audit/
+/docs/archive/
+/docs/judging/

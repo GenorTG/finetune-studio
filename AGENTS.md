@@ -9,6 +9,8 @@ Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **ge
 4. `docs/GOTCHAS.md` — full learned-rule log (AGENTS keeps only a short bootstrap subset).
 5. `docs/README.md` — doc map. Then area docs as needed. `RESTART.md` = fan-dragon service. `PHASES.md` may be stale vs HANDOFF.
 
+**Dev docs are local-only (Genor 2026-10-03).** `docs/{ARCHITECTURE,CODEMAP,DEVELOPER,GOTCHAS,PRODUCT-BRIEF,README,REFACTOR-SPEC,WORKPLAN,…}.md` and `docs/{modules,audit,archive,judging}/` are gitignored: keep them current on disk for agent work, never `git add -f` them, and never link them from public docs (README, `docs/index.html`, TUTORIAL/INSTALL/DEPLOYMENT). They exist only on genorbox1 — a fresh clone or fan-dragon has none. Guard: `tests/test_repo_hygiene.py::test_dev_docs_are_not_tracked`.
+
 ## Commands
 - Tests: `make test` (= `.venv/bin/python -m pytest tests/ -v --tb=short`). Single file: `.venv/bin/python -m pytest tests/test_api.py -v`.
 - Lint: `.venv/bin/python -m ruff check src/` (the Makefile `lint` target hides failures with `|| true` — run ruff directly and fix every warning).
@@ -28,9 +30,8 @@ Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **ge
   — it indexes every module, class, function with signatures + intra-repo imports in one file.
   Grep mode: `scripts/codemap.py --grep score_results` → `file:line def name(sig)`.
 - **Any session that adds/moves/renames modules, classes, or functions must run
-  `make codemap` and commit the regenerated `docs/CODEMAP.md` in the same commit** as
-  the code change. CI-style check exists: `make codemap-check` (fails if the committed
-  map is stale).
+  `make codemap`** so the local (gitignored) `docs/CODEMAP.md` stays current.
+  `make codemap-check` regenerates it and fails if it had drifted.
 - New code goes in the module that already owns that concern (one concern per module);
   CODEMAP shows who owns what at a glance. `src/finetune_studio/benchmarks/__init__.py`
   being 536 lines with everything in `__init__.py` is a known wart — do not add to it.

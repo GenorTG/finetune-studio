@@ -213,7 +213,10 @@ def test_omitted_provider_id_409_when_non_helper_loaded(
 
 
 def test_architecture_doc_describes_activity_sse() -> None:
-    arch = Path("docs/ARCHITECTURE.md").read_text(encoding="utf-8")
+    doc = Path("docs/ARCHITECTURE.md")
+    if not doc.is_file():
+        pytest.skip("dev docs are local-only (gitignored); absent on fresh clones")
+    arch = doc.read_text(encoding="utf-8")
     assert "polls every 2s" not in arch
     assert "/api/activity/events" in arch or "SSE" in arch
     assert "activity" in arch.lower()

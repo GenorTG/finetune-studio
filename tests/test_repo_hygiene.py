@@ -23,6 +23,7 @@ tree, so a source tarball or an odd CI checkout cannot turn this into noise.
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -247,3 +248,37 @@ def test_tests_never_write_into_docs_or_user_media():
         and bad.search(p.read_text(errors="ignore"))
     ]
     assert not offenders, f"tests write screenshots outside .tmp/qa-shots: {offenders}"
+
+
+# Developer / agent docs are local-only (Genor 2026-10-03): gitignored, never
+# published, never linked from the public docs.
+_DEV_DOC_FILES = (
+    "ARCHITECTURE.md", "CODEMAP.md", "DEVELOPER.md", "GOTCHAS.md", "PRODUCT-BRIEF.md",
+    "README.md", "REFACTOR-SPEC.md", "UI-AUDIT-PLAN.md", "WORKFLOW-EXECUTION-PLAN.md",
+    "WORKPLAN.md",
+)
+_DEV_DOC_DIRS = ("modules/", "audit/", "archive/", "judging/")
+_PUBLIC_DOCS = ("README.md", "docs/index.html", "docs/TUTORIAL.md", "docs/INSTALL.md",
+                "docs/DEPLOYMENT.md", "docs/DEPENDENCIES.md")
+
+
+def test_dev_docs_are_not_tracked(tracked_files: set[str]) -> None:
+    leaked = sorted(
+        f for f in tracked_files
+        if f.startswith("docs/")
+        and (f[len("docs/"):] in _DEV_DOC_FILES or f[len("docs/"):].startswith(_DEV_DOC_DIRS))
+    )
+    assert not leaked, (
+        f"developer docs are tracked (they must stay local; `git rm --cached` them): {leaked}"
+    )
+
+
+def test_public_docs_do_not_link_dev_docs() -> None:
+    names = "|".join(re.escape(n) for n in _DEV_DOC_FILES if n != "README.md")
+    dirs = "|".join(re.escape(d) for d in _DEV_DOC_DIRS)
+    pat = re.compile(rf"(?:{names})|docs/(?:{dirs})|\]\((?:{dirs})|docs/README\.md")
+    hits = []
+    for rel in _PUBLIC_DOCS:
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        hits += [f"{rel}: {m.group(0)}" for m in pat.finditer(text)]
+    assert not hits, f"public docs link to local-only dev docs: {hits}"

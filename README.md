@@ -470,16 +470,12 @@ Full list with versions and licenses → **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTI
 
 ## Documentation
 
-- **[docs/README.md](docs/README.md)** — doc map (start here)
 - **[docs/TUTORIAL.md](docs/TUTORIAL.md)** — end-to-end first-model tutorial (users start here)
 - **[HANDOFF.md](HANDOFF.md)** — current ops state / next steps for agents
-- **[docs/PRODUCT-BRIEF.md](docs/PRODUCT-BRIEF.md)** — product north star & quality bar
 - **[AGENTS.md](AGENTS.md)** — how agents should work this repo
 - **[docs/INSTALL.md](docs/INSTALL.md)** — install on Linux / macOS / Windows, prerequisites, troubleshooting
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — layers, route map, data flow, disk layout
 - **[docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)** — every dependency mapped to its consumers
 - **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — service, update pipeline, generic ops notes
-- **[docs/REFACTOR-SPEC.md](docs/REFACTOR-SPEC.md)** — the locked architecture decisions + roadmap
 - **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTIONS.md)** — every package, version, license
 - **[⚡ Presentation page](https://genortg.github.io/finetune-studio/)** — the gallery version of this README
 - **/settings** — live debug info on your running instance (version, GPU, packages, paths) **+ WebUI log tail card**

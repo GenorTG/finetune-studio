@@ -138,5 +138,4 @@ git revert <sha> && git push          # then Settings → APPLY UPDATE
 # or on the host:  ./update.sh --no-llama   (fast path: pull+deps+migrate+restart)
 ```
 
-Related: `ARCHITECTURE.md` (what runs where) · `DEPENDENCIES.md` (dep policy) ·
-`INSTALL.md` (first-install detail) · `REFACTOR-SPEC.md` (roadmap).
+Related: `DEPENDENCIES.md` (dep policy) · `INSTALL.md` (first-install detail).

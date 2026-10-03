@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from finetune_studio.models.helper import (
     ALTERNATE_HELPER_GGUF_BASENAME,
     ALTERNATE_HELPER_LABEL,
@@ -198,7 +200,10 @@ def test_auto_suite_generate_names_helper(
 
 
 def test_architecture_docs_activity_is_sse() -> None:
-    text = Path("docs/ARCHITECTURE.md").read_text(encoding="utf-8")
+    doc = Path("docs/ARCHITECTURE.md")
+    if not doc.is_file():
+        pytest.skip("dev docs are local-only (gitignored); absent on fresh clones")
+    text = doc.read_text(encoding="utf-8")
     assert "drawer polls every 2s" not in text
     assert "/api/activity/events" in text
     assert "SSE" in text

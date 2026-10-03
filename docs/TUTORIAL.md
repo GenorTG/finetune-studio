@@ -104,8 +104,8 @@ Auto-generated project suites test **every row of the training dataset**
 (N rows → N questions, full coverage by default; sampling is an explicit,
 labeled opt-in). Results are strict-substring judged and reviewable
 case-by-case. Rule of thumb: if the auto-score says pass, spot-check 10–20
-answers with your own eyes — the judge is heuristic (see
-[docs/judging/PROTOCOL.md](judging/PROTOCOL.md)).
+answers with your own eyes — the judge is heuristic (on the Benchmarks page
+you can open any result and override a verdict case by case).
 
 **Benchmarks** (global page) is separate: public exams — offline smoke
 suites styled after MMLU/GSM8K/HellaSwag, real HF splits when you allow
@@ -187,6 +187,5 @@ send to them; choose local endpoints when data must stay on your host.
 ## Where to go next
 
 - [README.md](../README.md) — the tour of all pages
-- [ARCHITECTURE.md](ARCHITECTURE.md) — how the pieces fit
-- [judging/PROTOCOL.md](judging/PROTOCOL.md) — human-grade score verification
+- [INSTALL.md](INSTALL.md) — install and troubleshooting
 - [DEPENDENCIES.md](DEPENDENCIES.md) — every dependency and why it's there
