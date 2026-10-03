@@ -449,6 +449,9 @@
     const p = pipe[f.id] || {};
     const on = (label, title) => '<span class="pill solid-green text-xs" title="' + esc(title) + '">' + label + '</span>';
     const off = (label, title) => '<span class="pill outline text-xs" title="' + esc(title) + '">' + label + '</span>';
+    if (/failed|error/i.test(p.parser || '')) {
+      return '<div class="flex gap-1 wrap"><span class="pill solid-rose text-xs" title="This file could not be read — it may be corrupt, password-protected or an unsupported format. Download it to check, or upload a fixed copy.">unreadable</span></div>';
+    }
     const parsed = p.has_parsed ? on('parsed', 'parsed text available') : off('unparsed', 'no parsed text yet — re-parse or send to pairs');
     const prep = p.source_id ? on('prep·' + (p.chunk_count || 0) + 'ch', 'parsed source' + (p.parser === 'manual-edit' ? ' (hand-edited)' : ' via ' + (p.parser || 'parser'))) : off('prep', 'not a data-prep source yet');
     const rag = p.in_rag ? on('rag', 'indexed in the RAG corpus') : off('rag', 'not in the RAG corpus (or corpus not built)');
@@ -1230,7 +1233,7 @@
   }
 
   function pollUntilParsed(tries) {
-    const waiting = files.some((f) => !f.deleted_at && !(pipe[f.id] || {}).has_parsed);
+    const waiting = files.some((f) => !f.deleted_at && !(pipe[f.id] || {}).has_parsed && !(pipe[f.id] || {}).parser);
     if (!waiting || tries <= 0) return;
     setTimeout(async () => { await loadFiles(); pollUntilParsed(tries - 1); }, 2000);
   }

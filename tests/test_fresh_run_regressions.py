@@ -214,3 +214,10 @@ def test_data_page_upload_empty_click_and_parse_poll(client):
     html = client.get(f"/projects/{pid}/data").text
     assert "Choose one or more files first" in html
     assert "pollUntilParsed(15)" in html
+
+
+def test_data_page_hides_raw_parser_codes_for_unreadable_files(client):
+    pid = client.post("/api/projects", json={"name": "V"}).json()["id"]
+    html = client.get(f"/projects/{pid}/data").text
+    assert ">unreadable<" in html
+    assert "could not be read" in html
