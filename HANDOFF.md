@@ -8,10 +8,10 @@ Local fine-tune + data-prep WebUI. Current thread: act on `docs/audit/APP-AUDIT-
 
 | Area | State |
 |---|---|
-| Branch | `main`, audit-fix work committed locally (not pushed; awaiting Genor OK). |
+| Branch | `main`, all work pushed. |
 | Source read | Complete: 212 app Python modules, 13 scripts, 37 WebUI Python modules, 28 templates, 11 static assets. See the app audit. |
 | Test read | Incomplete: 8/166 `test_*.py` files in `docs/audit/TEST-AUDIT-2026-10-01.md`. Do not claim complete test review. |
-| Tests | Full suite 2026-10-02 (`--ignore=tests/test_vram.py`): 1410 passed, 0 failed after the e2e pass (3 stale `test_ui_reliability` load tests + 1 `test_install_diagnose` cu132 test updated). |
+| Tests | Full suite 2026-10-03 (`--ignore=tests/test_vram.py`): 1432 passed, 0 failed. |
 | E2E pass 2026-10-02 | Real runs on RTX 3090 in isolated sandboxes: UI 70/70, 12 parsers, RAG, `.ftsrag` + archive round-trips, PortableRAG, LoRA Qwen3-0.6B train/eval/merge/GGUF/chat (learning proven: base invents founder, tuned answers 40/40 held-out), CLI sweep, install scripts in a clone. 16 bugs fixed with regression tests. |
 | Formatter parity | Done (`docs/audit/FORMATTER-PARITY-2026-10-02.md`). `system_prompt` callers are NOT yet wired to it. |
 | Dead code | Removed in lanes A-D (see git diff); `_CORPORA` constant gone from `routes/rag.py`. |
@@ -31,9 +31,9 @@ Local fine-tune + data-prep WebUI. Current thread: act on `docs/audit/APP-AUDIT-
 7. **E2E findings NOT fixed:** CLI has no project-dir fence (design call); `/api/data/*` relative `output` resolves to project dir but relative `path` to cwd; `rag/sources` lists raw + parsed copies (double-index?); imported-corpus hit `source` paths point at old project; engine has no resume-from-checkpoint; many endpoints return 200 `{error}`; `compare/load` missing path still shows HF repo-id text; project-flow `start_run` ignores `lora_alpha`/grad-accum overrides; `compare` vs `suite` score differ (judge); `compare --models` swallows trailing positional; `validate` accepts empty jsonl, `rag ingest` accepts binary; Windows installers diverge (no GPU pin, no run.ps1/update.ps1); `FTS_ROOT`/`FTS_DB` ignored by app (tests leak empty dirs into `~/.finetune-studio/projects`); `install.sh --repair` wipes venv. Untested: chat-with-RAG, QA mining (need LM Studio), dark/light visual pass, `rag.config.json`-only launch.
 8. Finish test-file review (158 left) and tests-scope Ruff. Follow-up filed: `training/data_quality.generate_fixes` suggests nonexistent CLI commands (`tests/test_data_quality_fixes.py` is its test).
 
-## Known open (fresh-run UI findings, unfixed)
+## Fresh-run UI findings (2026-10-03: all fixed, pushed)
 
-Files table collapses at 780px and actions overflow at 1440; project overview Files tile links to /data-prep; empty UPLOAD click is silent; project card shows folder name not `Qwen/Qwen3-0.6B`; upload list stale until reload; corrupt/unsupported upload gives raw parser code; RAG indexes people.txt twice (raw + parsed); RAG export passphrase easy to miss; precision-preset advice contradicts itself; Testing step gives no pointer to Export; unrequested f16 intermediate kept; export rows have identical truncated names; csv coverage-fill pairs are junk; pairs-table timestamps are UTC unlabeled. Not exercised: file rename/delete/versions, archive export/import round-trip, PortableRAG launch, settings/HF/inference pages, themes/responsive sweep, compare-two-runs.
+Round 2 of the fresh-DB browser run fixed F1-F26 (files table at 390/768px, actions wrap, empty-upload message, upload list auto-poll, "unreadable" pill for corrupt files, junk csv coverage-fill pairs, UTC tooltip on pair times, local-time display, plus earlier overview/card/preset/export items) and live-file re-upload with new bytes now adds a version instead of a raw SQL error. Regression tests: `tests/test_fresh_run_regressions.py`. Re-verified in sandbox: file rename/delete/restore/purge, archive export/import/delete round-trip, HF search/info/guard, training start guard, responsive sweep (no overflow). Not exercised: GPU training failure mid-run, PortableRAG launch (done 2026-10-02), dark/light visual pass.
 
 ## Commands
 
