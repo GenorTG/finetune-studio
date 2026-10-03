@@ -242,3 +242,10 @@ def test_pairs_table_shows_local_time_with_utc_tooltip(client):
     pid = client.post("/api/projects", json={"name": "Z"}).json()["id"]
     html = client.get(f"/projects/{pid}/data-prep").text
     assert "toLocaleString" in html and "UTC' : ''" in html
+
+
+def test_file_library_table_keeps_name_column_readable_and_actions_wrap(client):
+    css = client.get("/static/css/app.css").text
+    assert "#fb-files-table .fb-col-name { width: 14em; min-width: 11em; }" in css
+    pid = client.post("/api/projects", json={"name": "W"}).json()["id"]
+    assert "fb-actions-wrap" in client.get(f"/projects/{pid}/data").text

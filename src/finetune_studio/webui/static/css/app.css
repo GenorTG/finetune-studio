@@ -2419,6 +2419,9 @@ body::before {
    wrapper, so nothing is pushed off-page. */
 @media (max-width: 860px) {
   .table-scroll .table { min-width: 640px; }
+  /* File library: the name column collapsed to ~20px (one letter per line) at 780px. */
+  .table-scroll #fb-files-table { min-width: 1200px; }
+  #fb-files-table .fb-col-name { width: 14em; min-width: 11em; }
   /* Past-runs: 7 columns under 640 still squeezed the Details button cell
      to a half-clipped "Details" (probe -25px) — give this table more scroll
      width so action buttons keep their full size. */

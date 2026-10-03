@@ -495,7 +495,7 @@
         const mime = f.mime_type || '';
         const p = pipe[f.id] || {};
         actions =
-          '<div class="flex gap-1">' +
+          '<div class="flex gap-1 wrap fb-actions-wrap" style="max-width:15em;">' +
           '<button class="btn sm" type="button" title="View / edit this file" onclick="wbOpen(\'' + esc(f.id) + '\',\'original\')">👁</button>' +
           '<button class="btn sm" type="button" title="Edit parsed text (feeds training + RAG)" onclick="wbOpen(\'' + esc(f.id) + '\',\'parsed\')">✎p</button>' +
           '<button class="btn sm" type="button" title="Usage — where this file\'s content went (source / RAG / pairs / datasets / runs)" onclick="fbUsage(\'' + esc(f.id) + '\')">ℹ️</button>' +
