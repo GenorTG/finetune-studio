@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-416 files · 74554 lines
-- `finetune_studio`: 217 files, 42225 lines
+416 files · 74632 lines
+- `finetune_studio`: 217 files, 42248 lines
 - `scripts`: 9 files, 2344 lines
-- `tests`: 190 files, 29985 lines
+- `tests`: 190 files, 30040 lines
 
 
 # finetune_studio
@@ -1409,7 +1409,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def with_system_prompt(messages: list, system_prompt: str = '') -> list` (L10) — Prepend ``system_prompt`` unless empty or the first turn is already a system turn.
 - `def render_chat_text(tokenizer, messages: list, *, generation: bool = False, enable_thinking: bool…` (L21) — Render ``messages`` with the tokenizer's chat template.
 
-## `src/finetune_studio/training/gguf_convert.py` (435 lines)
+## `src/finetune_studio/training/gguf_convert.py` (443 lines)
 - `def _project_root() -> str` (L44) — Repo root (``src/finetune_studio/training/`` → three levels up).
 - `def llama_cpp_search_paths() -> list[str]` (L50) — Ordered roots where ``convert_hf_to_gguf.py`` / build bins may live.
 - `def find_gguf_convert_script() -> str | None` (L74) — Locate llama.cpp ``convert_hf_to_gguf.py``, or None if missing.
@@ -1465,14 +1465,14 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `async def training_events(engine: Any)` (L51) — SSE generator: emit status whenever training progress changes.
   - imports: finetune_studio.webui.live_sse
 
-## `src/finetune_studio/training/preset_advisor.py` (250 lines)
+## `src/finetune_studio/training/preset_advisor.py` (265 lines)
 - `def _rank_factor(params_b: float) -> float` (L42)
 - `def _lr_for(params_b: float, tier_lr: str) -> str` (L52)
 - `def guess_base_params_b(model_ref: str) -> tuple[float | None, str]` (L63) — Best-effort parameter count (in billions) from a model name/path.
 - `class Advisory` (L90)
-  - `def to_dict(self) -> dict[str, Any]` (L108)
-- `def dataset_stats(jsonl_path: str | Path) -> tuple[int, float]` (L124) — (pair_count, avg_chars_per_pair) for a ShareGPT/openai JSONL file.
-- `def propose(*, tier: str, base_model_ref: str, dataset_path: str | None = None, pair_coun…` (L147) — Compute recommended settings for a base model + dataset at a tier.
+  - `def to_dict(self) -> dict[str, Any]` (L109)
+- `def dataset_stats(jsonl_path: str | Path) -> tuple[int, float]` (L126) — (pair_count, avg_chars_per_pair) for a ShareGPT/openai JSONL file.
+- `def propose(*, tier: str, base_model_ref: str, dataset_path: str | None = None, pair_coun…` (L149) — Compute recommended settings for a base model + dataset at a tier.
 
 ## `src/finetune_studio/training/run_export.py` (395 lines)
 - `def validate_base_model(base_model: str) -> str` (L36) — Validate a merge-base path or Hub id; return the stripped value.
@@ -2973,7 +2973,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_no_direct_apply_chat_template_in_train_or_eval_paths()` (L64)
   - imports: finetune_studio.testing, finetune_studio.training, finetune_studio.training.data, finetune_studio.training.formatting, finetune_studio.training.vram
 
-## `tests/test_fresh_run_regressions.py` (125 lines)
+## `tests/test_fresh_run_regressions.py` (180 lines)
 - `def test_base_model_benchmark_listed_on_page(client) -> None` (L14)
 - `def test_base_probe_placeholder_hidden_from_run_lists(client) -> None` (L31)
 - `def test_chat_context_offers_tuned_merged_model(client, tmp_path) -> None` (L43) — Chat must offer the project's fine-tuned (merged) model, not only bases.
@@ -2982,7 +2982,12 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_unknown_page_gets_styled_404_but_api_stays_json(client)` (L76)
 - `def test_project_overview_links_and_base_model_badge(client)` (L87)
 - `def test_rag_build_indexes_uploaded_txt_once(client, monkeypatch, tmp_path)` (L98)
-  - imports: finetune_studio, finetune_studio.data.rag_portable.schema, finetune_studio.webui.routes
+- `def _fake_llama(monkeypatch)` (L128)
+- `def test_gguf_quant_only_request_drops_f16_intermediate(monkeypatch, tmp_path)` (L142)
+- `def test_gguf_f16_requested_keeps_f16(monkeypatch, tmp_path)` (L154)
+- `def test_preset_advisor_small_dataset_advice_is_consistent()` (L164)
+- `def test_preset_advisor_warmup_scales_with_run_length()` (L175)
+  - imports: finetune_studio, finetune_studio.data.rag_portable.schema, finetune_studio.training, finetune_studio.training.preset_advisor, finetune_studio.webui.routes
 
 ## `tests/test_full_corpus_suite.py` (293 lines)
 - `def isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L26)

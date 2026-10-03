@@ -159,3 +159,22 @@ def test_gguf_f16_requested_keeps_f16(monkeypatch, tmp_path):
     out = gc.convert_merged_to_gguf(str(merged), str(tmp_path / "gguf"), ["f16", "Q4_K_M"])
     assert out["ok"], out
     assert any("f16" in p.name.lower() for p in (tmp_path / "gguf").iterdir())
+
+
+def test_preset_advisor_small_dataset_advice_is_consistent():
+    from finetune_studio.training.preset_advisor import propose
+
+    a = propose(tier="precision", base_model_ref="Qwen/Qwen3-4B", pair_count_hint=21)
+    assert a.num_epochs == 60 and a.optimizer_steps < a.steps_floor
+    assert not any("Epochs raised" in n for n in a.notes)
+    assert not any("Raise epochs" in w for w in a.warnings)
+    assert any("add more data" in w for w in a.warnings)
+    assert a.warmup_steps < a.optimizer_steps // 4
+
+
+def test_preset_advisor_warmup_scales_with_run_length():
+    from finetune_studio.training.preset_advisor import propose
+
+    short = propose(tier="smoke", base_model_ref="Qwen/Qwen3-4B", pair_count_hint=21)
+    long_ = propose(tier="precision", base_model_ref="Qwen/Qwen3-4B", pair_count_hint=515)
+    assert short.warmup_steps < long_.warmup_steps <= 100

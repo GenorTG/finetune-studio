@@ -102,6 +102,7 @@ class Advisory:
     gradient_accumulation_steps: int
     optimizer_steps: int
     steps_floor: int
+    warmup_steps: int = 0
     notes: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -117,6 +118,7 @@ class Advisory:
             "gradient_accumulation_steps": self.gradient_accumulation_steps,
             "optimizer_steps": self.optimizer_steps,
             "steps_floor": self.steps_floor,
+            "warmup_steps": self.warmup_steps,
             "notes": self.notes, "warnings": self.warnings,
         }
 
@@ -206,14 +208,16 @@ def propose(
     # 772 steps @ r128 = 95.1% strict on the reference dataset; 257 steps = 67%.
     floor = anchor["steps_floor"]
     min_epochs_for_floor = math.ceil(floor * eff_batch / max(pair_count, 1)) if floor else 0
-    if min_epochs_for_floor > epochs:
-        epochs = min_epochs_for_floor
+    epochs = max(epochs, min_epochs_for_floor)
+
+    max_epochs = 60
+    capped = epochs > max_epochs
+    epochs = int(min(max(round(epochs), 1), max_epochs))
+    if floor and min_epochs_for_floor > anchor["epochs"] * ds_factor and not capped:
         notes.append(
             f"Epochs raised to {epochs} so the run clears the {floor}-optimizer-step "
             f"floor for this tier ({pair_count} pairs x epochs / {eff_batch} effective batch)."
         )
-
-    epochs = int(min(max(round(epochs), 1), 60))
 
     rank = int(anchor["rank"] * size_factor)
     rank = max(8, min(rank, 256))
@@ -229,10 +233,21 @@ def propose(
 
     steps = (pair_count * epochs) // eff_batch
     if tier != "smoke" and steps < floor:
-        warnings.append(
-            f"Configuration yields only ~{steps} optimizer steps (floor for this tier: {floor}). "
-            "Raise epochs or reduce effective batch."
-        )
+        if capped:
+            need_pairs = math.ceil(floor * eff_batch / max_epochs)
+            warnings.append(
+                f"Only ~{steps} optimizer steps are reachable: {pair_count} pairs is too few "
+                f"for this tier even at the {max_epochs}-epoch cap (floor {floor}). Training "
+                f"longer would just memorize; add more data (about {need_pairs}+ pairs) or accept "
+                "a lower-step run and check the benchmark."
+            )
+        else:
+            warnings.append(
+                f"Configuration yields only ~{steps} optimizer steps (floor for this tier: {floor}). "
+                "Raise epochs or reduce effective batch."
+            )
+    # Warmup ~8% of the run: a fixed 100 would swallow most of a short run.
+    warmup = max(1, min(100, round(steps * 0.08))) if steps else 1
     notes.append(
         f"Step math: {pair_count} pairs x {epochs} epochs / {eff_batch} "
         f"effective batch = ~{steps} optimizer steps."
@@ -245,6 +260,6 @@ def propose(
         effective_batch=eff_batch, num_epochs=epochs, lora_rank=rank,
         lora_alpha=alpha, learning_rate=lr, batch_size=batch_size,
         gradient_accumulation_steps=gradient_accumulation_steps,
-        optimizer_steps=steps, steps_floor=floor,
+        optimizer_steps=steps, steps_floor=floor, warmup_steps=warmup,
         notes=notes, warnings=warnings,
     )
