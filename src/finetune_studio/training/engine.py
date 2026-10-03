@@ -39,6 +39,7 @@ os.environ.setdefault("UNSLOTH_DATASET_NUM_PROC", "0")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -158,6 +159,11 @@ class TrainingConfig:
     warmup_steps: int = 20
     weight_decay: float = 0.005
     save_steps: int = 100
+    save_checkpoints: bool = True  # False -> no intermediate checkpoints
+    save_total_limit: int = 3  # checkpoints kept on disk (older ones deleted)
+    eval_steps: int = 0  # eval on the held-out split every N steps; 0 = off
+    early_stopping: bool = False  # needs eval_steps > 0
+    early_stopping_patience: int = 3  # evals without eval_loss improvement
     logging_steps: int = 10
     bf16: bool = True
     unsloth: bool = True
@@ -196,6 +202,14 @@ class TrainingState:
     message: str = ""
     error: str = ""
     log_lines: list = field(default_factory=list)
+
+
+def _early_stop_step(cfg: TrainingConfig, trainer_state: Any) -> int:
+    """Step at which early stopping ended the run, or 0 if it ran to completion."""
+    if not cfg.early_stopping:
+        return 0
+    step, planned = trainer_state.global_step, trainer_state.max_steps
+    return step if 0 < step < planned else 0
 
 
 def apply_trainer_log(
@@ -516,6 +530,7 @@ class TrainingEngine:
     def _train(self, training_data, system_prompt):
         try:
             from finetune_studio.training.data import format_for_sft, split_data
+            self._early_stop_step = 0
             self.state.status = "loading"
             self.state.message = "Loading model..."
             self._notify()
@@ -540,17 +555,17 @@ class TrainingEngine:
             self._notify()
             if self.config.unsloth:
                 try:
-                    self._train_unsloth(train_data)
+                    self._train_unsloth(train_data, val_data)
                 except ImportError:
-                    self._train_standard(train_data)
+                    self._train_standard(train_data, val_data)
             else:
-                self._train_standard(train_data)
+                self._train_standard(train_data, val_data)
             if self.state.status == "stopped":
                 return
             if self.state.status not in ("error",):
                 self.state.status = "done"
                 if not (self.state.message or "").startswith("Training complete — merge failed"):
-                    self.state.message = "Training complete!"
+                    self.state.message = self._completion_message()
                 self._notify()
                 self._persist_run_output()
         except Exception as e:
@@ -685,7 +700,38 @@ class TrainingEngine:
             self._notify()  # copy into run.error so the run row is honest
             self._sync_run_error(self.state.error)
 
-    def _train_unsloth(self, train_data):
+    def _completion_message(self) -> str:
+        """Final status line; names an early stop so a short run is not a mystery."""
+        step = getattr(self, "_early_stop_step", 0)
+        if not step:
+            return "Training complete!"
+        return (f"Training complete! Stopped early at step {step}/{self.state.total_steps}: "
+                "validation loss stopped improving, best checkpoint kept.")
+
+    def _eval_setup(self, val_data: list, format_chat: Callable[[dict], dict]) -> tuple[Any, list]:
+        """Held-out eval dataset + early-stopping callback, per ``self.config``.
+
+        Returns ``(None, [])`` when eval is off or the held-out split is empty;
+        ``checkpoint_eval_kwargs`` then degrades the run to plain training.
+        """
+        cfg = self.config
+        if cfg.eval_steps <= 0:
+            return None, []
+        if not val_data:
+            log.warning("eval_steps=%d but the held-out split is empty; "
+                        "training without eval/early stopping", cfg.eval_steps)
+            return None, []
+        from datasets import Dataset
+        eval_dataset = Dataset.from_list(val_data).map(
+            format_chat, remove_columns=list(val_data[0].keys()))
+        callbacks: list = []
+        if cfg.early_stopping:
+            from transformers import EarlyStoppingCallback
+            callbacks.append(EarlyStoppingCallback(
+                early_stopping_patience=cfg.early_stopping_patience))
+        return eval_dataset, callbacks
+
+    def _train_unsloth(self, train_data, val_data=()):
         from datasets import Dataset
 
         # Read the precondition BEFORE importing unsloth: once unsloth is in
@@ -757,8 +803,9 @@ class TrainingEngine:
         steps_per_epoch = max(1, math.ceil(len(dataset) / denom))
         total = steps_per_epoch * cfg.num_epochs
         self.state.total_steps = total
+        eval_dataset, eval_callbacks = self._eval_setup(list(val_data), format_chat)
         # SFTConfig (not TrainingArguments): avoids TRL KeyError push_to_hub_token.
-        args = build_sft_args_from_config(cfg)
+        args = build_sft_args_from_config(cfg, has_eval=eval_dataset is not None)
         start_time = time.time()
         engine = self
         from transformers import TrainerCallback
@@ -773,12 +820,14 @@ class TrainingEngine:
                     engine._notify()
         trainer = SFTTrainer(
             model=model, processing_class=tokenizer, train_dataset=dataset,
-            args=args, callbacks=[ProgressCallback(), _stop_training_callback(engine)],
+            eval_dataset=eval_dataset, args=args,
+            callbacks=[ProgressCallback(), _stop_training_callback(engine), *eval_callbacks],
         )
         self.state.status = "training"
         self.state.message = "Training…"
         self._notify()
         trainer.train()
+        self._early_stop_step = _early_stop_step(cfg, trainer.state)
         if self._stop_requested():
             # Persist the partial adapter so the work is not lost, then stop.
             try:
@@ -815,10 +864,10 @@ class TrainingEngine:
             self._do_abliteration()
         self.state.status = "done"
         if not (self.state.message or "").startswith("Training complete —"):
-            self.state.message = "Training complete!"
+            self.state.message = self._completion_message()
         self._notify()
 
-    def _train_standard(self, train_data):
+    def _train_standard(self, train_data, val_data=()):
         from peft import LoraConfig, get_peft_model
         from transformers import AutoTokenizer
 
@@ -858,8 +907,9 @@ class TrainingEngine:
         _register_patched_trl_classes(_sft_trainer_mod, _sft_config_mod)
 
         from trl import SFTTrainer
+        eval_dataset, eval_callbacks = self._eval_setup(list(val_data), format_chat)
         # SFTConfig (not TrainingArguments): avoids TRL KeyError push_to_hub_token.
-        args = build_sft_args_from_config(cfg)
+        args = build_sft_args_from_config(cfg, has_eval=eval_dataset is not None)
         start_time = time.time()
         engine = self
         from transformers import TrainerCallback
@@ -874,12 +924,14 @@ class TrainingEngine:
                     engine._notify()
         trainer = SFTTrainer(
             model=model, processing_class=tokenizer, train_dataset=dataset,
-            args=args, callbacks=[ProgressCallback(), _stop_training_callback(engine)],
+            eval_dataset=eval_dataset, args=args,
+            callbacks=[ProgressCallback(), _stop_training_callback(engine), *eval_callbacks],
         )
         self.state.status = "training"
         self.state.message = "Training…"
         self._notify()
         trainer.train()
+        self._early_stop_step = _early_stop_step(cfg, trainer.state)
         if self._stop_requested():
             # Persist the partial adapter so the work is not lost, then stop.
             try:
@@ -901,7 +953,7 @@ class TrainingEngine:
             self._export_gguf_after_train(model, tokenizer)
         self.state.status = "done"
         if not (self.state.message or "").startswith("Training complete —"):
-            self.state.message = "Training complete!"
+            self.state.message = self._completion_message()
         self._notify()
 
     def _do_merge(self, model, tokenizer, output_dir: str) -> dict:

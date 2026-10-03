@@ -43,6 +43,23 @@ def _optional_body_bool(body: dict, key: str, overrides: dict | None = None) -> 
     return None
 
 
+def _apply_checkpoint_fields(config: TrainingConfig, body: dict) -> None:
+    """Fold the training form's checkpoint / eval / early-stopping fields into ``config``.
+
+    Absent keys keep the config's value (API callers and presets); the form sends
+    a hidden ``"0"`` for unticked boxes so "off" is explicit. Bad numbers raise
+    ``ValueError`` for the caller's 400.
+    """
+    for key in ("save_checkpoints", "early_stopping"):
+        flag = _optional_body_bool(body, key)
+        if flag is not None:
+            setattr(config, key, flag)
+    if body.get("save_limit") not in (None, ""):
+        config.save_total_limit = int(body["save_limit"])
+    if body.get("eval_steps") not in (None, ""):
+        config.eval_steps = max(0, int(body["eval_steps"]))
+
+
 _HF_REPO_ID_RE = re.compile(r"^[\w.\-]+/[\w.\-]+$")
 
 
@@ -458,8 +475,14 @@ async def start_training(request: Request):
                 export_imatrix=_coerce_bool(body.get("export_imatrix", False)),
                 imatrix_calibration=body.get("imatrix_calibration", ""),
             )
+        _apply_checkpoint_fields(config, body)
     except (ValueError, TypeError, OverflowError) as e:
         return JSONResponse({"error": f"invalid training parameter: {e}"}, status_code=400)
+    if config.save_total_limit < 1:
+        return JSONResponse({"error": "save_limit must be >= 1"}, status_code=400)
+    if config.early_stopping and config.eval_steps <= 0:
+        return JSONResponse({"error": "Early stopping needs evaluation: set "
+                             "'Eval every N steps' above 0."}, status_code=400)
     for _name in ("num_epochs", "batch_size", "gradient_accumulation_steps", "max_seq_length", "lora_rank"):
         if getattr(config, _name, 1) < 1:
             return JSONResponse({"error": f"{_name} must be >= 1"}, status_code=400)

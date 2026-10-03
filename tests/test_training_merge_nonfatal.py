@@ -63,7 +63,7 @@ def test_train_exception_empty_notimplemented_sets_typed_error(
     eng = TrainingEngine()
     eng.config = TrainingConfig(output_dir="output/x", unsloth=False)
 
-    def boom(_data: list) -> None:
+    def boom(_data: list, _val: list = ()) -> None:
         raise NotImplementedError()
 
     monkeypatch.setattr(eng, "_train_standard", boom)

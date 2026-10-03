@@ -18,6 +18,7 @@ from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 
 from finetune_studio import db
+from finetune_studio.data.converter import records_from_upload, write_jsonl
 from finetune_studio.data.fs import file_library as fl
 from finetune_studio.data.fs.paths import resolve_in_project
 from finetune_studio.db.datasets import (
@@ -126,17 +127,19 @@ async def register_existing_route(pid: str, request: Request):
 
 @router.post("/projects/{pid}/datasets/upload")
 async def upload_dataset_route(pid: str, file: UploadFile = File(...)):  # noqa: B008
-    """Multipart upload: save to the project's datasets dir and register."""
+    """Multipart upload: convert .jsonl/.json/.csv to training JSONL and register it."""
     proj = db.get_project(pid)
     if not proj:
         return JSONResponse({"error": "project not found"}, status_code=404)
     raw = await file.read()
     if not raw:
         return JSONResponse({"error": "empty upload"}, status_code=400)
-    # Coerce .json / .txt / etc → .jsonl so downstream loaders recognise it.
     fname = file.filename or "uploaded.jsonl"
-    p = Path(fname)
-    stem, suf = p.stem, ".jsonl"
+    try:
+        records = records_from_upload(raw, fname)
+    except ValueError as e:
+        return JSONResponse({"error": f"{Path(fname).name}: {e}"}, status_code=400)
+    stem, suf = Path(fname).stem, ".jsonl"
     out_dir = datasets_dir(pid)
     target = out_dir / f"{stem}{suf}"
     # Avoid clobbering: append suffix if file exists.
@@ -144,15 +147,14 @@ async def upload_dataset_route(pid: str, file: UploadFile = File(...)):  # noqa:
     while target.exists():
         target = out_dir / f"{stem}-{counter}{suf}"
         counter += 1
-    target.write_bytes(raw)
-    qa_count = count_qa_pairs(str(target))
+    write_jsonl(records, target)
     return db.create_dataset(
         project_id=pid,
         name=target.stem,
         data_path=str(target),
         source="upload",
-        qa_count=qa_count,
-        size_bytes=len(raw),
+        qa_count=len(records),
+        size_bytes=target.stat().st_size,
     )
 
 

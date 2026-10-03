@@ -19,14 +19,18 @@ def cmd_convert(args) -> None:
 
     target = args.output or str(src.with_suffix(f".{args.target_format}"))
 
-    if src.suffix == ".jsonl" and args.target_format == "json":
-        jsonl_to_json(str(src), target)
-    elif src.suffix == ".json" and args.target_format == "jsonl":
-        json_to_jsonl(str(src), target)
-    elif src.suffix == ".csv" and args.target_format == "jsonl":
-        csv_to_jsonl(str(src), target, system_prompt=args.system_prompt)
-    else:
-        print(f"Error: Cannot convert {src.suffix} -> .{args.target_format}")
+    try:
+        if src.suffix == ".jsonl" and args.target_format == "json":
+            jsonl_to_json(str(src), target)
+        elif src.suffix == ".json" and args.target_format == "jsonl":
+            json_to_jsonl(str(src), target)
+        elif src.suffix == ".csv" and args.target_format == "jsonl":
+            csv_to_jsonl(str(src), target, system_prompt=args.system_prompt)
+        else:
+            print(f"Error: Cannot convert {src.suffix} -> .{args.target_format}")
+            sys.exit(1)
+    except ValueError as e:
+        print(f"Error: {src.name}: {e}")
         sys.exit(1)
 
     print(f"Converted: {src} -> {target}")

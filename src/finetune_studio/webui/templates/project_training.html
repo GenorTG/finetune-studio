@@ -179,7 +179,7 @@
       </div>
 
       <div class="data-panel" data-panel="upload">
-        <input type="file" id="dataset-upload" accept=".jsonl,.json,.txt" class="input mt-1" title="Upload a JSONL file. Each line should be a JSON object representing one training example (e.g. ShareGPT / Alpaca / OpenAI chat formats).">
+        <input type="file" id="dataset-upload" accept=".jsonl,.json,.csv" class="input mt-1" title="Upload .jsonl, .json or .csv. Chat formats (messages / ShareGPT / prompt+completion) are used as-is; tables with question + answer columns (or Alpaca instruction / input / output) are converted to chat examples.">
         <div id="dataset-upload-status" class="text-xs muted mt-1">
           Pick a jsonl file. It's saved to this project's dataset folder and added
           to the list above.
@@ -244,13 +244,19 @@
       <span class="block text-xs muted mb-1" for="warmup-steps">Warmup steps</span>
       <input type="number" name="warmup_steps" id="warmup-steps" value="100" min="0" class="input" title="Learning rate warmup steps. Helps stabilize early training.">
     </label>
-    <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;" title="Save intermediate checkpoints. Allows resuming if training is interrupted.">
-      <input type="checkbox" name="save_checkpoints" value="1" id="save-checkpoints-check" checked>
-      <span class="text-xs">Save checkpoints every 500 steps</span>
+    <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;" title="Unsloth loads the model in 4-bit (QLoRA) with faster kernels: roughly half the VRAM and noticeably quicker. Falls back to standard training if Unsloth is not installed.">
+      <input type="hidden" name="unsloth" value="0">
+      <input type="checkbox" name="unsloth" value="1" id="unsloth-check">
+      <span class="text-xs">Use Unsloth (4-bit, faster, less VRAM)</span>
     </label>
-    <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;" title="Stop training early if validation loss stops improving for 3 evaluations.">
+    <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;" title="Save intermediate checkpoints every 100 steps (or at every evaluation when early stopping is on) so an interrupted run keeps its progress.">
+      <input type="hidden" name="save_checkpoints" value="0">
+      <input type="checkbox" name="save_checkpoints" value="1" id="save-checkpoints-check" checked>
+      <span class="text-xs">Save checkpoints during training</span>
+    </label>
+    <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;" title="Stop when the held-out validation loss has not improved for 3 evaluations, and keep the best checkpoint. Needs 'Eval every N steps' above 0.">
       <input type="checkbox" name="early_stopping" value="1" id="early-stopping-check">
-      <span class="text-xs">Early stopping (stop if loss plateaus)</span>
+      <span class="text-xs">Early stopping (stop when validation loss stops improving)</span>
     </label>
     <label>
       <span class="block text-xs muted mb-1" for="save-limit">Keep last N checkpoints</span>
@@ -258,7 +264,7 @@
     </label>
     <label>
       <span class="block text-xs muted mb-1" for="eval-steps">Eval every N steps</span>
-      <input type="number" name="eval_steps" id="eval-steps" value="500" min="0" class="input" title="Run evaluation every N steps. 0 = no evaluation during training.">
+      <input type="number" name="eval_steps" id="eval-steps" value="50" min="0" class="input" title="Measure loss on the 10% held-out split every N steps. 0 = no evaluation during training. Small datasets need a small value, or no evaluation happens before training ends.">
     </label>
     <div class="flex gap-2 mt-4" style="grid-column: 1 / -1;">
       <button type="submit" class="btn primary" id="start-btn" disabled title="Pick or upload a dataset first">Start training</button>

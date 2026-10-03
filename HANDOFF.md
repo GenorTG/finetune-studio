@@ -2,9 +2,9 @@
 
 ## Mission
 
-Local fine-tune + data-prep WebUI. Current thread: act on `docs/audit/APP-AUDIT-2026-10-02.md` (fix verified bugs with regression tests, keep lint honest).
+Local fine-tune + data-prep WebUI. Current thread: close the WebUI coverage gaps in `docs/audit/UI-COVERAGE-2026-10-03.md` (private ledger) in its fix order, with regression tests.
 
-## State (verified 2026-10-02)
+## State (verified 2026-10-03)
 
 | Area | State |
 |---|---|
@@ -18,7 +18,9 @@ Local fine-tune + data-prep WebUI. Current thread: act on `docs/audit/APP-AUDIT-
 | Ruff | `ruff check src/ scripts/` clean (broad handlers narrowed; intentional boundaries carry a justified `noqa`). `tests/` still has ~108 legacy findings (deferred with test review). |
 | Fixed (with tests) | Chat RAG ownership; file versions/conversions project scoping; RAG run attribution; RAG source root honors `FTS_ROOT`; CLI no-op flags removed, `fts suite` judges before scoring, `fts validate` exits nonzero; VRAM profiler init + safe cleanup; installer diagnostics (3 defects); augment holdout/training disjoint. |
 | Fresh-DB browser run 2026-10-02 | Fresh instance (:7871, throwaway root), real browser: project, files, RAG (index/search/encrypted export+import), pair gen, LoRA train, merged+GGUF export, testing 95.2%, benchmark base 9.5% vs tuned 95.2%, set production, Chat with tuned model + RAG. Fixed (with tests, `tests/test_fresh_run_regressions.py`): base benchmark results hidden; `__base_model__` placeholder leaking into run lists; Chat missing the tuned model; model registry stale after export; export gate now names the files with no Q&A + UI "export anyway"; styled 404; `rag/settings` 200 before index; pair-gen status scrolls into view. Full suite 1417 passed. |
-| CODEMAP | Regenerated 2026-10-02 (`make codemap`). |
+| CODEMAP | Regenerated 2026-10-03 (`make codemap`). |
+| UI coverage audit 2026-10-03 | 255 API ops: ~182 used by UI, ~40 zero-caller legacy routes, ~27 real gaps; 5 dead templates; readability poor on nav/Pairs/RAG/Benchmarks/Export. Ledger: `docs/audit/UI-COVERAGE-2026-10-03.md`; lane detail + screenshots `.tmp/ui-coverage/`. |
+| UI gap slice 1 (2026-10-03) | Training form fields `save_checkpoints`/`early_stopping`/`save_limit`/`eval_steps` now reach TRL (held-out 10% passed as `eval_dataset`, `EarlyStoppingCallback`, best checkpoint kept, early stop named in status); Unsloth toggle on the live form; dataset upload converts .json/.csv (Q/A, Alpaca, text columns) instead of renaming, 400 with reason otherwise; `csv_to_jsonl` now writes answers. Tests: `tests/test_training_checkpoint_eval.py`, `tests/test_dataset_upload_convert.py`. Real RTX 3090 runs (standard + Unsloth) stopped early at 35/420 and 50/420. |
 
 ## Next steps
 
@@ -29,7 +31,8 @@ Local fine-tune + data-prep WebUI. Current thread: act on `docs/audit/APP-AUDIT-
 5. Formatter parity done; wire `system_prompt` callers. RAG coverage claims are filename-based, not content-hash.
 6. Holdout disjointness is exact-question only; reworded duplicates can still leak.
 7. **E2E findings NOT fixed:** CLI has no project-dir fence (design call); `/api/data/*` relative `output` resolves to project dir but relative `path` to cwd; `rag/sources` lists raw + parsed copies (double-index?); imported-corpus hit `source` paths point at old project; engine has no resume-from-checkpoint; many endpoints return 200 `{error}`; `compare/load` missing path still shows HF repo-id text; project-flow `start_run` ignores `lora_alpha`/grad-accum overrides; `compare` vs `suite` score differ (judge); `compare --models` swallows trailing positional; `validate` accepts empty jsonl, `rag ingest` accepts binary; Windows installers diverge (no GPU pin, no run.ps1/update.ps1); `FTS_ROOT`/`FTS_DB` ignored by app (tests leak empty dirs into `~/.finetune-studio/projects`); `install.sh --repair` wipes venv. Untested: chat-with-RAG, QA mining (need LM Studio), dark/light visual pass, `rag.config.json`-only launch.
-8. Finish test-file review (158 left) and tests-scope Ruff. Follow-up filed: `training/data_quality.generate_fixes` suggests nonexistent CLI commands (`tests/test_data_quality_fixes.py` is its test).
+8. **UI coverage fix order** (ledger §Functional gaps): ~~1 training fields + Unsloth + upload conversion~~ DONE → 2 dataset-health panel (`routes/quality.py` analyze/hallucination-check/validate/dedup, zero UI callers) → 3 benchmark review (verdict override, older-run cases, audit, delete, AI judge selectable) → 4 nav + wording → 5 delete ~40 dead routes + 5 dead templates. Ask Genor first: is the terminal "hacker" chrome deliberate?
+9. Finish test-file review (158 left) and tests-scope Ruff. Follow-up filed: `training/data_quality.generate_fixes` suggests nonexistent CLI commands (`tests/test_data_quality_fixes.py` is its test).
 
 ## Fresh-run UI findings (2026-10-03: all fixed, pushed)
 

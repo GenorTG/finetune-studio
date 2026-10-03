@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-417 files · 74903 lines
-- `finetune_studio`: 217 files, 42355 lines
+419 files · 75415 lines
+- `finetune_studio`: 217 files, 42570 lines
 - `scripts`: 9 files, 2344 lines
-- `tests`: 191 files, 30204 lines
+- `tests`: 193 files, 30501 lines
 
 
 # finetune_studio
@@ -157,7 +157,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def cmd_compare(args) -> None` (L9)
   - imports: finetune_studio.benchmarks.comparison, finetune_studio.cli.commands.suite
 
-## `src/finetune_studio/cli/commands/convert.py` (32 lines)
+## `src/finetune_studio/cli/commands/convert.py` (36 lines)
 - `def cmd_convert(args) -> None` (L8)
   - imports: finetune_studio.data.converter
 
@@ -228,10 +228,18 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def audit_suite_cases(suite_path: str, dataset_path: str | None = None) -> dict[str, Any]` (L193) — Audit suite completeness and metadata against its source dataset.
   - imports: finetune_studio.data, finetune_studio.data.fs.paths, finetune_studio.data.parsers, finetune_studio.data.prep.chunker, finetune_studio.data.prep.export, finetune_studio.data.prep.qa_validate
 
-## `src/finetune_studio/data/converter.py` (49 lines)
-- `def jsonl_to_json(jsonl_path, json_path)` (L23)
-- `def json_to_jsonl(json_path, jsonl_path)` (L33)
-- `def csv_to_jsonl(csv_path, jsonl_path, text_column = 'text', system_prompt = '')` (L39)
+## `src/finetune_studio/data/converter.py` (157 lines)
+- `def _is_trainable(rec: dict) -> bool` (L41)
+- `def _pick(row: dict[str, Any], names: tuple[str, ...]) -> str | None` (L45) — First of ``names`` present in ``row`` (keys already lower-cased).
+- `def row_to_record(row: dict[str, Any], system_prompt: str = '') -> dict` (L50) — Map one flat row (CSV row or JSON object) to a trainable record.
+- `def _rows_to_records(rows: list, system_prompt: str) -> list[dict]` (L81)
+- `def _parse_jsonl(text: str) -> list` (L91)
+- `def _parse_json(text: str) -> list` (L103)
+- `def records_from_upload(raw: bytes, filename: str, system_prompt: str = '') -> list[dict]` (L116) — Parse an uploaded dataset file into trainable records.
+- `def write_jsonl(records: list[dict], jsonl_path: str | Path) -> None` (L138)
+- `def jsonl_to_json(jsonl_path: str, json_path: str) -> None` (L143)
+- `def json_to_jsonl(json_path: str, jsonl_path: str) -> None` (L149)
+- `def csv_to_jsonl(csv_path: str, jsonl_path: str, system_prompt: str = '') -> None` (L154)
 
 ## `src/finetune_studio/data/fs/__init__.py` (70 lines)
   - imports: finetune_studio.data.fs.chunks, finetune_studio.data.fs.files, finetune_studio.data.fs.ingestion, finetune_studio.data.fs.metadata, finetune_studio.data.fs.parsed, finetune_studio.data.fs.paths, finetune_studio.data.fs.project, finetune_studio.data.fs.qa
@@ -1345,51 +1353,54 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def _calculate_severity(self)` (L225)
 - `def generate_fixes(analysis: dict) -> list` (L234) — Generate suggested fixes. ``command`` is only set when a real ``fts`` command exists.
 
-## `src/finetune_studio/training/engine.py` (1197 lines)
-- `def _format_exc(exc: BaseException) -> str` (L48) — ``Type: msg`` without a trailing empty ``: `` when msg is blank.
-- `def _register_patched_trl_classes(trainer_module: Any, config_module: Any) -> None` (L53) — Make patched TRL classes resolvable by pickle's module lookup.
-- `def _unsloth_preimport_blockers() -> list[str]` (L68) — Critical modules already in ``sys.modules`` before unsloth is imported.
-- `def _merged_dir_complete(merged_dir: str) -> bool` (L86) — True when merged/ has weight files (not just a partial config dump).
-- `def _stop_training_callback(engine: 'TrainingEngine') -> Any` (L96) — Create the Trainer callback that turns a stop request into a stop flag.
-- `def _free_cuda() -> None` (L109) — Drop refs the caller already deleted and clear the CUDA cache.
-- `def _dir_size(path: str) -> int` (L124) — Sum of file sizes under `path`, in bytes. Missing dir → 0.
-- `def _human_size(n: float) -> str` (L138) — 1.4 GB / 235 MB / 12 KB style.
-- `class TrainingConfig` (L148)
-- `class TrainingState` (L186)
-- `def apply_trainer_log(state: TrainingState, logs: dict, *, global_step: int, epoch: float | None, t…` (L201) — Fold one ``TrainerCallback.on_log`` payload into ``state``.
-- `class _ThreadChild` (L239)
-  - `def __init__(self, thread: threading.Thread) -> None` (L242)
-  - `def is_alive(self) -> bool` (L246)
-  - `def join(self, timeout: float | None = None) -> None` (L249)
-  - `def terminate(self) -> None` (L254)
-  - `def kill(self) -> None` (L258)
-- `class TrainingEngine` (L262)
-  - `def __init__(self)` (L263)
-  - `def on_update(self, callback)` (L276)
-  - `def _notify(self)` (L286)
-  - `def start(self, config, training_data, system_prompt = '', *, _worker_target = None)` (L295)
-  - `def _apply_state_dict(self, payload: dict) -> None` (L353)
-  - `def _listen_child(self) -> None` (L365)
-  - `def _cleanup_child_handles(self) -> None` (L409)
-  - `def stop(self) -> None` (L422)
-  - `def _stop_requested(self) -> bool` (L466)
-  - `def _mark_stopped(self) -> None` (L472)
-  - `def _sync_run_error(self, message: str) -> None` (L493)
-  - `def _maybe_merge(self, model: object, tokenizer: object, output_dir: str) -> None` (L504)
-  - `def _train(self, training_data, system_prompt)` (L516)
-  - `def _persist_run_error(self, error_msg: str) -> None` (L569)
-  - `def _persist_run_output(self) -> None` (L584)
-  - `def _load_model_with_fallback(self, model_path, tokenizer)` (L608)
-  - `def _save_adapter(self, model, tokenizer, *, with_chat_template: bool = False) -> None` (L649)
-  - `def _export_gguf_after_train(self, model, tokenizer) -> None` (L662)
-  - `def _train_unsloth(self, train_data)` (L688)
-  - `def _train_standard(self, train_data)` (L821)
-  - `def _do_merge(self, model, tokenizer, output_dir: str) -> dict` (L907)
-  - `def _do_abliteration(self) -> dict` (L987)
-  - `def _do_export_imatrix(self, output_dir: str) -> dict` (L1011)
-  - `def _auto_generate_suite(self) -> dict` (L1036)
-  - `def _do_export_gguf(self, output_dir: str, force: bool = False) -> dict` (L1076)
-- `def merge_adapter_for_run(run: dict, force: bool = False) -> dict` (L1119) — Merge a persisted run's adapter on disk into a standalone model.
+## `src/finetune_studio/training/engine.py` (1249 lines)
+- `def _format_exc(exc: BaseException) -> str` (L49) — ``Type: msg`` without a trailing empty ``: `` when msg is blank.
+- `def _register_patched_trl_classes(trainer_module: Any, config_module: Any) -> None` (L54) — Make patched TRL classes resolvable by pickle's module lookup.
+- `def _unsloth_preimport_blockers() -> list[str]` (L69) — Critical modules already in ``sys.modules`` before unsloth is imported.
+- `def _merged_dir_complete(merged_dir: str) -> bool` (L87) — True when merged/ has weight files (not just a partial config dump).
+- `def _stop_training_callback(engine: 'TrainingEngine') -> Any` (L97) — Create the Trainer callback that turns a stop request into a stop flag.
+- `def _free_cuda() -> None` (L110) — Drop refs the caller already deleted and clear the CUDA cache.
+- `def _dir_size(path: str) -> int` (L125) — Sum of file sizes under `path`, in bytes. Missing dir → 0.
+- `def _human_size(n: float) -> str` (L139) — 1.4 GB / 235 MB / 12 KB style.
+- `class TrainingConfig` (L149)
+- `class TrainingState` (L192)
+- `def _early_stop_step(cfg: TrainingConfig, trainer_state: Any) -> int` (L207) — Step at which early stopping ended the run, or 0 if it ran to completion.
+- `def apply_trainer_log(state: TrainingState, logs: dict, *, global_step: int, epoch: float | None, t…` (L215) — Fold one ``TrainerCallback.on_log`` payload into ``state``.
+- `class _ThreadChild` (L253)
+  - `def __init__(self, thread: threading.Thread) -> None` (L256)
+  - `def is_alive(self) -> bool` (L260)
+  - `def join(self, timeout: float | None = None) -> None` (L263)
+  - `def terminate(self) -> None` (L268)
+  - `def kill(self) -> None` (L272)
+- `class TrainingEngine` (L276)
+  - `def __init__(self)` (L277)
+  - `def on_update(self, callback)` (L290)
+  - `def _notify(self)` (L300)
+  - `def start(self, config, training_data, system_prompt = '', *, _worker_target = None)` (L309)
+  - `def _apply_state_dict(self, payload: dict) -> None` (L367)
+  - `def _listen_child(self) -> None` (L379)
+  - `def _cleanup_child_handles(self) -> None` (L423)
+  - `def stop(self) -> None` (L436)
+  - `def _stop_requested(self) -> bool` (L480)
+  - `def _mark_stopped(self) -> None` (L486)
+  - `def _sync_run_error(self, message: str) -> None` (L507)
+  - `def _maybe_merge(self, model: object, tokenizer: object, output_dir: str) -> None` (L518)
+  - `def _train(self, training_data, system_prompt)` (L530)
+  - `def _persist_run_error(self, error_msg: str) -> None` (L584)
+  - `def _persist_run_output(self) -> None` (L599)
+  - `def _load_model_with_fallback(self, model_path, tokenizer)` (L623)
+  - `def _save_adapter(self, model, tokenizer, *, with_chat_template: bool = False) -> None` (L664)
+  - `def _export_gguf_after_train(self, model, tokenizer) -> None` (L677)
+  - `def _completion_message(self) -> str` (L703)
+  - `def _eval_setup(self, val_data: list, format_chat: Callable[[dict], dict]) -> tuple[Any, list]` (L711)
+  - `def _train_unsloth(self, train_data, val_data = ())` (L734)
+  - `def _train_standard(self, train_data, val_data = ())` (L870)
+  - `def _do_merge(self, model, tokenizer, output_dir: str) -> dict` (L959)
+  - `def _do_abliteration(self) -> dict` (L1039)
+  - `def _do_export_imatrix(self, output_dir: str) -> dict` (L1063)
+  - `def _auto_generate_suite(self) -> dict` (L1088)
+  - `def _do_export_gguf(self, output_dir: str, force: bool = False) -> dict` (L1128)
+- `def merge_adapter_for_run(run: dict, force: bool = False) -> dict` (L1171) — Merge a persisted run's adapter on disk into a standalone model.
   - imports: finetune_studio.db.connection, finetune_studio.db.runs, finetune_studio.testing.generate_suite, finetune_studio.training.abliteration, finetune_studio.training.advanced_quant, finetune_studio.training.data, finetune_studio.training.formatting, finetune_studio.training.gguf_convert, finetune_studio.training.merge_base, finetune_studio.training.sft_args, finetune_studio.training.worker
 
 ## `src/finetune_studio/training/export_capabilities.py` (40 lines)
@@ -1492,9 +1503,10 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def attach_run(engine: Any, run_id: str, output_dir: str, *, project_id: str | None, update_…` (L89) — Tag ``engine`` with ``run_id`` and bind exactly one persister to it.
   - imports: finetune_studio
 
-## `src/finetune_studio/training/sft_args.py` (78 lines)
+## `src/finetune_studio/training/sft_args.py` (104 lines)
 - `def build_sft_training_args(*, output_dir: str, num_train_epochs: float | None = None, max_steps: int | N…` (L14) — Return an ``SFTConfig`` with Hub push disabled (local training default).
-- `def build_sft_args_from_config(cfg: Any) -> Any` (L65) — Map a ``TrainingConfig`` onto local ``SFTConfig`` defaults.
+- `def checkpoint_eval_kwargs(cfg: Any, *, has_eval: bool) -> dict[str, Any]` (L65) — Checkpoint / eval / early-stopping ``SFTConfig`` kwargs for ``cfg``.
+- `def build_sft_args_from_config(cfg: Any, *, has_eval: bool = False) -> Any` (L89) — Map a ``TrainingConfig`` onto local ``SFTConfig`` defaults.
 
 ## `src/finetune_studio/training/vram/__init__.py` (67 lines)
   - imports: finetune_studio.training.vram.constants, finetune_studio.training.vram.estimate, finetune_studio.training.vram.gpu, finetune_studio.training.vram.profile, finetune_studio.training.vram.recommend, finetune_studio.training.vram.report, finetune_studio.training.vram.schema
@@ -1727,14 +1739,14 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `async def list_tools(pid: str)` (L801) — Catalog of tools the chat exposes to the model (useful for debugging
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.data.prep.generator, finetune_studio.models.manager, finetune_studio.webui.app
 
-## `src/finetune_studio/webui/routes/datasets.py` (176 lines)
-- `async def list_datasets_route(pid: str)` (L35) — List all registered datasets for a project.
-- `async def get_dataset_route(pid: str, did: str)` (L46)
-- `async def register_existing_route(pid: str, request: Request)` (L65) — Register an existing file on disk (e.g. written by data-prep export).
-- `async def upload_dataset_route(pid: str, file: UploadFile = File(...))` (L128) — Multipart upload: save to the project's datasets dir and register.
-- `async def patch_dataset_route(pid: str, did: str, request: Request)` (L160)
-- `async def delete_dataset_route(pid: str, did: str, remove_file: bool = False)` (L172)
-  - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.db.datasets
+## `src/finetune_studio/webui/routes/datasets.py` (178 lines)
+- `async def list_datasets_route(pid: str)` (L36) — List all registered datasets for a project.
+- `async def get_dataset_route(pid: str, did: str)` (L47)
+- `async def register_existing_route(pid: str, request: Request)` (L66) — Register an existing file on disk (e.g. written by data-prep export).
+- `async def upload_dataset_route(pid: str, file: UploadFile = File(...))` (L129) — Multipart upload: convert .jsonl/.json/.csv to training JSONL and register it.
+- `async def patch_dataset_route(pid: str, did: str, request: Request)` (L162)
+- `async def delete_dataset_route(pid: str, did: str, remove_file: bool = False)` (L174)
+  - imports: finetune_studio, finetune_studio.data.converter, finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.db.datasets
 
 ## `src/finetune_studio/webui/routes/exports.py` (480 lines)
 - `def _project_404(pid: str) -> JSONResponse | None` (L33) — Return a 404 response when the project does not exist, else None.
@@ -2024,33 +2036,34 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `async def evaluate_training_dataset(request: Request)` (L408) — Run heuristic evaluation against a project's approved training dataset.
   - imports: finetune_studio, finetune_studio.db, finetune_studio.models.llama_loader, finetune_studio.models.manager, finetune_studio.testing.rag_suite, finetune_studio.testing.suite, finetune_studio.testing.training_eval, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.live_sse, finetune_studio.webui.testing_models
 
-## `src/finetune_studio/webui/routes/training.py` (833 lines)
+## `src/finetune_studio/webui/routes/training.py` (856 lines)
 - `def _coerce_bool(value: object) -> bool` (L23) — Parse JSON/FormData bool-ish values (``"1"``, ``"true"``, ``true``, …).
 - `def _optional_body_bool(body: dict, key: str, overrides: dict | None = None) -> bool | None` (L37) — Return coerced bool when ``key`` is present on body or overrides; else None.
-- `def _resolve_model_path(model_path: str, allow_download: bool) -> tuple[str, str | None]` (L49) — Resolve a trainable base to a local dir; block silent multi-GB hub pulls.
-- `def _get_presets() -> list[dict]` (L243) — Return all presets with their IDs.
-- `def _get_preset(preset_id: str) -> dict | None` (L248) — Return a specific preset by ID.
-- `def _apply_preset(preset_id: str, overrides: dict | None = None) -> TrainingConfig` (L256) — Build a TrainingConfig from a preset, with optional field overrides.
-- `async def list_presets()` (L268) — Return all training presets.
-- `async def get_preset(preset_id: str)` (L274) — Return a specific preset.
-- `async def recommend_config(tier: str = 'balanced', base_model: str = '', dataset: str = '', pairs: int |…` (L284) — Propose training settings for a base model + dataset at a quality tier.
-- `async def status()` (L309)
-- `async def status_text()` (L326)
-- `async def progress()` (L343) — SSE live training status (preferred over polling ``/status``).
-- `async def progress_text()` (L349) — Plain-text one-shot progress string for dashboard polling.
-- `async def list_training_runs()` (L375) — List ALL training runs (across all projects).
-- `async def list_training_runs_for_project(pid: str)` (L382) — List training runs for a specific project.
-- `async def start_training(request: Request)` (L395)
-- `async def stop_training()` (L547)
-- `async def export_run(run_id: str, request: Request)` (L553) — Export a trained run to deployable formats (standalone, post-training).
-- `async def list_auto_suites(run_id: str)` (L598) — List all auto-generated suites for a training run.
-- `async def trigger_auto_suite(run_id: str, request: Request)` (L607) — Trigger auto-generation of a benchmark suite from training data.
-- `async def abliterate_run(run_id: str)` (L677) — Abliterate (de-censor) a trained model.
-- `async def get_abliteration(run_id: str)` (L725) — Get abliteration status for a run.
-- `async def quantize_run(run_id: str, request: Request)` (L734) — Export a trained model using advanced quantization.
-- `async def list_quant_exports(run_id: str)` (L781) — List all quantization exports for a run.
-- `async def set_run_output(run_id: str, request: Request)` (L790) — Update a run's output_path.
-- `async def list_exports(run_id: str)` (L804) — List all exports (merged, gguf, adapter) for a training run.
+- `def _apply_checkpoint_fields(config: TrainingConfig, body: dict) -> None` (L46) — Fold the training form's checkpoint / eval / early-stopping fields into ``config``.
+- `def _resolve_model_path(model_path: str, allow_download: bool) -> tuple[str, str | None]` (L66) — Resolve a trainable base to a local dir; block silent multi-GB hub pulls.
+- `def _get_presets() -> list[dict]` (L260) — Return all presets with their IDs.
+- `def _get_preset(preset_id: str) -> dict | None` (L265) — Return a specific preset by ID.
+- `def _apply_preset(preset_id: str, overrides: dict | None = None) -> TrainingConfig` (L273) — Build a TrainingConfig from a preset, with optional field overrides.
+- `async def list_presets()` (L285) — Return all training presets.
+- `async def get_preset(preset_id: str)` (L291) — Return a specific preset.
+- `async def recommend_config(tier: str = 'balanced', base_model: str = '', dataset: str = '', pairs: int |…` (L301) — Propose training settings for a base model + dataset at a quality tier.
+- `async def status()` (L326)
+- `async def status_text()` (L343)
+- `async def progress()` (L360) — SSE live training status (preferred over polling ``/status``).
+- `async def progress_text()` (L366) — Plain-text one-shot progress string for dashboard polling.
+- `async def list_training_runs()` (L392) — List ALL training runs (across all projects).
+- `async def list_training_runs_for_project(pid: str)` (L399) — List training runs for a specific project.
+- `async def start_training(request: Request)` (L412)
+- `async def stop_training()` (L570)
+- `async def export_run(run_id: str, request: Request)` (L576) — Export a trained run to deployable formats (standalone, post-training).
+- `async def list_auto_suites(run_id: str)` (L621) — List all auto-generated suites for a training run.
+- `async def trigger_auto_suite(run_id: str, request: Request)` (L630) — Trigger auto-generation of a benchmark suite from training data.
+- `async def abliterate_run(run_id: str)` (L700) — Abliterate (de-censor) a trained model.
+- `async def get_abliteration(run_id: str)` (L748) — Get abliteration status for a run.
+- `async def quantize_run(run_id: str, request: Request)` (L757) — Export a trained model using advanced quantization.
+- `async def list_quant_exports(run_id: str)` (L804) — List all quantization exports for a run.
+- `async def set_run_output(run_id: str, request: Request)` (L813) — Update a run's output_path.
+- `async def list_exports(run_id: str)` (L827) — List all exports (merged, gguf, adapter) for a training run.
   - imports: finetune_studio, finetune_studio.db.connection, finetune_studio.db.runs, finetune_studio.models.helper, finetune_studio.models.llama_loader, finetune_studio.testing.generate_suite, finetune_studio.training.abliteration, finetune_studio.training.advanced_quant, finetune_studio.training.data, finetune_studio.training.engine, finetune_studio.training.monitor, finetune_studio.training.preset_advisor, finetune_studio.training.run_export, finetune_studio.training.run_persistence, finetune_studio.webui.app, finetune_studio.webui.live_sse
 
 ## `src/finetune_studio/webui/routes/updates.py` (261 lines)
@@ -2745,6 +2758,21 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_register_file_id_from_other_project_is_403(client_and_db)` (L127) — Cross-project file_id must NOT resolve to a different project's path.
 - `def test_register_file_id_unknown_is_400(client_and_db)` (L139)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.webui.app
+
+## `tests/test_dataset_upload_convert.py` (117 lines)
+- `def test_jsonl_passes_through() -> None` (L30)
+- `def test_json_array_and_wrapped_object() -> None` (L36)
+- `def test_question_answer_rows_become_messages() -> None` (L42)
+- `def test_csv_question_answer_and_system() -> None` (L47)
+- `def test_csv_alpaca_instruction_input_output() -> None` (L53)
+- `def test_csv_text_column_kept_as_text() -> None` (L61)
+- `def test_every_converted_record_is_trainable() -> None` (L65)
+- `def test_bad_uploads_raise_readable_errors(raw: bytes, name: str, needle: str) -> None` (L79)
+- `def test_cli_csv_to_jsonl_now_writes_answers(tmp_path: Path) -> None` (L85)
+- `def _project(client) -> str` (L96)
+- `def test_upload_csv_is_converted(client, fake_home)` (L100)
+- `def test_upload_unmappable_csv_is_400_and_writes_nothing(client, fake_home)` (L111)
+  - imports: finetune_studio.data.converter, finetune_studio.training.data
 
 ## `tests/test_db.py` (189 lines)
 - `class TestProjects` (L3)
@@ -4081,6 +4109,24 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_hf_refresh_does_not_wipe_options() -> None` (L26)
 - `def test_hf_refresh_skips_known_paths() -> None` (L30)
 - `def test_server_list_preselects_project_base_model() -> None` (L35)
+
+## `tests/test_training_checkpoint_eval.py` (180 lines)
+- `def test_defaults_keep_periodic_checkpoints_and_no_eval() -> None` (L28)
+- `def test_checkpoints_off_disables_saving() -> None` (L36)
+- `def test_eval_steps_enable_step_eval_only_with_eval_data() -> None` (L42)
+- `def test_early_stopping_aligns_saves_to_evals_and_keeps_best() -> None` (L50)
+- `def test_early_stopping_without_eval_data_degrades_to_plain_run() -> None` (L63)
+- `def test_sft_config_accepts_early_stopping_combo(tmp_path: Path) -> None` (L70)
+- `def _model(tmp_path: Path) -> str` (L82)
+- `def test_form_fields_reach_config(client, fake_engine, fake_home, tmp_path)` (L88)
+- `def test_unticked_boxes_are_honoured(client, fake_engine, fake_home, tmp_path)` (L104)
+- `def test_api_callers_omitting_fields_keep_defaults(client, fake_engine, fake_home, tmp_path)` (L115)
+- `def test_early_stopping_without_eval_is_400(client, fake_engine, fake_home, tmp_path)` (L124)
+- `def test_bad_save_limit_is_400(client, fake_engine, fake_home, tmp_path)` (L133)
+- `def test_live_training_form_exposes_fields() -> None` (L145)
+- `def test_early_stop_step_only_when_stopped_short() -> None` (L160)
+- `def test_completion_message_names_early_stop() -> None` (L172)
+  - imports: finetune_studio, finetune_studio.training.engine, finetune_studio.training.sft_args
 
 ## `tests/test_training_eval.py` (220 lines)
 - `def isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L23)
