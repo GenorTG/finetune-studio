@@ -221,3 +221,18 @@ def test_data_page_hides_raw_parser_codes_for_unreadable_files(client):
     html = client.get(f"/projects/{pid}/data").text
     assert ">unreadable<" in html
     assert "could not be read" in html
+
+
+def test_coverage_fill_skips_tabular_junk_and_asks_readable_questions():
+    from finetune_studio.data.prep.coverage_fill import _make_pairs_from_chunk
+
+    chunk = (
+        "unit_id | class | score | 12 | 34 | 56. "
+        "A, B, C, D, E, F, G, H, 1, 2, 3, 4. "
+        "The Ledger-Keeper is sworn to record every debt owed to the guild."
+    )
+    pairs = _make_pairs_from_chunk(chunk, seen_questions=set())
+    assert len(pairs) == 1
+    q, a = pairs[0]
+    assert "Ledger-Keeper" in a and "|" not in q
+    assert not q.startswith("According to")

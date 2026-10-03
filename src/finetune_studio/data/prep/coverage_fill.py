@@ -155,9 +155,22 @@ def split_sentences(text: str) -> list[str]:
 # question templates: two forms keep extractive questions readable
 # without any model call.
 _TEMPLATES = (
-    "According to {title}, {subject}?",
-    "Per the source document, what does it say about {subject}?",
+    "What does the source say about \u201c{subject}\u2026\u201d?",
+    "Complete this statement from the source: \u201c{subject}\u2026\u201d",
 )
+
+
+def _looks_tabular(sentence: str) -> bool:
+    """True for CSV/table residue (pipes, many commas, mostly digits/symbols)."""
+    if "|" in sentence or "---" in sentence:
+        return True
+    words = sentence.split()
+    if not words:
+        return True
+    if sentence.count(",") >= max(4, len(words) // 2):
+        return True
+    alpha = sum(1 for w in words if re.fullmatch(r"[A-Za-z][A-Za-z'\-]*[.,;:!?]?", w))
+    return alpha / len(words) < 0.6
 
 
 def _subject_of(sentence: str) -> str:
@@ -189,7 +202,7 @@ def _make_pairs_from_chunk(
     candidates: list[tuple[float, int, str]] = []
     for idx, sent in enumerate(sentences):
         toks = content_tokens(sent)
-        if not toks:
+        if not toks or _looks_tabular(sent):
             continue
         # density = informative tokens per char; favor long factual lines
         candidates.append((len(toks) / max(1, len(sent)), idx, sent))
@@ -205,9 +218,7 @@ def _make_pairs_from_chunk(
         if token_overlap_ratio(content_tokens(answer), content_tokens(chunk_text)) < 0.9:
             continue
         subject = _subject_of(sent)
-        q = _TEMPLATES[len(out) % len(_TEMPLATES)].format(
-            title="the source document", subject=subject.rstrip("?:")
-        )
+        q = _TEMPLATES[len(out) % len(_TEMPLATES)].format(subject=subject.rstrip("?:,;"))
         key = (normalize_question(q), norm_ans(answer))
         if key[0] in seen_questions or key in seen_pairs:
             continue

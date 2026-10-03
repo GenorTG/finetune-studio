@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-416 files · 74682 lines
-- `finetune_studio`: 217 files, 42255 lines
+416 files · 74708 lines
+- `finetune_studio`: 217 files, 42266 lines
 - `scripts`: 9 files, 2344 lines
-- `tests`: 190 files, 30083 lines
+- `tests`: 190 files, 30098 lines
 
 
 # finetune_studio
@@ -468,17 +468,18 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def _pack_sentences(prefix: str, para: str, target_chars: int) -> tuple[list[str], str]` (L18) — Greedy-pack ``para``'s sentences after ``prefix``.
 - `def chunk_text(text: str, target_chars: int = 1200, overlap: int = 200) -> list[str]` (L37) — Split on paragraph boundaries; fall back to sentence boundaries; then hard wrap.
 
-## `src/finetune_studio/data/prep/coverage_fill.py` (291 lines)
+## `src/finetune_studio/data/prep/coverage_fill.py` (302 lines)
 - `class FillResult` (L55)
   - `def as_dict(self) -> dict[str, Any]` (L61)
 - `def _fill_sources(pid: str, sources: list[dict[str, Any]]) -> dict[str, Any]` (L72) — Fill the given qa source manifests; aggregate into one summary.
 - `def fill_all_project_gaps(pid: str) -> dict[str, Any]` (L118) — Run the fill pass for every qa source in the project.
 - `def fill_sources_gaps(pid: str, source_ids: list[str]) -> dict[str, Any]` (L128) — Coverage-fill ONLY the given sources (subset builds).
 - `def split_sentences(text: str) -> list[str]` (L147) — Deterministic sentence split (same convention as augment_dataset).
-- `def _subject_of(sentence: str) -> str` (L163) — Lightweight subject extraction: first ~10 words, cleaned for a question.
-- `def _make_pairs_from_chunk(chunk_text: str, *, seen_questions: set[str], max_pairs: int = _MAX_PER_CHUNK…` (L174) — Deterministic (question, answer) extractive pairs for one chunk.
-- `def norm_ans(a: str) -> str` (L219)
-- `def fill_coverage_gaps(pid: str, source_id: str, sha256: str = '', *, chunk_texts: dict[int, str] | …` (L225) — Create approved extractive pairs for every chunk with no accepted pair.
+- `def _looks_tabular(sentence: str) -> bool` (L163) — True for CSV/table residue (pipes, many commas, mostly digits/symbols).
+- `def _subject_of(sentence: str) -> str` (L176) — Lightweight subject extraction: first ~10 words, cleaned for a question.
+- `def _make_pairs_from_chunk(chunk_text: str, *, seen_questions: set[str], max_pairs: int = _MAX_PER_CHUNK…` (L187) — Deterministic (question, answer) extractive pairs for one chunk.
+- `def norm_ans(a: str) -> str` (L230)
+- `def fill_coverage_gaps(pid: str, source_id: str, sha256: str = '', *, chunk_texts: dict[int, str] | …` (L236) — Create approved extractive pairs for every chunk with no accepted pair.
   - imports: finetune_studio.data, finetune_studio.data.prep.ingest, finetune_studio.data.prep.qa_validate
 
 ## `src/finetune_studio/data/prep/export.py` (105 lines)
@@ -2973,7 +2974,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_no_direct_apply_chat_template_in_train_or_eval_paths()` (L64)
   - imports: finetune_studio.testing, finetune_studio.training, finetune_studio.training.data, finetune_studio.training.formatting, finetune_studio.training.vram
 
-## `tests/test_fresh_run_regressions.py` (223 lines)
+## `tests/test_fresh_run_regressions.py` (238 lines)
 - `def test_base_model_benchmark_listed_on_page(client) -> None` (L14)
 - `def test_base_probe_placeholder_hidden_from_run_lists(client) -> None` (L31)
 - `def test_chat_context_offers_tuned_merged_model(client, tmp_path) -> None` (L43) — Chat must offer the project's fine-tuned (merged) model, not only bases.
@@ -2992,7 +2993,8 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_rag_page_passphrase_reveal_is_conspicuous(client)` (L205)
 - `def test_data_page_upload_empty_click_and_parse_poll(client)` (L212)
 - `def test_data_page_hides_raw_parser_codes_for_unreadable_files(client)` (L219)
-  - imports: finetune_studio, finetune_studio.data.rag_portable.schema, finetune_studio.training, finetune_studio.training.preset_advisor, finetune_studio.webui.routes, finetune_studio.webui.routes.pages
+- `def test_coverage_fill_skips_tabular_junk_and_asks_readable_questions()` (L226)
+  - imports: finetune_studio, finetune_studio.data.prep.coverage_fill, finetune_studio.data.rag_portable.schema, finetune_studio.training, finetune_studio.training.preset_advisor, finetune_studio.webui.routes, finetune_studio.webui.routes.pages
 
 ## `tests/test_full_corpus_suite.py` (293 lines)
 - `def isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L26)
