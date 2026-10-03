@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-421 files · 75795 lines
-- `finetune_studio`: 218 files, 42799 lines
+422 files · 75936 lines
+- `finetune_studio`: 218 files, 42831 lines
 - `scripts`: 9 files, 2344 lines
-- `tests`: 194 files, 30652 lines
+- `tests`: 195 files, 30761 lines
 
 
 # finetune_studio
@@ -1622,34 +1622,35 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `async def activity_events()` (L528) — SSE stream of activity snapshots.
   - imports: finetune_studio, finetune_studio.webui.app, finetune_studio.webui.live_sse, finetune_studio.webui.routes.data_prep, finetune_studio.webui.routes.hf_models
 
-## `src/finetune_studio/webui/routes/benchmarks.py` (937 lines)
+## `src/finetune_studio/webui/routes/benchmarks.py` (961 lines)
 - `def _discover_suites(project_id: str | None = None) -> list[dict[str, Any]]` (L33) — Return selectable suites (real HF + synthetic + local JSON + auto).
 - `def _project_404(pid: str) -> JSONResponse | None` (L38) — Return a 404 response when the project does not exist, else None.
 - `def _benchmark_for_project(bid: str, pid: str) -> dict[str, Any] | JSONResponse` (L51) — Load a benchmark only when its parent run belongs to ``pid``.
-- `def _int_field(body: dict[str, Any], key: str, default: int) -> int` (L62) — Read an integer field from a request body; ValueError names the key.
-- `def _parse_sample_knobs(body: dict[str, Any]) -> tuple[int | None, bool, int, str]` (L70) — Parse num_samples / full_run / seed / order from a run request body.
-- `def _validate_suite_file(suite_path: str, *, project_id: str | None = None, require_selectable: bool =…` (L86) — Ensure suite_path is usable. Returns (cases, real_meta, error).
-- `def _run_is_benchmarkable(run: dict[str, Any]) -> bool` (L153) — True when the run finished successfully and has a trained artifact path.
-- `def _resolve_trained_target(run: dict[str, Any]) -> str` (L160) — Prefer merged/ under output_path, then the LoRA adapter/, else output_path.
-- `def _unload_global_inference() -> None` (L178) — Free VRAM before loading a judge model — both engines, not just one.
-- `def _latest_benchmark(run_id: str) -> dict | None` (L189) — Return the most recent benchmark for a run, or None.
-- `def _primary_score(scores: dict | None) -> float | None` (L195) — Pick a comparable numeric score from a benchmark scores dict.
-- `def _suite_scores_for_run(run_id: str) -> dict[str, float | None]` (L209) — Latest primary score per suite_name for a training run.
-- `async def _execute_benchmark(*, rid: str, suite_name: str, judge_mode: str, max_tokens: int, target_model:…` (L220) — Load model, run suite, judge, persist. Always unloads the bench engine.
-- `async def get_benchmark_run(rid: str) -> dict[str, Any]` (L356) — Get a single benchmark run.
-- `async def list_suites(project_id: str | None = None) -> list[dict[str, Any]]` (L362) — List available benchmark suites (files that exist + optional auto-suites).
-- `async def list_runs_with_benchmarks(pid: str) -> list[dict[str, Any]] | JSONResponse` (L368) — List training runs for a project, augmented with latest benchmark score.
-- `async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] | JSONResponse` (L383) — Run a benchmark suite against a run's trained output model.
-- `async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSONResponse` (L456) — Benchmark the project's untrained base model (explicit, never a silent fallback).
-- `async def run_history(pid: str, rid: str) -> list[dict[str, Any]] | dict[str, str] | JSONResponse` (L525) — List all benchmarks for a specific run.
-- `async def delete_run(pid: str, rid: str) -> dict[str, Any] | JSONResponse` (L537) — Delete a training run and its benchmark results.
-- `async def delete_benchmark(pid: str, bid: str) -> dict[str, bool] | JSONResponse` (L551) — Delete a specific benchmark result.
-- `async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any] | JSONResponse` (L565) — Run AI/human judge over all cases in a benchmark.
-- `async def list_benchmark_cases(pid: str, bid: str) -> list[dict[str, Any]] | JSONResponse` (L747) — List all cases + judge verdicts for a benchmark.
-- `async def audit_benchmark(pid: str, bid: str) -> dict[str, Any] | JSONResponse` (L756) — Return every persisted transcript plus an independent score recomputation.
-- `async def set_verdict(pid: str, bid: str, cid: str, request: Request) -> dict[str, bool] | JSONResp…` (L769) — Human overrides/sets a verdict.
-- `async def compare_runs(pid: str, run_a: str = '', run_b: str = '') -> dict[str, Any] | JSONResponse` (L790) — Side-by-side per-suite score comparison of two training runs.
-- `async def evaluate_training_for_run(pid: str, rid: str, request: Request) -> dict[str, Any] | JSONResponse` (L868) — Benchmark a trained run against the project's training dataset.
+- `def _rescore_benchmark(bid: str) -> dict[str, Any]` (L65) — Recompute a benchmark's aggregate scores from its stored case verdicts.
+- `def _int_field(body: dict[str, Any], key: str, default: int) -> int` (L93) — Read an integer field from a request body; ValueError names the key.
+- `def _parse_sample_knobs(body: dict[str, Any]) -> tuple[int | None, bool, int, str]` (L101) — Parse num_samples / full_run / seed / order from a run request body.
+- `def _validate_suite_file(suite_path: str, *, project_id: str | None = None, require_selectable: bool =…` (L117) — Ensure suite_path is usable. Returns (cases, real_meta, error).
+- `def _run_is_benchmarkable(run: dict[str, Any]) -> bool` (L184) — True when the run finished successfully and has a trained artifact path.
+- `def _resolve_trained_target(run: dict[str, Any]) -> str` (L191) — Prefer merged/ under output_path, then the LoRA adapter/, else output_path.
+- `def _unload_global_inference() -> None` (L209) — Free VRAM before loading a judge model — both engines, not just one.
+- `def _latest_benchmark(run_id: str) -> dict | None` (L220) — Return the most recent benchmark for a run, or None.
+- `def _primary_score(scores: dict | None) -> float | None` (L226) — Pick a comparable numeric score from a benchmark scores dict.
+- `def _suite_scores_for_run(run_id: str) -> dict[str, float | None]` (L240) — Latest primary score per suite_name for a training run.
+- `async def _execute_benchmark(*, rid: str, suite_name: str, judge_mode: str, max_tokens: int, target_model:…` (L251) — Load model, run suite, judge, persist. Always unloads the bench engine.
+- `async def get_benchmark_run(rid: str) -> dict[str, Any]` (L387) — Get a single benchmark run.
+- `async def list_suites(project_id: str | None = None) -> list[dict[str, Any]]` (L393) — List available benchmark suites (files that exist + optional auto-suites).
+- `async def list_runs_with_benchmarks(pid: str) -> list[dict[str, Any]] | JSONResponse` (L399) — List training runs for a project, augmented with latest benchmark score.
+- `async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] | JSONResponse` (L414) — Run a benchmark suite against a run's trained output model.
+- `async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSONResponse` (L487) — Benchmark the project's untrained base model (explicit, never a silent fallback).
+- `async def run_history(pid: str, rid: str) -> list[dict[str, Any]] | dict[str, str] | JSONResponse` (L556) — List all benchmarks for a specific run.
+- `async def delete_run(pid: str, rid: str) -> dict[str, Any] | JSONResponse` (L568) — Delete a training run and its benchmark results.
+- `async def delete_benchmark(pid: str, bid: str) -> dict[str, bool] | JSONResponse` (L583) — Delete a specific benchmark result and its cases.
+- `async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any] | JSONResponse` (L600) — Run AI/human judge over all cases in a benchmark.
+- `async def list_benchmark_cases(pid: str, bid: str) -> list[dict[str, Any]] | JSONResponse` (L765) — List all cases + judge verdicts for a benchmark.
+- `async def audit_benchmark(pid: str, bid: str) -> dict[str, Any] | JSONResponse` (L774) — Return every persisted transcript plus an independent score recomputation.
+- `async def set_verdict(pid: str, bid: str, cid: str, request: Request) -> dict[str, Any] | JSONRespo…` (L787) — Human overrides/sets a verdict, then rescores the benchmark.
+- `async def compare_runs(pid: str, run_a: str = '', run_b: str = '') -> dict[str, Any] | JSONResponse` (L814) — Side-by-side per-suite score comparison of two training runs.
+- `async def evaluate_training_for_run(pid: str, rid: str, request: Request) -> dict[str, Any] | JSONResponse` (L892) — Benchmark a trained run against the project's training dataset.
   - imports: finetune_studio, finetune_studio.benchmarks.real_benchmarks, finetune_studio.benchmarks.suite_defs, finetune_studio.models.llama_loader, finetune_studio.testing.audit, finetune_studio.testing.inference, finetune_studio.testing.judge, finetune_studio.testing.suite, finetune_studio.testing.training_eval
 
 ## `src/finetune_studio/webui/routes/chat_v2.py` (430 lines)
@@ -1857,7 +1858,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `async def inference_memory_estimate(request: Request)` (L421) — Estimate VRAM needed for a model with given loader params.
   - imports: finetune_studio, finetune_studio.config, finetune_studio.models.gguf_layers, finetune_studio.models.llama_loader, finetune_studio.models.loader, finetune_studio.models.manager, finetune_studio.models.registry, finetune_studio.testing.inference, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.routes.system, finetune_studio.webui.thinking
 
-## `src/finetune_studio/webui/routes/pages.py` (742 lines)
+## `src/finetune_studio/webui/routes/pages.py` (750 lines)
 - `def _sum_benchmarks(runs)` (L32) — Sum total benchmark count across all runs.
 - `def _require_project(pid: str)` (L44) — Return project dict or None (caller redirects to /projects).
 - `def _dir_size_gb(path: str) -> float` (L58) — Total size of a directory tree in GB, rounded to 2 decimals.
@@ -1879,14 +1880,14 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `async def project_models_page(request: Request, pid: str)` (L450) — Model browser for a project — trained exports with expand-row detail.
 - `async def project_rag_page(request: Request, pid: str)` (L465) — RAG page — corpus build/chat plus docs-indexed inventory panel.
 - `async def data_editor_page(request: Request, pid: str, dataset_path: str)` (L491) — Project-scoped data editor for a JSONL dataset.
-- `async def benchmarks_page(request: Request, pid: str)` (L512) — Benchmarks tab — run suites, view scores, compare runs.
-- `async def project_chat_page(request: Request, pid: str)` (L604) — Project chat page — chat with the project's production model, optionally
-- `async def project_settings_page(request: Request, pid: str)` (L620) — Project settings + WebUI log tail (no SSH needed for uvicorn.log).
-- `async def project_wizard_page(request: Request, pid: str)` (L633) — Project wizard: Quick start runs files → QA → dataset → train → test
-- `async def project_flow_page(request: Request, pid: str)` (L650) — Old name for the wizard — keep bookmarks and links working.
-- `async def project_work_page(request: Request, pid: str)` (L656) — Canonical name of the quick-work page (routes keep /wizard for history).
-- `async def settings_page(request: Request)` (L664) — Settings, debug info, replay tutorial, system status.
-- `async def debug_info()` (L678) — Return system debug info for the Settings page.
+- `async def benchmarks_page(request: Request, pid: str, bid: str = '')` (L512) — Benchmarks tab — run suites, view scores, compare runs.
+- `async def project_chat_page(request: Request, pid: str)` (L612) — Project chat page — chat with the project's production model, optionally
+- `async def project_settings_page(request: Request, pid: str)` (L628) — Project settings + WebUI log tail (no SSH needed for uvicorn.log).
+- `async def project_wizard_page(request: Request, pid: str)` (L641) — Project wizard: Quick start runs files → QA → dataset → train → test
+- `async def project_flow_page(request: Request, pid: str)` (L658) — Old name for the wizard — keep bookmarks and links working.
+- `async def project_work_page(request: Request, pid: str)` (L664) — Canonical name of the quick-work page (routes keep /wizard for history).
+- `async def settings_page(request: Request)` (L672) — Settings, debug info, replay tutorial, system status.
+- `async def debug_info()` (L686) — Return system debug info for the Settings page.
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.db, finetune_studio.models.helper, finetune_studio.models.loader, finetune_studio.models.registry, finetune_studio.training.export_capabilities, finetune_studio.webui.app, finetune_studio.webui.model_labels, finetune_studio.webui.project_dashboard, finetune_studio.webui.project_data_browser, finetune_studio.webui.routes.benchmarks, finetune_studio.webui.routes.project_export, finetune_studio.webui.routes.project_rag, finetune_studio.webui.testing_models
 
 ## `src/finetune_studio/webui/routes/project_export.py` (48 lines)
@@ -2372,6 +2373,18 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_secondary_local_judge_is_persisted_without_overwriting_source_score(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L178)
 - `def test_benchmark_routes_reject_another_projects_benchmark(client_and_db: tuple[TestClient, Path], tmp_path: Path) -> None` (L207)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.db, finetune_studio.webui.app
+
+## `tests/test_benchmark_review.py` (109 lines)
+- `def _case(name: str, verdict: str, answer: str = 'Paris') -> dict` (L22)
+- `def _bench(rid: str, verdicts: list[str], **meta) -> dict` (L27)
+- `def _scores(bid: str) -> dict` (L35)
+- `def test_human_verdict_override_rescores_and_keeps_metadata(client_and_db, tmp_path)` (L40)
+- `def test_invalid_verdict_is_400(client_and_db, tmp_path, bad)` (L57)
+- `def test_heuristic_rejudge_keeps_training_eval_metadata(client_and_db, tmp_path)` (L68)
+- `def test_delete_benchmark_removes_its_cases(client_and_db, tmp_path)` (L79)
+- `def test_page_opens_any_benchmark_by_id(client_and_db, tmp_path)` (L89)
+- `def test_unknown_bid_falls_back_to_latest(client_and_db, tmp_path)` (L104)
+  - imports: finetune_studio
 
 ## `tests/test_benchmark_target_resolution.py` (21 lines)
 - `def test_prefers_merged(tmp_path)` (L6)

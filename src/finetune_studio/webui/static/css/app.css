@@ -4129,7 +4129,9 @@ body::before {
   white-space: normal;
 }
 .case-results-table .case-col-answer { width: 16rem; max-width: 16rem; }
-.case-results-table .case-col-verdict { width: 5.5rem; white-space: nowrap; }
+.case-results-table .case-col-verdict { width: 7.5rem; white-space: nowrap; }
+.case-results-table .verdict-select { display: block; width: 100%; margin-top: .3rem; font-size: .75rem; padding: .1rem .25rem; }
+#bench-scores-table tr.row-selected td { background: var(--bg-elevated); }
 .case-results-table .case-col-judge { width: 8rem; }
 .case-results-table .case-col-time { width: 5.5rem; white-space: nowrap; }
 .case-results-table .case-col-ran { width: 7rem; }

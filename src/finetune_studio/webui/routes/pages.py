@@ -509,8 +509,12 @@ async def data_editor_page(request: Request, pid: str, dataset_path: str):
 
 
 @router.get("/projects/{pid}/benchmarks", response_class=HTMLResponse)
-async def benchmarks_page(request: Request, pid: str):
-    """Benchmarks tab — run suites, view scores, compare runs."""
+async def benchmarks_page(request: Request, pid: str, bid: str = ""):
+    """Benchmarks tab — run suites, view scores, compare runs.
+
+    ``?bid=`` opens that benchmark's cases (from "Recent scores"); unknown or
+    absent ids show the latest result.
+    """
     from finetune_studio import db
     from finetune_studio.webui.routes.benchmarks import (
         _discover_suites,
@@ -560,10 +564,12 @@ async def benchmarks_page(request: Request, pid: str):
     elif len(comparison_runs) == 2:
         cmp_default_a, cmp_default_b = comparison_runs[0], comparison_runs[1]
 
-    # Latest benchmark detail for the per-case table (QABUG-012).
+    # Selected (``?bid=``) or latest benchmark detail for the per-case table (QABUG-012).
     latest_cases: list = []
     latest_scores: dict = {}
-    latest_bench = all_benchmarks[0] if all_benchmarks else None
+    latest_bench = next((b for b in all_benchmarks if bid and b.get("id") == bid), None) or (
+        all_benchmarks[0] if all_benchmarks else None
+    )
     latest_rid = ""
     if latest_bench:
         latest_cases = db.list_cases(latest_bench["id"])
@@ -596,6 +602,8 @@ async def benchmarks_page(request: Request, pid: str):
             "scores": latest_scores,
             "latest_run_id": latest_rid,
             "latest_benchmark_id": latest_bench.get("id", "") if latest_bench else "",
+            "selected_bench": latest_bench,
+            "verdict_editable": True,
         },
     )
 

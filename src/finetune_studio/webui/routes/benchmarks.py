@@ -59,6 +59,37 @@ def _benchmark_for_project(bid: str, pid: str) -> dict[str, Any] | JSONResponse:
     return benchmark
 
 
+VERDICTS = ("pass", "partial", "fail")
+
+
+def _rescore_benchmark(bid: str) -> dict[str, Any]:
+    """Recompute a benchmark's aggregate scores from its stored case verdicts.
+
+    Every verdict change (re-judge or human override) must go through this, or
+    the headline score shown in "Recent scores" goes stale. Non-score metadata
+    already in the scores (``eval_kind``, ``leakage_warning``, dataset fields
+    written by training-set evals) is kept.
+    """
+    from finetune_studio.testing.suite import CaseResult, score_results
+
+    results = [
+        CaseResult(
+            case_name=c.get("case_name") or c.get("name") or "",
+            category=c.get("category") or "",
+            question=c.get("question") or "",
+            correct_answer=c.get("correct_answer") or "",
+            model_answer=c.get("model_answer") or "",
+            verdict=c.get("verdict") or "",
+            time_ms=c.get("time_ms") or 0,
+        )
+        for c in db.list_cases(bid)
+    ]
+    old = (db.get_benchmark(bid) or {}).get("scores") or {}
+    scores = {**(old if isinstance(old, dict) else {}), **score_results(results)}
+    db.update_benchmark_scores(bid, scores)
+    return scores
+
+
 def _int_field(body: dict[str, Any], key: str, default: int) -> int:
     """Read an integer field from a request body; ValueError names the key."""
     try:
@@ -542,6 +573,7 @@ async def delete_run(pid: str, rid: str) -> dict[str, Any] | JSONResponse:
     if run["project_id"] != pid:
         return JSONResponse({"error": "project mismatch"}, status_code=403)
     with db.cursor() as c:
+        c.execute("DELETE FROM benchmark_cases WHERE run_id = ?", (rid,))
         c.execute("DELETE FROM benchmark_runs WHERE run_id = ?", (rid,))
         c.execute("DELETE FROM training_runs WHERE id = ?", (rid,))
     return {"ok": True}
@@ -549,15 +581,18 @@ async def delete_run(pid: str, rid: str) -> dict[str, Any] | JSONResponse:
 
 @router.delete("/projects/{pid}/benchmarks/{bid}", response_model=None)
 async def delete_benchmark(pid: str, bid: str) -> dict[str, bool] | JSONResponse:
-    """Delete a specific benchmark result."""
+    """Delete a specific benchmark result and its cases.
+
+    Ownership is checked through the parent run (``_benchmark_for_project``);
+    ``benchmark_runs`` has no ``project_id`` column, which the old
+    ``WHERE ... AND project_id = ?`` made a guaranteed 500.
+    """
     benchmark = _benchmark_for_project(bid, pid)
     if isinstance(benchmark, JSONResponse):
         return benchmark
     with db.cursor() as c:
-        c.execute(
-            "DELETE FROM benchmark_runs WHERE id = ? AND project_id = ?",
-            (bid, pid),
-        )
+        c.execute("DELETE FROM benchmark_cases WHERE benchmark_id = ?", (bid,))
+        c.execute("DELETE FROM benchmark_runs WHERE id = ?", (bid,))
     return {"ok": True}
 
 
@@ -604,28 +639,11 @@ async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any
                 scored_at=time.time(),
             )
             updated += 1
-        cases_updated = db.list_cases(bid)
-        from finetune_studio.testing.suite import CaseResult, score_results
-
-        rebuilt = []
-        for c in cases_updated:
-            rebuilt.append(CaseResult(
-                case_name=c.get("name", ""),
-                category=c.get("category", ""),
-                question=c.get("question", ""),
-                correct_answer=c.get("correct_answer", ""),
-                model_answer=c.get("model_answer", ""),
-                transcript=c.get("transcript", ""),
-                verdict=c.get("verdict", ""),
-                time_ms=c.get("time_ms", 0),
-            ))
-        new_scores = score_results(rebuilt)
-        db.update_benchmark_scores(bid, new_scores)
         return {
             "ok": True,
             "judged": updated,
             "judge_mode": "heuristic",
-            "scores": new_scores,
+            "scores": _rescore_benchmark(bid),
         }
 
     if judge_mode == "ai":
@@ -648,7 +666,7 @@ async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any
                 scored_at=time.time(),
             )
             updated += 1
-        return {"ok": True, "judged": updated}
+        return {"ok": True, "judged": updated, "scores": _rescore_benchmark(bid)}
 
     if judge_mode == "local":
         run = db.get_run(benchmark["run_id"])
@@ -688,7 +706,7 @@ async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any
                 judge_engine.unload()
 
         updated = await asyncio.to_thread(_local_judge)
-        return {"ok": True, "judged": updated}
+        return {"ok": True, "judged": updated, "scores": _rescore_benchmark(bid)}
 
     if judge_mode == "secondary_local":
         model_path = str(judge_model or "").strip()
@@ -768,22 +786,28 @@ async def audit_benchmark(pid: str, bid: str) -> dict[str, Any] | JSONResponse:
 @router.post("/projects/{pid}/benchmarks/{bid}/cases/{cid}/verdict", response_model=None)
 async def set_verdict(
     pid: str, bid: str, cid: str, request: Request
-) -> dict[str, bool] | JSONResponse:
-    """Human overrides/sets a verdict."""
+) -> dict[str, Any] | JSONResponse:
+    """Human overrides/sets a verdict, then rescores the benchmark."""
     benchmark = _benchmark_for_project(bid, pid)
     if isinstance(benchmark, JSONResponse):
         return benchmark
     if not any(case.get("id") == cid for case in db.list_cases(bid)):
         return JSONResponse({"error": "case not found"}, status_code=404)
-    body = await request.json()
+    try:
+        body = await request.json()
+    except ValueError:
+        return JSONResponse({"error": "request body must be valid JSON"}, status_code=400)
+    verdict = body.get("verdict") if isinstance(body, dict) else None
+    if verdict not in VERDICTS:
+        return JSONResponse({"error": f"verdict must be one of {', '.join(VERDICTS)}"}, status_code=400)
     db.update_case(
         cid,
-        verdict=body.get("verdict", ""),
+        verdict=verdict,
         judge="human",
-        judge_reasoning=body.get("reasoning", "human override"),
+        judge_reasoning=str(body.get("reasoning") or "human override"),
         scored_at=time.time(),
     )
-    return {"ok": True}
+    return {"ok": True, "scores": _rescore_benchmark(bid)}
 
 
 @router.get("/projects/{pid}/compare", response_model=None)

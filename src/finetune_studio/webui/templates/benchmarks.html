@@ -162,7 +162,15 @@
 
   {# QABUG-012: per-case detail table — empty placeholder must leave the DOM
      when cases exist so NO_DATA markers cannot linger beside results. #}
-  <h3 class="mt-6 mb-2">Latest case results</h3>
+  <div class="flex items-center gap-2 mt-6 mb-2" style="flex-wrap:wrap">
+    <h3 style="margin:0">Case results{% if selected_bench %}
+      <span class="text-sm dim">— {{ selected_bench._run_name }} · {{ selected_bench.suite_name or '—' }} · {{ selected_bench._ran_at_str }}</span>{% endif %}</h3>
+    {% if selected_bench %}
+    <button type="button" class="btn sm" id="bench-audit-btn" title="Re-score every stored answer from scratch with the rule-based judge and compare with the saved verdicts. Nothing is changed.">Re-check score</button>
+    <button type="button" class="btn sm danger" id="bench-delete-btn" title="Delete this result and all its case answers.">Delete this result</button>
+    {% endif %}
+  </div>
+  <div id="bench-audit-out" class="text-xs mb-2" hidden role="status"></div>
   {% if latest_benchmark_id and cases %}
   <div class="card mb-3" id="secondary-judge-card">
     <div class="card-title">Secondary transcript judge</div>
@@ -192,15 +200,17 @@
     {% if all_benchmarks %}
     <h3 class="mt-2 text-md">Recent scores</h3>
     <table class="table" id="bench-scores-table">
-      <thead><tr><th>Run</th><th>Suite</th><th>Pass rate</th><th>Judged</th><th>When</th></tr></thead>
+      <thead><tr><th>Run</th><th>Suite</th><th>Pass rate</th><th>Judged</th><th>When</th><th></th></tr></thead>
       <tbody>
         {% for b in all_benchmarks[:10] %}
-        <tr>
-          <td class="cell-wrap" title="{{ b._run_name }}">{{ b._run_name }}</td>
+        {% set is_sel = selected_bench and b.id == selected_bench.id %}
+        <tr{% if is_sel %} class="row-selected" aria-current="true"{% endif %}>
+          <td class="cell-wrap" title="{{ b._run_name }}"><a href="/projects/{{ pid }}/benchmarks?bid={{ b.id }}" data-link>{{ b._run_name }}</a></td>
           <td class="mono">{{ b.suite_name or b.suite or '—' }}</td>
           <td class="mono">{% if b.scores and b.scores.judged is defined and (b.scores.judged | int) == 0 %}—{% elif b.scores and b.scores.pass_rate is defined %}{{ b.scores.pass_rate }}%{% else %}—{% endif %}{% if b.scores and b.scores.eval_kind is defined and b.scores.eval_kind %} <span class="pill outline" title="{{ b.scores.leakage_warning | default('training-set eval') }}">leakage</span>{% endif %}</td>
           <td class="mono dim">{% if b.scores and b.scores.judged is defined %}{{ b.scores.judged }}/{{ b.scores.total | default('?') }}{% else %}—{% endif %}</td>
           <td class="dim">{{ b._ran_at_str }}</td>
+          <td>{% if is_sel %}<span class="dim text-xs">showing above</span>{% else %}<a class="btn sm" href="/projects/{{ pid }}/benchmarks?bid={{ b.id }}" data-link>View cases</a>{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -468,6 +478,85 @@
       syncBtn();
     }
   };
+})();
+</script>
+{% endif %}
+{% if selected_bench %}
+<script>
+(function () {
+  // Review actions for the benchmark shown in "Case results".
+  var BASE = "/api/benchmarks/projects/" + encodeURIComponent({{ pid|tojson }}) +
+             "/benchmarks/" + encodeURIComponent({{ selected_bench.id|tojson }});
+  var PAGE = "/projects/" + encodeURIComponent({{ pid|tojson }}) + "/benchmarks";
+  var notify = (window.fts && window.fts.notify) || function (m) { console.log(m); };
+  function reloadSelected() { location.href = PAGE + "?bid=" + encodeURIComponent({{ selected_bench.id|tojson }}); }
+
+  document.querySelectorAll(".verdict-select").forEach(function (sel) {
+    sel.addEventListener("change", async function () {
+      var verdict = sel.value;
+      if (!verdict) return;
+      sel.disabled = true;
+      try {
+        var r = await fetch(BASE + "/cases/" + encodeURIComponent(sel.dataset.cid) + "/verdict", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ verdict: verdict, reasoning: "human override" }),
+        });
+        var d = await r.json();
+        if (!r.ok || d.error) throw new Error(d.error || ("HTTP " + r.status));
+        notify("Verdict set to " + verdict + " · score now " + d.scores.pass_rate + "%", "success");
+        reloadSelected();
+      } catch (e) {
+        sel.disabled = false; sel.value = "";
+        notify(e.message || "Could not save verdict", "error");
+      }
+    });
+  });
+
+  var auditBtn = document.getElementById("bench-audit-btn");
+  var auditOut = document.getElementById("bench-audit-out");
+  if (auditBtn && auditOut) auditBtn.addEventListener("click", async function () {
+    auditBtn.disabled = true;
+    auditOut.hidden = false;
+    auditOut.textContent = "Re-checking every stored answer…";
+    try {
+      var r = await fetch(BASE + "/audit");
+      var d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || ("HTTP " + r.status));
+      var a = d.independent_audit || {};
+      var stored = (d.benchmark && d.benchmark.scores) || {};
+      var re = a.recomputed_scores || {};
+      var diff = (a.disagreements || []).length;
+      var msg = "Saved score " + (stored.pass_rate != null ? stored.pass_rate + "%" : "—") +
+                " · rule-based recount " + (re.pass_rate != null ? re.pass_rate + "%" : "—") +
+                " over " + (a.case_count || 0) + " cases. ";
+      msg += diff ? (diff + " case(s) have a different saved verdict (AI, local or your own overrides) — that is expected when another judge was used.")
+                  : "Every saved verdict matches the recount.";
+      if ((a.malformed_transcripts || []).length) msg += " " + a.malformed_transcripts.length + " transcript(s) could not be read.";
+      auditOut.textContent = msg;
+    } catch (e) {
+      auditOut.textContent = "Re-check failed: " + (e.message || e);
+    } finally {
+      auditBtn.disabled = false;
+    }
+  });
+
+  var delBtn = document.getElementById("bench-delete-btn");
+  if (delBtn) delBtn.addEventListener("click", async function () {
+    var ask = window.fts && window.fts.confirm;
+    var ok = ask ? await ask("Delete this benchmark result and all its case answers? This cannot be undone.",
+                             { title: "Delete result", danger: true, okText: "Delete" })
+                 : window.confirm("Delete this benchmark result?");
+    if (!ok) return;
+    try {
+      var r = await fetch(BASE, { method: "DELETE" });
+      var d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || ("HTTP " + r.status));
+      notify("Benchmark result deleted", "success");
+      location.href = PAGE;
+    } catch (e) {
+      notify(e.message || "Delete failed", "error");
+    }
+  });
 })();
 </script>
 {% endif %}

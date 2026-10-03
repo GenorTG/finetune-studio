@@ -53,7 +53,16 @@
       <td class="case-col-text case-col-fixed">{{ c.question or '' }}</td>
       <td class="case-col-text case-col-fixed">{{ c.correct_answer or c.expected or '' }}</td>
       <td class="case-col-answer"><pre class="case-answer-pre">{{ c.model_answer or c.response or '' }}</pre></td>
-      <td class="case-col-verdict"><span class="verdict-badge {{ vclass }}">{{ v or 'none' }}</span></td>
+      <td class="case-col-verdict"><span class="verdict-badge {{ vclass }}">{{ v or 'none' }}</span>
+        {% if verdict_editable and c.id %}
+        <select class="select verdict-select" data-cid="{{ c.id }}" aria-label="Change verdict for case {{ loop.index }}"
+                title="Override the judge. Your verdict is saved as a human judgement and the score is recomputed.">
+          <option value="">change…</option>
+          {% for opt in ('pass', 'partial', 'fail') %}<option value="{{ opt }}"{% if opt == v %} disabled{% endif %}>{{ opt }}</option>{% endfor %}
+        </select>
+        {% endif %}
+        {% if c.judge == 'human' %}<div class="text-xs dim">set by you</div>{% endif %}
+      </td>
       <td class="judge-reasoning case-col-judge">
         {% if c.judge_reasoning %}
         <details><summary>reasoning</summary><div class="text-xs">{{ c.judge_reasoning }}</div></details>
