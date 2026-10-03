@@ -185,6 +185,7 @@
           to the list above.
         </div>
       </div>
+      <div id="dataset-health" class="text-xs mt-2" hidden aria-live="polite"></div>
     </div>
 
     <label>
@@ -461,6 +462,73 @@
     } catch (_) {}
   })();
 
+  // Dataset health: checked as soon as a dataset is picked or uploaded.
+  const healthEl = document.getElementById("dataset-health");
+  const healthApi = (did, what) => `/api/projects/{{ pid }}/datasets/${encodeURIComponent(did)}/${what}`;
+  const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const SEV = { error: ["✕", "var(--err)"], warning: ["⚠", "var(--warn)"], info: ["ℹ", "var(--muted, inherit)"] };
+
+  async function loadHealth(did) {
+    if (!healthEl) return;
+    if (!did) { healthEl.hidden = true; healthEl.innerHTML = ""; return; }
+    healthEl.hidden = false;
+    healthEl.textContent = "Checking dataset…";
+    try {
+      const r = await fetch(healthApi(did, "health"));
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`);
+      const editorHref = "/projects/{{ pid }}/data/" + encodeURIComponent(dataPathInput.value || "");
+      const head = `<b>Dataset check:</b> ${d.trainable} of ${d.examples} examples usable · ${d.holdout} held out for validation` +
+        (d.stats.avg_answer_words ? ` · answers average ${d.stats.avg_answer_words} words` : "");
+      if (!d.issues.length) {
+        healthEl.innerHTML = `${head}<br><span style="color:var(--ok)">✓ No problems found.</span>`;
+        return;
+      }
+      const items = d.issues.map((i) => {
+        const [icon, color] = SEV[i.severity] || SEV.info;
+        const lines = i.lines && i.lines.length ? ` <span class="muted">(line${i.lines.length > 1 ? "s" : ""} ${i.lines.join(", ")}${i.count > i.lines.length ? ", …" : ""})</span>` : "";
+        const fix = i.action === "dedup" ? ` <button type="button" class="btn sm" data-health-dedup="${escHtml(did)}">Remove ${i.count} duplicate${i.count > 1 ? "s" : ""} (saves a copy)</button>` : "";
+        return `<li><span style="color:${color}">${icon} <b>${escHtml(i.title)}</b></span> — ${escHtml(i.detail)}${lines}${fix}</li>`;
+      }).join("");
+      healthEl.innerHTML = `${head}<ul class="mt-1" style="list-style:none;padding-left:0">${items}</ul>` +
+        `<a href="${editorHref}" data-link>Open in Data Editor</a> to fix individual rows.`;
+    } catch (e) {
+      healthEl.textContent = "Dataset check failed: " + (e.message || e);
+    }
+  }
+
+  if (healthEl) {
+    healthEl.addEventListener("click", async (ev) => {
+      const btn = ev.target.closest("[data-health-dedup]");
+      if (!btn) return;
+      btn.disabled = true;
+      try {
+        const r = await fetch(healthApi(btn.dataset.healthDedup, "dedup"), { method: "POST" });
+        const ds = await r.json();
+        if (!r.ok || ds.error) throw new Error(ds.error || `HTTP ${r.status}`);
+        // Train on the de-duplicated copy from here on. The dropdown only exists
+        // once the project had datasets at page load, so set the fields directly.
+        dataPathInput.value = ds.data_path;
+        datasetIdInput.value = ds.id;
+        syncStartEnabled();
+        if (select) {
+          const opt = document.createElement("option");
+          opt.value = ds.id;
+          opt.setAttribute("data-path", ds.data_path);
+          opt.textContent = `${ds.name} · ${ds.qa_count} pairs · (duplicates removed)`;
+          select.insertBefore(opt, select.options[1] || null);
+          opt.selected = true;
+        }
+        if (statusEl) statusEl.textContent = `✓ Using ${ds.name} (${ds.qa_count} pairs, ${ds.removed} duplicate${ds.removed > 1 ? "s" : ""} removed)`;
+        loadHealth(ds.id);
+        window.fts?.notify(`Removed ${ds.removed} duplicate(s) → ${ds.name}`, "success");
+      } catch (e) {
+        btn.disabled = false;
+        window.fts?.notify(e.message || "Dedup failed", "error");
+      }
+    });
+  }
+
   // Picking a project dataset fills both hidden fields.
   if (select) {
     select.addEventListener("change", () => {
@@ -475,6 +543,7 @@
         datasetIdInput.value = "";
       }
       syncStartEnabled();
+      loadHealth(datasetIdInput.value);
     });
   }
 
@@ -497,6 +566,7 @@
         dataPathInput.value = ds.data_path;
         datasetIdInput.value = ds.id;
         syncStartEnabled();
+        loadHealth(ds.id);
         // Switch back to "From project" tab so the user sees the new entry.
         tabs.forEach((t) => t.classList.remove("active"));
         panels.forEach((p) => p.classList.remove("active"));

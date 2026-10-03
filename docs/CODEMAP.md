@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-419 files · 75415 lines
-- `finetune_studio`: 217 files, 42570 lines
+421 files · 75795 lines
+- `finetune_studio`: 218 files, 42799 lines
 - `scripts`: 9 files, 2344 lines
-- `tests`: 193 files, 30501 lines
+- `tests`: 194 files, 30652 lines
 
 
 # finetune_studio
@@ -240,6 +240,15 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def jsonl_to_json(jsonl_path: str, json_path: str) -> None` (L143)
 - `def json_to_jsonl(json_path: str, jsonl_path: str) -> None` (L149)
 - `def csv_to_jsonl(csv_path: str, jsonl_path: str, system_prompt: str = '') -> None` (L154)
+
+## `src/finetune_studio/data/dataset_health.py` (182 lines)
+- `def _norm(text: str) -> str` (L36)
+- `def _issue(code: str, severity: str, title: str, detail: str, lines: list[int], count: i…` (L40)
+- `def _example_key(messages: list[dict]) -> str` (L50)
+- `def _read_rows(path: Path) -> list[tuple[int, str, Any]]` (L54) — ``(line_no, raw_line, parsed_or_None)`` for every non-blank line.
+- `def check_dataset(path: str | Path) -> dict[str, Any]` (L69) — Health report for one dataset file. See module docstring.
+- `def dedupe_dataset(src: str | Path, dst: str | Path) -> tuple[int, int]` (L164) — Copy ``src`` to ``dst`` without exact-duplicate examples. Returns ``(kept, removed)``.
+  - imports: finetune_studio.training.data
 
 ## `src/finetune_studio/data/fs/__init__.py` (70 lines)
   - imports: finetune_studio.data.fs.chunks, finetune_studio.data.fs.files, finetune_studio.data.fs.ingestion, finetune_studio.data.fs.metadata, finetune_studio.data.fs.parsed, finetune_studio.data.fs.paths, finetune_studio.data.fs.project, finetune_studio.data.fs.qa
@@ -1739,14 +1748,18 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `async def list_tools(pid: str)` (L801) — Catalog of tools the chat exposes to the model (useful for debugging
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.data.prep.generator, finetune_studio.models.manager, finetune_studio.webui.app
 
-## `src/finetune_studio/webui/routes/datasets.py` (178 lines)
-- `async def list_datasets_route(pid: str)` (L36) — List all registered datasets for a project.
-- `async def get_dataset_route(pid: str, did: str)` (L47)
-- `async def register_existing_route(pid: str, request: Request)` (L66) — Register an existing file on disk (e.g. written by data-prep export).
-- `async def upload_dataset_route(pid: str, file: UploadFile = File(...))` (L129) — Multipart upload: convert .jsonl/.json/.csv to training JSONL and register it.
-- `async def patch_dataset_route(pid: str, did: str, request: Request)` (L162)
-- `async def delete_dataset_route(pid: str, did: str, remove_file: bool = False)` (L174)
-  - imports: finetune_studio, finetune_studio.data.converter, finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.db.datasets
+## `src/finetune_studio/webui/routes/datasets.py` (225 lines)
+- `async def list_datasets_route(pid: str)` (L37) — List all registered datasets for a project.
+- `async def get_dataset_route(pid: str, did: str)` (L48)
+- `async def register_existing_route(pid: str, request: Request)` (L67) — Register an existing file on disk (e.g. written by data-prep export).
+- `async def upload_dataset_route(pid: str, file: UploadFile = File(...))` (L130) — Multipart upload: convert .jsonl/.json/.csv to training JSONL and register it.
+- `def _unique_dataset_path(pid: str, stem: str) -> Path` (L155) — ``<datasets>/<stem>.jsonl``, suffixed ``-2``, ``-3``… so nothing is clobbered.
+- `def _project_dataset(pid: str, did: str) -> dict | None` (L166)
+- `async def dataset_health_route(pid: str, did: str)` (L172) — Plain-language health report for one dataset (see ``data.dataset_health``).
+- `async def dataset_dedup_route(pid: str, did: str)` (L184) — Write a duplicate-free copy as a new dataset; the original is left untouched.
+- `async def patch_dataset_route(pid: str, did: str, request: Request)` (L209)
+- `async def delete_dataset_route(pid: str, did: str, remove_file: bool = False)` (L221)
+  - imports: finetune_studio, finetune_studio.data.converter, finetune_studio.data.dataset_health, finetune_studio.data.fs, finetune_studio.data.fs.paths, finetune_studio.db.datasets
 
 ## `src/finetune_studio/webui/routes/exports.py` (480 lines)
 - `def _project_404(pid: str) -> JSONResponse | None` (L33) — Return a 404 response when the project does not exist, else None.
@@ -2745,6 +2758,27 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_every_suggested_fts_command_parses_with_real_flags() -> None` (L42)
 - `def test_every_fix_without_a_command_carries_plain_advice() -> None` (L57)
   - imports: finetune_studio.cli._parser, finetune_studio.training.data_quality
+
+## `tests/test_dataset_health.py` (151 lines)
+- `def _qa(q: str, a: str) -> dict` (L21)
+- `def _write(tmp_path: Path, rows: list, name: str = 'd.jsonl') -> Path` (L25)
+- `def _titles(report: dict) -> dict[str, dict]` (L31)
+- `def _clean(n: int) -> list[dict]` (L35)
+- `def test_clean_dataset_has_no_issues(tmp_path: Path) -> None` (L39)
+- `def test_all_trainable_shapes_are_accepted(tmp_path: Path) -> None` (L46)
+- `def test_errors_name_their_lines(tmp_path: Path) -> None` (L55)
+- `def test_duplicates_and_conflicting_answers(tmp_path: Path) -> None` (L63)
+- `def test_small_dataset_warns_about_tiny_holdout(tmp_path: Path) -> None` (L73)
+- `def test_short_answers_flagged_and_dont_know_is_not(tmp_path: Path) -> None` (L78)
+- `def test_monolingual_dataset_gets_no_language_advice(tmp_path: Path) -> None` (L86)
+- `def test_dedupe_keeps_first_occurrence_and_original_lines(tmp_path: Path) -> None` (L92)
+- `def _dataset(client, rows: list) -> tuple[str, dict]` (L105)
+- `def test_health_route(client, fake_home)` (L113)
+- `def test_health_route_scoped_to_project(client, fake_home)` (L120)
+- `def test_dedup_route_registers_new_dataset_and_keeps_original(client, fake_home)` (L126)
+- `def test_dedup_route_with_nothing_to_remove_is_400(client, fake_home)` (L137)
+- `def test_training_page_renders_health_panel() -> None` (L143)
+  - imports: finetune_studio, finetune_studio.data.dataset_health
 
 ## `tests/test_dataset_register.py` (147 lines)
 - `def client_and_db(tmp_path, monkeypatch)` (L22) — Route the DB into a temp file so tests don't touch fan-dragon state.

@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 
 from finetune_studio import db
 from finetune_studio.data.converter import records_from_upload, write_jsonl
+from finetune_studio.data.dataset_health import check_dataset, dedupe_dataset
 from finetune_studio.data.fs import file_library as fl
 from finetune_studio.data.fs.paths import resolve_in_project
 from finetune_studio.db.datasets import (
@@ -139,14 +140,7 @@ async def upload_dataset_route(pid: str, file: UploadFile = File(...)):  # noqa:
         records = records_from_upload(raw, fname)
     except ValueError as e:
         return JSONResponse({"error": f"{Path(fname).name}: {e}"}, status_code=400)
-    stem, suf = Path(fname).stem, ".jsonl"
-    out_dir = datasets_dir(pid)
-    target = out_dir / f"{stem}{suf}"
-    # Avoid clobbering: append suffix if file exists.
-    counter = 2
-    while target.exists():
-        target = out_dir / f"{stem}-{counter}{suf}"
-        counter += 1
+    target = _unique_dataset_path(pid, Path(fname).stem)
     write_jsonl(records, target)
     return db.create_dataset(
         project_id=pid,
@@ -156,6 +150,59 @@ async def upload_dataset_route(pid: str, file: UploadFile = File(...)):  # noqa:
         qa_count=len(records),
         size_bytes=target.stat().st_size,
     )
+
+
+def _unique_dataset_path(pid: str, stem: str) -> Path:
+    """``<datasets>/<stem>.jsonl``, suffixed ``-2``, ``-3``… so nothing is clobbered."""
+    out_dir = datasets_dir(pid)
+    target = out_dir / f"{stem}.jsonl"
+    counter = 2
+    while target.exists():
+        target = out_dir / f"{stem}-{counter}.jsonl"
+        counter += 1
+    return target
+
+
+def _project_dataset(pid: str, did: str) -> dict | None:
+    ds = db.get_dataset(did)
+    return ds if ds and ds.get("project_id") == pid else None
+
+
+@router.get("/projects/{pid}/datasets/{did}/health")
+async def dataset_health_route(pid: str, did: str):
+    """Plain-language health report for one dataset (see ``data.dataset_health``)."""
+    ds = _project_dataset(pid, did)
+    if not ds:
+        return JSONResponse({"error": "dataset not found in this project"}, status_code=404)
+    path = Path(ds["data_path"])
+    if not path.is_file():
+        return JSONResponse({"error": f"dataset file is missing: {path.name}"}, status_code=404)
+    return check_dataset(path)
+
+
+@router.post("/projects/{pid}/datasets/{did}/dedup")
+async def dataset_dedup_route(pid: str, did: str):
+    """Write a duplicate-free copy as a new dataset; the original is left untouched."""
+    ds = _project_dataset(pid, did)
+    if not ds:
+        return JSONResponse({"error": "dataset not found in this project"}, status_code=404)
+    src = Path(ds["data_path"])
+    if not src.is_file():
+        return JSONResponse({"error": f"dataset file is missing: {src.name}"}, status_code=404)
+    target = _unique_dataset_path(pid, f"{src.stem}-dedup")
+    kept, removed = dedupe_dataset(src, target)
+    if not removed:
+        target.unlink(missing_ok=True)
+        return JSONResponse({"error": "no duplicates to remove"}, status_code=400)
+    new = db.create_dataset(
+        project_id=pid,
+        name=target.stem,
+        data_path=str(target),
+        source="dedup",
+        qa_count=kept,
+        size_bytes=target.stat().st_size,
+    )
+    return {**new, "removed": removed}
 
 
 @router.patch("/projects/{pid}/datasets/{did}")
