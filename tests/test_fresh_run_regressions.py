@@ -207,3 +207,10 @@ def test_rag_page_passphrase_reveal_is_conspicuous(client):
     html = client.get(f"/projects/{pid}/rag").text
     assert "box.scrollIntoView" in html
     assert html.count("showPassphrase(d.passphrase)") == 2
+
+
+def test_data_page_upload_empty_click_and_parse_poll(client):
+    pid = client.post("/api/projects", json={"name": "U"}).json()["id"]
+    html = client.get(f"/projects/{pid}/data").text
+    assert "Choose one or more files first" in html
+    assert "pollUntilParsed(15)" in html

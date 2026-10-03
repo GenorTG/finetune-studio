@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-416 files · 74661 lines
+416 files · 74675 lines
 - `finetune_studio`: 217 files, 42255 lines
 - `scripts`: 9 files, 2344 lines
-- `tests`: 190 files, 30062 lines
+- `tests`: 190 files, 30076 lines
 
 
 # finetune_studio
@@ -2973,7 +2973,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_no_direct_apply_chat_template_in_train_or_eval_paths()` (L64)
   - imports: finetune_studio.testing, finetune_studio.training, finetune_studio.training.data, finetune_studio.training.formatting, finetune_studio.training.vram
 
-## `tests/test_fresh_run_regressions.py` (202 lines)
+## `tests/test_fresh_run_regressions.py` (216 lines)
 - `def test_base_model_benchmark_listed_on_page(client) -> None` (L14)
 - `def test_base_probe_placeholder_hidden_from_run_lists(client) -> None` (L31)
 - `def test_chat_context_offers_tuned_merged_model(client, tmp_path) -> None` (L43) — Chat must offer the project's fine-tuned (merged) model, not only bases.
@@ -2989,6 +2989,8 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_preset_advisor_warmup_scales_with_run_length()` (L175)
 - `def test_trained_exports_rows_carry_quant(tmp_path)` (L183)
 - `def test_testing_page_empty_state_links_to_export(client)` (L199)
+- `def test_rag_page_passphrase_reveal_is_conspicuous(client)` (L205)
+- `def test_data_page_upload_empty_click_and_parse_poll(client)` (L212)
   - imports: finetune_studio, finetune_studio.data.rag_portable.schema, finetune_studio.training, finetune_studio.training.preset_advisor, finetune_studio.webui.routes, finetune_studio.webui.routes.pages
 
 ## `tests/test_full_corpus_suite.py` (293 lines)
