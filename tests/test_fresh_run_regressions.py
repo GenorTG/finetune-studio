@@ -200,3 +200,10 @@ def test_testing_page_empty_state_links_to_export(client):
     pid = client.post("/api/projects", json={"name": "T"}).json()["id"]
     html = client.get(f"/projects/{pid}/testing").text
     assert f'href="/projects/{pid}/export"' in html
+
+
+def test_rag_page_passphrase_reveal_is_conspicuous(client):
+    pid = client.post("/api/projects", json={"name": "P"}).json()["id"]
+    html = client.get(f"/projects/{pid}/rag").text
+    assert "box.scrollIntoView" in html
+    assert html.count("showPassphrase(d.passphrase)") == 2

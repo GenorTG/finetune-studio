@@ -728,7 +728,11 @@
   function showPassphrase(p) {
     if (!p) return;
     document.getElementById('mcp-pass-val').textContent = p;
-    document.getElementById('mcp-pass-box').style.display = '';
+    var box = document.getElementById('mcp-pass-box');
+    box.style.display = '';
+    box.style.outline = '2px solid var(--warn)';
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    notify('Copy the passphrase now \u2014 it is shown once and never stored.', 'warn');
   }
 
   window.startBundleDownload = async function() {
@@ -854,10 +858,7 @@
       var d = await r.json();
       if (!r.ok) throw new Error(d.detail || r.statusText);
       passEl.value = '';
-      if (d.passphrase) {
-        document.getElementById('mcp-pass-val').textContent = d.passphrase;
-        document.getElementById('mcp-pass-box').style.display = '';
-      }
+      showPassphrase(d.passphrase);
       if (note) note.textContent = (d.encrypted ? 'Encrypted package ' : 'PLAINTEXT package ')
         + d.filename + ' (' + humanBytes(d.size) + ') ready \u2014 downloading.';
       window.location.href = '/api' + d.download_url;
