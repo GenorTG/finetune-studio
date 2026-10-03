@@ -194,3 +194,9 @@ def test_trained_exports_rows_carry_quant(tmp_path):
     quants = sorted(r["quant"] for r in rows if r["format"] == "gguf")
     assert quants == ["Q4_K_M", "Q8_0"]
     assert by_path[str(out / "merged")]["quant"] == ""
+
+
+def test_testing_page_empty_state_links_to_export(client):
+    pid = client.post("/api/projects", json={"name": "T"}).json()["id"]
+    html = client.get(f"/projects/{pid}/testing").text
+    assert f'href="/projects/{pid}/export"' in html

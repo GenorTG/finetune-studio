@@ -36,7 +36,7 @@
         {% endfor %}
       </select>
       {% if not models %}
-      <div class="text-xs dim mt-1">No project merged/GGUF exports yet. Export a completed run (merged) first.</div>
+      <div class="text-xs dim mt-1">No project merged/GGUF exports yet. <a href="/projects/{{ pid }}/export" data-link>Export a completed run →</a></div>
       {% endif %}
     </div>
     <div class="col-span-5">
@@ -63,7 +63,7 @@
   </div>
   <div id="t-status" class="mt-3 text-xs" aria-live="polite" role="status">
     {% if not models %}
-    No project merged/GGUF exports yet — Export a completed run first, then pick a suite.
+    No project merged/GGUF exports yet — <a href="/projects/{{ pid }}/export" data-link>Export a completed run</a> first, then pick a suite.
     {% elif not suites %}
     No suites discovered — add JSON under data/benchmarks/ or use synthetic smoke fixtures.
     {% else %}

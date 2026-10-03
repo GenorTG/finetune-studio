@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-416 files · 74632 lines
-- `finetune_studio`: 217 files, 42248 lines
+416 files · 74661 lines
+- `finetune_studio`: 217 files, 42255 lines
 - `scripts`: 9 files, 2344 lines
-- `tests`: 190 files, 30040 lines
+- `tests`: 190 files, 30062 lines
 
 
 # finetune_studio
@@ -1828,36 +1828,36 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `async def inference_memory_estimate(request: Request)` (L421) — Estimate VRAM needed for a model with given loader params.
   - imports: finetune_studio, finetune_studio.config, finetune_studio.models.gguf_layers, finetune_studio.models.llama_loader, finetune_studio.models.loader, finetune_studio.models.manager, finetune_studio.models.registry, finetune_studio.testing.inference, finetune_studio.webui.app, finetune_studio.webui.engine_guard, finetune_studio.webui.routes.system, finetune_studio.webui.thinking
 
-## `src/finetune_studio/webui/routes/pages.py` (735 lines)
-- `def _sum_benchmarks(runs)` (L31) — Sum total benchmark count across all runs.
-- `def _require_project(pid: str)` (L43) — Return project dict or None (caller redirects to /projects).
-- `def _dir_size_gb(path: str) -> float` (L57) — Total size of a directory tree in GB, rounded to 2 decimals.
-- `def _scan_run_models(runs: list[dict]) -> list[dict]` (L70) — Find exported models on disk for a project's training runs.
-- `def _project_ctx(pid: str) -> dict` (L127) — Build common template context for project pages.
-- `async def index(request: Request)` (L145) — Home page — project list + system overview.
-- `async def inference_page(request: Request)` (L164) — Global inference page — load any model, chat, run benchmarks.
-- `async def hf_models_page(request: Request)` (L202) — HuggingFace model browser + downloader (LM Studio-style).
-- `async def models_index(request: Request)` (L213) — Local model library — all discovered models with categories.
-- `async def hf_models_alias(request: Request)` (L227) — Alias for /models/explore — renders the same HF model browser.
-- `async def export_page(pid: str, request: Request)` (L238) — Model export page — choose format, quant, and browse trained exports.
-- `async def projects_page(request: Request)` (L271) — Project list / create page.
-- `async def project_overview_alias(request: Request, pid: str)` (L285) — Alias used by the sticky breadcrumb (QABUG-009).
-- `async def project_detail_page(request: Request, pid: str)` (L291) — Project overview dashboard — stats, recent runs/models/files, activity.
-- `async def project_data_page(request: Request, pid: str)` (L311) — File browser for a project (library + trash + upload).
-- `async def project_training_page(request: Request, pid: str)` (L329) — Training config + progress for a project.
-- `def _recent_suite_runs(pid: str, limit: int = 5) -> list[dict]` (L363) — Return the most recent benchmark suite runs for a project (newest first).
-- `async def project_testing_page(request: Request, pid: str)` (L399) — Testing / inference playground for a project.
-- `async def project_models_page(request: Request, pid: str)` (L443) — Model browser for a project — trained exports with expand-row detail.
-- `async def project_rag_page(request: Request, pid: str)` (L458) — RAG page — corpus build/chat plus docs-indexed inventory panel.
-- `async def data_editor_page(request: Request, pid: str, dataset_path: str)` (L484) — Project-scoped data editor for a JSONL dataset.
-- `async def benchmarks_page(request: Request, pid: str)` (L505) — Benchmarks tab — run suites, view scores, compare runs.
-- `async def project_chat_page(request: Request, pid: str)` (L597) — Project chat page — chat with the project's production model, optionally
-- `async def project_settings_page(request: Request, pid: str)` (L613) — Project settings + WebUI log tail (no SSH needed for uvicorn.log).
-- `async def project_wizard_page(request: Request, pid: str)` (L626) — Project wizard: Quick start runs files → QA → dataset → train → test
-- `async def project_flow_page(request: Request, pid: str)` (L643) — Old name for the wizard — keep bookmarks and links working.
-- `async def project_work_page(request: Request, pid: str)` (L649) — Canonical name of the quick-work page (routes keep /wizard for history).
-- `async def settings_page(request: Request)` (L657) — Settings, debug info, replay tutorial, system status.
-- `async def debug_info()` (L671) — Return system debug info for the Settings page.
+## `src/finetune_studio/webui/routes/pages.py` (742 lines)
+- `def _sum_benchmarks(runs)` (L32) — Sum total benchmark count across all runs.
+- `def _require_project(pid: str)` (L44) — Return project dict or None (caller redirects to /projects).
+- `def _dir_size_gb(path: str) -> float` (L58) — Total size of a directory tree in GB, rounded to 2 decimals.
+- `def _scan_run_models(runs: list[dict]) -> list[dict]` (L71) — Find exported models on disk for a project's training runs.
+- `def _project_ctx(pid: str) -> dict` (L134) — Build common template context for project pages.
+- `async def index(request: Request)` (L152) — Home page — project list + system overview.
+- `async def inference_page(request: Request)` (L171) — Global inference page — load any model, chat, run benchmarks.
+- `async def hf_models_page(request: Request)` (L209) — HuggingFace model browser + downloader (LM Studio-style).
+- `async def models_index(request: Request)` (L220) — Local model library — all discovered models with categories.
+- `async def hf_models_alias(request: Request)` (L234) — Alias for /models/explore — renders the same HF model browser.
+- `async def export_page(pid: str, request: Request)` (L245) — Model export page — choose format, quant, and browse trained exports.
+- `async def projects_page(request: Request)` (L278) — Project list / create page.
+- `async def project_overview_alias(request: Request, pid: str)` (L292) — Alias used by the sticky breadcrumb (QABUG-009).
+- `async def project_detail_page(request: Request, pid: str)` (L298) — Project overview dashboard — stats, recent runs/models/files, activity.
+- `async def project_data_page(request: Request, pid: str)` (L318) — File browser for a project (library + trash + upload).
+- `async def project_training_page(request: Request, pid: str)` (L336) — Training config + progress for a project.
+- `def _recent_suite_runs(pid: str, limit: int = 5) -> list[dict]` (L370) — Return the most recent benchmark suite runs for a project (newest first).
+- `async def project_testing_page(request: Request, pid: str)` (L406) — Testing / inference playground for a project.
+- `async def project_models_page(request: Request, pid: str)` (L450) — Model browser for a project — trained exports with expand-row detail.
+- `async def project_rag_page(request: Request, pid: str)` (L465) — RAG page — corpus build/chat plus docs-indexed inventory panel.
+- `async def data_editor_page(request: Request, pid: str, dataset_path: str)` (L491) — Project-scoped data editor for a JSONL dataset.
+- `async def benchmarks_page(request: Request, pid: str)` (L512) — Benchmarks tab — run suites, view scores, compare runs.
+- `async def project_chat_page(request: Request, pid: str)` (L604) — Project chat page — chat with the project's production model, optionally
+- `async def project_settings_page(request: Request, pid: str)` (L620) — Project settings + WebUI log tail (no SSH needed for uvicorn.log).
+- `async def project_wizard_page(request: Request, pid: str)` (L633) — Project wizard: Quick start runs files → QA → dataset → train → test
+- `async def project_flow_page(request: Request, pid: str)` (L650) — Old name for the wizard — keep bookmarks and links working.
+- `async def project_work_page(request: Request, pid: str)` (L656) — Canonical name of the quick-work page (routes keep /wizard for history).
+- `async def settings_page(request: Request)` (L664) — Settings, debug info, replay tutorial, system status.
+- `async def debug_info()` (L678) — Return system debug info for the Settings page.
   - imports: finetune_studio, finetune_studio.data.fs, finetune_studio.db, finetune_studio.models.helper, finetune_studio.models.loader, finetune_studio.models.registry, finetune_studio.training.export_capabilities, finetune_studio.webui.app, finetune_studio.webui.model_labels, finetune_studio.webui.project_dashboard, finetune_studio.webui.project_data_browser, finetune_studio.webui.routes.benchmarks, finetune_studio.webui.routes.project_export, finetune_studio.webui.routes.project_rag, finetune_studio.webui.testing_models
 
 ## `src/finetune_studio/webui/routes/project_export.py` (48 lines)
@@ -2973,7 +2973,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_no_direct_apply_chat_template_in_train_or_eval_paths()` (L64)
   - imports: finetune_studio.testing, finetune_studio.training, finetune_studio.training.data, finetune_studio.training.formatting, finetune_studio.training.vram
 
-## `tests/test_fresh_run_regressions.py` (180 lines)
+## `tests/test_fresh_run_regressions.py` (202 lines)
 - `def test_base_model_benchmark_listed_on_page(client) -> None` (L14)
 - `def test_base_probe_placeholder_hidden_from_run_lists(client) -> None` (L31)
 - `def test_chat_context_offers_tuned_merged_model(client, tmp_path) -> None` (L43) — Chat must offer the project's fine-tuned (merged) model, not only bases.
@@ -2987,7 +2987,9 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_gguf_f16_requested_keeps_f16(monkeypatch, tmp_path)` (L154)
 - `def test_preset_advisor_small_dataset_advice_is_consistent()` (L164)
 - `def test_preset_advisor_warmup_scales_with_run_length()` (L175)
-  - imports: finetune_studio, finetune_studio.data.rag_portable.schema, finetune_studio.training, finetune_studio.training.preset_advisor, finetune_studio.webui.routes
+- `def test_trained_exports_rows_carry_quant(tmp_path)` (L183)
+- `def test_testing_page_empty_state_links_to_export(client)` (L199)
+  - imports: finetune_studio, finetune_studio.data.rag_portable.schema, finetune_studio.training, finetune_studio.training.preset_advisor, finetune_studio.webui.routes, finetune_studio.webui.routes.pages
 
 ## `tests/test_full_corpus_suite.py` (293 lines)
 - `def isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L26)
