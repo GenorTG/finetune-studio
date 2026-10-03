@@ -13,6 +13,7 @@ PROJECT-SCOPED PAGES (/projects/{pid}/...)
   Data, Training, Testing, Models — only accessible inside a project.
 """
 
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
@@ -105,9 +106,15 @@ def _scan_run_models(runs: list[dict]) -> list[dict]:
                 model_name = f"{run.get('name') or run.get('id', '')}/{subdir}"
                 if fmt == "gguf":
                     model_name += f"/{os.path.basename(model_path)}"
+                quant = ""
+                if fmt == "gguf":
+                    m_q = re.match(r"^model-(.+)\.gguf$", os.path.basename(model_path), re.IGNORECASE)
+                    quant = m_q.group(1).upper() if m_q else ""
                 models.append({
                 "name": model_name,
                 "format": fmt,
+                "quant": quant,
+                "subdir": subdir,
                 "size_gb": (
                     round(os.path.getsize(model_path) / (1024 ** 3), 2)
                     if os.path.isfile(model_path)

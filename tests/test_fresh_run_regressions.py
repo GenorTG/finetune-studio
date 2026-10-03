@@ -178,3 +178,19 @@ def test_preset_advisor_warmup_scales_with_run_length():
     short = propose(tier="smoke", base_model_ref="Qwen/Qwen3-4B", pair_count_hint=21)
     long_ = propose(tier="precision", base_model_ref="Qwen/Qwen3-4B", pair_count_hint=515)
     assert short.warmup_steps < long_.warmup_steps <= 100
+
+
+def test_trained_exports_rows_carry_quant(tmp_path):
+    from finetune_studio.webui.routes.pages import _scan_run_models
+
+    out = tmp_path / "run"
+    (out / "gguf").mkdir(parents=True)
+    (out / "gguf" / "model-Q4_K_M.gguf").write_bytes(b"x")
+    (out / "gguf" / "model-Q8_0.gguf").write_bytes(b"x")
+    (out / "merged").mkdir()
+    (out / "merged" / "config.json").write_text("{}")
+    rows = _scan_run_models([{"id": "r1", "name": "n", "output_path": str(out)}])
+    by_path = {r["path"]: r for r in rows}
+    quants = sorted(r["quant"] for r in rows if r["format"] == "gguf")
+    assert quants == ["Q4_K_M", "Q8_0"]
+    assert by_path[str(out / "merged")]["quant"] == ""

@@ -209,7 +209,7 @@
         <td class="name exports-col-name" title="{{ m.name }}">
           <button type="button" class="name-btn" title="{{ m.name }} — click for details" onclick='flToggleExportRow({{ m.path|tojson }})'>{{ m.name }}</button>
         </td>
-        <td class="exports-col-format"><span class="pill outline">{{ m.format }}</span></td>
+        <td class="exports-col-format"><span class="pill outline">{{ m.format }}</span>{% if m.quant %} <span class="pill">{{ m.quant }}</span>{% elif m.subdir in ('merged', 'abliterated') %} <span class="pill">{{ m.subdir }}</span>{% endif %}</td>
         <td class="num mono exports-col-size">{{ m.size_gb }} GB</td>
         <td class="meta exports-col-source" title="{{ m.run_name or '' }}">{{ m.run_name or (m.run_id[:8] if m.run_id else '—') }}</td>
         <td class="meta exports-col-created">{{ m.created_at }}</td>
