@@ -525,7 +525,6 @@ def test_training_start_disabled_until_dataset(client: TestClient) -> None:
     assert "disabled" in body.split('id="stop-btn"', 1)[1].split(">", 1)[0]
     assert "No active training run" in body
 
-_MODELS = _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "models.html"
 _MODELS_INDEX = (
     _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "models_index.html"
 )
@@ -533,17 +532,12 @@ _BENCH = _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "benchmarks
 _HF = _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "hf_models.html"
 
 
-def test_models_and_bench_mobile_table_scroll_contract() -> None:
-    """375px must keep Load / RUN actions reachable via explicit horizontal scroll."""
+def test_bench_mobile_table_scroll_contract() -> None:
+    """375px must keep RUN actions reachable via explicit horizontal scroll."""
     css = _CSS.read_text(encoding="utf-8")
-    models = _MODELS.read_text(encoding="utf-8")
     bench = _BENCH.read_text(encoding="utf-8")
-    assert 'id="models-table-scroll"' in models
-    assert 'class="table-scroll models-table-scroll"' in models
-    assert 'class="models-col-actions"' in models
     assert 'id="bench-run-scroll"' in bench
     assert "bench-table-scroll" in bench
-    assert "#models-table .models-col-actions" in css
     assert "min-width: 6.5rem" in css
     assert "#bench-run-table" in css
     assert "@media (max-width: 780px)" in css

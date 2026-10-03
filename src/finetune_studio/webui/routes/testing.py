@@ -69,14 +69,6 @@ async def load_model(request: Request):
         return {"error": str(e)}
 
 
-@router.post("/unload")
-async def unload_model():
-    """Unload the currently loaded model (both engines — see E2E-22)."""
-    from finetune_studio.models.llama_loader import unload_all_models
-    unload_all_models()
-    return {"status": "unloaded"}
-
-
 def _testing_status_payload() -> dict:
     return {
         "loaded": inference_engine.model is not None,
@@ -107,20 +99,6 @@ async def testing_events():
             await asyncio.sleep(1.0)
 
     return sse_response(gen())
-
-
-@router.post("/chat")
-async def chat(request: Request):
-    body = await _json_object(request)
-    messages = body.get("messages", [])
-    max_tokens = body.get("max_tokens", 512)
-    temperature = body.get("temperature", 0.7)
-    async with ENGINE_LOCK:
-        response = await asyncio.to_thread(
-            inference_engine.generate, messages,
-            max_tokens=max_tokens, temperature=temperature,
-        )
-    return {"response": response}
 
 
 @router.post("/run-suite")
@@ -374,34 +352,6 @@ def _ensure_model_loaded(project_id: str, override_path: str) -> JSONResponse | 
             status_code=400,
         )
     return None
-
-
-@router.get("/projects/{pid}/training-datasets")
-async def list_training_datasets_for_eval(pid: str):
-    """List project datasets that can be used for training-data evaluation."""
-    from finetune_studio import db
-    from finetune_studio.db import datasets as datasets_db
-
-    if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
-
-    rows = datasets_db.list_datasets(pid)
-    return {
-        "datasets": [
-            {
-                "id": d["id"],
-                "name": d.get("name"),
-                "source": d.get("source"),
-                "qa_count": d.get("qa_count"),
-                "data_path": d.get("data_path"),
-            }
-            for d in rows
-        ],
-        "leakage_warning": (
-            "Evaluating the training set measures memorization / leakage risk, "
-            "not held-out generalization."
-        ),
-    }
 
 
 @router.post("/evaluate-training")

@@ -161,20 +161,6 @@ def test_models_for_training_excludes_gguf_gptq_keeps_safetensors() -> None:
     assert models[1].path in infer_paths
 
 
-def test_training_js_uses_training_query() -> None:
-    src = (
-        Path(__file__).resolve().parents[1]
-        / "src"
-        / "finetune_studio"
-        / "webui"
-        / "static"
-        / "js"
-        / "training.js"
-    ).read_text(encoding="utf-8")
-    assert "for_training=1" in src
-    assert "for_selector=1" not in src
-
-
 def test_training_hf_refresh_skips_incomplete_and_gguf() -> None:
     src = (
         Path(__file__).resolve().parents[1]

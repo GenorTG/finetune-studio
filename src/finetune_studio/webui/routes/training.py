@@ -262,14 +262,6 @@ def _get_presets() -> list[dict]:
     return [{"id": k, **v} for k, v in TRAINING_PRESETS.items()]
 
 
-def _get_preset(preset_id: str) -> dict | None:
-    """Return a specific preset by ID."""
-    p = TRAINING_PRESETS.get(preset_id)
-    if p is None:
-        return None
-    return {"id": preset_id, **p}
-
-
 def _apply_preset(preset_id: str, overrides: dict | None = None) -> TrainingConfig:
     """Build a TrainingConfig from a preset, with optional field overrides."""
     p = TRAINING_PRESETS.get(preset_id)
@@ -285,16 +277,6 @@ def _apply_preset(preset_id: str, overrides: dict | None = None) -> TrainingConf
 async def list_presets():
     """Return all training presets."""
     return _get_presets()
-
-
-@router.get("/presets/{preset_id}")
-async def get_preset(preset_id: str):
-    """Return a specific preset."""
-    p = _get_preset(preset_id)
-    if p is None:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail=f"Unknown preset: {preset_id}")
-    return p
 
 
 @router.get("/recommend")
@@ -572,51 +554,6 @@ async def stop_training():
     return {"status": "stopping"}
 
 
-@router.post("/runs/{run_id}/export")
-async def export_run(run_id: str, request: Request):
-    """Export a trained run to deployable formats (standalone, post-training).
-
-    Body:
-        format: gguf | abliterated | merged (default: gguf).
-        quants: GGUF quant list (default: f16, q8_0, q4_k_m, q5_k_m)
-        force: overwrite existing exports (default: false)
-        base_model: optional 16-bit base path/id for merge-at-export when
-                    the run only has an adapter (merge_on_save=false)
-    """
-    from finetune_studio import db
-    from finetune_studio.training.run_export import export_trained_run
-
-    try:
-        body = await request.json()
-    except ValueError:
-        return JSONResponse({"ok": False, "error": "invalid JSON body"}, status_code=400)
-    if not isinstance(body, dict):
-        return JSONResponse({"ok": False, "error": "body must be a JSON object"}, status_code=400)
-    fmt = body.get("format", "gguf")
-    quants = body.get("quants", ["f16", "q8_0", "q4_k_m", "q5_k_m"])
-    force = bool(body.get("force", False))
-    base_model = body.get("base_model")
-    if base_model is not None:
-        base_model = str(base_model).strip() or None
-
-    run = db.get_run(run_id)
-    if not run:
-        return JSONResponse(
-            {"ok": False, "status": "failed", "error": "run not found"},
-            status_code=404,
-        )
-
-    result = export_trained_run(
-        run,
-        fmt=str(fmt),
-        quants=list(quants) if isinstance(quants, list) else None,
-        force=force,
-        base_model=base_model,
-    )
-    if result.get("error") or result.get("ok") is False:
-        return JSONResponse(result, status_code=400)
-    return result
-
 @router.get("/runs/{run_id}/auto-suites")
 async def list_auto_suites(run_id: str):
     """List all auto-generated suites for a training run."""
@@ -696,63 +633,6 @@ async def trigger_auto_suite(run_id: str, request: Request):
     }
 
 
-@router.post("/runs/{run_id}/abliterate")
-async def abliterate_run(run_id: str):
-    """Abliterate (de-censor) a trained model."""
-    from finetune_studio import db
-    run = db.get_run(run_id)
-    if not run:
-        return {"error": "run not found"}
-    output_path = (run.get("output_path") or "").strip()
-    if not output_path:
-        return {"error": "run has no output_path"}
-    merged_dir = os.path.join(output_path, "merged")
-    if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
-        return {"error": "no merged model to abliterate"}
-    abliterated_dir = os.path.join(output_path, "abliterated")
-    from finetune_studio.training.abliteration import abliterate_model
-    result = abliterate_model(
-        model_path=merged_dir,
-        output_dir=abliterated_dir,
-        strength=float(run.get("abliteration_strength", 1.0)),
-    )
-    if result.get("error"):
-        return result
-    # Convert numpy arrays to lists for JSON serialization
-    clean_result = {}
-    for k, v in result.items():
-        if hasattr(v, 'tolist'):
-            clean_result[k] = v.tolist()
-        elif isinstance(v, (list, tuple)):
-            clean_result[k] = [float(x) if hasattr(x, 'item') else x for x in v]
-        else:
-            clean_result[k] = v
-    from time import time as _time
-
-    from finetune_studio.db.connection import cursor, new_id
-    abl_id = new_id()
-    with cursor() as c:
-        c.execute(
-            "INSERT INTO abliteration_runs (id, run_id, project_id, model_path, output_path, strength, magnitude, status, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (abl_id, run_id, run.get("project_id", ""),
-             merged_dir, abliterated_dir,
-             float(run.get("abliteration_strength", 1.0)),
-             float(clean_result.get("refusal_magnitude", 0.0)),
-             "done", _time()),
-        )
-    return {"ok": True, "abliteration_id": abl_id, **clean_result}
-
-
-@router.get("/runs/{run_id}/abliteration")
-async def get_abliteration(run_id: str):
-    """Get abliteration status for a run."""
-    from finetune_studio.db.connection import cursor
-    with cursor() as c:
-        rows = c.execute("SELECT id, model_path, output_path, strength, magnitude, status, created_at FROM abliteration_runs WHERE run_id = ? ORDER BY created_at DESC", (run_id,)).fetchall()
-    return [{"id": r[0], "model_path": r[1], "output_path": r[2], "strength": r[3], "magnitude": r[4], "status": r[5], "created_at": r[6]} for r in rows]
-
-
 @router.post("/runs/{run_id}/quantize")
 async def quantize_run(run_id: str, request: Request):
     """Export a trained model using advanced quantization."""
@@ -823,34 +703,3 @@ async def set_run_output(run_id: str, request: Request):
     return {"ok": True, "run_id": run_id, "output_path": output_path}
 
 
-@router.get("/runs/{run_id}/exports")
-async def list_exports(run_id: str):
-    """List all exports (merged, gguf, adapter) for a training run."""
-    from finetune_studio import db
-    run = db.get_run(run_id)
-    if not run:
-        return {"error": "run not found"}
-
-    output_path = (run.get("output_path") or "").strip()
-    exports = {"run_id": run_id, "output_path": output_path, "formats": {}}
-
-    if output_path:
-        merged_dir = os.path.join(output_path, "merged")
-        if os.path.isdir(merged_dir) and os.listdir(merged_dir):
-            exports["formats"]["merged"] = {"path": merged_dir, "files": os.listdir(merged_dir)}
-
-        adapter_dir = os.path.join(output_path, "adapter")
-        if os.path.isdir(adapter_dir) and os.listdir(adapter_dir):
-            exports["formats"]["adapter"] = {"path": adapter_dir, "files": os.listdir(adapter_dir)}
-
-        gguf_dir = os.path.join(output_path, "gguf")
-        if os.path.isdir(gguf_dir):
-            gguf_files = [f for f in os.listdir(gguf_dir) if f.endswith(".gguf")]
-            if gguf_files:
-                exports["formats"]["gguf"] = {
-                    "path": os.path.join(gguf_dir, min(gguf_files)),
-                    "directory": gguf_dir,
-                    "files": gguf_files,
-                }
-
-    return exports

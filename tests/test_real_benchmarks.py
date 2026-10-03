@@ -15,7 +15,6 @@ from finetune_studio.benchmarks.real_benchmarks import (
     format_mmlu_prompt,
     is_real_suite_path,
     list_real_families,
-    overall_accuracy_from_run_all,
     parse_real_suite_path,
     real_suite_path,
     resolve_sample_count,
@@ -265,56 +264,7 @@ def test_run_all_summary_not_scalar_map() -> None:
     )
     assert "benchmarks" in payload
     assert "summary" in payload
-    overall = overall_accuracy_from_run_all(payload)
-    assert overall == 100.0
-    # The broken endpoint did sum(results.values()) — must not be valid here.
+    assert payload["summary"]["overall_accuracy"] == 100.0
+    # Summing the nested map (an old endpoint bug) must not be valid here.
     with pytest.raises(TypeError):
         sum(payload.values())  # type: ignore[arg-type]
-
-
-def test_inference_benchmark_endpoint_uses_overall_helper(monkeypatch) -> None:
-    from fastapi.testclient import TestClient
-
-    from finetune_studio.benchmarks import real_benchmarks as rb
-    from finetune_studio.webui import app as app_mod
-
-    rows = _FakeSplit(
-        [
-            {
-                "question": "Q?",
-                "choices": ["a", "b", "c", "d"],
-                "answer": 0,
-                "subject": "s",
-            }
-        ]
-    )
-
-    def _loader(path, name=None, *, split, cache_dir=None, revision=None):
-        return rows
-
-    orig = rb.RealBenchmarkSuite
-
-    def _factory(*_a, **_k):
-        return orig(dataset_loader=_loader)
-
-    monkeypatch.setattr(rb, "RealBenchmarkSuite", _factory)
-
-    class _Eng:
-        model = object()
-
-        def generate(self, messages, **kwargs):
-            return "A"
-
-    monkeypatch.setattr(app_mod, "inference_engine", _Eng())
-
-    client = TestClient(app_mod.app)
-    r = client.post(
-        "/api/chat-v2/inference/benchmark",
-        json={"num_samples": 1, "benchmarks": ["mmlu"]},
-    )
-    assert r.status_code == 200, r.text
-    data = r.json()
-    assert "error" not in data
-    assert isinstance(data["overall"], (int, float))
-    assert "benchmarks" in data["results"]
-    assert "summary" in data["results"]

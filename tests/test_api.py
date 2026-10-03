@@ -85,34 +85,6 @@ class TestProjectsAPI:
         assert r.json()["name"] == "After"
 
 
-# ── RAG API ──────────────────────────────────────────────────────────────────
-
-class TestRAGAPI:
-    def test_create_rag(self, client):
-        proj = client.post("/api/projects", json={"name": "RAG API Test"})
-        pid = proj.json()["id"]
-        r = client.post(f"/api/projects/{pid}/rags", json={
-            "name": "Test RAG",
-            "description": "A test RAG",
-            "store_path": "/tmp/test_rag",
-        })
-        assert r.status_code == 200
-        data = r.json()
-        assert data["name"] == "Test RAG"
-
-    def test_list_rags(self, client):
-        proj = client.post("/api/projects", json={"name": "List RAGs Test"})
-        pid = proj.json()["id"]
-        client.post(f"/api/projects/{pid}/rags", json={"name": "RAG 1", "store_path": "/tmp/1"})
-        client.post(f"/api/projects/{pid}/rags", json={"name": "RAG 2", "store_path": "/tmp/2"})
-        r = client.get(f"/api/projects/{pid}/rags")
-        assert r.status_code == 200
-        data = r.json()
-        names = {rag["name"] for rag in data}
-        assert "RAG 1" in names
-        assert "RAG 2" in names
-
-
 # ── Training API ─────────────────────────────────────────────────────────────
 
 class TestTrainingAPI:

@@ -16,7 +16,6 @@ Endpoints:
   GET    /api/projects/{pid}/files/{fid}/conversions — list converted versions
   PATCH  /api/projects/{pid}/files/{fid}/rename   — rename file (DB + disk)
   POST   /api/projects/{pid}/files/{fid}/purge    — hard-delete one trashed file
-  POST   /api/projects/{pid}/files/{fid}/move     — move file to folder
   DELETE /api/projects/{pid}/files/{fid}          — soft-delete (moves to trash)
   POST   /api/projects/{pid}/files/{fid}/restore  — restore from trash
   POST   /api/projects/{pid}/files/bulk           — bulk delete/restore/move/reparse/tag
@@ -488,16 +487,6 @@ async def purge_file_route(pid: str, fid: str):
     """Hard-delete one trashed file (disk + DB). Must already be in trash."""
     _project_or_404(pid)
     return fl.purge_file(pid, fid)
-
-
-@router.post("/projects/{pid}/files/{fid}/move")
-async def move_file_route(pid: str, fid: str, request: Request):
-    _project_or_404(pid)
-    body = await _json_body(request)
-    folder_id = body.get("folder_id")
-    if not folder_id:
-        raise HTTPException(status_code=400, detail="folder_id required")
-    return fl.move_file_to_folder(pid, fid, folder_id)
 
 
 @router.delete("/projects/{pid}/files/{fid}")

@@ -8,7 +8,6 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[1]
 _APP_JS = _ROOT / "src" / "finetune_studio" / "webui" / "static" / "js" / "app.js"
 _ACTIVITY_JS = _ROOT / "src" / "finetune_studio" / "webui" / "static" / "js" / "activity.js"
-_TRAINING_JS = _ROOT / "src" / "finetune_studio" / "webui" / "static" / "js" / "training.js"
 _SETTINGS_JS = _ROOT / "src" / "finetune_studio" / "webui" / "static" / "js" / "settings.js"
 _TRAINING_HTML = (
     _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "project_training.html"
@@ -54,9 +53,6 @@ def test_training_monitor_uses_progress_sse() -> None:
     assert "setInterval(tick, 2000)" not in html
     assert "Updated every 2s" not in html
     assert "Streaming while training" in html
-    js = _TRAINING_JS.read_text(encoding="utf-8")
-    assert "/api/training/progress" in js
-    assert "setInterval(pollStatus, 2000)" not in js
 
 
 def test_testing_page_uses_testing_events() -> None:

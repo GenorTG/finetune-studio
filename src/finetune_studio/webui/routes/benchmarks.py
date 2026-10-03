@@ -384,12 +384,6 @@ async def _execute_benchmark(
 
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
-@router.get("/runs/{rid}")
-async def get_benchmark_run(rid: str) -> dict[str, Any]:
-    """Get a single benchmark run."""
-    return db.get_benchmark(rid) or {"error": "not found"}
-
-
 @router.get("/suites")
 async def list_suites(project_id: str | None = None) -> list[dict[str, Any]]:
     """List available benchmark suites (files that exist + optional auto-suites)."""

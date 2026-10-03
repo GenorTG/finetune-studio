@@ -822,28 +822,3 @@ class RealBenchmarkSuite:
                 "is_real_benchmark": True,
             },
         }
-
-
-def overall_accuracy_from_run_all(payload: Mapping[str, Any]) -> float:
-    """Extract a scalar overall accuracy from ``run_all`` output.
-
-    The broken inference endpoint used ``sum(results.values())`` on the nested
-    dict; callers must use this helper (or ``summary.overall_accuracy``).
-    """
-    summary = payload.get("summary")
-    if isinstance(summary, Mapping):
-        val = summary.get("overall_accuracy")
-        if isinstance(val, (int, float)):
-            return float(val)
-    benches = payload.get("benchmarks")
-    if not isinstance(benches, Mapping):
-        return 0.0
-    correct = 0
-    total = 0
-    for item in benches.values():
-        if not isinstance(item, Mapping):
-            continue
-        if "correct" in item and "total" in item:
-            correct += int(item["correct"])
-            total += int(item["total"])
-    return round(correct / max(total, 1) * 100, 1)

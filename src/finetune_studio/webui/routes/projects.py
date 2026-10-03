@@ -1,4 +1,4 @@
-"""Projects API — list/create/select Project, manage RAGs and Training Runs.
+"""Projects API — list/create/select Project and manage Training Runs.
 
 WHY THIS EXISTS
 ===============
@@ -8,13 +8,13 @@ The Studio is organised around Projects. Each Project:
   - owns N Training Runs (each with settings + metrics + benchmark results)
   - has one "production" Run that the Inference Chat loads
 
-This route file covers all of that.
+This route file covers projects and run records (RAG corpora live in
+routes/rag.py + routes/project_rag.py).
 """
 
 from __future__ import annotations
 
 import logging
-import os
 import re
 import time
 
@@ -22,8 +22,6 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from finetune_studio import db
-from finetune_studio.rag.manager import RAGManager
-from finetune_studio.webui.app import training_engine
 
 log = logging.getLogger(__name__)
 
@@ -53,14 +51,6 @@ def _get_owned_run(pid: str, rid: str) -> tuple[dict | None, JSONResponse | None
     if not run or (run.get("project_id") and run.get("project_id") != pid):
         return None, JSONResponse({"error": "run not found"}, status_code=404)
     return run, None
-
-
-def _get_owned_rag(pid: str, rid: str) -> tuple[dict | None, JSONResponse | None]:
-    """Fetch a rag and verify it belongs to ``pid`` (see ``_get_owned_run``)."""
-    rag = db.get_rag(rid)
-    if not rag or (rag.get("project_id") and rag.get("project_id") != pid):
-        return None, JSONResponse({"error": "rag not found"}, status_code=404)
-    return rag, None
 
 
 # ── Projects ─────────────────────────────────────────────────────────────
@@ -359,125 +349,6 @@ async def promote_run(pid: str, request: Request):
     return {"ok": True, "run": run}
 
 
-# ── RAGs ─────────────────────────────────────────────────────────────────
-
-@router.get("/{pid}/rags")
-async def list_rags(pid: str):
-    missing = _project_404(pid)
-    if missing is not None:
-        return missing
-    return db.list_rags(pid)
-
-
-@router.post("/{pid}/rags")
-async def create_rag(pid: str, request: Request):
-    missing = _project_404(pid)
-    if missing is not None:
-        return missing
-    body = await request.json()
-    rag = db.create_rag(
-        project_id=pid,
-        name=body.get("name", "Untitled RAG"),
-        description=body.get("description", ""),
-        tags=body.get("tags", ""),
-        store_path=body.get("store_path", ""),
-    )
-    return rag
-
-
-@router.patch("/{pid}/rags/{rid}")
-async def update_rag(pid: str, rid: str, request: Request):
-    _rag, err = _get_owned_rag(pid, rid)
-    if err is not None:
-        return err
-    body = await request.json()
-    return db.update_rag(rid, **body)
-
-
-@router.delete("/{pid}/rags/{rid}")
-async def delete_rag(pid: str, rid: str):
-    _rag, err = _get_owned_rag(pid, rid)
-    if err is not None:
-        return err
-    db.delete_rag(rid)
-    return {"ok": True}
-
-
-@router.post("/{pid}/rags/{rid}/ingest")
-async def ingest_into_rag(pid: str, rid: str, request: Request):
-    """Ingest a file or directory into a project RAG.
-
-    Tracks timing + status on both project_rags (latest summary) and
-    rag_corpora (history of every build attempt).
-    """
-    body = await request.json()
-    path = body.get("path", "")
-    if not path or not os.path.exists(path):
-        return {"error": "path not found"}
-    rag, err = _get_owned_rag(pid, rid)
-    if err is not None:
-        return err
-    # Mark the rag as building + create a history row.
-    build_row = db.create_rag_build(project_id=pid, rag_id=rid)
-    db.update_rag(rid, status="building", last_build_at=time.time(),
-                  last_build_status="running")
-    db.mark_rag_build_running(build_row["id"])
-    mgr = RAGManager(rag["store_path"])
-    try:
-        if os.path.isdir(path):
-            result = mgr.ingest_directory(path)
-        else:
-            result = mgr.ingest_file(path)
-        stats = mgr.stats()
-        doc_count = stats.get("total_documents", 0)
-        chunk_count = stats.get("total_chunks", 0)
-        db.mark_rag_build_done(build_row["id"], doc_count=doc_count,
-                               chunk_count=chunk_count)
-        db.update_rag(rid, doc_count=doc_count, chunk_count=chunk_count,
-                      status="ready", last_build_status="ok",
-                      error="")
-        return {"result": result, "rag": db.get_rag(rid), "build": build_row}
-    except Exception as e:  # noqa: BLE001
-        try:
-            db.mark_rag_build_failed(build_row["id"], str(e))
-            db.update_rag(rid, status="error", last_build_status="failed",
-                          error=str(e)[:500])
-        except Exception:
-            log.exception("marking rag build failed also failed")
-        return {"error": f"ingest failed: {e}", "rag": db.get_rag(rid),
-                "build": build_row}
-
-
-@router.post("/{pid}/rags/{rid}/query")
-async def query_rag(pid: str, rid: str, request: Request):
-    body = await request.json()
-    query = body.get("query", "")
-    try:
-        top_k = int(body.get("top_k", 5))
-    except (TypeError, ValueError):
-        return {"error": "top_k must be an integer"}
-    if not query:
-        return {"error": "no query"}
-    rag, err = _get_owned_rag(pid, rid)
-    if err is not None:
-        return err
-    mgr = RAGManager(rag["store_path"])
-    chunks = mgr.store.search(query, top_k=top_k)
-    return {"chunks": [
-        {"text": c.text, "score": c.score, "source": c.source}
-        for c in chunks
-    ]}
-
-
-@router.get("/{pid}/rags/{rid}/stats")
-async def rag_stats(pid: str, rid: str):
-    rag, err = _get_owned_rag(pid, rid)
-    if err is not None:
-        return err
-    mgr = RAGManager(rag["store_path"])
-    return mgr.stats()
-
-
 # ── Training Runs ────────────────────────────────────────────────────────
 
 @router.get("/{pid}/runs")
@@ -533,183 +404,3 @@ async def delete_run(pid: str, rid: str):
         return err
     db.delete_run(rid)
     return {"ok": True}
-
-
-@router.post("/{pid}/runs/{rid}/start")
-async def start_run(pid: str, rid: str, request: Request):
-    """Wire a persisted Run into the training engine and start it.
-
-    This bridges the persistent run record with the live training loop.
-    Engine state gets tagged with the run_id so progress events can
-    update the DB row.
-    """
-    run, err = _get_owned_run(pid, rid)
-    if err is not None:
-        return err
-    if run["status"] not in ("created", "idle", "error", "stopped"):
-        return {"error": f"cannot start run in status {run['status']}"}
-    body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
-    # Allow per-start overrides; fall back to persisted settings.
-    settings_obj = {**run.get("settings", {}), **body.get("settings", {})}
-    from finetune_studio.training.engine import TrainingConfig
-    config = TrainingConfig(
-        model_path=run.get("base_model", ""),
-        output_dir=settings_obj.get("output_dir", "output"),
-        lora_rank=int(settings_obj.get("lora_rank", 64)),
-        learning_rate=float(settings_obj.get("learning_rate", 8e-5)),
-        num_epochs=int(settings_obj.get("num_epochs", 4)),
-        batch_size=int(settings_obj.get("batch_size", 2)),
-        max_seq_length=int(settings_obj.get("max_seq_length", 2048)),
-        merge_on_save=bool(settings_obj.get("merge_on_save", False)),
-    )
-    if not run.get("base_model"):
-        return {"error": "run has no base_model"}
-    if not run.get("data_path"):
-        return {"error": "run has no data_path"}
-    from finetune_studio.training.data import load_jsonl
-    from finetune_studio.training.run_persistence import attach_run
-    training_data = load_jsonl(run["data_path"])
-    # A bare "output" dir is shared by every run and gets overwritten (E2E-25).
-    if (config.output_dir or "output").rstrip("/") == "output":
-        config.output_dir = f"output/projects/{pid}/runs/{rid}"
-    # Checked before attach_run: attaching would re-point the busy engine's
-    # persister at this run and corrupt the run that is actually training.
-    if training_engine.state.status in ("training", "loading", "saving"):
-        return {"error": "another training run is in progress"}
-    db.update_run(rid, status="running", started_at=time.time(), output_path=config.output_dir)
-    attach_run(training_engine, rid, config.output_dir, project_id=pid)
-    try:
-        training_engine.start(config, training_data, run.get("system_prompt", ""))
-    except Exception as e:  # noqa: BLE001
-        db.update_run(rid, status="error", error=str(e)[:500])
-        return {"error": f"start failed: {e}", "run_id": rid}
-    return {"status": "started", "run_id": rid, "run": db.get_run(rid)}
-
-
-@router.post("/{pid}/runs/{rid}/stop")
-async def stop_run(pid: str, rid: str):
-    _run, err = _get_owned_run(pid, rid)
-    if err is not None:
-        return err
-    # The engine is a singleton: only stop it when it is training THIS run.
-    if getattr(training_engine, "current_db_run_id", None) == rid and training_engine.state.status in (
-        "training", "loading", "saving",
-    ):
-        training_engine.stop()
-    db.update_run(rid, status="stopped", finished_at=time.time())
-    return {"ok": True}
-
-
-@router.post("/{pid}/runs/{rid}/benchmark")
-async def run_benchmark(pid: str, rid: str, request: Request):
-    """Run a benchmark suite against a run's output model.
-
-    The output model path is read from run.output_path. If empty,
-    falls back to base_model. Persists results under benchmark_runs.
-
-    Load failures and suite failures are caught and surfaced to the
-    caller as 200-with-error JSON so the UI can render them inline;
-    the engine is unloaded via a try/finally so a benchmark that
-    crashes mid-run doesn't leak the loaded model.
-    """
-    body = await request.json()
-    suite_name = body.get("suite_name", "default")
-    suite_path = body.get("suite_path", "")
-
-    from finetune_studio.testing.inference import InferenceEngine
-    from finetune_studio.testing.suite import load_test_suite, run_suite, score_results
-
-    run, err = _get_owned_run(pid, rid)
-    if err is not None:
-        return err
-    if not suite_path:
-        return {"error": "suite_path required", "benchmark": None}
-    target_model = run.get("output_path") or run.get("base_model")
-    if not target_model:
-        return {"error": "run has no model to benchmark"}
-    # Free the shared persistent inference_engine's VRAM first — mirrors
-    # webui/routes/benchmarks.py's _unload_global_inference(), required by
-    # the GH-AAA no-mixed-offload contract (models/llama_loader.py). Without
-    # this, a model already loaded via the Testing tab stays resident while
-    # this route tries to load a second model onto the same GPU.
-    from finetune_studio.models.llama_loader import unload_all_models
-    unload_all_models()
-    engine = InferenceEngine()
-    try:
-        engine.load(target_model)
-    except Exception as e:  # noqa: BLE001
-        return {"error": f"load failed: {e}", "benchmark": None}
-    t0 = time.time()
-    try:
-        cases = load_test_suite(suite_path)
-        results = run_suite(engine, cases)
-        scores = score_results(results)
-        dt_ms = int((time.time() - t0) * 1000)
-        bid = db.create_benchmark(rid, suite_name, scores, dt_ms)
-        return {"benchmark": db.get_benchmark(bid), "results": [
-            {"name": r.test_name, "passed": r.passed, "time_ms": r.time_ms,
-             "response": r.response[:300]}
-            for r in results
-        ]}
-    except Exception as e:
-        log.exception("benchmark suite failed")
-        return {"error": f"benchmark failed: {e}", "benchmark": None}
-    finally:
-        try:
-            engine.unload()
-        except Exception:
-            log.exception("benchmark engine unload failed")
-
-
-@router.post("/{pid}/runs/{rid}/merge")
-async def merge_run(pid: str, rid: str, request: Request, force: str = "false"):
-    """Merge a persisted run's adapter on disk into a standalone model.
-
-    Loads run.base_model + <run.output_path>/adapter/, merges via
-    PEFT's merge_and_unload(), saves to <run.output_path>/merged/.
-
-    Idempotent: if <output_path>/merged/ already has files, the
-    existing merge is returned unless `?force=true`. Always re-reads
-    the run row at the end so the response carries fresh status /
-    output_path / metrics.
-    """
-    force = str(force).lower() in ("1", "true", "yes")
-    run, err = _get_owned_run(pid, rid)
-    if err is not None:
-        return err
-    # Lazy import — keeps the training/PEFT stack out of the projects module
-    # path until a merge is actually requested.
-    from finetune_studio.training.engine import merge_adapter_for_run
-    try:
-        result = merge_adapter_for_run(run, force=force)
-    except ValueError as e:
-        return {"error": str(e), "status": "skipped"}
-    except Exception as e:
-        log.exception("merge failed")
-        return {"error": f"merge failed: {e}", "status": "failed"}
-    # Backfill output_path on the run if it was empty before — the merge
-    # just wrote to <output_path>/merged/ so the parent must exist.
-    if not run.get("output_path"):
-        merged_path = result.get("merged_path") or ""
-        parent = os.path.dirname(merged_path.rstrip("/"))
-        if parent:
-            db.update_run(rid, output_path=parent)
-    fresh = db.get_run(rid)
-    return {
-        "ok": True,
-        "status": "skipped" if result.get("skipped") else "merged",
-        "merged_path": result.get("merged_path"),
-        "size_bytes": result.get("size_bytes", 0),
-        "size_human": result.get("size_human", "0 B"),
-        "skipped": bool(result.get("skipped")),
-        "force": force,
-        "run": fresh,
-    }
-
-
-@router.get("/{pid}/runs/{rid}/benchmarks")
-async def list_run_benchmarks(pid: str, rid: str):
-    _run, err = _get_owned_run(pid, rid)
-    if err is not None:
-        return err
-    return db.list_benchmarks(rid)

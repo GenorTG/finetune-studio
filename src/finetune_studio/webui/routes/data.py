@@ -1,4 +1,4 @@
-"""Data tab — list, upload, validate, preview, deduplicate flat data files."""
+"""Flat data files — upload, validate, deduplicate."""
 
 import os
 from pathlib import Path
@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 
 from finetune_studio.config import settings
 from finetune_studio.data.fs.paths import resolve_within
-from finetune_studio.data.organizer import dedup_data, scan_data_files
+from finetune_studio.data.organizer import dedup_data
 from finetune_studio.data.validator import validate_file
 from finetune_studio.training.data import load_jsonl
 
@@ -20,10 +20,6 @@ def _data_path(path: str) -> str:
     """Confine a client-supplied path to ``settings.data_dir`` (400/403 otherwise)."""
     return str(resolve_within(path, [Path(settings.data_dir)], what="path"))
 
-
-@router.get("/files")
-async def list_files():
-    return scan_data_files(settings.data_dir)
 
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):  # noqa: B008
@@ -41,15 +37,6 @@ async def upload_file(file: UploadFile = File(...)):  # noqa: B008
 @router.get("/validate")
 async def validate(path: str):
     return validate_file(_data_path(path))
-
-@router.get("/preview")
-async def preview(path: str, limit: int = 10):
-    path = _data_path(path)
-    try:
-        data = load_jsonl(path)
-        return {"rows": len(data), "preview": data[: max(0, limit)]}
-    except Exception as e:  # noqa: BLE001
-        return {"error": str(e)}
 
 @router.post("/dedup")
 async def dedup(path: str):

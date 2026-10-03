@@ -6,7 +6,6 @@ import os
 import subprocess
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import PlainTextResponse
 
 from finetune_studio.models.gguf_layers import is_gguf_path, resolve_block_count
 from finetune_studio.models.loader import load_model_info
@@ -189,11 +188,6 @@ async def list_models(for_selector: bool = False, for_training: bool = False):
         for m in models
     ]
 
-@router.get("/count")
-async def count_models():
-    from finetune_studio.webui.app import discovered_models
-    return PlainTextResponse(str(len(discovered_models)))
-
 @router.get("/info")
 async def model_info(path: str):
     info = load_model_info(path)
@@ -319,10 +313,10 @@ async def unload_model_endpoint():
         return {"error": str(e)}
 
 
-# ── /api/inference/* aliases (cleaner URL namespace) ─────────────
-# These mirror the routes exposed under /api/chat-v2/* so that the
-# inference page can use the natural /api/inference/{status,load,...}
-# paths. Single source of truth stays in chat_v2.
+# ── /api/inference/* (status, chat, memory-estimate) ─────────────
+# The inference page's own namespace. /api/inference/load is kept as an
+# alias of /api/models/load because docs/DEPLOYMENT.md tells operators
+# to call it after a restart.
 
 inference_router = APIRouter()
 
@@ -359,12 +353,6 @@ async def inference_status():
 async def inference_load(request: Request):
     """Alias for /api/models/load — same handler."""
     return await load_model_endpoint(request)
-
-
-@inference_router.post("/unload")
-async def inference_unload():
-    """Alias for /api/models/unload."""
-    return await unload_model_endpoint()
 
 
 @inference_router.post("/chat")

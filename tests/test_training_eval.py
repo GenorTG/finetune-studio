@@ -201,20 +201,3 @@ def test_evaluate_training_api_returns_per_case_table(
     assert "source_id" in body["results"][0]
     assert "chunk_idx" in body["results"][0]
     assert body["scores"]["judged"] >= 1
-
-
-def test_list_training_datasets_endpoint(isolated_db: Path, tmp_path: Path) -> None:
-    from fastapi.testclient import TestClient
-
-    from finetune_studio.webui.app import app
-
-    proj = db.create_project(name="tev-list", base_model="x/y")
-    p = tmp_path / "d.jsonl"
-    _write_sharegpt(p, [("a?", "b")])
-    datasets_db.create_dataset(proj["id"], "d1", str(p), qa_count=1)
-    client = TestClient(app)
-    r = client.get(f"/api/testing/projects/{proj['id']}/training-datasets")
-    assert r.status_code == 200
-    data = r.json()
-    assert len(data["datasets"]) == 1
-    assert "leakage" in data["leakage_warning"].lower()

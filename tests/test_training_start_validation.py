@@ -43,10 +43,3 @@ def test_missing_local_model_path_is_rejected_synchronously(client, fake_engine,
     r = _start(client, pid, _jsonl(tmp_path), "/nonexistent/model")
     assert "model path does not exist" in r.json().get("error", ""), r.text
     assert not fake_engine.started
-
-
-def test_export_bad_body_is_400(client, fake_engine, fake_home):
-    r = client.post("/api/training/runs/nope/export", content="x", headers={"content-type": "application/json"})
-    assert r.status_code == 400
-    r = client.post("/api/training/runs/nope/export", json=[1])
-    assert r.status_code == 400

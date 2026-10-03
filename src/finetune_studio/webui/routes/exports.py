@@ -396,17 +396,6 @@ async def export_events(pid: str, eid: str):
     return sse_response(gen())
 
 
-@router.get("/projects/{pid}/runs/{rid}/exports")
-async def list_run_exports(pid: str, rid: str):
-    missing = _project_404(pid)
-    if missing is not None:
-        return missing
-    run = db.get_run(rid)
-    if not run or run.get("project_id") != pid:
-        return JSONResponse({"error": "not found"}, status_code=404)
-    return db.list_exports_for_run(rid)
-
-
 @router.get("/projects/{pid}/exports")
 async def list_project_exports(pid: str, limit: int = Query(100, ge=1, le=1000)):
     missing = _project_404(pid)

@@ -12,12 +12,8 @@ CASES = [
     # Specific kinds (must win over the generic fallbacks).
     ("/api/inference/chat", "inference"),
     ("/api/inference/load", "model_load"),
-    ("/api/inference/unload", "model_load"),
     ("/api/chat-v2/load", "model_load"),
-    ("/api/chat-v2/unload", "model_load"),
-    ("/api/chat-v2/inference/chat", "inference"),
     ("/api/chat-v2/projects/fbcf7083/chat", "inference"),
-    ("/api/compare/rag/chat", "inference"),
     # RAG lifecycle and queries.
     ("/api/projects/fbcf7083/rag/build", "rag_build"),
     ("/api/projects/fbcf7083/rag/rebuild", "rag_build"),
@@ -67,4 +63,4 @@ def test_rag_query_wins_over_data_prep_chat() -> None:
 
 def test_inference_wins_over_rag_query_for_chat_v2() -> None:
     """Inference endpoints are classified before rag_query even if 'chat' appears."""
-    assert _activity_kind("/api/chat-v2/inference/chat") == "inference"
+    assert _activity_kind("/api/chat-v2/projects/x/chat") == "inference"

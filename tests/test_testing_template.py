@@ -1,4 +1,7 @@
-"""Regression tests for testing.html per-case table (QABUG-013)."""
+"""Regression tests for the shared per-case results table (QABUG-013).
+
+``_case_results.html`` is included by the live benchmarks page.
+"""
 
 from __future__ import annotations
 
@@ -14,13 +17,13 @@ _PARTIAL = (
     / "templates"
     / "_case_results.html"
 )
-_TESTING = (
+_BENCHMARKS = (
     Path(__file__).resolve().parents[1]
     / "src"
     / "finetune_studio"
     / "webui"
     / "templates"
-    / "testing.html"
+    / "benchmarks.html"
 )
 
 
@@ -31,7 +34,7 @@ def _render_cases(cases: list[dict], scores: dict | None = None) -> str:
 
 
 def test_testing_template_renders_per_case_table() -> None:
-    src = _TESTING.read_text(encoding="utf-8")
+    src = _BENCHMARKS.read_text(encoding="utf-8")
     assert '{% include "_case_results.html" %}' in src
     html = _render_cases(
         [

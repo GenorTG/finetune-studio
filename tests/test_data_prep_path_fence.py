@@ -178,13 +178,13 @@ def test_data_prep_start_rejects_legacy_external_source(env) -> None:
 def test_flat_data_routes_confined_to_data_dir(env, tmp_path: Path) -> None:
     client, _, _, outside = env
     ext = _jsonl(outside / "ext.jsonl")
-    for method, route in (("get", "validate"), ("get", "preview"), ("post", "dedup")):
+    for method, route in (("get", "validate"), ("post", "dedup")):
         r = getattr(client, method)(f"/api/data/{route}", params={"path": str(ext)})
         assert r.status_code == 403, (route, r.text)
         r = getattr(client, method)(f"/api/data/{route}", params={"path": "../outside/ext.jsonl"})
         assert r.status_code == 400, (route, r.text)
     inside = _jsonl(Path(settings.data_dir) / "in.jsonl")
-    assert client.get("/api/data/preview", params={"path": str(inside)}).json()["rows"] == 1
+    assert client.post("/api/data/dedup", params={"path": str(inside)}).json()["original"] == 1
 
 
 def test_file_library_raw_download_fenced(env) -> None:

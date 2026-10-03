@@ -128,14 +128,8 @@ LEAKING_ROUTES = [
     "/api/projects/{pid}/rag",
     "/api/projects/{pid}/rag/build/progress",
     "/api/projects/{pid}/rag/build/status",
-    "/api/projects/{pid}/rags",
-    "/api/projects/{pid}/rags/{rid}/stats",
     "/api/projects/{pid}/runs",
     "/api/projects/{pid}/runs/{rid}",
-    "/api/projects/{pid}/runs/{rid}/benchmarks",
-    "/api/projects/{pid}/runs/{rid}/exports",
-    # testing.py
-    "/api/testing/projects/{pid}/training-datasets",
     # training.py
     "/api/training/runs/{pid}",
 ]
@@ -213,7 +207,6 @@ def test_rag_status_does_not_leak_a_corpus_path(client: TestClient) -> None:
     "template",
     [
         "/api/projects/{pid}/runs",
-        "/api/projects/{pid}/rags",
         "/api/projects/{pid}/exports",
         "/api/projects/{pid}/data-prep/sources",
     ],

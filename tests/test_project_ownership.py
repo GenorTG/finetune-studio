@@ -139,7 +139,6 @@ def test_file_routes_still_serve_own_file(client, two_file_projects) -> None:
         ("post", "/reparse", None),
         ("patch", "/rename", {"new_name": "pwn.bin"}),
         ("post", "/purge", None),
-        ("post", "/move", {"folder_id": "nope"}),
         ("delete", "", None),
         ("post", "/restore", None),
         ("patch", "/tags", {"tags": "x", "notes": "y"}),

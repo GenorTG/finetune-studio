@@ -437,38 +437,6 @@ class TestExportRoute:
         assert client.get(
             f"/api/projects/{other}/exports/{eid}/events",
         ).status_code == 404
-        assert client.get(
-            f"/api/projects/{other}/runs/{rid}/exports",
-        ).status_code == 404
-
-    def test_run_export_listing_does_not_expose_another_projects_exports(
-        self, client, mock_settings,
-    ):
-        from finetune_studio import db
-
-        owner = db.create_project(name="Owner", description="")["id"]
-        other = db.create_project(name="Other", description="")["id"]
-        rid = db.create_run(project_id=owner, name="r", base_model="m",
-                            settings_obj={})["id"]
-        db.create_export(project_id=owner, run_id=rid, quant="Q4_K_M")
-
-        assert client.get(
-            f"/api/projects/{other}/runs/{rid}/exports",
-        ).status_code == 404
-
-    def test_list_run_exports_returns_rows(self, client, mock_settings):
-        from finetune_studio import db
-        pid = db.create_project(name="R", description="")["id"]
-        rid = db.create_run(project_id=pid, name="r", base_model="m",
-                            settings_obj={})["id"]
-        db.create_export(project_id=pid, run_id=rid, quant="Q4_K_M")
-        db.create_export(project_id=pid, run_id=rid, quant="Q8_0")
-        r = client.get(f"/api/projects/{pid}/runs/{rid}/exports")
-        assert r.status_code == 200
-        rows = r.json()
-        assert len(rows) == 2
-        quants = {row["quant"] for row in rows}
-        assert quants == {"Q4_K_M", "Q8_0"}
 
     def test_sync_multi_quant_registers_one_row_per_quant(
         self, client, mock_settings, monkeypatch, tmp_path,

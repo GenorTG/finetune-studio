@@ -840,17 +840,7 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
     )
 
 
-# ── New: file inspection + reprocess ───────────────────────────────────
-
-@router.get("/projects/{pid}/data-prep/file/{sha256}")
-async def file_metadata_route(pid: str, sha256: str):
-    """Read structured metadata for a content-addressed file."""
-    from finetune_studio.data import project_filesystem as pfs
-    m = pfs.read_file_metadata(pid, sha256)
-    if m is None:
-        return JSONResponse({"error": "not found"}, status_code=404)
-    return m.to_json()
-
+# ── Ingestion log, audit + reprocess ───────────────────────────────────
 
 @router.get("/projects/{pid}/data-prep/ingestion-log")
 async def ingestion_log_route(pid: str, limit: int = 200):

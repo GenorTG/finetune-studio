@@ -177,14 +177,12 @@ def _activity_kind(path: str) -> str:
         or "/models/unload" in p
         or "/models/refresh" in p
         or "/inference/load" in p
-        or "/inference/unload" in p
         or "/chat-v2/load" in p
-        or "/chat-v2/unload" in p
         or "/providers/" in p
     ):
         return "model_load"
     # More specific checks so they win over the generic fallbacks below.
-    if p.startswith(("/api/inference/", "/api/chat-v2/")) or "/compare/rag/chat" in p:
+    if p.startswith(("/api/inference/", "/api/chat-v2/")):
         return "inference"
     if "/rag/build" in p or "/rag/rebuild" in p or "/rag/rebuild-vectors" in p:
         return "rag_build"
