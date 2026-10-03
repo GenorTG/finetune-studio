@@ -82,3 +82,14 @@ def test_unknown_page_gets_styled_404_but_api_stays_json(client):
     assert api.json() == {"detail": "Not Found"}
     bare = client.get("/projects/nope/files")
     assert bare.json() == {"detail": "Not Found"}
+
+
+def test_project_overview_links_and_base_model_badge(client):
+    pid = client.post("/api/projects", json={"name": "Links"}).json()["id"]
+    from finetune_studio import db
+
+    db.update_project(pid, base_model="/x/hf_models/Qwen__Qwen3-0.6B")
+    page = client.get(f"/projects/{pid}").text
+    assert f'href="/projects/{pid}/data" data-link>\n    <div class="label">Files' in page
+    assert f"/projects/{pid}/data-prep#upload" not in page
+    assert "base: Qwen/Qwen3-0.6B" in client.get("/projects").text
