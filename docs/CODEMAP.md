@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-416 files · 74721 lines
-- `finetune_studio`: 217 files, 42266 lines
+417 files · 74903 lines
+- `finetune_studio`: 217 files, 42355 lines
 - `scripts`: 9 files, 2344 lines
-- `tests`: 190 files, 30111 lines
+- `tests`: 191 files, 30204 lines
 
 
 # finetune_studio
@@ -23,7 +23,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 
 ## `src/finetune_studio/benchmarks/__init__.py` (17 lines)
 
-## `src/finetune_studio/benchmarks/comparison.py` (182 lines)
+## `src/finetune_studio/benchmarks/comparison.py` (185 lines)
 - `class NoModelsLoadedError(RuntimeError)` (L26)
 - `class ComparisonResult` (L31)
 - `class ModelComparator` (L40)
@@ -33,8 +33,8 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def unload_all(self)` (L63)
   - `def cleanup(self)` (L69)
   - `def run_comparison(self, test_suite, config: dict | None = None) -> dict` (L78)
-  - `def _run_comparison_locked(self, test_suite, config: dict | None = None) -> dict` (L84)
-  - `def _score_response(self, response, expected: dict) -> dict` (L165)
+  - `def _run_comparison_locked(self, test_suite, config: dict | None = None) -> dict` (L87)
+  - `def _score_response(self, response, expected: dict) -> dict` (L168)
   - imports: finetune_studio.benchmarks.scoring, finetune_studio.testing.inference
 
 ## `src/finetune_studio/benchmarks/offline_fixture_data.py` (510 lines)
@@ -247,7 +247,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def write_chunks(pid: str, sha256: str, chunks: list[str], chunk_meta: list[dict] | None = Non…` (L13)
   - imports: finetune_studio.data.fs.paths
 
-## `src/finetune_studio/data/fs/file_library.py` (1442 lines)
+## `src/finetune_studio/data/fs/file_library.py` (1445 lines)
 - `def _sniff_mime(filename: str, sniffed: str | None = None) -> str` (L63) — Best-effort MIME detection: prefer the python-magic 'sniffed' value
 - `def auto_kind_for(mime: str) -> str` (L75) — Map a MIME type to one of the six raw subfolders.
 - `def _ext_for_filename(name: str) -> str` (L90) — Return lowercase extension WITHOUT the dot, or '' if none.
@@ -276,19 +276,19 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def restore_file(pid: str, file_id: str) -> dict` (L555) — Restore a soft-deleted file from trash back to its original auto-folder.
 - `def purge_trash(pid: str, older_than_days: int = 7) -> dict` (L601) — Hard-delete everything in trash older than N days.
 - `def list_trash(pid: str) -> list[dict]` (L669) — List files currently in trash, with how many days until purge.
-- `def _revive_deleted_file(pid: str, file_id: str, original_name: str, data: bytes, mime: str, kind: str…` (L691) — Undelete a soft-deleted row for a re-upload of the same filename.
-- `def write_uploaded_file(pid: str, data: bytes, original_name: str, *, mime_hint: str | None = None, u…` (L746) — Write bytes to the correct MIME-segregated raw subfolder. Compute
-- `def write_staged_upload(pid: str, staged_path: Path, original_name: str, *, raw_hash: str, size_bytes…` (L850) — Atomically adopt a streamed upload without loading it back into RAM.
-- `def _cache_key(pid: str, file_id: str) -> str` (L960)
-- `def invalidate_parsed_cache(pid: str, file_id: str) -> None` (L964) — Drop any in-memory parsed-MD cache entry for this file.
-- `def _project_files_columns() -> set[str]` (L969) — Return the live column names on project_files (for optional parsed_* cols).
-- `def _validate_rename_name(new_name: str) -> str` (L984) — Validate a user-facing rename target. Returns the stripped name.
-- `def _csv_to_md_table(text: str) -> str` (L1013) — Convert CSV/TSV text to a simple GitHub-flavoured markdown table.
-- `def _convert_raw_to_md(path: Path, original_name: str) -> str` (L1044) — Convert a text-like file on disk into markdown. Raises HTTPException 422
-- `def _current_raw_path(pid: str, file_id: str, current_version: int) -> Path | None` (L1081) — Resolve the on-disk path for the file's current version.
-- `def rename_file(pid: str, file_id: str, new_name: str) -> dict` (L1107) — Rename a live file: update project_files.original_name and rename on disk.
-- `def purge_file(pid: str, file_id: str) -> dict` (L1225) — Hard-delete a single trashed file (disk + DB rows).
-- `def get_parsed_markdown(pid: str, file_id: str) -> dict` (L1298) — Resolve a file's parsed-markdown representation.
+- `def _revive_deleted_file(pid: str, file_id: str, original_name: str, data: bytes, mime: str, kind: str…` (L691) — Undelete a soft-deleted row, or add a version to a live row, for a re-upload of the same filename.
+- `def write_uploaded_file(pid: str, data: bytes, original_name: str, *, mime_hint: str | None = None, u…` (L749) — Write bytes to the correct MIME-segregated raw subfolder. Compute
+- `def write_staged_upload(pid: str, staged_path: Path, original_name: str, *, raw_hash: str, size_bytes…` (L853) — Atomically adopt a streamed upload without loading it back into RAM.
+- `def _cache_key(pid: str, file_id: str) -> str` (L963)
+- `def invalidate_parsed_cache(pid: str, file_id: str) -> None` (L967) — Drop any in-memory parsed-MD cache entry for this file.
+- `def _project_files_columns() -> set[str]` (L972) — Return the live column names on project_files (for optional parsed_* cols).
+- `def _validate_rename_name(new_name: str) -> str` (L987) — Validate a user-facing rename target. Returns the stripped name.
+- `def _csv_to_md_table(text: str) -> str` (L1016) — Convert CSV/TSV text to a simple GitHub-flavoured markdown table.
+- `def _convert_raw_to_md(path: Path, original_name: str) -> str` (L1047) — Convert a text-like file on disk into markdown. Raises HTTPException 422
+- `def _current_raw_path(pid: str, file_id: str, current_version: int) -> Path | None` (L1084) — Resolve the on-disk path for the file's current version.
+- `def rename_file(pid: str, file_id: str, new_name: str) -> dict` (L1110) — Rename a live file: update project_files.original_name and rename on disk.
+- `def purge_file(pid: str, file_id: str) -> dict` (L1228) — Hard-delete a single trashed file (disk + DB rows).
+- `def get_parsed_markdown(pid: str, file_id: str) -> dict` (L1301) — Resolve a file's parsed-markdown representation.
   - imports: finetune_studio, finetune_studio.data.fs.paths
 
 ## `src/finetune_studio/data/fs/files.py` (145 lines)
@@ -1196,24 +1196,26 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def _slugify(text: str) -> str` (L279) — Convert text to a safe filename slug.
   - imports: finetune_studio.testing.suite
 
-## `src/finetune_studio/testing/inference.py` (579 lines)
-- `class InferenceEngine` (L34)
-  - `def __init__(self)` (L35)
-  - `def load(self, model_path, device = 'auto', n_ctx = DEFAULT_N_CTX, n_gpu_layers = -1, …` (L56)
-  - `def _looks_like_qwen3(model_path: str) -> bool` (L84)
-  - `def _load_hf_bnb_4bit(self, model_path: str, device_map: str | dict)` (L104)
-  - `def _load_hf(self, model_path, device, max_seq_length = None, load_in_4bit = False)` (L122)
-  - `def _load_gguf(self, gguf_path, n_ctx = DEFAULT_N_CTX, n_gpu_layers = -1, n_batch = 512, mma…` (L188)
-  - `def _start_idle_timer(self)` (L213)
-  - `def _auto_unload(self)` (L222)
-  - `def unload(self)` (L231)
-  - `def idle_seconds(self)` (L294)
-  - `def generate(self, messages, max_tokens = 1024, temperature = 0.7, top_p = 0.9, top_k = 40…` (L300)
-  - `def _generate_hf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop, …` (L309)
-  - `def estimate_memory(model_path, n_ctx = DEFAULT_N_CTX, n_gpu_layers = -1)` (L342)
-  - `def read_model_metadata(model_path)` (L397)
-  - `def _generate_gguf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop)` (L544)
-  - imports: finetune_studio.config, finetune_studio.models.llama_loader, finetune_studio.templates.renderer, finetune_studio.training.formatting
+## `src/finetune_studio/testing/inference.py` (630 lines)
+- `def idle_timeout() -> int` (L34) — Idle seconds before auto-unload; read live so env changes apply without a restart.
+- `def release_idle_memory() -> None` (L45) — Hand cached memory back to the OS/driver (GC, CUDA cache, glibc heap, parsed-file cache).
+- `class InferenceEngine` (L68)
+  - `def __init__(self)` (L69)
+  - `def load(self, model_path, device = 'auto', n_ctx = DEFAULT_N_CTX, n_gpu_layers = -1, …` (L92)
+  - `def _looks_like_qwen3(model_path: str) -> bool` (L120)
+  - `def _load_hf_bnb_4bit(self, model_path: str, device_map: str | dict)` (L140)
+  - `def _load_hf(self, model_path, device, max_seq_length = None, load_in_4bit = False)` (L158)
+  - `def _load_gguf(self, gguf_path, n_ctx = DEFAULT_N_CTX, n_gpu_layers = -1, n_batch = 512, mma…` (L224)
+  - `def _start_idle_timer(self)` (L249)
+  - `def _auto_unload(self)` (L259)
+  - `def unload(self)` (L275)
+  - `def idle_seconds(self)` (L338)
+  - `def generate(self, messages, max_tokens = 1024, temperature = 0.7, top_p = 0.9, top_k = 40…` (L344)
+  - `def _generate_hf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop, …` (L360)
+  - `def estimate_memory(model_path, n_ctx = DEFAULT_N_CTX, n_gpu_layers = -1)` (L393)
+  - `def read_model_metadata(model_path)` (L448)
+  - `def _generate_gguf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop)` (L595)
+  - imports: finetune_studio.config, finetune_studio.data.fs, finetune_studio.models.llama_loader, finetune_studio.templates.renderer, finetune_studio.training.formatting
 
 ## `src/finetune_studio/testing/judge.py` (247 lines)
 - `def _key_words(text: str) -> set[str]` (L100) — Content words of a text: lowercased, punctuation-stripped, stopwords removed.
@@ -1541,17 +1543,18 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 
 ## `src/finetune_studio/webui/__init__.py` (2 lines)
 
-## `src/finetune_studio/webui/app.py` (397 lines)
-- `async def lifespan(app: FastAPI)` (L50)
-- `async def _http_exception_handler(request: Request, exc: StarletteHTTPException)` (L130) — Styled 404 for browser page loads; API/JSON callers keep the JSON body.
-- `def _activity_kind(path: str) -> str` (L138) — Classify mutating API paths for the global operation feed.
-- `async def record_activity_operations(request: Request, call_next)` (L183) — Persist every mutating API operation after its response completes.
-- `def _activity_summary(path: str, method: str) -> str` (L202) — Human one-liner for the activity feed (replaces 'POST /api/x → 200').
-- `def _record_activity_event(request: Request, started: float, http_status: int) -> None` (L246) — Best-effort event write; logging must never break the API response.
-- `def _apply_hosting_middleware()` (L269) — Apply CORS and proxy-header middleware from user settings.
-- `class _NoCacheStatic(StaticFiles)` (L300)
-  - `async def get_response(self, path, scope)` (L306)
-  - imports: finetune_studio, finetune_studio.config, finetune_studio.models.manager, finetune_studio.models.registry, finetune_studio.training.engine, finetune_studio.webui.routes, finetune_studio.webui.routes.data_prep, finetune_studio.webui.routes.hf_models
+## `src/finetune_studio/webui/app.py` (429 lines)
+- `async def _idle_reaper()` (L52) — Once the app has sat idle past the timeout, free cached memory (and engines the timers missed).
+- `async def lifespan(app: FastAPI)` (L77)
+- `async def _http_exception_handler(request: Request, exc: StarletteHTTPException)` (L162) — Styled 404 for browser page loads; API/JSON callers keep the JSON body.
+- `def _activity_kind(path: str) -> str` (L170) — Classify mutating API paths for the global operation feed.
+- `async def record_activity_operations(request: Request, call_next)` (L215) — Persist every mutating API operation after its response completes.
+- `def _activity_summary(path: str, method: str) -> str` (L234) — Human one-liner for the activity feed (replaces 'POST /api/x → 200').
+- `def _record_activity_event(request: Request, started: float, http_status: int) -> None` (L278) — Best-effort event write; logging must never break the API response.
+- `def _apply_hosting_middleware()` (L301) — Apply CORS and proxy-header middleware from user settings.
+- `class _NoCacheStatic(StaticFiles)` (L332)
+  - `async def get_response(self, path, scope)` (L338)
+  - imports: finetune_studio, finetune_studio.config, finetune_studio.models.manager, finetune_studio.models.registry, finetune_studio.testing.inference, finetune_studio.training.engine, finetune_studio.webui.routes, finetune_studio.webui.routes.data_prep, finetune_studio.webui.routes.hf_models
 
 ## `src/finetune_studio/webui/engine_guard.py` (25 lines)
 
@@ -2974,7 +2977,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_no_direct_apply_chat_template_in_train_or_eval_paths()` (L64)
   - imports: finetune_studio.testing, finetune_studio.training, finetune_studio.training.data, finetune_studio.training.formatting, finetune_studio.training.vram
 
-## `tests/test_fresh_run_regressions.py` (251 lines)
+## `tests/test_fresh_run_regressions.py` (265 lines)
 - `def test_base_model_benchmark_listed_on_page(client) -> None` (L14)
 - `def test_base_probe_placeholder_hidden_from_run_lists(client) -> None` (L31)
 - `def test_chat_context_offers_tuned_merged_model(client, tmp_path) -> None` (L43) — Chat must offer the project's fine-tuned (merged) model, not only bases.
@@ -2996,6 +2999,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_coverage_fill_skips_tabular_junk_and_asks_readable_questions()` (L226)
 - `def test_pairs_table_shows_local_time_with_utc_tooltip(client)` (L241)
 - `def test_file_library_table_keeps_name_column_readable_and_actions_wrap(client)` (L247)
+- `def test_reupload_same_name_new_bytes_adds_version_not_sql_error(client) -> None` (L254)
   - imports: finetune_studio, finetune_studio.data.prep.coverage_fill, finetune_studio.data.rag_portable.schema, finetune_studio.training, finetune_studio.training.preset_advisor, finetune_studio.webui.routes, finetune_studio.webui.routes.pages
 
 ## `tests/test_full_corpus_suite.py` (293 lines)
@@ -3106,6 +3110,17 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_pipeline_tag_strict_filter_kept_when_results_present() -> None` (L63)
 - `def test_empty_query_returns_anything_in_pipeline_tag() -> None` (L72)
   - imports: finetune_studio.webui.routes.hf_models
+
+## `tests/test_idle_release.py` (79 lines)
+- `def _loaded_engine()` (L9)
+- `def test_timeout_is_live_and_defaults_to_five_minutes(monkeypatch)` (L17)
+- `def test_auto_unload_when_idle(monkeypatch)` (L26)
+- `def test_auto_unload_skips_busy_engine(monkeypatch)` (L33)
+- `def test_generate_marks_busy_and_touches_last_used(monkeypatch)` (L42)
+- `def test_comparator_drops_idle_unloaded_engines()` (L52)
+- `def test_release_idle_memory_clears_parsed_cache()` (L64)
+- `def test_busy_counter_thread_safe()` (L71)
+  - imports: finetune_studio.benchmarks.comparison, finetune_studio.data.fs, finetune_studio.testing
 
 ## `tests/test_import_smoke.py` (99 lines)
 - `def _load(module: str, attribute: str | None) -> None` (L48)

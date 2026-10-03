@@ -51,3 +51,9 @@ Round 2 of the fresh-DB browser run fixed F1-F26 (files table at 390/768px, acti
 ## Blockers
 
 Policy items resolved. Committed locally; nothing pushed without his OK.
+
+## Idle resource release (2026-10-03)
+- `FTS_IDLE_TIMEOUT` (default 300s, read live via `testing.inference.idle_timeout()`, 0 = off) unloads the engine; busy guard in `generate()` defers unload mid-run.
+- `webui/app.py::_idle_reaper` (lifespan task, 60s tick): when no training/inference, past timeout calls `release_idle_memory()` (GC, CUDA cache, malloc_trim, `_PARSED_CACHE`).
+- `ModelComparator.run_comparison` drops idle-unloaded engines. Tests: `tests/test_idle_release.py`.
+

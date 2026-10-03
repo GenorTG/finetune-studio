@@ -200,7 +200,7 @@ async def load_model(request: Request):
 @router.get("/status")
 async def inference_status():
     """Current inference engine status."""
-    from finetune_studio.testing.inference import IDLE_TIMEOUT
+    from finetune_studio.testing.inference import idle_timeout
     from finetune_studio.webui.app import inference_engine
     loaded = inference_engine.model is not None
     return {
@@ -209,8 +209,8 @@ async def inference_status():
         "vision": getattr(inference_engine, "vision", False) if loaded else False,
         "is_gguf": inference_engine.is_gguf if loaded else False,
         "idle_seconds": inference_engine.idle_seconds,
-        "idle_timeout": IDLE_TIMEOUT,
-        "auto_unload_remaining": max(0, IDLE_TIMEOUT - inference_engine.idle_seconds) if loaded and IDLE_TIMEOUT > 0 else None,
+        "idle_timeout": idle_timeout(),
+        "auto_unload_remaining": max(0, idle_timeout() - inference_engine.idle_seconds) if loaded and idle_timeout() > 0 else None,
     }
 
 

@@ -46,6 +46,33 @@ training_engine = TrainingEngine()
 inference_engine = get_manager().engine
 discovered_models: list[ModelInfo] = []
 
+IDLE_REAP_INTERVAL = 60
+
+
+async def _idle_reaper():
+    """Once the app has sat idle past the timeout, free cached memory (and engines the timers missed)."""
+    import asyncio
+
+    from finetune_studio.testing.inference import idle_timeout, release_idle_memory
+
+    last_activity = time.time()
+    released = True
+    while True:
+        await asyncio.sleep(IDLE_REAP_INTERVAL)
+        timeout = idle_timeout()
+        training_busy = training_engine.state.status in ("training", "loading", "saving")
+        if training_busy or inference_engine._busy or timeout <= 0:
+            last_activity, released = time.time(), False
+            continue
+        if inference_engine.model is not None:
+            last_activity, released = max(last_activity, inference_engine._last_used), False
+            if time.time() - inference_engine._last_used >= timeout:
+                inference_engine.unload()
+            continue
+        if not released and time.time() - last_activity >= timeout:
+            await asyncio.to_thread(release_idle_memory)
+            released = True
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global discovered_models
@@ -109,7 +136,12 @@ async def lifespan(app: FastAPI):
             )
     except Exception:  # noqa: BLE001 - startup recovery must never block boot
         _log.exception("Data-prep restart recovery failed")
-    yield
+    import asyncio
+    reaper = asyncio.create_task(_idle_reaper())
+    try:
+        yield
+    finally:
+        reaper.cancel()
 
 app = FastAPI(title="Finetune Studio", version="0.1.0", lifespan=lifespan)
 

@@ -77,6 +77,9 @@ class ModelComparator:
 
     def run_comparison(self, test_suite, config: dict | None = None) -> dict:
         with self._lock:
+            # Engines idle-unloaded by their own timers are dead weight: drop them.
+            for name in [n for n, e in self.engines.items() if getattr(e, "model", True) is None]:
+                del self.engines[name]
             if not self.engines:
                 raise NoModelsLoadedError("No models loaded. Use /compare/load first.")
             return self._run_comparison_locked(test_suite, config)

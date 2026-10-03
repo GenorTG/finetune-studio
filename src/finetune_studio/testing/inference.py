@@ -27,8 +27,42 @@ from finetune_studio.models.llama_loader import DEFAULT_N_CTX
 _GGUF_META_CACHE: "OrderedDict[tuple, dict]" = OrderedDict()
 _GGUF_META_CACHE_MAX = 32
 
-# Auto-unload after idle (configurable via FTS_IDLE_TIMEOUT env, default 30 min)
-IDLE_TIMEOUT = int(os.environ.get("FTS_IDLE_TIMEOUT", "1800"))
+# Auto-unload after idle (FTS_IDLE_TIMEOUT env, default 5 min; 0 disables).
+DEFAULT_IDLE_TIMEOUT = 300
+
+
+def idle_timeout() -> int:
+    """Idle seconds before auto-unload; read live so env changes apply without a restart."""
+    try:
+        return max(0, int(os.environ.get("FTS_IDLE_TIMEOUT", DEFAULT_IDLE_TIMEOUT)))
+    except ValueError:
+        return DEFAULT_IDLE_TIMEOUT
+
+
+IDLE_TIMEOUT = idle_timeout()
+
+
+def release_idle_memory() -> None:
+    """Hand cached memory back to the OS/driver (GC, CUDA cache, glibc heap, parsed-file cache)."""
+    import ctypes
+    import gc
+
+    gc.collect()
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:  # noqa: BLE001,S110
+        pass
+    try:
+        from finetune_studio.data.fs import file_library
+        file_library._PARSED_CACHE.clear()
+    except Exception:  # noqa: BLE001,S110
+        pass
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:  # noqa: BLE001,S110
+        pass
 
 
 class InferenceEngine:
@@ -47,6 +81,8 @@ class InferenceEngine:
         self._gguf_template = None
         self._last_used = 0.0
         self._idle_timer = None
+        self._busy = 0
+        self._busy_lock = threading.Lock()
         # In-flight load bookkeeping so the activity feed can show a
         # "loading…" row while a (possibly multi-minute) load blocks — the
         # engine only exposes ``model`` once the load has fully completed.
@@ -214,8 +250,9 @@ class InferenceEngine:
         """Start/restart the idle unload timer."""
         if self._idle_timer:
             self._idle_timer.cancel()
-        if IDLE_TIMEOUT > 0 and self.model is not None:
-            self._idle_timer = threading.Timer(IDLE_TIMEOUT, self._auto_unload)
+        timeout = idle_timeout()
+        if timeout > 0 and self.model is not None:
+            self._idle_timer = threading.Timer(timeout, self._auto_unload)
             self._idle_timer.daemon = True
             self._idle_timer.start()
 
@@ -223,8 +260,15 @@ class InferenceEngine:
         """Unload model if idle too long."""
         if self.model is None:
             return
+        timeout = idle_timeout()
+        if timeout <= 0:
+            return
+        if self._busy:
+            # Mid-generation: never pull the model out from under it.
+            self._start_idle_timer()
+            return
         elapsed = time.time() - self._last_used
-        if elapsed >= IDLE_TIMEOUT:
+        if elapsed >= timeout:
             print(f"[inference] Auto-unloading {self.model_path} (idle {int(elapsed)}s)")
             self.unload()
 
@@ -302,9 +346,16 @@ class InferenceEngine:
             raise RuntimeError("No model loaded")
         self._last_used = time.time()
         self._start_idle_timer()
-        if self.is_gguf:
-            return self._generate_gguf(messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop)
-        return self._generate_hf(messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop, think=think)
+        with self._busy_lock:
+            self._busy += 1
+        try:
+            if self.is_gguf:
+                return self._generate_gguf(messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop)
+            return self._generate_hf(messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop, think=think)
+        finally:
+            with self._busy_lock:
+                self._busy -= 1
+            self._last_used = time.time()
 
     def _generate_hf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop, think=False):
         # Qwen3 chat templates honour enable_thinking; keep the kwarg when present.
