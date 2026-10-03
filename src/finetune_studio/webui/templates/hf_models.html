@@ -125,7 +125,7 @@ async function toggleFavorite(repoId, btn) {
     const path = [..._favCache].find(p => p.endsWith(repoId)) || repoId;
     await fetch('/api/favorites/' + encodeURIComponent(path), { method: 'DELETE' });
     _favCache.delete(path);
-    if (btn) { btn.textContent = '☆'; btn.classList.remove('fav-active'); btn.title = 'Add to favorites'; }
+    if (btn) { btn.textContent = '☆'; btn.classList.remove('fav-active'); btn.title = 'Add to favorites'; btn.setAttribute('aria-label', 'Add to favorites'); }
     if (window.fts) window.fts.notify('Removed from favorites', 'info');
   } else {
     // Add
@@ -135,7 +135,7 @@ async function toggleFavorite(repoId, btn) {
       body: JSON.stringify({ path: repoId, name: repoId })
     });
     _favCache.add(repoId);
-    if (btn) { btn.textContent = '★'; btn.classList.add('fav-active'); btn.title = 'Remove from favorites'; }
+    if (btn) { btn.textContent = '★'; btn.classList.add('fav-active'); btn.title = 'Remove from favorites'; btn.setAttribute('aria-label', 'Remove from favorites'); }
     if (window.fts) window.fts.notify('Added to favorites', 'success');
   }
 }
@@ -175,8 +175,8 @@ function renderResults(results) {
         <div class="actions">
           <button class="btn sm primary" onclick="showInfo('${esc(repo)}', this)">View</button>
           <button class="btn sm" onclick="showFiles('${esc(repo)}', this)">Files</button>
-          <button class="btn sm" data-confirm="Pull all files of ${esc(repo)}?" data-action="/api/hf/download" data-body='${JSON.stringify({repo_id: repo})}' data-method="POST">Pull</button>
-          <button class="btn sm fav-btn${fav ? ' fav-active' : ''}" data-repo="${esc(repo)}" onclick="toggleFavorite('${esc(repo)}', this)" title="${fav ? 'Remove from favorites' : 'Add to favorites'}">${fav ? '★' : '☆'}</button>
+          <button class="btn sm" data-confirm="Download all files of ${esc(repo)}?" data-action="/api/hf/download" data-body='${JSON.stringify({repo_id: repo})}' data-method="POST" title="Download every file of this model to this machine">Download</button>
+          <button class="btn sm fav-btn${fav ? ' fav-active' : ''}" data-repo="${esc(repo)}" onclick="toggleFavorite('${esc(repo)}', this)" title="${fav ? 'Remove from favorites' : 'Add to favorites'}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${fav ? '★' : '☆'}</button>
         </div>
       </div>`;
   }).join('');
@@ -235,7 +235,7 @@ async function showInfo(repo, btn) {
       <div class="text-xs dim">Last updated: ${esc(d.last_modified || 'unknown')}</div>
     `;
     document.getElementById('hf-modal-foot').innerHTML = `
-      <button class="btn primary" data-confirm="Pull all files of ${esc(repo)}?" data-action="/api/hf/download" data-body='${JSON.stringify({repo_id: repo})}' data-method="POST">Pull all files</button>
+      <button class="btn primary" data-confirm="Download all files of ${esc(repo)}?" data-action="/api/hf/download" data-body='${JSON.stringify({repo_id: repo})}' data-method="POST">Download all files</button>
       <button class="btn" onclick="showFiles('${esc(repo)}', null)">Pick files…</button>
     `;
   } catch (e) {

@@ -52,7 +52,7 @@
         {% endfor %}
       </select>
       {% if not suites %}
-      <div class="text-xs dim mt-1">No suites discovered. Built-in synthetic fixtures and real HF suites should ship with the install; you can also add JSON under data/benchmarks/.</div>
+      <div class="text-xs dim mt-1" id="t-suite-empty">No test suites yet. The easiest way to get one: open <a href="/projects/{{ pid }}/wizard" data-link>Quick work</a> and run <b>Step 5 · Test it</b> &mdash; it generates a quiz from your training data for a finished run. (Advanced: add suite JSON files under <code>data/benchmarks/</code>.)</div>
       {% endif %}
       <div id="t-suite-hint" class="text-xs dim mt-1" style="display:none;"></div>
     </div>
@@ -65,7 +65,7 @@
     {% if not models %}
     No project merged/GGUF exports yet — <a href="/projects/{{ pid }}/export" data-link>Export a completed run</a> first, then pick a suite.
     {% elif not suites %}
-    No suites discovered — add JSON under data/benchmarks/ or use synthetic smoke fixtures.
+    No test suites yet — generate one in <a href="/projects/{{ pid }}/wizard" data-link>Quick work</a> (Step 5 · Test it) after a training run finishes.
     {% else %}
     Pick a suite to enable Run.
     {% endif %}
@@ -88,7 +88,7 @@
              title="Leave blank to use the project's PortableRAG corpus (or registered project_rags store).">
     </div>
     <div class="col-span-2">
-      <label class="block text-xs muted mb-1" for="t-rag-topk">top_k</label>
+      <label class="block text-xs muted mb-1" for="t-rag-topk">Results returned</label>
       <input id="t-rag-topk" class="input" type="number" min="1" max="32" value="5"
              title="How many chunks to retrieve per question.">
     </div>
@@ -132,7 +132,7 @@
     </div>
     <div class="col-span-3">
       <label class="block text-xs muted mb-1">Evaluation kind</label>
-      <select id="t-eval-kind" class="select">
+      <select id="t-eval-kind" class="select" onchange="syncTrainEvalBtn()">
         <option value="heldout">Held-out validation (quality)</option>
         <option value="training_leakage">Full training set (memorization check)</option>
       </select>
@@ -140,7 +140,7 @@
     <div class="col-span-2">
       <button id="t-train-eval-btn" type="button" onclick="runTrainingEval()" class="btn"
               style="width:100%;" {% if not models %}disabled title="Export a merged model first"{% endif %}>
-        Eval train set
+        Run held-out eval
       </button>
     </div>
   </div>
@@ -594,6 +594,17 @@
       setRagRunEnabled(hasSuite, hasSuite ? ('Run with RAG: ' + suiteName) : 'Pick a test suite first');
     }
   };
+
+  // Keep the dataset-eval button label in step with the chosen evaluation kind.
+  window.syncTrainEvalBtn = function() {
+    const kindEl = document.getElementById('t-eval-kind');
+    const btn = document.getElementById('t-train-eval-btn');
+    if (!kindEl || !btn) return;
+    btn.textContent = kindEl.value === 'training_leakage'
+      ? 'Run training-set check'
+      : 'Run held-out eval';
+  };
+  window.syncTrainEvalBtn();
 
   window.runTrainingEval = async function() {
     const status = document.getElementById('t-status');

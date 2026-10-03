@@ -79,7 +79,8 @@ def test_rag_and_data_prep_results_are_tables() -> None:
     assert "ref-table" in rag
     dp = (_TEMPLATES / "data_prep.html").read_text(encoding="utf-8")
     assert "dp-results-table" in dp
-    assert "Debug JSON" in dp
+    # Raw-JSON debug box removed from data prep (plain-language audit 2026-10-03).
+    assert "Debug JSON" not in dp
 
 
 def test_export_result_panel_is_field_grid() -> None:

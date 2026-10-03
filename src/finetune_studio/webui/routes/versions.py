@@ -231,17 +231,25 @@ async def rag_coverage(pid: str):
     Corpus side = PortableRAG manifest documents_meta (per-document ids/names).
     Returns per-source rows + summary; missing sources are listed explicitly.
     """
+    from finetune_studio import db
     from finetune_studio.data.fs import qa as qafs
 
+    if not db.get_project(pid):
+        return JSONResponse({"error": "project not found"}, status_code=404)
     sources = qafs.list_qa_sources(pid)
+    # Empty states are normal (Quick work polls this on every load), so they are
+    # 200 with ``state`` rather than a 400 the browser logs as an error.
+    empty = {"project": pid, "covered": 0, "coverage_pct": 0.0}
     if not sources:
-        return JSONResponse({"error": "no parsed sources in this project"}, status_code=400)
+        return {**empty, "state": "no_sources", "parsed_sources": 0, "missing_sources": []}
     from finetune_studio.webui.routes.rag import _corpus_dir as _rag_corpus_dir
 
     corpus_dir = _rag_corpus_dir(pid)
     manifest_path = corpus_dir / "manifest.json"
     if not manifest_path.exists():
-        return JSONResponse({"error": "no RAG corpus built for this project"}, status_code=400)
+        return {**empty, "state": "not_built", "parsed_sources": len(sources),
+                "missing_sources": [{"source_id": s.get("id"), "filename": str(s.get("filename") or ""),
+                                     "declared_chunks": int(s.get("chunk_count") or 0)} for s in sources]}
     try:
         raw = json.loads(manifest_path.read_text(encoding="utf-8"))
         meta = (raw.get("extra") or {}).get("documents_meta") or []
@@ -266,6 +274,7 @@ async def rag_coverage(pid: str):
                      "shas_in_name": stem})
     missing = [r for r in rows if not r["in_corpus"]]
     return {
+        "state": "partial" if missing else "ok",
         "project": pid, "corpus_dir": str(corpus_dir),
         "parsed_sources": len(rows), "covered": len(rows) - len(missing),
         "missing_sources": [{k: r[k] for k in ("source_id", "filename", "declared_chunks")}

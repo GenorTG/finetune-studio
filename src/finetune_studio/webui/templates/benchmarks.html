@@ -48,7 +48,14 @@
     <a href="/projects/{{ pid }}/training" class="btn primary" data-link>Open Training</a>
   </div>
   {% endif %}
-  <div class="text-sm dim mb-2">Available suites — <span class="mono">real</span> = official HF industry splits; <span class="mono">synthetic_*</span> = local shaped fixtures (not industry); plus local JSON / project auto:</div>
+  {% set SUITE_KIND = {
+    "real": ("Official", "Official public test set (MMLU, GSM8K, …) downloaded from Hugging Face. Scores are comparable with published results."),
+    "synthetic_smoke": ("Quick smoke test", "A handful of built-in questions shaped like an official test. Proves the pipeline works; the score means little."),
+    "synthetic_offline": ("Practice (offline)", "Built-in practice questions shaped like an official test; runs without downloading anything. Not comparable with published scores."),
+    "local": ("Your suite", "A test file you added to this project."),
+    "auto": ("From your data", "Questions generated from this project's own documents after training."),
+  } %}
+  <div class="text-sm dim mb-2">Available test suites. <b>Official</b> suites are public test sets, so scores compare with published results; <b>Practice</b> and <b>Quick smoke test</b> suites are built-in synthetic look-alikes for checking the setup (not industry scores); <b>From your data</b> tests what the model learned from your documents.</div>
   <div class="table-scroll bench-table-scroll mb-4">
   <table class="table text-sm" id="suite-catalog">
     <thead>
@@ -58,7 +65,8 @@
       {% for s in suites %}
       <tr>
         <td title="{{ s.label if s.label is defined else s.name }}">{{ s.label if s.label is defined else s.name }}</td>
-        <td><span class="pill outline">{{ s.suite_type if s.suite_type is defined else 'local' }}</span></td>
+        {% set kind = SUITE_KIND.get(s.suite_type if s.suite_type is defined else 'local', (s.suite_type, '')) %}
+        <td><span class="pill outline" title="{{ kind[1] }}">{{ kind[0] }}</span></td>
         <td class="dim" title="{{ s.source if s.source is defined else '—' }}">{{ s.source if s.source is defined else '—' }}</td>
         <td class="mono">{% if s.case_count is defined and s.case_count is not none %}{{ s.case_count }}{% else %}—{% endif %}</td>
       </tr>
@@ -67,9 +75,9 @@
   </table>
   </div>
   <div class="text-sm dim mb-3" id="real-sample-hint">
-    Real suites default to a bounded sample ({{ 50 }} cases). Pass
-    <span class="mono">num_samples</span> or <span class="mono">full_run=true</span>
-    in the run API for larger / full-split evals (full MMLU ≈ 14k).
+    Official suites run on a sample of 50 questions by default. Pick a bigger
+    sample next to RUN, or "all" for the whole test set (slow: full MMLU is about
+    14,000 questions).
   </div>
 
   <h3 class="mt-4 mb-2">Run a benchmark</h3>
@@ -108,11 +116,12 @@
               {% endfor %}
             </select>
             <select name="num_samples" class="select" style="min-width:90px;font-size:11px;{% if not suites or (suites[0].suite_type|default('')) != 'real' %}display:none;{% endif %}"
-                    title="Bounded sample for real HF suites (full_run via API)">
+                    title="How many questions to run from the official test set. More = more reliable score, but slower.">
               <option value="20">20</option>
               <option value="50" selected>50</option>
               <option value="100">100</option>
               <option value="200">200</option>
+              <option value="full">all</option>
             </select>
             <button type="submit" class="btn primary" style="font-size:11px;padding:4px 10px;"
                     {% if not can_bench %}disabled title="Only completed runs with a trained model can be benchmarked"{% endif %}>RUN</button>
@@ -145,11 +154,12 @@
               {% endfor %}
             </select>
             <select name="num_samples" class="select" style="min-width:90px;font-size:11px;{% if not suites or (suites[0].suite_type|default('')) != 'real' %}display:none;{% endif %}"
-                    title="Bounded sample for real HF suites (full_run via API)">
+                    title="How many questions to run from the official test set. More = more reliable score, but slower.">
               <option value="20">20</option>
               <option value="50" selected>50</option>
               <option value="100">100</option>
               <option value="200">200</option>
+              <option value="full">all</option>
             </select>
             <button type="submit" class="btn" style="font-size:11px;padding:4px 10px;" id="bench-base-run-btn"
                     {% if not project.base_model %}disabled title="Project has no base_model configured"{% endif %}>RUN</button>

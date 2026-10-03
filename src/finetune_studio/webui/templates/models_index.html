@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Models — Finetune Studio{% endblock %}
+{% block nav_models_local %}active{% endblock %}
 
 {% block content %}
 {% include "_resources.html" %}
@@ -56,6 +57,12 @@
       </td>
       <td class="meta mono text-xs models-col-path" title="{{ m.path }}">{{ m.path[-40:] if m.path|length > 40 else m.path }}</td>
       <td class="models-col-actions"><button class="btn sm" data-copy-path="{{ m.path }}" onclick="ftsCopyText(this.dataset.copyPath)">Copy</button></td>
+    </tr>
+    {% else %}
+    <tr id="models-index-empty">
+      <td colspan="8" class="dim text-xs" style="text-align:center;padding:24px">
+        No models found — download one from the <a href="/models/explore" data-link>Model library</a>.
+      </td>
     </tr>
     {% endfor %}
   </tbody>

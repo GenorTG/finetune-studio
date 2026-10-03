@@ -82,6 +82,22 @@ def systemd_unit_active(unit: str = SYSTEMD_UNIT) -> bool:
     return proc.returncode == 0 and (proc.stdout or "").strip() == "active"
 
 
+def _read_self_cgroup() -> str:
+    try:
+        return Path("/proc/self/cgroup").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def running_in_unit(unit: str = SYSTEMD_UNIT) -> bool:
+    """True when *this* process belongs to ``unit`` (cgroup path names it).
+
+    "The unit is active" is not enough: a dev or sandbox instance on another
+    port would otherwise show the service's journal as its own live log.
+    """
+    return unit in _read_self_cgroup()
+
+
 def journal_tail(n: int, *, unit: str = SYSTEMD_UNIT) -> list[str] | None:
     """Return last ``n`` journal lines for the unit, or None if unavailable."""
     try:
@@ -136,7 +152,10 @@ def build_logs_payload(
       reported as ``stale`` / not live (never claimed as the live service log).
     """
     n = max(1, min(int(lines), MAX_LINES))
-    use_systemd = systemd_unit_active() if prefer_systemd is None else prefer_systemd
+    if prefer_systemd is None:
+        use_systemd = systemd_unit_active() and running_in_unit()
+    else:
+        use_systemd = prefer_systemd
 
     if use_systemd:
         journal_lines = journal_tail(n)

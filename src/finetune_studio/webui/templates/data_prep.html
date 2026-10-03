@@ -14,8 +14,7 @@
     <a href="/projects/{{ pid }}/training" data-link>training (step 3)</a> consumes.
     <br><span class="text-xs">Files come from the
     <a href="/projects/{{ pid }}/data" data-link>file library (step 1)</a>. Writing the pairs
-    uses the helper model <span class="mono" id="dp-helper-label">{{ helper_label }}</span>
-    (<code>{{ helper_provider_id }}</code>). Want to mine them conversationally instead?
+    uses the helper model <span class="mono" id="dp-helper-label">{{ helper_label }}</span>. Want to mine them conversationally instead?
     <a href="/projects/{{ pid }}/chat?mode=agent" data-link>Agent chat</a>.</span>
   </div>
 </div>
@@ -30,7 +29,7 @@
   </div>
   <ol class="rag-workflow-steps" aria-label="Data prep workflow">
     <li><b>Upload</b> files into the library below</li>
-    <li><b>Parse</b> / promote into parsed sources</li>
+    <li><b>Parse</b> files and use them as sources</li>
     <li><b>Prepare / QA</b> with a prep job or Agent chat</li>
     <li>Export approved pairs to Training, or <a href="/projects/{{ pid }}/rag" data-link>embed on RAG</a></li>
   </ol>
@@ -43,8 +42,8 @@
       <div class="card-title">Uploaded files</div>
       <div class="card-sub">
         Raw uploads in the project file library. Drag files in, organise into folders,
-        hand-edit. Parsing / promotion creates <b>Parsed sources</b> (next section) —
-        uploads themselves stay immutable per-MIME.
+        hand-edit. Parsing a file (or clicking <b>Use as source</b>) creates a <b>Parsed source</b>
+        (next section) — your original upload is never changed.
       </div>
     </div>
     <div class="flex gap-2">
@@ -157,8 +156,8 @@
     {% else %}
     <p class="dp-empty" id="dp-parsed-empty">
       No parsed sources yet. Upload a .txt/.md under <b>Uploaded files</b>
-      (auto-promoted), or click <b>Use as source</b> / use the promote control
-      in the prep form below.
+      (it is added as a source automatically), or click <b>Use as source</b> on a library file /
+      the <b>Use text/markdown from file library</b> button in the prep form below.
     </p>
     {% endif %}
   </div>
@@ -590,7 +589,7 @@ function flUpdatePromotePanel() {
         ' text/markdown file(s) not yet added. Click <b>Use as source</b> on a row, or use the button below.';
     } else if (!hasSources) {
       hint.innerHTML =
-        'No parsed sources yet. Upload a .txt/.md file above, or promote an existing library file with <b>Use as source</b>.';
+        'No parsed sources yet. Upload a .txt/.md file above, or click <b>Use as source</b> on an existing library file.';
     } else {
       hint.innerHTML =
         'Parsed sources appear here after upload (text/markdown) or when you click <b>Use as source</b> on an existing library file.';
@@ -634,8 +633,8 @@ function flRenderParsedList() {
     host.innerHTML =
       '<p class="dp-empty" id="dp-parsed-empty">' +
       'No parsed sources yet. Upload a .txt/.md under <b>Uploaded files</b> ' +
-      '(auto-promoted), or click <b>Use as source</b> / use the promote control ' +
-      'in the prep form below.</p>';
+      '(it is added as a source automatically), or click <b>Use as source</b> on a library file / ' +
+      'the <b>Use text/markdown from file library</b> button in the prep form below.</p>';
     return;
   }
   host.innerHTML =
@@ -888,7 +887,7 @@ async function flUseAsSource(fileId, name) {
   if (statusEl) statusEl.textContent = 'Adding…';
   const result = await flPromoteToDataPrep(fileId);
   if (!result.ok || !result.source) {
-    const err = (result && result.error) || 'promote failed';
+    const err = (result && result.error) || 'could not add as a source';
     flReport('Could not add "' + label + '" as a source: ' + err, 'error');
     if (statusEl) statusEl.textContent = err;
     return;
@@ -909,7 +908,7 @@ async function flPromoteEligibleFromLibrary() {
   const statusEl = document.getElementById('prep-promote-status');
   if (!eligible.length) {
     if (statusEl) statusEl.textContent = 'Nothing to add';
-    flReport('No text/markdown library files need promoting.', 'info');
+    flReport('All text/markdown library files are already sources.', 'info');
     return;
   }
   if (statusEl) statusEl.textContent = 'Adding ' + eligible.length + '…';
@@ -1682,10 +1681,7 @@ function dpRenderResults() {
         '<th class="meta">actions</th>' +
       '</tr></thead>' +
       '<tbody>' + rows + '</tbody></table>' +
-      (items.length > 100 ? '<div class="dim text-xs mt-2">Showing first 100 of ' + items.length + '.</div>' : '') +
-      '<details class="mt-2"><summary class="text-xs muted">Debug JSON (first row)</summary>' +
-      '<pre class="mono text-xs" style="max-height:160px;overflow:auto;white-space:pre-wrap;margin:6px 0 0;">' +
-      escapeHtml(JSON.stringify(items[0] || {}, null, 2)) + '</pre></details>';
+      (items.length > 100 ? '<div class="dim text-xs mt-2">Showing first 100 of ' + items.length + '.</div>' : '');
   el.dataset.ready = '1';
 
   var checkAll = document.getElementById('dp-check-all');

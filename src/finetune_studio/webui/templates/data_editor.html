@@ -69,7 +69,7 @@
         <th style="width:12em">Source</th>
         <th>Question</th>
         <th>Answer</th>
-        <th style="width:14em"></th>
+        <th style="width:20em"></th>
       </tr>
     </thead>
     <tbody id="de-tbody">
@@ -313,16 +313,16 @@
     } else {
       tbody.innerHTML = rows.map((r) =>
         '<tr data-index="' + r.index + '">' +
-          '<td class="mono">' + r.index + '</td>' +
+          '<td class="mono">' + (r.index + 1) + '</td>' +
           '<td>' + statusPill(r.status) + '</td>' +
           '<td class="text-xs dim" title="' + esc(r.source) + '">' + esc(truncate(r.source, 48)) + '</td>' +
           '<td class="text-xs" title="' + esc(truncate(r.question, 500)) + '">' + esc(truncate(r.question, 200)) + '</td>' +
           '<td class="text-xs" title="' + esc(truncate(r.answer, 500)) + '">' + esc(truncate(r.answer, 200)) + '</td>' +
           '<td class="flex gap-1">' +
-            '<button class="btn sm ghost" type="button" data-act="open" title="Open">👁</button>' +
-            '<button class="btn sm success" type="button" data-act="approve" title="Approve">✅</button>' +
-            '<button class="btn sm danger" type="button" data-act="reject" title="Reject">❌</button>' +
-            '<button class="btn sm" type="button" data-act="edit" title="Edit">✎</button>' +
+            '<button class="btn sm ghost" type="button" data-act="open" title="Open this row" aria-label="View row ' + (r.index + 1) + '">View</button>' +
+            '<button class="btn sm success" type="button" data-act="approve" title="Approve this row" aria-label="Approve row ' + (r.index + 1) + '">Approve</button>' +
+            '<button class="btn sm danger" type="button" data-act="reject" title="Reject this row" aria-label="Reject row ' + (r.index + 1) + '">Reject</button>' +
+            '<button class="btn sm" type="button" data-act="edit" title="Edit this row" aria-label="Edit row ' + (r.index + 1) + '">Edit</button>' +
           '</td>' +
         '</tr>'
       ).join('');
@@ -392,7 +392,7 @@
     const entry = cache.find((c) => c.index === index);
     if (!entry) return;
     modalIndex = index;
-    document.getElementById('de-modal-title').textContent = 'Row #' + index;
+    document.getElementById('de-modal-title').textContent = 'Row #' + (index + 1);
     document.getElementById('de-modal-q').value = entry.question;
     document.getElementById('de-modal-a').value = entry.answer;
     const meta = [
@@ -455,8 +455,8 @@
     const act = btn.getAttribute('data-act');
     try {
       if (act === 'open' || act === 'edit') openModal(index);
-      else if (act === 'approve') { await setDecision(index, 'approved'); notify('Approved #' + index, 'success'); }
-      else if (act === 'reject') { await setDecision(index, 'rejected'); notify('Rejected #' + index, 'warn'); }
+      else if (act === 'approve') { await setDecision(index, 'approved'); notify('Approved #' + (index + 1), 'success'); }
+      else if (act === 'reject') { await setDecision(index, 'rejected'); notify('Rejected #' + (index + 1), 'warn'); }
     } catch (err) {
       notify((err.message || err), 'error');
     }
@@ -505,7 +505,7 @@
     if (modalIndex == null) return;
     try {
       await setDecision(modalIndex, 'approved');
-      notify('Approved #' + modalIndex, 'success');
+      notify('Approved #' + (modalIndex + 1), 'success');
       closeModal();
     } catch (e) { notify(e.message || e, 'error'); }
   });
@@ -513,7 +513,7 @@
     if (modalIndex == null) return;
     try {
       await setDecision(modalIndex, 'rejected');
-      notify('Rejected #' + modalIndex, 'warn');
+      notify('Rejected #' + (modalIndex + 1), 'warn');
       closeModal();
     } catch (e) { notify(e.message || e, 'error'); }
   });

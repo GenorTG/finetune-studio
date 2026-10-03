@@ -108,7 +108,8 @@
           {% set nav_ws %}{% block workspace_nav %}{% endblock %}{% endset %}
           {% set nav_ws = nav_ws|trim or 'model' %}
           <div class="sb-group sb-group-project">
-            <span class="sb-group-label" title="Active project · {{ nav_ws }} flow">[{{ (project.name if project else pid)[:10] }}]</span>
+            {% set _pname = (project.name if project else pid) %}
+            <span class="sb-group-label" title="Active project: {{ _pname }} · {{ nav_ws }} flow">[{{ _pname if _pname|length <= 22 else _pname[:21] ~ '…' }}]</span>
             <a href="/projects/{{ pid }}" class="sb-tab {% block nav_project_overview %}{% endblock %}" data-link data-tab="overview" title="Project home — pick a flow">
               <span class="sb-tab-label">overview</span>
             </a>
@@ -152,7 +153,10 @@
           <div class="sb-group sb-group-tools">
             <span class="sb-group-label" title="Tools">[tools]</span>
             <a href="/models/explore" class="sb-tab {% block nav_models_explore %}{% endblock %}" data-link data-tab="hf" title="Browse + download base models from Hugging Face">
-              <span class="sb-tab-label">hf</span>
+              <span class="sb-tab-label">model library</span>
+            </a>
+            <a href="/models" class="sb-tab {% block nav_models_local %}{% endblock %}" data-link data-tab="my-models" title="Models already on this machine: downloaded bases and your trained exports">
+              <span class="sb-tab-label">my models</span>
             </a>
             {# QABUG-004: project-scoped chat is the real inference surface;
                global /inference remains when no project is active. #}
@@ -349,10 +353,10 @@
   </div>
 
   <script src="/static/js/app.js?v=22"></script>
-  <script src="/static/js/sprites.js?v=17"></script>
+  <script src="/static/js/sprites.js?v=18"></script>
   <script src="/static/js/nav_overflow.js?v=1"></script>
   <script src="/static/js/spa.js?v=17"></script>
-  <script src="/static/js/palette.js?v=14"></script>
+  <script src="/static/js/palette.js?v=15"></script>
   <script src="/static/js/tutorial.js?v=14"></script>
   <script src="/static/js/activity.js?v=16"></script>
   <script>

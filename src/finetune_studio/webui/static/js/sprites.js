@@ -580,7 +580,9 @@
             } else {
               cap.textContent = '○ NO MODEL LOADED';
               cap.style.color = 'var(--text-dim)';
-              sub.innerHTML = '<a href="/inference" data-link style="color:var(--accent);">load one in Inference →</a>';
+              sub.innerHTML = /^\/inference/.test(location.pathname)
+                ? 'pick a model below and load it'
+                : '<a href="/inference" data-link style="color:var(--accent);">load one in Inference →</a>';
             }
           } catch (e) { /* ignore */ }
         }
@@ -621,11 +623,20 @@
             } else if (st === 'saving') {
               cap.textContent = 'SAVING';
             } else {
-              cap.textContent = 'READY TO TRAIN';
+              cap.textContent = idleTrainCaption();
             }
           } catch (_) {
-            cap.textContent = 'READY TO TRAIN';
+            cap.textContent = idleTrainCaption();
           }
+        }
+        // Idle caption reflects what the form still needs instead of a blanket
+        // READY (the audit caught READY TO TRAIN with no base model installed).
+        function idleTrainCaption() {
+          const base = document.getElementById('train-base-model');
+          if (base && (base.disabled || !base.value)) return 'NEEDS A BASE MODEL';
+          const data = document.getElementById('data-path-input');
+          if (data && !data.value) return 'PICK A DATASET';
+          return 'READY TO TRAIN';
         }
         refreshTrainCaption();
         const trainTimer = setInterval(refreshTrainCaption, 3000);

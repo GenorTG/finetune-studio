@@ -134,7 +134,8 @@ def test_data_prep_uses_subscribe_with_status_fallback() -> None:
     assert "fts.subscribe" in html or "window.fts && window.fts.subscribe" in html
     assert "fallbackMs: 5000" in html
     assert "dp-results-table" in html
-    assert "Debug JSON" in html
+    # Raw-JSON debug box removed from data prep (plain-language audit 2026-10-03).
+    assert "Debug JSON" not in html
     assert "setInterval(prepRefreshResults, 2000)" not in html
 
 

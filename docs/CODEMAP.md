@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-422 files · 75936 lines
-- `finetune_studio`: 218 files, 42831 lines
+422 files · 76051 lines
+- `finetune_studio`: 218 files, 42860 lines
 - `scripts`: 9 files, 2344 lines
-- `tests`: 195 files, 30761 lines
+- `tests`: 195 files, 30847 lines
 
 
 # finetune_studio
@@ -1622,35 +1622,35 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `async def activity_events()` (L528) — SSE stream of activity snapshots.
   - imports: finetune_studio, finetune_studio.webui.app, finetune_studio.webui.live_sse, finetune_studio.webui.routes.data_prep, finetune_studio.webui.routes.hf_models
 
-## `src/finetune_studio/webui/routes/benchmarks.py` (961 lines)
+## `src/finetune_studio/webui/routes/benchmarks.py` (962 lines)
 - `def _discover_suites(project_id: str | None = None) -> list[dict[str, Any]]` (L33) — Return selectable suites (real HF + synthetic + local JSON + auto).
 - `def _project_404(pid: str) -> JSONResponse | None` (L38) — Return a 404 response when the project does not exist, else None.
 - `def _benchmark_for_project(bid: str, pid: str) -> dict[str, Any] | JSONResponse` (L51) — Load a benchmark only when its parent run belongs to ``pid``.
 - `def _rescore_benchmark(bid: str) -> dict[str, Any]` (L65) — Recompute a benchmark's aggregate scores from its stored case verdicts.
 - `def _int_field(body: dict[str, Any], key: str, default: int) -> int` (L93) — Read an integer field from a request body; ValueError names the key.
 - `def _parse_sample_knobs(body: dict[str, Any]) -> tuple[int | None, bool, int, str]` (L101) — Parse num_samples / full_run / seed / order from a run request body.
-- `def _validate_suite_file(suite_path: str, *, project_id: str | None = None, require_selectable: bool =…` (L117) — Ensure suite_path is usable. Returns (cases, real_meta, error).
-- `def _run_is_benchmarkable(run: dict[str, Any]) -> bool` (L184) — True when the run finished successfully and has a trained artifact path.
-- `def _resolve_trained_target(run: dict[str, Any]) -> str` (L191) — Prefer merged/ under output_path, then the LoRA adapter/, else output_path.
-- `def _unload_global_inference() -> None` (L209) — Free VRAM before loading a judge model — both engines, not just one.
-- `def _latest_benchmark(run_id: str) -> dict | None` (L220) — Return the most recent benchmark for a run, or None.
-- `def _primary_score(scores: dict | None) -> float | None` (L226) — Pick a comparable numeric score from a benchmark scores dict.
-- `def _suite_scores_for_run(run_id: str) -> dict[str, float | None]` (L240) — Latest primary score per suite_name for a training run.
-- `async def _execute_benchmark(*, rid: str, suite_name: str, judge_mode: str, max_tokens: int, target_model:…` (L251) — Load model, run suite, judge, persist. Always unloads the bench engine.
-- `async def get_benchmark_run(rid: str) -> dict[str, Any]` (L387) — Get a single benchmark run.
-- `async def list_suites(project_id: str | None = None) -> list[dict[str, Any]]` (L393) — List available benchmark suites (files that exist + optional auto-suites).
-- `async def list_runs_with_benchmarks(pid: str) -> list[dict[str, Any]] | JSONResponse` (L399) — List training runs for a project, augmented with latest benchmark score.
-- `async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] | JSONResponse` (L414) — Run a benchmark suite against a run's trained output model.
-- `async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSONResponse` (L487) — Benchmark the project's untrained base model (explicit, never a silent fallback).
-- `async def run_history(pid: str, rid: str) -> list[dict[str, Any]] | dict[str, str] | JSONResponse` (L556) — List all benchmarks for a specific run.
-- `async def delete_run(pid: str, rid: str) -> dict[str, Any] | JSONResponse` (L568) — Delete a training run and its benchmark results.
-- `async def delete_benchmark(pid: str, bid: str) -> dict[str, bool] | JSONResponse` (L583) — Delete a specific benchmark result and its cases.
-- `async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any] | JSONResponse` (L600) — Run AI/human judge over all cases in a benchmark.
-- `async def list_benchmark_cases(pid: str, bid: str) -> list[dict[str, Any]] | JSONResponse` (L765) — List all cases + judge verdicts for a benchmark.
-- `async def audit_benchmark(pid: str, bid: str) -> dict[str, Any] | JSONResponse` (L774) — Return every persisted transcript plus an independent score recomputation.
-- `async def set_verdict(pid: str, bid: str, cid: str, request: Request) -> dict[str, Any] | JSONRespo…` (L787) — Human overrides/sets a verdict, then rescores the benchmark.
-- `async def compare_runs(pid: str, run_a: str = '', run_b: str = '') -> dict[str, Any] | JSONResponse` (L814) — Side-by-side per-suite score comparison of two training runs.
-- `async def evaluate_training_for_run(pid: str, rid: str, request: Request) -> dict[str, Any] | JSONResponse` (L892) — Benchmark a trained run against the project's training dataset.
+- `def _validate_suite_file(suite_path: str, *, project_id: str | None = None, require_selectable: bool =…` (L118) — Ensure suite_path is usable. Returns (cases, real_meta, error).
+- `def _run_is_benchmarkable(run: dict[str, Any]) -> bool` (L185) — True when the run finished successfully and has a trained artifact path.
+- `def _resolve_trained_target(run: dict[str, Any]) -> str` (L192) — Prefer merged/ under output_path, then the LoRA adapter/, else output_path.
+- `def _unload_global_inference() -> None` (L210) — Free VRAM before loading a judge model — both engines, not just one.
+- `def _latest_benchmark(run_id: str) -> dict | None` (L221) — Return the most recent benchmark for a run, or None.
+- `def _primary_score(scores: dict | None) -> float | None` (L227) — Pick a comparable numeric score from a benchmark scores dict.
+- `def _suite_scores_for_run(run_id: str) -> dict[str, float | None]` (L241) — Latest primary score per suite_name for a training run.
+- `async def _execute_benchmark(*, rid: str, suite_name: str, judge_mode: str, max_tokens: int, target_model:…` (L252) — Load model, run suite, judge, persist. Always unloads the bench engine.
+- `async def get_benchmark_run(rid: str) -> dict[str, Any]` (L388) — Get a single benchmark run.
+- `async def list_suites(project_id: str | None = None) -> list[dict[str, Any]]` (L394) — List available benchmark suites (files that exist + optional auto-suites).
+- `async def list_runs_with_benchmarks(pid: str) -> list[dict[str, Any]] | JSONResponse` (L400) — List training runs for a project, augmented with latest benchmark score.
+- `async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] | JSONResponse` (L415) — Run a benchmark suite against a run's trained output model.
+- `async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSONResponse` (L488) — Benchmark the project's untrained base model (explicit, never a silent fallback).
+- `async def run_history(pid: str, rid: str) -> list[dict[str, Any]] | dict[str, str] | JSONResponse` (L557) — List all benchmarks for a specific run.
+- `async def delete_run(pid: str, rid: str) -> dict[str, Any] | JSONResponse` (L569) — Delete a training run and its benchmark results.
+- `async def delete_benchmark(pid: str, bid: str) -> dict[str, bool] | JSONResponse` (L584) — Delete a specific benchmark result and its cases.
+- `async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any] | JSONResponse` (L601) — Run AI/human judge over all cases in a benchmark.
+- `async def list_benchmark_cases(pid: str, bid: str) -> list[dict[str, Any]] | JSONResponse` (L766) — List all cases + judge verdicts for a benchmark.
+- `async def audit_benchmark(pid: str, bid: str) -> dict[str, Any] | JSONResponse` (L775) — Return every persisted transcript plus an independent score recomputation.
+- `async def set_verdict(pid: str, bid: str, cid: str, request: Request) -> dict[str, Any] | JSONRespo…` (L788) — Human overrides/sets a verdict, then rescores the benchmark.
+- `async def compare_runs(pid: str, run_a: str = '', run_b: str = '') -> dict[str, Any] | JSONResponse` (L815) — Side-by-side per-suite score comparison of two training runs.
+- `async def evaluate_training_for_run(pid: str, rid: str, request: Request) -> dict[str, Any] | JSONResponse` (L893) — Benchmark a trained run against the project's training dataset.
   - imports: finetune_studio, finetune_studio.benchmarks.real_benchmarks, finetune_studio.benchmarks.suite_defs, finetune_studio.models.llama_loader, finetune_studio.testing.audit, finetune_studio.testing.inference, finetune_studio.testing.judge, finetune_studio.testing.suite, finetune_studio.testing.training_eval
 
 ## `src/finetune_studio/webui/routes/chat_v2.py` (430 lines)
@@ -1928,15 +1928,17 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `async def rag_rebuild(pid: str, req: RebuildRequest | None = None) -> dict[str, Any]` (L406) — Rebuild the project RAG corpus (whole-project scope).
   - imports: finetune_studio, finetune_studio.data.fs.paths, finetune_studio.data.rag_portable, finetune_studio.data.rag_portable.io, finetune_studio.data.rag_portable.mcp_package, finetune_studio.data.rag_portable.source_labels
 
-## `src/finetune_studio/webui/routes/project_settings.py` (214 lines)
+## `src/finetune_studio/webui/routes/project_settings.py` (233 lines)
 - `def resolve_log_path(candidates: tuple[str, ...] | None = None) -> str` (L37) — Return the first existing candidate path, else the primary candidate.
 - `def read_log_tail(path: str, n: int) -> list[str]` (L46) — Return the last ``n`` lines of ``path``.
 - `def _iso_now() -> str` (L65) — UTC timestamp for the response ``updated_at`` field.
 - `def systemd_unit_active(unit: str = SYSTEMD_UNIT) -> bool` (L70) — True when the user systemd unit is reported active.
-- `def journal_tail(n: int, *, unit: str = SYSTEMD_UNIT) -> list[str] | None` (L85) — Return last ``n`` journal lines for the unit, or None if unavailable.
-- `def file_mtime_age_seconds(path: str) -> float | None` (L116) — Seconds since mtime, or None if missing/unreadable.
-- `def build_logs_payload(lines: int, *, candidates: tuple[str, ...] | None = None, prefer_systemd: boo…` (L124) — Build the JSON body for ``GET .../logs``.
-- `async def project_logs(pid: str, lines: int = Query(DEFAULT_LINES, ge=1, le=MAX_LINES)) -> dict[str,…` (L204) — Return the last ``lines`` of the WebUI process log (default 80, max 500).
+- `def _read_self_cgroup() -> str` (L85)
+- `def running_in_unit(unit: str = SYSTEMD_UNIT) -> bool` (L92) — True when *this* process belongs to ``unit`` (cgroup path names it).
+- `def journal_tail(n: int, *, unit: str = SYSTEMD_UNIT) -> list[str] | None` (L101) — Return last ``n`` journal lines for the unit, or None if unavailable.
+- `def file_mtime_age_seconds(path: str) -> float | None` (L132) — Seconds since mtime, or None if missing/unreadable.
+- `def build_logs_payload(lines: int, *, candidates: tuple[str, ...] | None = None, prefer_systemd: boo…` (L140) — Build the JSON body for ``GET .../logs``.
+- `async def project_logs(pid: str, lines: int = Query(DEFAULT_LINES, ge=1, le=MAX_LINES)) -> dict[str,…` (L223) — Return the last ``lines`` of the WebUI process log (default 80, max 500).
   - imports: finetune_studio
 
 ## `src/finetune_studio/webui/routes/projects.py` (715 lines)
@@ -2091,7 +2093,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def _update_worker(uid: str, mode: str, options: dict) -> None` (L186) — Spawn update.sh as subprocess, stream output to the DB row.
   - imports: finetune_studio, finetune_studio.webui.live_sse
 
-## `src/finetune_studio/webui/routes/versions.py` (274 lines)
+## `src/finetune_studio/webui/routes/versions.py` (283 lines)
 - `def _manifest_of(v: dict) -> dict[str, Any]` (L36)
 - `async def _save_version(pid: str, body: dict[str, Any]) -> dict | JSONResponse` (L43) — Shared save logic for both the JSON route and the multipart-free CLI path.
 - `async def list_versions(pid: str)` (L99)
@@ -2374,7 +2376,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_benchmark_routes_reject_another_projects_benchmark(client_and_db: tuple[TestClient, Path], tmp_path: Path) -> None` (L207)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.db, finetune_studio.webui.app
 
-## `tests/test_benchmark_review.py` (109 lines)
+## `tests/test_benchmark_review.py` (130 lines)
 - `def _case(name: str, verdict: str, answer: str = 'Paris') -> dict` (L22)
 - `def _bench(rid: str, verdicts: list[str], **meta) -> dict` (L27)
 - `def _scores(bid: str) -> dict` (L35)
@@ -2384,7 +2386,9 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_delete_benchmark_removes_its_cases(client_and_db, tmp_path)` (L79)
 - `def test_page_opens_any_benchmark_by_id(client_and_db, tmp_path)` (L89)
 - `def test_unknown_bid_falls_back_to_latest(client_and_db, tmp_path)` (L104)
-  - imports: finetune_studio
+- `def test_num_samples_full_means_full_run() -> None` (L115)
+- `def test_benchmarks_page_offers_full_run_without_api_jargon() -> None` (L123)
+  - imports: finetune_studio, finetune_studio.webui.routes.benchmarks
 
 ## `tests/test_benchmark_target_resolution.py` (21 lines)
 - `def test_prefers_merged(tmp_path)` (L6)
@@ -3273,7 +3277,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_live_e2e_python_drivers_require_opt_in_before_side_effects() -> None` (L15)
 - `def test_nightly_runner_requires_opt_in_before_contacting_services() -> None` (L28)
 
-## `tests/test_live_updates.py` (249 lines)
+## `tests/test_live_updates.py` (250 lines)
 - `def test_app_js_exposes_subscribe_helper() -> None` (L29)
 - `def test_activity_uses_sse_not_2s_poll() -> None` (L39)
 - `def test_training_monitor_uses_progress_sse() -> None` (L50)
@@ -3282,15 +3286,15 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_rag_build_uses_subscribe_not_1_5s_poll() -> None` (L77)
 - `def test_rag_build_sync_response_not_building(client, tmp_path, monkeypatch) -> None` (L93) — POST /rag/build is synchronous — response must not say building=true.
 - `def test_data_prep_uses_subscribe_with_status_fallback() -> None` (L131)
-- `def test_settings_update_uses_sse_not_2s_poll() -> None` (L141)
-- `def test_sse_routes_registered(client) -> None` (L149) — One-shot fallbacks stay available; OpenAPI lists the SSE endpoints.
-- `def test_training_events_emits_snapshot() -> None` (L167)
-- `def test_activity_collect_snapshot() -> None` (L187)
-- `def test_activity_collect_handles_none_started_at(monkeypatch) -> None` (L196) — Regression: explicit started_at=None must not break sort (unary -).
-- `def test_export_events_unknown_export(client) -> None` (L218)
-- `def test_update_events_idle_exits(client) -> None` (L228)
-- `def test_rag_build_status_snapshot(client) -> None` (L235)
-- `def test_data_prep_run_status_unknown(client) -> None` (L245)
+- `def test_settings_update_uses_sse_not_2s_poll() -> None` (L142)
+- `def test_sse_routes_registered(client) -> None` (L150) — One-shot fallbacks stay available; OpenAPI lists the SSE endpoints.
+- `def test_training_events_emits_snapshot() -> None` (L168)
+- `def test_activity_collect_snapshot() -> None` (L188)
+- `def test_activity_collect_handles_none_started_at(monkeypatch) -> None` (L197) — Regression: explicit started_at=None must not break sort (unary -).
+- `def test_export_events_unknown_export(client) -> None` (L219)
+- `def test_update_events_idle_exits(client) -> None` (L229)
+- `def test_rag_build_status_snapshot(client) -> None` (L236)
+- `def test_data_prep_run_status_unknown(client) -> None` (L246)
   - imports: finetune_studio.training.monitor, finetune_studio.webui.app, finetune_studio.webui.routes, finetune_studio.webui.routes.activity
 
 ## `tests/test_llama_loader.py` (234 lines)
@@ -3634,7 +3638,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
   - `def test_unload_all_models_called_before_engine_load(self, client, mock_settings, monkeypatch)` (L16)
   - imports: finetune_studio
 
-## `tests/test_project_settings.py` (147 lines)
+## `tests/test_project_settings.py` (167 lines)
 - `def _project(client) -> str` (L9)
 - `def test_settings_page_renders_log_tail_card(client) -> None` (L15)
 - `def test_logs_endpoint_shape(client, tmp_path: Path, monkeypatch) -> None` (L34)
@@ -3642,6 +3646,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_logs_lines_param_respected(client, tmp_path: Path, monkeypatch) -> None` (L79)
 - `def test_logs_prefer_systemd_journal_when_active(tmp_path: Path, monkeypatch) -> None` (L102)
 - `def test_logs_stale_file_when_systemd_active_but_journal_missing(tmp_path: Path, monkeypatch) -> None` (L124)
+- `def test_logs_ignore_service_journal_when_this_process_is_not_the_service(tmp_path: Path, monkeypatch) -> None` (L150) — A second instance (dev/sandbox on another port) must not show the systemd
   - imports: finetune_studio.webui.routes
 
 ## `tests/test_project_testing.py` (150 lines)
@@ -3875,14 +3880,14 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_run_rag_suite_route_missing_corpus_404(client_and_db: tuple[TestClient, Path], tmp_path: Path, monkeypatch: pytest.M…` (L451)
   - imports: finetune_studio, finetune_studio.config, finetune_studio.data.rag_eval, finetune_studio.testing.rag_suite, finetune_studio.testing.suite, finetune_studio.webui, finetune_studio.webui.app
 
-## `tests/test_readable_results.py` (100 lines)
+## `tests/test_readable_results.py` (101 lines)
 - `def test_training_detail_uses_kv_grid_not_json_pre() -> None` (L18)
 - `def test_kv_grid_renders_fields() -> None` (L29)
 - `def test_case_results_is_table_not_json_dump() -> None` (L47)
 - `def test_testing_results_render_table() -> None` (L55)
 - `def test_training_detail_debug_is_collapsed() -> None` (L65)
 - `def test_rag_and_data_prep_results_are_tables() -> None` (L73)
-- `def test_export_result_panel_is_field_grid() -> None` (L85)
+- `def test_export_result_panel_is_field_grid() -> None` (L86)
 
 ## `tests/test_real_benchmarks.py` (320 lines)
 - `class _FakeSplit(list)` (L34)
@@ -4283,7 +4288,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_spa_navigation_emits_lifecycle_events_and_resource_timer_cleans_up() -> None` (L32)
 - `def test_rag_clear_copy_does_not_claim_directory_deletion() -> None` (L40)
 
-## `tests/test_ui_reliability.py` (659 lines)
+## `tests/test_ui_reliability.py` (672 lines)
 - `def _project(client: TestClient) -> str` (L26)
 - `def test_header_nav_css_readable_floor() -> None` (L32) — Session-bar / workspace nav must stay above the old tiny 10–12px floor.
 - `def test_base_workspace_label_and_aria_current() -> None` (L52)
@@ -4310,18 +4315,19 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_sprites_rag_caption_not_embedding_corpus() -> None` (L417)
 - `def test_sprites_bench_idle_caption_not_computing() -> None` (L425) — Bench/testing idle mount must not claim scores are computing.
 - `def test_sprites_training_idle_not_always_accelerating() -> None` (L438) — Training page must show READY TO TRAIN while idle, not GPU ACCELERATING.
-- `def test_file_library_all_files_uses_total_count() -> None` (L459) — Tree 'all files' badge must use API total_count, not filtered _flFiles.length.
-- `def test_inference_model_info_uses_get() -> None` (L475) — Client must GET /api/models/info?path=… — POST is not allowed.
-- `def test_models_info_get_contract(client: TestClient, tmp_path: Path) -> None` (L485) — GET /api/models/info?path= works; POST must not silently succeed as GET.
-- `def test_training_start_disabled_until_dataset(client: TestClient) -> None` (L505) — Start training must look disabled until a dataset/data_path is chosen.
-- `def test_models_and_bench_mobile_table_scroll_contract() -> None` (L533) — 375px must keep Load / RUN actions reachable via explicit horizontal scroll.
-- `def test_models_index_mobile_table_scroll_contract() -> None` (L551) — Live /models renders models_index.html — must scroll, not crush Copy to 2ch.
-- `def test_data_toolbar_actions_wrap_on_mobile() -> None` (L569)
-- `def test_inference_load_button_reachable_on_mobile() -> None` (L579) — Fixed-height desktop grid must not clip Load model at ≤780px.
-- `def test_hf_modal_escape_close_contract() -> None` (L594)
-- `def test_project_and_export_trained_exports_mobile_scroll() -> None` (L615) — project_models + export_models trained-exports tables must scroll at 375px.
-- `def test_models_index_filters_discoverable_on_mobile() -> None` (L634) — Filter pills must wrap (or scroll) — .flex-wrap alone was undefined and clipped.
-- `def test_training_stop_disabled_while_idle() -> None` (L651) — Stop must be disabled on idle load and only enable while a run is active.
+- `def test_file_library_all_files_uses_total_count() -> None` (L462) — Tree 'all files' badge must use API total_count, not filtered _flFiles.length.
+- `def test_inference_model_info_uses_get() -> None` (L478) — Client must GET /api/models/info?path=… — POST is not allowed.
+- `def test_models_info_get_contract(client: TestClient, tmp_path: Path) -> None` (L488) — GET /api/models/info?path= works; POST must not silently succeed as GET.
+- `def test_training_start_disabled_until_dataset(client: TestClient) -> None` (L508) — Start training must look disabled until a dataset/data_path is chosen.
+- `def test_models_and_bench_mobile_table_scroll_contract() -> None` (L536) — 375px must keep Load / RUN actions reachable via explicit horizontal scroll.
+- `def test_models_index_mobile_table_scroll_contract() -> None` (L554) — Live /models renders models_index.html — must scroll, not crush Copy to 2ch.
+- `def test_data_toolbar_actions_wrap_on_mobile() -> None` (L572)
+- `def test_inference_load_button_reachable_on_mobile() -> None` (L582) — Fixed-height desktop grid must not clip Load model at ≤780px.
+- `def test_hf_modal_escape_close_contract() -> None` (L597)
+- `def test_project_and_export_trained_exports_mobile_scroll() -> None` (L618) — project_models + export_models trained-exports tables must scroll at 375px.
+- `def test_models_index_filters_discoverable_on_mobile() -> None` (L637) — Filter pills must wrap (or scroll) — .flex-wrap alone was undefined and clipped.
+- `def test_training_stop_disabled_while_idle() -> None` (L654) — Stop must be disabled on idle load and only enable while a run is active.
+- `def test_wizard_step5_not_ready_without_finished_run() -> None` (L665) — Quick work step 5 showed READY with zero runs; it now names what's missing,
 
 ## `tests/test_unsloth_import_order.py` (107 lines)
 - `def test_critical_modules_match_unsloth_itself() -> None` (L31) — The list must stay aligned with unsloth's own trigger condition.
@@ -4374,7 +4380,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_hook_scripts_are_executable_and_valid_bash() -> None` (L91)
   - imports: finetune_studio
 
-## `tests/test_versions.py` (232 lines)
+## `tests/test_versions.py` (262 lines)
 - `def project(temp_db)` (L13)
 - `def client(temp_db)` (L19)
 - `def test_version_crud_and_monotonic_numbers(project)` (L24)
@@ -4388,6 +4394,7 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_subset_empty_payload_rejected(client, project, temp_db, monkeypatch)` (L153)
 - `def test_subset_build_blocks_uncovered_chunks(client, project, monkeypatch)` (L176)
 - `def test_rag_coverage_gate(client, project, temp_db, monkeypatch)` (L201)
+- `def test_rag_coverage_empty_states_are_200_not_errors(client, monkeypatch)` (L235) — Quick work polls coverage on every load; a fresh project is a normal state,
   - imports: finetune_studio, finetune_studio.data.fs.paths, finetune_studio.data.fs.qa, finetune_studio.data.prep, finetune_studio.data.prep.qa_validate, finetune_studio.webui.app
 
 ## `tests/test_vram.py` (175 lines)

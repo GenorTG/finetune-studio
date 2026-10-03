@@ -44,13 +44,13 @@
   </div>
   <ol class="rag-workflow-steps" aria-label="RAG workflow">
     <li><a href="/projects/{{ pid }}/data" data-link><b>Upload</b></a> files on the files page</li>
-    <li><b>Parse</b> into text sources (auto for .txt/.md, or promote)</li>
+    <li><b>Parse</b> into text sources (automatic for .txt/.md; other files with “Use as source”)</li>
     <li><b>Prepare / QA</b> optional training pairs (Model path)</li>
     <li><b>Embed</b> parsed sources into this corpus (section 2)</li>
     <li><b>Test</b> retrieval and chat below</li>
   </ol>
   <p class="text-xs dim mt-2 mb-0">
-    Persistent on disk: corpus chunks, vectors, BM25 index, and retrieval
+    Persistent on disk: corpus chunks, vectors, the BM25 keyword index (classic exact-word search), and retrieval
     settings. Shared embedder/reranker weights live under
     <code>~/.finetune-studio/shared_models/</code> (not inside your fine-tuned model).
   </p>
@@ -119,7 +119,7 @@
     </div>
     <div class="col-span-2 flex gap-2">
       <button onclick="quickIndex()" id="quick-index-btn" class="btn primary"
-              title="⚡ One click: promote every library file that is not parsed yet (raw → parsed + chunks), then build the corpus from all parsed text. This is the quick flow — the controls below stay for fine-tuning.">⚡ Quick index</button>
+              title="⚡ One click: turn every library file that is not parsed yet into text (raw → parsed + chunks), then build the corpus from all parsed text. This is the quick flow — the controls below stay for fine-tuning.">⚡ Quick index</button>
       <button onclick="buildCorpus(false)" id="build-btn" class="btn" style="flex:1;"
               title="Build the RAG corpus: chunk your sources, embed each chunk, index for fast retrieval. First build downloads the embedder (~2.2 GB) which takes a few minutes.">Build</button>
       <button onclick="buildCorpus(true)" id="rebuild-btn" class="btn"
@@ -161,7 +161,7 @@
     </div>
     <div class="col-span-2 flex items-center gap-3">
       <label class="flex items-center gap-2 text-xs" title="Re-rank dense-vector search results with the cross-encoder. Adds latency but improves precision. Disable for fast lookup-only workflows."><input id="s-rerank-enabled" type="checkbox" checked> Rerank</label>
-      <label class="flex items-center gap-2 text-xs" title="Hybrid retrieval = combine dense (embedding) + sparse (BM25 keyword) search, then rerank. Better recall than either alone — embedding catches paraphrases, BM25 catches exact terms / code / names."><input id="s-hybrid-enabled" type="checkbox" checked> Hybrid</label>
+      <label class="flex items-center gap-2 text-xs" title="Hybrid retrieval = combine meaning-based (embedding) search with BM25 keyword search (classic exact-word matching), then rerank. Better recall than either alone — embedding catches paraphrases, BM25 catches exact terms / code / names."><input id="s-hybrid-enabled" type="checkbox" checked> Hybrid</label>
     </div>
     <div class="col-span-2">
       <button onclick="saveSettings()" class="btn primary" style="width:100%;">Save</button>
@@ -317,7 +317,8 @@
   <div class="grid grid-12 gap-3 items-end mb-3">
     <div class="col-span-5">
       <label class="block text-xs muted mb-1">File name (without extension)</label>
-      <input id="bundle-name" type="text" placeholder="helios-docs-v1" class="input">
+      {% set _bundle_default = ((project.name|trim|lower|replace(' ', '-')) ~ '-docs-v1') if project and project.name else 'my-docs-v1' %}
+      <input id="bundle-name" type="text" placeholder="{{ _bundle_default }}" value="{{ _bundle_default }}" class="input">
     </div>
     <div class="col-span-5">
       <label class="block text-xs muted mb-1">Passphrase (blank = generate one)</label>
@@ -368,7 +369,7 @@
         <input id="mcp-port" type="number" min="1" max="65535" class="input" value="8899">
       </div>
       <div class="col-span-1">
-        <label class="block text-xs muted mb-1">top_k</label>
+        <label class="block text-xs muted mb-1" for="mcp-topk" title="How many matching passages each search returns.">Results returned</label>
         <input id="mcp-topk" type="number" min="1" max="100" class="input" value="5">
       </div>
     </div>
@@ -978,21 +979,21 @@
     const buildBtn = document.getElementById('build-btn');
     const rebuildBtn = document.getElementById('rebuild-btn');
     btn.disabled = true; if (buildBtn) buildBtn.disabled = true; if (rebuildBtn) rebuildBtn.disabled = true;
-    status.textContent = 'Quick index: promoting unparsed files, then embedding… (first build downloads the embedder ~2.2 GB)';
+    status.textContent = 'Quick index: converting unparsed files to text, then embedding… (first build downloads the embedder ~2.2 GB)';
     try {
       const r = await api().post('/api/projects/' + PID + '/rag/quick', {});
       if (r.error) { status.textContent = 'Error: ' + r.error; notify(r.error, 'error'); return; }
       const b = r.build || {};
       if (b.ok === false) {
-        status.textContent = 'Promoted ' + (r.promoted || 0) + ' file(s) — build failed: ' + (b.error || '?');
+        status.textContent = 'Converted ' + (r.promoted || 0) + ' file(s) — build failed: ' + (b.error || '?');
         notify('Build failed: ' + (b.error || '?'), 'error');
         return;
       }
       const failed = (r.failed || []).length;
-      status.textContent = '⚡ Promoted ' + (r.promoted || 0) + ' new file(s)' +
+      status.textContent = '⚡ Converted ' + (r.promoted || 0) + ' new file(s)' +
         (failed ? ' (' + failed + ' failed to parse)' : '') + ' · corpus: ' +
         (b.documents != null ? b.documents : '?') + ' docs, ' + (b.chunks != null ? b.chunks : '?') + ' chunks.';
-      notify('Quick index done: ' + (r.promoted || 0) + ' promoted · ' + (b.chunks != null ? b.chunks : '?') + ' chunks', 'success');
+      notify('Quick index done: ' + (r.promoted || 0) + ' converted · ' + (b.chunks != null ? b.chunks : '?') + ' chunks', 'success');
       loadIndexedDocs();
     } catch (e) {
       status.textContent = 'Failed: ' + e.message;

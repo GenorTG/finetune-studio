@@ -297,7 +297,7 @@ def test_card_head_stacks_below_700() -> None:
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
     assert "app.css?v=69" in base
-    assert "sprites.js?v=17" in base
+    assert "sprites.js?v=18" in base
     assert "nav_overflow.js?v=1" in base
     assert "spa.js?v=17" in base
 
@@ -447,6 +447,9 @@ def test_sprites_training_idle_not_always_accelerating() -> None:
     assert "/api/training/status" in train_block
     assert "GPU ACCELERATING" in train_block  # only when status is training/running
     assert "LOADING MODEL" in train_block
+    # Idle READY only when the form can actually start (audit 2026-10-03).
+    assert "NEEDS A BASE MODEL" in train_block and "PICK A DATASET" in train_block
+    assert "train-base-model" in train_block and "data-path-input" in train_block
     assert "SAVING" in train_block
     # Must not hard-code accelerating as the initial caption.
     assert "cap.textContent = 'GPU ACCELERATING';" not in train_block.split(
@@ -657,3 +660,13 @@ def test_training_stop_disabled_while_idle() -> None:
     assert "No active training run" in body
     assert "stopBtn.disabled" in body
     assert "ACTIVE[st]" in body
+
+
+def test_wizard_step5_not_ready_without_finished_run() -> None:
+    """Quick work step 5 showed READY with zero runs; it now names what's missing,
+    and treats the RAG coverage empty states (200 + state) as 'not built'."""
+    wiz = (
+        _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "project_wizard.html"
+    ).read_text(encoding="utf-8")
+    assert '"needs a trained model"' in wiz and "res.nDone > 0" in wiz
+    assert 'd.state === "no_sources" || d.state === "not_built"' in wiz

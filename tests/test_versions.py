@@ -230,3 +230,33 @@ def test_rag_coverage_gate(client, project, temp_db, monkeypatch):
     assert body["coverage_pct"] == 66.7
     missing_names = {m["filename"] for m in body["missing_sources"]}
     assert missing_names == {"gamma.txt"}
+
+
+def test_rag_coverage_empty_states_are_200_not_errors(client, monkeypatch):
+    """Quick work polls coverage on every load; a fresh project is a normal state,
+    not a client error (it used to 400 and log a console error each visit)."""
+    import json
+    import tempfile
+    from pathlib import Path
+
+    import finetune_studio.data.fs.paths as _paths
+    import finetune_studio.data.fs.qa as qafs
+
+    pid = client.post("/api/projects", json={"name": "cov-empty"}).json()["id"]
+    tmp = Path(tempfile.mkdtemp(prefix="vers-ragcov-empty-"))
+    monkeypatch.setattr(qafs, "project_dir", lambda p: tmp / p)
+    monkeypatch.setattr(_paths, "_ROOT", tmp)
+
+    r = client.get(f"/api/projects/{pid}/rag/coverage")
+    assert r.status_code == 200, r.text
+    assert r.json()["state"] == "no_sources" and r.json()["parsed_sources"] == 0
+
+    (tmp / pid / "qa" / "sources").mkdir(parents=True)
+    (tmp / pid / "qa" / "sources" / "s1.json").write_text(json.dumps(
+        {"id": "s1", "filename": "a.txt", "chunk_count": 2}))
+    r = client.get(f"/api/projects/{pid}/rag/coverage")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["state"] == "not_built" and body["parsed_sources"] == 1 and body["covered"] == 0
+
+    assert client.get("/api/projects/nope/rag/coverage").status_code == 404

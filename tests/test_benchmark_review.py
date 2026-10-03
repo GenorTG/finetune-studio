@@ -107,3 +107,24 @@ def test_unknown_bid_falls_back_to_latest(client_and_db, tmp_path):
     _bench(rid, ["pass"])
     r = client.get(f"/projects/{pid}/benchmarks?bid=nope")
     assert r.status_code == 200 and "case-0" in r.text
+
+
+# ── sample size: the UI offers a full run instead of pointing at the API ─────
+
+
+def test_num_samples_full_means_full_run() -> None:
+    from finetune_studio.webui.routes.benchmarks import _parse_sample_knobs
+
+    assert _parse_sample_knobs({"num_samples": "full"})[:2] == (None, True)
+    assert _parse_sample_knobs({"num_samples": "100"})[:2] == (100, False)
+    assert _parse_sample_knobs({})[1] is False
+
+
+def test_benchmarks_page_offers_full_run_without_api_jargon() -> None:
+    from pathlib import Path
+
+    from finetune_studio import webui
+
+    html = (Path(webui.__file__).parent / "templates" / "benchmarks.html").read_text()
+    assert html.count('<option value="full">') == 2  # trained-run and base-model rows
+    assert "run API" not in html and "full_run via API" not in html

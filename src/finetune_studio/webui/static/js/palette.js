@@ -32,7 +32,8 @@
   const STATIC_NAV = [
     { href: "/",                 label: "dashboard",   group: "sys",    keywords: "home overview" },
     { href: "/projects",         label: "projects",    group: "sys",    keywords: "list all" },
-    { href: "/models/explore",   label: "hf",          group: "tools",  keywords: "huggingface explorer download" },
+    { href: "/models/explore",   label: "model library", group: "tools", keywords: "hf huggingface explorer download" },
+    { href: "/models",           label: "my models",   group: "tools",  keywords: "local downloaded installed models" },
     { href: "/inference",        label: "inference",   group: "tools",  keywords: "chat model load llm" },
   ];
   const PROJECT_SUB_PAGES = [
@@ -186,7 +187,7 @@
     if (scored.length === 0) {
       results.innerHTML =
         `<div class="palette-empty">no matches for "${escapeHtml(query)}"</div>` +
-        `<div class="palette-empty-tip">try: <code>qa3 rag</code> · <code>train</code> · <code>hf</code></div>`;
+        `<div class="palette-empty-tip">try: <code>qa3 rag</code> · <code>train</code> · <code>models</code></div>`;
       return;
     }
 
@@ -219,7 +220,7 @@
       dashboard: "▦", projects: "▤", overview: "◉", data: "▤",
       "data-prep": "▥", rag: "⌗", training: "▣", testing: "✓",
       benchmarks: "▲", chat: "◊",
-      hf: "◈", inference: "◉",
+      "model library": "◈", "my models": "▤", inference: "◉",
     };
     return m[label] || "›";
   }

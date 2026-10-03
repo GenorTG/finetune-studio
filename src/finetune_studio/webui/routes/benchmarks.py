@@ -103,13 +103,14 @@ def _parse_sample_knobs(body: dict[str, Any]) -> tuple[int | None, bool, int, st
 
     Raises ValueError (caller returns 400) on non-integer seed / num_samples.
     """
-    full_run = bool(body.get("full_run", False))
+    # The UI sample picker sends num_samples="full" for "all cases".
+    full_run = bool(body.get("full_run", False)) or body.get("num_samples") == "full"
     seed = _int_field(body, "seed", DEFAULT_SEED)
     order_raw = str(body.get("order") or "dataset").strip().lower()
     order = order_raw if order_raw in {"dataset", "seeded_shuffle"} else "dataset"
     if full_run:
         return None, True, seed, order
-    if "num_samples" not in body or body.get("num_samples") in (None, "", "full"):
+    if "num_samples" not in body or body.get("num_samples") in (None, ""):
         return DEFAULT_SAMPLE_LIMIT, False, seed, order
     return _int_field(body, "num_samples", DEFAULT_SAMPLE_LIMIT), False, seed, order
 

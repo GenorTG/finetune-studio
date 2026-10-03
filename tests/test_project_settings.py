@@ -145,3 +145,23 @@ def test_logs_stale_file_when_systemd_active_but_journal_missing(
     joined = "\n".join(payload["lines"])
     assert "not claiming live" in joined.lower() or "stale" in joined.lower()
     assert "stale-bare" not in joined  # do not present stale body as live tail
+
+
+def test_logs_ignore_service_journal_when_this_process_is_not_the_service(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A second instance (dev/sandbox on another port) must not show the systemd
+    service's journal as its own LIVE log (audit 2026-10-03: :7871 showed :7860's)."""
+    log = tmp_path / "uvicorn.log"
+    log.write_text("mine\n", encoding="utf-8")
+    monkeypatch.setattr(ps, "LOG_CANDIDATES", (str(log),))
+    monkeypatch.setattr(ps, "systemd_unit_active", lambda unit=ps.SYSTEMD_UNIT: True)
+    monkeypatch.setattr(ps, "journal_tail", lambda n, unit=ps.SYSTEMD_UNIT: ["service line"])
+    monkeypatch.setattr(ps, "_read_self_cgroup", lambda: "0::/user.slice/app.slice/other.scope\n")
+    payload = ps.build_logs_payload(20)
+    assert payload["source"] == "file" and payload["lines"] == ["mine"]
+
+    monkeypatch.setattr(ps, "_read_self_cgroup",
+                        lambda: f"0::/user.slice/app.slice/{ps.SYSTEMD_UNIT}\n")
+    payload = ps.build_logs_payload(20)
+    assert payload["source"] == "systemd" and payload["lines"] == ["service line"]
