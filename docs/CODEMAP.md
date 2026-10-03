@@ -7,10 +7,10 @@ Rules for agents: consult this file BEFORE hunting for symbols; put new code
 in the module that already owns that concern (see AGENTS.md); one concern per module.
 
 ## Quick stats
-416 files · 74513 lines
+416 files · 74554 lines
 - `finetune_studio`: 217 files, 42225 lines
 - `scripts`: 9 files, 2344 lines
-- `tests`: 190 files, 29944 lines
+- `tests`: 190 files, 29985 lines
 
 
 # finetune_studio
@@ -2973,14 +2973,16 @@ in the module that already owns that concern (see AGENTS.md); one concern per mo
 - `def test_no_direct_apply_chat_template_in_train_or_eval_paths()` (L64)
   - imports: finetune_studio.testing, finetune_studio.training, finetune_studio.training.data, finetune_studio.training.formatting, finetune_studio.training.vram
 
-## `tests/test_fresh_run_regressions.py` (84 lines)
+## `tests/test_fresh_run_regressions.py` (125 lines)
 - `def test_base_model_benchmark_listed_on_page(client) -> None` (L14)
 - `def test_base_probe_placeholder_hidden_from_run_lists(client) -> None` (L31)
 - `def test_chat_context_offers_tuned_merged_model(client, tmp_path) -> None` (L43) — Chat must offer the project's fine-tuned (merged) model, not only bases.
 - `def test_export_worker_refreshes_model_registry(monkeypatch)` (L60)
 - `def test_rag_settings_before_index_is_not_a_404(client)` (L69)
 - `def test_unknown_page_gets_styled_404_but_api_stays_json(client)` (L76)
-  - imports: finetune_studio, finetune_studio.webui.routes
+- `def test_project_overview_links_and_base_model_badge(client)` (L87)
+- `def test_rag_build_indexes_uploaded_txt_once(client, monkeypatch, tmp_path)` (L98)
+  - imports: finetune_studio, finetune_studio.data.rag_portable.schema, finetune_studio.webui.routes
 
 ## `tests/test_full_corpus_suite.py` (293 lines)
 - `def isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path` (L26)

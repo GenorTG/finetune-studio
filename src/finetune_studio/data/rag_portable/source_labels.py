@@ -135,7 +135,7 @@ def prettify_source_label(
     return fname
 
 
-_RAW_FILE_ID_RE = re.compile(r"^([0-9a-f]{12,64})_(.+)$", re.IGNORECASE)
+_RAW_FILE_ID_RE = re.compile(r"^(?:[0-9a-f]{8}-)?([0-9a-f]{12,64})_(.+)$", re.IGNORECASE)
 
 
 def _files_root_for_raw_path(path: Path) -> Path | None:

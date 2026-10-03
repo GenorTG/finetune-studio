@@ -93,3 +93,33 @@ def test_project_overview_links_and_base_model_badge(client):
     assert f'href="/projects/{pid}/data" data-link>\n    <div class="label">Files' in page
     assert f"/projects/{pid}/data-prep#upload" not in page
     assert "base: Qwen/Qwen3-0.6B" in client.get("/projects").text
+
+
+def test_rag_build_indexes_uploaded_txt_once(client, monkeypatch, tmp_path):
+    import numpy as np
+
+    from finetune_studio.data.rag_portable.schema import EmbeddingModelInfo
+
+    def fake(name="fake", device="cpu"):
+        def encode(t):
+            items = [t] if isinstance(t, str) else list(t)
+            out = np.ones((len(items), 8), dtype=np.float32) / (8 ** 0.5)
+            return out[0] if isinstance(t, str) else out
+        return encode, EmbeddingModelInfo(name="fake", dim=8, normalize=True,
+                                          distance="cosine", cached_at="1970-01-01T00:00:00Z")
+
+    monkeypatch.setattr("finetune_studio.data.rag_portable.store.get_embedder", fake)
+    root = tmp_path / "fts"
+    (root / "projects").mkdir(parents=True)
+    monkeypatch.setattr("finetune_studio.data.fs.paths._ROOT", root)
+    monkeypatch.setattr("finetune_studio.data.fs.paths._PROJECTS", root / "projects")
+    monkeypatch.setattr("finetune_studio.webui.routes.rag._corpus_dir",
+                        lambda p: tmp_path / "corpora" / p)
+    pid = client.post("/api/projects", json={"name": "Once"}).json()["id"]
+    r = client.post(f"/api/projects/{pid}/files/upload",
+                    files=[("files", ("people.txt", b"Alice is an engineer. " * 30, "text/plain"))])
+    assert r.status_code in (200, 201), r.text
+    r = client.post(f"/api/projects/{pid}/rag/build",
+                    json={"chunk_size": 200, "overlap": 20, "embedder": "fake", "reset": True})
+    assert r.status_code == 200, r.text
+    assert r.json().get("documents") == 1, r.json()
