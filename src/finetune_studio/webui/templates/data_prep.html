@@ -1665,7 +1665,7 @@ function dpRenderResults() {
       '<td class="meta">' + escapeHtml(q.source_filename || q.source_id || '') + '</td>' +
       '<td class="q">' + escapeHtml((q.question || '').slice(0, 200)) + '</td>' +
       '<td class="a">' + escapeHtml((q.answer || '').slice(0, 200)) + '</td>' +
-      '<td class="meta">' + (q.created_at ? new Date(q.created_at * 1000).toISOString().slice(0, 16).replace('T', ' ') : '') + '</td>' +
+      '<td class="meta" title="' + (q.created_at ? new Date(q.created_at * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC' : '') + '">' + (q.created_at ? new Date(q.created_at * 1000).toLocaleString([], {dateStyle: 'short', timeStyle: 'short'}) : '') + '</td>' +
       '<td class="dp-acts">' + acts + '</td>' +
       '</tr>';
   }).join('');
@@ -1678,7 +1678,7 @@ function dpRenderResults() {
         '<th class="meta" title="Source file this pair was generated from.">source</th>' +
         '<th class="meta" title="User-style question.">question</th>' +
         '<th class="meta" title="Assistant-style answer.">answer</th>' +
-        '<th class="meta" title="Created (UTC).">created</th>' +
+        '<th class="meta" title="Created (your local time; hover a cell for UTC).">created</th>' +
         '<th class="meta">actions</th>' +
       '</tr></thead>' +
       '<tbody>' + rows + '</tbody></table>' +

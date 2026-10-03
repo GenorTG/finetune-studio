@@ -236,3 +236,9 @@ def test_coverage_fill_skips_tabular_junk_and_asks_readable_questions():
     q, a = pairs[0]
     assert "Ledger-Keeper" in a and "|" not in q
     assert not q.startswith("According to")
+
+
+def test_pairs_table_shows_local_time_with_utc_tooltip(client):
+    pid = client.post("/api/projects", json={"name": "Z"}).json()["id"]
+    html = client.get(f"/projects/{pid}/data-prep").text
+    assert "toLocaleString" in html and "UTC' : ''" in html
