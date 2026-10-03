@@ -691,7 +691,7 @@ def list_trash(pid: str) -> list[dict]:
 def _revive_deleted_file(pid: str, file_id: str, original_name: str,
                          data: bytes, mime: str, kind: str, raw_hash: str,
                          auto_folder_id: str, uploaded_by: str) -> FileMetadata:
-    """Undelete a soft-deleted row for a re-upload of the same filename.
+    """Undelete a soft-deleted row, or add a version to a live row, for a re-upload of the same filename.
 
     Delete moved the physical raw file to trash and set deleted_at; the
     (project_id, original_name) UNIQUE still belongs to that trash row. So
@@ -710,6 +710,9 @@ def _revive_deleted_file(pid: str, file_id: str, original_name: str,
         prev_version = (prev[0] if prev else 0) or 0
         next_version = prev_version + 1
         raw_path = raw_path_for(pid, file_id, original_name, kind)
+        if raw_path.exists():
+            # Live file re-uploaded with new bytes: keep the earlier version's copy.
+            raw_path = raw_path.with_name(f"v{next_version}_{raw_path.name}")
         raw_path.parent.mkdir(parents=True, exist_ok=True)
         raw_path.write_bytes(data)
         c.execute(
@@ -873,7 +876,7 @@ def write_staged_upload(
     with _db_mod.cursor() as c:
         trash = c.execute(
             "SELECT id FROM project_files WHERE project_id = ? "
-            "AND original_name = ? AND deleted_at IS NOT NULL",
+            "AND original_name = ?",
             (pid, original_name),
         ).fetchone()
     if trash:

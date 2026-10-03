@@ -249,3 +249,17 @@ def test_file_library_table_keeps_name_column_readable_and_actions_wrap(client):
     assert "#fb-files-table .fb-col-name { width: 14em; min-width: 11em; }" in css
     pid = client.post("/api/projects", json={"name": "W"}).json()["id"]
     assert "fb-actions-wrap" in client.get(f"/projects/{pid}/data").text
+
+
+def test_reupload_same_name_new_bytes_adds_version_not_sql_error(client) -> None:
+    pid = db.create_project("Reupload", base_model="Qwen/Qwen3-0.6B")["id"]
+    base = f"/api/projects/{pid}/files/upload"
+    r1 = client.post(base, files={"files": ("note.txt", b"first version text")}).json()
+    assert r1["counts"]["uploaded"] == 1
+    r2 = client.post(base, files={"files": ("note.txt", b"second, different bytes")}).json()
+    assert r2["counts"]["errors"] == 0, r2
+    assert r2["counts"]["uploaded"] == 1
+    fid = r1["report"][0]["file_id"]
+    versions = client.get(f"/api/projects/{pid}/files/{fid}/versions").json()["versions"]
+    assert [v["version"] for v in versions] == [1, 2] or [v["version"] for v in versions] == [2, 1]
+    assert len({v["raw_path"] for v in versions}) == 2
