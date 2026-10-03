@@ -123,3 +123,39 @@ def test_rag_build_indexes_uploaded_txt_once(client, monkeypatch, tmp_path):
                     json={"chunk_size": 200, "overlap": 20, "embedder": "fake", "reset": True})
     assert r.status_code == 200, r.text
     assert r.json().get("documents") == 1, r.json()
+
+
+def _fake_llama(monkeypatch):
+    from finetune_studio.training import gguf_convert as gc
+
+    def fake_run(cmd, *, timeout=3600):
+        out = cmd[cmd.index("--outfile") + 1] if "--outfile" in cmd else cmd[2]
+        with open(out, "wb") as fh:
+            fh.write(b"gguf")
+
+    monkeypatch.setattr(gc, "find_gguf_convert_script", lambda: "convert.py")
+    monkeypatch.setattr(gc, "find_llama_quantize", lambda: "llama-quantize")
+    monkeypatch.setattr(gc, "_run_cmd", fake_run)
+    return gc
+
+
+def test_gguf_quant_only_request_drops_f16_intermediate(monkeypatch, tmp_path):
+    gc = _fake_llama(monkeypatch)
+    merged = tmp_path / "merged"
+    merged.mkdir()
+    (merged / "config.json").write_text("{}")
+    out = gc.convert_merged_to_gguf(str(merged), str(tmp_path / "gguf"), ["Q4_K_M"])
+    assert out["ok"], out
+    names = sorted(p.name for p in (tmp_path / "gguf").iterdir())
+    assert len(names) == 1 and "f16" not in names[0].lower(), names
+    assert len(out["files"]) == 1 and not out.get("intermediate_path")
+
+
+def test_gguf_f16_requested_keeps_f16(monkeypatch, tmp_path):
+    gc = _fake_llama(monkeypatch)
+    merged = tmp_path / "merged"
+    merged.mkdir()
+    (merged / "config.json").write_text("{}")
+    out = gc.convert_merged_to_gguf(str(merged), str(tmp_path / "gguf"), ["f16", "Q4_K_M"])
+    assert out["ok"], out
+    assert any("f16" in p.name.lower() for p in (tmp_path / "gguf").iterdir())

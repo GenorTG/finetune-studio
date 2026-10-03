@@ -359,7 +359,7 @@ def convert_merged_to_gguf(
                     "path": fp16_path,
                     "size": os.path.getsize(fp16_path),
                 }
-            if need_fp16:
+            if need_fp16 and "f16" not in quant_list:
                 intermediate_fp16 = fp16_path
 
         for nq in quant_list:
@@ -391,6 +391,14 @@ def convert_merged_to_gguf(
                 "path": out_path,
                 "size": os.path.getsize(out_path),
             }
+        if intermediate_fp16:
+            # Every requested quant exists and is non-empty (checked above), so
+            # the f16 stepping stone is not a deliverable; drop the multi-GB file.
+            try:
+                os.remove(intermediate_fp16)
+                intermediate_fp16 = ""
+            except OSError:
+                log.warning("could not remove f16 intermediate %s", intermediate_fp16)
     except Exception as e:
         log.exception("GGUF conversion failed")
         return {
