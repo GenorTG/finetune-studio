@@ -874,15 +874,15 @@ class TrainingEngine:
         self._notify()
 
     def _train_standard(self, train_data, val_data=()):
-        from peft import LoraConfig, get_peft_model
-        from transformers import AutoTokenizer
-
         from datasets import Dataset
+        from peft import LoraConfig, get_peft_model
+
         from finetune_studio.training.sft_args import build_sft_args_from_config
         cfg = self.config
         self.state.message = "Loading model..."
         self._notify()
-        tokenizer = AutoTokenizer.from_pretrained(cfg.model_path, trust_remote_code=True)
+        from finetune_studio.hf_env import load_tokenizer
+        tokenizer = load_tokenizer(cfg.model_path)
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
         model = self._load_model_with_fallback(cfg.model_path, tokenizer)
@@ -1212,11 +1212,11 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
     os.makedirs(merged_dir, exist_ok=True)
     import torch
     from peft import PeftModel
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoModelForCausalLM
 
+    from finetune_studio.hf_env import load_tokenizer
     from finetune_studio.training.merge_base import resolve_merge_base
-
-    tokenizer = AutoTokenizer.from_pretrained(adapter_dir, trust_remote_code=True)
+    tokenizer = load_tokenizer(adapter_dir)
     base_path = resolve_merge_base(base_model)
     _free_cuda()
     base = None

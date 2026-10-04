@@ -189,6 +189,8 @@ def judge_case_ai(
     api_key: str = DEFAULT_JUDGE_KEY,
 ) -> tuple[Verdict, str, float]:
     """Send one case to an AI judge. Returns (verdict, reasoning, confidence)."""
+    model = model or DEFAULT_JUDGE_MODEL
+    api_url = (api_url or DEFAULT_JUDGE_API).rstrip("/")
     if not api_key:
         # No API key configured — can't judge with AI
         return "", "no API key configured for AI judge", 0.0

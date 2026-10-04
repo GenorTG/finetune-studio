@@ -29,13 +29,9 @@ class MergeBaseNotFound(Exception):
 
 def _hub_cache_root() -> Path:
     """HuggingFace hub cache directory (``~/.cache/huggingface/hub`` by default)."""
-    env_hub = os.environ.get("HF_HUB_CACHE")
-    if env_hub:
-        return Path(env_hub)
-    hf_home = os.environ.get("HF_HOME")
-    if hf_home:
-        return Path(hf_home) / "hub"
-    return Path.home() / ".cache" / "huggingface" / "hub"
+    from finetune_studio.hf_env import hf_hub_cache
+
+    return hf_hub_cache()
 
 
 def _app_hf_models_root() -> Path:

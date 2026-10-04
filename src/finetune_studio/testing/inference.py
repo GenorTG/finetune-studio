@@ -163,14 +163,15 @@ class InferenceEngine:
         transformers globally and poisons all later inference in this process.
         """
         import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from transformers import AutoModelForCausalLM
 
         from finetune_studio.config import settings
 
         # max_seq_length kept for API compatibility with callers / Unsloth era.
         _ = max_seq_length if max_seq_length is not None else settings.default_max_seq_length
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+        from finetune_studio.hf_env import load_tokenizer
+        self.tokenizer = load_tokenizer(model_path)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 

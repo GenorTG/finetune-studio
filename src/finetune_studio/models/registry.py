@@ -21,6 +21,8 @@ import logging
 import os
 from dataclasses import dataclass
 
+from finetune_studio.hf_env import is_in_hub_cache
+
 log = logging.getLogger(__name__)
 
 
@@ -314,7 +316,7 @@ def scan_models(directories: list) -> list:
                             display_name = helper_display_label(model_id=fp)
                     elif "hf_models" in p:
                         cat = "downloaded"
-                    elif "huggingface/hub" in p:
+                    elif is_in_hub_cache(p):
                         cat = "base_model"
                     models.append(ModelInfo(
                         name=display_name, path=fp, format="gguf", size_gb=round(size, 2),
@@ -382,7 +384,7 @@ def scan_models(directories: list) -> list:
                     cat = "local_helper"
                 elif "hf_models" in p:
                     cat = "downloaded"
-                elif "huggingface/hub" in p:
+                elif is_in_hub_cache(p):
                     cat = "base_model"
                 models.append(ModelInfo(
                     name=name, path=root, format="safetensors",

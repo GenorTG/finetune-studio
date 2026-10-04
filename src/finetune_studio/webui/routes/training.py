@@ -82,14 +82,9 @@ def _resolve_model_path(model_path: str, allow_download: bool) -> tuple[str, str
     if not _HF_REPO_ID_RE.match(repo):
         return model_path, None  # not a repo id — the engine surfaces its own error
     org, name = repo.split("/", 1)
-    hub_snap = (
-        Path.home()
-        / ".cache"
-        / "huggingface"
-        / "hub"
-        / f"models--{org}--{name}"
-        / "snapshots"
-    )
+    from finetune_studio.hf_env import hf_hub_cache
+
+    hub_snap = hf_hub_cache() / f"models--{org}--{name}" / "snapshots"
     if hub_snap.is_dir() and any(hub_snap.iterdir()):
         return model_path, None
     app_dir = Path.home() / ".finetune-studio" / "hf_models" / f"{org}__{name}"

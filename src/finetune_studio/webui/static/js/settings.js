@@ -62,7 +62,8 @@
       const p = d.paths || {};
       pathsEl.innerHTML = `
         <tr><td class="dim text-xs">Data directory</td><td class="mono text-xs">${esc(p.data_dir)}</td></tr>
-        <tr><td class="dim text-xs">HF cache</td><td class="mono text-xs">${esc(p.hf_cache)}</td></tr>
+        <tr><td class="dim text-xs">HF cache (HF_HOME)</td><td class="mono text-xs">${esc(p.hf_cache)}</td></tr>
+        <tr><td class="dim text-xs">HF hub cache</td><td class="mono text-xs">${esc(p.hf_hub_cache)} <span class="dim">(from ${esc(p.hf_cache_source)})</span></td></tr>
         <tr><td class="dim text-xs">Shared models</td><td class="mono text-xs">${esc(p.shared_models)}</td></tr>
       `;
     } catch (e) {
@@ -283,3 +284,54 @@ function wireHosting() {
   if (saveBtn) saveBtn.addEventListener('click', saveHosting);
   loadHosting();
 }
+
+
+/* ============================================================
+   Benchmark judge settings — key is write-only (set / not set)
+   ============================================================ */
+function wireJudge() {
+  const $ = (id) => document.getElementById(id);
+  if (!$('judge-card')) return;
+  const setStatus = (m) => { if ($('judge-status')) $('judge-status').textContent = m; };
+
+  function apply(j) {
+    $('judge-mode').value = j.mode;
+    $('judge-model').value = j.model || '';
+    $('judge-api-url').value = j.api_url || '';
+    $('judge-api-key').value = '';
+    $('judge-key-state').textContent = j.api_key_set ? '(set)' : '(not set)';
+  }
+
+  async function load() {
+    try {
+      const r = await fetch('/api/settings/judge');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      apply(await r.json());
+    } catch (e) { setStatus('Failed to load: ' + e.message); }
+  }
+
+  async function save(extra) {
+    const body = Object.assign({
+      judge_mode: $('judge-mode').value,
+      judge_model: $('judge-model').value.trim(),
+      judge_api_url: $('judge-api-url').value.trim(),
+      judge_api_key: $('judge-api-key').value,
+    }, extra || {});
+    try {
+      const r = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(typeof d.detail === 'string' ? d.detail : 'HTTP ' + r.status);
+      apply(d.judge);
+      setStatus('Saved.');
+    } catch (e) { setStatus('Failed: ' + e.message); }
+  }
+
+  $('btn-judge-save').addEventListener('click', () => save());
+  $('btn-judge-clear-key').addEventListener('click', () => save({ judge_api_key: '', judge_api_key_clear: true }));
+  load();
+}
+wireJudge();

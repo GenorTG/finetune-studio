@@ -249,6 +249,58 @@ def _suite_scores_for_run(run_id: str) -> dict[str, float | None]:
     return out
 
 
+def _apply_configured_judge(results: list[Any], judge_mode: str) -> None:
+    """Judge ``results`` in place with the AI/local judge from Settings.
+
+    Cases the judge cannot verdict (no key, API error, load failure) are left
+    unjudged so the caller's heuristic pass handles them — never silent.
+    """
+    from finetune_studio.testing.judge import judge_case_ai, judge_case_local
+    from finetune_studio.webui.routes.settings import get_judge_config
+
+    cfg = get_judge_config()
+    todo = [r for r in results if not r.verdict and (r.model_answer or "").strip()]
+    if not todo:
+        return
+    if judge_mode == "ai":
+        if not cfg["api_key"]:
+            _log.warning("judge_mode=ai but no judge API key is set; using heuristic")
+            return
+        for r in todo:
+            verdict, reasoning, _conf = judge_case_ai(
+                r.question, r.correct_answer, r.model_answer,
+                model=cfg["model"], api_url=cfg["api_url"], api_key=cfg["api_key"],
+            )
+            if verdict:
+                r.verdict, r.judge = verdict, "ai"
+                r.judge_model, r.judge_reasoning = cfg["model"], reasoning
+            else:
+                _log.warning("AI judge gave no verdict (%s); using heuristic", reasoning)
+        return
+    # local: cfg["model"] must be a local model path
+    model_path = cfg["model"]
+    if not os.path.exists(os.path.expanduser(model_path)):
+        _log.warning("judge_mode=local but judge model %r is not a local path; using heuristic", model_path)
+        return
+    from finetune_studio.testing.inference import InferenceEngine
+
+    judge_engine = InferenceEngine()
+    try:
+        _unload_global_inference()
+        judge_engine.load(os.path.expanduser(model_path))
+        for r in todo:
+            verdict, reasoning, _conf = judge_case_local(
+                judge_engine, r.question, r.correct_answer, r.model_answer,
+            )
+            if verdict:
+                r.verdict, r.judge = verdict, "local"
+                r.judge_model, r.judge_reasoning = model_path, reasoning
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("local judge failed (%s); using heuristic", exc)
+    finally:
+        judge_engine.unload()
+
+
 async def _execute_benchmark(
     *,
     rid: str,
@@ -297,15 +349,12 @@ async def _execute_benchmark(
 
             if judge_mode == "none":
                 pass
-            elif judge_mode == "heuristic":
-                apply_heuristic_judging(results)
-            elif judge_mode in ("ai", "local"):
-                _log.warning(
-                    "judge_mode=%s not applied during run; falling back to heuristic",
-                    judge_mode,
-                )
-                apply_heuristic_judging(results)
+            elif judge_mode in ("ai", "local") and not real_meta:
+                engine.unload()  # free VRAM before a local judge loads
+                _apply_configured_judge(results, judge_mode)
+                apply_heuristic_judging(results)  # fallback for unjudged cases
             else:
+                # heuristic, and real MCQ/GSM8K suites (strict scoring is exact)
                 apply_heuristic_judging(results)
 
             scores = score_results(results)
@@ -411,7 +460,9 @@ async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] 
     body = await request.json()
     suite_name = body.get("suite_name", "default")
     suite_path = body.get("suite_path", "")
-    judge_mode = body.get("judge_mode", "heuristic")
+    from finetune_studio.webui.routes.settings import get_judge_config
+
+    judge_mode = str(body.get("judge_mode") or get_judge_config()["mode"])
     try:
         max_tokens = _int_field(body, "max_tokens", 512)
         num_samples, full_run, seed, order = _parse_sample_knobs(body)
@@ -484,7 +535,9 @@ async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSO
     body = await request.json()
     suite_name = body.get("suite_name", "default")
     suite_path = body.get("suite_path", "")
-    judge_mode = body.get("judge_mode", "heuristic")
+    from finetune_studio.webui.routes.settings import get_judge_config
+
+    judge_mode = str(body.get("judge_mode") or get_judge_config()["mode"])
     try:
         max_tokens = _int_field(body, "max_tokens", 512)
         num_samples, full_run, seed, order = _parse_sample_knobs(body)
@@ -597,9 +650,10 @@ async def delete_benchmark(pid: str, bid: str) -> dict[str, bool] | JSONResponse
 async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any] | JSONResponse:
     """Run AI/human judge over all cases in a benchmark."""
     body = await request.json()
-    from finetune_studio.testing.judge import DEFAULT_JUDGE_KEY
+    from finetune_studio.webui.routes.settings import get_judge_config
 
-    judge_mode = body.get("judge_mode") or ("ai" if DEFAULT_JUDGE_KEY else "heuristic")
+    judge_cfg = get_judge_config()
+    judge_mode = body.get("judge_mode") or judge_cfg["mode"]
     judge_model = body.get("judge_model", "")
 
     benchmark = _benchmark_for_project(bid, pid)
@@ -652,12 +706,14 @@ async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any
                 question=case["question"],
                 correct_answer=case["correct_answer"],
                 model_answer=case["model_answer"],
-                model=judge_model or None,
+                model=judge_model or judge_cfg["model"],
+                api_url=judge_cfg["api_url"],
+                api_key=judge_cfg["api_key"],
             )
             db.update_case(
                 case["id"],
                 judge="ai",
-                judge_model=judge_model or "gpt-4o-mini",
+                judge_model=judge_model or judge_cfg["model"],
                 verdict=verdict,
                 judge_reasoning=reasoning,
                 scored_at=time.time(),
@@ -667,7 +723,9 @@ async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any
 
     if judge_mode == "local":
         run = db.get_run(benchmark["run_id"])
-        model_path = judge_model or (run.get("base_model", "") if run else "")
+        model_path = judge_model or (
+                judge_cfg["model"] if os.path.exists(os.path.expanduser(judge_cfg["model"])) else ""
+            ) or (run.get("base_model", "") if run else "")
         if not model_path:
             return JSONResponse(
                 {"error": "no model path for local judge"},

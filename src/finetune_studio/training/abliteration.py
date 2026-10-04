@@ -144,7 +144,7 @@ def abliterate_model(
         {output_dir, refusal_magnitude, layers_modified, strength}
     """
     import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoModelForCausalLM
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -152,7 +152,8 @@ def abliterate_model(
     model = AutoModelForCausalLM.from_pretrained(
         model_path, dtype=torch.float16, device_map=device, trust_remote_code=True,
     )
-    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+    from finetune_studio.hf_env import load_tokenizer
+    tokenizer = load_tokenizer(model_path)
 
     # Detect refusal direction
     result = detect_refusal_direction(model, tokenizer, layer_indices, device=device)

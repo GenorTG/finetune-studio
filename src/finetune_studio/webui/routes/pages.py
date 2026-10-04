@@ -692,6 +692,8 @@ async def debug_info():
     import sys
     from pathlib import Path
 
+    from finetune_studio.hf_env import hf_cache_source, hf_home, hf_hub_cache
+
     info = {
         "app_version": APP_VERSION,
         "release_channel": RELEASE_CHANNEL,
@@ -703,7 +705,9 @@ async def debug_info():
         "user": os.environ.get("USER", "unknown"),
         "paths": {
             "data_dir": str(Path.home() / ".finetune-studio"),
-            "hf_cache": str(Path.home() / ".cache" / "huggingface"),
+            "hf_cache": str(hf_home()),
+            "hf_hub_cache": str(hf_hub_cache()),
+            "hf_cache_source": hf_cache_source(),
             "shared_models": str(Path.home() / ".finetune-studio" / "shared_models"),
         },
     }

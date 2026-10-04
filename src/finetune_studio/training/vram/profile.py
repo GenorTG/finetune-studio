@@ -77,7 +77,6 @@ def profile_training(
             from peft import LoraConfig, get_peft_model
             from transformers import (
                 AutoModelForCausalLM,
-                AutoTokenizer,
                 BitsAndBytesConfig,
             )
 
@@ -87,7 +86,8 @@ def profile_training(
                 bnb_4bit_use_double_quant=True,
                 bnb_4bit_quant_type="nf4",
             )
-            tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+            from finetune_studio.hf_env import load_tokenizer
+            tokenizer = load_tokenizer(model_path)
             if tokenizer.pad_token is None:
                 tokenizer.pad_token = tokenizer.eos_token
             model = AutoModelForCausalLM.from_pretrained(
@@ -105,8 +105,10 @@ def profile_training(
             model = get_peft_model(model, lora_config)
         else:
             from peft import LoraConfig, get_peft_model
-            from transformers import AutoModelForCausalLM, AutoTokenizer
-            tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+            from transformers import AutoModelForCausalLM
+
+            from finetune_studio.hf_env import load_tokenizer
+            tokenizer = load_tokenizer(model_path)
             if tokenizer.pad_token is None:
                 tokenizer.pad_token = tokenizer.eos_token
             model = AutoModelForCausalLM.from_pretrained(
@@ -130,6 +132,7 @@ def profile_training(
 
         # Format synthetic data
         from datasets import Dataset
+
         from finetune_studio.training.formatting import render_chat_text
         def format_chat(example):
             text = render_chat_text(tokenizer, example["messages"])

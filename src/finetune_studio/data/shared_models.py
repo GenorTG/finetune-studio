@@ -41,10 +41,12 @@ def hf_cache_dir() -> Path:
     fan-dragon and only 32 GB — 14 builds of multilingual-e5-large would
     OOM it). Created on first use.
     """
-    d = Path.home() / ".cache" / "huggingface"
+    from finetune_studio.hf_env import hf_home
+
+    d = hf_home()
     d.mkdir(parents=True, exist_ok=True)
+    # HF_HOME only: TRANSFORMERS_CACHE is deprecated and logs a warning.
     os.environ.setdefault("HF_HOME", str(d))
-    os.environ.setdefault("TRANSFORMERS_CACHE", str(d))
     return d
 
 
@@ -174,8 +176,7 @@ def register(model_name: str, kind: str, src_dir: Path | None = None,
         # would burn 7% of it per build.
         from tempfile import mkdtemp
         # Derive staging dir from HF_HOME (set by systemd unit to a writable path)
-        hf_home = os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
-        stage_parent = Path(hf_home).parent / "fts-stage"
+        stage_parent = hf_cache_dir().parent / "fts-stage"
         stage_parent.mkdir(parents=True, exist_ok=True)
         stage = Path(mkdtemp(prefix=f"fts_{kind}_", dir=str(stage_parent)))
         try:
