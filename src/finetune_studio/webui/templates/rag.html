@@ -110,12 +110,12 @@
     <div class="col-span-3">
       <label class="block text-xs muted mb-1"
              title="A chunk is a contiguous slice of text (in words) that gets embedded as one unit. Too small = each chunk lacks context. Too large = the embedder mixes unrelated topics and retrieval gets fuzzy. 300–500 is a good default; tune based on your documents (legal text wants bigger; chat logs want smaller).">Chunk size (words) <span class="dim">?</span></label>
-      <input id="b-chunk" type="number" min="100" max="2000" value="400" class="input">
+      <input id="b-chunk" aria-label="Chunk size in characters" type="number" min="100" max="2000" value="400" class="input">
     </div>
     <div class="col-span-3">
       <label class="block text-xs muted mb-1"
              title="Overlap is how many words each chunk shares with the previous chunk. Prevents a fact that straddles the chunk boundary from being split across chunks and lost. Typical: 10–25% of chunk size. Too much overlap wastes storage + slows retrieval.">Overlap (words) <span class="dim">?</span></label>
-      <input id="b-overlap" type="number" min="0" max="500" value="80" class="input">
+      <input id="b-overlap" aria-label="Chunk overlap in characters" type="number" min="0" max="500" value="80" class="input">
     </div>
     <div class="col-span-2 flex gap-2">
       <button onclick="quickIndex()" id="quick-index-btn" class="btn primary"
@@ -149,7 +149,7 @@
     <div class="col-span-5">
       <label class="block text-xs muted mb-1"
              title="A reranker is a small cross-encoder model (separate from the embedder) that reads the query AND each candidate chunk together and outputs a relevance score. More accurate than raw embedding similarity but slower.">Reranker (cross-encoder) <span class="dim">?</span></label>
-      <select id="s-reranker" class="select">
+      <select id="s-reranker" aria-label="Reranker model" class="select">
         <option value="cross-encoder/ms-marco-MiniLM-L-6-v2" selected>ms-marco-MiniLM-L-6-v2 (English, fast)</option>
         <option value="BAAI/bge-reranker-v2-m3">bge-reranker-v2-m3 (multilingual, larger)</option>
       </select>
@@ -157,7 +157,7 @@
     <div class="col-span-3">
       <label class="block text-xs muted mb-1"
              title="How many candidate chunks to rerank. More = slower but possibly better precision. The reranker then returns the top-K (configured separately) of these. Typical: 30–100.">Rerank top-N <span class="dim">?</span></label>
-      <input id="s-rerank-top-n" type="number" min="1" max="200" value="50" class="input">
+      <input id="s-rerank-top-n" aria-label="Candidates to rerank" type="number" min="1" max="200" value="50" class="input">
     </div>
     <div class="col-span-2 flex items-center gap-3">
       <label class="flex items-center gap-2 text-xs" title="Re-rank dense-vector search results with the cross-encoder. Adds latency but improves precision. Disable for fast lookup-only workflows."><input id="s-rerank-enabled" type="checkbox" checked> Rerank</label>
@@ -331,11 +331,11 @@
   <div class="grid grid-12 gap-3 items-end mb-3">
     <div class="col-span-5">
       <label class="block text-xs muted mb-1">Import a bundle (.ftsrag, or legacy .tar/.zip)</label>
-      <input id="bundle-import-file" type="file" accept=".ftsrag,.tar,.tar.gz,.tgz,.zip" class="input">
+      <input id="bundle-import-file" aria-label=".ftsrag bundle file" type="file" accept=".ftsrag,.tar,.tar.gz,.tgz,.zip" class="input">
     </div>
     <div class="col-span-5">
       <label class="block text-xs muted mb-1">Passphrase</label>
-      <input id="bundle-import-pass" type="password" autocomplete="off" class="input">
+      <input id="bundle-import-pass" aria-label="Bundle passphrase" type="password" autocomplete="off" class="input">
     </div>
     <div class="col-span-2">
       <button id="bundle-import-btn" onclick="startBundleImport()" class="btn" style="width:100%;" title="Replaces this project's corpus.">Import</button>

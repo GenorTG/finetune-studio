@@ -106,7 +106,7 @@
           <form data-api="/api/benchmarks/projects/{{ pid }}/runs/{{ run.id }}/run"
                 data-reload="true" class="bench-run-form">
             <input type="hidden" name="suite_name" value="{{ suites[0].name if suites else 'default' }}">
-            <select name="suite_path" class="select" style="min-width:220px;font-size:11px;"
+            <select name="suite_path" aria-label="Question suite" class="select" style="min-width:220px;font-size:11px;"
                     onchange="var o=this.options[this.selectedIndex]; this.form.elements.suite_name.value=o.getAttribute('data-name')||o.text; var r=this.form.querySelector('[name=num_samples]'); if(r){ r.style.display=(o.getAttribute('data-type')==='real')?'inline-block':'none'; }">
               {% for s in suites %}
               <option value="{{ s.path if s.path is defined else s }}"
@@ -144,7 +144,7 @@
           <form data-api="/api/benchmarks/projects/{{ pid }}/base/run"
                 data-reload="true" class="bench-run-form" id="bench-base-form">
             <input type="hidden" name="suite_name" value="{{ suites[0].name if suites else 'default' }}">
-            <select name="suite_path" class="select" style="min-width:220px;font-size:11px;"
+            <select name="suite_path" aria-label="Question suite" class="select" style="min-width:220px;font-size:11px;"
                     onchange="var o=this.options[this.selectedIndex]; this.form.elements.suite_name.value=o.getAttribute('data-name')||o.text; var r=this.form.querySelector('[name=num_samples]'); if(r){ r.style.display=(o.getAttribute('data-type')==='real')?'inline-block':'none'; }">
               {% for s in suites %}
               <option value="{{ s.path if s.path is defined else s }}"

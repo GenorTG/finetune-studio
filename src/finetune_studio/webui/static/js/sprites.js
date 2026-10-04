@@ -487,11 +487,8 @@
       el._radar = r;
     });
 
-    // ---- boot sequence on first paint ----
-    if (!sessionStorage.getItem('fts.booted')) {
-      sessionStorage.setItem('fts.booted', '1');
-      setTimeout(() => spriteBoot(), 200);
-    }
+    // Boot-sequence toast removed: it carried no information and covered
+    // the header controls (theme toggle, Ctrl+K) for ~3s on first load.
 
     // ---- scan beam overlay on .loading cards ----
     document.querySelectorAll('.card.loading, .stat.loading').forEach((el) => {

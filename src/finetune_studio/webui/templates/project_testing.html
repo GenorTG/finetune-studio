@@ -29,7 +29,7 @@
   <div class="grid grid-12 gap-3 items-end">
     <div class="col-span-5">
       <label class="block text-xs muted mb-1">Model</label>
-      <select id="t-model" class="select">
+      <select id="t-model" aria-label="Model to test" class="select">
         <option value="">— auto (latest merged) —</option>
         {% for m in models %}
         <option value="{{ m.path }}"{% if default_model_path and m.path == default_model_path %} selected{% endif %}>{{ m.name }} · {{ m.format }} ({{ m.size_gb }} GB)</option>
@@ -41,7 +41,7 @@
     </div>
     <div class="col-span-5">
       <label class="block text-xs muted mb-1">Test suite</label>
-      <select id="t-suite" class="select" onchange="onSuitePicked()">
+      <select id="t-suite" aria-label="Question suite" class="select" onchange="onSuitePicked()">
         <option value="">— pick a suite —</option>
         {% for s in suites %}
         <option value="{{ s.path }}"
@@ -116,7 +116,7 @@
   <div class="grid grid-12 gap-3 items-end">
     <div class="col-span-7">
       <label class="block text-xs muted mb-1">Training dataset</label>
-      <select id="t-train-ds" class="select">
+      <select id="t-train-ds" aria-label="Dataset to check" class="select">
         <option value="">— latest project dataset —</option>
         {% for d in training_datasets %}
         <option value="{{ d.id }}">{{ d.name }} · {{ d.qa_count or 0 }} pairs · {{ d.source or 'dataset' }}</option>
@@ -128,11 +128,11 @@
     </div>
     <div class="col-span-3">
       <label class="block text-xs muted mb-1">Max cases</label>
-      <input id="t-train-max" class="input" type="number" min="1" max="500" value="100">
+      <input id="t-train-max" aria-label="Max questions" class="input" type="number" min="1" max="500" value="100">
     </div>
     <div class="col-span-3">
       <label class="block text-xs muted mb-1">Evaluation kind</label>
-      <select id="t-eval-kind" class="select" onchange="syncTrainEvalBtn()">
+      <select id="t-eval-kind" aria-label="Evaluation type" class="select" onchange="syncTrainEvalBtn()">
         <option value="heldout">Held-out validation (quality)</option>
         <option value="training_leakage">Full training set (memorization check)</option>
       </select>

@@ -168,8 +168,8 @@ function renderResults(results) {
         </div>
         <div class="pills">${tagPills}</div>
         <div class="meta">
-          <span class="stat">⬇ <span class="num">${fmtM(r.downloads || 0)}</span></span>
-          <span class="stat">♥ <span class="num">${fmtK(r.likes || 0)}</span></span>
+          <span class="stat" title="Downloads on Hugging Face">⬇ <span class="num">${fmtM(r.downloads || 0)}</span></span>
+          <span class="stat" title="Likes on Hugging Face">♥ <span class="num">${fmtK(r.likes || 0)}</span></span>
           ${r.pipeline_tag ? `<span class="pill outline">${esc(r.pipeline_tag)}</span>` : ''}
         </div>
         <div class="actions">

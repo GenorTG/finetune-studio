@@ -103,7 +103,7 @@ async def test_dashboard(ctx):
     try:
         await page.goto(BASE + "/", wait_until="networkidle")
         boot = await page.evaluate("() => Boolean(document.querySelector('.boot-seq'))")
-        rec("dashboard.boot_sprite_present", boot)
+        rec("dashboard.no_boot_overlay", not boot)
 
         await page.wait_for_timeout(4500)
 

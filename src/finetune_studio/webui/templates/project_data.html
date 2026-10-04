@@ -67,10 +67,10 @@
 <div class="card mb-4">
   <div class="flex gap-2 wrap items-center" style="padding:12px 16px;">
     <input class="input" type="search" id="fb-search" placeholder="Search filename / tag…" style="max-width:220px;">
-    <select class="input" id="fb-folder" style="max-width:180px;">
+    <select class="input" id="fb-folder" aria-label="Filter by folder" style="max-width:180px;">
       <option value="">All folders</option>
     </select>
-    <select class="input" id="fb-mime" style="max-width:160px;">
+    <select class="input" id="fb-mime" aria-label="Filter by file type" style="max-width:160px;">
       <option value="">All types</option>
       <option value="image/">image/*</option>
       <option value="text/">text/*</option>
@@ -512,7 +512,7 @@
       const tagPills = String(f.tags || '').split(',').map((s) => s.trim()).filter(Boolean)
         .map((t) => '<span class="fb-tag-pill" title="Filter by this tag" data-tag="' + esc(t) + '" onclick="fbTagFilter(this.dataset.tag)">' + esc(t) + '</span>').join('');
       return '<tr class="row-hover' + (deleted ? ' dim' : '') + '" draggable="true" data-fid="' + esc(f.id) + '">' +
-        '<td><input type="checkbox" ' + checked + ' onclick="fbToggleSelect(event,\'' + esc(f.id) + '\')"></td>' +
+        '<td><input type="checkbox" aria-label="Select file" ' + checked + ' onclick="fbToggleSelect(event,\'' + esc(f.id) + '\')"></td>' +
         '<td class="name cell-wrap" title="' + esc(f.original_name) + '">' +
           thumb +
           '<span class="mono" style="margin-right:6px">' + folderIcon + '</span>' + esc(f.original_name) +

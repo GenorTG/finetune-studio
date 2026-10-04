@@ -69,7 +69,7 @@
                title="Maximum number of tokens the model can attend to at once — the size of its short-term memory. KV cache size. Larger = longer conversations / bigger prompts / more VRAM. 32768 (~32k tokens ≈ 24k words) is the default floor and fits most tasks; raise for long documents. If it doesn't fit in VRAM, the loader shrinks this automatically instead of falling back to CPU offload.">
           Context length <span id="n-ctx-val" class="mono violet">32768</span>
         </label>
-        <input type="range" id="n-ctx" class="range" min="512" max="131072" step="512" value="32768"
+        <input type="range" id="n-ctx" aria-label="Context length" class="range" min="512" max="131072" step="512" value="32768"
                oninput="document.getElementById('n-ctx-val').textContent=this.value; updateMemEstimate()">
         <div class="text-[10px] dim mt-0.5">KV cache size. Larger = more VRAM.</div>
       </div>
@@ -79,7 +79,7 @@
                title="How many transformer layers run on GPU VRAM. Always all of them — mixed CPU/GPU offload is not supported by design (it's much slower); if a model doesn't fit, the loader shrinks context length instead of moving layers to CPU. The real layer count comes from the model file itself.">
           GPU offload layers <span id="n-gpu-val" class="mono violet">all</span>
         </label>
-        <input type="range" id="n-gpu-layers" class="range" min="0" max="0" step="1" value="0" disabled
+        <input type="range" id="n-gpu-layers" aria-label="GPU layers" class="range" min="0" max="0" step="1" value="0" disabled
                oninput="document.getElementById('n-gpu-val').textContent=this.value>=parseInt(this.max)?'all '+String(this.max)+'/'+String(this.max):this.value+' / '+String(this.max); updateMemEstimate()">
         <div class="text-[10px] dim mt-0.5" id="n-gpu-hint">Loading model topology…</div>
       </div>
@@ -89,7 +89,7 @@
                title="How many tokens are processed at once during the initial prompt evaluation. Higher = faster prompt ingestion but more VRAM spike. 512 is a safe default for most consumer GPUs.">
           Batch size <span id="n-batch-val" class="mono violet">512</span>
         </label>
-        <input type="range" id="n-batch" class="range" min="64" max="2048" step="64" value="512"
+        <input type="range" id="n-batch" aria-label="Batch size" class="range" min="64" max="2048" step="64" value="512"
                oninput="document.getElementById('n-batch-val').textContent=this.value">
         <div class="text-[10px] dim mt-0.5">Prompt eval batch. 512 is a good default.</div>
       </div>
