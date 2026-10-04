@@ -1,12 +1,14 @@
 """Mutable dataclass defaults for the app and its nested RAG settings.
 
 This module defines ``Settings`` and ``RAGSettings`` plus the process-wide
-``settings`` singleton. It does not read environment variables, validate
+``settings`` singleton. It reads no environment itself (the HF cache path comes from ``hf_env``), validate
 values with Pydantic, or freeze the dataclasses; integrations that read their
 own environment or settings files do so at their call sites.
 """
 
 from dataclasses import dataclass, field
+
+from finetune_studio.hf_env import hf_hub_cache
 
 
 @dataclass
@@ -35,7 +37,7 @@ class Settings:
         "output",           # training output directory
     ])
     model_dirs_extra: list = field(default_factory=lambda: [
-        "~/.cache/huggingface/hub",  # default HF hub cache
+        str(hf_hub_cache()),  # HF hub cache (honors HF_HUB_CACHE / HF_HOME)
         "~/.finetune-studio/hf_models",  # HF Explorer Pull destination
         "~/.finetune-studio/shared_models",  # embedder/reranker cache
     ])  # user-added via env or config

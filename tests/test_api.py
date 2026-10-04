@@ -1,3 +1,5 @@
+import pytest
+
 # ── Health / system ─────────────────────────────────────────────────────────
 
 class TestHealthRoutes:
@@ -103,24 +105,56 @@ class TestTrainingAPI:
 
 # ── HF Models API ─────────────────────────────────────────────────────────────
 
+class _FakeHit:
+    def __init__(self, mid):
+        self.modelId = mid
+        self.downloads = 5
+        self.likes = 1
+        self.tags = ["text-generation"]
+        self.lastModified = "2026-01-01"
+        self.private = False
+
+
+class _FakeHfApi:
+    def list_models(self, **kw):
+        return iter([_FakeHit("Qwen/Qwen2-0.5B"), _FakeHit("Qwen/Qwen3-4B")])
+
+
 class TestHFModelsAPI:
+    @pytest.fixture(autouse=True)
+    def _offline_hf(self, monkeypatch):
+        import huggingface_hub
+
+        monkeypatch.setattr(huggingface_hub, "HfApi", _FakeHfApi)
+
     def test_hf_search_endpoint(self, client):
         r = client.get("/api/hf/search?q=qwen&task=text-generation&sort=downloads&limit=3")
-        # May be 200 (HF accessible) or 500 (HF unreachable)
-        assert r.status_code in (200, 500)
-        if r.status_code == 200:
-            data = r.json()
-            assert "results" in data
-            assert "query" in data
+        assert r.status_code == 200
+        data = r.json()
+        assert "results" in data
+        assert data["query"] == "qwen"
 
     def test_hf_search_returns_model_list(self, client):
         r = client.get("/api/hf/search?q=qwen&limit=5")
-        if r.status_code == 200:
-            data = r.json()
-            results = data.get("results", [])
-            # Each result should have repo_id
-            for item in results:
-                assert "repo_id" in item
+        assert r.status_code == 200
+        results = r.json()["results"]
+        assert [x["repo_id"] for x in results] == ["Qwen/Qwen2-0.5B", "Qwen/Qwen3-4B"]
+
+    def test_hf_search_unreachable_is_honest_502(self, client, monkeypatch):
+        import huggingface_hub
+
+        class _Down:
+            def list_models(self, **kw):
+                def gen():
+                    raise ConnectionError("hub down")
+                    yield  # pragma: no cover
+                return gen()
+
+        monkeypatch.setattr(huggingface_hub, "HfApi", _Down)
+        r = client.get("/api/hf/search?q=qwen&limit=5")
+        assert r.status_code == 502
+        assert "unreachable" in r.json()["error"]
+        assert r.json()["results"] == []
 
     def test_hf_info_endpoint(self, client):
         r = client.get("/api/hf/info/Qwen/Qwen2-0.5B-Instruct")
@@ -161,10 +195,12 @@ class TestInputValidation:
         # Route may return 200 with ok=False or 404
         assert r.status_code in (200, 404)
 
-    def test_hf_search_empty_query(self, client):
+    def test_hf_search_empty_query(self, client, monkeypatch):
+        import huggingface_hub
+
+        monkeypatch.setattr(huggingface_hub, "HfApi", _FakeHfApi)
         r = client.get("/api/hf/search?q=&limit=5")
-        # Empty q might return empty results or 422
-        assert r.status_code in (200, 422)
+        assert r.status_code == 200
 
     def test_hf_search_negative_limit(self, client):
         r = client.get("/api/hf/search?q=test&limit=-1")

@@ -6,7 +6,6 @@ Special name prefixes:
 """
 from __future__ import annotations
 
-import os
 import time
 from pathlib import Path
 
@@ -51,7 +50,6 @@ def get_embedder(
     # finetune_studio.data.shared_models.hf_cache_dir for rationale.
     from finetune_studio.data.shared_models import hf_cache_dir
     cache_dir = hf_cache_dir()
-    os.environ.setdefault("HF_HOME", str(cache_dir))
 
     local_path = None
     if name.startswith(EMBEDDER_LOCAL_PREFIX):

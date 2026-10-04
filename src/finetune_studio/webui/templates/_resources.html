@@ -3,7 +3,7 @@
    text-gray-300) that never followed the light palette — in light mode it
    stayed dark navy while its text switched to light-theme colours, giving
    2.92:1. Everything here is token-driven now. #}
-<div id="sys-resources" class="res-card mb-6">
+<div id="sys-resources" class="res-card {% if res_compact %}res-compact mb-3{% else %}mb-6{% endif %}">
   <div class="flex items-center justify-between mb-3">
     <h3 class="res-card-title">Host Resources</h3>
     <span id="sys-resources-updated" class="text-xs muted" title="When these host readings were last refreshed"></span>

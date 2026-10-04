@@ -16,6 +16,24 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _llama_cpp_stub(monkeypatch):
+    """llama-cpp-python is an optional GPU wheel; stub it so these tests pin the
+    loader's behavior on any machine (tests patch ``llama_cpp.Llama`` anyway)."""
+    import importlib.util
+    import sys
+    import types
+
+    if importlib.util.find_spec("llama_cpp") is None:
+        stub = types.ModuleType("llama_cpp")
+        stub.Llama = object  # replaced per-test via patch("llama_cpp.Llama", ...)
+        fmt = types.ModuleType("llama_cpp.llama_chat_format")
+        fmt.Qwen25VLChatHandler = object
+        stub.llama_chat_format = fmt
+        monkeypatch.setitem(sys.modules, "llama_cpp", stub)
+        monkeypatch.setitem(sys.modules, "llama_cpp.llama_chat_format", fmt)
+
+
 class FakeLlama:
     """Records the exact kwargs llama_cpp.Llama() was constructed with."""
     calls: list[dict] = []

@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import shutil
 import time
 from dataclasses import asdict, dataclass
@@ -45,8 +44,6 @@ def hf_cache_dir() -> Path:
 
     d = hf_home()
     d.mkdir(parents=True, exist_ok=True)
-    # HF_HOME only: TRANSFORMERS_CACHE is deprecated and logs a warning.
-    os.environ.setdefault("HF_HOME", str(d))
     return d
 
 

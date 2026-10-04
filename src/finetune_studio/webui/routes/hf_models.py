@@ -89,6 +89,10 @@ def _local_models() -> list[dict]:
 
 # ── Hub search ─────────────────────────────────────────────────────────
 
+class HFUnavailableError(RuntimeError):
+    """HuggingFace Hub could not be reached or returned an error."""
+
+
 def _search_hf(req: SearchRequest) -> list[dict]:
     """Query the HuggingFace Hub.
 
@@ -114,6 +118,9 @@ def _search_hf(req: SearchRequest) -> list[dict]:
         lowered = mid.lower()
         return all(tok in lowered for tok in query_tokens)
     def _list_models(pipeline_tag: str | None) -> list[dict]:
+        out: list[dict] = []
+        # list_models is lazy: network errors surface during iteration, so the
+        # whole loop (not just the call) must be inside the try.
         try:
             models = api.list_models(
                 search=req.query or None,
@@ -122,24 +129,23 @@ def _search_hf(req: SearchRequest) -> list[dict]:
                 sort=sort,
                 limit=req.limit * 4 + 20,
             )
-        except Exception as e:  # noqa: BLE001
+            for m in models:
+                mid = m.modelId
+                if not _matches(mid):
+                    continue
+                out.append({
+                    "repo_id": mid,
+                    "downloads": getattr(m, "downloads", 0) or 0,
+                    "likes": getattr(m, "likes", 0) or 0,
+                    "tags": getattr(m, "tags", []) or [],
+                    "last_modified": str(getattr(m, "lastModified", "")),
+                    "private": getattr(m, "private", False),
+                })
+                if len(out) >= req.limit:
+                    break
+        except Exception as e:
             log.warning("HF list_models failed: %s", e)
-            return []
-        out: list[dict] = []
-        for m in models:
-            mid = m.modelId
-            if not _matches(mid):
-                continue
-            out.append({
-                "repo_id": mid,
-                "downloads": getattr(m, "downloads", 0) or 0,
-                "likes": getattr(m, "likes", 0) or 0,
-                "tags": getattr(m, "tags", []) or [],
-                "last_modified": str(getattr(m, "lastModified", "")),
-                "private": getattr(m, "private", False),
-            })
-            if len(out) >= req.limit:
-                break
+            raise HFUnavailableError(str(e)) from e
         return out
     out = _list_models(req.task or None)
     if not out and req.task:
@@ -188,7 +194,15 @@ async def hf_search(q: str = "", task: str = "text-generation",
                    library: str | None = None,
                    sort: str = "downloads", limit: int = Query(24, ge=1, le=100)):
     req = SearchRequest(query=q, task=task, library=library, sort=sort, limit=limit)
-    return {"results": _search_hf(req), "task": task, "query": q}
+    try:
+        results = _search_hf(req)
+    except HFUnavailableError as e:
+        return JSONResponse(
+            {"error": "HuggingFace Hub is unreachable right now — check your connection and retry.",
+             "detail": str(e)[:200], "results": [], "task": task, "query": q},
+            status_code=502,
+        )
+    return {"results": results, "task": task, "query": q}
 
 
 @router.get("/hf/info/{repo_id:path}")

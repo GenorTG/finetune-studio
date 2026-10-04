@@ -580,6 +580,17 @@ body::before {
   padding: 14px 16px;
   overflow: hidden;
 }
+/* Compact strip for project sub-pages: RAM + each GPU side by side on one
+   row so the host readout stops pushing the page content down. */
+.res-compact { padding: 8px 12px; }
+.res-compact > div:first-child { margin-bottom: 6px; }
+.res-compact .res-card-title { font-size: 11px; }
+.res-compact > .space-y-5 { display: flex; flex-wrap: wrap; gap: 6px 20px; }
+.res-compact > .space-y-5 > div { flex: 1 1 220px; min-width: 0; }
+.res-compact #vram-rows { display: contents; }
+.res-compact #vram-rows > div { flex: 1 1 220px; min-width: 0; }
+.res-compact .res-track { height: 6px; }
+.res-compact .mb-1\.5 { margin-bottom: 4px; }
 .res-card-title {
   margin: 0;
   font-size: 12px;
@@ -894,6 +905,15 @@ body::before {
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
+}
+/* Scroll affordance: edge shadows appear only on the side that has more to
+   scroll to, so a clipped table never looks like it just ends. */
+.table-scroll {
+  background:
+    linear-gradient(to right, var(--bg-panel) 30%, transparent) left center / 24px 100% no-repeat local,
+    linear-gradient(to left, var(--bg-panel) 30%, transparent) right center / 24px 100% no-repeat local,
+    linear-gradient(to right, rgba(0, 0, 0, 0.35), transparent) left center / 10px 100% no-repeat scroll,
+    linear-gradient(to left, rgba(0, 0, 0, 0.35), transparent) right center / 10px 100% no-repeat scroll;
 }
 .table-scroll::-webkit-scrollbar { height: 6px; }
 .table-scroll::-webkit-scrollbar-thumb {
