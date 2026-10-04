@@ -6,6 +6,7 @@ import os
 import subprocess
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 from finetune_studio.models.gguf_layers import is_gguf_path, resolve_block_count
 from finetune_studio.models.loader import load_model_info
@@ -310,7 +311,7 @@ async def unload_model_endpoint():
         unload_all_models()
         return {"status": "unloaded"}
     except Exception as e:  # noqa: BLE001
-        return {"error": str(e)}
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 # ── /api/inference/* (status, chat, memory-estimate) ─────────────
@@ -413,7 +414,7 @@ async def inference_memory_estimate(request: Request):
     body = await _json_body(request)
     model_path = body.get("model_path") or body.get("path") or ""
     if not model_path:
-        return {"error": "No model_path provided"}
+        return JSONResponse({"error": "No model_path provided"}, status_code=400)
     try:
         est = inference_engine.estimate_memory(
             model_path,
@@ -430,4 +431,4 @@ async def inference_memory_estimate(request: Request):
             log.debug("GPU usage probe failed: %s", e)
         return est
     except Exception as e:  # noqa: BLE001
-        return {"error": str(e)}
+        return JSONResponse({"error": str(e)}, status_code=500)

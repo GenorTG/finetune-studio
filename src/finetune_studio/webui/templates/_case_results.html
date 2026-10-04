@@ -64,9 +64,7 @@
         {% if c.judge == 'human' %}<div class="text-xs dim">set by you</div>{% endif %}
       </td>
       <td class="judge-reasoning case-col-judge">
-        {% if c.judge_reasoning %}
-        <details><summary>reasoning</summary><div class="text-xs">{{ c.judge_reasoning }}</div></details>
-        {% else %}—{% endif %}
+        <details><summary>reasoning</summary><div class="text-xs">{% if c.judge_reasoning %}{{ c.judge_reasoning }}{% elif c.error %}[not scored] the model run failed: {{ c.error }}{% elif v %}[{{ c.judge or 'judge' }}] {{ v }} verdict, no explanation recorded{% else %}[not scored] no verdict for this case{% endif %}</div></details>
       </td>
       <td class="mono case-col-time">{{ c.time_ms if c.time_ms is defined else '—' }}</td>
       <td class="dim case-col-ran">{{ c.ran_at or c._ran_at_str or '—' }}</td>

@@ -19,6 +19,18 @@
     <a href="/projects/{{ pid }}/benchmarks" data-link>benchmarks</a> instead.</span></div>
 </div>
 
+
+<div class="card mb-6" id="quiz-vs-benchmark">
+  <div class="text-xs"><b>Quiz vs benchmark.</b>
+    The <b>project quiz</b> (Testing page) is built from <em>your own</em> files and Q&amp;A pairs,
+    so it answers "did the model learn my material?". The benchmark
+    <b>Synthetic knowledge MCQ (offline)</b> is a small built-in set of general-knowledge
+    multiple-choice questions that ships with the app: it never sees your data, runs without
+    downloading anything, and its score is <em>not</em> comparable with published MMLU numbers.
+    Use it only as a quick check that the model still answers general questions after fine-tuning.
+    <a href="/projects/{{ pid }}/benchmarks" data-link>Open benchmarks →</a></div>
+</div>
+
 <div class="card mb-6">
   <div class="card-head">
     <div>
@@ -282,9 +294,12 @@
         html += '<td class="case-col-ret"><span class="verdict-badge ' + hitCls + '">'
           + hitLabel + '</span></td>';
       }
-      html += '<td class="judge-reasoning case-col-judge">' + (c.judge_reasoning
-            ? '<details><summary>reasoning</summary><div class="text-xs">' + escapeHtml(c.judge_reasoning) + '</div></details>'
-            : '—') + '</td>'
+      const why = c.judge_reasoning
+        || (c.error ? '[not scored] the model run failed: ' + c.error : '')
+        || (v ? '[' + (c.judge || 'judge') + '] ' + v + ' verdict, no explanation recorded'
+                : '[not scored] no verdict for this case');
+      html += '<td class="judge-reasoning case-col-judge">'
+        + '<details><summary>reasoning</summary><div class="text-xs">' + escapeHtml(why) + '</div></details></td>'
         + '<td class="mono case-col-time">' + Math.round(c.time_ms || 0) + '</td>'
         + '</tr>';
     });

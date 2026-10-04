@@ -409,10 +409,10 @@ async def start_training(request: Request):
     if dataset_id and not data_path:
         ds = db.get_dataset(dataset_id)
         if not ds or ds.get("project_id") != project_id:
-            return {"error": f"dataset {dataset_id!r} not found in this project"}
+            return JSONResponse({"error": f"dataset {dataset_id!r} not found in this project"}, status_code=404)
         data_path = ds["data_path"]
     if not data_path:
-        return {"error": "No data_path / dataset_id provided"}
+        return JSONResponse({"error": "No data_path / dataset_id provided"}, status_code=400)
 
     preset_id = body.get("preset_id")
     overrides = body.get("overrides") or {}
@@ -428,7 +428,7 @@ async def start_training(request: Request):
                        if body.get(k) not in (None, "")}
                 config = _apply_preset(preset_id, {**top, **overrides})
             except (ValueError, TypeError) as e:
-                return {"error": str(e)}
+                return JSONResponse({"error": str(e)}, status_code=400)
             if not config.model_path and body.get("model_path"):
                 config.model_path = body["model_path"]
             if merge_flag is not None:
@@ -477,15 +477,15 @@ async def start_training(request: Request):
     merge_on_save = config.merge_on_save
 
     if not config.model_path:
-        return {"error": "No model_path provided"}
+        return JSONResponse({"error": "No model_path provided"}, status_code=400)
     config.model_path, dl_err = _resolve_model_path(
         config.model_path, _optional_body_bool(body, "allow_download") or False
     )
     if dl_err:
-        return {"error": dl_err}
+        return JSONResponse({"error": dl_err}, status_code=400)
     training_data = load_jsonl(data_path)
     if not training_data:
-        return {"error": "Training dataset is empty"}
+        return JSONResponse({"error": "Training dataset is empty"}, status_code=400)
     system_prompt = body.get("system_prompt", "")
     system_prompt_mode = body.get("system_prompt_mode", "bake")
     # The project training form sends only the mode; bake/runtime without a
@@ -494,7 +494,7 @@ async def start_training(request: Request):
         system_prompt = (db.get_project(project_id) or {}).get("system_prompt", "") or ""
 
     if training_engine.state.status in ("training", "loading", "saving"):
-        return {"error": "another training run is in progress"}
+        return JSONResponse({"error": "another training run is in progress"}, status_code=409)
 
     # Create a run record
     run = db.create_run(
@@ -553,7 +553,7 @@ async def start_training(request: Request):
     except Exception as e:
         log.exception("training start failed")
         db.update_run(run_id, status="error")
-        return {"error": f"start failed: {e}"}
+        return JSONResponse({"error": f"start failed: {e}"}, status_code=500)
     return {"status": "started", "steps": training_engine.state.total_steps, "run_id": run_id}
 
 @router.post("/stop")
@@ -600,22 +600,22 @@ async def trigger_auto_suite(run_id: str, request: Request):
         try:
             sample_size = int(body["sample_size"])
         except (TypeError, ValueError):
-            return {"error": "sample_size must be an integer"}
+            return JSONResponse({"error": "sample_size must be an integer"}, status_code=400)
         if sample_size <= 0:
-            return {"error": "sample_size must be > 0"}
+            return JSONResponse({"error": "sample_size must be > 0"}, status_code=400)
     run = db.get_run(run_id)
     if not run:
-        return {"error": "run not found"}
+        return JSONResponse({"error": "run not found"}, status_code=404)
     data_path = (run.get("data_path") or "").strip()
     if not data_path:
-        return {"error": "run has no data_path"}
+        return JSONResponse({"error": "run has no data_path"}, status_code=409)
     output_path = (run.get("output_path") or "").strip()
     if not output_path:
-        return {"error": "run has no output_path"}
+        return JSONResponse({"error": "run has no output_path"}, status_code=409)
     from finetune_studio.testing.generate_suite import generate_suite_from_training_data
     result = generate_suite_from_training_data(data_path, output_path, max_cases=sample_size)
     if result.get("error"):
-        return result
+        return JSONResponse(result, status_code=422)
     # Record in DB
     from time import time as _time
 
@@ -649,13 +649,13 @@ async def quantize_run(run_id: str, request: Request):
     method = body.get("method", "imatrix")
     run = db.get_run(run_id)
     if not run:
-        return {"error": "run not found"}
+        return JSONResponse({"error": "run not found"}, status_code=404)
     output_path = (run.get("output_path") or "").strip()
     if not output_path:
-        return {"error": "run has no output_path"}
+        return JSONResponse({"error": "run has no output_path"}, status_code=409)
     merged_dir = os.path.join(output_path, "merged")
     if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
-        return {"error": "no merged model to quantize"}
+        return JSONResponse({"error": "no merged model to quantize"}, status_code=409)
     if method == "imatrix":
         output_dir = os.path.join(output_path, "imatrix")
         from finetune_studio.training.advanced_quant import quantize_gguf_imatrix
@@ -666,9 +666,9 @@ async def quantize_run(run_id: str, request: Request):
             quants=body.get("quants", ["q4_k_m", "q5_k_m", "q8_0"]),
         )
     else:
-        return {"error": f"unknown method: {method}"}
+        return JSONResponse({"error": f"unknown method: {method}"}, status_code=400)
     if result.get("error"):
-        return result
+        return JSONResponse(result, status_code=422)
     from time import time as _time
 
     from finetune_studio.db.connection import cursor, new_id
@@ -704,9 +704,9 @@ async def set_run_output(run_id: str, request: Request):
     body = await request.json()
     output_path = str(body.get("output_path") or "").strip()
     if not output_path:
-        return {"error": "no output_path"}
+        return JSONResponse({"error": "no output_path"}, status_code=400)
     if not db.get_run(run_id):
-        return {"error": "run not found"}
+        return JSONResponse({"error": "run not found"}, status_code=404)
     db.update_run(run_id, output_path=output_path)
     return {"ok": True, "run_id": run_id, "output_path": output_path}
 

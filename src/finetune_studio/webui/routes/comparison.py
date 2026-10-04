@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
@@ -35,7 +36,7 @@ async def compare_load(request: Request):
     name = body.get("name", "model")
     path = body.get("path", "")
     if not path:
-        return {"error": "No path provided"}
+        return JSONResponse({"error": "No path provided"}, status_code=400)
     if _missing_model_path(str(path)):
         raise HTTPException(status_code=400, detail=f"model path not found: {path}")
     try:
@@ -43,7 +44,7 @@ async def compare_load(request: Request):
         await asyncio.to_thread(comparator.load_model, name, path)
         return {"status": "loaded", "name": name, "models": comparator.model_names()}
     except Exception as e:  # noqa: BLE001
-        return {"error": str(e)}
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 @router.post("/compare/run")
@@ -54,13 +55,13 @@ async def compare_run(request: Request):
     config = body.get("config", {"max_tokens": 512, "temperature": 0.7})
 
     if not test_suite:
-        return {"error": "No test suite provided"}
+        return JSONResponse({"error": "No test suite provided"}, status_code=400)
 
     from finetune_studio.benchmarks.comparison import NoModelsLoadedError, comparator
     try:
         result = await asyncio.to_thread(comparator.run_comparison, test_suite, config)
     except NoModelsLoadedError as e:
-        return {"error": str(e)}
+        return JSONResponse({"error": str(e)}, status_code=409)
     except (KeyError, TypeError, AttributeError) as e:
         raise HTTPException(
             status_code=400,

@@ -841,11 +841,11 @@ async function chatInlineLoad() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model_path: sel.value, n_ctx: nCtx }),
     });
-    const d = await r.json();
-    if (d.ok) {
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && !d.error) {
       location.reload();
     } else {
-      fts.notify('Failed to load model: ' + (d.error || 'unknown error'), 'error');
+      fts.notify('Failed to load model: ' + (d.error || d.detail || ('HTTP ' + r.status)), 'error');
     }
   } catch (e) {
     fts.notify('Failed to load model: ' + ((e && e.message) || e), 'error');

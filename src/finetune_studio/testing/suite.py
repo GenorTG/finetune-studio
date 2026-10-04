@@ -186,7 +186,36 @@ def run_suite(engine, cases: list[BenchmarkCase], max_tokens: int = 512,
     return results
 
 
+def fallback_reasoning(
+    verdict: str, reasoning: str, *, judge: str = "", error: str = "",
+) -> str:
+    """Never leave the 'Judge reasoning' cell blank: say why there is none."""
+    text = (reasoning or "").strip()
+    if text:
+        return text
+    if error:
+        return f"[not scored] the model run failed before judging: {error}"
+    if not verdict:
+        return "[not scored] no verdict was produced for this case"
+    who = judge or "judge"
+    return f"[{who}] returned a {verdict} verdict without an explanation"
+
+
+def ensure_reasoning(results: list[CaseResult]) -> None:
+    """Fill an explanation on every result that has none (in place)."""
+    for r in results:
+        r.judge_reasoning = fallback_reasoning(
+            r.verdict, r.judge_reasoning, judge=r.judge, error=r.error,
+        )
+
+
 def apply_heuristic_judging(results: list[CaseResult]) -> None:
+    """Judge in place (see _judge_each); every row ends with a reasoning."""
+    _judge_each(results)
+    ensure_reasoning(results)
+
+
+def _judge_each(results: list[CaseResult]) -> None:
     """Mutate results in place: set verdict/judge via strict or legacy scoring.
 
     Prefer task-aware strict scoring for multiple-choice and numeric cases

@@ -84,7 +84,7 @@ async def trigger_update(request: Request, background: BackgroundTasks):
         return JSONResponse({"error": "expected JSON object"}, status_code=400)
     mode = str(body.get("mode") or "update").lower()
     if mode not in ("update", "check", "repair"):
-        return {"error": f"invalid mode: {mode}"}
+        return JSONResponse({"error": f"invalid mode: {mode}"}, status_code=400)
     options = {
         "no_pull": bool(body.get("no_pull", False)),
         "no_llama": bool(body.get("no_llama", False)),

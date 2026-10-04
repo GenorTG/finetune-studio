@@ -49,7 +49,7 @@ async def load_model(request: Request):
     body = await _json_object(request)
     model_path = body.get("model_path") or body.get("path") or ""
     if not model_path:
-        return {"error": "No model_path"}
+        return JSONResponse({"error": "No model_path"}, status_code=400)
     try:
         from finetune_studio.models.llama_loader import resolve_loader_overrides
         kwargs = resolve_loader_overrides(body, caller="testing/load", model_path=model_path)
@@ -66,7 +66,7 @@ async def load_model(request: Request):
             await asyncio.to_thread(inference_engine.load, model_path, **kwargs)
         return {"status": "loaded", "model": model_path}
     except Exception as e:  # noqa: BLE001
-        return {"error": str(e)}
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 def _testing_status_payload() -> dict:
