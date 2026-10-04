@@ -47,7 +47,15 @@ def extract_text(file_path: str) -> str:
     """
     from finetune_studio.data.parsers import parse as parser_parse
     result = parser_parse(Path(file_path))
-    return result.get("text", "")
+    text = result.get("text", "")
+    # Unknown extensions fall back to a lossy text read; binary content would
+    # be indexed as garbage chunks, so refuse it with a clear message.
+    if result.get("metadata", {}).get("parser") == "text_fallback" and "\x00" in text[:8192]:
+        raise ValueError(
+            f"{Path(file_path).name}: binary file with unsupported extension "
+            f"'{Path(file_path).suffix}' — not ingested"
+        )
+    return text
 
 
 def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50,
