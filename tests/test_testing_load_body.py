@@ -71,7 +71,7 @@ def test_testing_load_rejects_empty_body(
 ) -> None:
     client, fake = client_and_engine
     resp = client.post("/api/testing/load", json={})
-    assert resp.status_code == 200, resp.text
+    assert resp.status_code == 400, resp.text
     assert resp.json()["error"] == "No model_path"
     fake.load.assert_not_called()
 

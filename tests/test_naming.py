@@ -136,7 +136,7 @@ def test_dataset_export_name_is_readable(client) -> None:
     fl._PARSED_CACHE.clear()
     r = client.post("/api/projects", json={"name": "Readable DS"})
     pid = r.json()["id"]
-    body = ("# Lore\n\n" + ("Keeper Odo swore on green wax in 1841. " * 60)).encode()
+    body = ("# Lore\n\n" + ("Keeper Odo swore on green wax in 1841, and the vow bound the archive to him. " * 60)).encode()
     up = client.post(
         f"/api/projects/{pid}/files/upload",
         files=[("files", (f"ds-{secrets.token_hex(3)}.md", body, "text/markdown"))],

@@ -874,9 +874,9 @@ class TrainingEngine:
         self._notify()
 
     def _train_standard(self, train_data, val_data=()):
-        from datasets import Dataset
         from peft import LoraConfig, get_peft_model
 
+        from datasets import Dataset
         from finetune_studio.training.sft_args import build_sft_args_from_config
         cfg = self.config
         self.state.message = "Loading model..."

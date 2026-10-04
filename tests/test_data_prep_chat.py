@@ -267,7 +267,7 @@ class TestChatRouteSmoke:
                 },
             },
         )
-        assert r.status_code == 200
+        assert r.status_code in (200, 502)  # 502 = upstream chat call failed (honest error)
         body = r.json()
         assert "ok" in body or "error" in body  # may fail because project doesn't exist
 
