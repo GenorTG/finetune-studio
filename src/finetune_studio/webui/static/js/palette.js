@@ -187,7 +187,7 @@
     if (scored.length === 0) {
       results.innerHTML =
         `<div class="palette-empty">no matches for "${escapeHtml(query)}"</div>` +
-        `<div class="palette-empty-tip">try: <code>qa3 rag</code> · <code>train</code> · <code>models</code></div>`;
+        `<div class="palette-empty-tip">try: <code>models</code> · <code>train</code> · <code>chat</code></div>`;
       return;
     }
 

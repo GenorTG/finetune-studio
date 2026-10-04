@@ -67,7 +67,7 @@
   </style>
   <title>{% block title %}Finetune Studio{% endblock %} · {{ release_channel }}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/css/app.css?v=70">
+  <link rel="stylesheet" href="/static/css/app.css?v=71">
 </head>
 <body>
   <div id="toasts" class="toasts" aria-live="polite"></div>
@@ -79,7 +79,6 @@
       {# Brand cluster — minimal, always present #}
       <a href="/" class="sb-brand" data-link title="Finetune Studio">
         <span class="logo">FS</span>
-        <span class="sb-prompt">root@fts:~$</span>
       </a>
 
       {# Nav shell: scrollport + explicit overflow affordances (scroll + [nav]) #}
@@ -241,7 +240,6 @@
     {% if pid is defined and pid %}
     <nav id="project-breadcrumb" class="project-breadcrumb" aria-label="Breadcrumb">
       <span class="bc-brand">FS</span>
-      <span class="bc-prompt">root@fts:~$</span>
       <a href="/" data-link>dashboard</a>
       <span class="bc-sep">▮</span>
       <span>projects</span>
@@ -288,9 +286,9 @@
     <div class="palette-backdrop" id="palette-backdrop" hidden></div>
     <div class="palette" id="palette" hidden role="dialog" aria-label="Command palette">
       <div class="palette-head">
-        <span class="palette-prefix">root@fts:~$</span>
+        <span class="palette-prefix">&gt;</span>
         <input type="text" id="palette-input" class="palette-input" autocomplete="off"
-               placeholder="jump to...  (try 'rag', 'qa3 rag', 'inference')" />
+               placeholder="jump to...  (try 'models', 'rag', 'chat')" />
         <span class="palette-hint">ESC</span>
       </div>
       <div class="palette-results" id="palette-results" role="listbox"></div>

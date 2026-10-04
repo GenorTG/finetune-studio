@@ -770,8 +770,6 @@ body::before {
     repeating-linear-gradient(45deg,
       var(--border) 0 6px, transparent 6px 12px);
 }
-.empty::before { content: "┌── NO_DATA ──┐"; display: block; opacity: 0.5; }
-.empty::after  { content: "└──────────────┘"; display: block; opacity: 0.5; }
 .empty .icon { width: 32px; height: 32px; margin: 0 auto 12px; opacity: 0.4; }
 /* Stale markers: once results load, placeholders must not keep NO_DATA chrome
    in the accessibility tree or painted overlay (display:none alone is enough
@@ -1506,7 +1504,6 @@ body::before {
   box-shadow: 0 0 16px var(--accent-glow);
   animation: boot-fade-out 0.4s ease 3s forwards;
 }
-.boot-seq::before { content: "[ BOOT ] "; color: var(--warn); }
 @keyframes boot-fade-out {
   to { opacity: 0; transform: translateX(-50%) translateY(-10px); pointer-events: none; }
 }
