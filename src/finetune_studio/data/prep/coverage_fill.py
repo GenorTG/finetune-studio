@@ -153,12 +153,23 @@ def split_sentences(text: str) -> list[str]:
 
 
 # question templates: two forms keep extractive questions readable
-# without any model call.
+# without any model call. The quoted text is always a complete clause
+# (see _subject_of) -- never a truncated fragment ending in an ellipsis.
 _TEMPLATES = (
-    "What does the source say about \u201c{subject}\u2026\u201d?",
-    "Complete this statement from the source: \u201c{subject}\u2026\u201d",
+    "What does the source say about \u201c{subject}\u201d?",
+    "What is stated in the source regarding \u201c{subject}\u201d?",
 )
 
+_CLAUSE_SPLIT_RE = re.compile(r"(?<=[,;:])\s+|\s+[\u2014\u2013]\s+|\s+-\s+")
+_MIN_SUBJECT_WORDS = 4
+_MAX_SUBJECT_WORDS = 14
+# A clause that ends on one of these cannot stand on its own.
+_DANGLING_END = frozenset({
+    "a", "an", "the", "of", "in", "on", "at", "to", "for", "by", "with", "from",
+    "and", "or", "but", "that", "which", "who", "whose", "as", "than", "its",
+    "their", "his", "her", "is", "are", "was", "were", "be", "been", "has",
+    "have", "had", "will", "would", "can", "could", "into", "over", "under",
+})
 
 def _looks_tabular(sentence: str) -> bool:
     """True for CSV/table residue (pipes, many commas, mostly digits/symbols)."""
@@ -174,14 +185,57 @@ def _looks_tabular(sentence: str) -> bool:
 
 
 def _subject_of(sentence: str) -> str:
-    """Lightweight subject extraction: first ~10 words, cleaned for a question."""
-    s = sentence.strip().rstrip(".")
-    words = s.split()
-    # Skip a leading article/label so "A Ledger-Keeper is sworn…" reads well.
-    while words and words[0].lower() in {"a", "an", "the", "their", "its"}:
-        words = words[1:]
-    subject = " ".join(words[:10])
-    return subject or s[:10]
+    """Complete leading clause of ``sentence`` for use inside a question.
+
+    Cuts at the last clause boundary (comma/semicolon/colon/dash) that leaves
+    a self-contained lead of 4-14 words and a non-empty remainder (so the
+    answer adds information beyond the quote). Returns ``""`` when no such
+    clause exists -- callers must then skip the pair rather than quote a
+    truncated fragment.
+    """
+    s = re.sub(r"\s+", " ", sentence or "").strip().rstrip(".!?")
+    pieces = [p for p in _CLAUSE_SPLIT_RE.split(s) if p]
+    best = ""
+    acc: list[str] = []
+    for piece in pieces[:-1]:  # last piece is the remainder
+        acc.append(piece.strip())
+        lead = " ".join(acc).strip().rstrip(",;:").strip()
+        n = len(lead.split())
+        if n > _MAX_SUBJECT_WORDS:
+            break
+        if n >= _MIN_SUBJECT_WORDS and lead.split()[-1].lower().strip("\u201d\"') ") not in _DANGLING_END:
+            best = lead
+    return best or _subject_noun_phrase(s)
+
+
+_AUX_VERBS = frozenset({
+    "is", "are", "was", "were", "has", "have", "had", "will", "would", "can",
+    "could", "must", "may", "might", "should", "does", "do", "did",
+})
+
+
+def _subject_noun_phrase(sentence: str) -> str:
+    """Noun phrase before the first verb ("The Concord" in "The Concord pays ...").
+
+    Used when the sentence has no clause boundary to cut at. The phrase is a
+    whole subject, not a truncation. Empty when no verb is found within the
+    first few words.
+    """
+    words = sentence.split()
+    for i in range(1, min(len(words), 7)):
+        w = words[i].lower().strip(",;:\u201c\u201d\"'")
+        looks_verb = w in _AUX_VERBS or (
+            words[i][:1].islower()
+            and len(w) > 3
+            and w.endswith(("s", "ed"))
+            and w not in _DANGLING_END
+        )
+        if looks_verb:
+            phrase = " ".join(words[:i]).rstrip(",;:")
+            if phrase.split()[-1].lower() in _DANGLING_END:
+                return ""
+            return phrase
+    return ""
 
 
 def _make_pairs_from_chunk(
@@ -218,6 +272,8 @@ def _make_pairs_from_chunk(
         if token_overlap_ratio(content_tokens(answer), content_tokens(chunk_text)) < 0.9:
             continue
         subject = _subject_of(sent)
+        if not subject:
+            continue  # no complete clause to quote: skip rather than truncate
         q = _TEMPLATES[len(out) % len(_TEMPLATES)].format(subject=subject.rstrip("?:,;"))
         key = (normalize_question(q), norm_ans(answer))
         if key[0] in seen_questions or key in seen_pairs:

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 from finetune_studio.webui.engine_guard import ENGINE_LOCK
 
@@ -125,7 +126,7 @@ async def load_model(request: Request):
     # Accept path|model_path (QABUG-014-runtime — UI sometimes sends path only).
     model_path = body.get("model_path") or body.get("path") or ""
     if not model_path:
-        return {"error": "No model_path"}
+        return JSONResponse({"error": "No model_path"}, status_code=400)
     try:
         from finetune_studio.models.llama_loader import resolve_loader_overrides
         kwargs = resolve_loader_overrides(body, caller="chat-v2/load", model_path=model_path)
@@ -141,7 +142,7 @@ async def load_model(request: Request):
         vision = getattr(inference_engine, "vision", False)
         return {"status": "loaded", "model": model_path, "vision": vision}
     except Exception as e:  # noqa: BLE001
-        return {"error": str(e)}
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 @router.post("/projects/{pid}/chat")
@@ -171,11 +172,11 @@ async def chat(request: Request, pid: str):
     top_p = body.get("top_p", 0.9)
 
     if not messages:
-        return {"error": "No messages provided"}
+        return JSONResponse({"error": "No messages provided"}, status_code=400)
 
     # Check model is loaded
     if inference_engine.model is None:
-        return {"error": "No model loaded. Load a model first."}
+        return JSONResponse({"error": "No model loaded. Load a model first."}, status_code=409)
 
     # `project` (validated at the top) supplies the system prompt default.
     # Extract last user message for RAG retrieval
@@ -253,7 +254,7 @@ async def chat(request: Request, pid: str):
                 gen_messages, max_tokens=max_tokens, temperature=temperature, top_p=top_p,
             )
     except Exception as e:  # noqa: BLE001
-        return {"error": str(e)}
+        return JSONResponse({"error": str(e)}, status_code=500)
 
     from finetune_studio.webui.thinking import split_thinking
     parts = split_thinking(response if isinstance(response, str) else str(response))

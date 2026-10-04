@@ -263,6 +263,7 @@ async def _execute_benchmark(
     from finetune_studio.testing.inference import InferenceEngine
     from finetune_studio.testing.suite import (
         apply_heuristic_judging,
+        ensure_reasoning,
         run_suite,
         score_results,
     )
@@ -296,7 +297,7 @@ async def _execute_benchmark(
             dt_ms = int((time.time() - t0) * 1000)
 
             if judge_mode == "none":
-                pass
+                ensure_reasoning(results)
             elif judge_mode == "heuristic":
                 apply_heuristic_judging(results)
             elif judge_mode in ("ai", "local"):
@@ -557,7 +558,7 @@ async def run_history(pid: str, rid: str) -> list[dict[str, Any]] | dict[str, st
         return missing
     run = db.get_run(rid)
     if not run or run["project_id"] != pid:
-        return {"error": "not found"}
+        return JSONResponse({"error": "not found"}, status_code=404)
     return db.list_benchmarks(rid)
 
 
@@ -616,6 +617,7 @@ async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any
         judge_case_heuristic,
         judge_case_local,
     )
+    from finetune_studio.testing.suite import fallback_reasoning
 
     if judge_mode == "heuristic":
         updated = 0
@@ -632,7 +634,7 @@ async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any
                 judge="heuristic",
                 judge_model="heuristic",
                 verdict=verdict,
-                judge_reasoning=reasoning,
+                judge_reasoning=fallback_reasoning(verdict, reasoning, judge="heuristic"),
                 scored_at=time.time(),
             )
             updated += 1
@@ -659,7 +661,7 @@ async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any
                 judge="ai",
                 judge_model=judge_model or "gpt-4o-mini",
                 verdict=verdict,
-                judge_reasoning=reasoning,
+                judge_reasoning=fallback_reasoning(verdict, reasoning, judge="ai"),
                 scored_at=time.time(),
             )
             updated += 1
@@ -694,7 +696,7 @@ async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any
                         judge="local",
                         judge_model=model_path,
                         verdict=verdict,
-                        judge_reasoning=reasoning,
+                        judge_reasoning=fallback_reasoning(verdict, reasoning, judge="local"),
                         scored_at=time.time(),
                     )
                     updated += 1

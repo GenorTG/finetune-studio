@@ -390,15 +390,15 @@ async def data_prep_chat(pid: str, request: Request):
         return JSONResponse({"error": "JSON object body required"}, status_code=400)
     messages: list[dict] = body.get("messages") or []
     if not messages or not isinstance(messages, list):
-        return {"error": "messages required"}
+        return JSONResponse({"error": "messages required"}, status_code=400)
     provider_id: str | None = body.get("provider_id")
     external: dict | None = body.get("external_api")
     if external is not None and not isinstance(external, dict):
-        return {"error": "external_api must be an object"}
+        return JSONResponse({"error": "external_api must be an object"}, status_code=400)
     try:
         max_rounds = max(1, min(int(body.get("max_rounds") or MAX_TOOL_ROUNDS), 12))
     except (TypeError, ValueError):
-        return {"error": "max_rounds must be an integer"}
+        return JSONResponse({"error": "max_rounds must be an integer"}, status_code=400)
 
     # Generation kwargs — allow per-request override. Anything not supplied
     # falls back to sane defaults for tool-calling (low temperature, roomy
@@ -445,7 +445,7 @@ async def data_prep_chat(pid: str, request: Request):
         try:
             import httpx  # noqa: F401
         except ImportError:
-            return {"error": "external_api requires httpx (install httpx)"}
+            return JSONResponse({"error": "external_api requires httpx (install httpx)"}, status_code=500)
         backend = {
             "kind": "external",
             "base_url": (external.get("base_url") or "").rstrip("/"),
@@ -453,7 +453,7 @@ async def data_prep_chat(pid: str, request: Request):
             "model_id": external.get("model_id") or "",
         }
         if not backend["base_url"] or not backend["model_id"]:
-            return {"error": "external_api.base_url and model_id required"}
+            return JSONResponse({"error": "external_api.base_url and model_id required"}, status_code=400)
     elif provider_id:
         # Explicit provider_id — only path that may call manager.load().
         # Lazy imports: data_prep_chat.py is imported by app.py during
@@ -466,7 +466,7 @@ async def data_prep_chat(pid: str, request: Request):
         mgr = get_manager()
         cfg = mgr.get_provider(provider_id)
         if not cfg:
-            return {"error": f"unknown provider {provider_id}"}
+            return JSONResponse({"error": f"unknown provider {provider_id}"}, status_code=404)
 
         # Fast path: the global inference engine already holds THIS model.
         # Use it directly to avoid a duplicate Llama() instance racing with
@@ -520,7 +520,7 @@ async def data_prep_chat(pid: str, request: Request):
                 await asyncio.to_thread(mgr.load, provider_id)
             except Exception as e:
                 log.exception("failed to load provider %s", provider_id)
-                return {"error": f"failed to load provider: {e}"}
+                return JSONResponse({"error": f"failed to load provider: {e}"}, status_code=500)
             backend = {"kind": "provider", "manager": mgr, "provider_id": provider_id}
     else:
         # No provider_id: require the configured GGUF helper — never
@@ -543,7 +543,7 @@ async def data_prep_chat(pid: str, request: Request):
 
     # Now check the project directory exists.
     if not project_dir(pid).exists():
-        return {"error": f"project {pid} not found"}
+        return JSONResponse({"error": f"project {pid} not found"}, status_code=404)
 
     # Run the tool-calling loop.
     full_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + messages
@@ -568,7 +568,7 @@ async def data_prep_chat(pid: str, request: Request):
                 )
         except Exception as e:
             log.exception("chat call failed")
-            return {"error": f"chat call failed: {e}"}
+            return JSONResponse({"error": f"chat call failed: {e}"}, status_code=502)
 
         tool_calls = _extract_tool_calls(reply_text)
         # Strip Qwen3 chain-of-thought so the visible reply + history
