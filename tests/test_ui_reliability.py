@@ -296,10 +296,10 @@ def test_card_head_stacks_below_700() -> None:
 
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=69" in base
+    assert "app.css?v=70" in base
     assert "sprites.js?v=18" in base
     assert "nav_overflow.js?v=1" in base
-    assert "spa.js?v=17" in base
+    assert "spa.js?v=18" in base
 
 
 def test_workflow_steps_vertical_at_desktop() -> None:

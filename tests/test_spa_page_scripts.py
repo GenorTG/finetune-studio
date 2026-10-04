@@ -43,7 +43,7 @@ def test_spa_js_references_page_scripts_and_rewrites_decls() -> None:
     assert "class (" in js or "^class (" in js
     assert "var $1 = class $1" in js
     # error fallback to full navigation during injection
-    assert "location.href = url" in js
+    assert "hardNavigate(url)" in js
     assert 'addEventListener("error"' in js or "addEventListener('error'" in js
 
 

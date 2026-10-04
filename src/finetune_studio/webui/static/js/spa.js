@@ -129,6 +129,19 @@
   }
 
   /**
+   * Full page load of ``url``. Assigning location.href to the current
+   * path+query with only a different #hash does NOT reload — the browser just
+   * scrolls — so a failed SPA swap to e.g. /projects#new used to leave the
+   * page half-swapped. Reload explicitly in that case.
+   */
+  function hardNavigate(url) {
+    const target = new URL(url, location.href);
+    const samePage = target.pathname === location.pathname && target.search === location.search;
+    location.href = target.href;
+    if (samePage) location.reload();
+  }
+
+  /**
    * Re-run inline scripts in #content then #page-scripts.
    * On any window error during synchronous injection, fall back to full load.
    */
@@ -144,7 +157,7 @@
       window.removeEventListener("error", onError);
     }
     if (failed) {
-      location.href = url;
+      hardNavigate(url);
       return false;
     }
     return true;
@@ -162,13 +175,13 @@
       try { await inFlight; } catch (e) {}
     }
     const c = content();
-    if (!c) { location.href = url; return; }
+    if (!c) { hardNavigate(url); return; }
     c.classList.add("is-loading");
     const nav_promise = (async () => {
       const html = await fetchHTML(url);
       const ext = extractContent(html);
       if (ext.fullHTML) {
-        location.href = url;
+        hardNavigate(url);
         return;
       }
       document.dispatchEvent(new CustomEvent("fts:beforeNavigate", {
@@ -236,7 +249,7 @@
       // Fetch/parse/swap failure: restore the shell and do a full load.
       c.classList.remove("is-loading");
       c.style.opacity = "1";
-      location.href = url;
+      hardNavigate(url);
     } finally {
       inFlight = null;
     }

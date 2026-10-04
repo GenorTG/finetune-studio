@@ -2760,6 +2760,17 @@ body::before {
   font-family: "Share Tech Mono", monospace;
   color: var(--text);
 }
+/* Page-level actions row (base.html renders each page's topbar_right block). */
+.page-actions { display: flex; justify-content: flex-end; gap: .5rem; flex-wrap: wrap; margin-bottom: .75rem; }
+/* Anchored next to the highlighted element (tutorial.js place()). */
+.tutorial-dialog.anchored { transform: none; }
+.tutorial-live {
+  margin-top: 12px; padding: 8px 10px;
+  border-left: 2px solid var(--warn); background: rgba(255,255,255,0.03);
+  font-size: 0.85rem; color: var(--warn);
+}
+.tutorial-live.ok { border-left-color: var(--accent); color: var(--accent); }
+.tutorial-btn:disabled { opacity: 0.35; cursor: default; }
 .tutorial-dialog::before {
   content: "";
   position: absolute; inset: 0;

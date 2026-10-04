@@ -5,7 +5,6 @@
 
 {% block topbar_right %}
   <button class="btn" onclick="document.getElementById('import-project-modal').hidden=false" title="Import project from archive">⇧ Import</button>
-  <button class="btn primary" onclick="(function(){const c=document.getElementById('new-project');if(c){c.hidden=false;c.scrollIntoView({behavior:'smooth',block:'start'});}else{location.reload();}})()">＋ New project</button>
 {% endblock %}
 
 {% block content %}
@@ -75,7 +74,7 @@
       <option value="name-desc">Name Z-A</option>
     </select>
   </div>
-  <button class="btn" onclick="document.getElementById('new-project').hidden=false" style="margin-left:auto;">＋ New project</button>
+  <button class="btn primary" id="new-project-btn" onclick="(function(){const c=document.getElementById('new-project');if(c){c.hidden=false;c.scrollIntoView({behavior:'smooth',block:'start'});}})()" style="margin-left:auto;">＋ New project</button>
 </div>
 
 {# Bulk-action bar — shows when at least one card is selected. #}
@@ -211,6 +210,18 @@
 </style>
 
 <script>
+// /projects#new (e.g. the tour's "Create my first project") opens the form.
+// On a full load the hash is already set; on an SPA swap pushState happens
+// after page scripts run, so also check once fts:navigated fires.
+(function () {
+  function openIfNew() {
+    if (location.hash !== '#new') return;
+    const c = document.getElementById('new-project');
+    if (c) { c.hidden = false; c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  }
+  openIfNew();
+  document.addEventListener('fts:navigated', openIfNew, { once: true });
+})();
 fts.api.get('/api/models/list').then(models => {
   const sel = document.getElementById('np-base');
   if (!sel) return;
