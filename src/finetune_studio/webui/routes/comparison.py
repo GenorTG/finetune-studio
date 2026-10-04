@@ -1,9 +1,21 @@
 """Comparison tab (side-by-side model output) routes."""
 import asyncio
+import re
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter()
+
+_HF_REPO_ID = re.compile(r"^[\w.-]+(/[\w.-]+)?$")
+
+
+def _missing_model_path(path: str) -> bool:
+    """True when ``path`` names a local location (not an HF repo id) that is absent."""
+    if Path(path).expanduser().exists():
+        return False
+    local_shaped = path.startswith(("/", ".", "~")) or "\\" in path or path.endswith(".gguf")
+    return local_shaped or not _HF_REPO_ID.match(path)
 
 
 async def _json_object(request: Request) -> dict:
@@ -24,6 +36,8 @@ async def compare_load(request: Request):
     path = body.get("path", "")
     if not path:
         return {"error": "No path provided"}
+    if _missing_model_path(str(path)):
+        raise HTTPException(status_code=400, detail=f"model path not found: {path}")
     try:
         from finetune_studio.benchmarks.comparison import comparator
         await asyncio.to_thread(comparator.load_model, name, path)

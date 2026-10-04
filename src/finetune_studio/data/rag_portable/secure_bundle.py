@@ -16,6 +16,7 @@ import secrets
 import shutil
 from pathlib import Path
 
+from .io import relabel_imported_sources
 from .rag_container import MAGIC as _MAGIC
 from .rag_container import ContainerReader, ContainerWriter
 from .schema import Manifest
@@ -115,6 +116,7 @@ def import_secure_bundle(archive: str | Path, passphrase: str,
                 t.write_bytes(cr.read(n))  # authenticates each frame
             if dest.exists():
                 shutil.rmtree(dest)
+            relabel_imported_sources(staging)
             staging.replace(dest)
         finally:
             shutil.rmtree(staging, ignore_errors=True)

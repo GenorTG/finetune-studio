@@ -30,6 +30,7 @@ from finetune_studio.data.rag_portable.constants import (
 from finetune_studio.data.rag_portable.embedders import get_embedder
 from finetune_studio.data.rag_portable.io import (
     read_json,
+    relabel_imported_sources,
     try_import_pandas,
     write_json,
 )
@@ -462,6 +463,7 @@ class PortableRAG:
                         manifest.rag_settings.reranker = new_ref
             manifest.updated_at = time.time()
             write_json(self.manifest_path, manifest.to_json())
+            relabel_imported_sources(self.dir)
 
         # Reload to verify the result is queryable, then return stats.
         loaded = self.load()

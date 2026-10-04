@@ -262,6 +262,13 @@ def _get_presets() -> list[dict]:
     return [{"id": k, **v} for k, v in TRAINING_PRESETS.items()]
 
 
+_PRESET_TUNING_FIELDS: dict[str, type] = {
+    "lora_rank": int, "lora_alpha": int, "learning_rate": float, "num_epochs": int,
+    "batch_size": int, "gradient_accumulation_steps": int, "max_seq_length": int,
+    "warmup_steps": int,
+}
+
+
 def _apply_preset(preset_id: str, overrides: dict | None = None) -> TrainingConfig:
     """Build a TrainingConfig from a preset, with optional field overrides."""
     p = TRAINING_PRESETS.get(preset_id)
@@ -420,7 +427,11 @@ async def start_training(request: Request):
     try:
         if preset_id:
             try:
-                config = _apply_preset(preset_id, overrides)
+                # Top-level tuning fields (what the project form sends) win over
+                # the preset, same as ``overrides``; they were silently ignored.
+                top = {k: cast(body[k]) for k, cast in _PRESET_TUNING_FIELDS.items()
+                       if body.get(k) not in (None, "")}
+                config = _apply_preset(preset_id, {**top, **overrides})
             except (ValueError, TypeError) as e:
                 return {"error": str(e)}
             if not config.model_path and body.get("model_path"):
@@ -499,6 +510,8 @@ async def start_training(request: Request):
         rag_ids=[],
         settings_obj={
             "lora_rank": config.lora_rank,
+            "lora_alpha": config.lora_alpha,
+            "gradient_accumulation_steps": config.gradient_accumulation_steps,
             "learning_rate": config.learning_rate,
             "num_epochs": config.num_epochs,
             "batch_size": config.batch_size,

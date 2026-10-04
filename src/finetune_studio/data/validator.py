@@ -87,5 +87,8 @@ def validate_jsonl(p, report):
                         msg_count += 1
             elif "text" not in item:
                 report["warnings"].append(f"Row {rows}: no messages or text key")
+    if rows == 0:
+        report["errors"].append("File has no rows (empty JSONL)")
+        report["valid"] = False
     report["stats"] = {"rows": rows, "messages": msg_count}
     return report

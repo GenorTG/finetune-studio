@@ -18,7 +18,11 @@ def cmd_rag(args) -> None:
         if os.path.isdir(args.path):
             result = manager.ingest_directory(args.path, args.chunk_size, args.overlap)
         else:
-            result = manager.ingest_file(args.path, args.chunk_size, args.overlap)
+            try:
+                result = manager.ingest_file(args.path, args.chunk_size, args.overlap)
+            except ValueError as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
         print(json.dumps(result, indent=2))
 
     elif args.rag_command == "query":
