@@ -659,7 +659,8 @@
         results.innerHTML = '<p class="text-sm muted">No matching chunks.</p>';
         return;
       }
-      let html = '<div class="table-scroll"><table class="table ref-table rag-hits-table"><thead><tr>'
+      let html = d.weak ? '<p class="text-sm warn">⚠ ' + esc(d.note) + '</p>' : '';
+      html += '<div class="table-scroll"><table class="table ref-table rag-hits-table"><thead><tr>'
         + '<th class="rag-hit-rank">#</th><th class="rag-hit-score">Score</th>'
         + '<th class="rag-hit-source">Source</th><th class="rag-hit-preview">Preview</th></tr></thead><tbody>';
       hits.forEach(function(h, i) {

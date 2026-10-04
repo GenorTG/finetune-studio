@@ -196,7 +196,7 @@ def apply_heuristic_judging(results: list[CaseResult]) -> None:
 
     Skips cases that already have a verdict or that errored with an empty answer.
     """
-    from finetune_studio.testing.judge import judge_case_heuristic
+    from finetune_studio.testing.judge import is_abstention, judge_case_heuristic
     from finetune_studio.testing.strict_scoring import (
         score_source_grounded,
         score_strict,
@@ -206,6 +206,15 @@ def apply_heuristic_judging(results: list[CaseResult]) -> None:
         if r.verdict:
             continue
         if r.error and not r.model_answer:
+            continue
+
+        if is_abstention(r.model_answer or "") and not is_abstention(r.correct_answer or ""):
+            r.verdict = "fail"
+            r.judge = "heuristic"
+            r.judge_model = "heuristic"
+            r.scoring_method = "abstention"
+            r.validity = "valid"
+            r.judge_reasoning = "[abstention; validity=valid] model declined to answer (said the text does not cover it)"
             continue
 
         if r.source_id:

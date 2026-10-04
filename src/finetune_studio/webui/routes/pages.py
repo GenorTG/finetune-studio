@@ -302,7 +302,7 @@ async def project_detail_page(request: Request, pid: str):
 
     ctx = _project_ctx(pid)
     if not ctx:
-        return RedirectResponse(url="/projects", status_code=302)
+        raise HTTPException(status_code=404, detail="Project not found")
     files = fl.list_files(pid)
     dash = build_dashboard_ctx(ctx["project"], pid, files=files)
     return templates.TemplateResponse(
@@ -322,7 +322,7 @@ async def project_data_page(request: Request, pid: str):
 
     ctx = _project_ctx(pid)
     if not ctx:
-        return RedirectResponse(url="/projects", status_code=302)
+        raise HTTPException(status_code=404, detail="Project not found")
     files = fl.list_files(pid, include_deleted=True)
     browser = build_file_browser_ctx(ctx["project"], files=files)
     return templates.TemplateResponse(
@@ -341,7 +341,7 @@ async def project_training_page(request: Request, pid: str):
     from finetune_studio.webui.project_dashboard import resolve_production_run
     ctx = _project_ctx(pid)
     if not ctx:
-        return RedirectResponse(url="/projects", status_code=302)
+        raise HTTPException(status_code=404, detail="Project not found")
     # ?run=<id> opens the run-detail panel above the config card.
     detail_run = None
     run_id = request.query_params.get("run")
@@ -414,7 +414,7 @@ async def project_testing_page(request: Request, pid: str):
 
     ctx = _project_ctx(pid)
     if not ctx:
-        return RedirectResponse(url="/projects", status_code=302)
+        raise HTTPException(status_code=404, detail="Project not found")
     suites = _discover_suites(pid)
     recent_runs = _recent_suite_runs(pid, limit=5)
     # Project-scoped exports only (not global HF discovery) so merge-at-export
@@ -452,7 +452,7 @@ async def project_models_page(request: Request, pid: str):
     from finetune_studio.webui.app import discovered_models
     ctx = _project_ctx(pid)
     if not ctx:
-        return RedirectResponse(url="/projects", status_code=302)
+        raise HTTPException(status_code=404, detail="Project not found")
     runs_by_id = {r["id"]: r for r in ctx["project"].get("runs", [])}
     return templates.TemplateResponse(
         request,
@@ -471,7 +471,7 @@ async def project_rag_page(request: Request, pid: str):
 
     ctx = _project_ctx(pid)
     if not ctx:
-        return RedirectResponse(url="/projects", status_code=302)
+        raise HTTPException(status_code=404, detail="Project not found")
     indexed_docs = list_indexed_docs(pid)
     return templates.TemplateResponse(
         request,
@@ -493,7 +493,7 @@ async def data_editor_page(request: Request, pid: str, dataset_path: str):
     from finetune_studio import db as _db
     project = _db.get_project(pid)
     if not project:
-        return RedirectResponse(url="/projects", status_code=302)
+        raise HTTPException(status_code=404, detail="Project not found")
     filename = Path(dataset_path).name or dataset_path
     return templates.TemplateResponse(
         request,
@@ -516,13 +516,15 @@ async def benchmarks_page(request: Request, pid: str, bid: str = ""):
     absent ids show the latest result.
     """
     from finetune_studio import db
+    from finetune_studio.db.runs import backfill_project_base_model
     from finetune_studio.webui.routes.benchmarks import (
         _discover_suites,
         _latest_benchmark,
     )
+    backfill_project_base_model(pid)
     project = db.get_project(pid)
     if not project:
-        return RedirectResponse(url="/projects", status_code=302)
+        raise HTTPException(status_code=404, detail="Project not found")
     runs = db.list_runs(pid)
     base_run = next(
         (r for r in db.list_runs(pid, include_base_probe=True) if r.get("name") == "__base_model__"),
@@ -615,7 +617,7 @@ async def project_chat_page(request: Request, pid: str):
     from finetune_studio import db
     project = db.get_project(pid)
     if not project:
-        return RedirectResponse(url="/projects", status_code=302)
+        raise HTTPException(status_code=404, detail="Project not found")
     rags = db.list_rags(pid)
     return templates.TemplateResponse(
         request,
@@ -629,7 +631,7 @@ async def project_settings_page(request: Request, pid: str):
     """Project settings + WebUI log tail (no SSH needed for uvicorn.log)."""
     ctx = _project_ctx(pid)
     if not ctx:
-        return RedirectResponse(url="/projects", status_code=302)
+        raise HTTPException(status_code=404, detail="Project not found")
     return templates.TemplateResponse(
         request,
         "project_settings.html",
@@ -645,7 +647,7 @@ async def project_wizard_page(request: Request, pid: str):
     from finetune_studio.webui.app import discovered_models
     ctx = _project_ctx(pid)
     if not ctx:
-        return RedirectResponse(url="/projects", status_code=302)
+        raise HTTPException(status_code=404, detail="Project not found")
     return templates.TemplateResponse(
         request,
         "project_wizard.html",

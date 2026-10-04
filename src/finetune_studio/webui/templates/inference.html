@@ -21,7 +21,7 @@
     {% if loaded %}
     <div class="model-info-box mb-4" style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;">
       <div class="flex items-baseline gap-2 mb-1">
-        <span class="font-bold mono">{{ loaded.name or loaded.path.split('/')[-1] }}</span>
+        <span class="font-bold mono">{{ (loaded.name or loaded.path.split('/')[-1])|replace('__', '/') }}</span>
         <span class="pill solid-blue">{{ loaded.format|upper }}</span>
         {% if loaded.vision %}<span class="pill solid-purple">vision</span>{% endif %}
       </div>
@@ -289,10 +289,10 @@ function applyModelMeta(meta) {
   const hint = document.getElementById('n-gpu-hint');
   if (maxLayers > 0) {
     slider.max = maxLayers;
-    slider.disabled = false;
-    // If the saved value was the legacy 99 magic or out of range, snap to all.
-    const cur = parseInt(slider.value) || 0;
-    if (cur >= maxLayers || cur === 99) slider.value = maxLayers;
+    // Always every layer on the GPU (mixed offload is unsupported), so this
+    // is a read-only readout, not a control.
+    slider.disabled = true;
+    slider.value = maxLayers;
     const valEl = document.getElementById('n-gpu-val');
     if (valEl) {
       const v = parseInt(slider.value);
@@ -300,8 +300,8 @@ function applyModelMeta(meta) {
         ? 'all ' + maxLayers + '/' + maxLayers
         : v + ' / ' + maxLayers;
     }
-    if (hint) hint.textContent = 'This model has ' + maxLayers + ' layers (read from the model file). 0 = CPU only.';
-    slider.title = '0 = CPU only · ' + maxLayers + ' = all layers on GPU. This model has ' + maxLayers + ' total layers.';
+    if (hint) hint.textContent = 'This model has ' + maxLayers + ' layers (read from the model file). All of them always run on the GPU.';
+    slider.title = 'All ' + maxLayers + ' layers are loaded on the GPU; this is not adjustable.';
   } else {
     slider.disabled = true;
     if (hint) hint.textContent = 'Layer count unknown for this model — loading uses -1 (all layers) by default.';

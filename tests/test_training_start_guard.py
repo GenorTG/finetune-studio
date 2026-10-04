@@ -52,7 +52,7 @@ def fake_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def _project(client) -> str:
-    r = client.post("/api/projects", json={"name": "Guard", "system_prompt": ""})
+    r = client.post("/api/projects", json={"name": "Guard", "system_prompt": "", "allow_duplicate": True})
     assert r.status_code in (200, 201), r.text
     return r.json()["id"]
 

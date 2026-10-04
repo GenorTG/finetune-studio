@@ -220,3 +220,23 @@ def no_helper_message() -> str:
         f"or via /api/providers/{DEFAULT_HELPER_PROVIDER_ID}/load "
         f"before starting prep or LLM-assisted suite generation."
     )
+
+
+def missing_gguf_for_provider(pid: str) -> str:
+    """Path of a ``local_gguf`` provider's model file when it does not exist, else ''."""
+    from finetune_studio.models.manager import get_manager
+
+    row = get_manager().get_provider(pid)
+    if not row or row.get("kind") != "local_gguf":
+        return ""
+    path = str(row.get("model_id") or "").strip()
+    return path if path and not Path(path).expanduser().is_file() else ""
+
+
+def helper_missing_message(path: str) -> str:
+    """Actionable text for a helper GGUF that is not on disk."""
+    return (
+        "No helper model is installed yet. Q&A generation needs a chat-capable GGUF "
+        f"(expected {path}). Download one in Model library (a 7B-12B instruct GGUF "
+        "works), then choose it as the helper on this page, or set FTS_HELPER_GGUF."
+    )

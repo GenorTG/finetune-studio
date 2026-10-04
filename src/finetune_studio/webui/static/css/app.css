@@ -2726,6 +2726,7 @@ body::before {
   inset: 0;
   z-index: 100;
   background: rgba(0,0,0,0.18);
+  pointer-events: none;
   /* No blur — user wants to see the page during the tutorial. */
 }
 
@@ -2745,6 +2746,7 @@ body::before {
 }
 
 .tutorial-dialog {
+  pointer-events: auto;
   position: fixed;
   top: 50%;
   left: 50%;

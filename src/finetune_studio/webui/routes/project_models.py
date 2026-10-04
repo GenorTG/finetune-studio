@@ -42,7 +42,12 @@ def _normalize_export_path(raw: str) -> str:
         return ""
     # URL path capture drops the leading slash for absolute paths.
     if not p.startswith("/") and not (len(p) >= 2 and p[1] == ":"):
-        p = "/" + p
+        absolute = "/" + p
+        # Run output paths are often stored relative to the server cwd
+        # (``output/projects/...``); prefer the absolute reading only when it exists.
+        if not os.path.isdir(absolute) and os.path.isdir(p):
+            return os.path.normpath(os.path.abspath(p))
+        p = absolute
     return os.path.normpath(p)
 
 

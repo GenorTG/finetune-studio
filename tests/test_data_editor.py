@@ -23,7 +23,7 @@ def _write_dataset(pid: str, name: str, rows: list[dict]) -> Path:
 
 
 def _project(client) -> str:
-    r = client.post("/api/projects", json={"name": "Data Editor Test"})
+    r = client.post("/api/projects", json={"name": "Data Editor Test", "allow_duplicate": True})
     assert r.status_code in (200, 201), r.text
     return r.json()["id"]
 

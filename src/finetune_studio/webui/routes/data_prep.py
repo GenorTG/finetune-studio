@@ -405,6 +405,17 @@ async def load_provider(pid: str, request: Request):
     # persisted value (ModelManager.load's own merge), not get overwritten
     # with the generic 32k floor on every single load.
     extra = resolve_loader_overrides(extra, caller="providers/load", model_path=pid, default_ctx=False)
+    from finetune_studio.models.helper import (
+        helper_missing_message,
+        missing_gguf_for_provider,
+    )
+    missing = missing_gguf_for_provider(pid)
+    if missing:
+        return JSONResponse(
+            {"ok": False, "code": "helper_missing", "missing_path": missing,
+             "error": helper_missing_message(missing)},
+            status_code=400,
+        )
     # Free whatever the global inference_engine (testing/chat/RAG/benchmarks)
     # has resident before loading this provider — otherwise both sit in
     # VRAM simultaneously until someone happens to click Unload.
@@ -419,6 +430,46 @@ async def load_provider(pid: str, request: Request):
     except Exception as e:
         log.exception("load failed")
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+
+@router.get("/providers/helper/status")
+async def helper_status():
+    """Is the helper GGUF present, and which installed GGUFs could replace it."""
+    from finetune_studio.models.helper import (
+        DEFAULT_HELPER_PROVIDER_ID,
+        get_configured_helper_provider,
+        helper_missing_message,
+        missing_gguf_for_provider,
+    )
+    from finetune_studio.webui.app import discovered_models
+    helper = get_configured_helper_provider() or {}
+    missing = missing_gguf_for_provider(DEFAULT_HELPER_PROVIDER_ID)
+    candidates = [
+        {"path": m.path, "name": m.name, "size_gb": m.size_gb}
+        for m in discovered_models
+        if str(getattr(m, "format", "")).lower() == "gguf"
+    ]
+    return {
+        "ok": not missing,
+        "path": helper.get("model_id") or "",
+        "missing_path": missing,
+        "message": helper_missing_message(missing) if missing else "",
+        "candidates": candidates,
+    }
+
+
+@router.post("/providers/helper/use")
+async def helper_use(request: Request):
+    """Point the helper seat (``local-default``) at an installed GGUF file."""
+    from finetune_studio.models.helper import DEFAULT_HELPER_PROVIDER_ID
+    from finetune_studio.models.manager import get_manager
+    body = await request.json()
+    path = str((body or {}).get("path") or "").strip()
+    resolved = Path(path).expanduser()
+    if not path or resolved.suffix.lower() != ".gguf" or not resolved.is_file():
+        return JSONResponse({"ok": False, "error": f"Not a GGUF file: {path or '(empty)'}"}, status_code=400)
+    get_manager().upsert_provider(id=DEFAULT_HELPER_PROVIDER_ID, model_id=str(resolved))
+    return {"ok": True, "path": str(resolved)}
 
 
 @router.post("/providers/unload")

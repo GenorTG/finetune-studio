@@ -82,7 +82,9 @@
       <div class="card-sub text-dim">
         Turns the approved pairs into one training-ready dataset file.
         Uncovered passages are filled with extractive pairs first, so the
-        dataset covers every source.
+        dataset covers every source. Extractive pairs are text fragments from
+        your files, not written Q&amp;A — generate pairs with a helper model
+        (step 2) for a better dataset, and for a quiz that makes sense.
       </div>
     </div><span class="pill outline" id="wiz-dataset-pill">…</span></div>
     <div class="text-sm" id="wiz-dataset-sub">—</div>
@@ -115,7 +117,7 @@
         </select>
       </div>
       <div class="col-span-3">
-        <label class="block text-xs muted mb-1">Preset</label>
+        <label class="block text-xs muted mb-1" title="Presets here are grouped by model size (Nano, Standard, Large, QLoRA). The Training page offers effort-based presets (Smoke test, Baseline, Precision, Overkill) that fill the same fields.">Preset by model size</label>
         <select id="wiz-preset" class="select">
           <option value="standard" selected>Standard — balanced (good default)</option>
         </select>
@@ -495,6 +497,8 @@
     if (busy) { line("Already running — wait for the current step."); return false; }
     setBusy(true);
     try {
+      pill("wiz-rag", "building…", false);
+      set("wiz-rag", "building the index — the first build downloads the embedding model and can take a minute or two. Keep this page open.");
       line("RAG quick index: promoting every uploaded file + building…");
       var d = await post("/api/projects/" + PID + "/rag/quick", {});
       if (d && d.error) throw new Error(d.error);
@@ -509,6 +513,7 @@
       return true;
     } catch (e) {
       line("RAG quick FAILED: " + e.message);
+      wizRefresh("rag");
       return false;
     } finally { setBusy(false); }
   };
@@ -657,7 +662,9 @@
 
   window.flowExport = function () { wizExport(); };
   window.flowRagBuild = function () {
-    line("RAG build starting (~30s, sync)…");
+    pill("wiz-rag", "building…", false);
+    set("wiz-rag", "building the index — the first build downloads the embedding model and can take a minute or two.");
+    line("RAG build starting (can take a minute on first use)…");
     post("/api/projects/" + PID + "/rag/build", { reset: false }).then(function (d) {
       if (d.error) throw new Error(d.error);
       line("RAG build done: " + d.documents + " docs / " + d.chunks + " chunks");

@@ -245,9 +245,15 @@ def apply_trainer_log(
             f"Step {global_step}/{total_steps} | eval_loss={round(float(logs['eval_loss']), 4)}"
         )
     elif logs.get("train_loss") is not None:
-        state.log_lines.append(
-            f"Train summary | mean loss={round(float(logs['train_loss']), 4)} | last loss={state.loss}"
-        )
+        mean_loss = round(float(logs["train_loss"]), 4)
+        if state.final_loss is None:
+            # Runs shorter than the logging interval never emit a step loss;
+            # the mean train loss is then the only honest number to report.
+            state.final_loss = mean_loss
+            last = "n/a (run shorter than the logging interval)"
+        else:
+            last = state.loss
+        state.log_lines.append(f"Train summary | mean loss={mean_loss} | last loss={last}")
 
 
 class _ThreadChild:

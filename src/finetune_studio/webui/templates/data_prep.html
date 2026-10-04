@@ -251,6 +251,7 @@
       <button type="button" class="btn" id="prep-refresh-btn" onclick="prepRefresh()">Refresh list</button>
       <pre id="prep-status" role="status" aria-live="polite" hidden
            style="margin:0; font-size:12px; white-space:pre-wrap; flex:1 1 12rem;"></pre>
+      <div id="prep-helper-picker" hidden style="flex:1 1 100%;"></div>
     </div>
   </form>
 </div>
@@ -1900,7 +1901,38 @@ async function dpEnsureHelperLoaded() {
     body: JSON.stringify({ n_ctx: wantCtx }),
   });
   const data = await r.json().catch(function () { return {}; });
-  if (!r.ok || data.ok === false) throw new Error(data.error || ('helper load HTTP ' + r.status));
+  if (!r.ok || data.ok === false) {
+    if (data.code === 'helper_missing') dpShowHelperPicker();
+    throw new Error(data.error || ('helper load HTTP ' + r.status));
+  }
+}
+
+async function dpShowHelperPicker() {
+  const box = document.getElementById('prep-helper-picker');
+  if (!box) return;
+  const st = await fetch('/api/providers/helper/status', { cache: 'no-store' }).then(function (r) { return r.json(); }).catch(function () { return null; });
+  if (!st) return;
+  const cands = st.candidates || [];
+  let html = '<div class="text-xs muted mb-1">Pick an installed GGUF as the helper' +
+    (cands.length ? ':' : ' — none installed yet. <a href="/models/explore">Download one in Model library</a>.') + '</div>';
+  cands.forEach(function (c) {
+    html += '<button type="button" class="btn mr-1 mb-1" data-path="' + escapeHtml(c.path) + '">' +
+      escapeHtml(c.name) + ' (' + c.size_gb + ' GB)</button>';
+  });
+  box.innerHTML = html;
+  box.hidden = false;
+  box.querySelectorAll('button[data-path]').forEach(function (b) {
+    b.addEventListener('click', async function () {
+      const r = await fetch('/api/providers/helper/use', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: b.dataset.path }),
+      });
+      const d = await r.json().catch(function () { return {}; });
+      if (!r.ok) { prepSetStatus(d.error || 'Could not use that file.', 'error'); return; }
+      box.hidden = true;
+      prepSetStatus('Helper set to ' + d.path + '. Run again.', 'success');
+    });
+  });
 }
 
 async function dpSyncHelperCtxField() {

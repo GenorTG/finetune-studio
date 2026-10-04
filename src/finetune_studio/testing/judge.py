@@ -105,6 +105,19 @@ def _key_words(text: str) -> set[str]:
     return {w for w in words if len(w) > 2 and w not in _STOPWORDS}
 
 
+_ABSTAIN = (
+    "does not mention", "doesn't mention", "do not mention", "not mentioned",
+    "no information", "not provided", "cannot find", "can't find", "could not find",
+    "i don't know", "i do not know", "not enough information", "does not say",
+    "does not contain", "doesn't contain", "unable to find",
+)
+
+
+def is_abstention(text: str) -> bool:
+    low = text.lower()
+    return any(p in low for p in _ABSTAIN)
+
+
 def judge_case_heuristic(
     question: str,
     correct_answer: str,
@@ -125,6 +138,9 @@ def judge_case_heuristic(
     if not expected:
         # Nothing to match against — cannot say anything meaningful.
         return "", "no correct_answer to compare against", 0.0
+
+    if is_abstention(answer) and not is_abstention(correct_answer):
+        return "fail", "model declined to answer (said the text does not cover it)", 0.9
 
     found = expected & _key_words(model_answer)
     ratio = len(found) / len(expected)

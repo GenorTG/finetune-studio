@@ -491,6 +491,8 @@ async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSO
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
 
+    from finetune_studio.db.runs import backfill_project_base_model
+    backfill_project_base_model(pid)
     project = db.get_project(pid)
     if not project:
         return JSONResponse({"error": "project not found"}, status_code=404)
@@ -498,7 +500,7 @@ async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSO
     target_model = (project.get("base_model") or "").strip()
     if not target_model:
         return JSONResponse(
-            {"error": "project has no base_model configured"},
+            {"error": "This project has no base model yet. Train a run first, or set one under project Settings."},
             status_code=400,
         )
 

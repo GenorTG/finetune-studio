@@ -63,8 +63,14 @@ async def list_projects():
 @router.post("")
 async def create_project(request: Request):
     body = await request.json()
+    name = (body.get("name") or "Untitled").strip()
+    if not body.get("allow_duplicate") and any(
+            (x.get("name") or "").strip().lower() == name.lower() for x in db.list_projects()):
+        return JSONResponse(
+            {"error": f'A project named "{name}" already exists. Pick a different name.',
+             "code": "duplicate_name"}, status_code=409)
     p = db.create_project(
-        name=body.get("name", "Untitled"),
+        name=name,
         description=body.get("description", ""),
         base_model=body.get("base_model", ""),
         system_prompt=body.get("system_prompt", ""),

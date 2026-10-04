@@ -30,7 +30,33 @@ def create_run(project_id: str, name: str, base_model: str = "",
              json.dumps(rag_ids or []), json.dumps(settings_obj or {}),
              system_prompt, system_prompt_mode, parent_run_id, notes, now),
         )
+        if base_model and name != BASE_PROBE_RUN_NAME:
+            c.execute(
+                "UPDATE projects SET base_model = ?, updated_at = ? "
+                "WHERE id = ? AND (base_model IS NULL OR base_model = '')",
+                (base_model, now, project_id),
+            )
     return _get(rid)  # type: ignore[return-value]
+
+
+def backfill_project_base_model(project_id: str) -> str:
+    """Set an empty project base_model from its newest real run; return the value."""
+    with cursor() as c:
+        cur = c.execute("SELECT base_model FROM projects WHERE id = ?", (project_id,)).fetchone()
+        if not cur:
+            return ""
+        if (cur[0] or "").strip():
+            return cur[0]
+        row = c.execute(
+            "SELECT base_model FROM training_runs WHERE project_id = ? AND name != ? "
+            "AND base_model IS NOT NULL AND base_model != '' ORDER BY created_at DESC LIMIT 1",
+            (project_id, BASE_PROBE_RUN_NAME),
+        ).fetchone()
+        if not row:
+            return ""
+        c.execute("UPDATE projects SET base_model = ?, updated_at = ? WHERE id = ?",
+                  (row[0], time.time(), project_id))
+        return row[0]
 
 
 def get_run(rid: str) -> dict | None:

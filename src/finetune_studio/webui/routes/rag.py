@@ -489,6 +489,19 @@ async def rag_clear_sources(pid: str):
         return JSONResponse({"error": str(e)}, status_code=400)
 
 
+_STOP = frozenset(["what", "which", "when", "where", "whom", "whose", "does", "that", "this", "with", "from", "have", "about", "tell", "there", "their", "into"])
+
+
+def weak_match(query: str, hits: list[dict]) -> bool:
+    """True when the retrieved text covers too few of the query's content words."""
+    terms = {w for w in re.findall(r"[a-z0-9]{4,}", query.lower()) if w not in _STOP}
+    if not terms or not hits:
+        return False
+    blob = " ".join(str(h.get("text", "")) for h in hits).lower()
+    found = sum(1 for t in terms if t in blob)
+    return found / len(terms) < 0.6
+
+
 @router.post("/{pid}/rag/search")
 async def rag_search(pid: str, req: SearchRequest):
     from finetune_studio.data.rag_portable import PortableRAG
@@ -502,7 +515,9 @@ async def rag_search(pid: str, req: SearchRequest):
     hits = q.search(req.query, top_k=req.top_k,
                     hybrid=req.hybrid, rerank=req.rerank,
                     rerank_top_n=req.rerank_top_n)
-    return {"hits": hits, "count": len(hits), "query": req.query}
+    weak = weak_match(req.query, hits)
+    return {"hits": hits, "count": len(hits), "query": req.query, "weak": weak,
+            "note": "These passages share few words with your question; the corpus may not cover it." if weak else ""}
 
 
 class BundleRequest(BaseModel):
