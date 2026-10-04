@@ -83,7 +83,7 @@
         <table class="fl-table">
           <thead>
             <tr>
-              <th class="fl-col-check"><input type="checkbox" id="fl-select-all" onchange="flSelectAll(this.checked)"></th>
+              <th class="fl-col-check"><input type="checkbox" id="fl-select-all" aria-label="Select all files" onchange="flSelectAll(this.checked)"></th>
               <th class="fl-col-name">name</th>
               <th class="fl-col-ver">v</th>
               <th class="fl-col-type">type</th>
@@ -141,7 +141,7 @@
       <tbody>
         {% for s in sources %}
         <tr>
-          <td><input type="checkbox" class="dp-source-check" value="{{ s.id }}"></td>
+          <td><input type="checkbox" class="dp-source-check" aria-label="Select source" value="{{ s.id }}"></td>
           <td class="mono cell-wrap">{{ s.name }}</td>
           <td>{{ s.status or 'ready' }}</td>
           <td class="num">{{ s.char_count }}</td>
@@ -648,7 +648,7 @@ function flRenderParsedList() {
       const badgeClass = ready ? 'solid-green' : (stage === 'error' ? 'solid-rose' : 'outline');
       const disabled = ['queued', 'parsing', 'error', 'registered'].indexOf(stage) >= 0 ? ' disabled' : '';
       const title = s.error ? ' title="' + escapeHtml(s.error) + '"' : '';
-      return '<tr><td><input type="checkbox" class="dp-source-check" value="' + escapeHtml(s.id) + '"' + disabled + '></td>' +
+      return '<tr><td><input type="checkbox" class="dp-source-check" aria-label="Select source" value="' + escapeHtml(s.id) + '"' + disabled + '></td>' +
         '<td class="mono cell-wrap">' + escapeHtml(s.name || s.filename || s.id) + '</td>' +
         '<td><span class="pill ' + badgeClass + '"' + title + '>' + escapeHtml(stage.replace(/_/g, ' ')) + '</span></td>' +
         '<td class="num">' + (s.char_count || 0) + '</td>' +
@@ -815,7 +815,7 @@ function flRenderFiles() {
       '<span class="fl-act fl-act-del" title="Delete (soft, to trash)" onclick="flDeleteFile(' + jsArg(f.id) + ', ' + jsArg(f.original_name) + ')">🗑</span>' +
     '</div>';
     return '<tr class="fl-file-row">' +
-      '<td class="fl-col-check"><input type="checkbox" ' + checked + ' onchange="flToggleSelect(' + jsArg(f.id) + ', this.checked)"></td>' +
+      '<td class="fl-col-check"><input type="checkbox" aria-label="Select file" ' + checked + ' onchange="flToggleSelect(' + jsArg(f.id) + ', this.checked)"></td>' +
       '<td class="fl-name" title="' + escapeHtml(f.original_name) + '">' +
         '<span class="fl-name-text">' + escapeHtml(f.original_name) + '</span>' + drift +
       '</td>' +

@@ -1207,9 +1207,15 @@ body::before {
   color: var(--text-muted);
   font-family: "Share Tech Mono", monospace;
 }
-.hf-card .meta .stat { display: flex; align-items: center; gap: 3px; }
+.hf-card .meta .stat {
+  /* reset the global .stat tile (boxed, 16px padding, column) — it turned
+     the download/like counts into oversized, uneven squares */
+  display: inline-flex; flex-direction: row; align-items: center; gap: 3px;
+  background: none; border: 0; padding: 0;
+}
 .hf-card .pills { display: flex; gap: 4px; flex-wrap: wrap; }
-.hf-card .actions { display: flex; gap: 6px; margin-top: auto; }
+.hf-card .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+.hf-card .actions .btn { min-width: 0; }
 
 /* ===== Steps ===== */
 .steps {
@@ -1973,7 +1979,7 @@ body::before {
   max-width: 100%;
   min-width: 0;
   overflow-x: hidden; /* tab strip scrolls; bar itself must not widen the page */
-  background: linear-gradient(180deg, #0a160d, #060d09);
+  background: var(--bg-nav);
   border-bottom: 1px solid var(--border-strong);
   position: relative;
   z-index: 10;
@@ -4002,7 +4008,7 @@ body::before {
 #fb-files-table td.fb-c-pipe { white-space: normal; }
 #fb-files-table { min-width: 78rem; }
 .fl-table { min-width: 36rem; }
-#dp-parsed-table { table-layout: fixed; width: 100%; min-width: 20rem; }
+#dp-parsed-table { table-layout: fixed; width: 100%; min-width: 40rem; }
 
 /* Data Prep uploaded-files table — usable column floors + scroll affordance
    on narrow viewports. Percentage widths + max-width:0 collapse to ~4–12px
@@ -4480,3 +4486,12 @@ body::before {
     flex-shrink: 1 !important;
   }
 }
+
+
+/* ===== Light-theme CRT overrides (design pass) =====
+   The CRT vignette (body bg + body::before, multiply-blended black edges)
+   and the green scanlines were drawn for the dark theme only; on the light
+   palette they smeared grey shadows over the page edges. Off in light. */
+:root[data-theme="light"], :root[data-theme="light"] body { background-image: none; }
+:root[data-theme="light"] body::before { display: none; }
+:root[data-theme="light"] .matrix-rain { display: none; }
