@@ -34,6 +34,32 @@ from pathlib import Path
 
 from finetune_studio.testing.suite import BenchmarkCase
 
+_USER_ROLES = {"human", "user"}
+_ASSISTANT_ROLES = {"gpt", "assistant"}
+
+
+def _first_exchange(conversations: object) -> tuple[str, str]:
+    """First user turn and the first assistant turn after it, by role.
+
+    Context-grounded rows open with a system turn that carries the retrieved
+    CONTEXT, so positional ``[0]``/``[1]`` would quiz the model with the system
+    prompt and expect the real question as the answer.
+    """
+    if not isinstance(conversations, list):
+        return "", ""
+    question = ""
+    for turn in conversations:
+        if not isinstance(turn, dict):
+            continue
+        role = str(turn.get("from") or turn.get("role") or "").lower()
+        text = str(turn.get("value") or turn.get("content") or "").strip()
+        if not question:
+            if role in _USER_ROLES:
+                question = text
+        elif role in _ASSISTANT_ROLES:
+            return question, text
+    return "", ""
+
 
 def generate_suite_from_training_data(
     data_path: str,
@@ -94,13 +120,7 @@ def generate_suite_from_training_data(
 
     for i, ex in enumerate(examples):
         # Extract Q&A from conversations format
-        conversations = ex.get("conversations", [])
-        if len(conversations) < 2:
-            skipped += 1
-            continue
-
-        question = conversations[0].get("value", "").strip()
-        answer = conversations[1].get("value", "").strip()
+        question, answer = _first_exchange(ex.get("conversations", []))
 
         if not question or not answer:
             skipped += 1

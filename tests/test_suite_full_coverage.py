@@ -122,3 +122,34 @@ def test_route_rejects_bad_sample_size(client, run_with_data) -> None:
                                   json={"sample_size": 0}).json()
     assert "error" in client.post(f"/api/training/runs/{rid}/auto-suites/generate",
                                   json={"sample_size": "many"}).json()
+
+
+def test_grounded_rows_use_user_question_not_system_prompt(tmp_path: Path) -> None:
+    """Context-grounded rows start with a system turn (retrieved CONTEXT); the
+    case must be the user's question and the assistant's answer."""
+    p = tmp_path / "grounded.jsonl"
+    p.write_text(json.dumps({
+        "conversations": [
+            {"from": "system", "value": "Answer using ONLY the context below.\n\nCONTEXT:\n[1] vault facts"},
+            {"from": "human", "value": "Which vault holds ledger 7?"},
+            {"from": "gpt", "value": "Vault 7 holds ledger 7."},
+        ],
+        "source_id": "s1",
+        "chunk_idx": 1,
+    }) + "\n", encoding="utf-8")
+    r = generate_suite_from_training_data(str(p), str(tmp_path / "out"))
+    assert r["case_count"] == 1 and r["skipped"] == 0
+    case = json.loads(Path(r["suite_path"]).read_text(encoding="utf-8"))["cases"][0]
+    assert case["question"] == "Which vault holds ledger 7?"
+    assert case["correct_answer"] == "Vault 7 holds ledger 7."
+
+
+def test_row_without_assistant_turn_is_skipped(tmp_path: Path) -> None:
+    p = tmp_path / "bad.jsonl"
+    p.write_text(json.dumps({"conversations": [
+        {"from": "system", "value": "sys"}, {"from": "human", "value": "q?"},
+    ]}) + "\n" + json.dumps({"conversations": [
+        {"from": "human", "value": "Which vault?"}, {"from": "gpt", "value": "Vault 1."},
+    ]}) + "\n", encoding="utf-8")
+    r = generate_suite_from_training_data(str(p), str(tmp_path / "out"))
+    assert r["case_count"] == 1 and r["skipped"] == 1
