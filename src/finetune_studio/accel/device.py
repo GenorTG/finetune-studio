@@ -166,9 +166,12 @@ def _cuda_like(torch: Any, forced_index: int | None) -> Accelerator | None:
     hip = getattr(torch.version, "hip", None)
     cc = (int(getattr(props, "major", 0)), int(getattr(props, "minor", 0)))
     try:
-        bf16 = bool(torch.cuda.is_bf16_supported())
+        # torch reads the *current* device, so make the selected one current; without emulation Pascal
+        # is correctly "no bf16" (torch's default would call it supported via a slow emulated path).
+        with torch.cuda.device(idx):
+            bf16 = bool(torch.cuda.is_bf16_supported(including_emulation=False))
     except Exception:  # noqa: BLE001
-        bf16 = cc[0] >= 8
+        bf16 = bool(hip) or cc[0] >= 8
     return Accelerator(
         kind="rocm" if hip else "cuda", index=idx, name=props.name,
         total_gb=_gb(total), free_gb=_gb(free), compute_capability=cc,

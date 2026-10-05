@@ -4,7 +4,9 @@ Torch is faked (``device._import_torch``) so every vendor path runs on any host.
 """
 from __future__ import annotations
 
+import contextlib
 import json
+import sys
 import types
 from typing import Any
 
@@ -252,3 +254,99 @@ def test_llama_missing_warns_and_cpu_host_is_silent() -> None:
     assert warns and "not importable" in warns[0]
     cpu = device.Accelerator("cpu", 0, "CPU", 0, 0, (0, 0), False, False, False, "CPU")
     assert llama.llama_gpu_kwargs(cpu, llama.LlamaSupport(True, "x", False, ())) == ({}, [])
+
+
+# ── per-device correctness (D5/D6/D9) ─────────────────────────────────────────
+
+class _FakeCuda:
+    """Stateful ``torch.cuda`` stand-in: calls without an explicit device hit the *current* one,
+    like the real thing, so code that ignores ``Accelerator.index`` is observable."""
+
+    def __init__(self, devs: list[Any]) -> None:
+        self.devs, self.cur, self.peak, self.log = devs, 0, [0.0] * len(devs), []
+
+    # discovery
+    def is_available(self) -> bool: return True
+    def device_count(self) -> int: return len(self.devs)
+    def get_device_properties(self, i: int) -> Any: return self.devs[i]
+    def mem_get_info(self, i: int = 0) -> tuple[int, int]: return (self.devs[i].total_memory, self.devs[i].total_memory)
+    def is_initialized(self) -> bool: return True
+    def current_device(self) -> int: return self.cur
+
+    @contextlib.contextmanager
+    def device(self, idx: int) -> Any:
+        prev, self.cur = self.cur, idx
+        try:
+            yield
+        finally:
+            self.cur = prev
+
+    def is_bf16_supported(self, including_emulation: bool = True) -> bool:
+        major = self.devs[self.cur].major          # real torch: reads the *current* device
+        return major >= 8 or including_emulation   # Pascal "supports" bf16 only through emulation
+
+    # memory ops
+    def max_memory_allocated(self, device: int | None = None) -> float:
+        return self.peak[self.cur if device is None else device]
+
+    def reset_peak_memory_stats(self, device: int | None = None) -> None:
+        self.peak[self.cur if device is None else device] = 0.0
+
+    def synchronize(self, device: int | None = None) -> None:
+        self.log.append(("synchronize", self.cur if device is None else device))
+
+    def empty_cache(self) -> None:
+        self.log.append(("empty_cache", self.cur))
+
+
+def _fake_cuda_torch(monkeypatch: pytest.MonkeyPatch, devs: list[Any]) -> tuple[Any, _FakeCuda]:
+    cuda = _FakeCuda(devs)
+    t = types.SimpleNamespace(
+        __version__="2.14.1", cuda=cuda, xpu=None, float16="fp16", bfloat16="bf16", float32="fp32",
+        version=types.SimpleNamespace(cuda="13.0", hip=None, xpu=None),
+        backends=types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False)))
+    monkeypatch.setitem(sys.modules, "torch", t)    # accel.ops resolves torch.<ns> at call time
+    return t, cuda
+
+
+def test_d5_memory_ops_target_the_selected_gpu_not_the_current_device(monkeypatch: pytest.MonkeyPatch) -> None:
+    # CUDA_VISIBLE_DEVICES=1,0-style layout: the best card (3090) is index 1, torch's current device stays 0.
+    t, cuda = _fake_cuda_torch(monkeypatch, [_props("GTX 1070", 8, 6, 1), _props("RTX 3090", 24)])
+    acc = _use(monkeypatch, t)
+    assert acc.index == 1
+    accel.reset_peak_memory()
+    cuda.peak[1] = 3 * GIB                          # the model lives on cuda:1
+    assert accel.peak_memory_gb() == 3.0
+    accel.synchronize()
+    accel.empty_cache()
+    assert ("synchronize", 1) in cuda.log and ("empty_cache", 1) in cuda.log
+
+
+def test_d5_bf16_is_judged_on_the_selected_gpu(monkeypatch: pytest.MonkeyPatch) -> None:
+    t, _cuda = _fake_cuda_torch(monkeypatch, [_props("RTX 3090", 24), _props("GTX 1070", 8, 6, 1)])
+    monkeypatch.setenv("FTS_DEVICE", "cuda:1")      # force the Pascal card while device 0 (Ampere) is current
+    acc = _use(monkeypatch, t)
+    assert acc.index == 1 and not acc.supports_bf16
+
+
+def test_d6_pascal_does_not_report_emulated_bf16(monkeypatch: pytest.MonkeyPatch) -> None:
+    # torch.cuda.is_bf16_supported() defaults to including_emulation=True -> True on sm_61 (no tensor-core path).
+    t, _cuda = _fake_cuda_torch(monkeypatch, [_props("GTX 1070", 8, 6, 1)])
+    acc = _use(monkeypatch, t)
+    assert not acc.supports_bf16 and accel.torch_dtype(acc) == "fp16"
+    t2, _ = _fake_cuda_torch(monkeypatch, [_props("RTX 3090", 24)])
+    assert _use(monkeypatch, t2).supports_bf16
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("CUDA out of memory. Tried to allocate 2.00 GiB", True),
+    ("CUDA OOM while loading", True),
+    ("oom-killer terminated the process", True),
+    ("ggml_vulkan: Device memory allocation failed: ErrorOutOfDeviceMemory", True),
+    ("Error(s) in loading state_dict for BloomForCausalLM", False),
+    ("The room is full", False),
+    ("zoom failed", False),
+])
+def test_d9_oom_marker_is_a_word_not_a_substring(text: str, expected: bool) -> None:
+    assert accel.is_oom_message(text) is expected
+    assert accel.is_oom_error(RuntimeError(text)) is expected

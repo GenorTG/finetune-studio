@@ -6,7 +6,9 @@ Every function is safe to call on a CPU-only host (no-op / sensible default).
 """
 from __future__ import annotations
 
+import contextlib
 import gc
+import re
 from typing import Any
 
 from finetune_studio.accel.device import Accelerator, get_accelerator
@@ -58,14 +60,30 @@ def oom_errors() -> tuple[type[BaseException], ...]:
     return (*found, RuntimeError)
 
 
+def _dev(acc: Accelerator) -> tuple[int, ...]:
+    """Explicit device argument for ``torch.<ns>`` calls: torch's *current* device is not necessarily
+    the accelerator we picked (FTS_DEVICE=cuda:1, or the best card is not index 0); mps has none."""
+    return (acc.index,) if acc.kind in ("cuda", "rocm", "xpu") else ()
+
+
+def _on_device(acc: Accelerator, ns: Any) -> Any:
+    """Context making ``acc.index`` current for calls that take no device argument; it never
+    initialises a driver context that does not exist yet (cache release must stay a no-op then)."""
+    initialised = getattr(ns, "is_initialized", None)
+    if _dev(acc) and hasattr(ns, "device") and (initialised is None or initialised()):
+        return ns.device(acc.index)
+    return contextlib.nullcontext()
+
+
 def empty_cache() -> None:
-    """Release cached allocator blocks (after ``gc``); never raises."""
+    """Release cached allocator blocks (after ``gc``) on the accelerator in use; never raises."""
     gc.collect()
     acc = get_accelerator()
     try:
         ns = _ns(acc)
         if ns is not None and hasattr(ns, "empty_cache"):
-            ns.empty_cache()
+            with _on_device(acc, ns):
+                ns.empty_cache()
     except Exception:  # noqa: BLE001, S110 - cache release is best effort
         pass
 
@@ -74,22 +92,22 @@ def synchronize() -> None:
     acc = get_accelerator()
     ns = _ns(acc)
     if ns is not None and hasattr(ns, "synchronize"):
-        ns.synchronize()
+        ns.synchronize(*_dev(acc))
 
 
 def reset_peak_memory() -> None:
     acc = get_accelerator()
     ns = _ns(acc)
     if ns is not None and hasattr(ns, "reset_peak_memory_stats"):
-        ns.reset_peak_memory_stats()
+        ns.reset_peak_memory_stats(*_dev(acc))
 
 
 def peak_memory_gb() -> float:
-    """Peak allocated device memory in GiB since the last reset (0.0 without support)."""
+    """Peak allocated memory of the accelerator in use, GiB since the last reset (0.0 without support)."""
     acc = get_accelerator()
     ns = _ns(acc)
     if ns is not None and hasattr(ns, "max_memory_allocated"):
-        return float(ns.max_memory_allocated()) / GIB
+        return float(ns.max_memory_allocated(*_dev(acc))) / GIB
     return 0.0
 
 
@@ -114,17 +132,20 @@ def enable_fast_matmul() -> None:
 
 
 # Substrings that mean "the device ran out of memory" in torch / llama.cpp / ggml
-# error text across CUDA, HIP, XPU/SYCL, Metal, Vulkan.
+# error text across CUDA, HIP, XPU/SYCL, Metal, Vulkan. "OOM" is matched as a whole word
+# only: a bare substring hits BloomForCausalLM / "room" / "zoom" and turns real load errors
+# into silent retries.
 _OOM_MARKERS = (
-    "out of memory", "failed to allocate", "vram", "oom", "insufficient memory",
+    "out of memory", "failed to allocate", "vram", "insufficient memory",
     "outofdevicememory", "out_of_device_memory", "out of device memory", "cannot allocate",
 )
+_OOM_WORD = re.compile(r"\boom\b")
 
 
 def is_oom_message(text: str) -> bool:
     """True when ``text`` (an exception message) looks like a device-memory failure."""
     low = text.lower()
-    return any(m in low for m in _OOM_MARKERS)
+    return bool(_OOM_WORD.search(low)) or any(m in low for m in _OOM_MARKERS)
 
 
 def is_oom_error(exc: BaseException) -> bool:
