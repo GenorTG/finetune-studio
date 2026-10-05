@@ -248,3 +248,8 @@ def unload_all_models() -> None:
         get_manager().unload()
     except Exception:
         log.exception("unload_all_models: failed to unload the ModelManager active provider")
+    try:
+        from finetune_studio.data.rag_portable.model_cache import release_rag_models
+        release_rag_models("unload all models")
+    except Exception:
+        log.exception("unload_all_models: failed to release the cached RAG embedder/reranker")
