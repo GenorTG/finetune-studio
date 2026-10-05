@@ -75,3 +75,35 @@ def test_empty_query_returns_anything_in_pipeline_tag() -> None:
         mock_api.return_value.list_models.return_value = rows
         out = _search_hf(SearchRequest(query="", limit=3))
     assert len(out) == 3
+
+
+def test_list_models_kwargs_match_installed_huggingface_hub() -> None:
+    """The mocked tests above accept any kwarg, which hid ``library=`` being
+    removed in huggingface_hub 1.x (every search returned 502 "unreachable")."""
+    import inspect
+
+    from huggingface_hub import HfApi
+
+    seen: list[dict] = []
+
+    def fake_list_models(*_a, **kwargs):
+        seen.append(kwargs)
+        return [_m("Qwen/Qwen3-0.6B")]
+
+    with patch("huggingface_hub.HfApi") as mock_api:
+        mock_api.return_value.list_models.side_effect = fake_list_models
+        _search_hf(SearchRequest(query="qwen3", task="text-generation", library="transformers", limit=5))
+    assert seen
+    inspect.signature(HfApi.list_models).bind(None, **seen[0])  # TypeError if a kwarg is gone
+
+
+def test_signature_bug_is_not_reported_as_hub_outage() -> None:
+    import pytest
+
+    def boom(*_a, **_kw):
+        raise TypeError("unexpected keyword argument")
+
+    with patch("huggingface_hub.HfApi") as mock_api:
+        mock_api.return_value.list_models.side_effect = boom
+        with pytest.raises(TypeError):
+            _search_hf(SearchRequest(query="qwen3", limit=5))

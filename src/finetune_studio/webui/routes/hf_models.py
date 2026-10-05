@@ -125,12 +125,12 @@ def _search_hf(req: SearchRequest) -> list[dict]:
             models = api.list_models(
                 search=req.query or None,
                 pipeline_tag=pipeline_tag or None,
-                library=req.library or None,
+                filter=req.library or None,  # hub >=1.0 dropped library=; a tag filter is the replacement
                 sort=sort,
                 limit=req.limit * 4 + 20,
             )
             for m in models:
-                mid = m.modelId
+                mid = getattr(m, "id", None) or m.modelId
                 if not _matches(mid):
                     continue
                 out.append({
@@ -138,11 +138,13 @@ def _search_hf(req: SearchRequest) -> list[dict]:
                     "downloads": getattr(m, "downloads", 0) or 0,
                     "likes": getattr(m, "likes", 0) or 0,
                     "tags": getattr(m, "tags", []) or [],
-                    "last_modified": str(getattr(m, "lastModified", "")),
+                    "last_modified": str(getattr(m, "last_modified", None) or getattr(m, "lastModified", "")),
                     "private": getattr(m, "private", False),
                 })
                 if len(out) >= req.limit:
                     break
+        except (TypeError, AttributeError):
+            raise  # a call-signature/attribute bug is ours, not a Hub outage
         except Exception as e:
             log.warning("HF list_models failed: %s", e)
             raise HFUnavailableError(str(e)) from e
