@@ -21,6 +21,9 @@
     </div>
     {# VRAM rows — one per GPU, populated by JS #}
     <div id="vram-rows" class="space-y-5"></div>
+    <div id="accel-line" class="text-xs muted" data-testid="accel-line"></div>
+    {# Visible whenever GPU hardware exists but compute fell back to CPU (accel.degraded_reason). #}
+    <div id="accel-warn" class="res-warn" role="alert" data-testid="accel-degraded" hidden></div>
   </div>
 </div>
 
@@ -30,6 +33,8 @@
   const ramBar = document.getElementById('ram-bar');
   const vramRows = document.getElementById('vram-rows');
   const updated = document.getElementById('sys-resources-updated');
+  const accelLine = document.getElementById('accel-line');
+  const accelWarn = document.getElementById('accel-warn');
 
   /* Token-driven severity so the bars follow the active theme. */
   function colorFor(pct) {
@@ -53,7 +58,7 @@
 
   function renderVram(vram) {
     if (!vram || vram.length === 0) {
-      vramRows.innerHTML = '<div class="text-xs muted">No GPU detected on host \u2014 training needs an NVIDIA GPU; RAG and data prep run fine without one.</div>';
+      vramRows.innerHTML = '<div class="text-xs muted">No GPU in use \u2014 training needs a GPU (NVIDIA CUDA, AMD ROCm, Intel XPU or Apple Metal); RAG and data prep run fine on CPU.</div>';
       return;
     }
     vramRows.innerHTML = vram.map(g => `
@@ -69,6 +74,15 @@
     `).join('');
   }
 
+  function renderAccel(a) {
+    if (!a) return;
+    accelLine.textContent = a.is_gpu
+      ? `Compute: ${a.device} \u00b7 ${a.name} \u00b7 ${a.runtime}`
+      : 'Compute: CPU';
+    accelWarn.hidden = !a.degraded_reason;
+    accelWarn.textContent = a.degraded_reason ? '\u26a0 Running on CPU: ' + a.degraded_reason : '';
+  }
+
   async function poll() {
     try {
       const r = await fetch('/api/system/resources', { cache: 'no-store' });
@@ -76,6 +90,7 @@
       const d = await r.json();
       renderRam(d.ram);
       renderVram(d.vram);
+      renderAccel(d.accelerator);
       const t = new Date();
       updated.textContent = 'updated ' + t.toLocaleTimeString();
     } catch (e) {

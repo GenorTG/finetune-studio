@@ -66,7 +66,7 @@ MAX_BODY = 1 << 20
 MAX_TOP_K = 100
 
 DEFAULT_CONFIG: dict = {
-    "host": "127.0.0.1", "port": 8899, "top_k": 5, "device": "cpu",
+    "host": "127.0.0.1", "port": 8899, "top_k": 5, "device": "auto",
     "reranker": True, "auth_token": "", "embed_model": "",
     "embed_base_url": "", "embed_api_key": "",
 }
@@ -77,6 +77,42 @@ ENV_KEYS = {
     "embed_base_url": "RAG_EMBED_BASE_URL", "embed_api_key": "RAG_EMBED_API_KEY",
 }
 SECRET_KEYS = frozenset({"auth_token", "embed_api_key"})
+
+
+def _resolve_device(requested: str) -> str:
+    """``auto`` = GPU first (CUDA/ROCm, XPU, MPS), CPU only when none is usable.
+
+    Self-contained on purpose: this file ships without finetune_studio.
+    An explicit GPU request that torch cannot serve falls back to ``auto``
+    with a warning rather than crashing the server at first search.
+    """
+    req = (requested or "auto").strip().lower()
+    try:
+        import torch
+    except Exception:  # noqa: BLE001 — no torch: sentence-transformers can't load anyway
+        return "cpu"
+    def probe() -> str:
+        try:
+            if torch.cuda.is_available():      # also true for ROCm builds
+                return "cuda"
+            xpu = getattr(torch, "xpu", None)
+            if xpu is not None and xpu.is_available():
+                return "xpu"
+            mps = getattr(getattr(torch, "backends", None), "mps", None)
+            if mps is not None and mps.is_available():
+                return "mps"
+        except Exception as e:  # noqa: BLE001 — a broken backend must not take the server down
+            print(f"[warn] GPU probe failed ({e}); using cpu", file=sys.stderr)
+        return "cpu"
+    if req in ("", "auto"):
+        return probe()
+    if req == "cpu":
+        return "cpu"
+    best = probe()
+    if best == "cpu" or req.split(":")[0] != best:
+        print(f"[warn] device {requested!r} unavailable; using {best!r}", file=sys.stderr)
+        return best
+    return req
 
 
 class ConfigError(Exception):
@@ -255,7 +291,7 @@ class Corpus:
         emb = (self.manifest.get("embedding_model") or {}).get("name") or ""
         self.embed_model = self.cfg["embed_model"] or emb.split(":")[-1] or emb
         self.embed_base = str(self.cfg["embed_base_url"]).rstrip("/")
-        self.device = str(self.cfg["device"])
+        self.device = _resolve_device(str(self.cfg["device"]))
         self.top_k = int(self.cfg["top_k"])
         self._local_embedder = None
         self._local_embedder_failed = False
@@ -640,7 +676,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--host", help="bind address (default 127.0.0.1)")
     ap.add_argument("--port", type=int, help="HTTP port (default 8899)")
     ap.add_argument("--top-k", dest="top_k", type=int, help="results per search (default 5)")
-    ap.add_argument("--device", help="cpu | cuda | cuda:N | mps for bundled models")
+    ap.add_argument("--device", help="auto (GPU first, default) | cpu | cuda | cuda:N | xpu | mps for bundled models")
     ap.add_argument("--reranker", dest="reranker", action="store_true", default=None,
                     help="enable the bundled reranker")
     ap.add_argument("--no-reranker", dest="reranker", action="store_false",

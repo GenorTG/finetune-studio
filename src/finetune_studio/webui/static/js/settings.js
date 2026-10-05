@@ -40,8 +40,15 @@
            </div>`
         ).join("");
       } else {
-        gpuHtml = `<div class="dim text-xs">No NVIDIA GPU detected${d.gpu_error ? ` — ${esc(d.gpu_error)}` : ""}.</div>`;
+        gpuHtml = `<div class="dim text-xs">No GPU detected${d.gpu_error ? ` — ${esc(d.gpu_error)}` : ""}.</div>`;
       }
+      const ac = d.accelerator || {};
+      const acc = ac.accelerator || {};
+      const accHtml = acc.kind
+        ? `<span class="mono">${esc(acc.torch_device || acc.kind)}</span> · ${esc(acc.name || "")} · ${esc(acc.runtime || "")}`
+        : `<span class="dim">unknown${ac.error ? ` — ${esc(ac.error)}` : ""}</span>`;
+      const degraded = acc.degraded_reason
+        ? `<div class="gpu-degraded" role="alert" data-testid="accel-degraded">${esc(acc.degraded_reason)}</div>` : "";
 
       const pkgHtml = Object.entries(d.packages || {})
         .map(([k, v]) => `<tr><td class="mono">${esc(k)}</td><td class="mono dim">${esc(v)}</td></tr>`)
@@ -53,6 +60,7 @@
         ${row("Platform", esc(d.platform))}
         ${row("Hostname", esc(d.hostname))}
         ${row("GPU", gpuHtml)}
+        ${row("Compute", accHtml + degraded)}
         <div class="debug-label">Packages</div>
         <div class="debug-value">
           <table class="pkg-table">${pkgHtml}</table>

@@ -32,7 +32,7 @@ class RagExportConfig(BaseModel):
     include_models: bool = False
     include_reranker: bool = True      # only meaningful with include_models
     reranker_enabled: bool = True      # runtime default; --no-reranker overrides
-    device: str = "cpu"                # cpu | cuda | cuda:N | mps | auto
+    device: str = "auto"               # auto (GPU first) | cpu | cuda | cuda:N | xpu | mps
     host: str = "127.0.0.1"            # non-loopback requires an auth token
     port: int = Field(8899, ge=1, le=65535)
     top_k: int = Field(5, ge=1, le=100)
@@ -43,8 +43,8 @@ class RagExportConfig(BaseModel):
     @classmethod
     def _device(cls, v: str) -> str:
         import re
-        if not re.fullmatch(r"(cpu|cuda(:\d+)?|mps|auto)", v.strip()):
-            raise ValueError("device must be cpu, cuda, cuda:N, mps or auto")
+        if not re.fullmatch(r"(cpu|cuda(:\d+)?|xpu(:\d+)?|mps|auto)", v.strip()):
+            raise ValueError("device must be auto, cpu, cuda, cuda:N, xpu, mps")
         return v.strip()
 
     @field_validator("host")

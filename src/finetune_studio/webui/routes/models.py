@@ -51,30 +51,12 @@ def _identify_process(args_line: str, pid: int) -> str:
 
 
 def _gpu_snapshot():
-    """Return (free_mib, top consumers) from nvidia-smi, or (None, [])."""
+    """Return (free_mib, top consumers) for the active GPU of any vendor, or (None, [])."""
+    from finetune_studio.webui.gpu_probe import free_and_consumers
     try:
-        free = int(subprocess.run(
-            ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=5, check=False,
-        ).stdout.splitlines()[0].strip())
+        free, top = free_and_consumers()
     except Exception:  # noqa: BLE001
         return None, []
-    top = []
-    try:
-        out = subprocess.run(
-            ["nvidia-smi", "--query-compute-apps=pid,used_memory",
-             "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=5, check=False,
-        ).stdout
-        for line in out.splitlines():
-            try:
-                pid_s, mem_s = line.split(",")
-                top.append({"pid": int(pid_s.strip()), "vram_mib": int(mem_s.strip())})
-            except ValueError:
-                continue
-    except Exception:  # noqa: BLE001, S110
-        pass
-    top.sort(key=lambda t: -t["vram_mib"])
     for t in top:
         try:
             cmd = subprocess.run(
@@ -84,7 +66,7 @@ def _gpu_snapshot():
             t["name"] = _identify_process(cmd, t["pid"]) if cmd else f"pid-{t['pid']}"
         except Exception:  # noqa: BLE001
             t["name"] = f"pid-{t['pid']}"
-    return free, top[:5]
+    return free, top
 
 
 def _vram_hint(model_path: str) -> str:

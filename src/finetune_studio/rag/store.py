@@ -73,7 +73,9 @@ class VectorStore:
         name = embedding_model or "all-MiniLM-L6-v2"
         if name not in self._embedders:
             from sentence_transformers import SentenceTransformer
-            self._embedders[name] = SentenceTransformer(name)
+
+            from finetune_studio.data.rag_portable.devices import resolve_device
+            self._embedders[name] = SentenceTransformer(name, device=resolve_device("auto"))
         return self._embedders[name]
 
     def add_chunks(self, chunks: list, batch_size: int = 100, embedding_model: str | None = None) -> int:

@@ -12,9 +12,19 @@ from finetune_studio.data.rag_portable.constants import (
 )
 
 
-def get_reranker(name: str = DEFAULT_RERANKER, device: str = "cpu"):
-    """Return (rerank, name) where rerank(query, docs) -> list[float]."""
+def get_reranker(name: str = DEFAULT_RERANKER, device: str = "auto"):
+    """Return (rerank, name) where rerank(query, docs) -> list[float].
+
+    ``device="auto"`` = GPU first (cuda/rocm/xpu/mps), CPU only without a GPU.
+    """
     from sentence_transformers import CrossEncoder
+
+    from finetune_studio.data.rag_portable.devices import (
+        encode_batch_size,
+        resolve_device,
+    )
+    device = resolve_device(device)
+    batch = encode_batch_size(device)
 
     # Strip known library prefixes that were incorrectly saved to manifests
     clean_name = name
@@ -37,6 +47,6 @@ def get_reranker(name: str = DEFAULT_RERANKER, device: str = "cpu"):
         if not docs:
             return []
         pairs = [[query, d] for d in docs]
-        scores = model.predict(pairs, show_progress_bar=False)
+        scores = model.predict(pairs, batch_size=batch, show_progress_bar=False)
         return [float(s) for s in scores]
     return rerank, name

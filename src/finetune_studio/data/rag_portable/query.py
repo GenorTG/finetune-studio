@@ -35,7 +35,7 @@ class PortableRAGQuery:
                 and self.manifest.rag_settings.rerank_enabled
                 and self.manifest.rag_settings.reranker):
             self._reranker, _ = get_reranker(
-                name=self.manifest.rag_settings.reranker, device="cpu"
+                name=self.manifest.rag_settings.reranker, device="auto"
             )
         return self._reranker
 

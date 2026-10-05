@@ -43,9 +43,20 @@ def _load_sentence_transformer(
 
 
 def get_embedder(
-    name: str = DEFAULT_EMBEDDER, device: str = "cpu"
+    name: str = DEFAULT_EMBEDDER, device: str = "auto"
 ) -> tuple[object, EmbeddingModelInfo]:
-    """Return (encode, info) where encode(text|list[str]) -> ndarray(float32)."""
+    """Return (encode, info) where encode(text|list[str]) -> ndarray(float32).
+
+    ``device="auto"`` = GPU first (cuda/rocm/xpu/mps), CPU only without a GPU.
+    Weights stay fp32 so index-time and query-time vectors match bit-for-bit
+    across machines; the speedup comes from the GPU and bigger batches.
+    """
+    from finetune_studio.data.rag_portable.devices import (
+        encode_batch_size,
+        resolve_device,
+    )
+    device = resolve_device(device)
+    batch = encode_batch_size(device)
     # Use canonical cache under user's home (NOT /tmp) — see
     # finetune_studio.data.shared_models.hf_cache_dir for rationale.
     from finetune_studio.data.shared_models import hf_cache_dir
@@ -68,11 +79,13 @@ def get_embedder(
         v = model.encode(
             list(texts),
             normalize_embeddings=True,
-            batch_size=16,
+            batch_size=batch,
             show_progress_bar=False,
         )
         return np.asarray(v, dtype=np.float32)
 
+    import logging
+    logging.getLogger(__name__).info("rag embedder %s loaded on %s (batch %d)", name, device, batch)
     info = EmbeddingModelInfo(
         name=name, dim=dim, normalize=True, distance="cosine",
         cached_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),

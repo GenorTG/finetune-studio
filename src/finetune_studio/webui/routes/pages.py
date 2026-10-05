@@ -712,31 +712,18 @@ async def debug_info():
         },
     }
 
-    # GPU info via nvidia-smi
-    import subprocess
+    # GPU info — vendor-neutral (torch/accel, nvidia-smi, rocm-smi, xpu-smi, Apple)
+    from finetune_studio import accel
+    from finetune_studio.webui.gpu_probe import debug_gpus
     try:
-        r = subprocess.run(  # noqa: ASYNC221  # sync probe; debug endpoint is best-effort
-            ["nvidia-smi", "--query-gpu=name,memory.total,memory.free,driver_version",
-             "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=5, check=False,
-        )
-        if r.returncode == 0:
-            gpus = []
-            for line in r.stdout.strip().split("\n"):
-                parts = [p.strip() for p in line.split(",")]
-                if len(parts) >= 4:
-                    gpus.append({
-                        "name": parts[0],
-                        "vram_total_mb": int(parts[1]),
-                        "vram_free_mb": int(parts[2]),
-                        "driver": parts[3],
-                    })
-            info["gpus"] = gpus
-        else:
-            info["gpus"] = []
-    except (FileNotFoundError, subprocess.SubprocessError, OSError, ValueError) as e:
+        info["gpus"] = debug_gpus()
+    except Exception as e:  # noqa: BLE001 - debug endpoint is best-effort
         info["gpus"] = []
         info["gpu_error"] = str(e)
+    try:
+        info["accelerator"] = accel.describe()
+    except Exception as e:  # noqa: BLE001
+        info["accelerator"] = {"error": str(e)}
 
     # Package versions
     pkgs = ["torch", "transformers", "peft", "llama_cpp", "sentence_transformers",

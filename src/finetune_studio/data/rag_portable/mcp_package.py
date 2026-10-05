@@ -236,10 +236,11 @@ was bundled too (`corpus/reranker/`), results get a second scoring pass
 automatically (`--no-reranker` turns it off).
 
 `install.sh` sets up the venv for this (numpy + sentence-transformers; the
-torch CPU wheel is the big download, a few minutes once). The first search
+torch wheel is the big download, a few minutes once). The first search
 loads the model into RAM (~1-2 GB) and takes a second or two; after that it
-is fast. CPU is the default — use `--device cuda` (or `RAG_DEVICE=cuda`) for
-a GPU.
+is fast. The device defaults to `auto`: the GPU (NVIDIA CUDA, AMD ROCm, Intel
+XPU or Apple MPS) when one is usable, the CPU only otherwise. Force one with
+`--device cpu|cuda|cuda:N|xpu|mps` (or `RAG_DEVICE=…`).
 """
 
 _INSTALL_SH = r"""#!/usr/bin/env bash
@@ -253,8 +254,23 @@ PY="${PYTHON:-python3}"
 "$PY" -m venv .venv
 .venv/bin/pip install --quiet --upgrade pip
 if [ -d corpus/embedder ]; then
-  echo "Model package: installing torch (CPU) + sentence-transformers — a few minutes, once…"
-  .venv/bin/pip install --quiet torch --index-url https://download.pytorch.org/whl/cpu
+  # GPU first: pick the torch wheel that matches the hardware; CPU wheel only when
+  # no GPU is present. Override with TORCH_INDEX_URL (e.g. .../whl/cu128, .../whl/rocm6.4).
+  if [ -n "${TORCH_INDEX_URL:-}" ]; then
+    TORCH_ARGS=(--index-url "$TORCH_INDEX_URL"); KIND="custom index"
+  elif command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
+    TORCH_ARGS=(); KIND="NVIDIA CUDA"          # default PyPI Linux wheel bundles CUDA
+  elif [ "$(uname -s)" = "Darwin" ]; then
+    TORCH_ARGS=(); KIND="Apple MPS"            # default macOS wheel includes MPS
+  elif command -v rocm-smi >/dev/null 2>&1 || [ -d /opt/rocm ]; then
+    TORCH_ARGS=(--index-url https://download.pytorch.org/whl/rocm6.4); KIND="AMD ROCm"
+  elif command -v xpu-smi >/dev/null 2>&1; then
+    TORCH_ARGS=(--index-url https://download.pytorch.org/whl/xpu); KIND="Intel XPU"
+  else
+    TORCH_ARGS=(--index-url https://download.pytorch.org/whl/cpu); KIND="CPU (no GPU found)"
+  fi
+  echo "Model package: installing torch ($KIND) + sentence-transformers — a few minutes, once…"
+  .venv/bin/pip install --quiet torch "${TORCH_ARGS[@]}"
 fi
 .venv/bin/pip install --quiet -r requirements.txt
 if [ $# -gt 0 ]; then

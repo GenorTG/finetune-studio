@@ -32,58 +32,22 @@ def _ram() -> dict:
 
 
 def _vram() -> list[dict]:
-    """Per-GPU VRAM in GB. Uses torch.cuda when present, else nvidia-smi via subprocess."""
-    # Path 1: torch (preferred — no extra dep, already a requirement)
-    try:
-        import torch  # type: ignore
-        if torch.cuda.is_available():
-            out = []
-            for i in range(torch.cuda.device_count()):
-                free_bytes, total_bytes = torch.cuda.mem_get_info(i)
-                used_bytes = total_bytes - free_bytes
-                total_gb = total_bytes / 1024**3
-                used_gb = used_bytes / 1024**3
-                name = torch.cuda.get_device_name(i)
-                out.append({
-                    "index": i,
-                    "name": name,
-                    "used_gb": round(used_gb, 2),
-                    "total_gb": round(total_gb, 2),
-                    "pct": round(100.0 * used_bytes / total_bytes, 1) if total_bytes else 0.0,
-                })
-            return out
-    except Exception as e:  # noqa: BLE001
-        log.debug("torch.cuda path failed, falling back to nvidia-smi: %s", e)
+    """Per-GPU VRAM in GB for any vendor (torch/accel, nvidia-smi, rocm-smi, xpu-smi, Apple)."""
+    from finetune_studio.webui.gpu_probe import vram_devices
+    return vram_devices()
 
-    # Path 2: nvidia-smi subprocess (works even without torch importable here)
-    try:
-        import subprocess
-        r = subprocess.run(
-            ["nvidia-smi", "--query-gpu=index,name,memory.used,memory.total",
-             "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=2, check=True,
-        )
-        out = []
-        for line in r.stdout.strip().splitlines():
-            parts = [p.strip() for p in line.split(",")]
-            if len(parts) != 4:
-                continue
-            idx_s, name, used_mib, total_mib = parts
-            used_gb = float(used_mib) / 1024.0
-            total_gb = float(total_mib) / 1024.0
-            pct = (float(used_mib) / float(total_mib) * 100.0) if float(total_mib) else 0.0
-            out.append({
-                "index": int(idx_s),
-                "name": name,
-                "used_gb": round(used_gb, 2),
-                "total_gb": round(total_gb, 2),
-                "pct": round(pct, 1),
-            })
-        return out
-    except Exception as e:  # noqa: BLE001
-        log.debug("nvidia-smi path failed: %s", e)
 
-    return []
+def _accel_summary() -> dict:
+    """Compact accelerator state for the Host Resources strip (cached detection)."""
+    try:
+        from finetune_studio.accel import get_accelerator
+        a = get_accelerator()
+        return {"kind": a.kind, "name": a.name, "runtime": a.runtime, "is_gpu": a.is_gpu,
+                "device": a.torch_device, "degraded_reason": a.degraded_reason}
+    except Exception as exc:  # noqa: BLE001 - the strip must render even if accel breaks
+        log.warning("accelerator summary failed: %s", exc)
+        return {"kind": "unknown", "name": "", "runtime": "", "is_gpu": False, "device": "",
+                "degraded_reason": ""}
 
 
 @router.get("/api/system/resources")
@@ -93,10 +57,21 @@ async def resources():
     Returns:
       {
         "ram": {"available": true, "used_gb": ..., "total_gb": ..., "pct": ...},
-        "vram": [{"index": 0, "name": "RTX 3090", "used_gb": ..., "total_gb": ..., "pct": ...}, ...]
+        "vram": [{"index": 0, "name": "RTX 3090", "used_gb": ..., "total_gb": ..., "pct": ...}, ...],
+        "accelerator": {"kind": "cuda|rocm|xpu|mps|cpu", "device": "cuda:0", "degraded_reason": ""}
       }
     """
-    return {"ram": _ram(), "vram": _vram()}
+    return {"ram": _ram(), "vram": _vram(), "accelerator": _accel_summary()}
+
+
+@router.get("/api/system/accelerator")
+async def accelerator():
+    """Full accelerator report: chosen device, torch build, llama.cpp backends, hardware,
+    policy env and ``degraded_reason`` (non-empty when a GPU host is running on CPU)."""
+    from finetune_studio import accel
+    d = accel.describe()
+    d["degraded_reason"] = d["accelerator"].get("degraded_reason", "")
+    return d
 
 
 @router.get("/api/system/gpu")

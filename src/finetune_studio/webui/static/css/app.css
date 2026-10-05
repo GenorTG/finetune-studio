@@ -616,6 +616,19 @@ body::before {
 .res-fill.ok   { background: var(--ok); }
 .res-fill.warn { background: var(--warn); }
 .res-fill.crit { background: var(--err); }
+/* GPU host silently running on CPU: must be impossible to miss (Host Resources + Settings). */
+.res-warn, .gpu-degraded {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--warn);
+  border-left-width: 4px;
+  background: var(--bg-app);
+  color: var(--warn-text, var(--warn));
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.res-warn[hidden] { display: none; }
 .cyan { color: var(--cyan); }
 .violet { color: var(--magenta); }
 /* Status utilities color BOTH plain text and the wizard's .pill.ok/.warn

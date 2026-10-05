@@ -171,7 +171,7 @@ def test_vector_store_get_embedder_respects_embedding_model(monkeypatch):
     loaded_names = []
 
     class _FakeST:
-        def __init__(self, name):
+        def __init__(self, name, device=None):
             loaded_names.append(name)
             self.name = name
 

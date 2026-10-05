@@ -87,7 +87,7 @@ class PortableRAG:
                               embedder: str = DEFAULT_EMBEDDER,
                               chunk_size: int = 400, overlap: int = 80,
                               extensions: list | None = None,
-                              device: str = "cpu",
+                              device: str = "auto",
                               progress=None) -> dict:
         """Parse files in source_dir, chunk, embed, build BM25, write all artifacts.
 
@@ -860,7 +860,7 @@ python -m finetune_studio.data.rag rebuild-vectors /path/to/corpus [--embedder N
             sources.append({"id": did, "filename": fname, "size": size})
         return sources
 
-    def rebuild_vectors(self, embedder: str | None = None, device: str = "cpu") -> dict:
+    def rebuild_vectors(self, embedder: str | None = None, device: str = "auto") -> dict:
         if not self.exists():
             raise FileNotFoundError(self.dir)
         pd = try_import_pandas()

@@ -359,7 +359,7 @@
       </div>
       <div class="col-span-2">
         <label class="block text-xs muted mb-1">Device</label>
-        <input id="mcp-device" type="text" class="input" value="cpu" title="cpu | cuda | cuda:N | mps | auto">
+        <input id="mcp-device" type="text" class="input" value="auto" title="auto (GPU first, CPU only without one) | cpu | cuda | cuda:N | xpu | mps">
       </div>
       <div class="col-span-2">
         <label class="block text-xs muted mb-1">Bind host</label>
@@ -791,7 +791,7 @@
     var g = function (id) { return document.getElementById(id); };
     return {
       archive_format: g('mcp-fmt').value,
-      device: g('mcp-device').value.trim() || 'cpu',
+      device: g('mcp-device').value.trim() || 'auto',
       host: g('mcp-host').value.trim() || '127.0.0.1',
       port: parseInt(g('mcp-port').value, 10) || 8899,
       top_k: parseInt(g('mcp-topk').value, 10) || 5,
