@@ -77,6 +77,12 @@ DRIVER_CUDA: tuple[tuple[int, tuple[int, int]], ...] = (
     (535, (12, 2)), (530, (12, 1)), (525, (12, 0)), (520, (11, 8)), (470, (11, 4)),
 )
 
+AMD_WINDOWS_NOTE = ("AMD GPU on Windows: PyTorch ROCm wheels are Linux-only, so training falls back to CPU "
+                    "wheels here. For GPU training use WSL2 + ROCm, or Linux. llama.cpp can still use Vulkan.")
+# PyPI torch >= 2.12 (and bitsandbytes) ship macosx_14_0_arm64 wheels only; 2.11.0 is the last with macosx_11_0.
+MACOS_TORCH_MIN = (14, 0)
+MACOS_LEGACY_TORCH_PIN = "<2.12"
+
 PCI_VENDORS = {"0x10de": "nvidia", "0x1002": "amd", "0x8086": "intel"}
 # Virtual / BMC / legacy VGA adapters that are not compute GPUs.
 NOT_COMPUTE_GPU = re.compile(
@@ -121,6 +127,12 @@ def _system() -> tuple[str, str]:
     if fx is not None:
         return fx.get("system", "Linux"), fx.get("machine", "x86_64")
     return platform.system(), platform.machine()
+
+
+def _mac_version() -> tuple[int, int]:
+    """macOS release as (major, minor); (0, 0) when unknown or not macOS."""
+    fx = _fixture()
+    return _ver(str(fx.get("mac_ver", "")) if fx is not None else platform.mac_ver()[0])
 
 
 def _which(cmd: str) -> str:
@@ -226,6 +238,7 @@ class GpuInfo:
     driver_ready: bool = True   # False: hardware seen but no working driver stack
     hint: str = ""              # actionable driver / toolchain hint
     notes: tuple[str, ...] = ()
+    macos_version: str = ""     # Apple only ("13.6"); "" when unknown
 
     @classmethod
     def detect(cls, force_cpu: bool = False, force_vendor: str = "") -> GpuInfo:
@@ -520,7 +533,7 @@ def detect(force_cpu: bool = False, force_vendor: str = "") -> GpuInfo:
     if vendor == "amd":
         gpus = amd_hw or [Gpu("amd", "AMD GPU (ROCm)")]
         ready = bool(amd_gpus) and (_exists("/dev/kfd") or bool(_which("rocm-smi")))
-        hint = "" if ready else (
+        hint = "" if ready else AMD_WINDOWS_NOTE if system == "Windows" else (
             "AMD GPU found but the ROCm kernel/user stack is not usable (no /dev/kfd, rocm-smi, rocminfo). "
             "Install ROCm (https://rocm.docs.amd.com/projects/install-on-linux): "
             "`sudo apt install amdgpu-dkms rocm` then add your user to the render+video groups and reboot. "
@@ -543,8 +556,10 @@ def detect(force_cpu: bool = False, force_vendor: str = "") -> GpuInfo:
                        **{k: v for k, v in common.items() if k != "cuda_toolkit_path"})
 
     if vendor == "apple":
+        mac = _mac_version()
         return GpuInfo("apple", "Apple Silicon (Metal/MPS)", "", "", "", cuda_path,
-                       (Gpu("apple", "Apple Silicon"),), notes=tuple(notes), vulkan_ready=False)
+                       (Gpu("apple", "Apple Silicon"),), notes=tuple(notes), vulkan_ready=False,
+                       macos_version=_vstr(mac))
 
     return GpuInfo("none", "(no GPU)", "", "", "", cuda_path, notes=tuple(notes), vulkan_ready=vulkan)
 
@@ -709,6 +724,7 @@ class Plan:
     wheel_index: str                # abetlen prebuilt-wheel index ("" => none for this hw)
     warnings: list[str]
     info: GpuInfo
+    torch_pin: str = ""             # version suffix for the torch spec ("<2.12" on macOS < 14)
 
 
 def build_plan(gpu: GpuInfo, *, unsloth: str = "") -> Plan:
@@ -718,6 +734,7 @@ def build_plan(gpu: GpuInfo, *, unsloth: str = "") -> Plan:
         warn.append(gpu.hint)
     fallbacks: list[str] = []
     wheel = ""
+    torch_pin = ""
     if gpu.vendor == "nvidia":
         tag = gpu.cuda_ver or "cu126"
         newest = float(gpu.compute_cap) if gpu.compute_cap else 0.0
@@ -732,8 +749,8 @@ def build_plan(gpu: GpuInfo, *, unsloth: str = "") -> Plan:
     elif gpu.vendor == "amd" and _system()[0] == "Windows":
         # There are no ROCm PyTorch wheels for Windows: say so loudly instead of failing the install.
         tag, idx, backend = "cpu", f"{PYTORCH_WHL}/cpu", "cpu"
-        warn.append("AMD GPU on Windows: PyTorch ROCm wheels are Linux-only, so training falls back to CPU "
-                    "wheels here. For GPU training use WSL2 + ROCm, or Linux. llama.cpp can still use Vulkan.")
+        if AMD_WINDOWS_NOTE not in warn:   # normally already carried by gpu.hint
+            warn.append(AMD_WINDOWS_NOTE)
     elif gpu.vendor == "amd":
         gfx = next((g.gfx for g in gpu.gpus if g.gfx), "")
         tag = pick_rocm_tag(gpu.rocm_version, gfx)
@@ -745,6 +762,16 @@ def build_plan(gpu: GpuInfo, *, unsloth: str = "") -> Plan:
         tag, idx, backend = "xpu", f"{PYTORCH_WHL}/xpu", "xpu"
     elif gpu.vendor == "apple":
         tag, idx, backend, wheel = "", "", "mps", f"{ABETLEN_WHL}/metal"
+        mac = _ver(gpu.macos_version)
+        if mac != (0, 0) and mac < MACOS_TORCH_MIN:
+            torch_pin = MACOS_LEGACY_TORCH_PIN
+            if mac < (11, 0):
+                warn.append(f"macOS {gpu.macos_version}: no PyTorch wheel supports macOS older than 11. "
+                            "Upgrade macOS, then re-run the installer.")
+            else:
+                warn.append(f"macOS {gpu.macos_version}: PyTorch 2.12+ and bitsandbytes need macOS 14+, so "
+                            f"torch is pinned to {MACOS_LEGACY_TORCH_PIN} (last release with macOS 11+ wheels) and "
+                            "bitsandbytes is skipped. Upgrade to macOS 14+ for current PyTorch.")
     else:
         tag, idx, backend = "cpu", f"{PYTORCH_WHL}/cpu", "cpu"
         if gpu.name == "(forced CPU)":
@@ -756,8 +783,8 @@ def build_plan(gpu: GpuInfo, *, unsloth: str = "") -> Plan:
     want = (unsloth or _env("FTS_UNSLOTH", "auto")).lower()
     unsloth_ok = gpu.vendor == "nvidia" and want not in ("0", "off", "no", "false")
     return Plan(gpu.vendor, gpu.name, gpu.driver_version, tag, idx, backend, fallbacks,
-                bnb=gpu.vendor in ("nvidia", "amd", "intel", "apple"), unsloth_ok=unsloth_ok,
-                llama_backends=llama_backends(gpu), wheel_index=wheel, warnings=warn, info=gpu)
+                bnb=gpu.vendor in ("nvidia", "amd", "intel", "apple") and not torch_pin, unsloth_ok=unsloth_ok,
+                llama_backends=llama_backends(gpu), wheel_index=wheel, warnings=warn, info=gpu, torch_pin=torch_pin)
 
 
 def pick_abetlen_wheel(gpu: GpuInfo) -> str:
@@ -856,6 +883,8 @@ def constraint_args(venv: Path) -> list[str]:
 
 
 def torch_specs(plan: Plan, unsloth_profile: bool = False) -> list[str]:
+    if plan.torch_pin:
+        return [f"torch{plan.torch_pin}", "torchvision"]
     if unsloth_profile:  # unsloth currently pins torch<2.13
         return ["torch<2.13", "torchvision"]
     return ["torch", "torchvision"]  # torchaudio is frozen at 2.11 and unused by the app

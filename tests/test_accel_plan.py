@@ -636,3 +636,32 @@ def test_d8_xpu_probe_rejects_a_non_xpu_torch_even_though_torch_xpu_exists(tmp_p
     xpu_build = "__version__ = '2.14.1+xpu'\nxpu = object()\nclass version:\n    xpu = '20250300'\n"
     assert _probe_exit(tmp_path, "xpu", cpu_build) == 3
     assert _probe_exit(tmp_path, "xpu", xpu_build) == 0
+
+
+def test_d10_macos_before_14_pins_the_last_torch_with_old_mac_wheels_and_explains_why(monkeypatch, tmp_path) -> None:
+    # PyPI torch >= 2.12 ships macosx_14_0_arm64 wheels only (2.11.0 is the last macosx_11_0 release), and so does bitsandbytes.
+    fake_hw(monkeypatch, tmp_path, system="Darwin", machine="arm64", mac_ver="13.6.1")
+    plan = ap.build_plan(ap.detect())
+    assert plan.torch_pin == "<2.12" and not plan.bnb
+    assert any("macOS 13.6" in w and "14" in w for w in plan.warnings)
+    assert "torch<2.12" in ap.torch_commands(plan, "py")[0][1]
+    assert "torch<2.12" in ap.torch_commands(plan, "py", unsloth_profile=True)[0][1]
+    for ver in ("14.0", "15.2", ""):                 # supported or unknown -> untouched
+        fake_hw(monkeypatch, tmp_path, system="Darwin", machine="arm64", mac_ver=ver)
+        plan = ap.build_plan(ap.detect())
+        assert plan.torch_pin == "" and plan.bnb and not plan.warnings
+        assert ap.torch_commands(plan, "py")[0][1][-2:] == ["torch", "torchvision"]
+    fake_hw(monkeypatch, tmp_path, system="Darwin", machine="arm64", mac_ver="10.15.7")
+    assert any("no PyTorch wheel" in w for w in ap.build_plan(ap.detect()).warnings)
+
+
+def test_d11_windows_amd_gets_one_consistent_message_without_linux_rocm_advice(monkeypatch, tmp_path) -> None:
+    fake_hw(monkeypatch, tmp_path, system="Windows", machine="AMD64", which=["powershell"], commands={
+        'powershell -NoProfile -Command (Get-CimInstance Win32_VideoController).Name -join "`n"':
+        "AMD Radeon RX 7900 XTX\n"})
+    plan = ap.build_plan(ap.detect())
+    assert plan.torch_tag == "cpu"
+    text = "\n".join(plan.warnings)
+    assert "WSL2" in text and "Vulkan" in text
+    assert "wheels are installed anyway" not in text and "apt install" not in text
+    assert sum("Linux-only" in w for w in plan.warnings) == 1
