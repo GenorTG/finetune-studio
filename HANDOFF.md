@@ -2,46 +2,47 @@
 
 ## Mission
 
-Local fine-tune, data-prep, and RAG WebUI. Context-grounded dataset rows are validated; the full wizard chain (helper mining → dataset → train → merge/GGUF → test/benchmark → RAG chat) was exercised live on 2026-10-05.
+Local fine-tune, data-prep, and RAG WebUI. GPU first on every vendor (NVIDIA/AMD/Intel/Apple), CPU only on GPU-less hosts, never a silent CPU fallback (Genor 2026-10-05). The accelerator overhaul, grounded-rows feature and RAG cache are done and proven live on the RTX 3090.
 
 ## State (verified 2026-10-05)
 
 | Area | State |
 |---|---|
-| Git | `main` is 6 local commits ahead of `origin/main` (`51337f8`), not pushed: `43ce1c2` auto-suite role pick, `12a09c7` table-cell truncation, `1fea084` HF search `filter=`, `229d1c2` nvidia-smi policy filter, `e1e12a7` project-delete registry rescan, `636325b` per-test `FTS_ROOT`. |
-| Service | genorbox1 :7860 active on `e1e12a71` code; RTX 3090 only, GTX 1070 masked (`gpu-mask.conf`). DB has 0 projects, all models unloaded, GPU0 ~0.6 GiB idle. |
-| E2E proof | `.tmp/e2e-final/REPORT.md` (12 items PASS, evidence in `.tmp/e2e-final/ev/`): Gemma-4-12B helper mined 5 docs on the 3090; 24-row dataset with 10 grounded rows; Qwen3-0.6B 180 steps loss 0.0315; merge + GGUF Q8_0; suite 58 %, held-out 0/3, benchmarks; RAG chat 4/5 grounded; encrypted RAG round trip; dark+light visual probe; honest CUDA OOM; CPU path + degraded banner. |
-| Tests | Full suite on this tree: 1745 passed, 1 skipped, 1 failed (untracked new test file, fixed by commit `636325b`; `test_repo_hygiene.py` passes), 22m18s. Ruff, codemap-check pass. |
-| Deploy | No fan-dragon deploy; its checkout was reported to have a stub `.git`. |
+| Git | `main` pushed up to `6dafd77`; the accel-defect fixes (`60df70b`…`a189424`), RAG cache/API nits (`f25dc43`…`df15261`), `fac9494`, `5cdaff4` and the vram-test fix are committed on top — see Next steps for the push. |
+| Service | genorbox1 :7860, user unit, `FTS_ROOT=~/.finetune-studio`, RTX 3090 only (`gpu-mask.conf` sets `FTS_GPU_EXCLUDE=GTX 1070`). DB 0 projects. |
+| Accelerator | `fts accel`: cuda:0 RTX 3090, CUDA 13.0, torch 2.14.1+cu130, llama.cpp 0.3.36 with CUDA offload. Selection lives only in `scripts/accel_plan.py`. |
+| E2E proof | `.tmp/e2e-final/REPORT.md` (12/12 PASS, live :7860): helper mining on 3090, grounded dataset, Qwen3-0.6B 180 steps loss 0.03, merge + GGUF, trained-run benchmark, RAG chat 4/5, encrypted RAG round trip, dark+light visual probe, honest CUDA OOM, CPU path + degraded banner. |
+| Wheel check | `.tmp/accel-verify/REPORT.md`: per-vendor torch/bnb/llama wheels confirmed to exist; defects D1–D12 found and fixed with regression tests (Pascal/cu13 wheel, nvcc vs Blackwell, gfx12 fallbacks, `acc.index` memory ops, bf16 on Pascal, numeric policy tokens, `oom` word match, macOS<14, `--plan` JSON). |
+| Tests | Full suite on this tree, 5 foreground chunks: 1773 passed, 1 skipped, 0 failed (`tests/test_vram.py` excluded). `ruff check src/ scripts/` and `make codemap-check` clean. |
 
 ## In flight
 
-- Nothing running. Local commits await Genor's OK to push.
+- Nothing running.
 
 ## Next steps
 
-1. Push when approved, reconcile fan-dragon's checkout, then `bash update.sh` there.
-2. Move the RAG-cache release into `llama_loader.unload_all_models` (today the three unload callers, training start, merge, export and `InferenceEngine.load` call `release_rag_models()` themselves) once the accel lane has landed its `llama_loader` edits.
-3. Improve coverage-fill question quality ("What does the source say about “It”?" is unanswerable and caps suite/held-out scores).
-4. Surface the training error in the Live Status panel (today only the Past Runs row) with a "reduce batch / sequence length" hint on CUDA OOM.
-5. Stop the suite leaking `data/projects/<id>` into the repo cwd (252 stale dirs, ~3 MB).
-6. Repeat grounded-vs-plain evaluation on several seeds; measure distractor rows.
+1. Push (`git push origin main`), then `systemctl --user restart finetune-studio` on genorbox1 so the service runs the final code.
+2. fan-dragon (RTX 5080 = real Blackwell/cu132 test) has a stub `.git`; restoring its checkout is Genor's call, then `bash update.sh` and `bash install.sh --plan` there.
+3. Improve coverage-fill question quality ("What does the source say about “It”?" caps suite/held-out scores).
+4. Show the training error in the Live Status panel with a "reduce batch / sequence length" hint on CUDA OOM.
+5. Stop the suite leaking `data/projects/<id>` into the repo cwd (~250 dirs).
+6. Untested: HF `Trainer` placement when `acc.index != 0`; abetlen cu121–cu124 wheel SM lists; AMD/Intel/Apple on real hardware; grounded-vs-plain over several seeds and distractor rows.
 
 ## Known issues
 
-- `~/.finetune-studio/projects` keeps 9 pre-existing test-debris dirs with files (no DB project).
-- RAG models are cached process-wide (`data/rag_portable/model_cache.py`, idle expiry `FTS_IDLE_TIMEOUT` = 300 s; `GET /api/inference/status` → `rag_models`). Live: `rag/search` 2.3 s → 0.055 s warm (7 s first call), 3.2 GiB VRAM while cached, back to the CUDA-context floor (~0.98 GiB) on expiry / `/api/models/unload` / training start.
-- Wizard `wizTrain()` has no epochs control; ≥150-step runs on small data need the Training page or API.
+- RAG embedder/reranker cached process-wide (`data/rag_portable/model_cache.py`, idle expiry `FTS_IDLE_TIMEOUT`=300 s, released by `unload_all_models`, training/merge/export/model load; `GET /api/inference/status` → `rag_models`).
+- `~/.finetune-studio/projects` keeps ~9 pre-existing test-debris dirs with files (not in DB).
+- Wizard `wizTrain()` has no epochs control; ≥150-step runs need the Training page or API.
 - No `fts` command builds datasets; grounded options are WebUI/API only.
+- Windows HIP/Vulkan "missing backend" hints still say `apt install`.
 
 ## Commands
 
-- Full tests: `.venv/bin/python -m pytest -q -p no:cacheprovider --ignore=tests/test_vram.py`
-- Lint: `.venv/bin/ruff check src/ scripts/`
-- Codemap: `make codemap-check`
-- GPU plan/health: `bash install.sh --plan`, `.venv/bin/fts accel`
-- Visual probe: `node ~/.openclaw/workspace/.tmp/qa-sweep/e2e-visual.cjs <pid> <out.jsonl>` (sets `fts.tutorial.seen`).
+- Full tests (≤10 min per foreground call, so split): `.venv/bin/python -m pytest -q -p no:cacheprovider --ignore=tests/test_vram.py`
+- Lint: `.venv/bin/ruff check src/ scripts/` · Codemap: `make codemap-check`
+- GPU plan/health: `bash install.sh --plan` (stdout = JSON), `.venv/bin/fts accel`
+- Visual probe: `node ~/.openclaw/workspace/.tmp/qa-sweep/e2e-visual.cjs <pid> <out.jsonl>`
 
 ## Blockers
 
-- Fan-dragon deploy requires resolving its invalid checkout; no deployment or host changes made.
+- fan-dragon deploy waits on Genor (invalid checkout there).

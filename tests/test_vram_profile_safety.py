@@ -14,7 +14,7 @@ def _fake_torch(reset_error: Exception | None = None) -> types.ModuleType:
     torch = types.ModuleType("torch")
     cuda = types.SimpleNamespace()
 
-    def reset_peak_memory_stats() -> None:
+    def reset_peak_memory_stats(device: int | None = None) -> None:
         if reset_error is not None:
             raise reset_error
 
