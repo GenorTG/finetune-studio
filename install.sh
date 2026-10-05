@@ -43,7 +43,7 @@ CONDA_ENV="${CONDA_ENV:-chris-ai}"
 VENV_DIR="${VENV_DIR:-.venv}"
 # llama.cpp lives inside the project, NOT in $HOME. Boxed-in so the install
 # is reproducible and self-contained — nothing references external paths.
-log()  { echo "[install] $*"; }
+log()  { if [ "${PLAN_ONLY:-0}" = "1" ]; then echo "[install] $*" >&2; else echo "[install] $*"; fi; }  # --plan: stdout is the plan JSON only
 warn() { echo "[install] WARN: $*" >&2; }
 die()  { echo "[install] ERROR: $*" >&2; exit 1; }
 

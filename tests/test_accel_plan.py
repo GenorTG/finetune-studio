@@ -511,7 +511,7 @@ def _bash_plan(tmp_path: Path, fixture: dict, *flags: str) -> dict:
                        env={**os.environ, "FTS_ACCEL_FIXTURE": str(fx), "PATH": os.environ["PATH"],
                             "CUDA_VISIBLE_DEVICES": ""}, cwd=ROOT, check=False, timeout=60)
     assert r.returncode == 0, r.stderr
-    return json.loads(r.stdout[r.stdout.index("{"):])
+    return json.loads(r.stdout)   # stdout is the plan and nothing else (D12): logs go to stderr
 
 
 def test_install_sh_plan_resolves_every_vendor(tmp_path: Path) -> None:
