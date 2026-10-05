@@ -375,7 +375,7 @@ async def rag_mcp_package(pid: str, body: McpPackageRequest | None = None):
     return JSONResponse(
         {
             "filename": result.path.name,
-            "download_url": f"/projects/{pid}/rag/mcp-package/download?file={result.path.name}",
+            "download_url": f"/api/projects/{pid}/rag/mcp-package/download?file={result.path.name}",
             "size": result.size,
             "encrypted": result.encrypted,
             # Shown once; only set when generated here.

@@ -561,7 +561,7 @@ async def rag_bundle(pid: str, body: BundleRequest | None = None):
     return JSONResponse(
         {"filename": path.name, "size": path.stat().st_size, "encrypted": True,
          "passphrase": generated,
-         "download_url": f"/projects/{pid}/rag/bundle/download?file={path.name}"},
+         "download_url": f"/api/projects/{pid}/rag/bundle/download?file={path.name}"},
         headers={"Cache-Control": "no-store"},
     )
 

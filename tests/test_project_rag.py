@@ -254,7 +254,8 @@ def test_mcp_package_encrypted_flow(client, export_env, tmp_path: Path) -> None:
     assert j["encrypted"] is True and j["passphrase"] and len(j["passphrase"]) >= 20
     assert "PLAINTEXT" not in j["filename"]
 
-    dl = client.get("/api" + j["download_url"])
+    assert j["download_url"].startswith("/api/projects/")
+    dl = client.get(j["download_url"])
     assert dl.status_code == 200
     assert j["passphrase"].encode() not in dl.content
     assert b"Vaelindrath" not in dl.content

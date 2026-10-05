@@ -756,7 +756,7 @@
       passEl.value = '';
       showPassphrase(d.passphrase);
       if (status) status.textContent = 'Encrypted bundle ' + d.filename + ' (' + humanBytes(d.size) + ') ready — downloading.';
-      window.location.href = '/api' + d.download_url;
+      window.location.href = d.download_url;
     } catch (e) {
       if (status) status.textContent = 'Bundle export failed: ' + (e.message || e);
       notify(String(e.message || e), 'error');
@@ -864,7 +864,7 @@
       showPassphrase(d.passphrase);
       if (note) note.textContent = (d.encrypted ? 'Encrypted package ' : 'PLAINTEXT package ')
         + d.filename + ' (' + humanBytes(d.size) + ') ready \u2014 downloading.';
-      window.location.href = '/api' + d.download_url;
+      window.location.href = d.download_url;
     } catch (e) {
       if (note) note.textContent = 'Package build failed: ' + (e.message || e);
       notify(String(e.message || e), 'error');

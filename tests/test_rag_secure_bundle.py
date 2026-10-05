@@ -119,8 +119,9 @@ def test_routes_export_download_import(tmp_path: Path, corpus: Path, monkeypatch
     assert d["encrypted"] and d["passphrase"] is None and d["filename"].endswith(".ftsrag")
     assert str(tmp_path / "projects" / pid) in str(
         rag_routes._bundle_dir(pid)) and (rag_routes._bundle_dir(pid) / d["filename"]).is_file()
-    blob = client.get("/api" + d["download_url"].removeprefix("/api")
-                      if False else d["download_url"].replace("/projects", "", 1)).content
+    # download_url is absolute (/api/projects/<pid>/...); this test app mounts the router at "/".
+    assert d["download_url"].startswith(f"/api/projects/{pid}/rag/bundle/download?file=")
+    blob = client.get(d["download_url"].removeprefix("/api/projects")).content
     assert blob[:8] == b"FTSRAGE1" and b"hello world" not in blob
 
     assert client.get(f"/{pid}/rag/bundle/download?file=../x.ftsrag").status_code in (400, 404)
