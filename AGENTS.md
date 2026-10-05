@@ -71,3 +71,4 @@ Both run the `finetune-studio` systemd **user** unit on :7860.
 - `preset_advisor.py` step floor ignores `validation_split` and assumes eff. batch 8 (`steps = (pair_count * epochs) // eff_batch`): its `optimizer_steps` run ~2.2× high vs `metrics_json.total_steps` — treat as an upper bound until fixed.
 - Models outside `models/` + `output/` → add a `model_dirs_extra` entry, `POST /api/models/refresh`, then reload the training page (its model dropdown is server-rendered at load).
 - Training API start takes `model_path` (not `base_model`) + `preset_id` (e.g. `"qlora"`); GPU pinning goes in a `finetune-studio.service.d/*.conf` drop-in, never `systemctl --user set-environment`.
+- RAG chat on a small tuned model ignores retrieved context when its training rows had none (Qwen3-0.6B: 2/5 grounded); moving CONTEXT into the user turn did not help (`.tmp/rag-grounding/RESULTS.md`) — add context-conditioned rows to the dataset, do not rewrite `rag_chat` prompts unmeasured.
