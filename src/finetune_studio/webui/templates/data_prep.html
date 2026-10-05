@@ -290,6 +290,18 @@
       <button class="btn sm primary" type="button" id="dp-export-approved" title="Write approved pairs as ShareGPT JSONL and register it for Training">Export approved → Training</button>
       <a class="btn sm" href="/projects/{{ pid }}/training" data-link id="dp-open-training">Open Training</a>
     </div>
+    <div id="dp-grounded-opts" class="flex gap-2 wrap items-center" style="margin-bottom:4px;">
+      <label class="text-sm flex gap-1 items-center" for="dp-grounded">
+        <input type="checkbox" id="dp-grounded">
+        Include retrieved context in
+      </label>
+      <input type="number" id="dp-grounded-pct" min="1" max="100" value="40" style="width:4.5rem;" aria-label="Percent of rows that carry retrieved context">
+      <span class="text-sm">% of rows</span>
+    </div>
+    <div class="text-xs dim" id="dp-grounded-note" style="margin-bottom:8px;">
+      Only matters if you will chat with the trained model over this project's RAG corpus. That share of rows gets the RAG-chat prompt with the pair's own source passage (cited by filename) added; answers stay the same. In one test on a 0.6B model this took grounded RAG answers from 2/5 to 4/5.
+      <span id="dp-grounded-state"></span>
+    </div>
     <pre id="dp-bridge-status" role="status" aria-live="polite" hidden
          style="margin:0 0 8px;font-size:12px;white-space:pre-wrap;"></pre>
     <div id="dp-exported-datasets" class="dp-exported-panel text-sm" hidden></div>
@@ -1769,6 +1781,31 @@ async function dpApproveAllPending() {
   await dpBulkAction(ids, 'approve');
 }
 
+// Share of rows that carry retrieved context: 0 when the box is off.
+function dpGroundedShare() {
+  var on = document.getElementById('dp-grounded');
+  var pct = document.getElementById('dp-grounded-pct');
+  if (!on || !on.checked) return 0;
+  var n = Math.min(100, Math.max(1, parseInt(pct && pct.value, 10) || 40));
+  return (n / 100).toFixed(2);
+}
+
+// Default on only when the project has a built RAG corpus (same rule as the server's auto mode).
+(async function dpInitGrounded() {
+  var on = document.getElementById('dp-grounded');
+  var state = document.getElementById('dp-grounded-state');
+  if (!on) return;
+  try {
+    var st = await fetch('/api/projects/' + encodeURIComponent(_prepPid) + '/rag').then(function (res) { return res.json(); });
+    on.checked = !!(st && st.exists);
+    if (state) state.textContent = st && st.exists
+      ? ' This project has a RAG corpus, so it is on by default.'
+      : ' This project has no RAG corpus yet, so it is off by default.';
+  } catch (e) {
+    if (state) state.textContent = ' Could not check for a RAG corpus; choose manually.';
+  }
+})();
+
 async function dpExportApproved() {
   var approved = _dpQaItems.filter(function (q) {
     return (q.status || '') === 'approved';
@@ -1780,7 +1817,7 @@ async function dpExportApproved() {
   dpBridgeStatus('Exporting ' + approved + ' approved pair(s)…', 'info');
   try {
     var url = '/api/projects/' + encodeURIComponent(_prepPid) +
-      '/data-prep/export?fmt=sharegpt&only=approved';
+      '/data-prep/export?fmt=sharegpt&only=approved&grounded_share=' + dpGroundedShare();
     var r = await fetch(url, { cache: 'no-store' });
     if (r.status === 409) {
       var gap = {};
@@ -1797,6 +1834,7 @@ async function dpExportApproved() {
       return;
     }
     // Side effect on the server registers project_datasets; also offer a local download.
+    var groundedRows = parseInt(r.headers.get('X-Grounded-Rows') || '0', 10) || 0;
     var blob = await r.blob();
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -1807,7 +1845,9 @@ async function dpExportApproved() {
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
     await dpRefreshExportedDatasets();
     dpBridgeStatus(
-      'Exported ' + approved + ' approved pair(s) into project datasets. Select it in Training → “From this project”, or review the JSONL in Data Editor.',
+      'Exported ' + approved + ' approved pair(s)' +
+      (groundedRows ? ' (' + groundedRows + ' with retrieved context)' : ' (no retrieved-context rows)') +
+      ' into project datasets. Select it in Training → “From this project”, or review the JSONL in Data Editor.',
       'success'
     );
     // Make the next step un-missable: CTA row attached to the exported-datasets panel.

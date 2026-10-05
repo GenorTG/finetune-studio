@@ -15,6 +15,7 @@ vendor (NVIDIA/AMD/Intel/Apple), CPU only on GPU-less hosts, never a silent CPU 
 | Ruff | `ruff check src/ scripts/` clean on the working tree; `tests/` ~108 legacy findings. |
 | Working product paths | Project → files → parse → pair gen → LoRA train (checkpoints/eval/early stop, Unsloth toggle) → merge/GGUF export → testing/benchmark (review, verdict override) → Chat with tuned model + RAG; encrypted RAG export/`.ftsrag` import; onboarding tour; idle unload (`FTS_IDLE_TIMEOUT`, default 300 s). E2E-verified on RTX 3090 2026-10-02/04. |
 | UI coverage ledger | Slices 1-5 of `docs/audit/UI-COVERAGE-2026-10-03.md` done (training fields, dataset health, benchmark review, nav/wording, dead code); css `?v=75` in working tree. |
+| Grounded export rows | `GET data-prep/export` + subset build take `grounded_share` (0-1; omitted = 40% when a RAG corpus exists, else off) and `distractors` (0-2); data-prep UI has the checkbox + % box. Layout is `data/rag_portable/prompt.py` (shared with `rag_chat`). Live 2026-10-05 (Qwen3-0.6B, 150 steps): rag/chat grounded 2/5 → 4/5 (n=1 run; distractors unmeasured live). Tests: `tests/test_grounded_rows.py`. No `fts` command builds datasets, so no CLI flag. |
 | Test-file review | Incomplete: 8 of ~198 `test_*.py` read (`docs/audit/TEST-AUDIT-2026-10-01.md`). Do not claim complete. |
 
 ## In flight (code committed; verification complete)

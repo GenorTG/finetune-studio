@@ -146,13 +146,15 @@ async def delete_version(vid: str, pid: str):
 async def build_subset_dataset(pid: str, request: Request):
     """Specialized build: hand-picked sources → coverage-filled → registered dataset.
 
-    Body: {source_ids: [...], fmt: sharegpt, name: optional}
+    Body: {source_ids: [...], fmt: sharegpt, name: optional,
+           grounded_share: optional 0-1 (default: auto), distractors: optional 0-2}
     Guarantees the same no-skips contract as the full export, scoped to the
     picked sources.
     """
     from finetune_studio.data.fs import qa as qafs
     from finetune_studio.data.prep.coverage_fill import fill_sources_gaps
     from finetune_studio.data.prep.export import export_qa_jsonl_from_sources
+    from finetune_studio.data.prep.grounding import resolve_grounding
 
     proj = db.get_project(pid)
     if not proj:
@@ -189,8 +191,11 @@ async def build_subset_dataset(pid: str, request: Request):
 
     fmt = body.get("fmt", "sharegpt")
     try:
-        payload = export_qa_jsonl_from_sources(pid, source_ids, fmt=fmt, only="approved")
-    except ValueError as e:
+        # Same grounded-rows policy as the full export (body: grounded_share, distractors).
+        grounding = resolve_grounding(pid, body.get("grounded_share"), int(body.get("distractors") or 0))
+        payload = export_qa_jsonl_from_sources(pid, source_ids, fmt=fmt, only="approved",
+                                               grounding=grounding)
+    except (ValueError, TypeError) as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     if not payload.strip():
         return JSONResponse({"error": "no approved pairs for the selected sources"}, status_code=400)

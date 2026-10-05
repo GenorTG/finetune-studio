@@ -34,6 +34,7 @@ data/rag_portable/
   rrf.py         — rrf_fuse()
   store.py       — PortableRAG (build, load, rebuild, bundle, export, unshare)
   query.py       — PortableRAGQuery (search, format_context)
+  prompt.py      — the rag/chat prompt layout (shared with context-grounded training rows)
 """
 
 from finetune_studio.data.rag_portable.bm25 import BM25Index

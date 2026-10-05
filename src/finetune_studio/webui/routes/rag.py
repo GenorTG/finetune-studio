@@ -695,6 +695,7 @@ async def rag_chat(pid: str, req: ChatRequest):
     Returns: {reply, sources: [{filename, score, chunk_text}], messages_full}
     """
     from finetune_studio.data.rag_portable import PortableRAG
+    from finetune_studio.data.rag_portable.prompt import build_messages
     from finetune_studio.webui.app import inference_engine
 
     rag = PortableRAG(_corpus_dir(pid))
@@ -714,14 +715,9 @@ async def rag_chat(pid: str, req: ChatRequest):
     hits = q.search(last_user, top_k=req.top_k)
     context = q.format_context(hits, max_chars=4000)
 
-    sys_prompt = req.system_prompt or (
-        "You are a knowledgeable assistant. Answer using ONLY the context below. "
-        "If the answer isn't in the context, say so. Quote the source filename in [brackets] when relevant."
-    )
-    full_system = f"{sys_prompt}\n\nCONTEXT:\n{context}"
-    msgs = [{"role": "system", "content": full_system}] + [
-        {"role": m["role"], "content": m["content"]} for m in req.messages
-    ]
+    # Layout lives in rag_portable.prompt — shared with the context-grounded
+    # training rows (data/prep/grounding.py); do not inline it here again.
+    msgs = build_messages(req.messages, context, req.system_prompt)
 
     def _generate() -> str:
         if inference_engine.model is not None:

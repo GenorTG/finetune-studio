@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from finetune_studio.data.rag_portable.bm25 import BM25Index
+from finetune_studio.data.rag_portable.prompt import format_context_blocks
 from finetune_studio.data.rag_portable.rerankers import get_reranker
 from finetune_studio.data.rag_portable.rrf import rrf_fuse
 from finetune_studio.data.rag_portable.schema import Manifest
@@ -158,14 +159,4 @@ class PortableRAGQuery:
         return sources
 
     def format_context(self, results: list[dict], max_chars: int = 4000) -> str:
-        blocks = []
-        total = 0
-        for r in results:
-            score_str = r.get("ce_score") if "ce_score" in r else r.get("rrf_score", 0)
-            label = r.get("filename") or r.get("source") or "source"
-            block = f"[{r['rank']}] (source: {label}, score {score_str:.3f})\n{r['text']}"
-            if total + len(block) > max_chars:
-                break
-            blocks.append(block)
-            total += len(block)
-        return "\n\n---\n\n".join(blocks)
+        return format_context_blocks(results, max_chars=max_chars)

@@ -796,13 +796,26 @@ async def delete_source_route(pid: str, source_id: str):
 
 @router.get("/projects/{pid}/data-prep/export")
 async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
-                     force: bool = False):
+                     force: bool = False, grounded_share: float | None = None,
+                     distractors: int = 0):
+    """Export pairs as JSONL + register the dataset.
+
+    ``grounded_share`` (0-1): fraction of rows rewritten to carry the RAG-chat
+    prompt + CONTEXT from the pair's own source chunk. Omitted = auto (40% when
+    the project has a built RAG corpus, else off); ``0`` = plain rows only.
+    ``distractors`` (0-2): extra other-file chunks in that CONTEXT.
+    """
     missing = _project_404(pid)
     if missing is not None:
         return missing
     if only not in ("approved", "pending", "rejected", "all"):
         return JSONResponse({"error": f"unknown only filter: {only}"}, status_code=400)
-    from finetune_studio.data.prep import export_qa_jsonl
+    from finetune_studio.data.prep.export import build_qa_export
+    from finetune_studio.data.prep.grounding import resolve_grounding
+    try:
+        grounding = resolve_grounding(pid, grounded_share, distractors)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
     # 100%-coverage gate: run the deterministic fill pass first so chunks the
     # stochastic mining pass never converted still land as approved extractive
     # pairs. Never export a dataset with silent coverage holes.
@@ -841,9 +854,11 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
             status_code=500,
         )
     try:
-        body = export_qa_jsonl(pid, fmt=fmt, only=only)
+        result = build_qa_export(pid, fmt, only, grounding=grounding)
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
+    body = result.body
+    n_grounded = result.grounding.grounded if result.grounding else 0
     # The export lives in a stream buffer; persist it to the project's datasets
     # dir so it's selectable from the Training tab and referenceable forever.
     try:
@@ -864,6 +879,8 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
         _proj = _db.get_project(pid) or {}
         _rows = count_qa_pairs(str(target))
         _disp = f"{_proj.get('name') or pid} · {fmt} · {_rows} rows"
+        if n_grounded:
+            _disp += f" ({n_grounded} with retrieved context)"
         existing = get_dataset_by_path(pid, str(target))
         if not existing:
             create_dataset(
@@ -887,7 +904,11 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
     return Response(
         body.encode("utf-8"),
         media_type="application/x-ndjson",
-        headers={"Content-Disposition": f'attachment; filename="{pid}-{fmt}-{only}.jsonl"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{pid}-{fmt}-{only}.jsonl"',
+            "X-Rows": str(result.rows),
+            "X-Grounded-Rows": str(n_grounded),
+        },
     )
 
 
