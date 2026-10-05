@@ -31,7 +31,7 @@ Local fine-tune, data-prep, and RAG WebUI. Current focus: context-grounded datas
 
 - No `fts` command builds datasets; grounded options are currently exposed through the WebUI/API.
 - RAG grounding comparison is n=1 with five questions; one unseen heater-power fact was answered with a memorized capacity value.
-- Existing project follow-ups remain: test-file review is incomplete; several WebUI/API, CLI, Windows installer, and RAG coverage issues are catalogued in the prior handoff archive at `docs/archive/HANDOFF-2026-10-05.md`.
+- Broader product follow-ups (API error semantics, CLI path fencing, installer/platform coverage, and RAG coverage) remain outside this grounded-row change.
 
 ## Commands
 
