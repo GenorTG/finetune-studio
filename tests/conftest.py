@@ -110,7 +110,19 @@ def temp_db(monkeypatch):
     # against THIS test's fresh path on first use.
     monkeypatch.setattr(_mgr_mod, "_manager", None)
 
+    # The per-project filesystem (file library, QA sources, RAG corpora) lives
+    # under FTS_ROOT, resolved once at import — a test that uploads a file or
+    # hits a project route used to create ``~/.finetune-studio/projects/<pid>``
+    # on the real machine (122 empty leaked dirs found after a live e2e run).
+    import shutil
+
+    from finetune_studio.data.fs import paths as _fts_paths
+    fts_root = Path(tempfile.mkdtemp(prefix="fts-test-root-"))
+    monkeypatch.setattr(_fts_paths, "_ROOT", fts_root)
+    monkeypatch.setattr(_fts_paths, "_PROJECTS", fts_root / "projects")
+
     yield db_path
+    shutil.rmtree(fts_root, ignore_errors=True)
     try:
         os.unlink(db_path)
     except OSError:
