@@ -541,3 +541,24 @@ def test_source_builds_bypass_uvs_wheel_cache_so_cmake_flags_are_honored(monkeyp
     plan = _plan_for(monkeypatch, tmp_path, **nvidia([R3090], "580.178.04", "13.0"))
     src = next(a for a in ap.llama_py_attempts(plan, "py", []) if a[0].startswith("source build"))
     assert "--no-cache" in src[1] and "--no-binary" in src[1]
+
+
+# ── Verified-defect regressions (.tmp/accel-verify/REPORT.md D1–D12) ───────
+
+def test_d1_cuda13_wheel_is_skipped_when_a_visible_gpu_is_older_than_sm75(monkeypatch, tmp_path) -> None:
+    # abetlen's cu13x wheels carry SASS for sm_75+ only (cuobjdump 2026-10-05): a Pascal/Volta GPU would
+    # install fine, pass the offload probe, then die with "no kernel image is available" on first load.
+    for gpus in ([G1070], [R3090, G1070]):
+        fake_hw(monkeypatch, tmp_path, **nvidia(gpus, "580.95", "13.0"))
+        assert ap.build_plan(ap.detect()).wheel_index == f"{ap.ABETLEN_WHL}/cu125"
+    fake_hw(monkeypatch, tmp_path, **nvidia([("NVIDIA TITAN V", "7.0")], "580.95", "13.0"))
+    assert ap.build_plan(ap.detect()).wheel_index.endswith("/cu125")
+    fake_hw(monkeypatch, tmp_path, **nvidia([R3090], "580.95", "13.0"))
+    assert ap.build_plan(ap.detect()).wheel_index.endswith("/cu132")      # sm_86 keeps the cu13x wheel
+
+
+def test_d1_old_gpu_on_a_cuda13_driver_needs_the_cuda12_runtime_for_the_fallback_wheel(monkeypatch, tmp_path) -> None:
+    spec = nvidia([G1070], "580.95", "13.0")
+    spec["files"].pop("/usr/local/cuda/lib64/libcudart.so.12")
+    fake_hw(monkeypatch, tmp_path, **spec)
+    assert ap.build_plan(ap.detect()).wheel_index == ""                  # source build instead, never cu132

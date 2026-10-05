@@ -60,9 +60,11 @@ ROCM_TORCH_TAGS: tuple[tuple[str, tuple[int, int]], ...] = (
     ("rocm6.4", (6, 4)), ("rocm6.3", (6, 3)), ("rocm6.2", (6, 2)),
 )
 # abetlen publishes CUDA wheels only for these tags (no cu126/cu128/cu129).
-ABETLEN_CUDA_TAGS: tuple[tuple[str, tuple[int, int]], ...] = (
-    ("cu132", (13, 2)), ("cu130", (13, 0)), ("cu125", (12, 5)),
-    ("cu124", (12, 4)), ("cu123", (12, 3)), ("cu122", (12, 2)), ("cu121", (12, 1)),
+# Third field: lowest compute capability the wheel ships SASS for (cuobjdump 2026-10-05: cu132 is
+# sm_75+, cu125 is sm_60+; nvcc 13 cannot target older SMs so cu130 follows cu132; 0.0 = not inspected).
+ABETLEN_CUDA_TAGS: tuple[tuple[str, tuple[int, int], float], ...] = (
+    ("cu132", (13, 2), 7.5), ("cu130", (13, 0), 7.5), ("cu125", (12, 5), 6.0),
+    ("cu124", (12, 4), 0.0), ("cu123", (12, 3), 0.0), ("cu122", (12, 2), 0.0), ("cu121", (12, 1), 0.0),
 )
 # Lowest SM nvcc of a given major can still target.
 NVCC_MIN_SM = {13: 75, 12: 50, 11: 35}
@@ -686,10 +688,8 @@ def build_plan(gpu: GpuInfo, *, unsloth: str = "") -> Plan:
         idx, backend = f"{PYTORCH_WHL}/{tag}", "cuda"
         # Prebuilt llama-cpp-python wheel: needs the CUDA runtime libs on the box,
         # a tag abetlen publishes, and kernels for the GPU (sm_120 has none).
-        cm = _ver(gpu.cuda_max)
-        if newest < 12 and _has_cuda_runtime(gpu, cm[0]):
-            wheel = next((f"{ABETLEN_WHL}/{t}" for t, v in ABETLEN_CUDA_TAGS
-                          if (v[0] == cm[0] and (cm[0] >= 13 or v <= cm)) ), "")
+        if newest < 12:
+            wheel = pick_abetlen_wheel(gpu)
     elif gpu.vendor == "amd" and _system()[0] == "Windows":
         # There are no ROCm PyTorch wheels for Windows: say so loudly instead of failing the install.
         tag, idx, backend = "cpu", f"{PYTORCH_WHL}/cpu", "cpu"
@@ -717,6 +717,26 @@ def build_plan(gpu: GpuInfo, *, unsloth: str = "") -> Plan:
     return Plan(gpu.vendor, gpu.name, gpu.driver_version, tag, idx, backend, fallbacks,
                 bnb=gpu.vendor in ("nvidia", "amd", "intel", "apple"), unsloth_ok=unsloth_ok,
                 llama_backends=llama_backends(gpu), wheel_index=wheel, warnings=warn, info=gpu)
+
+
+def pick_abetlen_wheel(gpu: GpuInfo) -> str:
+    """Prebuilt llama-cpp-python wheel index the driver can run, whose runtime libs are on the box
+    and whose kernels cover the OLDEST visible GPU ("" => source build).
+
+    A CUDA 13 driver also runs cu12x wheels, so a Pascal/Volta GPU that the cu13x wheels have no
+    kernels for gets cu125 instead of a wheel that installs, passes the offload probe and then
+    fails with "no kernel image is available" on the first load."""
+    cm = _ver(gpu.cuda_max)
+    if cm == (0, 0):
+        return ""
+    ccs = [float(c) for c in gpu.compute_caps]
+    oldest = min(ccs) if ccs else 0.0
+    for tag, v, floor in ABETLEN_CUDA_TAGS:
+        if v[0] > cm[0] or (v[0] == cm[0] and cm[0] < 13 and v > cm) or oldest < floor:
+            continue
+        if _has_cuda_runtime(gpu, v[0]):
+            return f"{ABETLEN_WHL}/{tag}"
+    return ""
 
 
 def _has_cuda_runtime(gpu: GpuInfo, major: int) -> bool:
