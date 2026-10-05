@@ -60,3 +60,30 @@ class TestDeleteProjectCleansFilesystem:
         finally:
             import shutil
             shutil.rmtree(Path("output") / "projects" / pid, ignore_errors=True)
+
+
+class TestDeleteProjectRefreshesModelRegistry:
+    """Found live: after deleting a project its trained exports kept showing in
+    /api/models/list (and every model picker) until a manual refresh."""
+
+    def test_delete_rescans_model_registry(self, client, mock_settings, monkeypatch):
+        from finetune_studio import db
+        from finetune_studio.webui.routes import models as models_routes
+
+        calls: list[int] = []
+        monkeypatch.setattr(models_routes, "refresh_model_registry", lambda: calls.append(1) or 0)
+        pid = db.create_project(name="P", description="")["id"]
+        assert client.delete(f"/api/projects/{pid}").status_code == 200
+        assert calls == [1]
+
+    def test_rescan_failure_does_not_fail_the_delete(self, client, mock_settings, monkeypatch):
+        from finetune_studio import db
+        from finetune_studio.webui.routes import models as models_routes
+
+        def boom() -> int:
+            raise OSError("disk walk failed")
+
+        monkeypatch.setattr(models_routes, "refresh_model_registry", boom)
+        pid = db.create_project(name="P", description="")["id"]
+        assert client.delete(f"/api/projects/{pid}").status_code == 200
+        assert db.get_project(pid) is None

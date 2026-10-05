@@ -14,6 +14,7 @@ routes/rag.py + routes/project_rag.py).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
@@ -136,6 +137,14 @@ async def delete_project(pid: str):
         rag_corpus_dir(pid),
     ):
         shutil.rmtree(project_dir, ignore_errors=True)
+
+    # The deleted project's trained exports stay in the model registry (and the
+    # model pickers) until the next rescan — drop them now.
+    from finetune_studio.webui.routes.models import refresh_model_registry
+    try:
+        await asyncio.to_thread(refresh_model_registry)
+    except Exception:  # the delete already succeeded; a rescan failure must not undo that
+        log.warning("model registry rescan after project delete failed", exc_info=True)
 
     return {"ok": True}
 
