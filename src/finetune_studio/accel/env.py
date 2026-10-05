@@ -9,6 +9,8 @@ off a GPU that is reserved for something else.
 
 Tokens match case-insensitively against the GPU name (substring), the index,
 or the UUID prefix, e.g. ``FTS_GPU_EXCLUDE="GTX 1070"`` or ``FTS_GPU_DEVICES=0,1``.
+A number that is the index of a listed GPU matches that index only ("0" must not
+hit "RTX 30**9**0"); any other number ("1070") is a name fragment.
 A policy that would hide every GPU is ignored (CPU is only for GPU-less hosts);
 an explicit ``CUDA_VISIBLE_DEVICES`` / ``HIP_VISIBLE_DEVICES`` always wins.
 """
@@ -43,10 +45,16 @@ def _tokens(raw: str | None) -> list[str]:
     return [t.strip().lower() for t in (raw or "").split(",") if t.strip()]
 
 
-def _matches(gpu: PhysicalGPU, tokens: list[str]) -> bool:
+def _matches(gpu: PhysicalGPU, tokens: list[str], indices: frozenset[int]) -> bool:
     uuid = gpu.ident.lower()
-    return any(t == str(gpu.index) or t in gpu.name.lower() or (len(t) >= 4 and uuid.startswith(t))
-               for t in tokens)
+    for t in tokens:
+        if t.isdigit() and int(t) in indices:
+            if int(t) == gpu.index:
+                return True
+            continue  # an index token never falls through to name/UUID matching
+        if t in gpu.name.lower() or (len(t) >= 4 and uuid.startswith(t)):
+            return True
+    return False
 
 
 def list_nvidia(run: Runner = _run) -> list[PhysicalGPU]:
@@ -78,8 +86,9 @@ def list_amd(run: Runner = _run) -> list[PhysicalGPU]:
 
 
 def _select(gpus: list[PhysicalGPU], allow: list[str], deny: list[str]) -> list[PhysicalGPU]:
-    kept = [g for g in gpus if not allow or _matches(g, allow)]
-    return [g for g in kept if not (deny and _matches(g, deny))]
+    indices = frozenset(g.index for g in gpus)
+    kept = [g for g in gpus if not allow or _matches(g, allow, indices)]
+    return [g for g in kept if not (deny and _matches(g, deny, indices))]
 
 
 def apply_device_policy(
@@ -95,7 +104,7 @@ def apply_device_policy(
     applied: dict[str, str] = {}
     for var, lister, runner in (("CUDA_VISIBLE_DEVICES", list_nvidia, nvidia),
                                 ("HIP_VISIBLE_DEVICES", list_amd, amd)):
-        if var in env or (var == "CUDA_VISIBLE_DEVICES" and "ROCR_VISIBLE_DEVICES" in env):
+        if var in env or (var == "HIP_VISIBLE_DEVICES" and "ROCR_VISIBLE_DEVICES" in env):
             continue  # the operator pinned devices explicitly
         gpus = lister(runner)
         if not gpus:

@@ -186,6 +186,26 @@ def test_policy_noop_when_nothing_would_be_masked() -> None:
     assert _policy({"FTS_GPU_EXCLUDE": "radeon"}) == {}
 
 
+def test_d7_digit_tokens_are_indices_not_name_substrings() -> None:
+    # "0" is in both "RTX 3090" and "GTX 1070": the old substring match hid every GPU, so the policy was ignored.
+    e = {"FTS_GPU_EXCLUDE": "0"}
+    assert _policy(e) == {"CUDA_VISIBLE_DEVICES": "GPU-b6f0e3aa-5f4b"}
+    smi = "0, GPU-aaaa1111-0000, NVIDIA GeForce GTX 1080\n1, GPU-bbbb2222-0000, NVIDIA GeForce RTX 3090\n"
+    assert _policy({"FTS_GPU_DEVICES": "1"}, smi) == {"CUDA_VISIBLE_DEVICES": "GPU-bbbb2222-0000"}
+    # a number that is not an index of any GPU is still a model-name fragment
+    assert _policy({"FTS_GPU_EXCLUDE": "1070"}) == {"CUDA_VISIBLE_DEVICES": "GPU-297ed2f9-b4d6"}
+
+
+def test_d7_rocr_visible_devices_pins_hip_not_cuda() -> None:
+    rocm = json.dumps({"card0": {"Card Series": "Radeon RX 7900 XTX"}, "card1": {"Card Series": "Radeon 780M"}})
+    e = {"FTS_GPU_EXCLUDE": "780m", "ROCR_VISIBLE_DEVICES": "0"}
+    assert env.apply_device_policy(e, nvidia=lambda _c: "", amd=lambda _c: rocm) == {}      # operator pinned ROCm
+    assert "HIP_VISIBLE_DEVICES" not in e
+    e = {"FTS_GPU_EXCLUDE": "gtx 1070", "ROCR_VISIBLE_DEVICES": "0"}                       # unrelated to NVIDIA masking
+    assert env.apply_device_policy(e, nvidia=lambda _c: NVIDIA_SMI, amd=lambda _c: "") == {
+        "CUDA_VISIBLE_DEVICES": "GPU-297ed2f9-b4d6"}
+
+
 def test_amd_policy_uses_hip_visible_devices() -> None:
     rocm = json.dumps({"card0": {"Card Series": "Radeon RX 7900 XTX"},
                        "card1": {"Card Series": "Radeon 780M"}, "system": {}})
