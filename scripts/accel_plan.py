@@ -874,7 +874,7 @@ def torch_commands(plan: Plan, py: str, *, unsloth_profile: bool = False) -> lis
 
 def torch_probe_code(backend: str) -> str:
     want = {"cuda": "torch.version.cuda", "hip": "torch.version.hip",
-            "xpu": "'+xpu' in torch.__version__ or hasattr(torch, 'xpu')",
+            "xpu": "bool(getattr(torch.version, 'xpu', None)) or '+xpu' in torch.__version__",
             "mps": "torch.backends.mps.is_built()", "cpu": "True"}[backend]
     return f"import torch; print(torch.__version__); raise SystemExit(0 if ({want}) else 3)"
 

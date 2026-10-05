@@ -621,3 +621,18 @@ def test_d4_rdna4_torch_fallbacks_never_step_below_the_gfx12_rocm_floor(monkeypa
     # RDNA3 keeps its older fallbacks
     fake_hw(monkeypatch, tmp_path, **amd(rocm="7.2.0"))
     assert ap.build_plan(ap.detect()).torch_fallback_tags[:2] == ["rocm7.1", "rocm7.0"]
+
+
+def _probe_exit(tmp_path: Path, backend: str, torch_src: str) -> int:
+    """Run `torch_probe_code(backend)` against a stub `torch` module."""
+    (tmp_path / "torch.py").write_text(torch_src)
+    return subprocess.run([sys.executable, "-c", ap.torch_probe_code(backend)], cwd=tmp_path, check=False,
+                          env={**os.environ, "PYTHONPATH": str(tmp_path)}, capture_output=True).returncode
+
+
+def test_d8_xpu_probe_rejects_a_non_xpu_torch_even_though_torch_xpu_exists(tmp_path: Path) -> None:
+    # `hasattr(torch, "xpu")` is True on every torch build (CPU/CUDA included), so it proved nothing.
+    cpu_build = "__version__ = '2.14.1+cu130'\nxpu = object()\nclass version:\n    xpu = None\n"
+    xpu_build = "__version__ = '2.14.1+xpu'\nxpu = object()\nclass version:\n    xpu = '20250300'\n"
+    assert _probe_exit(tmp_path, "xpu", cpu_build) == 3
+    assert _probe_exit(tmp_path, "xpu", xpu_build) == 0
