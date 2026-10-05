@@ -24,7 +24,10 @@ os.environ.setdefault("UNSLOTH_DATASET_NUM_PROC", "0")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 # Expandable segments fight cuBLAS/pool fragmentation: long r128 runs on a
 # 24 GiB card OOM mid-run at step ~40 (e3f1ae03) despite headroom at start.
-os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+# Only on backends that honour it (NVIDIA; AMD on torch>=2.6) — never xpu/mps/cpu.
+from finetune_studio.training.accel_plan import apply_alloc_conf
+
+apply_alloc_conf()
 
 
 def _config_from_dict(raw: dict[str, Any]) -> Any:

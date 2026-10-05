@@ -121,7 +121,12 @@ def test_load_hf_4bit_uses_bitsandbytes_config(
             BitsAndBytesConfig=FakeBnb,
         ),
     )
-    monkeypatch.setattr("torch.cuda.is_available", lambda: True)
+    from finetune_studio.accel import device as accel_device
+    monkeypatch.setattr(accel_device, "_cached", accel_device.Accelerator(
+        kind="cuda", index=0, name="Fake GPU", total_gb=24.0, free_gb=20.0,
+        compute_capability=(8, 6), supports_bf16=True, supports_flash_attention=True,
+        supports_4bit=True, runtime="CUDA 12.8"))
+    monkeypatch.setattr("finetune_studio.training.accel_plan._has_module", lambda _n: True)
 
     engine = InferenceEngine()
     engine._load_hf(str(merged), device="auto", load_in_4bit=True)

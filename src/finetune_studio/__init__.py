@@ -14,6 +14,14 @@ It depends on the finetune_studio.templates module for:
   - Built-in tools
 """
 
+# GPU visibility policy (FTS_GPU_DEVICES / FTS_GPU_EXCLUDE) must be in the
+# environment before torch or llama.cpp initialise a driver anywhere in-process.
+from finetune_studio.accel.env import (
+    apply_device_policy as _apply_device_policy,
+)
+
+_apply_device_policy()
+
 _BASE_VERSION = "0.1.0"
 __version__ = _BASE_VERSION
 # Human-facing maturity label; keep the package version semantic.

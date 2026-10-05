@@ -10,6 +10,7 @@ import tempfile
 import time
 from pathlib import Path
 
+from finetune_studio import accel
 from finetune_studio.training.vram.estimate import estimate_vram
 from finetune_studio.training.vram.gpu import detect as detect_gpu
 from finetune_studio.training.vram.report import _parse_size
@@ -63,72 +64,34 @@ def profile_training(
     scratch_dir: Path | None = None
 
     try:
-        import torch
-
         # Own a private scratch dir; never hand a caller-supplied path to rmtree.
         scratch_base = Path(output_dir) if output_dir else Path.home() / ".cache" / "fts-vram-profile"
         scratch_base.mkdir(parents=True, exist_ok=True)
         scratch_dir = Path(tempfile.mkdtemp(prefix="run-", dir=str(scratch_base)))
 
-        torch.cuda.reset_peak_memory_stats()
+        accel.reset_peak_memory()
 
-        if method == "qlora":
-            # E2E-40: never import unsloth in this process — use bitsandbytes + PEFT.
-            from peft import LoraConfig, get_peft_model
-            from transformers import (
-                AutoModelForCausalLM,
-                BitsAndBytesConfig,
-            )
+        from peft import LoraConfig, get_peft_model
 
-            bnb = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.bfloat16,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4",
-            )
-            from finetune_studio.hf_env import load_tokenizer
-            tokenizer = load_tokenizer(model_path)
-            if tokenizer.pad_token is None:
-                tokenizer.pad_token = tokenizer.eos_token
-            model = AutoModelForCausalLM.from_pretrained(
-                model_path,
-                quantization_config=bnb,
-                device_map={"": 0},
-                trust_remote_code=True,
-            )
-            lora_config = LoraConfig(
-                r=lora_rank, lora_alpha=lora_rank * 2,
-                target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
-                                 "gate_proj", "up_proj", "down_proj"],
-                lora_dropout=0, bias="none", task_type="CAUSAL_LM",
-            )
-            model = get_peft_model(model, lora_config)
-        else:
-            from peft import LoraConfig, get_peft_model
-            from transformers import AutoModelForCausalLM
-
-            from finetune_studio.hf_env import load_tokenizer
-            tokenizer = load_tokenizer(model_path)
-            if tokenizer.pad_token is None:
-                tokenizer.pad_token = tokenizer.eos_token
-            model = AutoModelForCausalLM.from_pretrained(
-                model_path, torch_dtype=torch.bfloat16,
-                device_map={"": 0}, trust_remote_code=True,
-            )
-            lora_config = LoraConfig(
-                r=lora_rank, lora_alpha=lora_rank * 2,
-                target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
-                                 "gate_proj", "up_proj", "down_proj"],
-                lora_dropout=0, bias="none", task_type="CAUSAL_LM",
-            )
-            model = get_peft_model(model, lora_config)
+        from finetune_studio.hf_env import load_tokenizer
+        from finetune_studio.models.hf_loader import load_causal_lm
+        tokenizer = load_tokenizer(model_path)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        # E2E-40: never import unsloth in this process — bitsandbytes (where the
+        # backend supports it) + PEFT; plain 16-bit/fp32 otherwise.
+        model = load_causal_lm(model_path, force_4bit=(method == "qlora"))
+        lora_config = LoraConfig(
+            r=lora_rank, lora_alpha=lora_rank * 2,
+            target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+                             "gate_proj", "up_proj", "down_proj"],
+            lora_dropout=0, bias="none", task_type="CAUSAL_LM",
+        )
+        model = get_peft_model(model, lora_config)
 
         # Measure model loading VRAM
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
-            measured_model_gb = torch.cuda.max_memory_allocated() / (1024**3)
-        else:
-            measured_model_gb = 0
+        accel.synchronize()
+        measured_model_gb = accel.peak_memory_gb()
 
         # Format synthetic data
         from datasets import Dataset
@@ -153,7 +116,10 @@ def profile_training(
             pass
         from trl import SFTTrainer
 
+        from finetune_studio.training.accel_plan import resolve_train_plan
         from finetune_studio.training.sft_args import build_sft_training_args
+
+        plan = resolve_train_plan(want_unsloth=False, want_8bit_optim=True)
 
         # SFTConfig (not TrainingArguments): avoids TRL KeyError push_to_hub_token.
         args = build_sft_training_args(
@@ -165,10 +131,12 @@ def profile_training(
             warmup_steps=2,
             logging_steps=1,
             save_steps=999999,  # Don't save during profiling
-            bf16=True,
-            optim="adamw_8bit",
+            bf16=plan.bf16,
+            optim=plan.optim,
             seed=3407,
             gradient_checkpointing=True,
+            fp16=plan.fp16,
+            use_cpu=plan.use_cpu,
         )
 
         trainer = SFTTrainer(
@@ -178,13 +146,9 @@ def profile_training(
 
         trainer.train()
 
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
-            peak_vram = torch.cuda.max_memory_allocated() / (1024**3)
-            measured_adapters_gb = peak_vram - measured_model_gb
-        else:
-            peak_vram = 0
-            measured_adapters_gb = 0
+        accel.synchronize()
+        peak_vram = accel.peak_memory_gb()
+        measured_adapters_gb = max(peak_vram - measured_model_gb, 0.0)
 
         step_time = (time.time() - start_time) / max(num_steps, 1)
 

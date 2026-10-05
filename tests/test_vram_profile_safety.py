@@ -25,6 +25,15 @@ def _fake_torch(reset_error: Exception | None = None) -> types.ModuleType:
     return torch
 
 
+def _pin_cuda(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the process-wide accelerator to a CUDA box so the test is host-independent."""
+    from finetune_studio.accel import device as accel_device
+    monkeypatch.setattr(accel_device, "_cached", accel_device.Accelerator(
+        kind="cuda", index=0, name="Fake GPU", total_gb=24.0, free_gb=20.0,
+        compute_capability=(8, 6), supports_bf16=True, supports_flash_attention=True,
+        supports_4bit=True, runtime="CUDA 12.8"))
+
+
 @pytest.fixture
 def no_ml_stack(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make the heavy imports fail fast so the profiling body errors deterministically."""
@@ -33,6 +42,7 @@ def no_ml_stack(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_cuda_init_failure_is_structured_result(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _pin_cuda(monkeypatch)
     monkeypatch.setitem(sys.modules, "torch", _fake_torch(RuntimeError("CUDA driver init failed")))
     result = profile_mod.profile_training("some/model", output_dir=str(tmp_path))
     assert result.success is False

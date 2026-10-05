@@ -43,15 +43,14 @@ IDLE_TIMEOUT = idle_timeout()
 
 
 def release_idle_memory() -> None:
-    """Hand cached memory back to the OS/driver (GC, CUDA cache, glibc heap, parsed-file cache)."""
+    """Hand cached memory back to the OS/driver (GC, accelerator cache, glibc heap, parsed-file cache)."""
     import ctypes
     import gc
 
     gc.collect()
     try:
-        import torch
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        from finetune_studio import accel
+        accel.empty_cache()
     except Exception:  # noqa: BLE001,S110
         pass
     try:
@@ -137,24 +136,6 @@ class InferenceEngine:
         except Exception:  # noqa: BLE001
             return False
 
-    def _load_hf_bnb_4bit(self, model_path: str, device_map: str | dict):
-        """Load with bitsandbytes 4-bit (never Unsloth — E2E-40)."""
-        import torch
-        from transformers import AutoModelForCausalLM, BitsAndBytesConfig
-
-        quant = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.bfloat16,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4",
-        )
-        return AutoModelForCausalLM.from_pretrained(
-            model_path,
-            quantization_config=quant,
-            device_map=device_map,
-            trust_remote_code=True,
-        )
-
     def _load_hf(self, model_path, device, max_seq_length=None, load_in_4bit=False):
         """Load HF checkpoints with plain transformers (E2E-40).
 
@@ -162,9 +143,6 @@ class InferenceEngine:
         True or a full-precision load OOMs. Never import Unsloth — it monkey-patches
         transformers globally and poisons all later inference in this process.
         """
-        import torch
-        from transformers import AutoModelForCausalLM
-
         from finetune_studio.config import settings
 
         # max_seq_length kept for API compatibility with callers / Unsloth era.
@@ -175,51 +153,11 @@ class InferenceEngine:
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
-        device_map: str | dict = {"": 0} if torch.cuda.is_available() else "cpu"
+        from finetune_studio import accel
+        from finetune_studio.models.hf_loader import load_causal_lm
 
-        if load_in_4bit and torch.cuda.is_available():
-            self.model = self._load_hf_bnb_4bit(model_path, device_map={"": 0})
-            self.is_gguf = False
-            return
-
-        try:
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_path,
-                torch_dtype=dtype,
-                device_map=device_map,
-                trust_remote_code=True,
-            )
-        except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
-            err = str(e).lower()
-            if "out of memory" not in err and "cuda" not in err:
-                raise
-            try:
-                import gc
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            except Exception:  # noqa: BLE001,S110
-                pass
-            # Prefer 4-bit when VRAM is insufficient; then mixed device_map.
-            if torch.cuda.is_available():
-                try:
-                    self.model = self._load_hf_bnb_4bit(model_path, device_map={"": 0})
-                    self.is_gguf = False
-                    return
-                except Exception:  # noqa: BLE001
-                    try:
-                        import gc
-                        gc.collect()
-                        torch.cuda.empty_cache()
-                    except Exception:  # noqa: BLE001,S110
-                        pass
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_path,
-                torch_dtype=dtype,
-                device_map="auto",
-                trust_remote_code=True,
-            )
+        accel.enable_fast_matmul()
+        self.model = load_causal_lm(model_path, force_4bit=load_in_4bit)
         self.is_gguf = False
 
     def _load_gguf(self, gguf_path, n_ctx=DEFAULT_N_CTX, n_gpu_layers=-1, n_batch=512, mmap=True, mlock=False,
@@ -287,7 +225,7 @@ class InferenceEngine:
         3. Explicitly `del`s the object and forces an immediate GC pass so
            `Llama.__del__` runs while we're still on the calling thread
            (the native free is deterministic this way).
-        4. Calls `torch.cuda.empty_cache()` if available so PyTorch's
+        4. Releases the accelerator's cache (any vendor) so PyTorch's
            caching allocator hands memory back to the driver.
 
         After unload, `self.model is None` AND the Llama native context is
@@ -329,9 +267,8 @@ class InferenceEngine:
             pass
 
         try:
-            import torch
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            from finetune_studio import accel
+            accel.empty_cache()
         except Exception:  # noqa: BLE001,S110
             pass
 

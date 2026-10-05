@@ -19,7 +19,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from finetune_studio.accel import is_oom_message, llama_gpu_kwargs
+
 log = logging.getLogger(__name__)
+
+# GPU-offload warnings are identical on every load; log each one once per process.
+_LOGGED_WARNINGS: set[str] = set()
 
 # Loader parameters every call site may set. Kept in one place so a new
 # parameter is one addition here instead of N additions at N call sites.
@@ -107,6 +112,16 @@ def load_llama_gguf(
     }
     if chat_handler is not None:
         kwargs["chat_handler"] = chat_handler
+    # Route to the accelerator accel chose (main_gpu on multi-GPU hosts) and
+    # surface a GPU-host/CPU-llama.cpp mismatch instead of degrading silently.
+    gpu_extras, gpu_warnings = llama_gpu_kwargs()
+    kwargs.update(gpu_extras)
+    for w in gpu_warnings:
+        if w not in _LOGGED_WARNINGS:
+            _LOGGED_WARNINGS.add(w)
+            log.warning("load_llama_gguf: %s", w)
+        if w not in result.warnings:
+            result.warnings.append(w)
     if flash_attn:
         kwargs["flash_attn"] = True
     if mlock:
@@ -137,8 +152,7 @@ def load_llama_gguf(
             last_err = None
             break
         except Exception as e:
-            msg = str(e).lower()
-            if "out of memory" not in msg and "cuda" not in msg and "vram" not in msg:
+            if not is_oom_message(str(e)):
                 raise
             last_err = e
             new_ctx = max(512, kwargs["n_ctx"] // 2)

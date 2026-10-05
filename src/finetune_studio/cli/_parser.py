@@ -164,6 +164,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_rag_test.add_argument("--system-prompt", default="")
     p_rag_test.add_argument("--json", action="store_true")
 
+    # ── accel ──
+    p_accel = sub.add_parser("accel", help="Show the compute accelerator (GPU first); exit 1 if a GPU host runs on CPU")
+    p_accel.add_argument("--json", action="store_true")
+
     # ── vram ──
     p_vram = sub.add_parser("vram", help="GPU VRAM profiling & recommendations")
     vram_sub = p_vram.add_subparsers(dest="vram_command")

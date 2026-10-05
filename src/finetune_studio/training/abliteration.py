@@ -55,12 +55,18 @@ SAFE_TEST_PROMPTS = [
 ]
 
 
+def _resolve_device(device: str | None) -> str:
+    """Explicit device wins; otherwise the accelerator (GPU first, CPU only without a GPU)."""
+    from finetune_studio import accel
+    return device or accel.get_accelerator().torch_device
+
+
 def detect_refusal_direction(
     model,
     tokenizer,
     layer_indices: list[int] | None = None,
     max_length: int = 256,
-    device: str = "cuda",
+    device: str | None = None,
 ) -> dict:
     """Detect the refusal direction in a model's hidden states.
 
@@ -69,11 +75,12 @@ def detect_refusal_direction(
         tokenizer: The tokenizer
         layer_indices: Which layers to analyze (default: last 4)
         max_length: Max token length for prompts
-        device: Device to run on
+        device: torch device string; default = the accelerator ``accel`` chose (GPU first, CPU only without one)
 
     Returns:
         {refusal_direction, refusal_magnitude, layer_indices, n_pairs}
     """
+    device = _resolve_device(device)
     if layer_indices is None:
         # Default: last 4 layers
         n_layers = model.config.num_hidden_layers
@@ -129,7 +136,7 @@ def abliterate_model(
     output_dir: str,
     layer_indices: list[int] | None = None,
     strength: float = 1.0,
-    device: str = "cuda",
+    device: str | None = None,
 ) -> dict:
     """Abliterate (de-censor) a model by removing its refusal direction.
 
@@ -138,7 +145,7 @@ def abliterate_model(
         output_dir: Where to save the abliterated model
         layer_indices: Which layers to modify (default: last 4)
         strength: How strongly to remove the direction (0.0 = no change, 1.0 = full removal)
-        device: Device to run on
+        device: torch device string; default = the accelerator ``accel`` chose (GPU first, CPU only without one)
 
     Returns:
         {output_dir, refusal_magnitude, layers_modified, strength}
@@ -146,11 +153,17 @@ def abliterate_model(
     import torch
     from transformers import AutoModelForCausalLM
 
+    from finetune_studio import accel
+
+    acc = accel.get_accelerator()
+    device = _resolve_device(device)
+    # fp16 on any GPU (matches the saved format); fp32 on the CPU where fp16 matmul is unsupported/slow.
+    work_dtype = torch.float16 if acc.is_gpu else torch.float32
     os.makedirs(output_dir, exist_ok=True)
 
     # Load model
     model = AutoModelForCausalLM.from_pretrained(
-        model_path, dtype=torch.float16, device_map=device, trust_remote_code=True,
+        model_path, dtype=work_dtype, device_map={"": device}, trust_remote_code=True,
     )
     from finetune_studio.hf_env import load_tokenizer
     tokenizer = load_tokenizer(model_path)
@@ -159,7 +172,7 @@ def abliterate_model(
     result = detect_refusal_direction(model, tokenizer, layer_indices, device=device)
 
     refusal_direction = result["refusal_direction"]
-    r = torch.tensor(refusal_direction, dtype=torch.float16, device=device)
+    r = torch.tensor(refusal_direction, dtype=work_dtype, device=device)
     r_norm = r / torch.norm(r)
 
     # Modify the output projection (lm_head) to remove the refusal direction
@@ -181,7 +194,9 @@ def abliterate_model(
     state_dict = model.state_dict()
     # Clone shared tensors to avoid duplicate memory error
     for key in list(state_dict.keys()):
-        state_dict[key] = state_dict[key].clone()
+        t = state_dict[key].clone()
+        # CPU runs in fp32; store fp16 like the GPU path so the file size matches.
+        state_dict[key] = t.to(torch.float16) if t.dtype == torch.float32 else t
     save_file(state_dict, os.path.join(output_dir, "model.safetensors"))
     tokenizer.save_pretrained(output_dir)
 
@@ -203,12 +218,13 @@ def abliterate_model(
     return result
 
 
-def test_refusals(model, tokenizer, device: str = "cuda") -> dict:
+def test_refusals(model, tokenizer, device: str | None = None) -> dict:
     """Test how often a model refuses to answer.
 
     Returns:
         {refusal_rate, n_tested, refusals: [{prompt, response}]}
     """
+    device = _resolve_device(device)
     refusals = []
     n_refusals = 0
 

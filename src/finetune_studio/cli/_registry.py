@@ -13,6 +13,7 @@ from __future__ import annotations
 import sys
 
 from finetune_studio.cli._parser import build_parser
+from finetune_studio.cli.commands.accel import cmd_accel
 from finetune_studio.cli.commands.analyze import cmd_analyze
 from finetune_studio.cli.commands.augment import cmd_augment
 from finetune_studio.cli.commands.benchmark import cmd_benchmark
@@ -50,6 +51,7 @@ COMMANDS = {
     "validate-hallucination": cmd_validate_hallucination,
     "rag-test": cmd_rag_test,
     "vram": cmd_vram,
+    "accel": cmd_accel,
     "files": cmd_files,
 }
 

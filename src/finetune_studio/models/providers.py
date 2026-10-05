@@ -18,6 +18,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from finetune_studio.accel import llama_support
 from finetune_studio.models.llama_loader import DEFAULT_N_CTX
 
 log = logging.getLogger(__name__)
@@ -177,11 +178,14 @@ class LocalGGUFProvider(ModelProvider):
         if block_count is not None:
             d["block_count"] = block_count
             d["context_length_native"] = self._topology.get("context_length")
+            # Report what can really run on a device: a CPU-only llama.cpp build
+            # ignores n_gpu_layers, so claiming "36/36 on GPU" would be a lie.
+            offload = llama_support().gpu_offload
             if self._n_gpu_layers == -1:
-                d["gpu_layers_on"] = block_count
+                d["gpu_layers_on"] = block_count if offload else 0
                 d["gpu_layers_total"] = block_count
             elif self._n_gpu_layers > 0:
-                d["gpu_layers_on"] = min(self._n_gpu_layers, block_count)
+                d["gpu_layers_on"] = min(self._n_gpu_layers, block_count) if offload else 0
                 d["gpu_layers_total"] = block_count
         return d
 

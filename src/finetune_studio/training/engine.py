@@ -108,18 +108,9 @@ def _stop_training_callback(engine: "TrainingEngine") -> Any:
 
 
 def _free_cuda() -> None:
-    """Drop refs the caller already deleted and clear the CUDA cache."""
-    try:
-        import gc
-        gc.collect()
-    except Exception:  # noqa: BLE001, S110
-        pass
-    try:
-        import torch
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-    except Exception:  # noqa: BLE001, S110
-        pass
+    """Drop refs the caller already deleted and release the accelerator cache (any vendor)."""
+    from finetune_studio import accel
+    accel.empty_cache()
 
 
 def _dir_size(path: str) -> int:
@@ -559,12 +550,20 @@ class TrainingEngine:
                 f"holding out {len(val_data)} for validation..."
             )
             self._notify()
-            if self.config.unsloth:
+            from finetune_studio import accel
+            from finetune_studio.training.accel_plan import resolve_train_plan
+            accel.enable_fast_matmul()
+            plan = resolve_train_plan(self.config.bf16, self.config.unsloth)
+            self._plan = plan
+            log.info("train plan: %s", plan)
+            if plan.use_unsloth:
                 try:
                     self._train_unsloth(train_data, val_data)
                 except ImportError:
                     self._train_standard(train_data, val_data)
             else:
+                if self.config.unsloth:
+                    log.info("unsloth skipped on %s — using the standard PEFT path", plan.kind)
                 self._train_standard(train_data, val_data)
             if self.state.status == "stopped":
                 return
@@ -627,44 +626,40 @@ class TrainingEngine:
             log.exception("Failed to update run %s", run_id)
 
     def _load_model_with_fallback(self, model_path, tokenizer):
-        """Load model with mixed VRAM/RAM fallback.
+        """Load the base model: full GPU offload -> 4-bit (OOM) -> RAM+VRAM mix.
 
-        Strategy:
-        1. Try full GPU offload (device_map={"": 0}) — fastest.
-        2. If OOM, retry with device_map="auto" — mixes RAM + VRAM, slower.
-        3. If still failing, raise the original error.
+        GPU-first on every vendor via ``accel``; a host without a GPU loads on
+        the CPU in fp32. See ``models.hf_loader.load_causal_lm``.
         """
-        import torch
-        from transformers import AutoModelForCausalLM
-        # Attempt 1: Full GPU
-        try:
-            self.state.message = "Loading model on GPU..."
+        from finetune_studio.models.hf_loader import load_causal_lm
+
+        def _status(msg: str) -> None:
+            self.state.message = msg
             self._notify()
-            model = AutoModelForCausalLM.from_pretrained(
-                model_path, torch_dtype="auto", device_map={"": 0},
-                trust_remote_code=True,
-            )
-            return model
-        except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
-            if "out of memory" not in str(e).lower() and "CUDA" not in str(e):
-                raise
-            self.state.message = (
-                "GPU OOM — retrying with mixed RAM+VRAM (slower)..."
-            )
-            self._notify()
-            try:
-                import gc
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            except Exception:  # OOM cleanup must never mask the retry
-                log.warning("Failed to free VRAM before retry", exc_info=True)
-        # Attempt 2: Mixed device map
-        self.state.message = "Loading model with CPU offload (RAM+VRAM mix)..."
-        self._notify()
-        return AutoModelForCausalLM.from_pretrained(
-            model_path, torch_dtype="auto", device_map="auto",
-            trust_remote_code=True,
+
+        return load_causal_lm(model_path, on_status=_status)
+
+    def _build_sft_args(self, has_eval: bool) -> Any:
+        """``SFTConfig`` whose precision / optimizer / device follow the accelerator plan."""
+        from finetune_studio.training.accel_plan import resolve_train_plan
+        from finetune_studio.training.sft_args import (
+            build_sft_training_args,
+            checkpoint_eval_kwargs,
+        )
+        cfg = self.config
+        plan = getattr(self, "_plan", None) or resolve_train_plan(cfg.bf16, cfg.unsloth)
+        extra = checkpoint_eval_kwargs(cfg, has_eval=has_eval)
+        # fp16 is passed explicitly: sft_args' default ``fp16 = not bf16`` would
+        # switch fp16 AMP on for a CPU run (and for a GPU the plan left in fp32).
+        extra.update(fp16=plan.fp16, use_cpu=plan.use_cpu)
+        return build_sft_training_args(
+            output_dir=cfg.output_dir, num_train_epochs=cfg.num_epochs,
+            per_device_train_batch_size=cfg.batch_size,
+            gradient_accumulation_steps=cfg.gradient_accumulation_steps,
+            learning_rate=cfg.learning_rate, warmup_steps=cfg.warmup_steps,
+            weight_decay=cfg.weight_decay, logging_steps=cfg.logging_steps,
+            save_steps=extra.pop("save_steps", cfg.save_steps),
+            bf16=plan.bf16, optim=plan.optim, **extra,
         )
 
     def _save_adapter(self, model, tokenizer, *, with_chat_template: bool = False) -> None:
@@ -757,7 +752,6 @@ class TrainingEngine:
 
         from unsloth import FastLanguageModel
 
-        from finetune_studio.training.sft_args import build_sft_args_from_config
         cfg = self.config
         self.state.message = "Loading model with Unsloth..."
         self._notify()
@@ -811,7 +805,7 @@ class TrainingEngine:
         self.state.total_steps = total
         eval_dataset, eval_callbacks = self._eval_setup(list(val_data), format_chat)
         # SFTConfig (not TrainingArguments): avoids TRL KeyError push_to_hub_token.
-        args = build_sft_args_from_config(cfg, has_eval=eval_dataset is not None)
+        args = self._build_sft_args(eval_dataset is not None)
         start_time = time.time()
         engine = self
         from transformers import TrainerCallback
@@ -877,7 +871,6 @@ class TrainingEngine:
         from peft import LoraConfig, get_peft_model
 
         from datasets import Dataset
-        from finetune_studio.training.sft_args import build_sft_args_from_config
         cfg = self.config
         self.state.message = "Loading model..."
         self._notify()
@@ -915,7 +908,7 @@ class TrainingEngine:
         from trl import SFTTrainer
         eval_dataset, eval_callbacks = self._eval_setup(list(val_data), format_chat)
         # SFTConfig (not TrainingArguments): avoids TRL KeyError push_to_hub_token.
-        args = build_sft_args_from_config(cfg, has_eval=eval_dataset is not None)
+        args = self._build_sft_args(eval_dataset is not None)
         start_time = time.time()
         engine = self
         from transformers import TrainerCallback
@@ -996,10 +989,9 @@ class TrainingEngine:
             pass
         _free_cuda()
 
-        import torch
         from peft import PeftModel
-        from transformers import AutoModelForCausalLM
 
+        from finetune_studio.models.hf_loader import load_merge_base
         from finetune_studio.training.merge_base import resolve_merge_base
 
         adapter_dir = os.path.join(output_dir, "adapter")
@@ -1008,11 +1000,7 @@ class TrainingEngine:
         peft_model = None
         merged = None
         try:
-            base = AutoModelForCausalLM.from_pretrained(
-                base_path,
-                torch_dtype=torch.bfloat16,
-                trust_remote_code=True,
-            )
+            base = load_merge_base(base_path)
             peft_model = PeftModel.from_pretrained(base, adapter_dir)
             merged = peft_model.merge_and_unload()
             if hasattr(merged, "config") and hasattr(merged.config, "quantization_config"):
@@ -1210,11 +1198,10 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
         return {"merged_path": merged_dir, "size_bytes": 0,
                 "size_human": "0 B", "skipped": True, "run": run}
     os.makedirs(merged_dir, exist_ok=True)
-    import torch
     from peft import PeftModel
-    from transformers import AutoModelForCausalLM
 
     from finetune_studio.hf_env import load_tokenizer
+    from finetune_studio.models.hf_loader import load_merge_base
     from finetune_studio.training.merge_base import resolve_merge_base
     tokenizer = load_tokenizer(adapter_dir)
     base_path = resolve_merge_base(base_model)
@@ -1223,9 +1210,7 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
     model = None
     merged = None
     try:
-        base = AutoModelForCausalLM.from_pretrained(
-            base_path, torch_dtype=torch.bfloat16, trust_remote_code=True,
-        )
+        base = load_merge_base(base_path)
         model = PeftModel.from_pretrained(base, adapter_dir)
         merged = model.merge_and_unload()
         # Strip quantization config from merged model
