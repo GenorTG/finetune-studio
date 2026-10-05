@@ -35,7 +35,7 @@
 
 | Package | Why it's special |
 |---|---|
-| `llama-cpp-python` | CUDA variant depends on the host driver — `install.sh` maps driver→CUDA (≥555→cu132 prebuilt wheel, older→cu124/121/118, CPU fallback) and installs the matching wheel. Used by `testing/inference.py`, `templates/renderer.py`, `benchmarks/samplers.py`, `webui/{data_prep_chat,pages,exports}`, `models/{manager,providers,loader}` (9 modules, all lazy). A plain pyproject pin would break cross-host installs. |
+| `llama-cpp-python` | GPU backend depends on the host — `scripts/accel_plan.py` (used by `install.sh`/`update.sh`) picks the abetlen prebuilt CUDA wheel (cu132/cu130/cu12x) or a source build with `GGML_CUDA`/`GGML_HIP`/`GGML_SYCL`/`GGML_VULKAN`/`GGML_METAL`; CPU only when no GPU exists. Install it with `--extra-index-url` + `--index-strategy first-index` (never `--index-url`, which silently lets PyPI win with the CPU sdist) and `--no-cache` for source builds (uv does not key its build cache on `CMAKE_ARGS`). Used by `testing/inference.py`, `templates/renderer.py`, `benchmarks/samplers.py`, `webui/{data_prep_chat,pages,exports}`, `models/{manager,providers,loader}` (9 modules, all lazy). A plain pyproject pin would break cross-host installs. |
 | llama.cpp **CLI** (`llama-quantize`, `convert_hf_to_gguf.py`) | built by `install.sh`/`update.sh` into `LLAMA_CPP_DIR` (project-local `.llama.cpp/`); needed by the merge→GGUF export endpoint. |
 
 ## Optional extras

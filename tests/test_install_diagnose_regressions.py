@@ -21,20 +21,28 @@ def _cp(stdout: str = "", stderr: str = "", returncode: int = 0) -> subprocess.C
 
 # ── 1. CPU-only host: compute_cap must never be an unbound local ────────────
 
+@pytest.fixture(autouse=True)
+def empty_hardware(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """These regressions are about install logic, never about the host's real GPUs."""
+    hw = tmp_path / "hw.json"
+    hw.write_text(json.dumps({"system": "Linux", "machine": "x86_64"}))
+    monkeypatch.setenv("FTS_ACCEL_FIXTURE", str(hw))
+    monkeypatch.delenv("FTS_FORCE_VENDOR", raising=False)
+    monkeypatch.setattr(d.ap, "_FIXTURE", None)
+
+
 def test_detect_on_cpu_only_host_without_any_gpu_tool() -> None:
-    with patch("shutil.which", return_value=None), patch("pathlib.Path.exists", return_value=False):
-        g = d.GpuInfo.detect()
+    g = d.GpuInfo.detect()
     assert g.vendor == "none"
     assert g.compute_cap == ""
 
 
 def test_detect_when_nvidia_smi_times_out_keeps_empty_compute_cap() -> None:
-    def which(cmd: str) -> str | None:
-        return "/usr/bin/nvidia-smi" if cmd == "nvidia-smi" else None
-
-    with patch("shutil.which", side_effect=which), \
-         patch("pathlib.Path.exists", return_value=False), \
-         patch("subprocess.run", side_effect=subprocess.TimeoutExpired("nvidia-smi", 10)):
+    with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("nvidia-smi", 10)), \
+         patch.object(d.ap, "_which", lambda c: "/usr/bin/nvidia-smi" if c == "nvidia-smi" else ""), \
+         patch.object(d.ap, "_fixture", lambda: None), \
+         patch.object(d.ap, "_exists", lambda p: False), \
+         patch.object(d.ap, "_listdir", lambda p: []):
         g = d.GpuInfo.detect()
     assert g.vendor == "none"
     assert g.compute_cap == ""
@@ -112,6 +120,7 @@ def test_failed_cpu_torch_reinstall_is_not_reported_as_ok(tmp_path: Path) -> Non
 
 
 def test_later_success_does_not_hide_earlier_failure(tmp_path: Path) -> None:
+    # CPU-plan torch failure is recorded and the remaining fixes still run (GPU-plan failure aborts).
     results = iter([_cp(returncode=1, stderr="torch boom"), _cp(returncode=0)])
     ok, actions, _ = _repair(
         [d.Issue(d.REINSTALL_TORCH, "x", "y"), d.Issue(d.PIP_INSTALL_EDITABLE, "x", "y")],

@@ -22,11 +22,17 @@ Detected failure modes (the ones we've hit in production):
   - torch.cuda.is_available() == False with GPU       → REINSTALL_TORCH
   - torch.cuda can allocate tensor fails              → REINSTALL_TORCH
   - torchaudio import fails (libc10_cuda.so missing)   → REINSTALL_TORCH
-  - llama-cpp-python not importable                   → REINSTALL_LLAMA_CPP
-  - llama.cpp CLI tools missing (llama-quantize)      → BUILD_LLAMA_CPP_CLI
+  - torch built for the wrong backend (cpu/cuda/rocm/xpu vs the GPU) → REINSTALL_TORCH
+  - llama-cpp-python not importable / no GPU offload   → REINSTALL_LLAMA_CPP
+  - llama.cpp CLI missing or built CPU-only on a GPU   → BUILD_LLAMA_CPP_CLI
+  - bitsandbytes missing on a GPU host                 → INSTALL_BITSANDBYTES
   - pyproject deps missing                           → PIP_INSTALL_EDITABLE
+  - GPU hardware but no driver / toolchain (manual)    → INSTALL_GPU_DRIVER / INSTALL_GPU_TOOLCHAIN
   - CUDA toolkit missing on GPU host                  → INSTALL_CUDA_TOOLKIT
   - systemd unit missing on a host that should run it → INSTALL_SERVICE
+
+Detection + every wheel/index/CMake decision lives in accel_plan.py (shared with
+the installers); this module only compares what is installed against that plan.
 """
 from __future__ import annotations
 
@@ -39,6 +45,12 @@ import sys
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import accel_plan as ap
+from accel_plan import (
+    GpuInfo,
+)
 
 log = logging.getLogger(__name__)
 
@@ -56,6 +68,12 @@ BUILD_LLAMA_CPP_CLI  = "build-llama-cpp-cli"
 PIP_INSTALL_EDITABLE = "pip-install-editable"
 INSTALL_CUDA_TOOLKIT = "install-cuda-toolkit"
 INSTALL_SERVICE      = "install-service"
+INSTALL_BITSANDBYTES = "install-bitsandbytes"
+INSTALL_GPU_DRIVER   = "install-gpu-driver"        # manual: needs sudo / reboot
+INSTALL_GPU_TOOLCHAIN = "install-gpu-toolchain"    # manual: nvcc/hipcc/icpx/vulkan sdk
+
+# Issue codes no script can fix without root: repair() reports them, never "fails" on them.
+MANUAL_CODES = frozenset({INSTALL_GPU_DRIVER, INSTALL_GPU_TOOLCHAIN})
 
 
 @dataclass(frozen=True)
@@ -71,94 +89,6 @@ class Issue:
     @classmethod
     def from_dict(cls, d: dict) -> Issue:
         return cls(**d)
-
-
-# ── GPU detection (mirrors install.sh but in Python) ────────────────────
-
-@dataclass(frozen=True)
-class GpuInfo:
-    vendor: str            # "nvidia" | "amd" | "intel" | "none"
-    name: str
-    driver_version: str
-    cuda_ver: str          # "cu132" / "cu130" / "cu124" / "cu121" / "cu118" / ""
-    compute_cap: str       # "12.0" for sm_120 (Blackwell), "8.6" for sm_86, etc.
-    cuda_toolkit_path: str # "/opt/cuda" if found
-
-    @classmethod
-    def detect(cls, force_cpu: bool = False) -> GpuInfo:
-        vendor = "none"
-        name = "(no GPU)"
-        driver = ""
-        cuda_ver = ""
-        cuda_path = ""
-        compute_cap = ""
-
-        # CUDA toolkit path (used by llama-cpp source builds + sanity checks)
-        for cand in ("/opt/cuda", "/usr/local/cuda", "/usr/lib/cuda"):
-            if Path(cand).exists():
-                cuda_path = cand
-                break
-
-        if force_cpu:
-            return cls("none", "(forced CPU)", "", "", "", cuda_path)
-
-        # NVIDIA
-        if shutil.which("nvidia-smi"):
-            try:
-                r = subprocess.run(
-                    ["nvidia-smi", "--query-gpu=name,driver_version",
-                     "--format=csv,noheader"],
-                    capture_output=True, text=True, timeout=10, check=False,
-                )
-                if r.returncode == 0 and r.stdout.strip():
-                    line = r.stdout.strip().splitlines()[0]
-                    parts = [p.strip() for p in line.split(",", 1)]
-                    name = parts[0] if parts else "NVIDIA GPU"
-                    driver = parts[1] if len(parts) > 1 else ""
-                    vendor = "nvidia"
-                    # Driver → CUDA mapping (mirrors install.sh)
-                    try:
-                        major = int(driver.split(".")[0]) if driver else 0
-                    except ValueError:
-                        major = 0
-                    if   major >= 555: cuda_ver = "cu132"
-                    elif major >= 550: cuda_ver = "cu130"
-                    elif major >= 525: cuda_ver = "cu124"
-                    elif major >= 520: cuda_ver = "cu121"
-                    elif major >= 470: cuda_ver = "cu118"
-                    else:               cuda_ver = "cu118"
-                # Compute capability (e.g. "12.0" for sm_120/Blackwell,
-                # "8.6" for sm_86/Ampere). Prebuilt llama-cpp-python wheels
-                # only bundle the kernels the maintainer chose to compile;
-                # sm_120 needs a source build. Detected here so diagnose()
-                # can emit REINSTALL_LLAMA_CPP for unsupported arches.
-                r2 = subprocess.run(
-                    ["nvidia-smi", "--query-gpu=compute_cap",
-                     "--format=csv,noheader"],
-                    capture_output=True, text=True, timeout=10, check=False,
-                )
-                if r2.returncode == 0 and r2.stdout.strip():
-                    compute_cap = r2.stdout.strip().splitlines()[0].strip()
-                else:
-                    compute_cap = ""
-            except (subprocess.TimeoutExpired, OSError) as exc:
-                log.debug("nvidia-smi probe failed: %s", exc)
-
-        # AMD ROCm
-        if vendor == "none" and (shutil.which("rocm-smi") or Path("/opt/rocm").exists()):
-            vendor = "amd"
-            name = "AMD GPU (ROCm)"
-            compute_cap = ""
-
-        # Intel XPU
-        if vendor == "none" and (
-            shutil.which("xpu-smi") or Path("/opt/intel/oneapi").exists()
-        ):
-            vendor = "intel"
-            name = "Intel XPU"
-            compute_cap = ""
-
-        return cls(vendor, name, driver, cuda_ver, compute_cap, cuda_path)
 
 
 # ── Diagnostic helpers ──────────────────────────────────────────────────
@@ -182,6 +112,10 @@ class VenvInfo:
     has_accelerate: bool
     has_safetensors: bool
     has_huggingface_hub: bool
+    # Build flavor + runtime availability of the installed torch (see _TORCH_PROBE).
+    torch_kind: str | None = None        # "cuda" | "hip" | "xpu" | "mps" | "cpu"
+    torch_xpu: bool | None = None
+    torch_mps: bool | None = None
 
     @property
     def exists(self) -> bool:
@@ -194,9 +128,46 @@ class VenvInfo:
             and self.py_version is not None
             and self.has_fastapi and self.has_jinja2
             and self.torch_version is not None
-            and (self.torchaudio_importable is True)
+            and self.torchaudio_importable in (True, None)  # None = not installed (the app does not use it)
             and self.torch_has_cuda in (True, None)  # None = no GPU expected
         )
+
+
+# Build flavor of torch: version tags alone lie (a "+cu132" tag on a CPU-only
+# machine, ROCm builds report cuda=True). torch.version.* tells the truth.
+_TORCH_PROBE = (
+    "import torch, json\n"
+    "x = getattr(torch, 'xpu', None)\n"
+    "print(json.dumps({'v': torch.__version__, 'cuda': torch.cuda.is_available(),\n"
+    "  'build_cuda': torch.version.cuda, 'build_hip': getattr(torch.version, 'hip', None),\n"
+    "  'xpu': bool(x and x.is_available()), 'build_xpu': '+xpu' in torch.__version__,\n"
+    "  'mps': bool(torch.backends.mps.is_available())}))"
+)
+
+
+_TORCHAUDIO_PROBE = (
+    "import importlib.util as u\n"
+    "if u.find_spec('torchaudio') is None:\n"
+    "    print('ABSENT')\n"
+    "else:\n"
+    "    import torchaudio; print(torchaudio.__version__)"
+)
+
+
+def _torch_kind(j: dict) -> str:
+    """cuda | hip | xpu | mps | cpu from the probe payload (older payloads: version tag)."""
+    if j.get("build_hip"):
+        return "hip"
+    if j.get("build_cuda"):
+        return "cuda"
+    if j.get("build_xpu") or j.get("xpu"):
+        return "xpu"
+    if j.get("mps"):
+        return "mps"
+    if "build_cuda" in j:
+        return "cpu"
+    v = str(j.get("v", ""))  # legacy payload {'v','cuda'}
+    return "cuda" if (j.get("cuda") or "+cu" in v) else "cpu"
 
 
 def _run(cmd: list[str], timeout: int = 30) -> subprocess.CompletedProcess:
@@ -283,24 +254,27 @@ def inspect_venv(venv_dir: Path) -> VenvInfo:
 
     # torch (may fail on mixed installs — capture separately)
     try:
-        r = _run([str(info.python), "-c",
-                  ("import torch, json; print(json.dumps("
-                  "{'v': torch.__version__, 'cuda': torch.cuda.is_available()}"
-                  "))")], timeout=45)
+        r = _run([str(info.python), "-c", _TORCH_PROBE], timeout=45)
         if r.returncode == 0 and r.stdout.strip():
             j = json.loads(r.stdout.strip().splitlines()[-1])
             info.torch_version = j["v"]
-            info.torch_has_cuda = bool(j["cuda"])
+            info.torch_has_cuda = bool(j["cuda"])  # True for ROCm builds too (HIP aliases torch.cuda)
+            info.torch_kind = _torch_kind(j)
+            info.torch_xpu = bool(j.get("xpu"))
+            info.torch_mps = bool(j.get("mps"))
     except _PROBE_ERRORS as exc:
         log.debug("torch probe failed: %s", exc)
 
-    # torchaudio — separate so a broken torchaudio doesn't mask torch status
+    # torchaudio — separate so a broken torchaudio doesn't mask torch status.
+    # Absent is fine (the app never imports it and it is frozen at 2.11); only an
+    # INSTALLED-but-unimportable torchaudio is the mixed-install canary.
     try:
-        r = _run([str(info.python), "-c",
-                  "import torchaudio; print(torchaudio.__version__)"],
-                  timeout=30)
-        if r.returncode == 0:
-            info.torchaudio_version = r.stdout.strip().splitlines()[-1]
+        r = _run([str(info.python), "-c", _TORCHAUDIO_PROBE], timeout=30)
+        out = (r.stdout.strip().splitlines() or [""])[-1]
+        if r.returncode == 0 and out == "ABSENT":
+            info.torchaudio_importable = None
+        elif r.returncode == 0:
+            info.torchaudio_version = out
             info.torchaudio_importable = True
         else:
             info.torchaudio_importable = False
@@ -329,10 +303,13 @@ def inspect_venv(venv_dir: Path) -> VenvInfo:
 def inspect_llama_cpp(llama_cpp_dir: Path) -> dict:
     """Check whether llama.cpp CLI tools are built and reachable."""
     quantize = llama_cpp_dir / "build" / "bin" / "llama-quantize"
+    cli = llama_cpp_dir / "build" / "bin" / "llama-cli"
     convert = llama_cpp_dir / "convert_hf_to_gguf.py"
     return {
         "dir": str(llama_cpp_dir),
         "quantize_exists": quantize.exists() and os.access(quantize, os.X_OK),
+        "cli_exists": cli.exists() and os.access(cli, os.X_OK),
+        "backend": ap.detect_llama_cli_backend(llama_cpp_dir),  # cuda|hip|sycl|vulkan|metal|cpu|""
         "convert_exists": convert.exists(),
         "quantize_path": str(quantize) if quantize.exists() else "",
         "convert_path": str(convert) if convert.exists() else "",
@@ -370,6 +347,180 @@ def inspect_service() -> dict:
         out["lingering_enabled"] = ("Linger=yes" in r.stdout)
     except _STEP_ERRORS as exc:
         log.debug("loginctl show-user failed: %s", exc)
+    return out
+
+
+def probe_llama_offload(py: Path) -> bool | None:
+    """True/False: does the installed llama-cpp-python offload to a GPU backend? None: unknown."""
+    try:
+        r = _run([str(py), "-c", ap.LLAMA_PROBE], timeout=90)
+    except _PROBE_ERRORS as exc:
+        log.debug("llama offload probe failed: %s", exc)
+        return None
+    if r.returncode == 0:
+        return True
+    return False if r.returncode == 4 else None  # 4 = imported fine, no GPU backend
+
+
+def probe_bitsandbytes(py: Path) -> str | None:
+    try:
+        r = _run([str(py), "-c", "import importlib.metadata as m; print(m.version('bitsandbytes'))"], timeout=30)
+    except _PROBE_ERRORS as exc:
+        log.debug("bitsandbytes probe failed: %s", exc)
+        return None
+    return r.stdout.strip().splitlines()[-1] if r.returncode == 0 and r.stdout.strip() else None
+
+
+def _llama_build_marker(venv: Path) -> dict:
+    """Written by accel_plan after each llama-cpp-python install: how it was built."""
+    try:
+        return json.loads((venv / ap.LLAMA_MARKER_NAME).read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+# ── Per-area checks (each returns its own issues; diagnose() just concatenates) ──
+
+def _torch_reinstall_hint(venv: VenvInfo, plan: ap.Plan) -> str:
+    if plan.torch_index:
+        return (f"reinstall torch:  uv pip install --python {venv.python} --reinstall-package torch "
+                f"--reinstall-package torchvision --index-url {plan.torch_index} torch torchvision"
+                f"   (or:  bash install.sh --repair)")
+    return f"reinstall torch:  uv pip install --python {venv.python} --reinstall torch torchvision"
+
+
+def _check_torch(venv: VenvInfo, gpu: GpuInfo, plan: ap.Plan, force_cpu: bool) -> list[Issue]:
+    out: list[Issue] = []
+    if venv.torch_version is None:
+        out.append(Issue(REINSTALL_TORCH, "torch not importable",
+                         f"reinstall torch with the matching {plan.torch_backend} wheels "
+                         f"(gpu={gpu.vendor}, index={plan.torch_tag or 'default'})", severity=3))
+        return out
+    kind = venv.torch_kind or ("cuda" if "+cu" in venv.torch_version else "cpu")
+    want = plan.torch_backend
+    fix = _torch_reinstall_hint(venv, plan)
+
+    if gpu.vendor in ("nvidia", "amd", "intel", "apple"):
+        if kind == "cpu" or "+cpu" in venv.torch_version:
+            out.append(Issue(
+                REINSTALL_TORCH,
+                f"torch {venv.torch_version} is a CPU-only build but a {gpu.vendor.upper()} GPU "
+                f"({gpu.name}) is present and needs {plan.torch_tag or 'the default'} wheels", fix, severity=2))
+        elif kind != want:
+            out.append(Issue(
+                REINSTALL_TORCH,
+                f"torch {venv.torch_version} is a {kind} build but this host's GPU ({gpu.name}) needs "
+                f"a {want} build (wrong backend wheel)", fix, severity=2))
+        elif gpu.driver_ready and not (venv.torch_has_cuda or venv.torch_xpu or venv.torch_mps):
+            out.append(Issue(
+                REINSTALL_TORCH,
+                f"torch {venv.torch_version} is a {kind} build but cannot see the GPU "
+                f"(torch.cuda/xpu.is_available() == False; driver {gpu.driver_version or 'n/a'})",
+                fix + "; if it still fails the driver is too old/new for this wheel", severity=2))
+        elif kind == "cuda" and plan.torch_tag and "+" + plan.torch_tag not in venv.torch_version \
+                and gpu.vendor == "nvidia" and "+cu" not in venv.torch_version:
+            out.append(Issue(REINSTALL_TORCH,
+                             f"torch {venv.torch_version} has CUDA but not the {plan.torch_tag} tag", fix, severity=1))
+    elif gpu.vendor == "none" and not force_cpu and kind != "cpu" and "+cpu" not in venv.torch_version:
+        out.append(Issue(
+            REINSTALL_TORCH, f"torch {venv.torch_version} has a GPU build but no GPU detected",
+            "reinstall torch CPU build:  uv pip install --reinstall --index-url "
+            "https://download.pytorch.org/whl/cpu torch", severity=1))
+
+    # torchaudio (mixed-install canary; only when installed)
+    if venv.torchaudio_importable is False:
+        out.append(Issue(
+            REINSTALL_TORCH,
+            "torchaudio cannot import (mixed torch install — libc10_cuda.so missing). "
+            "Almost always means torch is +cpu but torchaudio is +cuXXX.",
+            "reinstall the torch family in one shot:  " + fix.replace("reinstall torch:  ", ""), severity=2))
+    return out
+
+
+def _check_llama_cpp_python(venv: VenvInfo, gpu: GpuInfo, plan: ap.Plan) -> list[Issue]:
+    out: list[Issue] = []
+    if not venv.llama_cpp_version:
+        out.append(Issue(REINSTALL_LLAMA_CPP, "llama-cpp-python not installed (GGUF inference unavailable)",
+                         "install:  bash install.sh   (or:  uv pip install 'llama-cpp-python>=0.3.0')", severity=2))
+        return out
+    best, _ = ap.best_llama_backend(plan)
+    if gpu.vendor == "none":
+        return out
+    offload = probe_llama_offload(venv.python) if venv.python else None
+    if offload is False:
+        why = (f"expected {best.name} offload" if best.name != "cpu" else
+               "no GPU backend toolchain on this host (see the toolchain issue)")
+        out.append(Issue(
+            REINSTALL_LLAMA_CPP,
+            f"llama-cpp-python {venv.llama_cpp_version} has NO GPU offload (CPU build) but a "
+            f"{gpu.vendor.upper()} GPU is present — {why}.",
+            "reinstall with the right backend:  bash install.sh --repair   (builds with "
+            + (" ".join(best.cmake_args) or "a GPU backend") + ")", severity=2))
+    elif gpu.vendor == "nvidia" and gpu.compute_cap:
+        # Blackwell sm_100/120: abetlen prebuilt wheels lack those kernels (crash in
+        # ggml_cuda_op_scale on the first token) -> need OUR source build for this arch.
+        try:
+            cc_major = int(float(gpu.compute_cap.split(".")[0]))
+        except ValueError:
+            cc_major = 0
+        marker = _llama_build_marker(venv.path)
+        if cc_major >= 10 and offload is not False and not (
+                marker.get("source") and f"{cc_major}0" in str(marker.get("arch", ""))):
+            out.append(Issue(
+                REINSTALL_LLAMA_CPP,
+                f"GPU {gpu.name} (sm_{cc_major}0/Blackwell) needs a llama-cpp-python source build "
+                f"with sm_{cc_major}0 kernels — prebuilt wheels crash on the first token.",
+                f"rebuild from source:  CMAKE_ARGS=\"-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES={cc_major}0\" "
+                f"uv pip install --reinstall-package llama-cpp-python --no-binary llama-cpp-python llama-cpp-python",
+                severity=2))
+    return out
+
+
+def _check_llama_cpp_cli(llcpp: dict, gpu: GpuInfo, plan: ap.Plan) -> list[Issue]:
+    out: list[Issue] = []
+    if not (llcpp["quantize_exists"] and llcpp["convert_exists"]):
+        out.append(Issue(
+            BUILD_LLAMA_CPP_CLI,
+            f"llama.cpp CLI missing at {llcpp['dir']} "
+            f"(quantize={'yes' if llcpp['quantize_exists'] else 'NO'}, "
+            f"convert={'yes' if llcpp['convert_exists'] else 'NO'}). Needed for GGUF export endpoint.",
+            "build:  bash install.sh   (or:  bash install.sh --llama-cpp-only)", severity=2))
+        return out
+    best, _ = ap.best_llama_backend(plan)
+    if llcpp.get("backend") == "cpu" and best.name != "cpu":
+        out.append(Issue(
+            BUILD_LLAMA_CPP_CLI,
+            f"llama.cpp CLI at {llcpp['dir']} was built CPU-only but this host can build the "
+            f"{best.name} backend ({gpu.name}).",
+            "rebuild:  bash install.sh --llama-cpp-only --rebuild-llama-cpp", severity=2))
+    elif not llcpp.get("cli_exists", True):
+        out.append(Issue(BUILD_LLAMA_CPP_CLI, f"llama-cli binary missing in {llcpp['dir']}/build/bin",
+                         "rebuild:  bash install.sh --llama-cpp-only --rebuild-llama-cpp", severity=1))
+    return out
+
+
+def _check_gpu_prereqs(venv: VenvInfo, gpu: GpuInfo, plan: ap.Plan) -> list[Issue]:
+    """Driver / toolchain / bitsandbytes: things around the GPU stack (some need root)."""
+    out: list[Issue] = []
+    if gpu.vendor in ("nvidia", "amd", "intel") and not gpu.driver_ready:
+        out.append(Issue(INSTALL_GPU_DRIVER, gpu.hint or f"{gpu.vendor} GPU without a working driver",
+                         "install the vendor driver (needs sudo + reboot), then:  bash install.sh --repair",
+                         severity=2))
+    for b in plan.llama_backends:  # report every preferred backend that is unbuildable, up to the first that is
+        if not b.missing:
+            break
+        if b.name != "cpu":
+            out.append(Issue(INSTALL_GPU_TOOLCHAIN, f"llama.cpp {b.name} backend cannot be built: {b.missing}",
+                             b.missing, severity=1))
+    if gpu.vendor in ("nvidia",) and not gpu.cuda_toolkit_path and not gpu.nvcc:
+        out.append(Issue(
+            INSTALL_CUDA_TOOLKIT,
+            "NVIDIA GPU detected but no CUDA toolkit in /opt/cuda, /usr/local/cuda, or /usr/lib/cuda. "
+            "Source builds (llama.cpp CUDA, Blackwell wheels) will fail.",
+            "install the CUDA toolkit matching your driver and ensure /usr/local/cuda exists.", severity=1))
+    if plan.bnb and venv.python and probe_bitsandbytes(venv.python) is None:
+        out.append(Issue(INSTALL_BITSANDBYTES, "bitsandbytes not installed (4-bit/8-bit model loading unavailable)",
+                         "install:  bash install.sh --repair   (or:  uv pip install bitsandbytes)", severity=1))
     return out
 
 
@@ -423,144 +574,11 @@ def diagnose(
             severity=2,
         ))
 
-    # ── Torch + CUDA ──
-    if venv.torch_version is None:
-        issues.append(Issue(
-            REINSTALL_TORCH,
-            "torch not importable",
-            f"reinstall torch with matching CUDA index (gpu={gpu.vendor}, cuda={gpu.cuda_ver or 'n/a'})",
-            severity=3,
-        ))
-    else:
-        if gpu.vendor == "nvidia" and gpu.cuda_ver:
-            expected = gpu.cuda_ver  # e.g. "cu130"
-            if "+cpu" in venv.torch_version:
-                issues.append(Issue(
-                    REINSTALL_TORCH,
-                    f"torch {venv.torch_version} is CPU-only but NVIDIA GPU "
-                    f"({gpu.name}, driver {gpu.driver_version}) needs {expected}",
-                    f"reinstall torch:  uv pip install --python {venv.python} "
-                    f"--reinstall --index-url https://download.pytorch.org/whl/{expected} "
-                    f"torch torchvision torchaudio",
-                    severity=2,
-                ))
-            elif not venv.torch_has_cuda:
-                issues.append(Issue(
-                    REINSTALL_TORCH,
-                    f"torch {venv.torch_version} is installed but "
-                    f"torch.cuda.is_available() == False (driver "
-                    f"{gpu.driver_version} / cuda {expected})",
-                    f"reinstall torch for {expected}; if driver < 470, upgrade "
-                    f"NVIDIA driver first",
-                    severity=2,
-                ))
-            elif "+" + expected not in venv.torch_version and \
-                 "+cu" not in venv.torch_version:
-                # Has CUDA but mismatched cu-tag — sometimes OK, sometimes not
-                issues.append(Issue(
-                    REINSTALL_TORCH,
-                    f"torch {venv.torch_version} has CUDA but the cu-tag "
-                    f"doesn't match driver ({expected}). May work, but "
-                    f"a matching build is safer.",
-                    f"reinstall torch for {expected} (or run "
-                    f"`bash install.sh --check` to confirm)",
-                    severity=1,
-                ))
-        elif gpu.vendor == "none" and not force_cpu:
-            if "+cpu" not in venv.torch_version:
-                issues.append(Issue(
-                    REINSTALL_TORCH,
-                    f"torch {venv.torch_version} has GPU build but no GPU detected",
-                    "reinstall torch CPU build:  uv pip install --reinstall "
-                    "--index-url https://download.pytorch.org/whl/cpu torch",
-                    severity=1,
-                ))
-
-    # ── torchaudio (mixed-install canary) ──
-    if venv.torch_version and venv.torchaudio_importable is False:
-        issues.append(Issue(
-            REINSTALL_TORCH,
-            "torchaudio cannot import (mixed torch install — "
-            "libc10_cuda.so missing). Almost always means torch is "
-            "+cpu but torchaudio is +cuXXX.",
-            f"reinstall the whole torch family in one shot:  uv pip install "
-            f"--python {venv.python} --reinstall "
-            f"--index-url https://download.pytorch.org/whl/"
-            f"{gpu.cuda_ver or 'cpu'} torch torchvision torchaudio",
-            severity=2,
-        ))
-
-    # ── llama-cpp-python ──
-    if not venv.llama_cpp_version:
-        issues.append(Issue(
-            REINSTALL_LLAMA_CPP,
-            "llama-cpp-python not installed (GGUF inference unavailable)",
-            "install:  bash install.sh   (or:  uv pip install 'llama-cpp-python>=0.3.0')",
-            severity=2,
-        ))
-    elif gpu.vendor == "nvidia" and gpu.cuda_ver:
-        # Heuristic: a CPU llama-cpp wheel is usually < 30 MiB. A CUDA
-        # wheel is usually > 100 MiB. We can't be 100% sure without
-        # importing, so we just log a warning if the version is suspiciously
-        # old and a GPU is present.
-        try:
-            v = tuple(int(x) for x in venv.llama_cpp_version.split(".")[:2])
-            if v < (0, 3):
-                issues.append(Issue(
-                    REINSTALL_LLAMA_CPP,
-                    f"llama-cpp-python {venv.llama_cpp_version} is old; GGUF "
-                    f"support is unreliable on this version with newer cu tags.",
-                    "upgrade:  uv pip install --reinstall 'llama-cpp-python>=0.3.0'",
-                    severity=1,
-                ))
-        except ValueError:
-            pass
-
-    # ── Blackwell sm_120 source-build requirement ──
-    # Prebuilt llama-cpp-python wheels from abetlen don't bundle sm_120
-    # kernels (verified: crash in ggml_cuda_op_scale on RTX 5090/5080
-    # at the first forward pass). The wheel install path silently produces
-    # a "loaded" model that ABRTs on the first chat token. Source build
-    # with CMAKE_CUDA_ARCHITECTURES=120 fixes it.
-    if gpu.vendor == "nvidia" and gpu.compute_cap:
-        try:
-            cc_major = int(float(gpu.compute_cap.split(".")[0]))
-        except ValueError:
-            cc_major = 0
-        if cc_major >= 12 and venv.llama_cpp_version:
-            issues.append(Issue(
-                REINSTALL_LLAMA_CPP,
-                f"GPU {gpu.name} (sm_{cc_major}0/Blackwell) requires source-"
-                f"rebuilt llama-cpp-python — prebuilt abetlen wheels lack "
-                f"sm_{cc_major}0 CUDA kernels (crashes in ggml_cuda_op_scale "
-                f"on first token).",
-                f"rebuild from source:  CMAKE_ARGS=\"-DGGML_CUDA=ON "
-                f"-DCMAKE_CUDA_ARCHITECTURES={cc_major}0\" "
-                f"pip install --force-reinstall --no-deps llama-cpp-python",
-                severity=2,
-            ))
-
-    # ── llama.cpp CLI ──
-    if not (llcpp["quantize_exists"] and llcpp["convert_exists"]):
-        issues.append(Issue(
-            BUILD_LLAMA_CPP_CLI,
-            f"llama.cpp CLI missing at {llcpp['dir']} "
-            f"(quantize={'yes' if llcpp['quantize_exists'] else 'NO'}, "
-            f"convert={'yes' if llcpp['convert_exists'] else 'NO'}). "
-            f"Needed for GGUF export endpoint.",
-            "build:  bash install.sh   (or:  bash install.sh --llama-cpp-only)",
-            severity=2,
-        ))
-
-    # ── CUDA toolkit (only relevant for source builds of llama-cpp / torch) ──
-    if gpu.vendor == "nvidia" and not gpu.cuda_toolkit_path:
-        issues.append(Issue(
-            INSTALL_CUDA_TOOLKIT,
-            "NVIDIA GPU detected but no CUDA toolkit in /opt/cuda, "
-            "/usr/local/cuda, or /usr/lib/cuda. Source builds will fail.",
-            "install CUDA toolkit (matches driver) and ensure /opt/cuda exists.",
-            severity=1,
-        ))
+    plan = ap.build_plan(gpu)
+    issues += _check_torch(venv, gpu, plan, force_cpu)
+    issues += _check_llama_cpp_python(venv, gpu, plan)
+    issues += _check_llama_cpp_cli(llcpp, gpu, plan)
+    issues += _check_gpu_prereqs(venv, gpu, plan)
 
     # ── systemd service (optional but recommended for fan-dragon / servers) ──
     if check_service:
@@ -659,98 +677,76 @@ def repair(
         all_ok = all_ok and ok
         return ok
 
+    plan = ap.build_plan(gpu)
+    constraints = ap.constraint_args(venv_dir)
+    repo_root = Path(__file__).resolve().parent.parent
+    py = str(venv_py)
+
+    def chain(label: str, attempts: list[tuple[str, list[str], dict[str, str], list[str] | None]],
+              timeout: int, *, tail: int = 800) -> str | None:
+        """Try each (sub-label, cmd, env, verify-cmd) until one installs AND verifies; returns
+        the winning sub-label (None = all failed). One recorded line per chain; a later success
+        never hides an earlier chain's failure."""
+        nonlocal all_ok
+        scratch: list[str] = []
+        for sub, cmd, env, verify in attempts:
+            run_env = {**os.environ, **env} if env else None
+            if not _run_step(f"{label} [{sub}]", cmd, timeout, scratch, log, env=run_env, tail=tail):
+                continue
+            if verify and not _run_step(f"{label} verify [{sub}]", verify, 180, scratch, log, tail=tail):
+                log(f"[repair] {label}: {sub} installed but did not verify -- trying the next option")
+                continue
+            actions.append(f"{label}: ok" + (f" ({sub})" if len(attempts) > 1 else ""))
+            return sub
+        actions.append(f"{label}: FAIL")
+        all_ok = False
+        return None
+
     if REINSTALL_TORCH in by_code:
-        if gpu.vendor == "nvidia" and gpu.cuda_ver:
-            idx = f"https://download.pytorch.org/whl/{gpu.cuda_ver}"
-            log(f"[repair] reinstalling torch family from {idx}")
-            if not step("torch reinstall", [
-                str(venv_py), "-m", "pip", "install",
-                "--reinstall", "--index-url", idx,
-                "torch", "torchvision", "torchaudio",
-            ], 900):
-                return False, actions
+        label = "torch reinstall" if plan.vendor != "none" else "torch CPU reinstall"
+        log(f"[repair] reinstalling torch ({plan.torch_tag or 'default'}, {plan.torch_backend}) -- "
+            f"CPU wheels only when no GPU exists (vendor={plan.vendor})")
+        verify = [py, "-c", ap.torch_probe_code(plan.torch_backend)]
+        if not chain(label, [(t or "pypi", c, {}, verify) for t, c in ap.torch_commands(plan, py)], 900):
+            if plan.vendor != "none":
+                return False, actions  # a GPU host without its GPU torch: later steps would only mask it
         else:
-            idx = "https://download.pytorch.org/whl/cpu"
-            log(f"[repair] reinstalling torch (CPU) from {idx}")
-            step("torch CPU reinstall", [
-                str(venv_py), "-m", "pip", "install", "--reinstall",
-                "--index-url", idx, "torch", "torchvision", "torchaudio",
-            ], 900)
+            ap.write_constraints(venv_dir)  # re-pin to the freshly installed family
+            constraints = ap.constraint_args(venv_dir)
 
     if REINSTALL_LLAMA_CPP in by_code:
-        # Blackwell sm_120 needs source build (prebuilt wheels lack kernels);
-        # other NVIDIA cards use abetlen's prebuilt wheel for speed.
-        sm_blackwell = False
-        cc_major = 0
-        if gpu.vendor == "nvidia" and gpu.compute_cap:
-            try:
-                cc_major = int(float(gpu.compute_cap.split(".")[0]))
-            except ValueError:
-                cc_major = 0
-            sm_blackwell = cc_major >= 12
-
-        if sm_blackwell:
-            arch = f"{cc_major}0"
-            log(f"[repair] rebuilding llama-cpp-python from source for sm_{arch} (Blackwell)")
-            env = os.environ.copy()
-            env["CMAKE_ARGS"] = f"-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES={arch}"
-            # --no-binary llama-cpp-python forces source build even when
-            # a matching wheel is in pip's cache (the cached abetlen wheel
-            # is the broken one — no sm_120 kernels). --no-deps prevents
-            # torch/peft/etc from being touched.
-            step(f"llama-cpp source build (sm_{arch})", [
-                str(venv_py), "-m", "pip", "install",
-                "--force-reinstall", "--no-deps",
-                "--no-binary", "llama-cpp-python",
-                "llama-cpp-python",
-            ], 1800, env=env, tail=1200)
-        elif gpu.vendor == "nvidia" and gpu.cuda_ver:
-            log(f"[repair] reinstalling llama-cpp-python (cuda {gpu.cuda_ver})")
-            step("llama-cpp reinstall", [
-                str(venv_py), "-m", "pip", "install", "--reinstall",
-                "--extra-index-url",
-                (f"https://abetlen.github.io/llama-cpp-python/whl/"
-                f"{gpu.cuda_ver}/llama-cpp-python/"),
-                "llama-cpp-python>=0.3.0",
-            ], 900)
-        else:
-            log("[repair] reinstalling llama-cpp-python (CPU)")
-            step("llama-cpp reinstall", [
-                str(venv_py), "-m", "pip", "install", "--reinstall",
-                "llama-cpp-python>=0.3.0",
-            ], 900)
+        log(f"[repair] reinstalling llama-cpp-python (GPU vendor={plan.vendor}: "
+            f"{' > '.join(b.name for b in plan.llama_backends if not b.missing)})")
+        attempts = []
+        for sub, cmd, env in ap.llama_py_attempts(plan, py, constraints):
+            gpu_try = plan.vendor != "none" and sub != "CPU build"
+            attempts.append((sub, cmd, env, [py, "-c", ap.LLAMA_PROBE] if gpu_try else None))
+        won = chain("llama-cpp reinstall", attempts, 1800, tail=1200)
+        if won:
+            ap.write_llama_marker(venv_dir, plan, won)
 
     if PIP_INSTALL_EDITABLE in by_code:
-        log("[repair] syncing editable deps (pip install -e .)")
-        step("pip -e .", [str(venv_py), "-m", "pip", "install", "-e", "."], 600)
+        log("[repair] syncing editable deps (uv pip install -e .[parsers])")
+        step("pip -e .", ap.uv_pip(py, *constraints, "-e", f"{repo_root}[parsers]"), 600)
+
+    if INSTALL_BITSANDBYTES in by_code:
+        log("[repair] installing bitsandbytes")
+        step("bitsandbytes", ap.uv_pip(py, *constraints, "bitsandbytes>=0.45.5"), 600)
 
     if BUILD_LLAMA_CPP_CLI in by_code:
         # Delegate to bash — install.sh owns the cmake + pip-deps logic.
-        # --llama-cpp-only skips torch / pyproject work and just builds.
+        # --llama-cpp-only skips torch / pyproject work and just builds;
+        # --rebuild-llama-cpp replaces a CPU-only / wrong-backend build.
         log("[repair] building llama.cpp CLI (cmake + clone if missing)")
         install_sh = Path(__file__).parent.parent / "install.sh"
-        step("llama.cpp CLI build", ["bash", str(install_sh), "--llama-cpp-only"], 1800, tail=1200)
+        step("llama.cpp CLI build",
+             ["bash", str(install_sh), "--llama-cpp-only", "--rebuild-llama-cpp"], 1800, tail=1200)
 
-    if INSTALL_CUDA_TOOLKIT in by_code:
-        # Detect distro + run the right package manager. The toolkit is
-        # required by the cu118/cu124/cu130 PyTorch wheels at runtime,
-        # even though we only need the driver for nvidia-smi to work.
-        log("[repair] CUDA toolkit missing on an NVIDIA host — installing")
-        distro = _detect_distro()
-        cmd_map = {
-            "debian": ["sudo", "apt-get", "install", "-y", "cuda-toolkit-12-4"],
-            "ubuntu": ["sudo", "apt-get", "install", "-y", "cuda-toolkit-12-4"],
-            "fedora": ["sudo", "dnf", "install", "-y", "cuda-toolkit-12-4"],
-            "arch":   ["sudo", "pacman", "-S", "--noconfirm", "cuda"],
-            "garuda": ["sudo", "pacman", "-S", "--noconfirm", "cuda"],
-        }
-        cmd = cmd_map.get(distro)
-        if cmd is None:
-            actions.append(
-                f"cuda toolkit: SKIP (distro '{distro}' not handled; install manually)"
-            )
-        else:
-            step(f"cuda toolkit ({distro})", cmd, 900, tail=1200)
+    for code in MANUAL_CODES | {INSTALL_CUDA_TOOLKIT}:
+        for i in by_code.get(code, []):
+            # Needs root (driver / toolkit packages): never run sudo from an installer.
+            actions.append(f"{code}: MANUAL -- {i.suggested_fix}")
+            log(f"[repair] {code}: {i.detail}\n         -> {i.suggested_fix}")
 
     if INSTALL_SERVICE in by_code:
         # Delegate to install-service.sh which already handles --user/--system,
@@ -762,78 +758,40 @@ def repair(
     return all_ok, actions
 
 
-def _detect_distro() -> str:
-    """Best-effort distro detection. Returns one of: debian, ubuntu,
-    fedora, arch, garuda, macos, unknown."""
-    if Path("/etc/os-release").exists():
-        try:
-            with open("/etc/os-release") as f:
-                os_release = {}
-                for line in f:
-                    if "=" in line:
-                        k, v = line.split("=", 1)
-                        os_release[k.strip()] = v.strip().strip('"').lower()
-            id_ = os_release.get("id", "")
-            return id_ if id_ in {"debian", "ubuntu", "fedora", "arch", "garuda"} else "unknown"
-        except OSError as exc:
-            log.debug("cannot read /etc/os-release: %s", exc)
-    return "unknown"
-
-
 # ── CLI (so bash can call this without imports) ────────────────────────
 
 def _main(argv: list[str]) -> int:
     import argparse
-    ap = argparse.ArgumentParser(description="Finetune Studio install diagnostics.")
-    ap.add_argument("--venv", default=".venv", help="venv directory (default: .venv)")
-    ap.add_argument("--llama-cpp", default=os.path.join(
-                        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".llama.cpp"),
-                    help="llama.cpp checkout directory (project-local default)")
-    ap.add_argument("--json", action="store_true", help="emit JSON")
-    ap.add_argument("--check", action="store_true",
-                    help="exit 0 if healthy, 1 if warnings, 2+ if broken")
-    ap.add_argument("--repair", action="store_true",
-                    help="apply fixes for detected issues")
-    ap.add_argument("--force-recreate", action="store_true",
-                    help="with --repair, nuke and recreate venv")
-    ap.add_argument("--no-service-check", action="store_true",
-                    help="skip systemd unit check")
-    ap.add_argument("--cpu", action="store_true", help="force CPU mode")
-    args = ap.parse_args(argv)
+    parser = argparse.ArgumentParser(description="Finetune Studio install diagnostics.")
+    parser.add_argument("--venv", default=".venv", help="venv directory (default: .venv)")
+    parser.add_argument("--llama-cpp", default=os.path.join(
+                            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".llama.cpp"),
+                        help="llama.cpp checkout directory (project-local default)")
+    parser.add_argument("--json", action="store_true", help="emit JSON")
+    parser.add_argument("--check", action="store_true",
+                        help="exit 0 if healthy, 1 if warnings, 2+ if broken")
+    parser.add_argument("--repair", action="store_true",
+                        help="apply fixes for detected issues")
+    parser.add_argument("--force-recreate", action="store_true",
+                        help="with --repair, nuke and recreate venv")
+    parser.add_argument("--no-service-check", action="store_true",
+                        help="skip systemd unit check")
+    parser.add_argument("--cpu", action="store_true", help="force CPU mode")
+    parser.add_argument("--gpu", default="", choices=["", "nvidia", "amd", "intel", "apple", "none"],
+                        help="override accelerator detection")
+    args = parser.parse_args(argv)
 
     venv = Path(args.venv).resolve()
     llcpp = Path(args.llama_cpp).resolve()
+    if args.gpu:
+        os.environ["FTS_FORCE_VENDOR"] = args.gpu  # read by accel_plan.detect()
     issues = diagnose(venv, llcpp, force_cpu=args.cpu,
                       check_service=not args.no_service_check)
 
     if args.json:
         print(json.dumps([i.to_dict() for i in issues], indent=2))
     else:
-        gpu = GpuInfo.detect(force_cpu=args.cpu)
-        venv_info = inspect_venv(venv)
-        llcpp_info = inspect_llama_cpp(llcpp)
-        print(f"venv:        {venv}  ({'OK' if venv_info.healthy else 'BROKEN'})")
-        print(f"  py={venv_info.py_version}  torch={venv_info.torch_version}  "
-              f"has_cuda={venv_info.torch_has_cuda}  "
-              f"torchaudio={'ok' if venv_info.torchaudio_importable else 'BROKEN'} "
-              f"({venv_info.torchaudio_version or '?'})")
-        print(f"  fastapi={'ok' if venv_info.has_fastapi else 'MISSING'}  "
-              f"llama_cpp={venv_info.llama_cpp_version or 'MISSING'}  "
-              f"peft={venv_info.peft_version or 'MISSING'}  "
-              f"trl={venv_info.trl_version or 'MISSING'}")
-        print(f"GPU:         {gpu.name}  driver={gpu.driver_version}  "
-              f"cuda_ver={gpu.cuda_ver or 'n/a'}  "
-              f"toolkit={'yes' if gpu.cuda_toolkit_path else 'NO'}")
-        print(f"llama.cpp:   dir={llcpp}  "
-              f"quantize={'yes' if llcpp_info['quantize_exists'] else 'NO'}  "
-              f"convert={'yes' if llcpp_info['convert_exists'] else 'NO'}")
-        if not issues:
-            print("issues:      none ✓")
-        else:
-            print(f"issues:      {len(issues)}")
-            for i in issues:
-                print(f"  [{i.severity}] {i.code}: {i.detail}")
-                print(f"        fix: {i.suggested_fix}")
+        _print_report(venv, llcpp, issues, args.cpu)
 
     if args.repair:
         ok, actions = repair(issues, venv, llcpp, force=args.force_recreate)
@@ -848,16 +806,46 @@ def _main(argv: list[str]) -> int:
         critical = any(i.severity >= 3 for i in issues)
         return 1 if critical or not ok else 0
 
-    if args.check:
-        critical = any(i.severity >= 2 for i in issues)
-        warn = any(i.severity == 1 for i in issues)
-        return 2 if critical else (1 if warn else 0)
-
-    # Default (diagnostic print only): exit non-zero on real issues so
-    # `python install_diagnose.py && echo healthy` works in shell scripts.
     critical = any(i.severity >= 2 for i in issues)
     warn = any(i.severity == 1 for i in issues)
+    # --check and the default print mode share semantics: 2 = broken, 1 = warnings,
+    # so `python install_diagnose.py && echo healthy` works in shell scripts.
     return 2 if critical else (1 if warn else 0)
+
+
+def _print_report(venv: Path, llcpp: Path, issues: list[Issue], force_cpu: bool) -> None:
+    gpu = GpuInfo.detect(force_cpu=force_cpu)
+    plan = ap.build_plan(gpu)
+    best, _ = ap.best_llama_backend(plan)
+    venv_info = inspect_venv(venv)
+    llcpp_info = inspect_llama_cpp(llcpp)
+    ta = ("n/a" if venv_info.torchaudio_importable is None else
+          "ok" if venv_info.torchaudio_importable else "BROKEN")
+    print(f"venv:        {venv}  ({'OK' if venv_info.healthy else 'BROKEN'})")
+    print(f"  py={venv_info.py_version}  torch={venv_info.torch_version} ({venv_info.torch_kind or '?'})  "
+          f"gpu_visible={venv_info.torch_has_cuda or venv_info.torch_xpu or venv_info.torch_mps}  "
+          f"torchaudio={ta} ({venv_info.torchaudio_version or '-'})")
+    print(f"  fastapi={'ok' if venv_info.has_fastapi else 'MISSING'}  "
+          f"llama_cpp={venv_info.llama_cpp_version or 'MISSING'}  "
+          f"peft={venv_info.peft_version or 'MISSING'}  "
+          f"trl={venv_info.trl_version or 'MISSING'}  "
+          f"transformers={venv_info.transformers_version or 'MISSING'}")
+    print(f"GPU:         {gpu.vendor}: {gpu.name}  driver={gpu.driver_version or 'n/a'}  "
+          f"cuda_max={gpu.cuda_max or 'n/a'}  cc={gpu.compute_cap or 'n/a'}  "
+          f"toolkit={'yes' if gpu.cuda_toolkit_path else 'NO'}")
+    print(f"plan:        torch={plan.torch_tag or 'default'} ({plan.torch_backend})  "
+          f"llama.cpp backend={best.name}")
+    print(f"llama.cpp:   dir={llcpp}  "
+          f"quantize={'yes' if llcpp_info['quantize_exists'] else 'NO'}  "
+          f"convert={'yes' if llcpp_info['convert_exists'] else 'NO'}  "
+          f"backend={llcpp_info['backend'] or '?'}")
+    if not issues:
+        print("issues:      none ✓")
+        return
+    print(f"issues:      {len(issues)}")
+    for i in issues:
+        print(f"  [{i.severity}] {i.code}: {i.detail}")
+        print(f"        fix: {i.suggested_fix}")
 
 
 if __name__ == "__main__":

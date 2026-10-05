@@ -2,11 +2,20 @@
 # Finetune Studio — GPU-aware installer.
 #
 # Default:
-#   1. Detects GPU vendor (NVIDIA / AMD ROCm / Intel XPU / CPU)
+#   1. Detects the accelerator (NVIDIA CUDA / AMD ROCm / Intel XPU / Apple Metal;
+#      CPU only when NO GPU of any vendor is found). Detection + every wheel/index/
+#      CMake choice lives in scripts/accel_plan.py (shared with update.sh and the
+#      Windows installers) -- never hard-code a CUDA/ROCm tag here.
 #   2. Python 3.12+ required
-#   3. Creates .venv + installs PyTorch with matching GPU wheels
-#   4. Installs llama-cpp-python with CUDA/ROCm prebuilt wheels (GGUF default)
-#   5. Installs everything else from pyproject.toml
+#   3. Creates .venv + installs the newest PyTorch the driver/GPU supports
+#   4. Installs llama-cpp-python with GPU offload (prebuilt wheel, else source
+#      build with GGML_CUDA / GGML_HIP / GGML_SYCL / GGML_VULKAN / GGML_METAL)
+#   5. Installs everything else from pyproject.toml + bitsandbytes (+ unsloth when
+#      a compatible release exists)
+#   6. Builds the llama.cpp CLI (.llama.cpp) with the same GPU backend
+#
+# Env: FTS_FORCE_VENDOR=nvidia|amd|intel|apple|none  FTS_UNSLOTH=auto|1|0
+#      FTS_ACCEL_FIXTURE=<json>  (fake hardware for tests)
 #
 # Flags:
 #   --check         verify install, no changes
@@ -17,6 +26,9 @@
 #                   llama-cpp/CUDA-toolkit/llama.cpp-CLI issue it finds instead
 #                   of just warning). Equivalent to FTS_AUTO_REPAIR=1.
 #   --cpu           force CPU-only (skip GPU wheel selection)
+#   --gpu VENDOR    override detection: nvidia | amd | intel | apple | none
+#   --plan          print the detected accelerator + install plan, change nothing
+#   --rebuild-llama-cpp  rebuild the llama.cpp CLI even if present
 #   --no-gguf       skip llama-cpp-python entirely
 #   --no-llama-cpp  skip building the llama.cpp CLI (.llama.cpp/)
 #   --llama-cpp-only  build ONLY the llama.cpp CLI (skip torch + packages)
@@ -45,12 +57,20 @@ if [ -d "$HOME/llama.cpp" ] && [ "$HOME/llama.cpp" != "$LLAMA_CPP_DIR" ]; then
     warn "To migrate:  mv $HOME/llama.cpp $LLAMA_CPP_DIR"
 fi
 FORCE_CPU=0
+FORCE_GPU=""
+PLAN_ONLY=0
+REBUILD_LLAMA=0
 SKIP_GGUF=0
 SKIP_LLAMA_CPP=0
 LLAMA_CPP_ONLY=0
 
-for arg in "$@"; do
+while [ "$#" -gt 0 ]; do
+    arg="$1"; shift
     case "$arg" in
+        --gpu)            FORCE_GPU="${1:-}"; [ -n "$FORCE_GPU" ] || die "--gpu needs a vendor"; shift ;;
+        --gpu=*)          FORCE_GPU="${arg#--gpu=}" ;;
+        --plan)           PLAN_ONLY=1 ;;
+        --rebuild-llama-cpp) REBUILD_LLAMA=1 ;;
         --check)          MODE="check" ;;
         --repair)         MODE="repair" ;;
         --verify)         MODE="verify" ;;
@@ -59,7 +79,7 @@ for arg in "$@"; do
         --no-gguf)        SKIP_GGUF=1 ;;
         --no-llama-cpp)   SKIP_LLAMA_CPP=1 ;;
         --llama-cpp-only) LLAMA_CPP_ONLY=1 ;;
-        --help|-h) sed -n '2,23p' "$0" | sed 's/^# *//'; exit 0 ;;
+        --help|-h) sed -n '2,40p' "$0" | sed 's/^# *//'; exit 0 ;;
         *) die "Unknown arg: $arg  (try --help)" ;;
     esac
 done
@@ -97,61 +117,43 @@ else
 fi
 log "OS: $DISTRO_ID ($(uname -srm))"
 
-# ── GPU detection ──
-# Sets: GPU_VENDOR=nvidia|amd|intel|none  GPU_NAME  GPU_DRIVER  CUDA_VER
-detect_gpu() {
-    GPU_VENDOR="none"; GPU_NAME="(no GPU)"; GPU_DRIVER=""; CUDA_VER=""
-    [ "$FORCE_CPU" = "1" ] && return 0
-
-    # NVIDIA: nvidia-smi
-    if command -v nvidia-smi >/dev/null 2>&1; then
-        if nvidia-smi --query-gpu=name,driver_version --format=csv,noheader 2>/dev/null | head -1 | grep -q .; then
-            GPU_VENDOR="nvidia"
-            GPU_NAME="$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)"
-            GPU_DRIVER="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1 | awk -F. '{print $1}')"
-            # Driver → CUDA wheel mapping. abetlen publishes wheels up to
-            # cu132 (latest stable as of 2026-09). For drivers on CUDA 13.x
-            # (>= 555) we want the cu132 prebuilt (saves the ~5-minute source
-            # build). cu130 / cu124 / cu121 / cu118 for older drivers.
-            if   [ "${GPU_DRIVER:-0}" -ge 555 ] 2>/dev/null; then CUDA_VER="cu132"
-            elif [ "${GPU_DRIVER:-0}" -ge 550 ] 2>/dev/null; then CUDA_VER="cu130"
-            elif [ "${GPU_DRIVER:-0}" -ge 525 ] 2>/dev/null; then CUDA_VER="cu124"
-            elif [ "${GPU_DRIVER:-0}" -ge 520 ] 2>/dev/null; then CUDA_VER="cu121"
-            elif [ "${GPU_DRIVER:-0}" -ge 470 ] 2>/dev/null; then CUDA_VER="cu118"
-            else warn "NVIDIA driver $GPU_DRIVER is old — defaulting to CUDA 11.8"
-                 CUDA_VER="cu118"
-            fi
-            return 0
-        fi
-    fi
-
-    # AMD ROCm
-    if command -v rocm-smi >/dev/null 2>&1 || [ -d /opt/rocm ]; then
-        GPU_VENDOR="amd"
-        GPU_NAME="$(rocm-smi --showproductname 2>/dev/null | grep 'GPU' | head -1 || echo 'AMD GPU (ROCm)')"
-        return 0
-    fi
-
-    # Intel XPU
-    if command -v xpu-smi >/dev/null 2>&1 || [ -d /opt/intel/oneapi ]; then
-        GPU_VENDOR="intel"; GPU_NAME="Intel XPU"; return 0
-    fi
-
-    # lspci hint
-    if command -v lspci >/dev/null 2>&1; then
-        if lspci 2>/dev/null | grep -qi 'vga.*nvidia'; then
-            warn "NVIDIA GPU detected via lspci but nvidia-smi missing — install your distro's NVIDIA driver."
-        fi
-    fi
+# ── GPU detection (delegated to scripts/accel_plan.py) ──
+# One implementation for install.sh / update.sh / install.ps1 / install.bat /
+# install_diagnose.py --repair: it probes nvidia-smi, rocm-smi/rocminfo//opt/rocm,
+# xpu-smi/sycl-ls/clinfo, sysfs PCI and lspci, so a GPU with a missing driver
+# still gets GPU wheels plus an actionable hint instead of a silent CPU install.
+ACCEL_PY="$PROJECT_ROOT/scripts/accel_plan.py"
+ACCEL_FLAGS=()
+[ "$FORCE_CPU" = "1" ] && ACCEL_FLAGS+=(--cpu)
+[ -n "$FORCE_GPU" ] && ACCEL_FLAGS+=(--gpu "$FORCE_GPU")
+accel_py() {  # any python3 works: the planner is stdlib-only
+    local py="${PYTHON_CMD:-}"
+    [ -n "$py" ] || py="$(command -v python3 || command -v python || true)"
+    [ -n "$py" ] || die "no python3 found on PATH"
+    echo "$py"
+}
+accel() {  # accel <subcommand> [args...]  (venv python once the venv exists)
+    local sub="$1"; shift
+    "$(accel_py)" "$ACCEL_PY" "$sub" ${ACCEL_FLAGS[@]+"${ACCEL_FLAGS[@]}"} "$@"
 }
 
-detect_gpu
-case "$GPU_VENDOR" in
-    nvidia) log "GPU: NVIDIA $GPU_NAME — driver $GPU_DRIVER → $CUDA_VER" ;;
-    amd)    log "GPU: AMD ROCm — $GPU_NAME" ;;
-    intel)  log "GPU: Intel XPU — $GPU_NAME" ;;
-    *)      warn "GPU: none — CPU-only mode. Install GPU drivers for 10x+ faster inference." ;;
-esac
+# Sets: GPU_VENDOR GPU_NAME GPU_DRIVER CUDA_VER TORCH_TAG TORCH_INDEX LLAMA_BACKEND
+#       LLAMA_CMAKE_ARGS LLAMA_WHEEL_INDEX NVCC DRIVER_READY PLAN_WARNINGS ...
+load_plan() {
+    local vars
+    vars="$(accel plan --shell)" || die "accelerator detection failed (scripts/accel_plan.py)"
+    eval "$vars"
+    case "$GPU_VENDOR" in
+        nvidia) log "GPU: NVIDIA $GPU_NAME — driver $GPU_DRIVER (CUDA ${CUDA_MAX:-?}) → torch $TORCH_TAG, llama.cpp $LLAMA_BACKEND" ;;
+        amd)    log "GPU: AMD $GPU_NAME — ROCm ${ROCM_VERSION:-n/a} → torch $TORCH_TAG, llama.cpp $LLAMA_BACKEND" ;;
+        intel)  log "GPU: Intel $GPU_NAME → torch xpu, llama.cpp $LLAMA_BACKEND" ;;
+        apple)  log "GPU: Apple Silicon → torch mps, llama.cpp $LLAMA_BACKEND" ;;
+        *)      log "GPU: none — CPU wheels" ;;
+    esac
+    if [ -n "$PLAN_WARNINGS" ]; then
+        while IFS= read -r line; do [ -n "$line" ] && warn "$line"; done <<<"$PLAN_WARNINGS"
+    fi
+}
 
 # ── Find Python 3.12+ ──
 pick_python() {
@@ -168,6 +170,12 @@ pick_python() {
 }
 
 PYTHON_CMD="$(pick_python || true)"
+
+# ── --plan: show what would be installed, change nothing ──
+if [ "$PLAN_ONLY" = "1" ]; then
+    accel plan
+    exit 0
+fi
 
 # ── Diagnostic-only modes (delegate to Python helper) ──
 # These exit before any install/build work, so they can be run cheaply
@@ -228,6 +236,7 @@ case "$MODE" in
         ;;
 esac
 
+load_plan
 [ -z "$PYTHON_CMD" ] && die "Python 3.12+ not found. Install:
   Debian/Ubuntu:  sudo apt-get install -y python3.12 python3.12-venv python3.12-dev
   Fedora:         sudo dnf install -y python3.12 python3.12-devel
@@ -283,166 +292,53 @@ pip_install() {
     fi
 }
 
-# ── Freeze the torch family after install_torch so later `-e .` / optional
-#    installs cannot silently upgrade torch off the CUDA-matched build.
-#    (2026-09-25: `uv pip install -e .` replaced torch 2.6.0+cu124 with PyPI
-#    2.14.0 (cu130 build) while torchvision/torchaudio stayed +cu124 →
-#    ImportError: undefined symbol: ncclCommResume on driver 535.) ──
+# ── torch family pin: $VENV_DIR/torch-constraints.txt is written right after the
+#    GPU torch install (accel_plan.py `constraints`) and passed as `-c` to every
+#    later resolve so `-e .`, bitsandbytes, unsloth cannot swap torch off its GPU
+#    build (2026-09-25: `uv pip install -e .` replaced torch 2.6.0+cu124 with the
+#    PyPI cu130 build -> undefined symbol ncclCommResume on driver 535). ──
 TORCH_CONSTRAINTS="${VENV_DIR:-.venv}/torch-constraints.txt"
 CONSTRAINT_ARGS=()
-write_torch_constraints() {
-    mkdir -p "$(dirname "$TORCH_CONSTRAINTS")"
-    "$PYTHON_CMD" - "$TORCH_CONSTRAINTS" <<'PY' 2>/dev/null || true
-import importlib.metadata as m, sys
-out = sys.argv[1]
-lines = []
-for name in ("torch", "torchvision", "torchaudio"):
-    try:
-        lines.append(f"{name}=={m.version(name)}")
-    except m.PackageNotFoundError:
-        pass
-
-# torchao >= 0.17 calls torch.utils._pytree.register_constant, which only
-# exists in torch 2.7+. transformers 5.x imports torchao eagerly, so on the
-# CUDA-12.4 / driver-535 pin (torch 2.6) that AttributeError takes down EVERY
-# transformers class import -- peft, TrainingArguments, BloomPreTrainedModel
-# all die with a misleading "Are this object's requirements defined
-# correctly?". unsloth_zoo (>=0.13.0) hard-requires torchao, so capping it
-# (not removing it) is the only fix that keeps it importable. Verified:
-# 0.16.0 is the last release without the pytree call.
-try:
-    major, minor = (int(p) for p in m.version("torch").split(".")[:2])
-    if (major, minor) < (2, 7):
-        lines.append("torchao<0.17")
-except Exception:
-    pass
-
-if lines:
-    open(out, "w").write("\n".join(lines) + "\n")
-PY
-    if [ -s "$TORCH_CONSTRAINTS" ]; then
+refresh_constraints() {
+    if accel constraints --venv "$VENV_DIR" >/dev/null 2>&1 && [ -s "$TORCH_CONSTRAINTS" ]; then
         CONSTRAINT_ARGS=(-c "$TORCH_CONSTRAINTS")
         log "torch family pinned via $TORCH_CONSTRAINTS"
     fi
 }
 
-# ── Install PyTorch with matching GPU ──
+# ── Install PyTorch (newest index the driver + GPU support; never CPU on a GPU host) ──
 install_torch() {
-    case "$GPU_VENDOR" in
-        nvidia)
-            log "Installing PyTorch ($CUDA_VER)..."
-            uv pip install --python "$PYTHON_CMD" --reinstall \
-                --index-url "https://download.pytorch.org/whl/$CUDA_VER" \
-                torch torchvision torchaudio 2>&1 | tail -1 \
-            || { warn "Custom index failed — trying default..."; uv pip install --python "$PYTHON_CMD" torch torchvision torchaudio; } ;;
-        amd)
-            log "Installing PyTorch (ROCm 6.2)..."
-            uv pip install --python "$PYTHON_CMD" --reinstall \
-                --index-url "https://download.pytorch.org/whl/rocm6.2" \
-                torch torchvision torchaudio 2>&1 | tail -1 \
-            || { warn "ROCm failed — CPU fallback..."; uv pip install --python "$PYTHON_CMD" torch torchvision torchaudio; } ;;
-        intel)
-            log "Installing PyTorch (XPU)..."
-            uv pip install --python "$PYTHON_CMD" --reinstall \
-                --index-url "https://download.pytorch.org/whl/xpu" \
-                torch torchvision torchaudio 2>&1 | tail -1 \
-            || { warn "XPU failed — CPU fallback..."; uv pip install --python "$PYTHON_CMD" torch torchvision torchaudio; } ;;
-        *)
-            log "Installing PyTorch (CPU)..."
-            uv pip install --python "$PYTHON_CMD" --reinstall \
-                --index-url "https://download.pytorch.org/whl/cpu" \
-                torch torchvision torchaudio 2>&1 | tail -1 \
-            || uv pip install --python "$PYTHON_CMD" torch torchvision torchaudio ;;
-    esac
+    accel install torch --venv "$VENV_DIR" \
+        || die "PyTorch install failed for $GPU_VENDOR ($TORCH_TAG). See the messages above; \
+re-run after fixing the driver, or force CPU explicitly with --cpu."
 }
 
-# ── Install llama-cpp-python with matching CUDA/ROCm ──
+# ── llama-cpp-python: GPU prebuilt wheel, else source build with the right GGML_* flags ──
 install_gguf() {
     [ "$SKIP_GGUF" = "1" ] && { log "Skipping llama-cpp-python (--no-gguf)."; return 0; }
-
-    case "$GPU_VENDOR" in
-        nvidia)
-            # abetlen's prebuilt CUDA wheel index (no nvcc/build needed).
-            # CUDA_VER is picked from the driver version in detect_gpu().
-            log "Installing llama-cpp-python ($CUDA_VER prebuilt wheel — no compilation)..."
-            uv pip install --python "$PYTHON_CMD" --reinstall \
-                --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/$CUDA_VER/llama-cpp-python/" \
-                'llama-cpp-python>=0.3.0' 2>&1 | tail -3 \
-            || {
-                # Fallback: dougeeai GPU-specific wheel (RTX 3090 = sm_86 Ampere)
-                log "abetlen index failed — trying dougeeai prebuilt..."
-                uv pip install --python "$PYTHON_CMD" --reinstall \
-                    "llama-cpp-python>=0.3.0" \
-                    --find-links "https://github.com/dougeeai/llama-cpp-python-wheels/releases" \
-                    2>&1 | tail -3 \
-                || {
-                    # Last resort: source build with CMAKE_ARGS (slow, needs nvcc)
-                    warn "Prebuilt wheels failed — building from source (this may take 5-15 min)..."
-                    CMAKE_ARGS="-DGGML_CUDA=on" \
-                        uv pip install --python "$PYTHON_CMD" --reinstall \
-                        'llama-cpp-python>=0.3.0' --no-binary llama-cpp-python \
-                    || warn "llama-cpp-python CUDA build failed — GGUF inference unavailable."
-                }
-            } ;;
-        *)
-            log "Installing llama-cpp-python (CPU — install NVIDIA driver for GPU wheel)..."
-            uv pip install --python "$PYTHON_CMD" --reinstall 'llama-cpp-python>=0.3.0' ;;
-    esac
+    accel install llama-cpp-python --venv "$VENV_DIR" \
+        || warn "llama-cpp-python install failed — GGUF inference unavailable."
 }
 
-# ── Build llama.cpp CLI tools (convert_hf_to_gguf.py + llama-quantize) ──
+# ── llama.cpp CLI (convert_hf_to_gguf.py + llama-quantize + llama-cli), same backend ──
 # Required by the GGUF export endpoint. Skipped via --no-llama-cpp.
-# Use --llama-cpp-only to JUST build this (skip torch, llama-cpp-python, base pkgs).
+# --llama-cpp-only builds just this (skips torch, llama-cpp-python, base pkgs).
 install_llama_cpp_cli() {
     [ "$SKIP_LLAMA_CPP" = "1" ] && { log "Skipping llama.cpp CLI build (--no-llama-cpp)."; return 0; }
-
-    local convert_script="$LLAMA_CPP_DIR/convert_hf_to_gguf.py"
-    local quantize_bin="$LLAMA_CPP_DIR/build/bin/llama-quantize"
-
-    if [ -f "$convert_script" ] && [ -x "$quantize_bin" ]; then
-        log "llama.cpp CLI present at $LLAMA_CPP_DIR (skipping build)."
-        return 0
-    fi
-
-    log "Building llama.cpp CLI at $LLAMA_CPP_DIR (needed by export endpoint)..."
-    command -v cmake >/dev/null 2>&1 || die "cmake not found. Install build-essential + cmake."
-    command -v git  >/dev/null 2>&1 || die "git not found."
-    if [ ! -d "$LLAMA_CPP_DIR" ]; then
-        git clone --depth 1 https://github.com/ggerganov/llama.cpp "$LLAMA_CPP_DIR" \
-            || die "git clone llama.cpp failed"
-    fi
-    # Only install convert_hf_to_gguf.py Python deps when the Python
-    # conversion path is needed. Two reasons to skip:
-    #   (a) --llama-cpp-only builds the C++ CLI and does not need them.
-    #   (b) requirements-convert_hf_to_gguf.txt pins torch==2.11.0 from
-    #       the PyTorch CPU index, which silently downgrades the venv's
-    #       CUDA-matched torch (verified fan-dragon crash, 2026-09-28:
-    #       2.12.1+cu130 → 2.11.0+cpu, mixed torchaudio broke imports).
-    #       When we DO install (normal path), ${CONSTRAINT_ARGS[@]} pins
-    #       the existing torch family so the upgrade is a no-op.
-    if [ "$LLAMA_CPP_ONLY" != "1" ]; then
-        pip_install --quiet "${CONSTRAINT_ARGS[@]}" \
-            -r "$LLAMA_CPP_DIR/requirements/requirements-convert_hf_to_gguf.txt" 2>&1 | tail -3 \
-            || warn "convert_hf_to_gguf pip deps install failed — conversion may not work."
-    fi
-    cmake -S "$LLAMA_CPP_DIR" -B "$LLAMA_CPP_DIR/build" 2>&1 | tail -2 \
-        || die "cmake configure failed."
-    cmake --build "$LLAMA_CPP_DIR/build" --config Release -j 2>&1 | tail -3 \
-        || die "cmake build failed."
-
-    if [ ! -x "$quantize_bin" ]; then
-        die "llama-quantize not built. Check the cmake output above."
-    fi
-    log "llama-quantize: present at $quantize_bin"
+    local args=(--dir "$LLAMA_CPP_DIR" --venv "$VENV_DIR")
+    [ "$LLAMA_CPP_ONLY" = "1" ] && args+=(--only)
+    [ "$REBUILD_LLAMA" = "1" ] && args+=(--rebuild)
+    accel build-llama-cli "${args[@]}" || die "llama.cpp CLI build failed (see messages above)."
 }
 
 # ── Install everything ──
 if [ "$LLAMA_CPP_ONLY" = "1" ]; then
+    refresh_constraints
     install_llama_cpp_cli
     exit 0
 fi
 install_torch
-write_torch_constraints
+refresh_constraints
 install_gguf
 log "Installing base packages from pyproject.toml..."
 # [parsers] is folded into the base install (not an optional extra): file
@@ -450,20 +346,22 @@ log "Installing base packages from pyproject.toml..."
 # or abliteration. Without pypdf/python-docx/openpyxl/xlrd/python-pptx/
 # beautifulsoup4/striprtf/Pillow, PDF/DOCX/XLSX/PPTX/HTML/RTF sources
 # silently fail to parse on a fresh install.
-uv pip install --python "$PYTHON_CMD" "${CONSTRAINT_ARGS[@]}" -e '.[parsers]'
+uv pip install --python "$PYTHON_CMD" ${CONSTRAINT_ARGS[@]+"${CONSTRAINT_ARGS[@]}"} -e '.[parsers]'
 mkdir -p data
 install_llama_cpp_cli
 
-# ── Install optional but recommended packages ──
-# These are used by advanced features (abliteration, Unsloth).
-# They're installed silently — if they fail, the app still works.
+# ── Optional-but-recommended packages (the app still works if these fail) ──
 install_optional_packages() {
-    log "Installing optional packages (unsloth, numpy, scipy)..."
+    log "Installing optional packages (bitsandbytes, numpy, scipy, unsloth)..."
+    # bitsandbytes ships one wheel with CUDA, ROCm and XPU backends
+    accel install bitsandbytes --venv "$VENV_DIR" \
+        || warn "bitsandbytes install failed — 4-bit/8-bit loading unavailable."
     # numpy and scipy are needed for abliteration (always useful)
-    uv pip install --python "$PYTHON_CMD" "numpy>=1.24.0" "scipy>=1.10.0" 2>&1 | tail -1 \
+    uv pip install --python "$PYTHON_CMD" ${CONSTRAINT_ARGS[@]+"${CONSTRAINT_ARGS[@]}"} "numpy>=1.24.0" "scipy>=1.10.0" 2>&1 | tail -1 \
         || warn "numpy/scipy install failed — abliteration may not work."
-    # unsloth for faster training
-    uv pip install --python "$PYTHON_CMD" "${CONSTRAINT_ARGS[@]}" "unsloth>=2024.10.0" 2>&1 | tail -1 \
+    # unsloth: NVIDIA only, installed ONLY when a release resolves against the
+    # installed torch/transformers/trl (else skipped with a note, never a downgrade)
+    accel install unsloth --venv "$VENV_DIR" \
         || warn "unsloth install failed — will use standard training."
 }
 install_optional_packages
@@ -472,13 +370,24 @@ install_optional_packages
 log "Verifying..."
 "$PYTHON_CMD" -c "import fastapi, jinja2; print(f'  fastapi={fastapi.__version__} jinja2={jinja2.__version__}')" || die "Install failed."
 "$PYTHON_CMD" -c "
-import torch; a='cuda' if torch.cuda.is_available() else ('mps' if torch.backends.mps.is_available() else 'cpu')
-print(f'  torch: {a}', flush=True)
+import torch
+v = torch.__version__
 if torch.cuda.is_available():
-    print(f'  GPU: {torch.cuda.get_device_name(0)} ({torch.cuda.get_device_properties(0).total_memory/1024**3:.1f} GiB)', flush=True)
+    kind = 'rocm/hip' if getattr(torch.version, 'hip', None) else 'cuda'
+    print(f'  torch {v}: {kind}  GPU: {torch.cuda.get_device_name(0)} ({torch.cuda.get_device_properties(0).total_memory/1024**3:.1f} GiB)', flush=True)
+elif hasattr(torch, 'xpu') and torch.xpu.is_available():
+    print(f'  torch {v}: xpu  GPU: {torch.xpu.get_device_name(0)}', flush=True)
+elif torch.backends.mps.is_available():
+    print(f'  torch {v}: mps', flush=True)
+else:
+    print(f'  torch {v}: cpu (no usable accelerator at runtime)', flush=True)
 " 2>&1 | sed 's/^/[install]   /'
-[ "$SKIP_GGUF" = "0" ] && "$PYTHON_CMD" -c "import llama_cpp; print(f'  llama-cpp-python: {llama_cpp.__version__}')" 2>/dev/null | sed 's/^/[install]   /' || true
-[ -x "$LLAMA_CPP_DIR/build/bin/llama-quantize" ] && log "  llama.cpp CLI: $LLAMA_CPP_DIR" || true
+if [ "$SKIP_GGUF" = "0" ]; then
+    "$PYTHON_CMD" -c "import llama_cpp; print(f'  llama-cpp-python {llama_cpp.__version__}: gpu_offload={llama_cpp.llama_supports_gpu_offload()}')" 2>/dev/null | sed 's/^/[install]   /' || true
+fi
+"$PYTHON_CMD" -c "import bitsandbytes as b; print(f'  bitsandbytes {b.__version__}')" 2>/dev/null | sed 's/^/[install]   /' || true
+[ -x "$LLAMA_CPP_DIR/build/bin/llama-quantize" ] && log "  llama.cpp CLI: $LLAMA_CPP_DIR (backend: $(cat "$LLAMA_CPP_DIR/build/.fts-backend" 2>/dev/null || echo unknown))" || true
+uv pip check --python "$PYTHON_CMD" 2>&1 | sed 's/^/[install]   check: /' | head -8 || true
 
 # ── Post-install health check (autodetect broken installs) ──
 # The deep diagnostic catches issues the surface checks miss

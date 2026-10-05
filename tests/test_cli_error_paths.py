@@ -118,16 +118,16 @@ def test_benchmark_unknown_suite_fails_before_model_load(monkeypatch, capsys, tm
 
 
 def test_install_diagnose_driver_mapping_mirrors_install_sh() -> None:
-    """install.sh and install_diagnose.py must map driver majors to the same CUDA tag."""
+    """The driver->CUDA mapping lives only in scripts/accel_plan.py; both installers delegate."""
     import re
     from pathlib import Path
 
     root = Path(__file__).resolve().parent.parent
     sh = (root / "install.sh").read_text()
     py = (root / "scripts" / "install_diagnose.py").read_text()
-    sh_map = re.findall(r'-ge (\d+) \]\s*2>/dev/null; then CUDA_VER="(cu\d+)"', sh)
-    py_map = re.findall(r'major >= (\d+): cuda_ver = "(cu\d+)"', py)
-    assert sh_map and sh_map == py_map
+    assert "accel_plan" in sh and "accel_plan" in py
+    assert not re.search(r'CUDA_VER="cu\d+"', sh)
+    assert not re.search(r'cuda_ver = "cu\d+"', py)
 
 
 def test_update_sh_check_mode_does_not_pull_or_migrate() -> None:

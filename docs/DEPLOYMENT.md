@@ -13,17 +13,29 @@ git clone https://github.com/GenorTG/finetune-studio && cd finetune-studio
 ```
 
 `install.sh` steps:
-1. **detect_gpu** — `nvidia-smi` → driver→CUDA mapping (≥555 → cu132 prebuilt wheel,
-   ≥525 → cu124, ≥520 → cu121, ≥470 → cu118, else CPU).
-2. venv `.venv/` + `pip install -e .` (all core deps).
-3. `llama-cpp-python` from the matching CUDA wheel index (never a source build
-   unless no wheel exists).
+1. **Accelerator detection** (`scripts/accel_plan.py`, shared by every installer) — NVIDIA
+   (`nvidia-smi`, the driver's CUDA level + each GPU's compute capability), AMD (`rocm-smi`/
+   `rocminfo`/`/opt/rocm`), Intel (`sycl-ls`/`xpu-smi`/`clinfo`), Apple (Metal), plus
+   `lspci`/sysfs for GPUs whose driver is missing (installs the GPU wheels anyway and prints
+   the driver hint). CPU wheels only when no GPU of any vendor exists. Preview with
+   `bash install.sh --plan`; override with `--gpu nvidia|amd|intel|none` or `--cpu`.
+2. venv `.venv/` + PyTorch from the newest index the hardware supports (NVIDIA cu132/cu130 on
+   CUDA-13 drivers, cu128 for Blackwell on 12.8-12.9 drivers, cu126 for Pascal and older,
+   cu124/cu121/cu118 on older drivers; AMD rocm7.2…rocm6.2 by installed ROCm; Intel xpu), pinned
+   in `.venv/torch-constraints.txt`, then `pip install -e .[parsers]`, bitsandbytes, and unsloth
+   only when a release resolves against the installed stack.
+3. `llama-cpp-python` with GPU offload: the abetlen prebuilt CUDA wheel when its runtime libs
+   exist, else a source build with `GGML_CUDA` (arch from compute capability) / `GGML_HIP` /
+   `GGML_SYCL` / `GGML_VULKAN` / `GGML_METAL`. CPU build only as a loudly-warned last resort.
 4. llama.cpp CLI build into `LLAMA_CPP_DIR` (default project-local `.llama.cpp/`) —
-   `llama-quantize` + `convert_hf_to_gguf.py` for the GGUF export endpoint.
+   `llama-quantize` + `llama-cli` + `convert_hf_to_gguf.py` for the GGUF export endpoint,
+   built with the same GPU backend (`.llama.cpp/build/.fts-backend`).
    Legacy checkouts at `~/llama.cpp` are still discovered. Override with
    `LLAMA_CPP_DIR=/path/to/llama.cpp`.
 5. `scripts/install_diagnose.py` — deep health check (mixed installs, missing deps,
-   broken torchaudio, service status); `--repair` autofixes.
+   CPU torch on a GPU host, wrong-backend wheel, llama-cpp-python without GPU offload,
+   CPU-only llama.cpp CLI, missing bitsandbytes, service status); `--repair` autofixes
+   (driver / toolchain gaps that need root are reported as manual steps).
 
 `install.sh` does **not** install a systemd unit. On Linux, install it separately
 with `bash install-service.sh`; that script writes the user unit and supports

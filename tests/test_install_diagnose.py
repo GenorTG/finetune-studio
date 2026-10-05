@@ -42,6 +42,8 @@ def fake_venv(tmp_path):
     (llama_cpp / "build/bin").mkdir(parents=True)
     (llama_cpp / "build/bin/llama-quantize").write_text("#!/bin/sh\n")
     (llama_cpp / "build/bin/llama-quantize").chmod(0o755)
+    (llama_cpp / "build/bin/llama-cli").write_text("#!/bin/sh\n")
+    (llama_cpp / "build/bin/llama-cli").chmod(0o755)
     (llama_cpp / "convert_hf_to_gguf.py").write_text("# fake\n")
 
     return venv, llama_cpp
@@ -58,6 +60,32 @@ def _healthy_torch_payload(version: str = "2.11.0+cu130", cuda: bool = True) -> 
     return json.dumps({"v": version, "cuda": cuda})
 
 
+@pytest.fixture(autouse=True)
+def hermetic_host(monkeypatch, tmp_path):
+    """Never read the real machine: no GPU hardware, healthy bitsandbytes + llama offload probes.
+    Tests that need hardware override with `fake_hw` (see tests/test_accel_plan.py fixtures)."""
+    hw = tmp_path / "hw.json"
+    hw.write_text(json.dumps({"system": "Linux", "machine": "x86_64"}))
+    monkeypatch.setenv("FTS_ACCEL_FIXTURE", str(hw))
+    monkeypatch.delenv("FTS_FORCE_VENDOR", raising=False)
+    monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
+    monkeypatch.setattr(diag.ap, "_FIXTURE", None)
+    monkeypatch.setattr(diag, "probe_bitsandbytes", lambda py: "0.50.2")
+    monkeypatch.setattr(diag, "probe_llama_offload", lambda py: True)
+
+
+def _nvidia_hw(monkeypatch, tmp_path, name="NVIDIA GeForce RTX 3090", driver="580.178.04", cc="8.6", cuda="13.0"):
+    smi = "nvidia-smi --query-gpu=index,name,driver_version,compute_cap --format=csv,noheader"
+    spec = {"system": "Linux", "machine": "x86_64", "which": ["nvidia-smi", "nvcc"],
+            "commands": {smi: f"0, {name}, {driver}, {cc}\n",
+                         "nvidia-smi": f"CUDA UMD Version: {cuda}\n",
+                         "nvcc --version": "Cuda compilation tools, release 13.4, V13.4.92\n",
+                              "/usr/local/cuda/bin/nvcc --version": "Cuda compilation tools, release 13.4, V13.4.92\n"},
+            "files": {"/usr/local/cuda/bin/nvcc": "x"}}
+    (tmp_path / "hw.json").write_text(json.dumps(spec))
+    monkeypatch.setattr(diag.ap, "_FIXTURE", None)
+
+
 # ── GpuInfo.detect ──────────────────────────────────────────────────────
 
 class TestGpuDetect:
@@ -66,59 +94,36 @@ class TestGpuDetect:
         assert g.vendor == "none"
         assert g.cuda_ver == ""
 
-    def test_nvidia_detected(self):
-        with patch("shutil.which", return_value="/usr/bin/nvidia-smi"), \
-             patch("subprocess.run") as sr:
-            sr.return_value = _fake_run(stdout="NVIDIA GeForce RTX 3090, 610.57.04\n")
-            g = diag.GpuInfo.detect()
+    def test_nvidia_detected(self, monkeypatch, tmp_path):
+        _nvidia_hw(monkeypatch, tmp_path, driver="610.57.04", cuda="13.2")
+        g = diag.GpuInfo.detect()
         assert g.vendor == "nvidia"
         assert "RTX 3090" in g.name
         assert g.driver_version == "610.57.04"
-        assert g.cuda_ver == "cu132"  # 610 ≥ 555 (matches install.sh)
+        assert g.cuda_ver == "cu132"
 
-    def test_nvidia_driver_550_maps_to_cu130(self):
-        with patch("shutil.which", return_value="/usr/bin/nvidia-smi"), \
-             patch("subprocess.run") as sr:
-            sr.return_value = _fake_run(stdout="RTX 3090, 551.10\n")
-            g = diag.GpuInfo.detect()
-        assert g.cuda_ver == "cu130"  # 550 ≤ 551 < 555
+    @pytest.mark.parametrize("driver,cuda,tag", [
+        ("580.178.04", "13.0", "cu132"),   # CUDA-13 driver runs any cu13x wheel (verified live)
+        ("550.54", "12.4", "cu124"),
+        ("530.41", "12.1", "cu121"),
+        ("470.42", "11.4", "cu118"),
+    ])
+    def test_nvidia_driver_maps_to_newest_supported_index(self, monkeypatch, tmp_path, driver, cuda, tag):
+        _nvidia_hw(monkeypatch, tmp_path, driver=driver, cuda=cuda)
+        assert diag.GpuInfo.detect().cuda_ver == tag
 
-    def test_nvidia_driver_525_maps_to_cu124(self):
-        with patch("shutil.which", return_value="/usr/bin/nvidia-smi"), \
-             patch("subprocess.run") as sr:
-            sr.return_value = _fake_run(stdout="RTX 3090, 530.41\n")
-            g = diag.GpuInfo.detect()
-        assert g.cuda_ver == "cu124"  # 530 ≥ 525
+    def test_nvidia_smi_fails_falls_through(self, monkeypatch, tmp_path):
+        spec = {"system": "Linux", "machine": "x86_64", "which": ["nvidia-smi"],
+                "commands": {"nvidia-smi": {"rc": 9, "out": "NVIDIA-SMI has failed"}}}
+        (tmp_path / "hw.json").write_text(json.dumps(spec))
+        monkeypatch.setattr(diag.ap, "_FIXTURE", None)
+        assert diag.GpuInfo.detect().vendor == "none"
 
-    def test_nvidia_driver_470_maps_to_cu118(self):
-        with patch("shutil.which", return_value="/usr/bin/nvidia-smi"), \
-             patch("subprocess.run") as sr:
-            sr.return_value = _fake_run(stdout="RTX 3090, 470.42\n")
-            g = diag.GpuInfo.detect()
-        assert g.cuda_ver == "cu118"
-
-    def test_nvidia_smi_fails_falls_through(self):
-        # When nvidia-smi is on PATH but returns empty/fails, AND no
-        # /opt/rocm /opt/intel/oneapi exist, AND rocm-smi / xpu-smi are
-        # not on PATH, GPU detection should report "none".
-        def which_side_effect(cmd):
-            return "/usr/bin/nvidia-smi" if cmd == "nvidia-smi" else None
-        with patch("shutil.which", side_effect=which_side_effect), \
-             patch("subprocess.run") as sr, \
-             patch("pathlib.Path.exists", return_value=False):
-            sr.return_value = _fake_run(stdout="", returncode=1)
-            g = diag.GpuInfo.detect()
-        assert g.vendor == "none"
-
-    def test_rocm_detected(self):
-        with patch("shutil.which", return_value=None), \
-             patch("pathlib.Path.exists", return_value=True):
-            g = diag.GpuInfo.detect()
-        # Without rocm-smi binary, /opt/rocm existence alone would trigger
-        # the amd branch — but our test patches Path.exists globally which
-        # is too broad. Skip if it gets confused.
-        # The point: we don't crash, we return *something*.
-        assert g.vendor in ("amd", "none")
+    def test_rocm_detected(self, monkeypatch, tmp_path):
+        spec = {"system": "Linux", "machine": "x86_64", "which": ["rocm-smi"], "files": {"/opt/rocm/.info/version": "6.4.1"}}
+        (tmp_path / "hw.json").write_text(json.dumps(spec))
+        monkeypatch.setattr(diag.ap, "_FIXTURE", None)
+        assert diag.GpuInfo.detect().vendor == "amd"
 
 
 # ── diagnose() — broken venv cases ──────────────────────────────────────
@@ -151,7 +156,7 @@ class TestDiagnoseMixedTorch:
     """The exact bug we hit on fan-dragon: torch+cpu with torchaudio+cu130
     and torchaudio fails to import because libc10_cuda.so is missing."""
 
-    def test_torch_cpu_with_gpu_detected(self, tmp_path):
+    def test_torch_cpu_with_gpu_detected(self, tmp_path, monkeypatch):
         venv = tmp_path / ".venv"
         (venv / "bin").mkdir(parents=True)
         (venv / "bin" / "python").write_text("#!/bin/sh\n")
@@ -163,12 +168,8 @@ class TestDiagnoseMixedTorch:
         ta_broken = _fake_run(returncode=1, stderr="libc10_cuda.so")
         empty = _fake_run(returncode=0, stdout="")
 
-        # Side-effects from GpuInfo.detect — make it report NVIDIA + cu130
-        with patch("shutil.which", return_value="/usr/bin/nvidia-smi"), \
-             patch("subprocess.run") as sr_global, \
-             patch("install_diagnose._run") as r:
-            # GpuInfo.detect() nvidia-smi call
-            sr_global.return_value = _fake_run(stdout="RTX 3090, 610.57.04\n")
+        _nvidia_hw(monkeypatch, tmp_path, driver="610.57.04", cuda="13.2")
+        with patch("install_diagnose._run") as r:
             # _run() called by inspect_venv (multiple)
             r.side_effect = [
                 _fake_run(stdout=py_version_ok),   # basic sys check
@@ -268,7 +269,8 @@ class TestDiagnoseMissingParts:
 # ── diagnose() — healthy ────────────────────────────────────────────────
 
 class TestDiagnoseHealthy:
-    def test_healthy_returns_empty(self, fake_venv):
+    def test_healthy_returns_empty(self, fake_venv, monkeypatch, tmp_path):
+        _nvidia_hw(monkeypatch, tmp_path)
         venv, llcpp = fake_venv
         with patch("install_diagnose._run") as r:
             r.side_effect = [
@@ -291,169 +293,11 @@ class TestDiagnoseHealthy:
         assert diag.BUILD_LLAMA_CPP_CLI not in codes
 
 
-# ── repair() — autofix command construction ──────────────────────────────
-
-class TestRepairTorchCommand:
-    """Regression for the cmd-construction bug: fan-dragon's install
-    repaired to 'pip pip install --python X --reinstall ...' (duplicated
-    pip + wrong module path). Resulted in python -m install which
-    silently failed and the bash script's set -e killed it before any
-    wheel was downloaded."""
-
-    def test_torch_repair_uses_python_m_pip(self, tmp_path):
-        """The torch reinstall must use `sys.executable -m pip install`,
-        NOT 'pip pip install --python X ...'. Captured via subprocess.run
-        patch so we can assert the exact argv without doing a real pip
-        install."""
-        venv = tmp_path / ".venv"
-        (venv / "bin").mkdir(parents=True)
-        (venv / "bin" / "python").write_text("#!/bin/sh\n")
-        (venv / "bin" / "python").chmod(0o755)
-        (tmp_path / "llama.cpp").mkdir()
-
-        import install_diagnose as d
-        gpu_stub = d.GpuInfo(
-            vendor="nvidia", name="RTX 3090", driver_version="610.57.04",
-            cuda_ver="cu130", compute_cap="8.6", cuda_toolkit_path="/opt/cuda",
-        )
-        issues = [d.Issue(d.REINSTALL_TORCH, "broken", "fix it", severity=2)]
-
-        with patch.object(d, "GpuInfo") as gi, \
-             patch.object(d, "subprocess") as sb:
-            gi.detect.return_value = gpu_stub
-            sb.run.return_value = _fake_run(returncode=0)
-            _ = d.repair(issues, venv, tmp_path / "llama.cpp",
-                         log=lambda *a, **k: None)
-
-        # argv[0] must be a python interpreter (sys.executable is "/usr/bin/python3"
-        # on Linux); argv[1]='-m'; argv[2]='pip'
-        argv = sb.run.call_args[0][0]
-        assert "python" in argv[0].lower(), \
-            f"expected python interpreter, got {argv[0]}"
-        assert argv[1] == "-m"
-        assert argv[2] == "pip"
-        # Must use the cu130 index (no --python flag — pip picks venv from sys.executable)
-        assert "--index-url" in argv
-        idx = argv[argv.index("--index-url") + 1]
-        assert idx.endswith("/cu130"), f"expected cu130 index, got {idx}"
-        # Must target the torch family
-        for pkg in ("torch", "torchvision", "torchaudio"):
-            assert pkg in argv, f"missing {pkg} in argv: {argv}"
-        # The original bug was a duplicated 'pip' subcommand
-        # (e.g. ['pip', 'pip', 'install', ...] or ['pip', 'pip', ...]).
-        # The CORRECT pattern is ['python', '-m', 'pip', 'install', ...].
-        # So we forbid two consecutive 'pip' entries.
-        for i in range(len(argv) - 1):
-            assert not (argv[i] == "pip" and argv[i + 1] == "pip"), \
-                f"duplicated pip subcommand in argv: {argv}"
-        assert "--python" not in argv, \
-            "pip doesn't accept --python; rely on sys.executable for venv context"
-
-    def test_cpu_torch_repair_uses_cpu_index(self, tmp_path):
-        venv = tmp_path / ".venv"
-        (venv / "bin").mkdir(parents=True)
-        (venv / "bin" / "python").write_text("#!/bin/sh\n")
-        (venv / "bin" / "python").chmod(0o755)
-        (tmp_path / "llama.cpp").mkdir()
-
-        import install_diagnose as d
-        gpu_stub = d.GpuInfo(
-            vendor="none", name="(no GPU)", driver_version="",
-            cuda_ver="", compute_cap="", cuda_toolkit_path="",
-        )
-        issues = [d.Issue(d.REINSTALL_TORCH, "broken", "fix it", severity=2)]
-        with patch.object(d, "GpuInfo") as gi, \
-             patch.object(d, "subprocess") as sb:
-            gi.detect.return_value = gpu_stub
-            sb.run.return_value = _fake_run(returncode=0)
-            d.repair(issues, venv, tmp_path / "llama.cpp",
-                     log=lambda *a, **k: None)
-        argv = sb.run.call_args[0][0]
-        idx = argv[argv.index("--index-url") + 1]
-        assert idx.endswith("/cpu"), f"expected cpu index, got {idx}"
-
-    def test_repair_returns_false_when_torch_install_fails(self, tmp_path):
-        venv = tmp_path / ".venv"
-        (venv / "bin").mkdir(parents=True)
-        (venv / "bin" / "python").write_text("#!/bin/sh\n")
-        (venv / "bin" / "python").chmod(0o755)
-        (tmp_path / "llama.cpp").mkdir()
-
-        import install_diagnose as d
-        gpu_stub = d.GpuInfo(
-            vendor="nvidia", name="RTX 3090", driver_version="610.57.04",
-            cuda_ver="cu130", compute_cap="8.6", cuda_toolkit_path="/opt/cuda",
-        )
-        issues = [d.Issue(d.REINSTALL_TORCH, "broken", "fix it", severity=2)]
-        with patch.object(d, "GpuInfo") as gi, \
-             patch.object(d, "subprocess") as sb:
-            gi.detect.return_value = gpu_stub
-            sb.run.return_value = _fake_run(returncode=1, stderr="boom")
-            ok, actions = d.repair(issues, venv, tmp_path / "llama.cpp",
-                                   log=lambda *a, **k: None)
-        assert ok is False
-        assert any("torch reinstall: FAIL" in a for a in actions)
-
-    def test_blackwell_sm120_triggers_source_build(self, tmp_path):
-        """RTX 5090/5080 (sm_120) MUST trigger a source rebuild of
-        llama-cpp-python, not the abetlen prebuilt wheel — the wheel
-        lacks sm_120 kernels and crashes in ggml_cuda_op_scale on the
-        first forward pass."""
-        venv = tmp_path / ".venv"
-        (venv / "bin").mkdir(parents=True)
-        (venv / "bin" / "python").write_text("#!/bin/sh\n")
-        (venv / "bin" / "python").chmod(0o755)
-        (tmp_path / "llama.cpp").mkdir()
-
-        import install_diagnose as d
-        gpu_stub = d.GpuInfo(
-            vendor="nvidia", name="NVIDIA GeForce RTX 5080",
-            driver_version="615.71", cuda_ver="cu130",
-            compute_cap="12.0", cuda_toolkit_path="/opt/cuda",
-        )
-        issues = [d.Issue(d.REINSTALL_LLAMA_CPP, "sm_120", "fix it",
-                          severity=2)]
-
-        with patch.object(d, "GpuInfo") as gi, \
-             patch.object(d, "subprocess") as sb, \
-             patch.dict(d.os.environ, {}, clear=False):
-            gi.detect.return_value = gpu_stub
-            sb.run.return_value = _fake_run(returncode=0)
-            ok, actions = d.repair(issues, venv, tmp_path / "llama.cpp",
-                                   log=lambda *a, **k: None)
-
-        # Source-build argv: pip install --force-reinstall --no-deps
-        argv = sb.run.call_args[0][0]
-        assert "--force-reinstall" in argv
-        assert "--no-deps" in argv
-        assert "llama-cpp-python" in argv
-        # MUST target the venv python (not sys.executable / miniconda).
-        # Pre-fix bug: repair used sys.executable which was the host's
-        # miniconda python, so the source build landed in the wrong
-        # site-packages and never reached the venv.
-        expected_py = str(venv / "bin" / "python")
-        assert argv[0] == expected_py, \
-            f"expected venv python {expected_py!r}, got {argv[0]!r}"
-        assert "miniconda" not in argv[0], \
-            f"pip must target venv, not miniconda; got {argv[0]!r}"
-        # Must NOT use abetlen's prebuilt wheel URL (that path lacks sm_120)
-        assert "--extra-index-url" not in argv
-        # Must pass CMAKE_ARGS=... sm_120 to subprocess.run via env=
-        env = sb.run.call_args[1].get("env") or sb.run.call_args[0][1]
-        cmake_args = env.get("CMAKE_ARGS", "")
-        assert "-DGGML_CUDA=ON" in cmake_args, \
-            f"expected GGML_CUDA=ON, got CMAKE_ARGS={cmake_args!r}"
-        assert "-DCMAKE_CUDA_ARCHITECTURES=120" in cmake_args, \
-            f"expected sm_120 arch, got CMAKE_ARGS={cmake_args!r}"
-        # Summary line should reflect the source-build path
-        assert any("source build (sm_120)" in a for a in actions)
-        assert ok is True
-
-
 # ── CLI smoke tests ─────────────────────────────────────────────────────
 
 class TestCLI:
-    def test_check_returns_0_when_healthy(self, fake_venv):
+    def test_check_returns_0_when_healthy(self, fake_venv, monkeypatch, tmp_path):
+        _nvidia_hw(monkeypatch, tmp_path)
         venv, llcpp = fake_venv
         with patch("install_diagnose._run") as r:
             # _main inspects the venv twice (diagnose + summary print), so cycle

@@ -4,8 +4,9 @@
 # Run on fan-dragon (or any host running finetune-studio) to:
 #   1. Pull latest code (fast-forward only)
 #   2. Repair venv if broken (recreate via install.sh)
-#   3. Sync pip deps (pip install -e .)
-#   4. Build llama.cpp CLI tools if missing
+#   3. Sync pip deps: `-e .[parsers]` + every extra install.sh installs
+#      (bitsandbytes, numpy/scipy, unsloth when compatible) under the torch pin
+#   4. Build (or rebuild for the right GPU backend) the llama.cpp CLI tools
 #   5. Run DB migrations (init_db)
 #   6. Restart finetune-studio.service
 #
@@ -58,41 +59,25 @@ pip_install() {
     fi
 }
 
-# Keep the CUDA-matched torch family pinned during dep sync: install.sh writes
+ACCEL_PY="$PWD/scripts/accel_plan.py"
+accel() {  # accel <subcommand> [args...]: scripts/accel_plan.py owns GPU detection + every wheel/CMake choice
+    local sub="$1"; shift
+    local py="$VENV_PY"
+    [ -x "$py" ] || py="$(command -v python3 || command -v python)"
+    "$py" "$ACCEL_PY" "$sub" ${ACCEL_FLAGS[@]+"${ACCEL_FLAGS[@]}"} "$@"
+}
+ACCEL_FLAGS=()
+[ -n "${FTS_FORCE_VENDOR:-}" ] && ACCEL_FLAGS+=(--gpu "$FTS_FORCE_VENDOR")
+
+# Keep the GPU-matched torch family pinned during dep sync: install.sh writes
 # .venv/torch-constraints.txt after install_torch. Without it, a later resolve
 # (unsloth/`-e .`) silently upgrades torch to the default PyPI build and
 # breaks the venv on older drivers (undefined symbol: ncclCommResume, 535).
+# Existing installs that predate the file get it generated from the currently
+# installed (working) torch family so sync can't drift.
 torch_constraint_args() {
     local f="$VENV_DIR/torch-constraints.txt"
-    if [ ! -s "$f" ]; then
-        # Existing installs predate install.sh's pin file — generate it from
-        # the currently installed (working) torch family so sync can't drift.
-        "$VENV_PY" - "$f" <<'PY' 2>/dev/null || true
-import importlib.metadata as m, sys
-out = sys.argv[1]
-lines = []
-for name in ("torch", "torchvision", "torchaudio"):
-    try:
-        lines.append(f"{name}=={m.version(name)}")
-    except m.PackageNotFoundError:
-        pass
-
-# torchao >= 0.17 needs torch 2.7+ (torch.utils._pytree.register_constant) and
-# transformers 5.x imports it eagerly, so a torchao left uncapped breaks every
-# transformers import on a torch-2.6 pin. unsloth_zoo hard-requires torchao,
-# so cap rather than remove. See install.sh write_torch_constraints.
-try:
-    major, minor = (int(p) for p in m.version("torch").split(".")[:2])
-    if (major, minor) < (2, 7):
-        lines.append("torchao<0.17")
-except Exception:
-    pass
-
-if lines:
-    import os; os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
-    open(out, "w").write("\n".join(lines) + "\n")
-PY
-    fi
+    [ -s "$f" ] || accel constraints --venv "$VENV_DIR" >/dev/null 2>&1 || true
     [ -s "$f" ] && printf -- '-c\n%s\n' "$f"
 }
 
@@ -176,32 +161,27 @@ if [ "$CHECK_MODE" = "0" ]; then
     # shellcheck disable=SC2046
     pip_install --quiet $(torch_constraint_args) -e '.[parsers]' 2>&1 | tail -5 \
         || warn "pip install -e .[parsers] failed — deps may be stale"
+    # Every extra install.sh installs, so updated hosts match fresh ones:
+    # bitsandbytes (CUDA/ROCm/XPU backends in one wheel), numpy/scipy (abliteration),
+    # unsloth (NVIDIA only; skipped unless a release resolves against the installed stack).
+    log "Syncing optional packages (bitsandbytes, numpy, scipy, unsloth)..."
+    accel install bitsandbytes --venv "$VENV_DIR" 2>&1 | tail -3 \
+        || warn "bitsandbytes sync failed"
+    # shellcheck disable=SC2046
+    pip_install --quiet $(torch_constraint_args) "numpy>=1.24.0" "scipy>=1.10.0" 2>&1 | tail -2 \
+        || warn "numpy/scipy sync failed"
+    accel install unsloth --venv "$VENV_DIR" 2>&1 | tail -3 \
+        || warn "unsloth sync failed"
 else
     log "check mode: skipping pip install"
 fi
 
 # ── Step 4: llama.cpp CLI ────────────────────────────────────────────────
+# build-llama-cli is a no-op when the CLI exists AND was built for this host's
+# GPU backend; a CPU-only build on a GPU host (or a backend change) is rebuilt.
 if [ "$NO_LLAMA" = "0" ] && [ "$CHECK_MODE" = "0" ]; then
-    if [ -x "$LLAMA_CPP_DIR/build/bin/llama-quantize" ] && [ -f "$LLAMA_CPP_DIR/convert_hf_to_gguf.py" ]; then
-        log "llama.cpp CLI present at $LLAMA_CPP_DIR."
-    else
-        log "Building llama.cpp CLI at $LLAMA_CPP_DIR..."
-        command -v cmake >/dev/null 2>&1 || warn "cmake not found; install build-essential + cmake"
-        command -v git   >/dev/null 2>&1 || warn "git not found"
-        if [ ! -d "$LLAMA_CPP_DIR" ]; then
-            git clone --depth 1 https://github.com/ggerganov/llama.cpp "$LLAMA_CPP_DIR" \
-                || warn "git clone llama.cpp failed"
-        fi
-        if [ -d "$LLAMA_CPP_DIR" ]; then
-            pip_install --quiet \
-                -r "$LLAMA_CPP_DIR/requirements/requirements-convert_hf_to_gguf.txt" 2>&1 | tail -3 \
-                || warn "convert_hf_to_gguf pip deps failed"
-            cmake -S "$LLAMA_CPP_DIR" -B "$LLAMA_CPP_DIR/build" 2>&1 | tail -2 \
-                || warn "cmake configure failed"
-            cmake --build "$LLAMA_CPP_DIR/build" --config Release -j 2>&1 | tail -3 \
-                || warn "cmake build failed"
-        fi
-    fi
+    accel build-llama-cli --dir "$LLAMA_CPP_DIR" --venv "$VENV_DIR" 2>&1 | tail -12 \
+        || warn "llama.cpp CLI build failed (see output above)"
 else
     log "skipping llama.cpp install."
 fi
