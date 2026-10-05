@@ -562,3 +562,52 @@ def test_d1_old_gpu_on_a_cuda13_driver_needs_the_cuda12_runtime_for_the_fallback
     spec["files"].pop("/usr/local/cuda/lib64/libcudart.so.12")
     fake_hw(monkeypatch, tmp_path, **spec)
     assert ap.build_plan(ap.detect()).wheel_index == ""                  # source build instead, never cu132
+
+
+NVCC126 = "Cuda compilation tools, release 12.6, V12.6.85\n"
+NVCC128 = "Cuda compilation tools, release 12.8, V12.8.93\n"
+
+
+def _with_nvcc(spec: dict, version_out: str, path: str = "/usr/local/cuda/bin/nvcc") -> dict:
+    """Replace the fixture's only nvcc (default 13.4) with one that reports `version_out`."""
+    spec["commands"] = {**spec["commands"], "nvcc --version": version_out, f"{path} --version": version_out}
+    spec["files"] = {**spec["files"], path: "x"}
+    return spec
+
+
+def _cuda_backend(plan: ap.Plan) -> ap.LlamaBackend:
+    return next(b for b in plan.llama_backends if b.name == "cuda")
+
+
+def test_d2_pascal_with_only_an_nvcc13_toolkit_is_marked_missing_not_built_for_native(monkeypatch, tmp_path) -> None:
+    # nvcc 13 cannot target sm_61: `-DCMAKE_CUDA_ARCHITECTURES=native` would resolve to 61 and fail the build.
+    fake_hw(monkeypatch, tmp_path, **nvidia([G1070], "580.95", "13.0"))
+    g = ap.detect()
+    assert ap.cuda_archs(g) == ""
+    cuda = _cuda_backend(ap.build_plan(g))
+    assert "native" not in " ".join(cuda.cmake_args)
+    assert "sm_61" in cuda.missing and "12.x" in cuda.missing and "CUDA 13" in cuda.missing
+    best, msgs = ap.best_llama_backend(ap.build_plan(g))
+    assert best.name != "cuda" and any("sm_61" in m for m in msgs)
+
+
+def test_d2_a_cuda12_toolkit_next_to_nvcc13_is_chosen_for_a_pascal_gpu(monkeypatch, tmp_path) -> None:
+    spec = nvidia([G1070], "580.95", "13.0")
+    spec["files"]["/usr/local/cuda-12.6/bin/nvcc"] = "x"
+    spec["commands"]["/usr/local/cuda-12.6/bin/nvcc --version"] = NVCC126
+    fake_hw(monkeypatch, tmp_path, **spec)
+    g = ap.detect()
+    assert g.nvcc == "/usr/local/cuda-12.6/bin/nvcc" and g.nvcc_version == "12.6"
+    cuda = _cuda_backend(ap.build_plan(g))
+    assert not cuda.missing and "-DCMAKE_CUDA_ARCHITECTURES=61" in cuda.cmake_args
+
+
+def test_d3_blackwell_needs_nvcc_12_8_or_the_cuda_backend_is_marked_missing(monkeypatch, tmp_path) -> None:
+    fake_hw(monkeypatch, tmp_path, **_with_nvcc(nvidia([R5090], "570.26", "12.8"), NVCC126))
+    plan = ap.build_plan(ap.detect())
+    assert "12.8" in _cuda_backend(plan).missing and "Blackwell" in _cuda_backend(plan).missing
+    best, msgs = ap.best_llama_backend(plan)
+    assert best.name != "cuda" and any("12.8" in m for m in msgs)
+    fake_hw(monkeypatch, tmp_path, **_with_nvcc(nvidia([R5090], "570.26", "12.8"), NVCC128))
+    cuda = _cuda_backend(ap.build_plan(ap.detect()))
+    assert not cuda.missing and "-DCMAKE_CUDA_ARCHITECTURES=120" in cuda.cmake_args

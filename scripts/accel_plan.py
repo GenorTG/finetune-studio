@@ -296,8 +296,16 @@ def _cc_from_name(name: str) -> str:
 
 # ── Toolchains ───────────────────────────────────────────────────────────
 
-def _find_nvcc(cuda_max: tuple[int, int]) -> tuple[str, str]:
-    """Newest nvcc whose major matches the driver's CUDA major (else newest <= it)."""
+def _nvcc_targets(version: tuple[int, int], cc: float) -> bool:
+    """Can an nvcc of this release generate code for compute capability `cc`?"""
+    if cc >= 10 and version < BLACKWELL_MIN_TAG:   # sm_100/sm_120 arrived with CUDA 12.8
+        return False
+    return cc * 10 >= NVCC_MIN_SM.get(version[0], 50)
+
+
+def _find_nvcc(cuda_max: tuple[int, int], ccs: Sequence[float] = ()) -> tuple[str, str]:
+    """Best nvcc: one that can target every visible GPU first (a CUDA 12.x toolkit next to
+    nvcc 13 for a Pascal card), then the driver's CUDA major, else the newest <= it."""
     cands: list[str] = []
     for src in (_env("CUDACXX"), _which("nvcc")):
         if src:
@@ -316,7 +324,9 @@ def _find_nvcc(cuda_max: tuple[int, int]) -> tuple[str, str]:
     if not seen:
         return "", ""
     want = cuda_max[0]
-    ranked = sorted(seen.items(), key=lambda kv: (kv[1][0] == want, kv[1][0] <= want or want == 0, kv[1]),
+    ranked = sorted(seen.items(),
+                    key=lambda kv: (all(_nvcc_targets(kv[1], c) for c in ccs), kv[1][0] == want,
+                                    kv[1][0] <= want or want == 0, kv[1]),
                     reverse=True)
     best = ranked[0]
     return best[0], _vstr(best[1])
@@ -494,7 +504,7 @@ def detect(force_cpu: bool = False, force_vendor: str = "") -> GpuInfo:
                     "CUDA wheels are installed anyway.")
         ccs = [float(g.compute_cap) for g in gpus if g.compute_cap]
         newest = max(ccs) if ccs else 0.0
-        nvcc, nvcc_v = _find_nvcc(cuda_max)
+        nvcc, nvcc_v = _find_nvcc(cuda_max, ccs)
         tag = pick_cuda_tag(cuda_max, newest)
         for g in gpus:
             if g.compute_cap and tag and float(g.compute_cap) < _tag_floor(tag):
@@ -595,7 +605,29 @@ def cuda_archs(gpu: GpuInfo) -> str:
     nvcc_major = _ver(gpu.nvcc_version)[0] if gpu.nvcc_version else 0
     floor = NVCC_MIN_SM.get(nvcc_major, 50)
     sms = sorted({int(float(c) * 10) for c in gpu.compute_caps if float(c) * 10 >= floor})
-    return ";".join(str(s) for s in sms) if sms else "native"
+    if sms:
+        return ";".join(str(s) for s in sms)
+    # No known compute capability: let nvcc resolve `native`. Known GPUs that nvcc cannot target return ""
+    # (`native` would resolve to the very SM nvcc rejects); `nvcc_problem` explains it to the user.
+    return "" if gpu.compute_caps else "native"
+
+
+def nvcc_problem(gpu: GpuInfo) -> str:
+    """Why the discovered nvcc cannot build llama.cpp for the visible GPUs ('' = it can)."""
+    if not gpu.nvcc_version or not gpu.compute_caps:
+        return ""
+    ver = _ver(gpu.nvcc_version)
+    ccs = [float(c) for c in gpu.compute_caps]
+    if any(c >= 10 for c in ccs) and ver < BLACKWELL_MIN_TAG:
+        sm = "sm_" + str(int(max(ccs) * 10))
+        return (f"nvcc {gpu.nvcc_version} cannot target Blackwell ({sm}): it needs CUDA 12.8 or newer. "
+                "Install a current toolkit (https://developer.nvidia.com/cuda-downloads; Debian/Ubuntu apt "
+                "toolkits are 11.8/12.0) and re-run `bash install.sh --repair`.")
+    if not cuda_archs(gpu):
+        sm = "sm_" + str(int(min(ccs) * 10))
+        return (f"nvcc {gpu.nvcc_version} cannot target {sm} (CUDA {ver[0]} dropped that architecture): install an "
+                "older CUDA 12.x toolkit next to it (e.g. `cuda-toolkit-12-6`) and re-run `bash install.sh --repair`.")
+    return ""
 
 
 @dataclass
@@ -615,8 +647,10 @@ def llama_backends(gpu: GpuInfo) -> list[LlamaBackend]:
     cpu = LlamaBackend("cpu")
     out: list[LlamaBackend] = []
     if gpu.vendor == "nvidia":
-        env, miss = {}, ""
-        args = ["-DGGML_CUDA=ON", f"-DCMAKE_CUDA_ARCHITECTURES={cuda_archs(gpu)}"]
+        env, miss = {}, nvcc_problem(gpu)
+        args = ["-DGGML_CUDA=ON"]
+        if archs := cuda_archs(gpu):
+            args.append(f"-DCMAKE_CUDA_ARCHITECTURES={archs}")
         if gpu.nvcc:
             home = str(Path(gpu.nvcc).resolve().parent.parent)
             env = {"CUDACXX": gpu.nvcc, "CUDA_HOME": home, "CUDA_PATH": home}
