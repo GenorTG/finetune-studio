@@ -49,7 +49,7 @@
       }.get(m.category, 'outline') }}">{{ m.category|replace('_',' ') }}</span></td>
       <td class="models-col-format"><span class="pill outline">{{ m.format }}</span></td>
       <td class="num mono models-col-size">{{ m.size_gb }} GB</td>
-      <td class="meta models-col-arch">{{ m.architecture or '—' }}</td>
+      <td class="meta models-col-arch" title="{{ m.architecture }}">{{ m.architecture or '—' }}</td>
       <td class="meta models-col-project">
         {% if m.project_id %}
           <a href="/projects/{{ m.project_id }}" data-link>{{ projects.get(m.project_id, m.project_id[:8]) }}</a>

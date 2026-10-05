@@ -32,7 +32,7 @@
         {% if loaded.context_length %}<span>Context</span><span class="mono">{{ "%.0f"|format(loaded.context_length/1000) }}K tokens</span>{% endif %}
         {% if loaded.quantization %}<span>Quant</span><span class="mono">{{ loaded.quantization }}</span>{% endif %}
       </div>
-      <div class="text-[10px] dim mt-2 truncate mono">{{ loaded.path }}</div>
+      <div class="text-[10px] dim mt-2 truncate mono" title="{{ loaded.path }}">{{ loaded.path }}</div>
     </div>
     {% endif %}
 

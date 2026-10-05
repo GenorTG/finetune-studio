@@ -4244,7 +4244,7 @@ body::before {
   white-space: nowrap;
 }
 #trained-exports-table .exports-col-name { width: 10rem; min-width: 8rem; }
-#trained-exports-table .exports-col-format { width: 5.5rem; min-width: 4.5rem; white-space: nowrap; }
+#trained-exports-table .exports-col-format { width: 9rem; min-width: 7.5rem; white-space: nowrap; }
 #trained-exports-table .exports-col-size { width: 5rem; min-width: 4.5rem; white-space: nowrap; }
 #trained-exports-table .exports-col-source { width: 8rem; min-width: 6rem; }
 #trained-exports-table .exports-col-created { width: 7rem; min-width: 5.5rem; white-space: nowrap; }

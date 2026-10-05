@@ -175,8 +175,8 @@
     <tbody>
       {% for r in recent_suite_runs %}
       <tr>
-        <td class="mono">{{ r.suite_name }}</td>
-        <td>{{ r.run_name }}</td>
+        <td class="mono cell-wrap">{{ r.suite_name }}</td>
+        <td class="cell-wrap">{{ r.run_name }}</td>
         <td class="mono">{% if r.pass_rate is not none %}{{ '%.1f'|format(r.pass_rate) }}%{% else %}—{% endif %}</td>
         <td class="dim">{{ r.ran_at_str }}</td>
       </tr>
