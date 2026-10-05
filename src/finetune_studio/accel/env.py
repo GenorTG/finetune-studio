@@ -45,7 +45,8 @@ def _tokens(raw: str | None) -> list[str]:
     return [t.strip().lower() for t in (raw or "").split(",") if t.strip()]
 
 
-def _matches(gpu: PhysicalGPU, tokens: list[str], indices: frozenset[int]) -> bool:
+def matches(gpu: PhysicalGPU, tokens: list[str], indices: frozenset[int]) -> bool:
+    """True when any policy token selects ``gpu`` (``indices`` = every listed GPU index)."""
     uuid = gpu.ident.lower()
     for t in tokens:
         if t.isdigit() and int(t) in indices:
@@ -87,8 +88,8 @@ def list_amd(run: Runner = _run) -> list[PhysicalGPU]:
 
 def _select(gpus: list[PhysicalGPU], allow: list[str], deny: list[str]) -> list[PhysicalGPU]:
     indices = frozenset(g.index for g in gpus)
-    kept = [g for g in gpus if not allow or _matches(g, allow, indices)]
-    return [g for g in kept if not (deny and _matches(g, deny, indices))]
+    kept = [g for g in gpus if not allow or matches(g, allow, indices)]
+    return [g for g in kept if not (deny and matches(g, deny, indices))]
 
 
 def apply_device_policy(

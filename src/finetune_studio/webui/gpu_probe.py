@@ -17,6 +17,9 @@ import shutil
 import subprocess
 from typing import Any
 
+from finetune_studio.accel.env import PhysicalGPU
+from finetune_studio.accel.env import matches as policy_matches
+
 log = logging.getLogger(__name__)
 GIB = 1024 ** 3
 MIB = 1024 ** 2
@@ -60,28 +63,29 @@ def _torch_devices() -> list[dict[str, Any]]:
     return out
 
 
-def _policy_allows(index: int, name: str) -> bool:
+def _policy_allows(index: int, name: str, indices: frozenset[int]) -> bool:
     """Honour the GPU policy env on the vendor-CLI path, which sees every physical card."""
     visible = [t.strip() for t in os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",") if t.strip()]
     if visible and all(t.isdigit() for t in visible) and str(index) not in visible:
         return False
     deny = [t.strip().lower() for t in os.environ.get("FTS_GPU_EXCLUDE", "").split(",") if t.strip()]
-    return not any(t == str(index) or t in name.lower() for t in deny)
+    return not (deny and policy_matches(PhysicalGPU(index, "", name), deny, indices))
 
 
 def _nvidia_smi() -> list[dict[str, Any]]:
     txt = _run(["nvidia-smi", "--query-gpu=index,name,memory.used,memory.total",
                 "--format=csv,noheader,nounits"], timeout=2)
-    out = []
+    rows: list[tuple[int, str, float, float]] = []
     for line in (txt or "").strip().splitlines():
         p = [x.strip() for x in line.split(",")]
         if len(p) == 4:
             try:
-                if _policy_allows(int(p[0]), p[1]):
-                    out.append(_entry(int(p[0]), p[1], float(p[2]) * MIB, float(p[3]) * MIB, "nvidia-smi"))
+                rows.append((int(p[0]), p[1], float(p[2]) * MIB, float(p[3]) * MIB))
             except ValueError:
                 continue
-    return out
+    indices = frozenset(r[0] for r in rows)
+    return [_entry(i, name, used, total, "nvidia-smi") for i, name, used, total in rows
+            if _policy_allows(i, name, indices)]
 
 
 def parse_rocm_smi(txt: str) -> list[dict[str, Any]]:

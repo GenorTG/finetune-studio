@@ -28,3 +28,11 @@ def test_cuda_visible_devices_limits_listing(smi: None, monkeypatch: pytest.Monk
 def test_gpu_exclude_by_name(smi: None, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FTS_GPU_EXCLUDE", "GTX 1070")
     assert [d["name"] for d in gpu_probe._nvidia_smi()] == ["NVIDIA GeForce RTX 3090"]
+
+
+def test_gpu_exclude_digit_token_is_an_index_not_a_name_fragment(smi: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    # "0" is inside "RTX 3090" and "GTX 1070": substring matching emptied the Host Resources list.
+    monkeypatch.setenv("FTS_GPU_EXCLUDE", "0")
+    assert [d["index"] for d in gpu_probe._nvidia_smi()] == [1]
+    monkeypatch.setenv("FTS_GPU_EXCLUDE", "1070")      # not an index -> still a model-name fragment
+    assert [d["index"] for d in gpu_probe._nvidia_smi()] == [0]
