@@ -9,15 +9,15 @@ vendor (NVIDIA/AMD/Intel/Apple), CPU only on GPU-less hosts, never a silent CPU 
 
 | Area | State |
 |---|---|
-| Git | `main` @ `8c54955`, **ahead of origin by 4** (HANDOFF fix + three GPU-acceleration commits; unpushed). Project docs are being refreshed; push only with Genor's OK. |
+| Git | `main` @ `4ea403a`, **ahead of origin by 5** (HANDOFF fix + three GPU-acceleration commits + project-doc refresh; unpushed). The final suite started on code commit `8c54955`, before the docs-only commit. Push only with Genor's OK. |
 | genorbox1 | Service active on :7860 (user unit, `FTS_ROOT=~/.finetune-studio`), VERSION 0.1.0.148, torch 2.14.1+cu130, CUDA OK; GPUs RTX 3090 (0) + GTX 1070 (1, never use). |
-| Tests | Pre-commit full suite: 1704 passed, 1 skipped; two failures attributed to untracked lane files and `FTS_NO_BUMP=1` suppressing the version hook. No-env `tests/test_version.py`: 4 passed. Post-commit full suite is running in a visible lane. |
+| Tests | Full suite on `8c54955`: 1704 passed, 1 skipped, 2 failed (version values raced a concurrent docs commit bumping VERSION .151→.152); rerun `tests/test_version.py`: 4 passed. Earlier lane failures: hygiene failure disappeared after commits; version-hook failure was caused by `FTS_NO_BUMP=1`. |
 | Ruff | `ruff check src/ scripts/` clean on the working tree; `tests/` ~108 legacy findings. |
 | Working product paths | Project → files → parse → pair gen → LoRA train (checkpoints/eval/early stop, Unsloth toggle) → merge/GGUF export → testing/benchmark (review, verdict override) → Chat with tuned model + RAG; encrypted RAG export/`.ftsrag` import; onboarding tour; idle unload (`FTS_IDLE_TIMEOUT`, default 300 s). E2E-verified on RTX 3090 2026-10-02/04. |
 | UI coverage ledger | Slices 1-5 of `docs/audit/UI-COVERAGE-2026-10-03.md` done (training fields, dataset health, benchmark review, nav/wording, dead code); css `?v=75` in working tree. |
 | Test-file review | Incomplete: 8 of ~198 `test_*.py` read (`docs/audit/TEST-AUDIT-2026-10-01.md`). Do not claim complete. |
 
-## In flight (code committed; final verification running)
+## In flight (code committed; verification complete)
 
 - **Lane B — installers.** `scripts/accel_plan.py` (new, stdlib-only detect → plan → install; sole source of GPU
   stack choice) called by `install.sh`, `update.sh`, `install.ps1`, `install.bat`, `scripts/install_diagnose.py
@@ -34,17 +34,16 @@ vendor (NVIDIA/AMD/Intel/Apple), CPU only on GPU-less hosts, never a silent CPU 
   `_resources.html`, settings page; `data/rag_portable/devices.py` (`auto` = GPU first) in embedders/rerankers/
   store/standalone server (inline copy) / MCP package. Tests: `test_accel_wiring_c2.py`, UI/RAG test updates.
 - Three lane commits are integrated: installer planner (B), training/loading/export (C1), WebUI/RAG (C2). Accelerator files are tracked.
-- Full-suite rerun is in the visible session `finetune-studio post-commit full suite`; it omits `FTS_NO_BUMP` so the pre-commit hook test exercises the real hook. The GTX 1070 remains masked.
+- Final full suite ran on `8c54955` (VERSION .151). The concurrent docs-only commit `4ea403a` ran its version-bumping hook at 14:21 and changed VERSION to .152 during the suite, causing the two `tests/test_version.py` mismatches. With the tree settled, all 4 version tests pass. The GTX 1070 remains masked.
 
 ## Next steps
 
-1. Collect the visible post-commit full-suite result.
-2. Recheck `.venv/bin/ruff check src/ scripts/`, `make codemap-check`, and `git diff --check`.
-3. Record final verified test/commit state here; keep this file ≤120 lines.
-4. Real-hardware check: `bash install.sh --plan`, `.venv/bin/fts accel`, then short LoRA train + GGUF export with `CUDA_VISIBLE_DEVICES=0`.
-5. With Genor's OK: push, then run `bash update.sh` on fan-dragon and verify (`RESTART.md` cgroup check).
-6. Dataset health follow-up: move `fts analyze` + `/api/data/analyze` onto `data/dataset_health.py`; retire `/api/data/hallucination-check`.
-7. Wire `system_prompt` callers to the shared formatter; continue test-file review + tests-scope Ruff.
+1. Final checks complete: `.venv/bin/ruff check src/ scripts/`, `make codemap-check`, and `git diff --check` pass; `tests/test_version.py` passes (4 tests).
+2. Commit this final HANDOFF update; leave the branch unpushed until Genor explicitly approves.
+3. Real-hardware check: `bash install.sh --plan`, `.venv/bin/fts accel`, then short LoRA train + GGUF export with `CUDA_VISIBLE_DEVICES=0`.
+4. With Genor's OK: push, then run `bash update.sh` on fan-dragon and verify (`RESTART.md` cgroup check).
+5. Dataset health follow-up: move `fts analyze` + `/api/data/analyze` onto `data/dataset_health.py`; retire `/api/data/hallucination-check`.
+6. Wire `system_prompt` callers to the shared formatter; continue test-file review + tests-scope Ruff.
 
 ## Known issues
 
