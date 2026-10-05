@@ -49,6 +49,15 @@ def _ensure_ocr_tessdata() -> None:
 
 
 @pytest.fixture(autouse=True)
+def _fresh_rag_model_cache():
+    """The RAG embedder/reranker cache is process-wide: never let one test's model leak into the next."""
+    yield
+    mod = sys.modules.get("finetune_studio.data.rag_portable.model_cache")
+    if mod is not None:
+        mod.rag_model_cache.release_all("test teardown")
+
+
+@pytest.fixture(autouse=True)
 def temp_db(monkeypatch):
     """Redirect the database at a temp SQLite file, yield its path, clean up.
 

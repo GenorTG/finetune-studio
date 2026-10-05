@@ -288,9 +288,11 @@ async def load_model_endpoint(request: Request):
 @router.post("/unload")
 async def unload_model_endpoint():
     """Manually unload the currently loaded model (both engines — E2E-22)."""
+    from finetune_studio.data.rag_portable.model_cache import release_rag_models
     from finetune_studio.models.llama_loader import unload_all_models
     try:
         unload_all_models()
+        release_rag_models("unload all models")
         return {"status": "unloaded"}
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": str(e)}, status_code=500)
@@ -306,6 +308,7 @@ inference_router = APIRouter()
 
 @inference_router.get("/status")
 async def inference_status():
+    from finetune_studio.data.rag_portable.model_cache import rag_model_cache
     from finetune_studio.testing.inference import idle_timeout
     from finetune_studio.webui.app import inference_engine
     loaded = inference_engine.model is not None
@@ -329,6 +332,8 @@ async def inference_status():
             if loaded and idle_timeout() > 0
             else None
         ),
+        # RAG embedder/reranker cache (separate lifecycle from the chat model).
+        "rag_models": rag_model_cache.stats(),
     }
 
 

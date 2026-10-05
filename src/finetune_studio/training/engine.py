@@ -318,8 +318,12 @@ class TrainingEngine:
         import multiprocessing as mp
         import queue as queue_mod
 
+        from finetune_studio.data.rag_portable.model_cache import release_rag_models
         from finetune_studio.training.worker import config_to_dict, training_worker
 
+        # The RAG embedder/reranker cache lives in this process; free its VRAM
+        # before the worker loads the trainable base.
+        release_rag_models("training start")
         self.config = config
         self._stop_event.clear()
         self.state = TrainingState(status="loading", message="Starting training worker...")
@@ -1205,6 +1209,8 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
     from finetune_studio.training.merge_base import resolve_merge_base
     tokenizer = load_tokenizer(adapter_dir)
     base_path = resolve_merge_base(base_model)
+    from finetune_studio.data.rag_portable.model_cache import release_rag_models
+    release_rag_models("adapter merge")
     _free_cuda()
     base = None
     model = None

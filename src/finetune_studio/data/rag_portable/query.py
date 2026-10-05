@@ -9,8 +9,12 @@ from pathlib import Path
 import numpy as np
 
 from finetune_studio.data.rag_portable.bm25 import BM25Index
+
+# Process-wide cached reranker (model_cache); keep the ``get_reranker`` name — tests patch it.
+from finetune_studio.data.rag_portable.model_cache import (
+    cached_reranker as get_reranker,
+)
 from finetune_studio.data.rag_portable.prompt import format_context_blocks
-from finetune_studio.data.rag_portable.rerankers import get_reranker
 from finetune_studio.data.rag_portable.rrf import rrf_fuse
 from finetune_studio.data.rag_portable.schema import Manifest
 from finetune_studio.data.rag_portable.source_labels import prettify_source_label

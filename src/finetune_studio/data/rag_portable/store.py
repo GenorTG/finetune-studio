@@ -27,12 +27,16 @@ from finetune_studio.data.rag_portable.constants import (
     RERANKER_LOCAL_PREFIX,
     SCHEMA_VERSION,
 )
-from finetune_studio.data.rag_portable.embedders import get_embedder
 from finetune_studio.data.rag_portable.io import (
     read_json,
     relabel_imported_sources,
     try_import_pandas,
     write_json,
+)
+
+# Process-wide cached embedder (model_cache); keep the ``get_embedder`` name — tests patch it.
+from finetune_studio.data.rag_portable.model_cache import (
+    cached_embedder as get_embedder,
 )
 from finetune_studio.data.rag_portable.query import PortableRAGQuery
 from finetune_studio.data.rag_portable.schema import (

@@ -475,8 +475,10 @@ async def helper_use(request: Request):
 @router.post("/providers/unload")
 async def unload_active():
     """Unload the active provider (both engines — see E2E-22)."""
+    from finetune_studio.data.rag_portable.model_cache import release_rag_models
     from finetune_studio.models.llama_loader import unload_all_models
     unload_all_models()
+    release_rag_models("unload all models")
     return {"ok": True, "active": None}
 
 

@@ -214,8 +214,10 @@ def _unload_global_inference() -> None:
     loaded via ModelManager stayed resident through the whole judge run,
     competing for VRAM with the judge model that was just asked to load.
     """
+    from finetune_studio.data.rag_portable.model_cache import release_rag_models
     from finetune_studio.models.llama_loader import unload_all_models
     unload_all_models()
+    release_rag_models("benchmark judge load")
 
 
 def _latest_benchmark(run_id: str) -> dict | None:

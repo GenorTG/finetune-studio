@@ -168,6 +168,10 @@ async def export_run(pid: str, rid: str, request: Request,
         payload = {"ok": False, "status": "failed", "error": msg, **extra}
         return JSONResponse(payload, status_code=status_code)
 
+    # Export merges/quantises on the same GPU the RAG model cache may hold.
+    from finetune_studio.data.rag_portable.model_cache import release_rag_models
+    release_rag_models("export")
+
     # Sync multi-format path used by the Export page (quants list / non-gguf).
     # AWQ and GPTQ are not supported formats; route them through
     # export_trained_run so the response carries the clear removal message

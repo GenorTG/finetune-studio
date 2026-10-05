@@ -96,6 +96,9 @@ class InferenceEngine:
         self._loading_started = time.time()
         try:
             self.unload()
+            # The RAG embedder/reranker cache shares this GPU: free it before the load.
+            from finetune_studio.data.rag_portable.model_cache import release_rag_models
+            release_rag_models("model load")
             path = Path(model_path)
             if path.is_file() and path.suffix == ".gguf":
                 self._load_gguf(str(path), n_ctx=n_ctx, n_gpu_layers=n_gpu_layers, n_batch=n_batch,
