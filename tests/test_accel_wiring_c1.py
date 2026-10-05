@@ -185,6 +185,15 @@ def test_non_oom_error_is_not_retried(pin, fake_tf) -> None:
     assert len(ft.calls) == 1
 
 
+def test_error_mentioning_bloom_is_not_mistaken_for_oom(pin, fake_tf) -> None:
+    # D9: a bare "oom" substring matched BloomForCausalLM and walked the 4-bit/RAM-spill ladder.
+    pin(CUDA)
+    ft = fake_tf([RuntimeError("Error(s) in loading state_dict for BloomForCausalLM")])
+    with pytest.raises(RuntimeError, match="BloomForCausalLM"):
+        hf_loader.load_causal_lm("m")
+    assert len(ft.calls) == 1
+
+
 def test_cpu_only_never_touches_bnb_even_when_forced(pin, fake_tf) -> None:
     pin(CPU)
     ft = fake_tf([None])

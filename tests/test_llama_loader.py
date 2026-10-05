@@ -131,6 +131,23 @@ class TestLoadLlamaGguf:
                 mod.load_llama_gguf(str(gguf), detect_mmproj=False)
         assert len(FakeLlama.calls) == 1  # no retry for a non-OOM failure
 
+    def test_error_mentioning_bloom_or_room_is_not_retried_as_oom(self, tmp_path):
+        """D9: a bare "oom" substring made BloomForCausalLM/"room" errors halve n_ctx up to 6 times."""
+        from finetune_studio.models import llama_loader as mod
+
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+
+        class BloomBad:
+            def __init__(self, **kwargs):
+                FakeLlama.calls.append(kwargs)
+                raise RuntimeError("unsupported architecture BloomForCausalLM; no room for tensor")
+
+        with patch("llama_cpp.Llama", BloomBad):
+            with pytest.raises(RuntimeError, match="Bloom"):
+                mod.load_llama_gguf(str(gguf), detect_mmproj=False)
+        assert len(FakeLlama.calls) == 1
+
     def test_mmproj_autodetected_in_same_directory(self, tmp_path):
         from finetune_studio.models import llama_loader as mod
 
