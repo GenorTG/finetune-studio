@@ -125,17 +125,19 @@ def _resource_snapshot_detail(model_path: str = "") -> str:
     return " — " + "; ".join(parts)
 
 
-def _load_failure_payload(error: str, model_path: str = "") -> dict:
-    """Explicit failure body — HTTP 200 kept for callers that only check JSON."""
+def _load_failure(status_code: int, error: str, model_path: str = "") -> JSONResponse:
+    """Honest failure: a real 4xx/5xx whose JSON body keeps ``status``/``loaded``/``error``/``model``.
+
+    ``fts.api.post`` throws on non-2xx with ``body.error`` as the message, so the
+    UI shows the same text the 200-with-status:"error" body used to carry.
+    """
     hint = _vram_hint(model_path) if model_path else ""
     detail = hint or _resource_snapshot_detail(model_path)
     msg = f"{error}{detail}" if detail and detail not in error else error
-    return {
-        "status": "error",
-        "loaded": False,
-        "error": msg,
-        "model": None,
-    }
+    return JSONResponse(
+        {"status": "error", "loaded": False, "error": msg, "model": None},
+        status_code=status_code,
+    )
 
 @router.get("/")
 async def models_root(for_selector: bool = False, for_training: bool = False):
@@ -238,20 +240,21 @@ async def load_model_endpoint(request: Request):
     (legacy chat_v2 form). All inference parameters have sensible defaults
     so the inference-page call Just Works.
 
-    Success always includes ``status="loaded"`` and ``loaded=True``. Failures
-    keep HTTP 200 for API compatibility but return ``status="error"``,
-    ``loaded=False``, and an actionable ``error`` string — never claim loaded
-    unless the engine actually holds a model.
+    Success (HTTP 200) always includes ``status="loaded"`` and ``loaded=True``.
+    Failures are real HTTP errors — 400 no path, 404 path does not exist, 500
+    load failed / nothing held after the load — with ``status="error"``,
+    ``loaded=False`` and an actionable ``error`` string in the body. Never claim
+    loaded unless the engine actually holds a model.
     """
     from finetune_studio.webui.app import inference_engine
     body = await _json_body(request)
     model_path = body.get("path") or body.get("model_path") or ""
     if not model_path:
-        return await asyncio.to_thread(_load_failure_payload, "No model path provided")
+        return await asyncio.to_thread(_load_failure, 400, "No model path provided")
     _mp = str(model_path)
     if _mp.startswith(("/", "./", "../", "~")) and not os.path.exists(os.path.expanduser(_mp)):
         return await asyncio.to_thread(
-            _load_failure_payload, f"model path does not exist: {_mp}", _mp,
+            _load_failure, 404, f"model path does not exist: {_mp}", _mp,
         )
     try:
         # Run the blocking load off the event loop. Loading a multi-GB model
@@ -269,11 +272,11 @@ async def load_model_endpoint(request: Request):
             await asyncio.to_thread(get_manager().unload)
             await asyncio.to_thread(inference_engine.load, model_path, **overrides)
     except Exception as e:  # noqa: BLE001
-        return await asyncio.to_thread(_load_failure_payload, str(e), model_path)
+        return await asyncio.to_thread(_load_failure, 500, str(e), model_path)
 
     if getattr(inference_engine, "model", None) is None:
         return await asyncio.to_thread(
-            _load_failure_payload,
+            _load_failure, 500,
             "Load finished but no model is held in memory", model_path,
         )
     vision = getattr(inference_engine, "vision", False)

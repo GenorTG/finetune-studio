@@ -141,7 +141,7 @@ def test_inference_ui_requires_loaded_confirmation() -> None:
 
 def test_load_missing_path_returns_explicit_failure(client: TestClient) -> None:
     r = client.post("/api/models/load", json={})
-    assert r.status_code == 200, r.text
+    assert r.status_code == 400, r.text
     data = r.json()
     assert data.get("status") == "error"
     assert data.get("loaded") is False
@@ -165,7 +165,7 @@ def test_load_exception_returns_failure_not_loaded(
     monkeypatch.setattr("finetune_studio.webui.app.inference_engine", engine)
 
     r = client.post("/api/models/load", json={"path": str(model_file)})
-    assert r.status_code == 200, r.text
+    assert r.status_code == 500, r.text
     data = r.json()
     assert data["status"] == "error"
     assert data["loaded"] is False
@@ -184,11 +184,11 @@ def test_load_success_requires_model_object(
     monkeypatch.setattr("finetune_studio.webui.app.inference_engine", engine)
 
     r = client.post("/api/models/load", json={"path": str(tmp_path)})
-    assert r.status_code == 200, r.text
+    assert r.status_code == 500, r.text
     data = r.json()
     assert data["status"] == "error"
     assert data["loaded"] is False
-    assert "error" in data
+    assert "no model is held" in data["error"]
 
 
 def test_load_success_payload_when_model_held(
