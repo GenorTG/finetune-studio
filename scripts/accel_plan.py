@@ -588,9 +588,14 @@ def pick_cuda_tag(cuda_max: tuple[int, int], newest_cc: float = 0.0) -> str:
     return "cu118"
 
 
+def _rocm_floor(gfx: str) -> tuple[int, int]:
+    """Oldest ROCm torch wheel with kernels for this GPU: RDNA4 (gfx12xx) needs 6.4+."""
+    return (6, 4) if re.match(r"gfx12", gfx) else (0, 0)
+
+
 def pick_rocm_tag(rocm_version: str, gfx: str = "") -> str:
     installed = _ver(rocm_version)
-    floor = (6, 4) if re.match(r"gfx12", gfx) else (0, 0)  # RDNA4 needs 6.4+
+    floor = _rocm_floor(gfx)
     for tag, ver in ROCM_TORCH_TAGS:
         if (installed == (0, 0) or ver <= installed) and ver >= floor:
             return tag
@@ -732,7 +737,9 @@ def build_plan(gpu: GpuInfo, *, unsloth: str = "") -> Plan:
     elif gpu.vendor == "amd":
         gfx = next((g.gfx for g in gpu.gpus if g.gfx), "")
         tag = pick_rocm_tag(gpu.rocm_version, gfx)
-        fallbacks = [t for t, v in ROCM_TORCH_TAGS if t != tag and v < _ver(tag.replace("rocm", ""))]
+        floor = _rocm_floor(gfx)   # a fallback below the GPU's floor would install "fine" with no kernels
+        fallbacks = [t for t, v in ROCM_TORCH_TAGS
+                     if t != tag and floor <= v < _ver(tag.replace("rocm", ""))]
         idx, backend = f"{PYTORCH_WHL}/{tag}", "hip"
     elif gpu.vendor == "intel":
         tag, idx, backend = "xpu", f"{PYTORCH_WHL}/xpu", "xpu"

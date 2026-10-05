@@ -611,3 +611,13 @@ def test_d3_blackwell_needs_nvcc_12_8_or_the_cuda_backend_is_marked_missing(monk
     fake_hw(monkeypatch, tmp_path, **_with_nvcc(nvidia([R5090], "570.26", "12.8"), NVCC128))
     cuda = _cuda_backend(ap.build_plan(ap.detect()))
     assert not cuda.missing and "-DCMAKE_CUDA_ARCHITECTURES=120" in cuda.cmake_args
+
+
+def test_d4_rdna4_torch_fallbacks_never_step_below_the_gfx12_rocm_floor(monkeypatch, tmp_path) -> None:
+    fake_hw(monkeypatch, tmp_path, **amd(rocm="6.2.4", gfx="gfx1201"))
+    plan = ap.build_plan(ap.detect())
+    assert plan.torch_tag == "rocm6.4"
+    assert plan.torch_fallback_tags == []            # rocm6.3/6.2 wheels have no gfx12 kernels
+    # RDNA3 keeps its older fallbacks
+    fake_hw(monkeypatch, tmp_path, **amd(rocm="7.2.0"))
+    assert ap.build_plan(ap.detect()).torch_fallback_tags[:2] == ["rocm7.1", "rocm7.0"]
