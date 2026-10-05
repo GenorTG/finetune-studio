@@ -93,6 +93,18 @@ class HFUnavailableError(RuntimeError):
     """HuggingFace Hub could not be reached or returned an error."""
 
 
+# Hub >=1.0 omits lastModified from list_models unless it is expanded explicitly.
+_LIST_EXPAND = ["downloads", "likes", "tags", "lastModified", "private"]
+
+
+def _iso_timestamp(value: object) -> str | None:
+    """Hub timestamps arrive as datetime (hub 1.x) or str; absent -> None, never the string 'None'."""
+    if value is None or value == "":
+        return None
+    isoformat = getattr(value, "isoformat", None)
+    return isoformat() if callable(isoformat) else str(value)
+
+
 def _search_hf(req: SearchRequest) -> list[dict]:
     """Query the HuggingFace Hub.
 
@@ -128,6 +140,7 @@ def _search_hf(req: SearchRequest) -> list[dict]:
                 filter=req.library or None,  # hub >=1.0 dropped library=; a tag filter is the replacement
                 sort=sort,
                 limit=req.limit * 4 + 20,
+                expand=_LIST_EXPAND,
             )
             for m in models:
                 mid = getattr(m, "id", None) or m.modelId
@@ -138,7 +151,8 @@ def _search_hf(req: SearchRequest) -> list[dict]:
                     "downloads": getattr(m, "downloads", 0) or 0,
                     "likes": getattr(m, "likes", 0) or 0,
                     "tags": getattr(m, "tags", []) or [],
-                    "last_modified": str(getattr(m, "last_modified", None) or getattr(m, "lastModified", "")),
+                    "last_modified": _iso_timestamp(
+                        getattr(m, "last_modified", None) or getattr(m, "lastModified", None)),
                     "private": getattr(m, "private", False),
                 })
                 if len(out) >= req.limit:
@@ -176,7 +190,8 @@ def _model_info(repo_id: str) -> dict | None:
             "pipeline_tag": getattr(info, "pipeline_tag", None),
             "library_name": getattr(info, "library_name", None),
             "private": getattr(info, "private", False),
-            "last_modified": str(getattr(info, "lastModified", "")),
+            "last_modified": _iso_timestamp(
+                getattr(info, "last_modified", None) or getattr(info, "lastModified", None)),
             "card_data": {
                 "description": (getattr(info, "card_data", {}) or {}).get("description", ""),
                 "license": (getattr(info, "card_data", {}) or {}).get("license", ""),

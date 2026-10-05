@@ -107,3 +107,27 @@ def test_signature_bug_is_not_reported_as_hub_outage() -> None:
         mock_api.return_value.list_models.side_effect = boom
         with pytest.raises(TypeError):
             _search_hf(SearchRequest(query="qwen3", limit=5))
+
+
+def test_last_modified_is_iso_string_or_null_never_the_word_none() -> None:
+    """hub 1.x returns datetimes under ``last_modified`` (or nothing); the old str() made 'None'."""
+    from datetime import UTC, datetime
+
+    rows = [
+        SimpleNamespace(id="a/dated", downloads=1, likes=1, tags=[], private=False,
+                        last_modified=datetime(2026, 9, 29, 10, 28, 23, tzinfo=UTC)),
+        SimpleNamespace(id="a/undated", downloads=1, likes=1, tags=[], private=False,
+                        last_modified=None),
+        _m("a/legacy-str"),  # hub 0.x style: lastModified string
+    ]
+    with patch("huggingface_hub.HfApi") as mock_api:
+        mock_api.return_value.list_models.return_value = rows
+        out = {r["repo_id"]: r["last_modified"] for r in _search_hf(SearchRequest(query="a/", limit=10))}
+    assert out == {"a/dated": "2026-09-29T10:28:23+00:00", "a/undated": None, "a/legacy-str": "2026-01-01"}
+
+
+def test_search_expands_last_modified_so_hub_1x_returns_it() -> None:
+    with patch("huggingface_hub.HfApi") as mock_api:
+        mock_api.return_value.list_models.return_value = []
+        _search_hf(SearchRequest(query="qwen3", limit=5))
+    assert "lastModified" in mock_api.return_value.list_models.call_args.kwargs["expand"]
