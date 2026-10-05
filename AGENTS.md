@@ -49,6 +49,7 @@ Both run the `finetune-studio` systemd **user** unit on :7860.
 - Never commit runtime data/corpora (`data/`, `datasets/`, `models/`, `media/`, `.venv`) — copy to fan-dragon by rsync; `.gitignore` re-includes need the three-step form (`data/benchmarks/default.json`).
 - Install only via `install.sh`/`update.sh` (uv venv has no pip module; never `python -m pip`); every resolve passes `-c .venv/torch-constraints.txt` or torch silently drifts to another CUDA build.
 - GPU stack choice lives only in `scripts/accel_plan.py` (tests forbid hard-coded `cuNNN`/`rocmX.Y` in installers); fake hardware with `FTS_ACCEL_FIXTURE=<json>`.
+- abetlen cu13x llama-cpp wheels carry SASS for sm_75+ only (cu125: sm_60+): `ABETLEN_CUDA_TAGS` floors in `accel_plan.py` keep Pascal/Volta off them; nvcc 13 cannot target sm_<75 and Blackwell needs nvcc>=12.8 (`nvcc_problem`), `FTS_GPU_*` numeric tokens are indices, never name substrings.
 - uv: GPU llama-cpp wheel needs `--extra-index-url … --index-strategy first-index` (`--index-url` lets PyPI's CPU sdist win); source builds need `--no-cache`.
 - Unsloth pins torch<2.13/transformers<=5.5: default `FTS_UNSLOTH=auto` skips it; `FTS_UNSLOTH=1` builds an older torch stack. torchaudio is intentionally not installed.
 - genorbox1 GPU 1 is a GTX 1070: never use it — mask with `CUDA_VISIBLE_DEVICES`/`FTS_GPU_EXCLUDE="GTX 1070"` (the service unit does not mask it).
