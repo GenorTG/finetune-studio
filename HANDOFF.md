@@ -2,64 +2,73 @@
 
 ## Mission
 
-Local fine-tune + data-prep WebUI. Current thread: close the WebUI coverage gaps in `docs/audit/UI-COVERAGE-2026-10-03.md` (private ledger) in its fix order, with regression tests.
+Local fine-tune + data-prep + RAG WebUI. Current thread: GPU-acceleration overhaul — GPU first on every
+vendor (NVIDIA/AMD/Intel/Apple), CPU only on GPU-less hosts, never a silent CPU fallback (Genor 2026-10-05).
 
-## State (verified 2026-10-03)
+## State (verified 2026-10-05)
 
 | Area | State |
 |---|---|
-| Branch | `main`, all work pushed. |
-| Source read | Complete: 212 app Python modules, 13 scripts, 37 WebUI Python modules, 28 templates, 11 static assets. See the app audit. |
-| Test read | Incomplete: 8/166 `test_*.py` files in `docs/audit/TEST-AUDIT-2026-10-01.md`. Do not claim complete test review. |
-| Tests | Full suite 2026-10-03 (`--ignore=tests/test_vram.py`): 1432 passed, 0 failed. |
-| E2E pass 2026-10-02 | Real runs on RTX 3090 in isolated sandboxes: UI 70/70, 12 parsers, RAG, `.ftsrag` + archive round-trips, PortableRAG, LoRA Qwen3-0.6B train/eval/merge/GGUF/chat (learning proven: base invents founder, tuned answers 40/40 held-out), CLI sweep, install scripts in a clone. 16 bugs fixed with regression tests. |
-| Formatter parity | Done (`docs/audit/FORMATTER-PARITY-2026-10-02.md`). `system_prompt` callers are NOT yet wired to it. |
-| Dead code | Removed in lanes A-D (see git diff); `_CORPORA` constant gone from `routes/rag.py`. |
-| Ruff | `ruff check src/ scripts/` clean (broad handlers narrowed; intentional boundaries carry a justified `noqa`). `tests/` still has ~108 legacy findings (deferred with test review). |
-| Fixed (with tests) | Chat RAG ownership; file versions/conversions project scoping; RAG run attribution; RAG source root honors `FTS_ROOT`; CLI no-op flags removed, `fts suite` judges before scoring, `fts validate` exits nonzero; VRAM profiler init + safe cleanup; installer diagnostics (3 defects); augment holdout/training disjoint. |
-| Fresh-DB browser run 2026-10-02 | Fresh instance (:7871, throwaway root), real browser: project, files, RAG (index/search/encrypted export+import), pair gen, LoRA train, merged+GGUF export, testing 95.2%, benchmark base 9.5% vs tuned 95.2%, set production, Chat with tuned model + RAG. Fixed (with tests, `tests/test_fresh_run_regressions.py`): base benchmark results hidden; `__base_model__` placeholder leaking into run lists; Chat missing the tuned model; model registry stale after export; export gate now names the files with no Q&A + UI "export anyway"; styled 404; `rag/settings` 200 before index; pair-gen status scrolls into view. Full suite 1417 passed. |
-| CODEMAP | Regenerated 2026-10-03 (`make codemap`). |
-| UI coverage audit 2026-10-03 | 255 API ops: ~182 used by UI, ~40 zero-caller legacy routes, ~27 real gaps; 5 dead templates; readability poor on nav/Pairs/RAG/Benchmarks/Export. Ledger: `docs/audit/UI-COVERAGE-2026-10-03.md`; lane detail + screenshots `.tmp/ui-coverage/`. |
-| UI gap slice 1 (2026-10-03) | Training form fields `save_checkpoints`/`early_stopping`/`save_limit`/`eval_steps` now reach TRL (held-out 10% passed as `eval_dataset`, `EarlyStoppingCallback`, best checkpoint kept, early stop named in status); Unsloth toggle on the live form; dataset upload converts .json/.csv (Q/A, Alpaca, text columns) instead of renaming, 400 with reason otherwise; `csv_to_jsonl` now writes answers. Tests: `tests/test_training_checkpoint_eval.py`, `tests/test_dataset_upload_convert.py`. Real RTX 3090 runs (standard + Unsloth) stopped early at 35/420 and 50/420. |
-| Onboarding tour (2026-10-04) | `static/js/tutorial.js` rewritten: 7 task-oriented steps (base model → project → quick work → background jobs → check result → Ctrl+K), live state from `/api/models/list?for_training=true` + `/api/projects`, dialog anchored to its target, resumes after reload (sessionStorage), CTAs go to `/models/explore` and `/projects#new`. Fixed on the way: `base.html` never rendered `topbar_right` (Import project had no button) → `#page-actions`; SPA fallback to same-path `#hash` did not reload → `hardNavigate`; "New project" moved into the projects toolbar and opens from `#new`. Tests: `tests/test_tutorial.py`. Dev docs stay gitignored/local. |
-| Fresh-eyes QA fixes (2026-10-04) | From a first-user QA agent run: missing helper GGUF → actionable 400 + picker (`/providers/helper/{status,use}`); export rows clickable + cwd-relative path fix + q4_k_m default; base_model backfill from runs; unknown project pages 404; short-run loss fallback; read-only GPU layers; one preset vocabulary; RAG build shows "building…"; RAG search `weak` warning (`weak_match`); duplicate project name → 409 (`allow_duplicate` overrides); abstention answers ("text does not mention…") score fail (`is_abstention`); loaded-model name `__`→`/`; tutorial overlay click-through; project nav says "chat". Tests: `tests/test_helper_missing.py`. |
-| Fresh-eyes follow-up lanes (2026-10-04) | Merged from 4 lane branches: settings/HF env honesty (`HF_HOME` respected, cache-noise warnings, Settings "Benchmark judge" card); quiz/benchmark honest error statuses (`tests/test_quiz_honest_errors.py`, `ensure_reasoning`); backend correctness (compare/load 400 on missing path, preset alpha/accum, empty jsonl, binary rag ingest, imported source labels); UI design pass (css `?v=73`, `tests/test_ui_design_pass.py`). Closed out (css `?v=74`): compact Host Resources strip on project pages (`res_compact`), files-table scroll shadows, `config.py` uses `hf_hub_cache()`, removed `HF_HOME` setdefault leaks in `shared_models.py`/`embedders.py`, `/hf/search` returns an honest 502 (`HFUnavailableError`), HF/llama_cpp tests hermetic. Only external `TRANSFORMERS_CACHE` noise remains (env-driven). Full suite 1513 passed. Gotcha: never track `.venv` (a symlink commit once clobbered the real venv on merge; rebuilt with uv, torch cu130). |
+| Git | `main` @ `8c54955`, **ahead of origin by 4** (HANDOFF fix + three GPU-acceleration commits; unpushed). Project docs are being refreshed; push only with Genor's OK. |
+| genorbox1 | Service active on :7860 (user unit, `FTS_ROOT=~/.finetune-studio`), VERSION 0.1.0.148, torch 2.14.1+cu130, CUDA OK; GPUs RTX 3090 (0) + GTX 1070 (1, never use). |
+| Tests | Pre-commit full suite: 1704 passed, 1 skipped; two failures attributed to untracked lane files and `FTS_NO_BUMP=1` suppressing the version hook. No-env `tests/test_version.py`: 4 passed. Post-commit full suite is running in a visible lane. |
+| Ruff | `ruff check src/ scripts/` clean on the working tree; `tests/` ~108 legacy findings. |
+| Working product paths | Project → files → parse → pair gen → LoRA train (checkpoints/eval/early stop, Unsloth toggle) → merge/GGUF export → testing/benchmark (review, verdict override) → Chat with tuned model + RAG; encrypted RAG export/`.ftsrag` import; onboarding tour; idle unload (`FTS_IDLE_TIMEOUT`, default 300 s). E2E-verified on RTX 3090 2026-10-02/04. |
+| UI coverage ledger | Slices 1-5 of `docs/audit/UI-COVERAGE-2026-10-03.md` done (training fields, dataset health, benchmark review, nav/wording, dead code); css `?v=75` in working tree. |
+| Test-file review | Incomplete: 8 of ~198 `test_*.py` read (`docs/audit/TEST-AUDIT-2026-10-01.md`). Do not claim complete. |
+
+## In flight (code committed; final verification running)
+
+- **Lane B — installers.** `scripts/accel_plan.py` (new, stdlib-only detect → plan → install; sole source of GPU
+  stack choice) called by `install.sh`, `update.sh`, `install.ps1`, `install.bat`, `scripts/install_diagnose.py
+  --repair` (rewritten GPU checks). `bash install.sh --plan` previews; `--gpu <vendor>`, `FTS_FORCE_VENDOR`,
+  `FTS_ACCEL_FIXTURE`, `FTS_UNSLOTH=auto|1|0`. Docs updated: `docs/DEPLOYMENT.md`, `docs/DEPENDENCIES.md`.
+  `pyproject.toml`/`requirements.txt`: transformers `>=5.0,<6`. Tests: `test_accel_plan.py`,
+  `test_install_diagnose*.py`, `test_installer_contract.py`.
+- **Lane C1 — training/loading/export.** New `src/finetune_studio/accel/` (`device`, `env` = `FTS_GPU_DEVICES`/
+  `FTS_GPU_EXCLUDE` masking applied in package `__init__`, `ops`, `llama` backend check), `training/accel_plan.py`
+  (precision/optimizer/4-bit from the accelerator), `models/hf_loader.py` (GPU → 4-bit → `device_map=auto` OOM
+  ladder), `fts accel` CLI. Wired into `training/{engine,worker,abliteration,vram/*}`, `testing/inference.py`,
+  `models/{llama_loader,providers}`. Tests: `test_accel.py`, `test_accel_wiring_c1.py`.
+- **Lane C2 — WebUI/RAG.** `webui/gpu_probe.py` (vendor-neutral memory probes) used by `routes/{system,models,pages}`,
+  `_resources.html`, settings page; `data/rag_portable/devices.py` (`auto` = GPU first) in embedders/rerankers/
+  store/standalone server (inline copy) / MCP package. Tests: `test_accel_wiring_c2.py`, UI/RAG test updates.
+- Three lane commits are integrated: installer planner (B), training/loading/export (C1), WebUI/RAG (C2). Accelerator files are tracked.
+- Full-suite rerun is in the visible session `finetune-studio post-commit full suite`; it omits `FTS_NO_BUMP` so the pre-commit hook test exercises the real hook. The GTX 1070 remains masked.
 
 ## Next steps
 
-1. ~~External-path ingestion~~ **DONE 2026-10-02 (Genor decision):** data prep never reads/writes outside the project dir; one fence `data.fs.paths.resolve_in_project`/`resolve_within`; `tests/test_data_prep_path_fence.py`. `routes/quality.py` (`/api/data/{analyze,augment,optimize,hallucination-check,convert}`) fenced too (path + `output`; optional `project_id` → project dir, else `settings.data_dir`).
-2. ~~PortableRAG server exposure~~ **DONE 2026-10-02:** shipped server binds 127.0.0.1, non-loopback requires a bearer token, config layered (flags>env>`rag.config.json`>defaults), export encrypted at rest by default (AES-256-GCM, passphrase-derived key never shipped). Studio `/rag/bundle` export is now an encrypted `.ftsrag` (`secure_bundle.py`, kept in `<project>/rag-bundles/`; import stages in project dir). Tests: `tests/test_rag_encrypted_package.py`, `tests/test_rag_secure_bundle.py`.
-3. ~~Project archive round-trip~~ **DONE** (lanes A-D).
-4. ~~`rag_corpora` root on FTS_ROOT helpers~~ **DONE** (`rag_corpus_dir`).
-5. Formatter parity done; wire `system_prompt` callers. RAG coverage claims are filename-based, not content-hash.
-6. Holdout disjointness is exact-question only; reworded duplicates can still leak.
-7. **E2E findings NOT fixed:** CLI has no project-dir fence (design call); `/api/data/*` relative `output` resolves to project dir but relative `path` to cwd; `rag/sources` lists raw + parsed copies (double-index?); imported-corpus hit `source` paths point at old project; engine has no resume-from-checkpoint; many endpoints return 200 `{error}`; `compare/load` missing path still shows HF repo-id text; project-flow `start_run` ignores `lora_alpha`/grad-accum overrides; `compare` vs `suite` score differ (judge); `compare --models` swallows trailing positional; `validate` accepts empty jsonl, `rag ingest` accepts binary; Windows installers diverge (no GPU pin, no run.ps1/update.ps1); `FTS_ROOT`/`FTS_DB` ignored by app (tests leak empty dirs into `~/.finetune-studio/projects`); `install.sh --repair` wipes venv. Untested: chat-with-RAG, QA mining (need LM Studio), dark/light visual pass, `rag.config.json`-only launch.
-8. **UI coverage fix order** (ledger §Functional gaps): ~~1 training fields + Unsloth + upload conversion~~ DONE → ~~2 dataset health~~ DONE (`data/dataset_health.py`, training-page panel + "remove duplicates" copy; browser-verified; the old `DataQualityAnalyzer`/`TrainingDataValidator` give misleading advice — PL/EN balance, "I don't know" as risk, regex "fabricated" dates — so they were NOT wired; follow-up: move `fts analyze` + `/api/data/analyze` onto `dataset_health`, retire `/api/data/hallucination-check`) → ~~3 benchmark review~~ DONE (`?bid=` opens any result from "Recent scores", per-case verdict override, "Re-check score" audit, delete; one `_rescore_benchmark` after every verdict change — before, only the heuristic re-judge rescored and it dropped training-eval metadata; delete route always 500'd on a nonexistent `project_id` column; run/benchmark delete orphaned cases; `tests/test_benchmark_review.py`, browser-verified). Still open from 3: AI judge is env-only (`FTS_JUDGE_*`) and the run route downgrades `ai`/`local` → heuristic — belongs with the Settings slice → ~~4 nav + wording~~ DONE (plain wording on Export/Pairs/RAG/Testing/Chat/Data Editor/Model library/Benchmarks; benchmark sample "all" = full run; `/rag/coverage` empty states are 200 + `state` (wizard no longer logs a 400 each load); honest idle captions (NEEDS A BASE MODEL, wizard step 5 needs a trained model); settings log panel uses the journal only when this process is in `finetune-studio.service` (cgroup check); nav: "model library", new "my models" tab, 22-char project name. Browser pass: 11 pages, 0 HTTP/console errors, 0 jargon leaks. Kept by design: RAG-mode nav scoping, project "inference" → chat (QABUG-004). Left: "merged/" in testing empty state is pinned absent by `tests/test_project_testing.py:66`) → ~~5 dead code~~ DONE (33 OpenAPI paths removed, 231 → 198; templates data/export/models/testing/training.html + `static/js/training.js` deleted; kept with live callers: `/api/inference/load` (DEPLOYMENT.md), `/api/benchmarks/suites` + `runs/{rid}/history` (`tests/test_phase_bd_api.py` live QA), `data-prep/upload` (`tests/e2e_ui_qa.py`); browser crawl of 18 pages: 0 404/405/500/console errors. Leftover: `POST /api/data/upload` has no UI caller; docs/modules still describe removed routes — refresh with the docs-visibility decision). Terminal chrome decided 2026-10-04 (Genor: "decide yourself"): fake `root@fts:~$` prompts, `NO_DATA` boxes and `[ BOOT ]` prefix removed (no information); monospace theme kept.
-9. Finish test-file review (158 left) and tests-scope Ruff. Follow-up filed: `training/data_quality.generate_fixes` suggests nonexistent CLI commands (`tests/test_data_quality_fixes.py` is its test).
+1. Collect the visible post-commit full-suite result.
+2. Recheck `.venv/bin/ruff check src/ scripts/`, `make codemap-check`, and `git diff --check`.
+3. Record final verified test/commit state here; keep this file ≤120 lines.
+4. Real-hardware check: `bash install.sh --plan`, `.venv/bin/fts accel`, then short LoRA train + GGUF export with `CUDA_VISIBLE_DEVICES=0`.
+5. With Genor's OK: push, then run `bash update.sh` on fan-dragon and verify (`RESTART.md` cgroup check).
+6. Dataset health follow-up: move `fts analyze` + `/api/data/analyze` onto `data/dataset_health.py`; retire `/api/data/hallucination-check`.
+7. Wire `system_prompt` callers to the shared formatter; continue test-file review + tests-scope Ruff.
 
-## Fresh-run UI findings (2026-10-03: all fixed, pushed)
+## Known issues
 
-Round 2 of the fresh-DB browser run fixed F1-F26 (files table at 390/768px, actions wrap, empty-upload message, upload list auto-poll, "unreadable" pill for corrupt files, junk csv coverage-fill pairs, UTC tooltip on pair times, local-time display, plus earlier overview/card/preset/export items) and live-file re-upload with new bytes now adds a version instead of a raw SQL error. Regression tests: `tests/test_fresh_run_regressions.py`. Re-verified in sandbox: file rename/delete/restore/purge, archive export/import/delete round-trip, HF search/info/guard, training start guard, responsive sweep (no overflow). Not exercised: GPU training failure mid-run, PortableRAG launch (done 2026-10-02), dark/light visual pass.
+- No checkpoint resume in the training engine.
+- Many endpoints still return 200 `{error}` instead of a 4xx/5xx.
+- CLI has no project-dir fence (design call pending).
+- `rag/sources` lists raw + parsed copies (possible double index); RAG coverage claims are filename-based, not content-hash.
+- Holdout disjointness is exact-question only; reworded duplicates can leak.
+- `compare` vs `suite` scores differ (judge path); `compare --models` swallows a trailing positional.
+- Main DB is cwd-relative (`data/finetune_studio.db`); tests can leak empty dirs into `~/.finetune-studio/projects` and `test-fixtures/` (3 dirs from 2026-10-01 pre-date this work).
+- `install.sh --repair` recreates the venv. Windows has no `run.ps1`/`update.ps1`.
+- `training/data_quality.generate_fixes` suggests nonexistent CLI commands (`tests/test_data_quality_fixes.py`).
+- `POST /api/data/upload` has no UI caller; `docs/modules/` still describes removed routes.
+- External `TRANSFORMERS_CACHE` env noise (env-driven, not app code).
+- Never exercised: chat-with-RAG E2E, QA mining via LM Studio, full dark/light visual pass, `rag.config.json`-only launch, GPU failure mid-train, AMD/Intel/Apple real hardware.
 
 ## Commands
 
-- Ruff: `.venv/bin/ruff check src/ scripts/ tests/`
 - Tests: `.venv/bin/python -m pytest -q -p no:cacheprovider --ignore=tests/test_vram.py` (~21 min)
+- Lane tests: `.venv/bin/python -m pytest -q tests/test_accel.py tests/test_accel_plan.py tests/test_accel_wiring_c1.py tests/test_accel_wiring_c2.py tests/test_install_diagnose_gpu.py tests/test_installer_contract.py`
+- Ruff: `.venv/bin/ruff check src/ scripts/`
+- GPU plan / health: `bash install.sh --plan`, `.venv/bin/fts accel`
 - Codemap: `make codemap`
-
-## Guardrails
-
-- After test runs, check `~/.finetune-studio/test-fixtures/` (3 pre-existing dirs dated 2026-10-01 are not from this work).
-- Never use the GTX 1070; RTX 3090 only.
-- Live E2E needs `FTS_ALLOW_LIVE_E2E=1`; `tests/run_qa.sh` can contact remote services and mutate data.
-- Dev docs are local-only (Genor 2026-10-03): `docs/{modules,audit,archive,judging}/` + ARCHITECTURE/CODEMAP/DEVELOPER/GOTCHAS/PRODUCT-BRIEF/README/REFACTOR-SPEC/WORKPLAN etc. are gitignored and untracked (still in git history before `5b37259`). Keep them current on genorbox1; guard `tests/test_repo_hygiene.py::test_dev_docs_are_not_tracked` + `test_public_docs_do_not_link_dev_docs`. Fan-dragon deploy still gated by `docs/WORKPLAN.md`.
 
 ## Blockers
 
-Policy items resolved. `main` is in sync with `origin/main` (verified 2026-10-05); push only with his OK.
-
-## Idle resource release (2026-10-03)
-- `FTS_IDLE_TIMEOUT` (default 300s, read live via `testing.inference.idle_timeout()`, 0 = off) unloads the engine; busy guard in `generate()` defers unload mid-run.
-- `webui/app.py::_idle_reaper` (lifespan task, 60s tick): when no training/inference, past timeout calls `release_idle_memory()` (GC, CUDA cache, malloc_trim, `_PARSED_CACHE`).
-- `ModelComparator.run_comparison` drops idle-unloaded engines. Tests: `tests/test_idle_release.py`.
-
+- Push and fan-dragon deploy wait for Genor's OK (and for the lanes to land).

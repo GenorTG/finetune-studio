@@ -1,73 +1,73 @@
 # AGENTS.md — finetune-studio
 
-Local fine-tune + data-prep WebUI (Python, `src/finetune_studio/`). Edit on **genorbox1**, commit + push, pull on **fan-dragon** for GPU runs (`finetune-studio.service`, port 7860). Never SSH into fan-dragon to edit files.
+Local fine-tune + data-prep + RAG WebUI (FastAPI + Jinja, Python 3.12, uv venv `.venv/`), CLI `fts`.
+Hosts: edit/commit/push on **genorbox1** (`/home/genorbox1/work/finetune-studio`, RTX 3090 + GTX 1070);
+**fan-dragon** (`/home/genortg/finetune-studio`) is deploy/test only — pull there, never SSH-edit files.
+Both run the `finetune-studio` systemd **user** unit on :7860.
 
 ## Read first
-1. `docs/WORKPLAN.md` — **the plan and its order is law** (durable across models; rules + numbered steps; never reorder).
-2. `docs/PRODUCT-BRIEF.md` — what Genor wants the product to be good at (north star).
-3. `HANDOFF.md` — verified ops state + next steps (≤120 lines; if longer, it is stale — rewrite it).
-4. `docs/GOTCHAS.md` — full learned-rule log (AGENTS keeps only a short bootstrap subset).
-5. `docs/README.md` — doc map. Then area docs as needed. `RESTART.md` = fan-dragon service. `PHASES.md` may be stale vs HANDOFF.
-
-**Dev docs are local-only (Genor 2026-10-03).** `docs/{ARCHITECTURE,CODEMAP,DEVELOPER,GOTCHAS,PRODUCT-BRIEF,README,REFACTOR-SPEC,WORKPLAN,…}.md` and `docs/{modules,audit,archive,judging}/` are gitignored: keep them current on disk for agent work, never `git add -f` them, and never link them from public docs (README, `docs/index.html`, TUTORIAL/INSTALL/DEPLOYMENT). They exist only on genorbox1 — a fresh clone or fan-dragon has none. Guard: `tests/test_repo_hygiene.py::test_dev_docs_are_not_tracked`.
+1. `HANDOFF.md` — current state, in-flight work, next steps (≤120 lines; longer = stale, rewrite it).
+2. `docs/WORKPLAN.md` — iron rules (binding) + ordered plan (last updated 2026-10-02; HANDOFF has newer state).
+3. `docs/PRODUCT-BRIEF.md` — north star / quality bar. `docs/GOTCHAS.md` — full learned-rule log.
+4. On demand: `docs/README.md` (doc map), `docs/CODEMAP.md` (symbol map), `RESTART.md` (service ops).
 
 ## Commands
-- Tests: `make test` (= `.venv/bin/python -m pytest tests/ -v --tb=short`). Single file: `.venv/bin/python -m pytest tests/test_api.py -v`.
-- Lint: `.venv/bin/python -m ruff check src/` (the Makefile `lint` target hides failures with `|| true` — run ruff directly and fix every warning).
-- Run: `make run` (= `bash run.sh`). E2E browser suite: `tests/run_qa.sh` (see `tests/README_E2E.md`). GPU-dependent tests in `tests/test_vram.py` only pass on fan-dragon.
-- Verify before "done": the test file for the module you changed passes locally; GPU-path changes need a fan-dragon run noted in HANDOFF.
-- Deploy: `git push`, then on each host run `bash update.sh` (non-interactive; pulls ff-only, health-checks the venv, syncs deps with the torch pin, migrates DB, restarts the user service). Manual equivalent: `cd /home/genortg/finetune-studio && git pull --ff-only && systemctl --user restart finetune-studio` (user unit, no sudo; `journalctl --user -u finetune-studio -f` for logs). (Re)install the unit with `bash install-service.sh` — exists on **both** fan-dragon and genorbox1 now; it also stops a stray bare uvicorn on :7860. Truth check: `ss -ltnp | grep 7860` pid's `/proc/<pid>/cgroup` contains `finetune-studio.service`. genorbox1 runs the service for GUI/dev work (RTX 3090, CPU torch paths); GPU training + model downloads stay on fan-dragon until Genor's disk/driver call.
+- Setup/repair: `bash install.sh` (`--plan` preview GPU plan, `--check`, `--repair`, `--cpu`, `--gpu <vendor>`); dev extras: `uv pip install --python .venv/bin/python -e '.[dev]'`.
+- Tests: `.venv/bin/python -m pytest -q -p no:cacheprovider --ignore=tests/test_vram.py` (full suite ~21 min); one file: `.venv/bin/python -m pytest tests/test_x.py -q`. `make test` = verbose full run incl. GPU tests.
+- Lint: `.venv/bin/ruff check src/ scripts/` (must stay clean; `tests/` has ~108 legacy findings). `make lint` hides failures (`|| true`) — never trust it.
+- Run: `make run` (= `bash run.sh`, uvicorn :7860). Prefer the service: `systemctl --user restart finetune-studio`; logs `journalctl --user -u finetune-studio -f`.
+- Accelerator check: `.venv/bin/fts accel` (nonzero only on a GPU host that fell back to CPU).
+- Symbols: `make codemap` / `.venv/bin/python scripts/codemap.py --grep NAME`; `make codemap-check` fails on drift.
+- E2E browser suite: `tests/run_qa.sh` (see `tests/README_E2E.md`; can mutate live data).
+- Deploy: `git push`, then on the host `bash update.sh` (non-interactive: pull ff-only, venv health, deps + torch pin, llama.cpp, DB migrate, restart). (Re)install unit: `bash install-service.sh`. Details: `RESTART.md`, `docs/DEPLOYMENT.md`.
+- Verify before "done": the changed module's test file + ruff pass; GPU-path changes need a real GPU run noted in HANDOFF.
 
 ## Layout
-- `src/finetune_studio/` — app code, one concern per module (api, ui, training, data-prep). `tests/` mirrors it.
-- `scripts/`, `install*.{sh,fish,zsh,ps1,bat}`, `run*.{sh,fish,zsh,bat}` — installers/launchers; keep all shell variants in sync when changing one.
-- `data/`, `datasets/`, `models/`, `output/`, `projects/` — runtime artifacts, never committed.
-
-## Working in this repo (all models)
-
-- **`docs/CODEMAP.md` is the symbol map.** Before grepping around for "where is X / what
-  imports Y", run `make codemap` (or `.venv/bin/python scripts/codemap.py --grep NAME`)
-  — it indexes every module, class, function with signatures + intra-repo imports in one file.
-  Grep mode: `scripts/codemap.py --grep score_results` → `file:line def name(sig)`.
-- **Any session that adds/moves/renames modules, classes, or functions must run
-  `make codemap`** so the local (gitignored) `docs/CODEMAP.md` stays current.
-  `make codemap-check` regenerates it and fails if it had drifted.
-- New code goes in the module that already owns that concern (one concern per module);
-  CODEMAP shows who owns what at a glance. `src/finetune_studio/benchmarks/__init__.py`
-  being 536 lines with everything in `__init__.py` is a known wart — do not add to it.
+- `src/finetune_studio/` — `webui/` (app, routes, templates, static), `cli/` (`fts` commands), `training/` (engine, worker, vram, export), `models/` (loaders, providers, registry), `data/` (parsers, prep, fs, `rag_portable/`), `rag/`, `testing/` (inference, judge), `benchmarks/`, `compare/`, `db/`, `accel/` (vendor-neutral GPU layer), `naming.py`, `config.py`.
+- `tests/` — pytest, one file per concern; `e2e_*.py` + `run_qa.sh` are live/browser suites.
+- `scripts/` — `accel_plan.py` (GPU detect/plan/install), `install_diagnose.py`, `codemap.py`, `git-hooks/`, dataset tools.
+- `install*.{sh,ps1,bat,fish,zsh}`, `run*.{sh,bat,fish,zsh}`, `update.sh`, `install-service.sh` — keep shell variants in sync when changing one.
+- Runtime (never committed): `data/`, `datasets/`, `models/`, `media/`, `output/`, `projects/`, `.llama.cpp/`, `.tmp/`; app state under `$FTS_ROOT` (default `~/.finetune-studio`).
 
 ## Conventions
-- Type hints on every function signature (params + return). Pydantic/dataclass models for anything crossing the API boundary.
-- One module = one responsibility; new feature → new module + new test file, not a bigger existing file.
-- Async I/O via the existing HTTP client wrapper; do not introduce a second HTTP library.
-- Commits: imperative, "what + why", one logical change each.
+- New code goes in the module that already owns the concern (check CODEMAP); new feature → new module + new test file, not a bigger file. Run `make codemap` after adding/moving/renaming symbols.
+- Type hints on every signature; Pydantic/dataclass models for anything crossing the API boundary.
+- HTTP: reuse what the module already uses (`urllib.request`/`httpx`); do not add a new HTTP library.
+- Device code goes through `finetune_studio.accel` — never hard-code `cuda`, `{"": 0}`, `bf16=True` or bitsandbytes.
+- Errors are honest: real 4xx/5xx with a reason, never 200 `{error}` or a silent fallback.
+- Commits: imperative "what + why", one logical change each; the pre-commit hook bumps `VERSION` (run `make hooks` once per clone; skip with `FTS_NO_BUMP=1`).
 
 ## Session protocol
-- Workspace `AGENTS.md` owns work modes / spawn truth / Cursor helpers. This repo: goal+card, then verify with Commands above.
-- Cursor only if Genor asks: `ensure-cursor-helper.mjs --cwd /home/genorbox1/work/finetune-studio --label cursor-helper:finetune-studio` → `acpSessionKey`.
-- End: goal done/blocked, card clear, rewrite `HANDOFF.md`, commit+push.
+- Workspace `AGENTS.md` owns work modes / spawn rules. Here: goal + card, verify with Commands above.
+- Cursor only if Genor asks: `ensure-cursor-helper.mjs --cwd /home/genorbox1/work/finetune-studio --label cursor-helper:finetune-studio`.
+- End: rewrite `HANDOFF.md`, commit; push only with Genor's OK.
+- HANDOFF sections, in order: `Mission` (2 lines), `State (verified <date>)` table, `In flight`, `Next steps` (≤7, exact commands), `Known issues`, `Commands`, `Blockers`. ≤120 lines; rewrite, never append; archive old copy to `docs/archive/HANDOFF-<date>.md`.
 
-## HANDOFF rules
-- Sections, in order: `Mission` (2 lines), `State (verified <date>)` (table), `Next steps` (≤7, each with the exact command), `Commands`, `Blockers`. ≤120 lines. Rewrite, never append. Old content → `docs/archive/HANDOFF-<date>.md`.
 ## Gotchas
-
-- **Test screenshots are throwaway (Genor 2026-10-02).** Browser/e2e tests write only to `.tmp/qa-shots/` (override `FTS_QA_SHOTS`), never to `docs/screenshots`, README/Pages assets, or user media dirs. README/docs/Pages screenshots are captured by hand on purpose each time; never copy test output into them. Guard: `tests/test_repo_hygiene.py::test_tests_never_write_into_docs_or_user_media`.
-- **Sandbox instances need full isolation.** `FTS_ROOT` alone still hits live data: the main DB `data/finetune_studio.db` is cwd-relative and `FTS_DB`/helper paths default under `~`. Run from a temp cwd with `HOME`, `FTS_ROOT`, `FTS_DB` all redirected (and `CUDA_VISIBLE_DEVICES=` if no GPU wanted).
-<!-- Full log: docs/GOTCHAS.md — append there; keep ≤12 critical lines here for bootstrap. -->
-- 2026-10-02 **RAG export is encrypted at rest by default; the key is never shipped/stored:** `build_package` writes AES-256-GCM `corpus/corpus.enc` (scrypt from a passphrase returned once, passed via POST body never a URL, absent from settings/DB/logs); plaintext only via explicit `encrypt=False` (`-PLAINTEXT`); model weights stay unencrypted. Shipped server binds 127.0.0.1 and refuses a non-loopback host without an auth token; config precedence flags>env>`rag.config.json`>defaults. Tests: `tests/test_rag_encrypted_package.py`.
-- 2026-10-02 **Studio corpus export is the encrypted `.ftsrag` bundle only:** `POST /projects/{pid}/rag/bundle` -> `rag_portable/secure_bundle.py` (same AES-256-GCM container, passphrase in POST body, returned once if generated, min 8 chars), written under `<project>/rag-bundles/`; import (`POST /rag/import`, `passphrase` form field) stages uploads in `<project>/rag-import-staging`, never system tmp. Models are not bundled (`shared:` refs). `store.export_bundle` (plaintext tar/zip) now requires an explicit `out_path`; do not wire it to a route. Tests: `tests/test_rag_secure_bundle.py`.
-- 2026-10-02 **Data prep never touches paths outside the project dir (Genor, final):** no absolute-path ingestion, no external allowlist. Every data-prep path reference (dataset, source `data_path`, file-library `raw_path`, `/api/data/*`) goes through `finetune_studio.data.fs.paths.resolve_in_project`/`resolve_within` (resolve() + `relative_to` root; rejects `..`, outside-absolute, escaping symlinks; in-project absolute is fine). Never add a raw `Path(user_str)` read/write in a data-prep route; tests: `tests/test_data_prep_path_fence.py`.
-- 2026-09-25 **Install path = the repo scripts, always:** `bash install.sh` / `bash update.sh` are non-interactive (no prompts/sudo; `FTS_AUTO_REPAIR=1` self-heals). They now write `.venv/torch-constraints.txt` after pinning the CUDA-matched torch family and pass `-c` to every later resolve — without it, `uv pip install -e .`/unsloth silently upgrades torch to the default PyPI (cu130) build and breaks driver-535 hosts (`undefined symbol: ncclCommResume`). uv-created venvs have **no pip module**: use the scripts' `pip_install` helper, never `python -m pip`. update.sh reuses install.sh's project-local `.llama.cpp` (no second build under $HOME).
-- 2026-09-25 **Corpora/datasets are NEVER committed — share them manually.** `datasets/`, `models/`, `media/` and `data/` are gitignored on purpose (Genor: "corpuses for tests and shit should be shared manually, not over github"). To move one to fan-dragon, copy it over (`rsync`/scp) or re-create it there — do not `git add -f` it. `tests/test_repo_hygiene.py` enforces this and also guards the one shipped seed inside `data/` (`data/benchmarks/default.json`). **Gitignore trap:** git never descends into an excluded dir, so `/data/` + `!/data/benchmarks/default.json` cannot work — it needs the three-step form in `.gitignore`.
-- 2026-09-21 **Flow-scoped nav contract:** every project template MUST declare `{% block workspace %}model|rag{% endblock %}` — without it the flow subnav silently disappears (7 pages shipped that way) and the session strip falls back to the model flow. RAG-only pages also set `{% block workspace_nav %}rag{% endblock %}`. Tab label, page `<h1>`, and `breadcrumb_tab` must all use the SAME word (the `data`/`files`/`data-prep`/`pairs` mismatch is what made the app unreadable) (5615f73, d605f7e).
-- 2026-09-21 **Page-header copy rule:** a project page header states (1) which numbered step of which flow it is, (2) what it does in plain words — no LoRA/corpus/"three layers" jargon in the first sentence, (3) a link to the next step. Jargon goes in a `text-xs` line below (ae44ac5).
-- 2026-09-20 **CSS token discipline:** templates may only reference tokens defined in app.css `:root` / base.html light block — an undefined `var(--x, #fallback)` silently renders the dark-theme fallback in light mode (13 legacy names like `--accent-green`/`--bg-elev`/`--muted` shipped 1.3:1 text this way; now aliased to real tokens). Measure contrast against the COMPOSITED ancestor background, never the element's own `backgroundColor`.
-- 2026-09-20 **Visual QA probe:** the `window.__audit` pattern (overflow past viewport + clipped cells + <10px text + WCAG vs composited bg), run on every route in dark AND light, catches what pytest/HTTP codes never see. For sweeps use the **standalone playwright-core runner** (`~/.openclaw/workspace/.tmp/qa-sweep/{probe.js,sweep.cjs,shots.cjs}`; fresh page per job, `node sweep.cjs main|empty`) — the browser tool's `evaluate` caps at 59.5s and iframes under SwiftShader stall. When a narrow-width table fix does not stick, grep EVERY `@media` block touching that selector: equal specificity, later wins (≤780's `min-width:32rem` silently crushed the rag 740px tune for four batches). `act kind=resize` does NOT change the viewport.
-- 2026-09-20 **hidden attr vs classes:** `.btn`/`.pill` set `display`, which beats the UA `[hidden]` rule — the global `[hidden]{display:none!important}` in app.css is load-bearing; never remove it, and bump `?v=` in base.html with every css change (stale cache hid this bug for a whole pass) (7e493c7).
-- 2026-09-20 **Artifact naming:** never label models/datasets by directory basename — use `finetune_studio.naming.display_for_path()` (`<Project> · <Base> · [version] · [Kind] [QUANT] [abliterated]`); DB lookups must go through `finetune_studio.db`, never a hand-built sqlite path (the old lookup pointed at a nonexistent file and silently degraded every run-export name to a hash dir) (7777981).
-- 2026-09-20 **Relative scan roots:** the deployed service walks `output/projects/…` with NO leading slash — never gate a path category on `"/output" in path`; lead with `naming.resolve_run_path()` (2b107ff; the first naming release still shipped hash labels live because of this).
-- 2026-09-20 **Workbench matching rules:** QA source manifests point at content-addressed `files/<sha12>/…`, NOT the raw library path — match file↔source by `sha256`; and RAG corpus `document_id` is md5(path) — check corpus membership via manifest `documents_meta[].source` sha12 dirs (e7e9f7f, 266ffc1; both caught live during browser verification, not by tests).
-- 2026-09-20 **Per-commit versioning:** run `make hooks` once per clone; the **pre-commit** hook bumps `VERSION` (BUILD segment) and the commit *includes* the bump — commit-msg cannot (git snapshots the index before it; the first versioning scheme shipped one build behind, caught by the 0.1.0.2 E2E). UI chip + `GET /api/system/version` show it. Skip a bump with `FTS_NO_BUMP=1 git commit …`; VERSION-only commits don't bump.
-- 2026-09-20 **Wizard chain:** step 2 auto-loads the helper provider, aborts when no document could be mined, and unloads the helper before training. Never let mining errors pass silently — the E2E on fb05a690 caught the chain coasting into a coverage-fill-only dataset (87a8643).
-- 2026-09-18 **Fan-dragon resources:** high RAM/VRAM often = **other services or games**. Never kill/interrupt those. If Finetune Studio cannot run for lack of headroom → **pause** and report. Inside the studio, load/unload models/helpers yourself (do not leave stacked loads).
-- 2026-09-18 **MiniMax / OpenClaw tools:** never pass `timeout` to `exec` — use `timeoutSeconds` (integer). Prefer native tools over the `tool_call` meta-tool. Prefer `curl`/API on `http://fan-dragon:7860` over browser for verification; if browser times out once, fall back to curl immediately (do not retry CDP evaluate loops). Never narrate runtime/memory meta ("Per AGENTS.md…", "untrusted memories…", "context confirms clean…") — silent continue; call tools; answer Genor.
+<!-- One line each. Full context + history: docs/GOTCHAS.md — append there too. -->
+- Dev docs are local-only: `docs/{ARCHITECTURE,CODEMAP,DEVELOPER,GOTCHAS,PRODUCT-BRIEF,README,REFACTOR-SPEC,WORKPLAN}.md` + `docs/{modules,audit,archive,judging}/` are gitignored — never `git add -f`, never link from README/Pages/INSTALL/DEPLOYMENT/TUTORIAL (`tests/test_repo_hygiene.py`).
+- Never commit runtime data/corpora (`data/`, `datasets/`, `models/`, `media/`, `.venv`) — copy to fan-dragon by rsync; `.gitignore` re-includes need the three-step form (`data/benchmarks/default.json`).
+- Install only via `install.sh`/`update.sh` (uv venv has no pip module; never `python -m pip`); every resolve passes `-c .venv/torch-constraints.txt` or torch silently drifts to another CUDA build.
+- GPU stack choice lives only in `scripts/accel_plan.py` (tests forbid hard-coded `cuNNN`/`rocmX.Y` in installers); fake hardware with `FTS_ACCEL_FIXTURE=<json>`.
+- uv: GPU llama-cpp wheel needs `--extra-index-url … --index-strategy first-index` (`--index-url` lets PyPI's CPU sdist win); source builds need `--no-cache`.
+- Unsloth pins torch<2.13/transformers<=5.5: default `FTS_UNSLOTH=auto` skips it; `FTS_UNSLOTH=1` builds an older torch stack. torchaudio is intentionally not installed.
+- genorbox1 GPU 1 is a GTX 1070: never use it — mask with `CUDA_VISIBLE_DEVICES`/`FTS_GPU_EXCLUDE="GTX 1070"` (the service unit does not mask it).
+- Never kill foreign GPU/RAM users (games, ComfyUI, other services); no headroom → pause and report. Unload models/helpers you loaded.
+- Sandbox instances: temp cwd + redirected `HOME`, `FTS_ROOT`, `FTS_DB` (main DB `data/finetune_studio.db` is cwd-relative); `FTS_ROOT` alone hits live data.
+- Test screenshots go only to `.tmp/qa-shots/` (`FTS_QA_SHOTS`), never into docs/README/Pages/media; live E2E needs `FTS_ALLOW_LIVE_E2E=1`.
+- Data-prep paths must go through `data.fs.paths.resolve_in_project`/`resolve_within`; no raw `Path(user_str)` in a route (`tests/test_data_prep_path_fence.py`).
+- RAG export is AES-256-GCM encrypted by default; passphrase only in POST bodies, never stored/logged; shipped server binds 127.0.0.1 unless a token is set (`tests/test_rag_encrypted_package.py`).
+- Studio corpus export is the encrypted `.ftsrag` bundle only (`rag_portable/secure_bundle.py`); never wire plaintext `store.export_bundle` to a route.
+- Every project template declares `{% block workspace %}model|rag{% endblock %}` (RAG pages also `workspace_nav`); tab label, `<h1>` and `breadcrumb_tab` use the same word.
+- Page headers: flow step + plain-language purpose + next-step link; jargon only in a `text-xs` line below.
+- CSS: use only tokens defined in `app.css :root`/light block; keep the global `[hidden]{display:none!important}`; bump `app.css?v=` in `base.html` on every CSS change, and update every test pin of it in the same commit (`grep -rn '?v=' tests/`).
+- Visual QA: `window.__audit` probe in dark AND light via the playwright-core runner in `~/.openclaw/workspace/.tmp/qa-sweep/`; on stubborn narrow-width bugs grep every `@media` block for the selector.
+- Name artifacts with `naming.display_for_path()`/`resolve_run_path()` (never dir basenames, never `"/output" in path`); DB access only via `finetune_studio.db`.
+- Match library files ↔ QA sources by `sha256` (manifests use `files/<sha12>/…`); RAG `document_id` is md5(path).
+- Wizard chain: step 2 loads the helper, aborts if nothing was mined, unloads it before training — never let mining errors pass silently.
+- fan-dragon login shell is fish: wrap multi-part SSH commands in `bash -c '…'`.
+- Ruff `F821` here = a real `NameError` on an error path; fix it as a bug.
+- OpenClaw tools: `exec` takes `timeoutSeconds`, not `timeout`; verify via `curl http://<host>:7860` first, browser second (fall back to curl after one timeout); don't narrate memory/runtime meta.
+- `preset_advisor.py` step floor ignores `validation_split` and assumes eff. batch 8 (`steps = (pair_count * epochs) // eff_batch`): its `optimizer_steps` run ~2.2× high vs `metrics_json.total_steps` — treat as an upper bound until fixed.
+- Models outside `models/` + `output/` → add a `model_dirs_extra` entry, `POST /api/models/refresh`, then reload the training page (its model dropdown is server-rendered at load).
+- Training API start takes `model_path` (not `base_model`) + `preset_id` (e.g. `"qlora"`); GPU pinning goes in a `finetune-studio.service.d/*.conf` drop-in, never `systemctl --user set-environment`.
