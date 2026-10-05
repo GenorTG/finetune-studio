@@ -21,7 +21,7 @@ Local fine-tune, data-prep, and RAG WebUI. Context-grounded dataset rows are val
 ## Next steps
 
 1. Push when approved, reconcile fan-dragon's checkout, then `bash update.sh` there.
-2. Cache the RAG embedder/reranker across requests: `PortableRAG.load()` reloads e5-large + reranker per request (~2.5 s per `rag/search`); needs an idle-expiry / release-before-training design.
+2. Move the RAG-cache release into `llama_loader.unload_all_models` (today the three unload callers, training start, merge, export and `InferenceEngine.load` call `release_rag_models()` themselves) once the accel lane has landed its `llama_loader` edits.
 3. Improve coverage-fill question quality ("What does the source say about “It”?" is unanswerable and caps suite/held-out scores).
 4. Surface the training error in the Live Status panel (today only the Past Runs row) with a "reduce batch / sequence length" hint on CUDA OOM.
 5. Stop the suite leaking `data/projects/<id>` into the repo cwd (252 stale dirs, ~3 MB).
@@ -30,9 +30,7 @@ Local fine-tune, data-prep, and RAG WebUI. Context-grounded dataset rows are val
 ## Known issues
 
 - `~/.finetune-studio/projects` keeps 9 pre-existing test-debris dirs with files (no DB project).
-- RAG export response `download_url` lacks the `/api` prefix (the UI adds it).
-- `/api/hf/search` `last_modified` is the string "None" with huggingface_hub 1.x.
-- `/api/models/load` failures return HTTP 200 with `status:"error"`.
+- RAG models are cached process-wide (`data/rag_portable/model_cache.py`, idle expiry `FTS_IDLE_TIMEOUT` = 300 s; `GET /api/inference/status` → `rag_models`). Live: `rag/search` 2.3 s → 0.055 s warm (7 s first call), 3.2 GiB VRAM while cached, back to the CUDA-context floor (~0.98 GiB) on expiry / `/api/models/unload` / training start.
 - Wizard `wizTrain()` has no epochs control; ≥150-step runs on small data need the Training page or API.
 - No `fts` command builds datasets; grounded options are WebUI/API only.
 
