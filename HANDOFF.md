@@ -52,11 +52,11 @@ Round 2 of the fresh-DB browser run fixed F1-F26 (files table at 390/768px, acti
 - After test runs, check `~/.finetune-studio/test-fixtures/` (3 pre-existing dirs dated 2026-10-01 are not from this work).
 - Never use the GTX 1070; RTX 3090 only.
 - Live E2E needs `FTS_ALLOW_LIVE_E2E=1`; `tests/run_qa.sh` can contact remote services and mutate data.
-- Dev docs are local-only (Genor 2026-10-03): `docs/{modules,audit,archive,judging}/` + ARCHITECTURE/CODEMAP/DEVELOPER/GOTCHAS/PRODUCT-BRIEF/README/REFACTOR-SPEC/WORKPLAN etc. are gitignored and untracked (still in git history before `<this commit>`). Keep them current on genorbox1; guard `tests/test_repo_hygiene.py::test_dev_docs_are_not_tracked` + `test_public_docs_do_not_link_dev_docs`. Fan-dragon deploy still gated by `docs/WORKPLAN.md`.
+- Dev docs are local-only (Genor 2026-10-03): `docs/{modules,audit,archive,judging}/` + ARCHITECTURE/CODEMAP/DEVELOPER/GOTCHAS/PRODUCT-BRIEF/README/REFACTOR-SPEC/WORKPLAN etc. are gitignored and untracked (still in git history before `5b37259`). Keep them current on genorbox1; guard `tests/test_repo_hygiene.py::test_dev_docs_are_not_tracked` + `test_public_docs_do_not_link_dev_docs`. Fan-dragon deploy still gated by `docs/WORKPLAN.md`.
 
 ## Blockers
 
-Policy items resolved. Committed locally; nothing pushed without his OK.
+Policy items resolved. `main` is in sync with `origin/main` (verified 2026-10-05); push only with his OK.
 
 ## Idle resource release (2026-10-03)
 - `FTS_IDLE_TIMEOUT` (default 300s, read live via `testing.inference.idle_timeout()`, 0 = off) unloads the engine; busy guard in `generate()` defers unload mid-run.
