@@ -548,14 +548,19 @@ class InferenceEngine:
         # back to ChatML only when the GGUF has no template at all.
         from finetune_studio.templates.renderer import render_chat
         tmpl = self._gguf_template or {}
+        bos = tmpl.get("bos_token", "<bos>")
         prompt = render_chat(
             template_str=tmpl.get("chat_template", ""),
             messages=messages,
             tools=None,
-            bos_token=tmpl.get("bos_token", "<bos>"),
+            bos_token=bos,
             eos_token=tmpl.get("eos_token", "<eos>"),
             add_generation_prompt=True,
         )
+        # llama.cpp prepends BOS itself when tokenizing; a template that also
+        # renders it yields a duplicate leading BOS (degrades Gemma-style models).
+        if bos and prompt.startswith(bos):
+            prompt = prompt[len(bos):]
         output = self.model(
             prompt,
             max_tokens=max_tokens,
