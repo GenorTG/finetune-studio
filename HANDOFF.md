@@ -24,17 +24,15 @@ Local fine-tune, data-prep, and RAG WebUI. GPU first on every vendor (NVIDIA/AMD
 1. Push (`git push origin main`), then `systemctl --user restart finetune-studio` on genorbox1 so the service runs the final code.
 2. fan-dragon (RTX 5080 = real Blackwell/cu132 test) has a stub `.git`; restoring its checkout is Genor's call, then `bash update.sh` and `bash install.sh --plan` there.
 3. Improve coverage-fill question quality ("What does the source say about “It”?" caps suite/held-out scores).
-4. Show the training error in the Live Status panel with a "reduce batch / sequence length" hint on CUDA OOM.
 5. Stop the suite leaking `data/projects/<id>` into the repo cwd (~250 dirs).
 6. Untested: HF `Trainer` placement when `acc.index != 0`; abetlen cu121–cu124 wheel SM lists; AMD/Intel/Apple on real hardware; grounded-vs-plain over several seeds and distractor rows.
 
 ## Known issues
 
+- Failed runs: Training page Live status shows the full error + OOM hint (`training/failure_hint.py`, `GET /api/training/failure`); wizard has an advanced epochs field + <100-step warning; accel_plan missing-toolchain hints are OS-aware (verified live 2026-10-06, `.tmp/qa-shots/laneB-*`). No standalone gradient-checkpointing knob exists (only via Unsloth), so the hint does not offer one.
 - RAG embedder/reranker cached process-wide (`data/rag_portable/model_cache.py`, idle expiry `FTS_IDLE_TIMEOUT`=300 s, released by `unload_all_models`, training/merge/export/model load; `GET /api/inference/status` → `rag_models`).
 - `~/.finetune-studio/projects` keeps ~9 pre-existing test-debris dirs with files (not in DB).
-- Wizard `wizTrain()` has no epochs control; ≥150-step runs need the Training page or API.
 - No `fts` command builds datasets; grounded options are WebUI/API only.
-- Windows HIP/Vulkan "missing backend" hints still say `apt install`.
 
 ## Commands
 
