@@ -343,3 +343,109 @@ function wireJudge() {
   load();
 }
 wireJudge();
+
+
+/* ============================================================
+   Compute device — persisted choice, applied at the next start
+   ============================================================ */
+function wireCompute() {
+  const $ = (id) => document.getElementById(id);
+  if (!$('compute-card')) return;
+  const setStatus = (m) => { $('compute-status').textContent = m; };
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+  const fmtGb = (n) => Number(n).toFixed(1) + ' GB';
+  let state = null;
+
+  function choiceValue(c) {
+    return c.mode === 'gpu' ? c.device_id : c.mode;
+  }
+
+  function renderTable(d) {
+    const savedId = d.saved.mode === 'gpu' ? d.saved.device_id : '';
+    const rows = d.devices.map((g) => {
+      const pills = [];
+      if (g.active) pills.push('<span class="pill solid-green">in use</span>');
+      if (!g.visible) pills.push('<span class="pill outline" title="Hidden from this process by a visibility setting">masked</span>');
+      if (g.id === savedId) pills.push('<span class="pill solid-blue">saved</span>');
+      return `<tr data-device-id="${esc(g.id)}">
+        <td class="cell-wrap">${esc(g.name)} <span class="dim">· #${g.index}${g.name.toUpperCase().includes(g.vendor.toUpperCase()) ? '' : ' · ' + esc(g.vendor)}</span></td>
+        <td>${esc(g.runtime)}</td>
+        <td class="num">${fmtGb(g.free_gb)} / ${fmtGb(g.total_gb)}</td>
+        <td>${pills.join(' ') || '<span class="dim">—</span>'}</td></tr>`;
+    });
+    $('compute-table').tBodies[0].innerHTML = rows.join('')
+      || '<tr class="empty-row"><td colspan="4" class="dim text-xs">No selectable NVIDIA/AMD GPU detected (nvidia-smi / rocm-smi).</td></tr>';
+  }
+
+  function renderSelect(d) {
+    const sel = $('compute-select');
+    const opts = [['auto', 'Auto (best detected GPU, CPU only if there is none)']]
+      .concat(d.devices.map((g) => [g.id, `${g.name} (#${g.index})`]))
+      .concat([['cpu', 'CPU only (no GPU is touched)']]);
+    if (d.saved.mode === 'gpu' && !d.saved.available) {
+      opts.push([d.saved.device_id, `${d.saved.name} (saved, not detected)`]);
+    }
+    sel.innerHTML = opts.map(([v, label]) => `<option value="${esc(v)}">${esc(label)}</option>`).join('');
+    sel.value = choiceValue(d.saved);
+    sel.disabled = false;
+    $('btn-compute-save').disabled = false;
+  }
+
+  function renderBanners(d) {
+    const e = d.effective;
+    $('compute-effective').innerHTML = `In use now: <span class="mono">${esc(e.device)}</span> · ${esc(e.name)} · ${esc(e.runtime)}`
+      + (e.note ? ` — <span class="warn">${esc(e.note)}</span>` : '');
+    const env = $('compute-env');
+    env.hidden = !d.overridden_by_env;
+    if (d.overridden_by_env) {
+      env.textContent = `The saved choice is not applied: ${d.env_overrides.join(', ')} ${d.env_overrides.length > 1 ? 'are' : 'is'} set in the service environment and takes precedence. Remove it from the unit or its drop-in, then restart.`;
+    }
+    const rs = $('compute-restart');
+    rs.hidden = !d.restart_required;
+    if (d.restart_required) {
+      rs.innerHTML = `Restart required — the saved choice takes effect when the service restarts. Run <code>${esc(d.restart_command)}</code> on the host.`;
+    }
+  }
+
+  function render(d) {
+    state = d;
+    renderTable(d);
+    renderSelect(d);
+    renderBanners(d);
+  }
+
+  async function load() {
+    try {
+      const r = await fetch('/api/system/compute-device', { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      render(await r.json());
+    } catch (e) {
+      setStatus('Failed to load: ' + e.message);
+      $('compute-effective').textContent = 'Could not read the compute devices.';
+    }
+  }
+
+  async function save() {
+    const v = $('compute-select').value;
+    const body = v === 'auto' || v === 'cpu' ? { mode: v } : { mode: 'gpu', device_id: v };
+    if (body.mode === 'cpu' && state && state.devices.length
+        && !(await window.fts.confirm('CPU only: training and inference will be much slower and no GPU is used. Save this choice?', { danger: true, okText: 'Use CPU only' }))) {
+      return;
+    }
+    try {
+      const r = await fetch('/api/system/compute-device', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(typeof d.detail === 'string' ? d.detail : 'HTTP ' + r.status);
+      render(d);
+      setStatus(d.restart_required ? 'Saved — restart required.' : 'Saved.');
+    } catch (e) { setStatus('Failed: ' + e.message); }
+  }
+
+  $('btn-compute-save').addEventListener('click', save);
+  load();
+}
+wireCompute();

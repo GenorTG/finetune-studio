@@ -71,7 +71,8 @@
   </div>
 
   {# ── Right column: Debug info + Storage Paths + Hosting ────────────── #}
-  <div>
+  {# min-width:0 lets the compute table scroll inside its card instead of widening the grid column #}
+  <div style="min-width:0">
     <div class="card mb-4">
       <div class="card-head">
         <div class="card-title">Server & Hosting</div>
@@ -171,6 +172,35 @@
       </div>
     </div>
 
+    <div class="card mb-4" id="compute-card">
+      <div class="card-head">
+        <div class="card-title">Compute device</div>
+        <div class="card-sub">Which GPU (or the CPU) the studio trains and runs models on. A saved change is applied when the service starts.</div>
+      </div>
+      <div id="compute-env" class="gpu-degraded mb-3" role="alert" data-testid="compute-env-override" hidden></div>
+      <div class="table-scroll mb-3" role="region" aria-label="Detected compute devices">
+        <table class="table" id="compute-table">
+          <thead><tr>
+            <th style="width:38%">Device</th><th style="width:20%">Runtime</th>
+            <th style="width:20%">VRAM free</th><th style="width:22%">State</th>
+          </tr></thead>
+          <tbody><tr><td colspan="4" class="dim text-xs">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="text-xs dim mb-3" id="compute-effective">Loading…</div>
+      <div class="mb-3">
+        <label class="block text-xs muted mb-1" for="compute-select">Use at next start</label>
+        <select id="compute-select" class="select" style="max-width:420px" disabled>
+          <option value="auto">Auto (best detected GPU, CPU only if there is none)</option>
+        </select>
+      </div>
+      <div id="compute-restart" class="gpu-degraded mb-3" role="alert" data-testid="compute-restart-required" hidden></div>
+      <div class="flex gap-2 mt-3">
+        <button class="btn sm primary" id="btn-compute-save" title="Save the choice (restart required to apply it)" disabled>Save compute device</button>
+        <span id="compute-status" class="text-xs dim">Idle.</span>
+      </div>
+    </div>
+
     <div class="card mb-4">
       <div class="card-head">
         <div class="card-title">Debug Info</div>
@@ -195,5 +225,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/settings.js?v=7"></script>
+<script src="/static/js/settings.js?v=8"></script>
 {% endblock %}
