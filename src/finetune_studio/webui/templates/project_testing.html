@@ -247,6 +247,20 @@
           ? ' <span class="pill outline">rag-grounded</span>'
           : '')
       + '</div>';
+    // Grounded training rows are asked WITH their own retrieved context (transcript opens with a system turn);
+    // plain rows are asked bare. They test different skills, so report them separately.
+    const withCtx = (cases || []).filter(function (c) {
+      return c && c.transcript && c.transcript[0] && c.transcript[0].role === 'system';
+    });
+    if (withCtx.length) {
+      const okCtx = withCtx.filter(function (c) { return c.passed || c.verdict === 'pass'; }).length;
+      const plain = (cases || []).length - withCtx.length;
+      const okPlain = (scores.passed || 0) - okCtx;
+      html += '<div class="case-results-summary" id="case-scores-split" title="Plain rows are recalled from memory; '
+        + 'grounded rows are answered from the retrieved context they were trained with.">'
+        + '<span>from memory (no context): ' + okPlain + '/' + plain + '</span>'
+        + '<span>answering from retrieved context: ' + okCtx + '/' + withCtx.length + '</span></div>';
+    }
     if (meta.retrieval && typeof meta.retrieval === 'object') {
       const ret = meta.retrieval;
       const recall = ret.recall_at_k != null ? ret.recall_at_k : ret.hit_rate;

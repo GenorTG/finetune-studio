@@ -570,16 +570,20 @@ async def phase_test(w: Walk) -> None:
         await w.shot("quiz-running")
 
         async def has_result() -> bool:
-            return bool(__import__("re").search(r"\d+\s*/\s*\d+|pass(ed)?\s*rate|%", await _results_text(w), __import__("re").I))
+            return await w.page.locator("#case-scores-summary").count() > 0
 
         R.check(await w.wait_for("quiz results", has_result, 300, every=4), "quiz produced a result")
         await w.shot("quiz-results", full=True)
-        log("RESULTS: " + (await _results_text(w)).replace("\n", " ")[:400])
+        log("RESULTS: " + (await w.text("#case-scores-summary")))
+        if await w.page.locator("#case-scores-split").count():
+            log("SPLIT:   " + (await w.text("#case-scores-split")))
     await w.page.select_option("#t-eval-kind", index=0)
     await w.page.click("#t-train-eval-btn")
     await w.page.wait_for_timeout(8000)
     await w.shot("heldout-eval", full=True)
-    log("HELD-OUT: " + (await _results_text(w)).replace("\n", " ")[:400])
+    body = (await w.text("body")).replace("\n", " ")
+    i = max(body.lower().find("held-out"), 0)
+    log("HELD-OUT: " + body[i:i + 350])
 
 
 async def phase_gguf(w: Walk) -> None:
