@@ -280,11 +280,18 @@ async def load_model_endpoint(request: Request):
             "Load finished but no model is held in memory", model_path,
         )
     vision = getattr(inference_engine, "vision", False)
+    offload = dict(getattr(inference_engine, "offload", None) or {})
     return {
         "status": "loaded",
         "loaded": True,
         "model": model_path,
         "vision": vision,
+        # What was really loaded: the context is exactly what was asked; layers that did not fit in VRAM
+        # run on the CPU (offload.mode "partial"/"cpu", with a human warning).
+        "n_ctx": getattr(inference_engine, "n_ctx", None),
+        "n_gpu_layers": getattr(inference_engine, "n_gpu_layers", None),
+        "offload": offload,
+        "warnings": offload.get("warnings", []),
     }
 
 
@@ -328,6 +335,10 @@ async def inference_status():
         "model_display": model_display,
         "vision": getattr(inference_engine, "vision", False) if loaded else False,
         "is_gguf": inference_engine.is_gguf if loaded else False,
+        # Real placement of the loaded model (context as asked; layers that did not fit run on the CPU).
+        "n_ctx": getattr(inference_engine, "n_ctx", None) if loaded else None,
+        "n_gpu_layers": getattr(inference_engine, "n_gpu_layers", None) if loaded else None,
+        "offload": dict(getattr(inference_engine, "offload", None) or {}) if loaded else {},
         "idle_seconds": inference_engine.idle_seconds,
         "idle_timeout": idle_timeout(),
         "auto_unload_remaining": (

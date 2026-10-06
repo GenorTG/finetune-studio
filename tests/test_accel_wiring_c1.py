@@ -367,8 +367,9 @@ def test_gguf_oom_retry_matches_every_backend(llama_env, monkeypatch, msg) -> No
     monkeypatch.setattr(mod, "llama_gpu_kwargs", lambda: ({}, []))
     errors.append(ValueError(msg))
     res = mod.load_llama_gguf(path, n_ctx=4096, detect_mmproj=False)
-    assert [c["n_ctx"] for c in calls] == [4096, 2048] and res.final_n_ctx == 2048
-    assert all(c["n_gpu_layers"] == -1 for c in calls)   # GH-AAA: never mixed offload
+    # every backend's OOM wording triggers the same recovery: layers step down, the context never shrinks
+    assert [c["n_ctx"] for c in calls] == [4096, 4096] and res.final_n_ctx == 4096
+    assert [c["n_gpu_layers"] for c in calls] == [-1, 0]
 
 
 def test_gguf_non_oom_error_raises_immediately(llama_env, monkeypatch) -> None:

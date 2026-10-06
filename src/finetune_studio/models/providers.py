@@ -155,7 +155,6 @@ class LocalGGUFProvider(ModelProvider):
             type_k=self._kv_type_k,
             type_v=self._kv_type_v,
         )
-        # OOM-retry may have shrunk n_ctx below what was requested —
         # describe() must report what's actually loaded, not the ask.
         self._n_ctx = self.engine.n_ctx or self._n_ctx
         self._loaded_at = time.time()
@@ -170,6 +169,7 @@ class LocalGGUFProvider(ModelProvider):
             "loaded": mine,
             "n_ctx": self.engine.n_ctx if mine else self._n_ctx,
             "n_gpu_layers": self.engine.n_gpu_layers if mine else self._n_gpu_layers,
+            "offload": dict(self.engine.offload) if mine else {},
             "n_batch": self._n_batch,
             "vision": self.engine.vision if mine else False,
         }
@@ -181,7 +181,12 @@ class LocalGGUFProvider(ModelProvider):
             # Report what can really run on a device: a CPU-only llama.cpp build
             # ignores n_gpu_layers, so claiming "36/36 on GPU" would be a lie.
             offload = llama_support().gpu_offload
-            if self._n_gpu_layers == -1:
+            placed = self.engine.offload if mine else {}
+            if placed.get("total_layers"):
+                # What the loader's autofit really achieved, not what was asked for.
+                d["gpu_layers_on"] = placed["gpu_layers"] if offload else 0
+                d["gpu_layers_total"] = placed["total_layers"]
+            elif self._n_gpu_layers == -1:
                 d["gpu_layers_on"] = block_count if offload else 0
                 d["gpu_layers_total"] = block_count
             elif self._n_gpu_layers > 0:

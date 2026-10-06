@@ -2,11 +2,11 @@
 
 Before this module existed, LocalGGUFProvider.load() (models/providers.py)
 and InferenceEngine._load_gguf() (testing/inference.py) each independently
-built a llama_cpp.Llama(**kwargs) call and drifted: only one had OOM-retry
-(shrink context instead of falling back to mixed CPU/GPU offload), only the
-other had mmproj/vision detection and KV-cache-type support. Both now call
-load_llama_gguf() — these tests pin its behavior directly so a future edit
-can't silently reintroduce either gap.
+built a llama_cpp.Llama(**kwargs) call and drifted: only one had OOM-retry,
+only the other had mmproj/vision detection and KV-cache-type support. Both now
+call load_llama_gguf() — these tests pin its behavior directly so a future edit
+can't silently reintroduce either gap. Load policy: n_ctx is never shrunk, GPU
+layers step down (layers that do not fit run on the CPU).
 """
 
 from __future__ import annotations
@@ -46,6 +46,17 @@ def _reset():
     FakeLlama.calls = []
 
 
+def _gpu_host(monkeypatch, mod, *, free_gb: float, layers: int, file_gb: float) -> None:
+    """Pretend: a GPU with ``free_gb`` free, and a GGUF with ``layers`` layers of ``file_gb`` total."""
+    from finetune_studio.models.gguf_fit import ModelShape
+
+    shape = ModelShape(total_layers=layers, kv_heads=8, head_dim_k=128, head_dim_v=128, file_gb=file_gb, known=True)
+    monkeypatch.setattr(mod, "_gpu_capable", lambda: True)
+    monkeypatch.setattr(mod, "_free_vram_gb", lambda: free_gb)
+    monkeypatch.setattr(mod, "read_shape", lambda path: shape)
+    monkeypatch.setattr("finetune_studio.models.gguf_fit.read_shape", lambda path: shape)
+
+
 class TestLoadLlamaGguf:
     def setup_method(self):
         _reset()
@@ -69,13 +80,13 @@ class TestLoadLlamaGguf:
         assert kwargs["n_batch"] == 256
         assert kwargs["verbose"] is False
 
-    def test_oom_retry_halves_context_never_reduces_gpu_layers(self, tmp_path):
-        """The GH-AAA contract: on OOM, shrink n_ctx — never fall back to
-        mixed CPU/GPU offload by reducing n_gpu_layers."""
+    def test_oom_steps_gpu_layers_down_and_keeps_the_context(self, tmp_path, monkeypatch):
+        """Policy (Genor 2026-10-06): n_ctx is never shrunk; layers that do not fit go to the CPU."""
         from finetune_studio.models import llama_loader as mod
 
         gguf = tmp_path / "model.gguf"
         gguf.write_bytes(b"fake")
+        _gpu_host(monkeypatch, mod, free_gb=100.0, layers=40, file_gb=10.0)
 
         attempts = {"n": 0}
 
@@ -87,33 +98,115 @@ class TestLoadLlamaGguf:
                     raise RuntimeError("CUDA out of memory")
 
         with patch("llama_cpp.Llama", OomThenOk):
-            result = mod.load_llama_gguf(
-                str(gguf), n_ctx=8192, n_gpu_layers=-1, detect_mmproj=False,
-            )
-        assert attempts["n"] == 3
-        # 8192 -> 4096 -> 2048 (the third attempt succeeds)
-        assert [c["n_gpu_layers"] for c in FakeLlama.calls] == [-1, -1, -1]
-        assert FakeLlama.calls[0]["n_ctx"] == 8192
-        assert FakeLlama.calls[1]["n_ctx"] == 4096
-        assert FakeLlama.calls[2]["n_ctx"] == 2048
-        assert result.final_n_ctx == 2048
+            result = mod.load_llama_gguf(str(gguf), n_ctx=8192, n_gpu_layers=-1, detect_mmproj=False)
+        assert [c["n_gpu_layers"] for c in FakeLlama.calls] == [-1, 28, 19]
+        assert {c["n_ctx"] for c in FakeLlama.calls} == {8192}        # never shrunk
+        assert result.final_n_ctx == 8192 and result.n_gpu_layers == 19
+        assert result.offload == "partial" and result.total_layers == 40
+        assert any("19/40 layers" in w for w in result.warnings)
 
-    def test_oom_retry_floors_at_512_then_raises(self, tmp_path):
+    def test_native_oom_is_detected_when_the_exception_text_says_nothing(self, tmp_path, monkeypatch):
+        """Real llama-cpp-python raises a bare ValueError('Failed to load model from file'); the OOM is
+        only in the native log, so the retry must be driven by that."""
         from finetune_studio.models import llama_loader as mod
 
         gguf = tmp_path / "model.gguf"
         gguf.write_bytes(b"fake")
+        _gpu_host(monkeypatch, mod, free_gb=100.0, layers=40, file_gb=10.0)
+        monkeypatch.setattr(mod.llama_native_log, "oom_since", lambda pos: len(FakeLlama.calls) < 2)
+
+        class GenericFailure:
+            def __init__(self, **kwargs):
+                FakeLlama.calls.append(kwargs)
+                if len(FakeLlama.calls) < 2:
+                    raise ValueError("Failed to load model from file: /x/model.gguf")
+
+        with patch("llama_cpp.Llama", GenericFailure):
+            result = mod.load_llama_gguf(str(gguf), n_ctx=4096, detect_mmproj=False)
+        assert [c["n_gpu_layers"] for c in FakeLlama.calls] == [-1, 28]
+        assert result.n_gpu_layers == 28
+
+    def test_plan_limits_layers_before_the_first_attempt(self, tmp_path, monkeypatch):
+        from finetune_studio.models import llama_loader as mod
+
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+        # 10 GB of weights, 1 GB KV per 8k per layer-ish: only a slice fits in 6 GB free.
+        _gpu_host(monkeypatch, mod, free_gb=6.0, layers=40, file_gb=10.0)
+        with patch("llama_cpp.Llama", FakeLlama):
+            result = mod.load_llama_gguf(str(gguf), n_ctx=8192, detect_mmproj=False)
+        assert len(FakeLlama.calls) == 1                      # planned, so no wasted failed load
+        assert 0 < FakeLlama.calls[0]["n_gpu_layers"] < 40
+        assert FakeLlama.calls[0]["n_ctx"] == 8192
+        assert result.offload == "partial"
+
+    def test_explicit_layer_count_is_an_upper_bound(self, tmp_path, monkeypatch):
+        from finetune_studio.models import llama_loader as mod
+
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+        _gpu_host(monkeypatch, mod, free_gb=100.0, layers=40, file_gb=10.0)
+        with patch("llama_cpp.Llama", FakeLlama):
+            result = mod.load_llama_gguf(str(gguf), n_gpu_layers=12, detect_mmproj=False)
+        assert FakeLlama.calls[0]["n_gpu_layers"] == 12 and result.n_gpu_layers == 12
+        assert any("as requested" in w and "12/40" in w for w in result.warnings)   # not blamed on VRAM
+
+    def test_legacy_99_means_all_layers(self, tmp_path, monkeypatch):
+        from finetune_studio.models import llama_loader as mod
+
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+        _gpu_host(monkeypatch, mod, free_gb=100.0, layers=40, file_gb=10.0)
+        with patch("llama_cpp.Llama", FakeLlama):
+            mod.load_llama_gguf(str(gguf), n_gpu_layers=99, detect_mmproj=False)
+        assert FakeLlama.calls[0]["n_gpu_layers"] == -1
+
+    def test_oom_even_on_cpu_raises_an_honest_error_without_touching_ctx(self, tmp_path, monkeypatch):
+        from finetune_studio.models import llama_loader as mod
+
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+        _gpu_host(monkeypatch, mod, free_gb=100.0, layers=40, file_gb=10.0)
 
         class AlwaysOom:
             def __init__(self, **kwargs):
                 FakeLlama.calls.append(kwargs)
                 raise RuntimeError("CUDA out of memory")
 
-        with patch("llama_cpp.Llama", AlwaysOom):
-            with pytest.raises(RuntimeError, match="out of memory"):
-                mod.load_llama_gguf(str(gguf), n_ctx=1000, detect_mmproj=False)
-        # 1000 -> 512 -> floor reached, stop (no infinite loop, no crazy tiny ctx)
-        assert min(c["n_ctx"] for c in FakeLlama.calls) == 512
+        with patch("llama_cpp.Llama", AlwaysOom), \
+             pytest.raises(mod.LlamaLoadError, match="context length was left unchanged"):
+            mod.load_llama_gguf(str(gguf), n_ctx=32768, detect_mmproj=False)
+        assert {c["n_ctx"] for c in FakeLlama.calls} == {32768}
+        assert FakeLlama.calls[-1]["n_gpu_layers"] == 0       # the last attempt was CPU-only
+        # ...and truly CPU-only: no KV cache or host-op offload to the (nearly full) device either
+        assert FakeLlama.calls[-1]["offload_kqv"] is False and FakeLlama.calls[-1]["op_offload"] is False
+        assert FakeLlama.calls[0]["offload_kqv"] is True and FakeLlama.calls[0]["op_offload"] is True
+        assert len(FakeLlama.calls) == mod.MAX_LOAD_ATTEMPTS   # bounded, and the last attempt is the CPU-only one
+
+    def test_micro_batch_is_capped_for_the_cuda_abort(self, tmp_path, monkeypatch):
+        """llama.cpp aborts the process on a full 512-token micro-batch on some Q8_0 models; cap it."""
+        from finetune_studio.models import llama_loader as mod
+
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+        monkeypatch.delenv("FTS_LLAMA_UBATCH", raising=False)
+        with patch("llama_cpp.Llama", FakeLlama):
+            mod.load_llama_gguf(str(gguf), n_batch=512, detect_mmproj=False)
+            mod.load_llama_gguf(str(gguf), n_batch=128, detect_mmproj=False)
+            monkeypatch.setenv("FTS_LLAMA_UBATCH", "384")
+            mod.load_llama_gguf(str(gguf), n_batch=512, detect_mmproj=False)
+        assert [c["n_ubatch"] for c in FakeLlama.calls] == [256, 128, 384]
+        assert [c["n_batch"] for c in FakeLlama.calls] == [512, 128, 512]
+
+    def test_cpu_only_host_reports_cpu_without_a_degradation_warning(self, tmp_path, monkeypatch):
+        from finetune_studio.models import llama_loader as mod
+
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+        monkeypatch.setattr(mod, "_gpu_capable", lambda: False)
+        with patch("llama_cpp.Llama", FakeLlama):
+            result = mod.load_llama_gguf(str(gguf), detect_mmproj=False)
+        assert result.offload == "cpu" and not any("layers" in w for w in result.warnings)
 
     def test_non_oom_error_raises_immediately_no_retry(self, tmp_path):
         from finetune_studio.models import llama_loader as mod
@@ -132,7 +225,7 @@ class TestLoadLlamaGguf:
         assert len(FakeLlama.calls) == 1  # no retry for a non-OOM failure
 
     def test_error_mentioning_bloom_or_room_is_not_retried_as_oom(self, tmp_path):
-        """D9: a bare "oom" substring made BloomForCausalLM/"room" errors halve n_ctx up to 6 times."""
+        """D9: a bare "oom" substring made BloomForCausalLM/"room" errors trigger up to 6 retries."""
         from finetune_studio.models import llama_loader as mod
 
         gguf = tmp_path / "model.gguf"

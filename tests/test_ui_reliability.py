@@ -209,23 +209,28 @@ def test_load_success_payload_when_model_held(
     assert engine.load.call_args.kwargs["n_gpu_layers"] == -1
 
 
-def test_load_coerces_cpu_or_partial_offload_to_full_gpu(
+def test_load_honours_an_explicit_gpu_layer_count_as_an_upper_bound(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """The Inference page's "GPU offload layers" slider used to be ignored (always all layers). An explicit
+    value is now passed through; -1 / absent / the legacy 99 mean "as many as fit"."""
     model_file = tmp_path / "ok.gguf"
     model_file.write_bytes(b"x")
     engine = MagicMock()
     engine.model = object()
     engine.vision = False
+    engine.offload = {"mode": "partial", "gpu_layers": 24, "total_layers": 36, "warnings": ["24/36 layers"]}
     monkeypatch.setattr("finetune_studio.webui.app.inference_engine", engine)
 
-    for requested in (0, 24):
+    for requested, expected in ((0, 0), (24, 24), (-1, -1), (99, -1)):
         response = client.post(
             "/api/models/load",
             json={"path": str(model_file), "n_gpu_layers": requested},
         )
         assert response.status_code == 200, response.text
-        assert engine.load.call_args.kwargs["n_gpu_layers"] == -1
+        assert engine.load.call_args.kwargs["n_gpu_layers"] == expected
+    body = response.json()
+    assert body["offload"]["mode"] == "partial" and body["warnings"] == ["24/36 layers"]
 
 
 def test_data_prep_page_has_upload_refresh_hooks(client: TestClient) -> None:

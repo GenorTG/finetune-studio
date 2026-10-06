@@ -98,9 +98,9 @@ def test_load_provider_route_forwards_extra(monkeypatch, fake_mgr):
     assert r.status_code == 200
     assert captured["pid"] == "local-default"
     assert captured["extra"]["n_ctx"] == 8192
-    assert captured["extra"]["n_gpu_layers"] == -1
+    assert captured["extra"]["n_gpu_layers"] == 33      # explicit = upper bound; the loader autofits below it
 
-    # Empty body still enforces the helper's full-GPU policy.
+    # Empty body: automatic placement (as many layers as fit).
     captured.clear()
     r = c.post("/providers/local-default/load")
     assert r.status_code == 200

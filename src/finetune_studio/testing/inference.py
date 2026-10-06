@@ -73,10 +73,12 @@ class InferenceEngine:
         self.vision = False
         self.mmproj_path = None
         # Real loader params the currently-held model was actually built
-        # with — not the ask. OOM-retry can shrink n_ctx below what the
-        # caller requested; describe()-style callers need the truth.
+        # with — not the ask. Autofit can place fewer layers on the GPU than
+        # requested (n_ctx is never shrunk); describe()-style callers need the truth.
         self.n_ctx: int | None = None
         self.n_gpu_layers: int | None = None
+        # Where the layers actually went (loader autofit): {"mode": gpu|partial|cpu, "gpu_layers", "total_layers", "warnings"}.
+        self.offload: dict = {}
         self._gguf_template = None
         self._last_used = 0.0
         self._idle_timer = None
@@ -179,7 +181,13 @@ class InferenceEngine:
         self.vision = result.vision
         self.mmproj_path = result.mmproj_path
         self.n_ctx = result.final_n_ctx
-        self.n_gpu_layers = n_gpu_layers
+        self.n_gpu_layers = result.n_gpu_layers   # what the loader achieved, not what was asked
+        self.offload = {
+            "mode": result.offload,
+            "gpu_layers": result.total_layers if result.n_gpu_layers < 0 else result.n_gpu_layers,
+            "total_layers": result.total_layers,
+            "warnings": list(result.warnings),
+        }
         self.tokenizer = None
         # Cache the GGUF's own chat template + tokens so we don't re-extract per call.
         try:
@@ -253,6 +261,7 @@ class InferenceEngine:
         self.mmproj_path = None
         self.n_ctx = None
         self.n_gpu_layers = None
+        self.offload = {}
         self._gguf_template = None
         self._last_used = 0.0
 

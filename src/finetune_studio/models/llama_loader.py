@@ -2,24 +2,35 @@
 
 Before this module existed, `LocalGGUFProvider.load()` (models/providers.py)
 and `InferenceEngine._load_gguf()` (testing/inference.py) each independently
-built a `Llama(**kwargs)` call. They drifted: only one had OOM-retry
-(shrink context instead of ever falling back to mixed CPU/GPU offload),
-only the other had mmproj/vision auto-detection and KV-cache-type support.
-Every caller — data-prep's helper, chat, RAG, testing, benchmarks, the
-inference tab — now goes through this one function, so a fix or a new
-loader parameter lands everywhere at once instead of needing to be copied
-into N places (and inevitably missing one).
+built a `Llama(**kwargs)` call and drifted apart. Every caller — data-prep's
+helper, chat, RAG, testing, benchmarks, the inference tab — now goes through
+this one function, so a fix or a new loader parameter lands everywhere at once.
+
+Load policy (Genor 2026-10-06): the context length is NEVER shrunk to make a load fit
+(agentic/tool use needs it). The GPU layer count adapts instead: ``models/gguf_fit.py``
+plans how many layers fit in free VRAM, and a load that still runs out of memory steps
+down until it fits — layers that do not fit run on the CPU. Only a model that cannot
+load even CPU-only raises, with the numbers in the message.
 """
 
 from __future__ import annotations
 
+import gc
 import logging
 import multiprocessing
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from finetune_studio.accel import is_oom_message, llama_gpu_kwargs
+from finetune_studio.models import llama_native_log
+from finetune_studio.models.gguf_fit import (
+    FitPlan,
+    plan_gpu_layers,
+    read_shape,
+    step_down,
+)
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +45,23 @@ LOADER_PARAM_NAMES = (
     "flash_attn", "mmap", "mlock", "type_k", "type_v",
 )
 
+# llama.cpp's CUDA path aborts the whole process ("illegal memory access", SIGABRT) once a prompt fills a
+# 512-token micro-batch on some Q8_0 models (live repro 2026-10-06: Qwen3-0.6B Q8_0, 0/10 ok at 512, 10/10 at
+# <=384, 42/42 at 256 up to a 20k-token prompt; not memory related — it reproduces at 2.5 GB of 24 GB).
+# 256 costs ~8 % prompt-processing speed on a 12B. Override with FTS_LLAMA_UBATCH once upstream is fixed.
+DEFAULT_N_UBATCH = 256
+# Total load attempts: the planned one, geometric step-downs, and always a final CPU-only attempt.
+MAX_LOAD_ATTEMPTS = 6
+
+
+def default_n_ubatch() -> int:
+    raw = os.environ.get("FTS_LLAMA_UBATCH", "").strip()
+    return int(raw) if raw.isdigit() and int(raw) > 0 else DEFAULT_N_UBATCH
+
+
+class LlamaLoadError(RuntimeError):
+    """The model could not be loaded at the requested context, even with every layer on the CPU."""
+
 
 @dataclass
 class LlamaLoadResult:
@@ -42,6 +70,58 @@ class LlamaLoadResult:
     vision: bool = False
     final_n_ctx: int = 0
     warnings: list[str] = field(default_factory=list)
+    # Placement actually achieved: -1 = every layer on the GPU, 0 = CPU only, else the GPU layer count.
+    n_gpu_layers: int = -1
+    total_layers: int = 0
+    offload: str = "gpu"          # "gpu" | "partial" | "cpu"
+    attempts: list[dict[str, Any]] = field(default_factory=list)
+
+
+def _gpu_capable() -> bool:
+    """True when a GPU accelerator is selected AND the installed llama.cpp was built to use it."""
+    try:
+        from finetune_studio.accel import get_accelerator, llama_support
+        return bool(get_accelerator().is_gpu and llama_support().gpu_offload)
+    except Exception:
+        log.debug("GPU capability probe failed", exc_info=True)
+        return False
+
+
+def _free_vram_gb() -> float | None:
+    """Free memory of the accelerator llama.cpp will use; None on a CPU-only host / CPU-only build."""
+    if not _gpu_capable():
+        return None
+    try:
+        from finetune_studio.accel import mem_info_gb
+        free, total = mem_info_gb()
+        return free if total > 0 else None
+    except Exception:   # planning is an optimisation; the retry loop still protects the load
+        log.debug("free VRAM probe failed", exc_info=True)
+        return None
+
+
+def _with_detail(exc: Exception, detail: str) -> Exception:
+    """Same exception type with the native log's reason appended (llama.cpp's own message says nothing)."""
+    if not detail:
+        return exc
+    try:
+        return type(exc)(f"{exc} — {detail}")
+    except TypeError:   # an exception type with a special constructor: keep the original
+        return exc
+
+
+def _normalise_layers(n_gpu_layers: int | None) -> int:
+    """-1 / None / the legacy 99 mean "as many as fit"; any other value is an upper bound."""
+    if n_gpu_layers is None or n_gpu_layers < 0 or n_gpu_layers >= 99:
+        return -1
+    return int(n_gpu_layers)
+
+
+def _describe_plan(plan: FitPlan | None) -> str:
+    if plan is None:
+        return "no GPU planning (CPU-only host or build)"
+    return (f"free VRAM {plan.free_gb:.1f} GiB, all {plan.total_layers} layers need ~{plan.need_all_gb:.1f} GiB "
+            f"-> {plan.n_gpu_layers if plan.n_gpu_layers >= 0 else 'all'} on GPU ({plan.reason})")
 
 
 def load_llama_gguf(
@@ -50,6 +130,7 @@ def load_llama_gguf(
     n_ctx: int = 32768,
     n_gpu_layers: int = -1,
     n_batch: int = 512,
+    n_ubatch: int | None = None,
     n_threads: int | None = None,
     seed: int | None = None,
     rope_freq_base: float = 0.0,
@@ -63,15 +144,12 @@ def load_llama_gguf(
 ) -> LlamaLoadResult:
     """Build one `llama_cpp.Llama` instance. The single canonical loader.
 
-    Contract (GH-AAA): NEVER mixed CPU/GPU offload. If the model + KV cache
-    don't fit in VRAM at the requested n_ctx, retry with a halved n_ctx
-    (floor 512) — model layers always stay fully on GPU; only the KV cache
-    shrinks. Callers that want a different n_gpu_layers policy (e.g. forcing
-    -1 regardless of what a client requested) must do that before calling
-    this — this function loads with exactly the n_gpu_layers it's given.
+    ``n_gpu_layers``: -1 = automatic (as many layers on the GPU as fit), N = at most N. ``n_ctx`` is
+    kept exactly as asked; see the module docstring for the fit policy.
     """
     from llama_cpp import Llama
 
+    llama_native_log.install()
     result = LlamaLoadResult(llama=None)
 
     chat_handler = None
@@ -100,12 +178,13 @@ def load_llama_gguf(
                 result.warnings.append(f"mmproj load failed: {e}")
 
     resolved_threads = n_threads if n_threads and n_threads > 0 else multiprocessing.cpu_count()
+    ubatch = min(n_ubatch or default_n_ubatch(), n_batch)
 
     kwargs: dict[str, Any] = {
         "model_path": gguf_path,
         "n_ctx": n_ctx,
-        "n_gpu_layers": n_gpu_layers,
         "n_batch": n_batch,
+        "n_ubatch": ubatch,
         "n_threads": resolved_threads,
         "mmap": mmap,
         "verbose": False,
@@ -137,35 +216,75 @@ def load_llama_gguf(
     if type_v > 0:
         kwargs["type_v"] = type_v
 
+    # ── placement: plan from free VRAM, then let real attempts correct the estimate ──
+    requested = _normalise_layers(n_gpu_layers)
+    free_gb = _free_vram_gb()
+    plan = (plan_gpu_layers(gguf_path, n_ctx=n_ctx, type_k=type_k, type_v=type_v, requested=requested,
+                            free_gb=free_gb) if free_gb is not None else None)
+    layers = plan.n_gpu_layers if plan is not None else requested
+    total_layers = plan.total_layers if plan is not None else read_shape(gguf_path).total_layers
+
     log.info(
-        "load_llama_gguf %s (n_ctx=%d n_gpu_layers=%d n_batch=%d n_threads=%d "
-        "seed=%s rope_base=%s rope_scale=%s flash=%s mmap=%s mlock=%s type_k=%s type_v=%s)",
-        gguf_path, n_ctx, n_gpu_layers, n_batch, resolved_threads,
-        seed, rope_freq_base, rope_freq_scale, flash_attn, mmap, mlock, type_k, type_v,
+        "load_llama_gguf %s (n_ctx=%d n_gpu_layers=%s n_batch=%d n_ubatch=%d n_threads=%d seed=%s "
+        "rope_base=%s rope_scale=%s flash=%s mmap=%s mlock=%s type_k=%s type_v=%s) — %s",
+        gguf_path, n_ctx, "auto" if requested < 0 else requested, n_batch, ubatch, resolved_threads,
+        seed, rope_freq_base, rope_freq_scale, flash_attn, mmap, mlock, type_k, type_v, _describe_plan(plan),
     )
 
-    last_err: Exception | None = None
-    for attempt in range(6):
+    for _attempt in range(MAX_LOAD_ATTEMPTS):
+        kwargs["n_gpu_layers"] = layers
+        # A CPU-only attempt must not touch the GPU at all: with 0 layers llama.cpp still reserves the
+        # prompt-processing compute buffer (~1 GiB) and the KV cache on the device, which fails exactly when
+        # VRAM is nearly gone (live test, 0.3 GiB free).
+        kwargs["offload_kqv"] = layers != 0
+        kwargs["op_offload"] = layers != 0
+        position = llama_native_log.mark()
         try:
             result.llama = Llama(**kwargs)
-            result.final_n_ctx = kwargs["n_ctx"]
-            last_err = None
             break
         except Exception as e:
-            if not is_oom_message(str(e)):
-                raise
-            last_err = e
-            new_ctx = max(512, kwargs["n_ctx"] // 2)
-            if new_ctx == kwargs["n_ctx"]:
-                break  # already at the floor; give up
+            detail = llama_native_log.failure_detail(position)
+            oom = is_oom_message(str(e)) or llama_native_log.oom_since(position)
+            result.attempts.append({"n_gpu_layers": layers, "oom": oom, "error": str(e), "native": detail})
+            if not oom:
+                # Corrupt/unsupported file etc.: retrying with other layer counts cannot help.
+                raise _with_detail(e, detail) from e
+            nxt = step_down(layers, total_layers)
+            if nxt is not None and len(result.attempts) >= MAX_LOAD_ATTEMPTS - 1:
+                nxt = 0   # out of tries: the last one is always CPU-only, so a model that can load at all does
+            if nxt is None:
+                raise LlamaLoadError(
+                    f"Out of memory loading {Path(gguf_path).name} at n_ctx={n_ctx} even with every layer on the "
+                    f"CPU ({_describe_plan(plan)}). The context length was left unchanged on purpose: use a "
+                    f"smaller quantisation or model, or ask for a smaller n_ctx."
+                    f"{' Native: ' + detail if detail else ''}"
+                ) from e
             log.warning(
-                "GGUF load OOM at n_ctx=%d (attempt %d/6); retrying with n_ctx=%d. "
-                "Model layers stay on GPU — only KV cache shrinks.",
-                kwargs["n_ctx"], attempt + 1, new_ctx,
+                "GGUF load ran out of memory with n_gpu_layers=%s at n_ctx=%d; retrying with %d layer(s) on the GPU "
+                "(context unchanged). %s", "all" if layers < 0 else layers, n_ctx, nxt, detail,
             )
-            kwargs["n_ctx"] = new_ctx
-    if result.llama is None and last_err is not None:
-        raise last_err
+            layers = nxt
+            gc.collect()   # drop the half-built context so its VRAM is free for the next attempt
+    if result.llama is None:   # the loop only ends by break or raise; a safety net, not a code path
+        raise LlamaLoadError(f"{Path(gguf_path).name} did not load")
+
+    result.final_n_ctx = n_ctx
+    result.n_gpu_layers = layers
+    result.total_layers = total_layers
+    gpu_capable = _gpu_capable()
+    if not gpu_capable or layers == 0:
+        result.offload = "cpu"
+    elif layers > 0 and total_layers and layers < total_layers:
+        result.offload = "partial"
+    if gpu_capable and result.offload != "gpu":   # a CPU-only host is not a degradation worth a warning here
+        gpu = layers if layers >= 0 else total_layers
+        why = ("as requested" if requested >= 0 and layers == requested
+               else f"at n_ctx={n_ctx} it needs more VRAM than is free")
+        msg = (f"Only {gpu}/{total_layers} layers of {Path(gguf_path).name} are on the GPU "
+               f"({'none fit' if gpu == 0 and requested < 0 else 'the rest run on the CPU'}): {why}. "
+               f"Generation is slower; the context was kept at {n_ctx}.")
+        result.warnings.append(msg)
+        log.warning("load_llama_gguf: %s", msg)
     return result
 
 
@@ -180,12 +299,10 @@ def resolve_loader_overrides(
     body: dict[str, Any], *, caller: str, model_path: str = "", default_ctx: bool = True,
 ) -> dict[str, Any]:
     """The one place every `/load` route derives its Llama kwargs from a
-    request body. Enforces the GH-AAA no-mixed-offload contract (any
-    n_gpu_layers other than -1 is ignored, with a warning naming the
-    caller) and the 32k context floor. Was copy-pasted with slightly
-    different wording into models.py, chat_v2.py, and testing.py — one of
-    the three (chat_v2.py) had drifted and didn't enforce the GPU guard at
-    all, silently allowing mixed offload from that one route.
+    request body. ``n_gpu_layers`` is -1 (automatic: as many layers on the GPU
+    as fit) unless the caller asked for fewer — an explicit N is an upper bound,
+    the legacy 99 means "all" — and the 32k context default applies when none is
+    sent. ``caller`` / ``model_path`` only label log lines.
 
     Returns a dict of exactly the keys `load_llama_gguf` / `InferenceEngine
     .load` / `ModelManager.load(extra=...)` accept, built from whatever the
@@ -197,14 +314,8 @@ def resolve_loader_overrides(
     caller sends none, and forcing DEFAULT_N_CTX in here would silently
     overwrite that persisted value on every load instead of leaving it alone.
     """
-    requested_layers = body.get("n_gpu_layers", -1)
-    if requested_layers not in (None, -1):
-        log.warning(
-            "%s: n_gpu_layers=%s requested for %s; ignoring and loading all "
-            "layers on GPU (no mixed offload).",
-            caller, requested_layers, model_path or "<no model path given>",
-        )
-    out: dict[str, Any] = {"n_gpu_layers": -1}
+    log.debug("%s: loader overrides for %s from body keys %s", caller, model_path or "<no path>", sorted(body))
+    out: dict[str, Any] = {"n_gpu_layers": _normalise_layers(body.get("n_gpu_layers"))}
     if "n_ctx" in body and body["n_ctx"] is not None:
         out["n_ctx"] = int(body["n_ctx"])
     elif default_ctx:

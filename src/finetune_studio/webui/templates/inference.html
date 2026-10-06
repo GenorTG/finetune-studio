@@ -76,7 +76,7 @@
 
       <div class="mt-3">
         <label class="block text-xs muted mb-1"
-               title="How many transformer layers run on GPU VRAM. Always all of them — mixed CPU/GPU offload is not supported by design (it's much slower); if a model doesn't fit, the loader shrinks context length instead of moving layers to CPU. The real layer count comes from the model file itself.">
+               title="How many transformer layers run on GPU VRAM. Leave it at the maximum for automatic placement: as many layers as fit in free VRAM go on the GPU and the rest run on the CPU (slower). Lower it to force fewer. The context length is never reduced to make a model fit. The real layer count comes from the model file itself.">
           GPU offload layers <span id="n-gpu-val" class="mono violet">all</span>
         </label>
         <input type="range" id="n-gpu-layers" aria-label="GPU layers" class="range" min="0" max="0" step="1" value="0" disabled
@@ -289,9 +289,9 @@ function applyModelMeta(meta) {
   const hint = document.getElementById('n-gpu-hint');
   if (maxLayers > 0) {
     slider.max = maxLayers;
-    // Always every layer on the GPU (mixed offload is unsupported), so this
-    // is a read-only readout, not a control.
-    slider.disabled = true;
+    // At the maximum = automatic (as many layers as fit in free VRAM, the rest on the CPU);
+    // anything lower is an explicit cap the loader will not exceed.
+    slider.disabled = false;
     slider.value = maxLayers;
     const valEl = document.getElementById('n-gpu-val');
     if (valEl) {
@@ -300,11 +300,11 @@ function applyModelMeta(meta) {
         ? 'all ' + maxLayers + '/' + maxLayers
         : v + ' / ' + maxLayers;
     }
-    if (hint) hint.textContent = 'This model has ' + maxLayers + ' layers (read from the model file). All of them always run on the GPU.';
-    slider.title = 'All ' + maxLayers + ' layers are loaded on the GPU; this is not adjustable.';
+    if (hint) hint.textContent = 'This model has ' + maxLayers + ' layers (read from the model file). At the maximum the loader fits as many as VRAM allows and keeps your context length; the rest run on the CPU.';
+    slider.title = 'Maximum = automatic placement. Lower values cap the number of layers on the GPU.';
   } else {
     slider.disabled = true;
-    if (hint) hint.textContent = 'Layer count unknown for this model — loading uses -1 (all layers) by default.';
+    if (hint) hint.textContent = 'Layer count unknown for this model — placement is automatic (as many layers as fit on the GPU).';
   }
 }
 let memTimer = null;
@@ -360,8 +360,11 @@ async function loadModel() {
         'Load reported success but inference status still shows unloaded. Check VRAM/RAM and GPU processes.'
       );
     }
+    // Layers that did not fit in VRAM run on the CPU: say so (the context is never reduced).
+    const placementWarnings = (r && Array.isArray(r.warnings)) ? r.warnings : [];
     fts.notify('Model loaded', 'success');
-    setTimeout(() => location.reload(), 600);
+    placementWarnings.forEach((w) => fts.notify(w, 'warn'));
+    setTimeout(() => location.reload(), placementWarnings.length ? 4500 : 600);
   } catch (e) {
     fts.notify('Load failed: ' + e.message, 'error');
     btn.disabled = false;
