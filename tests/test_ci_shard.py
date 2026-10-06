@@ -25,7 +25,10 @@ def test_shards_partition_every_test_file_exactly_once() -> None:
     shards = [mod.shard(i, COUNT) for i in range(COUNT)]
     flat = [f for s in shards for f in s]
     assert sorted(flat) == everything and len(flat) == len(set(flat))
-    assert max(map(len, shards)) - min(map(len, shards)) <= 1
+    # Packed by expected run time, not file count: the spread of shard loads is bounded by the heaviest file.
+    loads = [sum(map(mod.weight, s)) for s in shards]
+    assert max(loads) - min(loads) <= max(map(mod.weight, everything))
+    assert mod.shard(0, COUNT) == shards[0]       # stable: every CI shard computes the same partition
 
 
 def test_gpu_only_files_are_excluded_and_unit_dir_is_included() -> None:
