@@ -26,6 +26,7 @@ Commits, pushes, local service restarts and real-hardware tests are authorized.
 
 ## Next steps
 
+0. **Genor's decisions (2026-10-06):** preference tuning first; the agent becomes an in-app guide for the whole app; the manual guide stays tracked in `tests/`. Lanes in flight (visible sessions, worktrees `../finetune-studio-wt/*`, each pushes its own branch, none merged yet): `feat/pref-data` (preference-pair AUTHORING: hallucination/abstain builders, API+CLI+UI card), `feat/pref-train` (harden the existing DPO path, verify/implement KTO, before/after evidence on the 3090), `feat/app-guide` (KB + state tools + navigate/highlight/pre-fill on top of `get_app_guide`/`inspect_project_readiness`). Merge them, restart, rerun the walkthrough.
 1. Diagnose the official GSM8K UI run before attempting its full 1,319 cases; a prior browser wait exceeded 300 s. Use bounded samples and visible progress first.
 2. Decide whether to require `ci-ok` in `main` branch protection.
 3. Deploy to fan-dragon only when Genor asks; deployment remains deferred.
