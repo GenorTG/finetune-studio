@@ -21,6 +21,7 @@ log = logging.getLogger(__name__)
 # ggml backend labels as printed by llama_print_system_info ("CUDA : ARCHS = …").
 _GPU_BACKENDS = {"CUDA", "HIP", "ROCM", "VULKAN", "SYCL", "METAL", "OPENCL", "CANN", "MUSA"}
 _CUDA_FAMILY = {"CUDA", "HIP", "ROCM", "MUSA"}
+LLAMA_SPLIT_MODE_NONE = 0   # llama.h ``LLAMA_SPLIT_MODE_NONE``: single GPU, ``main_gpu``
 
 
 @dataclass(frozen=True)
@@ -104,5 +105,8 @@ def llama_gpu_kwargs(
         )
         return kwargs, warnings
     if acc.kind in ("cuda", "rocm") and acc.device_count > 1 and _CUDA_FAMILY & set(support.backends):
+        # main_gpu alone only picks the primary card: the default LAYER split still spreads layers
+        # over every visible device (a GTX 1070 next to a 3090). One accelerator = SPLIT_MODE_NONE.
         kwargs["main_gpu"] = acc.index
+        kwargs["split_mode"] = LLAMA_SPLIT_MODE_NONE
     return kwargs, warnings

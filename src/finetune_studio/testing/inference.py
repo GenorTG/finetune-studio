@@ -302,6 +302,8 @@ class InferenceEngine:
         # Qwen3 chat templates honour enable_thinking; keep the kwarg when present.
         from finetune_studio.training.formatting import render_chat_text
         text = render_chat_text(self.tokenizer, messages, generation=True, enable_thinking=think)
+        from finetune_studio import accel
+        accel.activate()  # request threads start on device 0; generation must run on the loaded card
         inputs = self.tokenizer(text, return_tensors="pt").to(self.model.device)
         with torch.no_grad():
             outputs = self.model.generate(

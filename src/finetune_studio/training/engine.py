@@ -344,6 +344,7 @@ class TrainingEngine:
             self._process = _ThreadChild(thread)
             thread.start()
         else:
+            from finetune_studio import accel
             ctx = mp.get_context("spawn")
             self._out_queue = ctx.Queue()
             self._mp_stop = ctx.Event()
@@ -355,6 +356,8 @@ class TrainingEngine:
                     system_prompt,
                     self._out_queue,
                     self._mp_stop,
+                    # The chosen card becomes the child's device 0 (see ``accel.isolated_env``).
+                    accel.isolated_env(accel.get_accelerator()),
                 ),
                 daemon=True,
                 name="fts-training-worker",
@@ -556,6 +559,7 @@ class TrainingEngine:
             self._notify()
             from finetune_studio import accel
             from finetune_studio.training.accel_plan import resolve_train_plan
+            accel.activate()  # this (worker) thread's current device = the accelerator, not cuda:0
             accel.enable_fast_matmul()
             plan = resolve_train_plan(self.config.bf16, self.config.unsloth)
             self._plan = plan
@@ -993,9 +997,7 @@ class TrainingEngine:
             pass
         _free_cuda()
 
-        from peft import PeftModel
-
-        from finetune_studio.models.hf_loader import load_merge_base
+        from finetune_studio.models.hf_loader import load_merge_base, load_peft_adapter
         from finetune_studio.training.merge_base import resolve_merge_base
 
         adapter_dir = os.path.join(output_dir, "adapter")
@@ -1005,7 +1007,7 @@ class TrainingEngine:
         merged = None
         try:
             base = load_merge_base(base_path)
-            peft_model = PeftModel.from_pretrained(base, adapter_dir)
+            peft_model = load_peft_adapter(base, adapter_dir)
             merged = peft_model.merge_and_unload()
             if hasattr(merged, "config") and hasattr(merged.config, "quantization_config"):
                 merged.config.quantization_config = None
@@ -1202,10 +1204,8 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
         return {"merged_path": merged_dir, "size_bytes": 0,
                 "size_human": "0 B", "skipped": True, "run": run}
     os.makedirs(merged_dir, exist_ok=True)
-    from peft import PeftModel
-
     from finetune_studio.hf_env import load_tokenizer
-    from finetune_studio.models.hf_loader import load_merge_base
+    from finetune_studio.models.hf_loader import load_merge_base, load_peft_adapter
     from finetune_studio.training.merge_base import resolve_merge_base
     tokenizer = load_tokenizer(adapter_dir)
     base_path = resolve_merge_base(base_model)
@@ -1217,7 +1217,7 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
     merged = None
     try:
         base = load_merge_base(base_path)
-        model = PeftModel.from_pretrained(base, adapter_dir)
+        model = load_peft_adapter(base, adapter_dir)
         merged = model.merge_and_unload()
         # Strip quantization config from merged model
         if hasattr(merged, "config") and hasattr(merged.config, "quantization_config"):

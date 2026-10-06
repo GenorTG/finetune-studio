@@ -32,7 +32,9 @@ def build_sft_training_args(
     """Return an ``SFTConfig`` with Hub push disabled (local training default).
 
     ``hub_token`` / ``push_to_hub`` stay unset/false so a Hugging Face token is
-    never required for standard local fine-tunes.
+    never required for standard local fine-tunes. The config is pinned to the
+    accelerator's device (``accel.pin_trainer_args``), so every caller trains on
+    the chosen card even when it is not index 0.
     """
     from trl import SFTConfig
 
@@ -59,7 +61,9 @@ def build_sft_training_args(
     if max_steps is not None:
         kwargs["max_steps"] = max_steps
     kwargs.update(extra)
-    return SFTConfig(**kwargs)
+    from finetune_studio import accel
+    # transformers pins the Trainer to cuda:0 / n_gpu=device_count; follow the accelerator instead.
+    return accel.pin_trainer_args(SFTConfig(**kwargs))
 
 
 def checkpoint_eval_kwargs(cfg: Any, *, has_eval: bool) -> dict[str, Any]:

@@ -27,6 +27,7 @@ def load_causal_lm(
     from transformers import AutoModelForCausalLM
 
     acc = acc or accel.get_accelerator()
+    accel.activate(acc)  # bnb / PEFT / stray ``device="cuda"`` follow the current device (per thread)
     say = on_status or (lambda _m: None)
     dtype = accel.torch_dtype(acc)
     dmap = accel.device_map(acc)
@@ -71,11 +72,25 @@ def merge_dtype(acc: accel.Accelerator | None = None) -> Any:
     return torch.bfloat16 if (not acc.is_gpu or acc.supports_bf16) else accel.torch_dtype(acc)
 
 
+def load_peft_adapter(base: Any, adapter_dir: str) -> Any:
+    """``PeftModel.from_pretrained`` with the adapter read straight onto the base model's device.
+
+    PEFT's default is the bare string ``"cuda"``, which safetensors resolves to ``cuda:0`` whatever
+    the current device is — a context (and the adapter) on the wrong card when the model sits on
+    another index, e.g. a GTX 1070 next to the 3090 the base was loaded on.
+    """
+    from peft import PeftModel
+
+    device = getattr(base, "device", None)
+    return PeftModel.from_pretrained(base, adapter_dir, torch_device=str(device) if device else None)
+
+
 def load_merge_base(base_path: str, *, acc: accel.Accelerator | None = None) -> Any:
     """Load a 16-bit merge base on the GPU when it fits; CPU RAM only on OOM or no GPU."""
     from transformers import AutoModelForCausalLM
 
     acc = acc or accel.get_accelerator()
+    accel.activate(acc)  # PeftModel.from_pretrained loads adapter weights on the current device
     dtype = merge_dtype(acc)
 
     def _load(dmap: Any) -> Any:

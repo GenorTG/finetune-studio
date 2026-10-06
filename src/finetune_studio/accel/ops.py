@@ -8,10 +8,13 @@ from __future__ import annotations
 
 import contextlib
 import gc
+import logging
 import re
 from typing import Any
 
 from finetune_studio.accel.device import Accelerator, get_accelerator
+
+log = logging.getLogger(__name__)
 
 GIB = 1024 ** 3
 
@@ -73,6 +76,43 @@ def _on_device(acc: Accelerator, ns: Any) -> Any:
     if _dev(acc) and hasattr(ns, "device") and (initialised is None or initialised()):
         return ns.device(acc.index)
     return contextlib.nullcontext()
+
+
+def activate(acc: Accelerator | None = None) -> None:
+    """Make ``acc`` the calling thread's current device (no-op on CPU / mps).
+
+    torch's current device is per thread and defaults to 0. Library code that takes no device
+    argument (bitsandbytes, PEFT adapter loads, ``torch.tensor(device="cuda")``) lands on that
+    current device, which is the wrong card whenever the chosen accelerator is not index 0.
+    Call at the top of every worker / request thread that loads or trains a model.
+    """
+    acc = acc or get_accelerator()
+    ns = _ns(acc)
+    if _dev(acc) and ns is not None and hasattr(ns, "set_device"):
+        try:
+            ns.set_device(acc.index)
+        except Exception as exc:  # noqa: BLE001 - the load/train call that follows raises the honest error
+            log.warning("accel: could not make %s current (%s: %s)", acc.torch_device, type(exc).__name__, exc)
+
+
+def pin_trainer_args(args: Any, acc: Accelerator | None = None) -> Any:
+    """Force an HF ``TrainingArguments`` / ``SFTConfig`` onto ``acc`` (single device).
+
+    transformers' ``_setup_devices`` hard-codes ``cuda:0`` / ``xpu:0``, calls ``set_device`` on it
+    and sets ``n_gpu = device_count()``. With the model loaded on another index the Trainer then
+    sees "model parallel", sends every batch to the wrong card, and with several visible GPUs
+    wraps the model in ``nn.DataParallel``. Resolve the original setup first (so accelerate's
+    state exists), then overwrite the cached device and pin the thread's current device.
+    """
+    acc = acc or get_accelerator()
+    if not _dev(acc) or getattr(args, "use_cpu", False):
+        return args
+    import torch
+    args.device  # noqa: B018 - property access runs transformers' cached device setup
+    args.__dict__["_setup_devices"] = torch.device(acc.torch_device)
+    args._n_gpu = 1
+    activate(acc)
+    return args
 
 
 def empty_cache() -> None:

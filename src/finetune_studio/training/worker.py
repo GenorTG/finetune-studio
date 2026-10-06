@@ -60,8 +60,12 @@ def training_worker(
     system_prompt: str,
     out_queue: Any,
     stop_event: Any,
+    device_env: dict[str, str] | None = None,
 ) -> None:
     """Child entry: run ``TrainingEngine._train`` and push state to ``out_queue``.
+
+    ``device_env`` remaps the parent's chosen GPU to this process's device 0 and must be
+    applied before torch initialises CUDA (nothing above imports it).
 
     Messages:
       ``{"op": "state", "state": {...}}`` — progress / status snapshot
@@ -69,6 +73,7 @@ def training_worker(
     """
     os.environ.setdefault("UNSLOTH_DATASET_NUM_PROC", "0")
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+    os.environ.update(device_env or {})
 
     from finetune_studio.training.engine import TrainingEngine, _format_exc
 

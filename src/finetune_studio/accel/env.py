@@ -21,8 +21,10 @@ import logging
 import os
 import shutil
 import subprocess
-from collections.abc import Callable, MutableMapping
+from collections.abc import Callable, Mapping, MutableMapping
 from dataclasses import dataclass
+
+from finetune_studio.accel.device import Accelerator
 
 log = logging.getLogger(__name__)
 
@@ -90,6 +92,31 @@ def _select(gpus: list[PhysicalGPU], allow: list[str], deny: list[str]) -> list[
     indices = frozenset(g.index for g in gpus)
     kept = [g for g in gpus if not allow or matches(g, allow, indices)]
     return [g for g in kept if not (deny and matches(g, deny, indices))]
+
+
+def isolated_env(acc: Accelerator, environ: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Env vars that make ``acc`` the *only* device (index 0) a child process can see.
+
+    Libraries hard-code device 0 (transformers' ``Trainer``/``TrainingArguments``, accelerate,
+    bitsandbytes, unsloth), so a child that must train on another card is started with that card
+    remapped to index 0 — the one fix that covers every library. ``acc.index`` is a position in the
+    *currently visible* list, so an existing ``CUDA_VISIBLE_DEVICES=1,0`` is composed, not replaced.
+    ``{}`` when the device is already alone at index 0 or the backend has no such variable.
+    """
+    env = os.environ if environ is None else environ
+    if acc.kind == "cuda":
+        var = "CUDA_VISIBLE_DEVICES"
+    elif acc.kind == "rocm":
+        var = ("CUDA_VISIBLE_DEVICES" if "CUDA_VISIBLE_DEVICES" in env and "HIP_VISIBLE_DEVICES" not in env
+               else "HIP_VISIBLE_DEVICES")
+    elif acc.kind == "xpu":
+        var = "ZE_AFFINITY_MASK"
+    else:
+        return {}
+    if acc.index == 0 and acc.device_count <= 1:
+        return {}
+    listed = [t.strip() for t in env.get(var, "").split(",") if t.strip()]
+    return {var: listed[acc.index] if acc.index < len(listed) else str(acc.index)}
 
 
 def apply_device_policy(

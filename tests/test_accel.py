@@ -236,7 +236,7 @@ def _acc(kind: str = "cuda", index: int = 1, count: int = 2) -> device.Accelerat
 
 def test_llama_kwargs_set_main_gpu_for_cuda_multi_gpu() -> None:
     sup = llama.LlamaSupport(True, "0.3.36", True, ("CUDA",))
-    assert llama.llama_gpu_kwargs(_acc(), sup) == ({"main_gpu": 1}, [])
+    assert llama.llama_gpu_kwargs(_acc(), sup) == ({"main_gpu": 1, "split_mode": 0}, [])
 
 
 def test_llama_kwargs_no_main_gpu_for_vulkan_or_single_gpu() -> None:
