@@ -419,17 +419,23 @@ async def load_provider(pid: str, request: Request):
     # Free whatever the global inference_engine (testing/chat/RAG/benchmarks)
     # has resident before loading this provider — otherwise both sit in
     # VRAM simultaneously until someone happens to click Unload.
-    try:
-        from finetune_studio.webui.app import inference_engine
-        if getattr(inference_engine, "model", None) is not None:
-            inference_engine.unload()
-    except Exception:
-        log.exception("providers/load: failed to unload the global inference engine first")
-    try:
-        return {"ok": True, "active": get_manager().load(pid, extra=extra)}
-    except Exception as e:
-        log.exception("load failed")
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    # Both the unload and the load below take a minute for a 12B model. They used to run inline in this
+    # async handler, which froze the whole event loop (every page, status poll and SSE stream) for the length
+    # of the load — the helper load that starts every mining run. Off the loop, serialised like /models/load.
+    from finetune_studio.webui.engine_guard import ENGINE_LOCK
+    async with ENGINE_LOCK:
+        try:
+            from finetune_studio.webui.app import inference_engine
+            if getattr(inference_engine, "model", None) is not None:
+                await asyncio.to_thread(inference_engine.unload)
+        except Exception:
+            log.exception("providers/load: failed to unload the global inference engine first")
+        try:
+            active = await asyncio.to_thread(get_manager().load, pid, extra=extra)
+            return {"ok": True, "active": active}
+        except Exception as e:
+            log.exception("load failed")
+            return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
 
 @router.get("/providers/helper/status")

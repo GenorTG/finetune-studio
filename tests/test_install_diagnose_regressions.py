@@ -155,3 +155,27 @@ def test_all_commands_succeed_reports_ok(tmp_path: Path) -> None:
     ok, actions, _ = _repair([d.Issue(d.PIP_INSTALL_EDITABLE, "x", "y")], tmp_path, lambda *a, **k: _cp())
     assert ok is True
     assert actions == ["pip -e .: ok"]
+
+
+# ── 4. the [parsers] extra is part of the install: a host missing it must be told ──────────
+
+def test_missing_parser_modules_are_reported_with_what_they_break(fake_venv: Path, tmp_path: Path) -> None:
+    """Live finding: a host ran for days without xlrd/python-pptx/bs4/striprtf — .xls/.pptx/.rtf failed, HTML
+    parsed with a regex — and neither --check nor --repair said a word."""
+    probe = _cp(returncode=0, stdout=json.dumps({"missing": [], "missing_parsers": ["xlrd", "bs4", "not-a-parser"]}))
+    info = _inspect_with_probe(fake_venv, probe)
+    assert info.missing_parsers == ("xlrd", "bs4")          # unknown names are ignored
+    with patch.object(d, "inspect_venv", return_value=info), \
+         patch.object(d.GpuInfo, "detect", return_value=d.GpuInfo("none", "(no GPU)", "", "", "", "")):
+        issues = d.diagnose(fake_venv, tmp_path / "llama.cpp", check_service=False, force_cpu=True)
+    parser_issues = [i for i in issues if i.code == d.PIP_INSTALL_EDITABLE]
+    assert len(parser_issues) == 1 and parser_issues[0].severity == 1
+    assert ".xls" in parser_issues[0].detail and "HTML" in parser_issues[0].detail
+    assert "--repair" in parser_issues[0].suggested_fix
+
+
+def test_complete_parsers_and_silent_probe_report_nothing(fake_venv: Path) -> None:
+    assert _inspect_with_probe(fake_venv, _cp(returncode=0, stdout=json.dumps({"missing": [], "missing_parsers": []}))
+                               ).missing_parsers == ()
+    # an old/crashed probe that says nothing about parsers must not invent a problem
+    assert _inspect_with_probe(fake_venv, _cp(returncode=0)).missing_parsers == ()

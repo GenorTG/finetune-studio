@@ -116,6 +116,7 @@ class VenvInfo:
     torch_kind: str | None = None        # "cuda" | "hip" | "xpu" | "mps" | "cpu"
     torch_xpu: bool | None = None
     torch_mps: bool | None = None
+    missing_parsers: tuple[str, ...] = ()   # modules of the [parsers] extra that do not import
 
     @property
     def exists(self) -> bool:
@@ -178,16 +179,27 @@ def _run(cmd: list[str], timeout: int = 30) -> subprocess.CompletedProcess:
 
 
 _DEP_MODULES = ("fastapi", "jinja2", "datasets", "accelerate", "safetensors", "huggingface_hub")
+# The `[parsers]` extra: import name -> what stops working without it. Their absence never breaks the app
+# (each parser degrades or refuses its format), which is exactly why nothing noticed that a host had been
+# missing xlrd / python-pptx / beautifulsoup4 / striprtf: .xls, .pptx, .rtf failed and HTML parsed with a regex.
+_PARSER_MODULES = {
+    "pypdf": ".pdf", "docx": ".docx", "olefile": "legacy .doc", "openpyxl": ".xlsx", "xlrd": ".xls",
+    "pptx": ".pptx", "bs4": "HTML (regex fallback)", "striprtf": ".rtf", "PIL": "images/OCR input",
+}
 _DEPS_PROBE = (
     "import importlib, json, sys\n"
     f"mods = {list(_DEP_MODULES)!r}\n"
-    "missing = []\n"
-    "for m in mods:\n"
-    "    try:\n"
-    "        importlib.import_module(m)\n"
-    "    except Exception:\n"
-    "        missing.append(m)\n"
-    "print(json.dumps({'missing': missing}))\n"
+    f"parsers = {list(_PARSER_MODULES)!r}\n"
+    "def absent(names):\n"
+    "    out = []\n"
+    "    for m in names:\n"
+    "        try:\n"
+    "            importlib.import_module(m)\n"
+    "        except Exception:\n"
+    "            out.append(m)\n"
+    "    return out\n"
+    "missing = absent(mods)\n"
+    "print(json.dumps({'missing': missing, 'missing_parsers': absent(parsers)}))\n"
     "sys.exit(1 if missing else 0)\n"
 )
 
@@ -201,6 +213,15 @@ def _parse_missing_deps(r: subprocess.CompletedProcess) -> set[str]:
         return {m for m in report["missing"] if m in _DEP_MODULES}
     except _PROBE_ERRORS:
         return set(_DEP_MODULES)  # probe crashed before reporting: claim nothing
+
+
+def _parse_missing_parsers(r: subprocess.CompletedProcess) -> tuple[str, ...]:
+    """Parser modules the probe reported absent; empty when it never said (claim nothing)."""
+    try:
+        report = json.loads((r.stdout or "").strip().splitlines()[-1])
+        return tuple(m for m in report.get("missing_parsers", []) if m in _PARSER_MODULES)
+    except (*_PROBE_ERRORS, AttributeError):
+        return ()
 
 
 def inspect_venv(venv_dir: Path) -> VenvInfo:
@@ -242,6 +263,7 @@ def inspect_venv(venv_dir: Path) -> VenvInfo:
     try:
         r = _run([str(info.python), "-c", _DEPS_PROBE], timeout=30)
         missing = _parse_missing_deps(r)
+        info.missing_parsers = _parse_missing_parsers(r)
     except _PROBE_ERRORS as exc:
         log.debug("dependency probe failed: %s", exc)
         missing = set(_DEP_MODULES)
@@ -572,6 +594,15 @@ def diagnose(
             f"missing or broken: {', '.join(missing)}",
             "sync deps:  bash update.sh   (or:  pip install -e .)",
             severity=2,
+        ))
+
+    if venv.missing_parsers:
+        lost = ", ".join(f"{m} ({_PARSER_MODULES[m]})" for m in venv.missing_parsers)
+        issues.append(Issue(
+            PIP_INSTALL_EDITABLE,
+            f"document parsers missing: {lost}",
+            "sync deps:  bash install.sh --repair   (or:  uv pip install -c .venv/torch-constraints.txt -e '.[parsers]')",
+            severity=1,
         ))
 
     plan = ap.build_plan(gpu)

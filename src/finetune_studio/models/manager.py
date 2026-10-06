@@ -284,12 +284,16 @@ class ModelManager:
     # ── active model management ──────────────────────────────────
 
     def active(self) -> dict | None:
-        with self._lock:
-            if self._provider is None:
-                return None
-            d = self._provider.describe()
-            d["idle_seconds"] = int(time.time() - self._provider._loaded_at) if self._provider._loaded_at else 0
-            return d
+        # Deliberately lock-free: load() holds ``self._lock`` for the whole model load (~1 min for a 12B) and this
+        # is called from async route handlers, so waiting on it froze the entire event loop — every page and
+        # status poll stalled for the length of a load (found in the live walkthrough: 56 s). Reading one
+        # reference is atomic; describe() only reads attributes.
+        provider = self._provider
+        if provider is None:
+            return None
+        d = provider.describe()
+        d["idle_seconds"] = int(time.time() - provider._loaded_at) if provider._loaded_at else 0
+        return d
 
     def load(self, pid: str, extra: dict | None = None) -> dict:
         cfg_row = self.get_provider(pid)

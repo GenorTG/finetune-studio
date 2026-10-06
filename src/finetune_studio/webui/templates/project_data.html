@@ -277,10 +277,20 @@
     return Math.floor(diff / (86400 * 365)) + 'y ago';
   }
 
+  // Office MIME types are 70+ characters ("vnd.openxmlformats-officedocument.spreadsheetml.sheet") and
+  // stretched those rows to 8 lines; show the format people know.
+  const MIME_LABELS = [
+    [/wordprocessingml|msword/, 'DOCX'], [/spreadsheetml|ms-excel/, 'XLSX'], [/presentationml|ms-powerpoint/, 'PPTX'],
+    [/opendocument\.text/, 'ODT'], [/opendocument\.spreadsheet/, 'ODS'], [/opendocument\.presentation/, 'ODP'],
+    [/epub/, 'EPUB'], [/rtf/, 'RTF'],
+  ];
   function mimeBadge(mime) {
     if (!mime) return '?';
+    const known = MIME_LABELS.find(([re]) => re.test(String(mime)));
+    if (known) return known[1];
     const parts = String(mime).split('/');
-    return parts[1] || parts[0] || '?';
+    const raw = parts[1] || parts[0] || '?';
+    return raw.length > 14 ? raw.replace(/^(x-|vnd\.)/, '').slice(0, 14) : raw;
   }
 
   function notify(msg, type) {

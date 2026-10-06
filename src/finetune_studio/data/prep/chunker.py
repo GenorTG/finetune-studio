@@ -15,6 +15,22 @@ import re
 _MIN_STANDALONE_CHARS = 200
 
 
+def _tail(text: str, overlap: int) -> str:
+    """Last ~``overlap`` chars of ``text``, starting on a word boundary.
+
+    A raw ``text[-overlap:]`` starts mid-word ("r support" for "Customer support"); that fragment led the
+    next chunk and later became a heading in generated questions."""
+    if len(text) <= overlap:
+        return text.strip()
+    cut = text[-overlap:]
+    if not text[-overlap - 1].isspace():          # the slice starts inside a word: drop the partial word
+        parts = cut.split(None, 1)
+        if len(parts) == 2:
+            cut = parts[1]
+        # no whitespace at all (one giant token): there is no boundary to snap to, keep the raw slice
+    return cut.strip()
+
+
 def _pack_sentences(prefix: str, para: str, target_chars: int) -> tuple[list[str], str]:
     """Greedy-pack ``para``'s sentences after ``prefix``.
 
@@ -58,12 +74,12 @@ def chunk_text(text: str, target_chars: int = 1200, overlap: int = 200) -> list[
                 prefix = buf
             else:
                 chunks.append(buf)
-                prefix = (buf[-overlap:] if len(buf) > overlap else buf).strip()
+                prefix = _tail(buf, overlap)
             packed, buf = _pack_sentences(prefix, p, target_chars)
             chunks.extend(packed)
         elif buf:
             chunks.append(buf)
-            tail = buf[-overlap:] if len(buf) > overlap else buf
+            tail = _tail(buf, overlap)
             buf = (tail + "\n\n" + p).strip()
         else:
             # Single para too long — sentence split

@@ -49,7 +49,7 @@ class TestChunker:
         chunks = chunk_text(text, target_chars=500, overlap=100)
         # Second chunk should start with tail of first
         if len(chunks) >= 2:
-            assert chunks[1].startswith(chunks[0][-100:])
+            assert chunks[1].startswith(chunks[0][-100:])   # one giant token: no word boundary to snap to
 
     def test_whitespace_only_paras_ignored(self):
         from finetune_studio.data.prep.chunker import chunk_text
@@ -96,12 +96,14 @@ class TestChunker:
     def test_unaffected_inputs_chunk_identically(self):
         """Stored chunks must stay reproducible (data/audit.py re-chunks and
         compares) for every input shape the old splitter already handled."""
-        from finetune_studio.data.prep.chunker import chunk_text
+        from finetune_studio.data.prep.chunker import _tail, chunk_text
         para = "Short fact about the realm. " * 10
         text = "\n\n".join([para.strip()] * 8)
         chunks = chunk_text(text, target_chars=600, overlap=80)
         assert chunks[0] == "\n\n".join([para.strip()] * 2)
-        assert chunks[1].startswith(chunks[0][-80:])
+        # overlap now starts on a word boundary (it used to open mid-word: 'r support')
+        assert chunks[1].startswith(_tail(chunks[0], 80))
+        assert chunks[0][-80:].endswith(_tail(chunks[0], 80))
         lone = ("One long sentence here. " * 80).strip()
         assert all(len(c) <= 1200 for c in chunk_text(lone))
 
