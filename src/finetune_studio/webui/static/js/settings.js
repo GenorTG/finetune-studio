@@ -370,7 +370,7 @@ function wireCompute() {
       if (!g.visible) pills.push('<span class="pill outline" title="Hidden from this process by a visibility setting">masked</span>');
       if (g.id === savedId) pills.push('<span class="pill solid-blue">saved</span>');
       return `<tr data-device-id="${esc(g.id)}">
-        <td class="cell-wrap">${esc(g.name)} <span class="dim">· #${g.index} · ${esc(g.vendor)}</span></td>
+        <td class="cell-wrap">${esc(g.name)} <span class="dim">· #${g.index}${g.name.toUpperCase().includes(g.vendor.toUpperCase()) ? '' : ' · ' + esc(g.vendor)}</span></td>
         <td>${esc(g.runtime)}</td>
         <td class="num">${fmtGb(g.free_gb)} / ${fmtGb(g.total_gb)}</td>
         <td>${pills.join(' ') || '<span class="dim">—</span>'}</td></tr>`;
