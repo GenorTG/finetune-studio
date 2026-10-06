@@ -2,7 +2,7 @@
 id: app-map
 title: App map and the two flows
 page: dashboard
-keywords: start new user overview workflow order steps flow rag vs training where begin how app works pages tabs
+keywords: start new user overview workflow order steps flow rag vs training where begin how app works pages tabs train a model on my documents first time how to train beginner end to end
 ---
 ## Purpose
 Finetune Studio turns your own documents into either a fine-tuned model (the **model flow**) or a searchable index (the **RAG flow**). Both flows start at the same place: files.

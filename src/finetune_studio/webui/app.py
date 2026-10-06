@@ -352,6 +352,7 @@ from finetune_studio.webui.routes import (
     data_editor,
     data_prep,
     data_prep_chat,
+    guide_chat,
     hf_models,
     models,
     pages,
@@ -377,6 +378,7 @@ app.include_router(data_editor.router, prefix="/api/data-editor", tags=["data-ed
 app.include_router(chat_v2.router, prefix="/api/chat-v2", tags=["chat-v2"])  # type: ignore[has-type]
 app.include_router(data_prep.router, prefix="/api", tags=["data-prep"])  # type: ignore[has-type]  # /api/projects/{pid}/data-prep/*
 app.include_router(data_prep_chat.router, prefix="/api", tags=["data-prep-chat"])  # type: ignore[has-type]  # /api/projects/{pid}/data-prep/chat*
+app.include_router(guide_chat.router, prefix="/api", tags=["guide"])  # type: ignore[has-type]  # /api/guide/* (SSE chat + KB)
 app.include_router(data_prep._pages)  # type: ignore[has-type]  # HTML page /projects/{pid}/data-prep
 app.include_router(hf_models.router, prefix="/api")  # type: ignore[has-type]  # /api/hf/* + /api/shared-models/*
 app.include_router(system.router)  # type: ignore[has-type]  # /api/system/* — RAM/VRAM snapshot

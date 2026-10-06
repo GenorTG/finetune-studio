@@ -8,7 +8,7 @@
 <div class="page-head flex items-baseline justify-between gap-3 wrap">
   <div>
     <h1>Chat — {{ project.name }}</h1>
-    <div class="sub">Two modes. <b>Test</b> = simple Q&amp;A with the project's system prompt + optional RAG context. <b>Agent</b> = app guide and data-prep helper: it can explain workflows, inspect project readiness, read parsed sources, and create review-pending Q&amp;A pairs.</div>
+    <div class="sub">Two modes. <b>Test</b> = simple Q&amp;A with the project's system prompt + optional RAG context. <b>Agent</b> = the app guide: it explains any page, checks your project, recommends settings, opens pages, points at controls and pre-fills forms. It is the same Guide that opens from the <b>guide</b> button on every page.</div>
   </div>
   <div class="pill solid-amber" id="chat-status-pill" title="Click to load a model on the Inference tab">No model loaded</div>
 </div>
@@ -33,7 +33,7 @@
       <input type="radio" name="chat-mode" value="agent" class="mt-1">
       <div>
         <div class="font-bold">Agent <span class="pill solid-purple text-[10px] ml-1">tool-calling</span></div>
-        <div class="text-xs muted">Ask how a page or setting works, what this project still needs, or request Q&amp;A mining from parsed files. Tool actions and results are shown inline; new pairs remain pending human review. It uses the configured helper model and does not start training, approve data, delete files, or change settings for you.</div>
+        <div class="text-xs muted">Ask how a page or setting works, what this project still needs, which settings to use, or request Q&amp;A mining from parsed files. Opens the docked Guide: tool calls stream in as they happen, and it can navigate, highlight controls and pre-fill form fields (editable, never submitted). It uses the configured helper model and never starts training, approves data, exports, deletes, or changes settings for you.</div>
       </div>
     </label>
   </div>
@@ -60,7 +60,7 @@
   <div class="card-head">
     <div>
       <div class="card-title">Conversation</div>
-      <div class="card-sub">Messages render below. In Agent mode every app-guide lookup, readiness check, source read, and Q&amp;A write is shown inline with its result.</div>
+      <div class="card-sub">Test-mode messages render below. Agent mode runs in the docked Guide panel (every lookup, check and action is shown there with its result).</div>
     </div>
     <button class="btn sm" id="chat-stop" onclick="_chatStop()" title="Stop generation" disabled>⏹ Stop</button>
     <button class="btn sm" id="chat-copy" onclick="_chatCopyAll()" title="Copy conversation to clipboard">⎘ Copy all</button>
@@ -94,8 +94,8 @@
         <div class="dim mt-2">Tip: Switch to <b>Agent</b> mode above to let the AI organize your files into training pairs.</div>
       </span>
       <span data-empty="agent" hidden>
-        Once a helper model is configured, Agent mode can answer app questions, inspect this project's readiness, <b>list</b> and <b>read</b> parsed files, and <b>save</b> Q&amp;A pairs as pending review.
-        <div class="dim mt-2">Example (not a live result): <i>"List my sources, then generate 5 socratic Q&amp;A pairs from the first one."</i></div>
+        Agent mode lives in the docked <b>Guide</b> panel on the right (also on every page via the <b>guide</b> button). It answers app questions, checks this project, recommends training settings, and walks you through each step.
+        <div class="dim mt-2">Example (not a live result): <i>"How do I train a model on my documents?"</i> or <i>"List my sources, then generate 5 socratic Q&amp;A pairs from the first one."</i></div>
       </span>
     </div>
   </div>
@@ -157,7 +157,7 @@
   <table class="table compact">
     <tr><td class="meta muted" title="This project's stable identifier (8-hex-char). Used in all URLs and exports.">Project ID</td><td class="mono cell-wrap">{{ pid }}</td></tr>
     <tr data-mode="test"><td class="meta muted" title="The instruction the model sees at the start of every conversation in Test mode. Sets its persona + behaviour. Edit it on the project overview page.">System prompt</td><td class="mono cell-wrap">{{ project.system_prompt or '(none)' }}</td></tr>
-    <tr data-mode="agent"><td class="meta muted" title="Set by the server. The app guide grounds workflow answers; project tools inspect status and mine source-grounded Q&amp;A for human review.">Agent system prompt</td><td class="mono cell-wrap">App guide + project readiness + source-grounded Q&amp;A preparation.</td></tr>
+    <tr data-mode="agent"><td class="meta muted" title="Set by the server. Answers come from the app knowledge base and live project state; UI tools only navigate, highlight and pre-fill allow-listed controls.">Agent system prompt</td><td class="mono cell-wrap">App guide: knowledge base + project/system state + page guidance + source-grounded Q&amp;A preparation.</td></tr>
     <tr><td class="meta muted" title="The base model this project is built around. The trained model is an adapter (LoRA) on top of this base. Use it on the Inference tab to chat with the un-fine-tuned version.">Base model</td><td class="mono cell-wrap">{{ project.base_model or '—' }}</td></tr>
     <tr><td class="meta muted" title="The training run designated as 'production' for this project — typically the best-scoring run. Set on the project overview page; this is what the Chat page serves by default.">Production run</td><td class="mono cell-wrap">{{ project.production_run or '(none)' }}</td></tr>
     <tr><td class="meta muted" title="RAG corpora built from this project's parsed sources. The chat uses them as retrieval-augmented context in Test mode. Build them on the RAG tab.">RAG corpora</td><td class="mono cell-wrap">{{ rags|length if rags else 0 }} attached</td></tr>
@@ -458,11 +458,12 @@ async function _chatCheckModel() {
     const warnEl = document.getElementById('chat-model-warn');
     const sendBtn = document.getElementById('chat-send');
     const modelLoaded = !!(active && active.loaded);
-    if (sendBtn) sendBtn.disabled = !modelLoaded;
+    if (sendBtn) sendBtn.disabled = !modelLoaded && _chatCurrentMode() !== 'agent';
     if (warnEl) {
       warnEl.hidden = modelLoaded;
       // Populate inline loader if no model is loaded
       if (!modelLoaded) chatPopulateInlineLoad();
+      warnEl.style.display = (_chatCurrentMode() === 'agent') ? 'none' : '';
     }
     if (modelLoaded) {
       let nice = active.name || active.id || '?';
@@ -555,198 +556,17 @@ function _chatAppend(role, content, meta, sources) {
   return div;
 }
 
-function _chatRenderToolCalls(toolCalls) {
-  const wrap = document.createElement('div');
-  wrap.className = 'dp-chat-tools';
-  toolCalls.forEach((tc) => {
-    const result = (tc && tc.result && typeof tc.result === 'object') ? tc.result : {};
-    const ok = tc.result && !tc.result.error;
-    const status = ok ? 'ok' : (tc.result && tc.result.error) ? 'err' : 'partial';
-
-    const card = document.createElement('div');
-    card.className = 'dp-chat-tool-block dp-chat-tool-card dp-chat-tool-' + status;
-
-    // ── Header: icon + tool name + args chips + copy ──
-    const head = document.createElement('div');
-    head.className = 'dp-chat-tool-summary';
-
-    const icon = document.createElement('span');
-    icon.className = 'dp-chat-tool-icon';
-    icon.textContent = status === 'ok' ? '✓' : status === 'err' ? '✗' : '…';
-    head.appendChild(icon);
-
-    const name = document.createElement('span');
-    name.className = 'dp-chat-tool-name';
-    name.textContent = tc.name || 'tool';
-    head.appendChild(name);
-
-    const args = tc.arguments || {};
-    const argKeys = Object.keys(args);
-    if (argKeys.length) {
-      const argsSpan = document.createElement('span');
-      argsSpan.className = 'dp-chat-tool-args';
-      argKeys.forEach((k) => {
-        const v = args[k];
-        let display;
-        if (typeof v === 'string') display = v.length > 40 ? '"' + v.slice(0, 40) + '…"' : '"' + v + '"';
-        else if (Array.isArray(v)) display = '[' + v.length + ' items]';
-        else display = JSON.stringify(v).slice(0, 60);
-        const chip = document.createElement('span');
-        chip.className = 'dp-chat-tool-arg';
-        chip.textContent = k + '=' + display;
-        argsSpan.appendChild(chip);
-      });
-      head.appendChild(argsSpan);
-    }
-
-    const copy = document.createElement('button');
-    copy.className = 'dp-chat-tool-copy';
-    copy.type = 'button';
-    copy.textContent = 'copy';
-    copy.title = 'Copy this tool call as JSON';
-    copy.onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const blob = JSON.stringify(tc, null, 2);
-      try {
-        navigator.clipboard.writeText(blob).then(
-          () => { copy.textContent = 'copied!'; setTimeout(() => { copy.textContent = 'copy'; }, 1500); },
-          () => { copy.textContent = 'fail'; setTimeout(() => { copy.textContent = 'copy'; }, 1500); }
-        );
-      } catch (_) {
-        copy.textContent = 'fail';
-        setTimeout(() => { copy.textContent = 'copy'; }, 1500);
-      }
-    };
-    head.appendChild(copy);
-    card.appendChild(head);
-
-    // ── Readable status / table (never dump raw JSON in the open body) ──
-    const statusEl = document.createElement('div');
-    statusEl.className = 'dp-chat-tool-status';
-    statusEl.setAttribute('role', 'status');
-
-    if (result.error) {
-      statusEl.textContent = 'Error: ' + String(result.error);
-      statusEl.classList.add('dp-chat-tool-status-err');
-    } else if (Array.isArray(result.workflow)) {
-      statusEl.textContent = 'App guide loaded · ' + result.workflow.length + ' workflow steps and supported training routes';
-      const list = document.createElement('ol');
-      list.className = 'dp-chat-tool-list';
-      result.workflow.forEach((step) => {
-        const li = document.createElement('li');
-        li.textContent = step.page + ' — ' + step.action;
-        list.appendChild(li);
-      });
-      statusEl.appendChild(list);
-    } else if (result.project && result.qa_pairs) {
-      const pairs = result.qa_pairs;
-      statusEl.textContent = `${result.project.name}: ${result.sources.count} parsed source(s), ${pairs.approved} approved / ${pairs.pending} pending Q&A, ${result.datasets.length} dataset(s), ${result.rag_corpora.length} RAG corpus/corpora.`;
-      const next = document.createElement('div');
-      next.className = 'mt-1';
-      next.textContent = 'Next: ' + result.next_step;
-      statusEl.appendChild(next);
-    } else if (Array.isArray(result.sources)) {
-      const n = result.sources.length;
-      statusEl.textContent = n === 0
-        ? 'No sources found'
-        : n + ' source' + (n === 1 ? '' : 's') + ' returned';
-      if (n > 0) {
-        const table = document.createElement('table');
-        table.className = 'dp-chat-tool-table';
-        const thead = document.createElement('thead');
-        thead.innerHTML = '<tr><th>#</th><th>Name / id</th><th>Chars</th><th>Chunks</th></tr>';
-        table.appendChild(thead);
-        const tbody = document.createElement('tbody');
-        result.sources.slice(0, 12).forEach((s, i) => {
-          const tr = document.createElement('tr');
-          const label = s.filename || s.name || s.id || s.rag_name || '—';
-          const chars = s.char_count != null ? s.char_count : (s.text ? s.text.length : '—');
-          const chunks = s.chunk_count != null ? s.chunk_count : '—';
-          tr.innerHTML = '<td>' + (i + 1) + '</td><td class="mono cell-wrap">' +
-            String(label).replace(/[<>&]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])) +
-            '</td><td>' + chars + '</td><td>' + chunks + '</td>';
-          tbody.appendChild(tr);
-        });
-        table.appendChild(tbody);
-        statusEl.appendChild(table);
-      }
-    } else if (Array.isArray(result.pairs)) {
-      const n = result.pairs.length;
-      statusEl.textContent = n === 0
-        ? 'No Q&A pairs created'
-        : n + ' Q&A pair' + (n === 1 ? '' : 's') + ' created';
-      if (n > 0) {
-        const list = document.createElement('ul');
-        list.className = 'dp-chat-tool-list';
-        result.pairs.slice(0, 5).forEach((p, i) => {
-          const li = document.createElement('li');
-          li.textContent = 'Q' + (i + 1) + ': ' + String(p.question || '').slice(0, 120);
-          list.appendChild(li);
-        });
-        statusEl.appendChild(list);
-      }
-    } else if (result.text != null) {
-      const preview = String(result.text);
-      statusEl.textContent = preview
-        ? ('Read ' + preview.length + ' chars')
-        : 'Empty text';
-      if (preview) {
-        const pre = document.createElement('pre');
-        pre.className = 'dp-chat-pre dp-chat-pre-preview';
-        pre.textContent = preview.slice(0, 400) + (preview.length > 400 ? '…' : '');
-        statusEl.appendChild(pre);
-      }
-    } else {
-      const keys = Object.keys(result);
-      if (!keys.length) {
-        statusEl.textContent = 'Empty result';
-      } else {
-        statusEl.textContent = keys.map((k) => {
-          const v = result[k];
-          if (Array.isArray(v)) return k + ': ' + v.length + ' item(s)';
-          if (v && typeof v === 'object') return k + ': {…}';
-          return k + ': ' + String(v).slice(0, 40);
-        }).join(' · ');
-      }
-    }
-    card.appendChild(statusEl);
-
-    // ── Debug: raw JSON behind an explicit closed details ──
-    const dbg = document.createElement('details');
-    dbg.className = 'dp-chat-tool-debug';
-    const dbgSum = document.createElement('summary');
-    dbgSum.textContent = 'Debug · raw JSON';
-    dbg.appendChild(dbgSum);
-    if (argKeys.length) {
-      const argsLabel = document.createElement('div');
-      argsLabel.className = 'dp-chat-section-label';
-      argsLabel.textContent = 'Arguments';
-      dbg.appendChild(argsLabel);
-      const argsPre = document.createElement('pre');
-      argsPre.className = 'dp-chat-pre';
-      argsPre.textContent = JSON.stringify(args, null, 2);
-      dbg.appendChild(argsPre);
-    }
-    const resLabel = document.createElement('div');
-    resLabel.className = 'dp-chat-section-label';
-    resLabel.textContent = 'Result';
-    dbg.appendChild(resLabel);
-    const resPre = document.createElement('pre');
-    resPre.className = 'dp-chat-pre';
-    resPre.textContent = JSON.stringify(tc.result != null ? tc.result : {}, null, 2);
-    dbg.appendChild(resPre);
-    card.appendChild(dbg);
-
-    wrap.appendChild(card);
-  });
-  return wrap;
-}
-
 async function chatSend() {
   const ta = document.getElementById('chat-input');
   const text = ta.value.trim();
   if (!text) return;
+  if (_chatCurrentMode() === 'agent') {
+    // Agent mode IS the docked Guide: one conversation that survives page changes and streams
+    // its tool calls (static/js/guide.js). Nothing is sent from this page's own history.
+    ta.value = '';
+    if (window.ftsGuide) window.ftsGuide.ask(text);
+    return;
+  }
   const sendBtn = document.getElementById('chat-send');
   if (sendBtn && sendBtn.disabled) {
     fts.notify('Load a model before sending a message.', 'error');
@@ -756,7 +576,6 @@ async function chatSend() {
   sendBtn.disabled = true;
   if (stopBtn) stopBtn.disabled = false;
   ta.value = '';
-  const mode = _chatCurrentMode();
   _chatAppend('user', text);
   _chatHistory.push({ role: 'user', content: text });
   _chatSaveHistory();
@@ -766,37 +585,14 @@ async function chatSend() {
   _chatAbort = requestAbort;
 
   try {
-    let url, body, parseFn;
-    if (mode === 'agent') {
-      // Agent mode: send the configured helper provider_id explicitly so
-      // data-prep chat does not silently reuse a non-helper Inference load.
-      let provider_id = null;
-      try {
-        const prov = await fetch('/api/providers').then((r) => r.json());
-        if (prov && prov.helper_provider_id) {
-          provider_id = prov.helper_provider_id;
-        } else if (prov && prov.active && prov.active.id) {
-          provider_id = prov.active.id;
-        }
-      } catch (_) { /* ignore — server returns a clear 409 */ }
-      url = '/api/projects/' + _chatPid + '/data-prep/chat';
-      body = { messages: _chatHistory, temperature: parseFloat(document.getElementById('chat-temperature').value), top_p: parseFloat(document.getElementById('chat-top-p').value), top_k: parseInt(document.getElementById('chat-top-k').value) || 0, max_tokens: parseInt(document.getElementById('chat-max-tokens').value) || 4096 };
-      if (provider_id) body.provider_id = provider_id;
-      parseFn = (b) => ({
-        reply: b.reply || '',
-        tool_calls: b.tool_calls || [],
-        rounds: b.rounds,
-      });
-    } else {
-      const enabled_rag_ids = [...document.querySelectorAll('input[name="chat-rag-enabled"]:checked')].map((c) => c.value);
-      url = '/api/chat-v2/projects/' + _chatPid + '/chat';
-      body = { messages: _chatHistory, enabled_rag_ids, system_prompt_override: (document.getElementById('chat-system-prompt')?.value || '').trim() || undefined, temperature: parseFloat(document.getElementById('chat-temperature').value), top_p: parseFloat(document.getElementById('chat-top-p').value), top_k: parseInt(document.getElementById('chat-top-k').value) || 0, max_tokens: parseInt(document.getElementById('chat-max-tokens').value) || 1024 };
-      parseFn = (b) => ({
-        reply: b.response || b.reply || '',
-        sources: b.sources || [],
-        rounds: b.chunks_retrieved,
-      });
-    }
+    const enabled_rag_ids = [...document.querySelectorAll('input[name="chat-rag-enabled"]:checked')].map((c) => c.value);
+    const url = '/api/chat-v2/projects/' + _chatPid + '/chat';
+    const body = { messages: _chatHistory, enabled_rag_ids, system_prompt_override: (document.getElementById('chat-system-prompt')?.value || '').trim() || undefined, temperature: parseFloat(document.getElementById('chat-temperature').value), top_p: parseFloat(document.getElementById('chat-top-p').value), top_k: parseInt(document.getElementById('chat-top-k').value) || 0, max_tokens: parseInt(document.getElementById('chat-max-tokens').value) || 1024 };
+    const parseFn = (b) => ({
+      reply: b.response || b.reply || '',
+      sources: b.sources || [],
+      rounds: b.chunks_retrieved,
+    });
 
     const r = await fetch(url, {
       method: 'POST',
@@ -808,21 +604,12 @@ async function chatSend() {
     if (raw.error) throw new Error(raw.error);
     const parsed = parseFn(raw);
 
-    if (parsed.tool_calls && parsed.tool_calls.length) {
-      _chatAppend('tool', _chatRenderToolCalls(parsed.tool_calls), `round ${parsed.rounds || 1} · ${parsed.tool_calls.length} tool call(s)`);
-    }
     if (parsed.reply) {
       _chatHistory.push({ role: 'assistant', content: parsed.reply });
-      let meta = '';
-      if (mode === 'test') {
-        meta = (parsed.rounds || 0) + ' chunk(s) retrieved';
-      } else {
-        meta = 'round ' + (parsed.rounds || 1);
-      }
-      _chatAppend('assistant', parsed.reply, meta, parsed.sources);
-    } else if (!parsed.tool_calls || !parsed.tool_calls.length) {
+      _chatAppend('assistant', parsed.reply, (parsed.rounds || 0) + ' chunk(s) retrieved', parsed.sources);
+    } else {
       _chatHistory.push({ role: 'assistant', content: '(no reply)' });
-      _chatAppend('assistant', '(no reply)', 'round ' + (parsed.rounds || 1));
+      _chatAppend('assistant', '(no reply)', '0 chunk(s) retrieved');
     }
     _chatSaveHistory();
   } catch (e) {
@@ -979,6 +766,9 @@ document.querySelectorAll('input[name="chat-mode"]').forEach((r) => {
     // Toggle RAG-extras visibility
     const extras = document.getElementById('chat-mode-test-extras');
     if (extras) extras.style.display = (mode === 'test') ? '' : 'none';
+    // Agent mode is the docked Guide: open it when selected.
+    if (mode === 'agent' && window.ftsGuide) window.ftsGuide.open();
+    _chatCheckModel();
   });
 });
 // Honour ?mode=agent|test from deep links (e.g. data-prep "Open chat in Agent mode").

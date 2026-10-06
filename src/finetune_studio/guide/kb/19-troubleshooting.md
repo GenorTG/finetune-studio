@@ -2,6 +2,7 @@
 id: troubleshooting
 title: Common problems and fixes
 page: dashboard
+controls: training
 keywords: error fail failed out of memory oom stuck cannot start disabled blocked 409 no dataset helper not loaded slow gpu cpu fallback degraded empty parsed troubleshoot problem fix
 ---
 ## Purpose

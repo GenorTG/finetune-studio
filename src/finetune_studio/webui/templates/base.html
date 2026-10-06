@@ -67,7 +67,7 @@
   </style>
   <title>{% block title %}Finetune Studio{% endblock %} · {{ release_channel }}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/css/app.css?v=79">
+  <link rel="stylesheet" href="/static/css/app.css?v=80">
 </head>
 <body>
   <div id="toasts" class="toasts" aria-live="polite"></div>
@@ -214,6 +214,9 @@
           <span class="sb-activity-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 9h3l2-5 3 10 2-5h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           <span class="sb-activity-count" id="sb-activity-count" hidden>0</span>
         </button>
+        <button class="sb-palette sb-guide" id="sb-guide" title="Guide — ask about any page, setting or step" aria-label="Open the guide" aria-expanded="false" aria-controls="guide-panel">
+          <span aria-hidden="true">?</span><span>guide</span>
+        </button>
         <button class="sb-palette" id="sb-palette" title="Command palette (Ctrl+K)" aria-label="Open command palette">
           <span class="sb-palette-key">⌘</span><span>K</span>
         </button>
@@ -343,6 +346,25 @@
       </div>
     </aside>
 
+    {# ── Guide panel: docked, lives outside #content so SPA navigation never unloads it ── #}
+    <aside class="guide" id="guide-panel" hidden aria-label="Guide">
+      <div class="guide-head">
+        <span class="guide-title">GUIDE</span>
+        <span class="guide-ctx" id="guide-ctx">no project</span>
+        <button class="guide-hbtn" id="guide-clear" type="button" title="Clear the conversation" aria-label="Clear the conversation">⟲</button>
+        <button class="guide-hbtn" id="guide-close" type="button" title="Close the guide" aria-label="Close the guide">✕</button>
+      </div>
+      <div class="guide-msgs" id="guide-msgs" role="log" aria-live="polite"></div>
+      <div class="guide-compose">
+        <textarea id="guide-input" rows="2" class="input" aria-label="Ask the guide" placeholder="Ask about any page, setting or step… (Shift+Enter for a new line)"></textarea>
+        <div class="guide-compose-row">
+          <span class="guide-hint">Uses the helper model. It guides; you press the buttons.</span>
+          <button class="btn sm" id="guide-stop" type="button" disabled title="Stop">⏹ Stop</button>
+          <button class="btn sm primary" id="guide-send" type="button">Send</button>
+        </div>
+      </div>
+    </aside>
+
     {# ── Main content ────────────────────────────────────────────────── #}
     <div class="main">
       <main class="content" id="content">
@@ -363,6 +385,7 @@
   <script src="/static/js/palette.js?v=15"></script>
   <script src="/static/js/tutorial.js?v=15"></script>
   <script src="/static/js/activity.js?v=16"></script>
+  <script src="/static/js/guide.js?v=1"></script>
   <script>
     window.ftsCopyText = async function (text) {
       try {

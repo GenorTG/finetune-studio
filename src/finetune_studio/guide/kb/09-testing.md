@@ -2,7 +2,7 @@
 id: testing
 title: Testing page (step 4)
 page: testing
-keywords: test testing quiz suite pass rate from memory with context held-out validation memorization leakage rag suite judge results did it learn
+keywords: test testing quiz suite pass rate from memory with context score scores difference recall retrieved grounded held-out validation memorization leakage rag suite judge results did it learn
 ---
 ## Purpose
 Did the model actually learn your material? Testing quizzes a trained run on questions built from your own dataset (one per row by default) and shows pass/fail with the model's raw answer per case.

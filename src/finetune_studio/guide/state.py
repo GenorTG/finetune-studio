@@ -268,7 +268,7 @@ def recommend_training(
         "route": route,
         "route_why": route_why,
         "tier": chosen_tier,
-        "dataset": {"id": ds.get("id"), "name": ds.get("name"), "rows": pairs} if ds else None,
+        "dataset": {"id": ds.get("id"), "name": ds.get("name"), "rows": adv.pair_count} if ds else None,
         "base_model": _short(base) or None,
         "base_params_b": adv.base_params_b,
         "settings": settings,

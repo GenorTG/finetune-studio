@@ -4,7 +4,7 @@ WHAT THIS FILE DOES
 ===================
 Reads ``guide/kb/*.md`` (version-controlled with the code) into ``KbEntry``
 objects. Each file has a tiny ``key: value`` front matter (``id``, ``title``,
-``page``, ``keywords``) and ``## Section`` bodies (Purpose, Workflow, Key
+``page``, ``keywords``; optional ``controls`` = page that owns the listed controls) and ``## Section`` bodies (Purpose, Workflow, Key
 controls, What to check, Common mistakes). The element ids named in a Key
 controls section are verified against the real templates by
 ``tests/test_guide_kb.py``, so the KB cannot drift from the UI unnoticed.
@@ -31,6 +31,7 @@ class KbEntry:
     keywords: tuple[str, ...]
     sections: dict[str, str] = field(default_factory=dict)
     source: str = ""
+    controls_page: str = ""         # page whose template holds the Key controls (default: ``page``)
 
     @property
     def controls(self) -> list[str]:
@@ -68,6 +69,7 @@ def _parse(path: Path) -> KbEntry:
     return KbEntry(
         id=meta["id"], title=meta["title"], page=meta["page"],
         keywords=tuple(meta["keywords"].split()), sections=sections, source=path.name,
+        controls_page=meta.get("controls", meta["page"]),
     )
 
 
