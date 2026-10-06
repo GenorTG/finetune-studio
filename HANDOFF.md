@@ -9,7 +9,7 @@ Commits, pushes, local service restarts and real-hardware tests are authorized.
 
 | Area | State |
 |---|---|
-| Git | `87497e6` pushed to `main`; working tree clean before this handoff update. |
+| Git | `ab5d846` is repo HEAD; the active app code was deployed from `87497e6` (later commit only updated HANDOFF and hook-generated `VERSION`). Working tree clean. |
 | CI | `37500532291`: 5/5 test shards, ruff/codemap, Ubuntu/macOS plan smoke, and `ci-ok` green. Pages run `37500530615` green. `main` branch protection still does not require `ci-ok`. |
 | Service | genorbox1 :7860 active on `87497e6`; `/api/projects` HTTP 200; inference unloaded. RTX 3090 idle at ~1.2 GiB; leave the GTX 1070 foreign workload alone. |
 | DPO E2E | Browser upload/health: 16/16 usable, 2 held out. One-epoch real DPO run completed 14/14 steps (35 s; final loss 0.6757, eval loss 0.6417), no merge. Pipeline smoke only, not a quality claim. |
