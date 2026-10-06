@@ -41,6 +41,16 @@ router = APIRouter()
 # describes them in plain English so even a 7B model can pick the right one.
 TOOLS_CATALOG = [
     {
+        "name": "get_app_guide",
+        "description": "Get the supported Finetune Studio workflow, page routes, training choices, and dataset formats. Use for questions about how the app works or which route to choose.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "inspect_project_readiness",
+        "description": "Read-only overview of this project's sources, Q&A review counts, datasets, RAG corpora, and base model. Use when the user asks what is done or what to do next.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
         "name": "list_sources",
         "description": "List all parsed source files in this project. Returns each source's id, filename, status, and chunk count.",
         "parameters": {"type": "object", "properties": {}, "required": []},
@@ -90,17 +100,19 @@ TOOLS_CATALOG = [
     },
 ]
 
-SYSTEM_PROMPT = """You are an expert training-data organizer for fine-tuning a language model. You help the user extract high-quality Q&A pairs from their parsed source files (markdown, text, PDF, code, OCR'd images, etc.) into a clean dataset.
+SYSTEM_PROMPT = """You are the Finetune Studio guide and training-data assistant. Help users understand the whole app, choose an appropriate data/training route, and prepare high-quality datasets. You can inspect project readiness and, when the user asks, mine parsed source files into Q&A pairs.
 
 # Rules
 
-1. When the user mentions "the files" or "the data", ALWAYS call `list_sources` first to see what's available before generating anything.
-2. Call `read_source` on each file you intend to mine, so the content is fresh in your context.
-3. Generate Q&A pairs that test ACTUAL knowledge from the text — not generic questions. The answers should quote or closely paraphrase the source.
-4. Aim for 3-8 pairs per source by default. Cover key facts, definitions, cause/effect, comparison, and applied reasoning.
+1. For questions about app functionality, supported routes, or what to do next, call `get_app_guide`. For the current project's progress/readiness, call `inspect_project_readiness`.
+2. When the user asks to mine files or generate Q&A, ALWAYS call `list_sources` first before generating anything.
+3. Call `read_source` on each file you intend to mine, so the content is fresh in your context.
+4. Generate Q&A pairs that test ACTUAL knowledge from the text — not generic questions. The answers should quote or closely paraphrase the source.
+5. Aim for 3-8 pairs per source by default. Cover key facts, definitions, cause/effect, comparison, and applied reasoning.
    Every pair MUST include its 1-based parsed `chunk_idx`; use 1 for a one-chunk source.
-5. Call `create_qa_pairs` with the full batch in ONE call, not one pair per call.
-6. Be terse in prose — the data does the talking.
+6. Only create rows when the user asked for generation. New pairs are pending review; never claim they were approved or used for training.
+7. Call `create_qa_pairs` with the full batch in ONE call, not one pair per call.
+8. Be terse, explain uncertainty, and never invent app behavior. The guide tool is the source of truth for supported routes.
 
 # Tool-call format (CRITICAL — follow exactly)
 
@@ -134,6 +146,59 @@ def _run_tool(pid: str, name: str, args: dict) -> dict:
     """Execute a single tool against the project's filesystem. Returns a
     JSON-serializable dict."""
     try:
+        if name == "get_app_guide":
+            return {
+                "workflow": [
+                    {"step": 1, "page": "/projects", "action": "Create or choose a project."},
+                    {"step": 2, "page": "/projects/{pid}/data", "action": "Upload files; inspect parse status and parsed text."},
+                    {"step": 3, "page": "/projects/{pid}/data-prep", "action": "Generate/review Q&A, then export a dataset."},
+                    {"step": 4, "page": "/projects/{pid}/training", "action": "Choose SFT, tool-calling SFT, DPO, continued pretraining, or reasoning distillation to match the dataset you actually have."},
+                    {"step": 5, "page": "/projects/{pid}/testing", "action": "Run the generated project quiz and held-out evaluation before selecting a production run."},
+                    {"step": 6, "page": "/projects/{pid}/export", "action": "Export a GGUF for local inference when needed."},
+                ],
+                "routes": {
+                    "sft": "Use for teaching task format, style, or selected facts from curated prompt/answer examples.",
+                    "dpo": "Use for preference/alignment behavior when each prompt has a human-reviewed preferred and rejected answer. JSONL rows need prompt, chosen, rejected; standard strings or conversational role/content lists are accepted.",
+                    "tool_sft": "Use for agent behavior when traces include assistant tool_calls, tool replies, and a tools JSON-schema list; the model must have a compatible chat template.",
+                    "continued_pretraining": "Use for domain adaptation on raw text JSONL rows with a non-empty text field. It is not instruction tuning and should be evaluated on held-out domain text and downstream tasks.",
+                    "reasoning_distillation": "Use for reviewed teacher traces and final answers in conversational messages JSONL. Validate the final task outcome separately; a plausible rationale is not proof of correctness.",
+                    "rag": "Use when knowledge changes often, must retain source citations, or should be fetched rather than memorized. Build/index a corpus on the RAG page.",
+                    "not_supported_yet": ["ORPO", "KTO", "in-app preference comparison authoring", "automatic teacher-trace generation"],
+                },
+                "quality_checks": [
+                    "Keep train and evaluation examples separate; avoid benchmark contamination.",
+                    "Review synthetic answers against source text; generated data is not ground truth by default.",
+                    "For DPO, compare answers to the same prompt and ensure the preference reflects the intended behavior, not just response length.",
+                    "For tool SFT, inspect tool names/arguments/results and confirm tool schemas match the runtime implementation.",
+                    "For continued pretraining and reasoning distillation, hold out clean evaluation data and compare against the untuned base model.",
+                    "Use RAG instead of weight updates for frequently changing or citation-critical facts.",
+                ],
+                "navigation_note": "The assistant can explain and link the next page; it does not navigate the user's browser or start training automatically.",
+            }
+        if name == "inspect_project_readiness":
+            from finetune_studio import db
+            project = db.get_project(pid)
+            if not project:
+                return {"error": "project not found"}
+            sources = qa_fs.list_qa_sources(pid)
+            pairs = qa_fs.list_qa_pairs(pid)
+            counts = {status: sum(1 for pair in pairs if pair.get("status", "pending") == status)
+                      for status in ("pending", "approved", "rejected")}
+            datasets = db.list_datasets(pid)
+            rags = db.list_rags(pid)
+            return {
+                "project": {"id": pid, "name": project.get("name"), "base_model": project.get("base_model")},
+                "sources": {"count": len(sources), "parsed": sum(1 for source in sources if source.get("status", "ready") == "ready")},
+                "qa_pairs": {"total": len(pairs), **counts},
+                "datasets": [{"name": ds.get("name"), "rows": ds.get("qa_count", 0)} for ds in datasets],
+                "rag_corpora": [{"name": rag.get("name"), "chunks": rag.get("chunk_count", 0)} for rag in rags],
+                "next_step": (
+                    "Review pending Q&A pairs." if counts["pending"] else
+                    "Export approved Q&A pairs." if counts["approved"] and not datasets else
+                    "Choose SFT or DPO on Training based on the data you have." if datasets else
+                    "Upload and parse source files."
+                ),
+            }
         if name == "list_sources":
             sources_dir = project_dir(pid) / "qa" / "sources"
             if not sources_dir.exists():

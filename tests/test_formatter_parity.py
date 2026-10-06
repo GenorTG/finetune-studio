@@ -46,6 +46,13 @@ def test_enable_thinking_only_forwarded_when_given():
     assert tok.calls == [{}, {"enable_thinking": False}]
 
 
+def test_tool_schemas_are_passed_to_chat_template():
+    tok = FakeTok()
+    tools = [{"type": "function", "function": {"name": "lookup", "parameters": {}}}]
+    render_chat_text(tok, [{"role": "user", "content": "lookup"}], tools=tools)
+    assert tok.calls == [{"tools": tools}]
+
+
 def test_run_suite_sends_system_prompt():
     seen = []
 

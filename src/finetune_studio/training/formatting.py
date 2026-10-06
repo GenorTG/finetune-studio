@@ -19,7 +19,8 @@ def with_system_prompt(messages: list, system_prompt: str = "") -> list:
 
 
 def render_chat_text(tokenizer, messages: list, *, generation: bool = False,
-                     enable_thinking: bool | None = None) -> str:
+                     enable_thinking: bool | None = None,
+                     tools: list | None = None) -> str:
     """Render ``messages`` with the tokenizer's chat template.
 
     ``generation=False`` is the training form (full conversation);
@@ -27,6 +28,8 @@ def render_chat_text(tokenizer, messages: list, *, generation: bool = False,
     ``enable_thinking`` is only forwarded when given and the template accepts it.
     """
     kwargs = {"tokenize": False, "add_generation_prompt": generation}
+    if tools:
+        kwargs["tools"] = tools
     if enable_thinking is not None:
         try:
             return tokenizer.apply_chat_template(messages, enable_thinking=enable_thinking, **kwargs)

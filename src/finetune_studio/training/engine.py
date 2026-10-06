@@ -179,6 +179,7 @@ class TrainingConfig:
         "q_proj", "k_proj", "v_proj", "o_proj",
         "gate_proj", "up_proj", "down_proj",
     ])
+    training_mode: str = "sft"  # sft | dpo | tool_sft | continued_pretraining | reasoning_distillation
 
 @dataclass
 class TrainingState:
@@ -534,7 +535,12 @@ class TrainingEngine:
 
     def _train(self, training_data, system_prompt):
         try:
-            from finetune_studio.training.data import format_for_sft, split_data
+            from finetune_studio.training.data import (
+                format_for_continued_pretraining,
+                format_for_preference,
+                format_for_sft,
+                split_data,
+            )
             self._early_stop_step = 0
             self.state.status = "loading"
             self.state.message = "Loading model..."
@@ -542,7 +548,15 @@ class TrainingEngine:
             mode = getattr(self.config, 'system_prompt_mode', 'bake')
             # "none"/"runtime" never bake the prompt into training examples.
             bake_prompt = "" if mode in ("none", "runtime") else system_prompt
-            formatted = format_for_sft(training_data, bake_prompt)
+            training_mode = getattr(self.config, "training_mode", "sft")
+            if training_mode == "dpo":
+                formatted = format_for_preference(training_data, bake_prompt)
+            elif training_mode == "continued_pretraining":
+                formatted = format_for_continued_pretraining(training_data)
+            elif training_mode in {"sft", "tool_sft", "reasoning_distillation"}:
+                formatted = format_for_sft(training_data, bake_prompt)
+            else:
+                raise ValueError(f"Unsupported training mode: {training_mode}")
             if mode == "runtime" and system_prompt:
                 # Save system prompt next to the output for inference-time use.
                 os.makedirs(self.config.output_dir, exist_ok=True)
@@ -565,7 +579,9 @@ class TrainingEngine:
             plan = resolve_train_plan(self.config.bf16, self.config.unsloth)
             self._plan = plan
             log.info("train plan: %s", plan)
-            if plan.use_unsloth:
+            if training_mode == "dpo":
+                self._train_preference(train_data, val_data)
+            elif plan.use_unsloth:
                 try:
                     self._train_unsloth(train_data, val_data)
                 except ImportError:
@@ -594,6 +610,132 @@ class TrainingEngine:
                 self._persist_run_error(msg)
             except Exception:  # error path must not raise
                 log.exception("Failed to persist run error")
+
+    def _train_preference(self, train_data: list, val_data: list) -> None:
+        """Run conversational DPO with a PEFT adapter in the isolated worker."""
+        from datasets import Dataset
+        from peft import LoraConfig, get_peft_model
+
+        cfg = self.config
+        self.state.message = "Loading preference-training model..."
+        self._notify()
+        from finetune_studio.hf_env import load_tokenizer
+        tokenizer = load_tokenizer(cfg.model_path)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        model = self._load_model_with_fallback(cfg.model_path, tokenizer)
+        if self._stop_requested():
+            self._mark_stopped()
+            return
+        model = get_peft_model(model, LoraConfig(
+            r=cfg.lora_rank,
+            lora_alpha=cfg.lora_alpha,
+            target_modules=cfg.lora_target_modules,
+            lora_dropout=0,
+            bias="none",
+            task_type="CAUSAL_LM",
+        ))
+        if self._stop_requested():
+            self._mark_stopped()
+            return
+
+        from trl import DPOConfig, DPOTrainer
+
+        from finetune_studio.training.accel_plan import resolve_train_plan
+        plan = getattr(self, "_plan", None) or resolve_train_plan(cfg.bf16, False)
+        kwargs: dict[str, Any] = {
+            "output_dir": cfg.output_dir,
+            "per_device_train_batch_size": cfg.batch_size,
+            "per_device_eval_batch_size": cfg.batch_size,
+            "gradient_accumulation_steps": cfg.gradient_accumulation_steps,
+            "num_train_epochs": cfg.num_epochs,
+            "learning_rate": cfg.learning_rate,
+            "warmup_steps": cfg.warmup_steps,
+            "weight_decay": cfg.weight_decay,
+            "logging_steps": cfg.logging_steps,
+            "save_steps": cfg.save_steps,
+            "save_strategy": "steps" if cfg.save_checkpoints else "no",
+            "save_total_limit": cfg.save_total_limit if cfg.save_checkpoints else None,
+            "bf16": plan.bf16,
+            "fp16": plan.fp16,
+            "use_cpu": plan.use_cpu,
+            "optim": plan.optim,
+            "gradient_checkpointing": True,
+            "max_length": cfg.max_seq_length,
+            "beta": 0.1,
+            "report_to": "none",
+            "push_to_hub": False,
+            "hub_token": None,
+            "eval_strategy": "no",
+        }
+        if val_data and cfg.eval_steps > 0:
+            kwargs.update(
+                eval_strategy="steps",
+                eval_steps=cfg.eval_steps,
+                load_best_model_at_end=cfg.early_stopping,
+                metric_for_best_model="eval_loss" if cfg.early_stopping else None,
+                greater_is_better=False if cfg.early_stopping else None,
+            )
+        args = DPOConfig(**kwargs)
+        from finetune_studio import accel
+        args = accel.pin_trainer_args(args)
+        train_dataset = Dataset.from_list(train_data)
+        eval_dataset = Dataset.from_list(val_data) if val_data and cfg.eval_steps > 0 else None
+        total = max(1, math.ceil(len(train_dataset) / max(
+            1, cfg.batch_size * cfg.gradient_accumulation_steps
+        ))) * cfg.num_epochs
+        self.state.total_steps = total
+        from transformers import TrainerCallback
+        start_time = time.time()
+        engine = self
+
+        class ProgressCallback(TrainerCallback):
+            def on_log(self, args, state, control, logs=None, **kwargs):
+                if logs:
+                    apply_trainer_log(
+                        engine.state, logs, global_step=state.global_step,
+                        epoch=state.epoch, total_steps=total,
+                        elapsed=time.time() - start_time,
+                    )
+                    engine._notify()
+
+        callbacks = [ProgressCallback(), _stop_training_callback(self)]
+        if cfg.early_stopping and eval_dataset is not None:
+            from transformers import EarlyStoppingCallback
+            callbacks.append(EarlyStoppingCallback(early_stopping_patience=cfg.early_stopping_patience))
+        trainer = DPOTrainer(
+            model=model,
+            ref_model=None,
+            args=args,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            processing_class=tokenizer,
+            callbacks=callbacks,
+        )
+        self.state.status = "training"
+        self.state.message = "Training with DPO preferences..."
+        self._notify()
+        trainer.train()
+        self._early_stop_step = _early_stop_step(cfg, trainer.state)
+        if self._stop_requested():
+            try:
+                self._save_adapter(model, tokenizer)
+            except Exception:
+                log.exception("Failed to save DPO adapter after stop")
+            self._mark_stopped()
+            return
+        self.state.status = "saving"
+        self.state.message = "Saving preference-tuned model..."
+        self._notify()
+        self._save_adapter(model, tokenizer, with_chat_template=True)
+        if cfg.merge_on_save:
+            self._maybe_merge(model, tokenizer, cfg.output_dir)
+        if cfg.export_gguf:
+            self._export_gguf_after_train(model, tokenizer)
+        self._auto_suite_non_fatal()
+        self.state.status = "done"
+        self.state.message = self._completion_message()
+        self._notify()
 
     def _persist_run_error(self, error_msg: str) -> None:
         """Write the failure reason to the training_runs.error column.
@@ -732,7 +874,7 @@ class TrainingEngine:
                         "training without eval/early stopping", cfg.eval_steps)
             return None, []
         from datasets import Dataset
-        eval_dataset = Dataset.from_list(val_data).map(
+        eval_dataset = Dataset.from_list(val_data, on_mixed_types="use_json").map(
             format_chat, remove_columns=list(val_data[0].keys()))
         callbacks: list = []
         if cfg.early_stopping:
@@ -889,9 +1031,15 @@ class TrainingEngine:
         model = get_peft_model(model, lora_config)
         from finetune_studio.training.formatting import render_chat_text
         def format_chat(example):
-            text = render_chat_text(tokenizer, example["messages"])
+            text = (
+                example["text"]
+                if "text" in example
+                else render_chat_text(tokenizer, example["messages"], tools=example.get("tools"))
+            )
             return {"text": text}
-        dataset = Dataset.from_list(train_data).map(format_chat, remove_columns=list(train_data[0].keys()))
+        dataset = Dataset.from_list(train_data, on_mixed_types="use_json").map(
+            format_chat, remove_columns=list(train_data[0].keys())
+        )
         if self._stop_requested():
             self._mark_stopped()
             return
@@ -951,7 +1099,8 @@ class TrainingEngine:
             self._export_gguf_after_train(model, tokenizer)
         # The quiz used to be generated only by the Unsloth path, which FTS_UNSLOTH=auto skips on current
         # torch: every default run finished without a project quiz and the Testing page had nothing to run.
-        self._auto_suite_non_fatal()
+        if getattr(cfg, "training_mode", "sft") != "continued_pretraining":
+            self._auto_suite_non_fatal()
         self.state.status = "done"
         if not (self.state.message or "").startswith("Training complete —"):
             self.state.message = self._completion_message()

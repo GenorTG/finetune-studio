@@ -129,8 +129,33 @@ def generate_suite_from_training_data(
     seen_names: dict[str, int] = {}
 
     for i, ex in enumerate(examples):
-        # Extract Q&A from conversations format
-        question, answer = _first_exchange(ex.get("conversations", []))
+        # SFT suites use conversations; a DPO suite asks the same prompt and
+        # expects the chosen response (never the rejected response).
+        preference_prompt = ex.get("prompt")
+        preference_chosen = ex.get("chosen")
+        if preference_prompt is not None and preference_chosen is not None:
+            prompt_messages = _preference_messages(preference_prompt, "user")
+            chosen_messages = _preference_messages(preference_chosen, "assistant")
+            question = next((
+                str(m.get("content") or "").strip()
+                for m in reversed(prompt_messages)
+                if str(m.get("role") or "").lower() in _USER_ROLES
+                and str(m.get("content") or "").strip()
+            ), "")
+            answer = next((
+                str(m.get("content") or "").strip()
+                for m in reversed(chosen_messages)
+                if str(m.get("role") or "").lower() in _ASSISTANT_ROLES
+                and str(m.get("content") or "").strip()
+            ), "")
+            system_prompt = next((
+                str(m.get("content") or "").strip()
+                for m in prompt_messages
+                if str(m.get("role") or "").lower() == "system"
+            ), "")
+        else:
+            question, answer = _first_exchange(ex.get("conversations", []))
+            system_prompt = _system_turn(ex.get("conversations", []))
 
         if not question or not answer:
             skipped += 1
@@ -158,7 +183,7 @@ def generate_suite_from_training_data(
             source_id=str(ex.get("source_id") or ""),
             chunk_idx=int(ex.get("chunk_idx") or 0),
             row_index=i,
-            system_prompt=_system_turn(ex.get("conversations", [])),
+            system_prompt=system_prompt,
         ))
 
     if not cases:
@@ -234,6 +259,15 @@ def generate_suite_from_training_data(
         "categories": categories,
         "difficulty": difficulty,
     }
+
+
+def _preference_messages(value: object, string_role: str) -> list[dict]:
+    """Normalize one standard or conversational DPO field for quiz extraction."""
+    if isinstance(value, str):
+        return [{"role": string_role, "content": value}]
+    if isinstance(value, list):
+        return [message for message in value if isinstance(message, dict)]
+    return []
 
 
 def _categorize(question: str, answer: str) -> str:

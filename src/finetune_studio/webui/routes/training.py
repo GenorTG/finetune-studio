@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from finetune_studio.training.data import load_jsonl
+from finetune_studio.training.data import format_for_preference, load_jsonl
 from finetune_studio.training.engine import TrainingConfig
 from finetune_studio.training.monitor import training_events
 from finetune_studio.training.run_persistence import attach_run
@@ -511,6 +511,63 @@ async def start_training(request: Request):
     training_data = load_jsonl(data_path)
     if not training_data:
         return JSONResponse({"error": "Training dataset is empty"}, status_code=400)
+    training_mode = str(body.get("training_mode") or "sft").strip().lower()
+    supported_training_modes = {
+        "sft", "dpo", "tool_sft", "continued_pretraining", "reasoning_distillation",
+    }
+    if training_mode not in supported_training_modes:
+        return JSONResponse({
+            "error": "training_mode must be one of: " + ", ".join(sorted(supported_training_modes)),
+        }, status_code=400)
+    if training_mode == "dpo":
+        # DPO's optimizer scale is much lower than the SFT preset defaults.
+        # Keep API callers safe when they omit these settings; explicit values
+        # and selected presets remain user-controlled.
+        if not preset_id:
+            if body.get("learning_rate") in (None, ""):
+                config.learning_rate = 1e-6
+            if body.get("num_epochs") in (None, ""):
+                config.num_epochs = 1
+            if body.get("warmup_steps") in (None, ""):
+                config.warmup_steps = 0
+        config.unsloth = False
+        try:
+            format_for_preference(training_data)
+        except (TypeError, ValueError) as e:
+            return JSONResponse({
+                "error": f"Invalid preference dataset: {e}. Each row needs prompt, chosen, and rejected.",
+            }, status_code=400)
+        if len(training_data) < 2:
+            return JSONResponse({
+                "error": "DPO needs at least 2 preference pairs so one can be held out for validation.",
+            }, status_code=400)
+    elif training_mode == "continued_pretraining":
+        from finetune_studio.training.data import format_for_continued_pretraining
+        try:
+            format_for_continued_pretraining(training_data)
+        except (TypeError, ValueError) as e:
+            return JSONResponse({"error": f"Invalid continued-pretraining dataset: {e}"}, status_code=400)
+    elif training_mode in {"tool_sft", "reasoning_distillation"}:
+        from finetune_studio.training.data import format_for_sft
+        if training_mode == "tool_sft" and any(
+            not isinstance(row, dict) or not isinstance(row.get("messages"), list)
+            or not isinstance(row.get("tools"), list) or not row["tools"]
+            or any(not isinstance(tool, dict) or not isinstance(tool.get("function"), dict)
+                   for tool in row["tools"])
+            for row in training_data
+        ):
+            return JSONResponse({
+                "error": "Every tool-calling SFT row needs messages and its tools function JSON-schema list.",
+            }, status_code=400)
+        if training_mode == "tool_sft" and not any(
+            isinstance(message, dict) and isinstance(message.get("tool_calls"), list) and message["tool_calls"]
+            for row in training_data for message in row["messages"]
+        ):
+            return JSONResponse({
+                "error": "Tool-calling SFT needs at least one assistant tool_calls example; plain conversations belong in SFT.",
+            }, status_code=400)
+        if not format_for_sft(training_data):
+            return JSONResponse({"error": f"Invalid {training_mode} dataset: no supported conversation rows"}, status_code=400)
     system_prompt = body.get("system_prompt", "")
     system_prompt_mode = body.get("system_prompt_mode", "bake")
     # The project training form sends only the mode; bake/runtime without a
@@ -529,6 +586,7 @@ async def start_training(request: Request):
         data_path=data_path,
         rag_ids=[],
         settings_obj={
+            "training_mode": training_mode,
             "lora_rank": config.lora_rank,
             "lora_alpha": config.lora_alpha,
             "gradient_accumulation_steps": config.gradient_accumulation_steps,
@@ -575,6 +633,12 @@ async def start_training(request: Request):
     except Exception:
         log.exception("Failed to unload resident models before training")
     try:
+        config.training_mode = training_mode
+        if training_mode != "sft":
+            # The Unsloth worker currently formats chat-only SFT; the explicit
+            # routes use the standard TRL lifecycle so their data semantics are
+            # not silently lost.
+            config.unsloth = False
         training_engine.start(config, training_data, system_prompt)
     except Exception as e:
         log.exception("training start failed")

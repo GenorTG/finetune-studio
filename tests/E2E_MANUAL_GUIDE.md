@@ -111,6 +111,32 @@ Page `/projects/<id>/training`: **Base model** = Qwen3-0.6B; **From this project
 - Failure signs: OOM → the page must show "Out of GPU memory" with the knobs to change (batch, max sequence), VRAM must return to
   baseline and the service must stay up.
 
+### Preference-tuning branch (DPO)
+
+Use this branch only when you have **comparisons for the same prompt** and a reviewer can explain why one answer is preferred.
+Preference data is not interchangeable with Q&A: a chosen answer by itself is SFT, while a pair of chosen/rejected answers is DPO.
+
+1. Prepare JSONL with at least two rows. Conversational form is preferred:
+   `{"prompt":[{"role":"user","content":"…"}],"chosen":[{"role":"assistant","content":"…"}],"rejected":[{"role":"assistant","content":"…"}]}`.
+   String fields (`prompt`, `chosen`, `rejected`) are accepted and normalized to user/assistant turns.
+2. On `/projects/<id>/training`, select **Preference tuning (DPO)**, then **Upload my own** and choose that JSONL.
+3. Check the example/intent before starting: each row must have a non-empty prompt, different non-empty chosen/rejected outputs,
+   and the prompt ends with a user turn. Invalid data must return a visible 400 without loading a model or starting the worker.
+4. Choose the same Transformers-compatible base-model type used by SFT and start. The run detail must record `training_mode=dpo`;
+   progress, Stop, adapter save, merge and optional GGUF export should use the standard run lifecycle.
+5. When the run finishes, its auto-generated quiz asks each prompt and expects **chosen**, never rejected. Inspect these answers;
+   then run held-out evaluation. Do not infer model quality from training loss alone.
+
+The DPO radio selects conservative defaults (learning rate `1e-6`, one epoch, no warmup); these values appear in the editable fields. Review comparisons before training. The first preference route is DPO. ORPO/KTO and in-app construction/review of preference comparisons are not included yet.
+
+### Other supported data routes
+
+- **Tool-calling SFT:** upload JSONL whose rows contain a `messages` array (assistant `tool_calls`, corresponding `tool` result turns, and a final assistant turn) plus a `tools` array of JSON function schemas. Select **Tool-calling SFT**. The chosen tokenizer must have a chat template that accepts those schemas. Verify rendered examples before a large run; this trains tool-call syntax, not the external tool runtime or its permissions.
+- **Continued pretraining:** upload JSONL with one `{"text":"…"}` raw-text row per sample and select **Continued pretraining**. Do not wrap corpus text as a fake user message. Keep a held-out domain-text set and downstream task suite; this route is not instruction tuning and has no automatic QA quiz.
+- **Reasoning distillation:** upload reviewed teacher demonstrations as `messages` JSONL and select **Reasoning distillation**. Keep a final answer / verifiable outcome in the example, remove unsupported or private teacher traces, and evaluate on independent tasks. It uses the normal supervised trainer; the label does not make traces trustworthy.
+
+ORPO/KTO are not exposed: the installed TRL 1.14.1 runtime provides DPOTrainer but no ORPOTrainer/ORPOConfig. Do not label DPO as ORPO or silently substitute algorithms. Preference-comparison authoring, automatic teacher-trace generation, and benchmark decontamination are also not in-app yet.
+
 ## 9. Test the trained model [`test`]
 
 Page `/projects/<id>/testing`. **Model** = *auto (latest merged)*; **Test suite** = `auto · <project>-sharegpt-approved (N cases)`
@@ -140,17 +166,18 @@ SELECTED**. Wait ≈ 20–40 s. Pass: two files under `output/projects/<id>/runs
 in Chat and Testing. Prefer q6_k/q4_k_m for small models — see AGENTS.md Gotchas for the Q8_0 history (the loader now caps the
 micro-batch, but there is no reason to pick the riskiest quant for a 0.6B model).
 
-## 12. Chat and agent [`chat`; agent is manual]
+## 12. Chat and agent [`chat`]
 
 Page `/projects/<id>/chat`.
 - **Test mode**: model dropdown → the `Q4_K_M` export → **LOAD** (≈ 10 s; header chip shows the model, API
   `/api/inference/status` shows `n_ctx 32768`, `layers 28/28`). Ask each ground-truth question. The page attaches the project's RAG
   corpus automatically ("5 source chunk(s) used as context"), so this is *grounded* answering; for pure recall use the API
   (`chat-v2` with `enabled_rag_ids: []`) — last run 7/12 pure recall vs 11/12 with retrieval.
-- **Agent mode** (`?mode=agent`): uses the **configured helper model** (Gemma-12B), never the loaded model, and has exactly four
-  tools — `list_sources`, `read_source`, `list_qa_pairs`, `create_qa_pairs`. Every tool call renders inline with its result.
-  Try: "Create two Q&A pairs for aurora_spec_table.csv …" → the pairs appear as **pending** on the Pairs page within seconds.
-  It cannot navigate pages, approve/reject, build RAG, export or train: **the agent does not yet control the whole app.**
+- **Agent mode** (`?mode=agent`): uses the **configured helper model** (Gemma-12B), never silently switches to another loaded model.
+  It can answer workflow questions from the app guide, inspect this project's readiness, list/read sources, inspect Q&A pairs,
+  and create source-grounded Q&A pairs when requested. Every tool call renders inline with its result. Try "What should I do next?"
+  and then "Create two Q&A pairs for aurora_spec_table.csv"; new pairs must remain **pending** on the Pairs page.
+  It does not yet navigate the browser or approve data, build RAG, export, train, delete, or change settings.
 
 ## 13. Clean up [`cleanup`]
 
@@ -168,18 +195,19 @@ exported GGUFs are gone and the model dropdowns no longer offer them; delete the
 
 ## Data-preparation routes — what the app supports vs industry standards
 
+Pick the route from the **data shape and product need**, not from whichever algorithm sounds strongest: changing/citation-critical facts → RAG; curated prompt/answer examples → SFT; tool traces with schemas → tool SFT; pairwise judged responses → DPO; raw unlabelled domain text → continued pretraining; reviewed teacher traces → reasoning distillation. Routes can be combined (for example SFT + RAG); run a clean held-out evaluation before promotion.
+
 | Route | Industry format (TRL "dataset formats") | App today |
 |---|---|---|
 | Instruction/QA SFT from documents | `messages` / ShareGPT `conversations` / Alpaca | **Yes** — export formats `sharegpt`, `alpaca`, `openai`; per-chunk generation, grounding filter, dedupe, coverage gate, optional retrieved-context rows |
 | Prompt-completion SFT | `{"prompt":…, "completion":…}` | Via `alpaca`/`openai` export; no dedicated prompt-completion type |
 | RAG-grounded answering | context in system/user turn | **Yes** — `grounded_share`, distractor chunks |
 | Bring-your-own dataset | JSONL upload | **Yes** — Training page → *Upload my own* |
-| Preference tuning (DPO/ORPO/KTO) | `prompt` + `chosen` + `rejected` (or unpaired + label) | **No** — SFT only |
-| Tool-calling / agentic SFT | `messages` with `tool_calls` + `tools` JSON schema column | **No** |
-| Continued pre-training (domain adaptation) | `{"text": …}` raw language modelling | **No** (raw text can only be wrapped as SFT) |
-| Reasoning / CoT distillation | `messages` with `thinking`/analysis channel | **No** |
-| Quality: dedupe, decontamination, held-out split | MinHash near-dup, n-gram overlap vs eval, 90/10 seed split | Exact/near-dup in export; seed-42 split; no eval decontamination |
+| Preference tuning (DPO) | `prompt` + `chosen` + `rejected` (standard strings or conversational messages) | **Yes** — Training tab → DPO; upload JSONL |
+| ORPO / KTO / unpaired preferences | pairwise or labeled completion rows | **No** — this TRL build has no ORPO/KTO trainer; use DPO only for reviewed pairs |
+| Tool-calling / agentic SFT | `messages` with `tool_calls` + `tools` JSON schema column | **Yes** — uploaded JSONL, standard SFT lifecycle, tool schemas passed to chat template |
+| Continued pre-training (domain adaptation) | `{"text": …}` raw language modelling | **Yes** — raw text kept unwrapped; use held-out text/downstream eval, not the QA quiz |
+| Reasoning / CoT distillation | teacher demonstrations in conversational `messages` | **Yes, as supervised distillation** — review traces; verify final task outcome independently |
+| Quality: dedupe, decontamination, held-out split | MinHash near-dup, n-gram overlap vs eval, deterministic holdout | Exact/near-dup in export; deterministic seed-42 split; no eval decontamination |
 
-References: TRL dataset formats (huggingface.co/docs/trl/dataset_formats); Gekhman et al. 2024, "Does Fine-Tuning LLMs on New
-Knowledge Encourage Hallucinations?" (arXiv 2405.05904) — new facts are learned slowly and can raise hallucination, so keep a
-RAG path and an "I don't know" preference route for facts that must stay grounded.
+References: [TRL dataset formats](https://huggingface.co/docs/trl/dataset_formats) and [TRL DPOTrainer](https://huggingface.co/docs/trl/dpo_trainer); Gekhman et al. 2024, "Does Fine-Tuning LLMs on New Knowledge Encourage Hallucinations?" (arXiv 2405.05904) — new facts are learned slowly and can raise hallucination, so keep a RAG path and an "I don't know" preference route for facts that must stay grounded.

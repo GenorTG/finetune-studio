@@ -625,10 +625,19 @@ async def phase_chat(w: Walk) -> None:
     # finding, see HANDOFF): free the GPU first like a user pressing the eject chip.
     api("/api/models/unload", "POST")
     await w.goto(f"/projects/{pid()}/chat")
+
+    async def options_ready() -> bool:
+        return await w.page.locator("#chat-inline-model option").count() > 0
+
+    populated = await w.wait_for("Chat model choices", options_ready, 15, every=0.5)
     opts = await w.page.locator("#chat-inline-model option").all_inner_texts()
     log(f"chat model options: {opts}")
     pick = next((o for o in opts if "q4_k_m" in o.lower()), None)
-    R.check(pick is not None, "the exported q4_k_m model is selectable in Chat")
+    if not populated or pick is None:
+        R.check(False, "the exported q4_k_m model is selectable in Chat after model discovery completes")
+        await w.shot("model-options-missing", full=True)
+        return
+    R.check(True, "the exported q4_k_m model is selectable in Chat after model discovery completes")
     await w.page.select_option("#chat-inline-model", label=pick)
     await w.page.click("#chat-inline-load-btn")
 

@@ -127,12 +127,90 @@ def format_for_sft(data: list, system_prompt: str = "") -> list:
                 msg["content"] = clean_answer_for_training(str(msg.get("content", "")))
         if system_prompt and msgs[0].get("role") != "system":
             msgs = [{"role": "system", "content": system_prompt}] + msgs
-        formatted.append({"messages": msgs})
+        row = {"messages": msgs}
+        if "tools" in item:
+            row["tools"] = item["tools"]
+        formatted.append(row)
+    return formatted
+
+
+def format_for_continued_pretraining(data: list) -> list[dict[str, str]]:
+    """Normalize raw-domain language-modeling rows without chat-role wrapping."""
+    formatted: list[dict[str, str]] = []
+    for index, item in enumerate(data, start=1):
+        if not isinstance(item, dict):
+            raise TypeError(f"Row {index}: expected a JSON object")
+        text = item.get("text")
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError(f"Row {index}: continued pretraining requires non-empty 'text'")
+        formatted.append({"text": text.strip()})
+    if not formatted:
+        raise ValueError("Continued-pretraining dataset is empty")
+    return formatted
+
+
+def format_for_preference(data: list, system_prompt: str = "") -> list[dict[str, object]]:
+    """Normalize DPO examples to TRL's conversational preference format.
+
+    Each result has a shared ``prompt`` and assistant ``chosen``/``rejected``
+    completions. Standard string rows are converted to chat turns so an
+    optional system prompt is represented without ambiguous string joining.
+    """
+    formatted: list[dict[str, object]] = []
+    for index, item in enumerate(data, start=1):
+        if not isinstance(item, dict):
+            raise TypeError(f"Row {index}: expected a JSON object")
+        prompt = item.get("prompt")
+        chosen = item.get("chosen")
+        rejected = item.get("rejected")
+        if isinstance(prompt, str):
+            prompt = [{"role": "user", "content": prompt}]
+        if isinstance(chosen, str):
+            chosen = [{"role": "assistant", "content": chosen}]
+        if isinstance(rejected, str):
+            rejected = [{"role": "assistant", "content": rejected}]
+        if not isinstance(prompt, list) or not prompt:
+            raise ValueError(f"Row {index}: prompt must be non-empty text or message list")
+        if not isinstance(chosen, list) or not chosen:
+            raise ValueError(f"Row {index}: chosen must be non-empty text or message list")
+        if not isinstance(rejected, list) or not rejected:
+            raise ValueError(f"Row {index}: rejected must be non-empty text or message list")
+
+        for field, messages in (("prompt", prompt), ("chosen", chosen), ("rejected", rejected)):
+            for message_index, message in enumerate(messages, start=1):
+                if (not isinstance(message, dict)
+                        or not isinstance(message.get("role"), str)
+                        or not isinstance(message.get("content"), str)
+                        or not message["content"].strip()):
+                    raise ValueError(
+                        f"Row {index}: {field} message {message_index} needs role and non-empty content"
+                    )
+        prompt_messages = [dict(message) for message in prompt]
+        chosen_messages = [dict(message) for message in chosen]
+        rejected_messages = [dict(message) for message in rejected]
+        if prompt_messages[-1]["role"] != "user":
+            raise ValueError(f"Row {index}: prompt must end with a user message")
+        if chosen_messages[-1]["role"] != "assistant" or rejected_messages[-1]["role"] != "assistant":
+            raise ValueError(f"Row {index}: chosen and rejected must end with an assistant response")
+        if chosen_messages == rejected_messages:
+            raise ValueError(f"Row {index}: chosen and rejected responses must differ")
+        if system_prompt and (not prompt_messages or prompt_messages[0]["role"] != "system"):
+            prompt_messages.insert(0, {"role": "system", "content": system_prompt})
+        formatted.append({
+            "prompt": prompt_messages,
+            "chosen": chosen_messages,
+            "rejected": rejected_messages,
+        })
+    if not formatted:
+        raise ValueError("Preference dataset is empty")
     return formatted
 
 def split_data(data: list, train_ratio: float = 0.9, seed: int = 42):
     import random
     shuffled = data.copy()
     random.Random(seed).shuffle(shuffled)
+    if len(shuffled) < 2:
+        return shuffled, []
     split = int(len(shuffled) * train_ratio)
+    split = min(max(1, split), len(shuffled) - 1)
     return shuffled[:split], shuffled[split:]
