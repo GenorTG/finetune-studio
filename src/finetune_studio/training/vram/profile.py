@@ -95,6 +95,7 @@ def profile_training(
 
         # Format synthetic data
         from datasets import Dataset
+
         from finetune_studio.training.formatting import render_chat_text
         def format_chat(example):
             text = render_chat_text(tokenizer, example["messages"])

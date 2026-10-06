@@ -49,7 +49,11 @@ codemap:
 	.venv/bin/python scripts/codemap.py
 
 codemap-check:
-	@cp docs/CODEMAP.md .codemap.prev 2>/dev/null || : > .codemap.prev; \
+	@if [ ! -f docs/CODEMAP.md ]; then \
+	  .venv/bin/python scripts/codemap.py --stdout >/dev/null \
+	    && echo 'no docs/CODEMAP.md (gitignored dev doc, absent in a fresh clone/CI): generator ran clean, drift not checked'; \
+	  exit $$?; fi; \
+	cp docs/CODEMAP.md .codemap.prev; \
 	.venv/bin/python scripts/codemap.py >/dev/null; \
 	if cmp -s .codemap.prev docs/CODEMAP.md; then rm -f .codemap.prev; \
 	else rm -f .codemap.prev; echo 'CODEMAP was stale — regenerated (local, gitignored dev doc)'; exit 1; fi

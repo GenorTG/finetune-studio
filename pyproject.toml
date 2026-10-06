@@ -81,3 +81,8 @@ packages = ["src/finetune_studio"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "src/finetune_studio/benchmarks/fixtures" = "finetune_studio/benchmarks/fixtures"
+
+[tool.ruff.lint.isort]
+# A runtime `datasets/` directory sits in the repo root on dev boxes (gitignored) and would make
+# ruff classify the HF `datasets` package as first-party there but third-party in a fresh clone / CI.
+known-third-party = ["datasets"]
