@@ -22,7 +22,7 @@ def test_css_pins():
 
 
 def test_base_cache_bust():
-    assert "app.css?v=76" in _r("templates/base.html")
+    assert "app.css?v=77" in _r("templates/base.html")
 
 
 def test_project_overview_no_duplicate_topbar():

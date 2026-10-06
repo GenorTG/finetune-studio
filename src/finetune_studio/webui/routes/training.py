@@ -320,8 +320,33 @@ async def status():
         "eta": s.eta,
         "message": s.message,
         "error": s.error,
+        "project_id": getattr(training_engine, "current_project_id", None),
         "log_lines": list(s.log_lines[-30:]),
     }
+
+@router.get("/failure")
+async def latest_failure(project_id: str):
+    """The project's newest run when it failed, with a plain-language hint (OOM) from its own settings.
+
+    ``{"failure": null}`` when the newest run is not a failure, so the Live status
+    panel never shows a stale error after a later run started or succeeded.
+    """
+    from finetune_studio import db
+    from finetune_studio.training.failure_hint import diagnose_failure
+    if not db.get_project(project_id):
+        return JSONResponse({"error": "project not found"}, status_code=404)
+    runs = db.list_runs(project_id)
+    run = runs[0] if runs else None
+    if not run or run.get("status") not in ("failed", "error"):
+        return {"failure": None}
+    error = run.get("error") or ""
+    hint = diagnose_failure(error, run.get("settings") or {})
+    return {"failure": {
+        "run_id": run["id"], "name": run.get("name") or run["id"], "error": error,
+        "finished_at": run.get("finished_at"),
+        "hint": hint.to_dict() if hint else None,
+    }}
+
 
 @router.get("/status-text")
 async def status_text():
@@ -512,6 +537,7 @@ async def start_training(request: Request):
             "batch_size": config.batch_size,
             "max_seq_length": config.max_seq_length,
             "merge_on_save": merge_on_save,
+            "unsloth": config.unsloth,
             "system_prompt": system_prompt,
             "system_prompt_mode": system_prompt_mode,
             "dataset_rows": len(training_data),

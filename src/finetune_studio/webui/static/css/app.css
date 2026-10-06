@@ -4528,3 +4528,44 @@ body::before {
 :root[data-theme="light"], :root[data-theme="light"] body { background-image: none; }
 :root[data-theme="light"] body::before { display: none; }
 :root[data-theme="light"] .matrix-rain { display: none; }
+
+
+/* ===== Failed-run presentation (Training page: Live status + Past runs) =====
+   A failed run keeps its reason on screen: collapsible full error, and for
+   out-of-memory a plain-language hint with the knobs to change. */
+.run-failure {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--err);
+  border-left-width: 3px;
+  background: color-mix(in srgb, var(--err) 6%, var(--bg-panel));
+  min-width: 0;
+}
+.run-failure-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; color: var(--err); }
+.run-failure-hint { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.run-failure-hint p { margin: 0 0 6px; color: var(--text); }
+.run-failure-knobs { margin: 0 0 6px; padding-left: 18px; color: var(--text); overflow-wrap: anywhere; }
+.run-failure-knobs li { margin: 2px 0; }
+.run-err { min-width: 0; }
+.run-err > summary { cursor: pointer; color: var(--err); overflow-wrap: anywhere; }
+.run-err.is-short > summary { cursor: default; list-style: none; }
+.run-err > pre {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+}
+.run-err-cell { max-width: 36ch; }
+.run-err-cell:not([open]) > summary {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

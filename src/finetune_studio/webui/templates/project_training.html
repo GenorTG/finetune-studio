@@ -285,6 +285,22 @@
     <span class="pill outline" id="train-status-badge">idle</span>
   </div>
   <div id="train-status" class="text-sm" aria-live="polite">No run in progress.</div>
+  <div id="train-failure" class="run-failure" role="alert" hidden>
+    <div class="run-failure-head">
+      <strong id="train-failure-title">Run failed</strong>
+      <span id="train-failure-when" class="text-xs muted"></span>
+    </div>
+    <details id="train-failure-details" class="run-err">
+      <summary id="train-failure-summary"></summary>
+      <pre id="train-failure-full" class="mono"></pre>
+    </details>
+    <div id="train-failure-hint" class="run-failure-hint" hidden>
+      <p id="train-failure-hint-summary" class="text-sm"></p>
+      <div class="text-xs muted mb-1">What to change (the Training form above uses these field names):</div>
+      <ul id="train-failure-knobs" class="run-failure-knobs text-sm"></ul>
+      <ul id="train-failure-tips" class="run-failure-knobs text-xs"></ul>
+    </div>
+  </div>
   <div class="bar mt-3"><div class="fill" id="train-progress-bar" style="width:0%"></div></div>
   <div class="text-xs muted mt-3 mb-1">Step log</div>
   <pre id="train-log" class="text-xs mono" role="log" aria-live="polite" style="font-size:11px;line-height:1.5;white-space:pre-wrap;background:var(--bg-app);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);max-height:220px;min-height:3.5em;overflow-y:auto;margin:0;">(no log lines yet)</pre>
@@ -321,8 +337,10 @@
           <span class="pill solid-green prod-pill">⭐ production</span>
           {% endif %}
           {% if run.status == 'failed' and run.error %}
-          <div class="text-xs" style="color:var(--err);max-width:28ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
-               title="{{ run.error }}">{{ run.error[:120] }}{% if run.error|length > 120 %}…{% endif %}</div>
+          <details class="run-err run-err-cell text-xs">
+            <summary title="{{ run.error }}">{{ run.error[:120] }}{% if run.error|length > 120 %}…{% endif %}</summary>
+            <pre class="mono">{{ run.error }}</pre>
+          </details>
           {% endif %}
         </td>
         <td><span class="pill {{ {'running':'solid-amber','loading':'solid-amber','training':'solid-amber','saving':'solid-amber','done':'solid-green','failed':'solid-rose','error':'solid-rose','stopped':'outline'}.get(run.status, 'outline') }}">{{ run.status }}</span></td>
@@ -762,8 +780,8 @@
       const canAct = status === "done" && !!out;
       const prodMark = isProd ? ' <span class="pill solid-green prod-pill">⭐ production</span>' : "";
       const errLine = (status === "failed" && err)
-        ? '<div class="text-xs" style="color:var(--err);max-width:28ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' +
-          esc(err) + '">' + esc(err.length > 120 ? err.slice(0, 120) + "…" : err) + "</div>"
+        ? '<details class="run-err run-err-cell text-xs"><summary title="' + esc(err) + '">' +
+          esc(err.length > 120 ? err.slice(0, 120) + "…" : err) + '</summary><pre class="mono">' + esc(err) + "</pre></details>"
         : "";
       const setProdDisabled = canAct ? "" : " disabled title=\"Only finished runs with an output path can be production\"";
       const infDisabled = canAct ? "" : " disabled title=\"No finished output path\"";
@@ -895,6 +913,69 @@
     const ACTIVE = { loading: 1, training: 1, saving: 1 };
     let wasActive = false;
     let unsub = null;
+    const failEl = document.getElementById("train-failure");
+    let failToken = 0;
+
+    function hideFailure() {
+      failToken++;
+      if (failEl) failEl.hidden = true;
+    }
+
+    function listItems(ul, items) {
+      ul.textContent = "";
+      items.forEach((t) => {
+        const li = document.createElement("li");
+        li.textContent = t;
+        ul.appendChild(li);
+      });
+      ul.hidden = items.length === 0;
+    }
+
+    function showFailure(f) {
+      if (!failEl || !f) return;
+      const err = String(f.error || "training failed");
+      const first = err.split("\n")[0];
+      const get = (id) => document.getElementById(id);
+      get("train-failure-title").textContent = (f.hint ? f.hint.title + " — " : "Run failed — ") + (f.name || f.run_id);
+      const when = get("train-failure-when");
+      when.textContent = f.finished_at ? new Date(f.finished_at * 1000).toLocaleString() : "";
+      get("train-failure-summary").textContent = first.length > 140 ? first.slice(0, 140) + "…" : first;
+      get("train-failure-full").textContent = err;
+      // Short single-line errors have nothing more to reveal; long ones stay collapsed.
+      const details = get("train-failure-details");
+      details.open = false;
+      details.classList.toggle("is-short", err.length <= 140 && err.indexOf("\n") < 0);
+      const hintBox = get("train-failure-hint");
+      const h = f.hint;
+      hintBox.hidden = !h;
+      if (h) {
+        get("train-failure-hint-summary").textContent = h.summary;
+        listItems(get("train-failure-knobs"), (h.knobs || []).map((k) =>
+          k.label + " (" + k.field + "): " + k.current + (k.suggested !== k.current ? " → " + k.suggested : "") +
+          (k.note ? ". " + k.note : "")));
+        listItems(get("train-failure-tips"), h.tips || []);
+      }
+      if (badge && badge.textContent === "idle") {
+        badge.textContent = "failed";
+        badge.className = "pill " + statusPillClass("failed");
+      }
+      if (statusEl && statusEl.textContent === "No run in progress.") statusEl.textContent = "Last run failed. Details below.";
+      failEl.hidden = false;
+    }
+
+    // The newest run of THIS project, only when it failed (survives reload and service restart).
+    async function loadFailure(retries) {
+      const token = ++failToken;
+      try {
+        const r = await fetch("/api/training/failure?project_id=" + encodeURIComponent(PID), { cache: "no-store" });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (token !== failToken) return;
+        if (d.failure) { showFailure(d.failure); return; }
+        // The DB row is written by the run's own callback; give it a moment after a live failure.
+        if (retries > 0) setTimeout(() => { if (token === failToken) loadFailure(retries - 1); }, 1200);
+      } catch (_e) { /* the Past runs row still carries the error */ }
+    }
 
     function fmtEta(sec) {
       if (!sec || sec <= 0) return "";
@@ -904,6 +985,8 @@
 
     function applyStatus(s) {
       if (!s || typeof s !== "object") return;
+      // The engine is process-wide: an error from another project's run is not this page's news.
+      if (s.status === "error" && s.project_id && s.project_id !== PID) return;
       const st = s.status || "idle";
       const step = s.step || s.current_step || 0;
       const total = s.total_steps || 0;
@@ -924,6 +1007,7 @@
       }
       if (ACTIVE[st]) {
         wasActive = true;
+        if (failEl && !failEl.hidden) hideFailure();
         let line = msg || st;
         if (st === "training" && total > 0) {
           line = "Step " + step + "/" + total;
@@ -950,6 +1034,14 @@
         }
         if (logEl && lines.length) logEl.textContent = lines.slice(-40).join("\n");
         if (bar && st === "done") bar.style.width = "100%";
+        if (st === "error") {
+          // Never say "No run in progress" about a run that just failed: show why.
+          if (statusEl) statusEl.textContent = "Training failed.";
+          if (failEl && failEl.hidden) {
+            showFailure({ name: "", run_id: "", error: s.error || msg, hint: null });
+            loadFailure(4);
+          }
+        }
         if (wasActive && (st === "done" || st === "error" || st === "stopped" || st === "idle")) {
           wasActive = false;
           if (typeof refreshPastRuns === "function") refreshPastRuns();
@@ -979,6 +1071,7 @@
       }
     }
     arm();
+    loadFailure(0);
     document.addEventListener("fts:navigated", () => {
       if (unsub) { unsub(); unsub = null; }
     }, { once: true });
