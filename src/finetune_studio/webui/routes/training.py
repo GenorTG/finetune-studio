@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 import os
 import re
 from pathlib import Path
@@ -269,13 +270,21 @@ _PRESET_TUNING_FIELDS: dict[str, type] = {
 
 
 PREFERENCE_MODES = ("dpo", "kto")
-# LoRA preference defaults. TRL's 1e-6 is a full-fine-tune value; with a LoRA adapter the
-# policy barely moves from it (the reference is the adapter-disabled base, so zero
-# adapter movement = zero reward margin). 5e-6 is the Zephyr-7B DPO-QLoRA recipe
-# (huggingface/alignment-handbook, recipes/zephyr-7b-beta/dpo/config_qlora.yaml).
-PREFERENCE_DEFAULTS: dict[str, float | int] = {
-    "learning_rate": 5e-6, "num_epochs": 3, "warmup_steps": 0,
+# LoRA preference defaults, measured with scripts/pref_quality_eval.py (Qwen3-0.6B, SFT-merged
+# start, ~80 pairs = 54 optimizer steps; HANDOFF "Preference quality"). TRL's 1e-6 is a
+# full-fine-tune value: with a LoRA adapter the policy does not move from it, and the
+# reference is the adapter-disabled start, so zero movement = zero reward margin. Plain DPO at
+# >= 3e-5 made the model forget facts (59/60 -> 31-48/60); adding the keep-chosen NLL term
+# (RPO) at 1e-4 kept them (50-54/60) while moving behaviour. KTO lost facts at 5e-5 (51/60)
+# and 1e-5 (54/60) without gaining anything on this task; 1e-5 is its least-damaging tested value.
+# Long runs need far less: Zephyr's DPO-QLoRA recipe is 5e-6 over ~15k steps
+# (huggingface/alignment-handbook recipes/zephyr-7b-beta/dpo/config_qlora.yaml).
+PREFERENCE_DEFAULTS: dict[str, dict[str, float | int]] = {
+    "dpo": {"learning_rate": 1e-4, "num_epochs": 3, "warmup_steps": 0},
+    "kto": {"learning_rate": 1e-5, "num_epochs": 3, "warmup_steps": 0},
 }
+DEFAULT_KEEP_CHOSEN_WEIGHT = 1.0
+LONG_RUN_STEPS = 300  # above this the short-run learning rate above is untested
 
 
 def _apply_preset(preset_id: str, overrides: dict | None = None) -> TrainingConfig:
@@ -549,7 +558,7 @@ async def start_training(request: Request):
         # the SFT preset/form defaults would wreck the base model. Explicit values and
         # selected presets stay user-controlled.
         if not preset_id:
-            for field, value in PREFERENCE_DEFAULTS.items():
+            for field, value in PREFERENCE_DEFAULTS[training_mode].items():
                 if body.get(field) in (None, ""):
                     setattr(config, field, value)
         config.unsloth = False
@@ -561,8 +570,9 @@ async def start_training(request: Request):
             return JSONResponse({"error": "preference_beta must be in (0, 1]"}, status_code=400)
         config.preference_beta = beta
         if training_mode == "dpo":
+            raw_weight = body.get("preference_sft_weight")
             try:
-                sft_weight = float(body.get("preference_sft_weight") or 0)
+                sft_weight = DEFAULT_KEEP_CHOSEN_WEIGHT if raw_weight in (None, "") else float(raw_weight)
             except (TypeError, ValueError):
                 return JSONResponse({"error": "preference_sft_weight must be a number"}, status_code=400)
             if not 0 <= sft_weight <= 10:
@@ -702,7 +712,18 @@ async def start_training(request: Request):
         log.exception("training start failed")
         db.update_run(run_id, status="error")
         return JSONResponse({"error": f"start failed: {e}"}, status_code=500)
-    return {"status": "started", "steps": training_engine.state.total_steps, "run_id": run_id}
+    warnings: list[str] = []
+    if training_mode in PREFERENCE_MODES:
+        steps = math.ceil(len(training_data) * 0.9 / max(1, config.batch_size * config.gradient_accumulation_steps))
+        steps *= config.num_epochs
+        if steps > LONG_RUN_STEPS and config.learning_rate >= 5e-5:
+            warnings.append(
+                f"About {steps} optimizer steps at learning rate {config.learning_rate:g}: that rate was only "
+                f"measured on ~50-step runs. Long preference runs usually need 5e-6 to 2e-5; watch the "
+                "held-out accuracy and the quiz for forgotten facts."
+            )
+    return {"status": "started", "steps": training_engine.state.total_steps, "run_id": run_id,
+            **({"warnings": warnings} if warnings else {})}
 
 @router.get("/start-points/{pid}")
 async def training_start_points(pid: str):

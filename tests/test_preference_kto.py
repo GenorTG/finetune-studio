@@ -155,8 +155,33 @@ def test_kto_route_accepts_preference_rows_and_sets_lora_defaults(
     assert response.status_code == 200, response.text
     config = fake_engine.started["config"]
     assert config.training_mode == "kto"
-    assert config.learning_rate == 5e-6 and config.warmup_steps == 0
+    assert config.learning_rate == 1e-5 and config.warmup_steps == 0 and config.num_epochs == 3
     assert config.unsloth is False
+
+
+def test_dpo_route_defaults_move_a_lora_adapter_and_keep_chosen_answers(
+    client, fake_engine, fake_home, tmp_path,
+) -> None:
+    pid = _project(client)
+    response = _start(client, pid, _write(tmp_path, _pairs()), _model(tmp_path), training_mode="dpo")
+    assert response.status_code == 200, response.text
+    config = fake_engine.started["config"]
+    assert config.learning_rate == 1e-4 and config.preference_sft_weight == 1.0
+    assert "warnings" not in response.json()  # ~4 steps: the short-run rate is what was measured
+
+    plain = _start(client, pid, _write(tmp_path, _pairs()), _model(tmp_path),
+                   training_mode="dpo", preference_sft_weight="0")
+    assert fake_engine.started["config"].preference_sft_weight == 0.0, plain.text
+
+
+def test_long_preference_run_at_a_short_run_learning_rate_gets_a_warning(
+    client, fake_engine, fake_home, tmp_path,
+) -> None:
+    pid = _project(client)
+    rows = _pairs(1200)
+    response = _start(client, pid, _write(tmp_path, rows), _model(tmp_path), training_mode="dpo")
+    assert response.status_code == 200, response.text
+    assert "optimizer steps" in response.json()["warnings"][0]
 
 
 def test_kto_route_rejects_batch_size_one_and_single_label(
@@ -281,3 +306,27 @@ def test_engine_builds_balanced_kto_weights(monkeypatch: pytest.MonkeyPatch, tmp
     assert captured["desirable_weight"] == 3.3  # 9/3 * 1.1: inside TRL's [3.0, 3.99] window
     assert "undesirable_weight" not in captured
     assert captured["beta"] == 0.1 and captured["logging_steps"] >= 1
+
+
+@pytest.mark.parametrize("kind", ["dpo", "kto"])
+def test_preference_args_build_real_trl_configs_with_early_stopping(tmp_path: Path, kind: str) -> None:
+    """Real DPOConfig/KTOConfig: HF validates save/eval cadence when the best model is reloaded."""
+    from finetune_studio.training.engine import TrainingConfig, TrainingEngine
+
+    engine = TrainingEngine()
+    engine.config = TrainingConfig(
+        output_dir=str(tmp_path), training_mode=kind, batch_size=2, gradient_accumulation_steps=1,
+        eval_steps=5, early_stopping=True, save_checkpoints=False, num_epochs=3,
+        preference_sft_weight=1.0 if kind == "dpo" else 0.0, preference_beta=0.2,
+    )
+    rows = [{"label": i % 2 == 0} for i in range(20)]
+    plan = SimpleNamespace(bf16=False, fp16=False, use_cpu=True, optim="adamw_torch")
+    args = engine._preference_args(kind, plan, rows, True)
+
+    assert args.eval_strategy == "steps" and args.eval_steps == 5
+    assert args.load_best_model_at_end and args.metric_for_best_model == "eval_loss"
+    assert args.save_steps == 5  # early stopping forces saving on the eval schedule
+    assert args.beta == 0.2 and args.max_length == engine.config.max_seq_length
+    assert args.logging_steps <= 5
+    if kind == "dpo":
+        assert list(args.loss_type) == ["sigmoid", "sft"] and list(args.loss_weights) == [1.0, 1.0]

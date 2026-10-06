@@ -448,12 +448,16 @@
   const ktoHelp = document.getElementById("kto-format-help");
   const prefOptions = document.getElementById("preference-options");
   const PREF_MODES = ["dpo", "kto"];
-  const PREF_DEFAULTS = { learning_rate: "5e-6", num_epochs: "3", warmup_steps: "0" };
+  // Mirrors PREFERENCE_DEFAULTS in routes/training.py (measured on short runs; see HANDOFF).
+  const PREF_DEFAULTS = {
+    dpo: { learning_rate: "1e-4", num_epochs: "3", warmup_steps: "0" },
+    kto: { learning_rate: "1e-5", num_epochs: "3", warmup_steps: "0" },
+  };
   const advancedHelp = document.getElementById("advanced-format-help");
   const routeHelp = {
     sft: "SFT learns from prompt/answer examples. Choose an approved Q&A export or a conversational JSONL dataset.",
-    dpo: "DPO tunes preferences between two reviewed answers to the same prompt. Selecting it sets LoRA preference defaults (LR 5e-6, 3 epochs, no warmup); adjust the visible fields if your validated recipe differs. Watch rewards/accuracies and margins in the live panel: if they stay at 0.5 and 0 the model is not moving. It does not create comparisons for you.",
-    kto: "KTO tunes a model from answers marked good or bad (no pairing needed). Same LoRA preference defaults as DPO; watch rewards/margins in the live panel. Start from your SFT-merged run when you have one.",
+    dpo: "DPO tunes preferences between two reviewed answers to the same prompt. Selecting it sets LoRA preference defaults (LR 1e-4, 3 epochs, no warmup, plus a keep-chosen term) measured on ~50-step runs; for thousands of pairs lower the learning rate to 5e-6–2e-5. Watch rewards/accuracies and margins in the live panel: if they stay at 0.5 and 0 the model is not moving. It does not create comparisons for you.",
+    kto: "KTO tunes a model from answers marked good or bad (no pairing needed). Defaults: LR 1e-5, 3 epochs (the least damaging rate we measured; on a facts-and-refusals test KTO did not beat the SFT start). Watch rewards/margins in the live panel. Start from your SFT-merged run when you have one.",
     tool_sft: "Tool-calling SFT teaches structured tool requests and tool results. JSONL rows need messages (including tool_calls/tool turns) and a tools JSON-schema array; use a model with a compatible chat template.",
     continued_pretraining: "Continued pretraining adapts domain language on raw text, not question/answer pairs. JSONL rows need a non-empty text field. It does not teach instruction following by itself.",
     reasoning_distillation: "Reasoning distillation is supervised training on teacher-produced traces and final answers. Upload reviewed messages JSONL; keep teacher/evaluation data separate and do not treat hidden reasoning as automatically correct.",
@@ -464,16 +468,18 @@
     input.addEventListener("change", () => {
       if (!input.checked) return;
       const toPref = PREF_MODES.includes(input.value), fromPref = PREF_MODES.includes(previousTrainingMode);
-      if (toPref && !fromPref) {
-        valuesBeforeDpo = Object.fromEntries(Object.keys(PREF_DEFAULTS).map((name) => {
-          const field = document.querySelector(`#train-form [name="${name}"]`);
-          return [name, field?.value ?? ""];
-        }));
-        for (const [name, value] of Object.entries(PREF_DEFAULTS)) {
+      if (toPref) {
+        if (!fromPref) {
+          valuesBeforeDpo = Object.fromEntries(Object.keys(PREF_DEFAULTS.dpo).map((name) => {
+            const field = document.querySelector(`#train-form [name="${name}"]`);
+            return [name, field?.value ?? ""];
+          }));
+        }
+        for (const [name, value] of Object.entries(PREF_DEFAULTS[input.value])) {
           const field = document.querySelector(`#train-form [name="${name}"]`);
           if (field) field.value = value;
         }
-      } else if (fromPref && !toPref && valuesBeforeDpo) {
+      } else if (fromPref && valuesBeforeDpo) {
         for (const [name, value] of Object.entries(valuesBeforeDpo)) {
           const field = document.querySelector(`#train-form [name="${name}"]`);
           if (field) field.value = value;
