@@ -38,6 +38,16 @@ _USER_ROLES = {"human", "user"}
 _ASSISTANT_ROLES = {"gpt", "assistant"}
 
 
+def _system_turn(conversations: object) -> str:
+    """The row's opening system turn (grounded rows: the retrieved CONTEXT), else empty."""
+    if not isinstance(conversations, list) or not conversations:
+        return ""
+    first = conversations[0]
+    if not isinstance(first, dict) or str(first.get("from") or first.get("role") or "").lower() != "system":
+        return ""
+    return str(first.get("value") or first.get("content") or "").strip()
+
+
 def _first_exchange(conversations: object) -> tuple[str, str]:
     """First user turn and the first assistant turn after it, by role.
 
@@ -148,6 +158,7 @@ def generate_suite_from_training_data(
             source_id=str(ex.get("source_id") or ""),
             chunk_idx=int(ex.get("chunk_idx") or 0),
             row_index=i,
+            system_prompt=_system_turn(ex.get("conversations", [])),
         ))
 
     if not cases:
@@ -190,6 +201,7 @@ def generate_suite_from_training_data(
             "source_id": c.source_id,
             "chunk_idx": c.chunk_idx,
             "row_index": c.row_index,
+            "system_prompt": c.system_prompt,
         })
 
     with open(suite_path, "w") as f:
@@ -199,6 +211,7 @@ def generate_suite_from_training_data(
                 "dataset_count": len(examples),
                 "pool_count": total_cases,
                 "case_count": len(cases),
+                "with_context_count": sum(1 for c in cases if c.system_prompt),
                 "sample_size": len(cases) if sampled else None,
                 "sample_seed": sample_seed if sampled else None,
             },
@@ -209,6 +222,7 @@ def generate_suite_from_training_data(
         "suite_path": suite_path,
         "suite_name": suite_name,
         "case_count": len(cases),
+        "with_context_count": sum(1 for c in cases if c.system_prompt),
         "skipped": skipped,
         "invalid_lines": invalid_lines,
         "truncated": 0,

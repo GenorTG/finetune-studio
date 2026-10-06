@@ -59,6 +59,9 @@ class BenchmarkCase:
     source_id: str = ""
     chunk_idx: int = 0
     row_index: int = -1  # 0-based line in the source dataset (full-coverage audit)
+    # System turn the row was trained with (the retrieved CONTEXT of a grounded row). Such a row
+    # teaches "answer from the context", so quizzing it bare measures the wrong skill.
+    system_prompt: str = ""
 
 
 @dataclass
@@ -117,6 +120,7 @@ def load_test_suite(path: str) -> list[BenchmarkCase]:
                 source_id=str(item.get("source_id") or ""),
                 chunk_idx=int(item.get("chunk_idx") or 0),
                 row_index=int(item.get("row_index", -1)),
+                system_prompt=str(item.get("system_prompt") or ""),
             ))
         elif "messages" in item:
             # v1 fallback: extract from messages format
@@ -149,7 +153,8 @@ def run_suite(engine, cases: list[BenchmarkCase], max_tokens: int = 512,
     for case in cases:
         start = time.time()
         try:
-            messages = with_system_prompt([{"role": "user", "content": case.question}], system_prompt)
+            messages = with_system_prompt([{"role": "user", "content": case.question}],
+                                          case.system_prompt or system_prompt)
             response = engine.generate(messages, max_tokens=max_tokens,
                                        temperature=temperature, think=think)
             elapsed_ms = (time.time() - start) * 1000

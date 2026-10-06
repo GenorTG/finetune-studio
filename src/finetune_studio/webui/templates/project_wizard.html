@@ -88,6 +88,7 @@
       </div>
     </div><span class="pill outline" id="wiz-dataset-pill">…</span></div>
     <div class="text-sm" id="wiz-dataset-sub">—</div>
+    <div class="mt-2 text-sm" id="wiz-dataset-gate" role="alert" hidden></div>
     <div class="flex gap-2 wrap mt-2">
       <button class="btn primary" type="button" id="wiz-dataset-btn" onclick="wizExport()">Build dataset</button>
       <button class="btn sm" type="button" onclick="wizRefresh('dataset')">Refresh</button>
@@ -528,15 +529,51 @@
     } finally { setBusy(false); }
   };
 
-  window.wizExport = async function () {
+  // The export gate (409) names the files no Q&A could be made from. The two remedies it
+  // speaks of — drop the file, or export without it — are offered here, not left as prose.
+  function wizShowExportGate(files, message) {
+    var box = document.getElementById("wiz-dataset-gate");
+    if (!box) return;
+    box.textContent = "";
+    var p = document.createElement("div");
+    p.textContent = message;
+    box.appendChild(p);
+    var row = document.createElement("div");
+    row.className = "flex gap-2 wrap mt-1";
+    var force = document.createElement("button");
+    force.type = "button";
+    force.className = "btn sm";
+    force.textContent = "Export without " + files.slice(0, 3).join(", ") + (files.length > 3 ? " and more" : "");
+    force.addEventListener("click", function () { window.wizExport(true); });
+    row.appendChild(force);
+    var lib = document.createElement("a");
+    lib.className = "btn sm";
+    lib.href = "/projects/" + PID + "/data";
+    lib.setAttribute("data-link", "");
+    lib.textContent = "Open file library to delete it";
+    row.appendChild(lib);
+    box.appendChild(row);
+    box.hidden = false;
+  }
+
+  window.wizExport = async function (force) {
     if (busy) { line("Already running — wait for the current step."); return false; }
     setBusy(true);
+    var gate = document.getElementById("wiz-dataset-gate");
+    if (gate) { gate.hidden = true; gate.textContent = ""; }
     try {
-      line("Building dataset (coverage fill + export)…");
-      var r = await fetch("/api/projects/" + PID + "/data-prep/export");
-      if (!r.ok) { var d = await r.json().catch(function () { return {}; }); throw new Error(d.detail || d.error || ("HTTP " + r.status)); }
+      line(force === true ? "Building dataset without the blocked file(s) (force)…" : "Building dataset (coverage fill + export)…");
+      var r = await fetch("/api/projects/" + PID + "/data-prep/export" + (force === true ? "?force=true" : ""));
+      if (!r.ok) {
+        var d = await r.json().catch(function () { return {}; });
+        if (r.status === 409 && Array.isArray(d.uncovered_files) && d.uncovered_files.length) {
+          wizShowExportGate(d.uncovered_files, d.error || "Dataset export blocked.");
+        }
+        throw new Error(d.detail || d.error || ("HTTP " + r.status));
+      }
       var b = await r.blob();
-      line("Dataset built and registered (" + Math.round(b.size / 1024) + " KB).");
+      var rows = r.headers.get("X-Rows"), grounded = r.headers.get("X-Grounded-Rows");
+      line("Dataset built and registered (" + Math.round(b.size / 1024) + " KB" + (rows ? ", " + rows + " rows" + (grounded && grounded !== "0" ? ", " + grounded + " with retrieved context" : "") : "") + ").");
       wizRefresh("dataset");
       return true;
     } catch (e) {
@@ -696,6 +733,14 @@
       var passed = results.filter(function (x) { return x.passed; }).length;
       var pct = results.length ? Math.round(1000 * passed / results.length) / 10 : 0;
       line("Test result: " + passed + "/" + results.length + " passed (" + pct + "%).");
+      // Grounded rows are asked with the CONTEXT they were trained with (transcript opens with a
+      // system turn); plain rows are asked bare. Two different skills, so report both.
+      var withCtx = results.filter(function (x) { return x.transcript && x.transcript[0] && x.transcript[0].role === "system"; });
+      if (withCtx.length) {
+        var okCtx = withCtx.filter(function (x) { return x.passed; }).length;
+        var plain = results.length - withCtx.length, okPlain = passed - okCtx;
+        line("  from memory (no context): " + okPlain + "/" + plain + " · answering from the retrieved context they were trained with: " + okCtx + "/" + withCtx.length);
+      }
       set("wiz-test", passed + "/" + results.length + " passed (" + pct + "%)");
       pill("wiz-test", pct >= 80 ? "strong" : pct >= 50 ? "ok" : "weak", pct >= 50);
       wizRefresh("test");
