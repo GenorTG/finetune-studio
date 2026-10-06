@@ -4624,29 +4624,29 @@ body::before {
 .guide-assistant { border-left-color: var(--cyan); }
 .guide-error { border-left-color: var(--err); }
 .guide-fallback { border-left-style: dashed; }
-.guide-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin-bottom: 4px; }
+.guide-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin-bottom: 4px; }
 .guide-error .guide-body { color: var(--err-text, var(--err)); }
 .guide-body { overflow-wrap: anywhere; }
 .guide-body p { margin: 0 0 6px; }
 .guide-body p:last-child { margin-bottom: 0; }
 .guide-body code { background: var(--bg-panel-2); padding: 0 4px; }
 .guide-list { margin: 4px 0 6px 1.1em; padding: 0; }
-.guide-tool { border: 1px dashed var(--magenta); border-left-width: 3px; padding: 6px 8px; background: var(--bg-app); font-size: 12px; }
+.guide-tool { min-width: 0; overflow-wrap: anywhere; border: 1px dashed var(--magenta); border-left-width: 3px; padding: 6px 8px; background: var(--bg-app); font-size: 12px; }
 .guide-tool-ok { border-left-color: var(--ok); }
 .guide-tool-err { border-left-color: var(--err); }
 .guide-tool-pending { border-left-color: var(--warn); }
-.guide-tool-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.guide-tool-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
 .guide-tool-icon { font-weight: 700; color: var(--ok-text, var(--ok)); }
 .guide-tool-err .guide-tool-icon { color: var(--err-text, var(--err)); }
 .guide-tool-pending .guide-tool-icon { color: var(--warn-text, var(--warn)); }
 .guide-tool-name { font-weight: 700; color: var(--magenta); }
-.guide-args { display: inline-flex; flex-wrap: wrap; gap: 4px; }
-.guide-arg { font-size: 10px; border: 1px solid var(--border); padding: 0 5px; color: var(--text-dim); }
+.guide-args { display: inline-flex; flex-wrap: wrap; gap: 4px; min-width: 0; max-width: 100%; }
+.guide-arg { font-size: 11px; max-width: 100%; overflow-wrap: anywhere; border: 1px solid var(--border); padding: 0 5px; color: var(--text-dim); }
 .guide-tool-status { margin-top: 4px; color: var(--text); overflow-wrap: anywhere; }
 .guide-tool-err .guide-tool-status { color: var(--err-text, var(--err)); }
 .guide-tool-debug { margin-top: 6px; font-size: 11px; color: var(--text-dim); }
 .guide-tool-debug summary { cursor: pointer; }
-.guide-pre { margin: 4px 0 0; max-height: 220px; overflow: auto; white-space: pre-wrap; background: var(--bg-panel); border: 1px solid var(--border); padding: 6px; font-size: 10px; }
+.guide-pre { margin: 4px 0 0; max-height: 220px; overflow: auto; white-space: pre-wrap; background: var(--bg-panel); border: 1px solid var(--border); padding: 6px; font-size: 11px; }
 .guide-effect { font-size: 12px; color: var(--accent); padding: 2px 4px; border-left: 2px solid var(--accent); overflow-wrap: anywhere; }
 .guide-effect-old { color: var(--text-dim); border-left-color: var(--border); }
 .guide-note { font-size: 12px; color: var(--text-dim); }
@@ -4655,7 +4655,7 @@ body::before {
 .guide-compose { border-top: 1px solid var(--border-strong); padding: 8px 12px; background: var(--bg-panel-2); }
 .guide-compose textarea { width: 100%; resize: vertical; min-height: 3.2em; max-height: 12em; }
 .guide-compose-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
-.guide-hint { margin-right: auto; font-size: 10px; color: var(--text-dim); }
+.guide-hint { margin-right: auto; font-size: 11px; color: var(--text-dim); }
 .sb-guide { gap: 6px; }
 
 /* Visible effects on the page itself */

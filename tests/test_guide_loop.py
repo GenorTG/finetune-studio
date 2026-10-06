@@ -251,3 +251,17 @@ def test_legacy_json_route_also_ends_with_a_message_at_the_round_limit(client, s
     }).json()
     assert body["ok"] and body["reply"] == "Wrapped up." and body["forced_final"] is True
     assert len(body["tool_calls"]) == 6
+
+
+def test_local_helper_failure_surfaces_as_an_error_not_an_empty_reply() -> None:
+    """A dead helper used to be swallowed into '' (then 'no answer'); the guide must say why."""
+    from unittest.mock import MagicMock
+
+    from finetune_studio.webui.routes.data_prep_chat import make_chat_fn
+
+    mgr = MagicMock()
+    mgr.chat.side_effect = RuntimeError("500 Server Error: helper down")
+    mgr.generate.side_effect = RuntimeError("fallback also down")
+    chat = make_chat_fn({"kind": "provider", "manager": mgr}, {})
+    last = list(run_guide_loop(CTX, USER, chat))[-1]
+    assert last["type"] == "error" and "500 Server Error: helper down" in last["error"]

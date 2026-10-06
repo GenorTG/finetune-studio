@@ -232,7 +232,8 @@ def make_chat_fn(backend: dict, gen: dict) -> Callable[[list[dict]], str]:
         return lambda msgs: _chat_external(backend, msgs, gen)
     if backend["kind"] == "global":
         return lambda msgs: _chat_global_engine(backend, msgs, gen)
-    return lambda msgs: _chat_local(backend, msgs, gen)
+    # raise_errors: a dead helper must surface as an error, not as an empty reply
+    return lambda msgs: _chat_local(backend, msgs, gen, raise_errors=True)
 
 
 @router.post("/projects/{pid}/data-prep/chat")
@@ -385,7 +386,7 @@ def _chat_global_engine(backend: dict, messages: list[dict], gen: dict | None = 
         return str(resp)
 
 
-def _chat_local(backend: dict, messages: list[dict], gen: dict | None = None) -> str:
+def _chat_local(backend: dict, messages: list[dict], gen: dict | None = None, *, raise_errors: bool = False) -> str:
     """One round of chat via the local ModelManager provider.
 
     Uses `mgr.chat()` (which calls llama_cpp.create_chat_completion) so the
@@ -459,7 +460,7 @@ def _chat_local(backend: dict, messages: list[dict], gen: dict | None = None) ->
             temperature=_temp,
             top_p=_topp,
         )
-    except Exception:
+    except Exception as chat_error:
         # Fall back to generate() with a flattened prompt for providers that
         # only support raw text-completion (rare).
         log.exception("manager.chat failed; falling back to generate()")
@@ -480,6 +481,8 @@ def _chat_local(backend: dict, messages: list[dict], gen: dict | None = None) ->
             )
         except Exception:
             log.exception("manager.generate fallback also failed")
+            if raise_errors:
+                raise chat_error from None   # the first failure is the real cause
             text = ""
     return text or ""
 

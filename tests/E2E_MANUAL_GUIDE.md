@@ -176,14 +176,23 @@ Page `/projects/<id>/chat`.
   `/api/inference/status` shows `n_ctx 32768`, `layers 28/28`). Ask each ground-truth question. The page attaches the project's RAG
   corpus automatically ("5 source chunk(s) used as context"), so this is *grounded* answering; for pure recall use the API
   (`chat-v2` with `enabled_rag_ids: []`) — last run 7/12 pure recall vs 11/12 with retrieval.
-- **Agent mode** (`?mode=agent`): uses the **configured helper model** (Gemma-12B), never silently switches to another loaded model.
-  It can answer workflow questions from the app guide, inspect this project's readiness, list/read sources, inspect Q&A pairs,
-  and create source-grounded Q&A pairs when requested. Every tool call renders inline with its result. Try "What should I do next?"
-  and then "Create two Q&A pairs for aurora_spec_table.csv"; new pairs must remain **pending** on the Pairs page.
-  For readiness checks, compare the assistant's answer with the tool card: parsed sources, approved/pending/rejected pairs,
-  dataset count, RAG corpus count, and next step must match exactly. The server now uses the tool's authoritative summary
-  as the final reply rather than trusting the helper to recalculate counts.
-  It does not yet navigate the browser or approve data, build RAG, export, train, delete, or change settings.
+- **Agent mode = the Guide** (`?mode=agent`, or the **? guide** button on *every* page): a docked panel in the page shell,
+  so the conversation survives every page change (hard reloads restore it from `sessionStorage`). It uses the **configured
+  helper model** (Gemma-12B), never silently switches to another loaded model; with no helper it shows the server's clear
+  error. Tool calls stream in as they happen (`app_help`, `project_overview`, `recommend_training`, `dataset_health`,
+  `system_status`, …) and each card shows a readable result with the raw JSON behind *Debug*. It can also act on the page,
+  visibly: **navigate** to a page, **highlight** a control (pulse + "👉 label" tag), and **pre-fill** form fields (dashed cyan
+  outline, editable, never submitted). Try, in order:
+  1. "How do I train a model on my documents?" → `app_help` card cites the Training entry; it should open Training, pre-fill a
+     preset and point at **Start training** — which you press yourself (no run may exist until you do).
+  2. "What should I do next?" → the final reply must equal the readiness tool card's summary word for word.
+  3. "Which settings should I use?" → `recommend_training` card: route, tier, epochs/rank/LR, step arithmetic, a **too few**
+     warning when the dataset cannot reach the tier's step floor (then it should say "add data", not "train longer").
+  4. "Where is pairs per chunk?" from another page → it opens Pairs first, then pulses `#prep-qpc`.
+  5. "Create two Q&A pairs for aurora_spec_table.csv" → the only mutation (`create_qa_pairs`); pairs stay **pending**.
+  It never approves, exports, trains, deletes or changes settings. A turn that exhausts its tool rounds still ends with an
+  answer (forced final turn). Sandbox proof with a fake helper: `PYTHONPATH=src .venv/bin/python tests/e2e_guide_sandbox.py`
+  (port 7896, temp cwd/HOME/FTS_ROOT/FTS_DB; screenshots in `.tmp/qa-shots/guide/`).
 
 ## 13. Clean up [`cleanup`]
 
