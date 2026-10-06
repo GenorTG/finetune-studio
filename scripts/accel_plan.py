@@ -129,6 +129,14 @@ def _system() -> tuple[str, str]:
     return platform.system(), platform.machine()
 
 
+def _on_windows() -> bool:
+    return _system()[0] == "Windows"
+
+
+def _repair_cmd() -> str:
+    return "install.bat --repair" if _on_windows() else "bash install.sh --repair"
+
+
 def _mac_version() -> tuple[int, int]:
     """macOS release as (major, minor); (0, 0) when unknown or not macOS."""
     fx = _fixture()
@@ -511,10 +519,13 @@ def detect(force_cpu: bool = False, force_vendor: str = "") -> GpuInfo:
         if not ready:
             cuda_max = cuda_max if cuda_max != (0, 0) else (13, 0)
             hint = ("NVIDIA GPU found on the PCI bus but no working driver (nvidia-smi missing/failing). "
-                    "Install the vendor driver, then re-run `bash install.sh --repair`: "
-                    "Debian/Ubuntu `sudo apt install nvidia-driver` (or `ubuntu-drivers install`), "
-                    "Fedora `sudo dnf install akmod-nvidia`, Arch `sudo pacman -S nvidia-open`. "
-                    "CUDA wheels are installed anyway.")
+                    + ("Install the NVIDIA driver (https://www.nvidia.com/Download/index.aspx), reboot, "
+                       "then re-run `install.bat --repair`. "
+                       if system == "Windows" else
+                       "Install the vendor driver, then re-run `bash install.sh --repair`: "
+                       "Debian/Ubuntu `sudo apt install nvidia-driver` (or `ubuntu-drivers install`), "
+                       "Fedora `sudo dnf install akmod-nvidia`, Arch `sudo pacman -S nvidia-open`. ")
+                    + "CUDA wheels are installed anyway.")
         ccs = [float(g.compute_cap) for g in gpus if g.compute_cap]
         newest = max(ccs) if ccs else 0.0
         nvcc, nvcc_v = _find_nvcc(cuda_max, ccs)
@@ -547,10 +558,13 @@ def detect(force_cpu: bool = False, force_vendor: str = "") -> GpuInfo:
         ready = bool(intel_all)
         hint = "" if ready else (
             "Intel GPU found but the compute runtime is missing (no sycl-ls/xpu-smi/clinfo device). "
-            "Install intel-compute-runtime + level-zero: Debian/Ubuntu "
-            "`sudo apt install intel-opencl-icd libze-intel-gpu1 libze1` "
-            "(https://dgpu-docs.intel.com), add your user to the render group, reboot. "
-            "XPU PyTorch wheels are installed anyway.")
+            + ("Install the current Intel Graphics driver "
+               "(https://www.intel.com/content/www/us/en/download-center/home.html) and reboot. "
+               if system == "Windows" else
+               "Install intel-compute-runtime + level-zero: Debian/Ubuntu "
+               "`sudo apt install intel-opencl-icd libze-intel-gpu1 libze1` "
+               "(https://dgpu-docs.intel.com), add your user to the render group, reboot. ")
+            + "XPU PyTorch wheels are installed anyway.")
         return GpuInfo("intel", gpus[0].name, "", "", "", cuda_path, tuple(gpus), "", "", "",
                        driver_ready=ready, hint=hint, notes=tuple(notes),
                        **{k: v for k, v in common.items() if k != "cuda_toolkit_path"})
@@ -641,12 +655,16 @@ def nvcc_problem(gpu: GpuInfo) -> str:
     if any(c >= 10 for c in ccs) and ver < BLACKWELL_MIN_TAG:
         sm = "sm_" + str(int(max(ccs) * 10))
         return (f"nvcc {gpu.nvcc_version} cannot target Blackwell ({sm}): it needs CUDA 12.8 or newer. "
-                "Install a current toolkit (https://developer.nvidia.com/cuda-downloads; Debian/Ubuntu apt "
-                "toolkits are 11.8/12.0) and re-run `bash install.sh --repair`.")
+                "Install a current toolkit (https://developer.nvidia.com/cuda-downloads"
+                + ("" if _on_windows() else "; Debian/Ubuntu apt toolkits are 11.8/12.0")
+                + f") and re-run `{_repair_cmd()}`.")
     if not cuda_archs(gpu):
         sm = "sm_" + str(int(min(ccs) * 10))
         return (f"nvcc {gpu.nvcc_version} cannot target {sm} (CUDA {ver[0]} dropped that architecture): install an "
-                "older CUDA 12.x toolkit next to it (e.g. `cuda-toolkit-12-6`) and re-run `bash install.sh --repair`.")
+                "older CUDA 12.x toolkit next to it (e.g. "
+                + ("the CUDA 12.6 installer from https://developer.nvidia.com/cuda-toolkit-archive"
+                   if _on_windows() else "`cuda-toolkit-12-6`")
+                + f") and re-run `{_repair_cmd()}`.")
     return ""
 
 
@@ -661,9 +679,13 @@ class LlamaBackend:
 
 def llama_backends(gpu: GpuInfo) -> list[LlamaBackend]:
     """Backends in preference order for this hardware; unbuildable ones carry `missing`."""
+    win = _on_windows()
     vulkan = LlamaBackend("vulkan", ["-DGGML_VULKAN=ON"],
                           missing="" if gpu.vulkan_ready else
-                          "Vulkan toolchain missing: sudo apt install libvulkan-dev glslc (or vulkan-sdk)")
+                          ("Vulkan SDK missing (no glslc): `winget install KhronosGroup.VulkanSDK` or the installer from "
+                           "https://vulkan.lunarg.com/sdk/home#windows, then open a new terminal so glslc is on PATH"
+                           if win else
+                           "Vulkan toolchain missing: sudo apt install libvulkan-dev glslc (or vulkan-sdk)"))
     cpu = LlamaBackend("cpu")
     out: list[LlamaBackend] = []
     if gpu.vendor == "nvidia":
@@ -678,7 +700,9 @@ def llama_backends(gpu: GpuInfo) -> list[LlamaBackend]:
         else:
             miss = ("nvcc not found. Install the CUDA toolkit matching your driver "
                     f"(CUDA {gpu.cuda_max or '13.x'}): https://developer.nvidia.com/cuda-downloads "
-                    "(Debian/Ubuntu: `sudo apt install nvidia-cuda-toolkit` or NVIDIA's cuda-toolkit-13-x)")
+                    + ("(Windows: run the installer, or `winget install Nvidia.CUDA`; Visual Studio Build Tools "
+                       "with the C++ workload are required too)" if win else
+                       "(Debian/Ubuntu: `sudo apt install nvidia-cuda-toolkit` or NVIDIA's cuda-toolkit-13-x)"))
         out.append(LlamaBackend("cuda", args, env, missing=miss))
     elif gpu.vendor == "amd":
         env, miss = {}, ""
@@ -690,12 +714,18 @@ def llama_backends(gpu: GpuInfo) -> list[LlamaBackend]:
             root = str(Path(gpu.hipcc).resolve().parent.parent)
             env = {"HIPCXX": f"{root}/llvm/bin/clang", "HIP_PATH": root}
         else:
-            miss = ("hipcc not found. Install the ROCm HIP SDK: `sudo apt install rocm-hip-sdk` "
+            miss = ("hipcc not found. Install the AMD HIP SDK for Windows (installer from "
+                    "https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html), then open a new terminal "
+                    "so hipcc is on PATH" if win else
+                    "hipcc not found. Install the ROCm HIP SDK: `sudo apt install rocm-hip-sdk` "
                     "(https://rocm.docs.amd.com/projects/install-on-linux)")
         out.append(LlamaBackend("hip", args, env, missing=miss))
     elif gpu.vendor == "intel":
         setvars = "/opt/intel/oneapi/setvars.sh"
         miss = "" if (gpu.icpx or _exists(setvars)) else (
+            "Intel oneAPI DPC++ (icpx) not found. Install the oneAPI Base Toolkit (DPC++/C++ compiler + oneMKL) "
+            "from the installer at https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit.html"
+            if win else
             "Intel oneAPI DPC++ (icpx) not found. Install intel-oneapi-compiler-dpcpp-cpp + intel-oneapi-mkl-devel "
             "(https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit.html)")
         out.append(LlamaBackend(
