@@ -187,7 +187,7 @@ def _run_tool(pid: str, name: str, args: dict) -> dict:
                       for status in ("pending", "approved", "rejected")}
             datasets = db.list_datasets(pid)
             rags = db.list_rags(pid)
-            parsed_sources = sum(1 for source in sources if source.get("status", "ready") == "ready")
+            parsed_sources = sum(1 for source in sources if int(source.get("chunk_count") or 0) > 0)
             next_step = (
                 "Review pending Q&A pairs." if counts["pending"] else
                 "Export approved Q&A pairs." if counts["approved"] and not datasets else

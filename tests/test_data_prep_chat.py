@@ -17,7 +17,10 @@ class TestChatTools:
         from finetune_studio.webui.routes.data_prep_chat import _run_tool
 
         monkeypatch.setattr(db, "get_project", lambda _pid: {"name": "Example"})
-        monkeypatch.setattr(qa_fs, "list_qa_sources", lambda _pid: [{"status": "ready"}])
+        monkeypatch.setattr(qa_fs, "list_qa_sources", lambda _pid: [
+            {"status": "generated", "chunk_count": 1},
+            {"status": "registered", "chunk_count": 0},
+        ])
         monkeypatch.setattr(qa_fs, "list_qa_pairs", lambda _pid: [
             {"status": "approved"}, {"status": "approved"}, {"status": "approved"},
             {"status": "pending"}, {"status": "pending"}, {"status": "pending"},
@@ -28,10 +31,10 @@ class TestChatTools:
         result = _run_tool("example", "inspect_project_readiness", {})
 
         assert result["summary"] == (
-            "1 source(s), 1 parsed; 3 approved, 3 pending, and 0 rejected Q&A pair(s); "
+            "2 source(s), 1 parsed; 3 approved, 3 pending, and 0 rejected Q&A pair(s); "
             "1 dataset(s); 0 RAG corpus/corpora. Next: Review pending Q&A pairs."
         )
-        assert result["sources"] == {"count": 1, "parsed": 1}
+        assert result["sources"] == {"count": 2, "parsed": 1}
         assert result["qa_pairs"] == {"total": 6, "pending": 3, "approved": 3, "rejected": 0}
 
     def test_list_sources_empty(self, tmp_path, monkeypatch):
