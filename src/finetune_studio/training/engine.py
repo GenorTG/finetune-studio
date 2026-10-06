@@ -30,6 +30,7 @@ import logging
 import math
 import os
 import shutil
+from pathlib import Path
 
 # Training runs inside the threaded uvicorn server with CUDA initialised, so
 # any forked Dataset.map / tokenizer pool deadlocks (E2E-27: 8 workers stuck in
@@ -1113,11 +1114,18 @@ class TrainingEngine:
             from finetune_studio.db.connection import cursor, new_id
             suite_id = new_id()
             project_id = getattr(self.config, 'project_id', '')
+            # The training runs in a child process whose engine never learns the parent's run id (the insert hit
+            # NOT NULL on auto_suites.run_id and the quiz was never recorded); the run's own directory names it:
+            # output/projects/<pid>/runs/<run_id>.
+            out = Path(self.config.output_dir)
+            run_id = self.current_run_id or out.name
+            if not project_id and out.parent.name == "runs":
+                project_id = out.parent.parent.name
             with cursor() as c:
                 c.execute(
                     "INSERT INTO auto_suites (id, run_id, project_id, suite_name, suite_path, case_count, categories_json, created_at) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    (suite_id, self.current_run_id, project_id,
+                    (suite_id, run_id, project_id,
                      result.get("suite_name", "auto"), result.get("suite_path", ""),
                      result.get("case_count", 0),
                      json.dumps(result.get("categories", {})), _time()),
