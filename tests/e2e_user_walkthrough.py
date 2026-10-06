@@ -650,7 +650,52 @@ async def phase_chat(w: Walk) -> None:
     R.check(right >= len(FACTS) // 2, f"model recalls {right}/{len(FACTS)} trained facts without any retrieval")
 
 
-PHASES: dict[str, Callable[[Walk], Awaitable[None]]] = {"gguf": phase_gguf, "chat": phase_chat, "test": phase_test, "model": phase_model, "train": phase_train, "create": phase_create, "upload": phase_upload, "prep": phase_prep, "review": phase_review, "rag": phase_rag, "export": phase_export}
+async def phase_bench(w: Walk) -> None:
+    """Benchmarks page: run the offline synthetic knowledge suite on the base model and read the score."""
+    await w.goto(f"/projects/{pid()}/benchmarks")
+    row = w.page.locator("tr", has_text="Run " + load_state().get("run_id", "")[:8]).first   # the trained run, not the base row
+    suite_sel = row.locator("select").first
+    suite_opts = await suite_sel.locator("option").all_inner_texts()
+    pick = next((o for o in suite_opts if "knowledge" in o.lower() and "offline" in o.lower()), suite_opts[-1])
+    log(f"suite: {pick[:80]}")
+    await suite_sel.select_option(label=pick)
+    await w.shot("configured")
+    await row.locator("button:has-text('RUN')").first.click()
+
+    async def scored() -> bool:
+        body = await w.text("body")
+        return "%" in body.split("Recent scores", 1)[-1][:2500] and "no benchmarks" not in body.lower()
+
+    R.check(await w.wait_for("benchmark score", scored, 240, every=4), "benchmark finished and a score is listed")
+    await w.shot("scores", full=True)
+    log("SCORES: " + (await w.text("body")).split("Recent scores", 1)[-1][:300].replace("\n", " "))
+
+
+async def phase_cleanup(w: Walk) -> None:
+    """Project overview: DELETE the throwaway project like a user, then verify nothing is left on disk."""
+    p = pid()
+    await w.goto(f"/projects/{p}")
+    await w.shot("before-delete")
+    await w.page.click("button:has-text('DELETE')")
+    await w.page.wait_for_timeout(600)
+    await w.shot("confirm-dialog")
+    await w.page.click("button:has-text('OK')")
+    await w.page.wait_for_timeout(3000)
+    R.check(not [x for x in api("/api/projects") if x["id"] == p], "project is gone from the API")
+    leftovers = [str(d) for d in (REPO / "output" / "projects" / p, REPO / "data" / "projects" / p,
+                                  Path.home() / ".finetune-studio" / "projects" / p,
+                                  Path.home() / ".finetune-studio" / "rag_corpora" / p) if d.exists()]
+    R.check(not leftovers, f"no project directories left on disk {leftovers}")
+    names = [m["name"] for m in api("/api/models/list")]
+    R.check(not [n for n in names if "ux-walk" in n], f"model pickers no longer offer the project's exports ({names})")
+    await w.goto("/models/explore")
+    api("/api/models/unload", "POST")
+    deleted = api("/api/hf/local/Qwen__Qwen3-0.6B", "DELETE")
+    log(f"base model removed: {deleted}")
+    R.check(not [m for m in api("/api/hf/local")["models"] if "Qwen3-0.6B" in m["repo_id"]], "downloaded base model removed")
+
+
+PHASES: dict[str, Callable[[Walk], Awaitable[None]]] = {"bench": phase_bench, "cleanup": phase_cleanup, "gguf": phase_gguf, "chat": phase_chat, "test": phase_test, "model": phase_model, "train": phase_train, "create": phase_create, "upload": phase_upload, "prep": phase_prep, "review": phase_review, "rag": phase_rag, "export": phase_export}
 
 
 async def run(phases: list[str], headed: bool) -> int:
