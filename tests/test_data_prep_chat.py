@@ -28,7 +28,7 @@ class TestChatTools:
         result = _run_tool("example", "inspect_project_readiness", {})
 
         assert result["summary"] == (
-            "1 parsed source(s); 3 approved, 3 pending, and 0 rejected Q&A pair(s); "
+            "1 source(s), 1 parsed; 3 approved, 3 pending, and 0 rejected Q&A pair(s); "
             "1 dataset(s); 0 RAG corpus/corpora. Next: Review pending Q&A pairs."
         )
         assert result["sources"] == {"count": 1, "parsed": 1}
@@ -173,6 +173,15 @@ class TestChatTools:
 
 class TestToolCallParser:
     """The regex that extracts <tool_call>{...}</tool_call> blocks."""
+
+    def test_readiness_reply_uses_server_summary_not_model_paraphrase(self):
+        from finetune_studio.webui.routes.data_prep_chat import _authoritative_readiness_reply
+
+        summary = "2 source(s), 2 parsed; 3 approved, 3 pending. Next: Review pending Q&A pairs."
+        calls = [{"name": "inspect_project_readiness", "result": {"summary": summary}}]
+
+        assert _authoritative_readiness_reply(calls, "There are 0 parsed sources.") == summary
+        assert _authoritative_readiness_reply([], "A normal answer.") == "A normal answer."
 
     def test_extracts_single_call(self):
         from finetune_studio.webui.routes.data_prep_chat import _extract_tool_calls

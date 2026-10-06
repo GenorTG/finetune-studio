@@ -195,7 +195,7 @@ def _run_tool(pid: str, name: str, args: dict) -> dict:
                 "Upload and parse source files."
             )
             summary = (
-                f"{parsed_sources} parsed source(s); {counts['approved']} approved, "
+                f"{len(sources)} source(s), {parsed_sources} parsed; {counts['approved']} approved, "
                 f"{counts['pending']} pending, and {counts['rejected']} rejected Q&A pair(s); "
                 f"{len(datasets)} dataset(s); {len(rags)} RAG corpus/corpora. Next: {next_step}"
             )
@@ -396,6 +396,15 @@ def _extract_tool_calls(text: str) -> list[dict]:
                 break
 
     return calls
+
+
+def _authoritative_readiness_reply(tool_calls: list[dict], reply: str) -> str:
+    """Use server-computed readiness facts instead of a model paraphrase."""
+    for tool_call in reversed(tool_calls):
+        result = tool_call.get("result") or {}
+        if tool_call.get("name") == "inspect_project_readiness" and result.get("summary"):
+            return str(result["summary"])
+    return reply
 
 
 def _strip_thinking_reply(text: str) -> str:
@@ -680,6 +689,7 @@ async def data_prep_chat(pid: str, request: Request):
             })
         # Loop continues — model sees the tool results and decides what's next.
 
+    last_reply = _authoritative_readiness_reply(all_tool_calls, last_reply)
     return {
         "ok": True,
         "reply": last_reply,

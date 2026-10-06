@@ -59,6 +59,9 @@ Page `/projects/<id>/data-prep` ("pairs"). In **Parsed sources** tick every file
 2. Utilisation 60–90 % while it writes pairs; the table rows change `PARSED → TRAINING READY` / `NEEDS REVIEW` (press **REFRESH**
    — the table is not live).
 3. Journal: no errors; each source logs a `qa_generated` event (`GET /api/projects/<id>/data-prep/ingestion-log`).
+- After helper auto-unload (wait for `GET /api/inference/status` → `loaded: false`), start another selected-source job. Pass only if
+  the helper reloads before mining (`active.loaded: true`, VRAM rises); a job that says `done` while the journal says
+  `Local model not loaded` is a failure even if coverage-fill rows were produced.
 - Pass: every source has ≥ 1 pair; helper pairs are **pending** (need review), coverage-fill pairs **approved**.
 - Quality checks (do these by reading, not by trusting counts): questions are self-contained and specific; answers are
   verbatim/faithful to the source (spot-check 10: a number or name that is not in the file is a hallucination); no pair opens
@@ -178,8 +181,8 @@ Page `/projects/<id>/chat`.
   and create source-grounded Q&A pairs when requested. Every tool call renders inline with its result. Try "What should I do next?"
   and then "Create two Q&A pairs for aurora_spec_table.csv"; new pairs must remain **pending** on the Pairs page.
   For readiness checks, compare the assistant's answer with the tool card: parsed sources, approved/pending/rejected pairs,
-  dataset count, RAG corpus count, and next step must match exactly. The helper should quote the tool's summary rather than
-  reinterpret status totals.
+  dataset count, RAG corpus count, and next step must match exactly. The server now uses the tool's authoritative summary
+  as the final reply rather than trusting the helper to recalculate counts.
   It does not yet navigate the browser or approve data, build RAG, export, train, delete, or change settings.
 
 ## 13. Clean up [`cleanup`]
