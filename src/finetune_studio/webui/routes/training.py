@@ -9,7 +9,11 @@ from pathlib import Path
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from finetune_studio.training.data import format_for_preference, load_jsonl
+from finetune_studio.training.data import (
+    format_for_preference,
+    format_for_unpaired,
+    load_jsonl,
+)
 from finetune_studio.training.engine import TrainingConfig
 from finetune_studio.training.monitor import training_events
 from finetune_studio.training.run_persistence import attach_run
@@ -264,6 +268,16 @@ _PRESET_TUNING_FIELDS: dict[str, type] = {
 }
 
 
+PREFERENCE_MODES = ("dpo", "kto")
+# LoRA preference defaults. TRL's 1e-6 is a full-fine-tune value; with a LoRA adapter the
+# policy barely moves from it (the reference is the adapter-disabled base, so zero
+# adapter movement = zero reward margin). 5e-6 is the Zephyr-7B DPO-QLoRA recipe
+# (huggingface/alignment-handbook, recipes/zephyr-7b-beta/dpo/config_qlora.yaml).
+PREFERENCE_DEFAULTS: dict[str, float | int] = {
+    "learning_rate": 5e-6, "num_epochs": 3, "warmup_steps": 0,
+}
+
+
 def _apply_preset(preset_id: str, overrides: dict | None = None) -> TrainingConfig:
     """Build a TrainingConfig from a preset, with optional field overrides."""
     p = TRAINING_PRESETS.get(preset_id)
@@ -322,6 +336,7 @@ async def status():
         "error": s.error,
         "project_id": getattr(training_engine, "current_project_id", None),
         "log_lines": list(s.log_lines[-30:]),
+        "pref_metrics": dict(s.pref_metrics),
     }
 
 @router.get("/failure")
@@ -501,6 +516,16 @@ async def start_training(request: Request):
             return JSONResponse({"error": f"{_name} must be >= 1"}, status_code=400)
     merge_on_save = config.merge_on_save
 
+    start_run_id = str(body.get("start_run_id") or "").strip()
+    if start_run_id:
+        from finetune_studio.training.start_points import (
+            StartPointError,
+            resolve_start_point,
+        )
+        try:
+            config.model_path = resolve_start_point(project_id, start_run_id)
+        except StartPointError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
     if not config.model_path:
         return JSONResponse({"error": "No model_path provided"}, status_code=400)
     config.model_path, dl_err = _resolve_model_path(
@@ -513,34 +538,64 @@ async def start_training(request: Request):
         return JSONResponse({"error": "Training dataset is empty"}, status_code=400)
     training_mode = str(body.get("training_mode") or "sft").strip().lower()
     supported_training_modes = {
-        "sft", "dpo", "tool_sft", "continued_pretraining", "reasoning_distillation",
+        "sft", "dpo", "kto", "tool_sft", "continued_pretraining", "reasoning_distillation",
     }
     if training_mode not in supported_training_modes:
         return JSONResponse({
             "error": "training_mode must be one of: " + ", ".join(sorted(supported_training_modes)),
         }, status_code=400)
-    if training_mode == "dpo":
-        # DPO's optimizer scale is much lower than the SFT preset defaults.
-        # Keep API callers safe when they omit these settings; explicit values
-        # and selected presets remain user-controlled.
+    if training_mode in PREFERENCE_MODES:
+        # LoRA preference tuning needs its own optimizer scale (see PREFERENCE_DEFAULTS);
+        # the SFT preset/form defaults would wreck the base model. Explicit values and
+        # selected presets stay user-controlled.
         if not preset_id:
-            if body.get("learning_rate") in (None, ""):
-                config.learning_rate = 1e-6
-            if body.get("num_epochs") in (None, ""):
-                config.num_epochs = 1
-            if body.get("warmup_steps") in (None, ""):
-                config.warmup_steps = 0
+            for field, value in PREFERENCE_DEFAULTS.items():
+                if body.get(field) in (None, ""):
+                    setattr(config, field, value)
         config.unsloth = False
         try:
-            format_for_preference(training_data)
-        except (TypeError, ValueError) as e:
-            return JSONResponse({
-                "error": f"Invalid preference dataset: {e}. Each row needs prompt, chosen, and rejected.",
-            }, status_code=400)
-        if len(training_data) < 2:
-            return JSONResponse({
-                "error": "DPO needs at least 2 preference pairs so one can be held out for validation.",
-            }, status_code=400)
+            beta = float(body.get("preference_beta") or config.preference_beta)
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "preference_beta must be a number"}, status_code=400)
+        if not 0 < beta <= 1:
+            return JSONResponse({"error": "preference_beta must be in (0, 1]"}, status_code=400)
+        config.preference_beta = beta
+        if training_mode == "dpo":
+            try:
+                sft_weight = float(body.get("preference_sft_weight") or 0)
+            except (TypeError, ValueError):
+                return JSONResponse({"error": "preference_sft_weight must be a number"}, status_code=400)
+            if not 0 <= sft_weight <= 10:
+                return JSONResponse({"error": "preference_sft_weight must be between 0 and 10"}, status_code=400)
+            config.preference_sft_weight = sft_weight
+        if training_mode == "dpo":
+            try:
+                format_for_preference(training_data)
+            except (TypeError, ValueError) as e:
+                return JSONResponse({
+                    "error": f"Invalid preference dataset: {e}. Each row needs prompt, chosen, and rejected.",
+                }, status_code=400)
+            if len(training_data) < 2:
+                return JSONResponse({
+                    "error": "DPO needs at least 2 preference pairs so one can be held out for validation.",
+                }, status_code=400)
+        else:
+            try:
+                unpaired = format_for_unpaired(training_data)
+            except (TypeError, ValueError) as e:
+                return JSONResponse({
+                    "error": f"Invalid KTO dataset: {e}. Each row needs prompt, completion and a true/false "
+                             "label (preference rows prompt/chosen/rejected are converted automatically).",
+                }, status_code=400)
+            if len(unpaired) < 4:
+                return JSONResponse({
+                    "error": "KTO needs at least 4 examples so a validation holdout still has both kinds.",
+                }, status_code=400)
+            if config.batch_size < 2:
+                return JSONResponse({
+                    "error": "KTO needs batch_size >= 2: its KL term is estimated from other prompts in the "
+                             "same batch (TRL: 'Actual (not effective) batch size must be > 1').",
+                }, status_code=400)
     elif training_mode == "continued_pretraining":
         from finetune_studio.training.data import format_for_continued_pretraining
         try:
@@ -600,6 +655,9 @@ async def start_training(request: Request):
             "system_prompt_mode": system_prompt_mode,
             "dataset_rows": len(training_data),
             "validation_split": 0.1,
+            "preference_beta": config.preference_beta if training_mode in PREFERENCE_MODES else None,
+            "preference_sft_weight": config.preference_sft_weight if training_mode == "dpo" else None,
+            "start_run_id": start_run_id or None,
         },
         system_prompt=system_prompt,
         system_prompt_mode=system_prompt_mode,
@@ -645,6 +703,16 @@ async def start_training(request: Request):
         db.update_run(run_id, status="error")
         return JSONResponse({"error": f"start failed: {e}"}, status_code=500)
     return {"status": "started", "steps": training_engine.state.total_steps, "run_id": run_id}
+
+@router.get("/start-points/{pid}")
+async def training_start_points(pid: str):
+    """Finished runs of a project with a merged model: valid starting points for DPO/KTO."""
+    from finetune_studio import db
+    from finetune_studio.training.start_points import list_start_points
+    if not db.get_project(pid):
+        return JSONResponse({"error": "project not found"}, status_code=404)
+    return {"start_points": list_start_points(pid)}
+
 
 @router.post("/stop")
 async def stop_training():

@@ -133,6 +133,11 @@ def generate_suite_from_training_data(
         # expects the chosen response (never the rejected response).
         preference_prompt = ex.get("prompt")
         preference_chosen = ex.get("chosen")
+        if preference_chosen is None and ex.get("label") is False and "completion" in ex:
+            # KTO unpaired row marked undesirable: a bad answer is never a quiz expectation.
+            continue
+        if preference_chosen is None and ex.get("label") is True and "completion" in ex:
+            preference_chosen = ex["completion"]
         if preference_prompt is not None and preference_chosen is not None:
             prompt_messages = _preference_messages(preference_prompt, "user")
             chosen_messages = _preference_messages(preference_chosen, "assistant")

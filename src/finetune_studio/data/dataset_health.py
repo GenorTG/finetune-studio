@@ -25,7 +25,12 @@ import re
 from pathlib import Path
 from typing import Any
 
-from finetune_studio.training.data import format_for_preference, format_for_sft
+from finetune_studio.training.data import (
+    format_for_preference,
+    format_for_sft,
+    normalize_unpaired_row,
+    preference_to_unpaired,
+)
 
 MAX_LINES_SHOWN = 5
 SMALL_DATASET = 20  # below this the 10% held-out split is a handful of rows
@@ -135,11 +140,57 @@ def _check_preference_dataset(rows: list[tuple[int, str, Any]]) -> dict[str, Any
     }
 
 
+def _check_unpaired_dataset(rows: list[tuple[int, str, Any]]) -> dict[str, Any]:
+    """Check KTO rows (unpaired, or preference rows the trainer converts) like the training route."""
+    invalid, untrainable = [], []
+    good = bad = 0
+    for line_no, _raw, item in rows:
+        if not isinstance(item, dict):
+            invalid.append(line_no)
+            continue
+        try:
+            for unpaired in preference_to_unpaired([copy.deepcopy(item)]):
+                row = normalize_unpaired_row(unpaired)
+                good, bad = good + bool(row["label"]), bad + (not row["label"])
+        except (TypeError, ValueError):
+            untrainable.append(line_no)
+    trainable = good + bad
+    holdout = trainable - int(trainable * 0.9)
+    issues = []
+    if invalid:
+        issues.append(_issue("invalid_json", "error", "Unreadable lines",
+                             "These lines are not valid JSON objects and are skipped by training.", invalid))
+    if untrainable:
+        issues.append(_issue("untrainable", "error", "Rows training will skip",
+                             "KTO rows need prompt, completion and a true/false label (or prompt, chosen "
+                             "and rejected, which are split into one good and one bad example).", untrainable))
+    if trainable and (good == 0 or bad == 0):
+        issues.append(_issue("one_label", "error", "Only one kind of example",
+                             "KTO learns from the contrast between good (true) and bad (false) answers; "
+                             "a dataset with only one label cannot train.", [], count=trainable))
+    elif trainable and max(good, bad) > 3 * min(good, bad):
+        issues.append(_issue("imbalanced", "warning", "Good and bad examples are unbalanced",
+                             f"{good} good vs {bad} bad. Training re-weights the rarer kind automatically, "
+                             "but a ratio beyond 3:1 is a weak signal.", [], count=trainable))
+    if trainable and trainable < SMALL_DATASET:
+        issues.append(_issue("small_dataset", "warning", "Very small dataset",
+                             f"Only {trainable} usable examples; the held-out split is {holdout}, too few for "
+                             "evaluation or early stopping to mean much.", [], count=trainable))
+    verdict = "errors" if any(i["severity"] == "error" for i in issues) else "warnings" if issues else "ok"
+    return {
+        "examples": len(rows), "trainable": trainable, "holdout": holdout, "verdict": verdict,
+        "issues": issues,
+        "stats": {"good_examples": good, "bad_examples": bad},
+    }
+
+
 def check_dataset(path: str | Path, training_mode: str = "sft") -> dict[str, Any]:
     """Health report for one dataset file and selected training route."""
     rows = _read_rows(Path(path))
     if training_mode == "dpo":
         return _check_preference_dataset(rows)
+    if training_mode == "kto":
+        return _check_unpaired_dataset(rows)
     invalid, untrainable, no_answer, dupes, short, long_ = [], [], [], [], [], []
     seen: dict[str, int] = {}
     answers_by_q: dict[str, dict[str, int]] = {}
