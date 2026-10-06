@@ -208,4 +208,32 @@ def build_parser() -> argparse.ArgumentParser:
     p_files_trash.add_argument("--dry-run", action="store_true",
                                 help="Show what would be purged, do not delete")
 
+    # ── dataset (build a training dataset from a project's Q&A pairs) ──
+    p_dataset = sub.add_parser("dataset", help="Build training datasets from a project")
+    dataset_sub = p_dataset.add_subparsers(dest="dataset_command")
+    p_ds_build = dataset_sub.add_parser(
+        "build", help="Coverage-fill, export and register a project's dataset (same as the WebUI export)")
+    p_ds_build.add_argument("--project", required=True, help="Project id or name")
+    p_ds_build.add_argument("--name", help="Custom dataset name (default: '<project> · <fmt> · <N> rows')")
+    p_ds_build.add_argument("--fmt", default="sharegpt", choices=["sharegpt", "alpaca", "openai"],
+                            help="Row format (default: sharegpt)")
+    p_ds_build.add_argument("--only", default="approved", choices=["approved", "pending", "rejected", "all"],
+                            help="Which pairs to export by review status (default: approved)")
+    grounding_group = p_ds_build.add_mutually_exclusive_group()
+    grounding_group.add_argument("--grounded-share", type=float, default=None, metavar="0-1",
+                                 help="Fraction of rows rewritten to carry the RAG-chat prompt + CONTEXT from "
+                                      "the pair's own source chunk (default: auto = 0.4 when the project has "
+                                      "a built RAG corpus, else off)")
+    grounding_group.add_argument("--no-rag-grounding", action="store_true",
+                                 help="Plain rows only (same as --grounded-share 0)")
+    p_ds_build.add_argument("--distractors", type=int, default=0, metavar="0-2",
+                            help="Extra other-file chunks added to each grounded row's CONTEXT (default: 0)")
+    p_ds_build.add_argument("--seed", type=int, default=42,
+                            help="Seed for which rows get grounded (default: 42)")
+    p_ds_build.add_argument("--force", action="store_true",
+                            help="Export even if some chunks have no usable Q&A (blocked by default)")
+    p_ds_build.add_argument("--out", metavar="PATH",
+                            help="Also write the JSONL here (must be inside the project's directories)")
+    p_ds_build.add_argument("--json", action="store_true", help="Print the summary as JSON")
+
     return parser

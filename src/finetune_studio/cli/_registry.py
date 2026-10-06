@@ -19,6 +19,7 @@ from finetune_studio.cli.commands.augment import cmd_augment
 from finetune_studio.cli.commands.benchmark import cmd_benchmark
 from finetune_studio.cli.commands.compare import cmd_compare
 from finetune_studio.cli.commands.convert import cmd_convert
+from finetune_studio.cli.commands.dataset import cmd_dataset
 from finetune_studio.cli.commands.files import cmd_files
 from finetune_studio.cli.commands.models import cmd_models
 from finetune_studio.cli.commands.optimize import cmd_optimize
@@ -53,6 +54,7 @@ COMMANDS = {
     "vram": cmd_vram,
     "accel": cmd_accel,
     "files": cmd_files,
+    "dataset": cmd_dataset,
 }
 
 

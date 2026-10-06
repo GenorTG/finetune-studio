@@ -812,49 +812,35 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
         return missing
     if only not in ("approved", "pending", "rejected", "all"):
         return JSONResponse({"error": f"unknown only filter: {only}"}, status_code=400)
+    from finetune_studio.data.prep.dataset_build import (
+        CoverageCheckFailed,
+        ExportBlocked,
+        coverage_gate,
+        persist_export,
+    )
     from finetune_studio.data.prep.export import build_qa_export
     from finetune_studio.data.prep.grounding import resolve_grounding
     try:
         grounding = resolve_grounding(pid, grounded_share, distractors)
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
-    # 100%-coverage gate: run the deterministic fill pass first so chunks the
-    # stochastic mining pass never converted still land as approved extractive
-    # pairs. Never export a dataset with silent coverage holes.
-    fill_summary: dict | None = None
+    # 100%-coverage gate (data.prep.dataset_build): never export a dataset with
+    # silent coverage holes.
     try:
-        from finetune_studio.data.prep.coverage_fill import fill_all_project_gaps
-        fill_summary = fill_all_project_gaps(pid)
-        if fill_summary and fill_summary.get("uncovered_chunks") and not force:
-            names = sorted({
-                str(u.get("filename") or u.get("source") or "?")
-                for u in fill_summary["uncovered_chunks"]
-            })
-            return JSONResponse(
-                {
-                    "error": (
-                        "dataset export blocked: no usable Q&A could be made from "
-                        + ", ".join(names[:5]) + (" and more" if len(names) > 5 else "")
-                        + ". Delete that file, or export anyway without it."
-                    ),
-                    "uncovered_files": names,
-                    "uncovered_chunks": fill_summary["uncovered_chunks"][:50],
-                    "uncovered_count": len(fill_summary["uncovered_chunks"]),
-                    "hint": "pass ?force=true to export anyway with those chunks missing",
-                },
-                status_code=409,
-            )
-        if fill_summary and fill_summary.get("uncovered_chunks") and force:
-            log.warning(
-                "export_qa: force=true — exporting project %s with %d uncovered chunk(s)",
-                pid, len(fill_summary["uncovered_chunks"]),
-            )
-    except Exception as exc:
-        log.exception("coverage fill failed — export blocked")
+        coverage_gate(pid, force=force)
+    except ExportBlocked as blocked:
         return JSONResponse(
-            {"error": f"dataset export blocked: coverage verification failed: {exc}"},
-            status_code=500,
+            {
+                "error": str(blocked),
+                "uncovered_files": blocked.files,
+                "uncovered_chunks": blocked.uncovered_chunks[:50],
+                "uncovered_count": len(blocked.uncovered_chunks),
+                "hint": "pass ?force=true to export anyway with those chunks missing",
+            },
+            status_code=409,
         )
+    except CoverageCheckFailed as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
     try:
         result = build_qa_export(pid, fmt, only, grounding=grounding)
     except ValueError as e:
@@ -864,42 +850,7 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
     # The export lives in a stream buffer; persist it to the project's datasets
     # dir so it's selectable from the Training tab and referenceable forever.
     try:
-        from finetune_studio.db.datasets import (
-            count_qa_pairs,
-            create_dataset,
-            datasets_dir,
-            get_dataset_by_path,
-            update_dataset,
-        )
-        ds_dir = datasets_dir(pid)
-        fname = f"{pid}-{fmt}-{only}.jsonl"
-        target = ds_dir / fname
-        target.write_text(body, encoding="utf-8")
-        # Readable registry name (Genor 2026-09-20): project · format · rows —
-        # never a bare pid hash.
-        from finetune_studio import db as _db
-        _proj = _db.get_project(pid) or {}
-        _rows = count_qa_pairs(str(target))
-        _disp = f"{_proj.get('name') or pid} · {fmt} · {_rows} rows"
-        if n_grounded:
-            _disp += f" ({n_grounded} with retrieved context)"
-        existing = get_dataset_by_path(pid, str(target))
-        if not existing:
-            create_dataset(
-                project_id=pid,
-                name=_disp,
-                data_path=str(target),
-                source="data-prep-export",
-                qa_count=_rows,
-                size_bytes=target.stat().st_size,
-            )
-        else:
-            update_dataset(
-                existing["id"],
-                name=_disp,
-                qa_count=_rows,
-                size_bytes=target.stat().st_size,
-            )
+        persist_export(pid, fmt, only, body, n_grounded)
     except Exception:
         # Don't fail the export if the registry step fails — payload still ships.
         log.exception("dataset registry failed")
