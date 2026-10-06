@@ -28,7 +28,7 @@
     </span>
     <span class="pill outline mono">{{ project.id[:8] }}</span>
     <a class="btn sm" href="/projects/{{ pid }}/settings" data-link>Settings</a>
-    <button class="btn sm danger" data-confirm="Delete this project and ALL its RAGs and Runs?" data-action="/api/projects/{{ project.id }}" data-method="DELETE" data-reload="true">Delete</button>
+    <button class="btn sm danger" data-confirm="Delete this project and ALL its RAGs and Runs?" data-action="/api/projects/{{ project.id }}" data-method="DELETE" data-redirect="/projects">Delete</button>
   </div>
 </div>
 

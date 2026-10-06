@@ -111,19 +111,46 @@ Page `/projects/<id>/training`: **Base model** = Qwen3-0.6B; **From this project
 - Failure signs: OOM → the page must show "Out of GPU memory" with the knobs to change (batch, max sequence), VRAM must return to
   baseline and the service must stay up.
 
-## 9–12. Test, benchmark, export, chat, agent  [`test`, `bench`, `gguf`, `chat`, `agent`]
+## 9. Test the trained model [`test`]
 
-(Documented here as they are verified by the script; see the phase docstrings.)
+Page `/projects/<id>/testing`. **Model** = *auto (latest merged)*; **Test suite** = `auto · <project>-sharegpt-approved (N cases)`
+(generated automatically at the end of training — if it is missing the run failed to record it; `POST
+/api/training/runs/<run>/auto-suites/generate` makes one) → **RUN**.
+- Wait ≈ 40–90 s for 61 cases (the model is auto-loaded first; the status line counts seconds). The Results card shows
+  `total / judged / passed / failed / pass_rate` and, when the dataset has retrieved-context rows, a second line:
+  **from memory (no context): a/b** and **answering from retrieved context: c/d**.
+- Read it correctly: plain rows are *recall of training facts*; grounded rows are asked with their own context. Neither is
+  generalisation. The honest generalisation number is **RUN HELD-OUT EVAL** (the seed-42 10 % slice the trainer never saw;
+  last run 3/7 = 42.9 %).
+- Check a few rows by hand (the heuristic judge is not truth): expected vs model answer, and watch for training-data bugs showing
+  up as "expected" (e.g. an answer cut at `Dr.`).
+- Also try **RUN WITH RAG** (retrieval then answer) and the **Full training set** eval kind.
 
-9. **Testing** `/projects/<id>/testing`: model *auto (latest merged)* + the auto-generated suite → **RUN**. Read the result
-   split: plain rows are asked from memory; *grounded rows are asked with their own context* — never read the plain-row number as
-   generalisation (it is recall of training facts). Held-out rows (seed-42 split) are the honest generalisation signal.
-10. **Benchmarks** `/projects/<id>/benchmarks`: run an industry suite on base vs tuned and compare (regression check).
-11. **Export** `/projects/<id>/export`: tick *gguf* + a quant. Prefer `q6_k`/`q4_k_m` for small models (see AGENTS.md Gotchas on
-    Q8_0). Wait for the file; load it in **Chat**.
-12. **Chat** `/projects/<id>/chat`: *test* mode — ask each ground-truth question without RAG (recall) and with RAG (grounded);
-    *agent* mode — ask the model to operate the app (open a page, run a search) and check that the page switches and the UI
-    reflects every action immediately.
+## 10. Benchmark [`bench`]
+
+Page `/projects/<id>/benchmarks`. In the **trained run row** pick *synthetic · knowledge MCQ (offline)* → **RUN** (≈ 20 s).
+The other row is the **base model** — its official-suite runs (GSM8K/MMLU/HellaSwag, sampled 50) download datasets and are slow;
+do those deliberately, not by accident. Scores appear under *Recent scores*; *Compare two runs* shows tuned vs base.
+Offline suites are smoke checks, **not** comparable with published numbers (the page says so).
+
+## 11. Export a GGUF [`gguf`]
+
+Page `/projects/<id>/export`: pick the finished run; GGUF + `q4_k_m` are pre-ticked (recommended); also tick `q6_k` → **EXPORT
+SELECTED**. Wait ≈ 20–40 s. Pass: two files under `output/projects/<id>/runs/<run>/gguf/`, listed under *Trained exports*, selectable
+in Chat and Testing. Prefer q6_k/q4_k_m for small models — see AGENTS.md Gotchas for the Q8_0 history (the loader now caps the
+micro-batch, but there is no reason to pick the riskiest quant for a 0.6B model).
+
+## 12. Chat and agent [`chat`; agent is manual]
+
+Page `/projects/<id>/chat`.
+- **Test mode**: model dropdown → the `Q4_K_M` export → **LOAD** (≈ 10 s; header chip shows the model, API
+  `/api/inference/status` shows `n_ctx 32768`, `layers 28/28`). Ask each ground-truth question. The page attaches the project's RAG
+  corpus automatically ("5 source chunk(s) used as context"), so this is *grounded* answering; for pure recall use the API
+  (`chat-v2` with `enabled_rag_ids: []`) — last run 7/12 pure recall vs 11/12 with retrieval.
+- **Agent mode** (`?mode=agent`): uses the **configured helper model** (Gemma-12B), never the loaded model, and has exactly four
+  tools — `list_sources`, `read_source`, `list_qa_pairs`, `create_qa_pairs`. Every tool call renders inline with its result.
+  Try: "Create two Q&A pairs for aurora_spec_table.csv …" → the pairs appear as **pending** on the Pairs page within seconds.
+  It cannot navigate pages, approve/reject, build RAG, export or train: **the agent does not yet control the whole app.**
 
 ## 13. Clean up [`cleanup`]
 

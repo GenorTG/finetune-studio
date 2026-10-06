@@ -330,7 +330,9 @@
                 window.ftsActivity.open();
               }
             } else notify("Done", "success");
-            if (btn.dataset.reload === "true") setTimeout(() => location.reload(), 600);
+            // A deleted project's own page would 404 on reload: data-redirect leaves it instead.
+            if (btn.dataset.redirect) setTimeout(() => location.assign(btn.dataset.redirect), 600);
+            else if (btn.dataset.reload === "true") setTimeout(() => location.reload(), 600);
           })
           .catch((err) => notify(err.message || "Request failed", "error"));
       });
@@ -369,7 +371,9 @@
               }
             }
             else notify(btn.dataset.done || "Done", "success");
-            if (btn.dataset.reload === "true") setTimeout(() => location.reload(), 600);
+            // A deleted project's own page would 404 on reload: data-redirect leaves it instead.
+            if (btn.dataset.redirect) setTimeout(() => location.assign(btn.dataset.redirect), 600);
+            else if (btn.dataset.reload === "true") setTimeout(() => location.reload(), 600);
           })
           .catch((err) => notify(err.message || "Action failed", "error"));
       });

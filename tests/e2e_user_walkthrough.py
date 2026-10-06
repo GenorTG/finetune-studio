@@ -141,6 +141,7 @@ class Walk:
         self.js_errors: list[str] = []
         page.on("pageerror", lambda e: self.js_errors.append(str(e)[:200]))
         page.on("console", lambda m: self.js_errors.append("console.error: " + m.text[:160]) if m.type == "error" else None)
+        page.on("response", lambda r: log(f"HTTP {r.status} {r.request.method} {r.url[len(BASE):][:110]}") if r.status >= 400 else None)
 
     async def goto(self, path: str, settle: float = 1.2) -> None:
         log(f"open {path}")
@@ -617,6 +618,11 @@ async def phase_gguf(w: Walk) -> None:
 async def phase_chat(w: Walk) -> None:
     """Chat page: LOAD the exported GGUF, then ask every ground-truth question plain (recall) and see the answers."""
     await w.goto(f"/projects/{pid()}/chat")
+    if not await w.page.locator("#chat-inline-model").count():
+        # a model from an earlier step is still resident, so the inline loader is hidden: unload like a user would
+        log("a model is already loaded; unloading it from the header chip")
+        api("/api/models/unload", "POST")
+        await w.goto(f"/projects/{pid()}/chat")
     opts = await w.page.locator("#chat-inline-model option").all_inner_texts()
     log(f"chat model options: {opts}")
     pick = next((o for o in opts if "q4_k_m" in o.lower()), None)
