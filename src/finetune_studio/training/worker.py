@@ -51,6 +51,7 @@ def _state_payload(state: Any) -> dict[str, Any]:
         "message": state.message,
         "error": state.error,
         "log_lines": list(state.log_lines),
+        "pref_metrics": dict(state.pref_metrics),
     }
 
 
