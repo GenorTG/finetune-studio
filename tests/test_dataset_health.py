@@ -75,6 +75,21 @@ def test_small_dataset_warns_about_tiny_holdout(tmp_path: Path) -> None:
     assert issues["small_dataset"]["severity"] == "warning"
 
 
+def test_dpo_health_counts_preference_rows_and_rejects_bad_rows(tmp_path: Path) -> None:
+    rows = [
+        {"prompt": f"Question {i}?", "chosen": f"A reviewed answer for {i}.",
+         "rejected": f"A weak answer for {i}."}
+        for i in range(8)
+    ]
+    rows += [{"messages": _qa("Not a preference row?", "Wrong route.")["messages"]}]
+    report = check_dataset(_write(tmp_path, rows), training_mode="dpo")
+
+    assert report["examples"] == 9
+    assert report["trainable"] == 8
+    assert report["holdout"] == 1
+    assert _titles(report)["untrainable"]["lines"] == [9]
+
+
 def test_short_answers_flagged_and_dont_know_is_not(tmp_path: Path) -> None:
     rows = _clean(20) + [_qa(f"Short {i}?", "Yes.") for i in range(10)]
     rows += [_qa(f"Unknown {i}?", "I don't know; that is not in the documents.") for i in range(10)]
@@ -115,6 +130,25 @@ def test_health_route(client, fake_home):
     r = client.get(f"/api/projects/{pid}/datasets/{ds['id']}/health")
     assert r.status_code == 200, r.text
     assert _titles(r.json())["duplicates"]["count"] == 1
+
+
+def test_health_route_uses_selected_dpo_format(client, fake_home):
+    rows = [
+        {"prompt": f"Question {i}?", "chosen": f"A reviewed answer for {i}.",
+         "rejected": f"A weak answer for {i}."}
+        for i in range(8)
+    ]
+    pid, ds = _dataset(client, rows)
+    r = client.get(f"/api/projects/{pid}/datasets/{ds['id']}/health?training_mode=dpo")
+    assert r.status_code == 200, r.text
+    assert r.json()["trainable"] == 8
+    assert r.json()["verdict"] == "warnings"  # small set: not enough for useful held-out metrics
+
+
+def test_health_route_rejects_unknown_training_mode(client, fake_home):
+    pid, ds = _dataset(client, _clean(3))
+    r = client.get(f"/api/projects/{pid}/datasets/{ds['id']}/health?training_mode=unknown")
+    assert r.status_code == 400
 
 
 def test_health_route_scoped_to_project(client, fake_home):

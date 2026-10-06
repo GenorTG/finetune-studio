@@ -25,7 +25,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from finetune_studio.training.data import format_for_sft
+from finetune_studio.training.data import format_for_preference, format_for_sft
 
 MAX_LINES_SHOWN = 5
 SMALL_DATASET = 20  # below this the 10% held-out split is a handful of rows
@@ -66,9 +66,80 @@ def _read_rows(path: Path) -> list[tuple[int, str, Any]]:
     return rows
 
 
-def check_dataset(path: str | Path) -> dict[str, Any]:
-    """Health report for one dataset file. See module docstring."""
+def _check_preference_dataset(rows: list[tuple[int, str, Any]]) -> dict[str, Any]:
+    """Check DPO rows using the same normalizer as the training route."""
+    invalid, untrainable, no_answer, duplicates, short = [], [], [], [], []
+    seen: set[str] = set()
+    answer_words: list[int] = []
+    trainable = 0
+
+    for line_no, _raw, item in rows:
+        if not isinstance(item, dict):
+            invalid.append(line_no)
+            continue
+        try:
+            row = format_for_preference([copy.deepcopy(item)])[0]
+        except (TypeError, ValueError):
+            untrainable.append(line_no)
+            continue
+
+        trainable += 1
+        chosen = row["chosen"]
+        rejected = row["rejected"]
+        chosen_text = " ".join(str(m.get("content", "")).strip() for m in chosen if isinstance(m, dict))
+        rejected_text = " ".join(str(m.get("content", "")).strip() for m in rejected if isinstance(m, dict))
+        if not chosen_text.strip() or not rejected_text.strip():
+            no_answer.append(line_no)
+            continue
+        key = json.dumps((row["prompt"], chosen, rejected), sort_keys=True, ensure_ascii=False)
+        if key in seen:
+            duplicates.append(line_no)
+            continue
+        seen.add(key)
+        words = len(chosen_text.split())
+        answer_words.append(words)
+        if words < SHORT_ANSWER_WORDS:
+            short.append(line_no)
+
+    holdout = trainable - int(trainable * 0.9)
+    issues = []
+    if invalid:
+        issues.append(_issue("invalid_json", "error", "Unreadable lines",
+                             "These lines are not valid JSON objects and are skipped by training.", invalid))
+    if untrainable:
+        issues.append(_issue("untrainable", "error", "Rows training will skip",
+                             "DPO rows need a shared prompt plus chosen and rejected responses.", untrainable))
+    if no_answer:
+        issues.append(_issue("no_answer", "error", "Missing preference response",
+                             "Chosen and rejected responses must both contain non-empty content.", no_answer))
+    if duplicates:
+        issues.append(_issue("duplicates", "warning", "Duplicate preference pairs",
+                             "Exact repeated preference pairs are trained twice; remove repeats in the dataset editor.",
+                             duplicates))
+    if trainable and trainable < SMALL_DATASET:
+        issues.append(_issue("small_dataset", "warning", "Very small dataset",
+                             f"Only {trainable} usable preference pairs; the held-out split is {holdout}, too few for "
+                             "evaluation or early stopping to mean much.", [], count=trainable))
+    if answer_words and len(short) > len(answer_words) * 0.1:
+        issues.append(_issue("short_answers", "info", "Many preferred answers are very short",
+                             f"More than 10% of chosen responses are under {SHORT_ANSWER_WORDS} words.", short))
+    verdict = "errors" if any(i["severity"] == "error" for i in issues) else "warnings" if issues else "ok"
+    return {
+        "examples": len(rows), "trainable": trainable, "holdout": holdout, "verdict": verdict,
+        "issues": issues,
+        "stats": {
+            "avg_answer_words": round(sum(answer_words) / len(answer_words), 1) if answer_words else 0,
+            "min_answer_words": min(answer_words, default=0),
+            "max_answer_words": max(answer_words, default=0),
+        },
+    }
+
+
+def check_dataset(path: str | Path, training_mode: str = "sft") -> dict[str, Any]:
+    """Health report for one dataset file and selected training route."""
     rows = _read_rows(Path(path))
+    if training_mode == "dpo":
+        return _check_preference_dataset(rows)
     invalid, untrainable, no_answer, dupes, short, long_ = [], [], [], [], [], []
     seen: dict[str, int] = {}
     answers_by_q: dict[str, dict[str, int]] = {}

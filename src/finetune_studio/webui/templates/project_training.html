@@ -448,6 +448,7 @@
       dpoHelp.hidden = input.value !== "dpo";
       advancedHelp.hidden = !["tool_sft", "continued_pretraining", "reasoning_distillation"].includes(input.value);
       advancedHelp.textContent = advancedHelp.hidden ? "" : "Evaluation and production promotion remain a separate human-reviewed step.";
+      loadHealth(datasetIdInput?.value);
     });
   });
 
@@ -554,7 +555,9 @@
     healthEl.hidden = false;
     healthEl.textContent = "Checking dataset…";
     try {
-      const r = await fetch(healthApi(did, "health"));
+      const trainingMode = document.querySelector('input[name="training_mode"]:checked')?.value || "sft";
+      const params = new URLSearchParams({ training_mode: trainingMode });
+      const r = await fetch(`${healthApi(did, "health")}?${params}`);
       const d = await r.json();
       if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`);
       const editorHref = "/projects/{{ pid }}/data/" + encodeURIComponent(dataPathInput.value || "");

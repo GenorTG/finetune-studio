@@ -9,11 +9,11 @@ Commits, pushes, local service restarts and real-hardware tests are authorized.
 
 | Area | State |
 |---|---|
-| Git | Pushed base `9021cfb`; a follow-up fix for DPO upload conversion is tested locally, pending commit/push. |
+| Git | `13156a2` is pushed; current DPO dataset-health fix is tested locally, pending commit/push. |
 | CI | `9021cfb`: all checks green (5 test shards, ruff/codemap, Ubuntu/macOS plan smoke, Pages). Main remains unprotected; `ci-ok` is not required by a branch rule. |
-| Service | genorbox1 :7860 active on `9021cfb`; selected compute is RTX 3090. GTX 1070 remains a foreign workload; browser rendering may use it, do not load models there. |
-| Verification | Route/data focused 43 passed; follow-up converter + DPO tests 28 passed; repo Ruff, uv pip, install verify, CUDA CLI build, and diff checks passed. |
-| E2E | Created throwaway project `e2e-dpo-route-1006` (id `9c1759cd`). Browser exposed upload conversion rejecting valid prompt/chosen/rejected JSONL (HTTP 400); converter fix plus tests now pass. Retest UI upload/run after new commit reaches the service, then delete project. |
+| Service | genorbox1 :7860 active on `13156a2`; HTTP 200; selected compute is RTX 3090. GTX 1070 remains a foreign workload; browser rendering may use it, do not load models there. |
+| Verification | 44 focused dataset/preference tests passed; repo Ruff and `git diff --check` pass. Earlier install verification/CUDA CLI build remain clean. |
+| E2E | Disposable project `e2e-dpo-route-1006` (`9c1759cd`). Browser upload of valid DPO JSONL now returns HTTP 200 and registers 16 rows. Found and fixed the SFT-only health check falsely reporting DPO rows as untrainable. Needs live UI retest after next push/restart, then clean up. |
 
 ## Completed foundations
 
@@ -24,11 +24,11 @@ Commits, pushes, local service restarts and real-hardware tests are authorized.
 
 ## Next steps
 
-1. Commit/push the tested DPO upload converter fix and verify all Actions.
-2. Restart local :7860 on that SHA. In the existing throwaway project, upload `/home/genorbox1/.openclaw/media/inbound/fts-dpo-route-smoke.jsonl`, then start a short one-epoch DPO smoke with visible progress; confirm final run status and cleanup.
-3. Verify Chat model discovery/load and agent guide/readiness via the real browser; check console/network and GPU/journal.
-4. Update handoff with live results; delete only the throwaway project and temporary fixture.
-5. Diagnose why the prior official GSM8K UI run appeared stuck. Its 1,319 cases need bounded sampling/progress; synthetic smoke is not an official score.
+1. Commit/push the tested DPO health fix and verify all Actions.
+2. Restart local :7860 on that SHA; check DPO health shows 16/16 trainable, then run a short one-epoch DPO smoke through the browser and confirm final status.
+3. Verify Chat model discovery and agent guide/readiness with browser-visible feedback; inspect console/network and GPU/journal.
+4. Delete the throwaway project and temporary upload fixture; update this handoff with live results.
+5. Diagnose why the official GSM8K UI run appeared stuck; bound sampling/progress before running all 1,319 cases. Synthetic smoke is not an official score.
 
 ## Commands
 
