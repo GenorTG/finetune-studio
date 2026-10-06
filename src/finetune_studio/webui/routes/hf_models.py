@@ -11,6 +11,7 @@ reports that mangled directory name as ``repo_id``.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
@@ -418,6 +419,11 @@ async def hf_delete_local(repo_id: str):
     if not target.exists():
         return JSONResponse({"error": "not found"}, status_code=404)
     shutil.rmtree(target)
+    # The registry still lists the deleted model (and every model picker offers it) until a rescan.
+    try:
+        await asyncio.to_thread(_refresh_model_registry)
+    except Exception:  # the delete already succeeded; a rescan failure must not undo that
+        log.warning("model registry rescan after HF model delete failed", exc_info=True)
     return {"ok": True, "deleted": repo_id}
 
 
