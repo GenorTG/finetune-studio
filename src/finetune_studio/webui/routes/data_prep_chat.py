@@ -400,10 +400,11 @@ def _extract_tool_calls(text: str) -> list[dict]:
 
 def _authoritative_readiness_reply(tool_calls: list[dict], reply: str) -> str:
     """Use server-computed readiness facts instead of a model paraphrase."""
-    for tool_call in reversed(tool_calls):
-        result = tool_call.get("result") or {}
-        if tool_call.get("name") == "inspect_project_readiness" and result.get("summary"):
-            return str(result["summary"])
+    if not tool_calls or tool_calls[-1].get("name") != "inspect_project_readiness":
+        return reply
+    result = tool_calls[-1].get("result") or {}
+    if result.get("summary"):
+        return str(result["summary"])
     return reply
 
 

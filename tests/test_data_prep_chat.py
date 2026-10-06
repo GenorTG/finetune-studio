@@ -182,6 +182,10 @@ class TestToolCallParser:
 
         assert _authoritative_readiness_reply(calls, "There are 0 parsed sources.") == summary
         assert _authoritative_readiness_reply([], "A normal answer.") == "A normal answer."
+        assert _authoritative_readiness_reply(
+            calls + [{"name": "read_source", "result": {"text": "details"}}],
+            "A combined answer.",
+        ) == "A combined answer."
 
     def test_extracts_single_call(self):
         from finetune_studio.webui.routes.data_prep_chat import _extract_tool_calls
