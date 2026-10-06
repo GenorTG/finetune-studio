@@ -2,45 +2,45 @@
 
 ## Mission
 
-Local fine-tune, data-prep, and RAG WebUI. GPU first on every vendor (NVIDIA/AMD/Intel/Apple), CPU only on GPU-less hosts, never a silent CPU fallback (Genor 2026-10-05). The accelerator overhaul, grounded-rows feature and RAG cache are done and proven live on the RTX 3090.
+Local fine-tune, data-prep and RAG WebUI. GPU-first across vendors; CPU only on GPU-less hosts, never a silent fallback.
 
-## State (verified 2026-10-05)
+## State (verified 2026-10-06)
 
 | Area | State |
 |---|---|
-| Git | `main` pushed up to `6dafd77`; the accel-defect fixes (`60df70b`…`a189424`), RAG cache/API nits (`f25dc43`…`df15261`), `fac9494`, `5cdaff4` and the vram-test fix are committed on top — see Next steps for the push. |
-| Service | genorbox1 :7860, user unit, `FTS_ROOT=~/.finetune-studio`, RTX 3090 only (`gpu-mask.conf` sets `FTS_GPU_EXCLUDE=GTX 1070`). DB 0 projects. |
-| Accelerator | `fts accel`: cuda:0 RTX 3090, CUDA 13.0, torch 2.14.1+cu130, llama.cpp 0.3.36 with CUDA offload. Selection lives only in `scripts/accel_plan.py`. |
-| E2E proof | `.tmp/e2e-final/REPORT.md` (12/12 PASS, live :7860): helper mining on 3090, grounded dataset, Qwen3-0.6B 180 steps loss 0.03, merge + GGUF, trained-run benchmark, RAG chat 4/5, encrypted RAG round trip, dark+light visual probe, honest CUDA OOM, CPU path + degraded banner. |
-| Wheel check | `.tmp/accel-verify/REPORT.md`: per-vendor torch/bnb/llama wheels confirmed to exist; defects D1–D12 found and fixed with regression tests (Pascal/cu13 wheel, nvcc vs Blackwell, gfx12 fallbacks, `acc.index` memory ops, bf16 on Pascal, numeric policy tokens, `oom` word match, macOS<14, `--plan` JSON). |
-| Tests | Full suite on this tree, 5 foreground chunks: 1773 passed, 1 skipped, 0 failed (`tests/test_vram.py` excluded). `ruff check src/ scripts/` and `make codemap-check` clean. |
+| Git | Local `main` is 9 commits ahead of `origin/main` (`e8844e1`); current worktree also has an olefile dependency fix and a new CI workflow pending commit. Nothing from this batch is pushed. |
+| Service | genorbox1 :7860 is active; `/` and `/docs` return 200. Latest deployment remains the prior pushed revision. RTX 3090 only; GTX 1070 is excluded by the service drop-in. |
+| App proof | `.tmp/e2e-final/REPORT.md`: prior live 3090 end-to-end run passed 12/12 workflow items (upload through train/merge/export, RAG, CPU path, OOM and visual checks). |
+| Recent work | Coverage-fill now requires scoped, specific questions; repo test-data leakage fixed; training failure panel/OOM hint and wizard epochs control added; Windows toolchain hints fixed; chosen-GPU-index training/merge/inference verified. |
+| Verification | Full suite on the earlier tree: 1773 passed, 1 skipped. Lane-C focused run: 245 passed. Current parser regression: 3 passed; Ruff and `git diff --check` clean. A later isolated shard run had a failure because its CPU install lacked `olefile`; parser extra now declares it. That run used overlapping shard copies and is not a clean aggregate result. |
+| GitHub | Latest pushed revision `e8844e1`: Pages build/deploy checks succeeded. Historical failed run `37373751446` had successful build+deploy; only its status-report job was cancelled. No CI workflow has run on GitHub yet. |
 
 ## In flight
 
-- Nothing running.
+- Local CI workflow and sharder are staged as pending work; GitHub CI result requires a push.
+- Isolated CI clone shard processes may still be finishing; inspect `.tmp/lane-c/ev/ci-shard-*.log` before reusing their results.
 
 ## Next steps
 
-1. Push (`git push origin main`), then `systemctl --user restart finetune-studio` on genorbox1 so the service runs the final code.
-2. fan-dragon (RTX 5080 = real Blackwell/cu132 test) has a stub `.git`; restoring its checkout is Genor's call, then `bash update.sh` and `bash install.sh --plan` there.
-3. Improve coverage-fill question quality ("What does the source say about “It”?" caps suite/held-out scores).
-5. Stop the suite leaking `data/projects/<id>` into the repo cwd (~250 dirs).
-6. Untested: HF `Trainer` placement when `acc.index != 0`; abetlen cu121–cu124 wheel SM lists; AMD/Intel/Apple on real hardware; grounded-vs-plain over several seeds and distractor rows.
+1. Finish diagnosing the isolated shard failure after its run exits; rerun the affected test on the repaired parser dependency.
+2. Commit the workflow and olefile manifest/test fix; run `.venv/bin/ruff check src/ scripts/ tests/test_doc_parser_olefile.py` and `make codemap-check`.
+3. Push only with Genor's OK; inspect the new GitHub Actions run and report any failures.
+4. Deploy only after approval; the active :7860 instance still runs the last pushed revision.
 
 ## Known issues
 
-- Failed runs: Training page Live status shows the full error + OOM hint (`training/failure_hint.py`, `GET /api/training/failure`); wizard has an advanced epochs field + <100-step warning; accel_plan missing-toolchain hints are OS-aware (verified live 2026-10-06, `.tmp/qa-shots/laneB-*`). No standalone gradient-checkpointing knob exists (only via Unsloth), so the hint does not offer one.
-- RAG embedder/reranker cached process-wide (`data/rag_portable/model_cache.py`, idle expiry `FTS_IDLE_TIMEOUT`=300 s, released by `unload_all_models`, training/merge/export/model load; `GET /api/inference/status` → `rag_models`).
-- `~/.finetune-studio/projects` keeps ~9 pre-existing test-debris dirs with files (not in DB).
-- No `fts` command builds datasets; grounded options are WebUI/API only.
+- AMD, Intel and Apple paths are unit/plan-tested, not proven on real hardware; multi-GPU Trainer placement was recently verified on the 3090 with the 1070 isolated.
+- One 0.6B RAG/training evaluation scored 58% on its local suite and 0/3 held-out; coverage-fill question quality has since changed and those scores need a fresh rerun. RAG chat's 4/5 result is one small single-run sample, not a benchmark.
+- Distractor-chunk behavior and repeated-seed grounding comparison remain unmeasured.
+- fan-dragon deployment is intentionally deferred.
 
 ## Commands
 
-- Full tests (≤10 min per foreground call, so split): `.venv/bin/python -m pytest -q -p no:cacheprovider --ignore=tests/test_vram.py`
-- Lint: `.venv/bin/ruff check src/ scripts/` · Codemap: `make codemap-check`
-- GPU plan/health: `bash install.sh --plan` (stdout = JSON), `.venv/bin/fts accel`
-- Visual probe: `node ~/.openclaw/workspace/.tmp/qa-sweep/e2e-visual.cjs <pid> <out.jsonl>`
+- Tests: `.venv/bin/python -m pytest -q -p no:cacheprovider --ignore=tests/test_vram.py`
+- Lint: `.venv/bin/ruff check src/ scripts/`
+- Codemap: `make codemap-check`
+- GPU: `.venv/bin/fts accel`; plan: `bash install.sh --plan`
 
 ## Blockers
 
-- fan-dragon deploy waits on Genor (invalid checkout there).
+- Push/deploy awaits Genor's OK.

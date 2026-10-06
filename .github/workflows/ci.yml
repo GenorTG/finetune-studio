@@ -1,0 +1,80 @@
+name: CI
+
+# Lint + codemap on one runner, the test suite split over 5 CPU-only shards. No GPU job: GPU paths are
+# proven on real hardware (see HANDOFF.md); tests/test_vram.py (real model on a GPU) and the standalone
+# playwright scripts are excluded in scripts/ci_shard.py with their reasons.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # A hosted runner has no GPU; say so explicitly so a stray driver/env can never change what the tests probe.
+  FTS_DEVICE: cpu
+  CUDA_VISIBLE_DEVICES: ""
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  lint:
+    name: ruff + codemap
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      # No torch needed: ruff and the stdlib-only codemap generator. Pinned so a new ruff release
+      # cannot turn main red on its own; bump together with a local `ruff check src/ scripts/` run.
+      - name: Tooling venv
+        run: |
+          uv venv .venv --python 3.12
+          uv pip install --python .venv/bin/python "ruff==0.16.10"
+      - name: Ruff
+        run: .venv/bin/ruff check src/ scripts/
+      # docs/CODEMAP.md is a gitignored dev doc, so here this proves the generator runs over every module.
+      - name: Codemap
+        run: make codemap-check
+
+  test:
+    name: tests (shard ${{ matrix.shard }} of 5)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      # Exactly what a user without a GPU runs: install.sh asks scripts/accel_plan.py for the CPU torch
+      # wheel, creates .venv, writes .venv/torch-constraints.txt and installs `-e .[parsers]`.
+      # llama-cpp-python / the llama.cpp CLI are skipped (source builds); tests that need them fake or skip.
+      - name: Install (install.sh --cpu)
+        run: bash install.sh --cpu --no-gguf --no-llama-cpp
+      # Dev extras resolve under the same torch pin install.sh wrote, so torch cannot drift.
+      - name: Dev extras
+        run: uv pip install --python .venv/bin/python -c .venv/torch-constraints.txt -e '.[dev]'
+      - name: Show accelerator
+        run: .venv/bin/fts accel || true
+      - name: Pytest shard ${{ matrix.shard }}
+        run: |
+          mapfile -t files < <(python3 scripts/ci_shard.py "${{ matrix.shard }}" 5)
+          .venv/bin/python -m pytest -q -ra -p no:cacheprovider --durations=10 "${files[@]}"

@@ -5,8 +5,8 @@ Usage:
     python scripts/ci_shard.py INDEX COUNT        # one path per line
     pytest -q $(python scripts/ci_shard.py 0 5)
 
-Excluded on purpose (see EXCLUDED): ``tests/test_vram.py`` needs a physical GPU and
-a downloaded model. Stdlib only, so it runs before the venv exists.
+Excluded on purpose (see EXCLUDED), each with a reason a CPU-only runner cannot meet.
+Stdlib only, so it runs before the venv exists.
 """
 
 from __future__ import annotations
@@ -15,7 +15,15 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXCLUDED = frozenset({"tests/test_vram.py"})
+EXCLUDED = frozenset({
+    "tests/test_vram.py",              # profiles a real model on a physical GPU
+    # Standalone playwright scripts against http://fan-dragon:7860 (zero pytest tests, `__main__` only);
+    # collecting them just fails on `import playwright`, which is not a project dependency.
+    "tests/test_breakpoints.py",
+    "tests/test_breakpoints_visual.py",
+    "tests/test_phase_bd.py",
+    "tests/test_phase_bd_api.py",
+})
 
 
 def all_test_files(root: Path = ROOT) -> list[str]:

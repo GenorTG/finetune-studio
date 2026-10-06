@@ -45,6 +45,7 @@ Both run the `finetune-studio` systemd **user** unit on :7860.
 
 ## Gotchas
 <!-- One line each. Full context + history: docs/GOTCHAS.md — append there too. -->
+- Legacy `.doc` fallback calls `olefile`; keep it in the `parsers` extra, not only in dev/test environments (`tests/test_doc_parser_olefile.py`).
 - Dev docs are local-only: `docs/{ARCHITECTURE,CODEMAP,DEVELOPER,GOTCHAS,PRODUCT-BRIEF,README,REFACTOR-SPEC,WORKPLAN}.md` + `docs/{modules,audit,archive,judging}/` are gitignored — never `git add -f`, never link from README/Pages/INSTALL/DEPLOYMENT/TUTORIAL (`tests/test_repo_hygiene.py`).
 - Never commit runtime data/corpora (`data/`, `datasets/`, `models/`, `media/`, `.venv`) — copy to fan-dragon by rsync; `.gitignore` re-includes need the three-step form (`data/benchmarks/default.json`).
 - Install only via `install.sh`/`update.sh` (uv venv has no pip module; never `python -m pip`); every resolve passes `-c .venv/torch-constraints.txt` or torch silently drifts to another CUDA build.

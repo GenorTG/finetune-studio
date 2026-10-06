@@ -7,7 +7,14 @@ no CLI tool is installed (production box has none).
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
+
+
+def test_olefile_is_declared_in_parser_extra() -> None:
+    project = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text())
+    parser_dependencies = project["project"]["optional-dependencies"]["parsers"]
+    assert any(dependency.lower().startswith("olefile") for dependency in parser_dependencies)
 
 
 def _make_fake_ole_doc(path: Path, text: str) -> None:
