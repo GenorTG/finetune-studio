@@ -73,16 +73,19 @@ def temp_db(monkeypatch):
     every test in the suite, so a stub would strip ``data_dir``, ``rag``,
     ``model_dirs``… from any application code a test exercises.
     """
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-        db_path = f.name
+    # A private dir per test: ``<db dir>/projects/<pid>/datasets`` is derived from
+    # the DB's parent, so a shared /tmp would collect every test's dataset dirs.
+    db_dir = Path(tempfile.mkdtemp(prefix="fts-test-db-"))
+    db_path = str(db_dir / "finetune_studio.db")
 
     # Patch settings.db_path before importing db modules
     import dataclasses
 
     import finetune_studio.config as cfg
 
+    original_settings = cfg.settings
     fake = dataclasses.replace(
-        cfg.settings, db_path=db_path, host="127.0.0.1", port=7860
+        original_settings, db_path=db_path, host="127.0.0.1", port=7860
     )
     monkeypatch.setattr(cfg, "settings", fake)
 
@@ -93,6 +96,16 @@ def temp_db(monkeypatch):
     # isolated and never pollutes ``data/finetune_studio.db``.
     import finetune_studio.db.connection as _conn
     monkeypatch.setattr(_conn, "settings", fake)
+
+    # ``db.datasets`` (and every other module that did ``from config import
+    # settings``) still holds the ORIGINAL singleton, and ``datasets_dir`` /
+    # ``paths.project_roots`` derive ``<db dir>/projects/<pid>/datasets`` from
+    # its ``db_path``: every dataset-touching test left a ``data/projects/<id>``
+    # dir in the repo cwd (~250 of them). Point the singleton's db_path at the
+    # temp dir IN PLACE (monkeypatch restores it) — tests that patch that same
+    # singleton later (``monkeypatch.setattr(settings, "db_path", ...)``) still
+    # override it exactly as before.
+    monkeypatch.setattr(original_settings, "db_path", db_path)
 
     # Initialise schema with the real init_db
     _conn.init_db()
@@ -132,10 +145,7 @@ def temp_db(monkeypatch):
 
     yield db_path
     shutil.rmtree(fts_root, ignore_errors=True)
-    try:
-        os.unlink(db_path)
-    except OSError:
-        pass
+    shutil.rmtree(db_dir, ignore_errors=True)
     try:
         os.unlink(models_db_path)
     except OSError:
