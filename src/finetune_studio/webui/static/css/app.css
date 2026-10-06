@@ -352,7 +352,7 @@ body::before {
   box-shadow: 0 0 12px var(--accent-glow);
 }
 .btn.primary:hover { background: var(--accent-2); border-color: var(--accent-2); color: var(--on-accent); }
-.btn.danger  { background: rgba(255,58,58,0.12); border-color: var(--err); color: var(--err); }
+.btn.danger  { background: rgba(255,58,58,0.12); border-color: var(--err); color: var(--err-text, #ff6a6a); }
 .btn.success { background: rgba(0,255,102,0.12); border-color: var(--accent); color: var(--accent); }
 .btn.ghost   { background: transparent; border-color: var(--border); color: var(--text-muted); }
 .btn.ghost:hover { color: var(--accent); }
@@ -4104,7 +4104,7 @@ body::before {
   background: color-mix(in srgb, var(--ok) 12%, transparent);
 }
 .verdict-badge.verdict-partial {
-  color: var(--warn);
+  color: var(--warn-text, var(--warn));
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 12%, transparent);
 }
