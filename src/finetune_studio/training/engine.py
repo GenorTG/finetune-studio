@@ -857,16 +857,7 @@ class TrainingEngine:
             self._export_gguf_after_train(model, tokenizer)
         if cfg.export_imatrix:
             self._do_export_imatrix(cfg.output_dir)
-        try:
-            self._auto_generate_suite()
-        except Exception as e:
-            log.exception("Auto-suite failed (non-fatal)")
-            if not (self.state.message or "").startswith("Training complete —"):
-                self.state.message = (
-                    f"Training complete — auto-suite failed: {_format_exc(e)}"
-                )
-                self.state.error = self.state.message
-                self._notify()
+        self._auto_suite_non_fatal()
         # Optional: Abliteration (de-censor)
         if getattr(cfg, 'abliterate', False):
             self._do_abliteration()
@@ -957,10 +948,26 @@ class TrainingEngine:
             self._maybe_merge(model, tokenizer, cfg.output_dir)
         if cfg.export_gguf:
             self._export_gguf_after_train(model, tokenizer)
+        # The quiz used to be generated only by the Unsloth path, which FTS_UNSLOTH=auto skips on current
+        # torch: every default run finished without a project quiz and the Testing page had nothing to run.
+        self._auto_suite_non_fatal()
         self.state.status = "done"
         if not (self.state.message or "").startswith("Training complete —"):
             self.state.message = self._completion_message()
         self._notify()
+
+    def _auto_suite_non_fatal(self) -> None:
+        """Generate the project quiz after a run; a failure is reported on the run but never fails the training."""
+        try:
+            self._auto_generate_suite()
+        except Exception as e:
+            log.exception("Auto-suite failed (non-fatal)")
+            if not (self.state.message or "").startswith("Training complete —"):
+                self.state.message = (
+                    f"Training complete — auto-suite failed: {_format_exc(e)}"
+                )
+                self.state.error = self.state.message
+                self._notify()
 
     def _do_merge(self, model, tokenizer, output_dir: str) -> dict:
         """Merge the PEFT adapter onto a 16-bit base and save to ``merged/``.

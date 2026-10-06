@@ -161,12 +161,31 @@ def fill_sources_gaps(pid: str, source_ids: list[str]) -> dict[str, Any]:
 _SENT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])")
 
 
+# A period after these does not end a sentence. Without this "...given by Dr. Maren Voss." was cut into
+# "...given by Dr." — an approved extractive training answer that taught the model to stop mid-name.
+_ABBREVIATIONS = frozenset({
+    "dr", "mr", "mrs", "ms", "prof", "sr", "jr", "st", "vs", "etc", "no", "fig", "inc", "ltd", "co", "cf",
+    "approx", "dept", "mt", "gen", "col", "lt", "sgt", "capt", "rev", "hon", "e.g", "i.e",
+})
+
+
+def _ends_with_abbreviation(piece: str) -> bool:
+    last = piece.rstrip().rsplit(" ", 1)[-1].rstrip(".").lower()
+    return last in _ABBREVIATIONS or (len(last) == 1 and last.isalpha() and piece.rstrip().endswith("."))   # "J. Smith"
+
+
 def split_sentences(text: str) -> list[str]:
-    """Deterministic sentence split (same convention as augment_dataset)."""
+    """Deterministic sentence split (same convention as augment_dataset), abbreviation-aware."""
     text = re.sub(r"\s+", " ", text or "").strip()
     if not text:
         return []
-    return [s.strip() for s in _SENT_RE.split(text) if len(s.strip()) >= _MIN_SENT_CHARS]
+    merged: list[str] = []
+    for piece in _SENT_RE.split(text):
+        if merged and _ends_with_abbreviation(merged[-1]):
+            merged[-1] = f"{merged[-1]} {piece}"
+        else:
+            merged.append(piece)
+    return [s.strip() for s in merged if len(s.strip()) >= _MIN_SENT_CHARS]
 
 
 def _looks_tabular(sentence: str) -> bool:
