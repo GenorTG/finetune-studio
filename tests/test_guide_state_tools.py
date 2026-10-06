@@ -156,11 +156,20 @@ def test_system_status_is_compact_and_never_raises(monkeypatch: pytest.MonkeyPat
         "finetune_studio.webui.gpu_probe.vram_devices",
         lambda: [{"index": 0, "name": "RTX 3090", "used_gb": 1.2, "total_gb": 24.0, "pct": 5.0}],
     )
+    from types import SimpleNamespace
+
+    # Other tests leave MagicMock engines on the app module; pin plain ones so the output is JSON.
+    monkeypatch.setattr("finetune_studio.webui.app.inference_engine", SimpleNamespace(
+        model=object(), model_path="/models/gemma-4-12b-it-Q4_K_M.gguf", n_ctx=32768, n_gpu_layers=48, offload={"gpu_layers": 48}))
+    monkeypatch.setattr("finetune_studio.webui.app.training_engine", SimpleNamespace(
+        state=SimpleNamespace(status="idle", current_step=0, total_steps=0)))
     out = state.system_status()
+    assert out["loaded_model"] == {"loaded": True, "name": "gemma-4-12b-it-Q4_K_M.gguf", "n_ctx": 32768,
+                                   "n_gpu_layers": 48, "offload": {"gpu_layers": 48}}
+    assert out["training"] == {"status": "idle", "step": 0, "total_steps": 0}
     assert out["gpus"] == [{"index": 0, "name": "RTX 3090", "used_gb": 1.2, "total_gb": 24.0}]
     assert {"accelerator", "ram", "helper", "disk"} <= set(out)
     assert out["disk"]["free_gb"] > 0
-    assert "loaded_model" in out and "training" in out
     json.dumps(out)
 
 
