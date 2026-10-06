@@ -336,10 +336,13 @@ def test_missing_nvcc_is_reported_and_best_backend_is_not_silent(monkeypatch, tm
 
 
 @pytest.mark.parametrize("backend,has", [("cpu", False), ("cuda", True)])
-def test_llama_cpp_python_cpu_build_is_last_resort_and_flagged_on_gpu_hosts(backend, has) -> None:
-    gpu = ap.GpuInfo("nvidia", "x", "580", "cu132", "8.6", "/usr/local/cuda", gpus=(ap.Gpu("nvidia", "x", "8.6", index=0),),
-                     cuda_max="13.0", nvcc="/usr/local/cuda/bin/nvcc", nvcc_version="13.4")
-    plan = ap.build_plan(gpu)
+def test_llama_cpp_python_cpu_build_is_last_resort_and_flagged_on_gpu_hosts(backend, has, monkeypatch, tmp_path) -> None:
+    # Hermetic hardware: the attempt list depends on which toolchain the host has, so a bare CI runner
+    # (no nvcc/cmake) would otherwise get fewer source-build attempts than a dev box.
+    spec = nvidia([R3090], "580.178.04", "13.0")
+    spec["which"] = [*spec["which"], "cmake", "git"]
+    fake_hw(monkeypatch, tmp_path, **spec)
+    plan = ap.build_plan(ap.detect())
     ran: list[list[str]] = []
     said: list[str] = []
 

@@ -313,7 +313,7 @@ class TestParsersExtraDeclared:
         parsers = extras["parsers"]
         expected = {
             "pypdf", "python-docx", "openpyxl", "xlrd",
-            "python-pptx", "beautifulsoup4", "striprtf", "Pillow",
+            "python-pptx", "beautifulsoup4", "striprtf", "Pillow", "olefile",
         }
         names = {p.split(">=")[0].split("[")[0] for p in parsers}
         assert names == expected
