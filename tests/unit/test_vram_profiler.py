@@ -15,23 +15,29 @@ class TestGPUInfo:
             assert gpu.total_vram_gb == 0
             assert gpu.supports_flash_attention is False
 
-    def test_gpu_info_detect_with_cuda(self):
-        """When CUDA is available, returns real GPU info."""
+    def test_gpu_info_detect_with_cuda(self, monkeypatch):
+        """When CUDA is available, returns real GPU info (torch faked: runs on CPU-only hosts too)."""
+        from finetune_studio import accel
+        monkeypatch.setenv("FTS_DEVICE", "auto")  # a CI/CPU run exports FTS_DEVICE=cpu, which would win
         mock_props = MagicMock()
         mock_props.name = "NVIDIA GeForce RTX 3090"
         mock_props.total_memory = 24576 * 1024 * 1024  # 24GB
         mock_props.major = 8
         mock_props.minor = 6
 
-        with patch("torch.cuda.is_available", return_value=True), \
-             patch("torch.cuda.get_device_properties", return_value=mock_props), \
-             patch("torch.cuda.mem_get_info", return_value=(22 * 1024**3, 2 * 1024**3)):
-            from finetune_studio.training.vram import detect
-            gpu = detect()
-            assert gpu.name == "NVIDIA GeForce RTX 3090"
-            assert gpu.total_vram_gb > 0
-            assert gpu.supports_flash_attention is True
-            assert gpu.supports_bf16 is True
+        try:
+            with patch("torch.cuda.is_available", return_value=True), \
+                 patch("torch.cuda.device_count", return_value=1), \
+                 patch("torch.cuda.get_device_properties", return_value=mock_props), \
+                 patch("torch.cuda.mem_get_info", return_value=(22 * 1024**3, 2 * 1024**3)):
+                from finetune_studio.training.vram import detect
+                gpu = detect()
+                assert gpu.name == "NVIDIA GeForce RTX 3090"
+                assert gpu.total_vram_gb > 0
+                assert gpu.supports_flash_attention is True
+                assert gpu.supports_bf16 is True
+        finally:
+            accel.reset_cache()  # detect() refreshed the process-wide accelerator with the fake GPU
 
 
 class TestEstimateVRAM:

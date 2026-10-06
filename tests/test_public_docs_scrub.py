@@ -19,12 +19,17 @@ _PUBLIC_DOCS: tuple[Path, ...] = (
     _ROOT / "README.md",
     _ROOT / "docs" / "index.html",
     _ROOT / "docs" / "INSTALL.md",
-    _ROOT / "docs" / "ARCHITECTURE.md",
     _ROOT / "docs" / "DEPENDENCIES.md",
     _ROOT / "docs" / "DEPLOYMENT.md",
-    _ROOT / "docs" / "REFACTOR-SPEC.md",
     _ROOT / "docs" / "ATTRIBUTIONS.md",
     _ROOT / "docs" / "LEGAL.md",
+)
+
+# Gitignored dev docs (AGENTS.md Gotchas): never published, so absent on a fresh clone / CI. Still
+# scanned when present so a local edit cannot start leaking before they are shared.
+_LOCAL_ONLY_DOCS: tuple[Path, ...] = (
+    _ROOT / "docs" / "ARCHITECTURE.md",
+    _ROOT / "docs" / "REFACTOR-SPEC.md",
 )
 
 # Private infra / owner fingerprints that must not appear in public docs.
@@ -48,8 +53,11 @@ def test_public_doc_exists(path: Path) -> None:
     assert path.is_file(), f"missing public doc: {path}"
 
 
-@pytest.mark.parametrize("path", _PUBLIC_DOCS, ids=lambda p: p.relative_to(_ROOT).as_posix())
+@pytest.mark.parametrize(
+    "path", (*_PUBLIC_DOCS, *_LOCAL_ONLY_DOCS), ids=lambda p: p.relative_to(_ROOT).as_posix())
 def test_public_doc_has_no_private_infra_leaks(path: Path) -> None:
+    if path in _LOCAL_ONLY_DOCS and not path.is_file():
+        pytest.skip("gitignored dev doc, absent on a fresh clone")
     text = path.read_text(encoding="utf-8")
     hits: list[str] = []
     for pat in _FORBIDDEN:
