@@ -24,7 +24,7 @@ Local fine-tune, data-prep and RAG WebUI. GPU-first on every vendor (NVIDIA/AMD/
 1. `systemctl --user restart finetune-studio`, then `curl localhost:7860/api/system/accelerator` and `.venv/bin/fts accel` to confirm the final build runs on the 3090.
 2. Fresh live rerun of the quality numbers after the coverage-fill change (old vague questions gave suite 58 %, held-out 0/3) on a throwaway `e2e-*` project on :7860; delete it afterwards.
 3. Measure grounded rows over several seeds and with distractor chunks (n=1 so far).
-4. `fts` command for dataset build (grounded options are WebUI/API only); measure rag/chat latency end-to-end with a loaded model.
+4. Measure rag/chat latency end-to-end with a loaded model. (`fts dataset build` landed on `feat/fts-dataset-build`: merge it, then restart the service.)
 5. Optional hardening: pin more GitHub Actions to SHAs; add a GPU-free smoke of `install.sh --plan` fixtures to CI if it is not already covered by the shards.
 6. AMD/Intel/Apple stay plan/unit-tested only (no hardware here); fan-dragon (RTX 5080) deploy deferred by Genor.
 
