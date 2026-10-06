@@ -13,6 +13,9 @@ A number that is the index of a listed GPU matches that index only ("0" must not
 hit "RTX 30**9**0"); any other number ("1070") is a name fragment.
 A policy that would hide every GPU is ignored (CPU is only for GPU-less hosts);
 an explicit ``CUDA_VISIBLE_DEVICES`` / ``HIP_VISIBLE_DEVICES`` always wins.
+
+When no environment variable pins a device, the choice saved from the Settings page
+(``saved_choice``: Auto / one GPU / CPU only) is applied here, once, at process start.
 """
 from __future__ import annotations
 
@@ -22,9 +25,16 @@ import os
 import shutil
 import subprocess
 from collections.abc import Callable, Mapping, MutableMapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 
 from finetune_studio.accel.device import Accelerator
+from finetune_studio.accel.saved_choice import (
+    SavedChoice,
+    choice_path,
+    env_overrides,
+    load,
+)
 
 log = logging.getLogger(__name__)
 
@@ -119,16 +129,93 @@ def isolated_env(acc: Accelerator, environ: Mapping[str, str] | None = None) -> 
     return {var: listed[acc.index] if acc.index < len(listed) else str(acc.index)}
 
 
+@dataclass(frozen=True)
+class AppliedPolicy:
+    """What ``apply_device_policy`` did at start-up (the API reports it as the *effective* choice)."""
+    source: str                              # "env" | "saved" | "default"
+    saved: SavedChoice                       # the saved choice as read at start-up
+    env_overrides: tuple[str, ...] = ()      # explicit variables present at start-up
+    applied: dict[str, str] = field(default_factory=dict)
+    note: str = ""                           # why a saved choice could not be honoured
+
+
+_applied = AppliedPolicy("default", SavedChoice())
+
+
+def get_applied() -> AppliedPolicy:
+    """The policy this process started with (``default`` until ``apply_device_policy`` ran)."""
+    return _applied
+
+
+def find_saved_gpu(saved: SavedChoice, gpus: list[PhysicalGPU]) -> PhysicalGPU | None:
+    """The physical GPU a saved choice refers to: id first, then same name (+ same index if ambiguous)."""
+    named = [g for g in gpus if g.name == saved.name]
+    by_id = next((g for g in gpus if g.ident == saved.uuid and (not saved.name or g in named)), None)
+    if by_id:
+        return by_id
+    if len(named) == 1:
+        return named[0]
+    return next((g for g in named if g.index == saved.index), None)
+
+
+def _apply_saved(saved: SavedChoice, env: MutableMapping[str, str], nvidia: Runner,
+                 amd: Runner) -> tuple[dict[str, str], str]:
+    """Apply a non-Auto saved choice; returns (env vars set, note when it could not be honoured)."""
+    if saved.mode == "cpu":
+        # Masking is what makes it CPU-only: FTS_DEVICE=cpu steers torch, but llama.cpp offloads to
+        # any visible card when n_gpu_layers=-1.
+        applied = {"CUDA_VISIBLE_DEVICES": "", "HIP_VISIBLE_DEVICES": "", "FTS_DEVICE": "cpu"}
+        env.update(applied)
+        log.info("accel: CPU-only (saved compute-device choice)")
+        return applied, ""
+    var, lister, runner = (("CUDA_VISIBLE_DEVICES", list_nvidia, nvidia) if saved.vendor == "nvidia"
+                           else ("HIP_VISIBLE_DEVICES", list_amd, amd))
+    gpus = lister(runner)
+    gpu = find_saved_gpu(saved, gpus)
+    if gpu is None:
+        note = (f"Saved GPU {saved.name or saved.uuid} is not present on this host; "
+                "running with automatic selection.")
+        log.warning("accel: %s", note)
+        return {}, note
+    if len(gpus) > 1:
+        env[var] = gpu.ident
+        log.info("accel: %s=%s (saved choice %s; masked: %s)", var, gpu.ident, gpu.name,
+                 ", ".join(g.name for g in gpus if g is not gpu))
+        return {var: gpu.ident}, ""
+    return {}, ""  # the only card of its vendor: nothing to mask
+
+
 def apply_device_policy(
     environ: MutableMapping[str, str] | None = None,
     nvidia: Runner = _run,
     amd: Runner = _run,
+    saved_path: Path | None = None,
 ) -> dict[str, str]:
-    """Apply FTS_GPU_DEVICES / FTS_GPU_EXCLUDE; return the env vars that were set."""
+    """Apply the GPU policy; return the env vars that were set.
+
+    Order: ``FTS_GPU_DEVICES`` / ``FTS_GPU_EXCLUDE`` / an explicit ``*_VISIBLE_DEVICES`` or
+    ``FTS_DEVICE`` first (the saved choice is then ignored), else the saved compute-device choice.
+    An injected ``environ`` is hermetic: it reads a saved file only when ``saved_path`` is given.
+    """
+    global _applied
     env = os.environ if environ is None else environ
+    overrides = env_overrides(env)
+    path = saved_path or (choice_path() if environ is None else None)
+    saved = load(path) if path else SavedChoice()
     allow, deny = _tokens(env.get("FTS_GPU_DEVICES")), _tokens(env.get("FTS_GPU_EXCLUDE"))
-    if not allow and not deny:
-        return {}
+    applied: dict[str, str] = {}
+    note = ""
+    if allow or deny:
+        applied = _apply_env_policy(env, allow, deny, nvidia, amd)
+    elif not overrides and saved.mode != "auto":
+        applied, note = _apply_saved(saved, env, nvidia, amd)
+    source = "env" if overrides else ("saved" if saved.mode != "auto" else "default")
+    _applied = AppliedPolicy(source, saved, overrides, dict(applied), note)
+    return applied
+
+
+def _apply_env_policy(env: MutableMapping[str, str], allow: list[str], deny: list[str],
+                      nvidia: Runner, amd: Runner) -> dict[str, str]:
     applied: dict[str, str] = {}
     for var, lister, runner in (("CUDA_VISIBLE_DEVICES", list_nvidia, nvidia),
                                 ("HIP_VISIBLE_DEVICES", list_amd, amd)):

@@ -142,6 +142,8 @@ def temp_db(monkeypatch):
     fts_root = Path(tempfile.mkdtemp(prefix="fts-test-root-"))
     monkeypatch.setattr(_fts_paths, "_ROOT", fts_root)
     monkeypatch.setattr(_fts_paths, "_PROJECTS", fts_root / "projects")
+    # Modules that resolve FTS_ROOT per call (accel.saved_choice) must not touch the real one either.
+    monkeypatch.setenv("FTS_ROOT", str(fts_root))
 
     yield db_path
     shutil.rmtree(fts_root, ignore_errors=True)
