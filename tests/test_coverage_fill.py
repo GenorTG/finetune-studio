@@ -82,7 +82,9 @@ def test_fill_reports_uncoverable_chunk(proj: str) -> None:
     assert result.pairs_created == 0
     assert result.chunks_filled == 0
     # surfaced, not silently dropped
-    assert result.chunks_still_uncovered == [{"chunk_idx": 1, "chars": len(noise)}]
+    assert result.chunks_still_uncovered == [
+        {"chunk_idx": 1, "chars": len(noise), "reason": "no_extractable_sentence"}
+    ]
 
 
 def test_fill_only_touches_uncovered_chunks(proj: str) -> None:

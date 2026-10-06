@@ -1,0 +1,14 @@
+Meridian Sync 4.2 Release Notes
+
+New features
+- Meridian Sync now supports delta uploads, which cut transfer time for large files by up to 60 percent.
+- The new Quiet Hours setting pauses background syncing between 22:00 and 07:00.
+- Shared folders can be pinned to the offline cache from the folder menu.
+
+Fixes
+- Fixed a crash when renaming a folder that contains more than 10000 files.
+- Resolved the conflict-copy bug that duplicated documents edited on two devices.
+- It now works with SMB shares on Windows Server 2022.
+
+Known issues
+- Delta uploads are disabled for files over 8 GB.

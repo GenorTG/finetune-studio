@@ -341,9 +341,12 @@ class DataPrepRunner:
                 },
             })
         if uncovered_after_fill:
+            vague = sum(1 for u in uncovered_after_fill if u.get("reason") == "no_specific_question")
             message = (
                 f"Coverage incomplete: {len(uncovered_after_fill)} of {len(chunks)} "
-                "chunk(s) still have no approved pair. Dataset export is blocked."
+                "chunk(s) still have no approved pair"
+                + (f" ({vague} could not yield a specific question)" if vague else "")
+                + ". Dataset export is blocked."
             )
             self._emit(
                 stage="error", pct=100, chunks_done=len(chunks),

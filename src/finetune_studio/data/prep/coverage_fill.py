@@ -17,6 +17,14 @@ This module closes that hole with a second, deterministic pass:
      pair (e.g. a chunk of pure boilerplate) are surfaced as uncovered —
      never silently dropped.
 
+Questions must be self-contained and specific (`coverage_question`): a
+distinctive subject plus the section/file scope. A chunk whose sentences yield
+no such question is NOT given a vague one ("What does the source say about
+\u201cIt\u201d?"); it is reported in ``chunks_still_uncovered`` with
+``reason="no_specific_question"`` and counted in ``no_specific_question``, so
+the runner marks the source ``generated_incomplete`` and the export gate blocks
+it (``force=true`` overrides).
+
 Extractive pairs are marked ``status="approved"`` with
 ``origin="coverage_fill"`` provenance: content is quoted, not invented, so
 the triage bar the human reviewer applies to model guesses is not needed
@@ -33,13 +41,18 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from finetune_studio.data import project_filesystem as pfs
+from finetune_studio.data.prep.coverage_question import (
+    build_question,
+    proper_words,
+    scope_for,
+    split_sections,
+)
 from finetune_studio.data.prep.ingest import load_existing_chunks
 from finetune_studio.data.prep.qa_validate import (
     PairValidation,
     Provenance,
     build_qa_record,
     content_tokens,
-    normalize_question,
     token_overlap_ratio,
 )
 
@@ -57,6 +70,8 @@ class FillResult:
     chunks_filled: int = 0
     chunks_still_uncovered: list[dict[str, int]] = field(default_factory=list)
     skipped_no_content: int = 0
+    # chunks with text but no question that is self-contained and specific
+    no_specific_question: int = 0
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -64,6 +79,7 @@ class FillResult:
             "chunks_filled": self.chunks_filled,
             "chunks_still_uncovered": self.chunks_still_uncovered,
             "skipped_no_content": self.skipped_no_content,
+            "no_specific_question": self.no_specific_question,
         }
 
 
@@ -98,6 +114,7 @@ def _fill_sources(pid: str, sources: list[dict[str, Any]]) -> dict[str, Any]:
         total.pairs_created += result.pairs_created
         total.chunks_filled += result.chunks_filled
         total.skipped_no_content += result.skipped_no_content
+        total.no_specific_question += result.no_specific_question
         for unc in result.chunks_still_uncovered:
             unc["source"] = sid
             unc["filename"] = filename
@@ -152,25 +169,6 @@ def split_sentences(text: str) -> list[str]:
     return [s.strip() for s in _SENT_RE.split(text) if len(s.strip()) >= _MIN_SENT_CHARS]
 
 
-# question templates: two forms keep extractive questions readable
-# without any model call. The quoted text is always a complete clause
-# (see _subject_of) -- never a truncated fragment ending in an ellipsis.
-_TEMPLATES = (
-    "What does the source say about \u201c{subject}\u201d?",
-    "What is stated in the source regarding \u201c{subject}\u201d?",
-)
-
-_CLAUSE_SPLIT_RE = re.compile(r"(?<=[,;:])\s+|\s+[\u2014\u2013]\s+|\s+-\s+")
-_MIN_SUBJECT_WORDS = 4
-_MAX_SUBJECT_WORDS = 14
-# A clause that ends on one of these cannot stand on its own.
-_DANGLING_END = frozenset({
-    "a", "an", "the", "of", "in", "on", "at", "to", "for", "by", "with", "from",
-    "and", "or", "but", "that", "which", "who", "whose", "as", "than", "its",
-    "their", "his", "her", "is", "are", "was", "were", "be", "been", "has",
-    "have", "had", "will", "would", "can", "could", "into", "over", "under",
-})
-
 def _looks_tabular(sentence: str) -> bool:
     """True for CSV/table residue (pipes, many commas, mostly digits/symbols)."""
     if "|" in sentence or "---" in sentence:
@@ -184,58 +182,56 @@ def _looks_tabular(sentence: str) -> bool:
     return alpha / len(words) < 0.6
 
 
-def _subject_of(sentence: str) -> str:
-    """Complete leading clause of ``sentence`` for use inside a question.
+def _plan_pairs(
+    chunk_text: str,
+    *,
+    seen_questions: set[str],
+    max_pairs: int = _MAX_PER_CHUNK,
+    filename: str = "",
+) -> tuple[list[tuple[str, str]], int]:
+    """Deterministic (question, answer) pairs for one chunk + sentences dropped.
 
-    Cuts at the last clause boundary (comma/semicolon/colon/dash) that leaves
-    a self-contained lead of 4-14 words and a non-empty remainder (so the
-    answer adds information beyond the quote). Returns ``""`` when no such
-    clause exists -- callers must then skip the pair rather than quote a
-    truncated fragment.
+    Picks the densest fact-bearing sentences (most content tokens) whose
+    answer grounds itself in the chunk, then asks a *self-contained* question
+    about each (`coverage_question.build_question`: distinctive subject plus
+    section/file scope). A sentence with no such question is dropped, never
+    asked vaguely; the second return value counts those drops.
     """
-    s = re.sub(r"\s+", " ", sentence or "").strip().rstrip(".!?")
-    pieces = [p for p in _CLAUSE_SPLIT_RE.split(s) if p]
-    best = ""
-    acc: list[str] = []
-    for piece in pieces[:-1]:  # last piece is the remainder
-        acc.append(piece.strip())
-        lead = " ".join(acc).strip().rstrip(",;:").strip()
-        n = len(lead.split())
-        if n > _MAX_SUBJECT_WORDS:
+    candidates: list[tuple[float, int, str, str]] = []  # (density, order, sentence, scope)
+    order = 0
+    for heading, paragraph in split_sections(chunk_text):
+        scope = scope_for(heading, filename, chunk_text)
+        for sent in split_sentences(paragraph):
+            toks = content_tokens(sent)
+            if not toks or _looks_tabular(sent):
+                continue
+            # density = informative tokens per char; favor long factual lines
+            candidates.append((len(toks) / max(1, len(sent)), order, sent, scope))
+            order += 1
+    candidates.sort(key=lambda c: (-c[0], c[1]))
+
+    chunk_tokens = content_tokens(chunk_text)
+    proper = proper_words(chunk_text)
+    out: list[tuple[str, str]] = []
+    asked = list(seen_questions)
+    dropped = 0
+    seen_answers: set[str] = set()
+    for _, _, sent, scope in candidates:
+        if len(out) >= max_pairs:
             break
-        if n >= _MIN_SUBJECT_WORDS and lead.split()[-1].lower().strip("\u201d\"') ") not in _DANGLING_END:
-            best = lead
-    return best or _subject_noun_phrase(s)
-
-
-_AUX_VERBS = frozenset({
-    "is", "are", "was", "were", "has", "have", "had", "will", "would", "can",
-    "could", "must", "may", "might", "should", "does", "do", "did",
-})
-
-
-def _subject_noun_phrase(sentence: str) -> str:
-    """Noun phrase before the first verb ("The Concord" in "The Concord pays ...").
-
-    Used when the sentence has no clause boundary to cut at. The phrase is a
-    whole subject, not a truncation. Empty when no verb is found within the
-    first few words.
-    """
-    words = sentence.split()
-    for i in range(1, min(len(words), 7)):
-        w = words[i].lower().strip(",;:\u201c\u201d\"'")
-        looks_verb = w in _AUX_VERBS or (
-            words[i][:1].islower()
-            and len(w) > 3
-            and w.endswith(("s", "ed"))
-            and w not in _DANGLING_END
-        )
-        if looks_verb:
-            phrase = " ".join(words[:i]).rstrip(",;:")
-            if phrase.split()[-1].lower() in _DANGLING_END:
-                return ""
-            return phrase
-    return ""
+        # evidence gate: answer must ground itself in the chunk verbatim-ish
+        if token_overlap_ratio(content_tokens(sent), chunk_tokens) < 0.9:
+            continue
+        q = build_question(sent, scope=scope, variant=len(out), proper=proper, avoid=asked)
+        if q is None:
+            dropped += 1
+            continue
+        if norm_ans(sent) in seen_answers:
+            continue
+        seen_answers.add(norm_ans(sent))
+        asked.append(q)
+        out.append((q, sent))
+    return out, dropped
 
 
 def _make_pairs_from_chunk(
@@ -243,44 +239,12 @@ def _make_pairs_from_chunk(
     *,
     seen_questions: set[str],
     max_pairs: int = _MAX_PER_CHUNK,
+    filename: str = "",
 ) -> list[tuple[str, str]]:
-    """Deterministic (question, answer) extractive pairs for one chunk.
-
-    Picks the densest fact-bearing sentences (most content tokens) whose
-    subject tokens actually appear in the sentence (grounding), skipping
-    questions already seen for this export batch.
-    """
-    sentences = split_sentences(chunk_text)
-    if not sentences:
-        return []
-    candidates: list[tuple[float, int, str]] = []
-    for idx, sent in enumerate(sentences):
-        toks = content_tokens(sent)
-        if not toks or _looks_tabular(sent):
-            continue
-        # density = informative tokens per char; favor long factual lines
-        candidates.append((len(toks) / max(1, len(sent)), idx, sent))
-    candidates.sort(reverse=True)
-
-    out: list[tuple[str, str]] = []
-    seen_pairs: set[tuple[str, str]] = set()
-    for _, _, sent in candidates:
-        if len(out) >= max_pairs:
-            break
-        answer = sent
-        # evidence gate: answer must ground itself in the chunk verbatim-ish
-        if token_overlap_ratio(content_tokens(answer), content_tokens(chunk_text)) < 0.9:
-            continue
-        subject = _subject_of(sent)
-        if not subject:
-            continue  # no complete clause to quote: skip rather than truncate
-        q = _TEMPLATES[len(out) % len(_TEMPLATES)].format(subject=subject.rstrip("?:,;"))
-        key = (normalize_question(q), norm_ans(answer))
-        if key[0] in seen_questions or key in seen_pairs:
-            continue
-        seen_pairs.add(key)
-        out.append((q, answer))
-    return out
+    """Pairs only; see `_plan_pairs` for selection rules and the drop contract."""
+    return _plan_pairs(
+        chunk_text, seen_questions=seen_questions, max_pairs=max_pairs, filename=filename
+    )[0]
 
 
 def norm_ans(a: str) -> str:
@@ -330,12 +294,20 @@ def fill_coverage_gaps(
                 {"chunk_idx": idx, "chars": 0, "reason": "no_content"}
             )
             continue
-        made = _make_pairs_from_chunk(
+        made, dropped = _plan_pairs(
             text,
-            seen_questions={normalize_question(r.get("question", "")) for r in existing},
+            seen_questions={str(r.get("question", "")) for r in existing},
+            filename=filename,
         )
         if not made:
-            result.chunks_still_uncovered.append({"chunk_idx": idx, "chars": len(text)})
+            # A vague question would cap suite/held-out scores and hide the gap;
+            # report the chunk (export gate blocks it) instead of faking coverage.
+            reason = "no_specific_question" if dropped else "no_extractable_sentence"
+            if dropped:
+                result.no_specific_question += 1
+            result.chunks_still_uncovered.append(
+                {"chunk_idx": idx, "chars": len(text), "reason": reason}
+            )
             continue
         for q, a in made:
             qa_id = uuid.uuid4().hex[:12]
