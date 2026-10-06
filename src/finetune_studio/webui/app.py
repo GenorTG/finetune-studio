@@ -402,6 +402,10 @@ from finetune_studio.webui.routes import settings as _settings
 
 app.include_router(_settings.router)  # type: ignore[has-type]  # /api/settings
 
+from finetune_studio.webui.routes import compute_device as _compute_device
+
+app.include_router(_compute_device.router)  # /api/system/compute-device
+
 from finetune_studio.webui.routes import datasets as _datasets
 
 app.include_router(_datasets.router, prefix="/api", tags=["datasets"])  # type: ignore[has-type]  # /api/projects/{pid}/datasets/*
