@@ -1934,7 +1934,7 @@ async function dpEnsureHelperLoaded() {
   // the exact "one place has the option, the others silently ignore it"
   // gap. Passing n_ctx explicitly also persists it as the shared default
   // for every other page/auto-load of this provider (see ModelManager.load).
-  if (active && active.id === helperId && active.n_ctx === wantCtx) return;
+  if (active && active.loaded && active.id === helperId && active.n_ctx === wantCtx) return;
   prepSetStatus('Loading the built-in helper with full GPU offload, ' + wantCtx + ' ctx…', 'info');
   const r = await fetch('/api/providers/' + encodeURIComponent(helperId) + '/load', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
