@@ -1,0 +1,18 @@
+# Keeps the SHA-pinned actions in .github/workflows/ current: one weekly PR for every action bump.
+# Deliberately no `pip` ecosystem: the Python deps are resolved at install time under
+# .venv/torch-constraints.txt (scripts/accel_plan.py owns the torch/CUDA choice), and a bot bumping
+# pyproject.toml would fight that flow; ruff's pin lives in ci.yml and is bumped by hand with a local run.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Warsaw
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"

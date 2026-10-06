@@ -1,21 +1,26 @@
 name: CI
 
-# Lint + codemap on one runner, the test suite split over 5 CPU-only shards. No GPU job: GPU paths are
-# proven on real hardware (see HANDOFF.md); tests/test_vram.py (real model on a GPU) and the standalone
-# playwright scripts are excluded in scripts/ci_shard.py with their reasons.
+# Lint + codemap and an `install.sh --plan` smoke (Linux + macOS) run beside the test suite, which is split
+# over 5 CPU-only shards. `ci-ok` aggregates everything into one check so branch protection needs only that.
+# No GPU job: GPU paths are proven on real hardware (see HANDOFF.md); tests/test_vram.py (real model on a
+# GPU) and the standalone playwright scripts are excluded in scripts/ci_shard.py with their reasons.
+#
+# Every third-party action is pinned to a full commit SHA (a tag can be moved, a SHA cannot); the trailing
+# comment names the release. .github/dependabot.yml opens one weekly PR that bumps SHA and comment together.
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
+# Default for any job that forgets its own block; every job below also states what it needs.
+permissions: {}
 
 env:
   # A hosted runner has no GPU; say so explicitly so a stray driver/env can never change what the tests probe.
@@ -28,14 +33,22 @@ jobs:
     name: ruff + codemap
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - uses: astral-sh/setup-uv@v7
+      # The uv cache is keyed on pyproject.toml; the suffix keeps this torch-free job's cache apart from the
+      # test shards' (one key for both would let whichever job saves first decide what the other restores).
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
+          cache-dependency-glob: pyproject.toml
+          cache-suffix: lint
       # No torch needed: ruff and the stdlib-only codemap generator. Pinned so a new ruff release
       # cannot turn main red on its own; bump together with a local `ruff check src/ scripts/` run.
       - name: Tooling venv
@@ -48,22 +61,52 @@ jobs:
       - name: Codemap
         run: make codemap-check
 
+  # `bash install.sh --plan` against fake hardware (FTS_ACCEL_FIXTURE): NVIDIA / AMD / Intel / Apple / none,
+  # plus the --cpu and --gpu overrides. Needs no venv or torch, so it finishes in seconds and fails fast; the
+  # macOS leg runs the installer under bash 3.2, which no other job does (tests/test_accel_plan.py covers the
+  # Linux vendors inside the shards, not Apple and not bash 3.2).
+  plan-smoke:
+    name: install.sh --plan (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Plan every vendor
+        run: python3 scripts/ci_plan_smoke.py
+
   test:
     name: tests (shard ${{ matrix.shard }} of 5)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
         shard: [0, 1, 2, 3, 4]
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
+          cache-dependency-glob: pyproject.toml
+          cache-suffix: tests
       # Exactly what a user without a GPU runs: install.sh asks scripts/accel_plan.py for the CPU torch
       # wheel, creates .venv, writes .venv/torch-constraints.txt and installs `-e .[parsers]`.
       # llama-cpp-python / the llama.cpp CLI are skipped (source builds); tests that need them fake or skip.
@@ -74,7 +117,33 @@ jobs:
         run: uv pip install --python .venv/bin/python -c .venv/torch-constraints.txt -e '.[dev]'
       - name: Show accelerator
         run: .venv/bin/fts accel || true
+      # The shard's wall time goes to the job summary: scripts/ci_shard.py balances by per-file weights, and
+      # this is how to see when they have drifted (re-measure with --durations=0, update WEIGHTS there).
       - name: Pytest shard ${{ matrix.shard }}
         run: |
           mapfile -t files < <(python3 scripts/ci_shard.py "${{ matrix.shard }}" 5)
-          .venv/bin/python -m pytest -q -ra -p no:cacheprovider --durations=10 "${files[@]}"
+          start=$SECONDS
+          status=0
+          .venv/bin/python -m pytest -q -ra -p no:cacheprovider --durations=10 "${files[@]}" || status=$?
+          echo "shard ${{ matrix.shard }}: ${#files[@]} files, pytest wall time $((SECONDS - start))s" | tee -a "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+  # The single check to require in branch protection. `always()` keeps it running when a needed job failed
+  # or was cancelled (a skipped required check would otherwise count as passing), and it fails unless every
+  # needed job succeeded.
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [lint, plan-smoke, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: All required jobs succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "needed job results: $RESULTS"
+          for r in $RESULTS; do
+            [ "$r" = "success" ] || { echo "::error::a required job finished as '$r'"; exit 1; }
+          done
