@@ -59,3 +59,10 @@ def test_install_registers_once_and_survives_a_missing_llama_cpp(monkeypatch) ->
     monkeypatch.setattr(nl, "_CALLBACK", None)
     monkeypatch.setitem(sys.modules, "llama_cpp", None)         # import raises ImportError
     assert nl.install() is False
+
+
+def test_install_tolerates_an_incomplete_llama_cpp(monkeypatch) -> None:
+    """A stub/partial module (no llama_log_callback) must not break the loader that calls install()."""
+    monkeypatch.setattr(nl, "_CALLBACK", None)
+    monkeypatch.setitem(sys.modules, "llama_cpp", types.ModuleType("llama_cpp"))
+    assert nl.install() is False

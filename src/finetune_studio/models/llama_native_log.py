@@ -68,10 +68,11 @@ def install() -> bool:
         return True
     try:
         import llama_cpp
-    except Exception:   # noqa: BLE001 — a CPU-only/broken install must still let the app start
+        callback = llama_cpp.llama_log_callback(_on_native_log)
+        llama_cpp.llama_log_set(callback, ctypes.c_void_p(0))
+    except Exception:   # noqa: BLE001 — a missing, CPU-only or incomplete llama_cpp must never stop a load or the app
         return False
-    _CALLBACK = llama_cpp.llama_log_callback(_on_native_log)
-    llama_cpp.llama_log_set(_CALLBACK, ctypes.c_void_p(0))
+    _CALLBACK = callback
     return True
 
 
