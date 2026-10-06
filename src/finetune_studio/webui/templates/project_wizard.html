@@ -134,6 +134,7 @@
         <button class="btn sm" type="button" id="wiz-epochs-suggest" hidden>Use 0 epochs</button>
       </div>
       <div class="text-xs mt-2" id="wiz-steps-hint" role="status" style="color:var(--text-dim);">Leave empty to use the preset's own epoch count.</div>
+      <div class="text-xs mt-1 steps-hint-warn" id="wiz-steps-warn" role="status" hidden></div>
     </details>
     <div class="text-sm mt-2" id="wiz-train-sub">—</div>
   </div>
@@ -571,34 +572,32 @@
   }
   function wizUpdateStepsHint() {
     var hint = document.getElementById("wiz-steps-hint");
+    var warnEl = document.getElementById("wiz-steps-warn");
     var epochsEl = document.getElementById("wiz-epochs");
     var sugg = document.getElementById("wiz-epochs-suggest");
     var presetId = (document.getElementById("wiz-preset") || {}).value || "standard";
     var preset = wizPresets[presetId];
     if (!hint || !epochsEl) return;
     if (sugg) sugg.hidden = true;
+    if (warnEl) { warnEl.hidden = true; warnEl.textContent = ""; }
     if (preset) epochsEl.placeholder = String(preset.num_epochs || "preset");
     if (!preset || !wizDatasetRows) {
       hint.textContent = "Leave empty to use the preset's own epoch count" + (preset ? " (" + preset.num_epochs + ")." : ".");
-      hint.style.color = "var(--text-dim)";
       return;
     }
     var typed = Number((epochsEl.value || "").trim());
     var epochs = Number.isInteger(typed) && typed >= 1 ? typed : Number(preset.num_epochs) || 1;
     var p = wizPlannedSteps(epochs, preset);
-    var text = "About " + p.total + " optimizer steps: " + wizDatasetRows + " rows → " + p.train + " training rows ÷ effective batch " +
-      p.eff + " = " + p.perEpoch + " steps per epoch × " + epochs + " epochs" + (epochsEl.value.trim() ? "." : " (preset default).");
-    var warn = p.total < TINY_STEPS;
-    if (warn) {
-      var need = Math.ceil(GOOD_STEPS / p.perEpoch);
-      text += " Under " + TINY_STEPS + " steps is too short to memorise facts: expect the final loss to stay above ~0.5 and the quiz to score poorly. " +
-        "Use about " + need + " epochs (~" + (need * p.perEpoch) + " steps) or add more training data.";
-      if (sugg) { sugg.textContent = "Use " + need + " epochs"; sugg.dataset.epochs = String(need); sugg.hidden = false; }
-      var adv = document.getElementById("wiz-train-adv");
-      if (adv) adv.open = true;
-    }
-    hint.textContent = text;
-    hint.style.color = warn ? "var(--warn)" : "var(--text-dim)";
+    hint.textContent = "About " + p.total + " optimizer steps: " + p.train + " training rows ÷ effective batch " + p.eff +
+      " = " + p.perEpoch + " per epoch × " + epochs + " epochs" + (epochsEl.value.trim() ? "." : " (preset default).");
+    if (p.total >= TINY_STEPS || !warnEl) return;
+    var need = Math.ceil(GOOD_STEPS / p.perEpoch);
+    warnEl.textContent = "Under " + TINY_STEPS + " steps is too short to memorise facts: expect the final loss to stay above ~0.5. " +
+      "Try " + need + " epochs (~" + (need * p.perEpoch) + " steps) or add more training data.";
+    warnEl.hidden = false;
+    if (sugg) { sugg.textContent = "Use " + need + " epochs"; sugg.dataset.epochs = String(need); sugg.hidden = false; }
+    var adv = document.getElementById("wiz-train-adv");
+    if (adv) adv.open = true;
   }
   (function wireEpochs() {
     var epochsEl = document.getElementById("wiz-epochs");

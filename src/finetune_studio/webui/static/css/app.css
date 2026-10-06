@@ -4538,16 +4538,16 @@ body::before {
   padding: 10px 12px;
   border: 1px solid var(--err);
   border-left-width: 3px;
-  background: color-mix(in srgb, var(--err) 6%, var(--bg-panel));
+  background: rgba(255, 58, 58, 0.06);
   min-width: 0;
 }
-.run-failure-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; color: var(--err); }
+.run-failure-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; color: var(--err-text, var(--err)); }
 .run-failure-hint { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
 .run-failure-hint p { margin: 0 0 6px; color: var(--text); }
 .run-failure-knobs { margin: 0 0 6px; padding-left: 18px; color: var(--text); overflow-wrap: anywhere; }
 .run-failure-knobs li { margin: 2px 0; }
 .run-err { min-width: 0; }
-.run-err > summary { cursor: pointer; color: var(--err); overflow-wrap: anywhere; }
+.run-err > summary { cursor: pointer; color: var(--err-text, var(--err)); overflow-wrap: anywhere; }
 .run-err.is-short > summary { cursor: default; list-style: none; }
 .run-err > pre {
   margin: 6px 0 0;
@@ -4569,3 +4569,6 @@ body::before {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.run-failure .muted { color: var(--text-muted); }
+.steps-hint-warn { color: var(--warn-text, var(--warn)); }
