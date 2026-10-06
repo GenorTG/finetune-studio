@@ -2,44 +2,43 @@
 
 ## Mission
 
-Local fine-tune, data-prep and RAG WebUI. GPU-first; never silently fall back (Genor 2026-10-05).
+Local fine-tune, data-prep and RAG WebUI. GPU-first; never silently fall back.
 Commits, pushes, local service restarts and real-hardware tests are authorized.
 
 ## State (verified 2026-10-06)
 
 | Area | State |
 |---|---|
-| Git | Base `main`/ `origin/main` = `275ff3f`; data-route continuation is staged for commit after focused verification. |
-| CI | Current `main` is green. SHA-pinned Actions, 5 test shards, `ci-ok`, Ubuntu/macOS install-plan smoke, weekly grouped Dependabot. |
-| Service | genorbox1 :7860 active on previous commit. App targets RTX 3090; GTX 1070 is not to be disturbed. Restart after pushing the tested SHA. |
-| Verification | 43 focused tests pass; `ruff check src/ scripts/`, `uv pip check`, and `git diff --check` pass. Installer reports no issues; llama.cpp CLI now built with CUDA. |
-| E2E | The prior whole-app walkthrough completed except Chat options were read before async model discovery. Fresh browser validation on this continuation is pending. |
+| Git | Pushed base `9021cfb`; a follow-up fix for DPO upload conversion is tested locally, pending commit/push. |
+| CI | `9021cfb`: all checks green (5 test shards, ruff/codemap, Ubuntu/macOS plan smoke, Pages). Main remains unprotected; `ci-ok` is not required by a branch rule. |
+| Service | genorbox1 :7860 active on `9021cfb`; selected compute is RTX 3090. GTX 1070 remains a foreign workload; browser rendering may use it, do not load models there. |
+| Verification | Route/data focused 43 passed; follow-up converter + DPO tests 28 passed; repo Ruff, uv pip, install verify, CUDA CLI build, and diff checks passed. |
+| E2E | Created throwaway project `e2e-dpo-route-1006` (id `9c1759cd`). Browser exposed upload conversion rejecting valid prompt/chosen/rejected JSONL (HTTP 400); converter fix plus tests now pass. Retest UI upload/run after new commit reaches the service, then delete project. |
 
 ## Completed foundations
 
-- Q8_0 llama.cpp abort fixed at the native cause: `n_ubatch=256`; context is never reduced. GGUF loader autofits GPU layers and falls back to CPU-only, verified on the 3090.
-- Compute-device selection, wizard/loader/error fixes, dataset-build CLI, CI rework, grounded-row quiz, coverage-gate recovery and parser diagnostics are merged.
-- Existing walkthrough: 14 mixed formats parsed; helper surfaced 12/12 facts; 61 approved pairs; SFT trained 420 steps; quiz 59/61 (96.7%). Held-out 3/7 then 5/7 is too small to call a benchmark.
-- Current changes add DPO via TRL 1.14.1; tool-call SFT with schemas; raw-text continued pretraining; reviewed reasoning distillation; agent guide/readiness tools; industry-route and browser walkthrough guidance.
-- ORPO/KTO are explicitly unsupported by the installed TRL runtime; do not substitute DPO under those labels.
+- Q8_0 llama.cpp abort fixed with `n_ubatch=256`; context is not reduced. GGUF loader autofits GPU layers/CPU fallback, verified on the 3090.
+- Compute-device selection, wizard/loader/error fixes, dataset-build CLI, CI rework and previous full user-flow walkthrough are merged.
+- `9021cfb` adds DPO, tool-call SFT, raw-text continued pretraining, reviewed reasoning distillation, agent guide/readiness tools, and industry-route documentation.
+- ORPO/KTO are unsupported by installed TRL 1.14.1; never relabel or substitute DPO.
 
 ## Next steps
 
-1. Commit and push after the focused checks; verify GitHub Actions.
-2. Restart local :7860 on that SHA. Use the browser for a real supported-route run, Chat model discovery/load, and agent guide/readiness feedback; watch GPU0/journal.
-3. Diagnose the official GSM8K UI timeout from its API/page path; do not rerun all 1,319 cases without visible progress/cancellation. Synthetic MMLU is not an official score.
-4. Record live evidence here, clean up only the throwaway project/data, and verify the repo is clean.
+1. Commit/push the tested DPO upload converter fix and verify all Actions.
+2. Restart local :7860 on that SHA. In the existing throwaway project, upload `/home/genorbox1/.openclaw/media/inbound/fts-dpo-route-smoke.jsonl`, then start a short one-epoch DPO smoke with visible progress; confirm final run status and cleanup.
+3. Verify Chat model discovery/load and agent guide/readiness via the real browser; check console/network and GPU/journal.
+4. Update handoff with live results; delete only the throwaway project and temporary fixture.
+5. Diagnose why the prior official GSM8K UI run appeared stuck. Its 1,319 cases need bounded sampling/progress; synthetic smoke is not an official score.
 
 ## Commands
 
-- Human E2E guide: `tests/E2E_MANUAL_GUIDE.md`.
-- Walkthrough phases: `FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_user_walkthrough.py --list`.
+- Manual user walkthrough: `tests/E2E_MANUAL_GUIDE.md`.
+- Browser phases: `FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_user_walkthrough.py --list`.
 - Focused checks: `.venv/bin/python -m pytest tests/<file>.py -q -p no:cacheprovider`; lint `.venv/bin/ruff check src/ scripts/`.
 - Install: `bash install.sh --verify`; `.venv/bin/python scripts/install_diagnose.py --check --no-service-check`.
-- Full CPU suite: five chunks excluding `tests/test_vram.py` (see repo `AGENTS.md`).
 
 ## Known issues
 
-- ORPO/KTO, in-app preference comparison authoring and automatic teacher-trace generation are not implemented.
-- Official GSM8K run remains unverified; its previous UI wait expired after 300 s.
+- DPO comparison authoring, ORPO/KTO, and automatic teacher-trace generation are not implemented.
+- Official GSM8K full run is unverified; previous browser wait expired after 300 s.
 - fan-dragon deployment remains deferred.

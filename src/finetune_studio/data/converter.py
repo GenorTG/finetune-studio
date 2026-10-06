@@ -30,7 +30,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-# Shapes format_for_sft already understands; such records are left as-is.
+# Shapes supported by the SFT formatter (or the preference trainer) pass through.
 _TRAINABLE_KEYS = ("messages", "conversations", "text")
 _USER_COLS = ("question", "prompt", "instruction", "query", "user", "input")
 _ASSISTANT_COLS = ("answer", "response", "output", "completion", "assistant")
@@ -39,7 +39,11 @@ UPLOAD_SUFFIXES = (".jsonl", ".json", ".csv")
 
 
 def _is_trainable(rec: dict) -> bool:
-    return any(k in rec for k in _TRAINABLE_KEYS) or ("prompt" in rec and "completion" in rec)
+    return (
+        any(k in rec for k in _TRAINABLE_KEYS)
+        or ("prompt" in rec and "completion" in rec)
+        or {"prompt", "chosen", "rejected"}.issubset(rec)
+    )
 
 
 def _pick(row: dict[str, Any], names: tuple[str, ...]) -> str | None:

@@ -33,6 +33,11 @@ def test_jsonl_passes_through() -> None:
     assert recs == [{"messages": QA}, {"prompt": "a", "completion": "b"}]
 
 
+def test_jsonl_dpo_preferences_pass_through() -> None:
+    preference = {"prompt": "Question", "chosen": "Preferred", "rejected": "Dispreferred"}
+    assert records_from_upload((json.dumps(preference) + "\n").encode(), "dpo.jsonl") == [preference]
+
+
 def test_json_array_and_wrapped_object() -> None:
     assert records_from_upload(json.dumps([{"messages": QA}]).encode(), "d.json") == [{"messages": QA}]
     wrapped = json.dumps({"data": [{"messages": QA}, {"messages": QA}]}).encode()
@@ -106,6 +111,17 @@ def test_upload_csv_is_converted(client, fake_home):
     path = Path(ds["data_path"])
     assert path.suffix == ".jsonl" and ds["qa_count"] == 1
     assert json.loads(path.read_text().strip()) == {"messages": QA}
+
+
+def test_upload_dpo_jsonl_preserves_preference_columns(client, fake_home):
+    pid = _project(client)
+    preference = {"prompt": "Question", "chosen": "Preferred", "rejected": "Dispreferred"}
+    r = client.post(f"/api/projects/{pid}/datasets/upload",
+                    files={"file": ("preferences.jsonl", (json.dumps(preference) + "\n").encode(), "application/jsonl")})
+    assert r.status_code == 200, r.text
+    ds = r.json()
+    assert ds["qa_count"] == 1
+    assert json.loads(Path(ds["data_path"]).read_text().strip()) == preference
 
 
 def test_upload_unmappable_csv_is_400_and_writes_nothing(client, fake_home):
