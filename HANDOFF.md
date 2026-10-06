@@ -17,7 +17,7 @@ Local fine-tune, data-prep and RAG WebUI. GPU-first on every vendor (NVIDIA/AMD/
 
 ## In flight
 
-- Lane C (`agent:main:dashboard:79b10be2-b5ee-4fe2-8b80-8d17b1027599`) had not reported its final message when this was written; all its commits are in `main`. If it commits more, `git log origin/main..HEAD` shows them. Scratch left under `.tmp/` (lane-a, laneB, lane-c, ci clones) can be deleted once it ends.
+- Nothing. Lane C has reported (multi-GPU index fix resolved; its sandbox/clone/venv scratch removed; evidence in `.tmp/lane-c/ev/`, gitignored). Its note that CI shards 2/3 may download ~4.4 GB of HF models on a cold cache did not materialise: the green run on `4cfb458` finished every shard in 1.5–3 min.
 
 ## Next steps
 
