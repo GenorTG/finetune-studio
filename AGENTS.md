@@ -45,6 +45,7 @@ Both run the `finetune-studio` systemd **user** unit on :7860.
 
 ## Gotchas
 <!-- One line each. Full context + history: docs/GOTCHAS.md — append there too. -->
+- CI shards are packed by `WEIGHTS` in `scripts/ci_shard.py` (one file, `test_rag_audit`, is ~70 s): when a shard's wall time in the job summary drifts, re-measure with `--durations=0` and edit the weights; actions stay SHA-pinned (`# vX.Y.Z` comment), Dependabot bumps them.
 - Legacy `.doc` fallback calls `olefile`; keep it in the `parsers` extra, not only in dev/test environments (`tests/test_doc_parser_olefile.py`).
 - Dev docs are local-only: `docs/{ARCHITECTURE,CODEMAP,DEVELOPER,GOTCHAS,PRODUCT-BRIEF,README,REFACTOR-SPEC,WORKPLAN}.md` + `docs/{modules,audit,archive,judging}/` are gitignored — never `git add -f`, never link from README/Pages/INSTALL/DEPLOYMENT/TUTORIAL (`tests/test_repo_hygiene.py`).
 - Never commit runtime data/corpora (`data/`, `datasets/`, `models/`, `media/`, `.venv`) — copy to fan-dragon by rsync; `.gitignore` re-includes need the three-step form (`data/benchmarks/default.json`).
