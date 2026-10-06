@@ -5,10 +5,14 @@ gate → dedupe → optional grounded rows → JSONL in the project's datasets d
 registered so the Training tab sees it. Works against the local DB/project
 files; no running server needed.
 
+Also `fts dataset build-preference`: author DPO preference pairs (chosen vs rejected answers) from the
+approved pairs; loads the helper model itself when none is resident and unloads it afterwards.
+
 Examples:
   fts dataset build --project my-docs
   fts dataset build --project my-docs --grounded-share 0.5 --distractors 1 --seed 7
   fts dataset build --project my-docs --no-rag-grounding --fmt openai --out exports/plain.jsonl
+  fts dataset build-preference --project my-docs --kinds hallucination,abstain --max-pairs 60 --json
 """
 from __future__ import annotations
 
@@ -21,6 +25,7 @@ from typing import Any
 from fastapi import HTTPException
 
 from finetune_studio import db
+from finetune_studio.data.prep import preference as pref
 from finetune_studio.data.prep.dataset_build import (
     BuiltDataset,
     CoverageCheckFailed,
@@ -130,14 +135,69 @@ def _build(args: argparse.Namespace) -> None:
         _print_summary(summary)
 
 
+def _parse_kinds(raw: str) -> tuple[str, ...]:
+    kinds = tuple(k.strip() for k in raw.split(",") if k.strip())
+    bad = [k for k in kinds if k not in pref.KINDS]
+    if bad or not kinds:
+        raise DatasetBuildError(f"--kinds must be a comma-separated subset of {', '.join(pref.KINDS)}"
+                                + (f"; unknown: {', '.join(bad)}" if bad else ""))
+    return kinds
+
+
+def _print_progress(update: dict[str, Any]) -> None:
+    kept = ", ".join(f"{k} {n}" for k, n in update["kept"].items())
+    print(f"\r  {update['attempted']}/{update['planned']} candidates tried · kept {kept}   ",
+          end="", file=sys.stderr, flush=True)
+
+
+def _print_preference_summary(s: dict[str, Any]) -> None:
+    ds, ln = s["dataset"], s["length"]
+    print(f"Dataset  : {ds['name']}")
+    print(f"File     : {ds['path']}")
+    print(f"Pairs    : {s['pairs']} ({', '.join(f'{k} {n}' for k, n in s['by_kind'].items())}); "
+          f"split preview {s['split']['train']} train / {s['split']['val']} validation")
+    for kind, drops in s["dropped"].items():
+        if drops:
+            print(f"Dropped  : {kind}: " + ", ".join(f"{r} {n}" for r, n in sorted(drops.items())))
+    print(f"Length   : chosen {ln['mean_chosen_chars']} chars vs rejected {ln['mean_rejected_chars']} (ratio {ln['ratio']})")
+    if ln["warning"]:
+        print(f"Warning  : {ln['warning']}")
+
+
+def _build_preference(args: argparse.Namespace) -> None:
+    db.init_db()
+    project = resolve_project(args.project)
+    pid = str(project["id"])
+    kinds = _parse_kinds(args.kinds)
+    try:
+        with pref.helper_loaded_for_cli() as generate:
+            built = pref.build_preference_dataset(
+                pid, kinds, args.max_pairs, args.seed, generate,
+                progress=None if args.json else _print_progress)
+    except pref.NoUsablePairs as exc:
+        raise DatasetBuildError(f"{exc} Dropped: {json.dumps(exc.report.as_dict()['dropped'])}") from exc
+    except (pref.PreferenceBuildError, ValueError) as exc:
+        raise DatasetBuildError(str(exc)) from exc
+    if not args.json:
+        print(file=sys.stderr)
+    ds = built.persisted.dataset
+    summary = {"project": {"id": pid, "name": project.get("name")},
+               "dataset": {"id": ds.get("id"), "name": ds.get("name"), "path": str(built.persisted.path)},
+               **built.report.as_dict()}
+    if args.json:
+        print(json.dumps(summary, indent=2))
+    else:
+        _print_preference_summary(summary)
+
+
 def cmd_dataset(args: argparse.Namespace) -> None:
     sub = getattr(args, "dataset_command", None)
-    if sub != "build":
-        print("Usage: fts dataset build --project <name|id> [options]  (see `fts dataset build --help`)",
-              file=sys.stderr)
+    if sub not in ("build", "build-preference"):
+        print("Usage: fts dataset build|build-preference --project <name|id> [options]  "
+              "(see `fts dataset <command> --help`)", file=sys.stderr)
         sys.exit(1)
     try:
-        _build(args)
+        (_build_preference if sub == "build-preference" else _build)(args)
     except DatasetBuildError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
