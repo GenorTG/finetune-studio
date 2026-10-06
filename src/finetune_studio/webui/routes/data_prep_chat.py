@@ -113,6 +113,7 @@ SYSTEM_PROMPT = """You are the Finetune Studio guide and training-data assistant
 6. Only create rows when the user asked for generation. New pairs are pending review; never claim they were approved or used for training.
 7. Call `create_qa_pairs` with the full batch in ONE call, not one pair per call.
 8. Be terse, explain uncertainty, and never invent app behavior. The guide tool is the source of truth for supported routes.
+9. When `inspect_project_readiness` returns a `summary`, quote that summary verbatim. Do not recalculate counts or relabel statuses.
 
 # Tool-call format (CRITICAL — follow exactly)
 
@@ -186,18 +187,26 @@ def _run_tool(pid: str, name: str, args: dict) -> dict:
                       for status in ("pending", "approved", "rejected")}
             datasets = db.list_datasets(pid)
             rags = db.list_rags(pid)
+            parsed_sources = sum(1 for source in sources if source.get("status", "ready") == "ready")
+            next_step = (
+                "Review pending Q&A pairs." if counts["pending"] else
+                "Export approved Q&A pairs." if counts["approved"] and not datasets else
+                "Choose SFT or DPO on Training based on the data you have." if datasets else
+                "Upload and parse source files."
+            )
+            summary = (
+                f"{parsed_sources} parsed source(s); {counts['approved']} approved, "
+                f"{counts['pending']} pending, and {counts['rejected']} rejected Q&A pair(s); "
+                f"{len(datasets)} dataset(s); {len(rags)} RAG corpus/corpora. Next: {next_step}"
+            )
             return {
+                "summary": summary,
                 "project": {"id": pid, "name": project.get("name"), "base_model": project.get("base_model")},
-                "sources": {"count": len(sources), "parsed": sum(1 for source in sources if source.get("status", "ready") == "ready")},
+                "sources": {"count": len(sources), "parsed": parsed_sources},
                 "qa_pairs": {"total": len(pairs), **counts},
                 "datasets": [{"name": ds.get("name"), "rows": ds.get("qa_count", 0)} for ds in datasets],
                 "rag_corpora": [{"name": rag.get("name"), "chunks": rag.get("chunk_count", 0)} for rag in rags],
-                "next_step": (
-                    "Review pending Q&A pairs." if counts["pending"] else
-                    "Export approved Q&A pairs." if counts["approved"] and not datasets else
-                    "Choose SFT or DPO on Training based on the data you have." if datasets else
-                    "Upload and parse source files."
-                ),
+                "next_step": next_step,
             }
         if name == "list_sources":
             sources_dir = project_dir(pid) / "qa" / "sources"

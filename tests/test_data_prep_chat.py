@@ -11,6 +11,29 @@ from __future__ import annotations
 class TestChatTools:
     """Server-side tool implementations read/write via finetune_studio.data.fs."""
 
+    def test_readiness_includes_verbatim_count_summary(self, monkeypatch):
+        from finetune_studio import db
+        from finetune_studio.data.fs import qa as qa_fs
+        from finetune_studio.webui.routes.data_prep_chat import _run_tool
+
+        monkeypatch.setattr(db, "get_project", lambda _pid: {"name": "Example"})
+        monkeypatch.setattr(qa_fs, "list_qa_sources", lambda _pid: [{"status": "ready"}])
+        monkeypatch.setattr(qa_fs, "list_qa_pairs", lambda _pid: [
+            {"status": "approved"}, {"status": "approved"}, {"status": "approved"},
+            {"status": "pending"}, {"status": "pending"}, {"status": "pending"},
+        ])
+        monkeypatch.setattr(db, "list_datasets", lambda _pid: [{"name": "dataset", "qa_count": 6}])
+        monkeypatch.setattr(db, "list_rags", lambda _pid: [])
+
+        result = _run_tool("example", "inspect_project_readiness", {})
+
+        assert result["summary"] == (
+            "1 parsed source(s); 3 approved, 3 pending, and 0 rejected Q&A pair(s); "
+            "1 dataset(s); 0 RAG corpus/corpora. Next: Review pending Q&A pairs."
+        )
+        assert result["sources"] == {"count": 1, "parsed": 1}
+        assert result["qa_pairs"] == {"total": 6, "pending": 3, "approved": 3, "rejected": 0}
+
     def test_list_sources_empty(self, tmp_path, monkeypatch):
         monkeypatch.setenv("FTS_DB", str(tmp_path / "fts.db"))
         # Re-import the data fs paths module to pick up the new FTS_DB

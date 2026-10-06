@@ -177,6 +177,9 @@ Page `/projects/<id>/chat`.
   It can answer workflow questions from the app guide, inspect this project's readiness, list/read sources, inspect Q&A pairs,
   and create source-grounded Q&A pairs when requested. Every tool call renders inline with its result. Try "What should I do next?"
   and then "Create two Q&A pairs for aurora_spec_table.csv"; new pairs must remain **pending** on the Pairs page.
+  For readiness checks, compare the assistant's answer with the tool card: parsed sources, approved/pending/rejected pairs,
+  dataset count, RAG corpus count, and next step must match exactly. The helper should quote the tool's summary rather than
+  reinterpret status totals.
   It does not yet navigate the browser or approve data, build RAG, export, train, delete, or change settings.
 
 ## 13. Clean up [`cleanup`]
