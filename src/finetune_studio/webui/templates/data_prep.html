@@ -310,6 +310,52 @@
   <div id="dp-results" class="text-sm muted">Loading…</div>
 </div>
 
+<div class="card mb-6" id="dp-pref-card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Preference pairs (DPO)</div>
+      <div class="card-sub">An optional second training stage that teaches the model what a <em>good</em> answer looks like next to a bad one.</div>
+    </div>
+    <span class="pill outline" id="dp-pref-approved">0 approved pairs</span>
+  </div>
+  <div class="text-sm" style="margin-bottom:8px;">
+    Each preference pair is one question with two answers: the <b>chosen</b> one (your approved, source-faithful answer
+    or an honest “not covered”) and a <b>rejected</b> one (what a model writes when it guesses). Training on them
+    pushes the model away from inventing facts.
+  </div>
+  <div class="text-xs dim" style="margin-bottom:12px;">
+    <b>When to use it:</b> after the normal fine-tune (SFT) has taught the facts, to curb hallucination and teach the
+    model to say “that isn’t in the documents”. It needs approved pairs above and the helper model loaded
+    (it writes the rejected answers). Not a replacement for SFT.
+  </div>
+  <fieldset class="dp-pref-kinds" id="dp-pref-kinds">
+    <legend class="text-xs dim">Which pairs to build</legend>
+    <label class="dp-pref-kind"><input type="checkbox" id="dp-pref-kind-hallucination" value="hallucination" checked>
+      <span><b>Stick to the source</b> — chosen: the approved answer. Rejected: what the model says to the same
+      question <em>without</em> the source. Kept only when the guess is clearly less grounded.</span></label>
+    <label class="dp-pref-kind"><input type="checkbox" id="dp-pref-kind-abstain" value="abstain" checked>
+      <span><b>Admit it doesn’t know</b> — a plausible question the documents do <em>not</em> answer. Chosen: a short
+      honest refusal. Rejected: a confident made-up answer.</span></label>
+  </fieldset>
+  <div class="flex gap-2 wrap items-center" style="margin:10px 0;">
+    <label class="text-sm" for="dp-pref-max">Up to</label>
+    <input type="number" id="dp-pref-max" min="2" max="2000" value="100" style="width:5.5rem;" aria-label="Maximum number of preference pairs">
+    <span class="text-sm">pairs</span>
+    <details class="text-xs dim" style="margin-left:8px;"><summary>Advanced</summary>
+      <label for="dp-pref-seed">Seed</label>
+      <input type="number" id="dp-pref-seed" value="42" style="width:5rem;" aria-label="Random seed">
+    </details>
+    <span style="flex:1 1 auto;"></span>
+    <button class="btn sm primary" type="button" id="dp-pref-build" title="Write the pairs and register the dataset for Training">Build preference pairs</button>
+  </div>
+  <div id="dp-pref-progress" hidden>
+    <div class="hpbar" role="progressbar" aria-label="Building preference pairs" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="dp-pref-bar"><div class="hpbar-fill" id="dp-pref-fill"></div></div>
+    <div class="text-xs dim" id="dp-pref-progress-text" role="status" aria-live="polite" style="margin-top:4px;"></div>
+  </div>
+  <pre id="dp-pref-status" role="status" aria-live="polite" hidden style="margin:8px 0 0;font-size:12px;white-space:pre-wrap;"></pre>
+  <div id="dp-pref-result" class="dp-exported-panel text-sm" hidden></div>
+</div>
+
 <style>
 .dp-review-toolbar { padding: 0 4px 4px; }
 .dp-results-table { width: 100%; font-size: 12px; }
@@ -328,6 +374,12 @@
   color: var(--text-dim, #888);
   font-style: italic;
 }
+.dp-pref-kinds { border: 1px solid var(--border); padding: 8px 12px; margin: 0; }
+.dp-pref-kind { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; font-size: 13px; }
+.dp-pref-kind input { margin-top: 3px; }
+.dp-pref-warn { color: var(--warn-text, var(--warn)); }
+.dp-pref-err { color: var(--err-text, var(--err)); }
+.dp-pref-result-grid { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
 .dp-exported-panel {
   padding: 10px 12px;
   margin-bottom: 8px;
@@ -1587,6 +1639,7 @@ function dpUpdateStats(items) {
   set('dp-stat-pending', pending + ' pending');
   set('dp-stat-approved', approved + ' approved');
   set('dp-stat-rejected', rejected + ' rejected');
+  dpPrefSyncApproved(approved);
   return { pending: pending, approved: approved, rejected: rejected };
 }
 
@@ -1865,6 +1918,131 @@ async function dpExportApproved() {
     dpBridgeStatus('Export failed: ' + ((e && e.message) || e), 'error');
   }
 }
+
+// ── Preference pairs (DPO): build, with real progress polled from the server ──
+var DP_PREF_DROP_LABELS = {
+  not_less_grounded: 'guess was as grounded as the real answer', near_duplicate: 'guess nearly identical to the answer',
+  refusal_as_rejected: 'model refused or hedged instead of guessing', identical: 'identical answers',
+  empty_rejected: 'empty answer', generation_error: 'model error', malformed_question: 'malformed question',
+  off_subject: 'question off-subject', duplicate_question: 'repeated question',
+  no_novel_detail: 'question looked answerable from the documents',
+  answerable_by_model_check: 'passage actually answers it'
+};
+
+function dpPrefSyncApproved(approved) {
+  var pill = document.getElementById('dp-pref-approved');
+  if (pill) pill.textContent = approved + ' approved pair' + (approved === 1 ? '' : 's');
+}
+
+function dpPrefStatus(msg, state) {
+  var el = document.getElementById('dp-pref-status');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = state === 'error' ? 'dp-pref-err' : '';
+  el.hidden = !msg;
+}
+
+function dpPrefKinds() {
+  return ['hallucination', 'abstain'].filter(function (k) {
+    var el = document.getElementById('dp-pref-kind-' + k);
+    return el && el.checked;
+  });
+}
+
+function dpPrefRenderProgress(p) {
+  var planned = p.planned || 0, done = p.attempted || 0;
+  var pct = planned ? Math.min(100, Math.round(100 * done / planned)) : 0;
+  var fill = document.getElementById('dp-pref-fill');
+  var bar = document.getElementById('dp-pref-bar');
+  var txt = document.getElementById('dp-pref-progress-text');
+  if (fill) fill.style.width = pct + '%';
+  if (bar) bar.setAttribute('aria-valuenow', String(pct));
+  var kept = Object.keys(p.kept || {}).map(function (k) { return (p.kept[k] || 0) + ' ' + k; }).join(', ');
+  if (txt) txt.textContent = planned
+    ? 'Tried ' + done + ' of up to ' + planned + ' candidates · kept ' + kept + ' (the model writes each answer — a few seconds each)'
+    : 'Starting — waiting for the model…';
+}
+
+function dpPrefRenderResult(d, pid) {
+  var panel = document.getElementById('dp-pref-result');
+  if (!panel) return;
+  var kinds = Object.keys(d.by_kind || {}).map(function (k) {
+    return '<span class="pill outline">' + escapeHtml(k) + ': ' + d.by_kind[k] + '</span>';
+  }).join('');
+  var drops = [];
+  Object.keys(d.dropped || {}).forEach(function (k) {
+    Object.keys(d.dropped[k]).forEach(function (r) {
+      drops.push(escapeHtml(k + ' · ' + (DP_PREF_DROP_LABELS[r] || r)) + ': ' + d.dropped[k][r]);
+    });
+  });
+  var ln = d.length || {};
+  var warn = ln.warning ? '<div class="dp-pref-warn" style="margin-top:6px;">⚠ ' + escapeHtml(ln.warning) + '</div>' : '';
+  panel.innerHTML =
+    '<div><b>' + d.pairs + ' preference pairs</b> written to <span class="mono">' + escapeHtml(d.dataset.name) + '</span>' +
+    ' · training will hold out ' + ((d.split || {}).val || 0) + ' for validation</div>' +
+    '<div class="dp-pref-result-grid">' + kinds + '</div>' +
+    '<div class="text-xs dim">Answer length: chosen ' + ln.mean_chosen_chars + ' chars vs rejected ' + ln.mean_rejected_chars +
+    ' (ratio ' + ln.ratio + ')</div>' + warn +
+    (drops.length ? '<details class="text-xs dim" style="margin-top:6px;"><summary>' + drops.length +
+      ' kinds of candidate dropped by quality checks</summary><ul style="margin:4px 0 0 16px;"><li>' +
+      drops.join('</li><li>') + '</li></ul></details>' : '') +
+    '<div class="dp-ds-row" style="margin-top:8px;"><span class="text-xs dim">Next step</span>' +
+    '<a class="btn sm primary" id="dp-pref-train" data-link href="' + escapeHtml(d.train_url) + '">Train with this dataset →</a></div>';
+  panel.hidden = false;
+}
+
+async function dpPrefBuild() {
+  var kinds = dpPrefKinds();
+  var btn = document.getElementById('dp-pref-build');
+  var result = document.getElementById('dp-pref-result');
+  var maxPairs = parseInt(document.getElementById('dp-pref-max').value, 10);
+  var seed = parseInt(document.getElementById('dp-pref-seed').value, 10);
+  if (!kinds.length) { dpPrefStatus('Tick at least one kind of pair.', 'error'); return; }
+  if (!(maxPairs >= 2 && maxPairs <= 2000)) { dpPrefStatus('Pairs must be between 2 and 2000.', 'error'); return; }
+  if (result) result.hidden = true;
+  dpPrefStatus('', 'info');
+  btn.disabled = true;
+  var progress = document.getElementById('dp-pref-progress');
+  progress.hidden = false;
+  dpPrefRenderProgress({});
+  var base = '/api/projects/' + encodeURIComponent(_prepPid) + '/data-prep/preference';
+  var timer = setInterval(async function () {
+    try {
+      var pr = await fetch(base + '/progress', { cache: 'no-store' });
+      if (pr.ok) { var p = await pr.json(); if (p.running) dpPrefRenderProgress(p); }
+    } catch (e) { /* transient poll error: the build request reports the real outcome */ }
+  }, 1000);
+  try {
+    var r = await fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kinds: kinds, max_pairs: maxPairs, seed: Number.isFinite(seed) ? seed : 42 }) });
+    var d = {};
+    try { d = await r.json(); } catch (e2) { /* non-JSON error body */ }
+    if (!r.ok) {
+      var extra = '';
+      if (d.dropped) {
+        extra = '\n' + Object.keys(d.dropped).map(function (k) {
+          return k + ': ' + Object.keys(d.dropped[k]).map(function (x) { return (DP_PREF_DROP_LABELS[x] || x) + ' ×' + d.dropped[k][x]; }).join(', ');
+        }).join('\n');
+      }
+      dpPrefStatus(String(d.error || (d.detail && JSON.stringify(d.detail)) || ('Build failed (HTTP ' + r.status + ')')) + extra, 'error');
+      return;
+    }
+    dpPrefRenderProgress({ planned: 1, attempted: 1, kept: d.by_kind });
+    dpPrefRenderResult(d, _prepPid);
+    if (window.fts && fts.notify) fts.notify('Built ' + d.pairs + ' preference pairs', 'success');
+  } catch (e) {
+    dpPrefStatus('Build failed: ' + ((e && e.message) || e), 'error');
+  } finally {
+    clearInterval(timer);
+    btn.disabled = false;
+    progress.hidden = true;
+  }
+}
+
+(function dpWirePreference() {
+  var btn = document.getElementById('dp-pref-build');
+  if (btn) btn.addEventListener('click', dpPrefBuild);
+})();
 
 (function dpWireReviewControls() {
   document.querySelectorAll('[data-dp-filter]').forEach(function (btn) {
