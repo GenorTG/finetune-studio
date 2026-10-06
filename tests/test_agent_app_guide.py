@@ -13,7 +13,9 @@ def test_app_guide_explains_supported_routes_and_preference_format() -> None:
     assert "raw text" in result["routes"]["continued_pretraining"]
     assert "ORPO" in result["routes"]["not_supported_yet"]
     assert "RAG" in result["routes"]["rag"]
-    assert "does not navigate" in result["navigation_note"]
+    # The guide now navigates/highlights/pre-fills through allow-listed tools, but never presses buttons.
+    assert "never presses" in result["navigation_note"]
+    assert {entry["id"] for entry in result["kb"]} >= {"training", "pairs", "rag"}
 
 
 def test_readiness_tool_reports_project_specific_next_step(client) -> None:

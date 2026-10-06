@@ -24,410 +24,41 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import re
-import time
+from collections.abc import Callable
 from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from finetune_studio.data.fs import qa as qa_fs
 from finetune_studio.data.fs.paths import project_dir
+from finetune_studio.guide import toolcalls
+from finetune_studio.guide import tools as guide_tools
+from finetune_studio.guide.loop import authoritative_readiness_reply, run_guide_loop
+from finetune_studio.guide.prompt import build_system_prompt
+from finetune_studio.guide.tools import ToolContext
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 
-# Server-side tool catalog. Kept short and stable — the model prompt
-# describes them in plain English so even a 7B model can pick the right one.
-TOOLS_CATALOG = [
-    {
-        "name": "get_app_guide",
-        "description": "Get the supported Finetune Studio workflow, page routes, training choices, and dataset formats. Use for questions about how the app works or which route to choose.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "inspect_project_readiness",
-        "description": "Read-only overview of this project's sources, Q&A review counts, datasets, RAG corpora, and base model. Use when the user asks what is done or what to do next.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "list_sources",
-        "description": "List all parsed source files in this project. Returns each source's id, filename, status, and chunk count.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "read_source",
-        "description": "Read the parsed text content of a source file by id. Use this AFTER list_sources to see what the file contains before generating Q&A pairs.",
-        "parameters": {
-            "type": "object",
-            "properties": {"source_id": {"type": "string"}},
-            "required": ["source_id"],
-        },
-    },
-    {
-        "name": "list_qa_pairs",
-        "description": "List existing Q&A pairs in this project, optionally filtered by source_id or status (pending/approved/rejected).",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "source_id": {"type": "string"},
-                "status": {"type": "string", "enum": ["pending", "approved", "rejected"]},
-            },
-        },
-    },
-    {
-        "name": "create_qa_pairs",
-        "description": "Create new Q&A pairs for a source. Each pair needs a source_id, question, answer, and 1-based parsed chunk_idx. Pairs land in pending status for review.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "source_id": {"type": "string"},
-                "pairs": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "question": {"type": "string"},
-                            "answer": {"type": "string"},
-                            "chunk_idx": {"type": "integer", "minimum": 1},
-                        },
-                        "required": ["question", "answer"],
-                    },
-                },
-            },
-            "required": ["source_id", "pairs"],
-        },
-    },
-]
-
-SYSTEM_PROMPT = """You are the Finetune Studio guide and training-data assistant. Help users understand the whole app, choose an appropriate data/training route, and prepare high-quality datasets. You can inspect project readiness and, when the user asks, mine parsed source files into Q&A pairs.
-
-# Rules
-
-1. For questions about app functionality, supported routes, or what to do next, call `get_app_guide`. For the current project's progress/readiness, call `inspect_project_readiness`.
-2. When the user asks to mine files or generate Q&A, ALWAYS call `list_sources` first before generating anything.
-3. Call `read_source` on each file you intend to mine, so the content is fresh in your context.
-4. Generate Q&A pairs that test ACTUAL knowledge from the text — not generic questions. The answers should quote or closely paraphrase the source.
-5. Aim for 3-8 pairs per source by default. Cover key facts, definitions, cause/effect, comparison, and applied reasoning.
-   Every pair MUST include its 1-based parsed `chunk_idx`; use 1 for a one-chunk source.
-6. Only create rows when the user asked for generation. New pairs are pending review; never claim they were approved or used for training.
-7. Call `create_qa_pairs` with the full batch in ONE call, not one pair per call.
-8. Be terse, explain uncertainty, and never invent app behavior. The guide tool is the source of truth for supported routes.
-9. When `inspect_project_readiness` returns a `summary`, quote that summary verbatim. Do not recalculate counts or relabel statuses.
-
-# Tool-call format (CRITICAL — follow exactly)
-
-When you need to call a tool, output EXACTLY one tool_call block. Always close the tag:
-
-<tool_call>{"name":"<tool_name>","arguments":{<json_args>}}</tool_call>
-
-Closed examples (note the closing `</tool_call>` on its own line):
-
-<tool_call>{"name":"list_sources","arguments":{}}</tool_call>
-
-<tool_call>{"name":"read_source","arguments":{"source_id":"abc123"}}</tool_call>
-
-<tool_call>{"name":"create_qa_pairs","arguments":{"source_id":"abc123","pairs":[{"question":"What is X?","answer":"X is ..."}]}}</tool_call>
-
-When you have no more tool calls to make, respond with ONE short sentence summarising what you created. Do NOT wrap it in a tool_call tag.
-
-# Hard rules
-
-- ALWAYS close `<tool_call>` with `</tool_call>`. Never leave the tag open.
-- Do NOT include chain-of-thought or reasoning in your reply. No "I need to..." or "Let me think about..." preambles. No `<think>` blocks.
-- Emit EITHER one tool call OR a short summary. Never both at once.
-- Do NOT echo the rules back to the user.
-"""
-
-TOOL_CALL_RE = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.DOTALL)
-MAX_TOOL_ROUNDS = 6
+# Tool catalog, system prompt, tool dispatch and the loop live in ``finetune_studio.guide``
+# (one definition for this route, the SSE route and the Guide panel). The names below stay
+# importable for existing callers and tests.
+TOOLS_CATALOG = guide_tools.TOOLS_CATALOG
+SYSTEM_PROMPT = build_system_prompt(ToolContext())
+MAX_TOOL_ROUNDS = 8
+_strip_thinking = toolcalls.strip_thinking
+_extract_tool_calls = toolcalls.extract_tool_calls
+_strip_thinking_reply = toolcalls.strip_thinking_reply
+_looks_truncated = toolcalls.looks_truncated
+_TRUNCATION_MSG = toolcalls.TRUNCATION_MSG
+_authoritative_readiness_reply = authoritative_readiness_reply
 
 
 def _run_tool(pid: str, name: str, args: dict) -> dict:
-    """Execute a single tool against the project's filesystem. Returns a
-    JSON-serializable dict."""
-    try:
-        if name == "get_app_guide":
-            return {
-                "workflow": [
-                    {"step": 1, "page": "/projects", "action": "Create or choose a project."},
-                    {"step": 2, "page": "/projects/{pid}/data", "action": "Upload files; inspect parse status and parsed text."},
-                    {"step": 3, "page": "/projects/{pid}/data-prep", "action": "Generate/review Q&A, then export a dataset."},
-                    {"step": 4, "page": "/projects/{pid}/training", "action": "Choose SFT, tool-calling SFT, DPO, continued pretraining, or reasoning distillation to match the dataset you actually have."},
-                    {"step": 5, "page": "/projects/{pid}/testing", "action": "Run the generated project quiz and held-out evaluation before selecting a production run."},
-                    {"step": 6, "page": "/projects/{pid}/export", "action": "Export a GGUF for local inference when needed."},
-                ],
-                "routes": {
-                    "sft": "Use for teaching task format, style, or selected facts from curated prompt/answer examples.",
-                    "dpo": "Use for preference/alignment behavior when each prompt has a human-reviewed preferred and rejected answer. JSONL rows need prompt, chosen, rejected; standard strings or conversational role/content lists are accepted.",
-                    "tool_sft": "Use for agent behavior when traces include assistant tool_calls, tool replies, and a tools JSON-schema list; the model must have a compatible chat template.",
-                    "continued_pretraining": "Use for domain adaptation on raw text JSONL rows with a non-empty text field. It is not instruction tuning and should be evaluated on held-out domain text and downstream tasks.",
-                    "reasoning_distillation": "Use for reviewed teacher traces and final answers in conversational messages JSONL. Validate the final task outcome separately; a plausible rationale is not proof of correctness.",
-                    "rag": "Use when knowledge changes often, must retain source citations, or should be fetched rather than memorized. Build/index a corpus on the RAG page.",
-                    "not_supported_yet": ["ORPO", "KTO", "in-app preference comparison authoring", "automatic teacher-trace generation"],
-                },
-                "quality_checks": [
-                    "Keep train and evaluation examples separate; avoid benchmark contamination.",
-                    "Review synthetic answers against source text; generated data is not ground truth by default.",
-                    "For DPO, compare answers to the same prompt and ensure the preference reflects the intended behavior, not just response length.",
-                    "For tool SFT, inspect tool names/arguments/results and confirm tool schemas match the runtime implementation.",
-                    "For continued pretraining and reasoning distillation, hold out clean evaluation data and compare against the untuned base model.",
-                    "Use RAG instead of weight updates for frequently changing or citation-critical facts.",
-                ],
-                "navigation_note": "The assistant can explain and link the next page; it does not navigate the user's browser or start training automatically.",
-            }
-        if name == "inspect_project_readiness":
-            from finetune_studio import db
-            project = db.get_project(pid)
-            if not project:
-                return {"error": "project not found"}
-            sources = qa_fs.list_qa_sources(pid)
-            pairs = qa_fs.list_qa_pairs(pid)
-            counts = {status: sum(1 for pair in pairs if pair.get("status", "pending") == status)
-                      for status in ("pending", "approved", "rejected")}
-            datasets = db.list_datasets(pid)
-            rags = db.list_rags(pid)
-            parsed_sources = sum(1 for source in sources if int(source.get("chunk_count") or 0) > 0)
-            next_step = (
-                "Review pending Q&A pairs." if counts["pending"] else
-                "Export approved Q&A pairs." if counts["approved"] and not datasets else
-                "Choose SFT or DPO on Training based on the data you have." if datasets else
-                "Upload and parse source files."
-            )
-            summary = (
-                f"{len(sources)} source(s), {parsed_sources} parsed; {counts['approved']} approved, "
-                f"{counts['pending']} pending, and {counts['rejected']} rejected Q&A pair(s); "
-                f"{len(datasets)} dataset(s); {len(rags)} RAG corpus/corpora. Next: {next_step}"
-            )
-            return {
-                "summary": summary,
-                "project": {"id": pid, "name": project.get("name"), "base_model": project.get("base_model")},
-                "sources": {"count": len(sources), "parsed": parsed_sources},
-                "qa_pairs": {"total": len(pairs), **counts},
-                "datasets": [{"name": ds.get("name"), "rows": ds.get("qa_count", 0)} for ds in datasets],
-                "rag_corpora": [{"name": rag.get("name"), "chunks": rag.get("chunk_count", 0)} for rag in rags],
-                "next_step": next_step,
-            }
-        if name == "list_sources":
-            sources_dir = project_dir(pid) / "qa" / "sources"
-            if not sources_dir.exists():
-                return {"sources": []}
-            out = []
-            for p in sorted(sources_dir.glob("*.json")):
-                try:
-                    src = json.loads(p.read_text(encoding="utf-8"))
-                except (json.JSONDecodeError, OSError, UnicodeDecodeError):
-                    continue
-                out.append({
-                    "id": src.get("id", p.stem),
-                    "filename": src.get("filename", "?"),
-                    "status": src.get("status", "ready"),
-                    "doc_count": src.get("doc_count", 1),
-                    "chunk_count": src.get("chunk_count", 0),
-                })
-            return {"sources": out}
-        if name == "read_source":
-            sid = args.get("source_id", "")
-            if not sid:
-                return {"error": "source_id required"}
-            src = qa_fs.read_qa_source(pid, sid)
-            if not src:
-                return {"error": f"source {sid} not found"}
-            # Prefer the in-manifest text if present (legacy / future path).
-            text = src.get("text") or src.get("parsed_text") or ""
-            # The data-prep runner stores parsed text at
-            # files/<sha256[:12]>/parsed.txt, NOT in the manifest. Fall
-            # back to disk if the manifest has no text.
-            if not text:
-                sha = src.get("sha256") or sid
-                from finetune_studio.data.fs.paths import file_dir
-                parsed_path = file_dir(pid, sha) / "parsed.txt"
-                if parsed_path.exists():
-                    try:
-                        text = parsed_path.read_text(encoding="utf-8", errors="replace")
-                    except OSError:
-                        text = ""
-            return {
-                "id": src.get("id", sid),
-                "filename": src.get("filename", "?"),
-                "text": text[:8000],
-                "truncated": len(text) > 8000,
-            }
-        if name == "list_qa_pairs":
-            pairs = qa_fs.list_qa_pairs(
-                pid,
-                source_id=args.get("source_id"),
-                status=args.get("status"),
-            )
-            # Slim each pair for the model context.
-            return {
-                "pairs": [
-                    {
-                        "id": p.get("id"),
-                        "source_id": p.get("source_id"),
-                        "question": p.get("question", "")[:200],
-                        "answer": p.get("answer", "")[:300],
-                        "status": p.get("status", "pending"),
-                    }
-                    for p in pairs[:200]
-                ],
-                "count": len(pairs),
-            }
-        if name == "create_qa_pairs":
-            sid = args.get("source_id", "")
-            pairs = args.get("pairs") or []
-            if not sid or not pairs:
-                return {"error": "source_id and pairs required"}
-            written = 0
-            for pair in pairs:
-                if not isinstance(pair, dict):
-                    continue
-                q = (pair.get("question") or "").strip()
-                a = (pair.get("answer") or "").strip()
-                if not q or not a:
-                    continue
-                qa_id = f"qa_{int(time.time()*1000)}_{written}"
-                qa_fs.write_qa_pair(pid, {
-                    "id": qa_id,
-                    "source_id": sid,
-                    "question": q,
-                    "answer": a,
-                    "chunk_idx": max(1, int(pair.get("chunk_idx") or 1)),
-                    "status": "pending",
-                    "created_at": time.time(),
-                    "created_via": "data-prep-chat",
-                })
-                written += 1
-            return {"written": written, "source_id": sid}
-        return {"error": f"unknown tool: {name}"}
-    except Exception as e:
-        log.exception("tool %s failed", name)
-        return {"error": f"tool {name} failed: {e}"}
-
-
-def _strip_thinking(text: str) -> str:
-    """Remove Qwen3 thinking blocks from model output.
-
-    Handles both paired ``<think>…</think>`` and the common chat-template
-    leak where only a bare closing ``</think>`` appears (opening tag was
-    injected into the prompt, so the model never emits it).
-    """
-    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-    if "</think>" in cleaned:
-        cleaned = cleaned.split("</think>", 1)[1]
-    return cleaned
-
-
-def _extract_tool_calls(text: str) -> list[dict]:
-    """Pull `<tool_call>{...}</tool_call>` blocks out of a model reply.
-
-    Robust against two recurring issues with local Qwen3 GGUF + llama-cpp:
-      1. The model leaks chain-of-thought (Qwen3's native thinking-mode
-         output). Strip `<think>...</think>` blocks BEFORE regex matching so
-         they don't contaminate the tool-call JSON or appear in the visible
-         reply. Also drop everything up to a bare ``</think>``.
-      2. The model frequently emits `<tool_call>{...}` WITHOUT a closing
-         `</tool_call>` tag. Try the strict closed form first; on miss,
-         fall back to a brace-balanced extractor that walks the unmatched
-         opening tag and grabs everything up to the first balanced `}`.
-    """
-    # 1. Strip Qwen3 thinking-mode blocks (paired + bare closing tag).
-    cleaned = _strip_thinking(text)
-    # 2. Strip any leading/trailing prose so the closing tag (or unclosed
-    # block) is clearly delimited. We do NOT mutate the text that flows
-    # into the visible reply (that's `_strip_thinking_reply`'s job).
-    calls: list[dict] = []
-    seen: set[tuple[str, str]] = set()  # dedupe by (name, json_args)
-
-    def _try_parse(raw: str) -> None:
-        try:
-            obj = json.loads(raw)
-        except json.JSONDecodeError:
-            return
-        name = obj.get("name")
-        args = obj.get("arguments") or {}
-        if not isinstance(name, str) or not isinstance(args, dict):
-            return
-        key = (name, json.dumps(args, sort_keys=True))
-        if key in seen:
-            return
-        seen.add(key)
-        calls.append({"name": name, "arguments": args})
-
-    # 2a. Strict pass: properly-closed <tool_call>{...}</tool_call>.
-    for m in TOOL_CALL_RE.finditer(cleaned):
-        _try_parse(m.group(1))
-
-    # 2b. Fallback pass: unclosed <tool_call>{...}  (Qwen3 occasionally
-    # forgets the closing tag). Find every opening tag, then brace-balance
-    # forward to find the end of the JSON object.
-    if not calls:
-        for m in re.finditer(r"<tool_call>\s*", cleaned):
-            start = m.end()
-            depth = 0
-            in_string = False
-            escape = False
-            end = -1
-            for i in range(start, len(cleaned)):
-                ch = cleaned[i]
-                if escape:
-                    escape = False
-                    continue
-                if ch == "\\":
-                    escape = True
-                    continue
-                if ch == '"':
-                    in_string = not in_string
-                    continue
-                if in_string:
-                    continue
-                if ch == "{":
-                    depth += 1
-                elif ch == "}":
-                    depth -= 1
-                    if depth == 0:
-                        end = i + 1
-                        break
-            if end > start:
-                _try_parse(cleaned[start:end])
-            # Stop after the first successful extraction — the parser
-            # driver already enforces one-tool-call-per-round upstream.
-            if calls:
-                break
-
-    return calls
-
-
-def _authoritative_readiness_reply(tool_calls: list[dict], reply: str) -> str:
-    """Use server-computed readiness facts instead of a model paraphrase."""
-    if not tool_calls or tool_calls[-1].get("name") != "inspect_project_readiness":
-        return reply
-    result = tool_calls[-1].get("result") or {}
-    if result.get("summary"):
-        return str(result["summary"])
-    return reply
-
-
-def _strip_thinking_reply(text: str) -> str:
-    """Strip thinking blocks from a model reply before it becomes the
-    user-visible assistant message."""
-    return _strip_thinking(text).strip()
-
-
-_TRUNCATION_MSG = (
-    "Response was cut off at max_tokens={n} — raise Max tokens and retry"
-)
-
-
-def _looks_truncated(text: str) -> bool:
-    """True when generation likely hit max_tokens mid-tool-call or think."""
-    if not text:
-        return False
-    # Unclosed think block (opening present, no closer).
-    if "<think>" in text and "</think>" not in text:
-        return True
-    # Truncated tool call: opening tag present but we couldn't parse a call.
-    return "<tool_call>" in text and not _extract_tool_calls(text)
+    """Run one guide tool for project ``pid`` (kept for existing callers; UI events are dropped)."""
+    result = guide_tools.run_tool(ToolContext(pid=pid), name, args)
+    result.pop("ui_event", None)
+    return result
 
 
 def _messages_to_prompt(messages: list[dict]) -> tuple[str, list[dict]]:
@@ -447,47 +78,8 @@ def _messages_to_prompt(messages: list[dict]) -> tuple[str, list[dict]]:
     return sys_prefix.strip(), rendered
 
 
-@router.post("/projects/{pid}/data-prep/chat")
-async def data_prep_chat(pid: str, request: Request):
-    """Server-side chat with tool calling for organizing training data.
-
-    Body:
-      messages: list[dict]  — OpenAI-style [{role, content}, ...]
-      provider_id: str      — optional; when set, load/use that ModelManager
-                              provider (mutually exclusive with external_api).
-                              When omitted, reuse an already-loaded model
-                              (Inference engine preferred, else manager active).
-                              Never auto-loads a second model.
-      external_api: dict    — {base_url, api_key, model_id, name?} for
-                              OpenAI-compatible endpoints
-      max_rounds: int       — cap tool-call loop iterations (default 6)
-      gen: dict             — generation kwargs merged with sensible defaults
-                              (temperature, max_tokens, top_p, top_k,
-                              repeat_penalty). Used for both backend paths.
-      Top-level temperature/max_tokens/top_p/top_k also accepted (chat UI).
-
-    Returns:
-      {ok, reply, tool_calls, rounds}
-    """
-    body = await request.json()
-    if not isinstance(body, dict):
-        return JSONResponse({"error": "JSON object body required"}, status_code=400)
-    messages: list[dict] = body.get("messages") or []
-    if not messages or not isinstance(messages, list):
-        return JSONResponse({"error": "messages required"}, status_code=400)
-    provider_id: str | None = body.get("provider_id")
-    external: dict | None = body.get("external_api")
-    if external is not None and not isinstance(external, dict):
-        return JSONResponse({"error": "external_api must be an object"}, status_code=400)
-    try:
-        max_rounds = max(1, min(int(body.get("max_rounds") or MAX_TOOL_ROUNDS), 12))
-    except (TypeError, ValueError):
-        return JSONResponse({"error": "max_rounds must be an integer"}, status_code=400)
-
-    # Generation kwargs — allow per-request override. Anything not supplied
-    # falls back to sane defaults for tool-calling (low temperature, roomy
-    # max_tokens for thinking models). Clamp so junk from the frontend
-    # doesn't crash llama_cpp. Chat UI sends top-level keys; also accept gen{}.
+def parse_gen(body: dict) -> dict[str, Any]:
+    """Generation kwargs from a request body (``gen{}`` or top-level keys), clamped to llama-safe ranges."""
     gen_raw: dict[str, Any] = dict(body.get("gen") or {})
     for k in ("temperature", "max_tokens", "top_p", "top_k", "repeat_penalty"):
         if k in body and k not in gen_raw:
@@ -520,16 +112,23 @@ async def data_prep_chat(pid: str, request: Request):
             pass
     gen.setdefault("temperature", 0.2)
     gen.setdefault("max_tokens", 4096)
+    return gen
 
-    # Resolve the chat backend (provider OR external API OR already-loaded
-    # model). Validate this before touching the filesystem so a missing
-    # project doesn't mask a backend-config error (and vice versa).
+
+async def resolve_chat_backend(
+    provider_id: str | None, external: dict | None
+) -> tuple[dict | None, JSONResponse | None]:
+    """Pick the chat backend (explicit provider, external API, or the configured helper).
+
+    Returns ``(backend, None)`` or ``(None, error_response)``. Never silently reuses a model that
+    is not the configured helper.
+    """
     backend: dict | None = None
     if external:
         try:
             import httpx  # noqa: F401
         except ImportError:
-            return JSONResponse({"error": "external_api requires httpx (install httpx)"}, status_code=500)
+            return None, JSONResponse({"error": "external_api requires httpx (install httpx)"}, status_code=500)
         backend = {
             "kind": "external",
             "base_url": (external.get("base_url") or "").rstrip("/"),
@@ -537,7 +136,7 @@ async def data_prep_chat(pid: str, request: Request):
             "model_id": external.get("model_id") or "",
         }
         if not backend["base_url"] or not backend["model_id"]:
-            return JSONResponse({"error": "external_api.base_url and model_id required"}, status_code=400)
+            return None, JSONResponse({"error": "external_api.base_url and model_id required"}, status_code=400)
     elif provider_id:
         # Explicit provider_id — only path that may call manager.load().
         # Lazy imports: data_prep_chat.py is imported by app.py during
@@ -550,7 +149,7 @@ async def data_prep_chat(pid: str, request: Request):
         mgr = get_manager()
         cfg = mgr.get_provider(provider_id)
         if not cfg:
-            return JSONResponse({"error": f"unknown provider {provider_id}"}, status_code=404)
+            return None, JSONResponse({"error": f"unknown provider {provider_id}"}, status_code=404)
 
         # Fast path: the global inference engine already holds THIS model.
         # Use it directly to avoid a duplicate Llama() instance racing with
@@ -604,7 +203,7 @@ async def data_prep_chat(pid: str, request: Request):
                 await asyncio.to_thread(mgr.load, provider_id)
             except Exception as e:
                 log.exception("failed to load provider %s", provider_id)
-                return JSONResponse({"error": f"failed to load provider: {e}"}, status_code=500)
+                return None, JSONResponse({"error": f"failed to load provider: {e}"}, status_code=500)
             backend = {"kind": "provider", "manager": mgr, "provider_id": provider_id}
     else:
         # No provider_id: require the configured GGUF helper — never
@@ -617,86 +216,89 @@ async def data_prep_chat(pid: str, request: Request):
 
         loaded = resolve_helper_backend()
         if loaded is None:
-            return JSONResponse({"error": helper_resolution_error()}, status_code=409)
+            return None, JSONResponse({"error": helper_resolution_error()}, status_code=409)
         backend = dict(loaded)
         log.info(
             "data-prep chat: provider_id omitted; using helper %s backend (%s)",
             backend.get("helper_label"),
             backend.get("kind"),
         )
+    return backend, None
 
-    # Now check the project directory exists.
+
+def make_chat_fn(backend: dict, gen: dict) -> Callable[[list[dict]], str]:
+    """One blocking model call for the resolved backend."""
+    if backend["kind"] == "external":
+        return lambda msgs: _chat_external(backend, msgs, gen)
+    if backend["kind"] == "global":
+        return lambda msgs: _chat_global_engine(backend, msgs, gen)
+    return lambda msgs: _chat_local(backend, msgs, gen)
+
+
+@router.post("/projects/{pid}/data-prep/chat")
+async def data_prep_chat(pid: str, request: Request):
+    """Server-side chat with tool calling (JSON response; the Guide panel uses ``/api/guide/chat`` SSE).
+
+    Body:
+      messages: list[dict]  — OpenAI-style [{role, content}, ...]
+      provider_id: str      — optional; when set, load/use that ModelManager provider
+                              (mutually exclusive with external_api). When omitted the
+                              configured helper must be loaded; never auto-switches models.
+      external_api: dict    — {base_url, api_key, model_id, name?} for OpenAI-compatible endpoints
+      max_rounds: int       — cap tool-call loop iterations (default 8, max 12)
+      gen: dict / top-level — temperature, max_tokens, top_p, top_k, repeat_penalty
+
+    Returns:
+      {ok, reply, tool_calls, rounds, backend[, ui_events, forced_final]}
+    """
+    body = await request.json()
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON object body required"}, status_code=400)
+    messages: list[dict] = body.get("messages") or []
+    if not messages or not isinstance(messages, list):
+        return JSONResponse({"error": "messages required"}, status_code=400)
+    provider_id: str | None = body.get("provider_id")
+    external: dict | None = body.get("external_api")
+    if external is not None and not isinstance(external, dict):
+        return JSONResponse({"error": "external_api must be an object"}, status_code=400)
+    try:
+        max_rounds = max(1, min(int(body.get("max_rounds") or MAX_TOOL_ROUNDS), 12))
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "max_rounds must be an integer"}, status_code=400)
+    gen = parse_gen(body)
+
+    # Validate the backend before touching the filesystem so a missing project doesn't mask a
+    # backend-config error (and vice versa).
+    backend, error = await resolve_chat_backend(provider_id, external)
+    if error is not None or backend is None:
+        return error
     if not project_dir(pid).exists():
         return JSONResponse({"error": f"project {pid} not found"}, status_code=404)
 
-    # Run the tool-calling loop.
-    full_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + messages
-    rounds = 0
-    all_tool_calls: list[dict] = []
-    last_reply = ""
-
-    for _ in range(max_rounds):
-        rounds += 1
-        try:
-            if backend["kind"] == "external":
-                reply_text = await asyncio.to_thread(
-                    _chat_external, backend, full_messages, gen
-                )
-            elif backend["kind"] == "global":
-                reply_text = await asyncio.to_thread(
-                    _chat_global_engine, backend, full_messages, gen
-                )
-            else:
-                reply_text = await asyncio.to_thread(
-                    _chat_local, backend, full_messages, gen
-                )
-        except Exception as e:
-            log.exception("chat call failed")
-            return JSONResponse({"error": f"chat call failed: {e}"}, status_code=502)
-
-        tool_calls = _extract_tool_calls(reply_text)
-        # Strip Qwen3 chain-of-thought so the visible reply + history
-        # message are clean. Falls back to the raw reply_text if the
-        # strip is empty.
-        visible_reply = _strip_thinking_reply(reply_text) or reply_text
-        if _looks_truncated(reply_text):
-            cut_msg = _TRUNCATION_MSG.format(n=gen.get("max_tokens", 4096))
-            return {
-                "ok": False,
-                "error": cut_msg,
-                "reply": cut_msg,
-                "tool_calls": all_tool_calls,
-                "rounds": rounds,
-                "backend": "external" if backend["kind"] == "external" else "provider",
-            }
-        if not tool_calls:
-            last_reply = visible_reply
-            break
-
-        # Execute each tool call, append results to the message history.
-        full_messages.append({"role": "assistant", "content": visible_reply})
-        for tc in tool_calls:
-            result = await asyncio.to_thread(
-                _run_tool, pid, tc["name"], tc.get("arguments") or {}
-            )
-            all_tool_calls.append({
-                "name": tc["name"],
-                "arguments": tc.get("arguments") or {},
-                "result": result,
-            })
-            full_messages.append({
-                "role": "user",
-                "content": f"TOOL_RESULT {tc['name']}: {json.dumps(result, ensure_ascii=False)}",
-            })
-        # Loop continues — model sees the tool results and decides what's next.
-
-    last_reply = _authoritative_readiness_reply(all_tool_calls, last_reply)
+    from finetune_studio import db
+    project = db.get_project(pid) or {}
+    ctx = ToolContext(pid=pid, page="chat")
+    chat_fn = make_chat_fn(backend, gen)
+    events = await asyncio.to_thread(lambda: list(run_guide_loop(
+        ctx, messages, chat_fn, max_rounds=max_rounds, project_name=project.get("name"),
+        max_tokens=gen.get("max_tokens", 4096),
+    )))
+    tool_calls = [{k: ev[k] for k in ("name", "arguments", "result")} for ev in events if ev["type"] == "tool_result"]
+    backend_name = "external" if backend["kind"] == "external" else "provider"
+    last = events[-1]
+    if last["type"] == "error":
+        if last.get("truncated"):
+            return {"ok": False, "error": last["error"], "reply": last["error"], "tool_calls": tool_calls,
+                    "rounds": last["rounds"], "backend": backend_name}
+        return JSONResponse({"error": last["error"]}, status_code=last.get("status", 502))
     return {
         "ok": True,
-        "reply": last_reply,
-        "tool_calls": all_tool_calls,
-        "rounds": rounds,
-        "backend": "external" if backend["kind"] == "external" else "provider",
+        "reply": last["reply"],
+        "tool_calls": tool_calls,
+        "rounds": last["rounds"],
+        "backend": backend_name,
+        "forced_final": last["forced_final"],
+        "ui_events": [ev["event"] for ev in events if ev["type"] == "ui"],
     }
 
 
