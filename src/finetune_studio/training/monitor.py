@@ -46,7 +46,7 @@ def training_snapshot(engine: Any) -> dict[str, Any]:
         "error": s.error,
         "project_id": getattr(engine, "current_project_id", None),
         "log_lines": list(s.log_lines[-40:]),
-        "pref_metrics": dict(s.pref_metrics),
+        "pref_metrics": dict(getattr(s, "pref_metrics", None) or {}),
     }
 
 

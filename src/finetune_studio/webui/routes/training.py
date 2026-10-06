@@ -345,7 +345,7 @@ async def status():
         "error": s.error,
         "project_id": getattr(training_engine, "current_project_id", None),
         "log_lines": list(s.log_lines[-30:]),
-        "pref_metrics": dict(s.pref_metrics),
+        "pref_metrics": dict(getattr(s, "pref_metrics", None) or {}),
     }
 
 @router.get("/failure")
