@@ -126,6 +126,15 @@
         <button class="btn primary" type="button" id="wiz-train-btn" onclick="wizTrain()" style="width:100%;">Start training</button>
       </div>
     </div>
+    <details class="mt-2" id="wiz-train-adv">
+      <summary class="text-xs muted" style="cursor:pointer;">Advanced: how long to train</summary>
+      <div class="flex gap-2 wrap items-center mt-2">
+        <label class="text-xs muted" for="wiz-epochs" title="Epochs = passes over your whole dataset. Optimizer steps = (training rows ÷ effective batch) × epochs. This is the same num_epochs field the Training page sends.">Epochs</label>
+        <input id="wiz-epochs" class="input" type="number" min="1" max="100" step="1" placeholder="preset" style="max-width:96px" inputmode="numeric">
+        <button class="btn sm" type="button" id="wiz-epochs-suggest" hidden>Use 0 epochs</button>
+      </div>
+      <div class="text-xs mt-2" id="wiz-steps-hint" role="status" style="color:var(--text-dim);">Leave empty to use the preset's own epoch count.</div>
+    </details>
     <div class="text-sm mt-2" id="wiz-train-sub">—</div>
   </div>
 
@@ -535,6 +544,79 @@
     } finally { setBusy(false); }
   };
 
+  // Failed run: add the plain-language hint (out of GPU memory, with the knobs) to the log.
+  async function wizExplainFailure() {
+    try {
+      var d = await api("/api/training/failure?project_id=" + encodeURIComponent(PID));
+      var h = d && d.failure && d.failure.hint;
+      if (!h) return;
+      line(h.title + ": " + h.summary);
+      (h.knobs || []).forEach(function (k) {
+        line("  • " + k.label + ": " + k.current + (k.suggested !== k.current ? " → " + k.suggested : "") + (k.note ? " — " + k.note : ""));
+      });
+      (h.tips || []).forEach(function (t) { line("  • " + t); });
+      line("Change batch size / max sequence on the Training page, then start again.");
+    } catch (e) { /* the failure line above already carries the error */ }
+  }
+
+  // Epochs hint: the real optimizer-step count this run will get, and a warning when it is tiny.
+  var wizPresets = {};
+  var wizDatasetRows = 0;
+  var TINY_STEPS = 100, GOOD_STEPS = 150;
+  function wizPlannedSteps(epochs, preset) {
+    var batch = Number(preset.batch_size) || 2, accum = Number(preset.gradient_accumulation_steps) || 1;
+    var train = Math.floor(wizDatasetRows * 0.9);   // the engine holds out 10% (int(n*0.9) train rows)
+    var perEpoch = Math.max(1, Math.ceil(train / (batch * accum)));
+    return { train: train, eff: batch * accum, perEpoch: perEpoch, total: perEpoch * epochs };
+  }
+  function wizUpdateStepsHint() {
+    var hint = document.getElementById("wiz-steps-hint");
+    var epochsEl = document.getElementById("wiz-epochs");
+    var sugg = document.getElementById("wiz-epochs-suggest");
+    var presetId = (document.getElementById("wiz-preset") || {}).value || "standard";
+    var preset = wizPresets[presetId];
+    if (!hint || !epochsEl) return;
+    if (sugg) sugg.hidden = true;
+    if (preset) epochsEl.placeholder = String(preset.num_epochs || "preset");
+    if (!preset || !wizDatasetRows) {
+      hint.textContent = "Leave empty to use the preset's own epoch count" + (preset ? " (" + preset.num_epochs + ")." : ".");
+      hint.style.color = "var(--text-dim)";
+      return;
+    }
+    var typed = Number((epochsEl.value || "").trim());
+    var epochs = Number.isInteger(typed) && typed >= 1 ? typed : Number(preset.num_epochs) || 1;
+    var p = wizPlannedSteps(epochs, preset);
+    var text = "About " + p.total + " optimizer steps: " + wizDatasetRows + " rows → " + p.train + " training rows ÷ effective batch " +
+      p.eff + " = " + p.perEpoch + " steps per epoch × " + epochs + " epochs" + (epochsEl.value.trim() ? "." : " (preset default).");
+    var warn = p.total < TINY_STEPS;
+    if (warn) {
+      var need = Math.ceil(GOOD_STEPS / p.perEpoch);
+      text += " Under " + TINY_STEPS + " steps is too short to memorise facts: expect the final loss to stay above ~0.5 and the quiz to score poorly. " +
+        "Use about " + need + " epochs (~" + (need * p.perEpoch) + " steps) or add more training data.";
+      if (sugg) { sugg.textContent = "Use " + need + " epochs"; sugg.dataset.epochs = String(need); sugg.hidden = false; }
+      var adv = document.getElementById("wiz-train-adv");
+      if (adv) adv.open = true;
+    }
+    hint.textContent = text;
+    hint.style.color = warn ? "var(--warn)" : "var(--text-dim)";
+  }
+  (function wireEpochs() {
+    var epochsEl = document.getElementById("wiz-epochs");
+    var presetEl = document.getElementById("wiz-preset");
+    var sugg = document.getElementById("wiz-epochs-suggest");
+    if (epochsEl) epochsEl.addEventListener("input", wizUpdateStepsHint);
+    if (presetEl) presetEl.addEventListener("change", wizUpdateStepsHint);
+    if (sugg) sugg.addEventListener("click", function () {
+      if (epochsEl) epochsEl.value = sugg.dataset.epochs || "";
+      wizUpdateStepsHint();
+    });
+    api("/api/projects/" + PID + "/datasets").then(function (ds) {
+      var first = (ds.datasets || [])[0];
+      wizDatasetRows = first ? Number(first.qa_count) || 0 : 0;
+      wizUpdateStepsHint();
+    }).catch(function () { /* hint stays generic */ });
+  })();
+
   window.wizTrain = async function () {
     if (busy) { line("Already running — wait for the current step."); return false; }
     var model = (document.getElementById("wiz-base-model") || {}).value || "";
@@ -553,10 +635,17 @@
         if (provT && provT.active) { await post("/api/providers/unload", {}); line("Unloaded resident helper to free VRAM for training."); }
       } catch (e) { /* best effort */ }
       line("Starting training: " + (dataset.qa_count || "?") + " rows · preset " + preset + " · base " + model);
-      var r = await post("/api/training/start", {
+      var startBody = {
         project_id: PID, dataset_id: dataset.id, model_path: model,
         preset_id: preset, merge_on_save: true, export_gguf: false,
-      });
+      };
+      var epochsRaw = ((document.getElementById("wiz-epochs") || {}).value || "").trim();
+      if (epochsRaw) {
+        var ep = Number(epochsRaw);
+        if (!Number.isInteger(ep) || ep < 1) { line("Step 4: epochs must be a whole number of 1 or more."); return false; }
+        startBody.num_epochs = ep;   // top-level field, same as the Training page form
+      }
+      var r = await post("/api/training/start", startBody);
       if (r.error) throw new Error(r.error);
       wizLastRunId = r.run_id || "";
       line("Training started (" + (r.steps || "?") + " steps). This page will keep polling — long step, go do something else and come back.");
@@ -572,6 +661,7 @@
       return true;
     } catch (e) {
       line("Step 4 failed: " + e.message);
+      await wizExplainFailure();
       wizRefresh("train");
       return false;
     } finally { setBusy(false); }
@@ -633,12 +723,14 @@
     if (!sel || !Array.isArray(ps) || !ps.length) return;
     sel.innerHTML = "";
     ps.forEach(function (p) {
+      wizPresets[p.id] = p;
       var o = document.createElement("option");
       o.value = p.id;
       o.textContent = (p.name || p.id) + (p.description ? " — " + p.description : "");
       if (p.id === "standard") o.selected = true;
       sel.appendChild(o);
     });
+    wizUpdateStepsHint();
   }).catch(function () { /* keep the static default */ });
 
   function pinVersion(formId, labelId, fallback) {
