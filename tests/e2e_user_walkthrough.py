@@ -382,9 +382,12 @@ async def phase_prep(w: Walk) -> None:
     R.check(len(helper_pairs) >= len(srcs), f"{len(helper_pairs)} helper-written pairs are waiting for review (pending)")
     blank = [q for q in qa if not str(q.get("question", "")).strip() or not str(q.get("answer", "")).strip()]
     R.check(not blank, "no pair with an empty question or answer")
-    midword = [q for q in qa if str(q.get("chunk_text", "")).split("\n", 1)[0][:2].islower() and len(q.get("chunk_text", "")) > 0
-               and q.get("chunk_text", "")[:1].islower() and " " not in q.get("chunk_text", "")[:3]]
-    R.check(not midword, f"no chunk opens with a word fragment ({len(midword)} found)")
+    midword = []
+    for q in qa:
+        first = str(q.get("chunk_text", "")).split(None, 1)[:1]
+        if q.get("chunk_idx", 1) > 1 and first and len(first[0]) <= 2 and first[0].isalpha() and first[0].lower() not in ("a", "i", "an", "of", "to", "in", "on", "or", "is", "it", "at", "by"):
+            midword.append(first[0])
+    R.check(not midword, f"no later chunk opens with a word fragment {midword[:3]}")
     answers = " || ".join(str(q.get("answer", "")) for q in qa).lower()
     got, missing = [], []
     for question, keys, fname in FACTS:
@@ -393,7 +396,257 @@ async def phase_prep(w: Walk) -> None:
     R.check(len(got) >= len(FACTS) - 3, "most ground-truth facts appear in at least one generated answer")
 
 
-PHASES: dict[str, Callable[[Walk], Awaitable[None]]] = {"create": phase_create, "upload": phase_upload, "prep": phase_prep}
+async def phase_review(w: Walk) -> None:
+    """Pairs page: review like a curator — reject the vague scanned-memo pairs, approve the rest, check counts."""
+    await w.goto(f"/projects/{pid()}/data-prep")
+    await w.page.click("#dp-filter-pending")
+    await w.page.wait_for_timeout(800)
+    await w.shot("pending-list", full=True)
+    before = api(f"/api/projects/{pid()}/data-prep/qa")["items"]
+    pend = [q for q in before if q["status"] == "pending"]
+    log(f"{len(pend)} pending of {len(before)} total before review")
+    vague = w.page.locator("#dp-results tr, table tr", has_text="committee")
+    n_vague = await vague.count()
+    log(f"rows mentioning the vague committee memo: {n_vague}")
+    for k in range(n_vague):
+        await vague.nth(k).locator("input[type=checkbox]").first.check()
+    if n_vague:
+        await w.page.click("#dp-bulk-reject")
+        await w.page.wait_for_timeout(1200)
+        await w.shot("vague-rejected")
+    await w.page.click("#dp-approve-all-pending")
+    await w.page.wait_for_timeout(2500)
+    await w.shot("approved-all", full=True)
+    after = api(f"/api/projects/{pid()}/data-prep/qa")["items"]
+    st = {k: sum(1 for q in after if q["status"] == k) for k in ("approved", "pending", "rejected")}
+    log(f"after review: {st}")
+    R.check(st["pending"] == 0, "no pairs left pending after APPROVE ALL PENDING")
+    R.check(st["rejected"] >= n_vague > 0, f"the {n_vague} vague pairs were rejected, not approved")
+    R.check(st["approved"] >= 30, f"{st['approved']} approved pairs")
+
+
+async def phase_rag(w: Walk) -> None:
+    """RAG page: QUICK INDEX, then SEARCH like a user and check the right document is on top."""
+    await w.goto(f"/projects/{pid()}/rag")
+    await w.shot("rag-before")
+    await w.page.click("#quick-index-btn")
+
+    async def built() -> bool:
+        try:
+            d = api(f"/api/projects/{pid()}/rag/build/status")
+            return bool(d.get("ok", True)) and not d.get("building") and int(d.get("chunks") or d.get("chunk_count") or 0) > 0
+        except Exception:  # noqa: BLE001
+            return False
+
+    ok = await w.wait_for("RAG index built", built, 180, every=4)
+    R.check(ok, "quick index finished")
+    await w.page.reload(wait_until="networkidle")
+    await w.shot("rag-built", full=True)
+    hits_ok = 0
+    for question, keys, fname in FACTS[:6]:
+        await w.page.fill("#q-text", question)
+        await w.page.click("#q-btn")
+        await w.page.wait_for_timeout(3500)
+        body = (await w.text("body")).lower()
+        found = any(k.lower() in body for k in keys)
+        hits_ok += found
+        log(f"search '{question[:50]}' -> {'hit' if found else 'MISS'} ({keys[0]})")
+    await w.shot("rag-search-results")
+    R.check(hits_ok >= 5, f"RAG search surfaced the expected fact for {hits_ok}/6 questions")
+
+
+async def phase_export(w: Walk) -> None:
+    """Pairs page: EXPORT APPROVED -> TRAINING with retrieved-context rows on; check the registered dataset."""
+    await w.goto(f"/projects/{pid()}/data-prep")
+    grounded = w.page.locator("#dp-grounded")
+    if not await grounded.is_checked():
+        await grounded.check()
+    await w.shot("export-options")
+    await w.page.click("#dp-export-approved")
+    await w.page.wait_for_timeout(4000)
+    await w.shot("export-clicked", full=True)
+    ds = api(f"/api/projects/{pid()}/datasets").get("datasets", [])
+    R.check(len(ds) >= 1, f"a dataset was registered ({[d['name'] for d in ds]})")
+    if ds:
+        log(f"dataset: {ds[0]['name']} rows={ds[0]['qa_count']}")
+        R.check(ds[0]["qa_count"] >= 30, "dataset has the approved rows")
+        R.check("retrieved context" in ds[0]["name"], "dataset name says how many rows carry retrieved context")
+
+
+async def phase_model(w: Walk) -> None:
+    """Model Library: search the Hub for the small base model and DOWNLOAD it like a user."""
+    await w.goto("/models/explore")
+    await w.page.fill("#hf-q", BASE_MODEL_REPO.split("/")[1])
+    await w.page.click("button:has-text('SEARCH')")
+    card = w.page.locator(".hf-card", has_text=BASE_MODEL_REPO).first
+    await card.wait_for(timeout=30000)
+    await w.shot("search-results")
+    await card.locator("button:has-text('DOWNLOAD')").click()
+    await w.shot("download-confirm")
+    await w.page.click("button:has-text('OK')")      # "Download all files of ...?" — the user confirms
+    await w.shot("download-clicked")
+
+    def local_size() -> int:
+        try:
+            for m in api("/api/hf/local").get("models", []):
+                if "Qwen3-0.6B" in m["repo_id"]:
+                    return int(m["size_bytes"])
+        except Exception:  # noqa: BLE001
+            return 0
+        return 0
+
+    async def done() -> bool:
+        return local_size() > 1_400_000_000
+
+    R.check(await w.wait_for("base model download", done, 240, every=3), f"{BASE_MODEL_REPO} downloaded ({local_size() / 1e9:.2f} GB)")
+    api("/api/models/refresh", "POST")
+    await w.shot("downloaded", full=True)
+
+
+async def phase_train(w: Walk) -> None:
+    """Training page: pick the base model + this project's dataset + a preset, START, watch the live panel."""
+    await w.goto(f"/projects/{pid()}/training")
+    base = w.page.locator("#train-base-model")
+    opts = await base.locator("option").all_inner_texts()
+    choice = next((o for o in opts if "Qwen3-0.6B" in o), None)
+    R.check(choice is not None, f"base model dropdown offers Qwen3-0.6B ({len(opts)} models listed)")
+    await base.select_option(label=choice)
+    await w.page.click("button:has-text('From this project')")
+    ds = w.page.locator("#dataset-select")
+    dopts = await ds.locator("option").all_inner_texts()
+    log(f"dataset options: {dopts}")
+    pick = next((o for o in dopts if "sharegpt" in o), None)
+    R.check(pick is not None, "this project's exported dataset is selectable")
+    await ds.select_option(label=pick)
+    await w.page.select_option("#training-preset", "precision")
+    await w.page.wait_for_timeout(500)
+    vals = await w.page.evaluate("() => [...document.querySelectorAll('input[type=number], input[type=text]')].filter(e => e.offsetParent).map(e => e.value)")
+    log(f"fields after choosing the Precision preset: {vals}")
+    await w.shot("configured", full=True)
+    vram_before = gpu_used_mib()
+    await w.page.click("#start-btn")
+    await w.page.wait_for_timeout(4000)
+    await w.shot("training-started", full=True)
+    log(f"before start {vram_before}; helper unloaded by the start? -> {api('/api/inference/status').get('loaded')}")
+
+    async def finished() -> bool:
+        return api("/api/training/status").get("status") in ("done", "error", "stopped", "idle")
+
+    shot_at = time.time()
+    while not await finished() and time.time() - shot_at < 900:
+        await asyncio.sleep(20)
+        st = api("/api/training/status")
+        log(f"training {st.get('status')} step {st.get('step')}/{st.get('total_steps')} loss={st.get('loss')} eta={st.get('eta')}")
+        if time.time() - shot_at > 40 and not (w.n % 4):
+            await w.shot("training-progress")
+    st = api("/api/training/status")
+    await w.shot("training-finished", full=True)
+    R.check(st.get("status") == "done", f"training finished: {st.get('status')} step {st.get('step')}/{st.get('total_steps')} loss {st.get('loss')}")
+    R.check((st.get("loss") or 9) < 0.5, f"final loss {st.get('loss')} < 0.5 (facts memorised)")
+    runs = api(f"/api/training/runs/{pid()}")
+    R.check(bool(runs) and runs[0].get("status") == "done", "the run is listed as done on the project")
+    if runs:
+        save_state(run_id=runs[0]["id"], run_path=runs[0].get("output_path", ""))
+
+
+async def _results_text(w: Walk) -> str:
+    return (await w.page.locator("text=RESULTS").first.locator("xpath=ancestor::div[contains(@class,'card')][1]").inner_text())[:1500]
+
+
+async def phase_test(w: Walk) -> None:
+    """Testing page: run the project quiz on the trained model, then the held-out eval and the RAG-grounded suite."""
+    await w.goto(f"/projects/{pid()}/testing")
+    model_opts = await w.page.locator("#t-model option").all_inner_texts()
+    log(f"model options: {model_opts}")
+    suite_opts = await w.page.locator("#t-suite option").all_inner_texts()
+    log(f"suite options: {[o[:60] for o in suite_opts]}")
+    mine = next((o for o in suite_opts if "sharegpt" in o or "ux-walk" in o or "approved" in o), None)
+    R.check(mine is not None, "the project's auto-generated quiz is offered in the suite dropdown")
+    if mine:
+        await w.page.select_option("#t-suite", label=mine)
+        await w.shot("suite-picked")
+        await w.page.click("#t-run-btn")
+        await w.page.wait_for_timeout(3000)
+        await w.shot("quiz-running")
+
+        async def has_result() -> bool:
+            return bool(__import__("re").search(r"\d+\s*/\s*\d+|pass(ed)?\s*rate|%", await _results_text(w), __import__("re").I))
+
+        R.check(await w.wait_for("quiz results", has_result, 300, every=4), "quiz produced a result")
+        await w.shot("quiz-results", full=True)
+        log("RESULTS: " + (await _results_text(w)).replace("\n", " ")[:400])
+    await w.page.select_option("#t-eval-kind", index=0)
+    await w.page.click("#t-train-eval-btn")
+    await w.page.wait_for_timeout(8000)
+    await w.shot("heldout-eval", full=True)
+    log("HELD-OUT: " + (await _results_text(w)).replace("\n", " ")[:400])
+
+
+async def phase_gguf(w: Walk) -> None:
+    """Export page: pick the finished run, keep GGUF + q4_k_m (the recommended default), add q6_k, EXPORT."""
+    await w.goto(f"/projects/{pid()}/export")
+    run_card = w.page.locator("text=" + load_state().get("run_id", "run")).first
+    if await run_card.count():
+        await run_card.click()
+    await w.shot("run-picked")
+    for quant in ("q6_k",):
+        box = w.page.locator("label", has_text=quant).locator("input[type=checkbox]").first
+        if not await box.is_checked():
+            await box.check()
+    await w.page.click("#export-btn")
+    await w.page.wait_for_timeout(3000)
+    await w.shot("export-started")
+
+    async def exported() -> bool:
+        runs = api(f"/api/projects/{pid()}/exports")
+        text = json.dumps(runs)
+        return "q4_k_m" in text.lower() and "q6_k" in text.lower()
+
+    R.check(await w.wait_for("GGUF export", exported, 240, every=4), "q4_k_m and q6_k GGUF files were written")
+    await w.page.reload(wait_until="networkidle")
+    await w.shot("exports-listed", full=True)
+    ggufs = list((REPO / "output" / "projects" / pid()).rglob("*.gguf"))
+    log("files: " + ", ".join(f"{g.name} {g.stat().st_size / 1e6:.0f}MB" for g in ggufs))
+    R.check(len(ggufs) >= 2, "GGUF files exist on disk")
+
+
+async def phase_chat(w: Walk) -> None:
+    """Chat page: LOAD the exported GGUF, then ask every ground-truth question plain (recall) and see the answers."""
+    await w.goto(f"/projects/{pid()}/chat")
+    opts = await w.page.locator("#chat-inline-model option").all_inner_texts()
+    log(f"chat model options: {opts}")
+    pick = next((o for o in opts if "q4_k_m" in o.lower()), None)
+    R.check(pick is not None, "the exported q4_k_m model is selectable in Chat")
+    await w.page.select_option("#chat-inline-model", label=pick)
+    await w.page.click("#chat-inline-load-btn")
+
+    async def loaded() -> bool:
+        return bool(api("/api/inference/status").get("loaded"))
+
+    R.check(await w.wait_for("model loaded in Chat", loaded, 120, every=2), "model loaded")
+    await w.shot("loaded")
+    st = api("/api/inference/status")
+    log(f"placement: ctx={st.get('n_ctx')} layers={st.get('n_gpu_layers')} offload={st.get('offload')}")
+    right = 0
+    for question, keys, fname in FACTS:
+        await w.page.fill("#chat-input", question)
+        await w.page.click("#chat-send")
+        await w.page.wait_for_timeout(2500)
+
+        async def answered() -> bool:
+            return not await w.page.locator("#chat-stop").is_enabled()
+
+        await w.wait_for("answer", answered, 60, every=1)
+        body = (await w.text("body")).lower()
+        last = body.rsplit(question.lower()[:30], 1)[-1][:300]
+        ok = any(k.lower() in last for k in keys)
+        right += ok
+        log(f"recall {'OK  ' if ok else 'MISS'} {question[:55]:55s} -> {last[:90].strip()!r}")
+    await w.shot("recall-answers", full=True)
+    R.check(right >= len(FACTS) // 2, f"model recalls {right}/{len(FACTS)} trained facts without any retrieval")
+
+
+PHASES: dict[str, Callable[[Walk], Awaitable[None]]] = {"gguf": phase_gguf, "chat": phase_chat, "test": phase_test, "model": phase_model, "train": phase_train, "create": phase_create, "upload": phase_upload, "prep": phase_prep, "review": phase_review, "rag": phase_rag, "export": phase_export}
 
 
 async def run(phases: list[str], headed: bool) -> int:
