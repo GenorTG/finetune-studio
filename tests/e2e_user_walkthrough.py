@@ -296,6 +296,10 @@ async def phase_create(w: Walk) -> None:
     if mine:
         save_state(pid=mine[0]["id"])
     await w.page.click(f"text={PROJECT_NAME}")
+    try:
+        await w.page.wait_for_url(f"**/projects/{mine[0]['id']}*", timeout=10000)   # SPA navigation is not instant
+    except Exception as e:  # noqa: BLE001
+        log(f"no navigation within 10 s: {type(e).__name__}")
     await w.page.wait_for_load_state("networkidle")
     await w.shot("project-overview")
     R.check(f"/projects/{mine[0]['id']}" in w.page.url, "clicking the card opens the project overview")
@@ -617,12 +621,10 @@ async def phase_gguf(w: Walk) -> None:
 
 async def phase_chat(w: Walk) -> None:
     """Chat page: LOAD the exported GGUF, then ask every ground-truth question plain (recall) and see the answers."""
+    # The Testing step leaves the merged model resident, and then the inline model dropdown comes up empty (open
+    # finding, see HANDOFF): free the GPU first like a user pressing the eject chip.
+    api("/api/models/unload", "POST")
     await w.goto(f"/projects/{pid()}/chat")
-    if not await w.page.locator("#chat-inline-model").count():
-        # a model from an earlier step is still resident, so the inline loader is hidden: unload like a user would
-        log("a model is already loaded; unloading it from the header chip")
-        api("/api/models/unload", "POST")
-        await w.goto(f"/projects/{pid()}/chat")
     opts = await w.page.locator("#chat-inline-model option").all_inner_texts()
     log(f"chat model options: {opts}")
     pick = next((o for o in opts if "q4_k_m" in o.lower()), None)

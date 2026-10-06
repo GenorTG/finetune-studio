@@ -22,7 +22,7 @@ Local fine-tune, data-prep and RAG WebUI. GPU-first on every vendor, CPU only on
 
 ## Real numbers (0.6B, 14 mixed-format files, Precision preset 420 steps ≈ 6.5 min on the 3090)
 
-Parse 14/14 formats in 3 s · helper mining 14 files ≈ 100 s, 12/12 ground-truth facts surfaced · 61 approved pairs (24 with retrieved context) · loss 0.035 · quiz 59/61 = 96.7 % (memory 35/37, with context 24/24) · **held-out slice 3/7 = 42.9 %** · pure recall without retrieval 7/12, with RAG 11/12 · offline MMLU-shaped smoke 58–75 % (48 cases, noisy, not industry).
+Parse 14/14 formats in 3 s · helper mining 14 files ≈ 100 s, 12/12 ground-truth facts surfaced · 61 approved pairs (24 with retrieved context) · loss 0.035 · quiz 59/61 = 96.7 % (memory 35/37, with context 24/24) · **held-out slice 3/7 then 5/7 (42.9 % / 71.4 % on two identical runs — n=7 is noise)** · pure recall without retrieval 7/12, with RAG 11/12 · offline MMLU-shaped smoke 58–75 % (48 cases, noisy, not industry).
 
 ## Open — needs Genor (the native question tool was unavailable this session)
 
@@ -33,10 +33,10 @@ Parse 14/14 formats in 3 s · helper mining 14 files ≈ 100 s, 12/12 ground-tru
 ## Next steps
 
 1. Answer the questions above; then build the chosen routes (design in the guide's routes table).
-2. Pure recall is weak (7/12): add paraphrase augmentation (≥3 phrasings per fact) to prep and measure; held-out 3/7 is the honest generalisation signal.
+2. Pure recall is weak (7/12): add paraphrase augmentation (≥3 phrasings per fact) to prep and measure; the held-out slice (7 rows) is the honest generalisation signal but far too small — grow it.
 3. Official-suite run on the base row of Benchmarks hung >4 min in the UI (GSM8K sampled 50) — not diagnosed; reproduce with the API and show progress/errors.
 4. Chat page silently attaches RAG in "test" mode, so "recall" tests are grounded; add an explicit RAG toggle.
-5. Deleting a project from the overview leaves a 404 console error (stale poll); Benchmarks case-name column breaks words.
+5. Chat page: after the Testing step leaves the merged model resident, the inline model dropdown is empty/hidden (switch only via header chip or /inference) — reproduce and fix. Benchmarks case-name column breaks words mid-word.
 6. `llama-cpp-python` 0.3.36 is source-built; try the abetlen cu13x wheel and remove the ubatch cap if fixed upstream (`FTS_LLAMA_UBATCH`).
 7. Branch protection: require `ci-ok`. AMD/Intel/Apple stay plan-tested only; fan-dragon deploy deferred.
 
