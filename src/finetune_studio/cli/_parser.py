@@ -236,4 +236,15 @@ def build_parser() -> argparse.ArgumentParser:
                             help="Also write the JSONL here (must be inside the project's directories)")
     p_ds_build.add_argument("--json", action="store_true", help="Print the summary as JSON")
 
+    p_ds_pref = dataset_sub.add_parser(
+        "build-preference",
+        help="Author DPO preference pairs (chosen vs rejected) from approved Q&A and register the dataset")
+    p_ds_pref.add_argument("--project", required=True, help="Project id or name")
+    p_ds_pref.add_argument("--kinds", default="hallucination,abstain", metavar="LIST",
+                           help="Comma-separated pair kinds: hallucination, abstain (default: both)")
+    p_ds_pref.add_argument("--max-pairs", type=int, default=100, metavar="N",
+                           help="Upper bound on pairs written, split evenly across kinds (default: 100)")
+    p_ds_pref.add_argument("--seed", type=int, default=42, help="Seed for candidate order and the split preview")
+    p_ds_pref.add_argument("--json", action="store_true", help="Print the summary as JSON")
+
     return parser

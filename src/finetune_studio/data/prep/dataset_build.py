@@ -75,6 +75,34 @@ class PersistedDataset:
     dataset: dict[str, Any] = field(default_factory=dict)
 
 
+def register_dataset_file(pid: str, filename: str, body: str, display: str, *,
+                          source: str) -> PersistedDataset:
+    """Write ``body`` to ``<datasets_dir>/<filename>`` and create/update its registry row.
+
+    The one place a built dataset becomes a ``project_datasets`` row, shared by the
+    SFT export and the preference builder. Re-writing the same file updates the row.
+    """
+    from finetune_studio.db.datasets import (
+        count_qa_pairs,
+        create_dataset,
+        datasets_dir,
+        get_dataset_by_path,
+        update_dataset,
+    )
+    target = datasets_dir(pid) / filename
+    target.write_text(body, encoding="utf-8")
+    rows = count_qa_pairs(str(target))
+    display = display.replace("{rows}", str(rows))
+    existing = get_dataset_by_path(pid, str(target))
+    if existing:
+        update_dataset(existing["id"], name=display, qa_count=rows, size_bytes=target.stat().st_size)
+        ds = {**existing, "name": display, "qa_count": rows}
+    else:
+        ds = create_dataset(project_id=pid, name=display, data_path=str(target),
+                            source=source, qa_count=rows, size_bytes=target.stat().st_size)
+    return PersistedDataset(path=target, rows=rows, dataset=ds)
+
+
 def persist_export(pid: str, fmt: str, only: str, body: str, grounded_rows: int = 0,
                    *, name: str | None = None) -> PersistedDataset:
     """Write ``body`` into the project's datasets dir and register/update the dataset row.
@@ -84,40 +112,20 @@ def persist_export(pid: str, fmt: str, only: str, body: str, grounded_rows: int 
     ``name`` replaces both with a sanitised custom label.
     """
     from finetune_studio import db
-    from finetune_studio.db.datasets import (
-        count_qa_pairs,
-        create_dataset,
-        datasets_dir,
-        get_dataset_by_path,
-        update_dataset,
-    )
     if name is not None:
         stem = re.sub(r"[^\w.\-]", "_", name).strip("._")
         if not stem:
             raise ValueError(f"dataset name {name!r} has no usable characters")
         fname = f"{pid}-{stem}.jsonl"
-    else:
-        fname = f"{pid}-{fmt}-{only}.jsonl"
-    target = datasets_dir(pid) / fname
-    target.write_text(body, encoding="utf-8")
-    rows = count_qa_pairs(str(target))
-    if name is not None:
         display = name
     else:
+        fname = f"{pid}-{fmt}-{only}.jsonl"
         # Readable registry name (Genor 2026-09-20): project · format · rows — never a bare pid hash.
         proj = db.get_project(pid) or {}
-        display = f"{proj.get('name') or pid} · {fmt} · {rows} rows"
+        display = f"{proj.get('name') or pid} · {fmt} · {{rows}} rows"
     if grounded_rows:
         display += f" ({grounded_rows} with retrieved context)"
-    existing = get_dataset_by_path(pid, str(target))
-    if existing:
-        update_dataset(existing["id"], name=display, qa_count=rows, size_bytes=target.stat().st_size)
-        ds = {**existing, "name": display, "qa_count": rows}
-    else:
-        ds = create_dataset(project_id=pid, name=display, data_path=str(target),
-                            source="data-prep-export", qa_count=rows,
-                            size_bytes=target.stat().st_size)
-    return PersistedDataset(path=target, rows=rows, dataset=ds)
+    return register_dataset_file(pid, fname, body, display, source="data-prep-export")
 
 
 @dataclass(frozen=True)

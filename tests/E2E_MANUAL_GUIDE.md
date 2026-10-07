@@ -119,7 +119,13 @@ Page `/projects/<id>/training`: **Base model** = Qwen3-0.6B; **From this project
 Use this branch only when you have **comparisons for the same prompt** and a reviewer can explain why one answer is preferred.
 Preference data is not interchangeable with Q&A: a chosen answer by itself is SFT, while a pair of chosen/rejected answers is DPO.
 
-1. Prepare JSONL with at least two rows. Conversational form is preferred:
+0. **Author the pairs in-app (optional).** After SFT, on `/projects/<id>/data-prep` open the **Preference pairs (DPO)** card, load the
+   helper, keep both kinds ticked, click **Build preference pairs**. Watch the progress bar (every candidate is a helper call), then read
+   the summary: pairs per kind, dropped-candidate reasons, chosen/rejected length ratio (a ⚠ means chosen is systematically longer —
+   DPO can learn length instead of faithfulness). Spot-check ~10 pairs in the JSONL (`<datasets dir>/<pid>-preference.jsonl`): hallucination
+   `rejected` should invent or omit details the source states; abstain questions must NOT be answerable from the files. **Train with this
+   dataset →** opens Training with the DPO route and the dataset preselected. CLI twin: `fts dataset build-preference --project <id> --json`.
+1. Otherwise prepare JSONL with at least two rows. Conversational form is preferred:
    `{"prompt":[{"role":"user","content":"…"}],"chosen":[{"role":"assistant","content":"…"}],"rejected":[{"role":"assistant","content":"…"}]}`.
    String fields (`prompt`, `chosen`, `rejected`) are accepted and normalized to user/assistant turns.
 2. On `/projects/<id>/training`, select **Preference tuning (DPO)**, then **Upload my own** and choose that JSONL.
@@ -130,7 +136,7 @@ Preference data is not interchangeable with Q&A: a chosen answer by itself is SF
 5. When the run finishes, its auto-generated quiz asks each prompt and expects **chosen**, never rejected. Inspect these answers;
    then run held-out evaluation. Do not infer model quality from training loss alone.
 
-The DPO radio selects conservative defaults (learning rate `1e-6`, one epoch, no warmup); these values appear in the editable fields. Review comparisons before training. The first preference route is DPO. ORPO/KTO and in-app construction/review of preference comparisons are not included yet.
+The DPO radio selects conservative defaults (learning rate `1e-6`, one epoch, no warmup); these values appear in the editable fields. Review comparisons before training. The first preference route is DPO. ORPO/KTO and a per-pair review UI for preference comparisons are not included yet (pairs are authored in bulk with quality gates, not hand-reviewed).
 
 ### Other supported data routes
 
@@ -138,7 +144,7 @@ The DPO radio selects conservative defaults (learning rate `1e-6`, one epoch, no
 - **Continued pretraining:** upload JSONL with one `{"text":"…"}` raw-text row per sample and select **Continued pretraining**. Do not wrap corpus text as a fake user message. Keep a held-out domain-text set and downstream task suite; this route is not instruction tuning and has no automatic QA quiz.
 - **Reasoning distillation:** upload reviewed teacher demonstrations as `messages` JSONL and select **Reasoning distillation**. Keep a final answer / verifiable outcome in the example, remove unsupported or private teacher traces, and evaluate on independent tasks. It uses the normal supervised trainer; the label does not make traces trustworthy.
 
-ORPO/KTO are not exposed: the installed TRL 1.14.1 runtime provides DPOTrainer but no ORPOTrainer/ORPOConfig. Do not label DPO as ORPO or silently substitute algorithms. Preference-comparison authoring, automatic teacher-trace generation, and benchmark decontamination are also not in-app yet.
+ORPO/KTO are not exposed: the installed TRL 1.14.1 runtime provides DPOTrainer but no ORPOTrainer/ORPOConfig. Do not label DPO as ORPO or silently substitute algorithms. Automatic teacher-trace generation, and benchmark decontamination are also not in-app yet.
 
 ## 9. Test the trained model [`test`]
 

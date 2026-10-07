@@ -456,7 +456,7 @@
   const advancedHelp = document.getElementById("advanced-format-help");
   const routeHelp = {
     sft: "SFT learns from prompt/answer examples. Choose an approved Q&A export or a conversational JSONL dataset.",
-    dpo: "DPO tunes preferences between two reviewed answers to the same prompt. Selecting it sets LoRA preference defaults (LR 1e-4, 3 epochs, no warmup, plus a keep-chosen term) measured on ~50-step runs; for thousands of pairs lower the learning rate to 5e-6–2e-5. Watch rewards/accuracies and margins in the live panel: if they stay at 0.5 and 0 the model is not moving. It does not create comparisons for you.",
+    dpo: "DPO tunes preferences between two reviewed answers to the same prompt. Selecting it sets LoRA preference defaults (LR 1e-4, 3 epochs, no warmup, plus a keep-chosen term) measured on ~50-step runs; for thousands of pairs lower the learning rate to 5e-6–2e-5. Watch rewards/accuracies and margins in the live panel: if they stay at 0.5 and 0 the model is not moving. Build the comparisons from your approved pairs on the Pairs page (“Preference pairs (DPO)”), or upload your own reviewed pairs.",
     kto: "KTO tunes a model from answers marked good or bad (no pairing needed). Defaults: LR 1e-5, 3 epochs (the least damaging rate we measured; on a facts-and-refusals test KTO did not beat the SFT start). Watch rewards/margins in the live panel. Start from your SFT-merged run when you have one.",
     tool_sft: "Tool-calling SFT teaches structured tool requests and tool results. JSONL rows need messages (including tool_calls/tool turns) and a tools JSON-schema array; use a model with a compatible chat template.",
     continued_pretraining: "Continued pretraining adapts domain language on raw text, not question/answer pairs. JSONL rows need a non-empty text field. It does not teach instruction following by itself.",
@@ -604,15 +604,6 @@
     if (presetSel.value) fetchAdvisory();
   }
 
-  // Deep-link from Data Prep post-export CTA: /training?dataset=latest
-  // Prefills the newest registered dataset so one click lands ready-to-run.
-  (function prefillDatasetFromQuery() {
-    try {
-      const q = new URLSearchParams(window.location.search);
-      if (q.get("dataset") !== "latest" || !select || !select.options.length) return;
-      if (select.options.length > 1) { select.selectedIndex = 1; select.dispatchEvent(new Event("change")); }
-    } catch (_) {}
-  })();
 
   // Dataset health: checked as soon as a dataset is picked or uploaded.
   const healthEl = document.getElementById("dataset-health");
@@ -700,6 +691,26 @@
       loadHealth(datasetIdInput.value);
     });
   }
+
+  // Deep-link from Data Prep: /training?dataset=latest | <dataset id>[&mode=dpo]
+  // (must run after the change listener above is wired, or the hidden dataset fields stay empty)
+  // Prefills that registered dataset (and the training route) so one click lands ready-to-run.
+  (function prefillDatasetFromQuery() {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const want = q.get("dataset");
+      if (!want || !select || !select.options.length) return;
+      const mode = q.get("mode");
+      const modeInput = mode && document.querySelector(`input[name="training_mode"][value="${CSS.escape(mode)}"]`);
+      if (modeInput) { modeInput.checked = true; modeInput.dispatchEvent(new Event("change")); }
+      if (want === "latest") {
+        if (select.options.length > 1) { select.selectedIndex = 1; select.dispatchEvent(new Event("change")); }
+        return;
+      }
+      const idx = Array.from(select.options).findIndex((o) => o.value === want);
+      if (idx > 0) { select.selectedIndex = idx; select.dispatchEvent(new Event("change")); }
+    } catch (_) {}
+  })();
 
   // File upload: POST to /datasets/upload, then fill the hidden fields.
   if (fileInput) {
