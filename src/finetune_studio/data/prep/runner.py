@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import mimetypes
+import os
 import threading
 import time
 import uuid
@@ -35,6 +36,7 @@ from finetune_studio.data.prep.qa_validate import (
     Provenance,
     RejectionCounters,
     build_qa_record,
+    normalize_question,
     validate_qa_batch,
     validate_qa_pair,
 )
@@ -91,12 +93,27 @@ class DataPrepRunner:
             # Progress UI callback must never abort prep; log and continue.
             log.exception("prep progress callback failed")
 
+    def _api_workers(self) -> int:
+        """Parallel model calls: an API helper serves requests concurrently, a local GGUF does not (one GPU)."""
+        try:
+            from finetune_studio.models.manager import get_manager
+
+            if (get_manager().active() or {}).get("kind") == "openai_compat":
+                return max(1, min(16, int(os.environ.get("FTS_API_CONCURRENCY", "6"))))
+        except Exception:
+            log.debug("could not read the active provider for concurrency", exc_info=True)
+        return 1
+
     def _generate_exhaustive(self, chat, chunks, meta, coverage, rejection_counters, seen_questions, now):
-        """Exhaustive mining (see ``exhaustive``): per chunk, loop until every fact-bearing statement is covered."""
+        """Exhaustive mining (see ``exhaustive``): per chunk, loop until every fact-bearing statement is covered.
+
+        Chunks are independent (each carries everything it needs), so with an API helper they are mined in parallel and
+        written in chunk order; cross-chunk duplicate questions are dropped when written.
+        """
+        from concurrent.futures import ThreadPoolExecutor
+
         from finetune_studio.data.prep import exhaustive as ex
-        from finetune_studio.data.prep.coverage_question import (
-            split_sections,
-        )
+        from finetune_studio.data.prep.coverage_question import split_sections
 
         title = ex.document_title(chunks[0] if chunks else "", self.filename)
         stats: dict[str, Any] = {"statements": 0, "covered": 0, "model_pairs": 0, "gap_pairs": 0, "extractive_pairs": 0,
@@ -106,42 +123,63 @@ class DataPrepRunner:
         def call(messages):
             return chat(messages, max_tokens=EXHAUSTIVE_MAX_TOKENS, temperature=0.0, top_p=1.0)
 
-        for i, chunk in enumerate(chunks, 1):
+        def mine(i: int):
             if self._cancel.is_set():
-                return total_qa, stats, True
+                return None
+            chunk = chunks[i - 1]
             carried = ex.table_header_before(chunks, i - 1)
             grounding = f"{carried}\n{chunk}" if carried else chunk
+            local_seen: set[str] = set()
+            counts = RejectionCounters()
 
-            def accept(pairs, _chunk, grounding=grounding):
-                batch = validate_qa_batch(pairs, grounding, seen_questions=seen_questions)
-                rejection_counters.parsed += batch.counters.parsed
-                rejection_counters.accepted += batch.counters.accepted
-                rejection_counters.rejected += batch.counters.rejected
-                rejection_counters.by_reason.update(batch.counters.by_reason)
+            def accept(pairs, _chunk):
+                batch = validate_qa_batch(pairs, grounding, seen_questions=local_seen)
+                counts.parsed += batch.counters.parsed
+                counts.accepted += batch.counters.accepted
+                counts.rejected += batch.counters.rejected
+                counts.by_reason.update(batch.counters.by_reason)
                 return [{"q": p.question, "a": p.answer} for p in batch.accepted]
 
             sections = split_sections(chunk)
             section = (sections[0][0] if sections else "") or ""
             outcome = ex.mine_chunk(chunk, chat=call, parse=lambda raw: parse_qa_json(raw, 400), accept=accept,
                                     title=title, section=section, carried_header=carried)
-            prov = Provenance(source_id=self.source_id, sha256=meta.sha256, filename=self.filename, chunk_idx=i)
-            for pair, origin in outcome.pairs:
-                validated = validate_qa_pair(pair["q"], pair["a"], grounding)
-                qa = build_qa_record(
-                    qa_id=uuid.uuid4().hex[:12], pair=validated, provenance=prov, chunk_text=chunk[:1500],
-                    difficulty=self.difficulty, style=self.style,
-                    score=heuristic_score(pair["q"], pair["a"], chunk), created_at=now, origin=origin,
-                )
-                pfs.write_qa_pair(self.pid, qa)
-                coverage.mark_accepted(i)
-                total_qa += 1
-                key = {"model": "model_pairs", "model_gap": "gap_pairs", "extractive_gap": "extractive_pairs"}[origin]
-                stats[key] += 1
-            stats["statements"] += outcome.statements
-            stats["covered"] += outcome.covered
-            stats["rounds"] += outcome.rounds
-            self._emit(stage="generating", pct=30 + (i / max(1, len(chunks))) * 65, chunks_done=i, qa_total=total_qa,
-                       message=f"Chunk {i}/{len(chunks)}: {stats['covered']}/{stats['statements']} statements covered")
+            return outcome, grounding, counts
+
+        workers = self._api_workers()
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for i, result in enumerate(pool.map(mine, range(1, len(chunks) + 1)), 1):
+                if result is None or self._cancel.is_set():
+                    pool.shutdown(wait=False, cancel_futures=True)
+                    return total_qa, stats, True
+                outcome, grounding, counts = result
+                chunk = chunks[i - 1]
+                rejection_counters.parsed += counts.parsed
+                rejection_counters.accepted += counts.accepted
+                rejection_counters.rejected += counts.rejected
+                rejection_counters.by_reason.update(counts.by_reason)
+                prov = Provenance(source_id=self.source_id, sha256=meta.sha256, filename=self.filename, chunk_idx=i)
+                for pair, origin in outcome.pairs:
+                    qn = normalize_question(pair["q"])
+                    if qn in seen_questions:
+                        continue                       # the same question was already written for an earlier chunk
+                    seen_questions.add(qn)
+                    validated = validate_qa_pair(pair["q"], pair["a"], grounding)
+                    qa = build_qa_record(
+                        qa_id=uuid.uuid4().hex[:12], pair=validated, provenance=prov, chunk_text=chunk[:1500],
+                        difficulty=self.difficulty, style=self.style,
+                        score=heuristic_score(pair["q"], pair["a"], chunk), created_at=now, origin=origin,
+                    )
+                    pfs.write_qa_pair(self.pid, qa)
+                    coverage.mark_accepted(i)
+                    total_qa += 1
+                    key = {"model": "model_pairs", "model_gap": "gap_pairs", "extractive_gap": "extractive_pairs"}[origin]
+                    stats[key] += 1
+                stats["statements"] += outcome.statements
+                stats["covered"] += outcome.covered
+                stats["rounds"] += outcome.rounds
+                self._emit(stage="generating", pct=30 + (i / max(1, len(chunks))) * 65, chunks_done=i, qa_total=total_qa,
+                           message=f"Chunk {i}/{len(chunks)}: {stats['covered']}/{stats['statements']} statements covered")
         return total_qa, stats, False
 
     def run(self) -> dict:

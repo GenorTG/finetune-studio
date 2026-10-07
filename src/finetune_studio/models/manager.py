@@ -419,6 +419,8 @@ class ModelManager:
             p = self._provider
         if p is None:
             raise RuntimeError("No model loaded")
+        if getattr(p, "concurrent", False):  # an API provider serves parallel requests; a local GGUF is one GPU
+            return p.chat(messages, **gen)
         with self._invoke_lock:
             return p.chat(messages, **gen)
 

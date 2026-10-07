@@ -258,6 +258,8 @@ class OpenAICompatProvider(ModelProvider):
     (default 3, for 429/5xx/connection errors).
     """
 
+    concurrent = True  # stateless HTTP: callers may issue requests in parallel
+
     def __init__(self, config: ProviderConfig):
         super().__init__(config)
         self._session = None  # requests.Session
