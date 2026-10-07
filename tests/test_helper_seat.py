@@ -145,6 +145,16 @@ def test_seating_the_api_helper_and_key_is_never_returned(client: Any, gateway: 
     assert "Helper · API · deepseek-v4-flash" in (helper.get_configured_helper_provider() or {})["label"]
 
 
+def test_seated_api_helper_really_chats_with_its_stored_headers(client: Any, gateway: _Gateway) -> None:
+    """Regression: a freshly inserted provider row lost ``extra`` (headers/body) — the gateway then refused it."""
+    from finetune_studio.models.manager import get_manager
+    _put(client, gateway, reasoning_effort="low")
+    assert get_manager().chat([{"role": "user", "content": "hi"}]) == "pong"
+    sent = gateway.seen[-1]
+    assert sent["headers"]["x-opencode-session"] and sent["body"]["reasoning_effort"] == "low"
+    assert client.get("/api/settings/helper").json()["api"]["preset"] == "opencode-go"
+
+
 def test_seat_follows_into_helper_consumers(client: Any, gateway: _Gateway) -> None:
     from finetune_studio.data.prep.generator import resolve_helper_backend
     _put(client, gateway)

@@ -300,7 +300,7 @@ class ModelManager:
                 cols = ["id", "name", "kind", "model_id", "base_url", "api_key", "extra_json", "created_at"]
                 vals = [fields.get("id"), fields.get("name", ""), fields.get("kind", "openai_compat"),
                         fields.get("model_id", ""), fields.get("base_url", ""), fields.get("api_key", ""),
-                        json_dumps(fields.get("extra", {})), now]
+                        fields.get("extra_json") or json_dumps({}), now]
                 c.execute(f"INSERT INTO model_providers ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})", vals)
         return self.get_provider(fields["id"])
 
