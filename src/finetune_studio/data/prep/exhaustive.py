@@ -213,6 +213,7 @@ sentence become several pairs.
 - Every answer is a complete sentence that states the exact values as written in the passage (keep numbers, units, codes and names \
 verbatim). Never add information that is not in the passage.
 - Never ask the same fact twice in different words.
+- For chat logs, e-mails and minutes: state the fact itself (what was decided, measured, promised, when, by whom when that matters). Never write "What did <person> say at <time>?" questions or answers that just quote a message.
 - For a table row, ask about the row by its key (code, name, id) and answer with the column names and their values.
 - Skip only pure boilerplate that states no fact."""
 

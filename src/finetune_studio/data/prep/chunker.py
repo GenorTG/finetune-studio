@@ -31,22 +31,40 @@ def _tail(text: str, overlap: int) -> str:
     return cut.strip()
 
 
+def _units(para: str, target_chars: int) -> list[tuple[str, str]]:
+    """(separator-before, text) units of a paragraph: whole LINES, and only a line longer than a chunk is cut into sentences.
+
+    A table row or chat message is a line; splitting it at a "." inside a cell ("quote policy no. SB-KCC-7710-24") put half
+    of a row into the next chunk, where the other half's meaning is lost.
+    """
+    units: list[tuple[str, str]] = []
+    for line in para.split("\n"):
+        if not line.strip():
+            continue
+        if len(line) <= target_chars:
+            units.append(("\n", line))
+            continue
+        for i, sent in enumerate(re.split(r"(?<=[.!?])\s+", line)):
+            units.append(("\n" if i == 0 else " ", sent))
+    return units
+
+
 def _pack_sentences(prefix: str, para: str, target_chars: int) -> tuple[list[str], str]:
-    """Greedy-pack ``para``'s sentences after ``prefix``.
+    """Greedy-pack ``para``'s lines (then sentences of over-long lines) after ``prefix``.
 
     Returns (full chunks, trailing partial buffer).
     """
     chunks: list[str] = []
     buf = prefix
-    for s in re.split(r"(?<=[.!?])\s+", para):
-        sep = "\n\n" if buf == prefix and prefix else " "
-        cand = (buf + sep + s).strip() if buf else s
+    for sep_kind, unit in _units(para, target_chars):
+        sep = "\n\n" if buf == prefix and prefix else sep_kind
+        cand = (buf + sep + unit).strip() if buf else unit
         if len(cand) <= target_chars:
             buf = cand
         else:
             if buf:
                 chunks.append(buf)
-            buf = s
+            buf = unit
     return chunks, buf
 
 
