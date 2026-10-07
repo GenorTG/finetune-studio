@@ -49,7 +49,14 @@ def _manager_helper_backend() -> LoadedBackend | None:
 
     mgr = get_manager()
     active = mgr.active()
-    if active is None or not is_helper_provider(active):
+    if active is None:
+        # An API helper costs no VRAM and loads instantly (e.g. after a restart), so it is seated on demand;
+        # the local GGUF is never loaded implicitly, and a model someone else loaded is never displaced.
+        seat = mgr.get_provider(get_helper_provider_id()) or {}
+        if seat.get("kind") != "openai_compat":
+            return None
+        active = mgr.load(seat["id"])
+    if not is_helper_provider(active):
         return None
     return {
         "kind": "provider",
