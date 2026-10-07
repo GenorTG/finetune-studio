@@ -61,7 +61,7 @@ async def load_model(request: Request):
         # has resident before loading into inference_engine — otherwise both
         # sit in VRAM simultaneously until someone happens to click Unload.
         from finetune_studio.models.manager import get_manager
-        get_manager().unload()
+        await asyncio.to_thread(get_manager().unload)
         async with ENGINE_LOCK:
             await asyncio.to_thread(inference_engine.load, model_path, **kwargs)
         return {"status": "loaded", "model": model_path}

@@ -1,5 +1,6 @@
 """Flat data files — upload, validate, deduplicate."""
 
+import asyncio
 import os
 from pathlib import Path
 
@@ -36,14 +37,14 @@ async def upload_file(file: UploadFile = File(...)):  # noqa: B008
 
 @router.get("/validate")
 async def validate(path: str):
-    return validate_file(_data_path(path))
+    return await asyncio.to_thread(validate_file, _data_path(path))
 
 @router.post("/dedup")
 async def dedup(path: str):
     path = _data_path(path)
     try:
-        data = load_jsonl(path)
+        data = await asyncio.to_thread(load_jsonl, path)
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": str(e)}, status_code=400)
-    unique, dupes = dedup_data(data)
+    unique, dupes = await asyncio.to_thread(dedup_data, data)
     return {"original": len(data), "unique": len(unique), "removed": dupes}

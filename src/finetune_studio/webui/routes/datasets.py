@@ -11,6 +11,7 @@ Endpoints:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -180,7 +181,7 @@ async def dataset_health_route(pid: str, did: str, request: Request):
     training_mode = request.query_params.get("training_mode", "sft")
     if training_mode not in {"sft", "dpo", "kto", "tool_sft", "continued_pretraining", "reasoning_distillation"}:
         return JSONResponse({"error": "unsupported training_mode"}, status_code=400)
-    return check_dataset(path, training_mode=training_mode)
+    return await asyncio.to_thread(check_dataset, path, training_mode=training_mode)
 
 
 @router.post("/projects/{pid}/datasets/{did}/dedup")
@@ -193,7 +194,7 @@ async def dataset_dedup_route(pid: str, did: str):
     if not src.is_file():
         return JSONResponse({"error": f"dataset file is missing: {src.name}"}, status_code=404)
     target = _unique_dataset_path(pid, f"{src.stem}-dedup")
-    kept, removed = dedupe_dataset(src, target)
+    kept, removed = await asyncio.to_thread(dedupe_dataset, src, target)
     if not removed:
         target.unlink(missing_ok=True)
         return JSONResponse({"error": "no duplicates to remove"}, status_code=400)

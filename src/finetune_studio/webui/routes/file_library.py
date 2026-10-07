@@ -35,6 +35,7 @@ them as a fid='trash' lookup.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import tempfile
@@ -342,7 +343,8 @@ async def files_download_zip_route(pid: str, request: Request):
     _project_or_404(pid)
     body = await _json_body(request)
     ids = [str(i) for i in (body.get("ids") or [])]
-    payload, filename = wb.download_zip(pid, ids)
+    # Reads and zips every selected file: off the event loop.
+    payload, filename = await asyncio.to_thread(wb.download_zip, pid, ids)
     return Response(
         content=payload,
         media_type="application/zip",
@@ -432,7 +434,8 @@ async def save_parsed_route(pid: str, fid: str, request: Request):
     text = body.get("text")
     if text is None:
         raise HTTPException(status_code=400, detail="text required")
-    return save_parsed_override(pid, fid, str(text))
+    # Rewrites parsed.txt and regenerates chunks: off the event loop.
+    return await asyncio.to_thread(save_parsed_override, pid, fid, str(text))
 
 
 @router.post("/projects/{pid}/files/{fid}/reparse")
@@ -440,7 +443,8 @@ async def reparse_file_route(pid: str, fid: str):
     """Discard the manual parsed override and re-run the real parser."""
     from finetune_studio.data.parsed_edit import reparse_file
     _project_or_404(pid)
-    return reparse_file(pid, fid)
+    # Re-runs the real parser (PDF/OCR can take a long time): off the loop.
+    return await asyncio.to_thread(reparse_file, pid, fid)
 
 
 @router.get("/projects/{pid}/files/{fid}/usage")

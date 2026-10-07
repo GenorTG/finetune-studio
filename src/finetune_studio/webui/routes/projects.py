@@ -130,13 +130,17 @@ async def delete_project(pid: str):
     from finetune_studio.data.fs.paths import rag_corpus_dir
     from finetune_studio.data.fs.paths import root as fts_root
 
-    for project_dir in (
-        fts_root() / "projects" / pid,
-        Path(settings.db_path).parent / "projects" / pid,
-        Path("output") / "projects" / pid,
-        rag_corpus_dir(pid),
-    ):
-        shutil.rmtree(project_dir, ignore_errors=True)
+    def _remove_dirs() -> None:
+        for project_dir in (
+            fts_root() / "projects" / pid,
+            Path(settings.db_path).parent / "projects" / pid,
+            Path("output") / "projects" / pid,
+            rag_corpus_dir(pid),
+        ):
+            shutil.rmtree(project_dir, ignore_errors=True)
+
+    # Project dirs can hold gigabytes of weights: never rmtree on the loop.
+    await asyncio.to_thread(_remove_dirs)
 
     # The deleted project's trained exports stay in the model registry (and the
     # model pickers) until the next rescan — drop them now.
@@ -263,93 +267,98 @@ async def import_project(request: Request):
 
     buf = io.BytesIO(await file.read())
 
-    def bad(msg: str):
-        return JSONResponse({"error": f"invalid archive: {msg}"}, status_code=400)
+    def _restore() -> JSONResponse | dict:
+        """Validate + extract the archive (tar + file copies: seconds to minutes)."""
 
-    try:
-        with tarfile.open(fileobj=buf, mode="r:*") as tar:
-            manifest: dict = {}
-            library: object = None
-            plan: list[tuple[tarfile.TarInfo, str, tuple[str, ...]]] = []
-            old_ids: set[str] = set()
-            for member in tar.getmembers():
-                parts = _safe_member_parts(member.name)
-                if parts is None:
-                    return bad(f"unsafe member path {member.name!r}")
-                if parts == ("manifest.json",):
-                    f = tar.extractfile(member) if member.isfile() else None
-                    if f is None:
-                        return bad("manifest.json is not a file")
-                    try:
-                        manifest = json.loads(f.read().decode())
-                    except (UnicodeDecodeError, json.JSONDecodeError):
-                        return bad("manifest.json is not valid JSON")
-                    if not isinstance(manifest, dict):
-                        return bad("manifest.json must be an object")
-                    continue
-                if parts == (LIBRARY_MEMBER,):
-                    f = tar.extractfile(member) if member.isfile() else None
-                    if f is None:
-                        return bad("file_library.json is not a file")
-                    try:
-                        library = json.loads(f.read().decode())
-                    except (UnicodeDecodeError, json.JSONDecodeError):
-                        return bad("file_library.json is not valid JSON")
-                    continue
-                if parts[0] not in ("projects", "rag_corpora"):
-                    return bad(f"unexpected member {member.name!r}")
-                if len(parts) == 1:
-                    continue
-                if not (member.isfile() or member.isdir()):
-                    return bad(f"unsupported member type: {member.name!r}")
-                old_ids.add(parts[1])
-                plan.append((member, parts[0], parts[1:]))
+        def bad(msg: str):
+            return JSONResponse({"error": f"invalid archive: {msg}"}, status_code=400)
 
-            declared = manifest.get("project_id")
-            if declared is not None:
-                if not isinstance(declared, str) or _safe_member_parts(declared) != (declared,):
-                    return bad("manifest project_id is invalid")
-                if old_ids - {declared}:
-                    return bad("archive contains data for other projects")
-                old_id = declared
-            elif len(old_ids) == 1:
-                old_id = next(iter(old_ids))
-            else:
-                return bad("expected exactly one project")
-            if not any(root == "projects" for _m, root, _p in plan):
-                return bad("no projects dir")
+        try:
+            with tarfile.open(fileobj=buf, mode="r:*") as tar:
+                manifest: dict = {}
+                library: object = None
+                plan: list[tuple[tarfile.TarInfo, str, tuple[str, ...]]] = []
+                old_ids: set[str] = set()
+                for member in tar.getmembers():
+                    parts = _safe_member_parts(member.name)
+                    if parts is None:
+                        return bad(f"unsafe member path {member.name!r}")
+                    if parts == ("manifest.json",):
+                        f = tar.extractfile(member) if member.isfile() else None
+                        if f is None:
+                            return bad("manifest.json is not a file")
+                        try:
+                            manifest = json.loads(f.read().decode())
+                        except (UnicodeDecodeError, json.JSONDecodeError):
+                            return bad("manifest.json is not valid JSON")
+                        if not isinstance(manifest, dict):
+                            return bad("manifest.json must be an object")
+                        continue
+                    if parts == (LIBRARY_MEMBER,):
+                        f = tar.extractfile(member) if member.isfile() else None
+                        if f is None:
+                            return bad("file_library.json is not a file")
+                        try:
+                            library = json.loads(f.read().decode())
+                        except (UnicodeDecodeError, json.JSONDecodeError):
+                            return bad("file_library.json is not valid JSON")
+                        continue
+                    if parts[0] not in ("projects", "rag_corpora"):
+                        return bad(f"unexpected member {member.name!r}")
+                    if len(parts) == 1:
+                        continue
+                    if not (member.isfile() or member.isdir()):
+                        return bad(f"unsupported member type: {member.name!r}")
+                    old_ids.add(parts[1])
+                    plan.append((member, parts[0], parts[1:]))
 
-            meta = manifest.get("project") if isinstance(manifest.get("project"), dict) else {}
-            meta = {k: str(meta.get(k) or "") for k in _PROJECT_META_FIELDS}
-            proj_name = meta["name"] or f"Imported {old_id[:8]}"
-            new_proj = db.create_project(
-                name=proj_name,
-                description=meta["description"] or "Imported from archive",
-                base_model=meta["base_model"],
-                system_prompt=meta["system_prompt"] or "You are a helpful assistant.",
-            )
-            new_id = new_proj["id"]
-            db.update_project(new_id, tags=meta["tags"] or "imported", notes=meta["notes"])
+                declared = manifest.get("project_id")
+                if declared is not None:
+                    if not isinstance(declared, str) or _safe_member_parts(declared) != (declared,):
+                        return bad("manifest project_id is invalid")
+                    if old_ids - {declared}:
+                        return bad("archive contains data for other projects")
+                    old_id = declared
+                elif len(old_ids) == 1:
+                    old_id = next(iter(old_ids))
+                else:
+                    return bad("expected exactly one project")
+                if not any(root == "projects" for _m, root, _p in plan):
+                    return bad("no projects dir")
 
-            dests = {"projects": _projects_root() / new_id, "rag_corpora": _corpora_root() / new_id}
-            for member, root, parts in plan:
-                dest = dests[root].joinpath(*parts[1:])
-                if member.isdir():
-                    dest.mkdir(parents=True, exist_ok=True)
-                    continue
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                src = tar.extractfile(member)
-                if src is None:
-                    continue
-                with src, dest.open("wb") as out:
-                    shutil.copyfileobj(src, out)
-            dests["projects"].mkdir(parents=True, exist_ok=True)
-            rebase_project_files(dests["projects"], old_id)
-            restore_file_library(library, old_id, new_id, dests["projects"])
-            return {"ok": True, "imported": [{"old_id": old_id, "new_id": new_id, "name": proj_name}],
-                    "count": 1}
-    except (tarfile.TarError, EOFError) as e:
-        return bad(str(e))
+                meta = manifest.get("project") if isinstance(manifest.get("project"), dict) else {}
+                meta = {k: str(meta.get(k) or "") for k in _PROJECT_META_FIELDS}
+                proj_name = meta["name"] or f"Imported {old_id[:8]}"
+                new_proj = db.create_project(
+                    name=proj_name,
+                    description=meta["description"] or "Imported from archive",
+                    base_model=meta["base_model"],
+                    system_prompt=meta["system_prompt"] or "You are a helpful assistant.",
+                )
+                new_id = new_proj["id"]
+                db.update_project(new_id, tags=meta["tags"] or "imported", notes=meta["notes"])
+
+                dests = {"projects": _projects_root() / new_id, "rag_corpora": _corpora_root() / new_id}
+                for member, root, parts in plan:
+                    dest = dests[root].joinpath(*parts[1:])
+                    if member.isdir():
+                        dest.mkdir(parents=True, exist_ok=True)
+                        continue
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    src = tar.extractfile(member)
+                    if src is None:
+                        continue
+                    with src, dest.open("wb") as out:
+                        shutil.copyfileobj(src, out)
+                dests["projects"].mkdir(parents=True, exist_ok=True)
+                rebase_project_files(dests["projects"], old_id)
+                restore_file_library(library, old_id, new_id, dests["projects"])
+                return {"ok": True, "imported": [{"old_id": old_id, "new_id": new_id, "name": proj_name}],
+                        "count": 1}
+        except (tarfile.TarError, EOFError) as e:
+            return bad(str(e))
+
+    return await asyncio.to_thread(_restore)
 
 
 @router.post("/{pid}/promote")

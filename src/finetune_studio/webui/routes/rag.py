@@ -211,15 +211,18 @@ async def rag_build(pid: str, req: BuildRequest):
 
     corpus = _corpus_dir(pid)
     if req.reset and corpus.exists():
-        shutil.rmtree(corpus)
+        await asyncio.to_thread(shutil.rmtree, corpus)
     rag = PortableRAG(corpus)
 
-    # Synchronously count .txt files we are about to feed — gives the UI a
-    # real "queued N files" message instead of the '?' fallback while the
+    # Count the .txt files we are about to feed — gives the UI a real
+    # "queued N files" message instead of the '?' fallback while the
     # background embedder spins up (which can take minutes on CPU).
-    txt_files = sorted(project_files_dir.rglob("*.txt"))
-    queued_files = sum(1 for f in txt_files if f.is_file())
-    queued_chars = sum(f.stat().st_size for f in txt_files)
+    def _count_txt() -> tuple[int, int]:
+        txt_files = sorted(project_files_dir.rglob("*.txt"))
+        return (sum(1 for f in txt_files if f.is_file()),
+                sum(f.stat().st_size for f in txt_files))
+
+    queued_files, queued_chars = await asyncio.to_thread(_count_txt)
 
     # The request stays open until the build finishes (embedding 45 small
     # files takes ~30s), but runs in a worker thread so the event loop can
