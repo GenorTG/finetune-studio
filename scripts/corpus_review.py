@@ -4,6 +4,10 @@
     .venv/bin/python scripts/corpus_review.py apply --pid P --ledger .tmp/review-ledger.jsonl <<'V'
     <pair-id> A                      # approve
     <pair-id> R wrong number         # reject + reason
+    <pair-id> E new question text || new answer text    # edit wording, then approve
+    V
+    .venv/bin/python scripts/corpus_review.py add --pid P --file NAME --chunk N --ledger L <<'V'
+    reviewer-written question || reviewer-written answer      # a pair the miner never wrote (origin=human_review, approved)
     V
     .venv/bin/python scripts/corpus_review.py status --pid P --ledger .tmp/review-ledger.jsonl
 
@@ -42,13 +46,14 @@ def ledger_ids(path: Path) -> dict[str, dict]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["dump", "apply", "status"])
+    ap.add_argument("cmd", choices=["dump", "apply", "add", "status"])
     ap.add_argument("--pid", required=True)
     ap.add_argument("--file")
     ap.add_argument("--offset", type=int, default=0)
     ap.add_argument("--limit", type=int, default=25)
     ap.add_argument("--status", default="pending")
     ap.add_argument("--ledger", default=".tmp/review-ledger.jsonl")
+    ap.add_argument("--chunk", type=int, default=1)
     ap.add_argument("--chunks", action="store_true", help="print the full source chunk once per chunk")
     a = ap.parse_args()
     ledger = Path(a.ledger)
@@ -78,14 +83,52 @@ def main() -> int:
                 parts = line.split(None, 2)
                 pid_, verdict = parts[0], parts[1].upper()[:1]
                 reason = parts[2] if len(parts) > 2 else ""
-                if pid_ not in by_id or verdict not in "AR":
+                if pid_ not in by_id or verdict not in "ARE":
                     print(f"SKIP bad line: {line}", file=sys.stderr)
                     continue
-                call(f"/api/projects/{a.pid}/data-prep/qa/{pid_}", "PATCH", {"status": "approved" if verdict == "A" else "rejected"})
-                fh.write(json.dumps({"id": pid_, "verdict": verdict, "reason": reason, "file": sources.get(by_id[pid_].get("source_id")),
+                if verdict == "E":
+                    q, _, ans = reason.partition("||")
+                    if not q.strip() or not ans.strip():
+                        print(f"SKIP edit without 'question || answer': {line}", file=sys.stderr)
+                        continue
+                    call(f"/api/projects/{a.pid}/data-prep/qa/{pid_}", "PATCH",
+                         {"question": q.strip(), "answer": ans.strip(), "status": "approved"})
+                    reason = f"edited: {reason}"
+                else:
+                    call(f"/api/projects/{a.pid}/data-prep/qa/{pid_}", "PATCH",
+                         {"status": "approved" if verdict == "A" else "rejected"})
+                fh.write(json.dumps({"id": pid_, "verdict": "A" if verdict == "E" else verdict, "reason": reason, "file": sources.get(by_id[pid_].get("source_id")),
                                      "ts": time.time()}) + "\n")
                 n += 1
         print(f"recorded {n} verdicts")
+        return 0
+    if a.cmd == "add":
+        from finetune_studio.data import project_filesystem as pfs
+        src = next((sid for sid, name in sources.items() if name == a.file), None)
+        if not src:
+            print(f"no source named {a.file}", file=sys.stderr)
+            return 2
+        meta = pfs.read_qa_source(a.pid, src)
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        n = 0
+        with ledger.open("a") as fh:
+            for line in sys.stdin.read().splitlines():
+                q, sep, ans = line.partition("||")
+                if not sep or not q.strip() or not ans.strip():
+                    continue
+                import uuid
+                qa_id = uuid.uuid4().hex[:12]
+                now = time.time()
+                pfs.write_qa_pair(a.pid, {
+                    "id": qa_id, "source_id": src, "sha256": meta.get("sha256", ""), "chunk_idx": a.chunk, "chunk_text": "",
+                    "question": q.strip(), "answer": ans.strip(), "difficulty": "medium", "style": "factual", "score": 1.0,
+                    "status": "approved", "origin": "human_review", "created_at": now, "updated_at": now,
+                    "provenance": {"source_id": src, "filename": a.file, "chunk_idx": a.chunk, "generator": "human-review"},
+                    "validation": {"accepted": True, "version": "human", "reasons": []},
+                })
+                fh.write(json.dumps({"id": qa_id, "verdict": "A", "reason": "added by reviewer", "file": a.file, "ts": now}) + "\n")
+                n += 1
+        print(f"added {n} reviewer-written pairs")
         return 0
     per: dict[str, list[int]] = {}
     for p in pairs:
