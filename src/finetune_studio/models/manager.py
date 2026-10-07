@@ -383,7 +383,7 @@ class ModelManager:
         cfg = ProviderConfig(
             id=cfg_row["id"], name=cfg_row["name"], kind=cfg_row["kind"],
             model_id=cfg_row["model_id"], base_url=cfg_row["base_url"],
-            api_key=self._api_key_for(pid),
+            api_key=self._api_key_for(pid) if cfg_row["kind"] == "openai_compat" else "",
             extra=merged_extra,
         )
         new_provider = build_provider(cfg, engine=self.engine if cfg.kind == "local_gguf" else None)
