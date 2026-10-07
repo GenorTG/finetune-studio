@@ -10,6 +10,31 @@ FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_user_walkthrough.py --list
 FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_user_walkthrough.py --phase create --phase upload --phase prep
 ```
 
+## Current standard (Genor 2026-10-07) — read this before the numbered steps below
+
+Two independent tracks. **Track A (training)** teaches a model the documents (LoRA adapter / merged model / GGUF). **Track B (RAG)**
+indexes the same documents for retrieval and works with *any* model, trained or not. They share nothing but the corpus; never mix
+retrieved-context rows into a training dataset for a training test (`grounded_share` off), and never test RAG inside Track A.
+
+- **Corpus:** `tests/corpus/korvane/` — 80 hand-written, messy company documents in 9 lanes (hr, legal, product, it, finance, ops,
+  sales, comms, compliance), `core` tier = the 19 files a human reads line by line, `extended` = the rest; `manifest/*.jsonl` is
+  the ground truth (4,846 atomic facts). Rebuild with `scripts/corpus_build.py --all`; validate with `scripts/corpus_check.py`.
+- **Base model:** **Qwen3.5-9B** (local, loads 4-bit automatically on the 3090). Small models are not valid evidence of quality.
+- **Gates are measured, never "at least one":** after upload `scripts/corpus_parse_check.py` (no fact lost by a parser), after
+  mining `scripts/corpus_coverage.py` (fact coverage, goal 100 %), after review the same tool with `--status approved`.
+- **Review is human:** every mined pair is read against its source chunk and gets a verdict in `.tmp/review-ledger.jsonl`
+  (`scripts/corpus_review.py`); reviewers may edit a pair or add one the miner missed. No "approve all".
+- **Training gate:** NOT "final loss < 0.5". Unsloth: training loss ≈ 0.5–1.0 is healthy and < 0.2 suggests over-fitting; the real
+  gate is **eval loss reaching a minimum** (run past it, keep the checkpoint at the minimum) plus **paraphrase recall**
+  (`scripts/corpus_eval.py`: 102 re-worded questions about trained facts) plus **abstention** on 20 unanswerable questions.
+- One GPU job at a time. Delete projects, exports, checkpoints and merged models when the run is done.
+
+```bash
+FTS_ALLOW_LIVE_E2E=1 FTS_TIER=core .venv/bin/python tests/e2e_track_a.py --phase create --phase a_upload --phase a_prep
+```
+
+(The numbered steps below are the older generic walkthrough, still valid for the page-by-page details; `rag` there is Track B.)
+
 It creates a throwaway project (`ux-walk-1`) on the **live** service and the `cleanup` phase deletes it with its models. Never
 use a project you care about. Screenshots: `.tmp/qa-shots/manual-e2e/`.
 
@@ -136,7 +161,7 @@ Preference data is not interchangeable with Q&A: a chosen answer by itself is SF
 5. When the run finishes, its auto-generated quiz asks each prompt and expects **chosen**, never rejected. Inspect these answers;
    then run held-out evaluation. Do not infer model quality from training loss alone.
 
-The DPO radio selects conservative defaults (learning rate `1e-6`, one epoch, no warmup); these values appear in the editable fields. Review comparisons before training. The first preference route is DPO. ORPO/KTO and a per-pair review UI for preference comparisons are not included yet (pairs are authored in bulk with quality gates, not hand-reviewed).
+The DPO radio selects measured LoRA defaults (learning rate `1e-4`, 3 epochs, no warmup, plus a keep-chosen NLL term; TRL's `1e-6` moves nothing on LoRA); these values appear in the editable fields. Review comparisons before training. The first preference route is DPO. ORPO/KTO and a per-pair review UI for preference comparisons are not included yet (pairs are authored in bulk with quality gates, not hand-reviewed).
 
 ### Other supported data routes
 
