@@ -228,6 +228,7 @@ class ProviderError(RuntimeError):
 
 
 _THINK_BLOCK = re.compile(r"^\s*<think>.*?</think>\s*", re.DOTALL)
+REASONING_RETRY_MIN = 4096  # tokens: the retry always leaves at least this much room for thinking
 REASONING_RETRY_CAP = 8192  # tokens: the largest budget the one reasoning retry may ask for
 _RETRY_STATUS = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
 
@@ -309,7 +310,7 @@ class OpenAICompatProvider(ModelProvider):
             body["stop"] = gen["stop"]
         # A reasoning model counts its hidden thinking against max_tokens. When that eats the whole budget the
         # answer is empty (``finish_reason == "length"``); retry once with room for the thinking before failing.
-        for budget in (body["max_tokens"], min(body["max_tokens"] * 4, REASONING_RETRY_CAP)):
+        for budget in (body["max_tokens"], min(max(body["max_tokens"] * 4, REASONING_RETRY_MIN), REASONING_RETRY_CAP)):
             data = self._post("/chat/completions", {**body, "max_tokens": budget})
             try:
                 choice = data["choices"][0]
