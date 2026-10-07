@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import email
 import email.policy
-from email import message_from_string
+from email import message_from_bytes
 from pathlib import Path
 
 from ._base import cli_run, make_result
@@ -13,7 +13,9 @@ from ._base import cli_run, make_result
 def parse(path: Path) -> dict:
     raw = path.read_text(encoding="utf-8", errors="replace")
     try:
-        msg = message_from_string(raw, policy=email.policy.default)
+        # Bytes, not str: a str message with 8-bit UTF-8 bodies is decoded by ``get_content()`` through an ASCII
+        # round-trip that turned "Gdańsk" into "Gda\\u0144sk" and "Wspólnicy" into "Wsp�lnicy".
+        msg = message_from_bytes(path.read_bytes(), policy=email.policy.default)
     except Exception as e:  # noqa: BLE001
         return make_result(raw, {"type": "email", "error": str(e)},
                            parser="email_v1", warnings=[f"email parse failed: {e}"])

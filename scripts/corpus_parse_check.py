@@ -23,6 +23,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--pid", required=True)
     ap.add_argument("--tier", default="core", choices=["core", "extended", "all"])
+    ap.add_argument("--lanes", nargs="*")
     a = ap.parse_args()
     from finetune_studio.data.fs.paths import file_dir
 
@@ -32,8 +33,8 @@ def main() -> int:
     lost: list[dict] = []
     total = 0
     print(f"{'file':58} kept/total   parsed chars")
-    for name in sorted({f["file"] for f in manifest_facts(a.tier, None)}):
-        facts = [f for f in manifest_facts(a.tier, None) if f["file"] == name]
+    for name in sorted({f["file"] for f in manifest_facts(a.tier, a.lanes)}):
+        facts = [f for f in manifest_facts(a.tier, a.lanes) if f["file"] == name]
         src = by_name.get(name)
         if src is None:
             print(f"{name:58} NOT UPLOADED")

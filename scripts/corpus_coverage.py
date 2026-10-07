@@ -25,8 +25,13 @@ from corpus_build import ROOT, parse_source
 BASE = "http://127.0.0.1:7860"
 
 
+_TRAILING_ZEROS = re.compile(r"(\d+\.\d*?)0+(?![\d])")
+
+
 def norm(s: str) -> str:
-    s = html.unescape(str(s))  # manifest values may be entity-encoded; parsed text is decoded
+    """Case/space/dash/quote-insensitive form; numbers compare by value (38.50 == 38.5, as a spreadsheet stores them)."""
+    s = _TRAILING_ZEROS.sub(lambda m: m.group(1).rstrip("."), html.unescape(str(s)))
+    s = html.unescape(s)  # manifest values may be entity-encoded; parsed text is decoded
     s = s.replace(" ", " ").replace("‑", "-").replace("–", "-").replace("—", "-")
     s = s.replace("’", "'").replace("“", '"').replace("”", '"')
     return re.sub(r"\s+", " ", re.sub(r"[*_`]", "", s)).strip().lower()
