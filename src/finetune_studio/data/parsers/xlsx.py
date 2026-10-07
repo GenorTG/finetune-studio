@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ._base import cli_run, make_result
+from ._base import cell_text, cli_run, make_result
 
 
 def parse(path: Path) -> dict:
@@ -21,7 +21,7 @@ def parse(path: Path) -> dict:
             ws = wb[sheet_name]
             rows = []
             for row in ws.iter_rows(values_only=True):
-                values = [str(v) if v is not None else "" for v in row]
+                values = [cell_text(v) for v in row]
                 if any(v.strip() for v in values):
                     rows.append(values)
             sheets.append({"name": sheet_name, "row_count": len(rows), "rows": rows[:200]})

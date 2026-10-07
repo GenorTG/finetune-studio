@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from ._base import cli_run, make_result
+from ._base import cell_text, cli_run, make_result
 
 
 def parse(path: Path) -> dict:
@@ -36,7 +36,7 @@ def parse(path: Path) -> dict:
         lines.append(" | ".join(headers))
         lines.append(" | ".join(["---"] * len(headers)))
     for row in body:
-        lines.append(" | ".join("" if v is None else str(v) for v in row))
+        lines.append(" | ".join(cell_text(v) for v in row))
     text = "\n".join(lines)
     structured = {
         "type": "csv",

@@ -14,6 +14,25 @@ def now_iso() -> str:
     return _dt.datetime.now(_dt.UTC).isoformat(timespec="seconds")
 
 
+def cell_text(value: object) -> str:
+    """One spreadsheet/table cell as the text a person reads.
+
+    Whole-number floats lose their ``.0`` (an extension 2100 is not "2100.0", 412 plugs are not "412.0"), dates are ISO, and a
+    newline inside a cell becomes a space — otherwise the row text breaks in two and the second half lands in another chunk.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, float):
+        return str(int(value)) if value.is_integer() and abs(value) < 1e15 else repr(value)
+    if isinstance(value, _dt.datetime):
+        return value.date().isoformat() if value.time() == _dt.time(0) else value.isoformat(sep=" ")
+    if isinstance(value, _dt.date):
+        return value.isoformat()
+    return " ".join(str(value).split())
+
+
 def make_result(text: str, structured: dict, parser: str, warnings: list[str] | None = None, **extra) -> dict:
     """Build the standard parser output envelope."""
     meta = {

@@ -4,7 +4,22 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ._base import cli_run, make_result
+from ._base import cell_text, cli_run, make_result
+
+
+def _cell(wb, sheet, r: int, c: int) -> str:
+    import xlrd
+
+    kind = sheet.cell_type(r, c)
+    value = sheet.cell_value(r, c)
+    if kind == xlrd.XL_CELL_DATE:
+        try:
+            return cell_text(xlrd.xldate.xldate_as_datetime(value, wb.datemode))
+        except (ValueError, xlrd.xldate.XLDateError):
+            pass
+    if kind == xlrd.XL_CELL_BOOLEAN:
+        return cell_text(bool(value))
+    return cell_text(value)
 
 
 def parse(path: Path) -> dict:
@@ -20,7 +35,7 @@ def parse(path: Path) -> dict:
         for sheet in wb.sheets():
             rows = []
             for r in range(sheet.nrows):
-                values = [str(sheet.cell_value(r, c)) for c in range(sheet.ncols)]
+                values = [_cell(wb, sheet, r, c) for c in range(sheet.ncols)]
                 if any(v.strip() for v in values):
                     rows.append(values)
             sheets.append({"name": sheet.name, "row_count": len(rows), "rows": rows[:200]})

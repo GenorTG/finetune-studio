@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ._base import cli_run, make_result
+from ._base import cell_text, cli_run, make_result
 
 
 def parse(path: Path) -> dict:
@@ -40,7 +40,7 @@ def parse(path: Path) -> dict:
             for row in Table(child, doc).rows:
                 cells: list[str] = []
                 for cell in row.cells:  # merged cells repeat: keep one copy per run
-                    t = cell.text.strip()
+                    t = cell_text(cell.text)
                     if not cells or t != cells[-1]:
                         cells.append(t)
                 rows.append(cells)

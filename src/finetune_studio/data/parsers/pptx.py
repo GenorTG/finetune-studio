@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ._base import cli_run, make_result
+from ._base import cell_text, cli_run, make_result
 
 
 def parse(path: Path) -> dict:
@@ -23,7 +23,7 @@ def parse(path: Path) -> dict:
                 texts.append(shape.text)
             if shape.has_table:
                 for row in shape.table.rows:
-                    texts.append(" | ".join(cell.text.strip() for cell in row.cells))
+                    texts.append(" | ".join(cell_text(cell.text) for cell in row.cells))
         notes_text = ""
         if slide.has_notes_slide:
             notes_shape = slide.notes_slide.notes_text_frame
