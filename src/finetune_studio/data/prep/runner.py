@@ -343,9 +343,14 @@ class DataPrepRunner:
         fill_summary: dict[str, Any] | None = None
         fill_pairs = 0
         try:
-            from finetune_studio.data.prep.coverage_fill import fill_coverage_gaps
+            from finetune_studio.data.prep.coverage_fill import (
+                FillResult,
+                fill_coverage_gaps,
+            )
 
-            fill = fill_coverage_gaps(
+            # Exhaustive mining closes its own gaps (flagged extractive pairs, pending review). The legacy fill would add
+            # AUTO-APPROVED extractive pairs on top of every chunk whose model pairs are still pending review.
+            fill = FillResult() if self.mode == "exhaustive" else fill_coverage_gaps(
                 self.pid, self.source_id, meta.sha256,
                 chunk_texts={i: c for i, c in enumerate(chunks, 1)},
                 filename=self.filename,
