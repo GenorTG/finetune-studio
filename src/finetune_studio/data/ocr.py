@@ -236,29 +236,34 @@ def ocr_image_object(img, languages: str = DEFAULT_LANGS,
 
 
 def ocr_pdf(pdf_path: str | Path, languages: str = DEFAULT_LANGS, dpi: int = 200) -> list[dict]:
-    """OCR every page of a PDF. Returns [{"page": i, "text": "..."}, ...]."""
-    try:
-        from pdf2image import convert_from_path
-    except ImportError as e:
-        raise RuntimeError("pdf2image not installed: pip install pdf2image") from e
+    """OCR every page of a PDF. Returns [{"page": i, "text": "..."}, ...].
+
+    Pages are rasterised with poppler's ``pdftoppm`` and read by the ``tesseract`` CLI — no Python wrappers
+    (pdf2image / pytesseract) are needed, so a scanned PDF never silently turns into an empty document just
+    because an optional package is missing.
+    """
+    pdftoppm = shutil.which("pdftoppm")
+    if not pdftoppm:
+        raise RuntimeError("pdftoppm (poppler) not found on PATH; install poppler-utils")
     if not _tesseract_cmd():
         raise RuntimeError(
             "tesseract binary not found on PATH. Install with: "
             + install_hint()
         )
     _ensure_tessdata(languages)
-    try:
-        images = convert_from_path(str(pdf_path), dpi=dpi)
-    except Exception as e:
-        raise RuntimeError(f"pdf2image failed (poppler not installed?): {e}") from e
-    out = []
-    for i, img in enumerate(images, 1):
-        try:
-            text = ocr_image_object(img, languages=languages)
-            out.append({"page": i, "text": text.strip()})
-        except Exception as e:  # noqa: BLE001
-            log.warning("OCR failed on page %d: %s", i, e)
-            out.append({"page": i, "text": "", "error": str(e)})
+    with tempfile.TemporaryDirectory(prefix="_ocr_pdf_") as tmp:
+        r = subprocess.run([pdftoppm, "-r", str(dpi), "-png", str(pdf_path), str(Path(tmp) / "page")],
+                           capture_output=True, text=True, timeout=600, check=False)
+        pages = sorted(Path(tmp).glob("page*.png"))
+        if r.returncode != 0 or not pages:
+            raise RuntimeError(f"pdftoppm failed: {r.stderr.strip()[:200] or 'no pages rendered'}")
+        out = []
+        for i, img in enumerate(pages, 1):
+            try:
+                out.append({"page": i, "text": ocr_image(img, languages=languages).strip()})
+            except Exception as e:  # noqa: BLE001
+                log.warning("OCR failed on page %d: %s", i, e)
+                out.append({"page": i, "text": "", "error": str(e)})
     return out
 
 

@@ -12,7 +12,11 @@ from ._base import cli_run, make_result
 
 
 def parse(path: Path) -> dict:
-    text, method = _try_cli("antiword", ["antiword", str(path)])
+    # LibreOffice first: it is the only route here that keeps tables, headings and list numbering intact;
+    # antiword/catdoc/olefile drop or flatten them (a whole rate table silently vanished from a legacy .doc).
+    text, method = _via_libreoffice(path), "libreoffice"
+    if not text:
+        text, method = _try_cli("antiword", ["antiword", str(path)])
     if not text:
         text, method = _try_cli("catdoc", ["catdoc", str(path)])
     if not text:
@@ -32,6 +36,32 @@ def parse(path: Path) -> dict:
         warnings.append("no legacy-DOC parser available; placeholder returned")
     structured = {"type": "doc", "extraction_method": method}
     return make_result(text, structured, parser="doc_v1", warnings=warnings)
+
+
+def _via_libreoffice(path: Path) -> str:
+    """Convert to .docx with a private LibreOffice profile, then reuse the docx parser; '' when unavailable."""
+    import shutil
+    import tempfile
+
+    office = shutil.which("soffice") or shutil.which("libreoffice")
+    if not office:
+        return ""
+    with tempfile.TemporaryDirectory(prefix="_doc2docx_") as tmp:
+        cmd = [office, f"-env:UserInstallation=file://{tmp}/profile", "--headless", "--norestore",
+               "--convert-to", "docx", "--outdir", tmp, str(path)]
+        try:
+            subprocess.run(cmd, capture_output=True, timeout=180, check=False)
+        except (OSError, subprocess.TimeoutExpired):
+            return ""
+        out = Path(tmp) / (path.stem + ".docx")
+        if not out.is_file():
+            return ""
+        from . import docx as docx_parser
+
+        try:
+            return str(docx_parser.parse(out).get("text") or "")
+        except Exception:  # noqa: BLE001 — a conversion we cannot read falls through to the CLI parsers
+            return ""
 
 
 def _olefile_extract(path: Path) -> str:

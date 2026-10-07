@@ -98,6 +98,7 @@ def test_doc_parses_without_cli_tools(tmp_path: Path, monkeypatch) -> None:
 
     # Real conversion path: force both CLI tools to "missing"
     monkeypatch.setattr(doc_mod, "_try_cli", lambda *a, **k: ("", "x-failed"))
+    monkeypatch.setattr(doc_mod, "_via_libreoffice", lambda path: "")  # LibreOffice would otherwise win
     p = tmp_path / "case.doc"
     p.write_bytes(data)
     result = doc_mod.parse(p)
