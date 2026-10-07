@@ -59,7 +59,7 @@ def _pages() -> dict[str, Page]:
         ("models_library", "Model library", "/models/explore", "hf_models.html", False, "Search and download base models from Hugging Face."),
         ("my_models", "My models", "/models", "models_index.html", False, "Models already on disk: downloaded bases and trained exports."),
         ("inference", "Inference", "/inference", "inference.html", False, "Load any model, set context and GPU layers, chat."),
-        ("settings", "Settings", "/settings", "settings.html", False, "Updates, hosting, benchmark judge, compute device."),
+        ("settings", "Settings", "/settings", "settings.html", False, "Updates, hosting, benchmark judge, helper model (local or API), compute device."),
         ("overview", "Project overview", "/projects/{pid}", "project.html", True, "Project home: recent runs, models, files, activity."),
         ("wizard", "Quick work", "/projects/{pid}/wizard", "project_wizard.html", True, "One page that chains files, pairs, dataset, training, test."),
         ("files", "Files", "/projects/{pid}/data", "project_data.html", True, "Upload and organise documents; check each one parsed."),
@@ -161,6 +161,8 @@ def _controls() -> dict[str, Control]:
         ("settings.compute", "settings", "#compute-select", "Compute device"),
         ("settings.updates", "settings", "#btn-update-check", "Check for updates"),
         ("settings.judge", "settings", "#judge-mode", "Benchmark judge mode"),
+        ("settings.helper", "settings", "#helper-card", "Helper model (local or API provider)"),
+        ("settings.helper_api_model", "settings", "#helper-api-model", "API helper model name"),
         ("settings.hosting", "settings", "#hosting-port", "Server & hosting port"),
     ]
     return {r[0]: Control(*r) for r in rows}

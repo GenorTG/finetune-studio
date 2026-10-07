@@ -817,10 +817,11 @@ def run_eval_on_corpus(
     mgr = None
     if use_llm:
         try:
+            from finetune_studio.models.helper import get_helper_provider_id
             from finetune_studio.models.manager import get_manager
             mgr = get_manager()
             if mgr.active() is None:
-                mgr.load("local-default")
+                mgr.load(get_helper_provider_id())
         except Exception:  # noqa: BLE001
             mgr = None
 

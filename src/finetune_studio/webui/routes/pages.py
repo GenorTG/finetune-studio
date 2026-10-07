@@ -424,8 +424,8 @@ async def project_testing_page(request: Request, pid: str):
     from finetune_studio.db import datasets as datasets_db
     from finetune_studio.models.helper import (
         DEFAULT_HELPER_LABEL,
-        DEFAULT_HELPER_PROVIDER_ID,
         get_configured_helper_provider,
+        get_helper_provider_id,
     )
     helper = get_configured_helper_provider()
     training_datasets = datasets_db.list_datasets(pid)
@@ -441,7 +441,7 @@ async def project_testing_page(request: Request, pid: str):
             "recent_suite_runs": recent_runs,
             "training_datasets": training_datasets,
             "helper_label": (helper or {}).get("label") or DEFAULT_HELPER_LABEL,
-            "helper_provider_id": DEFAULT_HELPER_PROVIDER_ID,
+            "helper_provider_id": get_helper_provider_id(),
         },
     )
 

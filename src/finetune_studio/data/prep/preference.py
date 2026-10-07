@@ -432,7 +432,7 @@ def helper_loaded_for_cli():
     """
     from finetune_studio.data.prep.generator import helper_resolution_error
     from finetune_studio.models.helper import (
-        DEFAULT_HELPER_PROVIDER_ID,
+        get_helper_provider_id,
         helper_missing_message,
         missing_gguf_for_provider,
     )
@@ -442,10 +442,10 @@ def helper_loaded_for_cli():
     generate = helper_generate()
     loaded_here = False
     if generate is None:
-        missing = missing_gguf_for_provider(DEFAULT_HELPER_PROVIDER_ID)
+        missing = missing_gguf_for_provider(get_helper_provider_id())
         if missing:
             raise NoGenerator(helper_missing_message(missing))
-        get_manager().load(DEFAULT_HELPER_PROVIDER_ID)
+        get_manager().load(get_helper_provider_id())
         loaded_here = True
         generate = helper_generate()
     if generate is None:

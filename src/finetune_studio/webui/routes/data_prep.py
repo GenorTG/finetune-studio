@@ -327,8 +327,8 @@ async def data_prep_page(request: Request, pid: str):
     from finetune_studio.data.parsers import PARSERS
     from finetune_studio.models.helper import (
         DEFAULT_HELPER_LABEL,
-        DEFAULT_HELPER_PROVIDER_ID,
         get_configured_helper_provider,
+        get_helper_provider_id,
     )
     helper = get_configured_helper_provider()
     ctx = {
@@ -338,7 +338,7 @@ async def data_prep_page(request: Request, pid: str):
         "models": discovered_models,
         "sources": sources,
         "helper_label": (helper or {}).get("label") or DEFAULT_HELPER_LABEL,
-        "helper_provider_id": DEFAULT_HELPER_PROVIDER_ID,
+        "helper_provider_id": get_helper_provider_id(),
         # Text uploads auto-promote; any parser-supported file can be
         # promoted manually with "Use as source" (register_qa_source parses it).
         "auto_promote_extensions": sorted(AUTO_PROMOTE_EXTENSIONS),
@@ -356,8 +356,8 @@ async def data_prep_page(request: Request, pid: str):
 async def list_providers():
     from finetune_studio.models.helper import (
         DEFAULT_HELPER_LABEL,
-        DEFAULT_HELPER_PROVIDER_ID,
         get_configured_helper_provider,
+        get_helper_provider_id,
     )
     from finetune_studio.models.manager import get_manager
     mgr = get_manager()
@@ -366,7 +366,7 @@ async def list_providers():
         "providers": mgr.list_providers(),
         "active": mgr.active(),
         "helper": helper,
-        "helper_provider_id": DEFAULT_HELPER_PROVIDER_ID,
+        "helper_provider_id": get_helper_provider_id(),
         "helper_label": (helper or {}).get("label") or DEFAULT_HELPER_LABEL,
     }
 
@@ -442,14 +442,14 @@ async def load_provider(pid: str, request: Request):
 async def helper_status():
     """Is the helper GGUF present, and which installed GGUFs could replace it."""
     from finetune_studio.models.helper import (
-        DEFAULT_HELPER_PROVIDER_ID,
         get_configured_helper_provider,
+        get_helper_provider_id,
         helper_missing_message,
         missing_gguf_for_provider,
     )
     from finetune_studio.webui.app import discovered_models
     helper = get_configured_helper_provider() or {}
-    missing = missing_gguf_for_provider(DEFAULT_HELPER_PROVIDER_ID)
+    missing = missing_gguf_for_provider(get_helper_provider_id())
     candidates = [
         {"path": m.path, "name": m.name, "size_gb": m.size_gb}
         for m in discovered_models

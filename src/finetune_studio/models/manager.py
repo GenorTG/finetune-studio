@@ -12,6 +12,7 @@ import os
 import sqlite3
 import threading
 import time
+from contextlib import closing
 from pathlib import Path
 
 from finetune_studio.models.gguf_layers import resolve_block_count
@@ -237,13 +238,40 @@ class ModelManager:
             d = {
                 "id": r[0], "name": r[1], "kind": r[2],
                 "model_id": r[3], "base_url": r[4],
-                "api_key_set": bool(r[5]),
-                "api_key": r[5] if r[5] else "",  # returned for editing; never log it
+                "api_key_set": bool(r[5]),  # the key itself never leaves the server (see ``_api_key_for``)
                 "extra": json_loads(r[6]),
                 "created_at": r[7],
             }
             out.append(annotate_provider(d))
         return out
+
+    @staticmethod
+    def _state_db() -> sqlite3.Connection:
+        _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        c = sqlite3.connect(_DB_PATH)
+        c.execute("CREATE TABLE IF NOT EXISTS app_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        return c
+
+    @staticmethod
+    def get_state(key: str, default: str = "") -> str:
+        with closing(ModelManager._state_db()) as c:
+            row = c.execute("SELECT value FROM app_state WHERE key = ?", (key,)).fetchone()
+        return str(row[0]) if row else default
+
+    @staticmethod
+    def set_state(key: str, value: str) -> None:
+        with closing(ModelManager._state_db()) as c, c:
+            c.execute(
+                "INSERT INTO app_state (key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value),
+            )
+
+    @staticmethod
+    def _api_key_for(pid: str) -> str:
+        """Stored key of a remote provider (server-side use only; never serialise)."""
+        with sqlite3.connect(_DB_PATH) as c:
+            row = c.execute("SELECT api_key FROM model_providers WHERE id = ?", (pid,)).fetchone()
+        return str(row[0]) if row and row[0] else ""
 
     def get_provider(self, pid: str) -> dict | None:
         for p in self.list_providers():
@@ -355,10 +383,10 @@ class ModelManager:
         cfg = ProviderConfig(
             id=cfg_row["id"], name=cfg_row["name"], kind=cfg_row["kind"],
             model_id=cfg_row["model_id"], base_url=cfg_row["base_url"],
-            api_key=cfg_row.get("api_key", ""),
+            api_key=self._api_key_for(pid),
             extra=merged_extra,
         )
-        new_provider = build_provider(cfg, engine=self.engine)
+        new_provider = build_provider(cfg, engine=self.engine if cfg.kind == "local_gguf" else None)
         new_provider._used_extra = dict(merged_extra)  # snapshot for fast-path
         with self._lock:
             # Unload previous local model (mutual exclusion)

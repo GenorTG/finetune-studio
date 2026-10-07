@@ -13,8 +13,10 @@ API keys live in that table (or env vars for server-side use).
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
+import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -221,12 +223,27 @@ class LocalGGUFProvider(ModelProvider):
 
 # ── OpenAI-compat provider ─────────────────────────────────────────────
 
+class ProviderError(RuntimeError):
+    """A remote provider call failed; the message is safe to show (never contains the API key)."""
+
+
+_THINK_BLOCK = re.compile(r"^\s*<think>.*?</think>\s*", re.DOTALL)
+_RETRY_STATUS = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
+
+
 class OpenAICompatProvider(ModelProvider):
-    """Any service speaking the OpenAI chat-completions API."""
+    """Any service speaking the OpenAI chat-completions API.
+
+    ``config.extra`` knobs (all optional): ``headers`` (``{session}`` expands to one id per load — the
+    OpenCode Go gateway rejects requests without ``x-opencode-session``), ``body`` (merged into every
+    request, e.g. ``{"reasoning_effort": "low"}``), ``timeout`` (seconds, default 300), ``retries``
+    (default 3, for 429/5xx/connection errors).
+    """
 
     def __init__(self, config: ProviderConfig):
         super().__init__(config)
         self._session = None  # requests.Session
+        self._session_id = uuid.uuid4().hex
 
     def _client(self):
         if self._session is None:
@@ -234,6 +251,8 @@ class OpenAICompatProvider(ModelProvider):
             self._session = requests.Session()
             if self.config.api_key:
                 self._session.headers["Authorization"] = f"Bearer {self.config.api_key}"
+            for name, value in (self.config.extra.get("headers") or {}).items():
+                self._session.headers[str(name)] = str(value).replace("{session}", self._session_id)
         return self._session
 
     def load(self) -> None:
@@ -242,12 +261,42 @@ class OpenAICompatProvider(ModelProvider):
         log.info("OpenAICompatProvider %s ready (model=%s, url=%s)", self.config.id, self.config.model_id, self.config.base_url)
 
     def unload(self) -> None:
+        if self._session is not None:
+            self._session.close()
         self._session = None
         self._loaded_at = 0.0
         log.info("OpenAICompatProvider %s closed", self.config.id)
 
+    def _post(self, path: str, body: dict) -> dict:
+        import requests
+
+        url = (self.config.base_url or "https://api.openai.com/v1").rstrip("/") + path
+        body = {**(self.config.extra.get("body") or {}), **body}
+        timeout = float(self.config.extra.get("timeout", 300))
+        attempts = 1 + max(0, int(self.config.extra.get("retries", 3)))
+        last = "no attempt made"
+        for attempt in range(attempts):
+            pause = 0.0
+            try:
+                r = self._client().post(url, json=body, timeout=timeout)
+            except (requests.ConnectionError, requests.Timeout) as exc:
+                last = f"{type(exc).__name__} calling {url}"
+            else:
+                if r.status_code < 400:
+                    return r.json()
+                snippet = " ".join(r.text.split())[:300]
+                last = f"HTTP {r.status_code} from {url}: {snippet}"
+                if r.status_code not in _RETRY_STATUS:
+                    break
+                try:
+                    pause = min(float(r.headers.get("Retry-After", "")), 30.0)
+                except ValueError:
+                    pass
+            if attempt + 1 < attempts:
+                time.sleep(max(pause, 1.5 * (attempt + 1)))
+        raise ProviderError(last)
+
     def chat(self, messages: list[dict], **gen) -> str:
-        url = (self.config.base_url or "https://api.openai.com/v1").rstrip("/") + "/chat/completions"
         body = {
             "model": self.config.model_id,
             "messages": messages,
@@ -257,29 +306,22 @@ class OpenAICompatProvider(ModelProvider):
         }
         if "stop" in gen:
             body["stop"] = gen["stop"]
-        r = self._client().post(url, json=body, timeout=300)
-        r.raise_for_status()
-        data = r.json()
-        return data["choices"][0]["message"]["content"].strip()
+        data = self._post("/chat/completions", body)
+        try:
+            choice = data["choices"][0]
+        except (KeyError, IndexError, TypeError):
+            raise ProviderError(f"unexpected response shape: {str(data)[:200]}") from None
+        content = _THINK_BLOCK.sub("", (choice.get("message") or {}).get("content") or "").strip()
+        if not content and choice.get("finish_reason") == "length":
+            raise ProviderError(
+                "the model used its whole max_tokens budget on reasoning and returned no answer — "
+                "lower the reasoning effort on Settings or pick a non-reasoning model"
+            )
+        return content
 
     def generate(self, prompt: str, **gen) -> str:
-        # Most providers support /completions as well; if not, use chat with single user msg
-        url = (self.config.base_url or "https://api.openai.com/v1").rstrip("/") + "/completions"
-        body = {
-            "model": self.config.model_id,
-            "prompt": prompt,
-            "max_tokens": int(gen.get("max_tokens", 1024)),
-            "temperature": float(gen.get("temperature", 0.7)),
-            "top_p": float(gen.get("top_p", 0.9)),
-        }
-        try:
-            r = self._client().post(url, json=body, timeout=300)
-            r.raise_for_status()
-            return r.json()["choices"][0]["text"].strip()
-        except Exception:
-            # Many OpenAI-compat hosts lack /completions; fall back to chat.
-            log.exception("completions failed; falling back to chat")
-            return self.chat([{"role": "user", "content": prompt}], **gen)
+        # Hosted gateways rarely serve /completions: one chat turn is the same thing.
+        return self.chat([{"role": "user", "content": prompt}], **gen)
 
 
 def build_provider(config: ProviderConfig, engine: Any | None = None) -> ModelProvider:
@@ -330,12 +372,14 @@ def _alternate_helper_preset() -> dict:
     }
 
 
+OPENCODE_GO_URL = "https://opencode.ai/zen/go/v1"
+
 PROVIDER_PRESETS: list[dict] = [
     _local_helper_preset(),
     _alternate_helper_preset(),
     {"id": "openai", "name": "OpenAI", "kind": "openai_compat", "base_url": "https://api.openai.com/v1", "model_id": "gpt-4o-mini", "api_key": ""},
     {"id": "openrouter", "name": "OpenRouter", "kind": "openai_compat", "base_url": "https://openrouter.ai/api/v1", "model_id": "anthropic/claude-3.5-sonnet", "api_key": ""},
-    {"id": "opencode-go", "name": "opencode-go", "kind": "openai_compat", "base_url": "https://api.opencode.ai/v1", "model_id": "default", "api_key": ""},
+    {"id": "opencode-go", "name": "OpenCode Go", "kind": "openai_compat", "base_url": OPENCODE_GO_URL, "model_id": "deepseek-v4-flash", "api_key": "", "extra": {"headers": {"x-opencode-session": "{session}"}}},
     {"id": "anthropic", "name": "Anthropic (via openai-compat proxy)", "kind": "openai_compat", "base_url": "https://api.anthropic.com/v1", "model_id": "claude-3-5-sonnet-latest", "api_key": ""},
     {"id": "MiniMax", "name": "MiniMax", "kind": "openai_compat", "base_url": "https://api.MiniMax.ai/v1", "model_id": "MiniMax/MiniMax-M3", "api_key": ""},
     {"id": "custom", "name": "Custom OpenAI-compat URL", "kind": "openai_compat", "base_url": "", "model_id": "", "api_key": ""},

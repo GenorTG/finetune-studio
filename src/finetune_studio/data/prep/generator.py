@@ -18,6 +18,7 @@ from finetune_studio.models.helper import (
     DEFAULT_HELPER_LABEL,
     DEFAULT_HELPER_PROVIDER_ID,
     get_configured_helper_provider,
+    get_helper_provider_id,
     is_helper_gguf_path,
     is_helper_provider,
     no_helper_message,
@@ -28,7 +29,7 @@ from finetune_studio.models.helper import (
 ChatFn = Callable[..., str]
 
 # Public alias — data-prep errors name the helper explicitly.
-NO_MODEL_MSG = no_helper_message()
+NO_MODEL_MSG = no_helper_message(DEFAULT_HELPER_PROVIDER_ID, DEFAULT_HELPER_LABEL)
 HELPER_NO_MODEL_MSG = NO_MODEL_MSG
 WRONG_MODEL_MSG_PREFIX = "Data-prep / suite generation requires the configured helper"
 
@@ -53,8 +54,8 @@ def _manager_helper_backend() -> LoadedBackend | None:
     return {
         "kind": "provider",
         "manager": mgr,
-        "provider_id": active.get("id") or DEFAULT_HELPER_PROVIDER_ID,
-        "helper_label": DEFAULT_HELPER_LABEL,
+        "provider_id": active.get("id") or get_helper_provider_id(),
+        "helper_label": active.get("label") or active.get("name") or DEFAULT_HELPER_LABEL,
     }
 
 
@@ -128,10 +129,10 @@ def helper_resolution_error() -> str:
     cfg = get_configured_helper_provider()
     if cfg is None:
         return (
-            f"{HELPER_NO_MODEL_MSG} "
-            f"(no provider row for '{DEFAULT_HELPER_PROVIDER_ID}' yet)."
+            f"{no_helper_message()} "
+            f"(no provider row for '{get_helper_provider_id()}' yet)."
         )
-    return HELPER_NO_MODEL_MSG
+    return no_helper_message()
 
 
 def resolve_generator() -> ChatFn | None:

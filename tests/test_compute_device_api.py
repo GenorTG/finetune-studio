@@ -197,5 +197,5 @@ def test_effective_note_surfaces_why_a_saved_gpu_was_not_applied(client, host) -
 def test_settings_page_has_the_card_and_script(client, host) -> None:
     html = client.get("/settings").text
     for needle in ('id="compute-card"', 'id="compute-select"', 'id="btn-compute-save"',
-                   'data-testid="compute-restart-required"', "settings.js?v=8"):
+                   'data-testid="compute-restart-required"', "settings.js?v=9"):
         assert needle in html, needle

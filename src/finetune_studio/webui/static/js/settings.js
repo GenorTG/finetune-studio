@@ -346,6 +346,92 @@ wireJudge();
 
 
 /* ============================================================
+   Helper model — local GGUF or API provider; key is write-only
+   ============================================================ */
+function wireHelper() {
+  const $ = (id) => document.getElementById(id);
+  if (!$('helper-card')) return;
+  const setStatus = (m) => { $('helper-status').textContent = m; };
+  let presets = [];
+
+  function showFields() {
+    $('helper-api-fields').hidden = !$('helper-seat-api').checked;
+  }
+
+  function apply(h) {
+    presets = h.presets || [];
+    const sel = $('helper-api-preset');
+    sel.innerHTML = presets.map((p) => `<option value="${p.id}">${p.label}</option>`).join('');
+    sel.value = h.api.preset || 'custom';
+    $('helper-seat-local').checked = h.seat === 'local';
+    $('helper-seat-api').checked = h.seat === 'api';
+    $('helper-local-label').textContent = h.local.label ? '— ' + h.local.label : '';
+    $('helper-api-url').value = h.api.base_url || '';
+    $('helper-api-model').value = h.api.model || '';
+    $('helper-api-effort').value = h.api.reasoning_effort || '';
+    $('helper-api-key').value = '';
+    $('helper-key-state').textContent = h.api.key_set ? '(set)' : '(not set)';
+    showFields();
+  }
+
+  function body(extra) {
+    return Object.assign({
+      seat: $('helper-seat-api').checked ? 'api' : 'local',
+      preset: $('helper-api-preset').value,
+      base_url: $('helper-api-url').value.trim(),
+      model: $('helper-api-model').value.trim(),
+      api_key: $('helper-api-key').value,
+      reasoning_effort: $('helper-api-effort').value,
+    }, extra || {});
+  }
+
+  async function call(url, method, payload) {
+    const r = await fetch(url, {
+      method, headers: { 'Content-Type': 'application/json' },
+      body: payload ? JSON.stringify(payload) : undefined,
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || (typeof d.detail === 'string' ? d.detail : 'HTTP ' + r.status));
+    return d;
+  }
+
+  async function save(extra) {
+    setStatus('Saving…');
+    try { apply(await call('/api/settings/helper', 'PUT', body(extra))); setStatus('Saved.'); }
+    catch (e) { setStatus('Failed: ' + e.message); }
+  }
+
+  $('helper-api-preset').addEventListener('change', () => {
+    const p = presets.find((x) => x.id === $('helper-api-preset').value);
+    if (p && p.id !== 'custom') {
+      $('helper-api-url').value = p.base_url;
+      if (!$('helper-api-model').value) $('helper-api-model').value = p.model;
+    }
+  });
+  document.querySelectorAll('input[name="helper-seat"]').forEach((el) => el.addEventListener('change', showFields));
+  $('btn-helper-save').addEventListener('click', () => save());
+  $('btn-helper-clear-key').addEventListener('click', () => save({ api_key: '', clear_key: true }));
+  $('btn-helper-test').addEventListener('click', async () => {
+    setStatus('Testing…');
+    try {
+      const d = await call('/api/settings/helper/test', 'POST', body());
+      setStatus(`Works: "${d.reply}" in ${(d.latency_ms / 1000).toFixed(1)} s.`);
+    } catch (e) { setStatus('Test failed: ' + e.message); }
+  });
+  $('btn-helper-models').addEventListener('click', async () => {
+    setStatus('Fetching models…');
+    try {
+      const d = await call('/api/settings/helper/models', 'POST', body());
+      $('helper-api-model-list').innerHTML = d.models.map((m) => `<option value="${m}">`).join('');
+      setStatus(`${d.models.length} models available — type to filter the Model field.`);
+    } catch (e) { setStatus('Failed: ' + e.message); }
+  });
+  call('/api/settings/helper', 'GET').then(apply).catch((e) => setStatus('Failed to load: ' + e.message));
+}
+wireHelper();
+
+
+/* ============================================================
    Compute device — persisted choice, applied at the next start
    ============================================================ */
 function wireCompute() {

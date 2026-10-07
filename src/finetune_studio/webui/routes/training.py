@@ -767,8 +767,8 @@ async def trigger_auto_suite(run_id: str, request: Request):
     from finetune_studio import db
     from finetune_studio.models.helper import (
         DEFAULT_HELPER_LABEL,
-        DEFAULT_HELPER_PROVIDER_ID,
         get_configured_helper_provider,
+        get_helper_provider_id,
     )
     sample_size: int | None = None
     try:
@@ -814,7 +814,7 @@ async def trigger_auto_suite(run_id: str, request: Request):
         "ok": True,
         "suite_id": suite_id,
         "generation_mode": "deterministic",
-        "helper_provider_id": DEFAULT_HELPER_PROVIDER_ID,
+        "helper_provider_id": get_helper_provider_id(),
         "helper_label": (helper or {}).get("label") or DEFAULT_HELPER_LABEL,
         **result,
     }

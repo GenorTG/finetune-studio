@@ -172,6 +172,53 @@
       </div>
     </div>
 
+    <div class="card mb-4" id="helper-card">
+      <div class="card-head">
+        <div class="card-title">Helper model</div>
+        <div class="card-sub">The helper does the tedious model work for you: mining Q&amp;A pairs from big document sets, building test suites and preference pairs, and answering in the Guide. Run it on this machine, or connect an API provider.</div>
+      </div>
+      <div class="mb-3 flex gap-4 items-center">
+        <label class="flex items-center gap-2"><input type="radio" name="helper-seat" id="helper-seat-local" value="local" /> Local model on this machine <span id="helper-local-label" class="dim text-xs"></span></label>
+        <label class="flex items-center gap-2"><input type="radio" name="helper-seat" id="helper-seat-api" value="api" /> API provider</label>
+      </div>
+      <div id="helper-api-fields">
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="helper-api-preset">Provider</label>
+          <select id="helper-api-preset" class="select" style="max-width:260px"></select>
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="helper-api-url">API base URL</label>
+          <input id="helper-api-url" type="text" class="input" style="max-width:420px" autocomplete="off" />
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="helper-api-key">API key <span id="helper-key-state" class="dim">(not set)</span></label>
+          <input id="helper-api-key" type="password" class="input" style="max-width:420px" autocomplete="new-password"
+                 placeholder="leave blank to keep the current key" />
+          <div class="text-xs dim mt-1">Stored on this computer only (never in the project or the repo) and never shown again.</div>
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="helper-api-model">Model <button class="btn sm" id="btn-helper-models" type="button">Fetch model list</button></label>
+          <input id="helper-api-model" type="text" class="input" style="max-width:420px" autocomplete="off" list="helper-api-model-list" />
+          <datalist id="helper-api-model-list"></datalist>
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="helper-api-effort">Reasoning effort (only if the model supports it)</label>
+          <select id="helper-api-effort" class="select" style="max-width:260px">
+            <option value="">provider default</option>
+            <option value="none">none</option><option value="minimal">minimal</option><option value="low">low</option>
+            <option value="medium">medium</option><option value="high">high</option>
+          </select>
+        </div>
+        <div class="text-xs mb-3" style="color:var(--warn-text, var(--warn))">With the API helper, the text of the documents you mine and the questions you ask the Guide are sent to that provider.</div>
+      </div>
+      <div class="flex gap-2 mt-3">
+        <button class="btn sm primary" id="btn-helper-save">Save helper settings</button>
+        <button class="btn sm" id="btn-helper-test" title="One real request with the values above: checks URL, key and model, and shows the delay">Test connection</button>
+        <button class="btn sm" id="btn-helper-clear-key" title="Remove the saved API key">Clear saved key</button>
+        <span id="helper-status" class="text-xs dim">Idle.</span>
+      </div>
+    </div>
+
     <div class="card mb-4" id="compute-card">
       <div class="card-head">
         <div class="card-title">Compute device</div>
@@ -225,5 +272,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/settings.js?v=8"></script>
+<script src="/static/js/settings.js?v=9"></script>
 {% endblock %}

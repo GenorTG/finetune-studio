@@ -17,6 +17,12 @@ from finetune_studio.models.llama_loader import DEFAULT_N_CTX
 # Stable provider id seeded by ModelManager._ensure_db.
 DEFAULT_HELPER_PROVIDER_ID: str = "local-default"
 
+# The helper *seat*: which provider row does the helper work (data-prep mining, suite generation,
+# preference authoring, the Guide). It is the local GGUF unless the user connected an API provider
+# on Settings, which fills the seat with the ``api-helper`` row. Stored in ``app_state``.
+API_HELPER_PROVIDER_ID: str = "api-helper"
+HELPER_SEAT_KEY: str = "helper_seat"
+
 # Clear UI / error-message label (not the bare filename alone).
 DEFAULT_HELPER_LABEL: str = "Helper · Gemma 4 12B Uncensored GGUF"
 
@@ -126,12 +132,33 @@ def is_helper_gguf_path(path: str | None) -> bool:
     return base in (DEFAULT_HELPER_GGUF_BASENAME, ALTERNATE_HELPER_GGUF_BASENAME)
 
 
+def get_helper_provider_id() -> str:
+    """Id of the provider row that currently holds the helper seat (default: the local GGUF)."""
+    from finetune_studio.models.manager import ModelManager, get_manager
+
+    seat = ModelManager.get_state(HELPER_SEAT_KEY, DEFAULT_HELPER_PROVIDER_ID) or DEFAULT_HELPER_PROVIDER_ID
+    if seat != DEFAULT_HELPER_PROVIDER_ID and get_manager().get_provider(seat) is None:
+        return DEFAULT_HELPER_PROVIDER_ID  # seat row deleted: never leave the app without a helper
+    return seat
+
+
+def set_helper_provider_id(pid: str) -> None:
+    """Seat ``pid`` as the helper; it must be an existing provider row."""
+    from finetune_studio.models.manager import ModelManager, get_manager
+
+    if get_manager().get_provider(pid) is None:
+        raise ValueError(f"Unknown provider: {pid}")
+    ModelManager.set_state(HELPER_SEAT_KEY, pid)
+
+
 def is_helper_provider(row: dict[str, Any] | None) -> bool:
-    """True when a provider row is a configured local helper (default OR alternate)."""
+    """True when a provider row is a configured helper (local default/alternate, or the seated API provider)."""
     if not row:
         return False
     pid = (row.get("id") or "")
     if pid in (DEFAULT_HELPER_PROVIDER_ID, ALTERNATE_HELPER_PROVIDER_ID):
+        return True
+    if pid == API_HELPER_PROVIDER_ID:
         return True
     return is_helper_gguf_path(row.get("model_id") or row.get("model_path"))
 
@@ -174,7 +201,9 @@ def annotate_provider(row: dict[str, Any]) -> dict[str, Any]:
     out = dict(row)
     helper = is_helper_provider(out)
     out["is_helper"] = helper
-    if helper:
+    if out.get("id") == API_HELPER_PROVIDER_ID:
+        out["label"] = f"Helper · API · {out.get('model_id') or 'model not set'}"
+    elif helper:
         # Keep DB name in sync with the clear label for UI pickers.
         if (out.get("name") or "").strip() in ("", "Local GGUF", "local"):
             out["name"] = DEFAULT_HELPER_LABEL
@@ -192,7 +221,7 @@ def get_configured_helper_provider() -> dict[str, Any] | None:
     from finetune_studio.models.manager import get_manager
 
     mgr = get_manager()
-    by_id = mgr.get_provider(DEFAULT_HELPER_PROVIDER_ID)
+    by_id = mgr.get_provider(get_helper_provider_id())
     if by_id is not None:
         return annotate_provider(by_id)
     for row in mgr.list_providers():
@@ -201,23 +230,29 @@ def get_configured_helper_provider() -> dict[str, Any] | None:
     return None
 
 
+def _seat_label() -> str:
+    row = get_configured_helper_provider() or {}
+    return row.get("label") or DEFAULT_HELPER_LABEL
+
+
 def wrong_model_message(loaded_path: str | None = None) -> str:
     """Error when a non-helper model is loaded for a helper-only workflow."""
     loaded = helper_basename(loaded_path) or (loaded_path or "another model")
     return (
         f"Data-prep / suite generation requires the configured helper "
-        f"({DEFAULT_HELPER_LABEL}), not {loaded}. "
-        f"Load provider '{DEFAULT_HELPER_PROVIDER_ID}' "
+        f"({_seat_label()}), not {loaded}. "
+        f"Load provider '{get_helper_provider_id()}' "
         f"(or the matching GGUF on Inference) and retry."
     )
 
 
-def no_helper_message() -> str:
-    """Error when the helper is not loaded."""
+def no_helper_message(pid: str | None = None, label: str | None = None) -> str:
+    """Error when the helper is not loaded (names the seated provider unless both are given)."""
+    pid = pid or get_helper_provider_id()
     return (
-        f"No helper model loaded — load {DEFAULT_HELPER_LABEL} "
-        f"(provider '{DEFAULT_HELPER_PROVIDER_ID}') on Inference "
-        f"or via /api/providers/{DEFAULT_HELPER_PROVIDER_ID}/load "
+        f"No helper model loaded — load {label or _seat_label()} "
+        f"(provider '{pid}') on Inference "
+        f"or via /api/providers/{pid}/load "
         f"before starting prep or LLM-assisted suite generation."
     )
 

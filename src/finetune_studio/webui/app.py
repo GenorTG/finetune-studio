@@ -406,6 +406,10 @@ from finetune_studio.webui.routes import settings as _settings
 
 app.include_router(_settings.router)  # type: ignore[has-type]  # /api/settings
 
+from finetune_studio.webui.routes import helper_settings as _helper_settings
+
+app.include_router(_helper_settings.router)  # type: ignore[has-type]  # /api/settings/helper* (local GGUF or API provider)
+
 from finetune_studio.webui.routes import compute_device as _compute_device
 
 app.include_router(_compute_device.router)  # /api/system/compute-device

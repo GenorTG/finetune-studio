@@ -286,15 +286,15 @@ def recommend_training(
 def _helper_state() -> dict[str, Any]:
     try:
         from finetune_studio.models.helper import (
-            DEFAULT_HELPER_PROVIDER_ID,
             get_configured_helper_provider,
+            get_helper_provider_id,
             missing_gguf_for_provider,
         )
         helper = get_configured_helper_provider() or {}
         return {
             "configured": bool(helper),
             "file": _short(str(helper.get("model_id") or "")),
-            "missing": bool(missing_gguf_for_provider(DEFAULT_HELPER_PROVIDER_ID)),
+            "missing": bool(missing_gguf_for_provider(get_helper_provider_id())),
         }
     except Exception as exc:  # noqa: BLE001 - status must degrade, not fail
         return {"configured": False, "error": str(exc)[:120]}
