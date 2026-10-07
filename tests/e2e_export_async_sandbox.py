@@ -218,6 +218,24 @@ def main() -> int:
                 check("controls unlock after cancel", not page.is_disabled("#export-btn"))
                 time.sleep(1.0)
                 check("no orphan convert/quantize processes after cancel", not alive_fake_children(), str(alive_fake_children()))
+                # Scenario C: two formats in one click run one after the other (server is single-flight).
+                before_ids = {r["id"] for r in json.loads(urllib.request.urlopen(f"{base}/api/projects/{pid}/exports", timeout=10).read())}
+                page.goto(f"{base}/projects/{pid}/export", wait_until="domcontentloaded")
+                page.wait_for_selector(".export-run-radio")
+                page.uncheck("input[name=gguf-quant][value=q4_k_m]")
+                page.check("input[name=export-format][value=merged]")
+                page.check("#export-force")
+                page.click("#export-btn")
+                chained: list[dict] = []
+                deadline = time.monotonic() + 120
+                while time.monotonic() < deadline:
+                    rows = json.loads(urllib.request.urlopen(f"{base}/api/projects/{pid}/exports", timeout=10).read())
+                    chained = [r for r in rows if r["id"] not in before_ids]
+                    if {r["format"] for r in chained if r["status"] == "done"} >= {"gguf", "merged"}:
+                        break
+                    time.sleep(1.0)
+                check("two selected formats ran back to back without a 409", {r["format"] for r in chained if r["status"] == "done"} >= {"gguf", "merged"},
+                      str([(r["format"], r["status"], r["error"]) for r in chained]))
             else:
                 # Old synchronous page: the click holds one POST open and the server stops answering.
                 page.click("#export-btn")
