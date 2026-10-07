@@ -1,0 +1,37 @@
+EXIT INTERVIEW — raw notes (anonymised copy for the half-year report, names stripped, details blurred where needed)
+Interviewer: W. Szczepańska-Bohm (People Partner)
+Date: Tue 24 Sept 2024, 10:00-11:10, meeting room "Baltic" (the one with the broken blind)
+Leaver: night-shift dispatcher, GDY-1, grade O3. Joined 15 Feb 2020 => 4 yrs 7 months. Resigned by letter 29 Aug 2024, 1 month notice (O1-O4 rule) so last day = 30 Sept 2024. No garden leave, they wanted to work it out because "someone has to teach the new kid the Fruttoria screens".
+Base pay at leaving: PLN 7,350 gross (band max for O3 is 8,000 so not at the ceiling, but near enough that it came up)
+
+--- start of notes, not tidy, sorry ---
+
+Started by saying they don't hate the place. said it twice. then said what they hate. ok.
+
+1) MONEY, sort of. Competitor in Gdańsk (didn't name them, I didn't push) offered PLN 8,600 gross for a dispatcher/shift-lead hybrid + 24 days leave + their own taxi home after 22:00. Leaver says "it's not even the money, it's that nobody told me the O4 thing was dead". Promotion O3 -> O4 was "pencilled" at the March review 2023 and again March 2024, both times pushed because the O4 headcount for nights was frozen at 2 seats. Leaver asked what the freeze depended on, got "budget". Note for Ines: ask Jarek whether the freeze is real or just habit.
+
+2) Night supplement. 22% on top of hourly base. Leaver thinks that's low "compared to Hamburg", asked me whether Waltershof gets more; I said I don't know, I do know the A-DE addendum exists but not the number (it isn't in my remit). Leaver says a friend at HAM-2 gets "something with a 30 in it". Not verified, don't quote it.
+
+3) ColdLedger/expenses. One trip to Kłaipėda yard in May (2 nights, took the pool car, claimed mileage + hotel) took 5 weeks to be paid, leaver counted. Limit for hotel in LT is EUR 97 per night and the hotel they were put in was EUR 104 so they paid the difference themselves and "never claimed the 7 euros out of principle". Leaver wasn't paid the parking either because the receipt was a photo of a screen. Wants an app. We all want an app.
+
+4) Handover. Biggest practical complaint. Nights have no standard handover note, every dispatcher writes their own in Tidewalk free text, some in Polish, some in English, one in "mostly emojis". Proposal: a fixed template with 6 fields (open alarms, vessel calls in the next 12 h, pharma loads, driver issues, yard congestion, "anything weird"). Leaver offered to write the template before leaving. I said yes. Check it arrives.
+
+5) Management. Olek (senior dispatcher nights) rated 5 out of 5 — "the only reason I stayed this long". But he is alone: Olek covers three nights a week, the other four nights are juniors, "two of whom started this year". Leaver thinks that's a safety problem not an HR problem. Wrote that down in big letters. After the Oakhaven business on 14 June, "nobody asked how we were doing, we got a mail about lessons learned and a pizza". (Passing to Benedikta? Probably should pass to Ines first.)
+
+6) Onboarding. Rated own onboarding 3/5. Good: the buddy (very good), the free shuttle ("21:10 from Chylonia, never missed it, driver is a legend"). Bad: Tidewalk training was "module 1 on day one at the end of a 7 hour induction, brain gone". Suggests splitting modules over 2 days. Also the boots voucher: took them 3 months to find out they could claim PLN 380 back, so they bought a second pair. The first pair is "still in a locker, 217 I think, I don't know if it exists". (!!)
+
+7) Handbook. Rated its readability 2/5. "I read section 8 twice and still don't know whether the informal conversation counts as a warning." Told them: it doesn't, it's Stage 1 and it stays on file 6 months. They said "that's not what it feels like". Fair.
+
+8) Would they recommend Korvane as an employer? "To a friend, yes. To a cousin, no, the cousin would want a life." Laughed. Would they come back? "In two years if O4 exists."
+
+9) Misc. Said the Christmas package voucher is "very nice and always the wrong shop". Said the sports card is fine but wished it covered the pool at Gdynia Redłowo. Said the new hybrid week doesn't apply to them so "good for you, congratulations, enjoy your kitchens".
+
+--- end ---
+
+Actions I promised:
+- tell Ines about points 1 and 5 (O4 freeze for nights, Olek alone) - by Fri 4 Oct
+- chase handover template from leaver before 30 Sept
+- ask Fleet about locker 217 (JK says it is real, door fell off in 2022)
+- tell Kamil about the screen-photo receipt thing, can ColdLedger accept photos of paper only?
+
+Duration: 70 min. Tea: 2 cups. Tissues: 0, which surprised me.

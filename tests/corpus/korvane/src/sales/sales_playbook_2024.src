@@ -1,0 +1,273 @@
+---
+out: sales_playbook_2024.pdf
+tier: extended
+---
+KORVANE COLD CHAIN SP. Z O.O.  |  INTERNAL  |  Doc. no. SL-PB-2024.2
+
+# Sales Playbook 2024
+
+Owner: Rafał Nowogrodzki, Head of Sales. Valid from 15 July 2024 until replaced. Classification: INTERNAL, not for customers, partners or competitors (yes, somebody once sent the 2022 edition to a prospect, it was a Tuesday and I still think about it).
+
+## 0. Document control
+
+| Version | Date | Author | What changed |
+|---|---|---|---|
+| v1.3 (2023 edition) | 9 January 2023 | R. Nowogrodzki | Last version of the old playbook, still circulating on three laptops. Please delete. |
+| 2024.1 | 5 February 2024 | R. Nowogrodzki, T. Banaś | Rewrite after the handbook v4 release; first ICP scoring sheet; KAM discount limit 6%, Head of Sales limit 10%. |
+| 2024.2 | 15 July 2024 | R. Nowogrodzki, T. Banaś, L. Sandberg | KAM limit raised to 7.5%, Head of Sales limit raised to 11%; TermoTrans battlecard added; Harbour list price moved from EUR 329 to EUR 349 on 1 July 2024; reference-call rules tightened. |
+
+Tymon Banaś, who runs sales operations and is the person who actually keeps our CRM from collapsing, asked me to say at the top that anything in this document that disagrees with the CRM validation rules is a documentation bug and he would like to hear about it before the Monday pipeline review, not during it. Lotte Sandberg from Marketing contributed the messaging snippets in section 7 and has asked that nobody paraphrase them in email subject lines. We will see how that goes.
+
+## 1. Why this document exists, and a short rant
+
+When I took over the team in 2021 we had four salespeople, one shared spreadsheet and a general belief that cold-chain monitoring sold itself because cargo spoils. It does not sell itself. What sells is a person who can ask the right five questions, put a believable number in front of a finance director, and not panic when someone from Bremen says "but they are cheaper". This playbook is meant to hold the answers we have collected the hard way. It is not a script. If you are reading it out loud on a call, you will lose the call and you will deserve to.
+
+The current team, for anybody new reading this: Rafał Nowogrodzki (Head of Sales, Gdynia), Yusuf Demirkıran (Key Account Manager for Poland and the Baltics, Gdynia), Anders Bjørkman (Account Executive for the Nordics, based in Gothenburg), Katharina Voss (Account Executive for DACH and Benelux, based in Hamburg), Wiktoria Szulc (inside sales, Gdynia) and Tymon Banaś (sales operations, Gdynia). From 2 September 2024 Wiktoria also picks up Estonia, which used to float between Anders and nobody. Lotte Sandberg sits in Marketing and owns the website, the newsletter and the case studies, but she works to our pipeline calendar.
+
+Tangent that is relevant, I promise: at the March 2023 kickoff in Rotterdam we spent forty minutes arguing about whether we sell a product or a promise. We sell a promise with a sensor attached. The sensor is KC-Tag 4, the promise is that somebody at Korvane knows before you do.
+
+## 2. Ideal customer profile
+
+### 2.1 Who we want
+
+We want shippers and importers who move temperature-controlled cargo by container through the ports where we have depots: Gdynia (GDY-1), Hamburg-Waltershof (HAM-2), Rotterdam-Maasvlakte (RTM-3), Gothenburg-Arendal (GOT-4) and the trans-shipment yard at Kłaipėda (KLJ-5). In practice the segments rank like this, best first: pharma and life-science distributors working under GDP; fresh-produce importers and exporters (citrus, berries, tropical fruit); seafood exporters, mostly Norwegian and Swedish; dairy and chilled-food manufacturers; and, last and with a sigh, cut-flower traders. Flowers pay on time but they ask for a discount the way other people say good morning.
+
+Volume matters more than anything else on the list. The minimum is 120 reefer shipments a year; below that the onboarding cost eats the margin and we have the CRM entries to prove it (see the Elbe Fruchtsaft loss in the Q3 export, where the prospect had 80). Pharma is the single exception: for GDP-audited pharma we go down to 36 shipments a year because the compliance paperwork is where the value is. The sweet spot is 400 to 3,000 reefer moves a year. Above 3,000 we are no longer talking about a normal deal, we are talking about Deep Water and a conversation with Marta.
+
+Lane coverage: the customer's cargo should touch one of our five depots or travel within 350 km of one. Adriatic and Mediterranean-only flows are not a fit, however pleasant the importer is on the phone.
+
+### 2.2 The ICP scoring sheet
+
+Since February every opportunity above EUR 15,000 gets an ICP score out of 100 before it can leave Prospecting. The cutoff is 60. Below 60 the opportunity is parked, not killed, and the owner writes the score into the CRM notes so that nobody else wastes a call on it. Anything that scores 80 or above is an "A-account" and gets a Thursday slot in the weekly forecast call regardless of stage.
+
+| Criterion | Max points | How it is scored |
+|---|---|---|
+| Annual reefer volume | 30 | 30 for 400-3,000 moves; 20 for 120-399; 10 for 36-119 pharma only; 15 for above 3,000 (capacity risk) |
+| Segment | 20 | pharma 20, produce 16, seafood 14, dairy and chilled 12, flowers 6 |
+| Lane coverage | 20 | 20 if the lane starts or ends at one of our depots, 10 if within 350 km, 0 otherwise |
+| Pain / trigger event | 15 | a claim above EUR 20,000 in the past 12 months = 15; an audit finding = 12; vague unhappiness = 5 |
+| Decision process | 15 | one named signer and a known budget = 15; committee with a known date = 9; unknown = 3 |
+
+A quick note on the pain criterion. A claim of EUR 20,000 is roughly the point at which a finance director starts caring about monitoring as a line item rather than a nice-to-have. Below that, the business case for a Fairway plan is thin, because Fairway alone costs EUR 14,280 a year at list price before hardware. Do the maths before you waste anybody's afternoon.
+
+### 2.3 Disqualifiers and yellow flags
+
+Hard disqualifiers: no contact with a decision maker after three attempts across two channels; no temperature-controlled cargo of their own (3PLs that merely handle other people's boxes belong to partner conversations, and the partner programme does not exist before 2025); customers who need an on-premise installation of Tidewalk, which we do not offer. Yellow flags: average cargo value per reefer under EUR 14,000; a decision maker who says "send me a brochure" before they have said anything about their own cargo; and any prospect who proudly tells you they have never had a claim, because either they are lying or they are not measuring.
+
+Each Account Executive may carry at most 60 open opportunities; a Key Account Manager at most 35. If you are above the cap, close or park something before you create a new one. Tymon runs the report on Mondays at 07:30 and will name names.
+
+## 3. Sales process and CRM hygiene
+
+### 3.1 Stages
+
+We use five stages and a closed pair. The probabilities below are the ones used in the forecast roll-up; do not argue with them in the call, argue with me after.
+
+| Stage | Weighted probability | Exit criterion |
+|---|---|---|
+| Prospecting | 5% | Discovery call held and ICP score entered |
+| Qualified | 20% | All five reefer questions answered (see section 4) and a named decision maker |
+| Proposal | 45% | Written quote issued with a number in the format Q-2024-NNNN |
+| Negotiation | 70% | Customer has returned redlines or a counter-proposal |
+| Closed Won / Closed Lost | 100% / 0% | Signed contract or a written no; lost deals need a reason code |
+
+An opportunity with no logged activity for 21 days is shown in orange in Tymon's dashboard; at 45 days in one stage it is flagged red and the owner has to explain it on the Monday call. The close date may be moved twice. The third time, the opportunity is reviewed by me and usually dropped a stage.
+
+The amount field is the total contract value over the initial term, in EUR, excluding VAT, and it is never a gut-feel number. If you do not have a quote, the amount is the list-price build-up from Appendix A. Next step is mandatory for every open opportunity, and it must be a verb with a date: "send annex Thursday", not "follow up".
+
+### 3.2 Meetings
+
+Pipeline review is every Monday at 08:45 CET in the glass room on the second floor of the Mothership (GDY-1), or on Teams for Hamburg and Gothenburg. The forecast call is Thursday at 14:00. The quarter-end freeze begins five working days before quarter end: after that, nothing above 8% discount is approved unless it is already in the CRM with a customer-signed order form. This rule exists because of a certain December in 2022 which I will not describe.
+
+Inbound leads from the website must be answered within two working hours. After that the lead is reassigned by Tymon without further notice, and the owner's name goes on the Thursday slide. I do not enjoy this rule, I enjoy it less when it is broken.
+
+### 3.3 Forecast categories
+
+For the Thursday call every open opportunity above EUR 20,000 sits in one of three buckets. "Commit" means the customer has told you in writing that they will sign and the only open item is paperwork; you may commit an opportunity only from Negotiation onward. "Best case" is anything in Proposal or Negotiation where you can name the date of the next customer meeting. Everything else is "pipeline" and is not counted in the quarter. Tymon applies his own haircut of 15% to commit when he builds the number for Priya, and he refuses to tell us whether that is because of history or because of spite. If a committed deal slips out of the quarter, the owner writes two sentences in the CRM explaining why; the sentences are read aloud on Monday and nobody enjoys it.
+
+### 3.4 Win/loss reviews
+
+Every Closed Lost above EUR 25,000 gets a ten-minute review within 10 working days of the loss, led by the owner and attended by Yusuf and me. Reason codes in the CRM are PRICE, SLA, FEATURE, NO-DECISION, COMPETITOR-BUNDLE and OTHER; if you pick OTHER you owe the team a paragraph. Reviews of wins happen once a quarter, for deals above EUR 60,000 only. The review output is one line in the competitor log and, where it matters, one line in this playbook next time around. The Grünewald Obst loss in August produced the new rule that nobody sends a quote before asking who handles the customs file.
+
+## 4. Qualification: the five reefer questions
+
+We ask five questions in every first or second call. The order is flexible; the answers are not optional. They go into the CRM before the opportunity can be moved to Qualified.
+
+**Volume and lanes.** How many reefer moves a year, and between which ports? People round up when they are proud and round down when they are afraid of a quote, so ask for last year's count of bills of lading rather than an estimate. If the answer is under 120 and they are not pharma, you can stop being charming. Listen for seasonality: berry and stockfish customers are busy for four or five months and will want a pause, which we do not do as a matter of course (see 5.3).
+
+**Excursion history.** What did the last twelve months cost them in write-offs, claims, insurance deductibles and staff hours? Ask who reconciles the claims and how long it takes. Fruttoria Baltica's analyst spent 46 hours a month on this, and that number has opened more doors than any slide I have ever drawn. If they cannot produce a claim number, ask who at the insurer would know, and offer to join that call.
+
+**Alert owner.** Who is woken up at 02:00 when a door has been open for 20 minutes? If the answer is "the dispatcher, if he sees it" you have your pain. If it is a named person with a mobile phone and a rota, you have your champion. For customers in the Nordics the answer is often "the harbour agent", and then you need the harbour agent in the room.
+
+**Current tooling and contract end date.** What do they use now: USB loggers, a competitor's portal, an Excel sheet? When does the contract end and what is the notice period? This is where you win or lose the year. Frostline Logistik contracts, for example, run 36 months and renew automatically for 12 more unless cancelled six months before the end, so a prospect whose Frostline contract ends on 31 December 2024 had to give notice by 30 June 2024, and if they did not, we are talking about a buy-out conversation rather than a switch. Write the date down. Put it in the CRM next_step field as a reminder.
+
+**Decision path and budget.** Who signs, who influences, and who can say no? In Germany anything above EUR 25,000 usually needs a second signature at the customer; in Norway the operations director often signs alone up to NOK 750,000, but do not quote me on that, ask the customer. If the budget cycle is closed until February, that is a perfectly good answer, put the opportunity at Qualified with the right close date and move on.
+
+A good first call is 25 minutes. The discovery summary email goes out within 24 hours, in the customer's language where we can manage it (Polish, German, English or Swedish; for Danish and Norwegian we write English and apologise). Nobody uses the phrase "pain points" in that email.
+
+### 4.1 Pharma calls are different
+
+A GDP-audited pharma prospect cares about three things and none of them is the dashboard: calibration certificates for every logger, an audit trail that survives a regulator's visit, and a named quality contact on our side. For the first, remember that every KC-Tag 4 sold into pharma ships with a calibration certificate and is recalibrated on a 12-month cycle; for the second, send the GDP annex early, because the customer's quality department will take weeks over it; for the third, the name is Benedikta Aaltonen, our Quality & Compliance Manager, who must be told before you promise her to anybody. Never promise audit dates. Customer audits of Korvane are scheduled by Benedikta, not by sales, and they are announced in writing. Pharma deals take four to six months from first call to signature, which is roughly double a produce deal, and the average amount is about three times higher, which is why we keep the 36-shipment exception.
+
+### 4.2 Demo rules
+
+Demos run on the shared demo tenant KORVANE-DEMO-02 and take 40 minutes, never more, because attention drops off a cliff after that. Do not demo the beta of Tidewalk v7 to a customer unless Tomasz Wrzesiński's team has said yes in writing; the v7 beta opens to selected customers in 2025 and Fruttoria Baltica is on the list. Do not promise features. Say "on the roadmap" and move on, and write down what was asked.
+
+## 5. Pricing, discounts and approval
+
+### 5.1 The 2024 price list (EUR, excluding VAT)
+
+Tidewalk comes in three plans. Harbour is EUR 349 per month and includes 120 container-days, with every extra container-day billed at EUR 3.45; before 1 July 2024 it was EUR 329 per month. Fairway is EUR 1,190 per month and includes 600 container-days, extra container-days EUR 2.60. Deep Water starts from EUR 4,900 per month, is priced per customer, and has a minimum term of 24 months. Support hours differ by plan: Harbour 08:00 to 17:00 on working days, Fairway Monday to Saturday 06:00 to 22:00, Deep Water 24/7 with a named Key Account Manager. The public API at api.tidewalk.korvane.example is available on Fairway and Deep Water, not on Harbour, which is a rule I did not write and cannot change but am happy to blame on product.
+
+Hardware: KC-Tag 4 costs EUR 118.00 per tag for 1 to 199 tags, EUR 104.50 from 200 to 499 tags, and EUR 96.00 from 500 tags. Rental is EUR 0.58 per tag per day. The KC-Hub 200 gateway is EUR 1,640 per unit, installation EUR 380 per site, and travel beyond 60 km from the nearest depot is charged at EUR 0.74 per km. The absolute floor for a KC-Tag 4 is EUR 92.40, set by Priya Venkataraman-Holt; nobody, including me, goes below it, and nobody has asked her twice.
+
+From 1 November 2024 all list prices rise by 3.4%. Quotes issued before that date keep their price if the customer signs within the quote validity of 30 days; Helvetia Pharma is a special case because the Q3 quote has an extended hold to 31 October. Standard payment terms are 30 days net. A customer paying within 8 days gets 1.2% off the invoice; that is a finance incentive and does not count against the discount matrix. Terms of 45 days are fine for strategic accounts, meaning those above EUR 100,000 of total contract value, and the KAM can approve them. 60 days needs the CFO.
+
+### 5.2 Discount authority matrix
+
+| Approver | Max discount on subscription | Hardware | Turnaround |
+|---|---|---|---|
+| Account Executive / inside sales | up to 4% | list volume tier only | immediate |
+| Key Account Manager | up to 7.5% | list volume tier only | same day |
+| Head of Sales | up to 11% | down to the EUR 92.40 floor, with a written reason | 1 business day |
+| Head of Sales + CFO co-sign | above 11% up to 15% | as above | 2 business days (Priya's office) |
+| CEO | above 15% up to 22% | as above | 3 business days |
+
+The ceiling is 22%, which is the point where our gross margin on a subscription hits its 31% floor. Above that, nothing, not even if the customer is the Pope of cold chain. Multi-year terms earn bonus points: 1.5 percentage points extra for a 36-month term and 1.0 point for annual prepayment. Bonus points count towards the approver's cap, they are not on top of it. So Norrland Lax at 9% plus 1.5 points for 36 months equals 10.5%, which fits under my 11%, whereas a KAM who offers 7% plus the multi-year bonus is already at 8.5% and needs me.
+
+Hardware discounts exist only through the volume tiers. A salesperson who "just takes a bit off the tags" is giving away margin the discount matrix never authorised, and Tymon will find it in the quote audit that runs on the first working day of each month. Approvals are logged in the CRM field disc_approver; an approval given in chat counts only if the approver confirms it in that field within one working day (I have been guilty of this, and the Dolina Warzyw renewal in July was one of the exceptions I should have logged properly).
+
+### 5.3 Pauses, price locks and other favours
+
+Subscription pauses are not offered. For seasonal accounts the only tool is a single 3-month pause per year on Fairway, which I approve personally and only as an exception; it is not a policy and must not be advertised, and Lofoten Torsk is the first request I agreed to consider. Price locks: 12 months are free on Fairway and Deep Water; 24 months are granted only on Deep Water. Meridian Chill offers 24-month locks to everybody and that is one reason their deals look cheaper on paper.
+
+Reseller margin, for the day we have a partner programme: maximum 12% of subscription value. Nobody gets a promise of resale rights before the programme exists in 2025, whatever Nordic freight forwarders tell you at the bar.
+
+Referral credit: when an existing customer introduces a new one who signs a Fairway or higher plan for at least 12 months, the referrer gets a service credit of EUR 750 on its next invoice. For KC-Tag 3 customers still holding old units there is a trade-in credit of EUR 45 per tag, valid for tags returned until 30 September 2024. Lotte will announce a new autumn trade-in campaign; do not quote the EUR 45 figure after that date.
+
+## 6. Competitor battlecards
+
+These cards are intelligence, not gospel. Every number comes from a lost tender, a won tender, a customer who talked, or the competitor's own site. If you learn something new, put it in the competitor log (Appendix C) the same day and tell Tymon.
+
+### 6.1 Frostline Logistik GmbH (Bremen)
+
+Founded in 2006, about 210 employees, the biggest direct rival in Germany. They are strong with importers in Bremerhaven and Hamburg and they bill everything on one invoice, which procurement departments adore. Their monitoring portal refreshes every 6 hours, which is their Achilles heel: you cannot catch a door-open alert with six hours of lag. They have no public API; data leaves the portal as CSV downloads. Their support desk works 08:00 to 17:00 on weekdays. Pricing is roughly EUR 8.60 per container per day all-in for monitoring plus handling, which looks cheap until you ask for the line items; in the three tenders where we saw them, the monitoring part was never more than EUR 3.10 of that. Their contracts run 36 months with a 12-month automatic renewal and a 6-month notice period.
+
+Record: in 2023 and the first half of 2024 we won 9 of 14 head-to-head deals. How to win: ask for their contract end date on call one; show a live alert on the demo tenant and ask the prospect how long the same alert takes today; put the six-hour refresh on a slide and do not editorialise. How to lose: be sneery about the one-invoice convenience. Procurement people love it and they will defend it.
+
+### 6.2 ColdArc Nordic AB (Malmö)
+
+Founded in 2014, around 95 staff, based in Malmö with an office in Oslo. They own the Swedish and Norwegian seafood market more than we do and they know it. Their price is typically 11% below ours, they publish a 99.9% uptime SLA, and they run a Scandinavian-language support desk around the clock. Where they are weak: their tags measure temperature and humidity but have no door-open sensor, and they do not issue calibration certificates in the GDP format, so they are not credible in pharma. Their onboarding takes about 8 weeks.
+
+Record: 5 wins out of 11 against them, and two of the losses (Skagerrak Sjømat in September was one) were about the SLA, not the price. We hold at 99.5% platform uptime in standard offers. Do not match 99.9% without talking to me; I would rather lose the deal than sign something Tomasz's team cannot guarantee. How to win: door-open alerts, the calibration-certificate story for any food customer with a retail audit, and the Gothenburg depot GOT-4, which they cannot match physically.
+
+### 6.3 Meridian Chill NV (Antwerp)
+
+The big one. Founded in 1998, around 640 staff, a freight and customs group that sells monitoring as part of a bundle with drayage and customs clearance. Over three years the bundle is typically about 14% cheaper than buying the same services separately, which is precisely what happened with Grünewald Obst in August. They offer a 24-month price lock to everyone, which sounds good and which we cannot match outside Deep Water. Where they are weak: tags are third-party generic units, onboarding takes about 11 weeks against our 5, and they have no GDP validation package.
+
+Record: we are 3 for 9. How to win: never fight on price; ask who handles the customs file today and whether the customer would be happy with a single provider for everything, because some customers are not (they like their customs agent, and GreyLine Customs Agency is happy to work alongside us). Emphasise speed to value: first alerts live within 5 weeks.
+
+### 6.4 TermoTrans Gdańsk Sp. z o.o.
+
+Founded in 2009, about 60 staff, Gdańsk-based, aggressive in the Polish dairy and meat segment. Their offer is a flat EUR 0.49 per tag per day, no subscription, no minimum, month-to-month. That is cheaper than our rental price of EUR 0.58 per day, and that is the whole of their strategy. Weak points: no SMS alerts, a daily emailed report at 06:00 instead of live data, and no dispatch module at all. Strong point: nobody feels locked in.
+
+Record: we win 12 of 15 when the prospect sees a live alert, and we lost three small deals purely on price, including Pomorskie Mleczarnia in July where our offer was 22% higher and I was not told until after the fact. Escalate any TermoTrans deal to me before you drop the price; I may find a rental structure that gets us close.
+
+### 6.5 The numbers side by side
+
+For quick reference on the day you have no time to read the cards above. Prices are the competitor's quoted or known price in EUR, uptime is the SLA they publish, refresh is how often the customer sees new data.
+
+| Provider | Monitoring price | Published uptime SLA | Data refresh | Support hours | Contract |
+|---|---|---|---|---|---|
+| Korvane Fairway | EUR 1,190/month incl. 600 container-days | 99.5% | live | Mon-Sat 06:00-22:00 | 12 months |
+| Frostline Logistik | about EUR 8.60 per container-day all-in | none published | every 6 hours | weekdays 08:00-17:00 | 36 months |
+| ColdArc Nordic | about 11% below Korvane | 99.9% | live | 24/7, Scandinavian languages | 24 months |
+| Meridian Chill | bundled; about 14% cheaper over 3 years | 99.7% | every 30 minutes | 24/7 | 36 months, 24-month price lock |
+| TermoTrans Gdańsk | EUR 0.49 per tag per day | none | daily report at 06:00 | weekdays 07:00-15:00 | month-to-month |
+
+I made the table myself on a train, so if one of the cells is wrong, please say so loudly. The Meridian refresh of 30 minutes comes from a customer who sent us a screenshot, not from Meridian.
+
+## 7. Objection handling
+
+This section is the one people read first. It has been rewritten twice. Lotte supplied the wording that survived marketing review; everything else is hard-won.
+
+### 7.1 "Too expensive"
+
+The honest reply is arithmetic. Fairway costs EUR 14,280 a year at list price. If a single avoided write-off is bigger than that, the plan has paid for itself, and for a produce importer that is one container of lemons. Ask for the biggest claim in the last 12 months; if it is under EUR 20,000, believe the objection and score the pain criterion accordingly. Do not discount first. You discount after the customer has told you what it would take to sign, and even then you stay inside the matrix.
+
+### 7.2 "We have our own loggers"
+
+Own loggers are fine, they tell you what happened. Tidewalk tells you what is happening. Ask when they last found out about an excursion while it was going on. If they use USB loggers they have a data-retrieval problem too: somebody physically collects the units and downloads them, and that somebody has a day job. Radom Mroźnia, which runs its own USB loggers, has frozen its budget until February 2025; we should call them in the first week of that month.
+
+### 7.3 "Where is our data?"
+
+Tidewalk is hosted by Lintu Cloud Hosting on European infrastructure. Say European, stop there, and send the security questionnaire to Kamil Zdunek's team if the customer wants details; do not improvise about data centres. If the customer is in pharma, the GDP annex covers it and Sofia Brandão reviews any change to it, with a turnaround of 3 working days.
+
+### 7.4 "What about battery life?"
+
+Say "see the data sheet", and then send the data sheet. I have a firm rule here: no number about battery life leaves the building unless it is printed on the current data sheet, because a customer once held us to a figure that a salesperson had improvised on a call. Never trade the data sheet for a quick win.
+
+### 7.5 "We do not want a long contract"
+
+Standard is 12 months. If they refuse to commit, month-to-month is available only on Harbour at a surcharge of 18%. Frame it honestly: a longer term is how we pay for onboarding, and a customer who stays for 36 months gets 1.5 percentage points extra. If the objection is real distrust, offer the 30-day pilot with up to 20 tags that we gave Samsø Berry Co-op; pilots longer than 30 days need my approval.
+
+### 7.6 "Switching will hurt"
+
+It will, a little. That is why we stage it. Fruttoria Baltica went live in three waves, and the first alerts were running within 5 weeks of the signature. Stage the migration, run the old and new systems side by side for two weeks, and agree a named person on the customer's side who owns the cut-over. Offer Yusuf as a reference; he organises reference calls.
+
+### 7.7 "Can you integrate with our ERP?"
+
+Fairway and Deep Water include the public API and webhooks. We do not build custom connectors in sales; if the customer wants one, it becomes a statement of work that Tomasz's team estimates, and the estimate takes 10 working days. Do not guess the price.
+
+## 8. References, case studies and public claims
+
+Customers we may name in public material: Fruttoria Baltica, with written approval FB-LEGAL-0917 dated 2 September 2024. Customers we may not name: Helvetia Pharma Logistik GmbH (never, under the pharma NDA), and Nordkjøl Seafood AS until its contract is signed. Reference calls: maximum 2 per customer per quarter, arranged by Yusuf with 5 working days' notice, and never on a Friday afternoon. Mecklenburger Beeren will use Fruttoria's first slot this quarter.
+
+Public claims about performance (alert counts, write-off reductions) must come from a customer-approved case study. Do not extrapolate from one customer's numbers to a different segment in a quote. Lotte keeps the approved wording in the marketing share, and the numbers in the Fruttoria case study are unaudited, which has to be stated whenever they are used.
+
+## 9. Territories, quotas and money
+
+| Person | Territory | FY2024 quota (EUR) |
+|---|---|---|
+| Yusuf Demirkıran | Poland and the Baltics, key accounts | 1,350,000 |
+| Anders Bjørkman | Nordics | 1,100,000 |
+| Katharina Voss | DACH and Benelux | 1,150,000 |
+| Wiktoria Szulc | Inside sales, Poland, plus Estonia from 2 September 2024 | 480,000 |
+| Rafał Nowogrodzki | Strategic accounts and team override | 720,000 |
+
+The quotas add up to the team target of EUR 4,800,000 in total contract value. Commission is 5% of the first-12-month contract value, 1.5 times that above 100% of quota. SPIFFs for 2024: EUR 400 for every 36-month deal and EUR 250 for every KC-Tag 3 trade-in deal that closes. Commission is paid with the salary of the second month after the customer signs, and clawed back in full if the customer terminates within 90 days (Ines Baptista-Okafor in HR knows the exact clause, I only know it is there).
+
+### 9.1 After the signature
+
+The moment a contract is countersigned, the owner fills in the deal handover form and sends it to Jarek Lindqvist's operations team in Gdynia within 1 working day. The kickoff call takes place within 5 working days. Our standard target is first live alerts within 5 weeks of signature; Meridian Chill needs 11, and I want us to say so on every call. Hub installations are scheduled by operations, never by sales, and a salesperson who promises an installation date in an email will be asked to attend the installation. Zeeland Bloemen is the example I use: their hub in Vlissingen slipped from 3 September to 17 September because a promise was made before anybody had checked the engineer's calendar.
+
+### 9.2 Currencies and regional quirks
+
+List prices are in EUR. For Polish customers we may quote in PLN using the rate that finance sets on the first working day of each month; for the third quarter of 2024 that rate is 4.31 PLN per EUR. For Nordic customers we invoice in EUR only, because ColdLedger cannot issue NOK or SEK invoices, and if a customer insists, the answer is a polite no and a conversion line on the quote (this is a ColdLedger problem and Priya knows about it). German customers expect German-language contracts and will not say so until the third meeting; Katharina keeps a template. Latvian and Lithuanian customers are content with English contracts, but ask which language the quote email should be in before you send it, because the answer differs by company, not by country.
+
+## 10. Cadence, templates and odds and ends
+
+New outbound leads follow the standard cadence: email on day 0, phone on day 3, LinkedIn note on day 8, last email on day 15, and then the lead is parked for 90 days. Do not combine channels in one day; it looks like a robot with a mortgage.
+
+Proposals must use template PT-2024-C. Any deviation from standard terms goes to Sofia Brandão in Legal, and she answers within 3 working days if you tell her the date of the signing meeting. Quotes are valid for 30 days. Every proposal has a nine-point checklist that Tymon will send you as a PDF; the points that people forget most are the VAT line, the hub installation site list, and the signature block for a second signatory.
+
+Trade fairs and events for autumn 2024 are in Lotte's newsletter and on the marketing calendar; the sales team covers the ColdChain Baltic Forum in Gdańsk on 8 and 9 October with two people at the stand, and Anders and Katharina go to the Nordic Reefer Summit in Gothenburg on 26 and 27 November.
+
+### 10.1 Appendices (not included in this PDF)
+
+Appendix A: price build-up sheet. Appendix B: contract templates, incl. the GDP annex. Appendix C: competitor log. Appendix D: ICP scoring sheet (the Excel one, not the one pasted in section 2.2, which is for reading only). All sit in the sales share under SL-PB-2024.2. If you cannot find them, ask Tymon, not Teams.
+
+## 11. Field notes from the team (collected for the 2024.2 review, lightly edited)
+
+Rafał asked everyone for one paragraph on what worked in the second quarter. Here they are, in the order they arrived, with the grammar left mostly as sent.
+
+**Yusuf (Gdynia):** biggest lesson from Fruttoria is to show up at the ripening complex at 6 in the morning, not at 10. We saw the tags beeping in the receiving bay and the logistics director stopped asking about price. Took 3 visits in all. I also stopped sending the 24-slide deck, 9 slides is enough, and it ends with the At a glance table.
+
+**Anders (Gothenburg):** the Norwegians do not want to be sold to, they want a quote that fits on one page and a person who answers the phone before 07:00 Norwegian time. I now start calls at 06:45. Nordkjøl asked for 99.9% uptime three times in the same meeting. I said 99.5% three times. We both smiled. Do not mention the Swedish summer holidays to anybody in Ålesund. Also: ColdArc tell every prospect that we have no Scandinavian-language desk, which is true, so say it first and tell them the owls speak English and a bit of Swedish.
+
+**Katharina (Hamburg):** Germans read the whole contract, including the annexes, including the one that says 'see Annex 3'. Have Annex 3 ready. For Hanseatic Fleisch I scheduled the HAM-2 depot tour for a Tuesday because Tuesday is when the Waltershof yard is least chaotic, according to the yard lead. Hamburg Südfrüchte asked for 12.5% and I have not heard from Priya's office, which probably means no.
+
+**Wiktoria (Gdynia):** short deals go faster over the phone than over email. Rybex paid 8 days early and told me it was because the invoice arrived on a Monday, which I now try to arrange. Two prospects asked me what a TEU is. I told them it is a twenty-foot container; one hung up. Inbound leads in Polish convert at about twice the rate of English ones, but that is only 31 leads so please do not put it in a slide.
+
+**Tymon (sales ops):** we have 212 open opportunities in the CRM on the day I write this and 37 of them have no next step. This is not a question of discipline, it is a question of whether you want your name in orange. Also, the CRM export I send to finance on the last working day of the quarter has the same eight columns as before; please do not ask for a ninth, Priya will have views.
+
+*End of document. Printed copies are uncontrolled. If this page says 2024.1 in the footer, you have the wrong document.*

@@ -1,0 +1,84 @@
+---
+out: sop_reefer_loading_and_excursions.rtf
+tier: core
+---
+# Loading Reefer Containers and Handling Temperature Excursions
+
+Korvane Cold Chain Sp. z o.o. · SOP KC-OPS-SOP-031 · revision 6 · effective 2 September 2024 · replaces rev. 5 of 17 March 2023
+
+Owner: Operations (J. Lindqvist). Written by Wacław Bielicki, senior shift supervisor at GDY-1, because Jarek asked me nicely and then less nicely. Valid at all five depots. Printed copies are "uncontrolled", I know nobody reads the footer, but there it is. Any laminated sheet at any depot that disagrees with this text is wrong, Hamburg, and yes I mean the one next to the coffee machine.
+
+## 0. Why this exists
+
+I started on the quay at Gdynia in 2004, back when a reefer was a box with a unit hanging off the nose and a clipboard hanging off the door, and in twenty years I have watched exactly one kind of mistake destroy more cargo than all the others together: somebody was in a hurry at the beginning. Cargo does not go bad on the vessel. It goes bad on the dock, in the first forty minutes, and you only find out in Rotterdam on a Thursday. So this SOP is mostly about the beginning, and a little bit about what to do when you got it wrong anyway, which is the part the auditors like.
+
+Rev. 6 changes three things against rev. 5. The pre-cool for chilled loads was 3 hours and is now 4.5 hours. The loading window for chilled boxes was 45 minutes and is now 38. And the excursion ladder grew a fourth rung, because of what happened on 14 June (you know which one). Everything else stays as it was, so please stop asking me in the canteen.
+
+## 1. Pre-cooling the empty box
+
+Nobody loads into a warm box. "Warm" does not mean what the display says. A unit that was plugged in twenty minutes ago can show +4 on the screen while the floor and the steel walls are still at yard temperature, and they will bleed heat into your pallets for the first hour of the voyage. The clock for pre-cooling starts when Tidewalk shows the first "setpoint reached" message for that box, not when you plugged it in, and not when the driver tells you it feels cold.
+
+| Load type | Setpoint | Minimum pre-cool | Extra condition |
+|---|---|---|---|
+| Chilled general cargo | +2.0 to +8.0 °C | 4.5 hours | PTI sticker not older than 14 days |
+| Frozen | −18.0 °C or colder | 9 hours | none, but see the paragraph on ambient |
+| Pharma / GDP | +2.0 to +8.0 °C | 6 hours | return air within ±0.5 °C of setpoint for the last 60 minutes |
+
+If the yard is warmer than 28 °C when you plug in, add 90 minutes to every line of that table, no negotiation. We had a very clever young man at Waltershof in 2019 who argued that fruit "doesn't care". The fruit cared. Also look at the drain plugs and the T-floor before you start the clock: a box with standing water or a dead cardboard layer from the last customer is not a box, it is a problem you have decided to pay for later.
+
+**Product temperature at the dock.** Before the first pallet goes in, somebody takes a core reading of that pallet with the hand probe. Chilled goods go in at +6.0 °C or colder. Frozen goods go in at −15.0 °C or colder. Between −15.0 and −12.0 °C frozen product may be loaded only with a signed waiver from the customer's representative standing in front of you (a forwarded email from "someone in Sales" is not a waiver). Warmer than −12.0 °C, you refuse it, take photographs, and ring Duty Ops. I do not care how long the lorry has been waiting.
+
+## 2. Building the load
+
+The red load line is painted on the inside wall and it is a legal limit for the box. Ours is stricter. Maximum pallet height, pallet plus cargo, is 2.18 m in a 40' high-cube and 2.06 m in a 20' or a standard-height 40'. That leaves you at least 12 cm of air above the top layer for the return air to travel, and if you stack to the red line "because it fits" you will hear from me personally.
+
+Number of pallets: at most 23 euro-pallets in a 40', at most 10 in a 20'. Pharma loads are limited to 20 in a 40', because the gaps matter more than the revenue. No pallet heavier than 1,180 kg gross, whatever the label says. Leave 8 cm between the last pallet and the doors, 4 cm to each side wall, and keep the first 20 cm in front of the unit bulkhead completely clear. Air has to go somewhere. Cartons wedged against the bulkhead are the single most common reason a perfectly healthy unit "doesn't hold temperature" in the report.
+
+## 3. Probes and tags
+
+Three KC-Tag 4 loggers go into every 40' load and two into every 20'. Positions, and I will not draw them again because the drawing in rev. 4 was already ignored:
+
+- **Tag 1, the door tag:** top layer of the second pallet from the doors, kerb side, about 20 cm in from the wall, inside a carton and not taped to the outside. This is the warmest spot in the box. It is there on purpose.
+- **Tag 2, the middle tag:** centre of the load, middle pallet, half height, roughly 1.1 m up. In a 20' this tag is left out.
+- **Tag 3, the nose tag:** bottom layer of the pallet nearest the unit, about 30 cm off the floor. Coldest spot. It is the freeze-damage detector and the reason bananas hate us occasionally.
+
+To activate a tag, hold the button for 4 seconds until the green LED blinks twice. Then wait and watch the KC-Hub 200 screen: the tag must show online within 90 seconds, otherwise it goes in the red bin and you take another. Do not use any tag whose battery is under 2.85 V on the Tidewalk tag screen (the Voltrac cells drop off a cliff, they do not fade). Logging interval is 5 minutes by default, 10 minutes for frozen and 2 minutes for pharma loads. Separate from the tags: the hand probe goes into the first, a middle and the last pallet loaded, and those three numbers go on the form.
+
+## 4. Doors, docks, time
+
+The loading window runs from the first pallet crossing the threshold to the doors being shut for good. It is timed with the stopwatch that lives on the dock clipboard (if the stopwatch has walked off, use your phone and write "phone" next to the time).
+
+| Cargo | Window, yard up to 25 °C | Window, yard above 25 °C |
+|---|---|---|
+| Chilled | 38 minutes | 30 minutes |
+| Frozen | 24 minutes | 18 minutes |
+| Pharma / GDP | 16 minutes | 12 minutes |
+
+The dock shelter has to be sealed against the box. Loading through a curtain-only door counts every minute twice on the stopwatch. After the doors are shut, re-opening is limited to 4 minutes each time (customs, seal check, forgotten pallet) and three re-opens per load per day shift; the fourth needs the supervisor's name on the form. The unit stays ON with fans on high the whole time, and a manual defrost, if you want one, must finish at least 40 minutes before the first pallet. Going over the window is not a catastrophe by itself: write it down, and watch Tag 1 closely for the next 2 hours.
+
+## 5. The excursion ladder
+
+Tidewalk raises an alarm when a tag drifts. The alarm is a courtesy, not the procedure. The procedure is the ladder below, and what counts is how far the reading is above setpoint (warm side) and for how long. Minutes out of band accumulate over a rolling 24 hours; they do not reset because the temperature came back for ten minutes and everyone breathed out. If the sum reaches 3 hours 15 minutes in any rolling 24 hours, the load is Red, whatever the individual dips looked like.
+
+| Level | Standard cargo | Pharma / GDP cargo | What you do and who you call |
+|---|---|---|---|
+| 1 Amber | more than 1.5 °C for 20 minutes | more than 0.8 °C for 10 minutes | The shift supervisor on site checks the unit alarm code, door seals and setpoint. Write it on the board. Nobody external is called. Re-read the tag every 15 minutes. |
+| 2 Orange | more than 3.0 °C for 45 minutes | more than 1.5 °C for 20 minutes | Ring Duty Ops on ext 2000 within 10 minutes. Fleet workshop (ext 2750) prepares a swap box. Put a HOLD-Y sticker on the box. |
+| 3 Red | more than 5.0 °C for 90 minutes | more than 2.5 °C for 40 minutes | Duty Ops and Quality on-call (Benedikta Aaltonen, ext 2620). The account manager phones the customer within 60 minutes. HOLD-R sticker; only Quality can release the load. |
+| 4 Black | a single reading above +12.0 °C, or more than 6 hours in total | any reading outside +2.0 to +8.0 °C for more than 90 minutes | Jarek Lindqvist (ext 2010) by phone in the same hour, and Legal (Sofia Brandão) is told. Quality notifies the insurance broker within 24 hours. Duty Ops issues the incident number, format EX-2024-nnnn. |
+
+Cold side: any tag below +0.5 °C for 30 minutes on a chilled load goes straight to Orange. Frozen is not fussy about cold, but the tomatoes in the other half of a split box are.
+
+Three things that are forbidden at every level. You do not change the setpoint to "help" the load. You do not open the doors to have a look, because looking costs more than the information is worth. And you do not take a tag out of the box to "reset" it. All three have happened, the last time in January 2013 at Gdynia, when it hit −23 °C overnight, the sockets on pad B froze solid and 14 boxes of fish went to Red before sunrise because the night man tried all three. He is retired now. He was a lovely man.
+
+Since 14 June nobody can say "no one told us". That one was nine hours. Do not make it ten.
+
+## 6. Paperwork, or: how to survive an audit
+
+Every load gets a form KC-OPS-114 (Loading and Excursion Record), filled in Tidewalk on the dock tablet, or on paper if the tablets are dead and then keyed in by the end of that shift. It must show: the container number, the seal number (bolt seal, photographed), the three tag IDs with positions, the pre-cool start and end times, the stopwatch time of the loading window, and the three hand-probe readings. Minimum four photographs: the load pattern from the rear before closing, the top gap under the red line, the tags in place, and the seal.
+
+After an excursion of Level 2 or higher, the tag data is downloaded within 2 hours. For Level 3 and Level 4 an Excursion Report goes into Tidewalk, ticket category EXC, within 24 hours, and for Level 4 the full 8D root-cause report is due within 10 working days. Records are kept 7 years, or 12 years for GDP files. The loader and the supervisor both sign KC-OPS-114; the supervisor's signature means "I looked", not "I trust him". Quality audits roughly one form in twelve, and Benedikta can spot a form signed in advance from across the room.
+
+Questions to me, not to the internet. The canteen is not a document control centre.
+
+*Distribution: all depots, Fleet, Dispatch. Rev. 6 approved J. Lindqvist, 28 August 2024. See also KC-OPS-SOP-044 (refrigerant leaks) and the depot safety manual 2024.*

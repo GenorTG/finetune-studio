@@ -1,0 +1,118 @@
+---
+out: msa_oakhaven_dairy_2023.pdf
+tier: core
+---
+# MASTER SERVICES AGREEMENT (EXTRACT FOR FILE)
+
+KORVANE COLD CHAIN SP. Z O.O. / OAKHAVEN DAIRY LTD — Ref. KCC/MSA/2023/017 — CONFIDENTIAL — uncontrolled when printed
+
+*Extract prepared by S. Brandão (Legal). Clauses 2, 3, 5, 6, 8, 10, 12, 13, 15 and 16 and Schedule 1 (Lane Schedule) are omitted from this copy. The signed original with all schedules sits in the contract safe at Łużycka 14, cabinet L-3, shelf 2. Do not quote this extract to the Customer as if it were the complete text.*
+
+THIS MASTER SERVICES AGREEMENT is made on 3 April 2023 (the "Signature Date") BETWEEN:
+
+(1) KORVANE COLD CHAIN SP. Z O.O., a limited liability company incorporated in Poland, whose registered office is at ul. Łużycka 14, 81-537 Gdynia, entered in the National Court Register under KRS 0000488213 ("Korvane"); and
+
+(2) OAKHAVEN DAIRY LTD, a company incorporated in England and Wales under company number 09418276, whose registered office is at Fenwick Lane Farm, Nantwich, Cheshire CW5 8QT, United Kingdom (the "Customer").
+
+## 1. Definitions and interpretation
+
+1.1 In this Agreement the following words bear the meanings set against them, save where the context plainly requires otherwise. "Effective Date" means 1 May 2023. "Business Day" means any day other than a Saturday, a Sunday, a public holiday in Poland, or 24 or 31 December, on which Korvane's Gdynia office is closed in any event. "Initial Term" means the period of 36 months starting on the Effective Date.
+
+1.2 "Permitted Band" means, for Chilled Dairy Products, a cargo air temperature of between +1.0 °C and +5.5 °C inclusive, the set-point being +3.0 °C. A "Temperature Excursion" is any period of more than 30 consecutive minutes during which the temperature recorded by a KC-Tag 4 logger fitted to the container lies outside the Permitted Band. The Customer accepts that readings are taken at 5-minute intervals and that the readings as stored in Tidewalk are the data of record for all purposes of this Agreement.
+
+1.3 "Excursion Hours" means the time between the first reading outside the Permitted Band and the first subsequent reading back inside it, expressed in hours and rounded up to the next half hour. "Affected Fee" means the leg fee plus the monitoring fee charged for the Consignment on which a Temperature Excursion occurred. "Monthly Fees" means all fees invoiced for a calendar month, excluding VAT and disbursements.
+
+1.4 "Index" means the index of producer prices of transport and storage services published monthly by Statistics Poland (GUS). "Contract Year" means each period of twelve months starting on the Effective Date or an anniversary of it.
+
+1.5 Headings are for convenience. A reference to "writing" includes e-mail save in clause 17.4 and in clause 14. If this Agreement and a Schedule conflict, the body of the Agreement wins, except that Schedule 2 prevails on the numerical value of any fee or credit.
+
+## 4. Service levels and service credits
+
+4.1 Korvane shall make the Tidewalk monitoring portal available to the Customer at a monthly availability of not less than 99.6%, measured across the calendar month and excluding Planned Maintenance. Planned Maintenance shall not exceed 6 hours in any calendar month and shall be announced at least 72 hours beforehand on the status page.
+
+4.2 Korvane shall notify the Customer's Nominated Contact by telephone and e-mail within 20 minutes after the first reading outside the Permitted Band is received by the KC-Hub 200 gateway. The Nominated Contacts at signature are the Oakhaven transport desk (+44 1270 555 0143) and, out of hours, the duty dairy technologist on +44 7700 900 318.
+
+4.3 Where a Temperature Excursion occurs, Korvane shall grant the Customer a service credit calculated by applying to the Affected Fee the percentage set out in Table A of Schedule 2 against the relevant Excursion Hours. Excursions of 30 minutes or less do not qualify and generate no credit.
+
+4.4 If the Excursion Hours exceed 12, the Customer may, by notice given within 36 hours after Korvane's notification, treat the Consignment as rejected, whereupon Korvane shall arrange disposal or return at its own cost and the Affected Fee shall be credited in the percentage stated in Table A.
+
+4.5 Service credits in any one calendar month are capped, in aggregate, at 25% of the Monthly Fees for that month. The Customer must claim a credit in writing within 30 days after the date of the invoice for the month in which the Excursion began, failing which the credit lapses. Credits are set off against the next invoice; any credit still unapplied on expiry or termination shall be paid out within 60 days.
+
+4.6 Service credits are the Customer's sole financial remedy for a failure under clauses 4.1 and 4.2. They are not a remedy for loss of or damage to cargo, which is governed by clause 7.
+
+## 7. Liability
+
+7.1 Subject to clauses 7.4 and 7.5, the total aggregate liability of each party to the other arising in any Contract Year, whether in contract, tort (including negligence) or otherwise, shall not exceed the greater of (a) EUR 1,250,000 and (b) 150% of the fees paid in the twelve months immediately before the event giving rise to the claim.
+
+7.2 Korvane's liability for loss of or damage to cargo shall not exceed, per container, the lower of the invoice value of the goods affected and EUR 85,000. Liability for product recall costs properly incurred by the Customer as a direct consequence of a Temperature Excursion is limited to EUR 200,000 per event and counts towards the cap in clause 7.1.
+
+7.3 Neither party is liable for loss of profit, loss of goodwill, loss of anticipated savings, or for chargebacks, delisting fees and contractual penalties levied on the Customer by its retail customers, however arising.
+
+7.4 Nothing in this Agreement limits or excludes liability for death or personal injury caused by negligence, for fraud, or for wilful misconduct.
+
+7.5 Any claim for cargo damage must be notified to Korvane in writing within 21 days after delivery; any court action must be commenced within 12 months after the date of delivery or, if delivery did not occur, the date on which delivery should have occurred.
+
+## 9. Insurance
+
+9.1 Throughout the term Korvane shall maintain with reputable insurers (a) carrier's liability and freight forwarder's cargo cover of not less than EUR 4,000,000 per occurrence, (b) public and third-party liability cover of not less than EUR 2,000,000 per claim and EUR 5,000,000 in the annual aggregate, and (c) cyber and data cover of not less than EUR 1,000,000. The Customer shall maintain product liability cover of not less than GBP 3,000,000 and product recall cover of not less than GBP 1,500,000.
+
+9.2 Each party shall furnish a broker's certificate within 10 Business Days of written request. Korvane's programme is placed through Seaboard Insurance Brokers; a Customer request that reaches the broker directly is not a request under this clause.
+
+## 11. Fees, payment and indexation
+
+11.1 The fees are those in Table C of Schedule 2, stated in EUR and exclusive of VAT. Consignments gated in at any Korvane depot between 15 August and 15 October in any year attract an Autumn Peak surcharge of 7.5% on the leg fee only.
+
+11.2 Korvane invoices monthly in arrears, issuing the invoice from ColdLedger on or before the 3rd Business Day of the following month. Invoices are payable within 35 days of the invoice date. Overdue sums bear interest at 9.35% per annum from the due date until payment.
+
+11.3 On 1 March of each year, beginning on 1 March 2024, the fees in Table C shall be adjusted by the percentage change in the Index between the October most recently published and the October twelve months before it. The adjustment shall never be below zero and shall not exceed 5.25%. Korvane shall give written notice of the new fees by 15 January; if notice is given late, the adjustment takes effect only from the first day of the second month after notice.
+
+## 14. Term and termination
+
+14.1 This Agreement begins on the Effective Date, runs for the Initial Term, and then renews automatically for successive periods of 12 months unless either party gives the other not less than 120 days' written notice of non-renewal expiring at the end of the Initial Term or of any renewal period.
+
+14.2 After the first anniversary of the Effective Date either party may terminate this Agreement for convenience by giving the other not less than 180 days' written notice. Notice under this clause or clause 14.1 must be sent by courier or registered post; e-mail alone is not sufficient.
+
+14.3 Either party may terminate by written notice with immediate effect if the other commits a material breach which, if capable of remedy, is not remedied within 30 days after written notice requiring it, or if the other becomes insolvent or is the subject of a petition for bankruptcy or administration.
+
+14.4 On expiry or termination Korvane shall, for up to 10 days, keep any cargo in its custody under temperature control at GDY-1 or RTM-3 at the dwell tariff then in force, and shall within 20 Business Days deliver to the Customer an export of its Tidewalk consignment archive in CSV and PDF.
+
+## 17. Governing law, disputes and notices
+
+17.1 This Agreement and any non-contractual obligation arising from it are governed by Polish law.
+
+17.2 A dispute shall first be referred to Korvane's Chief Financial Officer and the Customer's Managing Director, who shall meet, in person or remotely, within 10 Business Days. If the dispute is not resolved within 30 days after referral, the courts shall have jurisdiction, and the Regional Court in Gdańsk (Sąd Okręgowy w Gdańsku) shall have exclusive jurisdiction, save that either party may apply for interim relief in any competent court.
+
+17.3 Notices to Korvane go to ul. Łużycka 14, 81-537 Gdynia, marked for the attention of the Legal Counsel; notices to the Customer go to Fenwick Lane Farm, marked for the attention of the Finance Director, Ewan Tarrant.
+
+17.4 E-mail notices (where permitted) are deemed received at 09:00 on the next Business Day after sending, and a notice delivered by courier is deemed received on signature of the courier's waybill.
+
+## Schedule 2 — Service levels and fees
+
+Table A — Temperature Excursion service credits (percentage of the Affected Fee)
+
+| Excursion Hours | Service credit |
+|---|---|
+| more than 0.5 and up to 2.0 hours | 5% |
+| more than 2.0 and up to 4.0 hours | 10% |
+| more than 4.0 and up to 8.0 hours | 20% |
+| more than 8.0 and up to 12.0 hours | 35% |
+| more than 12.0 hours | 50% |
+
+Table B — Operational targets (monitoring only; no credit attaches save as in Table A)
+
+| Item | Target |
+|---|---|
+| Monthly consignment report issued by | 5th Business Day |
+| Tidewalk raw-data retention for the Customer | 24 months |
+
+Table C — Fees (EUR, excluding VAT, per consignment unless stated)
+
+| Item | Fee |
+|---|---|
+| Reefer leg, 40 ft high-cube | EUR 1,184.00 |
+| Reefer leg, 20 ft | EUR 842.00 |
+| Monitoring, per container-day | EUR 6.40 |
+| Depot lift at RTM-3 | EUR 38.50 |
+| Dwell at GDY-1 after 3 free days, per day | EUR 14.75 |
+
+Signed for Korvane Cold Chain Sp. z o.o. by Marta Kowarzik (Chief Executive Officer) and Priya Venkataraman-Holt (Chief Financial Officer). Signed for Oakhaven Dairy Ltd by Gwendolen Pryce-Aldous (Managing Director). Original in two counterparts, one for each party.

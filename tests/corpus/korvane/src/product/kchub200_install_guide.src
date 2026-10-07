@@ -1,0 +1,136 @@
+---
+out: kchub200_install_guide.docx
+tier: extended
+---
+# KC-Hub 200 — Installation Guide
+
+Document KC-IG-200, version 2.3 (January 2024), supersedes 2.2 of June 2023. Authors: M. Ostrowicz, E. Brzozowska-Nyman. Applies to hub firmware 3.2 and later. DRAFT STAMP REMOVED 11.01.2024 by Benedikta — thanks.
+
+## 1. About this guide
+
+The KC-Hub 200 is the gateway that receives the radio reports of KC-Tag 4 loggers inside a yard or depot and forwards them to Tidewalk. This guide describes how the hub is mounted, powered, connected and put into operation. It is written for the depot electricians and for the IT staff of customers who run their own yard. Anyone who is going to climb a pole should also have read the work-at-height rules of their own company, which this guide does not replace (and which are stricter than anything we could write here).
+
+Pairing of loggers is not described here, see the quick start guide of the KC-Tag 4. Fault finding on the tag side is in the service manual.
+
+## 2. Contents of the delivery
+
+The hub is delivered in a carton of 320 × 260 × 90 mm, together with: one mounting plate; two stainless pole bands (for pole diameters from 40 mm to 90 mm); four wall plugs 8 mm and four screws 5 × 50 mm for wall mounting; one omnidirectional antenna with an SMA connector (type ANT-868-5, gain 5 dBi, length 220 mm); one PoE injector (802.3af, with a mains cable for the EU), and a laminated one-page cheat sheet with the claim code of the hub. The claim code is also printed on the label at the bottom of the hub, and you really should keep one of them: without the claim code the hub cannot be added to Tidewalk, and the support cannot read it out for you, as it is a secret by design.
+
+## 3. Technical data
+
+| Parameter | Value |
+|---|---|
+| Dimensions | 220 × 140 × 48 mm, without antenna |
+| Weight | 1.1 kg |
+| Protection class | IP66 |
+| Operating temperature | −30 °C to +60 °C |
+| Radio | 868 MHz, KC-Link v3, receiver for up to 250 tags |
+| Optional radio | 433 MHz module for KC-Tag 3, option code H2-433 |
+| Optional uplink | LTE Cat 4 failover with nano-SIM, option code H2-LTE |
+| Power over Ethernet | IEEE 802.3af, class 3 |
+| Power consumption | typically 6.4 W, maximum 9.8 W |
+| DC input | 12 to 24 V, 1.5 A, barrel connector 5.5 × 2.1 mm |
+| Uplink buffer | up to 72 hours of reports from 250 tags |
+| Firmware (state January 2024) | 3.4.2 |
+
+The hub is designed to be mounted outdoors. It is not to be installed inside a container stack, because the steel walls shield the radio waves so much that the range falls to a small fraction.
+
+## 4. Mounting
+
+### 4.1 Where to put the hub
+
+Mount the hub as high as it is practical, but at a height of at least 3.0 m above the ground and not higher than 8 m (above 8 m the PoE cable becomes a problem as the voltage drops, and the maintenance is more expensive than an additional hub). The antenna must point upwards, vertical, and should have at least 0.5 m free space to any metal surface around it, because a metal mast right next to the antenna destroys the radiation pattern. Do not install the hub directly above a reefer unit; the electromagnetic noise of the compressor drives and the inverter of the cooling units can lower the sensitivity.
+
+A rule of thumb which we use in the depots: one hub for each yard area of around 180 m radius in the open, and one hub for every second block of stacks if the stacks are higher than three containers. If you are not sure, a Korvane service engineer will make a radio survey with a test tag; this costs EUR 210.00 per half day plus travel.
+
+### 4.2 Pole mounting
+
+1. Fix the mounting plate to the pole with both pole bands. The bands go through the slots in the plate; the screw heads of the bands should be on the side facing away from the cable entry.
+2. Tighten the band screws to 4.0 N·m. Do not use an impact driver. Bands that are too tight deform thin lighting poles.
+3. Hang the hub on the plate (two hooks on the top, one lock screw at the bottom) and tighten the lock screw to 1.8 N·m.
+4. Screw the antenna on the SMA connector by hand, plus a quarter turn with a spanner. Never use a tool on the antenna body.
+
+### 4.3 Wall mounting
+
+Use the four plugs and the screws from the delivery for a masonry wall. The distance between the drill holes is 120 mm horizontally and 90 mm vertically. On a metal wall the hub is mounted with a spacer of at least 30 mm.
+
+### 4.4 Rack mounting (in a server or control room)
+
+For indoor use the hub can be placed on the 1U shelf KH2-R1U, which holds up to two hubs side by side. The shelf is fixed to the 19-inch rack with four M6 screws and cage nuts at a torque of 5.0 N·m. Indoors the hub range is shortened, and the antenna must be taken out of the room on the extension cable ANT-EXT-3 (3 m, loss 0.9 dB) to a window or to the roof. Please do not leave the antenna on the shelf. We have seen it. The yard staff then asks why only 14 tags in the yard are visible.
+
+## 5. Power and cabling
+
+The preferred power supply is PoE, 802.3af class 3. The Ethernet cable is Cat5e or better, with a maximum length of 100 m between the PoE injector or switch and the hub. For cables that leave a building a surge protector of type SP-PoE-1 must be installed at the entry point of the building, and a second one at the hub if the pole is higher than 6 m. In the Rotterdam yard this protection saved three hubs during a thunderstorm in the summer of 2023 and it has become the standard since.
+
+If PoE is not possible, the hub can be powered with a DC supply of 12 to 24 V, 1.5 A, via the barrel connector. When both are connected the hub takes the DC input and the PoE is not used (so the PoE input works as a standby); this was a design wish of the Gothenburg depot.
+
+### 5.1 Ports
+
+| Port | Description |
+|---|---|
+| LAN1 | RJ45, 1 Gbit/s, PoE input and the uplink |
+| LAN2 | RJ45, 100 Mbit/s, local pass-through for one device such as an IP camera, without PoE output |
+| USB-C | Service only: console for the technician, firmware recovery |
+| RS-485 | Two-pin terminal block, reserved for the door controller integration; disabled in firmware 3.4.2 |
+| SMA | Antenna, 50 ohm |
+| SIM | Nano-SIM slot behind a cover, only on units with option H2-LTE |
+
+### 5.2 Network requirements
+
+The hub gets its address by DHCP; a fixed address can be set in the web interface on port 8080 of the hub itself after the first start. The hostname of the hub is set at the factory to kch200- followed by the last 6 characters of the MAC address. The hub needs outbound connections to the Tidewalk hub gateway on TCP port 8883 (MQTT over TLS) and to TCP port 443 for firmware downloads, and the NTP on UDP port 123. No inbound ports are needed. If the customer firewall allows only a list of destinations, the DNS name is hubs-in.tidewalk.korvane.example. A hub that cannot reach the NTP server keeps its time from the tags for up to 6 hours, and later stops accepting alarms with a time stamp; this is an issue on some hospital networks.
+
+## 6. Commissioning
+
+1. Mount the hub and connect the antenna before the power, never the other way round. A transmitting radio without an antenna is not good for the radio chip, even if the hub only listens most of the time.
+2. Connect the Ethernet cable. The PWR lamp lights green at once. The first start takes about 4 minutes, in which the hub downloads its configuration and, if necessary, a firmware update.
+3. In Tidewalk open the menu Devices, choose Add hub and enter the claim code from the cheat sheet. The code consists of 4 groups of 4 characters.
+4. When the CLOUD lamp is green, the hub is assigned to the depot that you selected. Name the hub according to the schema of the depot (for example GDY-1-H07 for the 7th hub at Gdynia).
+5. Walk a test tag through the yard and check that the RF lamp flashes and that the tag appears in Tidewalk with a signal strength better than −105 dBm at the edge of the area.
+
+### 6.1 The lamps
+
+| Lamp | Pattern | Meaning |
+|---|---|---|
+| PWR | Green, steady | Power OK |
+| PWR | Amber, steady | Running on the DC input, PoE absent |
+| PWR | Red, blinking | Safe mode (see 7.2) |
+| NET | Green, steady | Link up and IP address obtained |
+| NET | Amber, blinking | Link up, no IP address |
+| NET | Off | No cable or no link |
+| RF | Blue, short flash | A tag report was received |
+| RF | Blue, flashing quickly for 180 seconds | Pairing window open |
+| CLOUD | Green, steady | Connection to Tidewalk established |
+| CLOUD | Amber, steady | Network OK, but Tidewalk unreachable; reports are buffered |
+| ALM | Red, steady | At least one tag in alarm state (resets when acknowledged in Tidewalk) |
+
+The pairing window of the hub follows the tag: with tag firmware 2.8 and newer it is 180 seconds, with older tag firmware it is 120 seconds. On a hub with firmware 3.4.2 the lamp pattern for the pairing is therefore always the longer one; the hub does not know the firmware of the tag that will be paired and stays open for the longer time.
+
+## 7. Operation and maintenance
+
+### 7.1 Daily behaviour
+
+The hub forwards every report within a few seconds. When the uplink is down, it stores the reports in its internal memory for up to 72 hours for 250 tags (more for fewer tags) and uploads them after the connection is back, oldest first. The hub does an automatic restart on every day at 04:15 UTC only if its uptime is more than 30 days; otherwise it keeps running.
+
+### 7.2 Safe mode
+
+If the hub restarts more than 5 times within one hour (for example because of a faulty power supply) it enters the safe mode: the PWR lamp blinks red, the radio receiver stays active, but the uplink is turned off to avoid a reboot loop that makes the buffer unreadable. A technician must connect a laptop to the USB-C service port and use the command `hub status` to find the cause. The safe mode has been added after a hub in Rotterdam restarted about 40 times during one night in 2023 because of a damaged PoE cable.
+
+### 7.3 Firmware
+
+Hub firmware is updated automatically in the maintenance window of the depot, which is by default from 02:00 to 04:00 local time. The minimum hub firmware that supports KC-Tag 4 on firmware 2.4 or newer is 3.1.0; for tag firmware 2.7 or newer, hub firmware 3.2.0 is the minimum. The current version in January 2024 is 3.4.2.
+
+### 7.4 Cleaning and inspection
+
+Inspect the hub once a year: look at the antenna connector for corrosion and apply silicone grease if needed (the Baltic yards need it every 6 months), check the gasket of the lid, and check the cable gland, which tends to loosen on a pole in the wind. The tightening torque of the cable gland nut is 2.5 N·m.
+
+## 8. Quick troubleshooting
+
+| Symptom | Likely cause | Action |
+|---|---|---|
+| No lamp at all | No power, or wrong PoE class of the switch | Check with a PoE tester; a class 3 port is needed |
+| NET amber blinking | No DHCP answer | Check the VLAN, set a fixed address |
+| CLOUD amber | Firewall blocks port 8883 | Open the port, or ask the IT for the destination list |
+| ALM red after restart | Alarms are still pending | Acknowledge them in Tidewalk |
+| Tags far away not heard | Antenna too low or next to metal | Raise the antenna, 0.5 m free space |
+
+For further help the contact is hub-support@korvane.example. Opening hours are the same as for tag support: Monday to Friday from 07:00 to 19:00 Central European Time.

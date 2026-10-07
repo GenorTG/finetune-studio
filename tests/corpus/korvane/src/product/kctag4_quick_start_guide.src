@@ -1,0 +1,98 @@
+---
+out: kctag4_quick_start_guide.pdf
+tier: core
+---
+# KC-Tag 4 — Quick Start Guide
+
+Document KC-QSG-4, Rev. D, March 2024. Valid for hardware KT4-R2 with firmware 2.6 or later. Korvane Cold Chain Sp. z o.o., ul. Łużycka 14, 81-537 Gdynia, Poland.
+
+Please read this guide attentively before the first use of Your device and keep it for the later reference. Korvane Cold Chain is not responsible for the damages which arise from not following of this guide or from the use of the device in a way that is not foreseen. The device shall not be opened, burned, crushed or put into the household waste; the battery inside is of the lithium type.
+
+## 1. What is in the box
+
+The retail box (grey carton with the green stripe, marking KT4-BOX-1) contains the following items: one KC-Tag 4 logger with the battery already inserted and secured by a red pull-tab; one door bracket of type KB4-D; one magnet of type KM-2, which is packed in its own small bag so it will not stick to the electronics of the other parcels; four stainless screws M4 × 12 with Torx T15 head; two strips of the double-sided foam tape, size 60 × 20 mm; one calibration card, where the serial number of the device is printed (the serial looks like KT4-2403-00418, that is: year, week, running number); and this guide. If any of the items is missing, please do not start the installation but contact the Korvane support (see the last page) within 14 days from the delivery.
+
+The bracket and the magnet are the same for the left-hand and the right-hand door. The tape strips are meant as the help for positioning only, the screws are the real fixing.
+
+## 2. Mounting on a reefer door
+
+The tag is fixed on the inside face of the door frame, and the magnet on the door leaf which is opening first, so that both of them meet each other when the container is closed. Please proceed in the following order.
+
+1. Choose the place so that the centre of the tag is 1.4 metres above the container floor. Around the tag a free space of at least 50 mm shall remain; do not mount the tag behind the cargo or directly in the air stream of the unit.
+2. Clean the surfaces with isopropyl alcohol and let them dry. The surface temperature shall not be lower than +10 °C when the foam tape is pressed on. The tape reaches its full strength after 72 hours, therefore do not rely on the tape alone during that time.
+3. Fix the bracket KB4-D with the four screws. The tightening torque is 1.2 N·m, and not more than 1.5 N·m, otherwise the plastic crack (we have seen it, it is not nice).
+4. Click the tag into the bracket until You hear the latch.
+5. Put the magnet KM-2 on the door leaf. When the door is closed, the gap between the magnet and the tag must be between 3 mm and 8 mm.
+
+The door-open event is registered when the gap becomes larger than 12 mm, and the door-closed event when it goes back under 9 mm. The difference between both numbers is intended (hysteresis) and shall not be treated as an error. Please note that a door that is only slightly opened for the ventilation is counted as open too.
+
+## 3. Switching on and the LED blink codes
+
+Pull the red tab. The LED lights amber for 2 seconds and then goes green: the tag has started. To wake the tag from the sleep and to see the actual state, press the button for 1 second. If nothing is lighting at all, the battery is empty or the tag sleeps.
+
+| LED pattern | Meaning |
+|---|---|
+| Green, 1 short flash every 5 seconds | Logging normally, hub in contact |
+| Green, 2 short flashes every 5 seconds | Logging normally, but no hub contact for more than 3 reporting intervals (the readings are stored and will be sent later) |
+| Green, fast flashing (3 per second) | Pairing mode is active |
+| Amber, 1 flash every 10 seconds | Battery below 20 % |
+| Amber, 2 flashes every 10 seconds | Temperature or humidity limit exceeded (alarm state) |
+| Red, 1 flash every 3 seconds | Sensor fault |
+| Red, long and short flashes in sequence | Error code, see chapter 7 |
+| Red and green alternating | Firmware update in progress, do not remove the battery |
+
+The error codes on the LED are counted so: the long red flashes are the tens and the short red flashes are the units. For example E11 is one long flash and one short flash, and E05 is five short flashes without the long one. The sequence is repeated three times and then the tag is quiet again.
+
+## 4. Pairing with the KC-Hub 200
+
+The tag has to be paired once with the hub of the yard before it is able to report. Please stay within 5 metres from the hub during the pairing, even if the radio is going much farther in the normal operation.
+
+1. Press the button on the tag and hold it for 4 seconds, until the LED flashes green fast.
+2. On the hub, press the PAIR button for 2 seconds. The hub confirms with the blue flashing of its RF lamp.
+3. The pairing window stays open for 120 seconds. If in this time the tag was not accepted, it goes back to normal mode and the procedure must be done again.
+4. At success the tag shows 3 long green flashes of 1 second each. The tag keeps the ID of its hub until it is reset.
+
+One KC-Hub 200 can serve at most 250 tags. When the hub is full, the tag will show E09. Tags paired to another hub of Korvane will first have to be released in the Tidewalk web application (menu Devices, then Release).
+
+## 5. Reporting intervals and battery life
+
+The tag measures temperature and humidity every 30 seconds, always, and keeps every measurement in its own memory. The reporting interval says only how often the stored readings are sent to the hub. The factory setting is 10 minutes. The interval can be changed in Tidewalk or with the KC-Config mobile application over Bluetooth, and the allowed values are 2, 5, 10, 15 and 30 minutes. If the limit is exceeded the tag switches to the reporting every 60 seconds until the values are back, and a door event is transmitted within 5 seconds.
+
+The battery is a Voltrac VB-36L, lithium thionyl chloride, 3.6 V. The expected life of the battery depends on the reporting interval, as in the table (measured at +5 °C, hub in the distance of 60 m).
+
+| Reporting interval | Expected battery life |
+|---|---|
+| 2 minutes | 11 months |
+| 5 minutes | 26 months |
+| 10 minutes (factory setting) | 38 months |
+| 15 minutes | 46 months |
+| 30 minutes | 61 months |
+
+At −25 °C and below the battery gives around 35 % less than in the table. The battery is not intended for the replacement by the user; the replacement is done by the Korvane service according to the service manual.
+
+## 6. Operating conditions
+
+The operating temperature range of the device is −35 °C to +65 °C. For the storage, the range −40 °C to +80 °C is permitted. The housing has the protection class IP67. Do not clean the tag with the high-pressure jet and do not use solvents, only a damp cloth.
+
+## 7. Error codes
+
+| Code | Meaning | What to do |
+|---|---|---|
+| E01 | Temperature sensor: open circuit | Press the button once to repeat the self test. If the code stays, return the tag to Korvane. |
+| E02 | Temperature sensor: short circuit | As E01. |
+| E03 | Humidity sensor does not answer | Warm the tag to room temperature for 30 minutes and test again. If the code stays, return the tag. |
+| E04 | Battery voltage under 3.0 V when the radio sends | Battery replacement by the service is necessary. |
+| E05 | Error when writing the flash memory | Hold the button for 10 seconds for a restart. If the code appears again, return the tag. |
+| E06 | Memory more than 98 % full | Bring the tag within the range of the hub, the memory will be emptied by the upload. |
+| E07 | Internal clock deviates by more than 90 seconds | Connect to the hub; the time is synchronised within one reporting interval. |
+| E08 | Hub not reachable for more than 24 hours | Check the power and the distance of the hub. |
+| E09 | Pairing refused, hub is full (250 tags) | Release old tags in Tidewalk or use a second hub. |
+| E10 | Magnet not detected at the start | Check the gap of 3 mm to 8 mm and the position of the magnet. |
+| E11 | Firmware image damaged (CRC wrong) | Flash the firmware again with KC-Config. Never remove the battery during the update. |
+| E12 | Calibration older than 13 months | Send the tag for the recalibration. The calibration certificate is valid for 12 months, one month of tolerance is given. |
+
+## 8. Support
+
+Korvane tag support: support.tags@korvane.example, telephone +48 58 555 01 47, Monday to Friday from 07:00 to 19:00 Central European Time. Please keep the serial number of the tag ready. Returns are accepted only with the RMA number given by the support. The warranty of the device is 24 months from the date of the delivery, the battery is excluded from this.
+
+Korvane Cold Chain Sp. z o.o. reserves the right to change the technical data without a notice. Pictures are illustrative. © 2024 Korvane Cold Chain. All rights reserved. KC-Tag, KC-Hub and Tidewalk are the trademarks of Korvane Cold Chain Sp. z o.o.

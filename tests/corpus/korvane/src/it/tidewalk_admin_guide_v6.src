@@ -1,0 +1,339 @@
+---
+out: tidewalk_admin_guide_v6.pdf
+tier: extended
+---
+# Tidewalk 6 — Administrator's Guide
+
+Korvane Cold Chain Sp. z o.o., ul. Łużycka 14, 81-537 Gdynia. Internal and customer-administrator distribution. Please do not forward outside the customer organisation named on your order form.
+
+| document control | |
+|---|---|
+| Document number | TW-ADM-065 |
+| Revision | R9 |
+| Applies to | Tidewalk 6.5.x (also valid for 6.4.3 and later except where marked) |
+| Date of issue | 2 October 2024 |
+| Technical author | Bartosz Olszewski |
+| Reviewed by | Wiktor Szczepaniak, Kamil Zdunek |
+| Approved by | Tomasz Wrzesiński, CTO |
+| Supersedes | TW-ADM-064 (revision R7, 14 May 2024), which should be withdrawn from all shared drives |
+
+## 1. About this guide
+
+This guide is for the people who run Tidewalk inside a customer organisation, the tenant administrators, and for Korvane staff who help them. It is not a user manual for dispatchers; that is the Dispatcher Quick Start (TW-USR-031), which is a lot shorter and has more screenshots. It also does not cover the public API, which has its own reference, nor the KC-Hub 200 hardware, for which see the gateway installation sheet delivered with each unit.
+
+We have tried, in this revision, to put the things administrators ask us about most often near the front. Based on the support desk's ticket sample for the second and third quarters of 2024 (n = 612), those are, in order: who can do what (section 3), why did my alert not arrive (sections 5 and 6), how long do you keep my data (section 7) and can we log in with our own directory (section 4). If you only read one section, read section 5, and then read it again slowly.
+
+Tidewalk is sold in three editions. Standard is the default for customers with up to 25 named users. Plus raises the user ceiling to 120 and adds the escalation chains described in section 5.6. Pharma, which Korvane developed together with Helvetia Pharma Logistik GmbH and which carries the GDP audit features, allows up to 300 users and keeps raw readings considerably longer. Where a feature depends on the edition the text says so; where it does not say so, the feature is in all three.
+
+A note on conventions. Menu paths are written like Admin > Rules > Profiles. Setting names in monospace are the names you see in the admin console's "advanced" drawer, and are also the names used by our support staff and in the API. Times are in the tenant's configured time zone unless a section says "CET", in which case it means Central European Time as observed in Poland (so, for most of the summer, CEST, and yes, we know). Anything in square brackets and italics is a note from the support team and will be removed from the customer edition at some point; [*KZ: Bartosz, please remove all of these before R10 goes to Lotte for the PDF. Not that I expect anyone to read this far.*]
+
+## 2. Tenants, sites and limits
+
+Every customer organisation is a **tenant**. A tenant has an identifier in the form KT- followed by five digits, for example KT-20417. The identifier appears on invoices from ColdLedger and in the footer of every exported report. Tenant identifiers are assigned in sequence and never reused; as of the date of this guide the highest in use is KT-20893.
+
+A tenant is divided into **sites**. A site is a physical place with a hub or a set of hubs: a depot, a terminal yard, a customer's cold store. A site code is a free-text label of up to 12 characters; Korvane's own depots use GDY-1, HAM-2, RTM-3, GOT-4 and KLJ-5 and so we ask customers not to pick those. If you do, the console will warn you and then let you do it anyway, which has caused one memorable misrouted report.
+
+The limits that most often matter are collected in the table below. They are enforced in the application, not just documented, and most can be raised by a support request (see section 14) for an additional charge that your account manager will quote.
+
+| limit | Standard | Plus | Pharma |
+|---|---|---|---|
+| Named users per tenant | 25 | 120 | 300 |
+| Sites per tenant | 8 | 40 | 120 |
+| Containers monitored at once | 400 | 1,500 | 5,000 |
+| Alert rules per tenant | 60 | 400 | 400 |
+| Geofences per tenant | 50 | 250 | 250 |
+| SMS notifications per day | 500 | 2,500 | 10,000 |
+| API keys | 3 | 10 | 25 |
+| Scheduled reports | 5 | 30 | 60 |
+
+Two further limits apply to all editions. Comments attached to an alert may be at most 2,000 characters long, and a file attached to an alert or to a deviation record may be at most 12 MB. Allowed attachment types are PDF, PNG, JPEG and TXT. We do not accept .docx attachments, for reasons that the security policy explains and that are not repeated here.
+
+The map view will draw at most 1,500 containers at one time regardless of edition. If your tenant monitors more than that, the console shows a banner and asks you to filter by site or by customer group. Customers on Pharma with the full 5,000 containers have reported that the filter is not obvious. We agree. It is on the roadmap.
+
+### 2.1 Customer groups
+
+Containers can be put into customer groups, and a group can be assigned to a set of contacts. Group names are at most 40 characters. A container can belong to one group at a time; if you assign it to a second, the first assignment is silently replaced and an entry is written to the audit log (section 11). Up to 200 groups per tenant are permitted.
+
+### 2.2 Tenant suspension and termination
+
+If an invoice is more than 45 days overdue, Korvane may suspend the tenant. A suspended tenant keeps collecting data and sending CRIT alerts, because we do not consider it responsible to stop warning people that their cargo is warming up, but dashboards and exports are locked. On termination of the contract, all tenant data is deleted 45 days after the termination date, unless the Pharma edition's regulatory retention applies (see 7.3), and the customer receives a deletion certificate signed by Sofia Brandão or her delegate within 10 working days of the deletion.
+
+## 3. Roles and permissions
+
+Tidewalk has seven roles. Roles are assigned per user and, for the roles marked "site-scoped" below, per site. A user can have different roles at different sites. A user cannot have two different roles at the same site; the console will refuse, and if you find a way around that please tell us.
+
+**Viewer** can look but not touch. **Dispatcher** works the alert queue and is the role most users have. **Senior Dispatcher** is a Dispatcher who may also change alert thresholds on a rule at their own site within the limits set by the rule's profile; the role was introduced in release 6.2 at the request of our own night shift. **Tenant Admin** manages users, rules, channels and integrations. **Auditor** can read everything, including the audit log, and change nothing at all. **Integrator** exists for service accounts: no console login, API only. **Korvane Support** is assigned to Korvane staff only, time-limited, and always leaves an audit entry.
+
+The matrix below is the normative statement of what each role may do. If any other document says something different, this one wins, unless you are reading an older revision.
+
+| permission | Viewer | Dispatcher | Senior Dispatcher | Tenant Admin | Auditor | Integrator | Korvane Support |
+|---|---|---|---|---|---|---|---|
+| View map and container list | yes | yes | yes | yes | yes | no | yes |
+| Acknowledge alerts | no | yes | yes | yes | no | no | yes (on request only) |
+| Snooze alerts | no | up to 2 h | up to 4 h | up to 8 h | no | no | no |
+| Edit rule thresholds | no | no | own site, within profile | yes | no | no | no |
+| Create or delete rules | no | no | no | yes | no | no | no |
+| Manage users and roles | no | no | no | yes | no | no | no |
+| Export data | no | 7 days back | 31 days back | unlimited | unlimited | via API only | no |
+| Delete data | no | no | no | no | no | no | yes, Pharma excluded |
+| Create API keys | no | no | no | yes | no | no | no |
+| Read audit log | no | no | no | own tenant | yes | no | yes |
+| Open deviation records | no | no | yes | yes | no | no | no |
+
+A few remarks on the table. The snooze limits apply to WARN and INFO alerts; no role can snooze a CRIT alert for longer than 2 hours, however senior, and the console enforces that with a message that has been described by a customer as "a bit rude". The export window for Dispatchers, 7 days back, counts from the moment of the export and not from the start of the user's shift. "Delete data" for Korvane Support is the ability to execute a customer-requested deletion of readings for a container; it needs a ticket number and, on Pharma tenants, it is not available at all because of the audit trail requirements. Nobody, including Tomasz, can delete the audit log.
+
+### 3.1 Changing roles
+
+Role changes take effect at the user's next page load, not at next login, which surprised the Auditor of one of our larger customers when she lost access mid-sentence. If a user's role is reduced while they hold an open alert acknowledgement, the acknowledgement stays valid. Role changes are recorded with the actor, the target user, the old role, the new role and the site, and these entries are kept for the same period as any audit event (section 7).
+
+A Tenant Admin cannot remove their own Tenant Admin role if they are the last one in the tenant. Every tenant must have at least 2 users with the Tenant Admin role, a rule introduced after a tenant lost its only administrator to a job change and spent eleven days getting back in; the console shows a yellow warning on the dashboard until the second is nominated.
+
+## 4. Users, passwords and single sign-on
+
+### 4.1 Local accounts
+
+Users are identified by e-mail address. The password rules for local accounts are these: minimum 12 characters, at least one character from three of the four classes (upper case, lower case, digits, symbols), no reuse of the last 8 passwords, and a check against a list of 10,000 commonly used passwords maintained by Korvane. Passwords do not expire on a calendar; they are only forced to change after a suspected compromise. This follows the latest guidance and is, frankly, a relief to everybody.
+
+After 5 consecutive failed log-ins the account is locked for 15 minutes. The lock is per account, not per IP address, and counts reset after one successful log-in. An administrator can unlock an account sooner from Admin > Users. Sessions expire after 30 minutes of inactivity, and in any case after 12 hours from login. Dispatch desks that run a wall display usually want to avoid the idle timeout; for that purpose there is the Display role, which is not a role but a kiosk token, which is not a token but a long URL. Please talk to us about it first. [*KZ: it's a "wall-display link", valid 90 days, read-only, max 3 per tenant. We say talk to us because people paste it into WhatsApp.*]
+
+### 4.2 Multi-factor authentication
+
+MFA with a time-based one-time password (TOTP, 6 digits, 30-second step) is optional on Standard and Plus and mandatory on Pharma. Tenant Admins can make it mandatory on any edition from Admin > Security. Hardware keys (WebAuthn) are supported since release 6.3. Each user can enrol up to 4 factors in total and is shown 10 single-use recovery codes at enrolment; the codes cannot be shown again, and the support desk cannot recover them. A user who has lost all factors and all codes must be reset by a Tenant Admin, who is then asked to confirm the user's identity by a second channel. We have heard that "a quick call" does not count.
+
+### 4.3 Single sign-on
+
+Single sign-on is available on Plus and Pharma. Standard tenants that need it can have it for a one-off setup fee. Two protocols are supported: SAML 2.0 and OpenID Connect 1.0. Directory sync with SCIM 2.0 is available in beta; do not rely on it for deprovisioning without also reading section 4.5.
+
+For SAML the service provider entity ID is of the form https://sso.tidewalk.korvane.example/saml/KT-20417, with your own tenant number at the end, and the assertion consumer URL ends in /acs. Assertions must be signed; encrypted assertions are accepted but not required. The accepted clock tolerance between the identity provider and Tidewalk is 120 seconds, and anything beyond that fails with error TW-SSO-214. Tidewalk refreshes the identity provider's metadata every 24 hours, and an administrator may trigger a refresh manually at most once per hour. Signing certificates may be rotated by publishing a second certificate in the metadata at least 14 days before the old one expires; we have seen tenants who did it on the day and we have seen what happened.
+
+User roles can be mapped from a directory attribute. The attribute is called `kc_role` by default and its values are matched without regard to case against the role names in section 3. Users who log in with no `kc_role` value and no group mapping get the Viewer role. Just-in-time provisioning is on by default and can be turned off. When it is off, a user who is not already known to Tidewalk is shown an error and nothing is created.
+
+For OpenID Connect the supported flow is authorization code with PKCE. The scopes requested are openid, email and profile, and the token lifetime accepted is up to 60 minutes. Refresh tokens are not used; the Tidewalk session timeouts in 4.1 govern.
+
+### 4.4 The break-glass account
+
+Each tenant that enables SSO keeps one local Tenant Admin account that is exempt from "SSO required", the break-glass account. It must be protected with MFA, its password must be stored in the tenant's own safe, and its use sends an e-mail to every other Tenant Admin and to the Korvane Support mailbox. The account's name is chosen by the customer. We recommend not calling it "admin" and we have a customer who has called theirs "admin2".
+
+### 4.5 Deprovisioning
+
+When a user is removed from the identity provider, Tidewalk finds out in one of two ways. With SCIM it is told, typically within 5 minutes. Without it, the user's existing session survives until it expires under the rules in 4.1, which is at most 12 hours, and the user cannot start a new session. In regulated environments we advise setting the maximum session length to 8 hours; this is available on Pharma at Admin > Security > Session policy and the permitted range is from 1 to 12 hours.
+
+## 5. Alert rules
+
+This is the section that matters. It is long. Please be patient.
+
+### 5.1 How rules are evaluated
+
+A rule looks at readings. A reading is what a KC-Tag 4 reports: temperature, humidity, door state, battery level, in packets that reach a KC-Hub 200 and are forwarded to Tidewalk. In normal operation a tag sends a reading every 30 seconds while in range of a hub; out of range, the tag stores readings and sends them when it gets back (the tag holds up to 15 minutes of data in its buffer, which is the reason the runbook says that restarting a hub loses nothing).
+
+The rule engine evaluates every rule against every new reading, and in addition re-evaluates all time-based conditions every 30 seconds so that a "no data for 45 minutes" rule will fire even when no data arrives (this, by the nature of the thing, is how those rules work). A rule fires when its condition has held for the **duration** configured in the rule, and clears when the opposite has held for 3 consecutive readings. We call the latter the hysteresis count, `rule.clear.hysteresis_n`, and it is 3 by default; the permitted range is 1 to 10.
+
+Flapping is suppressed: if a rule changes state 6 times within 20 minutes, Tidewalk stops sending notifications for that rule and container for the rest of the 20-minute window, sends one notice that suppression has begun, and marks the alert with a flapping badge. Up to 30 containers may be flapping at the same time per tenant before the console shows an informative banner and the support team sees a graph.
+
+### 5.2 Severity classes
+
+Alerts are classed INFO, WARN, CRIT or FATAL. INFO appears in the queue and nowhere else. WARN goes to the channels set in the rule but is not escalated. CRIT is escalated through the escalation chain, may be acknowledged only by a Dispatcher or above, and carries the commitment that the first notification leaves Tidewalk within 5 minutes of the rule firing. FATAL is reserved for events where the tag or hub reports physical failure, such as a temperature sensor fault or a hub tamper switch, and is only available to Korvane-defined rules; customers can see FATAL but cannot create it.
+
+### 5.3 Default profiles
+
+New tenants receive four standard profiles. Customers can clone and modify them; the originals cannot be edited and are replaced at upgrades, with a note on the upgrade page.
+
+| profile | setpoint | WARN above / below | duration | CRIT above / below | duration |
+|---|---|---|---|---|---|
+| CHILL-A | +4.0 °C | +6.0 °C | 10 min | +8.5 °C | 10 min |
+| FROZEN-18 | −18.0 °C | −16.0 °C | 12 min | −14.5 °C | 12 min |
+| PHARMA-2-8 | +5.0 °C | +7.2 °C | 5 min | +8.0 °C | 3 min |
+| BANANA-13 | +13.5 °C | +14.8 °C | 20 min | +16.0 °C | 15 min |
+
+For the same profiles the lower thresholds are: CHILL-A WARN below +1.5 °C and CRIT below 0.0 °C; PHARMA-2-8 WARN below +2.8 °C and CRIT below +2.0 °C. FROZEN-18 and BANANA-13 do not by default have lower thresholds for WARN, but BANANA-13 has CRIT below +11.0 °C after 15 minutes, because of chilling injury, which we are told is a thing with bananas. For pharma customers, the +8.0 °C CRIT is not a recommendation but a hard stop, taken from the GDP requirements of our first pharma customer.
+
+Door-open rules are separate from temperature rules. By default, door open for more than 4 minutes raises WARN and more than 9 minutes raises CRIT. These defaults come from the gate logistics at the Gdynia depot and are sometimes too tight for a quayside inspection; on the other hand they are exactly the numbers that would have caught the incident on the Oakhaven load. The permitted range for the door-open duration is from 1 to 60 minutes.
+
+Battery rules fire WARN when the tag's battery level falls below 15% and CRIT below 8%. The KC-Tag 4's battery is a Voltrac pack that is expected to last about 14 months in normal use; please, though, do not rely on that, and do read the tag's own status in the tag list.
+
+The "tag silent" rule, internally TAGSILENT, fires WARN after 45 minutes and CRIT after 90 minutes with no reading and no hub-side explanation. If the hub itself is offline, the tag silent rules for the containers behind that hub are replaced by a single hub alert (see section 9.3), so that an outage of one hub doesn't produce two hundred notifications. This grouping, introduced in release 6.1, was done deliberately and, to be frank, we are still not sure whether it was a good idea.
+
+### 5.4 Notification batching
+
+When several alerts for the same container fire within a short interval, Tidewalk merges them into one notification. The interval is `alert.dispatch.batch_window_ms`, and the default is 6000 (6 seconds). Since release 6.4.3 the configuration for the notifier accepts values up to 30000 and rejects anything larger; before that, any positive integer was accepted. This is the setting that was involved in the 21 August 2024 incident, see PM-2024-07 for the full story, and, no, customers cannot change it: it is a platform setting and not a tenant one. The admin console shows it read-only in the advanced drawer, which has caused people to ask us for a button.
+
+### 5.5 Acknowledging and snoozing
+
+A Dispatcher or above can acknowledge an alert. The acknowledgement expires after 4 hours, after which the alert re-notifies if the condition still holds; the period is configurable per rule between 30 minutes and 12 hours. Snoozing is different: it silences notifications without acknowledging, and is limited as set out in the permission matrix in section 3. A CRIT alert cannot be snoozed for longer than 2 hours by anybody. Snoozes are cancelled automatically if the alert's severity increases, so a WARN snoozed for 8 hours that becomes a CRIT will notify straight away.
+
+### 5.6 Escalation chains (Plus and Pharma)
+
+An escalation chain has between 2 and 5 levels. Each level has a delay, a set of contacts and a set of channels. By default, a new chain has three levels with delays of 0, 10 and 25 minutes. A level is skipped if its contacts have all acknowledged, and a later level is cancelled when someone acknowledges the alert. If no one acknowledges, the last level repeats every 30 minutes until the condition clears or someone acknowledges.
+
+Contacts can be users, external addresses or on-call schedules. A contact on a schedule is whoever is on call at the moment the level triggers, not at the moment the alert fired; we say this because someone on a shift change at 06:00 will otherwise receive a very early wake-up.
+
+On-call schedules in Tidewalk are a convenience for customers who do not have their own. Korvane's internal on-call rotation does not use them, it uses a separate paging tool, and its schedule is published quarterly as a separate sheet.
+
+### 5.7 Rule limits and rule review
+
+Tenants may have up to the number of rules shown in section 2. We recommend reviewing rules every six months. A review report is available from Admin > Rules > Review, and lists rules that have not fired in 180 days, rules that have fired more than 500 times in 30 days (these are likely too sensitive), and rules whose contacts include a deactivated user. In regulated tenants a review should be recorded in the quality system.
+
+## 6. Notification channels
+
+### 6.1 SMS
+
+SMS is sent through our provider Pingwave, which throttles us to 120 messages per minute across all tenants; see section 5 of the postmortem if curious how we found out. A message is encoded in GSM-7 where possible and is then at most 160 characters. Messages containing characters outside GSM-7, such as Polish diacritics, are sent as UCS-2 and are at most 70 characters per segment; Tidewalk strips diacritics from SMS text by default for that reason, which dispatchers in Gdynia find funny and customers in Kraków find offensive. A setting `sms.keep_diacritics` can be turned on by a Tenant Admin. The daily SMS cap per tenant is in section 2; when 90% of the cap is used, Tenant Admins are e-mailed, and when 100% is used, only CRIT messages are still sent, and INFO and WARN are changed to e-mail.
+
+### 6.2 E-mail
+
+E-mail is sent from alerts@tidewalk.korvane.example. If the receiving server answers with a temporary failure, Tidewalk retries 4 times at intervals of 2, 10, 30 and 120 minutes; a permanent failure marks the address as bounced after a single occurrence and a notice is shown on the contact. Customers should allow-list the sending addresses, and large organisations should ask their mail administrators to let in the SPF record published for tidewalk.korvane.example, which they will be reminded of by their own spam filter at the worst possible moment.
+
+### 6.3 Webhooks
+
+Webhooks deliver alerts to an HTTPS endpoint as JSON. The endpoint must answer within 8 seconds with a 2xx status. Otherwise Tidewalk retries 5 times with waits of 10 seconds, 30 seconds, 2 minutes, 10 minutes and 1 hour. After 25 consecutive failed deliveries the webhook is automatically disabled, a Tenant Admin is told, and re-enabling it is manual. Every delivery is signed: the header `X-Tidewalk-Signature` holds an HMAC-SHA256 over the raw body, keyed with the webhook's secret, which is shown once at creation and can be rotated; the previous secret remains valid for 24 hours after rotation. Only TLS 1.2 or later is accepted, and endpoints on private addresses are refused.
+
+### 6.4 Chat connectors
+
+Connectors for Microsoft Teams and Slack are provided on Plus and Pharma. They post to a channel using an incoming webhook and are subject to the same retry rules as 6.3. They cannot be used to acknowledge alerts. A request to add that was considered in 2023 and refused for audit reasons, because a chat message does not identify its sender well enough to be an acknowledgement.
+
+### 6.5 Voice calls
+
+Automated voice calls are in beta on Pharma only. A call reads the container identifier, the severity and the measured value, and offers "press 1 to acknowledge". Calls ring for 40 seconds and are attempted up to twice. At night, from 22:00 to 06:00 tenant time, voice calls are used only for CRIT unless the contact has opted in.
+
+### 6.6 Contact preferences and quiet hours
+
+Every contact may have quiet hours, during which WARN notifications are held and delivered in a single digest at the end of the quiet period. CRIT notifications ignore quiet hours. The default quiet period is empty; the shortest that may be configured is 1 hour and the longest 10 hours, and it is always expressed in the contact's own time zone and not the tenant's, which is a common source of confusion for dispatch desks that cover several countries. A contact may be given a preferred channel order, for example SMS first and e-mail second, and when a channel fails permanently (a bounced address, a number reported as unreachable by the provider) Tidewalk tries the next one after 60 seconds. Tenant Admins can see the delivery status of every notification, per channel and per contact, for 30 days.
+
+## 7. Data retention
+
+Retention is the question where customers and our lawyers are most likely to disagree, so the numbers are set out below and are contractual only where your order form says so.
+
+| data class | Standard | Plus | Pharma |
+|---|---|---|---|
+| Raw readings (30-second resolution) | 90 days | 180 days | 1,826 days (5 years) |
+| 5-minute aggregates | 25 months | 25 months | 10 years |
+| Alerts and acknowledgements | 36 months | 36 months | 10 years |
+| GPS tracks | 180 days | 180 days | 365 days |
+| Generated reports and exports | 14 days | 14 days | 14 days |
+| Audit log | 7 years | 7 years | 10 years |
+| Deviation records | not available | 5 years | 15 years |
+
+After the raw retention period expires, readings are not deleted; they are aggregated into 5-minute values (minimum, maximum, mean, and the count of readings) and the aggregates are kept for the period in the second row. In the Pharma edition, the raw readings are not aggregated at all until 1,826 days have passed.
+
+### 7.1 Exports
+
+Exports are produced as CSV, XLSX or PDF. At most 250,000 rows can be exported at one time; larger requests are split into several files, and the console says so, usually. Export files are stored for 14 days and then deleted, and the download link in the notification e-mail is valid for 72 hours and works only for the user who requested it. A Dispatcher can export up to 7 days of data, a Senior Dispatcher 31 days, and Tenant Admins and Auditors have no limit, as in section 3.
+
+### 7.2 Deletion on request
+
+If a container's data needs to be removed on the customer's request (for instance, because a cargo was misattributed), a Tenant Admin can ask for it through a Korvane Support ticket. We will process a request within 5 working days, and will leave a tombstone entry in the audit log that does not contain the data. In the Pharma edition such deletions are refused unless the customer's quality unit signs a deviation record, and then even so we only redact, never delete, the affected readings.
+
+### 7.3 Legal holds and regulatory retention
+
+Where a tenant is under a legal hold, retention clocks stop until the hold is lifted. A hold is placed by Korvane Legal (Sofia Brandão) on the written instruction of the customer's counsel. Under German GDP practice, Helvetia Pharma Logistik GmbH has instructed that its tenants keep records for 15 years in the case of deviation records; the Pharma edition numbers in the table reflect this.
+
+## 8. Backups, maintenance and availability
+
+### 8.1 Backups
+
+Tidewalk is hosted by Lintu Cloud Hosting in its Warsaw facility (LC-WAW-2 in their naming) with a secondary site, LC-FRA-1, in Frankfurt. The database is snapshotted every night at 01:30 CET, and snapshots are kept for 35 days. A weekly full backup is taken on Sundays at 03:00 CET and kept for 13 weeks. The ingest database has an additional, smaller backup every Friday at 17:30 CET which briefly freezes ingest for up to 12 minutes at the Gdynia site; this is why hubs at GDY-1 sometimes look odd on Friday evenings. We would have preferred to do this on Sunday, but the freight timetable of the Gdynia depot is such that no Sunday is quiet. Backups are encrypted with AES-256 and the keys are held by Korvane, not by the hosting provider.
+
+The recovery point objective for Tidewalk is 15 minutes and the recovery time objective is 4 hours. Restores are tested every quarter. The test of Q2 2024 took 3 hours 10 minutes. We would like to improve that; see the roadmap, which is not part of this guide.
+
+### 8.2 Maintenance windows
+
+The standard maintenance window is Tuesday 22:00 to 23:30 CET. Maintenance for which customer-visible downtime is expected is announced at least 5 working days ahead on the status page and by e-mail to Tenant Admins. Emergency maintenance may be announced with less notice, and we then try to give at least 2 hours. Alert delivery is not interrupted in normal maintenance; the platform is designed so that notifiers are drained and restarted one at a time, with 3 notifiers in the pool. [*KZ: yes, there were three, and yes, that was the problem on 21.08, but not for the reason people think.*]
+
+### 8.3 Availability target
+
+The service-level target is availability of 99.9% per calendar month, measured at the alert delivery endpoint and excluding the maintenance windows above. Service credits are described in the Standard Monitoring Schedule, not here. The status page is at status.tidewalk.korvane.example.
+
+## 9. Managing hubs and tags in Tidewalk
+
+### 9.1 Registering a hub
+
+A KC-Hub 200 is registered under Admin > Sites > Hubs. Each unit is delivered with a pairing code of 10 characters printed on a sticker; the code is single use and expires 30 days after shipping, after which Korvane Support must issue a new one. Customer hubs are named by the customer. Korvane's own hubs follow the convention hub-<depot>-<nn>, as the on-call runbook describes.
+
+### 9.2 Tags
+
+KC-Tag 4 identifiers have the format KT4- followed by 8 hexadecimal characters. A tag is paired to a container by scanning the QR code on the tag with the Tidewalk mobile app or by typing the identifier. A container can carry up to 3 tags, for example one near the door, one in the middle and one at the back, and the console then shows the minimum, mean and maximum. Rules may be set to use any of the three, the mean, or the worst-case reading; worst-case is the default for pharma profiles and the mean for all others.
+
+KC-Tag 3 devices reached end-of-life in 2023 and are no longer supported in Tidewalk 6.5; they can still be seen in the tag list with a grey badge but cannot raise FATAL alerts.
+
+### 9.3 Hub heartbeat
+
+A hub sends a heartbeat every 60 seconds. If no heartbeat is received for the time set in `hub.hb.timeout_s`, Tidewalk raises HUB_HEARTBEAT_LOST. The default is 420 seconds (7 minutes), the permitted range is 180 to 900 seconds, and we ask customers not to shorten it without a good reason; at 4 minutes we saw hubs flap in yards with unreliable bridges. When a hub is lost, the TAGSILENT rules for containers behind it are suppressed as described in 5.3, and after the hub returns Tidewalk waits for 2 heartbeats before re-enabling them.
+
+### 9.4 Firmware rollout rings
+
+Hub firmware is rolled out in three rings. Ring 0 is one hub per depot chosen by Korvane (at present the hub numbered 01 at each of our depots). Ring 1 is 25% of the remaining hubs. Ring 2 is all the rest. Between the rings there is a soak period of 72 hours for ring 0 and 48 hours for ring 1. The nightly updater runs at 02:30 local hub time and picks up whatever the ring plan allows. A hub keeps the previous firmware in a second slot for 14 days, allowing a rollback; after that the slot is overwritten. Customers with their own hubs can choose to be in ring 2 only, and may defer updates by up to 30 days but not longer, because beyond that we stop supporting the old build.
+
+### 9.5 The mobile app
+
+Tidewalk Mobile, currently version 3.2 on both platforms, requires iOS 16 or later or Android 11 or later. It offers the alert queue, the container list, acknowledgement (for roles that may acknowledge), tag pairing by QR code and a read-only map. It does not offer rule editing, which has been requested about once a week since 2022 and which we have declined each time because nobody should be editing thresholds on a phone in a lorry cab. The app keeps the last 200 alerts available offline and shows a grey banner when its data is older than 10 minutes. Push notifications are delivered through the platform vendors' services, are treated as a convenience channel and are not counted towards the CRIT delivery commitment in 5.2; for that, SMS or voice remain the channels of record. A user can be signed in on at most 3 devices at once, and the fourth sign-in silently ends the oldest session. [*KZ: not silently, it sends an e-mail. Fine. Bartosz, make a note.*]
+
+### 9.6 Geofences and bulk import
+
+A geofence is a circle (radius from 50 metres to 25 kilometres) or a polygon of up to 40 vertices. Rules can use a geofence to say that a container should be in, or out of, a place; the usual example is a depot gate, the unusual example is the customer who wants to be told when a container enters the port of Gothenburg, which is entirely reasonable and a lot of work. A container's position is updated every 5 minutes while it is within reach of a hub or of the vehicle telematics gateway, and is taken from the last known hub site otherwise. Geofence events are evaluated against positions, so a geofence alert can be as much as 5 minutes late; this is by design and not a fault.
+
+Containers can be created in bulk by uploading a CSV file at Admin > Containers > Import. The file must have a header row and the columns container_no, customer_group, profile and tag_id, in that order; the import accepts up to 5,000 rows at a time, rejects the whole file if any row has a container number that does not pass the ISO 6346 check digit, and reports the first 20 errors. Container numbers are accepted in upper case only, which has bitten several people. A dry-run option exists and we recommend it.
+
+## 10. Reports
+
+### 10.1 Standard reports
+
+Four standard reports are included: the Trip Temperature Report (one container, one trip), the Site Daily Summary, the Excursion Report (all CRIT alerts in a period) and, on Pharma only, the GDP Compliance Pack, which compiles the temperature charts, alerts, acknowledgements, calibration status of tags and deviation records for a shipment into one PDF. The GDP Compliance Pack takes about 2 to 6 minutes to generate for a typical shipment of up to 20 containers and carries a SHA-256 checksum on its last page.
+
+### 10.2 Scheduled reports
+
+Scheduled reports are sent by e-mail at a time chosen by the Tenant Admin. They cannot be scheduled more often than hourly. Reports that fail to generate three times in a row are suspended, and the owner is informed. The time shown in the report is in the tenant time zone, which can be set to any IANA zone; the default is Europe/Warsaw.
+
+### 10.3 Calibration
+
+Tags are calibrated at the factory and certificates are stored per tag in Tidewalk. Calibration validity is 24 months from the calibration date. An INFO alert, "calibration due", appears 30 days before expiry. Tags with expired calibration are marked red in the GDP Compliance Pack. We do not currently support customer-uploaded calibration certificates, although pharma customers have asked for it; the request is tracked as TW-3306.
+
+## 11. Audit log
+
+The audit log records log-ins (successes and failures), role changes, rule changes, channel changes, exports, deletions and Korvane Support actions. Each entry holds a timestamp in UTC with millisecond resolution, the actor, the object, the action, the source IP address and, where applicable, the old and new values. The log is append-only and a hash chain links each entry to the previous one; the head hash is published to the tenant's Auditor every day at 00:05 UTC. The retention is shown in section 7. Audit entries can be exported to a SIEM by syslog over TLS in CEF format, which is a Plus and Pharma option, or fetched through the API endpoint described in the API reference.
+
+## 12. Troubleshooting
+
+This section is, by necessity, incomplete. The support desk's knowledge base has the long version.
+
+**"I did not get an SMS."** Check, in this order: the contact's phone number includes the country code (for Poland, +48), the daily SMS cap has not been hit (section 6.1), the alert was actually CRIT or WARN and not INFO, the contact is not snoozed, and whether the alert shows "suppressed (flapping)". If all of that is in order, ask support to check the provider log; Pingwave keeps delivery receipts for 30 days.
+
+**"The map is empty."** If your tenant has more than 1,500 containers, filter by site. If your tenant was suspended, see 2.2. If your browser is Internet Explorer, please see our apology.
+
+**"Alerts arrive in bursts."** In normal operation this does not happen; within the 6-second batch window a few alerts for one container may arrive as one message, and that is all. If you see real bursts, tell us at once.
+
+**"SSO log-in fails with TW-SSO-214."** Clock skew above 120 seconds between your identity provider and our servers. Check NTP on your side.
+
+**"A tag shows as offline but the container is moving."** The tag is probably out of range of a hub, for example at sea or in a depot without a hub. The tag will deliver buffered readings of up to 15 minutes when it is back in range; older readings are lost, because the buffer is a ring.
+
+**"The hub is online in the VPN but 'unknown' in Tidewalk."** The gateway token was probably not provisioned after a swap; see the on-call runbook, gotcha G4, error E-4031.
+
+## 13. Security of the platform
+
+Tidewalk is penetration-tested once a year by an external firm; the 2024 test took place from 3 to 21 June 2024 and its summary is available to customers under NDA from Kamil Zdunek. Data in transit is protected by TLS 1.2 or later, with TLS 1.0 and 1.1 disabled since release 6.0. Data at rest is encrypted with AES-256. The platform logs are retained for 400 days. Vulnerabilities in the platform can be reported to security@korvane.example, and are answered within 2 working days.
+
+## 14. Getting help
+
+The support desk is operated by Kamil Zdunek's team and is open from 06:00 to 22:00 CET on weekdays and from 08:00 to 16:00 on Saturdays; outside those hours, customers with the Plus or Pharma edition can reach the on-call engineer through the emergency number on their order form. The general number is +48 58 555 0120 and the e-mail address is support@korvane.example. The ticket priorities are as follows.
+
+| priority | meaning | first response | target resolution |
+|---|---|---|---|
+| P1 | CRIT alerts not delivered, or login impossible for the whole tenant | 30 minutes | 4 hours |
+| P2 | a feature is broken for several users, with workaround | 2 hours | 2 working days |
+| P3 | a single user's problem, a question about configuration | 1 working day | 5 working days |
+| P4 | request for change or documentation | 3 working days | not committed |
+
+On Pharma, P1 tickets are answered within 15 minutes at any hour. Please quote your tenant identifier, the container identifier, and, where possible, the alert number, which begins with AL- and is shown at the top of every alert.
+
+## Appendix A — revision history
+
+| revision | date | changes |
+|---|---|---|
+| R7 | 14 May 2024 | Added WebAuthn, split the SSO chapter |
+| R8 | 29 August 2024 | After PM-2024-07: batch window text, `batch_window_ms` limit |
+| R9 | 2 October 2024 | New retention table, Pharma voice calls, wall-display links, rings reworked |
+
+## Appendix B — legal notice
+
+The information in this document is provided as is. Korvane Cold Chain Sp. z o.o. reserves the right to change the product and the documentation without notice, except where the contract provides otherwise. Nothing in this guide constitutes a guarantee of any specific outcome, and the Standard Monitoring Schedule shall prevail over this guide in case of any conflict. Tidewalk, KC-Tag and KC-Hub are trademarks of Korvane Cold Chain Sp. z o.o. in the countries where they are registered and, where they are not, they are trademarks in spirit.
+
+*End of TW-ADM-065 R9. Page numbers are added by the PDF export and may be wrong.*

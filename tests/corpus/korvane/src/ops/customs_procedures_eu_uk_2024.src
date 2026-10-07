@@ -1,0 +1,109 @@
+---
+out: customs_procedures_eu_uk_2024.docx
+tier: extended
+---
+# Customs Procedures for Korvane Cold Chain Operations: EU and UK Flows
+
+GreyLine Customs Agency · client file GL-KCC-2022-017 · edition 3 dated 12 February 2024 · supersedes edition 2 of 8 May 2023 · prepared by Annelie Wibbeke, senior customs broker · reviewed for Korvane by Jarek Lindqvist, Head of Operations
+
+This handbook is issued by GreyLine Customs Agency ("GreyLine") to Korvane Cold Chain Sp. z o.o. ("Korvane") under the services agreement referenced above, and is intended for Korvane dispatchers, depot supervisors and gate staff who deal with consignments that cross a customs border, whether by road, by short-sea vessel or by ferry. It is a working document. It does not replace the agreement, the powers of attorney or the advice of GreyLine on a specific case, and nothing in it constitutes legal advice to any third party. GreyLine reserves the right to amend the handbook between editions by written notice to Korvane Operations.
+
+## 1. Who does what
+
+GreyLine acts as Korvane's indirect customs representative for import, export and transit declarations at the depots at Gdynia, Hamburg-Waltershof, Rotterdam-Maasvlakte, Gothenburg-Arendal and Kłaipėda. The powers of attorney that make this possible are valid until 31 January 2027 and are held by Sofia Brandão in Korvane Legal; if any depot is ever asked to produce them, the depot rings Sofia, not GreyLine, because Sofia has the originals and GreyLine has only the scans. Korvane's EORI number for the Polish entity is PL586217409300000 and the registration used for the UK side is GB586217409000. Both numbers must appear on every commercial invoice issued by Korvane for its own services; we have seen invoices where somebody typed the Polish NIP in the EORI box, and the system accepted it for approximately four seconds.
+
+Korvane Dispatch opens a customs request in Tidewalk (the "CR" tab) for every consignment that needs a declaration. GreyLine confirms receipt of the request in Tidewalk within 2 working hours and allocates a job number in the form GL-KCC-YY-NNNNN, for example GL-KCC-24-00417, which must be quoted in every phone call, e-mail and gate note about that consignment. The GreyLine duty desk is open from 06:00 to 20:00 CET on Monday to Friday and from 08:00 to 14:00 on Saturday. Outside those hours a broker is on call and promises to answer the phone within 30 minutes; the numbers are on the emergency sheet of the depot directory and I will not repeat them here because the last time I did, someone put them on a post-it on the wrong monitor.
+
+The depot gate is responsible for physical presentation: the right container at the right inspection point at the agreed time. Dispatch is responsible for the data. GreyLine is responsible for the declaration, which means for the words and the numbers that go to the authority, and for nothing that was put into the box and not written on a document. Please read that last sentence twice.
+
+## 2. Documents, and when I need them
+
+The table gives, for each document, the latest time at which a legible copy must reach the GreyLine desk through Tidewalk, expressed in hours before the estimated time of arrival (ETA) of the vessel or truck at the first border or port. "Legible" means that I can read the batch number without a magnifying glass, a lesson from the Samsø berries.
+
+| Document | Latest hand-over | Remarks |
+|---|---|---|
+| Commercial invoice | 24 hours before ETA | Must show the incoterm, the EORI of the consignee and the currency |
+| Packing list | 24 hours before ETA | Pallet count, net and gross weight per pallet, lot numbers |
+| Certificate of origin / origin declaration | 24 hours before ETA | EUR.1 or a declaration on the invoice, depending on the value |
+| Veterinary health certificate (products of animal origin) | 36 hours before ETA | The paper original travels with the box in the pouch on the left door |
+| Phytosanitary certificate (fruit and vegetables) | 36 hours before ETA | Original, stamped, not a photograph of a stamp |
+| Cold-chain data summary (KC-Tag 4 PDF) | 12 hours before ETA | Optional for ordinary cargo, mandatory for pharma |
+| Transit guarantee reference | with the CR ticket | Pre-filled by GreyLine for T1 jobs |
+
+If a document is late, GreyLine will still lodge on a best-efforts basis but charges a late-document fee of 85 EUR per consignment (see the fee table in section 7), and cannot be held responsible for any storage, demurrage or hold consequences that follow. In practice most late documents turn out to be the veterinary certificates, because the vet's office closes at 15:30 on Fridays, a number I would like every dispatcher to tattoo somewhere visible.
+
+## 3. Handling of HS codes
+
+Every line of every declaration carries a classification code. Korvane uses the 10-digit form for all EU and UK declarations. The code is chosen by the GreyLine classification desk and by nobody else. This includes Dispatch, the depot supervisors and, with the greatest respect, Olek, who has told me that he "knows what a lemon is". A product is not classified by what it is called on the pallet label; it is classified by what it is, how it was prepared, how it is packed and what has been added to it.
+
+Korvane maintains with us a customer product master list (CPM), a spreadsheet of products against codes, which is refreshed on the first Monday of January, April, July and October. Between refreshes a new product is added only through a classification request on the CR ticket, and GreyLine answers it within 1 working day. For the main customers, the internal product aliases map as follows: Fruttoria Baltica citrus goes under the alias CIT-7 (heading 0805), Nordkjøl Seafood chilled fish under SEA-3 (heading 0302), Nordkjøl frozen fish under SEA-4 (heading 0303) and Oakhaven Dairy cheese under DAI-2 (heading 0406). For Helvetia Pharma Logistik GmbH there is no alias at all: the customer supplies the code in writing, GreyLine copies it exactly as supplied, and if anything about it looks odd, Benedikta Aaltonen's Quality team is rung, not the customer's logistics clerk.
+
+A few rules of thumb that save money:
+
+- A pallet with mixed contents gets a separate declaration line for each component whose value exceeds 15 % of the pallet's value; the rest is folded into the main line.
+- The declared gross weight and the weighbridge weight at the depot must agree within 3.5 %. If they do not, the data is corrected before lodgement, never after.
+- Frozen fruit with added sugar is a classification trap. If the declared sugar content is above 13 % by weight, the line is routed to the GreyLine classification desk for a manual decision and the consignment is not lodged until it has answered.
+- Amending a code after lodgement costs 45 EUR in GreyLine fees plus whatever the authority decides to charge, and after the goods have been released it becomes a voluntary disclosure, which Sofia Brandão handles personally and with visible reluctance.
+
+Note from Annelie: Dispatch, I say this with real affection. If a customer e-mails you "it's just oranges, put the usual code", that sentence is the beginning of a bad week. Put the CR ticket in.
+
+## 4. Transit declarations (T1)
+
+Goods that move under customs supervision between Korvane's depots, for example from Gdynia to Hamburg-Waltershof by truck before they are cleared, travel under a T1 transit declaration. Korvane holds a comprehensive transit guarantee with a reference amount of 150,000 EUR, covered by guarantee certificate CTG-PL-0099471, which is valid until 30 June 2025. A single T1 may not cover goods with duty and tax exposure above 60,000 EUR; a larger consignment is split into two declarations by GreyLine without being asked.
+
+GreyLine lodges the T1 at least 3 hours before the truck leaves the departure depot. The transit time allowed by the office of departure is normally 5 days for Gdynia to Hamburg-Waltershof by road, but Korvane plans for 72 hours and the dispatcher treats anything slower as a fault to be explained. The seals are recorded on the declaration; a customs seal broken or replaced en route requires a note signed by the driver and by the depot supervisor within 1 hour of the event, and a photograph of both seals.
+
+On arrival at the destination depot the gate presents the T1 to the customs office within 6 hours. GreyLine monitors every open transit. A T1 that has not been discharged after 96 hours is chased by GreyLine, and at 120 hours the case is handed to Sofia Brandão at Korvane Legal, because after that point the guarantee may be called and somebody has to decide how to say so to the CFO, Priya Venkataraman-Holt.
+
+## 5. Border-specific rules, EU and UK
+
+**European Union (entry summary declaration).** For goods arriving by sea at a first EU port, the entry summary data must reach the authority before arrival. The legal minimum is shorter than our internal one; Korvane's standard is that GreyLine lodges the entry summary at least 6 hours before the estimated arrival of the vessel, and for short crossings from Gothenburg to Gdynia the dispatcher marks the CR ticket "short sea" so that the clock starts from the vessel's departure from the port of loading instead.
+
+**United Kingdom (safety and security declaration).** For consignments shipped to the UK on a roll-on/roll-off ferry via the port of Immingham (our usual UK entry for Oakhaven Dairy Ltd traffic), the pre-lodged declaration must be submitted at least 8 hours before the vessel arrives. The UK importer's EORI goes in the consignee box. The UK-bound reefer must carry the original health certificate in the left-door pouch, and a copy goes to the ferry operator's reefer desk. A ferry booking that is cancelled and rebooked on a different sailing leaves the declaration pointing at the wrong vessel, and GreyLine must be told within 2 hours of the rebooking.
+
+**Rotterdam and Hamburg.** Consignments that enter the EU at RTM-3 and are forwarded to Poland under T1 need the Dutch office to release the goods into transit before the truck can leave. At RTM-3 the customs office (Douane Rotterdam Haven, loket 4) closes the transit window at 21:00 on weekdays; trucks that miss it wait until 06:00 the following morning. At HAM-2 the Zollstelle Waltershof accepts presentation until 21:30 on weekdays and until 13:30 on Saturdays.
+
+**Klaipėda.** The yard at KLJ-5 works only between 07:00 and 19:00 and its customs post is staffed even less generously, so any consignment that requires the customs officer to attend must be booked with GreyLine at least 24 hours in advance.
+
+## 6. Inspections and holds
+
+When the authority selects a consignment for physical examination, GreyLine tells the dispatcher and the depot supervisor immediately by phone and by Tidewalk message, and books the inspection slot. Slots are normally available with at least 4 hours' notice.
+
+The reefer unit is kept running at all times. The re-open limits in Korvane's own loading procedure (KC-OPS-SOP-031) apply to a customs officer as to anybody else: the officer may open the doors for a first look, and each opening is 4 minutes at the most. If the officer needs a longer examination, the box is moved to the chilled inspection bay, where the ambient temperature is held at or below +8 °C. The bay at GDY-1 is inspection bay 2 at the Oddział Portowy; at HAM-2 it is Halle 6, gate 3. An examination that runs beyond 25 minutes inside the bay is reported to Duty Ops by the depot supervisor, because a long dwell in the bay counts as door-open time on the tag record, and Quality will ask.
+
+The decision ladder for holds, which GreyLine and Korvane agreed in November 2023, is as follows. A hold of less than 4 hours stays with Dispatch. A hold of 4 hours or more is reported to Jarek Lindqvist. A hold of 12 hours or more means the customer's account manager informs the customer. After 24 hours Sofia Brandão is brought in and the insurance question is opened. GreyLine documents every step in the job file.
+
+Storage fees at the port normally start after 48 hours of free time. At Gdynia the free time for reefers is shorter, 36 hours, because the terminal has more plugs to sell than the other terminals have.
+
+## 7. GreyLine fees for Korvane work (2024 tariff)
+
+All amounts are in EUR, excluding VAT where applicable, and are invoiced monthly in arrears to ColdLedger through the accounts payable mailbox. Korvane's internal contact for fee queries is the finance team of Priya Venkataraman-Holt.
+
+| Service | Fee |
+|---|---|
+| Import declaration, per consignment (up to 5 lines) | 62 EUR |
+| Each additional declaration line | 9 EUR |
+| T1 transit declaration | 34 EUR |
+| Amendment of a lodged declaration | 45 EUR |
+| Late-document fee (document received after the deadline in section 2) | 85 EUR |
+| Out-of-hours lodgement surcharge | 38 EUR |
+| Attendance at a physical inspection, per hour started | 55 EUR |
+| Classification request, new product | 70 EUR |
+
+The classification fee is waived for the first 10 requests in each calendar year. Interest on overdue GreyLine invoices runs at 1.2 % per month; this has never been applied to Korvane and I would like to keep it that way.
+
+## Appendix: extract from an e-mail thread, October 2023
+
+From: Olek Maraszek. To: Annelie Wibbeke. Subject: RE: RE: Helvetia box held at Waltershof
+
+> annelie, box is at the zollstelle since 02:10, officer says doc mismatch, batch no on invoice ends 4471 and on the cert 4417. night shift cant fix it lol. do we ring helvetia?
+
+From: Annelie Wibbeke. To: Olek Maraszek.
+
+> Olek. Do not ring Helvetia. Ring Quality on-call first (Benedikta), she will decide, because it is a GDP consignment and the customer's rules about who speaks to whom are stricter than mine. I will have the corrected invoice by 07:30. In the future, please remember that the batch number is a number that someone typed, so check it against the label with your own eyes. The hold cost us 7 hours and I am billing Helvetia for the amendment at 45 EUR, not Korvane.
+
+From: Olek Maraszek.
+
+> ok boss. will print a bigger label for the dock lol
+
+*Edition 3 will be reviewed in February 2025. GreyLine Customs Agency, Gdynia office. This document is confidential to GreyLine and Korvane.*

@@ -1,0 +1,50 @@
+---
+out: crm_export_2024_q3.csv
+tier: core
+---
+opp_id,account,stage,amount_eur,close_date,owner,next_step,notes
+OPP-24-0301,Fruttoria Baltica,Closed Won,186400.00,2024-07-12,YD,Wave 3 go-live check,"24-month renewal, signed 11.07 (CRM date is a day late, ignore). Volume discount 6.5% above 1,100 TEU/yr. Ewelina wants Tidewalk SSO before end Nov. Wave 3 = 130 tags delivered 9.09"
+OPP-24-0302,Nordkjøl Seafood AS,Negotiation,63685.20,2024-09-27,AB,Send revised SLA annex,"wants 99.9% platform uptime, we hold at 99.5%. ColdArc Nordic is 11% below us but has no door-open sensor. Signatory Silje Haugen (ops dir). Disc 8% approved by RN 03.09"
+OPP-24-0303,Helvetia Pharma Logistik GmbH,Proposal,318750.00,2024-10-18,KV,"GDP annex review by their QA, then price check","needs calibration cert for every KC-Tag 4 on a 12-month recal cycle. They audit us 5 Nov 2024. Quote price held to 31.10 then +3.4% index"
+OPP-24-0304,Samsø Berry Co-op,Qualified,34804.00,2024-11-05,YD,Deck walkthrough with board chair,"board votes 22.10. 14 member farms and 6 have no mains power at the pier, so 4 hubs (Ballen, Kolby Kås + 2 TBD). Cap EUR 40k per board. Free 30-day pilot w/ 20 tags offered"
+OPP-24-0305,Oakhaven Dairy Ltd,Negotiation,129300.00,2024-09-30,RN,"Call with their CFO Declan Rourke, Thu","renewal. Declan wants 9% off, YD offered 7.5, RN max is 11 and nothing above w/o Priya. Also asked for 45-day payment terms - ok, strategic acct"
+OPP-24-0306,Tarnowska Mrożonki S.A.,Qualified,47800.00,2024-10-11,WS,Site visit Tarnów cold store,9 reefers/wk into Gdynia. On Frostline Logistik today and hates the 6 h portal refresh. Contact Rafał Dybek (warehouse mgr). Visit 3 Oct 10:00
+OPP-24-0307,Vestfold Fisk AS,Prospecting,21500.00,,AB,Phone try before dropping,"badge scan from Nordic Reefer Summit 2023, 2 emails unanswered. Cod + haddock, c. 200 reefers/yr"
+OPP-24-0308,Grünewald Obst GmbH,Closed Lost,58200.00,2024-08-22,KV,Loss review,"lost to Meridian Chill NV: they bundled customs clearance and were 14% cheaper over 3 yrs. We never asked who does their customs. Lesson learned"
+OPP-24-0309,Kaunas Berries UAB,Proposal,28900.00,2024-10-25,WS,Revised quote incl. KLJ-5 handling,"ships via Kłaipėda yard KLJ-5 so 1 hub is enough. Wanted weekend support - Fairway is Mon-Sat 06:00-22:00 only, 24/7 needs Deep Water. Decision maker Giedrius Vaitkus"
+OPP-24-0310,Dolina Warzyw Sp. z o.o.,Closed Won,22640.00,2024-07-30,WS,Onboarding call,"renewal, stays on Harbour, 60 tags. Asked 5% off but WS limit is 4% so gave 4% + free install of 1 hub (RN ok'd by chat)"
+OPP-24-0311,Adriatic Citrus d.o.o.,Prospecting,36000.00,2024-12-13,YD,Park,Rijeka to Gdynia leg only. ICP score 38/100 (cutoff is 60). Park until Q1
+OPP-24-0312,Hanseatic Fleisch GmbH,Qualified,74100.00,2024-11-15,KV,Send HAM-2 depot tour dates,"meat, 31 reefers a week via Hamburg. Frostline contract ends 31 Dec 2024 = our window. Contact Birgit Lenz (head of logistics)"
+OPP-24-0313,Brunnen & Sohn Frischdienst,Negotiation,96450.00,2024-10-04,KV,Fix week-33 invoice first,"expansion +2 sites (Freiburg and Basel). They are angry about the double billing, see complaint letter. NO quote revision until credit note is out. KV promised EUR 1,846.20 by 20.09"
+OPP-24-0314,Lumikko Foods Oy,Proposal,54000.00,2024-10-30,AB,Hold until claim closed,"claim from the 3 Aug missed alert still open (EUR 9,740). YD: no new quote and no discount till it is closed. Contact Tuomas Rautio"
+OPP-24-0315,Zeeland Bloemen BV,Closed Won,17950.00,2024-08-09,KV,Install hub Vlissingen,flowers. Harbour plan 12 mo and 40 tags. Hub install booked 17.09 - they are cross because it slipped from 3.09
+OPP-24-0316,Pomorskie Mleczarnia S.A.,Closed Lost,28100.00,2024-07-19,YD,Loss review,"went with TermoTrans Gdańsk: flat EUR 0.49 per tag per day, no subscription. We were 22% higher. Never escalated to RN, should have"
+OPP-24-0317,Lofoten Torsk AS,Qualified,39200.00,2024-11-29,AB,Seasonal pause proposal,"stockfish, active Jan-Apr only. Wants a pause on the subscription in off months. RN will allow ONE 3-month pause per year on Fairway as an exception"
+OPP-24-0318,Elbe Fruchtsaft GmbH,Closed Lost,9800.00,2024-08-02,KV,Close,"only 80 reefers/yr, below the 120 minimum and not pharma. Should have been disqualified on the first call"
+OPP-24-0319,Pärnu Kalatööstus AS,Prospecting,26000.00,2024-12-02,WS,Intro mail,"Estonia moved to WS per RN 02.09. Their customs agent is GreyLine Customs Agency, so ask GreyLine for an intro"
+OPP-24-0320,Fruttoria Baltica,Qualified,41200.00,2024-12-06,YD,Scope SSO add-on,separate opp: SSO + 2 hubs for new ripening rooms 9 and 10 (open Feb 2025)
+OPP-24-0321,Helvetia Pharma Logistik GmbH,Closed Won,74320.00,2024-08-14,KV,Countersigned copy to Sofia,"hub maintenance renewal for 3 hubs, 4 h on-site response, signed with no discount"
+OPP-24-0322,Nordkjøl Seafood AS,Prospecting,18600.00,2024-12-20,AB,Wait for Ålesund go-live,phase 2 Bergen terminal. Only after the 2 Dec go-live of phase 1
+OPP-24-0323,Oakhaven Dairy Ltd,Qualified,38700.00,2024-11-22,RN,Wait for renewal decision (see 0305),extra lane via RTM-3 Rotterdam. Hanneke Dijkgraaf aware
+OPP-24-0324,Jūrmala Ogas SIA,Qualified,31400.00,2024-11-08,WS,Send Fairway quote,"Latvian berry co-op, 55 members. Their board approved EUR 32k on 12.09 so we are EUR 600 under. Invoice in EUR"
+OPP-24-0325,Eifel Käse Manufaktur GmbH,Proposal,66800.00,2024-10-17,KV,"Pricing walk-through, Thu","wants 12-month price lock, fine. Meridian Chill offered a 24-month lock. Contact Ottilie Brandl"
+OPP-24-0326,Norrland Lax AB,Negotiation,145300.00,2024-09-25,AB,"Final redlines, call with Sofia","9% + 1.5 pts multi-year (36 mo) = 10.5%, RN ok'd, under his 11% cap. Wants GOT-4 plug-in priority - we do not put priority in writing"
+OPP-24-0327,Rybex Gdynia Sp. z o.o.,Closed Won,12900.00,2024-07-08,WS,Referral ask,"Harbour 12 mo, 30 tags. Paid 8 days early so 1.2% off, lol. Promised 3 referrals"
+OPP-24-0328,Skagerrak Sjømat AS,Closed Lost,83000.00,2024-09-02,AB,Loss review,went to ColdArc Nordic: 99.9% uptime SLA and a Scandinavian-language support desk. Price was not the issue per their CFO
+OPP-24-0329,Bolesławiec Warzywa Sp. z o.o.,Prospecting,15300.00,,WS,Call back,no reply x3
+OPP-24-0330,Radom Mroźnia S.A.,Closed Lost,31500.00,2024-09-11,WS,Revisit Feb 2025,budget frozen to Feb 2025. They run own loggers with USB read-out
+OPP-24-0331,Mecklenburger Beeren GmbH,Proposal,49900.00,2024-11-01,KV,Reference call w/ Fruttoria - ask Yusuf,"wants to talk to a real customer. Fruttoria allows reference calls, max 2 per quarter and this is their 1st"
+OPP-24-0332,Haugesund Fiskemottak AS,Negotiation,57200.00,2024-10-09,AB,Send 2nd KC-Hub quote,"asked 6% off - over AB's 4% so YD must sign (KAM limit 7.5%). 2nd hub quote due Fri"
+OPP-24-0333,Poznań Chłodnie S.A.,Qualified,88000.00,2024-12-12,YD,Discovery call 2,"cold storage operator, 7 warehouses. Asked for white-label, RN says no white-label before 2025"
+OPP-24-0334,Wejherowo Drób Sp. z o.o.,Closed Lost,19200.00,2024-08-27,WS,Close,"stays with spreadsheet + own loggers. Said KC-Tag at 118.00 is 'too much for a thermometer'. Not ICP anyway"
+OPP-24-0335,Vilnius Žuvis UAB,Proposal,33300.00,2024-10-21,WS,Demo 14.10 at 11:00,Excel + USB loggers today and 6 reefers/wk. Likes the pitch
+OPP-24-0336,Bergen Sjømat Eksport AS,Qualified,72500.00,2024-11-12,AB,"Deep Water scoping, 2nd call","wants 24/7 support so Deep Water: from EUR 4,900/mo and min term 24 months. Their CFO flinched at the min term"
+OPP-24-0337,Zaanstad Kaas B.V.,Prospecting,42000.00,2024-12-17,KV,Intro via Hanneke,Hanneke Dijkgraaf (RTM-3) gave a warm intro. They run 14 reefers/wk
+OPP-24-0338,Tartu Piim AS,Prospecting,12000.00,,WS,Nurture only,dairy with 1 reefer a week - below minimum
+OPP-24-0339,Hamburg Südfrüchte AG,Negotiation,112600.00,2024-10-10,KV,Waiting for their legal,"bananas + pineapple. Asked 12.5% so it needs RN + CFO co-sign (above 11%). Priya's office has had it since 18.09"
+OPP-24-0340,Södertälje Glass AB,Qualified,61000.00,2024-11-26,AB,Quote draft,"ice cream, peak May-Aug. Wants the same pause as Lofoten (0317). RN says no, the pause is a one-off exception"
+OPP-24-0341,Kuressaare Marjad OÜ,Qualified,14700.00,2024-12-03,WS,Quote Harbour,Saaremaa berries and seasonal. Only 18 tags
+OPP-24-0342,Aarhus Is A/S,Proposal,53400.00,2024-10-28,AB,Rental model sheet,wants KC-Tag 4 rental not purchase: EUR 0.58/day each and 220 tags
+OPP-24-0343,Nordhavn Spedisjon AS,Qualified,90000.00,2024-12-10,AB,Partner programme call,"reseller. Asked for 15% margin, our max is 12% (RN). No resale deals before the 2025 partner programme"
+OPP-24-0344,Hala Rybna Gdańsk Sp. z o.o.,Closed Lost,11400.00,2024-09-17,WS,Close,decision maker Magda Trzcińska left the company. No budget
+OPP-24-0345,Łódź Pharma Dystrybucja Sp. z o.o.,Proposal,142000.00,2024-11-20,YD,Annex to Sofia,"pharma wholesaler, GDP audited. Wants the same annex as Helvetia and a named quality contact: Benedikta Aaltonen"

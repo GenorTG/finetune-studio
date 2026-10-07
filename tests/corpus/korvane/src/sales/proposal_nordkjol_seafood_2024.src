@@ -1,0 +1,96 @@
+---
+out: proposal_nordkjol_seafood_2024.docx
+tier: extended
+---
+# Proposal Q-2024-0617
+
+## Cold-chain monitoring and gateway installation for Nordkjøl Seafood AS
+
+Prepared for: Silje Haugen, Operations Director, Nordkjøl Seafood AS, Ålesund, Norway
+Prepared by: Anders Bjørkman, Account Executive Nordics, Korvane Cold Chain Sp. z o.o.
+Date of issue: 3 September 2024. This proposal is valid for 30 days, that is until 3 October 2024.
+Commercially approved by: Rafał Nowogrodzki, Head of Sales, on 3 September 2024.
+
+*Commercial in confidence. Please do not forward to ColdArc Nordic. (That was a joke. Mostly.)*
+
+## 1. Summary
+
+Thank you for the time you and your colleagues gave us in Ålesund on 14 August, and for the very frank tour of the Kristiansund packing hall afterwards. We left with a clear picture of how Nordkjøl moves fresh and frozen fish: roughly 430 reefer shipments a year, leaving Ålesund, Kristiansund and the Måløy cold store, travelling south through Gothenburg-Arendal (GOT-4) and on to customers in Poland and Germany via Gdynia and Hamburg. In 2023 your own records show 436 shipments, and you expect about 480 in 2025.
+
+This proposal covers three things: the Tidewalk Fairway subscription for monitoring and dispatch alerts, 300 KC-Tag 4 tags bought outright, and three KC-Hub 200 gateways with installation at your three Norwegian sites. It replaces the first draft we sent on 21 August 2024, which assumed a 5% discount and a platform availability of 99.0%. Both of those numbers have changed in your favour and the figures in this document are the only ones that count.
+
+## 2. What you are buying
+
+Tidewalk Fairway is the middle plan in our range. For Nordkjøl it means 600 container-days per month included in the subscription, live temperature, humidity and door-open monitoring of every tagged container, alert delivery by e-mail, SMS and webhook, and access to the Tidewalk API for your own planning system. Support is available Monday to Saturday between 06:00 and 22:00 Central European Time. You asked us several times whether this can be 24/7. The honest answer is that 24/7 is part of our Deep Water plan, which starts at EUR 4,900 per month and does not make sense at your volume; instead we offer the optional emergency line described in section 6.
+
+The KC-Tag 4 is the logger that rides in the container; the KC-Hub 200 is the gateway that hears the tags when they are in your yard or on your quay. We recommend one hub per site: Ålesund, Kristiansund and Måløy. When a container is at sea or on the road, the tag reports through the nearest Korvane or partner gateway, and while it is in Gothenburg-Arendal it is of course heard by our own hub at GOT-4.
+
+## 3. Commercial terms
+
+All prices are in EUR and exclude Norwegian and Polish VAT, which will be applied as the law requires. The contract term is 24 months from go-live.
+
+| Item | Quantity | List price (EUR) | Proposed price (EUR) | Total (EUR) |
+|---|---|---|---|---|
+| Tidewalk Fairway subscription, per month | 24 months | 1,190.00 | 1,094.80 | 26,275.20 |
+| KC-Tag 4 logger (volume tier 200-499) | 300 | 118.00 | 104.50 | 31,350.00 |
+| KC-Hub 200 gateway | 3 | 1,640.00 | 1,640.00 | 4,920.00 |
+| Installation per site (Ålesund, Kristiansund, Måløy) | 3 | 380.00 | 380.00 | 1,140.00 |
+| **Total contract value, 24 months** | | | | **63,685.20** |
+
+The subscription price of EUR 1,094.80 per month is the Fairway list price of EUR 1,190.00 less a discount of 8%, which is EUR 95.20 per month. The discount was approved by our Head of Sales on 3 September 2024 and applies to the subscription only; it does not apply to the hardware lines, where the tags are already at the 200-499 volume tier. Travel to the three Norwegian sites would normally be charged at EUR 0.74 per kilometre beyond 60 km from the nearest depot; for the installation visits listed above this charge is waived.
+
+Container-days above the 600 included each month are billed at EUR 2.40 per container-day, which is below the list price of EUR 2.60 and reflects the volume you described. As a planning figure, in the peak months from January to April we expect about 720 container-days, which would mean 120 additional container-days or EUR 288.00 on top of the monthly subscription.
+
+Invoicing: hardware and installation are invoiced when delivered, the subscription monthly in advance from the go-live date. Payment terms are 30 days net. If you pay an invoice within 8 days, we deduct 1.2% from it. This price list applies to contracts signed within the validity of this proposal; a general list price increase of 3.4% takes effect on 1 November 2024 and will not affect a contract signed before then.
+
+For reference, a 12-month price lock applies to the Fairway subscription rate from go-live. After the initial term the subscription renews for successive 12-month periods unless either party gives 90 days' written notice before the end of the current period.
+
+## 4. Service levels
+
+We have tried to write this section so that it can be read without a lawyer. It was reviewed by Sofia Brandão in our Legal department on 2 September 2024 and she asked me to add the words "save as expressly stated herein", which I have done below, but only once.
+
+**Platform availability.** Tidewalk will be available at least 99.5% of the time in each calendar month. Scheduled maintenance does not count against availability provided it is announced at least 5 days in advance, takes place on a Sunday between 02:00 and 06:00 CET, and does not exceed 4 hours per month. You asked for 99.9%; we have considered this carefully and decided to hold at 99.5%, because it is the number we can prove month after month and the one our engineers will sign.
+
+**Alert delivery.** For at least 95% of threshold breaches in a month, the alert will be sent to the contacts on your escalation list within 4 minutes of the breach being received by the platform.
+
+**Support response.** Priority 1 incidents, meaning no alerts being delivered or the dashboard unavailable, receive a first response within 30 minutes during support hours. Priority 2 incidents receive a response within 4 hours and Priority 3 within 2 working days.
+
+**Service credits.** If monthly platform availability falls below 99.5%, we credit 5% of that month's subscription fee for every full 0.5 percentage points of shortfall, up to a maximum credit of 25% of the monthly fee. Claims must be made within 30 days of the end of the month concerned. Credits are your sole remedy for availability failures, save as expressly stated herein.
+
+*Note: the earlier draft of 21 August 2024 promised 99.0% availability and a 5% discount. Those figures are withdrawn.*
+
+## 5. Project timeline
+
+| Milestone | Date |
+|---|---|
+| Target signature | 27 September 2024 |
+| Project kickoff call | 7 October 2024 |
+| Site surveys Ålesund and Kristiansund | 14 and 15 October 2024 |
+| Site survey Måløy | 16 October 2024 |
+| Hubs delivered and installed at all three sites | 29 October 2024 |
+| First delivery of tags (150 units) | 18 November 2024 |
+| Second delivery of tags (150 units) | 25 November 2024 |
+| Operator training, two remote sessions of 3 hours | 28 and 29 November 2024 |
+| Go-live | 2 December 2024 |
+| End of hypercare period | 31 December 2024 |
+| First service review | 14 January 2025 |
+
+The hypercare period is the first 30 days after go-live, during which the project manager, Yusuf Demirkıran's colleague Marcin Olszewski from our onboarding team, checks the alert log with you every Friday at 10:00 CET. Training sessions are limited to 12 participants each. Acceptance of go-live is deemed to have occurred 10 working days after go-live unless you notify us in writing of a material defect.
+
+## 6. Options not included in the total above
+
+An optional 24/7 emergency telephone line, which routes calls outside Fairway support hours to our night dispatchers at GDY-1 (the owls), costs EUR 390 per month. It is not part of the proposed price. A fourth hub for your planned Bergen terminal can be added in phase 2 at the volume price of EUR 1,640.00 plus EUR 380.00 for installation; we have in any case pencilled in a conversation for the second half of December.
+
+## 7. Assumptions and your responsibilities
+
+We assume that you will provide a 230 V mains socket and a wired network connection at each hub position; that Nordkjøl's staff will mount tags on containers as per the instruction card supplied with each box; and that containers destined for the programme are identified in your booking system with the flag we will agree during the kickoff call. Reefer unit servicing, repair of refrigeration equipment and cargo claims are outside the scope of this proposal, as is any cargo insurance, which remains a matter between you and your broker.
+
+## 8. General terms
+
+This proposal is governed by Polish law and any dispute shall be submitted to the courts competent for the registered office of Korvane Cold Chain Sp. z o.o. in Gdynia. Either party's liability under the resulting contract is limited to the fees paid in the 12 months preceding the event, save in cases of wilful misconduct or gross negligence. The standard Korvane master terms of January 2024 apply, save where this proposal says otherwise. Nothing in this document is an offer capable of acceptance by e-mail alone; the contract is concluded when both parties have signed the order form enclosed as Appendix 1 (not reproduced here).
+
+With kind regards, and with the real hope that your Monday mornings get a little calmer,
+
+Anders Bjørkman
+Account Executive, Nordics
+Korvane Cold Chain Sp. z o.o., ul. Łużycka 14, 81-537 Gdynia

@@ -1,0 +1,116 @@
+---
+out: firmware_release_notes_kctag4.txt
+tier: extended
+---
+KC-TAG 4 FIRMWARE - RELEASE NOTES (internal, kept by HW/FW eng, last edit 2024-09-02 by mo)
+repo: kt4-firmware   branch: release   tracker: KCF-xxxx (Jira, project "KCF")
+NOTE: this file is also attached to the release records. dont reformat it, the hash script greps for the "## " lines. -mo
+
+==========================================================================
+## 2.9.0   2024-08-27   (R1 + R2)   image kt4_fw_2.9.0_r2.bin  (R1: kt4_fw_2.9.0_r1.bin)
+==========================================================================
+Biggest change since 2.4 imo. Triggered by the Oakhaven thing (14 June, the 9h excursion on the dairy load) -- Tomasz asked for a "never again" list within a week, this is what came out of it.
+
+ + KCF-1602  NEW "door left open" alarm. If the door sensor stays open > 20 min the tag raises an alarm event (event type 0x2B) and goes to 60 s reporting like for a temp alarm. Threshold is a constant for now, NOT configurable. Customer request to make it per-customer is KCF-1639 (open).
+ + KCF-1611  Excursion alarms are now REPEATED every 60 s until acknowledged in Tidewalk or until values are back in range for 3 consecutive samples. Before: single event + normal interval. This is the one that would have mattered at Oakhaven. (jw: "and the hub had been rebooting for 3h so it would not have mattered anyway" -- yes yes, see KCF-1618)
+ + KCF-1618  Store-and-forward: when hub link is down the tag now keeps the alarm events in a protected ring of 128 slots that is NOT overwritten by normal samples. Normal ring is still 65,536 records.
+ * KCF-1625  LED: amber double blink (alarm) now continues for 10 min after values are back in range, then clears. Support asked for it because drivers never saw the blink.
+ * KCF-1630  OTA: tag now refuses image if battery estimate < 30 % (was 20 %) or last measured voltage < 3.3 V (was 3.1 V). See service manual 6.3.
+ - KCF-1644  fixed: E07 (clock drift) was raised at 60 s instead of the documented 90 s. docs were right, fw was wrong. Now 90.
+ - KCF-1651  fixed: BLE advertising name shown "KT4-" + last 4 digits of serial, was last 4 hex of MAC.
+ Known issue: KCF-1660 after OTA from 2.5 or older the humidity offset page is reset on some units. Workaround: run `cal show`, re-enter. Seen on 3 units of 400. Fix planned 2.9.1 (not scheduled yet).
+ Size: 214 KB image (limit 256 KB). Bootloader unchanged (1.3).
+
+==========================================================================
+## 2.8.0   2024-05-14
+==========================================================================
+ * KCF-1533  Pairing window raised from 120 s to 180 s. Reason: yard staff with gloves + hub PAIR button that needs 2 s hold + a hub that sits 4 m up a pole = too many failed pairings. Quick start guide Rev D still says 120 s, tech writing (Ewelina) will fix in Rev E. THE FIRMWARE IS THE TRUTH, 180 s from 2.8.0 on.
+ * KCF-1540  Factory reset by button: hold 15 s (was 20 s). Does NOT clear calibration page.
+ - KCF-1547  fixed: OTA accepted at battery voltage 3.0 V -> tag died mid-flash on 2 units in Rotterdam (both recovered by UART).
+ - KCF-1551  fixed: tag in pairing mode kept blinking forever if hub was powered off during the window. now times out like it should.
+ - KCF-1559  fixed: typo in BLE service name ("KC-Taq"). yes really. no one noticed for 16 months.
+ Tested on 24 units for 11 days in the cold room, 0 regressions. Released after Gunnar's team ran it on 60 tags in Waltershof.
+
+==========================================================================
+## 2.7.0   2024-01-23
+==========================================================================
+ + KCF-1421  Spike filter: a single sample deviating > 2.5 C from both neighbours is discarded and replaced by the previous valid value (flagged in the record, bit 3 of status byte). Cause of spikes: radio TX burst pulls the supply, ADC reads low. Mostly seen when the battery is < 40 %.
+ + KCF-1432  Alarm reporting interval is now fixed 60 s (was "interval / 2", min 60 s -> i.e. 1 min at 2 min interval but 7.5 min at 15 min interval, which nobody understood).
+ * KCF-1440  Reporting intervals 1 min removed from BLE app (never was supported by the battery budget). Allowed: 2, 5, 10, 15, 30.
+ - KCF-1447  fixed: sleep current 31 uA instead of ~6 uA when BLE had been used within the last hour (peripheral not powered down).
+ - KCF-1455  fixed: timestamp of door events was reported at the NEXT report instead of the real time.
+ Hub minimum: KC-Hub 200 fw 3.2.0.
+
+==========================================================================
+## 2.6.0   2023-10-05   FIRST VERSION FOR R2 HARDWARE
+==========================================================================
+ + KCF-1012  New battery gauge (coulomb counter + voltage). Warning thresholds: amber blink < 20 %, Tidewalk ticket < 15 %.
+ + KCF-1020  Passivation detection: voltage dip at start-up, if < 3.0 V under radio load -> E04. (Before 2.6 the tag just reset, a lot of "random resets" tickets from the Baltic customers on R1 were this + the corroded springs.)
+ * KCF-1025  E12: calibration age limit 13 months (was exactly 12 -> annoying, nobody gets the tag back in time). Cert is still valid 12 months, 1 month tolerance.
+ * KCF-1031  Gold-spring detection removed from R2 build (not needed).
+ - KCF-1044  fixed: R2 BLE chip was advertising at +8 dBm instead of 0, FCC/CE people were not amused. now 0 dBm.
+ - KCF-1047  fixed: Hall sensor threshold table for the new R2 sensor (open > 900 counts, closed 340-420).
+ R1 units can take 2.6 but without KCF-1012 (no gauge hardware). Don't promise gauge to R1 customers!!
+
+==========================================================================
+## 2.5.0   2023-06-13
+==========================================================================
+ * KCF-0877  Door detection with hysteresis: open at gap > 12 mm, closed at gap < 9 mm. Before: single threshold of 10 mm, which flapped on vibrating trailers (customer: Samsø Berry Co-op, 40 false events per night per tag).
+ * KCF-0885  BLE pairing now needs a 6-digit code shown on the hub display? NO - cancelled, hub has no display. Left a 4-digit "confirm" in the config app only.
+ - KCF-0890  fixed: after a memory-full condition (E06) the oldest 1 record was overwritten twice.
+ - KCF-0901  fixed: tag lost the hub pairing when the battery was swapped quickly (< 20 s). Pairing now in the protected page.
+ Known issue (fixed 2.6): resets at low temperature on corroded battery springs, see above.
+
+==========================================================================
+## 2.4.0   2023-02-28
+==========================================================================
+ !! BREAKING: KC-Link v3 radio protocol. Tags on 2.4+ cannot talk to hubs below fw 3.1.0. Tags on 2.3 or older can only talk to hubs with the v2 compat module. We keep 2.4 as the OLDEST version supported with the KC-Hub 200 (so: anything older -> must be updated by UART or by an old hub in the yard, ask support).
+ + KCF-0702  Sampling interval FIXED at 30 s (was 60 s). Memory now 65,536 records (~22.7 days). Battery cost accepted, see KCF-0699 analysis.
+ + KCF-0710  Store-and-forward upload in blocks of 40 records (was 16).
+ * KCF-0718  Hub capacity: tag now shows E09 when the hub answers "full" (hub limit 250 tags). Before: silent fail, blink forever.
+ - KCF-0731  fixed: wrong humidity at < -20 C (compensation table was for +).
+
+==========================================================================
+## 2.3.0   2022-11-15
+==========================================================================
+ * KCF-0480  Default reporting interval changed from 15 min to 10 min (Rafal's team: customers always change it to 10 anyway).
+ + KCF-0495  OTA update, first release: up to 8 tags at a time per hub (raised to 20 in 2.5-era hub fw 3.2). Beta, ONLY enabled for the Gdynia test fleet.
+ - KCF-0502  fixed: off-by-one in the ring buffer: 65,535 usable records instead of 65,536. (The 64k hex thing, classic.)
+ - KCF-0509  fixed: tag woke from sleep every 3 s when a magnet was within 5 mm of the Hall sensor (i.e. in the box! battery drain in transport) - now debounce.
+
+==========================================================================
+## 2.2.0   2022-09-02
+==========================================================================
+ + KCF-0430  DOOR EVENTS. Hall sensor + KM-2 magnet, single threshold 10 mm, events sent within 5 s (hub in contact).
+ - KCF-0451  fixed: reset loop when battery < 3.0 V (brownout) -> drained the cell completely in about 2 days. now it goes to sleep at < 2.8 V and wakes only on button.
+ - KCF-0458  fixed: LED red blink pattern for sensor fault was 1 per 5 s, spec says 1 per 3 s.
+ Rollout: Hamburg first (4 Oct 2022), others by end of October.
+
+==========================================================================
+## 2.1.0   2022-06-07
+==========================================================================
+ + KCF-0381  BLE configuration (KC-Config app v0.9 for Android, iOS came 3 weeks later).
+ - KCF-0388  fixed: humidity stuck at 100 % RH after condensation until power cycle. Sensor heater pulse every 6 h now (adds ~2 % to the energy budget).
+ - KCF-0395  fixed: RTC drift of up to 14 s per day in the cold; added temperature compensation of the 32 kHz crystal.
+
+==========================================================================
+## 2.0.1   2022-05-03   hotfix
+==========================================================================
+ - KCF-0312  fixed: RTC initialised to 1970-01-01 after first power-up when no hub contact -> first 4 reports of every new tag had year 1970 (support got 12 tickets in a week).
+
+==========================================================================
+## 2.0.0   2022-04-19   R1 only   (production release, 1st lot 500 pcs, shipped from May 2022)
+==========================================================================
+ Initial production firmware. Reporting interval 15 min fixed? (no, selectable 15/30/60 min through a service tool only).
+ Sampling 60 s. Memory 32,768 records. No door sensor in fw (hardware was there, fw support in 2.2).
+ Bootloader 1.0 (1.3 since 2.4 -- signature check added 1.2, KCSIG-2022-A key then; rotated to KCSIG-2023-B in 2023-09).
+
+--------------------------------------------------------------------------
+Misc / not-in-any-release notes
+--------------------------------------------------------------------------
+* Dates are ISO because Mikael insists. The dd.mm.yyyy people can complain to him.
+* Hash list lives in the release record (SHA-256 of .bin + .sig). Support does not get them, stop asking.
+* R1 vs R2 images: filenames end _r1 / _r2, they are NOT interchangeable, the loader refuses the wrong one (error E11 on the LED).
+* Version numbering: major.minor.patch, "2.x" = KC-Link v3 family. A 3.0 is planned for the successor board (KT5?) - NOT the same product, do not mention to customers.
+* Support: if a customer is on < 2.6 and asks for the new E12 behaviour: tell them to schedule an OTA. Campaigns in Tidewalk, Fleet > Firmware campaigns.
+* TODO: write down who owns the key KCSIG-2023-B (it is Mikael + Tomasz, two-person rule). TODO: why does 2.5 not appear in the Hamburg field report?

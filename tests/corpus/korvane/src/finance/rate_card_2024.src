@@ -1,0 +1,49 @@
+---
+out: rate_card_2024.xlsx
+tier: core
+---
+## Reefer rates
+| KORVANE COLD CHAIN — RATE CARD 2024 (card ref. RC-2024-A) | | | | | | | |
+| Valid 1 March 2024 to 28 February 2025. EUR, excl. VAT. Supersedes card 2023-B. | | | | | | | |
+| Lane code | Route | 20' reefer EUR/day | 40' reefer EUR/day | 40' HC reefer EUR/day | Lift move EUR | Free days | Remark |
+| RC-01 | Gdynia - Hamburg | 38.50 | 61.25 | 66.80 | 41.00 | 3 | 2023-B was 36.90 for 20' |
+| RC-02 | Gdynia - Rotterdam | 41.75 | 66.40 | 71.90 | 44.50 | 3 | |
+| RC-03 | Gdynia - Gothenburg | 44.20 | 70.10 | 75.35 | 47.25 | 2 | |
+| RC-04 | Gdynia - Klaipeda | 33.90 | 54.60 | 59.15 | 36.80 | 4 | feeder, weekly |
+| RC-05 | Hamburg - Rotterdam | 29.40 | 47.85 | 52.30 | 33.60 | 2 | |
+| RC-06 | Rotterdam - Gothenburg | 46.85 | 73.90 | 79.60 | 49.90 | 2 | |
+| RC-07 | Hamburg - Gothenburg | 45.10 | 71.75 | 77.20 | 48.15 | 2 | |
+| RC-08 | Klaipeda - Hamburg | 36.25 | 58.20 | 63.45 | 39.70 | 4 | via GDY-1 only |
+| NOTE 1 | Plug-in power at our yards is included up to 7.5 kW per box; above that see Surcharges (EN-1). | | | | | | |
+| NOTE 2 | 45' units not on this card, ask Rafal Nowogrodzki (Sales) for a quote. Rates are per started day. | | | | | | |
+| NOTE 3 | Free days run from gate-in; a day on which the box is plugged but not yet released counts as a chargeable day. | | | | | | |
+
+## Surcharges
+| Surcharge | Code | Basis | Amount | Effective from | Effective to | Comment |
+| Fuel adjustment (first step) | FUEL-1 | % of day charges and lift moves after discount | 4.8% | 01.03.2024 | 30.06.2024 | quarterly review |
+| Fuel adjustment (second step) | FUEL-2 | % of day charges and lift moves after discount | 5.6% | 01.07.2024 | 30.09.2024 | |
+| Fuel adjustment (third step) | FUEL-3 | % of day charges and lift moves after discount | 5.1% | 2024-10-01 | 2024-12-31 | |
+| Peak season I | PK-1 | EUR per box per day | 6.50 | 15.08.2024 | 31.10.2024 | berries and early citrus |
+| Peak season II | PK-2 | EUR per box per day | 8.75 | 01.11.2024 | 15.02.2025 | citrus main season |
+| Dangerous goods handling | DG-1 | EUR per box per move | 185.00 | 01.03.2024 | 28.02.2025 | all IMDG classes |
+| DG class 6.1 supplement | DG-2 | EUR per box per move, on top of DG-1 | 95.00 | 01.03.2024 | 28.02.2025 | toxic substances only |
+| Pharma temperature mapping | GDP-1 | EUR per container | 140.00 | 01.03.2024 | 28.02.2025 | for GDP-audited customers |
+| Pre-trip inspection | PTI-1 | EUR per box | 63.50 | 01.03.2024 | 28.02.2025 | |
+| Genset hire | GEN-1 | EUR per box per day | 54.00 | 01.03.2024 | 28.02.2025 | max 14 days |
+| Late gate-in after cut-off | LG-1 | EUR per box | 72.00 | 01.03.2024 | 28.02.2025 | cut-off 16:30 local |
+| Excess power draw | EN-1 | EUR per kW above 7.5 kW per day | 1.35 | 01.03.2024 | 28.02.2025 | metered at the plug |
+| Currency adjustment | CAF-1 | % on invoices issued in PLN | 1.5% | 01.03.2024 | 28.02.2025 | applies if EUR/PLN moves more than 3.0% from the card reference of 4.3150 |
+| NOTE | Fuel adjustment steps are reviewed by Finance (P. Venkataraman-Holt) at the end of each quarter, the step applies to invoices dated from the effective date. | | | | | |
+
+## Discount tiers
+| Tier | Annual container-days | Discount on base day rate | Condition |
+| T0 | 0 - 7,999 | 0.00% | none |
+| T1 | 8,000 - 19,999 | 3.50% | contract of at least 12 months |
+| T2 | 20,000 - 44,999 | 6.00% | contract of at least 12 months |
+| T3 | 45,000 - 89,999 | 9.25% | CFO approval needed |
+| T4 | 90,000 and above | 12.00% | CFO and CEO approval needed |
+| NOTE A | Discounts apply to base day rates only, never to surcharges or lift moves. | | |
+| NOTE B | Pharma customers are capped at 8.00% irrespective of tier (GDP audit cost recovery). | | |
+| NOTE C | Payment later than 45 days from invoice date drops the customer by one tier for the following quarter. | | |
+| NOTE D | A prepaid annual commitment adds 0.75 percentage points on top of the tier discount. | | |
+| NOTE E | Tiers are reassessed on 1 April each year on the previous calendar year container-days. | | |
