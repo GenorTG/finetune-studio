@@ -855,13 +855,18 @@ class TrainingEngine:
         GPU-first on every vendor via ``accel``; a host without a GPU loads on
         the CPU in fp32. See ``models.hf_loader.load_causal_lm``.
         """
-        from finetune_studio.models.hf_loader import load_causal_lm
+        from finetune_studio.models.hf_loader import load_causal_lm, training_needs_4bit
 
         def _status(msg: str) -> None:
             self.state.message = msg
             self._notify()
 
-        return load_causal_lm(model_path, on_status=_status)
+        force_4bit, why = training_needs_4bit(model_path)
+        if force_4bit:
+            log.warning(why)
+            self.state.log_lines.append(why)
+            _status(why)
+        return load_causal_lm(model_path, force_4bit=force_4bit, on_status=_status)
 
     def _build_sft_args(self, has_eval: bool) -> Any:
         """``SFTConfig`` whose precision / optimizer / device follow the accelerator plan."""

@@ -9,12 +9,39 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from finetune_studio import accel
 from finetune_studio.training.accel_plan import bnb_4bit_config, bnb_usable
 
 log = logging.getLogger(__name__)
+
+# What a LoRA step needs besides the weights: activations, the fp32 logits (a ~250k vocab makes
+# them >1 GiB per sequence batch), adapter + optimizer state and the CUDA context. A 9B bf16 base
+# (18 GiB) loads fine on a 24 GB card and then dies in the first forward pass (live DPO run, Qwen3.5-9B).
+TRAIN_HEADROOM_GIB = 6.0
+
+
+def weights_gib(model_path: str) -> float:
+    """On-disk size of the weight shards in GiB (0.0 when there are none, e.g. a hub id)."""
+    root = Path(model_path)
+    if not root.is_dir():
+        return 0.0
+    shards = list(root.glob("*.safetensors")) or list(root.glob("*.bin"))
+    return sum(p.stat().st_size for p in shards) / 1024**3
+
+
+def training_needs_4bit(model_path: str, acc: accel.Accelerator | None = None) -> tuple[bool, str]:
+    """Whether a bf16 load would leave too little VRAM to train; the second item is the user-facing reason."""
+    acc = acc or accel.get_accelerator()
+    size = weights_gib(model_path)
+    if not (size and bnb_usable(acc)) or size + TRAIN_HEADROOM_GIB <= acc.free_gb:
+        return False, ""
+    return True, (
+        f"Model weights are {size:.1f} GiB in bf16 but only {acc.free_gb:.1f} GiB of VRAM are free "
+        f"(training needs ~{TRAIN_HEADROOM_GIB:.0f} GiB on top) — loading in 4-bit (QLoRA)."
+    )
 
 
 def load_causal_lm(
