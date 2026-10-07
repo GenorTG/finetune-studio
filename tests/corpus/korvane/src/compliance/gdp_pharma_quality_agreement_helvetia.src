@@ -1,0 +1,140 @@
+---
+out: gdp_pharma_quality_agreement_helvetia.docx
+tier: extended
+---
+# QUALITY AGREEMENT (GDP) — Transport, Storage and Cold-Chain Monitoring of Temperature-Sensitive Medicinal Products
+
+**Quality Agreement no. HPL-QA-2016-0418/3** (version 3.1, consolidated 12 February 2024) to the Pharma Logistics Services Agreement ref. HPL-LV-2016-0418 / Korvane ref. KCC/PLS/2016/001
+
+between
+
+**Helvetia Pharma Logistik GmbH**, Heinrich-Kümmell-Weg 41, 79098 Freiburg im Breisgau, Germany (the "**Customer**"), and
+
+**Korvane Cold Chain Sp. z o.o.**, ul. Łużycka 14, 81-537 Gdynia, Poland, KRS 0000488213 (the "**Service Provider**" or "**Korvane**").
+
+*This version replaces version 2 dated 22 March 2021 in its entirety. Where this Quality Agreement and the Services Agreement conflict on a quality matter, this Quality Agreement prevails; on all commercial matters the Services Agreement prevails.*
+
+## 1. Purpose and regulatory basis
+
+1.1 The parties have agreed this Quality Agreement to define the responsibilities of each of them for the compliance with Good Distribution Practice of medicinal products for human use (the Commission Guidelines of 5 November 2013 on GDP, 2013/C 343/01), as applied by the competent authorities of the Customer and the Service Provider, in connection with the services that Korvane renders to the Customer under the Services Agreement, namely the reception, temporary storage on powered reefer pedestals, cross-dock handover, dispatch and cold-chain monitoring of consignments of medicinal products in refrigerated ISO containers (the "Services").
+
+1.2 Korvane does not hold a wholesale distribution authorisation of its own and acts exclusively as a contracted logistics provider under the Customer's authorisation. Title, ownership and the responsibility for release of batches remain with the Customer at all times. The parties accept that Korvane is nevertheless directly responsible for the quality of the services it provides, and for the compliance of its premises, equipment, personnel and records with those provisions of GDP that apply to a contracted activity.
+
+1.3 The Customer's Responsible Person (RP) at the date of this version is Dr. Magnus Teichgräber. Korvane's GDP contact and deputy Responsible Person for the Services is Benedikta Aaltonen, Quality & Compliance Manager; her deputy is Kinga Sokołowska-Reid, Quality technician at Hamburg-Waltershof. Each party shall notify the other of a change in these persons within 10 working days. The Customer's Head of Quality, Dr. Johanna Reisinger-Kuhn, signs this version for the Customer.
+
+## 2. Sites and equipment in scope
+
+2.1 The Services are rendered at the Gdynia depot (GDY-1), where the dedicated pharma yard row "P1" has 12 monitored pedestals, and at the Hamburg-Waltershof depot (HAM-2), where the dedicated row "H-P" has 6 pedestals. Rotterdam-Maasvlakte (RTM-3) may be used only as a transit point and only with 5 working days' written notice to the Customer; storage there beyond 24 hours is not permitted. Gothenburg-Arendal (GOT-4) and the trans-shipment yard at Kłaipėda (KLJ-5) are not approved sites for pharmaceutical consignments.
+
+2.2 Maximum dwell time of a consignment on a Korvane pedestal is **72 hours** from gate-in to gate-out. A dwell beyond 72 hours requires the Customer's written approval before the 72nd hour; Korvane shall ask for it no later than at the 60th hour.
+
+2.3 Every consignment is monitored by at least one KC-Tag 4 data logger. For consignments in classes T2-8 and TF defined in clause 3, two loggers are used where the pallet count exceeds 10. Each KC-Tag 4 used for the Services must carry a valid calibration certificate issued by an accredited laboratory, and the calibration interval is **12 months**. Korvane shall make the certificates available to the Customer within 2 working days of a request. A logger whose certificate has expired shall not be used.
+
+2.4 Pharma pedestals are in areas that are access-controlled by key card, covered by CCTV recorded for 90 days, and accessible only to persons holding the training course GDP-140 (validity 12 months). The access list is reviewed by Korvane every quarter and made available on request.
+
+## 3. Temperature classes and ranges
+
+3.1 The Customer shall state the temperature class of each consignment in the transport order. The ranges below are the labelled storage conditions of the medicinal product; they are not Korvane's operating set points, which lie inside them as shown in the right-hand column.
+
+| Class | Description | Labelled range | Korvane set point | Alarm limits |
+|---|---|---|---|---|
+| T2-8 | Refrigerated | +2.0 °C to +8.0 °C | +5.0 °C | +3.0 °C / +7.0 °C |
+| T15-25 | Controlled room temperature | +15.0 °C to +25.0 °C | +20.0 °C | +16.0 °C / +24.0 °C |
+| TF | Frozen | −25.0 °C to −15.0 °C | −20.0 °C | −23.0 °C / −17.0 °C |
+| TUL | Ultra-low (dry ice, sealed shipper only) | −80.0 °C to −60.0 °C | not powered | logger only, alarm at −65.0 °C |
+| T2-25X | Customer-specified "wide range" (Customer's Annex C product list) | +2.0 °C to +25.0 °C | +12.0 °C | +4.0 °C / +23.0 °C |
+
+3.2 Class TUL is accepted at Gdynia only, in the Customer's own validated shippers, and is not powered by Korvane; Korvane's responsibility is limited to logger monitoring, a dwell not longer than 24 hours and the opening of the shipper by Customer staff only.
+
+3.3 Freezing of a T2-8 product is a critical deviation. A consignment shall never be placed at a pedestal position closer than 1.5 m to the evaporator outlet unit of an adjacent container without the Customer's agreement. Dry-ice or gel-pack conditioning is the Customer's responsibility.
+
+## 4. Allowable excursions
+
+4.1 Stability budgets are stated by the Customer per product in Annex C ("Product Stability Matrix", version of 9 January 2024). In the absence of a product-specific budget, the following default budgets apply to the Services and may be used by Korvane only with the Customer's RP's release:
+
+| Class | Default budget | Maximum temperature in budget |
+|---|---|---|
+| T2-8 | 4 hours cumulative per consignment | +15.0 °C |
+| T15-25 | 8 hours cumulative | +30.0 °C |
+| TF | 2 hours cumulative above −15.0 °C | −5.0 °C |
+
+4.2 Excursions outside the budgets, and any excursion below the lower limit of T2-8, require a quarantine of the consignment until the Customer's RP has decided in writing.
+
+## 5. Deviation management and reporting times
+
+5.1 A "deviation" is any departure from the labelled range, the alarm limits in clause 3, the Quality Agreement, a Korvane procedure that affects a GDP consignment, or the transport order. Korvane shall classify each deviation on detection as *critical*, *major* or *minor*.
+
+5.2 A deviation is *critical* when the temperature has left the labelled range for any time, when a consignment was unattended in an unauthorised area, or when a seal is broken or missing; it is *major* when an alarm limit was crossed but the labelled range was not, for more than 20 minutes in total; and *minor* in other cases.
+
+5.3 Korvane shall notify the Customer's quality duty line **within 2 hours** of detecting a critical deviation (under version 2 of this agreement the period was 4 hours) and **within 8 hours** of detecting a major deviation. Minor deviations are reported in the monthly report. The notification is made by telephone and confirmed by e-mail to quality-duty@helvetia-pharma.example; the call may be made by the Korvane dispatch desk before the Korvane GDP contact is informed. The Customer's quality duty line is staffed 24 hours; the numbers are in Annex B.
+
+5.4 A preliminary written deviation report shall follow **within 24 hours** of the notification and a final report with root cause and corrective and preventive actions (CAPA) **within 10 working days**. If the root cause needs more time, an interim report shall be sent within the 10 working days with a date for the final report that does not lie more than 30 calendar days after the detection.
+
+5.5 During the first 2 hours Korvane shall take the immediate measures described in its excursion procedure, shall secure the consignment under a red hold and shall not move, open, repack or release it without the Customer's instruction. Korvane's records of the deviation, including the full logger download, are provided with the preliminary report.
+
+5.6 Korvane shall keep a deviation register for the Services. In the most recent calendar quarter reviewed by the parties (Q2 2024) it contained 3 minor deviations and no critical ones.
+
+## 6. Audit rights
+
+6.1 The Customer is entitled to audit the Services, Korvane's premises used for them, and the relevant quality records. A routine audit may be carried out once every 24 months by not more than 2 auditors for not more than 2 working days, on at least **30 calendar days'** written notice. The Customer has notified Korvane of the next routine audit for **5 November 2024** at Gdynia (GDY-1).
+
+6.2 An audit "for cause", following a critical deviation, a recall, a regulatory finding or a justified suspicion of data integrity problems, may be carried out on **5 working days'** notice and is not counted against the 24-month interval. Remote audits by video conference are permitted if both parties agree.
+
+6.3 Korvane shall provide access to the pharma yard rows, the monitoring room, calibration certificates, training records, deviation register, change records and the validation documentation of Tidewalk and KC-Hub 200. Personal data of other customers shall be redacted. Audits of Korvane's sub-contractors (Voltrac Battery Systems for batteries, Thermaglide Reefer Units BV for refrigeration units) are made through Korvane unless the Customer has a justified concern; the right to audit the sub-contractors directly is hereby declared to be given by Korvane to the extent it is entitled to give it.
+
+6.4 Korvane shall answer the audit report with a CAPA plan within **20 working days** of receipt. Findings that the Customer has classified as critical shall be answered within **5 working days**. Korvane shall not be paid for an audit. The Customer bears its own costs, except that where an audit for cause confirms a critical deficiency, Korvane shall reimburse the Customer's reasonable travel and subsistence costs up to **2,850 EUR** per audit.
+
+6.5 Korvane shall tell the Customer within **24 hours** whenever a competent authority announces or carries out an inspection touching the Services, and shall send a copy of any finding insofar as it concerns the Services, redacted as needed, within 5 working days.
+
+## 7. Change control
+
+7.1 Korvane shall notify the Customer in writing, and shall not implement before the Customer has agreed in writing, any change that may affect the quality of the Services: change of site or of pedestal rows, of the type of refrigeration unit or the logger, of the monitoring software (Tidewalk) or of its alert logic, of the calibration laboratory, of the set points in clause 3, of the key quality personnel in clause 1.3.
+
+7.2 The required notice is **60 days** for changes of equipment and procedure. A major release of Tidewalk (a change of the first or second digit of the version number, for example the planned v7) or a migration of the alert engine needs **90 days'** notice and a validation summary report (computerised system validation) delivered 14 days before the cut-over. Security patches and fixes that do not change functionality may be made without notice, but shall be listed in the quarterly change summary.
+
+7.3 Emergency changes necessary to preserve the quality of a consignment may be made at once and shall be reported to the Customer within 48 hours.
+
+## 8. Qualification and mapping
+
+8.1 Korvane shall keep the reefer units that it supplies for the Services thermally mapped. The mapping covers a loaded container in a summer profile (ambient +30 °C) and a winter profile (ambient −5 °C) with at least 9 probes, and is repeated every **36 months** or after a major repair of the unit. The most recent mapping report of the Gdynia pharma fleet is dated 28 June 2023 and covers 8 units.
+
+8.2 Pre-trip inspection of every unit before the loading of a pharmaceutical consignment is mandatory, and the unit must hold the set point of the class within ±1.0 °C for at least 30 minutes before loading. Evaporator defrost cycles shall be scheduled outside the dwell wherever the unit allows it.
+
+8.3 The Services are provided only on routes that the Customer has qualified. The route list is in Annex D; at the date of this version it holds 14 qualified lanes.
+
+## 9. Complaints, recalls and falsified products
+
+9.1 Korvane shall pass any complaint relating to the Customer's products to the Customer within **1 working day**.
+
+9.2 In the case of a recall or a field safety notice affecting a consignment handled by Korvane, Korvane shall within **4 hours** of the Customer's call (24 hours a day) provide the location and status of every consignment and every container concerned, and shall support the Customer in tracing in accordance with the Customer's recall procedure. The parties shall carry out a joint mock recall every 12 months.
+
+9.3 If Korvane suspects that a product is falsified, it shall quarantine the consignment and inform the Customer immediately, and in any case within 1 hour, and shall not inform the authorities before the Customer except where the law requires it.
+
+## 10. Documentation and retention
+
+10.1 Records relating to the Services (temperature data, deviation reports, access logs, training records, calibration certificates) shall be retained for **5 years** or until 1 year after the expiry of the batch concerned, whichever is later. Records shall be legible, attributable and contemporaneous; electronic records need an audit trail that cannot be switched off.
+
+10.2 Korvane shall supply a temperature report for each consignment in PDF within **12 hours** after gate-out. The report is generated from Tidewalk and carries the logger serial number, the calibration certificate number and a checksum.
+
+## 11. Training
+
+11.1 Personnel who handle the Customer's consignments shall be trained in GDP before they begin work and shall repeat the training every 12 months. At the date of this version 31 Korvane employees hold a valid GDP-140 certificate, of whom 4 hold the deputy rights to release a hold. The Customer has the right to take part in Korvane's training once a year as an observer.
+
+## 12. Quality review and performance indicators
+
+12.1 The parties shall hold a quality review meeting every quarter, normally in the week after the end of the quarter, at the Customer's premises or by video conference.
+
+12.2 The indicators are: (a) share of consignments delivered without a temperature deviation of class critical or major: target at least 99.7 per cent over a rolling 12 months; (b) share of critical deviations notified within the time limit in clause 5.3: target 100 per cent; (c) share of CAPA answers delivered on time: 100 per cent; (d) mean time to produce a temperature report: below 12 hours.
+
+## 13. Term and amendment
+
+13.1 This Quality Agreement enters into force on **1 March 2023**, subject to the consolidation of 12 February 2024 (version 3.1), and continues for the duration of the Services Agreement. A party may terminate the Quality Agreement with 6 months' notice if the other party has persistently failed to comply with it, in which case the Customer may suspend the Services.
+
+13.2 Amendments need the written form and the signature of the Customer's Head of Quality and of the CEO of Korvane. Annexes may be amended by the quality contacts named in clause 1.3 by exchange of letters.
+
+**Annexes:** A — Transport order form; B — Contact lists and escalation numbers; C — Product Stability Matrix (9 January 2024); D — Qualified lanes; E — Mapping reports. *(Not attached to this copy.)*
+
+| Signed for Helvetia Pharma Logistik GmbH | Signed for Korvane Cold Chain Sp. z o.o. |
+|---|---|
+| Dr. Johanna Reisinger-Kuhn, Head of Quality, 12 February 2024 | Marta Kowarzik, CEO, 15 February 2024 |
+| Dr. Magnus Teichgräber, Responsible Person | Benedikta Aaltonen, Quality & Compliance Manager |

@@ -1,0 +1,74 @@
+Return-Path: <benedikta.aaltonen@korvane.example>
+Received: from mail-gdy.korvane.example (10.20.4.17) by mx.korvane.example with ESMTPS; Mon, 25 Mar 2024 09:41:12 +0100
+Message-ID: <0a7c21f5.3e91.4b17@korvane.example>
+Date: Mon, 25 Mar 2024 09:41:07 +0100
+From: Benedikta Aaltonen <benedikta.aaltonen@korvane.example>
+To: Jarek Lindqvist <jarek.lindqvist@korvane.example>, Gunnar Halvorsrud <gunnar.halvorsrud@korvane.example>
+Cc: Sofia Brandão <sofia.brandao@korvane.example>, Kamil Zdunek <kamil.zdunek@korvane.example>
+Subject: FW: Port notice ZMPG/OS/2024/0317 - refrigerant register, leak checks, night noise - ACTION NEEDED
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+X-Priority: 2
+
+Hi all,
+
+forwarding the port authority notice from 14 March (it landed in the general inbox and sat there 8 days, sorry, that's on me). Short version for those who will not read all of it:
+
+1) we have to put every fixed refrigeration unit with 3 kg or more of fluorinated refrigerant on the port environmental register by 30 June 2024. Gunnar - I think this means our yard gensets don't count but the reefer units on pedestals do, and every one of the units has to be listed individually with serial number, refrigerant type and charge. Can you take it? I'd like a draft by 31 May so Sofia can look at the declaration wording.
+
+2) leak checks are tied to charge size (table in the notice, point 3). Ours are all below 30 kg so it is once a year for everything, but they want the checker to hold a certificate and the logbook to be kept at the site, not at HQ. Please find out if Thermaglide's service engineers hold the right certificate - I suspect they do but I'd rather have it in writing.
+
+3) the night noise limit is the one that will hurt. 50 dB(A) at the boundary between 22:00 and 06:00. The port will measure during a campaign from 8 to 12 April, not announced in advance (but they told us in the notice, so, you know). Jarek: pad D is the problem, we know that from the neighbours' letter last year. Can we switch off the pad D idle reefers' fan speed boost at night? Gunnar says maybe, ask him.
+
+4) any spill over 20 litres or any refrigerant release of 2 kg or more must be phoned to port control within 4 hours. I will put the number on the dispatch desk laminated card. (+48 58 555 0162, 24 h.)
+
+Deadline for the acknowledgement with the name of our environmental contact is 12 April. I propose it is me for now, with Gunnar as deputy. Meeting on this Wednesday 27 March, 10:00, small meeting room at HQ, 30 min. Kamil, you are cc only because of the pedestal inspection certificates, which I think you hold.
+
+Fines per breach are 2,000 to 25,000 PLN, see point 7. I don't want to find out where in that range we would land.
+
+B.
+
+----- Forwarded message -----
+From: Port of Gdynia Authority - Compliance Desk <compliance@portgdynia-authority.example>
+To: undisclosed-recipients:;
+Date: Thu, 14 Mar 2024 11:02:44 +0100
+Subject: Notice ZMPG/OS/2024/0317 to port tenants and operators of refrigerated cargo yards: environmental and safety requirements applicable from 1 July 2024
+X-Mailer: PortNotify 3.2
+
+Dear Sir or Madam,
+
+Pursuant to the port regulations of 19 December 2023 (Harbour Master's Order no. 14/2023, section 6) and the decision of the Port Environmental Committee of 29 February 2024, we hereby notify all tenants and operators who run refrigerated cargo yards within the port boundary of the following requirements, which take effect on 1 July 2024 unless stated otherwise below. Please note that this notice replaces our earlier circular ZMPG/OS/2022/0088 of 6 June 2022, the contents of which are no longer valid.
+
+1. Refrigerant register. Every fixed refrigeration unit containing 3 kg or more of fluorinated refrigerant and operated in the port area, including units mounted on containers while they are on the premises of a tenant for more than 72 hours, shall be entered in the Port Environmental Register (PER) by 30 June 2024. Registration is made electronically on the PER portal. The fee is 190 PLN per site per year, due on registration. Each entry shall state the serial number, the refrigerant designation, the nominal charge in kilograms, the date of the last leak check and the name of the person responsible.
+
+2. Logbook. A logbook shall be kept for each registered unit and shall remain at the site where the unit is located. It shall record any refrigerant added, any leak found, and each leak check. Logbooks shall be retained for 5 years.
+
+3. Leak checks. The frequency of leak checks depends on the nominal charge of the unit: from 3 kg up to and including 29 kg, once every 12 months; from 30 kg up to and including 299 kg, once every 6 months; 300 kg and above, once every 3 months. The check shall be carried out by a person holding a refrigerant handling certificate of category I or II recognised in the port area. If a leak is found, it shall be repaired within 14 days and the unit shall be checked again within 30 days after the repair. The annual leakage rate of a tenant's total registered charge shall not exceed 5 per cent; a tenant exceeding that figure shall submit a remediation plan within 45 days of the end of the calendar year.
+
+4. Shore power and pedestals. Electrical pedestals supplying refrigerated containers shall be inspected by a qualified person at least every 12 months, including a thermographic scan under load of not less than 70 per cent of the rated current. The inspection certificate shall be held on site and presented on request. Pedestals found with a surface temperature rise of more than 40 K above ambient shall be taken out of use immediately.
+
+5. Noise. The equivalent sound level at the tenant's boundary shall not exceed 60 dB(A) between 06:00 and 22:00 and 50 dB(A) between 22:00 and 06:00. The port will carry out a measurement campaign between 8 and 12 April 2024 at boundaries adjoining residential areas. Tenants whose result exceeds a limit by more than 3 dB(A) shall submit a noise reduction plan within 30 days of notification of the result.
+
+6. Incident reporting. Any spill of more than 20 litres of fuel or oil, and any release of 2 kg or more of refrigerant, shall be reported to port control by telephone (+48 58 555 0162, 24 hours) within 4 hours of its discovery and in writing within 3 working days.
+
+7. Inspection and penalties. Inspectors of the Port Compliance Desk may inspect yards without notice from 15 April 2024. A breach of this notice is punishable by an administrative fine of between 2,000 PLN and 25,000 PLN per breach; repeated breaches within 12 months double the range. Appeals against a fine can be lodged within 14 days of delivery with the Harbour Master.
+
+8. Acknowledgement. Tenants shall inform the Compliance Desk, not later than 12 April 2024, of the name, telephone number and e-mail address of the person responsible for environmental compliance. Please reply to this message or write to compliance@portgdynia-authority.example, quoting the reference ZMPG/OS/2024/0317.
+
+An information session for tenants will take place on 21 March 2024 at 10:00 in the Harbour Master's building, Hall B (registration not required). Presentation slides will be published on the PER portal afterwards.
+
+Yours faithfully,
+
+Ewa Kłosińska-Dahl
+Head of the Compliance Desk
+Port of Gdynia Authority
+Al. Marynarki Polskiej 2, 81-340 Gdynia
+
+This message and any attachments are intended solely for the addressee. If you are not the intended recipient, please delete it.
+
+----- end of forwarded message -----
+
+--
+Benedikta Aaltonen | Quality & Compliance Manager
+Korvane Cold Chain Sp. z o.o. | ul. Łużycka 14, 81-537 Gdynia

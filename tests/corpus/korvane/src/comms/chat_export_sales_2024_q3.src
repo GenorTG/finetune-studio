@@ -1,0 +1,1358 @@
+---
+out: chat_export_sales_2024_q3.json
+tier: extended
+---
+[
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1719902460.000001",
+  "team": "T02KORVANE",
+  "text": "morning team. Q3 numbers, final, no more haggling: new business target for the quarter is EUR 2.15m across the four of you. Yusuf 640k, Anders 580k, Katharina 520k, Weronika 410k. renewals are tracked separately and are NOT part of this."
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1719902580.000002",
+  "team": "T02KORVANE",
+  "text": "580 is a lot for a quarter where half of Norway is on holiday until 12 August"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1719902640.000003",
+  "team": "T02KORVANE",
+  "text": "Norway is on holiday and Norwegians still need cold chains. it is 580."
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1719903000.000004",
+  "team": "T02KORVANE",
+  "text": "do deals signed in Q3 but go-live in Q4 count?"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1719903120.000005",
+  "team": "T02KORVANE",
+  "text": "yes, the signature date counts, not go-live. the CRM close date must equal the signature date, not the date you hope",
+  "reply_count": 2,
+  "thread_ts": "1719903120.000005"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1719903180.000006",
+  "team": "T02KORVANE",
+  "text": "<@U04RAF01> that has never been how it worked in Q1",
+  "thread_ts": "1719903120.000005",
+  "parent_user_id": "U04RAF01"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1719903300.000007",
+  "team": "T02KORVANE",
+  "text": "it is how it works from today",
+  "thread_ts": "1719903120.000005",
+  "parent_user_id": "U04RAF01"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1719905400.000008",
+  "team": "T02KORVANE",
+  "text": "pipeline call is on? monday 09:30 same link?"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1719905460.000009",
+  "team": "T02KORVANE",
+  "text": "pipeline call is Mondays 09:30, 30 minutes, camera on. whoever has no activity on an opp for 21 days gets it flagged red in the CRM and I will ask about it in the call. nothing personal"
+ },
+ {
+  "type": "message",
+  "user": "U03LOT06",
+  "user_name": "Lotte Sandberg",
+  "ts": "1720080720.000010",
+  "team": "T02KORVANE",
+  "text": "marketing here. the Nordic Reefer Summit invite came, 15-17 October in Gothenburg. our stand would be EUR 4,900 for 6 sqm, early bird until 31 July. do we go or not"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1720080840.000011",
+  "team": "T02KORVANE",
+  "text": "we go if Anders and Katharina both say they have at least 5 people to meet. otherwise no"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1720081200.000012",
+  "team": "T02KORVANE",
+  "text": "i have 7"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1720081320.000013",
+  "team": "T02KORVANE",
+  "text": "4. but 3 of them are the same Hamburg freight forwarder lol"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1720081500.000014",
+  "team": "T02KORVANE",
+  "text": "ok 7 + 4. we go. Lotte book it, 4,900 is approved, I will sign the PO this week"
+ },
+ {
+  "type": "message",
+  "user": "U03LOT06",
+  "user_name": "Lotte Sandberg",
+  "ts": "1720081560.000015",
+  "team": "T02KORVANE",
+  "text": "booking now. you two pick the booth shirts, i'm not choosing the color again"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1720440180.000016",
+  "team": "T02KORVANE",
+  "text": "Rybex signed!! 12 months Harbour, 30 tags. also they paid the first invoice 8 days early so they get the early-payment 1.2 % off, as written in their offer"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1720440300.000017",
+  "team": "T02KORVANE",
+  "text": "good. referral ask please, 3 names"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1720440360.000018",
+  "team": "T02KORVANE",
+  "text": "already promised on the phone, hehe"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1720509300.000019",
+  "team": "T02KORVANE",
+  "text": "quick one: new lead from the Baltic Logistics Day, Stavanger Skalldyr AS. shellfish, they move about 18 reefers a week out of Stavanger. decision maker Ingrid Solvang (ops). they want a quote by 19 July"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1720509420.000020",
+  "team": "T02KORVANE",
+  "text": "Stavanger is Nordics. mine. hands off Yusuf"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1720509480.000021",
+  "team": "T02KORVANE",
+  "text": "it was a Baltic event! but ok. passing it to you, here is the contact. you owe me a coffee"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1720509600.000022",
+  "team": "T02KORVANE",
+  "text": "deal. i drive to Stavanger on 23 July"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1720620720.000023",
+  "team": "T02KORVANE",
+  "text": "Koszalin Lody call booked Thursday 11 July 14:00, contact is Halina Dziurdziak (head of logistics). she said the magic words: we lose 3 pallets a month"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1720702860.000024",
+  "team": "T02KORVANE",
+  "text": "call done. Halina: 14 reefers/week, summer peak 20. She wants to see the alarm for -21 live before signing. demo on 18 July",
+  "reactions": [
+   {
+    "name": "+1",
+    "users": [
+     "U04RAF01"
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1720708800.000025",
+  "team": "T02KORVANE",
+  "text": "reminder, discount approvals: you ask in the channel with the customer name and the percentage, I answer with a thumb or a number. no thumb = no discount. I am not reading DMs about this"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1720771320.000026",
+  "team": "T02KORVANE",
+  "text": "Hanseatic Fleisch wants a HAM-2 depot tour, they propose 2 Oct. is anyone from ops able to host"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1720771440.000027",
+  "team": "T02KORVANE",
+  "text": "ask Dieter, Hamburg is his turf. if Dieter says no, Jarek's people can't"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1720773000.000028",
+  "team": "T02KORVANE",
+  "text": "Dieter says yes, 2 Oct, 10:00 at Waltershof, 90 minutes. he'll even wear the vest"
+ },
+ {
+  "type": "message",
+  "user": "U03LOT06",
+  "user_name": "Lotte Sandberg",
+  "ts": "1721036820.000029",
+  "team": "T02KORVANE",
+  "text": "LinkedIn post about the 24-month renewal with Fruttoria got 4,200 impressions and 31 reactions in 24h. Ewelina approved the wording btw. best result of the year"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1721036940.000030",
+  "team": "T02KORVANE",
+  "text": "she approved it with 3 changes. 3. i counted"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1721222520.000031",
+  "team": "T02KORVANE",
+  "text": "Bornholm Røgeri A/S, smoked fish, 2 hubs + 40 tags, EUR 27,300 for 12 months. they want to sign on the 23rd, I'll be in Stavanger so Lotte can you send the DocuSign"
+ },
+ {
+  "type": "message",
+  "user": "U03LOT06",
+  "user_name": "Lotte Sandberg",
+  "ts": "1721222700.000032",
+  "team": "T02KORVANE",
+  "text": "sure, on the 23rd I send it at 08:00 and they sign before lunch, trust me"
+ },
+ {
+  "type": "message",
+  "user": "U03LOT06",
+  "user_name": "Lotte Sandberg",
+  "ts": "1721288040.000033",
+  "team": "T02KORVANE",
+  "text": "brochure reprint: 2,000 copies of the Tidewalk Fairway/Harbour brochure, EUR 1,260 from the printer in Gdańsk, ready 29 July. say if the pricing page needs a fix before that"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1721288160.000034",
+  "team": "T02KORVANE",
+  "text": "the Harbour column has an old tag count. fix it, 60 tags not 50"
+ },
+ {
+  "type": "message",
+  "user": "U03LOT06",
+  "user_name": "Lotte Sandberg",
+  "ts": "1721288460.000035",
+  "team": "T02KORVANE",
+  "text": "fixed. proof is in the drive"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1721383860.000036",
+  "team": "T02KORVANE",
+  "text": "Stavanger quote went out. EUR 41,800 for 12 months, 50 tags, 1 hub, Fairway plan. valid for 45 days"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1721383920.000037",
+  "team": "T02KORVANE",
+  "text": "validity: from 1 October quotes are valid 30 days, not 45. for now 45 is fine"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1721383980.000038",
+  "team": "T02KORVANE",
+  "text": "noted"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1721632680.000039",
+  "team": "T02KORVANE",
+  "text": "Fruttoria asked for SSO again. product says Tidewalk v7 beta, 2025. I said we will see. wrong answer?"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1721632800.000040",
+  "team": "T02KORVANE",
+  "text": "right answer. never promise a date from the product team in writing. never."
+ },
+ {
+  "type": "message",
+  "user": "U03LOT06",
+  "user_name": "Lotte Sandberg",
+  "ts": "1721725680.000041",
+  "team": "T02KORVANE",
+  "text": "Bornholm signed 11:02, EUR 27,300. told you"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1721725740.000042",
+  "team": "T02KORVANE",
+  "text": "and I am in the Stavanger rain thinking about you"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1721748600.000043",
+  "team": "T02KORVANE",
+  "text": "visit done. Ingrid says they decide by 15 October. she needs the boxes tracked also at Rotterdam. we have RTM-3 so no problem. she asked for 99.9 % platform uptime in writing"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1721748660.000044",
+  "team": "T02KORVANE",
+  "text": "nobody is writing 99.9 in a quote. the standard is what the contract says. send me her exact wording"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1721826120.000045",
+  "team": "T02KORVANE",
+  "text": "Tallinn Kala OÜ lost, EUR 19,500. went to Polar Chain Eesti, local-language support and a tag price they can beat. I can't beat Estonian"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1721826300.000046",
+  "team": "T02KORVANE",
+  "text": "we are not losing on language again. Weronika try Google Translate on the Estonian support page"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1721826360.000047",
+  "team": "T02KORVANE",
+  "text": "lol no"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1721893440.000048",
+  "team": "T02KORVANE",
+  "text": "Koszalin Lody S.A., ice cream maker, 14 reefers a week into Gdynia, wants an alarm for -21 not the standard one. can the alarm threshold be customised?"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1721893560.000049",
+  "team": "T02KORVANE",
+  "text": "yes, per container profile, I did it for Fruttoria. ask Kamil's team for the how-to"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1721893800.000050",
+  "team": "T02KORVANE",
+  "text": "Kamil says custom profile takes his people 2 working days to set up. ok"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1722240900.000051",
+  "team": "T02KORVANE",
+  "text": "quarterly reminder. CRM rule: stage Proposal needs a quote number in the format Q-2024-xxxx, otherwise I move it back to Qualified. it is Monday, I know"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1722495720.000052",
+  "team": "T02KORVANE",
+  "text": "August. 8 weeks left. pipeline coverage today is 2.3x on the remaining target, I want 3x by 31 August. so: more qualified opps, less scrolling"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1722838800.000053",
+  "team": "T02KORVANE",
+  "text": "Lumikko is angry. a door-open alert on Saturday 3 Aug came 31 minutes late and they want money. who is writing to them"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1722838920.000054",
+  "team": "T02KORVANE",
+  "text": "not you, not me. Benedikta writes, Sofia reviews. do not speak to Tuomas about money"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1722839100.000055",
+  "team": "T02KORVANE",
+  "text": "understood. Tuomas rang me twice already though"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1722844980.000056",
+  "team": "T02KORVANE",
+  "text": "Lietuvos Pienas UAB (dairy co-op, Kaunas): they want a pilot, 25 tags for 45 days. free?"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1722845160.000057",
+  "team": "T02KORVANE",
+  "text": "free pilots up to 30 days, per the playbook. 45 needs my approval. 45 days with 25 tags is OK because they are a co-op with 9 dairies and a reference value. approved. 45 days, 25 tags, not more"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1722845280.000058",
+  "team": "T02KORVANE",
+  "text": "thank you!!"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1722933000.000059",
+  "team": "T02KORVANE",
+  "text": "competitor news: Meridian Chill NV opens a sales office in Gdańsk on 14 October, they're hiring 3 people. 3 people on LinkedIn right now"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1722933180.000060",
+  "team": "T02KORVANE",
+  "text": "nobody panic. write down every account in Pomorskie where they could show up. I want the list by Friday"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1722933600.000061",
+  "team": "T02KORVANE",
+  "text": "Friday 9 August?"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1722933660.000062",
+  "team": "T02KORVANE",
+  "text": "yes. there is a reason Fridays exist"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1723030800.000063",
+  "team": "T02KORVANE",
+  "text": "Haugesund Fiskemottak asked a 6 % discount, I have 4 % authority. Rafał?"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1723030920.000064",
+  "team": "T02KORVANE",
+  "text": "no. they get 4 %, and if they insist the second hub is on us at 50 %. thumb on that.",
+  "reactions": [
+   {
+    "name": "+1",
+    "users": [
+     "U05AND03"
+    ],
+    "count": 1
+   }
+  ]
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1723200600.000065",
+  "team": "T02KORVANE",
+  "text": "pilot with Lietuvos Pienas starts Monday 12 August, 25 tags on their Kaunas to Gdynia lane, contact is Gediminas Rudys (QA). conversion decision on 24 September"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1723444200.000066",
+  "team": "T02KORVANE",
+  "text": "change of rhythm. from this week the pipeline call is TUESDAY 08:45, not Monday. Mondays are a mess for ops and I want Katharina to have the Hamburg Monday morning"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1723444260.000067",
+  "team": "T02KORVANE",
+  "text": "thank you!!"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1723540200.000068",
+  "team": "T02KORVANE",
+  "text": "Lietuvos Pienas pilot, day 2: 25 tags online, 0 alarms. Gediminas is happy. he asked what the tag battery lasts"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1723540320.000069",
+  "team": "T02KORVANE",
+  "text": "tell him years, not months, and do NOT quote a number, ask the product team"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1723644300.000070",
+  "team": "T02KORVANE",
+  "text": "bad news. Hanseatic Fleisch's head of logistics Birgit says they will not decide before Q4, their Frostline contract runs to 31 December. so not Q3"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1723644480.000071",
+  "team": "T02KORVANE",
+  "text": "ok. then your quota is too high. I am cutting Katharina from 520k to 470k. the team target becomes EUR 2.10m"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1723644540.000072",
+  "team": "T02KORVANE",
+  "text": "THANK you. I'm buying schnitzel"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1723712700.000073",
+  "team": "T02KORVANE",
+  "text": "the Hamburg depot tour for Hanseatic needs a list of names 5 days before. Birgit sent 6 names. one is a Wolfgang who is not a Wolfgang, it's a Wolfram"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1723712760.000074",
+  "team": "T02KORVANE",
+  "text": "Wolfram it is"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1723799700.000075",
+  "team": "T02KORVANE",
+  "text": "Brandenburg Eis GmbH lost. 52,400 EUR, went to Meridian Chill NV because they bundled the customs clearance. again"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1723799820.000076",
+  "team": "T02KORVANE",
+  "text": "again. Yusuf, GreyLine bundle. you scope it, a one-pager by 30 August. what can we bundle with GreyLine, at what margin"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1723799880.000077",
+  "team": "T02KORVANE",
+  "text": "on it. but i need Sofia on the partner agreement"
+ },
+ {
+  "type": "message",
+  "user": "U03LOT06",
+  "user_name": "Lotte Sandberg",
+  "ts": "1724052000.000078",
+  "team": "T02KORVANE",
+  "text": "webinar Thursday 19 September, 15:00 CEST: \"Audit trails for cold chains\" with Benedikta as speaker. landing page is live. I'd like each of you to invite 10 customers personally"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1724052120.000079",
+  "team": "T02KORVANE",
+  "text": "10 is a lot"
+ },
+ {
+  "type": "message",
+  "user": "U03LOT06",
+  "user_name": "Lotte Sandberg",
+  "ts": "1724052180.000080",
+  "team": "T02KORVANE",
+  "text": "10 is a number I picked. 8 would also be ok :)"
+ },
+ {
+  "type": "message",
+  "user": "U03LOT06",
+  "user_name": "Lotte Sandberg",
+  "ts": "1724156700.000081",
+  "team": "T02KORVANE",
+  "text": "LinkedIn ad budget for September is EUR 3,000, target audience is logistics managers in PL, DE and the Baltics. Weronika, send me 3 customer quotes that I can use, with written ok"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1724156820.000082",
+  "team": "T02KORVANE",
+  "text": "i have Rybex and Dolina. will ask Fruttoria through Yusuf"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1724248500.000083",
+  "team": "T02KORVANE",
+  "text": "customers are calling about late alerts today?? anyone know what happened"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1724248680.000084",
+  "team": "T02KORVANE",
+  "text": "IT. do not comment, no speculation. a note from Yusuf's team goes out at 14:30... which was an hour ago, check your mail"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1724248860.000085",
+  "team": "T02KORVANE",
+  "text": "i have 3 customers on hold. found the mail. sorry"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1724400720.000086",
+  "team": "T02KORVANE",
+  "text": "Quick poll: ColdLink Expo Poznań, 24-26 September, hall 3, stand B-17 is already paid by Lotte last year's deposit. who goes. I need 2 people per day"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1724400900.000087",
+  "team": "T02KORVANE",
+  "text": "me, all 3 days. it's my city"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1724400960.000088",
+  "team": "T02KORVANE",
+  "text": "I take the 25th"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1724401080.000089",
+  "team": "T02KORVANE",
+  "text": "26th"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1724655300.000090",
+  "team": "T02KORVANE",
+  "text": "before the week starts: Q3 mid-term review of 1:1s is next week. 30 minutes each. bring your top 5 deals and the one you want to kill"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1724655480.000091",
+  "team": "T02KORVANE",
+  "text": "the one i want to kill is Vestfold. 2 emails unanswered"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1724761980.000092",
+  "team": "T02KORVANE",
+  "text": "FYI all: the web app and API are down since 13:57 (certificate). IT is on it. if a customer calls: we know, we are fixing, no times. no promises. no compensation talk"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1724762040.000093",
+  "team": "T02KORVANE",
+  "text": "the Norwegians already know. Nordkjøl rang me"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1724765400.000094",
+  "team": "T02KORVANE",
+  "text": "app is back for me"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1724771520.000095",
+  "team": "T02KORVANE",
+  "text": "the customer note is out. availability for August on our side is shown as 99.80 %, that is 90 minutes in 744 hours. do NOT volunteer it, do not lie about it. Sofia is reviewing the Nordkjøl clause"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1724830800.000096",
+  "team": "T02KORVANE",
+  "text": "Samsø's board wants a call about the outage. I think it's the last straw for them. their termination notice is probably on the way"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1724830920.000097",
+  "team": "T02KORVANE",
+  "text": "it's on its way. the board met yesterday. don't say a word to the berries unless Sofia is in the room"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1724846700.000098",
+  "team": "T02KORVANE",
+  "text": "Q4 kickoff is Thursday 10 October at 09:00 in room Orka, Łużycka. Dieter and Priya will talk for 10 minutes each. I will talk for 20. there will be pizza"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1724846820.000099",
+  "team": "T02KORVANE",
+  "text": "pizza at 9 in the morning"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1724846820.000100",
+  "team": "T02KORVANE",
+  "text": "yes. the morning pizza is a tradition"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1725029400.000101",
+  "team": "T02KORVANE",
+  "text": "GreyLine bundle one-pager is in the shared drive. summary: GreyLine does customs for 38 EUR per declaration if we pass volume of 200+ a month, otherwise 46. we add 12 % margin on top. nobody has priced the bundle yet"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1725029700.000102",
+  "team": "T02KORVANE",
+  "text": "12 % is thin. think 18. we also take the risk when they mis-file"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1725029880.000103",
+  "team": "T02KORVANE",
+  "text": "18 means we are not cheaper than Meridian then"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1725030060.000104",
+  "team": "T02KORVANE",
+  "text": "we are not cheaper than Meridian, we are better. figure out how to say it"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1725261000.000105",
+  "team": "T02KORVANE",
+  "text": "September. pipeline coverage 2.9x. close but not 3. what is stuck"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1725261240.000106",
+  "team": "T02KORVANE",
+  "text": "Stavanger waits for 15 Oct. Nordkjøl waits for the SLA annex. Norrland Lax is in redlines with Sofia"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1725261360.000107",
+  "team": "T02KORVANE",
+  "text": "Lietuvos Pienas pilot halfway, they have asked for a 99.5 % uptime reference. I gave the standard line"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1725347100.000108",
+  "team": "T02KORVANE",
+  "text": "Pärnu Kalatööstus moved to me, per your message yesterday, Estonia is mine now. first call is Thursday. their customs agent is GreyLine, I'll ask Sofia for the intro"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1725347220.000109",
+  "team": "T02KORVANE",
+  "text": "ask Yusuf for the GreyLine intro, he has the contact. Sofia does partner paper"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1725355800.000110",
+  "team": "T02KORVANE",
+  "text": "approved: Nordkjøl 8 % as of now. that's it. no more increase unless Priya says so"
+ },
+ {
+  "type": "message",
+  "user": "U03LOT06",
+  "user_name": "Lotte Sandberg",
+  "ts": "1725448800.000111",
+  "team": "T02KORVANE",
+  "text": "webinar registrations so far: 94. targets 150. each of you invited 8-10 customers? numbers please"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1725448920.000112",
+  "team": "T02KORVANE",
+  "text": "9"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1725448920.000113",
+  "team": "T02KORVANE",
+  "text": "10"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1725448980.000114",
+  "team": "T02KORVANE",
+  "text": "7, sorry"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1725449040.000115",
+  "team": "T02KORVANE",
+  "text": "6. Fruttoria alone is 4 of those"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1725533040.000116",
+  "team": "T02KORVANE",
+  "text": "quick: Nordkjøl asked if the August outage counts as SLA breach. I said that is a question for Sofia. he said fine, he'll send it to her himself"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1725533160.000117",
+  "team": "T02KORVANE",
+  "text": "OK. thumb. thanks for not answering"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1725612240.000118",
+  "team": "T02KORVANE",
+  "text": "competitor news from a customer: ColdArc Nordic raises its prices by 6 % from 1 October. he saw the letter"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1725612360.000119",
+  "team": "T02KORVANE",
+  "text": "useful. anders you tell your Norwegians"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1725612420.000120",
+  "team": "T02KORVANE",
+  "text": "thats my favourite sentence of the quarter"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1725887520.000121",
+  "team": "T02KORVANE",
+  "text": "Vilnius meeting went well, but the CFO asked who owns the data on the hubs. is it them or us"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1725887700.000122",
+  "team": "T02KORVANE",
+  "text": "them. always them. Sofia has a one-paragraph answer, ask her"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1725954900.000123",
+  "team": "T02KORVANE",
+  "text": "Hamburg: Hanseatic tour is 2 Oct as planned. Dieter said it could be 90 minutes or 3 hours depending on how many questions Birgit has. I'm bringing sandwiches"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1725976800.000124",
+  "team": "T02KORVANE",
+  "text": "Mecklenburger Beeren: reference call with Fruttoria set for 8 October. Fruttoria allows max 2 reference calls a quarter and we use one, so please nobody else ask Ewelina for one before 1 October"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1726042800.000125",
+  "team": "T02KORVANE",
+  "text": "Vilnius Žuvis wants the demo on 14 October at 11:00. 6 reefers a week. I'm on it"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1726135200.000126",
+  "team": "T02KORVANE",
+  "text": "Oslo done. Nordkjøl confirm they want 99.9 % in the SLA. we said we hold 99.5. they said \"ColdArc has 99.9\". i said \"ColdArc has no door sensor\". silence"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1726135320.000127",
+  "team": "T02KORVANE",
+  "text": "perfect"
+ },
+ {
+  "type": "message",
+  "user": "U03LOT06",
+  "user_name": "Lotte Sandberg",
+  "ts": "1726144200.000128",
+  "team": "T02KORVANE",
+  "text": "hello, someone changed the Harbour plan name to Harbor on the website. i changed it back. in this company it is Harbour. Fairway. Deep Water. do not americanize"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1726144260.000129",
+  "team": "T02KORVANE",
+  "text": "thank you"
+ },
+ {
+  "type": "message",
+  "user": "U03LOT06",
+  "user_name": "Lotte Sandberg",
+  "ts": "1726231200.000130",
+  "team": "T02KORVANE",
+  "text": "Friday the 13th and 117 webinar registrations. thanks to Fruttoria and Brunnen for being the only customers who answer my emails"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1726470000.000131",
+  "team": "T02KORVANE",
+  "text": "week 38. heads up that I will not be at the Tuesday call tomorrow, Dieter wants me in Hamburg at 08:30. Yusuf runs it"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1726470060.000132",
+  "team": "T02KORVANE",
+  "text": "nobody run anything"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1726496280.000133",
+  "team": "T02KORVANE",
+  "text": "Stavanger asked again for the 99.9 in writing. i said what we agreed. she said she'll ask her lawyer. the lawyer is called Magnus"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1726555500.000134",
+  "team": "T02KORVANE",
+  "text": "OK, Tuesday call with 4 people in the room. quick count: pipeline coverage 3.1x. Rafał please can you not travel, we hit target when you are absent"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1726555620.000135",
+  "team": "T02KORVANE",
+  "text": "(from the train) i heard that"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1726658100.000136",
+  "team": "T02KORVANE",
+  "text": "question: can I offer a 12-month price lock to Eifel Käse? they asked"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1726658220.000137",
+  "team": "T02KORVANE",
+  "text": "yes, 12 months is ok. 24 months only with me"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1726658280.000138",
+  "team": "T02KORVANE",
+  "text": "thumb received"
+ },
+ {
+  "type": "message",
+  "user": "U03LOT06",
+  "user_name": "Lotte Sandberg",
+  "ts": "1726750800.000139",
+  "team": "T02KORVANE",
+  "text": "webinar starts now. 61 people online. Benedikta is on slide 2 and nobody has fallen asleep yet"
+ },
+ {
+  "type": "message",
+  "user": "U03LOT06",
+  "user_name": "Lotte Sandberg",
+  "ts": "1726755600.000140",
+  "team": "T02KORVANE",
+  "text": "final: 142 registered, 61 attended, 18 asked questions, 11 asked to be called. leads are in the CRM tagged webinar-0919"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1726755720.000141",
+  "team": "T02KORVANE",
+  "text": "11 calls. split them: 3 to Weronika, 3 to Anders, 3 to Katharina, 2 to Yusuf. DONE"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1726819500.000142",
+  "team": "T02KORVANE",
+  "text": "Brunnen is angry about double billing in week 33. 1 invoice twice. I promised the credit note by the 20th, today. can someone from finance..."
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1726819740.000143",
+  "team": "T02KORVANE",
+  "text": "credit note: EUR 1,846.20, it's in ColdLedger since yesterday, Priya's team will release by 17:00. pls dont promise dates you dont control"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1726819800.000144",
+  "team": "T02KORVANE",
+  "text": "OK. i promise to stop promising"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1727074200.000145",
+  "team": "T02KORVANE",
+  "text": "ColdLink Expo tomorrow. i have 400 flyers, 250 pens and the roll-up banner from the cellar. wish me luck"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1727195400.000146",
+  "team": "T02KORVANE",
+  "text": "day 1 expo: 23 badge scans, 4 real conversations, 1 who asked if we also rent forklifts. no"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1727197500.000147",
+  "team": "T02KORVANE",
+  "text": "rent forklifts: maybe in 2026"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1727201400.000148",
+  "team": "T02KORVANE",
+  "text": "Lietuvos Pienas converts!!! Gediminas rang me, they sign for 12 months: 60 tags, 1 hub, EUR 24,600. I'm in a hotel bar and I'm crying a little"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1727201460.000149",
+  "team": "T02KORVANE",
+  "text": "EUR 24,600, closed won, you owe me the contract by Friday. well done Weronika"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1727251920.000150",
+  "team": "T02KORVANE",
+  "text": "reminder for the expo trio: scan badges the same evening, not Friday. leads older than 48h convert at half the rate, I read that somewhere"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1727279100.000151",
+  "team": "T02KORVANE",
+  "text": "expo day 2: 19 scans, 6 conversations, 2 serious: Mecklenburger Beeren and one cold store operator from Łódź"
+ },
+ {
+  "type": "message",
+  "user": "U03LOT06",
+  "user_name": "Lotte Sandberg",
+  "ts": "1727346600.000152",
+  "team": "T02KORVANE",
+  "text": "landed 17 expo leads from Katharina and 61 from Weronika in the CRM. Yusuf's are still on paper. YUSUF"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1727346660.000153",
+  "team": "T02KORVANE",
+  "text": "on paper they are safe"
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1727366400.000154",
+  "team": "T02KORVANE",
+  "text": "expo day 3 and the stand collapsed (the poster, not the stand). 17 scans total from me"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1727422200.000155",
+  "team": "T02KORVANE",
+  "text": "Q3 status at day 90 minus 3: closed won new business is EUR 1.60m against EUR 2.10m. I need 500k in 3 days. signatures, not hopes"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1727422320.000156",
+  "team": "T02KORVANE",
+  "text": "Norrland Lax is 145k, Sofia signs the redlines today, so signature Monday"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1727422380.000157",
+  "team": "T02KORVANE",
+  "text": "Monday is 30 September, last day of Q3, that counts. do not let it slip"
+ },
+ {
+  "type": "message",
+  "user": "U06WER05",
+  "user_name": "Weronika Stasiak",
+  "ts": "1727444400.000158",
+  "team": "T02KORVANE",
+  "text": "contract Lietuvos Pienas sent to Gediminas 15:38. 60 tags, 1 hub, EUR 24,600. signature expected Friday"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1727444460.000159",
+  "team": "T02KORVANE",
+  "text": "not Friday, today IS Friday. Monday"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1727688000.000160",
+  "team": "T02KORVANE",
+  "text": "Norrland Lax is signed. 11:14. EUR 145,300 for 36 months"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1727688060.000161",
+  "team": "T02KORVANE",
+  "text": "THANK YOU Anders."
+ },
+ {
+  "type": "message",
+  "user": "U05KAT04",
+  "user_name": "Katharina Vogt",
+  "ts": "1727707500.000162",
+  "team": "T02KORVANE",
+  "text": "Hanseatic doesnt sign in Q3 and I told you. but Eifel Käse signed 16:30, 12-month price lock, EUR 66,800"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1727710200.000163",
+  "team": "T02KORVANE",
+  "text": "Q3 final. closed won new business EUR 1.81m vs target 2.10m = 86 %. Yusuf 590k of 640k (92 %), Anders 505k of 580k (87 %), Katharina 330k of 470k (70 %), Weronika 385k of 410k (94 %). Weronika is the winner of the quarter, drinks on me at the Q4 kickoff on 10 October"
+ },
+ {
+  "type": "message",
+  "user": "U04YUS02",
+  "user_name": "Yusuf Demirkıran",
+  "ts": "1727710320.000164",
+  "team": "T02KORVANE",
+  "text": "92 %. i've seen worse. who counted Stavanger"
+ },
+ {
+  "type": "message",
+  "user": "U05AND03",
+  "user_name": "Anders Bruun",
+  "ts": "1727710380.000165",
+  "team": "T02KORVANE",
+  "text": "Stavanger is Q4. 15 Oct, remember"
+ },
+ {
+  "type": "message",
+  "user": "U04RAF01",
+  "user_name": "Rafał Nowogrodzki",
+  "ts": "1727710800.000166",
+  "team": "T02KORVANE",
+  "text": "and from tomorrow quotes are valid 30 days and the pipeline call is Tuesday 08:45. the deck for the Q4 kickoff is mine, nobody touch it"
+ }
+]

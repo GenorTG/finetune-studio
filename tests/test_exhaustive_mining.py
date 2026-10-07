@@ -52,8 +52,9 @@ def test_a_chunk_that_starts_mid_table_uses_the_carried_header() -> None:
 
 def test_coverage_is_measured_by_distinctive_tokens_in_answers() -> None:
     statements = ex.split_statements(CHUNK)
-    answers = ["Full-time staff accrue 1.75 days of leave per month in their first three years.",
-               "Sick pay is 80% for 14 days via Norda Med."]
+    answers = [("How much leave do full-time staff accrue per month?",
+                "Full-time staff accrue 1.75 days of leave per month in their first three years."),
+               ("What is the sick pay rate?", "Sick pay is 80% for 14 days via Norda Med.")]
     open_ = ex.uncovered(statements, answers)
     assert {s.text.split()[0] for s in open_} == {"After", "Unused"}
     covered, total = ex.fact_coverage(statements, answers)
@@ -128,3 +129,13 @@ def test_runner_modes(mode: str) -> None:
 
     r: Any = DataPrepRunner("pid", b"x", "f.txt", mode=mode)
     assert r.mode == (mode if mode in ("exhaustive", "sampled") else "exhaustive")
+
+
+def test_a_number_in_an_unrelated_answer_does_not_cover_a_statement() -> None:
+    statements = [s for s in ex.split_statements(CHUNK) if s.text.startswith("After year three")]
+    unrelated = [("What is the notice period?", "The notice period is 2.1 months for managers and 14 days otherwise.")]
+    assert ex.uncovered(statements, unrelated) == statements
+
+
+def test_unicode_minus_equals_hyphen() -> None:
+    assert ex.canon("\u221235") == ex.canon("-35")

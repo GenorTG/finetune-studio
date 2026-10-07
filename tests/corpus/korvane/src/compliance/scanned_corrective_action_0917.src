@@ -1,0 +1,32 @@
+---
+out: scanned_corrective_action_0917.pdf
+tier: core
+scan: true
+---
+KORVANE COLD CHAIN - CORRECTIVE ACTION REQUEST - form KC-QF-131 rev D (paper copy, signed)
+CAR no. KC-CAR-24-088. Opened: 17.09.2024. Raised by: B. Aaltonen (Quality). Action owner: J. Lindqvist (Head of Ops Gdynia). Source: external audit Aldermark ACA/2024/PL/0319, finding F-01 MAJOR, clause 8.9.4.2. Priority box ticked: HIGH (certificate).
+
+1. PROBLEM. Dairy load for Oakhaven, 9 h excursion on 14.06.2024 at GDY-1 yard row. Release for delivery signed on KC-QF-114 by shift lead only, 16.06.2024 at 04:40. No evaluation of the temp-time profile by Food Safety Team Leader (FSTL).
+
+2. IMMEDIATE CORRECTION (done 17.09.2024, 14:00). Tidewalk broadcast to all 38 shift leads: any excursion over 4 h, call B. Aaltonen on mobile, 24 h, before ANY release. Oakhaven file re-evaluated retroactively on 18.09 - profile peak +9.4 C, no safety concern found, Oakhaven told by phone same day.
+
+3. ROOT CAUSE (5 x why).
+Why 1 - release without evaluation? Shift lead signed alone.
+Why 2 - why alone? Authority matrix in PRO-017 rev C names shift lead sufficient for "customer-released" loads.
+Why 3 - why not FSTL? No on-call number for FSTL, owls could not reach anyone (checked, the number was office hours only).
+Why 4 - why no on-call? FSTL role was created Jan 2023 as part-time duty of Quality, rota never extended to nights and weekends.
+Why 5 - why not noticed? Rev C of PRO-017 (Feb 2023) had no change impact check against KC-QF-114, rev B form has no evaluator field.
+ROOT CAUSE = escalation design gap (authority matrix plus missing on-call), NOT individual error.
+
+4. MEASURES.
+M1 Rewrite PRO-017 as rev D: every excursion over 4 h needs signed evaluation by FSTL or deputy, no exemption for customer-released loads. Owner Aaltonen. Due 30.09.2024. Done 30.09.
+M2 New form KC-QF-114 rev C with mandatory fields: evaluator name, profile attached, hold hours. Owner Aaltonen. Due 30.09.2024. Done 30.09.
+M3 FSTL on-call rota 24/7, primary B. Aaltonen and 2 deputies (W. Lenartowicz, K. Sokolowska-Reid), phone line ext 4419 forwarded. Owner Lindqvist. Start 01.10.2024.
+M4 Train 38 shift leads incl. 11 night leads on rev D, sign-off sheet. Owner I. Baptista-Okafor. Due 08.10.2024.
+M5 Look back at all excursions over 4 h since 01.01.2024 - 7 cases found, 2 need late evaluation. Owner Aaltonen. Due 04.10.2024.
+
+5. SUBMISSION. Plan sent to Aldermark (H. Solvang-Marchetti) 26.09.2024. Evidence pack for closure due 09.10.2024.
+
+6. EFFECTIVENESS CHECK planned 11.11.2024 by B. Aaltonen. Criteria: 100 percent of excursions over 4 h in October 2024 carry FSTL signature within 2 h of the release decision; unannounced night test call answered in under 10 min. If missed, CAR stays open.
+
+Closed by: ______ (Kowarzik)  date: ______   handwritten note: check ext 4419 forwarding in Hamburg too!!

@@ -1,7 +1,3 @@
----
-out: thread_oakhaven_incident_2024_06.eml
-tier: core
----
 Return-Path: <benedikta.aaltonen@korvane.example>
 Received: from mail.korvane.example (mail.korvane.example [10.20.4.12])
 	by mx.korvane.example with ESMTPS id 4XkR2d8pQnz1m

@@ -1,0 +1,110 @@
+---
+out: supplier_qualification_questionnaire_thermaglide.docx
+tier: extended
+---
+# KORVANE COLD CHAIN — SUPPLIER QUALIFICATION QUESTIONNAIRE
+
+Form KC-QF-SQ-02, revision 3 (valid from 1 February 2024) · Supplier category A (critical: affects product temperature) · Supplier: **Thermaglide Reefer Units B.V.**, Schiedam, the Netherlands · Korvane supplier number: S-0017
+
+| Step | Date | Who |
+|---|---|---|
+| Questionnaire sent | 3 June 2024 | Gunnar Halvorsrud (Fleet & Maintenance Lead) |
+| Returned by supplier | 24 June 2024 (due date was 21 June, supplier asked for 3 days) | Marit Oosterveld, Quality & Regulatory Manager, Thermaglide |
+| Desk review | 8 July 2024 | Benedikta Aaltonen and Gunnar Halvorsrud |
+| Remote audit by video | 16 July 2024, 2.5 hours | Benedikta Aaltonen, Kinga Sokołowska-Reid |
+| Decision | 22 July 2024 | Benedikta Aaltonen; copy to Priya Venkataraman-Holt (Procurement budget owner) |
+
+*Note to the supplier (standard text): This questionnaire is part of Korvane's annual re-qualification of critical suppliers under clause 7.1.6 of ISO 22000:2018. Answers should be accurate as of the date of return. Korvane reserves the right to verify answers by audit. Answers are treated as confidential. Please do not answer "see brochure" — brochures are not evidence.*
+
+## Section A — General company information (maximum 10 points)
+
+| No. | Question | Supplier answer | Korvane reviewer comment | Points |
+|---|---|---|---|---|
+| A1 | Legal name, year of foundation, ownership | Thermaglide Reefer Units B.V., founded 1998 as a spin-off of a Rotterdam shipyard refrigeration department; since 2017 owned by the Dutch family holding Kuipers Marine Beheer B.V. (100%). | OK. Ownership unchanged since last year. | 2 |
+| A2 | Number of employees and sites | 212 employees, of which 61 in production at the Vlaardingen plant; head office in Schiedam; service depots in Rotterdam and Antwerp. | Was 198 last year. | 2 |
+| A3 | Annual turnover band in EUR | Between 40 and 60 million. Our export share is 71%, mainly Northern Europe and Baltic states. | Not specific enough, asked for exact band. Supplier said confidential. We accept the band. | 1 |
+| A4 | Share of turnover accounted for by Korvane | 6.8% in 2023, the third largest customer. | Dependency is not a concern for us. They need us as much as we need them, which is a good position. | 2 |
+| A5 | Any bankruptcy, litigation or regulatory action in the last 5 years | None. One warranty dispute with a Norwegian fishing company settled in 2021, EUR 38,000. | OK. | 2 |
+
+## Section B — Quality management system (maximum 20 points)
+
+| No. | Question | Supplier answer | Korvane reviewer comment | Points |
+|---|---|---|---|---|
+| B1 | Certified quality system (standard, certificate no., expiry) | ISO 9001:2015, certificate no. NL-Q-90317 issued by Zevenster Certificatie, valid until 21 April 2026. We were recertified in March 2023 without any major finding. | Certificate checked on issuer's website 8 July. Valid. | 4 |
+| B2 | Does the supplier hold a certificate for food safety or for hygienic design? | No. Our units are not in contact with food. The evaporator coil coating is however certified food-safe against EN 1935 migration limits (test report TG-MR-2021-114). | Acceptable, because the unit is not a food contact material for Korvane's purposes, but we asked for the test report: received. | 3 |
+| B3 | Incoming inspection of critical components (compressors, controllers, sensors) | 100% inspection of controllers and temperature sensors; compressors sampled at 1 in 10 plus a mandatory run test. Sensors are calibrated at 3 points (−25 °C, 0 °C, +25 °C) with a stated tolerance of ±0.3 K. | Sensor tolerance of ±0.3 K is the same as our own PTI limit for KC-Tag 4 comparison. Good. | 3 |
+| B4 | Final test of each unit before dispatch | 38-point test protocol TG-FT-38 including a pull-down test from +30 °C to −18 °C within 90 minutes in the test chamber. Test records are kept for 10 years. | Asked for 3 sample records: received on 24 June, all 3 complete. | 3 |
+| B5 | Defect rate in 2023 (parts per million, units returned for DOA within 30 days) | 1,640 PPM (8 DOA of 4,880 delivered, including spare modules). Target for 2024 is 1,200 PPM. | The PPM figure is high for our taste. Gunnar says the DOAs were mostly spare modules, not complete units. | 2 |
+| B6 | Complaint handling time | Acknowledgement within 1 working day, 8D report within 20 working days for critical issues. | They answered our last two complaints in 3 and 5 days respectively. 20 working days for an 8D is slow but standard. | 2 |
+
+## Section C — Product safety and materials (maximum 15 points)
+
+| No. | Question | Supplier answer | Korvane reviewer comment | Points |
+|---|---|---|---|---|
+| C1 | Refrigerant used in current unit model | R-513A (GWP 631 under the supplier's data sheet), nominal charge 5.8 kg for the 40 ft high-cube unit TG-Arctis 40HC. | OK. This is below the 30 kg threshold of the port rules. | 3 |
+| C2 | Materials in contact with the air stream | Stainless steel T-bar floor, aluminium-zinc coated evaporator, no lead-containing solders. | OK. | 3 |
+| C3 | Temperature range and accuracy of the unit | Set point range −30 °C to +30 °C; controller accuracy ±0.5 K between −20 °C and +20 °C. | The ±0.5 K is not as good as the ±0.3 K in B3 (sensor vs. controller). We use the tag for the record anyway. | 2 |
+| C4 | Defrost control | Demand defrost with a minimum interval of 6 hours and a maximum of 12 hours; defrost never starts within 30 minutes of a door-open alarm. | Please check that the 6 h minimum applies to the firmware version we have. Open question for the audit. | 2 |
+| C5 | Alarm codes available through telemetry | The TG-Link module sends 41 alarm codes; the code list is attached as appendix 3. | Appendix 3 received. | 3 |
+
+## Section D — Refrigerant handling and environmental (maximum 15 points)
+
+| No. | Question | Supplier answer | Korvane reviewer comment | Points |
+|---|---|---|---|---|
+| D1 | Certification of the company and its engineers for handling fluorinated gases | Company certificate NL-FG-5521 (valid until 30 September 2026). 18 of our 23 service engineers hold the personal certificate category I; the remaining 5 are apprentices working under supervision. | Needed for the port environmental register, see the notice of March 2024. Confirmed in writing as requested. | 4 |
+| D2 | Environmental management system | ISO 14001:2015 certificate no. NL-E-30288, valid until 14 November 2024; renewal audit planned for 3 October 2024. | Expires before our next review. Condition below. | 3 |
+| D3 | Leak rate of delivered units | Factory leak test with helium: less than 3 grams per year per circuit. | OK. | 3 |
+| D4 | End-of-life take-back | Take-back free of charge for units delivered after 2019; refrigerant recovered and documented with a certificate. | OK. | 2 |
+| D5 | Energy consumption of the unit | At +5 °C set point and +30 °C ambient, 4.1 kW average; at −20 °C, 6.3 kW. | These are the numbers used in Priya's budget model. | 0 |
+
+## Section E — Service and spare parts (maximum 20 points)
+
+| No. | Question | Supplier answer | Korvane reviewer comment | Points |
+|---|---|---|---|---|
+| E1 | On-site service response time at Gdynia, Hamburg-Waltershof and Rotterdam-Maasvlakte | Rotterdam: 4 hours. Hamburg: 6 hours through our partner Nordwest Kälteservice GmbH. Gdynia: 8 hours through our partner Dockside Cooling Service Sp. z o.o. | We need 4 hours at Gdynia for the pharma row. 8 hours is not enough. | 3 |
+| E2 | Availability of spare parts and stock in Europe | Central warehouse in Vlaardingen with 3,200 active part numbers; consigned stock of 14 critical spares at Korvane Gdynia (compressor, two controllers, TG-Link, defrost heater and so on). Delivery within 2 working days for 95% of lines. | Consignment stock count checked on site by Gunnar on 3 July: 14 present. | 4 |
+| E3 | Emergency replacement unit | A swap unit within 24 hours anywhere in the Baltic ports; we keep 6 units on rotation. | Not tested. Condition 3. | 3 |
+| E4 | Warranty | 36 months for the unit, 60 months for the compressor. | OK, and in the supply agreement. | 4 |
+| E5 | Technician training and documentation | All engineers are trained on each firmware generation; service manuals in English, German and Polish. The Polish manual is a machine translation with corrections (we will improve it). | The Polish manual is unreadable in places. Asked for a new version by the end of the year. | 2 |
+
+## Section F — Traceability and recall (maximum 10 points)
+
+| No. | Question | Supplier answer | Korvane reviewer comment | Points |
+|---|---|---|---|---|
+| F1 | Traceability of units and components | Every unit has a serial number (format TG-YY-NNNNN), and the compressor, controller and sensor serial numbers are recorded in the unit's build record, kept 15 years. | Good. | 4 |
+| F2 | Recall procedure | We have a recall procedure and have never needed to apply it for the 40HC. | Procedure not attached. Need a sample (condition 1). | 2 |
+| F3 | Time to identify affected units after a component defect | Within 4 hours for the last 5 years of production. | Not tested; we tested our own recall in March with 3 h 40 min. | 2 |
+
+## Section G — Business continuity and data (maximum 10 points)
+
+| No. | Question | Supplier answer | Korvane reviewer comment | Points |
+|---|---|---|---|---|
+| G1 | Business continuity plan | Plan revised on 4 December 2023; includes a second source for compressors (Danfoss-type, qualified) and a three-week buffer stock of controllers. | Good. Last year they had a controller shortage, so this is real. | 4 |
+| G2 | Handling of data from the TG-Link module | The telemetry data is held on servers in Frankfurt for 24 months, not shared with third parties; data processing agreement available. | Legal (Sofia) to confirm that the DPA covers the module. Not an issue for food safety. | 2 |
+| G3 | Cyber security of the TG-Link module | Firmware is signed; remote access only via VPN; a penetration test by an external company in October 2023 found no high-severity issues. | Kamil to check the test summary. | 2 |
+
+## Summary and decision
+
+| Section | Maximum | Points awarded |
+|---|---|---|
+| A General company | 10 | 9 |
+| B Quality management | 20 | 17 |
+| C Product safety and materials | 15 | 13 |
+| D Refrigerant and environmental | 15 | 12 |
+| E Service and spare parts | 20 | 16 |
+| F Traceability and recall | 10 | 8 |
+| G Business continuity and data | 10 | 8 |
+| **Total** | **100** | **83** |
+
+Scoring rule of form KC-QF-SQ-02: 85 points or more = approved for 12 months; 70 to 84 points = conditionally approved, re-evaluation after 6 months; below 70 = not approved. Any section with less than 50% of its maximum is a veto regardless of the total (this did not apply here).
+
+**Decision of 22 July 2024: Thermaglide Reefer Units B.V. is CONDITIONALLY APPROVED as a category A supplier with a re-evaluation on 22 January 2025.** The conditions are:
+
+1. A sample of the recall procedure and the last mock recall record to be delivered by 30 September 2024 (owner at supplier: Marit Oosterveld).
+2. A copy of the renewed ISO 14001 certificate to be delivered by 30 November 2024.
+3. A functional test of the emergency swap unit (E3) to be done at the Gdynia yard before 31 October 2024, and a proposal to bring the Gdynia on-site response to 4 hours, either with a stationed engineer or a second partner, by 31 December 2024.
+4. A corrected Polish service manual by 31 December 2024.
+
+Until the conditions are met no new category A purchase orders above EUR 150,000 may be placed without the CFO's signature. The existing orders and the supply agreement are not affected. The decision was communicated to Marit Oosterveld by e-mail on 23 July 2024.
+
+*Reviewer sign-off: B. Aaltonen (22.07.2024); G. Halvorsrud (22.07.2024). Form stored in the supplier file S-0017, folder 2024. Next annual questionnaire due June 2025 at the latest.*

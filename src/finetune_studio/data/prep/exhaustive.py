@@ -24,8 +24,10 @@ from dataclasses import dataclass, field
 from finetune_studio.data.prep.coverage_fill import split_sentences
 
 MAX_GAP_ROUNDS = 3
-# A statement counts as covered when this share of its distinctive tokens appears in the answers (all of them for <= 2).
-COVER_THRESHOLD = 0.85
+# A statement counts as covered when ALL its distinctive tokens appear in the relevant answers (a phone number or a
+# certificate id is exactly the token a "85 % is enough" rule drops); long statements may miss up to 10 % of theirs.
+COVER_THRESHOLD = 0.9
+STRICT_UP_TO = 8
 # Statements longer than this are cut at ';' / ' — ' so one statement is one or two facts, not a paragraph.
 MAX_STATEMENT_CHARS = 420
 
@@ -55,7 +57,9 @@ class Statement:
 
 def canon(token: str) -> str:
     """Comparison form: lowercase, edge punctuation off, trailing zeros of decimals off (38.50 == 38.5)."""
-    t = token.strip(".,;:()[]{}\"'`!?").lower().replace("‑", "-").replace("–", "-").replace("—", "-")
+    t = token.strip(".,;:()[]{}\"'`!?").lower()
+    for dash in ("\u2011", "\u2212", "\u2013", "\u2014"):
+        t = t.replace(dash, "-")
     return _TRAILING_ZEROS.sub(lambda m: m.group(1).rstrip("."), t).rstrip(".")
 
 
@@ -152,30 +156,45 @@ def table_header_before(chunks: Sequence[str], idx: int) -> str:
     return ""
 
 
-def answers_token_set(answers: Sequence[str]) -> set[str]:
+def _content(text: str) -> set[str]:
+    from finetune_studio.data.prep.qa_validate import content_tokens
+
+    return content_tokens(text)
+
+
+def _relevant_tokens(statement: Statement, pairs: Sequence[tuple[str, str]]) -> set[str]:
+    """Tokens of the answers that are really ABOUT this statement.
+
+    A bare number like "23" or "10" occurs in unrelated answers all over a chunk; counting it would call a fact covered
+    that no pair states. A pair is relevant when its question+answer share enough content words with the statement.
+    """
+    own = _content(statement.text)
+    need = max(1, min(3, round(0.4 * len(own))))
     out: set[str] = set()
-    for a in answers:
-        out.update(canon(w) for w in _WORD.findall(a))
+    for q, a in pairs:
+        if len(own & _content(f"{q} {a}")) >= need:
+            out.update(canon(w) for w in _WORD.findall(a))
     return out
 
 
-def is_covered(statement: Statement, answer_tokens: set[str]) -> bool:
+def is_covered(statement: Statement, pairs: Sequence[tuple[str, str]]) -> bool:
     if not statement.tokens:
         return True                     # nothing checkable in it
-    hit = len(statement.tokens & answer_tokens)
-    need = len(statement.tokens) if len(statement.tokens) <= 2 else COVER_THRESHOLD * len(statement.tokens)
+    have = _relevant_tokens(statement, pairs)
+    hit = len(statement.tokens & have)
+    n = len(statement.tokens)
+    need = n if n <= STRICT_UP_TO else COVER_THRESHOLD * n
     return hit >= need
 
 
-def uncovered(statements: Sequence[Statement], answers: Sequence[str]) -> list[Statement]:
-    have = answers_token_set(answers)
-    return [s for s in statements if not is_covered(s, have)]
+def uncovered(statements: Sequence[Statement], pairs: Sequence[tuple[str, str]]) -> list[Statement]:
+    return [s for s in statements if not is_covered(s, pairs)]
 
 
-def fact_coverage(statements: Sequence[Statement], answers: Sequence[str]) -> tuple[int, int]:
+def fact_coverage(statements: Sequence[Statement], pairs: Sequence[tuple[str, str]]) -> tuple[int, int]:
     """(covered, total) over statements that carry at least one distinctive token."""
     checkable = [s for s in statements if s.tokens]
-    open_ = {s.idx for s in uncovered(checkable, answers)}
+    open_ = {s.idx for s in uncovered(checkable, pairs)}
     return len(checkable) - len(open_), len(checkable)
 
 
@@ -289,12 +308,12 @@ def mine_chunk(
     run(build_exhaustive_messages(chunk, title, section), "model")
     out.rounds = 1
     for _ in range(MAX_GAP_ROUNDS):
-        missing = uncovered(checkable, [p["a"] for p, _ in out.pairs])
+        missing = uncovered(checkable, [(p["q"], p["a"]) for p, _ in out.pairs])
         if not missing:
             break
         run(build_gap_messages(chunk, title, section, missing), "model_gap")
         out.rounds += 1
-    missing = uncovered(checkable, [p["a"] for p, _ in out.pairs])
+    missing = uncovered(checkable, [(p["q"], p["a"]) for p, _ in out.pairs])
     for s in missing:
         pair = extractive_pair(s, title, section)
         if pair:
@@ -302,5 +321,5 @@ def mine_chunk(
             if kept:
                 out.pairs.append((kept[0], "extractive_gap"))
                 out.extractive += 1
-    out.covered = out.statements - len(uncovered(checkable, [p["a"] for p, _ in out.pairs]))
+    out.covered = out.statements - len(uncovered(checkable, [(p["q"], p["a"]) for p, _ in out.pairs]))
     return out

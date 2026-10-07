@@ -1,0 +1,55 @@
+---
+out: internal_audit_schedule_2025.xlsx
+tier: extended
+---
+## Schedule 2025
+| Audit ID | Planned date | Site | Area / process audited | Clauses | Lead auditor | Second auditor | Hours | Remarks |
+|---|---|---|---|---|---|---|---|---|
+| IA-25-01 | 2025-01-21 | GDY-1 | Gate-in and CCP-1 core temperature checks | 8.5 | W. Lenartowicz | M. Tienstra (trainee) | 6 | include the 5-carton sampling rule for 21+ pallet positions |
+| IA-25-02 | 2025-01-23 | HAM-2 | Pre-trip inspection and reference thermometers | 7.1.5, 8.5 | W. Lenartowicz | H. Neumann | 6 | follow-up to F-02 (RT-HAM-07) |
+| IA-25-03 | 2025-02-04 | GDY-1 | Pest control and bait station map | 8.2 | K. Sokołowska-Reid | W. Lenartowicz | 4 | walk all 49 stations, not a sample |
+| IA-25-04 | 2025-02-11 | RTM-3 | Goods-in and gate checks | 8.5, 8.2 | K. Sokołowska-Reid | | 6 | this one ran more than 60 days late in 2024 (F-05); do not move |
+| IA-25-05 | 2025-02-18 | GDY-1 | Excursion handling, KC-QF-114 forms, FSTL on-call line | 8.9 | W. Lenartowicz | K. Zdunek | 8 | effectiveness follow-up of KC-CAR-24-088; includes the unannounced night call |
+| IA-25-06 | 2025-02-25 | HAM-2 | Training and competence records | 7.2 | W. Lenartowicz | | 5 | check the HA-101 overdue list from September 2024 is cleared |
+| IA-25-07 | 2025-03-06 | GDY-1 | Calibration and instrument register | 7.1.5 | K. Sokołowska-Reid | | 5 | |
+| IA-25-08 | 2025-03-12 | GOT-4 | Plug-in operations and yard monitoring (voluntary scope) | 8.5, 8.9 | W. Lenartowicz | | 8 | one full day on site, travel day before |
+| IA-25-09 | 2025-03-18 | RTM-3 | Washing bay (OPRP-1) and swab records | 8.2 | K. Sokołowska-Reid | | 4 | |
+| IA-25-10 | 2025-03-26 | KLJ-5 | Cross-dock transfer and door-open exposure (CCP-4) | 8.5 | W. Lenartowicz | | 6 | first food-safety audit of the Kłaipėda yard |
+| IA-25-11 | 2025-04-02 | GDY-1 | Pharma row P1 and GDP-140 compliance | 8.5, customer GDP annex | K. Sokołowska-Reid | W. Lenartowicz | 6 | Helvetia may ask for the report |
+| IA-25-12 | 2025-04-08 | HAM-2 | Pharma row H-P | 8.5, customer GDP annex | W. Lenartowicz | | 6 | lead cannot be Kinga (she works at HAM-2) |
+| IA-25-13 | 2025-04-15 | GDY-1 | IT change control for Tidewalk, KC-Hub 200 and KC-Tag 4 firmware | 6.3 | K. Zdunek | W. Lenartowicz | 4 | follow-up to O-03; Kamil may not audit his own team, so Wojciech leads the closing meeting |
+| IA-25-14 | 2025-05-06 | GDY-1 | Dispatch desk and night shift ("the owls") | 8.9 | W. Lenartowicz | M. Tienstra (trainee) | 5 | start 23:00 |
+| IA-25-15 | 2025-05-13 | RTM-3 | Pre-trip inspection record retrieval | 8.5 | K. Sokołowska-Reid | | 4 | |
+| IA-25-16 | 2025-05-20 | HAM-2 | Dock supervision and door-open data | 8.5 | W. Lenartowicz | | 5 | |
+| IA-25-17 | 2025-06-03 | GDY-1 | Document control and the FSMS manual KC-QF-MAN-001 | 7.5 | K. Sokołowska-Reid | | 5 | manual edition 8 is due in May 2025 |
+| IA-25-18 | 2025-06-10 | GDY-1 | Mock recall design and traceability | 8.4 | W. Lenartowicz | | 5 | follow-up to O-01; scenario must include KLJ-5 |
+| IA-25-19 | 2025-06-17 | KLJ-5 | Records and traceability at the trans-shipment yard | 8.4 | K. Sokołowska-Reid | | 5 | |
+| IA-25-20 | 2025-09-02 | RTM-3 | Control of external providers (Thermaglide, Voltrac, NordSan) | 7.1.6 | W. Lenartowicz | | 6 | |
+| IA-25-21 | 2025-09-09 | HAM-2 | Complaints handling and customer excursion notices | 7.4.2 | K. Sokołowska-Reid | | 5 | auditor from another site because HAM-2 has the highest complaint count |
+| IA-25-22 | 2025-09-16 | RTM-3 | Maintenance of reefer units | 7.1.3 | W. Lenartowicz | | 5 | |
+| IA-25-23 | 2025-09-23 | GOT-4 | Records, calibration and training | 7.2, 7.1.5 | K. Sokołowska-Reid | | 6 | |
+| IA-25-24 | 2025-10-07 | HAM-2 | Emergency preparedness: yard power failure | 8.4 | W. Lenartowicz | | 5 | |
+| IA-25-25 | 2025-11-04 | GDY-1 | Food safety KPIs and management review preparation | 9.3 | K. Sokołowska-Reid | | 4 | management review itself planned for 20 March 2026 |
+
+## Auditors
+| Auditor | Function | Qualification | Qualified since | Sites allowed | Max audits in 2025 |
+|---|---|---|---|---|---|
+| Wojciech Lenartowicz | Quality technician GDY-1 | internal auditor ISO 22000, Bałtycka Akademia Jakości | 2023-11-09 | all five | 10 |
+| Kinga Sokołowska-Reid | Quality technician HAM-2 | internal auditor ISO 22000, Bałtycka Akademia Jakości | 2023-11-09 | all except HAM-2 | 9 |
+| Kamil Zdunek | IT Support Lead | IT auditor module (2 days) | 2024-03-15 | GDY-1 only, IT topics | 3 |
+| Hella Neumann | Dock supervisor HAM-2 | second auditor only, shadowing | 2024-06-20 | HAM-2 | 2 |
+| Marloes Tienstra | Dispatcher RTM-3 | trainee auditor | 2024-09-17 | not on own site | 2 |
+
+## Programme rules
+| Rule | Value |
+|---|---|
+| Number of audits planned | 25 audits, 134 auditor hours |
+| Split by half-year | 19 audits in the first half-year (January to June), 6 in the second |
+| Split by site | GDY-1: 10, HAM-2: 6, RTM-3: 5, GOT-4: 2, KLJ-5: 2 |
+| Independence | an auditor never audits an area for which he or she is responsible |
+| Moving a planned date | up to 30 days without approval; more than 30 days only with written approval by the Quality & Compliance Manager recorded on form KC-QF-170 (new rule after F-05 of the 2024 surveillance audit) |
+| Audit report | issued within 10 working days of the closing meeting |
+| Auditee response | corrective action plan within 15 working days of the report |
+| Follow-up verification | within 60 days of the agreed completion date |
+| External audit 2025 | Aldermark surveillance audit SA1 of the new certificate cycle, provisionally 22 to 24 September 2025 |
+| Approved by | Benedikta Aaltonen, 2024-11-27 |

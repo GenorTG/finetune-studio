@@ -30,6 +30,7 @@ _TRAILING_ZEROS = re.compile(r"(\d+\.\d*?)0+(?![\d])")
 
 def norm(s: str) -> str:
     """Case/space/dash/quote-insensitive form; numbers compare by value (38.50 == 38.5, as a spreadsheet stores them)."""
+    s = str(s).replace("\u2212", "-")
     s = _TRAILING_ZEROS.sub(lambda m: m.group(1).rstrip("."), html.unescape(str(s)))
     s = html.unescape(s)  # manifest values may be entity-encoded; parsed text is decoded
     s = s.replace(" ", " ").replace("‑", "-").replace("–", "-").replace("—", "-")
@@ -41,12 +42,28 @@ def squash(s: str) -> str:
     return re.sub(r"[^0-9a-zа-яÀ-ɏ]+", "", norm(s))
 
 
+_NUM = re.compile(r"[+\-]?\d[\d.,]*\d|\d")
+_WORDS = re.compile(r"[^\W\d_]{4,}", re.UNICODE)
+
+
+def lenient_value_in(value: str, blob: str) -> bool:
+    """Token-level proxy for a value the answer may have re-worded: all its numbers present, and (for words) 80 % of them."""
+    nb = norm(blob)
+    nums = {norm(n).lstrip("+") for n in _NUM.findall(value)}
+    if nums and not all(n in nb for n in nums):
+        return False
+    words = {w.lower() for w in _WORDS.findall(norm(value))}
+    if not words:
+        return bool(nums)
+    return sum(1 for w in words if w in nb) >= 0.8 * len(words)
+
+
 def get(path: str):
     with urllib.request.urlopen(BASE + path, timeout=60) as r:
         return json.loads(r.read())
 
 
-def manifest_facts(tier: str, lanes: list[str] | None) -> list[dict]:
+def manifest_facts(tier: str, lanes: list[str] | None, files: list[str] | None = None) -> list[dict]:
     tiers: dict[str, str] = {}
     for src in (ROOT / "src").glob("*/*.src"):
         meta, _ = parse_source(src)
@@ -58,6 +75,8 @@ def manifest_facts(tier: str, lanes: list[str] | None) -> list[dict]:
         for line in mf.read_text(encoding="utf-8").splitlines():
             if line.strip():
                 f = json.loads(line)
+                if files and f["file"] not in files:
+                    continue
                 if tier == "all" or tiers.get(f["file"], "core") == tier:
                     facts.append(f)
     return facts
@@ -68,11 +87,12 @@ def main() -> int:
     ap.add_argument("--pid", required=True)
     ap.add_argument("--tier", default="core", choices=["core", "extended", "all"])
     ap.add_argument("--lanes", nargs="*")
+    ap.add_argument("--files", nargs="*")
     ap.add_argument("--status", default="approved", help="pair status to count: approved | pending | any")
     ap.add_argument("--json", dest="json_out")
     a = ap.parse_args()
 
-    facts = manifest_facts(a.tier, a.lanes)
+    facts = manifest_facts(a.tier, a.lanes, a.files)
     sources = {s["id"]: s["filename"] for s in get(f"/api/projects/{a.pid}/data-prep/sources")["sources"]}
     pairs = get(f"/api/projects/{a.pid}/data-prep/qa")["items"]
     if a.status != "any":
@@ -98,6 +118,26 @@ def main() -> int:
                     hit = p
                     row["lenient_only"] += 1
                     break
+        if hit is None:
+            # The pairs of the chunk(s) that contain the fact: together, do their answers state every value?
+            near = [p for p in by_file.get(f["file"], [])
+                    if all(norm(v) in norm(str(p.get("chunk_text", ""))) or squash(v) in squash(str(p.get("chunk_text", "")))
+                           for v in f["values"])]
+            blob = " ".join(str(p.get("answer", "")) for p in near)
+            if near and all(norm(v) in norm(blob) or squash(v) in squash(blob) for v in f["values"]):
+                row["union_only"] = row.get("union_only", 0) + 1
+                row["covered"] += 1
+                used.update(str(p.get("id")) for p in near)
+                continue
+        if hit is None:
+            near = [p for p in by_file.get(f["file"], [])
+                    if all(lenient_value_in(v, str(p.get("chunk_text", ""))) for v in f["values"])]
+            blob = " ".join(str(p.get("answer", "")) for p in near)
+            if near and all(lenient_value_in(v, blob) for v in f["values"]):
+                row["lenient_only"] += 1
+                row["covered"] += 1
+                used.update(str(p.get("id")) for p in near)
+                continue
         if hit is not None:
             row["covered"] += 1
             used.add(str(hit.get("id")))
@@ -110,6 +150,10 @@ def main() -> int:
     for name, r in sorted(per_file.items()):
         print(f"{name:58} {r['covered']:4}/{r['total']:<4} {100 * r['covered'] / r['total']:5.1f}%  {len(by_file.get(name, [])):5}")
     unmatched = [p for p in pairs if str(p.get("id")) not in used]
+    union = sum(r.get("union_only", 0) for r in per_file.values())
+    lenient = sum(r["lenient_only"] for r in per_file.values())
+    print(f"of the covered facts, {union} are stated across several answers of their chunk and {lenient} only by token-level "
+          "match (re-worded values): treat those as 'probably' until the manual review confirms")
     print(f"TOTAL {cov}/{tot} = {100 * cov / max(tot, 1):.1f}%   pairs counted: {len(pairs)}   pairs matching no fact: {len(unmatched)}")
     for name, r in sorted(per_file.items()):
         for m in r["missing"][:60]:

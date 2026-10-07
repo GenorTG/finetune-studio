@@ -1,0 +1,78 @@
+---
+out: training_records_2024.xlsx
+tier: extended
+---
+## Course catalogue
+| Course code | Title | Validity (months) | Duration (h) | Pass mark (%) | Provider | Max group | Course owner | Remarks |
+|---|---|---|---|---|---|---|---|---|
+| HA-101 | HACCP awareness | 24 | 3.5 | 70 | internal (Quality) | 16 | B. Aaltonen | mandatory for plug-in operators; refresher = full course (no short version, decided 2022) |
+| HA-201 | CCP monitoring | 12 | 6.0 | 75 | internal (Quality) | 12 | B. Aaltonen | gate clerks, dispatchers, shift leads, PTI technicians |
+| HA-301 | HACCP team leader | 36 | 16.0 | 80 | Bałtycka Akademia Jakości (external) | 10 | B. Aaltonen | 2 days + exam; fee 1,180 PLN per person in 2024 |
+| PTI-110 | Pre-trip inspection | 18 | 4.0 | 75 | internal (Fleet & Maintenance) | 8 | G. Halvorsrud | practical part at the PTI bay, theory 1.5 h |
+| EXC-150 | Excursion escalation and release | 12 | 2.5 | 80 | internal (Quality) | 20 | B. Aaltonen | NEW, first sessions planned for 30.09-03.10.2024 after KC-CAR-24-088; not yet in the attendance sheet |
+| HYG-100 | Personal hygiene and chemicals handling | 24 | 2.0 | 70 | internal (Quality) | 20 | K. Sokołowska-Reid | includes dilution of KC-Clean Alkaline 40 |
+| PST-120 | Pest awareness | 36 | 1.0 | 70 | NordSan Pest Control (external) | 25 | W. Lenartowicz | free of charge within the pest contract |
+| CAL-210 | Instrument handling and calibration records | 24 | 3.0 | 75 | internal (Quality) | 8 | W. Lenartowicz | needed by anyone who uses a reference thermometer |
+| FST-ONC | FSTL on-call induction | 12 | 2.0 | 80 | internal (Quality) | 6 | B. Aaltonen | introduced with the on-call line, 1.10.2024 |
+| GDP-140 | GDP for pharma handlers | 12 | 5.0 | 85 | internal, Helvetia may observe | 12 | B. Aaltonen | required for pharma rows P1 (GDY-1) and H-P (HAM-2) |
+| FLT-130 | Forklift licence refresher | 60 | 8.0 | 75 | UDT-accredited academy, Gdynia | 6 | J. Lindqvist | fee 640 PLN per person; licence card must be carried |
+| FAID-100 | First aid | 36 | 8.0 | pass/fail | Polski Czerwony Krzyż, Gdynia branch | 12 | I. Baptista-Okafor | each depot needs 1 certified first aider per shift |
+
+## Attendance 2024
+| Employee ID | Name | Site | Role | Course | Completed | Valid until | Score (%) | Result | Trainer |
+|---|---|---|---|---|---|---|---|---|---|
+| KC-E-0007 | Benedikta Aaltonen | GDY-1 | Quality & Compliance Manager | HA-301 | 2024-04-02 | 2027-04-02 | 97 | Pass | Bałtycka Akademia Jakości |
+| KC-E-0114 | Olek Maraszek | GDY-1 | Senior Dispatcher | HA-201 | 2024-02-06 | 2025-02-06 | 91 | Pass | B. Aaltonen |
+| KC-E-0121 | Jarek Lindqvist | GDY-1 | Head of Operations | HA-201 | 2024-01-16 | 2025-01-16 | 85 | Pass | W. Lenartowicz |
+| KC-E-0156 | Bartek Kuśmierek | GDY-1 | Gate clerk | HA-201 | 2024-03-05 | | 72 | Re-sit | W. Lenartowicz |
+| KC-E-0156 | Bartek Kuśmierek | GDY-1 | Gate clerk | HA-201 | 2024-03-19 | 2025-03-19 | 80 | Pass | W. Lenartowicz |
+| KC-E-0156 | Bartek Kuśmierek | GDY-1 | Gate clerk | HYG-100 | 2024-03-07 | 2026-03-07 | 90 | Pass | K. Sokołowska-Reid |
+| KC-E-0188 | Gunnar Halvorsrud | GDY-1 | Fleet & Maintenance Lead | HA-201 | 2024-01-23 | 2025-01-23 | 83 | Pass | W. Lenartowicz |
+| KC-E-0233 | Kinga Sokołowska-Reid | HAM-2 | Quality technician | HA-301 | 2024-05-14 | 2027-05-14 | 92 | Pass | Bałtycka Akademia Jakości |
+| KC-E-0233 | Kinga Sokołowska-Reid | HAM-2 | Quality technician | GDP-140 | 2024-06-18 | 2025-06-18 | 98 | Pass | B. Aaltonen |
+| KC-E-0238 | Wojciech Lenartowicz | GDY-1 | Quality technician | HA-301 | 2024-05-14 | 2027-05-14 | 94 | Pass | Bałtycka Akademia Jakości |
+| KC-E-0263 | Aldona Pieńkowska | GDY-1 | Plug-in operator | HA-101 | 2024-03-19 | 2026-03-19 | 86 | Pass | W. Lenartowicz |
+| KC-E-0264 | Marcin Czarnecki | GDY-1 | Plug-in operator | HA-101 | 2024-03-19 | 2026-03-19 | 74 | Pass | W. Lenartowicz |
+| KC-E-0270 | Ewelina Grabarek | GDY-1 | PTI technician | PTI-110 | 2024-02-13 | 2025-08-13 | 88 | Pass | G. Halvorsrud |
+| KC-E-0271 | Sławek Dudziak | GDY-1 | PTI technician | PTI-110 | 2024-02-13 | 2025-08-13 | 81 | Pass | G. Halvorsrud |
+| KC-E-0280 | Henryk Bielecki | GDY-1 | Forklift driver | FLT-130 | 2024-01-30 | 2029-01-30 | 85 | Pass | UDT academy |
+| KC-E-0299 | Nina Kaczmarczyk | GDY-1 | Yard clerk | FAID-100 | 2024-02-20 | 2027-02-20 | | Pass | PCK Gdynia |
+| KC-E-0305 | Karolina Wiącek | GDY-1 | Washing bay lead | HYG-100 | 2024-04-10 | 2026-04-10 | 93 | Pass | K. Sokołowska-Reid |
+| KC-E-0305 | Karolina Wiącek | GDY-1 | Washing bay lead | CAL-210 | 2024-06-04 | 2026-06-04 | 87 | Pass | W. Lenartowicz |
+| KC-E-0497 | Greta Hohenfeld | HAM-2 | Shift supervisor | HA-201 | 2024-02-27 | 2025-02-27 | 90 | Pass | K. Sokołowska-Reid |
+| KC-E-0501 | Lukas Brandenburg | HAM-2 | Plug-in operator | HA-101 | 2024-04-23 | 2026-04-23 | 82 | Pass | K. Sokołowska-Reid |
+| KC-E-0502 | Fenja Ostermann | HAM-2 | Plug-in operator | HA-101 | 2024-04-23 | 2026-04-23 | 77 | Pass | K. Sokołowska-Reid |
+| KC-E-0503 | Jannik Rohde | HAM-2 | Plug-in operator | HA-101 | 2024-04-23 | 2026-04-23 | 80 | Pass | K. Sokołowska-Reid |
+| KC-E-0510 | Yilmaz Aksoy | HAM-2 | Plug-in operator | HA-101 | 2024-07-09 | 2026-07-09 | 85 | Pass | K. Sokołowska-Reid |
+| KC-E-0519 | Hella Neumann | HAM-2 | Dock supervisor | HA-201 | 2024-05-28 | 2025-05-28 | 88 | Pass | K. Sokołowska-Reid |
+| KC-E-0519 | Hella Neumann | HAM-2 | Dock supervisor | GDP-140 | 2024-06-18 | 2025-06-18 | 95 | Pass | B. Aaltonen |
+| KC-E-0520 | Silke Voss | HAM-2 | Pharma row operator | GDP-140 | 2024-06-18 | 2025-06-18 | 92 | Pass | B. Aaltonen |
+| KC-E-0701 | Hanneke Dijkgraaf | RTM-3 | Depot Manager | HA-201 | 2024-03-14 | 2025-03-14 | 89 | Pass | W. Lenartowicz |
+| KC-E-0711 | Joost Verhaegen | RTM-3 | Dispatcher | HA-201 | 2024-03-14 | 2025-03-14 | 76 | Pass | W. Lenartowicz |
+| KC-E-0712 | Marloes Tienstra | RTM-3 | Dispatcher | HA-201 | 2024-03-14 | 2025-03-14 | 93 | Pass | W. Lenartowicz |
+| KC-E-0725 | Bram Oosterhuis | RTM-3 | PTI technician | PTI-110 | 2024-05-07 | 2025-11-07 | 84 | Pass | G. Halvorsrud |
+| KC-E-0726 | Soufiane El Idrissi | RTM-3 | Plug-in operator | HA-101 | 2024-05-21 | 2026-05-21 | 79 | Pass | W. Lenartowicz |
+| KC-E-0741 | Daan Kooistra | RTM-3 | Washing bay operator | HYG-100 | 2024-05-23 | 2026-05-23 | 91 | Pass | K. Sokołowska-Reid |
+| KC-E-0911 | Elin Wahlström | GOT-4 | Shift lead | HA-201 | 2024-08-20 | 2025-08-20 | 87 | Pass | W. Lenartowicz |
+| KC-E-0931 | Rokas Jankauskas | KLJ-5 | Yard lead | HA-201 | 2024-08-22 | 2025-08-22 | 81 | Pass | W. Lenartowicz |
+| KC-E-0932 | Austėja Petrauskaitė | KLJ-5 | Yard clerk | PST-120 | 2024-06-25 | 2027-06-25 | 100 | Pass | NordSan Pest Control |
+| NOTE | Register export of 2024-09-10, 14:05 (view HR-TR v2); 2024 completions only; scores below the pass mark shown as Re-sit | | | | | | | | |
+
+## Overdue list
+| Employee ID | Name | Site | Role | Course | Expired on | Days overdue at 2024-09-10 | Session booked | Remarks |
+|---|---|---|---|---|---|---|---|---|
+| KC-E-0517 | Mirko Teschner | HAM-2 | Plug-in operator | HA-101 | 2024-06-30 | 72 | | |
+| KC-E-0533 | Pavel Dvořák-Lindner | HAM-2 | Plug-in operator | HA-101 | 2024-07-14 | 58 | | |
+| KC-E-0548 | Stefanie Brückner | HAM-2 | Plug-in operator | HA-101 | 2024-08-02 | 39 | | |
+| KC-E-0561 | Tobias Wendland | HAM-2 | Plug-in operator | HA-101 | 2024-08-19 | 22 | | on shift 10.09 (auditor saw him) |
+| KC-E-0572 | Dragan Petrović | HAM-2 | Plug-in operator | HA-101 | 2024-08-25 | 16 | | on shift 10.09 |
+| KC-E-0590 | Natalia Szymborska-Hahn | HAM-2 | Plug-in operator | HA-101 | 2024-09-01 | 9 | | back from parental leave 2.09, check whether she must do the full course |
+| KC-E-0530 | Sven Brandt | HAM-2 | Forklift driver | FLT-130 | 2024-06-12 | 90 | | licence card says valid, register says no; Hella to check the card |
+| KC-E-0276 | Patryk Gołębiowski | GDY-1 | PTI technician | PTI-110 | 2024-08-01 | 40 | | |
+| KC-E-0298 | Zofia Bielska | GDY-1 | Dispatcher | HA-201 | 2024-08-30 | 11 | 2024-09-24 | HA-201 session 3 |
+| KC-E-0310 | Anita Rzepka | GDY-1 | Washing bay operator | HYG-100 | 2024-07-31 | 41 | | |
+| KC-E-0719 | Wout van Dalen | RTM-3 | Dispatcher | HA-201 | 2024-09-05 | 5 | 2024-09-26 | |
+| KC-E-0731 | Femke Bos | RTM-3 | PTI technician | PTI-110 | 2024-07-17 | 55 | | |
+| KC-E-0915 | Mats Lindroth | GOT-4 | Plug-in operator | HA-101 | 2024-08-12 | 29 | | |
+| KC-E-0937 | Vytautas Mockus | KLJ-5 | Yard operator | HA-101 | 2024-09-02 | 8 | | |
+| TOTAL | 14 overdue entries, of which 7 at HAM-2 | | | | | | 2 sessions booked | oldest: Sven Brandt, 90 days; HA-101 lapses at HAM-2: 6 |

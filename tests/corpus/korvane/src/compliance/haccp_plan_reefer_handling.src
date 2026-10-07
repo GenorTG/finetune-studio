@@ -1,0 +1,338 @@
+---
+out: haccp_plan_reefer_handling.pdf
+tier: extended
+---
+# KORVANE COLD CHAIN SP. Z O.O. — HACCP PLAN FOR REEFER HANDLING
+
+**Document no.:** KC-QF-HACCP-001 · **Revision:** 10 · **Effective from:** 7 October 2024 · **Replaces:** revision 9 (effective 1 March 2024) · **Classification:** controlled document, internal (customers and certification bodies may receive a PDF copy on request)
+
+| Item | Entry |
+|---|---|
+| Document owner | Benedikta Aaltonen, Quality & Compliance Manager (also Food Safety Team Leader, "FSTL") |
+| Approved by | Marta Kowarzik, CEO, 4 October 2024 (signature on the paper master) |
+| Next scheduled review | 7 October 2025, or earlier after any nonconformity graded major by a certification body |
+| Applies to | GDY-1, HAM-2 and RTM-3 (certified sites); GOT-4 and KLJ-5 apply the plan voluntarily from 1 January 2025 |
+| Master location | Quality share, folder \KC-QF\HACCP, file KC-QF-HACCP-001_r10.pdf; a laminated summary of the CCP table hangs in each dispatch office |
+| Print copies | 11 numbered copies; copy 4 is kept in the Rotterdam dispatch office, copy 9 at the Hamburg gate house |
+
+*Please do not print this document on the Hamburg office printer, it cuts off the right-hand column of the tables (known problem, ticket open with Kamil's team since the summer).*
+
+## 1. Purpose and scope
+
+This plan describes how Korvane Cold Chain identifies, evaluates and controls the food safety hazards that can arise while refrigerated ISO containers ("reefers") with foodstuffs are received, stored on the yard, supervised on plug-in, transferred across the cross-dock and dispatched. It is written to satisfy clause 8.5 of ISO 22000:2018, the customer requirements we have accepted in contract, and the national rules that implement Regulation (EC) No 852/2004 for logistics operators. It forms part of the food safety management system described in the FSMS manual (KC-QF-MAN-001).
+
+Korvane does not process, cut, pack or label food. Our hazards are therefore dominated by one thing: product temperature over time, and the opportunities we have to lose control of it. A smaller group of chemical and physical hazards arises from the containers themselves, the pallets, the cleaning agents and the yard. Microbiological growth, histamine formation in fish and loss of shelf life are consequences of temperature abuse and are not separately controlled except by the evaluation rules in section 9.
+
+The plan covers cargo that the customer has declared as foodstuff. Pharmaceutical cargo handled under the GDP quality agreements is outside this plan and is governed by the quality agreement with the customer concerned (for Helvetia Pharma Logistik GmbH see the separate agreement); the CCP monitoring hardware is shared and so some of the physical rules (door-open exposure, for example) are repeated there with stricter numbers. Non-food cargo (flowers, for instance) is handled under the operations manual only.
+
+## 2. HACCP team
+
+The HACCP team was reconstituted on 12 September 2023 and meets quarterly on the second Thursday of January, April, July and October, with extraordinary meetings after any excursion lasting more than 4 hours. A meeting is quorate with five members including the team leader or her deputy.
+
+| Member | Function | Role in team | Training held |
+|---|---|---|---|
+| Benedikta Aaltonen | Quality & Compliance Manager | Team leader, FSTL | HA-301 (renewed 2 April 2024) |
+| Wojciech Lenartowicz | Quality technician, GDY-1 | Deputy FSTL, secretary | HA-301 (renewed 14 May 2024) |
+| Kinga Sokołowska-Reid | Quality technician, HAM-2 | Deputy FSTL | HA-301 (renewed 14 May 2024) |
+| Jarek Lindqvist | Head of Operations, Gdynia | Operations representative | HA-201 |
+| Hanneke Dijkgraaf | Depot Manager, Rotterdam | RTM-3 representative | HA-201 |
+| Greta Hohenfeld | Shift supervisor, HAM-2 | HAM-2 representative | HA-201 |
+| Gunnar Halvorsrud | Fleet & Maintenance Lead | Refrigeration units, washing equipment | HA-201 |
+| Olek Maraszek | Senior Dispatcher, night shift | Night shift voice ("the owls") | HA-201 |
+| Kamil Zdunek | IT Support Lead | Tidewalk, KC-Hub and KC-Tag data | HA-101 |
+
+Kamil is a co-opted member without a vote; he is listed because the audit team asked for it in 2023. Sofia Brandão (Legal Counsel) is consulted on customer contract wording but does not attend.
+
+The courses are defined in the training matrix: HA-101 (HACCP awareness, validity 24 months), HA-201 (CCP monitoring, validity 12 months) and HA-301 (HACCP team leader, validity 36 months). The matrix itself is maintained by People & Culture and exported as the training records workbook.
+
+## 3. Products and intended use
+
+Korvane takes custody of the container, and in practice of the cargo inside it, for a few hours up to a few days. We do not know the full composition of most loads; we do know the temperature regime the shipper has asked for. For that reason we classify cargo into six product classes by temperature requirement, not by commodity. The class is entered in the booking in Tidewalk (field "TempClass") and is printed on the yard card of every container. If the shipper's instruction and the class table below disagree, the stricter limit applies until the customer has confirmed the instruction in writing.
+
+| Class | Typical cargo | Set point | Product core limit at gate-in (CCP-1) | Air alarm band |
+|---|---|---|---|---|
+| CH-1 | Chilled dairy, ready-to-eat chilled products | +1.5 °C | ≤ +4.5 °C | set point +2.0 K |
+| CH-2 | Fresh fish and seafood (ice packed) | −0.5 °C | ≤ +2.0 °C | set point +1.5 K |
+| CH-3 | Berries and soft fruit | +0.5 °C | ≤ +3.0 °C | set point +2.0 K |
+| CH-4 | Citrus and hardy produce | +6.5 °C | between +4.0 °C and +9.0 °C | set point ±2.5 K |
+| FZ-1 | Frozen general (meat, bakery, vegetables) | −20.5 °C | ≤ −17.5 °C | set point +3.0 K |
+| FZ-2 | Deep-frozen (ice cream, frozen seafood) | −24.0 °C | ≤ −21.0 °C | set point +3.0 K |
+
+The lower limit for CH-4 exists because citrus suffers chilling injury below about +4 °C; the injury is a quality and not a safety matter but our largest citrus customer, Fruttoria Baltica, has made it a contractual limit and so we treat it as one. Humidity is monitored for CH-3 (target relative humidity 90 to 95 per cent) but is not a critical limit.
+
+Intended use of the end product is not affected by our activities. Vulnerable consumers (infants, elderly, immunocompromised) are possible for dairy, ready-to-eat chilled products and seafood; this is why classes CH-1 and CH-2 have the tightest evaluation rules in section 9.
+
+## 4. Process description
+
+The process steps are numbered S1 to S14 and are shown in flow diagram KC-QF-HACCP-001-F1 (attached to the paper master and not reproduced here). Verification of the diagram on the ground was done by walking the process at GDY-1 on 19 June 2024, HAM-2 on 26 June 2024 and RTM-3 on 3 July 2024.
+
+1. **S1 Booking and pre-advice.** The customer or forwarder books a slot in Tidewalk and declares the class. A booking without a class is held at status "TEMPCLASS?" until clarified.
+2. **S2 Gate-in.** Documents, seal number and container number are checked against the pre-advice; the container is inspected visually for damage, odour and dripping.
+3. **S3 Product temperature check.** Core temperature is measured on sample cartons (CCP-1).
+4. **S4 Pre-trip inspection (PTI).** For units that Korvane supplies or services, and for any unit that shows a fault code, the PTI is run (CCP-3).
+5. **S5 Plug-in.** The container is connected to a yard pedestal; the time without power is limited (CCP-2).
+6. **S6 Monitoring on the yard.** KC-Tag 4 loggers and KC-Hub 200 gateways report to Tidewalk; alarms are answered by the dispatch desk (CCP-5).
+7. **S7 Cross-dock transfer.** Pallets are moved between containers through the cold dock (CCP-4).
+8. **S8 Stuffing and sealing.** Outbound containers are loaded, sealed and the seal number recorded.
+9. **S9 Gate-out and dispatch.** Final temperature and unit status are recorded, documents handed to the driver.
+10. **S10 Washing of empty containers** (OPRP-1).
+11. **S11 Pest control** (OPRP-2).
+12. **S12 Water and ice supply.**
+13. **S13 Personal hygiene, glass and hard plastics, pallets** (OPRP-3).
+14. **S14 Rejected and returned cargo.**
+
+## 5. Hazard analysis method
+
+Each hazard identified at each step is scored for severity (S, 1 to 5) and likelihood in our operation (L, 1 to 5). The significance score is S × L. A hazard with a score of 12 or more is *significant* and must be controlled by a CCP or an operational prerequisite programme (OPRP); a hazard scoring between 6 and 11 is controlled by the general prerequisite programmes (cleaning, maintenance, pest control, training) and is reviewed at each team meeting; below 6 is recorded only. The scoring scale is in annex 2 of the FSMS manual. The team decides between CCP and OPRP with the decision tree of ISO 22000 clause 8.5.2.4: a control measure is managed as a CCP when a critical limit with a continuous or sufficiently frequent measurement exists and when loss of control cannot be corrected downstream by a later step.
+
+The hazard analysis below was last fully repeated by the team on 11 July 2024, with partial updates on 2 October 2024 (this revision).
+
+### 5.1 Hazard analysis table
+
+| Step | Hazard | Type | S | L | Score | Control |
+|---|---|---|---|---|---|---|
+| S2 Gate-in | Pathogen growth in cargo already warm on arrival (Listeria monocytogenes in CH-1, histamine in CH-2) | B | 5 | 3 | 15 | CCP-1 |
+| S2 Gate-in | Broken seal, tampering, undeclared cargo | P/C | 4 | 2 | 8 | OPRP-4 seals |
+| S3 Product check | Cross-contamination from reused probe thermometers | B | 3 | 2 | 6 | probe sanitised with 70% isopropanol wipe between containers |
+| S4 PTI | Unit unable to hold set point (refrigeration fault) | B | 5 | 3 | 15 | CCP-3 |
+| S4 PTI | Refrigerant or oil leak onto cargo | C | 4 | 1 | 4 | recorded only |
+| S5 Plug-in | Loss of power for too long, pathogen growth | B | 5 | 4 | 20 | CCP-2 |
+| S6 Yard monitoring | Undetected or unanswered temperature excursion | B | 5 | 4 | 20 | CCP-5 |
+| S6 Yard monitoring | Diesel exhaust uptake by cargo from idling yard tractors | C | 3 | 2 | 6 | yard rule: no idling within 15 m of the plug rows |
+| S7 Cross-dock | Exposure to warm dock air during transfer | B | 4 | 4 | 16 | CCP-4 |
+| S7 Cross-dock | Allergen cross-contact (mixed pallets, torn cartons) | C | 4 | 2 | 8 | OPRP-3, torn cartons are re-wrapped and quarantined |
+| S7 Cross-dock | Glass or hard plastic from damaged light fittings | P | 4 | 2 | 8 | OPRP-3 |
+| S8 Stuffing | Splinters from damaged wooden pallets | P | 3 | 3 | 9 | OPRP-3 pallet inspection |
+| S8 Stuffing | Residues of previous cargo or odour in container | C | 3 | 3 | 9 | OPRP-1 |
+| S9 Gate-out | Wrong set point left on the unit | B | 5 | 3 | 15 | CCP-3 (final unit check) |
+| S10 Washing | Detergent or sanitiser residue in container | C | 4 | 3 | 12 | OPRP-1 |
+| S10 Washing | Microbial build-up on floor T-bars and door gaskets | B | 4 | 3 | 12 | OPRP-1 |
+| S11 Pests | Rodents, insects entering containers or contaminating pallets | B | 4 | 3 | 12 | OPRP-2 |
+| S12 Water | Non-potable wash water | B | 4 | 1 | 4 | recorded only; water from municipal supply, tested twice a year |
+| S13 Hygiene | Norovirus from sick staff handling open cartons | B | 4 | 2 | 8 | handbook rule on reporting illness, general PRP |
+| S14 Returns | Mixing of rejected and accepted cargo | B | 4 | 2 | 8 | red quarantine rack, general PRP |
+
+The hazard listed under S9 (wrong set point at gate-out) was added in revision 8 after a near miss on 2 November 2022, when a CH-1 container left HAM-2 with a set point of +6.0 °C; it was caught by the receiver and the loss was nil.
+
+## 6. Summary of control measures
+
+| Control | Name | Step | Hazard score | Monitored by |
+|---|---|---|---|---|
+| CCP-1 | Gate-in product core temperature | S3 | 15 | gate clerk |
+| CCP-2 | Maximum time without power | S5 | 20 | plug-in operator and Tidewalk |
+| CCP-3 | Unit performance and final set point check | S4, S9 | 15 | PTI technician |
+| CCP-4 | Cross-dock door-open exposure | S7 | 16 | dock supervisor and KC-Tag 4 door sensor |
+| CCP-5 | Continuous temperature monitoring and alarm response | S6 | 20 | dispatch desk |
+| OPRP-1 | Container washing | S10 | 12 | washing bay lead |
+| OPRP-2 | Pest control | S11 | 12 | quality technician and contractor |
+| OPRP-3 | Foreign bodies, pallets, allergen segregation | S7, S8 | 9 | dock supervisor |
+| OPRP-4 | Seal control | S2, S8 | 8 | gate clerk |
+
+CCP-5 was split out of CCP-2 in revision 7 (2021). Before that, "time without power" and "response to alarms" were one CCP and the audit team of that year said, quite fairly, that nobody could tell from the records which of the two had failed.
+
+## 7. CCP monitoring sheets
+
+### 7.1 CCP-1 Gate-in product core temperature
+
+**Hazard.** Growth of pathogens or formation of histamine in cargo that is already above the shipper's declared temperature when it reaches us, so that our later steps start from a compromised position and we would be blamed for it.
+
+**Critical limits.** The limits are the product core limits in the class table in section 3: CH-1 ≤ +4.5 °C, CH-2 ≤ +2.0 °C, CH-3 ≤ +3.0 °C, CH-4 between +4.0 °C and +9.0 °C, FZ-1 ≤ −17.5 °C, FZ-2 ≤ −21.0 °C.
+
+**Monitoring.** The gate clerk inserts a calibrated probe thermometer in the centre of the carton (frozen cargo: the surface probe is pressed between two cartons for 3 minutes, an approach the team accepts as sufficiently accurate for FZ classes). The reading is taken after the display has been stable for 30 seconds. Sample size per container: 3 cartons, and 5 cartons when the container holds 21 or more pallet positions. The highest reading decides. Frequency: every inbound container, no exceptions, including containers that "come straight back from the same customer". Records: form KC-QF-101 and the Tidewalk gate-in screen; the paper form is kept 5 years.
+
+**Corrective action.** If the highest reading exceeds the limit by up to 1.0 K, the container is accepted *under reservation* (status AMBER): the customer is called within 2 hours, a photograph of the thermometer display is attached to the booking, and the container goes on the yard with a yellow card. If the highest reading exceeds the limit by more than 1.0 K, the container is held (status RED), the gate clerk calls the shift lead, and the FSTL or a deputy decides within 4 hours on acceptance, return to the shipper or quarantine with a sample. A refusal is never given by the gate clerk alone. For CH-4, a reading below +4.0 °C is treated as amber regardless of the size of the deviation.
+
+**Verification.** The FSTL's team reviews 10 per cent of KC-QF-101 forms each month against the Tidewalk record (weekly at HAM-2 during the first quarter after a new clerk starts). Probe thermometers are checked against a reference thermometer every 6 months by a quality technician and calibrated externally every 12 months.
+
+### 7.2 CCP-2 Maximum time without power
+
+**Hazard.** A loaded reefer without power warms up. How fast depends on cargo, ambient temperature and the quality of the insulation, but our own trials on 8 February 2023 (a 40 ft high-cube with 22 pallets of dairy, ambient +3 °C) gave +1.1 K in the first 40 minutes. In summer the same trial at +24 °C ambient gave +2.6 K in 40 minutes.
+
+**Critical limits.** Revision 10 sets the maximum continuous time without power, counted from the moment the genset is switched off or the plug is pulled until the unit is running again on a pedestal or on a genset, at **40 minutes** for the chilled classes CH-1 to CH-4 and **25 minutes** for FZ-1 and FZ-2. Revision 9 allowed 45 minutes for chilled classes and 25 minutes for frozen; the 5 minute reduction for chilled cargo was agreed by the team on 2 October 2024 following the summer trial results above, and takes effect with this revision. Where the truck has been waiting at the gate for a reason caused by Korvane, the time starts at the gate-in timestamp.
+
+**Monitoring.** The plug-in operator records the time of the connection in the Tidewalk handheld app. Tidewalk automatically raises a warning to the dispatch desk when the container is still not reporting mains power after **30 minutes** (chilled classes) or **18 minutes** (frozen classes). Frequency: continuous, for every container. Record: the Tidewalk plug-in event with timestamps; if the handheld is unavailable, form KC-QF-105.
+
+**Corrective action.** When the limit is exceeded, the container is treated as having an excursion that started at the time the limit was exceeded; the core temperature is measured within 30 minutes of the connection, and the disposition rules of section 9 apply. A plug-in operator who cannot meet the limit because no pedestal is free calls the shift lead, who must either provide a genset or release a pedestal; "no free pedestal" is never an acceptable reason on the record. Repeated breaches (three or more in one calendar month at one site) are an agenda item for the next HACCP team meeting.
+
+**Verification.** The FSTL's team pulls the plug-in duration report from Tidewalk every Monday for the previous week and checks the longest 10 durations for each site; any duration over the limit must have a corresponding KC-QF-114 entry.
+
+### 7.3 CCP-3 Unit performance and final set point check
+
+**Hazard.** A refrigeration unit that cannot hold the set point, or a unit released with the wrong set point.
+
+**Critical limits.** Three limits apply. First, for pre-trip inspection of an empty container the unit must bring the container air to within 1.0 K of the set point within 30 minutes of a start from ambient, measured with the return-air sensor and confirmed with the reference thermometer; the difference between the unit display and the reference thermometer must not exceed 0.5 K. Second, a defrost cycle test is run once on every unit that has been idle for more than 14 days. Third, at gate-out the set point displayed on the unit must equal the set point on the booking, and the container air temperature must not be more than 1.5 K from the set point (CH classes) or 2.5 K (FZ classes).
+
+**Monitoring.** Performed by the PTI technician (training course PTI-110, validity 18 months) at every PTI and at every gate-out. A PTI is mandatory for every container supplied by Korvane, every unit that shows a fault alarm in Tidewalk, and any unit idle on the yard for more than 14 days. The final check at gate-out is made by the dispatcher and photographed in the Tidewalk handheld app (photograph of display, mandatory field). Frequency: every PTI; every gate-out.
+
+**Corrective action.** A unit failing the pull-down criterion is tagged out with a red card "DO NOT LOAD", reported to Gunnar Halvorsrud's fleet team and replaced; no cargo is loaded into it. A unit found at gate-out with a wrong set point is corrected, the container is held at the gate for 30 minutes, and the receiver is informed by phone if the deviation had been present for more than 60 minutes (the set point history in Tidewalk shows this).
+
+**Verification.** The KC-Tag 4 probe is compared with the reference thermometer at every PTI where a tag is fitted; the allowed difference is 0.3 K. The reference thermometers (identification RT-GDY-01 to RT-GDY-09, RT-HAM-01 to RT-HAM-08, RT-RTM-01 to RT-RTM-06) have an external calibration interval of 12 months (finding F-02 of the September 2024 surveillance audit concerned RT-HAM-07).
+
+### 7.4 CCP-4 Cross-dock door-open exposure
+
+**Hazard.** During transfer between containers pallets are exposed to the dock air, and the cargo inside an open container is exposed to ambient. The cold dock at GDY-1 is kept at +8 °C and the docks at HAM-2 and RTM-3 at +10 °C by design, but they can be warmer in summer.
+
+**Critical limits.** The dock ambient temperature must not exceed +12.0 °C while a transfer is in progress. The maximum door-open time per transfer is **12 minutes** for classes CH-1 to CH-4 and **7 minutes** for FZ-1 and FZ-2. The cumulative door-open time per container and per calendar day must not exceed **25 minutes** (chilled) or **14 minutes** (frozen). A pallet that has stood on the dock outside a container for more than 6 minutes (chilled) or 4 minutes (frozen) is considered exposed and must be core-temperature checked before it is loaded.
+
+**Monitoring.** The KC-Tag 4 door sensor counts open time; Tidewalk warns the dock supervisor when a single door-open event reaches **8 minutes** (chilled) or **5 minutes** (frozen). The dock supervisor reads the dock thermometer at the start of each transfer wave and again after 2 hours if the wave lasts longer. Frequency: continuous by tag; dock air temperature at the start of each wave. Records: Tidewalk door events, form KC-QF-109 for dock readings. The dock thermometers are checked monthly against the reference thermometer.
+
+**Corrective action.** At the warning the supervisor closes the door or stops the transfer; if the single-event limit is exceeded, the pallets involved are core-checked and the result recorded on KC-QF-109. When the dock air temperature exceeds +12.0 °C, transfers of frozen cargo are suspended until the dock has recovered below +10.0 °C (at HAM-2 recovery is typically 25 to 35 minutes with the dock doors closed).
+
+**Verification.** The team reviews door-event data for the 20 longest events per site each month, and the FSTL signs off the monthly summary.
+
+### 7.5 CCP-5 Continuous temperature monitoring and alarm response
+
+**Hazard.** An excursion that is not detected, or that is detected and not answered, during the time the container is on our yard.
+
+**Critical limits.** For a loaded container, the return-air temperature (as measured by the KC-Tag 4) must not exceed the set point by more than the air alarm band in section 3 for more than **30 consecutive minutes** in the chilled classes or **20 consecutive minutes** in the frozen classes. A breach of that kind is an *excursion* for the purposes of this plan. In addition, the alarm must be acknowledged at the dispatch desk within **10 minutes** of being raised, and someone must be physically at the container within **25 minutes** of the alarm (**15 minutes** in the frozen classes).
+
+**Monitoring.** The dispatch desk monitors the Tidewalk alert list at all times; the night shift ("the owls") covers the desk at GDY-1 from 22:00 to 06:00, at HAM-2 from 21:00 to 05:00 and at RTM-3 from 22:00 to 06:00. Alarms that are not acknowledged within the 10 minutes escalate automatically to the shift lead's mobile and after a further 10 minutes to the Head of Operations. Records: Tidewalk alert history, retained for the life of the customer contract plus 5 years.
+
+**Corrective action.** When an excursion has occurred, the dispatcher (a) records the start time from the tag data, (b) arranges a physical check and a core-temperature reading, (c) checks the unit and the plug, (d) informs the customer within **2 hours** of the start of the excursion for classes CH-1, CH-2 and CH-3, and within 4 hours for the other classes, and (e) opens form KC-QF-114 (revision C). The duration of the excursion decides who evaluates the product:
+
+- up to and including 4 hours: the shift lead may evaluate with the disposition table in section 9 and must write his or her name on KC-QF-114;
+- more than 4 hours: the FSTL or one of the deputies **must** evaluate the temperature–time profile and sign KC-QF-114; no release of the cargo is permitted without that signature, including for loads the customer says are "customer-released";
+- more than 12 hours, or any excursion with a core temperature more than 5.0 K above the product core limit: the cargo is rejected unless the FSTL and the Head of Operations jointly sign a written exception, and the customer is asked for the decision.
+
+Under revision 9 the shift lead could release any load that the customer had declared "customer-released". That clause was deleted with this revision as part of corrective action KC-CAR-24-088 and the authority matrix of procedure PRO-017 revision D replaces it. The FSTL on-call line is staffed round the clock from 1 October 2024; its telephone extension is 4419.
+
+**Verification.** The FSTL's team reviews every KC-QF-114 form within 5 working days and checks that every excursion over 4 hours carries an FSTL signature. Twice a year an unannounced test call is made to the on-call line at night; the target is an answer within 10 minutes.
+
+## 8. Operational prerequisite programmes
+
+### 8.1 OPRP-1 Container washing
+
+Empty containers are washed whenever the previous cargo was in class CH-2 or FZ-2, whenever the container is visibly soiled, has an odour or leaked, and at the latest every 10 trips for a Korvane-supplied container otherwise. The washing bay lead follows work instruction WI-WASH-02 at the washing bays at GDY-1 and RTM-3 (HAM-2 sends its containers to the Waltershof wash contractor, which is audited annually).
+
+The cleaning procedure is: pre-rinse with cold water; alkaline detergent "KC-Clean Alkaline 40" at **2.5 per cent** (v/v) and **55 °C**, contact time **10 minutes**; rinse with potable water until pH of the rinse water is between 6.5 and 8.0; disinfection with a peracetic acid sanitiser at **150 ppm** with a contact time of **5 minutes**; final rinse; drain and dry for at least 20 minutes with the door open before the container is given a release label. The T-bar floor and door gaskets are brushed by hand.
+
+Verification is by ATP swab on the floor, door gasket and wall (3 points): the result must be below **150 RLU** at each point (re-wash if above). One container in every **25** washed is swabbed. Once a month a quality technician takes a microbiological swab from one randomly selected washed container per site; the acceptance value is total aerobic count below 100 CFU per 25 cm² and Listeria absent. Records are on form KC-QF-122, kept 3 years.
+
+Chemical hazards: the detergent and the sanitiser are stored in a locked cabinet at each bay. Safety data sheets are in the bay folder; the people allowed to prepare dilutions are named in the training matrix with the course HYG-100 (validity 24 months). Residue risk: a test strip for peracetic acid is dipped in the final rinse and must show less than 5 ppm.
+
+### 8.2 OPRP-2 Pest control
+
+Pest control is contracted to NordSan Pest Control Sp. z o.o. The contractor services bait stations and insect electrocutors monthly and issues a trend report each quarter. The number of bait stations per site as of this revision is:
+
+| Site | Bait stations | Insect electrocutors | Contractor visit |
+|---|---|---|---|
+| GDY-1 | 49 | 12 | first Tuesday of each month |
+| HAM-2 | 31 | 9 | second Wednesday |
+| RTM-3 | 38 | 10 | third Monday |
+| GOT-4 | 17 | 4 | fourth Thursday (voluntary scope) |
+| KLJ-5 | 12 | 3 | last Friday (voluntary scope) |
+
+The number for GDY-1 was 46 until the audit finding F-04 in September 2024; the three stations on the north edge of pad D (numbered B-47, B-48 and B-49) were added to the map and to the trend reports on 23 September 2024. The action threshold is three captures or three signs of activity in a single station in one month; the quality technician then orders a root-cause visit within 5 working days and the contractor places two additional stations within 3 m of the one concerned. No poison bait is used within 20 m of a plug row (snap traps are used instead). Any sighting of a rodent inside a container is reported at once to the FSTL, the cargo is held and the container withdrawn from use until cleaned and inspected.
+
+### 8.3 OPRP-3 Foreign bodies, pallets and allergen segregation
+
+*Glass and hard plastics.* A register of all glass and brittle plastic in the dock areas (light covers, thermometer windows, vision panels) is kept by each dock supervisor and checked every month; at GDY-1 the register had 74 entries on 1 October 2024. A breakage in a dock area stops transfers within 10 m until a cleared-up report is signed.
+
+*Pallets.* Pallets for outbound loads are inspected at stuffing. A pallet is rejected when more than 2 boards are broken or loose, when a nail protrudes, or when there is visible mould. We do not repair customer pallets.
+
+*Allergen segregation.* We do not open sealed cartons, but mixed pallets and torn cartons occur. A torn carton is re-wrapped, labelled "TORN – DO NOT MIX", and kept on the lowest level of the quarantine rack. The allergens declared on the customer's documents (milk, fish, crustaceans, molluscs, sulphites, among others) are noted on the yard card; pallets with different declared allergens are never stacked across one another and a pallet carrying fish or crustaceans is not placed above a pallet of dairy or bakery items.
+
+### 8.4 OPRP-4 Seal control
+
+Each outbound container is closed with a numbered bolt seal drawn from series KS-2024, stock held by the gate clerk in a locked drawer with a log (form KC-QF-107). The seal number is entered in the booking and on the delivery paper. At gate-in the seal number on the container must match the pre-advice; a mismatch leads to a hold and a call to the customer, and the seal is photographed. Unused seals are counted at the end of each month. A seal found missing from stock is reported to the Head of Operations the same day.
+
+## 9. Evaluation of excursions and product disposition
+
+When a container has had an excursion (CCP-5), a power gap (CCP-2), a door-open breach (CCP-4) or a gate-in amber (CCP-1), somebody has to decide whether the cargo can still be delivered. The decision is taken on the basis of the highest product core temperature measured, the time spent above the class limit, and the class. The disposition table is the tool; it is not a substitute for judgement and the person evaluating should note any reason for departing from it on form KC-QF-114.
+
+| Class | Release after check if time above limit is up to | and peak air temperature is not above | Hold and evaluate if | Reject if |
+|---|---|---|---|---|
+| CH-1 | 2 h | +8.0 °C | more than 2 h up to 12 h, or peak above +8.0 °C | more than 12 h, or peak above +12.0 °C, or core above +9.5 °C |
+| CH-2 | 1 h | +5.0 °C | more than 1 h up to 6 h, or peak above +5.0 °C | more than 6 h, or peak above +9.0 °C, or core above +7.0 °C |
+| CH-3 | 3 h | +9.0 °C | more than 3 h up to 12 h, or peak above +9.0 °C | more than 12 h, or peak above +14.0 °C |
+| CH-4 | 8 h | +14.0 °C | more than 8 h up to 24 h | more than 24 h, or peak above +20.0 °C, or any freezing |
+| FZ-1 | 3 h | −12.0 °C | more than 3 h up to 10 h, or peak above −12.0 °C | more than 10 h, or any sign of thawing (soft, wet or deformed packages) |
+| FZ-2 | 90 min | −15.0 °C | more than 90 min up to 6 h | more than 6 h, or any sign of thawing |
+
+"Time above limit" is counted from the start of the excursion as defined in CCP-5 to the time the air temperature is back within the alarm band. Times of separate excursions on the same container are added.
+
+The evaluation levels are as follows. Anything inside the "release after check" column may be released by the shift lead after a core-temperature reading below the CCP-1 limit and a signed KC-QF-114. Anything in the "hold and evaluate" column up to 4 hours is evaluated by the shift lead, who can add a requirement for a sample; anything over 4 hours is evaluated by the FSTL or a deputy as described in section 7.5, whatever column it is in. For CH-1 and CH-2 cargo the FSTL may require microbiological sampling by an accredited laboratory; the usual lab is Laboratorium Pomorskie in Gdańsk, with standard turnaround of 3 working days and 24-hour express at a surcharge.
+
+A held container is moved to the red quarantine row (rows R1 and R2 at GDY-1, row Q at HAM-2, row K at RTM-3) and labelled with a red hold card showing the time of the hold. The hold is recorded in Tidewalk by the person placing it. The hold card is removed only by the person who signed the evaluation. Customers are told about holds within 2 hours (see CCP-5); the customer decides about rejected cargo, and the container is not emptied by Korvane unless the customer instructs us in writing.
+
+**Lessons from the 14 June 2024 dairy excursion.** The dairy load concerned (class CH-1) had a 9-hour excursion and was held for 26 hours 25 minutes. The release was signed by the shift lead only. The team concluded in its extraordinary meeting on 19 June 2024 that the decision to release was probably technically correct (the profile peaked at +9.4 °C, which is below the +12.0 °C reject line for CH-1), but that it was taken without the evaluation required by the plan. Rev 10 takes three measures: the evaluation by the FSTL for all excursions over 4 hours, without exception; the on-call line; and the compulsory fields on the KC-QF-114 form (revision C: name of evaluator, profile attached, hold hours).
+
+## 10. Verification and validation
+
+**Validation.** The critical limits were validated against the literature references listed in annex 4 of the FSMS manual and against Korvane's own trials: the power-off trials of 8 February 2023 and 17 July 2023 (CCP-2), the dock exposure trial of 21 August 2023 at HAM-2 (CCP-4) and the pull-down tests on 14 units in March 2024 (CCP-3). The plan's limits are reconfirmed whenever a customer changes a temperature requirement or a new commodity is added.
+
+**Verification activities.**
+
+| Activity | Frequency | Responsible | Record |
+|---|---|---|---|
+| Review of CCP records (KC-QF-101, 105, 109, 114) | weekly by site quality technician; monthly summary by FSTL | Quality | KC-QF-140 |
+| Comparison of KC-Tag 4 probe against reference thermometer | at every PTI with a tag fitted; allowed difference 0.3 K | PTI technician | PTI sheet |
+| Calibration of reference thermometers | 12 months, external accredited laboratory | Quality | certificate (series LK-2023 and LK-2024) |
+| Check of dock thermometers against reference | monthly | dock supervisor | KC-QF-109 |
+| Mock recall | twice per year, target time 4 hours | FSTL | KC-QF-150 |
+| Internal audit of HACCP plan implementation | once per year per site | internal auditors | audit report |
+| Unannounced night test call to FSTL on-call line | twice per year, answer target 10 minutes | FSTL | KC-QF-151 |
+| Swab results (OPRP-1) | monthly | quality technicians | KC-QF-122 |
+| HACCP team meeting | quarterly | team leader | minutes |
+| Management review of food safety performance | annually (the 2024 one was held on 21 March) | CEO | minutes |
+
+The mock recalls in 2024 were carried out on 12 March (traced in 3 hours 40 minutes) and on 18 September 2024 (traced in 3 hours 05 minutes, scenario including the Kłaipėda yard on the recommendation of the surveillance audit team).
+
+**Calibration of fixed equipment.** The dock thermometers (GDY-1: 6, HAM-2: 5, RTM-3: 7) are calibrated against the reference thermometers monthly and replaced when they differ by more than 0.5 K. The unit display calibration is the responsibility of the fleet team; the KC-Tag 4 factory calibration is checked per the product service manual.
+
+## 11. Records, retention and responsibilities
+
+| Record | Form | Retention |
+|---|---|---|
+| Gate-in product temperature | KC-QF-101 | 5 years |
+| Plug-in events (paper fallback) | KC-QF-105 | 5 years |
+| Seal log | KC-QF-107 | 3 years |
+| Dock readings | KC-QF-109 | 5 years |
+| Excursion evaluation and release | KC-QF-114 rev C | 7 years |
+| Container washing and swabs | KC-QF-122 | 3 years |
+| Monthly CCP summary | KC-QF-140 | 7 years |
+| Mock recall | KC-QF-150 | 7 years |
+| Night test call | KC-QF-151 | 3 years |
+
+Excursion records (KC-QF-114) are kept 7 years, which is two years longer than the legal minimum we need, because the product liability period under Polish civil law for food is long enough to make shorter retention imprudent. Tidewalk alert history is retained for the contract term plus 5 years. Records are legible, signed and dated; corrections are made with a single line and initials; use of correction fluid is a nonconformity. Electronic signatures in Tidewalk are accepted for KC-QF-101, 105 and 109 but not for KC-QF-114, which needs a wet signature or a qualified electronic signature.
+
+Responsibilities. The CEO provides the resources; the Head of Operations is responsible for the implementation at the sites; the FSTL is responsible for maintaining the plan; the dispatchers and plug-in operators are responsible for CCP monitoring; each person has the right and duty to stop a release if a limit has not been met, and no manager may order otherwise.
+
+## 12. Training requirements by role
+
+| Role | Required courses |
+|---|---|
+| Plug-in operator | HA-101 (24 months), HYG-100 (24 months) |
+| Gate clerk | HA-201 (12 months), HYG-100 |
+| Dispatcher / shift lead | HA-201 (12 months), EXC-150 excursion escalation and release (12 months) |
+| PTI technician | PTI-110 (18 months), HA-201 |
+| Washing bay lead | HYG-100, HA-201 |
+| FSTL and deputies | HA-301 (36 months), FST-ONC on-call induction (12 months), EXC-150 |
+
+New staff in these roles may work under supervision for up to 30 days before the first course is completed. Lapsed courses are reported by People & Culture to the site quality technician on the 1st of each month; a person with a lapsed HA-201 may not be the only person monitoring a CCP on a shift.
+
+## 13. Special situations
+
+**Yard power failure.** If the mains feed to a plug row is lost, the dispatch desk starts the clock of CCP-2 for every container on that row from the time the first alarm arrives, not from the time the electrician is called. GDY-1 has a standby generator that takes over the plug rows in 14 seconds (tested monthly on the first Monday, full load test each March); HAM-2 and RTM-3 have no standby for the outer rows, which is why each of them keeps 4 mobile gensets on the yard. Frozen classes are connected first. If power is not restored within 25 minutes, the shift lead calls the Head of Operations, who decides whether containers are moved to other rows by yard tractor; a move of this kind counts as a power gap for as long as the unit is not running.
+
+**Heat wave rule.** When the forecast for the next day shows an ambient temperature of +30 °C or more at a site, the site applies the "red day" measures: the maximum door-open time of CCP-4 is reduced by 3 minutes for both chilled and frozen classes, the dock supervisor reads the dock thermometer hourly, and the shift lead may refuse transfers of FZ-2 cargo between 12:00 and 16:00 unless a covered dock lane is available. Red days are declared by the Head of Operations or, at the other sites, by the depot manager, and announced in Tidewalk. In 2024 there were 9 red days at HAM-2, 6 at GDY-1 and 11 at RTM-3 (the last one at RTM-3 on 28 August).
+
+**Cargo rejected by the receiver.** If a consignee rejects cargo that we delivered, the container is returned to the red quarantine row within the hour and a KC-QF-114 is opened, even if the rejection looks commercial. We found in 2023 that three of nine rejections attributed to "quality" were in reality temperature-related.
+
+**Food safety complaints.** A customer complaint that mentions illness, foreign bodies or thawing is classed as a food safety complaint and forwarded to the FSTL within 4 hours of receipt. The FSTL acknowledges it to the customer within 1 working day and reports on the investigation in 10 working days. Food safety complaints are numbered in the complaints log with the prefix "FS" in the category field.
+
+**Customer-specific limits.** Some contracts impose limits that are stricter than this plan. They are held in Tidewalk as a per-customer override and appear on the yard card. As of this revision the overrides are: Nordkjøl Seafood AS (CH-2 core limit +1.0 °C instead of +2.0 °C, in force since 1 April 2023), Samsø Berry Co-op (maximum time without power 30 minutes, in force since the 2024 season), and Oakhaven Dairy Ltd (customer notification within 1 hour of the start of an excursion, in force since 1 July 2024). Overrides never relax the plan.
+
+## 14. Change history
+
+| Rev | Effective | Main changes |
+|---|---|---|
+| 6 | 3 May 2019 | Introduction of product classes CH-1 to FZ-2 (previously three classes) |
+| 7 | 14 September 2021 | Split of CCP-2 and CCP-5; KC-Tag 4 door sensor made the monitoring method for CCP-4 |
+| 8 | 12 January 2023 | Hazard "wrong set point at gate-out" added (CCP-3); dock exposure limits tightened from 15 to 12 minutes for chilled classes |
+| 9 | 1 March 2024 | Dock exposure limit for frozen cargo reduced from 9 to 7 minutes; RTM-3 included in the certified scope; shift lead may release "customer-released" loads (deleted in rev 10) |
+| 10 | 7 October 2024 | Maximum time without power for chilled classes reduced from 45 to 40 minutes; FSTL evaluation mandatory for all excursions over 4 hours; FSTL on-call line (ext. 4419); KC-QF-114 revision C; GDY-1 bait stations corrected to 49; GOT-4 and KLJ-5 voluntary application from 1 January 2025 |
+
+Distribution of this revision: all site quality technicians, the Head of Operations, depot managers, shift leads (by Tidewalk broadcast and by printed copy), the customers named in the contract register upon request, and Aldermark Certification A/S in advance of the recertification audit starting 14 October 2024.
+
+*Annexes (not reproduced in this copy): annex A flow diagram F1; annex B form templates KC-QF-101 to KC-QF-151; annex C the allergen matrix of the major customers; annex D the supplier approval list of cleaning chemicals; annex E meeting minutes of the HACCP team 2024. The annexes are controlled with the paper master.*

@@ -1,0 +1,231 @@
+---
+out: minutes_leadership_offsite_2024.docx
+tier: extended
+---
+# KORVANE LEADERSHIP OFFSITE 2024 - MINUTES
+
+**DRAFT 3 - leadership team only - please do not forward, and yes that includes you, Rafał**
+
+Minutes taken by Zuzanna Frąckowiak (EA to the CEO), edited by Ines Baptista-Okafor. Draft 1 went out on Monday 18 November, draft 2 on Wednesday 20 November after Priya's numbers corrections, and this is draft 3 of Tuesday 26 November which has Marta's strikethroughs accepted. If a number below disagrees with a number in your head, the number below wins until someone shows me a slide.
+
+## 0. Logistics, attendance and housekeeping
+
+The offsite took place on Thursday 14 and Friday 15 November 2024 at Villa Młyn, a converted mill and conference house near Kartuzy in Kashubia, about 62 km from Łużycka. The bus left Łużycka 14 at 08:00 on Thursday (the driver, Pan Zenon, was 9 minutes late and blamed the ring road), check-in was from 10:00 and the first session opened at 10:30. Dinner on Thursday was at 19:30 in the old granary room. On Friday the sessions ran from 09:00 to 14:30, lunch was at 14:30 and the bus back to Gdynia left Villa Młyn at 15:30. The room block cost 11,640 EUR for 12 rooms and two nights, which Priya wants it noted is cheaper than last year's hotel in Sopot, and which the minutes-taker notes is also 62 km from a coffee machine that works.
+
+Present for both days: Marta Kowarzik (CEO, chair), Dieter Ahlbeck-Roe (COO), Priya Venkataraman-Holt (CFO), Tomasz Wrzesiński (CTO), Ines Baptista-Okafor (Head of People & Culture), Jarek Lindqvist (Head of Operations), Sofia Brandão (Legal Counsel), Benedikta Aaltonen (Quality & Compliance Manager), Rafał Nowogrodzki (Head of Sales). Hanneke Dijkgraaf (Depot Manager, Rotterdam) was present on Thursday and on Friday until 12:00, when she left for a 14:40 flight from Gdańsk. Gunnar Halvorsrud (Fleet & Maintenance) attended only the Thursday afternoon block on fleet and capex and went home at 16:00 because of a trailer inspection. That is 11 voting members on Thursday until 16:00, 10 on Friday morning and 9 on Friday after noon, which matters for the dot vote in section 8.
+
+Facilitator: Dr Anneliese Kroll of Kroll & Pietsch Strategy, who was paid a day rate of 2,950 EUR for two days plus travel and who, as promised, did not use the word "synergy". She did use "alignment" 31 times; Lotte counted, but Lotte was not there, so Sofia counted for her.
+
+House rules agreed at the start: phones on the table face down, a 5 minute "wall of shame" fine of 1 EUR per phone pick-up into the kitty jar, and anything said at the dinner is off the record unless Marta says otherwise. The jar held 23 EUR on Friday afternoon, 14 of it from Rafał, and went to the Villa's staff.
+
+## 1. Opening remarks (Marta, Thursday 10:30 - 11:10)
+
+Marta opened by saying that 2024 was "the year we learned that a good year can still hurt". She named three things: the Oakhaven incident of 14 June, the Tidewalk alerting incident of 21 August (and the certificate expiry of 27 August, which she called "the stupid one"), and Dieter's decision to retire. She wants the offsite to produce four things by Friday afternoon: (1) a plan and a budget envelope for 2025, (2) a decision about who runs operations after 31 December, (3) a short list of investments we will say no to, and (4) a decent dinner. She said the last was already delivered, which got a laugh because dinner had not yet happened.
+
+Priya then gave the headline numbers, from her November update. Forecast revenue for full-year 2024 is 114.8 m EUR, which means an expected 30.4 m for Q4. Headcount at 1 November was 331 FTE and the year-end forecast stays at 338 FTE. Net debt covenant headroom was discussed only briefly: Priya said she does not want the ratio above 3.0x at any quarter-end in 2025, "not even for a good reason". Marta asked whether that rules out the cold store at Kłaipėda; Priya said "it rules out doing it badly".
+
+Dieter asked to say a few words at the end of the opening block. He said his advice to the team, "in three pieces and no more", was: do not sign off a depot layout without walking it in the rain; never promise a customer a time that depends on a crane; and keep a blanket in the gate cabin. Nobody had told him about the blanket, so Jarek gave him a short version of the story from the September ops review (a Brunnen & Sohn driver arriving four hours early). Dieter looked "moved and a little appalled".
+
+## 2. 2024 look-back: what went right, what went wrong (Thursday 11:10 - 12:30)
+
+Dr Kroll ran this as a silent post-it exercise: each person wrote up to 5 "went right" and 5 "went wrong" items, then they were clustered on the wall. There were 87 post-its in total (52 right, 35 wrong). The five biggest clusters were:
+
+| Cluster | Post-its | Side |
+|---|---|---|
+| Pharma lanes growth and the Helvetia relationship | 14 | went right |
+| Tidewalk reliability (alerting, certificate) | 12 | went wrong |
+| Rotterdam depot reaching target utilisation | 9 | went right |
+| Night-shift staffing and attrition | 8 | went wrong |
+| Customer communications after incidents | 7 | went wrong |
+
+Discussion notes, in the order they came up:
+
+Pharma. Rafał said the pharma lanes would not have grown as fast in Q3 without the calibration programme, and that Helvetia's audit on 5 November went better than he had feared: the auditors raised 2 observations and no nonconformities. Benedikta said one of the two observations was "a documentation matter that we created ourselves" about the way the August deviation report was stored (in a shared drive, not in the quality system), and she has already moved it. She also said the follow-up of the observations is due to Helvetia by 6 December.
+
+Tidewalk. Tomasz was direct: "In 2024 our monitoring product went down twice in a quarter, and a customer found out before we did both times." He gave the numbers he is prepared to be held to: the dashboard was unreachable for 90 minutes on 27 August and the last hubs came back after 2 hours 37 minutes; and the earlier alerting problem on 21 August held back alerts for a good part of the morning. He stated that since the certificate incident Aneta's team has put a cert-expiry monitor in place with warnings at 21, 14, 7 and 3 days, and that the status page now runs outside the VPN (it moved on 12 September, a day before the deadline Wiktor had set). Marta asked what he wants from the leadership team; he said "a change freeze rule and your patience", see section 6.
+
+Rotterdam. Hanneke reported utilisation of the RTM-3 plug racks at 91 % in October (target 85 %), which she called "too good, because it means we are turning boxes away on Mondays". She also gave the numbers for the night feeder: the feeder to Gdynia went back to 3 trucks per night on 14 October after averaging 21 pallets per night, and in the four weeks since then it has averaged 23. Jarek's comment: "I said five weeks and I was right to say it and wrong about the five."
+
+Night shift. Ines said annualised attrition across the company at 31 October is 10.1 % but on the night shift it is 17.4 %, and in Gdynia alone 8 of the 22 people who left this year were from the owls. The exit interviews say the same three things: the night allowance does not feel like enough, the plug-in work is physically hard (a lot of cable lifting) and there is "no path" beyond senior dispatcher. This fed straight into section 5.
+
+Customer communications. Benedikta noted that the Oakhaven answer in June took 3 days and 3 versions of the numbers (the credit was first stated as 14,500 EUR and corrected to 12,750 EUR, which she called "the most expensive typo of my career, though technically not a typo, more an enthusiasm"). She proposed an "incident desk" rule: one voice, one timeline, no figures before finance has seen them. Marta asked her to write it down; see actions.
+
+The Oakhaven mediation is on Wednesday 20 November, five days after the offsite. Sofia, Priya and Dieter will attend, by video. Sofia asked that nothing about the figures be minuted; the room agreed that this item goes into the closed notes held by Marta. This paragraph is therefore as short as it is going to be.
+
+## 2b. Voice of the customer (Thursday 12:30 - 12:50, squeezed in before lunch)
+
+Lotte's customer survey results were read out by Rafał because Lotte could not travel (she was at the print shop with the 2025 brochure proofs). The survey went to 640 customer contacts in October and 212 answered, a response rate of 33 %. Overall satisfaction came out at 4.31 out of 5 (4.12 last year) and the net promoter score at +31 (+24 last year). The three best-rated items were "the drivers are polite and on time" (4.6), "Tidewalk alerts are useful" (4.4, which Tomasz asked to be framed) and "my account manager answers within a day" (4.5). The three worst were "the invoice is easy to understand" (3.2), "it is easy to get a copy of an old temperature report" (3.4) and "I am told quickly when something goes wrong" (3.5).
+
+Invoices were the loudest. Of 212 respondents, 47 left a free-text comment about invoicing, and 29 of those mention double billing or lines they cannot match to a container. Priya agreed that ColdLedger is "a heavily customised ERP module that everybody hates, including the people who customised it". Rafał asked for an invoice template rebuild; Tomasz said it would cost 120,000 EUR and take until the end of Q2 2025; Priya said she would pay 80,000 EUR and no more. After ten minutes of arithmetic the group agreed to a rebuild budget of 95,000 EUR, to be released in two tranches (50,000 EUR on 1 February 2025 and 45,000 EUR once the new layout has passed a test with 10 customers). Owners: Priya (business) and Tomasz (delivery).
+
+Two verbatim customer comments were read out and recorded here at Marta's request. From a pharma customer: "You are the first logistics company whose alarm I have ever answered at 3 in the morning, and I answered it because it was right." From a dairy customer: "Please stop sending me apologies, send me a timeline instead." Benedikta wrote the second one on the flipchart and underlined it twice; it became the seed of the incident desk rule in section 10.
+
+## 3. Strategy 2025: three priorities (Thursday 13:30 - 15:00)
+
+Lunch was at 12:30 (soup, pierogi with two fillings, a vegan option requested by 3 people, a lemon cake that disappeared by 12:41). Dr Kroll then moved to strategy. She asked each person to write down the one thing that, if it did not happen in 2025, would make the year a failure. The answers, anonymised and read out: "Tidewalk v7 ships" (4 people), "we find a COO we all trust" (3), "no more customer-found incidents" (2), "pharma doubles" (1), "we do not lose Oakhaven" (1).
+
+After a long discussion the leadership team agreed to three priorities for 2025, in this order:
+
+1. **Reliable Tidewalk.** Ship the v7 beta to customers from 12 May 2025 and aim for general availability on 1 October 2025. Reliability work (cert management, change process, alerting watchdogs) is ring-fenced and does not compete for capacity with v7 features. Tomasz owns this.
+2. **Run operations without a COO.** Dieter retires on 31 December 2024; Marta takes direct oversight of operations from 1 January 2025 on an interim basis; the search for a new COO is led by Ines with the search firm Haldane Rooke Partners, targeting an appointment in the first quarter of 2025.
+3. **Grow pharma and monitoring, not volume.** Pharma lanes and Monitoring & Software are the two segments with the highest margins; the plan is to grow them faster than the reefer volume business. The reefer business is to be run for cash and utilisation, not for share.
+
+Marta added a fourth, "unofficial" priority: "do not do anything stupid with money". Priya asked that this be minuted, and so it is.
+
+Antwerp. Dr Kroll tabled the question of a sixth location. Rafał argued for Antwerp-Bruges: three prospects with Belgian and French volumes (together about 1,900 reefers a year) and the Rotterdam depot would otherwise be stretched. Hanneke said Rotterdam can absorb 20 % more volume if the plug racks phase 2 is built. Dieter said "we do not open depot number six while we are changing our COO". The group did not decide to open a depot; it decided to fund a feasibility study of 45,000 EUR (opex, not capex), with Rafał and Hanneke as owners, a first report due on 28 February 2025 and a go/no-go to be taken only after the new COO is in place. Vote: 8 in favour of the study, 2 against, 1 abstention (Sofia).
+
+## 4. Finance: the 2025 budget frame (Thursday 16:00 - 17:10)
+
+Priya presented three scenarios as the "frame" for the 2025 budget; she stressed that these are offsite working numbers and not the budget, and that the budget will go to the board in its own version later.
+
+| Scenario | Revenue 2025 | EBITDA 2025 | EBITDA margin | Capex envelope |
+|---|---|---|---|---|
+| Base | 128.0 m EUR | 24.3 m EUR | 19.0 % | 16.5 m EUR |
+| Upside | 133.5 m EUR | 26.7 m EUR | 20.0 % | 18.0 m EUR |
+| Downside | 121.0 m EUR | 21.8 m EUR | 18.0 % | 14.0 m EUR |
+
+The base case therefore assumes growth of 11.5 % on the 114.8 m EUR forecast for 2024. Other planning assumptions that Priya asked everyone to hold: wage pool of 4.2 % effective 1 April 2025; fuel and energy flat at the Q3 2024 level; cost of capital 7.2 % for internal investment cases; payment terms to stay at 30 days as the standard and 45 days as the ceiling without CFO approval; and a maximum of 3 % of revenue in customer credits and goodwill gestures, "which is 3.84 m EUR in the base case and I hope never to see".
+
+Priya then spent twenty minutes on the Fruttoria price exception from September as an example of "a good exception". She said it was approved by Dieter on 24 September as PE-3-2024-061, that it applies to the 2024/25 season only, and that the top band's margin is below the lane floor of 21 %. Her request: no exception above 8 % without the PE-3 form. Rafał pointed out that this was already Sofia's rule. Priya: "It is Sofia's rule, I just want it in my voice as well."
+
+Payment terms discussion. Marta asked why Korvane gives 45 days to some customers when its own suppliers want 30. Priya said the cost of capital makes each extra 15 days cost about 0.3 % of the invoice, and that this is the real price of an exception. Marta decided: the 45-day ceiling stays, but every 45-day term must be recorded on the PE-3 form even if there is no discount.
+
+Pooled decision for the budget calendar: first budget draft from the departments by 6 January 2025, leadership review on 20 January, board approval at the meeting on 27 February 2025.
+
+## 5. People and organisation (Thursday 17:10 - 18:10, continued Friday 09:40 - 10:50)
+
+Ines presented the October engagement survey: response rate 71 % (65 % last year), eNPS +22 (+14 last year). The lowest-scoring items were "I know how I can progress here" (42 % agree) and, in Gdynia operations, "my shift has enough people" (38 % agree). The highest was "I trust my direct manager" at 83 %. She also reported that the new hybrid-week rule has had no measurable effect on engagement yet, "which is the best news a policy can get".
+
+Hiring plan 2025. Net growth of 34 FTE, taking the opening headcount of 338 FTE to 372 FTE by the end of 2025. The distribution: operations 17, IT and product 9, sales and account management 4, finance and legal 2, people and quality 2. Priority hires: (a) a COO, (b) a Senior Dispatcher for the night shift (job reference KC-DIS-094, a second senior at nights alongside Olek, who has asked for one for two years), (c) two platform engineers. Ines noted that the Senior Dispatcher search had already produced 41 applications by 11 November.
+
+Pay. The 4.2 % pool takes effect 1 April 2025. Ines proposed, and the team accepted, that 0.6 percentage points of the pool is ring-fenced for the night shift on top of the general distribution. The night differential itself is to be reviewed by Ines and Jarek and brought back in January; no number was discussed.
+
+Leadership programme. Dr Kroll's firm proposed a programme of 6 modules for 12 managers, starting in February 2025, for 38,500 EUR. Marta approved it subject to Priya moving the money from the training budget. Ines to confirm the 12 names; Jarek suggested that Olek and Wacław Bielicki should be on the list, "or we will lose them to a competitor's offer".
+
+Organisation after 31 December. This was the heart of Friday morning. The leadership team discussed three options for the structure:
+
+- Option A: Marta takes operations directly, Jarek stays Head of Operations Gdynia and Hanneke reports to Marta. This is the stated interim plan.
+- Option B: a new "Regional Director Northwest" role covering RTM-3, HAM-2 and GOT-4, reporting to the COO once appointed; Hanneke is the natural candidate.
+- Option C: a single "Head of Network Operations" over all five locations, which Jarek would likely get.
+
+On Thursday evening, in the first round, option C had a slight majority (6 to 5) and Marta said "let's go with C and tell Jarek in the corridor". On Friday morning the discussion was reopened because Hanneke pointed out that the three northwest depots operate under different customs and labour regimes (Poland, Germany, the Netherlands and Sweden between them), and that one head would carry too many. Jarek himself said he did not want a title that would make the new COO's first month awkward. The final decision, taken on Friday at 10:40 with 10 votes in favour and none against: option A for the interim; from 1 February 2025 Hanneke gets the title Regional Director Northwest, reporting to Marta until the new COO arrives, covering RTM-3, HAM-2 and GOT-4; Jarek keeps the Head of Operations title for Gdynia and Kłaipėda. Option C is dropped. The Thursday decision for option C is superseded.
+
+The COO search. Haldane Rooke Partners has built a longlist of 14 candidates; the shortlist of 4 is due on 6 December 2024; the interview panel will be Marta, Ines, Priya and Jarek; first interviews in the week of 13 January 2025. Dieter will not be on the panel ("conflict of interest, he wants his chair back") but will brief the candidates on the first Friday after he leaves.
+
+Dieter's farewell. The team gave Dieter a lantern from the Waltershof yard, engraved with HAM-2 and the date 31.12.2024, and a leather notebook; Marta read a short letter. Dieter will become honorary chair of the Kłaipėda Expansion Advisory Board after he leaves.
+
+## 6. Technology and Tidewalk (Thursday 18:10 - 18:50 and Friday 09:00 - 09:40)
+
+Tomasz presented the product plan for 2025 in four slides.
+
+The v7 timeline: internal alpha on 20 January 2025, customer beta from 12 May 2025 with 12 pilot accounts, general availability aimed at 1 October 2025. The rule-editor rewrite and the WebSocket live view are the headline features. The engineering team is 31 people; the platform hosting cost with Lintu Cloud Hosting is currently 41,000 EUR a month and Tomasz expects it to reach 47,500 EUR a month at the end of 2025. The programme budget for v7 is 1.9 m EUR across 2025 and 2026, of which 1.2 m EUR falls in 2025.
+
+Change freeze. Tomasz asked for the following rule and the team accepted it: no production changes to Tidewalk between 15 December and 6 January, and none on Fridays after 14:00 year round. Marta asked whether that stops emergency fixes; Tomasz said emergency changes need two approvers (one of them Wiktor or himself) and a note in the status page. Rafał grumbled that Friday freezes make product promises harder to keep.
+
+Certificates and hidden services. Tomasz reported that after the 27 August incident every decommission of a VM needs a second pair of eyes, and the inventory sheet has a column for "crontab / hidden services". He said, with obvious pain, that the replacement certificate cost 349 EUR and the total cost of the incident (credits, overtime, the Helvetia deviation report) will be somewhere above 40,000 EUR, "which makes the certificate the cheapest line on the bill".
+
+AI dispatcher assistant. Tomasz proposed a 90-day pilot of an assistant that reads the alarm queue and proposes next actions to the dispatcher; read-only, no automatic actions. Cost cap 18,000 EUR. In the Thursday discussion the pilot was planned to start on 2 December 2024 with 3 night dispatchers. Jarek objected on Friday morning: December is peak season and the owls cannot also be test subjects. The decision, taken on Friday: the pilot starts on 13 January 2025 instead, with 3 night dispatchers, Olek as the lead user, and a stop rule: if the assistant produces more than 2 wrong suggestions per shift in any week, the pilot pauses. The December start is superseded.
+
+Security. Tomasz and Kamil will run a tabletop exercise on 11 December for the leadership team (scenario: ransomware on the GDY-1 office network) lasting 2 hours. Attendance is mandatory, "even for people who think they are above tabletops".
+
+## 7. Customers, sales and partners (Friday 10:50 - 11:20)
+
+Rafał's report. Q3 closed-won new business was 1.81 m EUR against a revised target of 2.10 m EUR, 86 %. The best performer was Weronika Stasiak at 94 %, the weakest was Katharina at 70 % (Hanseatic Fleisch slipped to Q4). Q4 pipeline coverage is 3.4x. Churn: the Samsø Berry Co-op contract terminated on 1 November; a rescue conversation with the co-op's board is "not impossible but not likely". Lost deals in the quarter mostly went to Meridian Chill NV, which opens a Gdańsk sales office on 14 October and bundles customs clearance; and to ColdArc Nordic, which raised its prices by 6 % on 1 October.
+
+The customs bundle. Rafał and Yusuf proposed a bundle with GreyLine Customs Agency: GreyLine charges 38 EUR per declaration above 200 declarations a month and 46 EUR below, and Korvane adds a margin. On Thursday the leadership team agreed to go: launch the bundle to all customers from 1 January 2025 at an 18 % margin on the declaration fee. On Friday morning Sofia raised the liability issue (Korvane would become a party to the mis-filing risk) and Priya pointed out that a margin of 18 % makes the bundle no cheaper than Meridian. The decision on Friday at 11:05: no general launch. Instead a pilot with Fruttoria Baltica and two other customers, from 15 January to 30 April 2025, at a 15 % margin, with Yusuf as owner and a report to the leadership team on 8 May 2025. The Thursday launch decision is superseded.
+
+Top customer concentration. Rafał showed that the five largest customers are about 30 % of revenue. Marta asked what happens if any one of them leaves. Priya: "We survive. We do not enjoy it."
+
+Price list 2025. The rate card will rise by an average of 3.9 % on 1 March 2025; the minimum increase on any line is 2.5 % and the maximum 6.0 %, the latter only on lines where Korvane's costs rose most (the Hutnicza gate shuttle, for example). Customers get 60 days' notice, meaning letters must go out by 31 December 2024 at the very latest, and Rafał is targeting 27 December. Rafał to prepare the letters; Sofia to review the legal wording of the indexation clause.
+
+Discount authority. After the Fruttoria example Marta asked to harmonise: any discount above the account manager's limit goes through Rafał, above Rafał's limit through Priya, and above 8 % on a lane needs the PE-3. Nobody objected; Rafał asked that the existing limits stay as in the sales playbook and not be restated here.
+
+Partners. The Thermaglide contactor backorder (six weeks) was discussed in the fleet block; Gunnar will receive four contactors from Thermaglide's consignment stock at Hamburg. A second source for refrigeration units was discussed and dropped for 2025. Voltrac Battery Systems will visit on 4 December to discuss a battery supply agreement for the KC-Tag 4 for 2025/26. Seaboard Insurance Brokers will deliver the renewal terms for the cargo cover by 13 December.
+
+## 8. Capex: the dot vote (fleet presentation Thursday 15:00 - 16:00; the vote itself Friday 11:20 - 12:30)
+
+Gunnar presented the fleet section on Thursday before leaving: the average age of the reefer trailer pool is 7.4 years; 12 trailers have to be replaced in 2025; the trailer order would be 1.08 m EUR. He also reported that the GDY-1 pad C plug conversion to 32 A (96 points) would cost 410,000 EUR and remove the breaker trips that the night shift complains about weekly.
+
+On Friday, Dr Kroll gave each of the 11 voting members 8 dots (88 dots in all) for the investment list. Hanneke had left at 12:00 so she voted before leaving and the 11 count includes her; Gunnar's dots were cast by Jarek on his instruction. The results:
+
+| Investment | Cost | Dots |
+|---|---|---|
+| Tidewalk v7 programme | 1.9 m EUR over 2025-26 (1.2 m in 2025) | 19 |
+| RTM-3 plug racks phase 2 (120 points) | 2.6 m EUR | 16 |
+| GDY-1 pad C conversion to 32 A (96 points) | 0.41 m EUR | 12 |
+| Fleet: 12 reefer trailers | 1.08 m EUR | 11 |
+| KLJ-5 covered cold store | 2.2 m EUR | 10 |
+| HAM-2 dryer building extension | 0.78 m EUR | 8 |
+| Antwerp feasibility study | 45,000 EUR (opex) | 7 |
+| Solar canopy over the GDY-1 yard | 0.95 m EUR | 5 |
+
+The envelope for 2025 capex in the base case is 16.5 m EUR, of which 6.3 m EUR is already committed to maintenance and replacement. Priya's first reading: everything on the list except the Antwerp study (which is opex) fits, with a headroom of about 0.98 m EUR, but the net debt ratio would then touch 2.9x in Q3 2025. Marta decided to defer the solar canopy (the lowest-scoring capex item) to 2026, which brings the headroom to about 1.93 m EUR, to be held as a reserve for the new COO. The solar canopy was in the pre-read as a "yes" and is superseded.
+
+The KLJ-5 cold store is approved in principle but its release is conditional on the Kłaipėda lease extension being signed by Sofia before 30 June 2025. Dieter, as honorary chair of the advisory board, will chase the landlord.
+
+## 9. Risks and compliance (Friday 13:20 - 14:00, quick)
+
+Benedikta presented the leadership team's top five risks, based on a vote of the heads in October:
+
+1. Customer-found incidents (monitoring or excursion not detected by Korvane first).
+2. Single-region dependency of Tidewalk hosting on LC-WAW-2 in Warsaw, with LC-FRA-1 in Frankfurt as the secondary site.
+3. Key-person dependency on the night shift (Olek is named in four different runbooks).
+4. Customer concentration, with the five largest customers at about 30 % of revenue.
+5. The COO transition between 1 January and the appointment.
+
+ISO 22000: Benedikta said the follow-up of the September surveillance audit is on track and referred to her report; she asked for no more than five minutes. The next external audit date is not yet fixed.
+
+The legal hold from July (the Oakhaven documents, see Sofia's notice) stays in force until the mediation is concluded; Sofia reminded everyone that chat logs count, "including the ones that say 'strike through, never delete'".
+
+## 10. Ways of working (Friday 12:30 - 13:20)
+
+Focus Wednesday. Ines proposed that Wednesday mornings be meeting-free for the leadership team and managers. The initial proposal was Mondays; the objection was that the pipeline call and the ops review would have to move, and Rafał had already moved the pipeline call to Tuesday 08:45 in August. Hanneke (still in the room until 12:00) said Wednesday works for Rotterdam. Decision: no internal meetings before 12:00 on Wednesdays, starting 8 January 2025. Customer meetings, incident calls and audits are exempt. The Monday proposal is superseded.
+
+Incident desk. Following Benedikta's proposal under section 2: during any customer-visible incident, one named incident lead speaks to the customer; internal timelines are signed off by Benedikta (quality) and Priya (anything involving money) before they go out; and no figure about credits is sent in writing before Priya has approved it. The out-of-hours incident desk number +48 58 555 0199 stays. Marta: "Never again a 14,500 that is a 12,750."
+
+Offsite 2025. The next leadership offsite is on 6 and 7 November 2025, location to be chosen by Ines, with a ceiling of 12,000 EUR for the room block. Dr Kroll will not be invited again unless the team asks for her; the team will vote by email.
+
+## 11. Odds and ends and the parking lot
+
+- A power cut hit the Villa at 16:40 on Thursday for 12 minutes; the generator started in 3 minutes and the flipchart survived.
+- Rafał lost at table football 7:10 to Sofia in the final of the "voluntary" tournament; the prize was a tin of Kashubian biscuits.
+- Marta kayaked on Lake Raduńskie at 06:30 on Friday before breakfast, with Dieter on the shore holding her phone.
+- The Wi-Fi at the Villa dropped twice during Priya's slides and recovered after the router was restarted by Tomasz (who denied that he had been asked to).
+- Parking lot items for the next meeting: a policy for company cars after the diesel decision; the Brunnen & Sohn double billing credit (resolved for 1,846.20 EUR in September, no action); whether to open a second Tidewalk support desk in Kłaipėda; the question of whether Lotte should report to Rafał or to Marta.
+
+## 12. Action list
+
+| # | Action | Owner | Due |
+|---|---|---|---|
+| 1 | Write the incident desk rule (one voice, one timeline, no figures before finance) | Benedikta | 13 December 2024 |
+| 2 | Antwerp feasibility study, first report | Rafał and Hanneke | 28 February 2025 |
+| 3 | Move 38,500 EUR for the leadership programme out of the training budget; confirm 12 names | Priya and Ines | 20 December 2024 |
+| 4 | Shortlist of 4 COO candidates from Haldane Rooke Partners | Ines | 6 December 2024 |
+| 5 | Price-increase letters (average 3.9 %) to customers | Rafał | 27 December 2024 |
+| 6 | Legal review of the indexation clause wording | Sofia | 13 December 2024 |
+| 7 | Tabletop ransomware exercise for the leadership team (2 hours) | Tomasz and Kamil | 11 December 2024 |
+| 8 | Customs bundle pilot with Fruttoria and two others, report back | Yusuf | 8 May 2025 |
+| 9 | Review of the night differential, bring a number | Ines and Jarek | January 2025 |
+| 10 | Kłaipėda lease extension signed (condition for the cold store release) | Sofia | 30 June 2025 |
+| 11 | Budget: first department drafts | all heads | 6 January 2025 |
+| 12 | Start the AI dispatcher assistant pilot with 3 night dispatchers | Tomasz and Olek | 13 January 2025 |
+
+## 13. Appendix A - departmental pre-reads (circulated 11 November, summarised by Zuzanna)
+
+**A.1 Fleet & Maintenance (Gunnar).** The pool is 126 reefer trailers and 38 tractor units. Five vehicles are older than 12 years, and the oldest tractor is the Volvo known as "Mała Berta", fleet no. 42. Planned maintenance compliance is 94.2 % (target 95 %). Unplanned breakdowns from January to October 2024 numbered 61 against 74 in the same period of 2023, and the average recovery time per breakdown was 3 hours 10 minutes, which Gunnar wants under 2 hours 30 minutes by the end of 2025. Tyre spend year to date is 212,000 EUR. The tyre-pressure sensor (TPMS) retrofit covers 28 units so far. The diesel decision, which is on the parking lot, is that no new diesel tractor units are ordered after 2026 unless a customer pays the difference.
+
+**A.2 Quality & Compliance (Benedikta).** Customer complaints from January to October 2024 numbered 83 against 69 in the same period last year; 11 of them concern alerting. The average closure time is 6.4 working days against a target of 5. Two corrective actions are open from the Helvetia audit. Internal audits completed: 17 of 18 planned (the 18th, at KLJ-5, was moved to January 2025 because the yard manager was ill). In the pharma lanes 98.6 % of KC-Tag 4 loggers are within their 12-month calibration window; the remaining 1.4 % are 20 tags that Benedikta will have recalibrated before the Helvetia list goes out.
+
+**A.3 Legal (Sofia).** Seventeen customer contracts come up for renewal in 2025. Three customers have asked to bring their excursion-credit tables in line with the new Oakhaven wording; Sofia's position is that nothing is offered unprompted and nothing is refused without Priya. The EU trade mark application for the word mark Tidewalk was granted on 9 October 2024. The NDA template moved to version 3 in September. The legal hold from July remains open.
+
+**A.4 People & Culture (Ines).** Open positions at 1 November: 19. Average time to hire over the last 12 months: 47 days (target 40). Training hours per head year to date: 11.8 (target 16). Sick leave rate in operations: 5.1 % (company: 3.6 %). Eight new starters joined in October, six of them in Gdynia operations.
+
+**A.5 IT & Support (Kamil, via Tomasz).** Support tickets per month averaged 1,380 from July to October; first response within 30 minutes in 91 % of cases. The platform met its monthly availability target in July, September and October but not in August, which is the month of the two incidents.
+
+## 14. Appendix B - rooms, dinner and the bus
+
+Rooms 1 to 12 in the main building were allocated alphabetically except that Marta had the corner room 1 and Dieter room 2 ("so that he can hear the lake"). The dinner on Thursday was a three-course menu at 78 EUR per head (wine not included; wine came to 640 EUR in total, which Priya has agreed to expense in this one case). The vegetarian options were requested by Benedikta, Sofia and Ines; Tomasz asked for no mushrooms. Dr Kroll's invoice (2,950 EUR per day for two days plus 410 EUR travel) will be paid on 30 days. The bus company charged 690 EUR for the return trip, and the driver's tip of 50 EUR came out of the kitty jar after all.
+
+The meeting closed at 14:25 on Friday. Marta thanked everybody, the kitty jar went to the Villa staff, and the bus left at 15:30 as planned. Pan Zenon was on time for the return trip, which Rafał called "suspicious".
+
+Zuzanna Frąckowiak, 26 November 2024.

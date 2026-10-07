@@ -24,6 +24,7 @@ from corpus_build import ROOT, parse_source
 W.PROJECT_NAME = os.environ.get("FTS_PROJECT_NAME", "korvane-core-1")
 TIER = os.environ.get("FTS_TIER", "core")
 LANES = [x for x in os.environ.get("FTS_LANES", "").split(",") if x]   # empty = every lane
+FILES = [x for x in os.environ.get("FTS_FILES", "").split(",") if x]   # empty = every file of the tier
 PY = str(W.REPO / ".venv" / "bin" / "python")
 
 
@@ -33,6 +34,8 @@ def tier_files() -> list[Path]:
         if LANES and src.parent.name not in LANES:
             continue
         meta, _ = parse_source(src)
+        if FILES and meta["out"] not in FILES:
+            continue
         if TIER == "all" or meta.get("tier", "core") == TIER:
             built = ROOT / "files" / src.parent.name / meta["out"]
             if not built.exists():
@@ -64,7 +67,7 @@ async def phase_a_upload(w: W.Walk) -> None:
     W.R.check(await w.wait_for("every file parsed", parsed, 900, every=5), f"all {len(files)} files parsed")
     await w.page.reload(wait_until="networkidle")
     await w.shot("library", full=True)
-    code, out = script("corpus_parse_check.py", "--pid", W.pid(), "--tier", TIER, *(["--lanes", *LANES] if LANES else []))
+    code, out = script("corpus_parse_check.py", "--pid", W.pid(), "--tier", TIER, *(["--lanes", *LANES] if LANES else []), *(["--files", *FILES] if FILES else []))
     W.log("parse check:\n" + out[-6000:])
     W.R.check(code == 0, "parsers kept every manifest fact (corpus_parse_check)")
 
@@ -90,7 +93,7 @@ async def phase_a_prep(w: W.Walk) -> None:
     for x in W.api(f"/api/projects/{W.pid()}/data-prep/sources")["sources"]:
         W.log(f"  {x['filename']:52s} {x['status']:20s} pairs={x['pairs_total']:4d} chunks={x.get('chunk_count')}")
     code, out = script("corpus_coverage.py", "--pid", W.pid(), "--tier", TIER, "--status", "any", "--json",
-                       str(W.WORK / "coverage-mined.json"), *(["--lanes", *LANES] if LANES else []))
+                       str(W.WORK / "coverage-mined.json"), *(["--lanes", *LANES] if LANES else []), *(["--files", *FILES] if FILES else []))
     W.log("coverage:\n" + out[-9000:])
     W.R.check(code == 0, "every manifest fact is covered by a mined pair (100 %)")
 
