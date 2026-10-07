@@ -154,3 +154,10 @@ def test_the_same_fact_set_is_kept_at_most_twice() -> None:
     new = [{"q": "q3?", "a": "Cargo is destroyed on the dock within 40 minutes."},
            {"q": "q4?", "a": "The loading ramp is rated for 12 tonnes."}]
     assert [p["q"] for p in ex.drop_redundant(new, kept)] == ["q4?"]
+
+
+def test_a_mid_table_chunk_is_shown_to_the_model_with_its_column_names() -> None:
+    head = "Lane code | Route | 20' EUR/day | Free days"
+    msgs = ex.build_exhaustive_messages("RC-03 | Gdynia - Gothenburg | 44.2 | 2", "Rate card", "Reefer rates", head)
+    assert head in msgs[1]["content"] and "continued from earlier" in msgs[1]["content"]
+    assert head not in ex.build_exhaustive_messages("RC-03 | x | 1 | 2", "Rate card", "", "")[1]["content"]

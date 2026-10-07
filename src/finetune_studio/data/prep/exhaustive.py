@@ -274,16 +274,25 @@ Write question-answer pairs that cover each of them (several pairs when a statem
 their subject and stand alone; answers must state the exact values as written. Respond with ONLY the JSON array."""
 
 
-def build_exhaustive_messages(chunk: str, title: str, section: str) -> list[dict[str, str]]:
+def _with_header(chunk: str, carried_header: str) -> str:
+    """A chunk that starts mid-table is shown with the column names of its table (the model cannot guess them)."""
+    if not carried_header:
+        return chunk
+    return f"[Table columns, continued from earlier in the document: {carried_header}]\n{chunk}"
+
+
+def build_exhaustive_messages(chunk: str, title: str, section: str, carried_header: str = "") -> list[dict[str, str]]:
     return [{"role": "system", "content": EXHAUSTIVE_SYSTEM},
-            {"role": "user", "content": EXHAUSTIVE_USER.format(chunk=chunk[:7000], title=title, section=section or "(none)")}]
+            {"role": "user", "content": EXHAUSTIVE_USER.format(chunk=_with_header(chunk, carried_header)[:7000], title=title,
+                                                               section=section or "(none)")}]
 
 
-def build_gap_messages(chunk: str, title: str, section: str, missing: Sequence[Statement]) -> list[dict[str, str]]:
+def build_gap_messages(chunk: str, title: str, section: str, missing: Sequence[Statement],
+                       carried_header: str = "") -> list[dict[str, str]]:
     numbered = "\n".join(f"{i}. {s.prompt_text}" for i, s in enumerate(missing, 1))
     return [{"role": "system", "content": EXHAUSTIVE_SYSTEM},
-            {"role": "user", "content": GAP_USER.format(chunk=chunk[:7000], title=title, section=section or "(none)",
-                                                         numbered=numbered)}]
+            {"role": "user", "content": GAP_USER.format(chunk=_with_header(chunk, carried_header)[:7000], title=title,
+                                                         section=section or "(none)", numbered=numbered)}]
 
 
 # ── deterministic last resort ──────────────────────────────────────────────────
@@ -339,13 +348,13 @@ def mine_chunk(
         for pair in accepted:
             out.pairs.append((pair, origin))
 
-    run(build_exhaustive_messages(chunk, title, section), "model")
+    run(build_exhaustive_messages(chunk, title, section, carried_header), "model")
     out.rounds = 1
     for _ in range(MAX_GAP_ROUNDS):
         missing = uncovered(checkable, [(p["q"], p["a"]) for p, _ in out.pairs])
         if not missing:
             break
-        run(build_gap_messages(chunk, title, section, missing), "model_gap")
+        run(build_gap_messages(chunk, title, section, missing, carried_header), "model_gap")
         out.rounds += 1
     missing = uncovered(checkable, [(p["q"], p["a"]) for p, _ in out.pairs])
     for s in missing:
