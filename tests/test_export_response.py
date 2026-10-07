@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 
 import pytest
+
+from tests._export_wait import wait_export
 from fastapi.encoders import jsonable_encoder
 
 
@@ -136,18 +138,17 @@ class TestAbliteratedExportRoute:
             f"/api/projects/{pid}/runs/{created['id']}/export",
             json={"format": "abliterated", "force": True},
         )
-        assert r.status_code == 200, r.text
+        assert r.status_code == 202, r.text
         body = r.json()
         assert body.get("ok") is True
+        assert body.get("status") == "queued"
         assert body.get("format") == "abliterated"
-        assert body.get("output_path") == str(abl)
         assert "refusal_direction" not in body
         assert body.get("export_id")
-        row = db.get_export(body["export_id"])
-        assert row is not None
-        assert row["status"] == "done"
+        row = wait_export(client, pid, body["export_id"])
+        assert row["status"] == "done", row
         assert row["format"] == "abliterated"
-        assert row["output_path"] == body["output_path"]
+        assert row["output_path"] == str(abl)
 
     def test_post_merged_registers_artifact(
         self, client, tmp_path: Path
@@ -175,12 +176,12 @@ class TestAbliteratedExportRoute:
             f"/api/projects/{pid}/runs/{created['id']}/export",
             json={"format": "merged"},
         )
-        assert r.status_code == 200, r.text
+        assert r.status_code == 202, r.text
         body = r.json()
         assert body.get("ok") is True
         assert body.get("export_id")
-        row = db.get_export(body["export_id"])
-        assert row["status"] == "done"
+        row = wait_export(client, pid, body["export_id"])
+        assert row["status"] == "done", row
         assert row["format"] == "merged"
 
 
