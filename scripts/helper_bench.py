@@ -94,7 +94,7 @@ def main() -> int:
     pid = args.pid
     if not pid:
         state = REPO / ".tmp" / "manual-e2e" / "state.json"
-        pid = json.loads(state.read_text()).get("project_id", "") if state.exists() else ""
+        pid = json.loads(state.read_text()).get("pid", "") if state.exists() else ""
     if not pid:
         print("no project: pass --pid or run the walkthrough create/upload/prep/review phases first", file=sys.stderr)
         return 2

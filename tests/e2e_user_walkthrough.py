@@ -606,12 +606,22 @@ async def phase_gguf(w: Walk) -> None:
     await w.page.wait_for_timeout(3000)
     await w.shot("export-started")
 
-    async def exported() -> bool:
-        runs = api(f"/api/projects/{pid()}/exports")
-        text = json.dumps(runs)
-        return "q4_k_m" in text.lower() and "q6_k" in text.lower()
+    latencies: list[float] = []
 
-    R.check(await w.wait_for("GGUF export", exported, 240, every=4), "q4_k_m and q6_k GGUF files were written")
+    async def exported() -> bool:
+        t0 = time.time()
+        api("/api/projects", timeout=10)  # the app must keep answering while the export runs
+        latencies.append(time.time() - t0)
+        # Exports are tracked jobs now: a row exists from the first second, so wait for each quant to reach `done`.
+        rows = api(f"/api/projects/{pid()}/exports")
+        done = {str(r.get("quant", "")).lower() for r in rows if r.get("status") == "done"}
+        failed = [r.get("error") for r in rows if r.get("status") in ("failed", "cancelled")]
+        if failed:
+            raise AssertionError(f"export failed: {failed[0]}")
+        return {"q4_k_m", "q6_k"} <= done
+
+    R.check(await w.wait_for("GGUF export", exported, 240, every=4), "q4_k_m and q6_k GGUF exports reached done")
+    R.check(bool(latencies) and max(latencies) < 2.0, f"app answered during the export (slowest /api/projects {max(latencies, default=0):.2f}s)")
     await w.page.reload(wait_until="networkidle")
     await w.shot("exports-listed", full=True)
     ggufs = list((REPO / "output" / "projects" / pid()).rglob("*.gguf"))
