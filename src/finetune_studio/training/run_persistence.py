@@ -55,6 +55,9 @@ def make_run_state_persister(
                 "elapsed": state.elapsed,
                 "duration": max(0.0, now - started_at),
             }
+            # Flat keys (``rewards/accuracies``, ``eval_rewards/margins``) so the run
+            # detail table shows them as plain rows next to the loss.
+            update["metrics"].update(getattr(state, "pref_metrics", None) or {})
             if state.final_loss is not None:
                 update["final_loss"] = state.final_loss
             if status == "done":

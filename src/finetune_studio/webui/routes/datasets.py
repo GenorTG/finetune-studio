@@ -178,7 +178,7 @@ async def dataset_health_route(pid: str, did: str, request: Request):
     if not path.is_file():
         return JSONResponse({"error": f"dataset file is missing: {path.name}"}, status_code=404)
     training_mode = request.query_params.get("training_mode", "sft")
-    if training_mode not in {"sft", "dpo", "tool_sft", "continued_pretraining", "reasoning_distillation"}:
+    if training_mode not in {"sft", "dpo", "kto", "tool_sft", "continued_pretraining", "reasoning_distillation"}:
         return JSONResponse({"error": "unsupported training_mode"}, status_code=400)
     return check_dataset(path, training_mode=training_mode)
 

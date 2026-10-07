@@ -205,6 +205,77 @@ def format_for_preference(data: list, system_prompt: str = "") -> list[dict[str,
         raise ValueError("Preference dataset is empty")
     return formatted
 
+def preference_to_unpaired(data: list) -> list[dict[str, object]]:
+    """Turn preference rows into KTO's unpaired rows: chosen -> label true, rejected -> false.
+
+    Rows that already carry ``completion`` + ``label`` pass through untouched, so a
+    dataset may mix both shapes. Output order alternates chosen/rejected per pair;
+    ``split_data``'s seeded shuffle separates the two answers of one prompt before
+    KTO builds its mismatched-pair KL estimate.
+    """
+    out: list[dict[str, object]] = []
+    for row in data:
+        if isinstance(row, dict) and "chosen" in row and "rejected" in row:
+            for key, label in (("chosen", True), ("rejected", False)):
+                out.append({"prompt": row.get("prompt"), "completion": row[key], "label": label})
+        else:
+            out.append(row)
+    return out
+
+
+def normalize_unpaired_row(item: object, system_prompt: str = "", *, index: int = 1) -> dict[str, object]:
+    """One KTO row -> ``{prompt: [messages], completion: [assistant message], label: bool}``."""
+    if not isinstance(item, dict):
+        raise TypeError(f"Row {index}: expected a JSON object")
+    label = item.get("label")
+    if not isinstance(label, bool):
+        raise TypeError(f"Row {index}: label must be true (good answer) or false (bad answer)")
+    prompt, completion = item.get("prompt"), item.get("completion")
+    if isinstance(prompt, str):
+        prompt = [{"role": "user", "content": prompt}]
+    if isinstance(completion, str):
+        completion = [{"role": "assistant", "content": completion}]
+    for field, messages in (("prompt", prompt), ("completion", completion)):
+        if not isinstance(messages, list) or not messages:
+            raise ValueError(f"Row {index}: {field} must be non-empty text or message list")
+        for message_index, message in enumerate(messages, start=1):
+            if (not isinstance(message, dict)
+                    or not isinstance(message.get("role"), str)
+                    or not isinstance(message.get("content"), str)
+                    or not message["content"].strip()):
+                raise ValueError(
+                    f"Row {index}: {field} message {message_index} needs role and non-empty content"
+                )
+    prompt_messages = [dict(m) for m in prompt]
+    completion_messages = [dict(m) for m in completion]
+    if prompt_messages[-1]["role"] != "user":
+        raise ValueError(f"Row {index}: prompt must end with a user message")
+    if len(completion_messages) != 1 or completion_messages[0]["role"] != "assistant":
+        raise ValueError(f"Row {index}: completion must be exactly one assistant message")
+    if system_prompt and prompt_messages[0]["role"] != "system":
+        prompt_messages.insert(0, {"role": "system", "content": system_prompt})
+    return {"prompt": prompt_messages, "completion": completion_messages, "label": label}
+
+
+def format_for_unpaired(data: list, system_prompt: str = "") -> list[dict[str, object]]:
+    """Normalize KTO examples to TRL's conversational unpaired format.
+
+    Preference rows (prompt/chosen/rejected) are converted via ``preference_to_unpaired``.
+    KTO needs both labels present, otherwise its desirable/undesirable balance and
+    reward margin are meaningless — that raises here, not mid-run.
+    """
+    formatted = [
+        normalize_unpaired_row(item, system_prompt, index=index)
+        for index, item in enumerate(preference_to_unpaired(list(data)), start=1)
+    ]
+    if not formatted:
+        raise ValueError("Unpaired preference dataset is empty")
+    good = sum(1 for row in formatted if row["label"])
+    if good == 0 or good == len(formatted):
+        raise ValueError("KTO needs both good (label true) and bad (label false) examples")
+    return formatted
+
+
 def split_data(data: list, train_ratio: float = 0.9, seed: int = 42):
     import random
     shuffled = data.copy()

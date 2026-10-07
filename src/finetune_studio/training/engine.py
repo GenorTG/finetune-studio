@@ -44,6 +44,11 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from finetune_studio.training.preference_metrics import (
+    extract_preference_metrics,
+    format_metric_suffix,
+)
+
 log = logging.getLogger(__name__)
 
 
@@ -179,7 +184,12 @@ class TrainingConfig:
         "q_proj", "k_proj", "v_proj", "o_proj",
         "gate_proj", "up_proj", "down_proj",
     ])
-    training_mode: str = "sft"  # sft | dpo | tool_sft | continued_pretraining | reasoning_distillation
+    training_mode: str = "sft"  # sft | dpo | kto | tool_sft | continued_pretraining | reasoning_distillation
+    preference_beta: float = 0.1  # DPO/KTO KL strength (TRL + DPO-paper default)
+    # DPO only: weight of an extra NLL-on-chosen term (TRL ``loss_type=["sigmoid","sft"]``).
+    # 0 = plain DPO. Counters likelihood displacement, where DPO lowers the chosen
+    # answer's probability too and a short run forgets facts (see HANDOFF "DPO quality").
+    preference_sft_weight: float = 0.0
 
 @dataclass
 class TrainingState:
@@ -195,6 +205,9 @@ class TrainingState:
     message: str = ""
     error: str = ""
     log_lines: list = field(default_factory=list)
+    # Latest preference metrics (DPO/KTO): ``rewards/accuracies``, ``rewards/margins``,
+    # ``eval_`` twins, ... empty for every other route.
+    pref_metrics: dict = field(default_factory=dict)
 
 
 def _early_stop_step(cfg: TrainingConfig, trainer_state: Any) -> int:
@@ -221,6 +234,7 @@ def apply_trainer_log(
     live/final loss to 0 — that is what made finished runs report no loss.
     """
     state.current_step = global_step
+    state.pref_metrics.update(extract_preference_metrics(logs))
     state.epoch = round(epoch or 0, 2)
     state.elapsed = round(elapsed, 1)
     if global_step > 0:
@@ -232,10 +246,12 @@ def apply_trainer_log(
             state.learning_rate = round(float(logs["learning_rate"]), 8)
         state.log_lines.append(
             f"Step {global_step}/{total_steps} | loss={state.loss} | lr={state.learning_rate}"
+            + format_metric_suffix(state.pref_metrics)
         )
     elif logs.get("eval_loss") is not None:
         state.log_lines.append(
             f"Step {global_step}/{total_steps} | eval_loss={round(float(logs['eval_loss']), 4)}"
+            + format_metric_suffix(state.pref_metrics, prefix="eval_")
         )
     elif logs.get("train_loss") is not None:
         mean_loss = round(float(logs["train_loss"]), 4)
@@ -378,6 +394,8 @@ class TrainingEngine:
         ):
             if key in payload:
                 setattr(self.state, key, payload[key])
+        if isinstance(payload.get("pref_metrics"), dict):
+            self.state.pref_metrics = dict(payload["pref_metrics"])
         if "log_lines" in payload and isinstance(payload["log_lines"], list):
             self.state.log_lines = list(payload["log_lines"])
         self._notify()
@@ -539,6 +557,7 @@ class TrainingEngine:
                 format_for_continued_pretraining,
                 format_for_preference,
                 format_for_sft,
+                format_for_unpaired,
                 split_data,
             )
             self._early_stop_step = 0
@@ -551,6 +570,8 @@ class TrainingEngine:
             training_mode = getattr(self.config, "training_mode", "sft")
             if training_mode == "dpo":
                 formatted = format_for_preference(training_data, bake_prompt)
+            elif training_mode == "kto":
+                formatted = format_for_unpaired(training_data, bake_prompt)
             elif training_mode == "continued_pretraining":
                 formatted = format_for_continued_pretraining(training_data)
             elif training_mode in {"sft", "tool_sft", "reasoning_distillation"}:
@@ -579,7 +600,7 @@ class TrainingEngine:
             plan = resolve_train_plan(self.config.bf16, self.config.unsloth)
             self._plan = plan
             log.info("train plan: %s", plan)
-            if training_mode == "dpo":
+            if training_mode in ("dpo", "kto"):
                 self._train_preference(train_data, val_data)
             elif plan.use_unsloth:
                 try:
@@ -611,18 +632,102 @@ class TrainingEngine:
             except Exception:  # error path must not raise
                 log.exception("Failed to persist run error")
 
+    def _preference_args(self, kind: str, plan: Any, train_data: list, has_eval: bool) -> Any:
+        """``DPOConfig`` / ``KTOConfig`` for ``kind``; checkpoint + eval rules shared with SFT.
+
+        ``max_length`` is TRL 1.14's single length knob (there is no
+        ``max_prompt_length``): over-long completions are cut at the end and rows whose
+        prompt alone fills it are dropped. ``beta`` is the KL strength (TRL default 0.1,
+        the DPO paper's value); lower lets the policy drift further from the reference.
+        """
+        from finetune_studio import accel
+        from finetune_studio.training.sft_args import checkpoint_eval_kwargs
+
+        cfg = self.config
+        steps = max(1, math.ceil(len(train_data) / max(1, cfg.batch_size * cfg.gradient_accumulation_steps)))
+        total = steps * cfg.num_epochs
+        kwargs: dict[str, Any] = {
+            "output_dir": cfg.output_dir,
+            "per_device_train_batch_size": cfg.batch_size,
+            "per_device_eval_batch_size": cfg.batch_size,
+            "gradient_accumulation_steps": cfg.gradient_accumulation_steps,
+            "num_train_epochs": cfg.num_epochs,
+            "learning_rate": cfg.learning_rate,
+            "warmup_steps": cfg.warmup_steps,
+            "weight_decay": cfg.weight_decay,
+            # Preference runs are short: log often enough that the live panel shows
+            # rewards/accuracies and margins move instead of one point at the end.
+            "logging_steps": max(1, min(cfg.logging_steps, total // 8)),
+            "save_steps": cfg.save_steps,
+            "bf16": plan.bf16,
+            "fp16": plan.fp16,
+            "use_cpu": plan.use_cpu,
+            "optim": plan.optim,
+            "seed": 3407,
+            "gradient_checkpointing": True,
+            "max_length": cfg.max_seq_length,
+            "beta": cfg.preference_beta,
+            "report_to": "none",
+            "push_to_hub": False,
+            "hub_token": None,
+        }
+        extra = checkpoint_eval_kwargs(cfg, has_eval=has_eval)
+        kwargs.update(extra)
+        if kind == "kto":
+            from trl import KTOConfig
+
+            n_good = sum(1 for row in train_data if row["label"])
+            n_bad = len(train_data) - n_good
+            # KTO paper Eq. 8: weighted desirable:undesirable ratio should sit in [1, 4/3].
+            if 0 < n_good < n_bad:
+                kwargs["desirable_weight"] = round(n_bad / n_good * 1.1, 2)
+            elif 0 < n_bad < n_good:
+                kwargs["undesirable_weight"] = round(n_good / n_bad / 1.1, 2)
+            return accel.pin_trainer_args(KTOConfig(**kwargs))
+        from trl import DPOConfig
+
+        if cfg.preference_sft_weight > 0:
+            kwargs["loss_type"] = ["sigmoid", "sft"]
+            kwargs["loss_weights"] = [1.0, float(cfg.preference_sft_weight)]
+        return accel.pin_trainer_args(DPOConfig(**kwargs))
+
     def _train_preference(self, train_data: list, val_data: list) -> None:
-        """Run conversational DPO with a PEFT adapter in the isolated worker."""
+        """Run DPO or KTO with a PEFT adapter in the isolated worker.
+
+        With PEFT the reference policy is the base model with the adapter disabled, so no
+        second copy sits in VRAM. When the base is an SFT-merged run, that merged model is
+        the reference — the usual SFT → preference recipe.
+        """
         from datasets import Dataset
         from peft import LoraConfig, get_peft_model
 
+        from finetune_studio.training.preference_tokens import (
+            describe_mismatch,
+            preference_template_kwargs,
+            prefix_mismatches,
+        )
+
         cfg = self.config
+        kind = "kto" if cfg.training_mode == "kto" else "dpo"
+        completion_keys = ("completion",) if kind == "kto" else ("chosen", "rejected")
         self.state.message = "Loading preference-training model..."
         self._notify()
         from finetune_studio.hf_env import load_tokenizer
         tokenizer = load_tokenizer(cfg.model_path)
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
+        # Thinking-by-default templates (Qwen3.5) render the prompt's generation turn
+        # differently from a finished turn; without this TRL mis-splits every row.
+        template_kwargs = preference_template_kwargs(tokenizer)
+        if template_kwargs:
+            for rows in (train_data, val_data):
+                for row in rows:
+                    row["chat_template_kwargs"] = dict(template_kwargs)
+        bad = prefix_mismatches(tokenizer, train_data, template_kwargs, completion_keys=completion_keys)
+        if bad:
+            note = describe_mismatch(bad, len(train_data))
+            log.warning(note)
+            self.state.log_lines.append(note)
         model = self._load_model_with_fallback(cfg.model_path, tokenizer)
         if self._stop_requested():
             self._mark_stopped()
@@ -639,48 +744,12 @@ class TrainingEngine:
             self._mark_stopped()
             return
 
-        from trl import DPOConfig, DPOTrainer
-
         from finetune_studio.training.accel_plan import resolve_train_plan
         plan = getattr(self, "_plan", None) or resolve_train_plan(cfg.bf16, False)
-        kwargs: dict[str, Any] = {
-            "output_dir": cfg.output_dir,
-            "per_device_train_batch_size": cfg.batch_size,
-            "per_device_eval_batch_size": cfg.batch_size,
-            "gradient_accumulation_steps": cfg.gradient_accumulation_steps,
-            "num_train_epochs": cfg.num_epochs,
-            "learning_rate": cfg.learning_rate,
-            "warmup_steps": cfg.warmup_steps,
-            "weight_decay": cfg.weight_decay,
-            "logging_steps": cfg.logging_steps,
-            "save_steps": cfg.save_steps,
-            "save_strategy": "steps" if cfg.save_checkpoints else "no",
-            "save_total_limit": cfg.save_total_limit if cfg.save_checkpoints else None,
-            "bf16": plan.bf16,
-            "fp16": plan.fp16,
-            "use_cpu": plan.use_cpu,
-            "optim": plan.optim,
-            "gradient_checkpointing": True,
-            "max_length": cfg.max_seq_length,
-            "beta": 0.1,
-            "report_to": "none",
-            "push_to_hub": False,
-            "hub_token": None,
-            "eval_strategy": "no",
-        }
-        if val_data and cfg.eval_steps > 0:
-            kwargs.update(
-                eval_strategy="steps",
-                eval_steps=cfg.eval_steps,
-                load_best_model_at_end=cfg.early_stopping,
-                metric_for_best_model="eval_loss" if cfg.early_stopping else None,
-                greater_is_better=False if cfg.early_stopping else None,
-            )
-        args = DPOConfig(**kwargs)
-        from finetune_studio import accel
-        args = accel.pin_trainer_args(args)
+        has_eval = bool(val_data) and cfg.eval_steps > 0
+        args = self._preference_args(kind, plan, train_data, has_eval)
         train_dataset = Dataset.from_list(train_data)
-        eval_dataset = Dataset.from_list(val_data) if val_data and cfg.eval_steps > 0 else None
+        eval_dataset = Dataset.from_list(val_data) if has_eval else None
         total = max(1, math.ceil(len(train_dataset) / max(
             1, cfg.batch_size * cfg.gradient_accumulation_steps
         ))) * cfg.num_epochs
@@ -703,7 +772,11 @@ class TrainingEngine:
         if cfg.early_stopping and eval_dataset is not None:
             from transformers import EarlyStoppingCallback
             callbacks.append(EarlyStoppingCallback(early_stopping_patience=cfg.early_stopping_patience))
-        trainer = DPOTrainer(
+        if kind == "kto":
+            from trl import KTOTrainer as _Trainer
+        else:
+            from trl import DPOTrainer as _Trainer
+        trainer = _Trainer(
             model=model,
             ref_model=None,
             args=args,
@@ -713,7 +786,7 @@ class TrainingEngine:
             callbacks=callbacks,
         )
         self.state.status = "training"
-        self.state.message = "Training with DPO preferences..."
+        self.state.message = f"Training with {kind.upper()} preferences..."
         self._notify()
         trainer.train()
         self._early_stop_step = _early_stop_step(cfg, trainer.state)
@@ -721,7 +794,7 @@ class TrainingEngine:
             try:
                 self._save_adapter(model, tokenizer)
             except Exception:
-                log.exception("Failed to save DPO adapter after stop")
+                log.exception("Failed to save %s adapter after stop", kind.upper())
             self._mark_stopped()
             return
         self.state.status = "saving"

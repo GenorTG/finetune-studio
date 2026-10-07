@@ -125,6 +125,7 @@
       <div class="flex gap-4 wrap mt-2">
         <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="sft" checked> Supervised fine-tuning (SFT)</label>
         <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="dpo"> Preference tuning (DPO)</label>
+        <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="kto"> Good/bad examples (KTO)</label>
         <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="tool_sft"> Tool-calling SFT</label>
         <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="continued_pretraining"> Continued pretraining</label>
         <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="reasoning_distillation"> Reasoning distillation</label>
@@ -135,7 +136,35 @@
         JSONL example: <code>{"prompt":[{"role":"user","content":"Question"}],"chosen":[{"role":"assistant","content":"Preferred answer"}],"rejected":[{"role":"assistant","content":"Less helpful answer"}]}</code>
         String-valued prompt/chosen/rejected are accepted too. Do not use model-generated rejected answers without review.
       </div>
+      <div id="kto-format-help" class="text-xs muted mt-2" hidden>
+        KTO learns from single answers marked good or bad, so it works when you cannot pair them. Each row needs a
+        <code>prompt</code>, a <code>completion</code> and a true/false <code>label</code>; preference rows
+        (prompt/chosen/rejected) are accepted and split into one good and one bad example. It needs both labels and a
+        batch size of at least 2.
+        JSONL example: <code>{"prompt":"Question","completion":"An answer","label":true}</code>
+      </div>
       <div id="advanced-format-help" class="text-xs muted mt-2" hidden></div>
+    </fieldset>
+
+    <fieldset class="card-inner" id="preference-options" style="grid-column:1/-1;" hidden>
+      <legend class="text-xs muted">Preference options</legend>
+      <div class="grid grid-2 gap-4 mt-2">
+        <label>
+          <span class="block text-xs muted mb-1" for="start-run-select">Start from</span>
+          <select name="start_run_id" id="start-run-select" class="select" title="Preference tuning works best on top of a finished SFT run: that run's merged model becomes the starting point and the reference the new adapter is measured against.">
+            <option value="">The base model chosen below</option>
+          </select>
+          <span class="block text-xs muted mt-1" id="start-run-hint" role="status">Looking for finished SFT runs with a merged model…</span>
+        </label>
+        <label>
+          <span class="block text-xs muted mb-1" for="preference-beta">Beta (how far the model may move from its starting point)</span>
+          <input type="text" name="preference_beta" id="preference-beta" value="0.1" class="input" title="Higher keeps the model closer to where it started; lower lets it move further. 0.1 is the TRL and DPO-paper default.">
+        </label>
+        <label id="preference-sft-weight-row">
+          <span class="block text-xs muted mb-1" for="preference-sft-weight">Keep-chosen weight (DPO)</span>
+          <input type="text" name="preference_sft_weight" id="preference-sft-weight" value="1.0" class="input" title="Adds a supervised loss on the chosen answers next to DPO (RPO). Plain DPO lowers the probability of chosen answers as well; on small datasets that makes the model forget facts. 0 = plain DPO.">
+        </label>
+      </div>
     </fieldset>
 
     <label>
@@ -320,6 +349,8 @@
     </div>
   </div>
   <div class="bar mt-3"><div class="fill" id="train-progress-bar" style="width:0%"></div></div>
+  <div id="train-pref-metrics" class="text-sm mono mt-2" aria-live="polite" hidden
+       title="Preference training: share of pairs where the model ranks the chosen answer above the rejected one (accuracy) and by how much (margin), measured against the starting model. Accuracy 0.5 with margin 0 means nothing has changed yet."></div>
   <div class="text-xs muted mt-3 mb-1">Step log</div>
   <pre id="train-log" class="text-xs mono" role="log" aria-live="polite" style="font-size:11px;line-height:1.5;white-space:pre-wrap;background:var(--bg-app);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);max-height:220px;min-height:3.5em;overflow-y:auto;margin:0;">(no log lines yet)</pre>
 </div>
@@ -414,10 +445,19 @@
   const startBtn = document.getElementById("start-btn");
   const modeHelp = document.getElementById("training-mode-help");
   const dpoHelp = document.getElementById("dpo-format-help");
+  const ktoHelp = document.getElementById("kto-format-help");
+  const prefOptions = document.getElementById("preference-options");
+  const PREF_MODES = ["dpo", "kto"];
+  // Mirrors PREFERENCE_DEFAULTS in routes/training.py (measured on short runs; see HANDOFF).
+  const PREF_DEFAULTS = {
+    dpo: { learning_rate: "1e-4", num_epochs: "3", warmup_steps: "0" },
+    kto: { learning_rate: "1e-5", num_epochs: "3", warmup_steps: "0" },
+  };
   const advancedHelp = document.getElementById("advanced-format-help");
   const routeHelp = {
     sft: "SFT learns from prompt/answer examples. Choose an approved Q&A export or a conversational JSONL dataset.",
-    dpo: "DPO tunes preferences between two reviewed answers to the same prompt. Selecting it sets conservative DPO defaults (LR 1e-6, 1 epoch, no warmup); adjust the visible fields if your validated recipe differs. It does not create comparisons for you.",
+    dpo: "DPO tunes preferences between two reviewed answers to the same prompt. Selecting it sets LoRA preference defaults (LR 1e-4, 3 epochs, no warmup, plus a keep-chosen term) measured on ~50-step runs; for thousands of pairs lower the learning rate to 5e-6–2e-5. Watch rewards/accuracies and margins in the live panel: if they stay at 0.5 and 0 the model is not moving. It does not create comparisons for you.",
+    kto: "KTO tunes a model from answers marked good or bad (no pairing needed). Defaults: LR 1e-5, 3 epochs (the least damaging rate we measured; on a facts-and-refusals test KTO did not beat the SFT start). Watch rewards/margins in the live panel. Start from your SFT-merged run when you have one.",
     tool_sft: "Tool-calling SFT teaches structured tool requests and tool results. JSONL rows need messages (including tool_calls/tool turns) and a tools JSON-schema array; use a model with a compatible chat template.",
     continued_pretraining: "Continued pretraining adapts domain language on raw text, not question/answer pairs. JSONL rows need a non-empty text field. It does not teach instruction following by itself.",
     reasoning_distillation: "Reasoning distillation is supervised training on teacher-produced traces and final answers. Upload reviewed messages JSONL; keep teacher/evaluation data separate and do not treat hidden reasoning as automatically correct.",
@@ -427,16 +467,19 @@
   document.querySelectorAll('input[name="training_mode"]').forEach((input) => {
     input.addEventListener("change", () => {
       if (!input.checked) return;
-      if (input.value === "dpo" && previousTrainingMode !== "dpo") {
-        valuesBeforeDpo = Object.fromEntries(["learning_rate", "num_epochs", "warmup_steps"].map((name) => {
-          const field = document.querySelector(`#train-form [name="${name}"]`);
-          return [name, field?.value ?? ""];
-        }));
-        for (const [name, value] of Object.entries({ learning_rate: "1e-6", num_epochs: "1", warmup_steps: "0" })) {
+      const toPref = PREF_MODES.includes(input.value), fromPref = PREF_MODES.includes(previousTrainingMode);
+      if (toPref) {
+        if (!fromPref) {
+          valuesBeforeDpo = Object.fromEntries(Object.keys(PREF_DEFAULTS.dpo).map((name) => {
+            const field = document.querySelector(`#train-form [name="${name}"]`);
+            return [name, field?.value ?? ""];
+          }));
+        }
+        for (const [name, value] of Object.entries(PREF_DEFAULTS[input.value])) {
           const field = document.querySelector(`#train-form [name="${name}"]`);
           if (field) field.value = value;
         }
-      } else if (previousTrainingMode === "dpo" && input.value !== "dpo" && valuesBeforeDpo) {
+      } else if (fromPref && valuesBeforeDpo) {
         for (const [name, value] of Object.entries(valuesBeforeDpo)) {
           const field = document.querySelector(`#train-form [name="${name}"]`);
           if (field) field.value = value;
@@ -446,11 +489,39 @@
       previousTrainingMode = input.value;
       modeHelp.textContent = routeHelp[input.value] || routeHelp.sft;
       dpoHelp.hidden = input.value !== "dpo";
+      ktoHelp.hidden = input.value !== "kto";
+      prefOptions.hidden = !PREF_MODES.includes(input.value);
+      document.getElementById("preference-sft-weight-row").hidden = input.value !== "dpo";
+      if (!prefOptions.hidden) loadStartPoints();
       advancedHelp.hidden = !["tool_sft", "continued_pretraining", "reasoning_distillation"].includes(input.value);
       advancedHelp.textContent = advancedHelp.hidden ? "" : "Evaluation and production promotion remain a separate human-reviewed step.";
       loadHealth(datasetIdInput?.value);
     });
   });
+
+  let startPointsLoaded = false;
+  async function loadStartPoints() {
+    if (startPointsLoaded) return;
+    const sel = document.getElementById("start-run-select");
+    const hint = document.getElementById("start-run-hint");
+    try {
+      const r = await fetch("/api/training/start-points/{{ pid }}", { cache: "no-store" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      startPointsLoaded = true;
+      for (const p of d.start_points) {
+        const opt = document.createElement("option");
+        opt.value = p.run_id;
+        opt.textContent = `${p.name} (${p.training_mode}${p.final_loss != null ? ", loss " + Number(p.final_loss).toFixed(3) : ""}) — merged model`;
+        sel.appendChild(opt);
+      }
+      hint.textContent = d.start_points.length
+        ? "Recommended: start from a finished SFT run so the preference step refines what it learned."
+        : "No finished run in this project has a merged model yet, so preference tuning starts from the base model. Run SFT with “Also save merged model” ticked first for the usual SFT → preference recipe.";
+    } catch (e) {
+      hint.textContent = "Could not list starting runs: " + (e.message || e);
+    }
+  }
 
   function syncStartEnabled() {
     const hasData = !!(dataPathInput && dataPathInput.value);
@@ -1048,8 +1119,29 @@
       return Math.floor(sec / 60) + "m " + Math.round(sec % 60) + "s";
     }
 
+    function showPrefMetrics(m) {
+      const el = document.getElementById("train-pref-metrics");
+      if (!el) return;
+      const f = (v, d) => (typeof v === "number" ? v.toFixed(d) : "—");
+      const has = m && Object.keys(m).length > 0;
+      el.hidden = !has;
+      if (!has) return;
+      const parts = [
+        "accuracy " + f(m["rewards/accuracies"], 2), "margin " + f(m["rewards/margins"], 3),
+        "chosen " + f(m["rewards/chosen"], 3), "rejected " + f(m["rewards/rejected"], 3),
+      ];
+      if (typeof m.kl === "number") parts.push("KL " + f(m.kl, 3));
+      let line = "Train · " + parts.join(" · ");
+      if (typeof m["eval_rewards/accuracies"] === "number" || typeof m["eval_rewards/margins"] === "number") {
+        line += "\nHeld-out · accuracy " + f(m["eval_rewards/accuracies"], 2) + " · margin " + f(m["eval_rewards/margins"], 3);
+      }
+      el.textContent = line;
+      el.style.whiteSpace = "pre-line";
+    }
+
     function applyStatus(s) {
       if (!s || typeof s !== "object") return;
+      showPrefMetrics(s.pref_metrics);
       // The engine is process-wide: an error from another project's run is not this page's news.
       if (s.status === "error" && s.project_id && s.project_id !== PID) return;
       const st = s.status || "idle";
