@@ -128,6 +128,8 @@ def split_row(line: str) -> list[str]:
 
 
 def add_table(doc, rows: list[list[str]]) -> None:
+    from docx.oxml import OxmlElement
+
     cols = max(len(r) for r in rows)
     t = doc.add_table(rows=len(rows), cols=cols)
     t.style = "Table Grid"
@@ -138,6 +140,12 @@ def add_table(doc, rows: list[list[str]]) -> None:
             if i == 0:
                 for run in cell.paragraphs[0].runs:
                     run.bold = True
+    # Keep each row intact across page breaks: LibreOffice otherwise splits a
+    # tall wrapped cell mid-word across pages (seen as "deviati\non records"
+    # in the Korvane admin-guide matrix), which fragments facts in the PDF's
+    # text layer.
+    for row in t.rows:
+        row._tr.get_or_add_trPr().append(OxmlElement("w:cantSplit"))
 
 
 def build_docx(body: str, dest: Path, workdir: Path) -> None:
@@ -158,6 +166,16 @@ def build_docx(body: str, dest: Path, workdir: Path) -> None:
             png = workdir / f"chart{chart_n}.png"
             render_chart(chart[0], chart[1], chart[2], chart[3], png)
             doc.add_picture(str(png), width=Inches(6))
+            # Text caption with the underlying data: chart labels are pixels,
+            # and without this the values are unreachable for text extraction
+            # (Korvane parse audit: Figure 1/2 data labels were lost).
+            _, c_title, c_data, c_unit = chart
+            cap = doc.add_paragraph()
+            cap_run = cap.add_run(
+                f"Figure data — {c_title}" + (f" ({c_unit})" if c_unit else "") + ": "
+                + ", ".join(f"{lbl} = {val:g}" for lbl, val in c_data) + "."
+            )
+            cap_run.italic = True
             i += 1
         elif line.startswith("|"):
             rows = []

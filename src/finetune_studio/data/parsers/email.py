@@ -18,6 +18,14 @@ def parse(path: Path) -> dict:
         return make_result(raw, {"type": "email", "error": str(e)},
                            parser="email_v1", warnings=[f"email parse failed: {e}"])
     headers = {k: str(v) for k, v in msg.items()}
+    header_lines = [
+        f"{k}: {v}" for k, v in (
+            ("From", msg.get("From", "")), ("To", msg.get("To", "")),
+            ("Cc", msg.get("Cc", "")), ("Date", msg.get("Date", "")),
+            ("Subject", msg.get("Subject", "")),
+        ) if v
+    ]
+    header_block = "\n".join(header_lines)
     parts_text = []
     attachments = []
     for part in msg.walk():
@@ -39,13 +47,14 @@ def parse(path: Path) -> dict:
         if isinstance(body, str) and body.strip():
             parts_text.append(f"[{ctype}]\n{body}")
     if parts_text:
-        text = "\n\n".join(parts_text)
+        body = "\n\n".join(parts_text)
     else:
         body_part = msg.get_body(preferencelist=("plain", "html"))
         try:
-            text = body_part.get_content() if body_part is not None else ""
+            body = body_part.get_content() if body_part is not None else ""
         except Exception:  # noqa: BLE001 — malformed MIME part content
-            text = ""
+            body = ""
+    text = f"{header_block}\n\n{body}" if header_block and body else (header_block or body)
     if not isinstance(text, str) or not text:
         text = raw  # last resort
     structured = {

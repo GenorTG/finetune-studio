@@ -13,8 +13,12 @@ def parse(path: Path) -> dict:
     try:
         from bs4 import BeautifulSoup
         soup = BeautifulSoup(raw, "html.parser")
-        # Strip non-content tags
-        for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "aside", "form"]):
+        # Strip non-content chrome. Keep <footer>/<aside>: real sites put
+        # legal small print, registration numbers and campaign codes there,
+        # and dropping it silently loses facts (Korvane corpus parse audit,
+        # 2026-10-07: KRS/NIP, price-change notices and rental terms lived
+        # only in footers).
+        for tag in soup(["script", "style", "nav", "header", "noscript", "form"]):
             tag.decompose()
         # Extract a structured view
         title = soup.title.string.strip() if soup.title and soup.title.string else ""

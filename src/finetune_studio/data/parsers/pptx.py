@@ -24,9 +24,16 @@ def parse(path: Path) -> dict:
             if shape.has_table:
                 for row in shape.table.rows:
                     texts.append(" | ".join(cell.text.strip() for cell in row.cells))
+        notes_text = ""
+        if slide.has_notes_slide:
+            notes_shape = slide.notes_slide.notes_text_frame
+            notes_text = notes_shape.text.strip() if notes_shape is not None else ""
+            if notes_text:
+                texts.append(f"[Speaker notes] {notes_text}")
         slide_text = "\n".join(texts)
         text_lines.append(f"=== Slide {i} ===\n{slide_text}")
-        slides_structured.append({"slide": i, "shape_count": len(slide.shapes), "text": slide_text})
+        slides_structured.append({"slide": i, "shape_count": len(slide.shapes), "text": slide_text,
+                                  "notes": notes_text})
     text = "\n\n".join(text_lines)
     structured = {"type": "pptx", "slide_count": len(prs.slides), "slides": slides_structured}
     return make_result(text, structured, parser="pptx_v1")

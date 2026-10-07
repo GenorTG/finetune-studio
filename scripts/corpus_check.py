@@ -17,6 +17,7 @@ Exit code 1 on any problem; ``--stats`` prints facts per file / kind.
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import re
 import sys
@@ -30,6 +31,7 @@ KINDS = {"text", "table", "list", "legal", "casual", "email", "chart", "scan"}
 
 
 def norm(s: str) -> str:
+    s = html.unescape(str(s))  # manifest values may be entity-encoded; parsed text is decoded
     return re.sub(r"\s+", " ", re.sub(r"[*_`]", "", s)).strip().lower()
 
 
