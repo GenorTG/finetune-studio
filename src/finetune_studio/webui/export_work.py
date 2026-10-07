@@ -105,19 +105,16 @@ def _register_artifacts(eid: str, run: dict, fmt: str, payload: ExportResult) ->
     )
     if per_quant:
         pairs = list(zip(payload.quants, payload.files, strict=True))
-        for i, (label, path) in enumerate(pairs):
+        # The job's own row (first quant) goes terminal LAST: a poller that sees ``done`` on it must find every
+        # sibling row already registered (the Export page lists them right after).
+        for label, path in pairs[1:]:
+            row_id = db.create_export(project_id=pid, run_id=rid, format=fmt, quant=str(label))["id"]
             size = os.path.getsize(path) if os.path.isfile(path) else 0
-            row_id = eid
-            if i == 0:
-                db.update_export(eid, quant=str(label))
-            else:
-                row_id = db.create_export(
-                    project_id=pid, run_id=rid, format=fmt, quant=str(label),
-                )["id"]
-            db.mark_export_done(
-                row_id, output_path=path, size_bytes=size,
-                size_human=human_size(size),
-            )
+            db.mark_export_done(row_id, output_path=path, size_bytes=size, size_human=human_size(size))
+        label, path = pairs[0]
+        size = os.path.getsize(path) if os.path.isfile(path) else 0
+        db.update_export(eid, quant=str(label))
+        db.mark_export_done(eid, output_path=path, size_bytes=size, size_human=human_size(size))
         return
     quant_label = (
         (payload.quants[0] if payload.quants else None)
