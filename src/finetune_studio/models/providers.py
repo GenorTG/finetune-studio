@@ -12,6 +12,7 @@ API keys live in that table (or env vars for server-side use).
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import threading
@@ -233,6 +234,21 @@ REASONING_RETRY_CAP = 8192  # tokens: the largest budget the one reasoning retry
 _RETRY_STATUS = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
 
 
+def _tool_call_blocks(tool_calls: Any) -> str:
+    """Native ``tool_calls`` -> ``<tool_call>{...}</tool_call>`` blocks (the loop's text protocol)."""
+    blocks = []
+    for call in tool_calls or []:
+        fn = (call or {}).get("function") or {}
+        if not fn.get("name"):
+            continue
+        try:
+            args = json.loads(fn.get("arguments") or "{}")
+        except json.JSONDecodeError:
+            args = {}
+        blocks.append("<tool_call>" + json.dumps({"name": fn["name"], "arguments": args}) + "</tool_call>")
+    return "\n".join(blocks)
+
+
 class OpenAICompatProvider(ModelProvider):
     """Any service speaking the OpenAI chat-completions API.
 
@@ -308,6 +324,11 @@ class OpenAICompatProvider(ModelProvider):
         }
         if "stop" in gen:
             body["stop"] = gen["stop"]
+        if gen.get("tools"):
+            # Declare the tools natively: models trained on their own tool dialect (DeepSeek's DSML markup) emit
+            # that dialect as plain text when no tools are declared, which no text protocol can parse.
+            body["tools"] = [{"type": "function", "function": t} for t in gen["tools"]]
+            body["tool_choice"] = "auto"
         # A reasoning model counts its hidden thinking against max_tokens. When that eats the whole budget the
         # answer is empty (``finish_reason == "length"``); retry once with room for the thinking before failing.
         for budget in (body["max_tokens"], min(max(body["max_tokens"] * 4, REASONING_RETRY_MIN), REASONING_RETRY_CAP)):
@@ -316,7 +337,11 @@ class OpenAICompatProvider(ModelProvider):
                 choice = data["choices"][0]
             except (KeyError, IndexError, TypeError):
                 raise ProviderError(f"unexpected response shape: {str(data)[:200]}") from None
-            content = _THINK_BLOCK.sub("", (choice.get("message") or {}).get("content") or "").strip()
+            message = choice.get("message") or {}
+            content = _THINK_BLOCK.sub("", message.get("content") or "").strip()
+            blocks = _tool_call_blocks(message.get("tool_calls"))
+            if blocks:  # native calls re-expressed in the app's text protocol, so the loop stays backend-agnostic
+                return (content + "\n" if content else "") + blocks
             if content or choice.get("finish_reason") != "length" or budget >= REASONING_RETRY_CAP:
                 break
         if not content and choice.get("finish_reason") == "length":

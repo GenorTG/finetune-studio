@@ -62,6 +62,12 @@ class _Gateway:
                     msg, finish = "<think>hmm</think>\npong", "stop"
                 elif outer.mode == "reasoning_only":
                     msg, finish = None, "length"
+                elif outer.mode == "dsml":
+                    if body.get("tools"):
+                        return self._send(200, {"choices": [{"finish_reason": "tool_calls", "message": {
+                            "content": None, "tool_calls": [{"function": {
+                                "name": "project_overview", "arguments": "{}"}}]}}]})
+                    msg, finish = "<｜｜DSML｜｜ calls><｜｜DSML｜｜ invoke name=\"project_overview\">", "stop"
                 elif outer.mode == "reasoning_then_answer":
                     big = body.get("max_tokens", 0) >= 4000
                     msg, finish = ("pong", "stop") if big else (None, "length")
@@ -231,3 +237,22 @@ def test_api_helper_is_seated_on_demand_after_a_restart(client: Any, gateway: _G
 def test_local_seat_is_never_loaded_implicitly(client: Any) -> None:
     from finetune_studio.data.prep.generator import resolve_helper_backend
     assert resolve_helper_backend() is None
+
+
+def test_declared_tools_come_back_as_the_loops_text_protocol(gateway: _Gateway) -> None:
+    gateway.mode = "dsml"
+    p = _provider(gateway)
+    messages = [{"role": "user", "content": "hi"}]
+    assert "DSML" in p.chat(messages)  # undeclared: the model's own dialect leaks as plain text
+    out = p.chat(messages, tools=[{"name": "project_overview", "description": "d", "parameters": {"type": "object"}}])
+    assert out == '<tool_call>{"name": "project_overview", "arguments": {}}</tool_call>'
+    assert gateway.seen[-1]["body"]["tool_choice"] == "auto"
+
+
+def test_guide_chat_declares_tools_only_for_api_helpers(client: Any, gateway: _Gateway) -> None:
+    from finetune_studio.models.manager import get_manager
+    from finetune_studio.webui.routes.data_prep_chat import _chat_local
+    gateway.mode = "dsml"
+    _put(client, gateway)
+    reply = _chat_local({"manager": get_manager()}, [{"role": "user", "content": "hi"}], {"max_tokens": 64})
+    assert "<tool_call>" in reply and "DSML" not in reply

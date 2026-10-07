@@ -453,12 +453,15 @@ def _chat_local(backend: dict, messages: list[dict], gen: dict | None = None, *,
     # descriptions otherwise).
     if cleaned[-1]["role"] == "assistant":
         cleaned.append({"role": "user", "content": "(continue)"})
+    # An API helper gets the tools declared natively (see OpenAICompatProvider); local GGUFs use the text protocol.
+    native = {"tools": TOOLS_CATALOG} if (mgr.active() or {}).get("kind") == "openai_compat" else {}
     try:
         text = mgr.chat(
             cleaned,
             max_tokens=_max,
             temperature=_temp,
             top_p=_topp,
+            **native,
         )
     except Exception as chat_error:
         # Fall back to generate() with a flattened prompt for providers that
