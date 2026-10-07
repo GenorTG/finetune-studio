@@ -17,6 +17,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from finetune_studio.data.prep.tokens import _WORD, canon, distinctive_tokens
+
 # Content-word tokenization (letters/digits; Unicode-aware via \w).
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 
@@ -296,8 +298,13 @@ def validate_qa_pair(
             reasons.append("ungrounded_answer")
         if "ungrounded_answer" not in reasons and "refusal_or_meta" not in reasons:
             invented = number_tokens(a) - number_tokens(chunk) - _FREE_NUMBERS
+            if not invented:
+                # names/codes the passage never spells that way ("Vestfold_Fisk", "Tarnowska Mżonki"): a corrupted entity is
+                # as wrong as a wrong number. The question may introduce a name the answer repeats.
+                known = {canon(w) for w in _WORD.findall(chunk)} | {canon(w) for w in _WORD.findall(q)}
+                invented = {t for t in distinctive_tokens(a) if t not in known and not t.isdigit()}
             if invented:
-                reasons.append("ungrounded_value")  # a figure in the answer that the passage never states
+                reasons.append("ungrounded_value")  # a figure/name in the answer that the passage never states
 
     accepted = not reasons
     return PairValidation(

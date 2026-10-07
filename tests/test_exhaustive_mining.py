@@ -161,3 +161,20 @@ def test_a_mid_table_chunk_is_shown_to_the_model_with_its_column_names() -> None
     msgs = ex.build_exhaustive_messages("RC-03 | Gdynia - Gothenburg | 44.2 | 2", "Rate card", "Reefer rates", head)
     assert head in msgs[1]["content"] and "continued from earlier" in msgs[1]["content"]
     assert head not in ex.build_exhaustive_messages("RC-03 | x | 1 | 2", "Rate card", "", "")[1]["content"]
+
+
+def test_a_corrupted_name_is_rejected_like_an_invented_number() -> None:
+    chunk = "Visit at Tarnowska Mrożonki S.A. is on 3 Oct at 10:00 with Rafał Dybek."
+    ok = validate_qa_pair("When is the visit at Tarnowska Mrożonki S.A.?", "The visit with Rafał Dybek is on 3 Oct at 10:00.", chunk)
+    bad = validate_qa_pair("When is the visit at Tarnowska Mrożonki S.A.?", "The visit at Tarnowska Mżonki S.A. is on 3 Oct at 10:00.", chunk)
+    assert ok.accepted and "ungrounded_value" in bad.reasons
+
+
+def test_table_rows_are_keyed_by_column_name_for_the_prompt() -> None:
+    chunk = "opp_id | account | stage | notes\n--- | --- | --- | ---\nOPP-1 | Acme | Won | renewal 24 mo\nOPP-2 | Beta | Lost | "
+    keyed = ex.keyed_chunk(chunk)
+    assert "opp_id: OPP-1 | account: Acme | stage: Won | notes: renewal 24 mo" in keyed
+    assert "opp_id: OPP-2 | account: Beta | stage: Lost" in keyed and "notes:" not in keyed.splitlines()[-1]
+    assert "---" not in keyed
+    cont = ex.keyed_chunk("OPP-3 | Gamma | Open | x", "opp_id | account | stage | notes")
+    assert cont == "opp_id: OPP-3 | account: Gamma | stage: Open | notes: x"

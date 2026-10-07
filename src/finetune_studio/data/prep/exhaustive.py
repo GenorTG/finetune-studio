@@ -22,6 +22,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 from finetune_studio.data.prep.coverage_fill import split_sentences
+from finetune_studio.data.prep.tokens import _WORD, canon, distinctive_tokens
 
 MAX_GAP_ROUNDS = 3
 # A statement counts as covered when ALL its distinctive tokens appear in the relevant answers (a phone number or a
@@ -30,17 +31,6 @@ COVER_THRESHOLD = 0.9
 STRICT_UP_TO = 8
 # Statements longer than this are cut at ';' / ' — ' so one statement is one or two facts, not a paragraph.
 MAX_STATEMENT_CHARS = 420
-
-_WORD = re.compile(r"[\w][\w.\-/:@#%+]*", re.UNICODE)
-_NUMBERISH = re.compile(r"\d")
-_CODE = re.compile(r"[A-Za-z]+[-_/][A-Za-z0-9]+|[A-Z]{2,}\d*")
-_TRAILING_ZEROS = re.compile(r"(\d+\.\d*?)0+(?!\d)")
-_SENT_START_STOP = frozenset({
-    "the", "a", "an", "if", "when", "in", "on", "at", "for", "to", "of", "and", "or", "but", "this", "that", "these", "those",
-    "we", "you", "it", "he", "she", "they", "our", "your", "their", "all", "any", "each", "every", "no", "not", "once", "after",
-    "before", "during", "where", "while", "as", "by", "from", "with", "without", "please", "note", "see", "per", "under",
-})
-
 
 @dataclass(frozen=True)
 class Statement:
@@ -53,30 +43,6 @@ class Statement:
     @property
     def prompt_text(self) -> str:
         return f"[{self.header}] || {self.text}" if self.header else self.text
-
-
-def canon(token: str) -> str:
-    """Comparison form: lowercase, edge punctuation off, trailing zeros of decimals off (38.50 == 38.5)."""
-    t = token.strip(".,;:()[]{}\"'`!?").lower()
-    for dash in ("\u2011", "\u2212", "\u2013", "\u2014"):
-        t = t.replace(dash, "-")
-    return _TRAILING_ZEROS.sub(lambda m: m.group(1).rstrip("."), t).rstrip(".")
-
-
-def distinctive_tokens(text: str) -> frozenset[str]:
-    """Tokens a reader could be asked about: anything with a digit, codes, ALLCAPS, and capitalised words mid-sentence."""
-    out: set[str] = set()
-    words = _WORD.findall(text)
-    for i, w in enumerate(words):
-        c = canon(w)
-        if len(c) < 2:
-            continue
-        mid_sentence_name = (
-            w[0].isupper() and i > 0 and c not in _SENT_START_STOP and not words[i - 1].endswith((".", ":", "!", "?"))
-        )
-        if _NUMBERISH.search(c) or _CODE.fullmatch(w.strip(".,;:()")) or (w.isupper() and len(w) > 2) or mid_sentence_name:
-            out.add(c)
-    return frozenset(out)
 
 
 def _is_table_line(line: str) -> bool:
@@ -246,6 +212,7 @@ sentence become several pairs.
 "this" or "the passage". Use the document and section given to you to make questions specific.
 - Every answer is a complete sentence that states the exact values as written in the passage (keep numbers, units, codes and names \
 verbatim). Never add information that is not in the passage.
+- Never ask the same fact twice in different words.
 - For a table row, ask about the row by its key (code, name, id) and answer with the column names and their values.
 - Skip only pure boilerplate that states no fact."""
 
@@ -274,11 +241,44 @@ Write question-answer pairs that cover each of them (several pairs when a statem
 their subject and stand alone; answers must state the exact values as written. Respond with ONLY the JSON array."""
 
 
+_SEPARATOR_ROW = re.compile(r"^\s*:?-{2,}:?(\s*\|\s*:?-{2,}:?)*\s*$")
+
+
+def keyed_chunk(chunk: str, carried_header: str = "") -> str:
+    """Table rows rewritten as ``column: value | column: value`` so the model names columns correctly.
+
+    Bare ``a | b | c`` rows made the model call a close date "the date" and glue the next_step column into the notes column.
+    Prose and markers pass through; a chunk that starts mid-table uses the header carried over from the earlier chunk.
+    """
+    out: list[str] = []
+    header: list[str] = [h.strip() for h in carried_header.split(" | ")] if carried_header else []
+    prev_table = False
+    for raw in chunk.splitlines():
+        line = raw.strip()
+        if _SEPARATOR_ROW.match(line) and " | " in line or line.strip("-| ") == "" and "|" in line:
+            continue
+        if _is_table_line(line):
+            cells = [c.strip() for c in line.split(" | ")]
+            if not prev_table and not (carried_header and not out):
+                header = cells                      # a new table block: this line names the columns
+                out.append(line)
+            else:
+                out.append(" | ".join(f"{h or f'column {i + 1}'}: {c}" for i, (h, c) in enumerate(zip(header, cells, strict=False)) if c))
+            prev_table = True
+            continue
+        prev_table = False
+        if line.startswith("==="):
+            header = []
+        out.append(raw.rstrip())
+    return "\n".join(out)
+
+
 def _with_header(chunk: str, carried_header: str) -> str:
-    """A chunk that starts mid-table is shown with the column names of its table (the model cannot guess them)."""
+    """The prompt form of a chunk: keyed table rows, plus the column names when the chunk starts mid-table."""
+    body = keyed_chunk(chunk, carried_header)
     if not carried_header:
-        return chunk
-    return f"[Table columns, continued from earlier in the document: {carried_header}]\n{chunk}"
+        return body
+    return f"[Table columns, continued from earlier in the document: {carried_header}]\n{body}"
 
 
 def build_exhaustive_messages(chunk: str, title: str, section: str, carried_header: str = "") -> list[dict[str, str]]:
