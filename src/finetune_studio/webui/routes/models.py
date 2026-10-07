@@ -301,8 +301,9 @@ async def unload_model_endpoint():
     from finetune_studio.data.rag_portable.model_cache import release_rag_models
     from finetune_studio.models.llama_loader import unload_all_models
     try:
-        unload_all_models()
-        release_rag_models("unload all models")
+        # Freeing a CUDA model + cache can take seconds: keep it off the loop.
+        await asyncio.to_thread(unload_all_models)
+        await asyncio.to_thread(release_rag_models, "unload all models")
         return {"status": "unloaded"}
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": str(e)}, status_code=500)

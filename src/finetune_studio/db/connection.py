@@ -279,6 +279,10 @@ CREATE TABLE IF NOT EXISTS model_exports (
     intermediate_path TEXT NOT NULL DEFAULT '',
     error         TEXT NOT NULL DEFAULT '',
     created_at    REAL NOT NULL,
+    phase         TEXT NOT NULL DEFAULT '',   -- queued | merging | converting | quantizing | abliterating | finalizing
+    phase_detail  TEXT NOT NULL DEFAULT '',   -- e.g. "Q4_K_M (2/4)"
+    heartbeat_at  REAL,                        -- last sign of life from the worker
+    quants_json   TEXT NOT NULL DEFAULT '[]', -- every quant the job was asked for
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
     FOREIGN KEY (run_id) REFERENCES training_runs(id) ON DELETE CASCADE
 );
@@ -468,6 +472,13 @@ def init_db() -> None:
     with cursor() as c:
         c.executescript(_SCHEMA)
         # Migrations: widen tables that already exist on upgraded installs.
+        for col in (
+            "phase TEXT NOT NULL DEFAULT ''",
+            "phase_detail TEXT NOT NULL DEFAULT ''",
+            "heartbeat_at REAL",
+            "quants_json TEXT NOT NULL DEFAULT '[]'",
+        ):
+            _safe_alter(c, f"ALTER TABLE model_exports ADD COLUMN {col}")
         _safe_alter(c, "ALTER TABLE project_rags ADD COLUMN status TEXT NOT NULL DEFAULT 'ready'")
         _safe_alter(c, "ALTER TABLE project_rags ADD COLUMN last_build_at REAL")
         _safe_alter(c, "ALTER TABLE project_rags ADD COLUMN last_build_status TEXT")

@@ -702,27 +702,33 @@ async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any
         }
 
     if judge_mode == "ai":
-        updated = 0
-        for case in cases:
-            if not case.get("model_answer"):
-                continue
-            verdict, reasoning, _confidence = judge_case_ai(
-                question=case["question"],
-                correct_answer=case["correct_answer"],
-                model_answer=case["model_answer"],
-                model=judge_model or judge_cfg["model"],
-                api_url=judge_cfg["api_url"],
-                api_key=judge_cfg["api_key"],
-            )
-            db.update_case(
-                case["id"],
-                judge="ai",
-                judge_model=judge_model or judge_cfg["model"],
-                verdict=verdict,
-                judge_reasoning=fallback_reasoning(verdict, reasoning, judge="ai"),
-                scored_at=time.time(),
-            )
-            updated += 1
+        # One blocking HTTP call to the judge API per case (seconds each):
+        # the whole loop runs on a worker thread, never on the event loop.
+        def _ai_judge() -> int:
+            judged = 0
+            for case in cases:
+                if not case.get("model_answer"):
+                    continue
+                verdict, reasoning, _confidence = judge_case_ai(
+                    question=case["question"],
+                    correct_answer=case["correct_answer"],
+                    model_answer=case["model_answer"],
+                    model=judge_model or judge_cfg["model"],
+                    api_url=judge_cfg["api_url"],
+                    api_key=judge_cfg["api_key"],
+                )
+                db.update_case(
+                    case["id"],
+                    judge="ai",
+                    judge_model=judge_model or judge_cfg["model"],
+                    verdict=verdict,
+                    judge_reasoning=fallback_reasoning(verdict, reasoning, judge="ai"),
+                    scored_at=time.time(),
+                )
+                judged += 1
+            return judged
+
+        updated = await asyncio.to_thread(_ai_judge)
         return {"ok": True, "judged": updated, "scores": _rescore_benchmark(bid)}
 
     if judge_mode == "local":
@@ -986,8 +992,8 @@ async def evaluate_training_for_run(
     )
 
     try:
-        cases, meta = build_training_eval(
-            pid, dataset_id=dataset_id, max_cases=max_cases
+        cases, meta = await asyncio.to_thread(
+            build_training_eval, pid, dataset_id=dataset_id, max_cases=max_cases,
         )
     except LookupError as e:
         return JSONResponse({"error": str(e)}, status_code=404)

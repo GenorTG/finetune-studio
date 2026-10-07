@@ -418,7 +418,8 @@ async def hf_delete_local(repo_id: str):
     target = _local_dir(repo_id)
     if not target.exists():
         return JSONResponse({"error": "not found"}, status_code=404)
-    shutil.rmtree(target)
+    # Model dirs are gigabytes: delete off the event loop.
+    await asyncio.to_thread(shutil.rmtree, target)
     # The registry still lists the deleted model (and every model picker offers it) until a rescan.
     try:
         await asyncio.to_thread(_refresh_model_registry)
@@ -433,14 +434,19 @@ async def hf_local_files(repo_id: str):
     target = _local_dir(repo_id)
     if not target.exists():
         return JSONResponse({"error": "not found"}, status_code=404)
-    files = []
-    for p in sorted(target.rglob("*")):
-        if p.is_file():
-            files.append({
-                "path": str(p.relative_to(target)),
-                "size_bytes": p.stat().st_size,
-                "modified": p.stat().st_mtime,
-            })
+    def _list() -> list[dict]:
+        out = []
+        for p in sorted(target.rglob("*")):
+            if p.is_file():
+                st = p.stat()
+                out.append({
+                    "path": str(p.relative_to(target)),
+                    "size_bytes": st.st_size,
+                    "modified": st.st_mtime,
+                })
+        return out
+
+    files = await asyncio.to_thread(_list)
     return {"repo_id": repo_id, "path": str(target), "files": files, "count": len(files)}
 
 

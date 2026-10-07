@@ -16,14 +16,25 @@ Tool discovery looks in PATH first, then in ~/llama.cpp, /opt/llama.cpp,
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import shutil
+import time
 
-from fastapi import APIRouter, BackgroundTasks, Query, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from finetune_studio import db
+from finetune_studio.training.export_response import ExportResult
+from finetune_studio.training.run_export import validate_export_request
+from finetune_studio.webui import export_jobs
+from finetune_studio.webui.export_work import (
+    multi_export_work,
+    refresh_registry_quietly,
+    run_single_quant_gguf,
+    single_quant_work,
+)
 from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
 
 log = logging.getLogger(__name__)
@@ -107,26 +118,34 @@ def _find_convert_script() -> str | None:
 
 
 @router.post("/projects/{pid}/runs/{rid}/export")
-async def export_run(pid: str, rid: str, request: Request,
-                     background: BackgroundTasks):
-    """Export a run to GGUF / abliterated / merged safetensors.
+async def export_run(pid: str, rid: str, request: Request):
+    """Start an export of a run (GGUF / abliterated / merged) as a tracked job.
+
+    Returns **immediately** (``202 {ok, export_id, status: "queued"}``); the
+    work runs on a worker thread (``webui/export_jobs.py``) and its state —
+    phase, heartbeat, error — lives in the ``model_exports`` row, readable via
+    ``GET /projects/{pid}/exports/{eid}`` and the SSE ``.../events``. Only one
+    export runs at a time: a second request gets ``409`` naming the active one.
+    Requests that cannot succeed (unknown format, no converter, bad quant, run
+    not merged with ``auto_merge`` off) are refused synchronously with 400.
 
     Two modes:
 
-    1. **UI / multi-format (sync)** — body includes ``quants`` (list) and/or
-       ``format`` in {abliterated, merged}. Merges the adapter onto
-       ``base_model`` (optional override) when ``merged/`` is missing.
+    1. **Multi-format** — body includes ``quants`` (list) and/or ``format`` in
+       {abliterated, merged}; merges the adapter onto ``base_model`` (optional
+       override) first when ``merged/`` is missing. A multi-quant GGUF job
+       ends with one row per quant; ``export_id`` is the first one.
 
-    2. **Legacy async GGUF** — body uses singular ``quant`` (default Q4_K_M)
-       without ``quants``. Queues a background job and returns an export_id.
+    2. **Single quant GGUF** — body uses singular ``quant`` (default Q4_K_M)
+       without ``quants``; output ``<gguf>/<base>-<quant>.gguf``.
 
     Body (common):
       format: gguf | abliterated | merged (default gguf).
-      force: overwrite existing outputs (sync path)
+      force: overwrite existing outputs (multi-format mode)
       base_model: optional compatible 16-bit base for merge-at-export
-      auto_merge: bool (default true; legacy async path)
-      quants: list of GGUF quants (sync UI path)
-      quant: single GGUF quant (legacy async path)
+      auto_merge: bool (default true; single-quant mode)
+      quants: list of GGUF quants (multi-format mode)
+      quant: single GGUF quant (single-quant mode)
     """
     body: object = {}
     if request.headers.get("content-type", "").startswith("application/json"):
@@ -168,135 +187,32 @@ async def export_run(pid: str, rid: str, request: Request,
         payload = {"ok": False, "status": "failed", "error": msg, **extra}
         return JSONResponse(payload, status_code=status_code)
 
-    # Export merges/quantises on the same GPU the RAG model cache may hold.
-    from finetune_studio.data.rag_portable.model_cache import release_rag_models
-    release_rag_models("export")
-
-    # Sync multi-format path used by the Export page (quants list / non-gguf).
-    # AWQ and GPTQ are not supported formats; route them through
-    # export_trained_run so the response carries the clear removal message
-    # (not a generic unsupported).
-    use_sync = (
+    # AWQ and GPTQ are not supported formats; they are refused here with the
+    # clear removal message (not a generic "unsupported").
+    use_multi = (
         "quants" in body
         or fmt in ("abliterated", "merged", "awq", "gptq")
         or bool(body.get("force")) and "quant" not in body
     )
-    if use_sync:
-        from finetune_studio.training.export_response import (
-            ExportResult,
-            dir_size_bytes,
-            human_size,
+    if use_multi:
+        quants_raw = body.get("quants")
+        quants = [str(q) for q in quants_raw] if isinstance(quants_raw, list) else None
+        refused = validate_export_request(
+            run, fmt=fmt, quants=quants, force=bool(body.get("force", False)),
         )
-        from finetune_studio.training.run_export import export_trained_run
-
-        quants = body.get("quants")
-        raw = export_trained_run(
-            run,
-            fmt=fmt,
-            quants=list(quants) if isinstance(quants, list) else None,
-            force=bool(body.get("force", False)),
-            base_model=base_model,
+        if refused is not None:
+            payload = ExportResult.from_raw(refused)
+            return JSONResponse(payload.model_dump(exclude_none=False), status_code=400)
+        label = (quants[0] if quants else None) or (
+            DEFAULT_QUANT if fmt == "gguf" else "safetensors"
         )
-        # Always coerce through ExportResult so numpy/tensors cannot 500 the
-        # response encoder after a successful GPU merge/abliteration.
-        payload = ExportResult.from_raw(raw)
-        if not payload.ok or payload.error or payload.status == "failed":
-            # Never report format failures as HTTP 200 success.
-            return JSONResponse(
-                payload.model_dump(exclude_none=False),
-                status_code=400,
-            )
-
-        # Register successful sync artifacts (merged / abliterated /
-        # verified GGUF) so Export + Models pages list them after reload.
-        if payload.status in ("exported", "skipped") and fmt in (
-            "merged", "abliterated", "gguf",
-        ):
-            art = payload.artifact_path()
-            if art:
-                # A multi-quant GGUF request produces one file per quant
-                # (payload.files[i] <-> payload.quants[i], same order —
-                # see gguf_convert.verify_gguf_artifacts). One DB row per
-                # artifact, each sized from its own file, not the whole
-                # gguf/ directory's combined size attributed to a single
-                # row (that previously only recorded quants[0] = f16 with
-                # size_bytes equal to the sum of every quant's bytes).
-                per_quant = (
-                    fmt == "gguf"
-                    and payload.quants
-                    and payload.files
-                    and len(payload.files) == len(payload.quants)
-                )
-                try:
-                    if per_quant:
-                        first_row_id: str | None = None
-                        for quant_label, file_path in zip(
-                            payload.quants, payload.files, strict=True,
-                        ):
-                            file_size = (
-                                os.path.getsize(file_path)
-                                if os.path.isfile(file_path)
-                                else 0
-                            )
-                            row = db.create_export(
-                                project_id=pid,
-                                run_id=rid,
-                                format=fmt,
-                                quant=str(quant_label),
-                            )
-                            db.mark_export_done(
-                                row["id"],
-                                output_path=file_path,
-                                size_bytes=file_size,
-                                size_human=human_size(file_size),
-                            )
-                            if first_row_id is None:
-                                first_row_id = row["id"]
-                        size = dir_size_bytes(art)
-                        payload = payload.model_copy(
-                            update={
-                                "export_id": first_row_id,
-                                "output_path": payload.output_path or art,
-                                "size_bytes": size,
-                                "size_human": human_size(size),
-                            }
-                        )
-                    else:
-                        size = dir_size_bytes(art)
-                        quant_label = (
-                            (payload.quants[0] if payload.quants else None)
-                            or payload.quant
-                            or ("safetensors" if fmt != "gguf" else DEFAULT_QUANT)
-                        )
-                        row = db.create_export(
-                            project_id=pid,
-                            run_id=rid,
-                            format=fmt,
-                            quant=str(quant_label),
-                        )
-                        db.mark_export_done(
-                            row["id"],
-                            output_path=art,
-                            size_bytes=size,
-                            size_human=human_size(size),
-                        )
-                        payload = payload.model_copy(
-                            update={
-                                "export_id": row["id"],
-                                "output_path": payload.output_path or art,
-                                "size_bytes": size,
-                                "size_human": human_size(size),
-                            }
-                        )
-                except Exception:
-                    log.exception(
-                        "failed to register sync export row for %s/%s",
-                        pid, rid,
-                    )
-
-        if payload.ok:
-            await asyncio.to_thread(_refresh_registry_quietly)
-        return JSONResponse(payload.model_dump(exclude_none=False))
+        return _start(
+            pid, rid, fmt=fmt, quant=label, quants=quants,
+            make_work=lambda eid: multi_export_work(
+                eid, run=run, fmt=fmt, quants=quants,
+                force=bool(body.get("force", False)), base_model=base_model,
+            ),
+        )
 
     if fmt != "gguf":
         return _err(f"unsupported format: {fmt}", format=fmt)
@@ -313,43 +229,81 @@ async def export_run(pid: str, rid: str, request: Request,
     output_path = (run.get("output_path") or "").strip()
     if not output_path:
         return _err("run has no output_path; training did not finish")
-
     merged_dir = os.path.join(output_path, "merged")
-    if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
-        if not auto_merge:
-            return _err(
-                "run has not been merged; POST /merge first, "
-                "or set auto_merge=true in the request body",
-            )
-        try:
-            from finetune_studio.training.run_export import (
-                ensure_merged_for_export,
-            )
-            merge_result = ensure_merged_for_export(
-                run, base_model=base_model, force=False,
-            )
-            merged_dir = merge_result.get("merged_path") or merged_dir
-            log.info("auto-merge for export: %s", merged_dir)
-        except ValueError as e:
-            return _err(f"auto-merge failed: {e}")
-        except Exception as e:
-            log.exception("auto-merge failed")
-            return _err(f"auto-merge failed: {e}", status_code=500)
-
-    # Persist the export row up front so the caller can poll it.
-    export_row = db.create_export(project_id=pid, run_id=rid,
-                                  format=fmt, quant=quant)
+    if not auto_merge and (not os.path.isdir(merged_dir) or not os.listdir(merged_dir)):
+        return _err(
+            "run has not been merged; POST /merge first, "
+            "or set auto_merge=true in the request body",
+        )
+    refused = validate_export_request(run, fmt=fmt)
+    if refused is not None:
+        return _err(str(refused["error"]), status_code=400)
 
     base = os.path.basename(base_model or run.get("base_model") or "model")
-    gguf_dir = os.path.join(output_path, "gguf")
-    os.makedirs(gguf_dir, exist_ok=True)
-    out_filename = f"{_safe_name(base)}-{quant}.gguf"
-    out_path = os.path.join(gguf_dir, out_filename)
+    out_path = os.path.join(output_path, "gguf", f"{_safe_name(base)}-{quant}.gguf")
+    return _start(
+        pid, rid, fmt=fmt, quant=quant, quants=[quant],
+        extra={"output_path": out_path},
+        make_work=lambda eid: single_quant_work(
+            eid, run=run, base_model=base_model, auto_merge=auto_merge,
+            out_path=out_path, quant=quant,
+        ),
+    )
 
-    background.add_task(_export_worker, export_row["id"], merged_dir,
-                        out_path, quant)
-    return {"ok": True, "export_id": export_row["id"], "status": "queued",
-            "quant": quant, "format": fmt, "output_path": out_path}
+
+def _start(
+    pid: str, rid: str, *, fmt: str, quant: str, quants: list[str] | None,
+    make_work, extra: dict | None = None,
+) -> JSONResponse:
+    """Queue the job; 202 with its id, or 409 when another export is running."""
+    try:
+        row = export_jobs.start_job(
+            project_id=pid, run_id=rid, fmt=fmt, quant=quant, quants=quants,
+            make_work=make_work,
+        )
+    except export_jobs.ExportBusy as busy:
+        return JSONResponse(
+            {
+                "ok": False, "status": "busy", "error": str(busy),
+                "active_export_id": busy.active.get("id"),
+                "active_project_id": busy.active.get("project_id"),
+            },
+            status_code=409,
+        )
+    return JSONResponse(
+        {"ok": True, "export_id": row["id"], "status": "queued",
+         "format": fmt, "quant": quant, "quants": quants or [], **(extra or {})},
+        status_code=202,
+    )
+
+
+def _row_view(row: dict) -> dict:
+    """Export row + derived fields the UI needs (all read-only)."""
+    try:
+        quants = json.loads(row.get("quants_json") or "[]")
+    except ValueError:
+        quants = []
+    return {
+        **row, "quants": quants, "server_now": time.time(),
+        "active": export_jobs.is_active(row["id"]),
+    }
+
+
+@router.get("/projects/{pid}/exports/active")
+async def active_exports(pid: str):
+    """Queued/running exports: this project's, and (``other``) any other project's.
+
+    The Export page calls this on load to re-attach to a job that was started
+    before a reload and to lock its buttons while the shared GPU is busy.
+    """
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    rows = [_row_view(r) for r in db.list_active_exports()]
+    return {
+        "project": [r for r in rows if r["project_id"] == pid],
+        "other": [r for r in rows if r["project_id"] != pid],
+    }
 
 
 @router.get("/projects/{pid}/exports/{eid}")
@@ -360,7 +314,33 @@ async def get_export(pid: str, eid: str):
     row = db.get_export(eid)
     if not row or row.get("project_id") != pid:
         return JSONResponse({"error": "not found"}, status_code=404)
-    return row
+    return _row_view(row)
+
+
+@router.post("/projects/{pid}/exports/{eid}/cancel")
+async def cancel_export(pid: str, eid: str):
+    """Stop a queued/running export (kills its llama.cpp child's process group).
+
+    A GPU adapter merge cannot be interrupted mid-flight: it stops when the
+    merge returns, before conversion starts.
+    """
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    row = db.get_export(eid)
+    if not row or row.get("project_id") != pid:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    if (row.get("status") or "") in export_jobs.TERMINAL_STATUSES:
+        return JSONResponse(
+            {"ok": False, "error": f"export already {row['status']}"},
+            status_code=409,
+        )
+    if not export_jobs.cancel_job(eid):
+        return JSONResponse(
+            {"ok": False, "error": "export is not running in this server process"},
+            status_code=409,
+        )
+    return {"ok": True, "status": "cancelling", "export_id": eid}
 
 
 @router.get("/projects/{pid}/exports/{eid}/events")
@@ -385,15 +365,16 @@ async def export_events(pid: str, eid: str):
                 return
             status = row.get("status") or ""
             fingerprint = (
-                f"{status}|{row.get('output_path') or ''}|"
+                f"{status}|{row.get('phase') or ''}|{row.get('phase_detail') or ''}|"
+                f"{row.get('heartbeat_at') or 0}|{row.get('output_path') or ''}|"
                 f"{row.get('error') or ''}|{row.get('size_bytes') or 0}"
             )
             if fingerprint != last:
                 last = fingerprint
-                yield sse_data(row)
+                yield sse_data(_row_view(row))
             else:
                 yield sse_comment()
-            if status in ("done", "failed", "error", "cancelled"):
+            if status in export_jobs.TERMINAL_STATUSES:
                 return
             await asyncio.sleep(0.75)
 
@@ -408,63 +389,19 @@ async def list_project_exports(pid: str, limit: int = Query(100, ge=1, le=1000))
     return db.list_exports_for_project(pid, limit=limit)
 
 
-def _refresh_registry_quietly() -> None:
-    """Make new exports visible to Chat/Inference without a restart."""
-    try:
-        from finetune_studio.webui.routes.models import refresh_model_registry
-
-        refresh_model_registry()
-    except Exception:
-        log.debug("model registry refresh failed", exc_info=True)
+_refresh_registry_quietly = refresh_registry_quietly
 
 
 def _export_worker(eid: str, merged_dir: str, out_path: str, quant: str) -> None:
-    """Background GGUF export worker.
+    """Run one single-quant GGUF export for an existing row, synchronously.
 
-    Delegates to ``convert_merged_to_gguf`` (llama.cpp convert + quantize).
-    ``FTS_SKIP_EXPORT=1`` short-circuits with a 1-byte marker for tests.
+    Kept as a plain function (the job path calls ``run_single_quant_gguf``
+    directly on its worker thread). ``FTS_SKIP_EXPORT=1`` short-circuits with
+    a 1-byte marker for tests.
     """
     try:
         db.mark_export_running(eid)
-        from finetune_studio.training.gguf_convert import (
-            convert_merged_to_gguf,
-            normalize_gguf_quant,
-        )
-
-        gguf_dir = os.path.dirname(out_path)
-        nq = normalize_gguf_quant(quant)
-        result = convert_merged_to_gguf(
-            merged_dir, gguf_dir, [nq], force=True,
-        )
-        if not result.get("ok"):
-            raise RuntimeError(
-                result.get("error") or "GGUF conversion failed"
-            )
-        # Prefer the exact outfile the caller queued; fall back to converter path.
-        final_path = out_path
-        files = result.get("files") or []
-        if files:
-            # Converter writes model-{quant}.gguf; rename/copy if needed.
-            produced = files[0]
-            if os.path.abspath(produced) != os.path.abspath(out_path):
-                os.makedirs(os.path.dirname(out_path), exist_ok=True)
-                if not os.path.isfile(out_path):
-                    shutil.copy2(produced, out_path)
-            final_path = out_path if os.path.isfile(out_path) else produced
-        if not os.path.isfile(final_path) or os.path.getsize(final_path) <= 0:
-            raise RuntimeError(
-                f"output GGUF missing or empty after conversion: {final_path}. "
-                "Refuse to mark export done without a non-empty artifact."
-            )
-        size = os.path.getsize(final_path)
-        db.mark_export_done(
-            eid,
-            output_path=final_path,
-            size_bytes=size,
-            size_human=_human_size(size),
-            intermediate_path=result.get("intermediate_path") or "",
-        )
-        _refresh_registry_quietly()
+        run_single_quant_gguf(eid, merged_dir, out_path, quant)
     except Exception as e:
         log.exception("export failed")
         try:

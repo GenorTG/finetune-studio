@@ -7,14 +7,24 @@ and the legacy async export worker.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import shutil
-import subprocess
 import sys
 from typing import Any
 
+from finetune_studio.training import export_job
+from finetune_studio.training.proc_runner import (
+    SubprocessCancelled,
+    run_group_subprocess,
+)
+
 log = logging.getLogger(__name__)
+
+# One llama.cpp child (convert / quantize) may run this long before its whole
+# process group is killed. ``FTS_EXPORT_CMD_TIMEOUT`` (seconds) overrides it.
+DEFAULT_CMD_TIMEOUT = 3600
 
 GGUF_CONVERTER_MISSING_MSG: str = (
     "convert_hf_to_gguf.py not found. Install llama.cpp on this host: "
@@ -216,17 +226,48 @@ def verify_gguf_artifacts(
     return {"ok": True, "files": matched, "missing": [], "error": None}
 
 
-def _run_cmd(cmd: list[str], *, timeout: int = 3600) -> None:
-    """Run a subprocess; raise RuntimeError with stderr tail on failure."""
+def command_timeout() -> int:
+    """Per-command deadline in seconds (``FTS_EXPORT_CMD_TIMEOUT`` or 3600)."""
+    try:
+        value = int(os.environ.get("FTS_EXPORT_CMD_TIMEOUT", ""))
+    except ValueError:
+        return DEFAULT_CMD_TIMEOUT
+    return value if value > 0 else DEFAULT_CMD_TIMEOUT
+
+
+def _run_cmd(cmd: list[str], *, timeout: int | None = None) -> None:
+    """Run a llama.cpp child in its own process group.
+
+    Raises RuntimeError carrying the stderr tail on a non-zero exit or a
+    timeout (the group is killed first), and ``ExportCancelled`` when the
+    running export job was cancelled. Inside a job it feeds the heartbeat.
+    """
     log.info("gguf convert: %s", " ".join(cmd))
-    result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=timeout, check=False,
-    )
-    if result.returncode != 0:
-        err_tail = (result.stderr or result.stdout or "")[-1000:]
-        raise RuntimeError(
-            f"{cmd[0]} failed (rc={result.returncode}): {err_tail}"
+    ctx = export_job.current()
+    try:
+        run_group_subprocess(
+            cmd,
+            timeout=timeout or command_timeout(),
+            cancelled=ctx.cancelled if ctx else None,
+            on_tick=ctx.tick if ctx else None,
+            on_start=ctx.register_proc if ctx else None,
         )
+    except SubprocessCancelled as e:
+        raise export_job.ExportCancelled(str(e)) from e
+
+
+def run_cmd_into(cmd: list[str], outfile: str, *, timeout: int | None = None) -> None:
+    """``_run_cmd`` that deletes ``outfile`` on any failure.
+
+    A half-written .gguf must never be mistaken for a finished one by a later
+    "already exported" check.
+    """
+    try:
+        _run_cmd(cmd, timeout=timeout)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.remove(outfile)
+        raise
 
 
 def _needs_quantize_bin(quants: list[str]) -> bool:
@@ -343,7 +384,10 @@ def convert_merged_to_gguf(
             if force or not (
                 os.path.isfile(fp16_path) and os.path.getsize(fp16_path) > 0
             ):
-                _run_cmd(
+                export_job.report(
+                    export_job.PHASE_CONVERTING, "HF weights → f16 GGUF",
+                )
+                run_cmd_into(
                     [
                         python,
                         convert_script,
@@ -352,7 +396,8 @@ def convert_merged_to_gguf(
                         fp16_path,
                         "--outtype",
                         "f16",
-                    ]
+                    ],
+                    fp16_path,
                 )
             if "f16" in quant_list:
                 exported_map["f16"] = {
@@ -362,12 +407,13 @@ def convert_merged_to_gguf(
             if need_fp16 and "f16" not in quant_list:
                 intermediate_fp16 = fp16_path
 
-        for nq in quant_list:
-            if nq == "f16":
-                continue
+        todo = [q for q in quant_list if q != "f16"]
+        for n_done, nq in enumerate(todo, start=1):
             out_path = os.path.join(gguf_dir, f"model-{nq}.gguf")
+            step = f"{nq.upper()} ({n_done}/{len(todo)})"
             if nq in _SINGLE_STEP_OUTTYPES:
-                _run_cmd(
+                export_job.report(export_job.PHASE_CONVERTING, step)
+                run_cmd_into(
                     [
                         python,
                         convert_script,
@@ -376,13 +422,15 @@ def convert_merged_to_gguf(
                         out_path,
                         "--outtype",
                         _SINGLE_STEP_OUTTYPES[nq],
-                    ]
+                    ],
+                    out_path,
                 )
             else:
                 assert quant_bin is not None
                 # llama-quantize wants uppercase-ish type labels (Q4_K_M).
                 quant_arg = nq.upper()
-                _run_cmd([quant_bin, fp16_path, out_path, quant_arg])
+                export_job.report(export_job.PHASE_QUANTIZING, step)
+                run_cmd_into([quant_bin, fp16_path, out_path, quant_arg], out_path)
             if not os.path.isfile(out_path) or os.path.getsize(out_path) <= 0:
                 raise RuntimeError(
                     f"output GGUF missing or empty after conversion: {out_path}"
@@ -399,6 +447,8 @@ def convert_merged_to_gguf(
                 intermediate_fp16 = ""
             except OSError:
                 log.warning("could not remove f16 intermediate %s", intermediate_fp16)
+    except export_job.ExportCancelled:
+        raise
     except Exception as e:
         log.exception("GGUF conversion failed")
         return {

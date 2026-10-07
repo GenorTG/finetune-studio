@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from finetune_studio.training import export_job
 from finetune_studio.training.gguf_convert import (  # noqa: F401 — re-export
     GGUF_CONVERTER_MISSING_MSG,
     convert_merged_to_gguf,
@@ -134,6 +135,7 @@ def ensure_merged_for_export(
     from finetune_studio.training.engine import merge_adapter_for_run
     from finetune_studio.training.merge_base import MergeBaseNotFound
 
+    export_job.report(export_job.PHASE_MERGING, "merging adapter into base weights")
     try:
         result = merge_adapter_for_run(run_for_merge, force=force)
     except MergeBaseNotFound as e:
@@ -233,15 +235,20 @@ def _export_gguf(
 
     engine_error = result.get("error") or result.get("reason")
     if result.get("ok") is False or result.get("error"):
+        # ``result`` usually carries gguf_path/quants itself: merge, never
+        # pass them twice (that raised TypeError -> HTTP 500 on every real
+        # converter failure).
         return _export_failure(
             str(result.get("error") or engine_error or "GGUF failed"),
             format="gguf",
-            quants=quant_list,
-            gguf_path=gguf_dir,
             **{
-                k: v
-                for k, v in result.items()
-                if k not in ("ok", "status", "error", "format")
+                "quants": quant_list,
+                "gguf_path": gguf_dir,
+                **{
+                    k: v
+                    for k, v in result.items()
+                    if k not in ("ok", "status", "error", "format")
+                },
             },
         )
 
@@ -284,18 +291,18 @@ def _export_gguf(
     }
 
 
-def export_trained_run(
+def validate_export_request(
     run: dict[str, Any],
     *,
     fmt: str = "gguf",
     quants: list[str] | None = None,
     force: bool = False,
-    base_model: str | None = None,
-) -> dict[str, Any]:
-    """Merge if needed, then export ``run`` to ``fmt``.
+) -> dict[str, Any] | None:
+    """Cheap pre-flight: a failure payload for a request that cannot succeed.
 
-    Returns a dict with ``ok`` / ``status`` / ``error`` plus format fields.
-    Failures always set ``ok=False`` and ``status="failed"``.
+    Pure checks (format name, output dir, converter present) so the WebUI can
+    answer 400 immediately instead of queueing a job that fails minutes later
+    after a multi-GB merge. Returns ``None`` when the request may proceed.
     """
     fmt_norm = (fmt or "gguf").strip().lower()
     if fmt_norm == "awq":
@@ -317,10 +324,42 @@ def export_trained_run(
             format=fmt_norm,
             supported=sorted(SUPPORTED_EXPORT_FORMATS),
         )
-
-    output_path = (run.get("output_path") or "").strip()
-    if not output_path:
+    if not (run.get("output_path") or "").strip():
         return _export_failure("run has no output_path", format=fmt_norm)
+    if (
+        fmt_norm == "gguf"
+        and find_gguf_convert_script() is None
+        and os.environ.get("FTS_SKIP_EXPORT") != "1"
+    ):
+        # Without a converter the only successful outcome is "already
+        # exported, nothing to do" (see ``_export_gguf``).
+        gguf_dir = os.path.join((run.get("output_path") or "").strip(), "gguf")
+        existing = verify_gguf_artifacts(gguf_dir, list(quants or DEFAULT_GGUF_QUANTS))
+        if force or not existing["ok"]:
+            return _export_failure(GGUF_CONVERTER_MISSING_MSG, format="gguf")
+    return None
+
+
+def export_trained_run(
+    run: dict[str, Any],
+    *,
+    fmt: str = "gguf",
+    quants: list[str] | None = None,
+    force: bool = False,
+    base_model: str | None = None,
+) -> dict[str, Any]:
+    """Merge if needed, then export ``run`` to ``fmt``.
+
+    Returns a dict with ``ok`` / ``status`` / ``error`` plus format fields.
+    Failures always set ``ok=False`` and ``status="failed"``.
+    """
+    fmt_norm = (fmt or "gguf").strip().lower()
+    refused = validate_export_request(
+        run, fmt=fmt_norm, quants=quants, force=force,
+    )
+    if refused is not None:
+        return refused
+    output_path = (run.get("output_path") or "").strip()
 
     try:
         merge_info = ensure_merged_for_export(
@@ -367,6 +406,9 @@ def export_trained_run(
                     "Use force=true to overwrite."
                 ),
             }
+        export_job.report(
+            export_job.PHASE_ABLITERATING, "measuring + removing refusal direction",
+        )
         result = engine._do_abliteration()
         if result.get("error"):
             # Never spread raw engine keys — may contain numpy arrays.

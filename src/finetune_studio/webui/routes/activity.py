@@ -189,8 +189,11 @@ def _persistent_tasks(projs: _ProjCache) -> list[dict[str, Any]]:
             if pid and not projs.get(pid):
                 continue
             status = _norm_status(x.get("status") or "")
-            if x.get("error"):
+            if x.get("error") and status != "running":
                 msg = f"failed: {str(x['error'])[:60]}"
+            elif status in ("running", "queued") and x.get("phase"):
+                detail = f" {x['phase_detail']}" if x.get("phase_detail") else ""
+                msg = f"{x.get('format') or 'export'} · {x['phase']}{detail}".strip()
             else:
                 fmt = x.get("format") or "export"
                 quant = x.get("quant") or ""

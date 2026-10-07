@@ -14,6 +14,8 @@ import os
 import tempfile
 from pathlib import Path
 
+from tests._export_wait import wait_export
+
 # ── Pure helpers (no DB / no FastAPI) ────────────────────────────────────
 
 
@@ -129,7 +131,7 @@ class TestExportWorkerSkip:
             "finetune_studio.training.gguf_convert.find_gguf_convert_script",
             return_value=str(fake_convert),
         ), patch(
-            "finetune_studio.training.gguf_convert.subprocess.run",
+            "finetune_studio.training.gguf_convert.run_group_subprocess",
             side_effect=fake_run,
         ):
             _export_worker(
@@ -139,7 +141,7 @@ class TestExportWorkerSkip:
                 quant="Q8_0",
             )
 
-        assert captured, "subprocess.run was never called"
+        assert captured, "the converter was never run"
         cmd = captured[0]
         assert "--outfile" in cmd, f"missing --outfile flag in argv: {cmd}"
         assert "--outtype" in cmd
@@ -198,7 +200,7 @@ class TestExportWorkerSkip:
             "finetune_studio.training.gguf_convert.find_gguf_convert_script",
             return_value=str(fake_convert),
         ), patch(
-            "finetune_studio.training.gguf_convert.subprocess.run",
+            "finetune_studio.training.gguf_convert.run_group_subprocess",
             side_effect=fake_run,
         ):
             _export_worker(
@@ -244,7 +246,7 @@ class TestExportWorkerSkip:
             _export_worker(eid, merged_dir=merged_dir, out_path=out_path,
                            quant="Q4_K_M")
             r = db.get_export(eid)
-            assert r["status"] == "error"
+            assert r["status"] == "failed"
             assert r["finished_at"] is not None
             assert "convert_hf_to_gguf" in r["error"]
             assert "llama.cpp" in r["error"]
@@ -280,13 +282,13 @@ class TestExportWorkerSkip:
             "finetune_studio.training.gguf_convert.find_gguf_convert_script",
             return_value=str(fake_convert),
         ), patch(
-            "finetune_studio.training.gguf_convert.subprocess.run",
+            "finetune_studio.training.gguf_convert.run_group_subprocess",
             side_effect=fake_run,
         ):
             _export_worker(eid, merged_dir=str(merged_dir),
                            out_path=str(out_path), quant="Q8_0")
         r = db.get_export(eid)
-        assert r["status"] == "error"
+        assert r["status"] == "failed"
         err = (r.get("error") or "").lower()
         assert "empty" in err or "missing" in err or "artifact" in err
 
@@ -324,7 +326,7 @@ class TestExportWorkerSkip:
             _export_worker(eid, merged_dir=merged_dir, out_path=out_path,
                            quant="Q5_K_M")
             r = db.get_export(eid)
-            assert r["status"] == "error"
+            assert r["status"] == "failed"
             assert "llama-quantize" in r["error"]
 
 
@@ -486,7 +488,9 @@ class TestExportRoute:
             f"/api/projects/{pid}/runs/{rid}/export",
             json={"format": "gguf", "quants": list(sizes)},
         )
-        assert r.status_code == 200
+        assert r.status_code == 202, r.text
+        row = wait_export(client, pid, r.json()["export_id"])
+        assert row["status"] == "done", row
 
         rows = db.list_exports_for_run(rid)
         assert len(rows) == 2, f"expected one row per quant, got {rows}"

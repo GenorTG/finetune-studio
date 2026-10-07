@@ -150,7 +150,19 @@
       <input type="checkbox" id="export-force" value="1">
       Overwrite existing
     </label>
+    <button class="btn danger" id="export-cancel-btn" type="button" hidden>Cancel export</button>
     <span id="export-status" class="text-xs dim" role="status"></span>
+  </div>
+  <div id="export-job" class="p-2 pt-0" hidden role="status" aria-live="polite">
+    <div class="row items-center gap-2 mb-1">
+      <span class="pill solid-cyan" id="export-job-state">queued</span>
+      <b id="export-job-title" class="text-sm"></b>
+      <span class="text-xs dim mono" id="export-job-elapsed"></span>
+    </div>
+    <div class="bar"><div class="fill indeterminate" id="export-job-bar"></div></div>
+    <div class="text-xs dim mt-1" id="export-job-detail"></div>
+    <div class="text-xs dim mt-1" id="export-job-queue"></div>
+    <div class="err text-xs mt-1" id="export-job-error"></div>
   </div>
   <div id="export-result" class="p-2 pt-0" style="display:none;"></div>
 </div>
@@ -333,213 +345,311 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
   if (radios.length === 1) { radios[0].checked = true; radios[0].dispatchEvent(new Event('change', { bubbles: true })); }
 })();
 
-async function startExport() {
-  const runRadio = document.querySelector('input[name="export-run"]:checked');
-  if (!runRadio) {
-    fts.notify('Select a run first', 'error');
-    return;
-  }
-  const runId = runRadio.value;
-  const row = runRadio.closest('.export-run-row');
-  const needsMerge = row && row.getAttribute('data-has-merged') !== '1';
-  const baseModel = (document.getElementById('export-base-model').value || '').trim();
-  if (needsMerge && !baseModel) {
-    const msg = 'Adapter-only run: set a compatible 16-bit base model before export';
-    fts.notify(msg, 'error');
-    return;
-  }
-
-  const formats = Array.from(document.querySelectorAll('input[name="export-format"]:checked:not(:disabled)'))
-    .map(cb => cb.value);
-  if (formats.length === 0) {
-    const msg = 'Select at least one available export format (GGUF stays disabled until converters are installed)';
-    fts.notify(msg, 'error');
-    return;
-  }
-  // Never POST disabled formats even if the DOM was tampered with.
-  const capsEl = document.getElementById('export-caps');
-  const ggufOk = !capsEl || capsEl.getAttribute('data-gguf') === '1';
-  if (formats.includes('gguf') && !ggufOk) {
-    const msg = (document.getElementById('export-gguf-unavailable') || {}).textContent
-      || 'GGUF converter unavailable';
-    if (window.fts && window.fts.notify) fts.notify(msg, 'error');
-    return;
-  }
-
-  const quants = Array.from(document.querySelectorAll('input[name="gguf-quant"]:checked')).map(cb => cb.value);
-  const force = document.getElementById('export-force').checked;
-
-  const btn = document.getElementById('export-btn');
-  const status = document.getElementById('export-status');
-  const resultEl = document.getElementById('export-result');
+// ── Export job UI ─────────────────────────────────────────────────────
+// An export is a server-side job (queued → merging/converting/quantizing →
+// done | failed | cancelled). POST only queues it; this code shows the live
+// phase + elapsed time from the job's SSE stream, re-attaches to a running job
+// after a reload/navigation (GET .../exports/active), runs the selected formats
+// one after another (the server runs one export at a time), and locks the
+// controls while anything is running. Wrapped in an IIFE: spa.js re-runs inline
+// scripts and column-0 const/let would collide.
+(function () {
+  const PID = {{ pid|tojson }};
+  const API = '/api/projects/' + encodeURIComponent(PID);
+  const PLAN_KEY = 'fts-export-plan-' + PID;
+  const TERMINAL = ['done', 'failed', 'error', 'cancelled'];
+  const PHASE_LABEL = {
+    queued: 'Queued', preparing: 'Freeing GPU memory', merging: 'Merging adapter into the base model',
+    converting: 'Converting to GGUF', quantizing: 'Quantizing', abliterating: 'Removing refusal behaviour',
+    finalizing: 'Registering files', cancelling: 'Cancelling…', done: 'Done', failed: 'Failed',
+    cancelled: 'Cancelled',
+  };
+  const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const notify = (msg, kind) => { if (window.fts && window.fts.notify) window.fts.notify(msg, kind || 'info'); };
 
-  function showResultCard(rows) {
-    if (!resultEl) return;
-    const body = rows.map(([k, v]) =>
-      '<tr><td class="meta muted">' + esc(k) + '</td><td class="mono">' + esc(v) + '</td></tr>'
-    ).join('');
-    resultEl.style.display = '';
-    resultEl.innerHTML = '<table class="table text-xs run-kv-table"><tbody>' + body + '</tbody></table>';
+  let unsub = null;        // SSE subscription of the job on screen
+  let ticker = null;       // 1 s elapsed-time refresh
+  let current = null;      // last row received for the job on screen
+  let clockSkew = 0;       // server_now - Date.now()/1000, refreshed on every event
+
+  function savePlan(plan) {
+    try { if (plan) localStorage.setItem(PLAN_KEY, JSON.stringify(plan)); else localStorage.removeItem(PLAN_KEY); }
+    catch (_e) { /* storage unavailable: the running job still re-attaches */ }
+  }
+  function loadPlan() {
+    try { return JSON.parse(localStorage.getItem(PLAN_KEY) || 'null'); } catch (_e) { return null; }
   }
 
-  function watchExport(eid) {
-    return new Promise((resolve) => {
-      const sub = window.fts && window.fts.subscribe;
-      const url = `/api/projects/{{ pid }}/exports/${eid}/events`;
-      const pollUrl = `/api/projects/{{ pid }}/exports/${eid}`;
-      if (!sub) {
-        resolve({ id: eid, status: 'queued' });
+  // ── controls ──
+  const lockable = () => Array.from(document.querySelectorAll(
+    '#export-btn, #export-force, #export-base-model, input[name="export-run"], ' +
+    'input[name="export-format"], input[name="gguf-quant"]'));
+  function setLocked(locked, hint) {
+    lockable().forEach((el) => {
+      if (locked && !el.disabled) { el.disabled = true; el.dataset.jobLock = '1'; }
+      else if (!locked && el.dataset.jobLock === '1') { el.disabled = false; delete el.dataset.jobLock; }
+    });
+    const btn = $('export-btn');
+    if (btn) {
+      if (locked) btn.title = hint || 'An export is running';
+      else btn.disabled = !document.querySelector('input[name="export-run"]:checked');
+    }
+    const h = $('export-btn-hint');
+    if (h) { h.hidden = !(locked && hint); if (locked && hint) h.textContent = hint; }
+  }
+
+  // ── rendering ──
+  function fmtElapsed(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return (m ? m + 'm ' : '') + String(s).padStart(2, '0') + 's';
+  }
+  function quantsText(row) {
+    return Array.isArray(row.quants) && row.quants.length ? row.quants.join(', ') : (row.quant || '');
+  }
+  function renderElapsed() {
+    const el = $('export-job-elapsed');
+    if (!el || !current) return;
+    const start = current.started_at || current.created_at;
+    const end = TERMINAL.includes(current.status) ? current.finished_at : (Date.now() / 1000 + clockSkew);
+    el.textContent = start && end ? 'elapsed ' + fmtElapsed(end - start) : '';
+    const beat = current.heartbeat_at;
+    if (!TERMINAL.includes(current.status) && beat) {
+      const quiet = (Date.now() / 1000 + clockSkew) - beat;
+      if (quiet > 30) el.textContent += ' · no sign of life for ' + fmtElapsed(quiet);
+    }
+  }
+  function render(row) {
+    current = row;
+    if (row.server_now) clockSkew = row.server_now - Date.now() / 1000;
+    const panel = $('export-job');
+    if (!panel) return;
+    panel.hidden = false;
+    const terminal = TERMINAL.includes(row.status);
+    const failed = row.status === 'failed' || row.status === 'error';
+    const state = $('export-job-state');
+    state.textContent = row.status === 'running' ? 'running' : row.status;
+    state.className = 'pill ' + (failed ? 'solid-rose' : row.status === 'done' ? 'solid-green'
+      : row.status === 'cancelled' ? 'outline' : 'solid-cyan');
+    $('export-job-title').textContent = (row.format || 'export') + (quantsText(row) ? ' · ' + quantsText(row) : '');
+    const phase = row.phase || row.status;
+    const detail = row.phase_detail ? ' — ' + row.phase_detail : '';
+    $('export-job-detail').textContent = terminal && !failed && row.status === 'done'
+      ? 'Finished' + (row.size_human ? ' · ' + row.size_human : '') + (row.output_path ? ' · ' + row.output_path : '')
+      : (PHASE_LABEL[phase] || phase) + detail;
+    const bar = $('export-job-bar');
+    bar.className = 'fill' + (terminal ? (failed ? ' err' : ' ok') : ' indeterminate');
+    bar.style.width = terminal ? '100%' : '';
+    $('export-job-error').textContent = failed || row.status === 'cancelled' ? (row.error || '') : '';
+    $('export-status').textContent = terminal ? '' : (PHASE_LABEL[phase] || phase);
+    $('export-status').classList.toggle('err', failed);
+    const cancel = $('export-cancel-btn');
+    cancel.hidden = terminal;
+    cancel.disabled = phase === 'cancelling';
+    const plan = loadPlan();
+    $('export-job-queue').textContent = plan && plan.queue && plan.queue.length && !terminal
+      ? 'Next: ' + plan.queue.map((q) => q.format).join(', ') : '';
+    renderElapsed();
+  }
+
+  function stopWatching() {
+    if (unsub) { unsub(); unsub = null; }
+    if (ticker) { clearInterval(ticker); ticker = null; }
+  }
+
+  // ── following one job ──
+  function follow(eid) {
+    stopWatching();
+    setLocked(true, 'An export is running — buttons unlock when it finishes.');
+    ticker = setInterval(() => {
+      if (!$('export-job')) { stopWatching(); return; }   // navigated away (SPA)
+      renderElapsed();
+    }, 1000);
+    const sub = window.fts && window.fts.subscribe;
+    const onRow = (row) => {
+      if (!row) return;
+      render(row);
+      if (TERMINAL.includes(row.status)) { stopWatching(); onTerminal(row); }
+    };
+    if (sub) {
+      unsub = sub(API + '/exports/' + eid + '/events', onRow,
+        { pollUrl: API + '/exports/' + eid, fallbackMs: 5000 });
+    } else {
+      // No EventSource wrapper: slow poll is still correct, just less live.
+      const poll = () => fetch(API + '/exports/' + eid).then((r) => r.json()).then(onRow).catch(() => {});
+      poll();
+      const t = setInterval(poll, 3000);
+      unsub = () => clearInterval(t);
+    }
+  }
+
+  async function onTerminal(row) {
+    const plan = loadPlan();
+    let failed = row.status === 'failed' || row.status === 'error';
+    // A "done" export must name a non-empty artifact — never celebrate a bare ack.
+    if (row.status === 'done' && (!row.output_path || (row.size_bytes != null && Number(row.size_bytes) <= 0))) {
+      failed = true;
+      row = Object.assign({}, row, { status: 'failed', error: row.format === 'gguf'
+        ? 'Export finished without a non-empty GGUF artifact' : 'Export finished without a non-empty artifact' });
+      render(row);
+      showResultCard([['Format', row.format], ['Status', 'failed'], ['Error', row.error], ['Path', row.output_path || '—']]);
+    }
+    if (row.status === 'done' && plan && plan.queue && plan.queue.length) {
+      const next = plan.queue.shift();
+      savePlan(plan);
+      await post(plan.runId, next, plan);
+      return;
+    }
+    savePlan(null);
+    setLocked(false);
+    $('export-cancel-btn').hidden = true;
+    if (row.status === 'done') {
+      showResultCard([['Export id', row.id], ['Format', row.format], ['Quant', quantsText(row) || '—'],
+        ['Path', row.output_path || '—'], ['Size', row.size_human || row.size_bytes || '—']]);
+      notify('Export finished', 'success');
+      setTimeout(() => location.reload(), 1500);   // refresh the "Trained exports" list
+    } else {
+      notify((row.format || 'export') + ' export ' + (failed ? 'failed: ' + (row.error || '') : row.status), 'error');
+    }
+  }
+
+  // ── starting jobs ──
+  function showResultCard(rows) {
+    const box = $('export-result');
+    box.style.display = '';
+    box.innerHTML = '<table class="table text-xs run-kv-table"><tbody>' + rows.map(([k, v]) =>
+      '<tr><td class="meta muted">' + esc(k) + '</td><td class="mono">' + esc(v) + '</td></tr>').join('')
+      + '</tbody></table>';
+  }
+  function showError(fmt, text, extra) {
+    $('export-status').textContent = '✗ ' + fmt + ': ' + text;
+    $('export-status').classList.add('err');
+    showResultCard([['Format', fmt], ['Status', 'failed'], ['Error', text], ...(extra || [])]);
+    notify(fmt + ' export failed: ' + text, 'error');
+  }
+
+  async function post(runId, entry, plan) {
+    const fmt = entry.format;
+    $('export-status').textContent = 'Queueing ' + fmt + '…';
+    $('export-status').classList.remove('err');
+    let r, d = {};
+    try {
+      r = await fetch(API + '/runs/' + encodeURIComponent(runId) + '/export', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry.body),
+      });
+      try { d = await r.json(); } catch (_parseErr) {
+        throw new Error('Export returned a non-JSON response (HTTP ' + r.status + ')');
+      }
+    } catch (e) {
+      savePlan(null); setLocked(false);
+      showError(fmt, e.message || String(e));
+      return;
+    }
+    const failed = !r.ok || d.ok === false || d.status === 'failed' || !!d.error;
+    if (failed) {
+      savePlan(null);
+      const text = d.error || d.reason || d.message || d.detail || ('HTTP ' + r.status);
+      if (r.status === 409 && d.active_export_id) {
+        // Another export (maybe from another tab) owns the GPU: show it live instead of failing.
+        notify(text, 'info');
+        follow(d.active_export_id);
         return;
       }
-      const stop = sub(url, (row) => {
-        if (!row) return;
-        status.textContent = `Export ${row.status || '…'}` +
-          (row.quant ? ` · ${row.quant}` : '');
-        showResultCard([
-          ['Export id', row.id || eid],
-          ['Status', row.status || ''],
-          ['Format', row.format || ''],
-          ['Quant', row.quant || '—'],
-          ['Path', row.output_path || '—'],
-          ['Size', row.size_human || row.size_bytes || '—'],
-          ['Error', row.error || '—'],
-        ]);
-        const st = row.status || '';
-        if (st === 'done' || st === 'failed' || st === 'error' || st === 'cancelled') {
-          stop();
-          resolve(row);
-        }
-      }, { pollUrl, fallbackMs: 5000 });
-    });
+      setLocked(false);
+      showError(fmt, text, [['Missing', Array.isArray(d.missing) ? d.missing.join(', ') : '—']]);
+      return;
+    }
+    plan.current = d.export_id;
+    savePlan(plan);
+    $('export-result').style.display = 'none';
+    follow(d.export_id);
   }
 
-  btn.disabled = true;
-  status.textContent = 'Exporting…';
-  status.classList.remove('err');
-  if (resultEl) { resultEl.style.display = 'none'; resultEl.innerHTML = ''; }
-
-  try {
-    const summaries = [];
-    for (const fmt of formats) {
-      status.textContent = `Exporting ${fmt}…`;
-      let body = { format: fmt, force };
+  window.startExport = async function startExport() {
+    const runRadio = document.querySelector('input[name="export-run"]:checked');
+    if (!runRadio) { notify('Select a run first', 'error'); return; }
+    const runId = runRadio.value;
+    const row = runRadio.closest('.export-run-row');
+    const needsMerge = row && row.getAttribute('data-has-merged') !== '1';
+    const baseModel = ($('export-base-model').value || '').trim();
+    if (needsMerge && !baseModel) {
+      notify('Adapter-only run: set a compatible 16-bit base model before export', 'error');
+      return;
+    }
+    const formats = Array.from(document.querySelectorAll('input[name="export-format"]:checked:not(:disabled)'))
+      .map((cb) => cb.value);
+    if (formats.length === 0) {
+      notify('Select at least one available export format (GGUF stays disabled until converters are installed)', 'error');
+      return;
+    }
+    // Never POST disabled formats even if the DOM was tampered with.
+    const capsEl = $('export-caps');
+    const ggufOk = !capsEl || capsEl.getAttribute('data-gguf') === '1';
+    if (formats.includes('gguf') && !ggufOk) {
+      notify((($('export-gguf-unavailable') || {}).textContent) || 'GGUF converter unavailable', 'error');
+      return;
+    }
+    const quants = Array.from(document.querySelectorAll('input[name="gguf-quant"]:checked')).map((cb) => cb.value);
+    const force = $('export-force').checked;
+    const queue = formats.map((fmt) => {
+      const body = { format: fmt, force };
       if (fmt === 'gguf') body.quants = quants;
       if (baseModel) body.base_model = baseModel;
-      const r = await fetch(`/api/projects/{{ pid }}/runs/${runId}/export`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      let d = {};
-      try {
-        d = await r.json();
-      } catch (_parseErr) {
-        const text = 'Export returned a non-JSON response (HTTP ' + r.status + ')';
-        status.textContent = `✗ ${fmt}: ${text}`;
-        status.classList.add('err');
-        showResultCard([
-          ['Format', fmt],
-          ['Status', 'failed'],
-          ['Error', text],
-        ]);
-        if (window.fts && window.fts.notify) fts.notify(`${fmt} export failed: ${text}`, 'error');
-        btn.disabled = false;
-        return;
-      }
-      const failed = !r.ok || d.ok === false || d.status === 'failed' || !!d.error;
-      if (failed) {
-        const text = d.error || d.reason || d.message || d.detail
-          || (`HTTP ${r.status}`);
-        status.textContent = `✗ ${fmt}: ${text}`;
-        status.classList.add('err');
-        showResultCard([
-          ['Format', fmt],
-          ['Status', 'failed'],
-          ['Error', text],
-          ['Missing', Array.isArray(d.missing) ? d.missing.join(', ') : '—'],
-        ]);
-        if (window.fts && window.fts.notify) fts.notify(`${fmt} export failed: ${text}`, 'error');
-        btn.disabled = false;
-        return;
-      }
-      if (d.export_id) {
-        const finalRow = await watchExport(d.export_id);
-        if ((finalRow.status || '') === 'failed' || finalRow.error) {
-          const text = finalRow.error || finalRow.status || 'export failed';
-          status.textContent = `✗ ${fmt}: ${text}`;
-          status.classList.add('err');
-          showResultCard([
-            ['Format', fmt],
-            ['Status', 'failed'],
-            ['Error', text],
-            ['Path', finalRow.output_path || d.output_path || '—'],
-          ]);
-          if (window.fts && window.fts.notify) fts.notify(`${fmt} export failed: ${text}`, 'error');
-          btn.disabled = false;
-          return;
-        }
-        // Async GGUF must land a non-empty path — never celebrate a bare queue ack.
-        const artPath = finalRow.output_path || d.output_path || '';
-        if (!artPath || (finalRow.size_bytes != null && Number(finalRow.size_bytes) <= 0)) {
-          const text = 'Export finished without a non-empty GGUF artifact';
-          status.textContent = `✗ ${fmt}: ${text}`;
-          status.classList.add('err');
-          showResultCard([
-            ['Format', fmt],
-            ['Status', 'failed'],
-            ['Error', text],
-            ['Path', artPath || '—'],
-          ]);
-          if (window.fts && window.fts.notify) fts.notify(`${fmt} export failed: ${text}`, 'error');
-          btn.disabled = false;
-          return;
-        }
-        summaries.push([fmt, artPath]);
-      } else {
-        const artPath = d.output_path || d.merged_path || d.output_dir
-          || d.gguf_path || d.gguf_dir || d.path || '';
-        const files = Array.isArray(d.files) ? d.files : [];
-        if (fmt === 'gguf' && !artPath && files.length === 0) {
-          const text = 'GGUF export reported success without artifacts';
-          status.textContent = `✗ ${fmt}: ${text}`;
-          status.classList.add('err');
-          showResultCard([
-            ['Format', fmt],
-            ['Status', 'failed'],
-            ['Error', text],
-          ]);
-          if (window.fts && window.fts.notify) fts.notify(`${fmt} export failed: ${text}`, 'error');
-          btn.disabled = false;
-          return;
-        }
-        summaries.push([fmt, artPath || (files[0] || 'ok')]);
-        showResultCard([
-          ['Format', fmt],
-          ['Status', d.status || 'done'],
-          ['Path', artPath || '—'],
-          ['Size', d.size_human || d.size_bytes || '—'],
-          ['Export id', d.export_id || '—'],
-          ['Files', files.length ? files.join(', ') : '—'],
-          ['Quants', Array.isArray(d.quants) ? d.quants.join(', ') : (d.quant || '—')],
-        ]);
-      }
+      return { format: fmt, body };
+    });
+    const first = queue.shift();
+    const plan = { runId, queue, current: null };
+    savePlan(plan);
+    setLocked(true, 'Starting export…');
+    await post(runId, first, plan);
+  };
+
+  $('export-cancel-btn').addEventListener('click', async () => {
+    if (!current) return;
+    const plan = loadPlan();
+    if (plan) { plan.queue = []; savePlan(plan); }     // cancel = stop the whole selection
+    $('export-cancel-btn').disabled = true;
+    try {
+      const r = await fetch(API + '/exports/' + current.id + '/cancel', { method: 'POST' });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { notify(d.error || ('Cancel failed (HTTP ' + r.status + ')'), 'error'); }
+    } catch (e) { notify('Cancel failed: ' + (e.message || e), 'error'); }
+  });
+
+  // ── re-attach after reload / navigation ──
+  async function reattach() {
+    let active = { project: [], other: [] };
+    try {
+      const r = await fetch(API + '/exports/active', { cache: 'no-store' });
+      if (r.ok) active = await r.json();
+    } catch (_e) { /* offline: leave the page usable */ }
+    if (active.project.length) {
+      const row = active.project[0];
+      render(row);
+      follow(row.id);
+      return;
     }
-    status.textContent = '✓ Done — refresh to see new exports';
-    status.classList.remove('err');
-    if (summaries.length) {
-      showResultCard(summaries.map(([fmt, path]) => [fmt, path]));
+    if (active.other.length) {
+      // One export at a time across the studio: this page is read-only until it ends.
+      setLocked(true, 'Another project is exporting right now — try again when it finishes.');
+      return;
     }
-    if (window.fts && window.fts.notify) fts.notify('Export finished', 'success');
-    setTimeout(() => location.reload(), 1500);
-  } catch (e) {
-    status.textContent = `✗ ${e}`;
-    status.classList.add('err');
-    if (window.fts && window.fts.notify) fts.notify(String(e), 'error');
-    btn.disabled = false;
+    // No running job; a stored plan may be waiting on a job that finished while the page was closed.
+    const plan = loadPlan();
+    if (!plan || !plan.current) { savePlan(null); return; }
+    try {
+      const r = await fetch(API + '/exports/' + plan.current, { cache: 'no-store' });
+      if (!r.ok) { savePlan(null); return; }
+      const row = await r.json();
+      render(row);
+      await onTerminal(row);
+    } catch (_e) { savePlan(null); }
   }
-}
+  window.addEventListener('pagehide', stopWatching);
+  reattach();
+})();
 
 // Pre-select a run when navigated with ?run=<id> (e.g. from training Actions).
 (function () {

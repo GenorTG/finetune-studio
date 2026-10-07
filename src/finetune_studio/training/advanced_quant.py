@@ -7,13 +7,14 @@ than basic llama.cpp quantize. Tool discovery is shared with ``gguf_convert``.
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 
+from finetune_studio.training import export_job
 from finetune_studio.training.gguf_convert import (
     find_gguf_convert_script,
     find_llama_quantize,
     normalize_gguf_quant,
+    run_cmd_into,
 )
 
 
@@ -57,26 +58,35 @@ def quantize_gguf_imatrix(
     # Step 1: Convert to F16 GGUF
     f16_file = os.path.join(gguf_dir, "model-f16.gguf")
     cmd = [sys.executable, convert_script, model_path, "--outfile", f16_file, "--outtype", "f16"]
-    result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=600, check=False,
-    )
-    if result.returncode != 0:
-        return {"error": f"convert failed: {result.stderr[:200]}"}
+    export_job.report(export_job.PHASE_CONVERTING, "HF weights → f16 GGUF")
+    try:
+        run_cmd_into(cmd, f16_file, timeout=600)
+    except export_job.ExportCancelled:
+        raise
+    except RuntimeError as e:
+        return {"error": f"convert failed: {e}"}
 
     # Step 2: Quantize with imatrix. llama-quantize parses options only before
     # the positional args, so --imatrix must come first.
     exported = {}
-    for quant in quants:
+    for i, quant in enumerate(quants, start=1):
         quant_clean = normalize_gguf_quant(quant)
         out_file = os.path.join(gguf_dir, f"model-{quant_clean}.gguf")
         cmd = [quant_bin, "--imatrix", imatrix_path, f16_file, out_file, quant_clean.upper()]
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=1200, check=False,
+        export_job.report(
+            export_job.PHASE_QUANTIZING, f"{quant_clean.upper()} ({i}/{len(quants)})",
         )
-        if result.returncode == 0 and os.path.isfile(out_file):
+        try:
+            run_cmd_into(cmd, out_file, timeout=1200)
+        except export_job.ExportCancelled:
+            raise
+        except RuntimeError as e:
+            exported[quant] = {"error": str(e)[:300]}
+            continue
+        if os.path.isfile(out_file):
             exported[quant] = {"path": out_file, "size": os.path.getsize(out_file)}
         else:
-            exported[quant] = {"error": result.stderr[:100]}
+            exported[quant] = {"error": "llama-quantize produced no output file"}
 
     return {
         "output_dir": gguf_dir,

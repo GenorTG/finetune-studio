@@ -1,5 +1,6 @@
 """Training tab — start/stop training, monitor progress."""
 
+import asyncio
 import json
 import logging
 import math
@@ -697,7 +698,8 @@ async def start_training(request: Request):
     # zero for no reason visible from the training config itself.
     try:
         from finetune_studio.models.llama_loader import unload_all_models
-        unload_all_models()
+        # Freeing CUDA memory takes seconds: not on the event loop.
+        await asyncio.to_thread(unload_all_models)
     except Exception:
         log.exception("Failed to unload resident models before training")
     try:
@@ -822,8 +824,20 @@ async def trigger_auto_suite(run_id: str, request: Request):
 
 @router.post("/runs/{run_id}/quantize")
 async def quantize_run(run_id: str, request: Request):
-    """Export a trained model using advanced quantization."""
+    """Start an imatrix GGUF quantization of a run as a tracked export job.
+
+    Returns ``202 {ok, export_id, status: "queued"}`` at once; progress and the
+    final result live in the export row (``GET /projects/{pid}/exports/{id}``,
+    SSE ``.../events``). One export at a time: ``409`` while another runs.
+    """
     from finetune_studio import db
+    from finetune_studio.training.gguf_convert import (
+        find_gguf_convert_script,
+        find_llama_quantize,
+    )
+    from finetune_studio.webui import export_jobs
+    from finetune_studio.webui.export_work import imatrix_work
+
     body = await request.json()
     method = body.get("method", "imatrix")
     run = db.get_run(run_id)
@@ -835,36 +849,42 @@ async def quantize_run(run_id: str, request: Request):
     merged_dir = os.path.join(output_path, "merged")
     if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
         return JSONResponse({"error": "no merged model to quantize"}, status_code=409)
-    if method == "imatrix":
-        output_dir = os.path.join(output_path, "imatrix")
-        from finetune_studio.training.advanced_quant import quantize_gguf_imatrix
-        result = quantize_gguf_imatrix(
-            model_path=merged_dir,
-            output_dir=output_dir,
-            imatrix_path=body.get("imatrix_path", ""),
-            quants=body.get("quants", ["q4_k_m", "q5_k_m", "q8_0"]),
-        )
-    else:
+    if method != "imatrix":
         return JSONResponse({"error": f"unknown method: {method}"}, status_code=400)
-    if result.get("error"):
-        return JSONResponse(result, status_code=422)
-    from time import time as _time
-
-    from finetune_studio.db.connection import cursor, new_id
-    q_id = new_id()
-    with cursor() as c:
-        c.execute(
-            "INSERT INTO quant_exports (id, run_id, project_id, model_path, output_path, method, bits, group_size, size_bytes, status, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (q_id, run_id, run.get("project_id", ""),
-             merged_dir, output_dir,
-             method,
-             int(body.get("bits", 4)),
-             int(body.get("group_size", 128)),
-             result.get("size_bytes", 0),
-             "done", _time()),
+    imatrix_path = body.get("imatrix_path", "")
+    if not imatrix_path or not os.path.isfile(imatrix_path):
+        return JSONResponse(
+            {"error": f"imatrix file not found: {imatrix_path or '(none given)'}"},
+            status_code=422,
         )
-    return {"ok": True, "quantize_id": q_id, **result}
+    if not find_gguf_convert_script():
+        return JSONResponse({"error": "llama.cpp convert script not found"}, status_code=422)
+    if not find_llama_quantize():
+        return JSONResponse({"error": "llama-quantize not found"}, status_code=422)
+    quants = [str(q) for q in body.get("quants", ["q4_k_m", "q5_k_m", "q8_0"])]
+    try:
+        row = export_jobs.start_job(
+            project_id=run.get("project_id", ""), run_id=run_id, fmt="imatrix",
+            quant=",".join(quants), quants=quants,
+            make_work=lambda eid: imatrix_work(
+                eid, run=run, merged_dir=merged_dir,
+                output_dir=os.path.join(output_path, "imatrix"),
+                imatrix_path=imatrix_path, quants=quants,
+                bits=int(body.get("bits", 4)),
+                group_size=int(body.get("group_size", 128)),
+            ),
+        )
+    except export_jobs.ExportBusy as busy:
+        return JSONResponse(
+            {"ok": False, "status": "busy", "error": str(busy),
+             "active_export_id": busy.active.get("id")},
+            status_code=409,
+        )
+    return JSONResponse(
+        {"ok": True, "export_id": row["id"], "status": "queued",
+         "project_id": row["project_id"]},
+        status_code=202,
+    )
 
 
 @router.get("/runs/{run_id}/quant-exports")

@@ -8,6 +8,8 @@ from unittest.mock import patch
 
 import pytest
 
+from tests._export_wait import wait_export
+
 
 def _adapter_run(tmp_path: Path, *, base_model: str = "Qwen/Qwen3-4B") -> dict:
     """Create an adapter-only (no merged/) run directory + dict."""
@@ -339,13 +341,15 @@ class TestExportApiAdapterOnly:
                 "base_model": str(base),
             },
         )
-        assert r.status_code == 200, r.text
+        assert r.status_code == 202, r.text
         data = r.json()
         assert data.get("ok") is True
         assert data.get("format") == "merged"
-        assert os.path.isdir(data["merged_path"])
+        row = wait_export(client, pid, data["export_id"])
+        assert row["status"] == "done", row
+        assert os.path.isdir(row["output_path"])
         assert os.path.isfile(
-            os.path.join(data["merged_path"], "SKIPPED_BY_TEST")
+            os.path.join(row["output_path"], "SKIPPED_BY_TEST")
         )
 
     def test_post_rejects_awq(
