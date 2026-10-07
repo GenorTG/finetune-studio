@@ -13,31 +13,40 @@ def parse(path: Path) -> dict:
     except ImportError as e:
         return make_result("", {"type": "docx", "error": str(e)}, parser="docx_v1",
                            warnings=["install python-docx (pip install python-docx)"])
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
     doc = Document(str(path))
-    paragraphs = []
+    paragraphs: list[str] = []
     headings = []
-    for p in doc.paragraphs:
-        if not p.text.strip():
-            continue
-        paragraphs.append(p.text)
-        if p.style and p.style.name and p.style.name.startswith("Heading"):
-            try:
-                level = int(p.style.name.split()[-1])
-            except ValueError:
-                level = 0
-            headings.append({"level": level, "text": p.text.strip()})
     tables = []
-    table_lines = []
-    for t in doc.tables:
-        rows = []
-        for row in t.rows:
-            cells = [cell.text.strip() for cell in row.cells]
-            rows.append(cells)
-            table_lines.append(" | ".join(cells))
-        tables.append({"rows": rows})
-    text = "\n".join(paragraphs)
-    if table_lines:
-        text = text + ("\n\n" if text else "") + "\n".join(table_lines)
+    lines: list[str] = []  # document order: a table stays under the heading/caption it was written below
+    for child in doc.element.body.iterchildren():
+        tag = child.tag.rsplit("}", 1)[-1]
+        if tag == "p":
+            p = Paragraph(child, doc)
+            if not p.text.strip():
+                continue
+            paragraphs.append(p.text)
+            lines.append(p.text)
+            if p.style and p.style.name and p.style.name.startswith("Heading"):
+                try:
+                    level = int(p.style.name.split()[-1])
+                except ValueError:
+                    level = 0
+                headings.append({"level": level, "text": p.text.strip()})
+        elif tag == "tbl":
+            rows = []
+            for row in Table(child, doc).rows:
+                cells: list[str] = []
+                for cell in row.cells:  # merged cells repeat: keep one copy per run
+                    t = cell.text.strip()
+                    if not cells or t != cells[-1]:
+                        cells.append(t)
+                rows.append(cells)
+                lines.append(" | ".join(cells))
+            tables.append({"rows": rows})
+    text = "\n".join(lines)
     structured = {
         "type": "docx",
         "paragraph_count": len(paragraphs),

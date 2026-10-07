@@ -36,10 +36,14 @@ from finetune_studio.data.prep.qa_validate import (
     RejectionCounters,
     build_qa_record,
     validate_qa_batch,
+    validate_qa_pair,
 )
 from finetune_studio.data.prep.scorer import heuristic_score
 
 log = logging.getLogger(__name__)
+
+# Exhaustive mining writes one pair per fact: a dense chunk needs far more than the sampled miner's 1,200 tokens.
+EXHAUSTIVE_MAX_TOKENS = 4096
 
 
 @dataclass
@@ -58,11 +62,13 @@ class DataPrepRunner:
     def __init__(self, pid: str, data: bytes, filename: str, *,
                  qa_per_chunk: int = 3, difficulty: str = "medium",
                  style: str = "socratic", max_chunks: int = 0,
-                 uploaded_by: str = "", progress_cb=None):
+                 uploaded_by: str = "", progress_cb=None, mode: str = "exhaustive"):
         self.pid = pid
         self.data = data
         self.filename = filename
         self.qa_per_chunk = max(1, min(10, qa_per_chunk))
+        # exhaustive: loop until every fact-bearing statement is covered (qa_per_chunk ignored); sampled: legacy n per chunk
+        self.mode = mode if mode in ("exhaustive", "sampled") else "exhaustive"
         self.difficulty = difficulty
         self.style = style
         self.max_chunks = max_chunks
@@ -84,6 +90,60 @@ class DataPrepRunner:
         except Exception:
             # Progress UI callback must never abort prep; log and continue.
             log.exception("prep progress callback failed")
+
+    def _generate_exhaustive(self, chat, chunks, meta, coverage, rejection_counters, seen_questions, now):
+        """Exhaustive mining (see ``exhaustive``): per chunk, loop until every fact-bearing statement is covered."""
+        from finetune_studio.data.prep import exhaustive as ex
+        from finetune_studio.data.prep.coverage_question import (
+            split_sections,
+            title_from_filename,
+        )
+
+        title = title_from_filename(self.filename) or self.filename
+        stats: dict[str, Any] = {"statements": 0, "covered": 0, "model_pairs": 0, "gap_pairs": 0, "extractive_pairs": 0,
+                                 "rounds": 0}
+        total_qa = 0
+
+        def call(messages):
+            return chat(messages, max_tokens=EXHAUSTIVE_MAX_TOKENS, temperature=0.0, top_p=1.0)
+
+        for i, chunk in enumerate(chunks, 1):
+            if self._cancel.is_set():
+                return total_qa, stats, True
+            carried = ex.table_header_before(chunks, i - 1)
+            grounding = f"{carried}\n{chunk}" if carried else chunk
+
+            def accept(pairs, _chunk, grounding=grounding):
+                batch = validate_qa_batch(pairs, grounding, seen_questions=seen_questions)
+                rejection_counters.parsed += batch.counters.parsed
+                rejection_counters.accepted += batch.counters.accepted
+                rejection_counters.rejected += batch.counters.rejected
+                rejection_counters.by_reason.update(batch.counters.by_reason)
+                return [{"q": p.question, "a": p.answer} for p in batch.accepted]
+
+            sections = split_sections(chunk)
+            section = (sections[0][0] if sections else "") or ""
+            outcome = ex.mine_chunk(chunk, chat=call, parse=lambda raw: parse_qa_json(raw, 400), accept=accept,
+                                    title=title, section=section, carried_header=carried)
+            prov = Provenance(source_id=self.source_id, sha256=meta.sha256, filename=self.filename, chunk_idx=i)
+            for pair, origin in outcome.pairs:
+                validated = validate_qa_pair(pair["q"], pair["a"], grounding)
+                qa = build_qa_record(
+                    qa_id=uuid.uuid4().hex[:12], pair=validated, provenance=prov, chunk_text=chunk[:1500],
+                    difficulty=self.difficulty, style=self.style,
+                    score=heuristic_score(pair["q"], pair["a"], chunk), created_at=now, origin=origin,
+                )
+                pfs.write_qa_pair(self.pid, qa)
+                coverage.mark_accepted(i)
+                total_qa += 1
+                key = {"model": "model_pairs", "model_gap": "gap_pairs", "extractive_gap": "extractive_pairs"}[origin]
+                stats[key] += 1
+            stats["statements"] += outcome.statements
+            stats["covered"] += outcome.covered
+            stats["rounds"] += outcome.rounds
+            self._emit(stage="generating", pct=30 + (i / max(1, len(chunks))) * 65, chunks_done=i, qa_total=total_qa,
+                       message=f"Chunk {i}/{len(chunks)}: {stats['covered']}/{stats['statements']} statements covered")
+        return total_qa, stats, False
 
     def run(self) -> dict:
         try:
@@ -194,79 +254,89 @@ class DataPrepRunner:
         )
         seen_questions: set[str] = set()
         chunk_indices = list(range(1, len(chunks) + 1))
-        for i, chunk in enumerate(chunks, 1):
-            if self._cancel.is_set():
+        fact_stats: dict[str, Any] = {}
+        if self.mode == "exhaustive":
+            total_qa, fact_stats, cancelled = self._generate_exhaustive(
+                chat, chunks, meta, coverage, rejection_counters, seen_questions, now)
+            if cancelled:
                 self._emit(stage="error", message="Cancelled")
                 return {"ok": False, "error": "cancelled", "sha256": meta.sha256}
-            prompt = QA_USER_TEMPLATE.format(chunk=chunk[:6000], n=self.qa_per_chunk,
-                                             difficulty=self.difficulty, style_hint=style_hint(self.style))
-            try:
-                raw = chat(
-                    [{"role": "system", "content": QA_SYSTEM_PROMPT},
-                     {"role": "user", "content": prompt}],
-                    max_tokens=1200, temperature=0.7, top_p=0.9,
+        else:
+            for i, chunk in enumerate(chunks, 1):
+                if self._cancel.is_set():
+                    self._emit(stage="error", message="Cancelled")
+                    return {"ok": False, "error": "cancelled", "sha256": meta.sha256}
+                prompt = QA_USER_TEMPLATE.format(chunk=chunk[:6000], n=self.qa_per_chunk,
+                                                 difficulty=self.difficulty, style_hint=style_hint(self.style))
+                try:
+                    raw = chat(
+                        [{"role": "system", "content": QA_SYSTEM_PROMPT},
+                         {"role": "user", "content": prompt}],
+                        max_tokens=1200, temperature=0.7, top_p=0.9,
+                    )
+                except Exception as e:
+                    log.exception("model call failed on chunk %d", i)
+                    pfs.log_ingestion(self.pid, {
+                        "event": "qa_chunk_error", "sha256": meta.sha256, "chunk_index": i,
+                        "error": str(e),
+                    })
+                    continue
+                # Parsing fallbacks stay in parse_qa_json; validation is post-parse.
+                pairs = parse_qa_json(raw, self.qa_per_chunk)
+                if not pairs:
+                    # The model replied but no {"q","a"} pair could be extracted
+                    # (empty array, malformed JSON, refusal prose, etc). Record
+                    # it — otherwise this chunk vanishes from the ingestion log
+                    # with no trace until coverage_fill silently backfills it.
+                    pfs.log_ingestion(self.pid, {
+                        "event": "qa_chunk_unparsed", "sha256": meta.sha256,
+                        "chunk_index": i, "raw_preview": raw[:200],
+                    })
+                    continue
+                batch = validate_qa_batch(
+                    pairs, chunk, seen_questions=seen_questions,
                 )
-            except Exception as e:
-                log.exception("model call failed on chunk %d", i)
-                pfs.log_ingestion(self.pid, {
-                    "event": "qa_chunk_error", "sha256": meta.sha256, "chunk_index": i,
-                    "error": str(e),
-                })
-                continue
-            # Parsing fallbacks stay in parse_qa_json; validation is post-parse.
-            pairs = parse_qa_json(raw, self.qa_per_chunk)
-            if not pairs:
-                # The model replied but no {"q","a"} pair could be extracted
-                # (empty array, malformed JSON, refusal prose, etc). Record
-                # it — otherwise this chunk vanishes from the ingestion log
-                # with no trace until coverage_fill silently backfills it.
-                pfs.log_ingestion(self.pid, {
-                    "event": "qa_chunk_unparsed", "sha256": meta.sha256,
-                    "chunk_index": i, "raw_preview": raw[:200],
-                })
-                continue
-            batch = validate_qa_batch(
-                pairs, chunk, seen_questions=seen_questions,
-            )
-            rejection_counters.parsed += batch.counters.parsed
-            rejection_counters.accepted += batch.counters.accepted
-            rejection_counters.rejected += batch.counters.rejected
-            rejection_counters.by_reason.update(batch.counters.by_reason)
-            prov = Provenance(
-                source_id=self.source_id,
-                sha256=meta.sha256,
-                filename=self.filename,
-                chunk_idx=i,
-            )
-            for accepted in batch.accepted:
-                qa_id = uuid.uuid4().hex[:12]
-                qa = build_qa_record(
-                    qa_id=qa_id,
-                    pair=accepted,
-                    provenance=prov,
-                    chunk_text=chunk[:1500],
-                    difficulty=self.difficulty,
-                    style=self.style,
-                    score=heuristic_score(accepted.question, accepted.answer, chunk),
-                    created_at=now,
+                rejection_counters.parsed += batch.counters.parsed
+                rejection_counters.accepted += batch.counters.accepted
+                rejection_counters.rejected += batch.counters.rejected
+                rejection_counters.by_reason.update(batch.counters.by_reason)
+                prov = Provenance(
+                    source_id=self.source_id,
+                    sha256=meta.sha256,
+                    filename=self.filename,
+                    chunk_idx=i,
                 )
-                pfs.write_qa_pair(self.pid, qa)
-                coverage.mark_accepted(i)
-                total_qa += 1
-            if batch.rejected:
-                pfs.log_ingestion(self.pid, {
-                    "event": "qa_chunk_rejected",
-                    "sha256": meta.sha256,
-                    "chunk_index": i,
-                    "rejected": len(batch.rejected),
-                    "accepted": len(batch.accepted),
-                    "reasons": dict(Counter(
-                        reason for p in batch.rejected for reason in p.reasons
-                    )),
-                })
-            pct = 30 + (i / max(1, len(chunks))) * 65
-            self._emit(stage="generating", pct=pct, chunks_done=i, qa_total=total_qa)
+                for accepted in batch.accepted:
+                    qa_id = uuid.uuid4().hex[:12]
+                    qa = build_qa_record(
+                        qa_id=qa_id,
+                        pair=accepted,
+                        provenance=prov,
+                        chunk_text=chunk[:1500],
+                        difficulty=self.difficulty,
+                        style=self.style,
+                        score=heuristic_score(accepted.question, accepted.answer, chunk),
+                        created_at=now,
+                    )
+                    pfs.write_qa_pair(self.pid, qa)
+                    coverage.mark_accepted(i)
+                    total_qa += 1
+                if batch.rejected:
+                    pfs.log_ingestion(self.pid, {
+                        "event": "qa_chunk_rejected",
+                        "sha256": meta.sha256,
+                        "chunk_index": i,
+                        "rejected": len(batch.rejected),
+                        "accepted": len(batch.accepted),
+                        "reasons": dict(Counter(
+                            reason for p in batch.rejected for reason in p.reasons
+                        )),
+                    })
+                pct = 30 + (i / max(1, len(chunks))) * 65
+                self._emit(stage="generating", pct=pct, chunks_done=i, qa_total=total_qa)
         coverage_info = coverage.as_dict()
+        if fact_stats:
+            coverage_info["facts"] = fact_stats
         coverage_info["uncovered_chunk_indices"] = coverage.uncovered_chunks(chunk_indices)
         rejection_info = rejection_counters.as_dict()
         # Self-heal: chunks the model mining never converted get deterministic
@@ -327,11 +397,12 @@ class DataPrepRunner:
             "coverage": coverage_info,
             "coverage_fill": fill_summary,
         })
+        fact_open = bool(fact_stats) and fact_stats["covered"] < fact_stats["statements"]
         source_manifest = pfs.read_qa_source(self.pid, self.source_id)
         if source_manifest:
             pfs.write_qa_source(self.pid, {
                 **source_manifest,
-                "status": "generated_incomplete" if uncovered_after_fill else "generated",
+                "status": "generated_incomplete" if (uncovered_after_fill or fact_open) else "generated",
                 "generated_at": time.time(),
                 "generation": {
                     "qa_model_accepted": total_qa,

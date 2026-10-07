@@ -1,0 +1,86 @@
+---
+out: ops_chat_export_2024_09_w38.txt
+tier: core
+---
+#nightdesk-gdy1 — export 2024-09-23 06:12 (range 2024-09-16 .. 2024-09-22) — 211 msgs, 3 deleted
+[2024-09-16 21:48] kuba: czesc owls. mon night, 4 reefers still on the yard that shouldnt be
+[2024-09-16 21:50] olek: which
+[2024-09-16 21:51] kuba: KRVU 3310027-8 and the two TLXU ones, i dont have the numbers on my phone sorry
+[2024-09-16 21:53] olek: u have the numbers on the dashboard u genius
+[2024-09-16 21:57] kuba: ok TLXU 604418-2 and TLXU 604419-9. all 3 are for the Vistula Star, gate cut-off is thursday 16:00 right?
+[2024-09-16 21:58] olek: thursday 16:00 yes. as of today. dont get used to it
+[2024-09-16 22:03] kuba: why dont get used to it
+[2024-09-16 22:03] olek: because terminal and "as of today" in the same sentence
+[2024-09-16 22:20] wacek: evening. who put KRVU 3310027-8 on plug C-37? C-37 is the one that trips the breaker when its above 14 A
+[2024-09-16 22:21] kuba: me? the sheet said C-37
+[2024-09-16 22:22] wacek: sheet is from august. move it to C-41, C-41 has the new 32 A socket. i checked it myself with the clamp meter, it pulled 11.8 A on the pull-down
+[2024-09-16 22:24] kuba: ok moving
+[2024-09-16 22:41] kuba: done. C-41. tag shows -18.4 so we good
+[2024-09-16 22:42] olek: -18.4 on a -18 setpoint is fine, dont panic the owls
+[2024-09-17 01:35] olek: radek where are u, the Samso trailer was due at gate 2 at 01:30
+[2024-09-17 01:41] radek: stuck behind a pole with a broken lorry on Hutnicza, 10 min max
+[2024-09-17 01:42] olek: ok. gate 2 is open till 02:15 then the guard goes for his break and the barrier stays down till 02:45, so dont be later than that
+[2024-09-17 01:43] radek: 👍
+[2024-09-17 01:58] radek: at gate. guard says berries trailer is NOT on his list
+[2024-09-17 02:02] olek: list was sent at 23:10, it says SAMSO-BC-0917, 18 pallets. tell him that
+[2024-09-17 02:05] radek: he says 16 pallets on his list
+[2024-09-17 02:06] olek: lol of course. 18 is right, the 2 extra are the late ones from the packhouse, i'll mail the guard sheet again
+[2024-09-17 02:14] olek: ok its in. he has 18 now. bay 4, door 2. temp of the load 1.8 at the probe
+[2024-09-17 02:14] radek: ty boss. coffee?
+[2024-09-17 02:15] olek: always
+[2024-09-17 06:30] ola: morning!! handover from olek: reminder the KC-Hub in Yard B was swapped sunday, the new one is OD-H05 hmm no wait thats the dairy one. Yard B hub is YB-H03. dont let anyone call it the old name
+[2024-09-17 06:33] ola: also the Fruttoria truck is at gate 1 since 06:10 and nobody told me
+[2024-09-17 06:35] jarek: Fruttoria is a 07:00 slot. let him wait. he knows
+[2024-09-17 11:05] gunnar: whoever took the white Renault T from the pool last night, the fuel card is missing and its the pool card for ALL of them. 3 tickets today already
+[2024-09-17 11:12] wacek: not me. i drive a skoda like a normal person
+[2024-09-17 11:13] gunnar: ok funny. if its in the cup holder please bring it, reserve is only 60 liter anyway
+[2024-09-18 00:20] olek: heads up all. terminal ops just called. the Vistula Star gate cut-off MOVES to thursday 13:30. they have a crane problem and want the stack closed earlier. i said that was ridiculous, he said "tell it to the crane"
+[2024-09-18 00:21] kuba: so 16:00 is dead?
+[2024-09-18 00:21] olek: 16:00 is dead. its 13:30. writing it on the whiteboard
+[2024-09-18 00:25] kuba: but KRVU 3310027-8 needs the 4 hours of pre-cool after the pick-up. we cant make 13:30 if the pick-up is 10:00 :(
+[2024-09-18 00:27] olek: yes we can, pick-up goes to 08:30. i'll tell the day shift
+[2024-09-18 00:40] kuba: sry for the typos on the hand sheet. i wrote TLXU 604419-9 as 604419-6 once
+[2024-09-18 00:41] olek: i fixed it. it IS -9. checksum matches, i checked
+[2024-09-18 03:12] olek: 3 hub alarms in 20 min from Waltershof?? kuba look
+[2024-09-18 03:15] kuba: its a HAM-2 thing. their VPN renewed at 03:00 sharp every night since the update. alarm cleared itself 03:14
+[2024-09-18 03:16] olek: ok. note it. not our problem but it will become our problem
+[2024-09-18 08:02] wacek: day crew: the cut-off is THURSDAY 13:30 for Vistula Star, not friday as the sheet says. whiteboard is right, sheet is wrong, ignore the sheet
+[2024-09-18 08:05] ola: sheet printed monday, ofc
+[2024-09-18 13:40] gunnar: tyre pressures on the three Volvos done. nothing exciting. one TPMS sensor on the old Volvo ("Mała Berta" fleet no. 42) keeps saying 7.2 bar when its 8.1
+[2024-09-18 13:41] gunnar: that is not a safety thing, it is a replace-it-when-I-get-round-to-it thing
+[2024-09-18 22:05] radek: question: i have a pallet of Nordkjol cod loins for pick-up tomorrow at 11:00 and I dont know the door
+[2024-09-18 22:10] olek: bay 2 door 1. ask for jonas at the cold store, he has the seal numbers. seals are 440812 to 440814
+[2024-09-18 22:11] radek: and thats 3 seals for 1 trailer?
+[2024-09-18 22:12] olek: one on the door, one on the side door, one spare for when u lose one. nobody ever loses one. but still
+[2024-09-19 00:05] kuba: heyyy the ship went. or didnt. what time is vistula star ETD again, 19:00 thursday?
+[2024-09-19 00:07] olek: ETD thursday 19:00 yes. cut-off irrelevant for u now, u just need all three boxes inside the stack before it closes
+[2024-09-19 05:55] olek: handover: the 3 boxes for Vistula Star are on the yard at C-41, C-42 and C-44. tags OK. nothing to chase, only the cut-off thing which is 13:30
+[2024-09-19 06:02] ola: ok got it. 13:30 thursday
+[2024-09-19 09:18] jarek: ALL: new news from the terminal, via Hanneke who got it via the agent. Vistula Star cut-off is now THURSDAY 15:00, not 13:30. crane fixed. please update the whiteboard and the handover. 15:00. Not 13:30. Not 16:00. 15:00. i will keep saying it.
+[2024-09-19 09:19] wacek: 🫡 15:00
+[2024-09-19 09:20] ola: whiteboard says 13:30 in red, ill change
+[2024-09-19 09:41] ola: changed. i made the 1 and the 5 big
+[2024-09-19 13:10] gunnar: lunch. who wants the pierogi from the van, i have 11 left and im not eating 11
+[2024-09-19 13:11] wacek: me, ruskie
+[2024-09-19 14:48] radek: the 3 boxes entered gate at 14:41, truck driver says stack still open, i'm calling it done
+[2024-09-19 14:49] olek: great, log it. 14:41 gate in, thats before 15:00. that's all that counts
+[2024-09-19 22:30] kuba: hi. in the log there is an entry from wed "cut-off 13:30 per Olek" and the new one says 15:00. do i delete the old
+[2024-09-19 22:31] olek: NEVER delete. strike through, add the new one under it. legal hold remember?
+[2024-09-19 22:31] kuba: ok ok
+[2024-09-20 02:44] olek: odd one: Brunnen & Sohn truck BS-GDY-77 arrived 4h early, 02:30 instead of 06:30. driver says he "wanted to beat the traffic". guard let him in. i parked him at bay 6
+[2024-09-20 02:50] kuba: should I wake the cold store?
+[2024-09-20 02:51] olek: no. cold store opens 05:00 and Franz is not gonna be nice if u wake him. let him sleep in the truck, i gave him a blanket
+[2024-09-20 02:52] kuba: u gave him a blanket??
+[2024-09-20 02:52] olek: its in the gate cabin box. its not the first time
+[2024-09-20 15:20] wacek: friday freebie: if anyone has a spare 24 V charger for the handheld scanners, ours has the loose pin. dont use it. dont even look at it
+[2024-09-20 15:23] gunnar: i have two. ill leave them in the key cabinet, 2nd drawer
+[2024-09-21 01:14] olek: weekend owls: the Saturday reefer from Lumikko (Oulu feeder) is on KRVU 3310112-0 and goes to plug D-09. D-09 is the one that ghosts, use D-12 instead, spare line is marked blue
+[2024-09-21 01:15] kuba: noted. D-12
+[2024-09-21 01:16] olek: and for the love of god if the alarm calls the desk phone, PICK UP. 3 rings. not 9
+[2024-09-21 04:03] kuba: lumikko box is on D-12, tag OK, 2.1 at the probe, setpoint +2
+[2024-09-21 04:04] olek: 👌
+[2024-09-22 23:50] olek: sunday night, quiet. last thing: next week the Rotterdam reefers reduce to 2 trucks per night, not 3, Hanneke's decision, from Monday 23rd. i'm just posting it
+[2024-09-22 23:51] kuba: why
+[2024-09-22 23:52] olek: ask Hanneke. ¯\_(ツ)_/¯
+[2024-09-22 23:55] kuba: ok. gn
+[2024-09-23 00:01] olek: gn kuba. end of week 38.

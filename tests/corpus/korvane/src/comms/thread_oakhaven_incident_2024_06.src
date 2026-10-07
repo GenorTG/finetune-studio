@@ -1,0 +1,107 @@
+---
+out: thread_oakhaven_incident_2024_06.eml
+tier: core
+---
+Return-Path: <benedikta.aaltonen@korvane.example>
+Received: from mail.korvane.example (mail.korvane.example [10.20.4.12])
+	by mx.korvane.example with ESMTPS id 4XkR2d8pQnz1m
+	for <szymon.karpinski@oakhaven-dairy.example>; Mon, 17 Jun 2024 16:52:09 +0200 (CEST)
+From: Benedikta Aaltonen <benedikta.aaltonen@korvane.example>
+To: Szymon Karpiński <szymon.karpinski@oakhaven-dairy.example>
+Cc: Jarek Lindqvist <jarek.lindqvist@korvane.example>, Yusuf Demirkıran <yusuf.demirkiran@korvane.example>
+Subject: RE: RE: Fwd: OD-231 / night of 13-14 June - your questions
+Date: Mon, 17 Jun 2024 16:51:40 +0200
+Message-ID: <20240617165140.KCQ-9931@korvane.example>
+In-Reply-To: <CAM7f3a0Xr2@oakhaven-dairy.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Szymon,
+
+thanks for your patience, and for the very direct note on Friday, which was fair. I have now been through the logger export, the Tidewalk event history and the shift notes with Jarek, so what follows is what we can stand behind today. Where I say "about" it is because we are still reconciling two clocks (see point 4). I'm answering inline below, in the order you asked, so please excuse the formatting.
+
+> 1. When exactly did the product go out of range, and what was the temperature?
+
+The KC-Tag 4 in container KRVU 482917-3 (the one on your trailer OD-231) logged the first reading above the 8.0 C limit at 22:05 on Thursday 13 June. The setpoint was +2.0 C and the box had been sitting at +2.3 to +2.6 all evening, so something changed suddenly, it was not a slow drift. By 23:30 the return-air reading was 11.4 C and it peaked at 13.8 C at 03:40 on the 14th. The reading went back under 8.0 C at 07:10, so I count 9 hours 5 minutes above the limit. Rounded, the "nine hours" in Jarek's first message is right.
+
+> 2. Why did nobody see it? Your own system is supposed to scream.
+
+Two things happened together and I am not going to dress it up. The gateway in the yard that this tag reports through (hub OD-H02) had been rebooting in a loop since about 19:00, so the tag's readings were being buffered and only came through in lumps. The alarm that Tidewalk did generate went out once, to the single contact on file for your account, at 22:41, and that was the night dispatcher's desk phone queue, not a mobile. It was acknowledged on screen at 22:47 by a junior dispatcher (I am not naming them, that is for us to handle internally) and then nothing was done with it for a long time. The escalation to the shift lead should have fired after 20 minutes of no clearing and it did not, because the rule was attached to the alarm group "dairy-cold" and OD-231 was still in the old group "dairy-chilled". That is our configuration mistake and we have fixed it for every dairy account as of Saturday.
+
+> 3. Who decided what, and when?
+
+Olek Maraszek (senior dispatcher, nights) came on at 23:00 as usual, was told by the junior that "there was a dairy alarm, acked", and looked at the dashboard at 00:20. He saw the trailer at 11.9 C, tried the hub remotely, found it offline, and at 00:35 sent a driver, Radosław Pietrzak, to the yard to look at the physical unit. Radosław got there at 01:25. The reefer unit was running but the compressor was cycling off; he moved the setpoint by hand, and then at 01:50 decided together with Olek to switch the unit over to its back-up controller. That bought nothing for about two hours. It was Olek, not the junior, who rang Jarek at 04:10, Jarek who authorised moving the product, and Jarek who rang your transport desk at 05:20 (you were not in, the message was taken by a Ms Wrenfield).
+
+At 05:55 the load was transferred into trailer OD-188, which was pre-cooled to 1.5 C. Reading came under 8.0 C at 07:10 in the probe in the product itself. We did not release anything to the consignee at Hull without your say-so.
+
+> 4. Your timestamps do not match mine.
+
+No, they don't, and I know why. The KC-Hub clock at OD-H02 was running about 12 minutes slow after the reboot loop. Our figures above are corrected for that, yours are probably from the PDF export which is not. If you send me the PDF I will mark up which lines are shifted.
+
+> 5. What are you going to do about the credit? Your account manager mentioned something on the phone.
+
+Yusuf spoke to you on the 15th. I can confirm what he said and I have cleared it with Priya: Korvane will credit 14,500 EUR against your June invoice, no strings, no admission, and separately of whatever the contract says about excursions (which at the moment, as you know, is nothing). Yusuf will send the note.
+
+Kind regards,
+Benedikta
+
+Benedikta Aaltonen
+Quality & Compliance Manager
+Korvane Cold Chain Sp. z o.o. | ul. Łużycka 14, 81-537 Gdynia
+Tel +48 58 555 0112 | incident desk (out of hours) +48 58 555 0199
+
+On Fri, 14 Jun 2024 at 18:03, Szymon Karpiński <szymon.karpinski@oakhaven-dairy.example> wrote:
+
+> Benedikta, Jarek,
+>
+> I have been in the trade for 22 years and I have never seen a supplier tell me "we are looking into it" three times in one day. The load is 26 pallets of fresh cream and yoghurt for the Marsh Lane retail DC at Hull, value about GBP 96,000 in the invoice, and the receiver's QA people rejected it this afternoon on the logger printout alone. You told me this morning that you'd have a timeline by close of business. It is 18:00. Please answer the following by Monday noon:
+>
+> 1. When exactly did the product go out of range, and what was the temperature?
+> 2. Why did nobody see it? Your own system is supposed to scream.
+> 3. Who decided what, and when?
+> 4. (My driver's PDF shows the logger tripping at 21:53, not what Jarek wrote. Fix this.)
+> 5. What are you going to do about the credit? Your account manager mentioned something on the phone.
+>
+> Szymon Karpiński
+> Transport Manager, Oakhaven Dairy Ltd
+> (sent from my phone, apologies)
+>
+> > On Fri, 14 Jun 2024 at 13:15, Jarek Lindqvist <jarek.lindqvist@korvane.example> wrote:
+> >
+> > Szymon, short version while Benedikta pulls the data: we had an excursion on OD-231 overnight, about nine hours above limit, product moved at 05:55 into OD-188. I am so sorry, and I mean that. Full timeline by close of business. I'd rather give you facts than guesses so I'll not speculate on cause. Our incident reference is INC-2024-0614 if you need it for the receiver.
+> >
+> > Jarek
+> >
+> > Jarek Lindqvist
+> > Head of Operations, Gdynia
+> > +48 601 555 0137
+
+--
+Wymiana korespondencji jest poufna / This message is confidential and may be privileged. If you are not the addressee please delete it and tell the sender. Korvane Cold Chain Sp. z o.o., KRS 0000488213, NIP 586-217-40-93.
+
+------ internal forward below (not for the customer, Benedikta pls strip before sending next time) ------
+
+From: Jarek Lindqvist <jarek.lindqvist@korvane.example>
+Sent: Monday, 17 June 2024 17:09
+To: Benedikta Aaltonen <benedikta.aaltonen@korvane.example>
+Cc: Yusuf Demirkıran <yusuf.demirkiran@korvane.example>
+Subject: RE: RE: RE: Fwd: OD-231 / night of 13-14 June - your questions
+
+Oops, saw that you'd hit send already. Two corrections, sorry, and one change of plan:
+
+1. Olek rang me at 04:10 - that's right, but it was me who rang the transport desk at 05:20, and I think Ms Wrenfield's name is spelled Wrenfeld in their directory. Not important, ignore.
+2. Priya has NOT cleared 14,500. She cleared 12,750 EUR, I have it in writing from this morning, and the 14,500 was my back-of-an-envelope figure from Saturday. I'd rather you wrote to Szymon again before he quotes the first number to his boss. Credit note CN-2024-0388 to be raised by Yusuf, to be booked against the June invoice, due to go out by Thursday 20 June.
+3. Plan change: Szymon asked on the phone whether we could hold a call on Wednesday 19 June at 14:00 CET. Dieter has said he'll join. I'd rather not go with Marta, she is in Rotterdam that day, and it would look like we're escalating to the CEO ourselves.
+
+Also - the dashboard timestamps are Warsaw time, Oakhaven's PDF is UK time, so there is a one hour offset in addition to the 12 minutes of drift. That alone might explain the 21:53 vs 22:05 puzzle (21:53 UK = 22:53 CEST, no, that doesn't fit, scrap that, I'll leave the maths to you).
+
+Jarek
+
+> -----Original Message-----
+> From: Yusuf Demirkıran
+> Sent: Saturday, 15 June 2024 11:02
+> To: Jarek Lindqvist
+> Subject: Oakhaven - what did I promise?
+>
+> I told Szymon on the phone that we would "look generously" at a credit and that I thought it'd be "in the low-to-mid teens of thousands". I did NOT say a number. He wrote it down anyway. Sorry. Priya is off until Monday.

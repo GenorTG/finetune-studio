@@ -1,0 +1,77 @@
+---
+out: iso22000_surveillance_audit_report_2024.docx
+tier: core
+---
+# Aldermark Certification A/S — Food Safety Management System Audit Report
+
+**Client:** Korvane Cold Chain Sp. z o.o., ul. Łużycka 14, 81-537 Gdynia, Poland
+**Standard:** ISO 22000:2018 · **Certificate no.:** FSMS-PL-7741-2021 · **Report reference:** ACA/2024/PL/0319
+**Audit type:** Surveillance audit no. 2 (SA2) of the three-year certification cycle · **Report issued:** 24 September 2024 · Page 1 of 5 (header repeated on each page, please disregard if it appears twice)
+
+## 1. Purpose, scope and criteria
+
+This report documents the outcome of the second surveillance audit of the food safety management system (FSMS) operated by Korvane Cold Chain Sp. z o.o. ("Korvane", "the organisation"). The purpose of a surveillance audit under Aldermark's certification rules is to verify, on a sampling basis, that the certified system continues to meet the requirements of ISO 22000:2018 and the organisation's own documented procedures, that the commitments given at the previous audit have been honoured, and that the system is still capable of delivering its intended results. It is not a full reassessment of the system; that is the task of the recertification audit, which is dealt with in section 8 of this report.
+
+The certified scope reads: *"Reception, monitored storage, pre-trip inspection, plug-in supervision, cross-dock transfer and dispatch of temperature-controlled foodstuffs in refrigerated ISO containers, including the continuous monitoring of the cold chain by means of KC-Tag 4 data loggers, KC-Hub 200 yard gateways and the Tidewalk web application."* No change to the scope was requested by the client and none is proposed by the audit team. The audit criteria were ISO 22000:2018, the Korvane FSMS manual (document KC-QF-MAN-001, edition 7), the HACCP plan for reefer handling, applicable customer requirements, and Polish and EU food hygiene legislation as far as it bears on logistics operators.
+
+Sites included in the audit programme for this cycle are Gdynia (GDY-1), Hamburg-Waltershof (HAM-2), Rotterdam-Maasvlakte (RTM-3), Gothenburg-Arendal (GOT-4) and the trans-shipment yard at Kłaipėda (KLJ-5). On the audit dates the organisation declared 331 employees within the scope of the certificate. The three on-site days were spent at GDY-1 and HAM-2 only; RTM-3, GOT-4 and KLJ-5 were sampled remotely, as set out below.
+
+## 2. Audit dates and team
+
+| Activity | Date | Location | Auditor days |
+|---|---|---|---|
+| Remote document review and videoconference with RTM-3, GOT-4, KLJ-5 | 4 September 2024 | Remote | 0.5 |
+| On-site day 1 | 9 September 2024 | Gdynia (GDY-1) | 2.0 |
+| On-site day 2 | 10 September 2024 | Hamburg-Waltershof (HAM-2) | 2.0 |
+| On-site day 3 and closing meeting | 11 September 2024 | Gdynia (GDY-1) | 1.5 |
+
+The audit team consisted of Henrik Solvang-Marchetti (lead auditor, certificate holder's account manager at Aldermark since 2021), Katarzyna Ostrowicz-Bell (auditor and technical expert for refrigerated logistics) and Dmitri Fenwick, who attended as an observer in his capacity as an auditor in training and did not form part of the audit conclusions. The total effort was therefore 6.0 auditor days, which is in line with the 6.0 days calculated under Aldermark's rule for a client of this size and number of sites. Korvane's audit host throughout was Benedikta Aaltonen, Quality & Compliance Manager. We wish to record our thanks for the quality of the hospitality and for the speed with which requested records were produced, with one exception noted under finding F-02.
+
+## 3. Summary of conclusions
+
+The FSMS is, on the evidence sampled, generally effective and mature. Management commitment was visible and the food safety policy (revision dated 5 February 2024) is understood by operational staff at the levels interviewed. The audit team raised **one major nonconformity, four minor nonconformities and three observations**. The major nonconformity (F-01) concerns the decision-making after the temperature excursion of 14 June 2024 on a dairy consignment, which the organisation itself reported to the certification body within the 48 hours required by the rules and which the audit team considers to be a genuine system failure rather than an isolated lapse. Grading follows Aldermark procedure ACP-07: a **major** nonconformity is a failure to fulfil a requirement that affects the capability of the management system to achieve its intended results or raises significant doubt about the safety of product; a **minor** nonconformity is an isolated or non-systemic failure that does not by itself put that capability in doubt; an **observation** is a statement of fact or an opportunity for improvement that is not graded and need not be answered formally.
+
+## 4. Findings
+
+| ID | Clause | Grade | Finding (summary) | Due date |
+|---|---|---|---|---|
+| F-01 | 8.9.4.2 | Major | Release decision for the dairy load with a 9-hour excursion was signed by a shift lead only; no evaluation by a competent person | 11 October 2024 (plan), 22 November 2024 (evidence of closure) |
+| F-02 | 7.1.5.1 | Minor | Reference thermometer RT-HAM-07 used at HAM-2 on 10 September 2024 with calibration certificate expired on 2 August 2024 | 31 October 2024 |
+| F-03 | 7.2 | Minor | 6 of 41 reefer plug-in operators at HAM-2 have no valid HACCP awareness refresher | 8 November 2024 |
+| F-04 | 8.2.4 | Minor | Pest control bait station map at GDY-1 shows 46 stations, 49 found in the field | 15 November 2024 |
+| F-05 | 9.2.2 | Minor | 2 of the 14 internal audits planned for the first half of 2024 were more than 60 days late without documented rescheduling rationale | 29 November 2024 |
+| O-01 | 8.4.2 | Observation | Mock recall of 2024 traced the batch in 3 h 40 min against a 4 h target; no scenario involving KLJ-5 | n/a |
+| O-02 | 7.4.2 | Observation | Customer excursion notification texts in Tidewalk differ between the English and German templates | n/a |
+| O-03 | 6.3 | Observation | KC-Hub 200 firmware release 3.8 was rolled out to HAM-2 and RTM-3 without a change record | n/a |
+
+The due dates above were agreed with the client at the closing meeting. They are shorter than the 90-day maximum that Aldermark's rules grant for minor nonconformities (which would have run to 10 December 2024) because the recertification audit falls inside that window and the audit team would like to see the corrections closed before it begins.
+
+## 5. Nonconformity descriptions
+
+**F-01 (major) — clause 8.9.4.2, evaluation of potentially unsafe product.** On 14 June 2024 a refrigerated container carrying dairy product for Oakhaven Dairy Ltd experienced a temperature excursion lasting 9 hours on the yard plug row at GDY-1. The audit team reviewed the disposition file. The load was held under a red hold label from 02:15 on 15 June but the release for onward delivery was recorded on form KC-QF-114 on the afternoon of 16 June, a hold of approximately 26 hours, and was signed by the duty shift lead alone. The Food Safety Team Leader, who under section 6.4 of the organisation's own excursion procedure should evaluate every excursion exceeding 4 hours, was not called, because the night shift ("the owls") had no on-call number for that role and the authority matrix in the procedure named the shift lead as sufficient for "customer-released" loads. The consignee had in fact accepted the product on the strength of a verbal assurance. The auditors saw no evidence that a risk evaluation of the temperature–time profile was performed, and form KC-QF-114 in its revision B has no field for the evaluator's name. The audit team considers this a failure of the system, not of the individuals, and has graded it major under clause 8.9.4.2 (evaluation for release) with a cross-reference to 8.9.2 (corrections). The client has already opened corrective action request KC-CAR-24-088 on 17 September 2024 in response; the receipt of that request is acknowledged here, though its adequacy will be judged only when the plan has been formally submitted by the date in the findings table.
+
+**F-02 (minor) — clause 7.1.5.1, monitoring and measuring resources.** At HAM-2 the audit team observed the reference thermometer RT-HAM-07 being used on 10 September 2024 to verify a KC-Tag 4 probe during a pre-trip inspection. The calibration certificate for the instrument (laboratory certificate series LK-2023) showed a validity that ended on 2 August 2024. The organisation's procedure sets a calibration interval of 12 months. The instrument should have been quarantined. The records of the previous 39 days of use were requested on the day and were not produced until the following morning, which the team notes as the sole instance of slow response during the audit. The expired certificate does not by itself invalidate the earlier readings; the deviation in the earlier certificate was 0.12 °C, well inside the tolerance.
+
+**F-03 (minor) — clause 7.2, competence.** Of 41 reefer plug-in operators employed at HAM-2 on 10 September 2024, six had a HACCP awareness course (code HA-101) that had lapsed against the 24-month validity set in the training matrix. Two of the six had been on shift at the time of the audit. The organisation's training records system flagged the lapses in an overdue list, but no scheduled sessions had been booked.
+
+**F-04 (minor) — clause 8.2.4, control of pests.** The pest control bait station map posted at GDY-1 gate 3 and the map held by the pest control contractor showed 46 stations. The audit team counted 49 in the field when walking the perimeter on 9 September 2024. The three additional stations were installed after the 2023 resurfacing of pad D and were serviced, but were never recorded on the map and so never appear in trend reports. No pest activity was evident.
+
+**F-05 (minor) — clause 9.2.2, internal audit programme.** The internal audit programme for 2024 planned 14 audits in the first half-year. Two of them (the ones covering goods-in at RTM-3 and calibration at GOT-4) were carried out more than 60 days after the planned date, and the programme contains no record of why they were moved or who approved the move.
+
+## 6. Positive notes
+
+The audit team would like to record several strengths. The pre-trip inspection records sampled remotely at RTM-3 were complete in 40 out of 40 files selected, and Hanneke Dijkgraaf's team was able to retrieve any file within about two minutes. The night shift dispatchers interviewed at GDY-1, including Olek Maraszek, described the excursion escalation tiers accurately and without prompting. The Tidewalk alert history for the first eight months of 2024 gave a clear and searchable record of excursions. The management review of 21 March 2024 was properly minuted, with decisions, owners and dates. The client's commitment to disclosing the June 2024 excursion to the certification body promptly, even though it was embarrassing, was exemplary.
+
+## 7. Observations (not graded)
+
+**O-01** — The mock recall carried out on 12 March 2024 traced the selected batch through to all consignees in 3 hours 40 minutes against the organisation's own target of 4 hours. The margin is thin and the scenario used did not involve the Kłaipėda yard, which handles trans-shipment and has different record keeping. **O-02** — The customer excursion notification texts held in Tidewalk differ between the English and German templates in how they describe the hold status; the German text omits the sentence on the 2-hour notification commitment. **O-03** — Firmware release 3.8 for KC-Hub 200 gateways was installed at HAM-2 on 18 July 2024 and at RTM-3 on 25 July 2024 without a recorded change request, contrary to the spirit of clause 6.3 on planning of changes. The organisation is encouraged to formalise IT change records for the food safety scope.
+
+## 8. Certification recommendation and next steps
+
+The lead auditor recommends that certificate FSMS-PL-7741-2021 be **maintained**, subject to the organisation's submission of an acceptable corrective action plan for F-01 by 11 October 2024. Failure to do so will lead to a suspension review under Aldermark rule ACP-11. The recertification audit is planned for 2 to 5 December 2024 (four audit days, Henrik Solvang-Marchetti as lead). The current certificate expires on 14 December 2024, so there is only a ten-day reserve between the end of the recertification audit and the expiry date; the organisation should not rely on being able to extend it.
+
+## 9. Closing meeting
+
+The closing meeting was held at GDY-1 on 11 September 2024 at 15:30 and lasted 55 minutes. Attendees for Korvane: Marta Kowarzik (CEO), Dieter Ahlbeck-Roe (COO), Benedikta Aaltonen (Quality & Compliance Manager), Jarek Lindqvist (Head of Operations, Gdynia), Gunnar Halvorsrud (Fleet & Maintenance Lead) and Hanneke Dijkgraaf (Depot Manager, Rotterdam; by video link). For Aldermark: Henrik Solvang-Marchetti, Katarzyna Ostrowicz-Bell and Dmitri Fenwick. The organisation did not dispute any finding. Mr Ahlbeck-Roe asked whether F-01 could be downgraded in view of the corrective steps then under discussion, and the lead auditor explained that grading reflects the situation at the time of the audit. Aldermark's complaints and appeals procedure, ACP-19, was handed over in printed form.
+
+*Signed on behalf of Aldermark Certification A/S, Henrik Solvang-Marchetti, lead auditor, 24 September 2024. This report is confidential and is addressed only to the client; copies to third parties require the written consent of both parties. Aldermark's liability is limited as set out in clause 14 of the certification agreement.*

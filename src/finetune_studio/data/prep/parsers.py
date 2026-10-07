@@ -41,6 +41,42 @@ def find_matching_bracket(s: str, start: int) -> int | None:
     return None
 
 
+def salvage_objects(s: str) -> list[dict]:
+    """Every balanced ``{...}`` object that parses as JSON, scanning a (possibly truncated) array string-aware."""
+    out: list[dict] = []
+    i = 0
+    while True:
+        start = s.find("{", i)
+        if start < 0:
+            return out
+        depth, in_str, escape, end = 0, False, False, None
+        for j in range(start, len(s)):
+            ch = s[j]
+            if escape:
+                escape = False
+            elif ch == "\\" and in_str:
+                escape = True
+            elif ch == '"':
+                in_str = not in_str
+            elif not in_str:
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end = j
+                        break
+        if end is None:
+            return out
+        try:
+            obj = json.loads(s[start:end + 1])
+            if isinstance(obj, dict):
+                out.append(obj)
+        except ValueError:
+            pass
+        i = end + 1
+
+
 def coerce_pairs(arr, n_expected: int) -> list[dict]:
     """Accept whatever the model returned; normalise to [{"q":..., "a":...}]."""
     out = []
@@ -88,6 +124,12 @@ def parse_qa_json(raw: str, n_expected: int) -> list[dict]:
                 return coerce_pairs(arr, n_expected)
             except (ValueError, TypeError):  # JSONDecodeError is a ValueError
                 continue
+
+    # 3b. A reply cut off by the token limit leaves an unterminated array: keep every COMPLETE object before the cut
+    #     (one truncated long answer must not lose the dozens of pairs written before it).
+    salvaged = salvage_objects(s)
+    if salvaged:
+        return coerce_pairs(salvaged, n_expected)
 
     # 4. Last resort: numbered-list / Q:/A: extraction
     return parse_qa_lines(s, n_expected)

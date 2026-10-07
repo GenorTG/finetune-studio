@@ -187,7 +187,7 @@ class TestProvenanceAndCoverage:
         )
         assert rec["sha256"] == "deadbeef"
         assert rec["provenance"]["filename"] == "helios.txt"
-        assert rec["provenance"]["validation"] == "strict_v1"
+        assert rec["provenance"]["validation"] == "strict_v2"
         assert rec["validation"]["accepted"] is True
 
     def test_coverage_tracker(self) -> None:
@@ -247,7 +247,7 @@ class TestRunnerValidationBehavior:
             mock_pfs.write_qa_source = MagicMock()
 
             runner = DataPrepRunner(
-                "pid", b"hello", "helios.txt", qa_per_chunk=2, style="factual",
+                "pid", b"hello", "helios.txt", qa_per_chunk=2, style="factual", mode="sampled",
             )
             result = runner.run()
 
@@ -297,7 +297,7 @@ class TestRunnerValidationBehavior:
             mock_pfs.write_qa_source = MagicMock()
 
             result = DataPrepRunner(
-                "pid", b"hello", "helios.txt", qa_per_chunk=1,
+                "pid", b"hello", "helios.txt", qa_per_chunk=1, mode="sampled",
             ).run()
 
         assert result["ok"] is True

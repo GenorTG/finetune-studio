@@ -7,7 +7,7 @@ before they are written to disk.
 Rejection reasons (stable string keys for counters):
   empty_question, empty_answer, malformed_question, malformed_answer,
   duplicate_question, unanswerable_from_chunk, ungrounded_answer,
-  refusal_or_meta
+  ungrounded_value, refusal_or_meta
 """
 from __future__ import annotations
 
@@ -67,7 +67,22 @@ _ANSWERABILITY_MIN_OVERLAP = 0.25
 _GROUNDING_MIN_OVERLAP = 0.20
 _MIN_CONTENT_TOKENS_FOR_OVERLAP = 2
 
-VALIDATION_VERSION = "strict_v1"
+VALIDATION_VERSION = "strict_v2"
+
+_NUMBER_RE = re.compile(r"\d[\d.,]*\d|\d")
+# Small integers are routinely spelled out or counted by the model ("the 3 steps"); everything else must come from the passage.
+_FREE_NUMBERS = frozenset(str(n) for n in range(11))
+
+
+def number_tokens(text: str) -> set[str]:
+    """Numbers in a text, comparable across formatting (1,250 == 1250, 38.50 == 38.5)."""
+    out: set[str] = set()
+    for m in _NUMBER_RE.findall(text or ""):
+        n = m.replace(",", "")
+        if "." in n:
+            n = n.rstrip("0").rstrip(".")
+        out.add(n)
+    return out
 
 
 @dataclass(frozen=True)
@@ -279,6 +294,10 @@ def validate_qa_pair(
                 reasons.append("ungrounded_answer")
         elif a_toks and not (a_toks & chunk_toks) or not a_toks:
             reasons.append("ungrounded_answer")
+        if "ungrounded_answer" not in reasons and "refusal_or_meta" not in reasons:
+            invented = number_tokens(a) - number_tokens(chunk) - _FREE_NUMBERS
+            if invented:
+                reasons.append("ungrounded_value")  # a figure in the answer that the passage never states
 
     accepted = not reasons
     return PairValidation(
@@ -332,6 +351,7 @@ def build_qa_record(
     score: float,
     created_at: float,
     status: str = "pending",
+    origin: str = "model",
 ) -> dict[str, Any]:
     """Assemble the on-disk Q&A dict with provenance + validation stamp."""
     return {
@@ -346,6 +366,7 @@ def build_qa_record(
         "style": style,
         "score": score,
         "status": status,
+        "origin": origin,   # model | model_gap | extractive_gap (deterministic, quoted from the source)
         "created_at": created_at,
         "updated_at": created_at,
         "provenance": provenance.as_dict(),
