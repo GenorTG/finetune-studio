@@ -197,8 +197,10 @@ class TestExportUiReadableErrors:
         ).read_text(encoding="utf-8")
         assert "non-JSON response" in html
         assert "d.detail" in html
-        assert "output_path || d.merged_path || d.output_dir" in html
+        # The artifact path / size now come from the finished job row (SSE),
+        # not from the POST response, which only acknowledges the queued job.
+        assert "row.output_path" in html
         assert "size_human" in html
         # GGUF failures stay truthful (prior regression).
-        assert "convert_hf_to_gguf" in html or "without artifacts" in html
+        assert "convert_hf_to_gguf" in html or "without a non-empty artifact" in html
         assert "non-empty GGUF" in html or "without a non-empty GGUF" in html
