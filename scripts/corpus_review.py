@@ -109,6 +109,8 @@ def main() -> int:
             print(f"no source named {a.file}", file=sys.stderr)
             return 2
         meta = pfs.read_qa_source(a.pid, src)
+        chunk_text = next((p.get("chunk_text", "") for p in pairs if p.get("source_id") == src and p.get("chunk_idx") == a.chunk
+                           and p.get("chunk_text")), "")
         ledger.parent.mkdir(parents=True, exist_ok=True)
         n = 0
         with ledger.open("a") as fh:
@@ -120,7 +122,7 @@ def main() -> int:
                 qa_id = uuid.uuid4().hex[:12]
                 now = time.time()
                 pfs.write_qa_pair(a.pid, {
-                    "id": qa_id, "source_id": src, "sha256": meta.get("sha256", ""), "chunk_idx": a.chunk, "chunk_text": "",
+                    "id": qa_id, "source_id": src, "sha256": meta.get("sha256", ""), "chunk_idx": a.chunk, "chunk_text": chunk_text,
                     "question": q.strip(), "answer": ans.strip(), "difficulty": "medium", "style": "factual", "score": 1.0,
                     "status": "approved", "origin": "human_review", "created_at": now, "updated_at": now,
                     "provenance": {"source_id": src, "filename": a.file, "chunk_idx": a.chunk, "generator": "human-review"},
