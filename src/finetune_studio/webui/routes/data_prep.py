@@ -55,7 +55,7 @@ _RUNS: dict[tuple[str, str], dict] = {}
 
 # Strong refs to fire-and-forget tasks so the event loop cannot GC them mid-run.
 _BG_TASKS: set[asyncio.Task] = set()
-_QA_EDITABLE_FIELDS = frozenset({"question", "answer", "status", "chunk_idx"})
+_QA_EDITABLE_FIELDS = frozenset({"question", "answer", "status", "chunk_idx", "note"})
 
 
 def _spawn_bg(coro) -> None:
@@ -754,6 +754,35 @@ async def list_qa_route(pid: str, source_id: str | None = None, status: str | No
         return missing
     from finetune_studio.data import project_filesystem as pfs
     return {"items": pfs.list_qa_pairs(pid, source_id=source_id, status=status)}
+
+
+@router.post("/projects/{pid}/data-prep/dedupe")
+async def dedupe_pairs_route(pid: str, request: Request):
+    """Reject pending pairs that restate a fact already asked (same answer tokens, near-identical question).
+
+    Body: ``{"dry_run": bool, "source_id": str|null}``. Only PENDING pairs are touched; the first pair of each cluster stays.
+    """
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    try:
+        body = await request.json()
+    except ValueError:
+        body = {}
+    body = body if isinstance(body, dict) else {}
+    from finetune_studio.data import project_filesystem as pfs
+    from finetune_studio.data.prep.dedupe import find_near_duplicates
+
+    pairs = await asyncio.to_thread(pfs.list_qa_pairs, pid, source_id=body.get("source_id") or None, status="pending")
+    pairs.sort(key=lambda p: (str(p.get("source_id")), int(p.get("chunk_idx") or 0), float(p.get("created_at") or 0), str(p.get("id"))))
+    dupes = find_near_duplicates(pairs)
+    if not body.get("dry_run"):
+        def _apply() -> None:
+            for dup_id, kept_id in dupes:
+                pfs.update_qa_pair(pid, dup_id, status="rejected", note=f"near-duplicate of {kept_id}")
+        await asyncio.to_thread(_apply)
+    return {"ok": True, "dry_run": bool(body.get("dry_run")), "rejected": len(dupes), "of_pending": len(pairs),
+            "examples": [{"duplicate": d, "kept": k} for d, k in dupes[:10]]}
 
 
 @router.patch("/projects/{pid}/data-prep/qa/{qa_id}")
