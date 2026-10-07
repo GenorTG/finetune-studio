@@ -15,7 +15,11 @@ from typing import Any
 import pytest
 
 from finetune_studio.models import helper
-from finetune_studio.models.providers import OpenAICompatProvider, ProviderConfig, ProviderError
+from finetune_studio.models.providers import (
+    OpenAICompatProvider,
+    ProviderConfig,
+    ProviderError,
+)
 
 KEY = "sk-test-secret-123456"
 
@@ -39,12 +43,12 @@ class _Gateway:
                 self.end_headers()
                 self.wfile.write(raw)
 
-            def do_GET(self) -> None:  # noqa: N802
+            def do_GET(self) -> None:
                 if self.headers.get("Authorization") != f"Bearer {KEY}":
                     return self._send(401, {"error": "bad key"})
                 self._send(200, {"data": [{"id": "model-b"}, {"id": "model-a"}]})
 
-            def do_POST(self) -> None:  # noqa: N802
+            def do_POST(self) -> None:
                 body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 outer.seen.append({"headers": dict(self.headers), "body": body})
                 if self.headers.get("Authorization") != f"Bearer {KEY}":
@@ -58,6 +62,9 @@ class _Gateway:
                     msg, finish = "<think>hmm</think>\npong", "stop"
                 elif outer.mode == "reasoning_only":
                     msg, finish = None, "length"
+                elif outer.mode == "reasoning_then_answer":
+                    big = body.get("max_tokens", 0) >= 4000
+                    msg, finish = ("pong", "stop") if big else (None, "length")
                 else:
                     msg, finish = "pong", "stop"
                 self._send(200, {"choices": [{"message": {"content": msg}, "finish_reason": finish}]})
@@ -112,6 +119,12 @@ def test_reasoning_only_length_stop_raises_actionable_error(gateway: _Gateway) -
     gateway.mode = "reasoning_only"
     with pytest.raises(ProviderError, match="reasoning effort"):
         _provider(gateway).chat([{"role": "user", "content": "hi"}])
+
+
+def test_reasoning_budget_retry_succeeds_with_a_bigger_budget(gateway: _Gateway) -> None:
+    gateway.mode = "reasoning_then_answer"
+    assert _provider(gateway).chat([{"role": "user", "content": "hi"}], max_tokens=1200) == "pong"
+    assert [s["body"]["max_tokens"] for s in gateway.seen] == [1200, 4800]
 
 
 def test_extra_body_is_merged_into_requests(gateway: _Gateway) -> None:

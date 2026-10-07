@@ -228,6 +228,7 @@ class ProviderError(RuntimeError):
 
 
 _THINK_BLOCK = re.compile(r"^\s*<think>.*?</think>\s*", re.DOTALL)
+REASONING_RETRY_CAP = 8192  # tokens: the largest budget the one reasoning retry may ask for
 _RETRY_STATUS = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
 
 
@@ -306,15 +307,20 @@ class OpenAICompatProvider(ModelProvider):
         }
         if "stop" in gen:
             body["stop"] = gen["stop"]
-        data = self._post("/chat/completions", body)
-        try:
-            choice = data["choices"][0]
-        except (KeyError, IndexError, TypeError):
-            raise ProviderError(f"unexpected response shape: {str(data)[:200]}") from None
-        content = _THINK_BLOCK.sub("", (choice.get("message") or {}).get("content") or "").strip()
+        # A reasoning model counts its hidden thinking against max_tokens. When that eats the whole budget the
+        # answer is empty (``finish_reason == "length"``); retry once with room for the thinking before failing.
+        for budget in (body["max_tokens"], min(body["max_tokens"] * 4, REASONING_RETRY_CAP)):
+            data = self._post("/chat/completions", {**body, "max_tokens": budget})
+            try:
+                choice = data["choices"][0]
+            except (KeyError, IndexError, TypeError):
+                raise ProviderError(f"unexpected response shape: {str(data)[:200]}") from None
+            content = _THINK_BLOCK.sub("", (choice.get("message") or {}).get("content") or "").strip()
+            if content or choice.get("finish_reason") != "length" or budget >= REASONING_RETRY_CAP:
+                break
         if not content and choice.get("finish_reason") == "length":
             raise ProviderError(
-                "the model used its whole max_tokens budget on reasoning and returned no answer — "
+                f"the model used its whole token budget ({budget}) on reasoning and returned no answer — "
                 "lower the reasoning effort on Settings or pick a non-reasoning model"
             )
         return content
