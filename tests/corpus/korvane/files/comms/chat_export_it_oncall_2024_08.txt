@@ -1,0 +1,140 @@
+# it-oncall  |  export generated 2024-08-29 09:40 by kamil  |  range 2024-08-27 13:50 .. 2024-08-28 09:50  |  times are CEST (server shows UTC, the export does the +2)
+# (kamil: pasted this to Wiktor for the review, nothing removed except two lunch order threads)
+
+[2024-08-27 13:52] kamil: zabka run, anyone want anything. i am not buying 12 energy drinks for aneta again
+[2024-08-27 13:53] aneta: i only had 2 last time, ONE of them was for dominik
+[2024-08-27 13:54] dominik: it was a big one. whatever, i want the cheese baguette
+[2024-08-27 13:55] wiktor: please keep the channel for pager things during on-call week. thanks. (cola zero for me)
+[2024-08-27 13:58] alertbot: [FIRING:3] TLSHandshakeFailing api.tidewalk.korvane.example | ingest.tidewalk.korvane.example | app.tidewalk.korvane.example | severity=page | runbook=RB-CERT-01 (page does not exist yet)
+[2024-08-27 13:59] aneta: ack. looking
+[2024-08-27 14:01] aneta: ok so it is not a blip. curl says "certificate has expired" on all three hostnames. this is the wildcard
+[2024-08-27 14:02] dominik: wait it cant. renewal is automatic. certbot cron on the bastion
+[2024-08-27 14:03] kamil: FYI support phone is already ringing. Nordkjøl and a Brunnen guy say the dashboard shows a red "connection not secure" page and they cant log in
+[2024-08-27 14:03] aneta: valid_to = 2024-08-27 11:57:44 UTC. so 13:57:44 CEST. we have been dead for 5 minutes
+[2024-08-27 14:04] dominik: the cert was issued 29 May, 90 days, right. so the renewal should have fired on 28 July at the latest (30 days before)
+[2024-08-27 14:05] aneta: did the bastion exist on 28 July
+[2024-08-27 14:05] dominik: yes
+[2024-08-27 14:06] aneta: does it exist now
+[2024-08-27 14:06] dominik: ...
+[2024-08-27 14:07] dominik: i decommissioned bastion-old-02 on 12 August. INFRA-771. cleanup of the old VMs. the certbot cron lived there. it was not in the inventory sheet as a "service", it was just a crontab line. oh no
+[2024-08-27 14:07] wiktor: ok. breathe. nobody is getting shot, we fix first. Dominik, you issue a new cert now, DNS-01, with the same ACME account
+[2024-08-27 14:08] dominik: on it
+[2024-08-27 14:09] sanna: i am here, was in a customer call. what is down exactly, only browsers or the hubs too
+[2024-08-27 14:10] aneta: hubs too. the KC-Hub 200s connect to ingest over TLS and they reject expired certs. log line from OD-H02: "tls: failed to verify certificate: x509: certificate has expired or is not yet valid"
+[2024-08-27 14:11] sanna: so no telemetry at all is coming in
+[2024-08-27 14:11] aneta: correct. tags keep everything in their own memory and the hub keeps its own uplink buffer, 72 hours. so with a 2-3 hour hole we lose nothing, it just gets delivered late
+[2024-08-27 14:12] kamil: so worst case is nothing lost but also nobody sees anything
+[2024-08-27 14:12] aneta: nobody sees anything. alerts will not fire either, the rules only run on ingested data
+[2024-08-27 14:13] yusuf: hello what is happening, my phone is on fire
+[2024-08-27 14:14] kamil: cert expired, we are fixing. do NOT promise a time yet
+[2024-08-27 14:14] yusuf: i never promise a time. (it was one time)
+[2024-08-27 14:15] dominik: PROBLEM. the CA says rate limit. "too many certificates already issued for this exact set of names: 5 in the last 7 days"
+[2024-08-27 14:16] wiktor: why 5
+[2024-08-27 14:16] dominik: i did test issuances on staging last week for the v7 beta hostnames, 4 of them, and same names set. plus todays attempt = 5. next slot opens 2024-08-30 or so
+[2024-08-27 14:17] aneta: ok plan B. buy one. we have the account at Kestrel Trust, tomasz has the card
+[2024-08-27 14:17] aneta: @tomasz
+[2024-08-27 14:19] tomasz: just seen. in a meeting with Marta and Priya about the board pack. what do you need
+[2024-08-27 14:20] aneta: approval to buy a wildcard OV cert from Kestrel Trust. 349 EUR for one year. validation is DNS TXT so about 20-25 min after payment
+[2024-08-27 14:21] tomasz: 349 is nothing. but hold on, is the rate limit not just a couple of hours? i dont want to buy a cert because of panic
+[2024-08-27 14:22] dominik: no, it is 7 days rolling. the oldest of my 5 is 23 Aug
+[2024-08-27 14:23] tomasz: then I approve it. do it. put it on my card, expense it as "TLS wildcard Kestrel" and Priya will not look at it until October anyway
+[2024-08-27 14:24] aneta: thanks. paying now
+[2024-08-27 14:26] kamil: heads up: 9 tickets in the queue about the dashboard. i created the parent INC-48377 and linked them
+[2024-08-27 14:27] sanna: can we post on the status page
+[2024-08-27 14:28] wiktor: yes. who has the status page login
+[2024-08-27 14:29] kamil: tomasz and me. i am in the car park, one sec
+[2024-08-27 14:36] kamil: posted: "Investigating - Tidewalk web app and API are unreachable due to a certificate problem. We are working on it." that is 39 min after expiry, sorry. the VPN to the page host was slow
+[2024-08-27 14:37] wiktor: noted for the review. status page should not depend on our VPN
+[2024-08-27 14:41] aneta: payment went through, Kestrel sent the DNS challenge. adding TXT _acme-challenge. our DNS provider TTL is 300 s so wait 5 min
+[2024-08-27 14:44] ola: sorry to butt in from ops. all my dashboards say "no data" for the last 45 min. is this the same thing. i have an Oakhaven box coming in at 15:30 and i cant see the reefer
+[2024-08-27 14:45] kamil: same thing Ola. please call the driver and ask for a manual reading off the unit display. noted in INC-48377 that day ops is working blind till we fix
+[2024-08-27 14:46] ola: ok will do. KRVU box numbers on a paper list like animals
+[2024-08-27 14:52] aneta: Kestrel validated the TXT. the cert is being issued, they say up to 10 min
+[2024-08-27 14:53] wiktor: question while we wait. can we flip the hubs to skip verification just for tonight, so they reconnect without the new cert. quick fix, then we revert
+[2024-08-27 14:53] aneta: no. absolutely not. there are 300+ hubs in the field and the only reason anyone trusts what they send is that they check who they talk to. also you cannot flip a setting on a device that is not connected to you
+[2024-08-27 14:54] wiktor: right, the second point kills it anyway
+[2024-08-27 14:54] sanna: what about the staging cert as a stopgap
+[2024-08-27 14:55] dominik: staging cert is for staging.tidewalk.korvane.example, not our names. browsers would still complain
+[2024-08-27 14:56] kamil: i have a customer on the line (Samsø Berry Co-op) who wants to know whether the berries "are cold". they are. tags record locally. i told him that. he said "ok but i cannot see it". i said correct. he said "that is the problem". fair
+[2024-08-27 14:57] yusuf: do not give anybody a compensation promise on the phone. Priya and Sofia will decide, I will call Samsø back after 17:00
+[2024-08-27 14:58] dominik: while we wait i prepared the deploy. the cert goes on lb-waw-01 and lb-waw-02 in Warsaw (LC-WAW-2) and on lb-fra-01 in Frankfurt (LC-FRA-1). three load balancers. the playbook is tls-rollout.yml
+[2024-08-27 15:01] wiktor: do waw first, then fra, one by one. and check with openssl s_client after each, dont trust the playbook green
+[2024-08-27 15:04] sanna: should i prepare the customer note? yusuf?
+[2024-08-27 15:05] yusuf: yes please. include: what happened (certificate expired), when it started (13:57), what we do (new cert). do not include "human error". do not include "decommissioned VM"
+[2024-08-27 15:06] sanna: obviously
+[2024-08-27 15:12] aneta: cert issued 15:12. serial ends in 3F:A1, valid until 2025-08-26 15:12 CEST... no wait 2025-08-27. one year. i will check the exact date from the file
+[2024-08-27 15:13] dominik: starting rollout on lb-waw-01
+[2024-08-27 15:19] dominik: waw-01 done, s_client shows the new serial
+[2024-08-27 15:23] dominik: waw-02 done
+[2024-08-27 15:25] aneta: app.tidewalk loads for me from the office. 15:25
+[2024-08-27 15:27] kamil: confirmed from my phone too. login works. dashboard is back for Warsaw routed users
+[2024-08-27 15:28] ola: i see my reefers!!!! ok. but the numbers are old, the last reading is 13:51
+[2024-08-27 15:29] aneta: right because hubs have not reconnected. they back off. 30 min max between retries
+[2024-08-27 15:31] dominik: lb-fra-01 next
+[2024-08-27 15:33] yusuf: Helvetia Pharma's QA just wrote that they want a deviation report within 24h, "for the temperature mapping gap". what do i say
+[2024-08-27 15:34] sanna: that the gap is monitoring, not temperature. the tags recorded everything locally. we will back-fill the readings as soon as the hubs sync. i will write the report, send me their ticket number
+[2024-08-27 15:36] yusuf: ok. promising Helvetia the report by tomorrow 12:00
+[2024-08-27 15:41] dominik: um. fra-01 playbook failed. the config reload says the cert and key do not match
+[2024-08-27 15:42] aneta: you used the old key file, the new cert needs the key from today's CSR
+[2024-08-27 15:43] dominik: yes. yes i did. sorry. different dir
+[2024-08-27 15:44] dominik: redo with the right key
+[2024-08-27 15:47] dominik: fra-01 done and verified
+[2024-08-27 15:48] aneta: API calls from outside Poland work now. customers with integrations via Frankfurt were still seeing failures until 15:47
+[2024-08-27 15:50] kamil: tickets: 23 now, mostly "dashboard down" but 4 are customers asking why their phones did not buzz for a door open at 14:20
+[2024-08-27 15:51] sanna: that is real. no data = no alerts. we need to say that in the note, honestly
+[2024-08-27 15:52] wiktor: agree. be factual
+[2024-08-27 15:58] tomasz: thanks everyone. question: how many hubs are still offline
+[2024-08-27 16:00] aneta: tidewalk admin says 41 hubs offline out of the ones that were online at 13:50. the number is falling by itself, about 5 a minute
+[2024-08-27 16:09] aneta: 17 hubs stubborn. they sit in a 30 min backoff and their last retry was just before 15:27
+[2024-08-27 16:10] sanna: there is a command, "hub reconnect --all" in the admin CLI, kicks them. i remember from the KC-Hub offline runbook. run it?
+[2024-08-27 16:11] wiktor: do it. Aneta, you run, Dominik watches ingest lag so it doesnt choke
+[2024-08-27 16:13] aneta: ran. 12 of the 17 reconnected within 2 min
+[2024-08-27 16:19] aneta: 3 more
+[2024-08-27 16:24] aneta: 2 left, both at the Kłaipėda yard (KLJ-5). probably the uplink there, not us
+[2024-08-27 16:26] kamil: i rang the yard. Rimas says he will power cycle the gateway in the shed
+[2024-08-27 16:34] aneta: last hub, KLJ-5-H01, is back. 16:34. ingest lag falling, backfill running
+[2024-08-27 16:36] wiktor: so: dashboard dead 13:57 to 15:27 = 1h30. hubs dead until 16:34 = 2h37 for the last one. write both numbers in the review, not the nice one only
+[2024-08-27 16:41] kamil: status page set to Resolved 16:41
+[2024-08-27 16:42] ola: thank you all. my Oakhaven box is in, the paper list is in the bin
+[2024-08-27 16:55] sanna: customer note draft ready. says: certificate expired 13:57, web app unreachable until 15:27, hubs reconnecting until 16:34, no measurements lost thanks to local buffering, alerts did not fire during the gap. we apologise
+[2024-08-27 17:03] yusuf: good. one change: "no measurements lost" --> "no measurements lost on hubs that were within their 72-hour buffer". do we know of any that were not
+[2024-08-27 17:05] aneta: no
+[2024-08-27 17:05] yusuf: then keep the shorter version, i dont want to invent doubt
+[2024-08-27 17:06] wiktor: no. keep my version. legal will want the long one. Sofia reads these
+[2024-08-27 17:08] yusuf: fine. long version. sending 17:10
+[2024-08-27 17:10] yusuf: sent to all 51 customer admin contacts
+[2024-08-27 17:11] kamil: 51? we dont have 51 accounts hmm. oh the second admin contacts. ok
+[2024-08-27 17:31] tomasz: ok. now the unglamorous part. actions, please, I want them in the channel not in someones head
+[2024-08-27 17:33] wiktor: 1) cert-expiry monitor in our own prometheus, warn at 21 days and 14 and 7 and 3, page at 3. owner Aneta, by Fri 30 Aug
+[2024-08-27 17:34] wiktor: 2) a runbook RB-CERT-01 that really exists. owner Dominik, by Fri 30 Aug
+[2024-08-27 17:35] wiktor: 3) inventory sheet gets a column "crontab / hidden services" and every decommission needs a second pair of eyes. owner me
+[2024-08-27 17:36] wiktor: 4) status page moves to a different host, not behind the VPN. owner Kamil, by 13 Sep
+[2024-08-27 17:37] wiktor: 5) the Kestrel cert expires 2025-08-27, put 3 reminders in Tomasz's calendar. also rate limit docs, 5 per 7 days, for the next person
+[2024-08-27 17:38] dominik: i accept all of this. also i am buying the doughnuts
+[2024-08-27 17:39] kamil: 12 doughnuts minimum. my cat Sernik sat on the keyboard of the support laptop during the whole thing, so i have emotional damage too
+[2024-08-27 17:40] aneta: i accept doughnuts, i'll be in at 08:30 tomorrow. who is on the pager tonight
+[2024-08-27 17:41] sanna: me until 08:00
+[2024-08-27 17:42] wiktor: and for the record nobody is in trouble. the process was single-person. that is the thing to fix
+[2024-08-28 08:15] sanna: night was quiet. backfill finished 03:20. Helvetia deviation report is in draft, i need the tag serials for their 6 pallets of insulin, they said KRVU 771204-5 and one more
+[2024-08-28 08:20] kamil: the other one is KRVU 771209-1
+[2024-08-28 08:22] sanna: thanks. sending to Yusuf by 11:00 so he makes the 12:00
+[2024-08-28 08:31] aneta: update: first cert-expiry monitor is live in staging, prod tonight. 21-day warning for the Kestrel cert will start on 2025-08-06
+[2024-08-28 08:33] kamil: ok. also INC-48377 stays open until the review on Tue 3 Sep
+[2024-08-28 08:34] dominik: i just realised there is a second crontab line on the old bastion for the intermediate bundle refresh. someone should check if anything else wanted to live there
+[2024-08-28 08:35] wiktor: Dominik: you are doing exactly that today. list of everything that ran on bastion-old-02 in the last 90 days, by 16:00
+[2024-08-28 08:36] dominik: ok
+[2024-08-28 09:02] kamil: wait, did anyone tell Olek's night team that the hubs were offline for a while? they asked me this morning why 14 boxes show a gap on the graph
+[2024-08-28 09:04] sanna: ahh. no. i will drop them a note, with the times
+[2024-08-28 09:05] kamil: thanks, thats the end of the export (more below, i pasted late)
+[2024-08-28 09:11] rafal: morning all. catching up. Nordkjøl rang me at 07:40 and used the word "unacceptable" 4 times. he wants to know if the 90 minutes will show up on the invoice as downtime. do we know our availability for August yet
+[2024-08-28 09:14] wiktor: not yet. the page says 99.9 % target per calendar month. 90 minutes of full outage in a 31-day month is 744 hours x 0.1 % = 44.6 minutes allowed, so August is already blown, unless the contract schedule says otherwise. Sofia has the contracts
+[2024-08-28 09:15] rafal: ok, so i do not say "no credit", i say "being reviewed". Sofia?
+[2024-08-28 09:21] sofia: reading. for Nordkjøl the schedule excludes outages "caused by third parties". an expired cert is not a third party, it is us. so i would not rely on that. Priya and I will talk after lunch. please nobody put numbers in writing to customers until then
+[2024-08-28 09:22] rafal: fine. "being reviewed" it is
+[2024-08-28 09:30] tomasz: one more thing from me. the board pack goes out Friday and the CFO will ask about this. I want the one-pager: cause, impact, fix, owner. 5 lines. who writes
+[2024-08-28 09:31] wiktor: i do. aneta, can i have your timeline by 12:00
+[2024-08-28 09:32] aneta: yes. i also want to add the 4 min between expiry and the page. it was alertbot lag, the check interval is 60 s and it needs 3 failures. i would like to lower it to 2 failures
+[2024-08-28 09:33] wiktor: do it but dont wake people for flapping. add a 2-min grace
+[2024-08-28 09:41] sanna: update from Helvetia: they accept the report timing. their QA lady, Frau Brandstetter, also asks for the calibration certificates of the two tags and i said we will send them with the report. (TW-3306 is not ready, i will send the PDFs by hand)
+[2024-08-28 09:42] kamil: oh god, TW-3306. okay, by hand it is
+[2024-08-28 09:50] kamil: ticket count: 47 tickets under INC-48377 in total, 41 closed, 6 waiting for customers
