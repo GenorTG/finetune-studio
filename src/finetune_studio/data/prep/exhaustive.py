@@ -165,19 +165,24 @@ def fact_coverage(statements: Sequence[Statement], pairs: Sequence[tuple[str, st
 
 
 def document_title(first_chunk: str, filename: str) -> str:
-    """A title for question scoping: the document's own first line when it reads like a title, else a cleaned filename."""
+    """A title for question scoping: the document's own opening line(s) when they read like a title, else a cleaned filename.
+
+    PDFs wrap a long title over two lines ("... — Employee" / "Handbook, Version 4 (Extract)"): a short unfinished first line
+    is joined with the short line after it.
+    """
     from finetune_studio.data.prep.coverage_question import title_from_filename
 
-    for raw in first_chunk.splitlines():
-        line = raw.strip().lstrip("#").strip()
-        if not line:
-            continue
-        looks_like_title = (
-            6 <= len(line) <= 110 and not line.startswith("===") and " | " not in line and not line.endswith((".", ",", ";"))
-            and not line.lower().startswith(("from:", "to:", "date:", "subject:", "[", "{", "<"))
-        )
-        return line if looks_like_title else (title_from_filename(filename) or filename)
-    return title_from_filename(filename) or filename
+    def looks_like_title(line: str) -> bool:
+        return (6 <= len(line) <= 110 and not line.startswith("===") and " | " not in line and not line.endswith((".", ",", ";"))
+                and not line.lower().startswith(("from:", "to:", "date:", "subject:", "[", "{", "<")))
+
+    lines = [ln.strip().lstrip("#").strip() for ln in first_chunk.splitlines() if ln.strip()]
+    if not lines or not looks_like_title(lines[0]):
+        return title_from_filename(filename) or filename
+    title = lines[0]
+    short_follow_up = len(lines) > 1 and len(lines[1]) <= 60 and not lines[1].endswith((".", ";")) and len(title) + len(lines[1]) <= 110
+    unfinished = title.endswith(("—", "-", "–")) or title.split()[-1][:1].isupper() or (title[-1].isalnum() and lines[1][:1].isupper() if len(lines) > 1 else False)
+    return f"{title} {lines[1]}" if short_follow_up and unfinished else title
 
 
 MAX_PAIRS_PER_FACT_SET = 2

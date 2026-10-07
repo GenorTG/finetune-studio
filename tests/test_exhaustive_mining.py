@@ -178,3 +178,8 @@ def test_table_rows_are_keyed_by_column_name_for_the_prompt() -> None:
     assert "---" not in keyed
     cont = ex.keyed_chunk("OPP-3 | Gamma | Open | x", "opp_id | account | stage | notes")
     assert cont == "opp_id: OPP-3 | account: Gamma | stage: Open | notes: x"
+
+
+def test_a_title_wrapped_over_two_lines_is_joined() -> None:
+    chunk = "KORVANE COLD CHAIN Sp. z o.o. — Employee\nHandbook, Version 4 (Extract)\nHR-HB-04 / EXTRACT-C · Effective 1 February 2024 · Owner: People & Culture."
+    assert ex.document_title(chunk, "x.pdf") == "KORVANE COLD CHAIN Sp. z o.o. — Employee Handbook, Version 4 (Extract)"
