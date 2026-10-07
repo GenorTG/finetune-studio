@@ -59,6 +59,16 @@ RUNTIME_PREFIXES: tuple[str, ...] = (
 # data/benchmarks/default.json).
 REQUIRED_TRACKED: tuple[str, ...] = (
     "data/benchmarks/default.json",
+    # Korvane corpus manifests: hand-authored ground truth for the parse-
+    # fidelity probe and fact-coverage gate — test fixtures, not runtime
+    # payloads. The .jsonl suffix ban targets per-project exports/datasets.
+    "tests/corpus/korvane/manifest/finance.jsonl",
+    "tests/corpus/korvane/manifest/hr.jsonl",
+    "tests/corpus/korvane/manifest/it.jsonl",
+    "tests/corpus/korvane/manifest/legal.jsonl",
+    "tests/corpus/korvane/manifest/ops.jsonl",
+    "tests/corpus/korvane/manifest/product.jsonl",
+    "tests/corpus/korvane/manifest/sales.jsonl",
 )
 
 # Binary/suffix patterns for runtime payloads that must never be tracked
