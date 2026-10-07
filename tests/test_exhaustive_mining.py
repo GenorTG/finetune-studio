@@ -139,3 +139,18 @@ def test_a_number_in_an_unrelated_answer_does_not_cover_a_statement() -> None:
 
 def test_unicode_minus_equals_hyphen() -> None:
     assert ex.canon("\u221235") == ex.canon("-35")
+
+
+def test_document_title_prefers_the_documents_own_heading() -> None:
+    assert ex.document_title("# Loading Reefer Containers and Handling Excursions\nSOP KC-OPS-031 ...", "sop_reefer.rtf") == (
+        "Loading Reefer Containers and Handling Excursions")
+    assert ex.document_title("=== Sheet: Prices ===\na | b", "rate_card_2024.xlsx").lower().startswith("rate card")
+    assert ex.document_title("Dear all, the gate will be closed.", "memo.txt").lower().startswith("memo")
+
+
+def test_the_same_fact_set_is_kept_at_most_twice() -> None:
+    kept = [{"q": "q1?", "a": "Cargo goes bad on the dock in the first 40 minutes."},
+            {"q": "q2?", "a": "In the first 40 minutes cargo goes bad on the dock."}]
+    new = [{"q": "q3?", "a": "Cargo is destroyed on the dock within 40 minutes."},
+           {"q": "q4?", "a": "The loading ramp is rated for 12 tonnes."}]
+    assert [p["q"] for p in ex.drop_redundant(new, kept)] == ["q4?"]

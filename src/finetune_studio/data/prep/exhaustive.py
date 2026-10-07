@@ -198,6 +198,39 @@ def fact_coverage(statements: Sequence[Statement], pairs: Sequence[tuple[str, st
     return len(checkable) - len(open_), len(checkable)
 
 
+def document_title(first_chunk: str, filename: str) -> str:
+    """A title for question scoping: the document's own first line when it reads like a title, else a cleaned filename."""
+    from finetune_studio.data.prep.coverage_question import title_from_filename
+
+    for raw in first_chunk.splitlines():
+        line = raw.strip().lstrip("#").strip()
+        if not line:
+            continue
+        looks_like_title = (
+            6 <= len(line) <= 110 and not line.startswith("===") and " | " not in line and not line.endswith((".", ",", ";"))
+            and not line.lower().startswith(("from:", "to:", "date:", "subject:", "[", "{", "<"))
+        )
+        return line if looks_like_title else (title_from_filename(filename) or filename)
+    return title_from_filename(filename) or filename
+
+
+MAX_PAIRS_PER_FACT_SET = 2
+
+
+def drop_redundant(new: list[dict[str, str]], kept: Sequence[dict[str, str]]) -> list[dict[str, str]]:
+    """Keep at most ``MAX_PAIRS_PER_FACT_SET`` pairs that state the same set of distinctive tokens (paraphrases are useful,
+    a fourth rewording of "where does cargo go bad" only costs review time)."""
+    pool = [distinctive_tokens(p["a"]) for p in kept]
+    out: list[dict[str, str]] = []
+    for pair in new:
+        toks = distinctive_tokens(pair["a"])
+        if toks and sum(1 for k in pool if toks <= k) >= MAX_PAIRS_PER_FACT_SET:
+            continue
+        out.append(pair)
+        pool.append(toks)
+    return out
+
+
 # ── prompts ────────────────────────────────────────────────────────────────────
 
 EXHAUSTIVE_SYSTEM = """You turn company documents into question-and-answer training pairs. The goal is COMPLETENESS: a model trained on \
@@ -302,7 +335,8 @@ def mine_chunk(
             reply = chat(messages)
         except Exception:  # noqa: BLE001 — a failed call is a gap the later rounds / extractive fallback close
             return
-        for pair in accept(parse(reply), chunk):
+        accepted = drop_redundant(accept(parse(reply), chunk), [p for p, _ in out.pairs])
+        for pair in accepted:
             out.pairs.append((pair, origin))
 
     run(build_exhaustive_messages(chunk, title, section), "model")

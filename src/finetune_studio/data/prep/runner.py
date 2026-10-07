@@ -96,10 +96,9 @@ class DataPrepRunner:
         from finetune_studio.data.prep import exhaustive as ex
         from finetune_studio.data.prep.coverage_question import (
             split_sections,
-            title_from_filename,
         )
 
-        title = title_from_filename(self.filename) or self.filename
+        title = ex.document_title(chunks[0] if chunks else "", self.filename)
         stats: dict[str, Any] = {"statements": 0, "covered": 0, "model_pairs": 0, "gap_pairs": 0, "extractive_pairs": 0,
                                  "rounds": 0}
         total_qa = 0
