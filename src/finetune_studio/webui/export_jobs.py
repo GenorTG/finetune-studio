@@ -89,9 +89,13 @@ def start_job(
     Raises :class:`ExportBusy` when a job is already in flight.
     """
     with _LOCK:
-        if _ACTIVE:
-            eid = next(iter(_ACTIVE))
-            raise ExportBusy(db.get_export(eid) or {"id": eid, "status": "running"})
+        for active_id in _ACTIVE:
+            active = db.get_export(active_id) or {"id": active_id, "status": "running"}
+            # A job whose row is already terminal only has its thread epilogue
+            # left (registry cleanup): the UI sees "done" and immediately posts
+            # the next selected format, which must not bounce off a 409.
+            if active.get("status") not in TERMINAL_STATUSES:
+                raise ExportBusy(active)
         row = db.create_export(
             project_id=project_id, run_id=run_id, format=fmt, quant=quant,
             quants=quants,

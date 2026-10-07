@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -16,11 +17,13 @@ from tests._fake_llama import EngineStub, install_fake_llama, make_merged_run
 @pytest.fixture
 def setup(client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     install_fake_llama(tmp_path / "llama", monkeypatch)
-    # the client fixture MagicMocks TrainingEngine; the fake toolchain needs a real export step
-    monkeypatch.setattr("finetune_studio.training.engine.TrainingEngine", EngineStub)
     pid = client.post("/api/projects", json={"name": "Routes"}).json()["id"]
     run = make_merged_run(db, pid, tmp_path)
-    yield client, pid, run, tmp_path
+    # The client fixture MagicMocks TrainingEngine; the fake toolchain needs a real export step.
+    # A ``patch`` context (not monkeypatch) so it unwinds BEFORE the client fixture's own patch;
+    # monkeypatch would undo last and leave the MagicMock behind for every later test.
+    with patch("finetune_studio.training.engine.TrainingEngine", EngineStub):
+        yield client, pid, run, tmp_path
     deadline = time.monotonic() + 20
     while export_jobs.active_ids() and time.monotonic() < deadline:
         time.sleep(0.05)

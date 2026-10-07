@@ -177,3 +177,19 @@ def test_worker_crash_is_recorded_not_left_running(env, monkeypatch) -> None:
     final = _wait(_start(pid, run, ["f16"])["id"])
     assert final["status"] == "failed"
     assert "CUDA out of memory while merging" in final["error"]
+
+
+def test_next_format_starts_while_the_finished_job_is_still_in_its_epilogue(env, monkeypatch) -> None:
+    """The UI posts the next selected format the moment it sees 'done'.
+
+    The worker marks the row done, then still refreshes the model registry
+    before releasing its slot; that gap must not turn into a 409.
+    """
+    pid, run, _ = env
+    monkeypatch.setattr("finetune_studio.webui.export_work.refresh_registry_quietly",
+                        lambda: time.sleep(1.5))
+    first = _start(pid, run, ["f16"])
+    _wait(first["id"])
+    assert export_jobs.active_ids() == [first["id"]], "epilogue should still be running"
+    second = _start(pid, run, ["q8_0"])           # must not raise ExportBusy
+    assert _wait(second["id"])["status"] == "done"

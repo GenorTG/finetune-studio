@@ -413,7 +413,7 @@ class TestModelExportLifecycle:
         db.mark_export_running(eid)
         db.mark_export_failed(eid, "convert_hf_to_gguf failed (rc=1): OOM")
         r = db.get_export(eid)
-        assert r["status"] == "error"
+        assert r["status"] == "failed"
         assert "OOM" in r["error"]
         assert r["finished_at"] is not None
 
