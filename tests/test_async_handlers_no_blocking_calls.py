@@ -24,7 +24,7 @@ BLOCKING = {
 }
 
 # Known offenders in files owned by another lane (provider routes); fix there, then drop the entry.
-KNOWN = {("data_prep.py", "unload_active")}
+KNOWN: set[tuple[str, str]] = set()
 
 
 class _Finder(ast.NodeVisitor):
