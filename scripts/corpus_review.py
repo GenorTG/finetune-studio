@@ -18,6 +18,7 @@ verdict line names it.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 import time
@@ -36,15 +37,13 @@ def call(path: str, method: str = "GET", body: dict | None = None):
 
 def full_chunk(pid: str, pair: dict) -> str:
     """The whole chunk from disk (the pair stores only its first 1,500 characters), falling back to the stored text."""
-    try:
-        from finetune_studio.data.prep.ingest import load_existing_chunks
+    from finetune_studio.data.prep.ingest import load_existing_chunks
 
+    with contextlib.suppress(Exception):  # a missing chunk file must not stop a review session
         chunks = load_existing_chunks(pid, str(pair.get("sha256") or ""))
         idx = int(pair.get("chunk_idx") or 0)
         if 1 <= idx <= len(chunks) and chunks[idx - 1]:
             return chunks[idx - 1]
-    except Exception:  # noqa: BLE001 — a missing chunk file must not stop a review session
-        pass
     return str(pair.get("chunk_text", ""))
 
 
@@ -154,6 +153,11 @@ def main() -> int:
         row[0] += 1
         if p["id"] in done:
             row[1 if done[p["id"]]["verdict"] == "A" else 2] += 1
+    approved = [p for p in pairs if p.get("status") == "approved"]
+    unreviewed_ok = [p for p in approved if done.get(p["id"], {}).get("verdict") != "A"]
+    print(f"approved pairs: {len(approved)}; approved WITHOUT a reviewer 'A' verdict: {len(unreviewed_ok)} "
+          f"(origins: {sorted({str(p.get('origin')) for p in unreviewed_ok})}) - the export gate auto-approves extractive "
+          "'coverage_fill' pairs for any chunk with no approved pair: give every chunk a reviewed pair, then re-run this")
     print(f"{'file':56} pairs  approved  rejected  unreviewed")
     for f, (t, ap_, rj) in sorted(per.items()):
         print(f"{f:56} {t:5} {ap_:8} {rj:9} {t - ap_ - rj:10}")

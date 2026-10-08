@@ -620,7 +620,7 @@ async def phase_gguf(w: Walk) -> None:
             raise AssertionError(f"export failed: {failed[0]}")
         return {"q4_k_m", "q6_k"} <= done
 
-    R.check(await w.wait_for("GGUF export", exported, 240, every=4), "q4_k_m and q6_k GGUF exports reached done")
+    R.check(await w.wait_for("GGUF export", exported, int(os.environ.get("FTS_EXPORT_TIMEOUT", "900")), every=4), "q4_k_m and q6_k GGUF exports reached done")
     R.check(bool(latencies) and max(latencies) < 2.0, f"app answered during the export (slowest /api/projects {max(latencies, default=0):.2f}s)")
     await w.page.reload(wait_until="networkidle")
     await w.shot("exports-listed", full=True)

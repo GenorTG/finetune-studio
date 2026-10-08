@@ -141,8 +141,9 @@ async def phase_a_train(w: W.Walk) -> None:
     await w.page.fill("#gradient-accum-steps", "8")
     await w.page.fill("#warmup-steps", "20")
     await w.page.fill("#eval-steps", os.environ.get("FTS_EVAL_STEPS", "25"))
-    if not await w.page.locator("#early-stopping-check").is_checked():
-        await w.page.locator("#early-stopping-check").check()
+    want_early = os.environ.get("FTS_EARLY_STOP", "1") != "0"
+    if await w.page.locator("#early-stopping-check").is_checked() != want_early:
+        await (w.page.locator("#early-stopping-check").check() if want_early else w.page.locator("#early-stopping-check").uncheck())
     if await w.page.locator("#merge-on-save-check").is_checked() and os.environ.get("FTS_MERGE", "1") == "0":
         await w.page.locator("#merge-on-save-check").uncheck()
     await w.shot("configured", full=True)
@@ -173,6 +174,46 @@ async def phase_a_train(w: W.Walk) -> None:
 
 
 W.PHASES.update({"a_export": phase_a_export, "a_train": phase_a_train})
+
+
+
+
+async def phase_a_chat(w: W.Walk) -> None:
+    """Chat page: LOAD the exported q4_k_m through the UI, then quiz it with the corpus eval (paraphrase recall + abstention)."""
+    W.api("/api/models/unload", "POST")
+    await w.goto(f"/projects/{W.pid()}/chat")
+
+    async def options_ready() -> bool:
+        return await w.page.locator("#chat-inline-model option").count() > 0
+
+    await w.wait_for("Chat model choices", options_ready, 20, every=0.5)
+    opts = await w.page.locator("#chat-inline-model option").all_inner_texts()
+    pick = next((o for o in opts if "q4_k_m" in o.lower()), None)
+    W.R.check(pick is not None, f"the exported q4_k_m model is selectable in Chat ({len(opts)} options)")
+    if pick is None:
+        return
+    await w.page.select_option("#chat-inline-model", label=pick)
+    await w.page.click("#chat-inline-load-btn")
+
+    async def loaded() -> bool:
+        return bool(W.api("/api/inference/status").get("loaded"))
+
+    W.R.check(await w.wait_for("model loaded in Chat", loaded, 180, every=2), "model loaded")
+    await w.shot("loaded")
+    st = W.api("/api/inference/status")
+    W.log(f"placement: ctx={st.get('n_ctx')} layers={st.get('n_gpu_layers')} offload={st.get('offload')}")
+    out = W.REPO / ".tmp" / "eval"
+    out.mkdir(parents=True, exist_ok=True)
+    tag = os.environ.get("FTS_EVAL_TAG", "run")
+    rc, text = script("corpus_eval.py", "--json", str(out / f"{tag}.json"))
+    W.log(f"corpus_eval rc={rc}\n" + text[-1500:])
+    await w.page.fill("#chat-input", "What incident reference number did Korvane open for the Oakhaven temperature excursion?")
+    await w.page.click("#chat-send")
+    await w.page.wait_for_timeout(15000)
+    await w.shot("chat-answer", full=True)
+
+
+W.PHASES["a_chat"] = phase_a_chat
 
 
 if __name__ == "__main__":

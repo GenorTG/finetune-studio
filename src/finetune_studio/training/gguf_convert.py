@@ -8,9 +8,11 @@ and the legacy async export worker.
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 import os
 import shutil
+import struct
 import sys
 from typing import Any
 
@@ -270,6 +272,44 @@ def run_cmd_into(cmd: list[str], outfile: str, *, timeout: int | None = None) ->
         raise
 
 
+def _safetensors_names(path: str) -> list[str]:
+    """Tensor names of one ``.safetensors`` file, read from its JSON header only (no weights are loaded)."""
+    with open(path, "rb") as fh:
+        (n,) = struct.unpack("<Q", fh.read(8))
+        header = json.loads(fh.read(n))
+    return [k for k in header if k != "__metadata__"]
+
+
+def _declared_mtp_layers(cfg: dict[str, Any]) -> int:
+    return int(cfg.get("mtp_num_hidden_layers") or (cfg.get("text_config") or {}).get("mtp_num_hidden_layers") or 0)
+
+
+def converter_extra_args(merged_dir: str, convert_script: str) -> list[str]:
+    """Extra ``convert_hf_to_gguf.py`` flags this merged model needs.
+
+    Qwen3.5 declares ``mtp_num_hidden_layers`` (a multi-token-prediction head). llama.cpp then writes ``block_count = layers + 1``
+    and ``nextn_predict_layers = 1``, but a model that was loaded for training and merged carries no ``mtp.*`` weights, so the
+    GGUF promises a block it does not contain and llama.cpp refuses to load it ("tensor 'blk.32.attn_norm.weight' not found").
+    When the config declares MTP layers and no shard has an ``mtp`` tensor, pass the converter's own ``--no-mtp`` (it drops the
+    nextn block from the metadata). Models that do carry the head, or declare none, convert as before.
+    """
+    try:
+        with open(os.path.join(merged_dir, "config.json"), encoding="utf-8") as fh:
+            declared = _declared_mtp_layers(json.load(fh))
+        if declared <= 0:
+            return []
+        shards = [f for f in os.listdir(merged_dir) if f.endswith(".safetensors")]
+        if any("mtp" in name for f in shards for name in _safetensors_names(os.path.join(merged_dir, f))):
+            return []
+        with open(convert_script, encoding="utf-8", errors="replace") as fh:
+            if "--no-mtp" not in fh.read():
+                return []
+    except (OSError, ValueError, struct.error):
+        return []
+    log.info("GGUF conversion: %s declares %d MTP layer(s) but has no mtp weights; converting with --no-mtp", merged_dir, declared)
+    return ["--no-mtp"]
+
+
 def _needs_quantize_bin(quants: list[str]) -> bool:
     return any(
         normalize_gguf_quant(q) not in _SINGLE_STEP_OUTTYPES for q in quants
@@ -376,6 +416,7 @@ def convert_merged_to_gguf(
     intermediate_fp16 = ""
 
     try:
+        extra = converter_extra_args(merged_dir, convert_script)
         # Shared fp16 intermediate when any multi-step quant is requested.
         need_fp16 = any(q not in _SINGLE_STEP_OUTTYPES for q in quant_list)
         fp16_path = os.path.join(gguf_dir, "model-f16.gguf")
@@ -396,6 +437,7 @@ def convert_merged_to_gguf(
                         fp16_path,
                         "--outtype",
                         "f16",
+                        *extra,
                     ],
                     fp16_path,
                 )
@@ -422,6 +464,7 @@ def convert_merged_to_gguf(
                         out_path,
                         "--outtype",
                         _SINGLE_STEP_OUTTYPES[nq],
+                        *extra,
                     ],
                     out_path,
                 )
