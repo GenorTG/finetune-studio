@@ -64,3 +64,59 @@ After DPO (loss 0.10) recall did not improve (15.7 %) and abstention stayed 0/20
 - A paraphrase-augmentation experiment (3-10 reviewed-answer / re-worded-question variants per fact) to see how far SFT recall can go; estimated 1-2 h per run.
 - Evaluate with the adapter on the 4-bit base (no merge) to split "QLoRA-merge loss" from "under-training".
 - Extended-tier files, API-helper benchmark rerun, delegate/background audit of remaining long operations.
+
+## 7. Second run: everything through the web UI (2026-10-08, project `korvane-ui-1`, results in `results/2026-10-08-ui/`)
+
+Genor's ask: the whole flow as a user lives it, **review and scoring included**. What went through the browser (Playwright, `tests/e2e_track_a.py`):
+create, upload, mining, **review of every pair in the Pairs page (keyboard)**, reviewer additions, export, training, GGUF export, **quiz and
+dataset evaluations on the Testing page**, Chat load, RAG index/search, **RAG-grounded quiz on the Testing page**, Guide, delete.
+What did not: reading the pairs (text dumps, `corpus_review.py`), the retrieval@5 number (an API loop), coverage checks (scripts, as an independent
+gate). Not re-run: DPO branch, base-model baseline (the Testing page offers project exports only), merged-bf16 quiz (Testing page too slow, see below).
+
+### Pair funnel (this is the answer to "do the numbers add up")
+
+| Stage | Pairs |
+|---|---|
+| Mined by the helper (19 files; model 2,648, gap rounds 790, extractive fallback 235) | **3,673** |
+| – verdict identical to the first review (same file, chunk, question, answer; pre-filled, replayed in the UI) | 2,801 |
+| – novel, read again by me this time | 872 |
+| Rejected (quote echo 217, duplicate 150, junk 107, trivial/vague 136, wrong value 23 ...) | 1,497 |
+| Approved from mined pairs (104 of them edited by the reader) | 2,176 |
+| Reviewer-written pairs added in the UI (140 planned + 62 for facts still uncovered) | 202 |
+| **Approved total = exported rows** (0 exact duplicates collapsed) | **2,378** |
+| Fact coverage of the approved pairs (manifest, 19 core files) | 1068/1130 after the review, **1130/1130 after the 62 additions** |
+
+Earlier the "5,554 pairs" figure mixed three discarded mining runs (~1,100 pairs, never reviewed) with the 4,455 reviewed pairs of the first run; it was never one funnel.
+Training used the 2,378 rows with a random ~10 % internal hold-out; the quiz (122 questions) is separate and hand-written.
+
+### Review speed (the reason the page was rebuilt first)
+
+Old page: every click re-fetched all pairs (9.5 MB for 5,000, ~255 ms server side, loop blocked) and showed 100 truncated rows with no source text.
+New workspace (paged slim queue, stat-validated cache, optimistic verdicts, prefetched chunk, keyboard): **~30 ms per verdict in a real browser**
+(`scripts/bench_review_page.py`, 4,455 golden pairs); the UI replay of 3,673 verdicts + 140 additions took **279 s**, the 62 later additions ~1 min.
+Replaying the first run's golden review through the UI reproduces its counts exactly (2,491 approved / 1,964 rejected).
+
+### Scores of record (Testing page, Qwen3.5-9B, SFT 6 epochs, loss 0.18, 804 steps, 45 min; q4_k_m)
+
+| What | Result |
+|---|---|
+| Quiz, 102 paraphrased questions (pass = every expected value) | **21 pass = 20.6 %**, 20 partial, 61 fail |
+| 20 unanswerable questions (pass = declines) | **0 / 20** |
+| **Memorization control**: 200 exact training questions (heuristic key-word judge) | **134 pass = 67 %**, 16 partial |
+| Held-out pairs of the same facts (100, same judge) | 25 % |
+| Quiz RAG-grounded with the tuned model (top 5) | **80 / 102 = 78.4 %**; unanswerable 2 / 20 |
+| Retrieval@5 over the 102 questions | 92 / 102 = 90.2 % |
+| (first run, for comparison) untrained base / SFT / base + RAG | 2 % (3/20 abstain) / 17.6 % (0/20) / 75.5 % (20/20) |
+
+Reading: the low LoRA score is **correct and now explained**. Training works (67 % of its own training questions come back, vs ~2 % untrained; the judge is
+looser than the quiz's all-values rule, so the two numbers are not directly comparable), but the model does not carry the facts across re-wordings
+(20-25 %), and it loses the ability to say "not in the documents" (0/20). RAG stays the way to serve facts.
+
+### Findings of this run (fixed unless marked)
+
+- Pairs page: no per-pair context, 100-row cap, full refetch per click, loop-blocking listing, background reload rebuilt the pane under the reviewer (fixed, 4 bugs found by the replay).
+- Testing page could not take a user's quiz or score "must decline" questions (added: import, `expect_abstain`, per-category summary).
+- Merged bf16 on the Testing page: > 40 min for 122 questions (aborted). Use the GGUF. (Open: HF `generate` for Qwen3.5 hybrid layers.)
+- The Testing page cannot select the untrained base model, so the base baseline needs the Chat page or the script (open).
+- Helper load at `n_ctx 32768` OOMs next to the resident RAG embedder and falls back to 16 GPU layers (handled, slower; open).
+- Harness: mining wait 60 min was too short (now 3 h), helper load needed a longer HTTP timeout, handled GGUF OOM retry whitelisted.

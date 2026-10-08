@@ -1893,6 +1893,7 @@ function rqRenderDetail() {
       '<b>' + escapeHtml(it.source_filename || it.source_id || '') + '</b> · chunk <span id="dp-rq-chunkpos">' + (it.chunk_idx || '?') + '</span>' +
       ' · <span class="dp-status-' + st + '">' + st + '</span>' + (it.origin ? ' · ' + escapeHtml(it.origin) : '') +
       (it.note ? ' · note: ' + escapeHtml(it.note) : '') +
+      (it.created_at ? ' · ' + rqTime(it.created_at) : '') +
       ' · <span class="dim">' + (_rq.cur + 1) + ' / ' + _rq.items.length + (_rq.total > _rq.items.length ? ' (of ' + _rq.total + ')' : '') + '</span>' +
     '</div>' +
     '<label class="text-xs dim" for="dp-rq-q">Question</label>' +
@@ -1923,6 +1924,12 @@ function rqRenderDetail() {
   rqRenderSource();
   rqEnsureCtx(it.id);
   rqPrefetch();
+}
+
+// Created time in the reader's local time, UTC on hover.
+function rqTime(ts) {
+  var utc = ts ? new Date(ts * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC' : '';
+  return ts ? '<span title="' + utc + '">' + new Date(ts * 1000).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) + '</span>' : '';
 }
 
 function rqEnsureCtx(id) {

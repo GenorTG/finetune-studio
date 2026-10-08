@@ -40,7 +40,7 @@ def seed(pid: str) -> int:
     from finetune_studio.data.fs.chunks import write_chunks
 
     rows: list[dict] = []
-    for f in sorted(GOLDEN.glob("*.jsonl.gz")):
+    for f in sorted([*GOLDEN.glob("approved*.jsonl.gz"), *GOLDEN.glob("rejected*.jsonl.gz")]):  # the first run only: ui_run_* is the same corpus again
         with gzip.open(f, "rt", encoding="utf-8") as fh:
             rows += [json.loads(line) for line in fh if line.strip()]
     by_file: dict[str, list[dict]] = {}

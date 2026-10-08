@@ -50,7 +50,7 @@ def test_result_links_to_training_with_the_dataset_and_dpo_mode() -> None:
 
 
 def test_approved_count_follows_the_review_stats() -> None:
-    assert "dpPrefSyncApproved(approved);" in _PAIRS
+    assert "dpPrefSyncApproved(c.approved);" in _PAIRS
 
 
 def test_training_page_preselects_dataset_id_and_dpo_mode() -> None:

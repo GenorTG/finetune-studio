@@ -22,8 +22,17 @@ retrieved-context rows into a training dataset for a training test (`grounded_sh
 - **Base model:** **Qwen3.5-9B** (local, loads 4-bit automatically on the 3090). Small models are not valid evidence of quality.
 - **Gates are measured, never "at least one":** after upload `scripts/corpus_parse_check.py` (no fact lost by a parser), after
   mining `scripts/corpus_coverage.py` (fact coverage, goal 100 %), after review the same tool with `--status approved`.
-- **Review is human:** every mined pair is read against its source chunk and gets a verdict in `.tmp/review-ledger.jsonl`
-  (`scripts/corpus_review.py`); reviewers may edit a pair or add one the miner missed. No "approve all".
+- **Review is human, and happens in the Pairs page:** every mined pair is read against its source chunk (`scripts/corpus_review.py dump
+  --chunks` prints it) and gets a verdict; the verdicts are then **replayed through the Pairs page with the keyboard**
+  (`apply --ui` records them, `--phase a_review_ui` replays A / R+reason / edit / add). A pair without a verdict stops the run: no
+  "approve all". `plan --ui` pre-fills the verdicts of pairs identical (file, chunk, question, answer) to the golden review in
+  `tests/corpus/korvane/golden/`; everything else is NOVEL and must be read. Facts no approved answer states yet are added in the UI
+  (`--phase a_adds_ui`, reads `.tmp/missing_adds.json`).
+- **Scoring happens in the Testing page**, not in a script: `--phase a_test_ui` imports `tests/corpus/korvane/eval/korvane_quiz_core.jsonl`
+  (102 questions, pass = every expected value; 20 `expect_abstain` questions, pass = the model declines), picks a model and reads
+  the scores off the page; `--phase a_eval_ui` runs the Dataset-evaluation card (`FTS_EVAL_KIND=training_leakage` = memorization
+  control on exact training questions, `heldout`); `--phase b_rag_quiz_ui` runs the same quiz RAG-grounded. Use the **q4_k_m GGUF**: the
+  merged bf16 through the Testing page took > 40 min for 122 questions. `scripts/corpus_eval*.py` remain as cross-checks only.
 - **Training gate (revised after the 2026-10-08 run):** NOT "final loss < 0.5" and NOT eval-loss minimum. Unsloth: training loss ≈ 0.5–1.0 is
   healthy and < 0.2 suggests over-fitting, but for facts the eval loss of a random pair hold-out *rises* while paraphrase recall keeps
   improving (early stopping kept the epoch-2 weights: 12 % vs 18 % recall at 6 epochs). The gates are **paraphrase recall**
@@ -33,14 +42,20 @@ retrieved-context rows into a training dataset for a training test (`grounded_sh
 - One GPU job at a time. Delete projects, exports, checkpoints and merged models when the run is done.
 
 ```bash
-FTS_ALLOW_LIVE_E2E=1 FTS_TIER=core .venv/bin/python tests/e2e_track_a.py --phase create --phase a_upload --phase a_prep
-# review by hand: scripts/corpus_review.py dump|apply|add|status (status must say "approved WITHOUT a reviewer 'A' verdict: 0")
-FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_track_a.py --phase a_export --phase a_train      # FTS_EPOCHS=6 FTS_EARLY_STOP=0 for facts
-FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_track_a.py --phase gguf                           # FTS_EXPORT_TIMEOUT=900 default
-FTS_ALLOW_LIVE_E2E=1 FTS_RUN_ID=<run> FTS_EVAL_TAG=<name> .venv/bin/python tests/e2e_track_a.py --phase a_chat   # load q4_k_m in Chat + corpus_eval
-FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_track_a.py --phase a_dpo_build --phase a_dpo_train   # review the pairs first (.tmp/reviewed-preference.jsonl)
-FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_track_a.py --phase b_rag; .venv/bin/python scripts/corpus_eval_rag.py --pid <project>   # Track B
+FTS_ALLOW_LIVE_E2E=1 FTS_PROJECT_NAME=korvane-ui-1 .venv/bin/python tests/e2e_track_a.py --phase create --phase a_upload --phase a_prep   # mining ~1 h
+# read: scripts/corpus_review.py plan --ui ; dump --chunks ; apply --ui / add --ui   (verdicts -> .tmp/ui-verdicts.jsonl)
+FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_track_a.py --phase a_review_ui          # replays every verdict in the Pairs page (~5 min for 3.7k)
+.venv/bin/python scripts/corpus_coverage.py --pid <p> --status approved                  # missing facts -> .tmp/missing_adds.json
+FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_track_a.py --phase a_adds_ui            # until coverage is 1130/1130
+FTS_ALLOW_LIVE_E2E=1 FTS_EPOCHS=6 FTS_EARLY_STOP=0 .venv/bin/python tests/e2e_track_a.py --phase a_export --phase a_train   # ~45 min
+FTS_ALLOW_LIVE_E2E=1 FTS_EXPORT_TIMEOUT=2400 .venv/bin/python tests/e2e_user_walkthrough.py --phase gguf                    # q4_k_m + q6_k, ~8 min
+FTS_ALLOW_LIVE_E2E=1 FTS_TEST_MODEL=q4_k_m FTS_EVAL_TAG=sft6-q4km .venv/bin/python tests/e2e_track_a.py --phase a_test_ui     # ~12 min
+FTS_ALLOW_LIVE_E2E=1 FTS_TEST_MODEL=q4_k_m FTS_EVAL_KIND=training_leakage FTS_EVAL_MAX=200 .venv/bin/python tests/e2e_track_a.py --phase a_eval_ui
+FTS_ALLOW_LIVE_E2E=1 FTS_RUN_ID=<run> .venv/bin/python tests/e2e_track_a.py --phase a_chat --phase b_rag                   # Chat load + Track B index/search
+FTS_ALLOW_LIVE_E2E=1 FTS_TEST_MODEL=q4_k_m FTS_EVAL_TAG=sft6-q4km-rag .venv/bin/python tests/e2e_track_a.py --phase b_rag_quiz_ui
 FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_track_a.py --phase a_guide --phase a_cleanup
+FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_track_a.py --phase a_dpo_build --phase a_dpo_train   # not re-run in the UI-only pass; review the pairs first
+.venv/bin/python scripts/bench_review_page.py                                             # review-page latency on the golden pairs (scratch project)
 ```
 
 (The numbered steps below are the older generic walkthrough, still valid for the page-by-page details; `rag` there is Track B.)

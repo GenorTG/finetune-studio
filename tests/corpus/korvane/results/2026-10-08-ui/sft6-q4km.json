@@ -1,0 +1,982 @@
+{
+ "summary": "total: 122\njudged: 122\nunjudged: 0\npassed: 21\npartial: 20\nfailed: 81\npass_rate: 17.2%",
+ "categories": "quiz: 21/102\nunanswerable: 0/20",
+ "cases": [
+  {
+   "name": "e001",
+   "category": "quiz",
+   "question": "What incident reference number did Korvane open for the Oakhaven temperature excursion?",
+   "answer": "Korvane opened incident reference KC-EXC-24-0319.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e002",
+   "category": "quiz",
+   "question": "Which trailer ID and how many pallets were on the guard list sent at 23:10 for the Helvetia load?",
+   "answer": "Trailer TLXU-771032-4, 26 pallets.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e003",
+   "category": "quiz",
+   "question": "When does the Vistula Star sail (ETD)?",
+   "answer": "The Vistula Star sails on Tue 03.10 at 23:45 (Gdynia) / 01:45 (Kłaipėda).",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e004",
+   "category": "quiz",
+   "question": "How long was the Helvetia trailer held at the gate on 17.09 and why?",
+   "answer": "It was held 4 hours because the guard list had it at 23:10 and the gate agent refused to override.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/3"
+  },
+  {
+   "name": "e005",
+   "category": "quiz",
+   "question": "Which socket at the yard is the new 32 A one and what current was measured on pull-down?",
+   "answer": "C-36 is the new 32 A one; pull-down measured 31.8 A.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e006",
+   "category": "quiz",
+   "question": "What are the last digits of the new pool fuel card and its daily limit?",
+   "answer": "The new pool fuel card ends 7741 and has a daily limit of 3,000 PLN.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/2"
+  },
+  {
+   "name": "e007",
+   "category": "quiz",
+   "question": "Which audit number in the three-year ISO cycle was the 2024 audit and when was the report issued?",
+   "answer": "The 2024 audit was the second of three in the ISO cycle and the report was issued on 19 September 2024.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e008",
+   "category": "quiz",
+   "question": "How many major nonconformities, minor nonconformities and observations did the 2024 ISO 22000 audit raise?",
+   "answer": "The audit raised one major nonconformity, four minor nonconformities and six observations.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 2/3"
+  },
+  {
+   "name": "e009",
+   "category": "quiz",
+   "question": "Finding F-02 concerned which reference thermometer, used at which depot?",
+   "answer": "Finding F-02 concerned reference thermometer RT-HAM-07, used at Hamburg-Waltershof.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/2"
+  },
+  {
+   "name": "e010",
+   "category": "quiz",
+   "question": "At RTM-3, how many of the sampled pre-trip inspection records were complete, and how fast could Hanneke Dijkgraaf's team retrieve a file?",
+   "answer": "29 of 30 records were complete; Hanneke's team retrieved a file in 4 minutes on average.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e011",
+   "category": "quiz",
+   "question": "Which certificate number did the lead auditor recommend maintaining, and by when did Korvane have to submit a corrective action plan for F-01?",
+   "answer": "The lead auditor recommended maintaining certificate FSMS-PL-7741-2021, and Korvane had to submit a corrective action plan for F-01 by 9 November 2024.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/2"
+  },
+  {
+   "name": "e012",
+   "category": "quiz",
+   "question": "What is the name of the certification body's complaints and appeals procedure handed over at the audit?",
+   "answer": "The name of the procedure is KC-QF-019.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e013",
+   "category": "quiz",
+   "question": "When was the corrective action plan sent to Aldermark and when is the evidence pack for closure due?",
+   "answer": "The corrective action plan was sent to Aldermark on 28 September 2024; the evidence pack for closure is due to the audit team by 13 October 2024.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e014",
+   "category": "quiz",
+   "question": "What was Korvane's nine-month 2024 EBITDA and margin?",
+   "answer": "EUR 17.9m (25.8%).",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e015",
+   "category": "quiz",
+   "question": "What was Reefer Services revenue in Q3 2024 compared with Q3 2023?",
+   "answer": "Reefer Services revenue was EUR 14.2m in Q3 2024 versus EUR 13.8m in Q3 2023, i.e. +3.0% qoq and +29.6% yoy (the +29.6% is against the consolidated entity, while the segment itself was +5.8%).",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e016",
+   "category": "quiz",
+   "question": "How many FTE did the Gdynia depot GDY-1 have at 30 September 2024?",
+   "answer": "The Gdynia depot GDY-1 had 118 FTE at 30 September 2024.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 1/1"
+  },
+  {
+   "name": "e017",
+   "category": "quiz",
+   "question": "What is the annualised attrition rate and the year-end 2024 headcount forecast?",
+   "answer": "The annualised attrition rate is 9.2%, and the year-end 2024 headcount forecast is 318 FTE.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e018",
+   "category": "quiz",
+   "question": "What is the limit of the revolving credit facility and how much was drawn at 30 September 2024?",
+   "answer": "The revolving credit facility is EUR 30.0m (revised from EUR 25.0m with effect from 1 October 2024); the amount drawn at 30 September 2024 was EUR 9.7m.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e019",
+   "category": "quiz",
+   "question": "By what date is the covenant compliance certificate due to the bank?",
+   "answer": "The covenant compliance certificate is due to the bank by 15 November 2024.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 1/1"
+  },
+  {
+   "name": "e020",
+   "category": "quiz",
+   "question": "What is the forecast full-year 2024 EBITDA margin?",
+   "answer": "The forecast full-year 2024 EBITDA margin is 19.8%.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e021",
+   "category": "quiz",
+   "question": "What is the day rate for a 20-foot reefer on lane RC-03 Gdynia to Gothenburg, and how many free days does it include?",
+   "answer": "EUR 36.25 per day, including 4 free days; the competitor quoted EUR 29.90 and 7 free days.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/2"
+  },
+  {
+   "name": "e022",
+   "category": "quiz",
+   "question": "Who must be asked for a quote for 45-foot units, which are not on the rate card?",
+   "answer": "You must ask Jarek for a quote for 45-foot units, which are not on the rate card.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e023",
+   "category": "quiz",
+   "question": "What does dangerous goods handling DG-1 cost per box per move?",
+   "answer": "Dangerous goods handling DG-1 is EUR 4.75 per box per move.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e024",
+   "category": "quiz",
+   "question": "What is the maximum discount for pharma customers regardless of volume tier?",
+   "answer": "The maximum discount for pharma customers is 18.5%, whatever the volume tier says.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e025",
+   "category": "quiz",
+   "question": "In which week does audit planning with Aldermoor Kessler Audit take place?",
+   "answer": "Audit planning with Aldermoor Kessler Audit takes place in the week of 13 January.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e026",
+   "category": "quiz",
+   "question": "What is the annual leave year at Korvane and how is part-time leave credited?",
+   "answer": "The annual leave year runs from 1 January to 31 December. Part-time employees are credited proportionately, on the basis of 5 working days per month.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e027",
+   "category": "quiz",
+   "question": "By what date does the Company notify employees of unilaterally scheduled leave above the carry-over limit?",
+   "answer": "The Company notifies employees by 15 March of any unilaterally scheduled leave above the carry-over limit.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e028",
+   "category": "quiz",
+   "question": "By what time must office staff without a fixed shift call in sick?",
+   "answer": "Office staff without a fixed shift must call in by 09:15.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e029",
+   "category": "quiz",
+   "question": "What percentage of base pay do employees with at least three completed years get during days 34 to 90 of sickness?",
+   "answer": "80% of base pay for employees with at least three completed years during days 34 to 90.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e030",
+   "category": "quiz",
+   "question": "What are Korvane's core working hours?",
+   "answer": "Core hours are 10:00–15:00 on every working day, in the office or remote.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 2/2"
+  },
+  {
+   "name": "e031",
+   "category": "quiz",
+   "question": "What are the expense ceilings in Germany for meals per day, hotel per night and private-car mileage?",
+   "answer": "EUR 39 for meals (a ceiling, not a allowance), EUR 284 for hotel per night, and EUR 0.34 per km for private-car mileage.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/3"
+  },
+  {
+   "name": "e032",
+   "category": "quiz",
+   "question": "On which flights is economy class required, and what class of rail travel applies?",
+   "answer": "Economy class is required on all flights, and second or first class rail travel is not reimbursed.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e033",
+   "category": "quiz",
+   "question": "How long does a disciplinary Stage 1 conversation stay on the personnel file?",
+   "answer": "The Stage 1 conversation stays on the personnel file for 12 months.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e034",
+   "category": "quiz",
+   "question": "Within how many days must a disciplinary appeal be lodged with the Head of People & Culture?",
+   "answer": "A disciplinary appeal must be lodged with the Head of People & Culture within 7 working days after the meeting.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 1/1"
+  },
+  {
+   "name": "e035",
+   "category": "quiz",
+   "question": "What notice applies to either party during the 3-month probation period?",
+   "answer": "During the 3-month probation, either party may give 2 working days' notice.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e036",
+   "category": "quiz",
+   "question": "How does Korvane define a night shift?",
+   "answer": "A night shift is any shift of which at least 3 hours fall between 22:00 and 06:00.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 2/3"
+  },
+  {
+   "name": "e037",
+   "category": "quiz",
+   "question": "How much time off in lieu is given per overtime hour?",
+   "answer": "Overtime hours are converted into time off in lieu at the rate of 1.5 hours off per overtime hour worked, as far as possible.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 1/1"
+  },
+  {
+   "name": "e038",
+   "category": "quiz",
+   "question": "What is the monthly gross pay band for grade O5, shift supervisor?",
+   "answer": "The monthly gross pay band for grade O5, shift supervisor, is 9,200 – 11,800 PLN.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/2"
+  },
+  {
+   "name": "e039",
+   "category": "quiz",
+   "question": "How long does the employee's confidentiality duty last after employment ends?",
+   "answer": "The employee's confidentiality duty survives termination of employment for 10 (ten) years.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e040",
+   "category": "quiz",
+   "question": "How long does the post-employment non-compete last and which countries does it cover?",
+   "answer": "The non-compete lasts for 9 months after the end of employment and covers Poland, Germany, the Netherlands, Sweden or Lithuania.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 6/6"
+  },
+  {
+   "name": "e041",
+   "category": "quiz",
+   "question": "How many KC-Hub gateways do HAM-2 and RTM-3 each have?",
+   "answer": "HAM-2 and RTM-3 each have 4 KC-Hub gateways.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e042",
+   "category": "quiz",
+   "question": "What is the GOT-4 management subnet and its edge switch?",
+   "answer": "The GOT-4 management subnet is 10.68.7.0/24, and its edge switch is sw-got4-edge-01 (PoE for the wall docks).",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/2"
+  },
+  {
+   "name": "e043",
+   "category": "quiz",
+   "question": "Which bastion host and port are used for the ping test by VPN users?",
+   "answer": "bastion-gdy1-02.korvane.example (port 2200) is used by VPN users for the ping test.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/2"
+  },
+  {
+   "name": "e044",
+   "category": "quiz",
+   "question": "Which port and user are used for SSH to a hub, and who grants missing access?",
+   "answer": "SSH to a hub uses port 2200; ring leaders only, by ticket IT-0174, grant missing access within 3 working days.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/3"
+  },
+  {
+   "name": "e045",
+   "category": "quiz",
+   "question": "At what clock skew versus Tidewalk does ingest reject with an error, and which error code?",
+   "answer": "Ingest rejects with `E-1036` when the skew exceeds 90 s.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/2"
+  },
+  {
+   "name": "e046",
+   "category": "quiz",
+   "question": "What error appears after a hub swap with the wrong gateway token?",
+   "answer": "E1104 (token mismatch) appears after a hub swap with the wrong gateway token.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e047",
+   "category": "quiz",
+   "question": "How long does the old firmware slot survive after an update?",
+   "answer": "The old firmware slot survives 14 days after an update.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 1/1"
+  },
+  {
+   "name": "e048",
+   "category": "quiz",
+   "question": "At the 30-minute escalation point, who is reached and on which desk extension?",
+   "answer": "At the 30-minute escalation, the shift lead (Wacław Bielicki) is reached on desk ext. 4417.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/2"
+  },
+  {
+   "name": "e049",
+   "category": "quiz",
+   "question": "If a Helvetia Pharma Logistik load is affected for more than how many minutes must Benedikta be told?",
+   "answer": "If a Helvetia Pharma Logistik load is affected for more than 15 minutes, Benedikta must be told.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 1/1"
+  },
+  {
+   "name": "e050",
+   "category": "quiz",
+   "question": "How many of the late alerts in the Tidewalk alerting outage were of class CRIT?",
+   "answer": "14 of the late alerts were class CRIT.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e051",
+   "category": "quiz",
+   "question": "At what time did the customer notice go out to the affected accounts in the Tidewalk outage, and to how many accounts?",
+   "answer": "The customer notice went out to the 39 affected accounts at 12:40.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e052",
+   "category": "quiz",
+   "question": "Which owner and due date does action item AI-4 have?",
+   "answer": "Action item AI-4 has owner Kamil Zdunek and due date 13.09.2024.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e053",
+   "category": "quiz",
+   "question": "On what date was the Oakhaven master services agreement made?",
+   "answer": "The Oakhaven master services agreement was made on 3 April 2023.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 1/1"
+  },
+  {
+   "name": "e054",
+   "category": "quiz",
+   "question": "What is the set-point for chilled dairy products under the Oakhaven MSA?",
+   "answer": "The set-point for chilled dairy products is +3.0 °C.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 1/1"
+  },
+  {
+   "name": "e055",
+   "category": "quiz",
+   "question": "Within how many days are unapplied service credits paid out on expiry or termination of the Oakhaven MSA?",
+   "answer": "Unapplied service credits are paid out within 60 days of expiry or termination.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 1/1"
+  },
+  {
+   "name": "e056",
+   "category": "quiz",
+   "question": "Within what period must court actions under the Oakhaven MSA be commenced?",
+   "answer": "Any court action must be commenced within 12 months after the date on which the event giving rise to it occurred.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 1/1"
+  },
+  {
+   "name": "e057",
+   "category": "quiz",
+   "question": "Within how many days are invoices under the Oakhaven MSA payable?",
+   "answer": "Invoices under the Oakhaven MSA are payable within 35 days.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 1/1"
+  },
+  {
+   "name": "e058",
+   "category": "quiz",
+   "question": "What breach-remedy period allows immediate termination of the Oakhaven MSA for material breach?",
+   "answer": "30 days after notice.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 1/1"
+  },
+  {
+   "name": "e059",
+   "category": "quiz",
+   "question": "When are e-mail notices under the Oakhaven MSA deemed received?",
+   "answer": "E-mail notices are deemed received when the recipient's e-mail server accepts it.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e060",
+   "category": "quiz",
+   "question": "What does dwell at GDY-1 cost per day after the free days, and how many free days are there?",
+   "answer": "Dwell at GDY-1 is 2 free days then EUR 540 per day; dwell at RTM-3 is 3 free days then EUR 610 per day.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/2"
+  },
+  {
+   "name": "e061",
+   "category": "quiz",
+   "question": "What service credit does an excursion of more than 4.0 and up to 8.0 hours earn under the amended Table A?",
+   "answer": "An excursion of more than 4.0 and up to 8.0 hours earns a service credit of 25%.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e062",
+   "category": "quiz",
+   "question": "What does new clause 4.7 of the Oakhaven amendment require for containers carrying chilled dairy?",
+   "answer": "For containers carrying chilled dairy, the pre-cool must run for 90 minutes with the unit on high and the setpoint at −18.0 °C, and the logger in the white box is to be checked every morning before the first seal.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/3"
+  },
+  {
+   "name": "e063",
+   "category": "quiz",
+   "question": "After Amendment No. 2, what convenience notice period applies to Korvane and to the customer?",
+   "answer": "After Amendment No. 2, a convenience notice of 150 days applies to Korvane and 90 days to the customer.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e064",
+   "category": "quiz",
+   "question": "What does Oakhaven's release of Korvane for the incident not extend to?",
+   "answer": "Oakhaven's release of Korvane is not a general release for future events.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e065",
+   "category": "quiz",
+   "question": "When did revision 6 of SOP KC-OPS-SOP-031 take effect?",
+   "answer": "Revision 6 took effect on 1 October 2024.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e066",
+   "category": "quiz",
+   "question": "By how much are pre-cool times extended when the yard is warmer than the threshold, and what is the threshold?",
+   "answer": "Pre-cool times are extended by 40 percent when the yard is warmer than +18.5 °C.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e067",
+   "category": "quiz",
+   "question": "What is the maximum pallet height in a 20-foot or standard 40-foot container?",
+   "answer": "The maximum pallet height in a 20-foot or standard 40-foot container is 2.18 m including the top layer of bags and any stretch wrap.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e068",
+   "category": "quiz",
+   "question": "How many KC-Tag 4 loggers go into each 40-foot and each 20-foot load?",
+   "answer": "Three KC-Tag 4 loggers go into each 40-foot and one goes into each 20-foot load.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/2"
+  },
+  {
+   "name": "e069",
+   "category": "quiz",
+   "question": "Within how long must an activated tag show online on the KC-Hub 200 or be replaced?",
+   "answer": "An activated tag must show online within 90 seconds on the KC-Hub 200, otherwise it is replaced.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 1/1"
+  },
+  {
+   "name": "e070",
+   "category": "quiz",
+   "question": "What is the loading window for pharma GDP cargo up to 25 degrees and above 25 degrees?",
+   "answer": "The loading window for pharma GDP cargo is 24 minutes up to +25 °C and 18 minutes above +25 °C.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e071",
+   "category": "quiz",
+   "question": "What triggers Amber Level 1 for standard cargo and for pharma cargo?",
+   "answer": "Amber Level 1 is triggered when the excursion duration reaches 30 minutes for standard cargo or 15 minutes for pharma cargo.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/4"
+  },
+  {
+   "name": "e072",
+   "category": "quiz",
+   "question": "At Red level, within how long does the account manager phone the customer and what sticker is applied?",
+   "answer": "The account manager phones the customer within 60 minutes and a Red sticker is applied.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/2"
+  },
+  {
+   "name": "e073",
+   "category": "quiz",
+   "question": "Within what time must tag data be downloaded after a Level 2 or higher excursion?",
+   "answer": "Tag data must be downloaded within 2 hours after a Level 2 or higher excursion.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 1/1"
+  },
+  {
+   "name": "e074",
+   "category": "quiz",
+   "question": "What is the address of the GDY-1 depot?",
+   "answer": "The address of the GDY-1 depot is ul. Węglowa 6, 81-527 Gdynia.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e075",
+   "category": "quiz",
+   "question": "How many reefer plugs does HAM-2 have and how many of them are on the old bund?",
+   "answer": "HAM-2 has 136 reefer plugs, of which 44 are on the old bund (Greta counted them herself).",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e076",
+   "category": "quiz",
+   "question": "What are the opening hours of KLJ-5?",
+   "answer": "Mon 06:00-22:00; Tue-Fri 06:00-20:00; Wed extended to 23:00 (Jarek, who authorised the late change, said it stays so); Sat 10:00-14:00; Sun closed.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/3"
+  },
+  {
+   "name": "e077",
+   "category": "quiz",
+   "question": "Which forklift is FL-GDY-04 and what is its capacity?",
+   "answer": "FL-GDY-04 is the old Toyota at GDY-1 with a 3.5 t capacity.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/2"
+  },
+  {
+   "name": "e078",
+   "category": "quiz",
+   "question": "What equipment is RS-GOT-01, where, and who shares it at weekends?",
+   "answer": "RS-GOT-01 is the second rig at Gdynia shared with Ochrona Białystok at weekends.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/3"
+  },
+  {
+   "name": "e079",
+   "category": "quiz",
+   "question": "What is the extension of the fleet workshop led by Gunnar Halvorsrud?",
+   "answer": "The extension of the fleet workshop is FL-2.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e080",
+   "category": "quiz",
+   "question": "What is the phone number of the Arendal Port Services security gate control for GOT-4?",
+   "answer": "The phone number of the Arendal Port Services security gate control for GOT-4 is +46 31 555 0172.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e081",
+   "category": "quiz",
+   "question": "Which magnet type is in the KC-Tag 4 retail box?",
+   "answer": "The retail box has the KM-2 magnet.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 1/1"
+  },
+  {
+   "name": "e082",
+   "category": "quiz",
+   "question": "What does a green LED flash once every 5 seconds mean on a KC-Tag 4?",
+   "answer": "Logging normally, hub in contact.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 2/2"
+  },
+  {
+   "name": "e083",
+   "category": "quiz",
+   "question": "How often does the KC-Tag 4 report when a limit is exceeded, and how fast is a door event transmitted?",
+   "answer": "A limit exceedment is reported every 5 minutes, while a door event goes out in about 20 seconds.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e084",
+   "category": "quiz",
+   "question": "At what temperature and hub distance was the KC-Tag 4 battery life table measured?",
+   "answer": "The KC-Tag 4 battery life table was measured at +25 °C and a hub distance of 60 m.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/2"
+  },
+  {
+   "name": "e085",
+   "category": "quiz",
+   "question": "What does error code E09 mean on the KC-Tag 4 and what is the hub's tag limit?",
+   "answer": "E09 means Hub's tag limit 250 reached; use a second hub.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 2/2"
+  },
+  {
+   "name": "e086",
+   "category": "quiz",
+   "question": "What is required to return a KC-Tag 4 device?",
+   "answer": "A return needs the RMA number from the support chat.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 1/1"
+  },
+  {
+   "name": "e087",
+   "category": "quiz",
+   "question": "What is the KC-Tag 4 housing made of and what colour?",
+   "answer": "The KC-Tag 4 housing is a UV-stable polyamide (PA66-GF20) in RAL 7035 light grey.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/2"
+  },
+  {
+   "name": "e088",
+   "category": "quiz",
+   "question": "What sensor does the KC-Tag 4 use for the door, and at what gap does it open and close?",
+   "answer": "The door sensor is a Hall effect + magnet KC-HAM-2, which opens at 15 mm and closes at 8 mm gap.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/3"
+  },
+  {
+   "name": "e089",
+   "category": "quiz",
+   "question": "Which part number is the KC-Tag 4 logger in retail box KT4-BOX-1?",
+   "answer": "The part number is KT4-LOG-1.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e090",
+   "category": "quiz",
+   "question": "What do customers with a Tidewalk subscription get free for the KC-Tag 4?",
+   "answer": "Customers with a Tidewalk subscription get the KC-Tag 4 software license free of charge.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e091",
+   "category": "quiz",
+   "question": "What is Fruttoria Baltica's forecast volume for 2024?",
+   "answer": "Fruttoria Baltica's forecast volume for 2024 is +6.0% (company guidance was +4.5–7.0%).",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e092",
+   "category": "quiz",
+   "question": "When did Fruttoria Baltica sign, and on which plan?",
+   "answer": "Fruttoria Baltica signed on 14 January 2023 on the Growth plan.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e093",
+   "category": "quiz",
+   "question": "How did Fruttoria Baltica's cargo write-offs change between 2022 and 2023?",
+   "answer": "Cargo write-offs were EUR 1.2m in 2022 and EUR 0.9m in 2023.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e094",
+   "category": "quiz",
+   "question": "For how long was Fruttoria Baltica's contract renewed in July 2024?",
+   "answer": "Fruttoria Baltica's contract was renewed for 24 months from 1 July 2024.",
+   "verdict": "pass",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 1/1"
+  },
+  {
+   "name": "e095",
+   "category": "quiz",
+   "question": "What is Korvane Cold Chain's registered address?",
+   "answer": "Korvane Cold Chain Sp. z o.o., Kłipowa 13, 81-537 Gdynia, Poland.",
+   "verdict": "partial",
+   "why": "reasoning[keyword_substring; validity=partial] keywords matched 1/2"
+  },
+  {
+   "name": "e096",
+   "category": "quiz",
+   "question": "How does ColdArc Nordic's price compare for Nordkjøl Seafood and what does its offer lack?",
+   "answer": "ColdArc Nordic's price is about 18% lower than the three quotes Fruttoria Baltica received in January, but its offer has no door-to-door leg and no plug-in at the terminal.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e097",
+   "category": "quiz",
+   "question": "Who is the contact at Tarnowska Mrożonki S.A. and when is the site visit?",
+   "answer": "The contact at Tarnowska Mrożonki S.A. is Marta Kowarzik, head of logistics, and the site visit is on Tue 17.09, 14:30-16:00.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/3"
+  },
+  {
+   "name": "e098",
+   "category": "quiz",
+   "question": "What ICP score does Adriatic Citrus have and what is the cutoff?",
+   "answer": "Adriatic Citrus has ICP = 6.5; the cutoff is ICP ≥ 6.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e099",
+   "category": "quiz",
+   "question": "What discount did Norrland Lax AB get and what was the approver's cap?",
+   "answer": "Norrland Lax AB: 18.0% (Wacek requested 20% but the cap was 18% for a first-time tier-2 customer); approver Wacek had a 25% cap.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e100",
+   "category": "quiz",
+   "question": "What discount did Haugesund Fiskemottak AS ask for and what is the KAM limit?",
+   "answer": "Haugesund Fiskemottak AS asked 9.5%, the KAM limit is 11%.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "e101",
+   "category": "quiz",
+   "question": "At what time on Thursday were Korvane's three boxes in at the terminal?",
+   "answer": "Korvane's three boxes were in at the terminal by 14:30 Thursday.",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/1"
+  },
+  {
+   "name": "e102",
+   "category": "quiz",
+   "question": "When and where did the weekly ops review of 24 September 2024 take place?",
+   "answer": "The weekly ops review of 24 September 2024 took place in hybrid, with 6 attendees on Teams and 18 in the boardroom (including Kamil, Ola, Wacek, Gunnar, Ingrid, Benedikta, Yusuf Demirkıran and Sanna Virtanen).",
+   "verdict": "fail",
+   "why": "reasoning[keyword_substring; validity=valid] keywords matched 0/2"
+  },
+  {
+   "name": "u01",
+   "category": "unanswerable",
+   "question": "What is the annual base salary of Korvane's CFO Priya Venkataraman-Holt?",
+   "answer": "EUR 328,000 per annum (base pay only).",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u02",
+   "category": "unanswerable",
+   "question": "What is the registered capital (kapitał zakładowy) of Korvane Cold Chain Sp. z o.o.?",
+   "answer": "The registered capital of Korvane Cold Chain Sp. z o.o. is PLN 4,100,000 (four million one hundred thousand Polish zloty).",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u03",
+   "category": "unanswerable",
+   "question": "Which insurance policy number covers the Rotterdam depot RTM-3 against fire?",
+   "answer": "The policy number is CH-2024-7189-INS, placed with Zurich Seaboard Insurance Brokers (ZSB) via Korvane's broker.",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u04",
+   "category": "unanswerable",
+   "question": "What was Korvane's revenue in the second quarter of 2022?",
+   "answer": "EUR 29.0m.",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u05",
+   "category": "unanswerable",
+   "question": "What is the IP address of the KC-Hub 200 at the Klaipeda yard KLJ-5 on the guest Wi-Fi?",
+   "answer": "The IP address of the KC-Hub 200 at the Klaipeda yard KLJ-5 on the guest Wi-Fi is 10.73.7.1 (gateway).",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u06",
+   "category": "unanswerable",
+   "question": "How many days of paternity leave does the Korvane handbook grant to employees in Sweden?",
+   "answer": "The Korvane handbook states that employees in Sweden get 104 days of paternity leave.",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u07",
+   "category": "unanswerable",
+   "question": "What is the maximum take-off weight of the Korvane company aircraft?",
+   "answer": "The maximum take-off weight is not more than 75 tonnes.",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u08",
+   "category": "unanswerable",
+   "question": "What is the telephone number of Korvane's customer Brunnen & Sohn Frischdienst's purchasing director?",
+   "answer": "The telephone number of Korvane's customer Brunnen & Sohn Frischdienst's purchasing director is +49 40 555 0142.",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u09",
+   "category": "unanswerable",
+   "question": "What is the battery capacity in mAh of the KC-Tag 3?",
+   "answer": "The battery is a Li-SOCl2 cell, 3.6 V nominal, 1,700 mAh (typ.).",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u10",
+   "category": "unanswerable",
+   "question": "On what date did Korvane open its depot in Gdansk-Port Północny?",
+   "answer": "Korvane opened its depot in Gdansk-Port Północny on 15 May 2023.",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u11",
+   "category": "unanswerable",
+   "question": "What is the penalty rate for late payment of invoices to Thermaglide Reefer Units BV in the 2021 supply agreement?",
+   "answer": "The penalty rate is 8.25% per annum on the amount overdue, payable by the Customer to the Supplier.",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u12",
+   "category": "unanswerable",
+   "question": "What is the name of the Korvane employee who won the 2023 safety award?",
+   "answer": "The Korvane employee who won the 2023 safety award is Olek Maraszek.",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u13",
+   "category": "unanswerable",
+   "question": "What does the Korvane canteen at GDY-1 charge for a lunch menu?",
+   "answer": "The Korvane canteen at GDY-1 charges PLN 4.35 for the lunch menu.",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u14",
+   "category": "unanswerable",
+   "question": "Which Tidewalk version introduced the dark mode?",
+   "answer": "Dark mode was introduced in Tidewalk 3.10.",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u15",
+   "category": "unanswerable",
+   "question": "How many TEU did Korvane move in 2019?",
+   "answer": "In 2019, Korvane moved 486 TEU.",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u16",
+   "category": "unanswerable",
+   "question": "What is the Wi-Fi password of the HAM-2 gate cabin?",
+   "answer": "The Wi-Fi password of the HAM-2 gate cabin is ham2-guest-2024.",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u17",
+   "category": "unanswerable",
+   "question": "What is the cancellation fee in the Helvetia Pharma Logistik quality agreement for a missed audit?",
+   "answer": "The fee for a cancelled audit is 150% of the day rate, payable within 30 days.",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u18",
+   "category": "unanswerable",
+   "question": "Who is the Head of Procurement at Korvane?",
+   "answer": "The Head of Procurement at Korvane is Dominik Szewczyk.",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u19",
+   "category": "unanswerable",
+   "question": "What is the diameter of the KC-Hub 200's external antenna mast in millimetres?",
+   "answer": "The diameter of the KC-Hub 200's external antenna mast is 6 mm.",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  },
+  {
+   "name": "u20",
+   "category": "unanswerable",
+   "question": "What is the interest rate margin on Korvane's term loan with Baltic Commerz Bank?",
+   "answer": "The interest rate is EURIBOR + 1.35%, with a cap of 5.75% (capped at EUR 90m).",
+   "verdict": "fail",
+   "why": "reasoning[abstention_expected; validity=valid] the model gave a confident answer to a question the documents do not answer"
+  }
+ ]
+}

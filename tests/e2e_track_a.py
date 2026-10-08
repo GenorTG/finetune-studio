@@ -207,8 +207,9 @@ async def phase_a_chat(w: W.Walk) -> None:
     out = W.REPO / ".tmp" / "eval"
     out.mkdir(parents=True, exist_ok=True)
     tag = os.environ.get("FTS_EVAL_TAG", "run")
-    rc, text = script("corpus_eval.py", "--json", str(out / f"{tag}.json"))
-    W.log(f"corpus_eval rc={rc}\n" + text[-1500:])
+    if os.environ.get("FTS_SCRIPT_EVAL") == "1":  # cross-check only: the scores of record come from the Testing page (a_test_ui)
+        rc, text = script("corpus_eval.py", "--json", str(out / f"{tag}.json"))
+        W.log(f"corpus_eval rc={rc}\n" + text[-1500:])
     await w.page.fill("#chat-input", "What incident reference number did Korvane open for the Oakhaven temperature excursion?")
     await w.page.click("#chat-send")
     await w.page.wait_for_timeout(15000)
@@ -221,7 +222,7 @@ W.PHASES["a_chat"] = phase_a_chat
 async def phase_a_dpo_build(w: W.Walk) -> None:
     """Pairs page: Preference pairs (DPO) card -> BUILD with the local helper (hallucination + abstain), read the summary."""
     W.api("/api/models/unload", "POST")
-    W.api("/api/providers/local-default/load", "POST", {"n_ctx": 32768})
+    W.api("/api/providers/local-default/load", "POST", {"n_ctx": 32768}, timeout=300)
     await w.goto(f"/projects/{W.pid()}/data-prep")
     await w.page.fill("#dp-pref-max", os.environ.get("FTS_DPO_PAIRS", "300"))
     await w.shot("dpo-card", full=True)
@@ -356,7 +357,7 @@ W.PHASES["b_rag"] = phase_b_rag
 async def phase_a_guide(w: W.Walk) -> None:
     """Guide (Agent mode, the in-app assistant) answers a question about this project through the configured helper."""
     W.api("/api/models/unload", "POST")
-    W.api("/api/providers/local-default/load", "POST", {"n_ctx": 32768})
+    W.api("/api/providers/local-default/load", "POST", {"n_ctx": 32768}, timeout=300)
     await w.goto(f"/projects/{W.pid()}")
     await w.page.click("button:has-text('guide')")
     await w.page.wait_for_selector("#guide-panel:not([hidden])", timeout=10000)
@@ -638,6 +639,47 @@ async def phase_a_adds_ui(w: W.Walk) -> None:
 
 
 W.PHASES["a_adds_ui"] = phase_a_adds_ui
+
+
+async def phase_b_rag_quiz_ui(w: W.Walk) -> None:
+    """Testing page, RAG-grounded suite: the imported Korvane quiz answered from retrieved passages by the selected model.
+    FTS_TEST_MODEL / FTS_EVAL_TAG as in a_test_ui."""
+    tag = os.environ.get("FTS_EVAL_TAG", "rag")
+    want = os.environ.get("FTS_TEST_MODEL", "")
+    W.api("/api/models/unload", "POST")
+    await w.goto(f"/projects/{W.pid()}/testing")
+    opts = await w.page.locator("#t-suite option").evaluate_all("els => els.map(e => ({v: e.value, t: e.textContent}))")
+    suite = next((o["v"] for o in opts if "korvane_quiz_core" in (o["v"] + o["t"])), None)
+    W.R.check(suite is not None, f"the imported quiz is still offered as a suite ({len(opts)} options)")
+    if suite is None:
+        return
+    await w.page.select_option("#t-suite", value=suite)
+    if want:
+        mopts = await w.page.locator("#t-model option").evaluate_all("els => els.map(e => ({v: e.value, t: e.textContent}))")
+        pick = next((o["v"] for o in mopts if want.lower() in (o["v"] + " " + o["t"]).lower()), None)
+        W.R.check(pick is not None, f"the Testing page offers a model matching {want!r}")
+        if pick is None:
+            return
+        await w.page.select_option("#t-model", value=pick)
+    await w.page.fill("#t-rag-topk", "5")
+    await w.page.fill("#t-rag-maxtok", "160")
+    await w.shot("rag-suite-ready", full=True)
+    await w.page.click("#t-run-rag-btn")
+    started = time.time()
+
+    async def done() -> bool:
+        return await w.page.locator("#case-scores-summary").count() > 0
+
+    ok = await w.wait_for("RAG quiz results", done, float(os.environ.get("FTS_QUIZ_TIMEOUT", "3600")), every=10)
+    W.R.check(ok, f"the RAG-grounded quiz finished in {time.time() - started:.0f}s")
+    if ok:
+        await w.shot("rag-suite-results", full=True)
+        W.log("retrieval line: " + (await w.text("#t-rag-retrieval-summary") if await w.page.locator("#t-rag-retrieval-summary").count() else "none"))
+        by = await _quiz_results(w, tag)
+        W.R.check(sum(sum(c.values()) for c in by.values()) == 122, "all 122 questions were scored")
+
+
+W.PHASES["b_rag_quiz_ui"] = phase_b_rag_quiz_ui
 
 
 if __name__ == "__main__":
