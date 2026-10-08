@@ -586,5 +586,59 @@ async def phase_a_eval_ui(w: W.Walk) -> None:
 W.PHASES.update({"a_review_ui": phase_a_review_ui, "a_test_ui": phase_a_test_ui, "a_eval_ui": phase_a_eval_ui})
 
 
+async def phase_a_adds_ui(w: W.Walk) -> None:
+    """Pairs page: ADD the pairs the reader wrote for facts no approved answer states yet. Per pair: pick the source file, show
+    all pairs, click a row of the right chunk, press N, type the question and answer, Ctrl+Enter. FTS_ADDS = JSON list."""
+    path = Path(os.environ.get("FTS_ADDS", str(W.REPO / ".tmp" / "missing_adds.json")))
+    adds = sorted(json.loads(path.read_text(encoding="utf-8")), key=lambda a: (a["file"], int(a["chunk"])))
+    W.log(f"adding {len(adds)} reviewer-written pairs from {path.name}")
+    await w.goto(f"/projects/{W.pid()}/data-prep")
+    before = W.api(f"/api/projects/{W.pid()}/data-prep/qa/queue?limit=1")["counts"]
+    await w.page.click("#dp-jump-review")
+    await w.page.click("#dp-filter-all")  # nothing is pending any more: look at every pair
+    await w.page.wait_for_selector("#dp-rq-detail textarea#dp-rq-q", timeout=60000)
+    current_file = None
+    added = 0
+    for a in adds:
+        if a["file"] != current_file:
+            sid = await w.page.evaluate("f => (_rq.sources.find(s => s.filename === f) || {}).source_id || ''", a["file"])
+            W.R.check(bool(sid), f"the source picker lists {a['file']}")
+            if not sid:
+                continue
+            await w.page.select_option("#dp-rq-source", value=sid)
+            current_file = a["file"]
+        await _settled(w)
+        idx = -1
+        for _ in range(12):
+            idx = await w.page.evaluate("c => _rq.items.findIndex(q => Number(q.chunk_idx) === c)", int(a["chunk"]))
+            more = await w.page.evaluate("_rq.items.length < _rq.total")
+            if idx >= 0 or not more:
+                break
+            await w.page.evaluate("rqLoad({append: true})")
+            await _settled(w)
+        if idx < 0:
+            W.R.check(False, f"no pair of {a['file']} chunk {a['chunk']} is listed to anchor the addition ({a['fact']})")
+            continue
+        await w.page.evaluate("i => rqGo(i - _rq.cur)", idx)
+        await w.page.click(f"#dp-rq-list tr[data-i='{idx}']")
+        await _settled(w)
+        await w.page.keyboard.press("n")
+        await w.page.fill("#dp-rq-add-q", a["q"])
+        await w.page.fill("#dp-rq-add-a", a["a"])
+        await w.page.press("#dp-rq-add-a", "Control+Enter")
+        await _settled(w)
+        added += 1
+        if added % 20 == 0:
+            W.log(f"added {added}/{len(adds)}")
+    await w.shot("adds-end", full=True)
+    after = W.api(f"/api/projects/{W.pid()}/data-prep/qa/queue?limit=1")["counts"]
+    W.log(f"counts before {before}, after {after}")
+    W.R.check(added == len(adds), f"all {len(adds)} additions went through the UI ({added} done)")
+    W.R.check(after["approved"] == before["approved"] + added, "the approved count grew by exactly the additions")
+
+
+W.PHASES["a_adds_ui"] = phase_a_adds_ui
+
+
 if __name__ == "__main__":
     raise SystemExit(W.main())

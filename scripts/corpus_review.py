@@ -120,6 +120,10 @@ def plan_from_golden(pid: str, pairs: list[dict], sources: dict[str, str], ledge
             lf.write(json.dumps({"id": r["id"], "verdict": r["v"], "reason": r["reason"] or "golden", "file": "", "ts": time.time()}) + "\n")
     left = [r for rs in approved.values() for r in rs]
     adds = [r for r in left if r.get("origin") == "human_review"]
+    queued = set()
+    if verdicts.exists():
+        queued = {(x["file"], int(x["chunk"]), _norm(x["q"])) for x in map(json.loads, verdicts.read_text().splitlines()) if x.get("add")}
+    adds = [r for r in adds if (r["file"], int(r.get("chunk") or 1), _norm(r["q"])) not in queued]  # re-running the plan adds nothing twice
     for r in adds:
         record_ui(verdicts, {"add": True, "file": r["file"], "chunk": int(r.get("chunk") or 1), "q": r["q"], "a": r["a"], "src": "golden"})
     print(f"pending pairs: {len(pending)}; matched the golden review: {len(rows)} "
