@@ -91,7 +91,8 @@ def main() -> int:
         n = 0
         with ledger.open("a") as fh:
             for line in sys.stdin.read().splitlines():
-                line = line.split("#")[0].strip()
+                # a trailing " # note" is a comment, except inside an edit ("question || answer") where # is text
+                line = (line if "||" in line else line.split(" #")[0]).strip()
                 if not line:
                     continue
                 parts = line.split(None, 2)
