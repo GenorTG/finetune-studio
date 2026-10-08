@@ -753,7 +753,54 @@ async def list_qa_route(pid: str, source_id: str | None = None, status: str | No
     if missing is not None:
         return missing
     from finetune_studio.data import project_filesystem as pfs
-    return {"items": pfs.list_qa_pairs(pid, source_id=source_id, status=status)}
+    return {"items": await asyncio.to_thread(pfs.list_qa_pairs, pid, source_id=source_id, status=status)}
+
+
+@router.get("/projects/{pid}/data-prep/qa/queue")
+async def qa_queue_route(pid: str, status: str | None = None, source_id: str | None = None, q: str = "",
+                         offset: int = 0, limit: int = 200):
+    """One page of the review queue: slim rows in document order, project-wide counts, per-file counts (no chunk text)."""
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    from finetune_studio.data.fs.qa_review import review_queue
+    return await asyncio.to_thread(review_queue, pid, status=status or None, source_id=source_id or None, text=q,
+                                   offset=offset, limit=limit)
+
+
+@router.get("/projects/{pid}/data-prep/qa/{qa_id}/context")
+async def qa_context_route(pid: str, qa_id: str):
+    """A pair with its full source chunk, for the review panel."""
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    from finetune_studio.data.fs.qa_review import pair_context
+    ctx = await asyncio.to_thread(pair_context, pid, qa_id)
+    if ctx is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return ctx
+
+
+@router.post("/projects/{pid}/data-prep/qa")
+async def add_qa_route(pid: str, request: Request):
+    """Add a pair the reviewer wrote (a fact the miner never stated). Body: source_id, chunk_idx, question, answer."""
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    body = await request.json()
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON object body required"}, status_code=400)
+    question, answer = str(body.get("question") or "").strip(), str(body.get("answer") or "").strip()
+    if not question or not answer or not body.get("source_id"):
+        return JSONResponse({"error": "source_id, question and answer are required"}, status_code=400)
+    from finetune_studio.data.fs.qa_review import add_reviewer_pair
+    try:
+        return await asyncio.to_thread(add_reviewer_pair, pid, str(body["source_id"]), int(body.get("chunk_idx") or 1),
+                                       question, answer)
+    except KeyError as e:
+        return JSONResponse({"error": str(e)}, status_code=404)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
 
 
 @router.post("/projects/{pid}/data-prep/dedupe")
@@ -800,7 +847,9 @@ async def update_qa_route(pid: str, qa_id: str, request: Request):
             status_code=400,
         )
     from finetune_studio.data import project_filesystem as pfs
-    updated = pfs.update_qa_pair(pid, qa_id, **fields)
+    if "status" in fields:
+        fields["reviewed_at"] = time.time()  # a human verdict (approve/reject/reset) — told apart from machine auto-approval
+    updated = await asyncio.to_thread(pfs.update_qa_pair, pid, qa_id, **fields)
     if updated is None:
         return JSONResponse({"error": "not found"}, status_code=404)
     return updated
@@ -813,13 +862,21 @@ async def bulk_action(pid: str, request: Request):
         return missing
     body = await request.json()
     ids, action = body.get("ids", []), body.get("action", "")
-    new_status = {"approve": "approved", "reject": "rejected"}.get(action)
+    new_status = {"approve": "approved", "reject": "rejected", "reset": "pending"}.get(action)
     if not new_status:
         return JSONResponse({"error": f"unknown action: {action}"}, status_code=400)
+    note = body.get("note")
     from finetune_studio.data import project_filesystem as pfs
-    for qa_id in ids:
-        pfs.update_qa_pair(pid, qa_id, status=new_status)
-    return {"ok": True, "updated": len(ids)}
+    from finetune_studio.data.fs.qa_review import status_counts
+
+    def _apply() -> tuple[int, dict[str, int]]:
+        extra = {"note": str(note)} if note is not None else {}
+        done = sum(1 for qa_id in ids
+                   if pfs.update_qa_pair(pid, qa_id, status=new_status, reviewed_at=time.time(), **extra) is not None)
+        return done, status_counts(pfs.list_qa_pairs(pid))
+
+    updated, counts = await asyncio.to_thread(_apply)
+    return {"ok": True, "updated": updated, "counts": counts}
 
 
 @router.delete("/projects/{pid}/data-prep/source/{source_id}")

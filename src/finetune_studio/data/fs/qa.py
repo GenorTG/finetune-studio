@@ -10,6 +10,8 @@ import hashlib
 import json
 import logging
 import mimetypes
+import os
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -211,23 +213,43 @@ def read_qa_source(pid: str, source_id: str) -> dict:
         return {}
 
 
+# Parsed pair files keyed by directory, then file name -> (mtime_ns, size, record). A listing stats every file (cheap) and
+# re-reads only the ones that changed, so reviewing thousands of pairs does not re-parse every JSON file per click.
+# Validation is by stat, not by invalidation hooks: pairs written by the miner, the Guide or another process are picked up too.
+_PAIR_CACHE: dict[str, dict[str, tuple[int, int, dict]]] = {}
+_PAIR_CACHE_LOCK = threading.Lock()
+
+
 def list_qa_pairs(pid: str, source_id: str | None = None, status: str | None = None) -> list[dict]:
     pairs_dir = project_dir(pid) / "qa" / "pairs"
     if not pairs_dir.exists():
         return []
-    out = []
+    key = str(pairs_dir)
+    with _PAIR_CACHE_LOCK:
+        known = _PAIR_CACHE.get(key, {})
+    fresh: dict[str, tuple[int, int, dict]] = {}
     skipped = 0
-    for p in sorted(pairs_dir.glob("*.json")):
+    with os.scandir(pairs_dir) as it:
+        entries = sorted((e for e in it if e.name.endswith(".json")), key=lambda e: e.name)
+    for entry in entries:
         try:
-            qa = json.loads(p.read_text(encoding="utf-8"))
+            st = entry.stat()
+            hit = known.get(entry.name)
+            if hit is not None and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
+                fresh[entry.name] = hit
+                continue
+            fresh[entry.name] = (st.st_mtime_ns, st.st_size, json.loads(Path(entry.path).read_text(encoding="utf-8")))
         except Exception:  # noqa: BLE001
             skipped += 1
-            continue
+    with _PAIR_CACHE_LOCK:
+        _PAIR_CACHE[key] = fresh
+    out = []
+    for _mtime, _size, qa in fresh.values():
         if source_id and qa.get("source_id") != source_id:
             continue
         if status and qa.get("status") != status:
             continue
-        out.append(qa)
+        out.append(dict(qa))  # callers may edit what they get; never hand out the cached object itself
     if skipped:
         log.warning("list_qa_pairs(%s): skipped %d corrupt/unreadable pair file(s) under %s", pid, skipped, pairs_dir)
     return out

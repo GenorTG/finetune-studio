@@ -25,7 +25,10 @@
       <div class="card-title">Workflow</div>
       <div class="card-sub">Upload → Parse → Prepare/QA → (optional) Embed on RAG → Train</div>
     </div>
-    <a href="/projects/{{ pid }}/rag" class="btn" data-link id="dp-cta-rag">Open RAG workspace →</a>
+    <div class="flex gap-2">
+      <button class="btn primary" type="button" id="dp-jump-review" title="Jump to the review workspace">Review pairs · <span id="dp-jump-count">0</span> pending ↓</button>
+      <a href="/projects/{{ pid }}/rag" class="btn" data-link id="dp-cta-rag">Open RAG workspace →</a>
+    </div>
   </div>
   <ol class="rag-workflow-steps" aria-label="Data prep workflow">
     <li><b>Upload</b> files into the library below</li>
@@ -368,6 +371,26 @@
 .dp-status-pending  { color: var(--warn-text, var(--accent-amber, #ffaa00)); }
 .dp-status-approved { color: var(--accent); }
 .dp-status-rejected { color: var(--accent-rose, #ff6666); }
+.dp-rq-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+.dp-rq-bar select { max-width: 340px; }
+.dp-rq-bar input[type=search] { min-width: 240px; flex: 0 1 320px; }
+.dp-rq-help { padding: 6px 10px; border: 1px solid var(--border, #333); border-radius: 4px; margin-bottom: 8px; line-height: 1.7; }
+.dp-rq-main { display:grid; grid-template-columns: minmax(280px, 38%) 1fr; gap: 12px; align-items: start; }
+@media (max-width: 900px) { .dp-rq-main { grid-template-columns: 1fr; } }
+.dp-rq-list { max-height: 78vh; overflow-y: auto; border: 1px solid var(--border, #333); border-radius: 4px; }
+.dp-rq-list .dp-results-table td { padding: 5px 8px; }
+.dp-rq-row { cursor: pointer; }
+.dp-rq-row.cur td { background: rgba(0, 204, 255, 0.14) !important; box-shadow: inset 3px 0 0 var(--accent, #00ccff); }
+.dp-rq-a { color: var(--text-dim, #888); font-size: 11px; }
+.dp-rq-detail { position: sticky; top: 8px; max-height: 92vh; overflow-y: auto; padding: 10px 12px; border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-elevated, #0a0a0a); }
+.dp-rq-detail textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; margin: 2px 0 8px; resize: vertical; }
+.dp-rq-head { margin-bottom: 8px; }
+.dp-rq-actions { display:flex; gap:6px; flex-wrap: wrap; margin: 4px 0 8px; }
+.dp-rq-reasons { display:flex; gap:6px; flex-wrap: wrap; align-items:center; margin-bottom: 8px; }
+.dp-rq-reasons input { flex: 1 1 200px; }
+.dp-rq-add { margin: 8px 0; padding: 8px; border: 1px dashed var(--border, #444); border-radius: 4px; }
+.dp-rq-src { white-space: pre-wrap; word-break: break-word; font-size: 12px; max-height: 38vh; overflow-y: auto; padding: 8px; border: 1px solid var(--border, #333); border-radius: 4px; margin: 4px 0 0; }
+.dp-rq-src mark { background: rgba(255, 200, 0, 0.28); color: inherit; padding: 0 1px; }
 .dp-empty {
   padding: 24px;
   text-align: center;
@@ -1598,10 +1621,18 @@ function flFormatBytes(n) {
   else flInit();
 })();
 
-// Load + render the prepped Q&A pairs for this project (review → approve → export).
+// ── Review workspace: one pair at a time, keyboard first, no refetch per verdict ───────────────────────
+// State lives here; a verdict updates it at once and is saved in the background (ordered queue). The server
+// returns slim rows in document order (GET .../qa/queue) and a pair's whole source chunk on demand (.../context).
 var _prepPid = {{ pid | tojson }};
-var _dpQaItems = [];
 var _dpFilter = 'pending';
+var _rq = {
+  items: [], total: 0, counts: { pending: 0, approved: 0, rejected: 0 }, sources: [], sourceSig: '',
+  status: 'pending', source: '', text: '', cur: 0, ctx: {}, ctxP: {}, undo: [], chain: Promise.resolve(),
+  inflight: 0, loading: false, rejecting: false, adding: false, pageSize: 200, built: false, lastTouch: 0, saved: 0,
+};
+var RQ_REASONS = ['wrong value', 'quote echo / not a real question', 'duplicate of another pair', 'junk / unusable',
+                  'missing unit or wrong premise'];
 
 function dpBridgeStatus(msg, state) {
   var el = document.getElementById('dp-bridge-status');
@@ -1614,46 +1645,39 @@ function dpBridgeStatus(msg, state) {
   }
 }
 
+function rqBase() { return '/api/projects/' + encodeURIComponent(_prepPid) + '/data-prep'; }
+
+function rqCur() { return _rq.items[_rq.cur] || null; }
+
 function dpSetFilter(next) {
-  _dpFilter = next || 'all';
+  _dpFilter = _rq.status = next || 'all';
   document.querySelectorAll('[data-dp-filter]').forEach(function (btn) {
-    var on = btn.getAttribute('data-dp-filter') === _dpFilter;
-    btn.classList.toggle('primary', on);
+    btn.classList.toggle('primary', btn.getAttribute('data-dp-filter') === _dpFilter);
   });
-  dpRenderResults();
+  rqLoad({});
 }
 
-function dpUpdateStats(items) {
-  var pending = 0, approved = 0, rejected = 0;
-  (items || []).forEach(function (q) {
-    var st = q.status || 'pending';
-    if (st === 'approved') approved++;
-    else if (st === 'rejected') rejected++;
-    else pending++;
-  });
-  var set = function (id, text) {
-    var el = document.getElementById(id);
-    if (el) el.textContent = text;
-  };
-  set('dp-stat-total', (items || []).length + ' total');
-  set('dp-stat-pending', pending + ' pending');
-  set('dp-stat-approved', approved + ' approved');
-  set('dp-stat-rejected', rejected + ' rejected');
-  dpPrefSyncApproved(approved);
-  return { pending: pending, approved: approved, rejected: rejected };
+function dpUpdateStats() {
+  var c = _rq.counts, set = function (id, text) { var el = document.getElementById(id); if (el) el.textContent = text; };
+  set('dp-stat-total', (c.pending + c.approved + c.rejected) + ' total');
+  set('dp-stat-pending', c.pending + ' pending');
+  set('dp-stat-approved', c.approved + ' approved');
+  set('dp-stat-rejected', c.rejected + ' rejected');
+  dpPrefSyncApproved(c.approved);
+  set('dp-jump-count', String(c.pending));
 }
 
-function dpFilteredItems() {
-  if (_dpFilter === 'all') return _dpQaItems.slice();
-  return _dpQaItems.filter(function (q) {
-    return (q.status || 'pending') === _dpFilter;
+(function dpWireJump() {
+  var b = document.getElementById('dp-jump-review');
+  if (b) b.addEventListener('click', function () {
+    var card = document.getElementById('dp-review-card');
+    if (card) card.scrollIntoView({ block: 'start', behavior: 'smooth' });
   });
-}
+})();
 
 function dpSelectedIds() {
-  var boxes = document.querySelectorAll('#dp-results input.dp-qa-check:checked');
   var ids = [];
-  boxes.forEach(function (b) { if (b.value) ids.push(b.value); });
+  document.querySelectorAll('#dp-results input.dp-qa-check:checked').forEach(function (b) { if (b.value) ids.push(b.value); });
   return ids;
 }
 
@@ -1698,102 +1722,457 @@ async function dpRefreshExportedDatasets() {
   }
 }
 
-function dpRenderResults() {
+function rqUrl(offset) {
+  var p = new URLSearchParams();
+  if (_rq.status !== 'all') p.set('status', _rq.status);
+  if (_rq.source) p.set('source_id', _rq.source);
+  if (_rq.text) p.set('q', _rq.text);
+  p.set('offset', String(offset));
+  p.set('limit', String(_rq.pageSize));
+  return rqBase() + '/qa/queue?' + p.toString();
+}
+
+// Load a page. opts.append adds the next page; opts.keepId keeps the cursor on that pair after a reload.
+async function rqLoad(opts) {
+  opts = opts || {};
+  if (_rq.loading) return;
+  _rq.loading = true;
+  try {
+    if (opts.append) await _rq.chain;  // pending saves must land first, or the server's offsets no longer match our list
+    var res = await fetch(rqUrl(opts.append ? _rq.items.length : 0), { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var data = await res.json();
+    var keep = opts.keepId || (opts.append ? null : (rqCur() || {}).id);
+    if (opts.append) {
+      var have = {};
+      _rq.items.forEach(function (q) { have[q.id] = true; });
+      _rq.items = _rq.items.concat((data.items || []).filter(function (q) { return !have[q.id]; }));
+    } else {
+      _rq.items = data.items || [];
+      var at = keep ? _rq.items.findIndex(function (q) { return q.id === keep; }) : -1;
+      _rq.cur = at >= 0 ? at : Math.min(_rq.cur, Math.max(_rq.items.length - 1, 0));
+    }
+    _rq.total = data.total || 0;
+    _rq.counts = data.counts || _rq.counts;
+    _rq.sources = data.sources || [];
+  } catch (e) {
+    var el = document.getElementById('dp-results');
+    if (el && !_rq.built) el.innerHTML = '<div class="dp-empty">Failed to load: ' + escapeHtml((e && e.message) || String(e)) + '</div>';
+    else dpBridgeStatus('Could not load pairs: ' + ((e && e.message) || e), 'error');
+    return;
+  } finally {
+    _rq.loading = false;
+  }
+  rqRender();
+}
+
+function rqShell() {
+  var el = document.getElementById('dp-results');
+  if (!el) return false;
+  if (_rq.built && el.querySelector('.dp-rq')) return true;
+  el.innerHTML =
+    '<div class="dp-rq">' +
+      '<div class="dp-rq-bar">' +
+        '<select id="dp-rq-source" aria-label="Source file"></select>' +
+        '<input id="dp-rq-search" type="search" placeholder="Search question / answer  ( / )" aria-label="Search pairs">' +
+        '<span id="dp-rq-saving" class="text-xs dim" role="status" aria-live="polite"></span>' +
+        '<span style="flex:1 1 auto"></span>' +
+        '<button class="btn sm" type="button" id="dp-rq-help-btn" title="Keyboard shortcuts">Keys ?</button>' +
+      '</div>' +
+      '<div id="dp-rq-help" class="dp-rq-help text-xs" hidden>' +
+        '<b>A</b> approve &amp; next · <b>R</b> reject (then <b>1–5</b> picks a reason, <b>0</b> types your own + Enter) · <b>U</b> undo · ' +
+        '<b>J / K</b> or arrows next / previous · <b>E</b> edit the answer · <b>Ctrl+Enter</b> in a field = save edit &amp; approve · ' +
+        '<b>N</b> add a pair the miner missed · <b>/</b> search · <b>Esc</b> leave a field' +
+      '</div>' +
+      '<div class="dp-rq-main">' +
+        '<div class="dp-rq-list" id="dp-rq-list"></div>' +
+        '<div class="dp-rq-detail" id="dp-rq-detail"></div>' +
+      '</div>' +
+    '</div>';
+  document.getElementById('dp-rq-source').addEventListener('change', function (ev) {
+    _rq.source = ev.target.value; rqLoad({});
+  });
+  var timer = null;
+  document.getElementById('dp-rq-search').addEventListener('input', function (ev) {
+    clearTimeout(timer);
+    var v = ev.target.value;
+    timer = setTimeout(function () { _rq.text = v; rqLoad({}); }, 250);
+  });
+  document.getElementById('dp-rq-help-btn').addEventListener('click', function () {
+    var h = document.getElementById('dp-rq-help'); h.hidden = !h.hidden;
+  });
+  document.getElementById('dp-rq-list').addEventListener('click', function (ev) {
+    if (ev.target.closest && ev.target.closest('input.dp-qa-check')) return;
+    var tr = ev.target.closest && ev.target.closest('tr[data-i]');
+    if (tr) rqGo(parseInt(tr.getAttribute('data-i'), 10) - _rq.cur);
+  });
+  document.getElementById('dp-rq-detail').addEventListener('click', rqDetailClick);
+  _rq.built = true;
+  return true;
+}
+
+function rqRender() {
+  var c = _rq.counts;
+  dpUpdateStats();
   var el = document.getElementById('dp-results');
   if (!el) return;
-  var stats = dpUpdateStats(_dpQaItems);
-  if (!_dpQaItems.length) {
+  if (!(c.pending + c.approved + c.rejected)) {
+    _rq.built = false;
     el.innerHTML = '<div class="dp-empty">No Q&amp;A pairs yet. Run a prep job above, or use the Chat tab in Agent mode to mine pairs from your sources. Then approve and export here so Training can pick the dataset.</div>';
     el.dataset.ready = '1';
     return;
   }
-  var items = dpFilteredItems();
-  if (!items.length) {
-    el.innerHTML = '<div class="dp-empty">No ' + escapeHtml(_dpFilter) + ' pairs. Switch filter or approve pending rows (' + stats.pending + ' pending, ' + stats.approved + ' approved).</div>';
-    el.dataset.ready = '1';
+  rqShell();
+  rqRenderSources();
+  rqRenderList();
+  rqRenderDetail();
+  rqIndicator();
+  el.dataset.ready = '1';
+}
+
+function rqRenderSources() {
+  var sel = document.getElementById('dp-rq-source');
+  if (!sel) return;
+  var sig = JSON.stringify(_rq.sources) + '|' + _rq.source;
+  if (sig === _rq.sourceSig) return;
+  _rq.sourceSig = sig;
+  var c = _rq.counts;
+  sel.innerHTML = '<option value="">All files · ' + c.pending + ' pending</option>' + _rq.sources.map(function (s) {
+    return '<option value="' + escapeHtml(s.source_id) + '"' + (s.source_id === _rq.source ? ' selected' : '') + '>' +
+      escapeHtml(s.filename) + ' · ' + s.pending + ' pending / ' + s.approved + ' ok / ' + s.rejected + ' rej</option>';
+  }).join('');
+}
+
+function rqRenderList() {
+  var host = document.getElementById('dp-rq-list');
+  if (!host) return;
+  if (!_rq.items.length) {
+    host.innerHTML = '<div class="dp-empty">No ' + escapeHtml(_rq.status === 'all' ? '' : _rq.status) + ' pairs here. ' +
+      (_rq.status === 'pending' ? 'Everything in this view is reviewed — switch the filter to look back, or export.' : 'Change the filter.') + '</div>';
     return;
   }
-  var rows = items.slice(0, 100).map(function (q) {
-    var status = (q.status || 'pending');
-    var statusClass = 'dp-status-' + status;
-    var id = q.id || '';
-    var acts = '';
-    if (status === 'pending' || status === 'rejected') {
-      acts += '<button class="btn sm success" type="button" data-dp-act="approve" data-id="' + escapeHtml(id) + '" title="Approve">Approve</button> ';
-    }
-    if (status === 'pending' || status === 'approved') {
-      acts += '<button class="btn sm danger" type="button" data-dp-act="reject" data-id="' + escapeHtml(id) + '" title="Reject">Reject</button>';
-    }
-    return '<tr>' +
-      '<td class="meta"><input type="checkbox" class="dp-qa-check" value="' + escapeHtml(id) + '" aria-label="Select pair"></td>' +
-      '<td class="meta"><span class="' + statusClass + '">' + escapeHtml(status) + '</span></td>' +
-      '<td class="meta">' + escapeHtml(q.source_filename || q.source_id || '') + '</td>' +
-      '<td class="q">' + escapeHtml((q.question || '').slice(0, 200)) + '</td>' +
-      '<td class="a">' + escapeHtml((q.answer || '').slice(0, 200)) + '</td>' +
-      '<td class="meta" title="' + (q.created_at ? new Date(q.created_at * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC' : '') + '">' + (q.created_at ? new Date(q.created_at * 1000).toLocaleString([], {dateStyle: 'short', timeStyle: 'short'}) : '') + '</td>' +
-      '<td class="dp-acts">' + acts + '</td>' +
-      '</tr>';
+  var rows = _rq.items.map(function (q, i) {
+    var st = q.status || 'pending';
+    return '<tr data-i="' + i + '" class="dp-rq-row' + (i === _rq.cur ? ' cur' : '') + '">' +
+      '<td class="meta"><input type="checkbox" class="dp-qa-check" value="' + escapeHtml(q.id) + '" aria-label="Select pair"></td>' +
+      '<td class="meta"><span class="dp-status-' + st + '" title="' + st + '">' + (st === 'approved' ? '✓' : st === 'rejected' ? '✗' : '·') + '</span></td>' +
+      '<td class="q"><div>' + escapeHtml((q.question || '').slice(0, 110)) + '</div>' +
+      '<div class="a dp-rq-a">' + escapeHtml((q.answer || '').slice(0, 90)) + '</div>' +
+      '<div class="meta">' + escapeHtml(q.source_filename || '') + ' #' + (q.chunk_idx || '?') + '</div></td></tr>';
   }).join('');
-  el.innerHTML =
-    '<div class="text-xs muted mb-2">Step: review pending → Approve → <strong>Export approved → Training</strong>. Training lists exported datasets under “From this project”.</div>' +
-    '<table class="dp-results-table">' +
-      '<thead><tr>' +
-        '<th class="meta" style="width:2em"><input type="checkbox" id="dp-check-all" title="Select all visible" aria-label="Select all visible"></th>' +
-        '<th class="meta" title="Lifecycle: pending (awaiting review), approved (ready to export), rejected (skip).">status</th>' +
-        '<th class="meta" title="Source file this pair was generated from.">source</th>' +
-        '<th class="meta" title="User-style question.">question</th>' +
-        '<th class="meta" title="Assistant-style answer.">answer</th>' +
-        '<th class="meta" title="Created (your local time; hover a cell for UTC).">created</th>' +
-        '<th class="meta">actions</th>' +
-      '</tr></thead>' +
-      '<tbody>' + rows + '</tbody></table>' +
-      (items.length > 100 ? '<div class="dim text-xs mt-2">Showing first 100 of ' + items.length + '.</div>' : '');
-  el.dataset.ready = '1';
+  var keepChecked = {};
+  host.querySelectorAll('input.dp-qa-check:checked').forEach(function (b) { keepChecked[b.value] = true; });
+  host.innerHTML = '<table class="dp-results-table"><tbody>' + rows + '</tbody></table>' +
+    (_rq.items.length < _rq.total
+      ? '<div class="dim text-xs mt-2">' + _rq.items.length + ' of ' + _rq.total + ' loaded — the next page loads as you reach the end.</div>' : '');
+  host.querySelectorAll('input.dp-qa-check').forEach(function (b) { if (keepChecked[b.value]) b.checked = true; });
+  var row = host.querySelector('tr.cur');
+  if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
+}
 
-  var checkAll = document.getElementById('dp-check-all');
-  if (checkAll) {
-    checkAll.addEventListener('change', function () {
-      document.querySelectorAll('#dp-results input.dp-qa-check').forEach(function (b) {
-        b.checked = checkAll.checked;
-      });
-    });
+function rqMarkCur() {
+  var host = document.getElementById('dp-rq-list');
+  if (!host) return;
+  var prev = host.querySelector('tr.cur');
+  if (prev) prev.classList.remove('cur');
+  var next = host.querySelector('tr[data-i="' + _rq.cur + '"]');
+  if (next) { next.classList.add('cur'); if (next.scrollIntoView) next.scrollIntoView({ block: 'nearest' }); }
+}
+
+function rqRenderDetail() {
+  var box = document.getElementById('dp-rq-detail');
+  if (!box) return;
+  var it = rqCur();
+  if (!it) { box.innerHTML = '<div class="dp-empty">Nothing selected.</div>'; return; }
+  var st = it.status || 'pending';
+  box.innerHTML =
+    '<div class="dp-rq-head text-xs">' +
+      '<b>' + escapeHtml(it.source_filename || it.source_id || '') + '</b> · chunk <span id="dp-rq-chunkpos">' + (it.chunk_idx || '?') + '</span>' +
+      ' · <span class="dp-status-' + st + '">' + st + '</span>' + (it.origin ? ' · ' + escapeHtml(it.origin) : '') +
+      (it.note ? ' · note: ' + escapeHtml(it.note) : '') +
+      ' · <span class="dim">' + (_rq.cur + 1) + ' / ' + _rq.items.length + (_rq.total > _rq.items.length ? ' (of ' + _rq.total + ')' : '') + '</span>' +
+    '</div>' +
+    '<label class="text-xs dim" for="dp-rq-q">Question</label>' +
+    '<textarea id="dp-rq-q" rows="2" spellcheck="false">' + escapeHtml(it.question || '') + '</textarea>' +
+    '<label class="text-xs dim" for="dp-rq-a">Answer</label>' +
+    '<textarea id="dp-rq-a" rows="3" spellcheck="false">' + escapeHtml(it.answer || '') + '</textarea>' +
+    '<div class="dp-rq-actions">' +
+      '<button class="btn success" type="button" data-rq="approve" title="Approve (A)">Approve · A</button>' +
+      '<button class="btn danger" type="button" data-rq="reject" title="Reject (R)">Reject · R</button>' +
+      '<button class="btn" type="button" data-rq="undo" title="Undo the last verdict (U)">Undo · U</button>' +
+      '<button class="btn" type="button" data-rq="prev" title="Previous (K)">◀</button>' +
+      '<button class="btn" type="button" data-rq="next" title="Next (J)">▶</button>' +
+      '<button class="btn" type="button" data-rq="add" title="Add a pair the miner missed (N)">+ Add pair · N</button>' +
+    '</div>' +
+    '<div id="dp-rq-reasons" class="dp-rq-reasons" hidden>' +
+      RQ_REASONS.map(function (r, i) { return '<button class="btn sm" type="button" data-rq-reason="' + i + '">' + (i + 1) + ' · ' + escapeHtml(r) + '</button>'; }).join('') +
+      '<input id="dp-rq-reason" type="text" placeholder="0 · other reason, Enter to reject" aria-label="Reject reason">' +
+    '</div>' +
+    '<div id="dp-rq-add" class="dp-rq-add" hidden>' +
+      '<div class="text-xs dim">A fact in this chunk that no pair states (saved approved, chunk ' + (it.chunk_idx || '?') + ').</div>' +
+      '<textarea id="dp-rq-add-q" rows="2" placeholder="Question" spellcheck="false"></textarea>' +
+      '<textarea id="dp-rq-add-a" rows="2" placeholder="Answer" spellcheck="false"></textarea>' +
+      '<button class="btn sm success" type="button" data-rq="add-save">Save pair · Ctrl+Enter</button>' +
+    '</div>' +
+    '<div class="text-xs dim" style="margin-top:10px;">Source chunk <span id="dp-rq-chunkof"></span></div>' +
+    '<pre id="dp-rq-src" class="dp-rq-src">Loading source…</pre>';
+  _rq.rejecting = false; _rq.adding = false;
+  rqRenderSource();
+  rqEnsureCtx(it.id);
+  rqPrefetch();
+}
+
+function rqEnsureCtx(id) {
+  if (_rq.ctx[id]) return Promise.resolve(_rq.ctx[id]);
+  if (_rq.ctxP[id]) return _rq.ctxP[id];
+  _rq.ctxP[id] = fetch(rqBase() + '/qa/' + encodeURIComponent(id) + '/context', { cache: 'no-store' }).then(function (r) {
+    return r.ok ? r.json() : null;
+  }).then(function (ctx) {
+    if (ctx) _rq.ctx[id] = ctx;
+    delete _rq.ctxP[id];
+    var it = rqCur();
+    if (it && it.id === id) rqRenderSource();
+    return ctx;
+  }).catch(function () { delete _rq.ctxP[id]; return null; });
+  return _rq.ctxP[id];
+}
+
+function rqPrefetch() {
+  for (var k = 1; k <= 3; k++) {
+    var nxt = _rq.items[_rq.cur + k];
+    if (nxt) rqEnsureCtx(nxt.id);
   }
-  el.querySelectorAll('[data-dp-act]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var act = btn.getAttribute('data-dp-act');
-      var id = btn.getAttribute('data-id');
-      if (id && (act === 'approve' || act === 'reject')) dpBulkAction([id], act);
-    });
+  var keys = Object.keys(_rq.ctx);
+  if (keys.length > 60) keys.slice(0, keys.length - 60).forEach(function (k) { delete _rq.ctx[k]; });
+}
+
+// Highlight the answer's distinctive tokens (numbers, codes, longer words) inside the source chunk.
+function rqHighlight(chunk, answer) {
+  var toks = {};
+  (String(answer || '').match(/[0-9][0-9.,:%\/-]*|[A-Za-zÀ-ɏ][\wÀ-ɏ.-]{3,}/g) || []).forEach(function (t) {
+    t = t.replace(/[.,:;-]+$/, '');
+    if (t.length >= 2) toks[t.toLowerCase()] = true;
+  });
+  var list = Object.keys(toks).sort(function (a, b) { return b.length - a.length; }).slice(0, 40);
+  var safe = escapeHtml(chunk);
+  if (!list.length) return safe;
+  var rx = new RegExp('(' + list.map(function (t) { return escapeHtml(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('|') + ')', 'gi');
+  return safe.replace(rx, '<mark>$1</mark>');
+}
+
+function rqRenderSource() {
+  var it = rqCur(), pre = document.getElementById('dp-rq-src');
+  if (!it || !pre) return;
+  var ctx = _rq.ctx[it.id];
+  if (!ctx) { pre.textContent = 'Loading source…'; return; }
+  pre.innerHTML = rqHighlight(ctx.chunk_text || '', (document.getElementById('dp-rq-a') || {}).value || it.answer);
+  var of = document.getElementById('dp-rq-chunkof');
+  if (of) of.textContent = '(' + ctx.chunk_idx + ' of ' + ctx.chunk_total + (ctx.same_chunk_pairs ? ' · ' + ctx.same_chunk_pairs + ' other pair(s) from this chunk' : '') + ')';
+}
+
+function rqIndicator() {
+  var el = document.getElementById('dp-rq-saving');
+  if (!el) return;
+  el.textContent = _rq.inflight ? 'saving ' + _rq.inflight + '…' : (_rq.saved ? 'all saved' : '');
+}
+
+// Saves run strictly in order; a failure reloads the list from the server so the screen never lies about what is stored.
+function rqSend(job) {
+  _rq.inflight++;
+  rqIndicator();
+  _rq.chain = _rq.chain.then(job).then(function () { _rq.saved++; }).catch(function (e) {
+    dpBridgeStatus('Saving failed: ' + ((e && e.message) || e) + ' — reloading from the server.', 'error');
+    return rqLoad({ keepId: (rqCur() || {}).id });
+  }).then(function () { _rq.inflight--; rqIndicator(); });
+  return _rq.chain;
+}
+
+function rqPatch(id, fields) {
+  return rqSend(function () {
+    return fetch(rqBase() + '/qa/' + encodeURIComponent(id), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields),
+    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); });
   });
 }
 
+function rqMaybeLoadMore() {
+  if (_rq.items.length < _rq.total && _rq.items.length - _rq.cur < 40 && !_rq.loading) rqLoad({ append: true });
+}
+
+function rqGo(delta) {
+  if (!_rq.items.length) return;
+  var next = Math.max(0, Math.min(_rq.items.length - 1, _rq.cur + delta));
+  if (next === _rq.cur && delta !== 0) { rqMaybeLoadMore(); return; }
+  _rq.cur = next;
+  rqMarkCur();
+  rqRenderDetail();
+  rqMaybeLoadMore();
+}
+
+// Apply a verdict on screen first, then persist it. note = reject reason.
+function rqVerdict(action, note) {
+  var it = rqCur();
+  if (!it) return;
+  var qEl = document.getElementById('dp-rq-q'), aEl = document.getElementById('dp-rq-a');
+  var fields = { status: action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'pending' };
+  if (action === 'approve') {
+    var q = qEl ? qEl.value.trim() : it.question, a = aEl ? aEl.value.trim() : it.answer;
+    if (q && q !== it.question) fields.question = q;
+    if (a && a !== it.answer) fields.answer = a;
+  }
+  if (note != null) fields.note = note;
+  var before = { id: it.id, status: it.status || 'pending', note: it.note || '', question: it.question, answer: it.answer };
+  _rq.undo.push(before);
+  if (_rq.undo.length > 100) _rq.undo.shift();
+  var c = _rq.counts;
+  c[before.status] = Math.max(0, c[before.status] - 1);
+  c[fields.status] = (c[fields.status] || 0) + 1;
+  Object.assign(it, fields);
+  var matches = _rq.status === 'all' || _rq.status === fields.status;
+  if (matches) { _rq.cur = Math.min(_rq.cur + 1, _rq.items.length - 1); }
+  else { _rq.items.splice(_rq.cur, 1); _rq.total = Math.max(0, _rq.total - 1); _rq.cur = Math.min(_rq.cur, Math.max(_rq.items.length - 1, 0)); }
+  _rq.rejecting = false;
+  rqRenderSources(); // counts per file changed
+  rqPatchSourceCounts(it.source_id, before.status, fields.status);
+  dpUpdateStats();
+  rqRenderList();
+  rqRenderDetail();
+  rqPatch(it.id, fields);
+  rqMaybeLoadMore();
+}
+
+function rqPatchSourceCounts(sourceId, from, to) {
+  _rq.sources.forEach(function (s) {
+    if (s.source_id !== sourceId) return;
+    s[from] = Math.max(0, s[from] - 1); s[to] = (s[to] || 0) + 1;
+  });
+  _rq.sourceSig = ''; rqRenderSources();
+}
+
+function rqUndo() {
+  var last = _rq.undo.pop();
+  if (!last) { dpBridgeStatus('Nothing to undo.', 'info'); return; }
+  rqPatch(last.id, { status: last.status, note: last.note, question: last.question, answer: last.answer }).then(function () {
+    return rqLoad({ keepId: last.id });
+  });
+}
+
+function rqShowReasons(on) {
+  _rq.rejecting = on;
+  var box = document.getElementById('dp-rq-reasons');
+  if (!box) return;
+  box.hidden = !on;
+  if (on) { var inp = document.getElementById('dp-rq-reason'); if (inp) { inp.value = ''; } }
+}
+
+function rqShowAdd(on) {
+  _rq.adding = on;
+  var box = document.getElementById('dp-rq-add');
+  if (!box) return;
+  box.hidden = !on;
+  if (on) { var q = document.getElementById('dp-rq-add-q'); if (q) q.focus(); }
+}
+
+async function rqAddPair() {
+  var it = rqCur(), q = document.getElementById('dp-rq-add-q'), a = document.getElementById('dp-rq-add-a');
+  if (!it || !q || !a || !q.value.trim() || !a.value.trim()) { dpBridgeStatus('Write both a question and an answer.', 'error'); return; }
+  await _rq.chain;
+  var res = await fetch(rqBase() + '/qa', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source_id: it.source_id, chunk_idx: it.chunk_idx, question: q.value, answer: a.value }),
+  });
+  var data = await res.json().catch(function () { return {}; });
+  if (!res.ok) { dpBridgeStatus(String(data.error || ('HTTP ' + res.status)), 'error'); return; }
+  _rq.counts.approved++;
+  dpBridgeStatus('Added and approved: ' + data.question.slice(0, 80), 'success');
+  await rqLoad({ keepId: it.id });
+}
+
+function rqDetailClick(ev) {
+  var reason = ev.target.closest && ev.target.closest('[data-rq-reason]');
+  if (reason) { rqVerdict('reject', RQ_REASONS[parseInt(reason.getAttribute('data-rq-reason'), 10)]); return; }
+  var btn = ev.target.closest && ev.target.closest('[data-rq]');
+  if (!btn) return;
+  var act = btn.getAttribute('data-rq');
+  if (act === 'approve') rqVerdict('approve');
+  else if (act === 'reject') rqShowReasons(!_rq.rejecting);
+  else if (act === 'undo') rqUndo();
+  else if (act === 'prev') rqGo(-1);
+  else if (act === 'next') rqGo(1);
+  else if (act === 'add') rqShowAdd(!_rq.adding);
+  else if (act === 'add-save') rqAddPair();
+}
+
+function rqKey(ev) {
+  if (!document.getElementById('dp-rq-detail')) return;
+  var t = ev.target, tag = t && t.tagName;
+  var typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable);
+  if (typing) {
+    if (ev.key === 'Escape') { t.blur(); return; }
+    if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
+      ev.preventDefault();
+      if (t.id === 'dp-rq-add-q' || t.id === 'dp-rq-add-a') rqAddPair(); else rqVerdict('approve');
+      return;
+    }
+    if (t.id === 'dp-rq-reason' && ev.key === 'Enter' && t.value.trim()) { ev.preventDefault(); rqVerdict('reject', t.value.trim()); }
+    if (t.id === 'dp-rq-a') setTimeout(rqRenderSource, 0); // keep the highlight in step with the edited answer
+    return;
+  }
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  var inside = document.activeElement === document.body || (document.activeElement && document.activeElement.closest && document.activeElement.closest('.dp-rq'));
+  if (!inside) return;
+  var key = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+  if (_rq.rejecting && (key === '0' || key === 'o')) {
+    ev.preventDefault();
+    var other = document.getElementById('dp-rq-reason');
+    if (other) other.focus();
+    return;
+  }
+  if (_rq.rejecting && /^[1-9]$/.test(key)) {
+    var reason = RQ_REASONS[parseInt(key, 10) - 1];
+    if (reason) { ev.preventDefault(); rqVerdict('reject', reason); }
+    return;
+  }
+  var handled = true;
+  if (key === 'a') rqVerdict('approve');
+  else if (key === 'r') rqShowReasons(!_rq.rejecting);
+  else if (key === 'u') rqUndo();
+  else if (key === 'j' || key === 'ArrowDown') rqGo(1);
+  else if (key === 'k' || key === 'ArrowUp') rqGo(-1);
+  else if (key === 'e') { var a = document.getElementById('dp-rq-a'); if (a) { a.focus(); a.setSelectionRange(a.value.length, a.value.length); } }
+  else if (key === 'n') rqShowAdd(!_rq.adding);
+  else if (key === '/') { var s = document.getElementById('dp-rq-search'); if (s) s.focus(); }
+  else if (key === '?') { var h = document.getElementById('dp-rq-help'); if (h) h.hidden = !h.hidden; }
+  else if (key === 'Escape') { rqShowReasons(false); rqShowAdd(false); }
+  else handled = false;
+  if (handled) ev.preventDefault();
+}
+document.addEventListener('keydown', rqKey);
+document.addEventListener('fts:beforeNavigate', function () { document.removeEventListener('keydown', rqKey); }, { once: true });
+
+// The 15 s poll and the Refresh button: refresh the counts and, when the reviewer is idle, the list. Never re-render under their hands.
 async function prepRefreshResults() {
   var el = document.getElementById('dp-results');
   if (!el) return;
-  var prev = el.dataset.ready === '1' ? el.innerHTML : '';
-  if (!prev) el.innerHTML = 'Loading…';
-  try {
-    var r = await fetch('/api/projects/' + encodeURIComponent(_prepPid) + '/data-prep/qa').then(function (res) { return res.json(); });
-    _dpQaItems = (r && r.items) || (Array.isArray(r) ? r : []) || [];
-    dpRenderResults();
-    dpRefreshExportedDatasets();
-  } catch (e) {
-    if (!prev) {
-      el.innerHTML = '<div class="dp-empty">Failed to load: ' + escapeHtml((e && e.message) || String(e)) + '</div>';
-    }
-  }
+  if (!_rq.built) { if (!_rq.items.length && !el.dataset.ready) el.innerHTML = 'Loading…'; await rqLoad({}); dpRefreshExportedDatasets(); return; }
+  if (_rq.inflight || _rq.loading || _rq.adding || _rq.rejecting) return;
+  var active = document.activeElement;
+  if (active && active.closest && active.closest('.dp-rq') && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) return;
+  await rqLoad({ keepId: (rqCur() || {}).id });
+  dpRefreshExportedDatasets();
 }
 
-async function dpBulkAction(ids, action) {
+// Bulk actions on the ticked rows (or, for approve, the whole current view).
+async function dpBulkAction(ids, action, note) {
   if (!ids || !ids.length) {
     dpBridgeStatus('Select at least one pair, or use Approve all pending.', 'error');
     return;
   }
   try {
+    await _rq.chain;
     var r = await fetch('/api/projects/' + encodeURIComponent(_prepPid) + '/data-prep/qa/bulk', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: ids, action: action }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ids, action: action, note: note }),
     });
     var data = await r.json().catch(function () { return {}; });
     if (!r.ok) {
@@ -1802,7 +2181,7 @@ async function dpBulkAction(ids, action) {
     }
     var n = (data && data.updated != null) ? data.updated : ids.length;
     dpBridgeStatus((action === 'approve' ? 'Approved ' : 'Rejected ') + n + ' pair(s).', 'success');
-    await prepRefreshResults();
+    await rqLoad({});
   } catch (e) {
     dpBridgeStatus('Bulk ' + action + ' failed: ' + ((e && e.message) || e), 'error');
   }
@@ -1811,22 +2190,25 @@ async function dpBulkAction(ids, action) {
 async function dpApproveSelected() {
   var ids = dpSelectedIds();
   if (!ids.length) {
-    // Default: approve all *visible* pending when nothing checked.
-    ids = dpFilteredItems().filter(function (q) {
-      return (q.status || 'pending') === 'pending' && q.id;
-    }).map(function (q) { return q.id; });
+    ids = _rq.items.filter(function (q) { return (q.status || 'pending') === 'pending'; }).map(function (q) { return q.id; });
   }
   await dpBulkAction(ids, 'approve');
 }
 
 async function dpRejectSelected() {
-  await dpBulkAction(dpSelectedIds(), 'reject');
+  await dpBulkAction(dpSelectedIds(), 'reject', 'rejected in bulk');
 }
 
+// Every pending pair of the project (not just the loaded page): page through the queue to collect the ids.
 async function dpApproveAllPending() {
-  var ids = _dpQaItems.filter(function (q) {
-    return (q.status || 'pending') === 'pending' && q.id;
-  }).map(function (q) { return q.id; });
+  var ids = [], offset = 0;
+  for (;;) {
+    var res = await fetch(rqBase() + '/qa/queue?status=pending&limit=1000&offset=' + offset, { cache: 'no-store' });
+    var page = await res.json();
+    (page.items || []).forEach(function (q) { ids.push(q.id); });
+    offset += (page.items || []).length;
+    if (!page.items || !page.items.length || offset >= page.total) break;
+  }
   if (!ids.length) {
     dpBridgeStatus('No pending pairs to approve.', 'info');
     return;
@@ -1860,9 +2242,7 @@ function dpGroundedShare() {
 })();
 
 async function dpExportApproved() {
-  var approved = _dpQaItems.filter(function (q) {
-    return (q.status || '') === 'approved';
-  }).length;
+  var approved = _rq.counts.approved;
   if (!approved) {
     dpBridgeStatus('No approved pairs yet. Approve pending rows first, then export.', 'error');
     return;

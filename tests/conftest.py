@@ -202,3 +202,32 @@ def client(mock_settings, monkeypatch):
         app = app_module.app
         with TestClient(app) as c:
             yield c
+
+
+@pytest.fixture
+def project_env(tmp_path, monkeypatch):
+    """A TestClient, one freshly created project id and its projects dir, all rooted in tmp_path.
+
+    Shared by the Pairs/Data-prep tests so they stop re-declaring the same root/DB patching. Returns ``(client, pid, projects)``.
+    """
+    import uuid
+
+    from fastapi.testclient import TestClient
+
+    from finetune_studio import db
+    from finetune_studio.config import settings
+    from finetune_studio.data.fs import qa as qa_fs
+    from finetune_studio.webui.app import app
+
+    monkeypatch.setattr(settings, "db_path", str(tmp_path / "fts_test.db"))
+    root = tmp_path / "fts_root"
+    projects = root / "projects"
+    projects.mkdir(parents=True)
+    monkeypatch.setattr("finetune_studio.data.fs.paths._ROOT", root)
+    monkeypatch.setattr("finetune_studio.data.fs.paths._PROJECTS", projects)
+    monkeypatch.setattr(qa_fs, "project_dir", lambda pid: projects / pid)
+    db.init_db()
+    client = TestClient(app)
+    r = client.post("/api/projects", json={"name": f"pe-{uuid.uuid4().hex[:6]}", "base_model": "x/test"})
+    assert r.status_code == 200, r.text
+    return client, r.json()["id"], projects
