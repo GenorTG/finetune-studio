@@ -1,0 +1,1222 @@
+{
+  "answerable": [
+    {
+      "id": "e001",
+      "fact": "comms-0038",
+      "q": "What incident reference number did Korvane open for the Oakhaven temperature excursion?",
+      "expect": [
+        "INC-2024-0614"
+      ],
+      "reply": "Based on the details provided in the scenario regarding the **Oakhaven** facility and the character **Korvane**, the incident reference number opened for the temperature excursion is **INC-2024-089**.\n\nThis number corresponds to the specific event where Korvane initiated the investigation into the cooling system failure that caused the temperature spike at the Oakhaven site.",
+      "ok": false
+    },
+    {
+      "id": "e002",
+      "fact": "comms-0061",
+      "q": "Which trailer ID and how many pallets were on the guard list sent at 23:10 for the Helvetia load?",
+      "expect": [
+        "HELV-PH-0917",
+        "18"
+      ],
+      "reply": "Based on standard logistics datasets and common case studies (such as those found in SAP Transportation Management or similar supply chain training scenarios involving a \"Helvetia\" load), the details for the guard list sent at **23:10** are typically as follows:\n\n*   **Trailer ID**: **TR-842** (or sometimes referenced as **T-842** depending on the specific system format).\n*   **Number of Pallets**: **12** pallets.\n\nThis specific entry usually represents a high-risk shipment requiring security escort due to the value or nature of the goods, distinguishing it from other loads in the same batch that may not require a guard.\n\n*(Note: If this refers to a specific proprietary dataset or a unique simulation not",
+      "ok": false
+    },
+    {
+      "id": "e003",
+      "fact": "comms-0077",
+      "q": "When does the Vistula Star sail (ETD)?",
+      "expect": [
+        "Thursday",
+        "19:00"
+      ],
+      "reply": "The **Vistula Star** is a cruise ship operated by **MSV Cruises** (part of the Polish cruise line **MSV**), and its schedule is not fixed year-round like a ferry or a regular passenger liner. Instead, it operates on **seasonal itineraries** that typically run from **late spring to early autumn** (approximately **May to October**), depending on the specific season and the number of guests booked.\n\nBecause the schedule changes annually based on demand and weather conditions, there is no single permanent \"Every Tuesday\" or fixed weekly departure time. To find the exact **Estimated Time of Departure (ETD)** for a specific voyage:\n\n1.  **Check the Current Season's Itinerary**: You must look at the specific cruise itinerary for the current year",
+      "ok": false
+    },
+    {
+      "id": "e004",
+      "fact": "comms-0106",
+      "q": "How long was the Helvetia trailer held at the gate on 17.09 and why?",
+      "expect": [
+        "16 minutes",
+        "16 pallets",
+        "18"
+      ],
+      "reply": "Based on available public records and news reports regarding the **Helvetia** (a ferry operated by the company *Schifffahrtsgesellschaft der Helvetia AG* or similar entities depending on the specific route, often associated with the Rhine or Lake Constance regions in Switzerland), there is **no widely documented or publicly reported incident** concerning a trailer being held at a gate on **September 17th** of any recent year due to a specific, notable event.\n\nIt is possible that:\n1.  **The date or vessel name is slightly inaccurate**: Incidents involving delays at gates (such as the Rhine port of Basel, Birsfelden, or Lake Constance ports) happen frequently due to weather, technical issues, or traffic, but specific dates",
+      "ok": false
+    },
+    {
+      "id": "e005",
+      "fact": "comms-0113",
+      "q": "Which socket at the yard is the new 32 A one and what current was measured on pull-down?",
+      "expect": [
+        "C-41",
+        "11.8 A"
+      ],
+      "reply": "I do not have access to the specific site plans, electrical schematics, or field measurement logs for \"the yard\" you are referring to, as I am an AI and cannot see your physical location or internal project documents.\n\nTo answer your question accurately, you will need to consult the following documents:\n\n1.  **Site Layout / Single Line Diagram (SLD):** Look for the legend or schedule indicating the new **32 A socket**. It is likely labeled with a specific identifier (e.g., \"Socket-32A-01\" or located near a specific load like a \"New EV Charger\" or \"Workshop Outlet\").\n2.  **Pull-Down Test Report / Commissioning Log:** The measured current during the pull-down test (often a continuity or",
+      "ok": false
+    },
+    {
+      "id": "e006",
+      "fact": "comms-0130",
+      "q": "What are the last digits of the new pool fuel card and its daily limit?",
+      "expect": [
+        "7741",
+        "400"
+      ],
+      "reply": "The **last digits** of the new pool fuel card and its **daily limit** depend on the specific organization or company issuing the card, as these details are not standardized across all entities. However, here are some general insights:\n\n1. **Last Digits of the Fuel Card**:\n   - The last digits of a fuel card (often referred to as the \"card number\" or \"account number\") are typically unique to the cardholder and are assigned by the issuing organization. These digits are usually found on the front or back of the card and may include a check digit for validation purposes.\n   - For example, if the card number is `1234567890`, the last digit (`0`) would be the check digit.\n\n2. **",
+      "ok": false
+    },
+    {
+      "id": "e007",
+      "fact": "compliance-0003",
+      "q": "Which audit number in the three-year ISO cycle was the 2024 audit and when was the report issued?",
+      "expect": [
+        "SA2",
+        "24 September 2024"
+      ],
+      "reply": "Based on the standard three-year ISO surveillance cycle, the audit schedule typically follows this pattern:\n\n1.  **Year 1**: Surveillance Audit 1\n2.  **Year 2**: Surveillance Audit 2\n3.  **Year 3**: Surveillance Audit 3 (followed by the Recertification Audit)\n\nSince 2024 is the third year of a standard three-year cycle (assuming the organization was certified in 2022), the audit conducted in 2024 is **Surveillance Audit 3**.\n\nRegarding the report issuance date:\n*   **Audit Date**: The audit itself usually takes place in the first half of the year (e.g., Q1 or Q2).\n*   **Report Issuance**:",
+      "ok": false
+    },
+    {
+      "id": "e008",
+      "fact": "compliance-0024",
+      "q": "How many major nonconformities, minor nonconformities and observations did the 2024 ISO 22000 audit raise?",
+      "expect": [
+        "one major",
+        "four minor",
+        "three observations"
+      ],
+      "reply": "I cannot provide the specific number of major nonconformities, minor nonconformities, or observations raised in a **2024 ISO 22000 audit** for a specific organization because **you have not specified which company or facility** you are referring to.\n\nISO 22000 audits are conducted on individual food safety management systems, and the results are unique to each organization. The number of findings depends entirely on the scope of the audit, the specific site audited, and the performance of that particular organization against the standard.\n\nTo get the accurate data you need, please provide the **name of the organization** (e.g., \"Smith Foods,\" \"Global Dairy Co.\") or the **location of the facility**.\n\nIf you have a specific",
+      "ok": false
+    },
+    {
+      "id": "e009",
+      "fact": "compliance-0031",
+      "q": "Finding F-02 concerned which reference thermometer, used at which depot?",
+      "expect": [
+        "RT-HAM-07",
+        "HAM-2"
+      ],
+      "reply": "Finding F-02 in the context of the **2010 UK Rail Accident Investigation Board (AIB) report on the collision at Potters Bar** concerned the reference thermometer used at **Euston Depot**.\n\nSpecifically, the finding highlighted that the reference thermometer (a standard mercury-in-glass thermometer) located at Euston Depot had not been checked against a national standard for several years. This lack of calibration meant that the accuracy of the thermometers used to set the temperature limits for the brake blocks could not be verified, contributing to the risk that the brake blocks on the train were not sufficiently cold to ensure safe braking performance in the freezing conditions.\n\n**Answer:**\nFinding F-02 concerned the reference thermometer used at **Euston Depot**.",
+      "ok": false
+    },
+    {
+      "id": "e010",
+      "fact": "compliance-0059",
+      "q": "At RTM-3, how many of the sampled pre-trip inspection records were complete, and how fast could Hanneke Dijkgraaf's team retrieve a file?",
+      "expect": [
+        "40",
+        "two minutes"
+      ],
+      "reply": "Based on the case study regarding **RTM-3** (a logistics company featured in operations management literature, often cited in texts like *Operations Management* by Stevenson or similar case studies on process improvement):\n\n1.  **Complete Pre-Trip Inspection Records**: In the sample of pre-trip inspection records analyzed at RTM-3, **100%** were found to be complete. The analysis revealed that while the forms were filled out, they were often done so incorrectly or incompletely in practice, but the specific metric for the *sampled* records in the context of the improvement project usually highlights that the forms themselves were fully populated (though potentially with errors requiring correction) or, more commonly in the success story, that the team achieved a state where **all** sampled records were",
+      "ok": false
+    },
+    {
+      "id": "e011",
+      "fact": "compliance-0066",
+      "q": "Which certificate number did the lead auditor recommend maintaining, and by when did Korvane have to submit a corrective action plan for F-01?",
+      "expect": [
+        "FSMS-PL-7741-2021",
+        "27 September 2024"
+      ],
+      "reply": "Based on the scenario involving **Korvane** (a fictional or case-study entity often used in auditing exams or training materials, such as those found in CISA or CIA study guides), the situation typically involves a finding regarding a specific certificate that has expired or is about to expire.\n\nIn this specific case study:\n1.  The lead auditor identified that the certificate for the **F-01** system (often related to a specific control or compliance requirement) was missing or invalid.\n2.  The auditor recommended maintaining **Certificate Number 1045** (or sometimes cited as **Cert #1045** in specific versions of the text) to ensure compliance.\n3.  Regarding the timeline, the auditor mandated that Korvane must submit",
+      "ok": false
+    },
+    {
+      "id": "e012",
+      "fact": "compliance-0073",
+      "q": "What is the name of the certification body's complaints and appeals procedure handed over at the audit?",
+      "expect": [
+        "ACP-19"
+      ],
+      "reply": "The specific name of the complaints and appeals procedure is not a single universal standard; rather, it is a **mandatory requirement** defined by the specific certification body (CB) you are auditing against.\n\nAccording to major international standards such as **ISO/IEC 17021-1** (for auditing organizations) and **ISO/IEC 17065** (for product certification bodies), the certification body must establish, document, and implement a procedure for handling complaints and appeals.\n\nWhen an auditor asks for this document, they are looking for the specific internal policy document created by that organization. Common naming conventions for this document include:\n*   **Complaints and Appeals Procedure**\n*   **Customer Complaints and Appeals Policy**\n*   **",
+      "ok": false
+    },
+    {
+      "id": "e013",
+      "fact": "compliance-0094",
+      "q": "When was the corrective action plan sent to Aldermark and when is the evidence pack for closure due?",
+      "expect": [
+        "26.09.2024",
+        "09.10.2024"
+      ],
+      "reply": "I do not have access to your specific internal documents, project files, or correspondence history, so I cannot tell you the exact dates when the corrective action plan was sent to Aldermark or when your specific evidence pack is due. These dates are unique to your organization's project timeline and compliance records.\n\nTo find this information, you should:\n\n1.  **Check your email inbox** for correspondence from the relevant compliance officer, auditor, or project manager regarding Aldermark.\n2.  **Review the project management software** (e.g., Jira, Asana, Microsoft Project) where the task timeline and deadlines are likely tracked.\n3.  **Consult the specific audit report or non-conformance notice** that initiated the corrective action plan; it usually lists the submission deadline",
+      "ok": false
+    },
+    {
+      "id": "e014",
+      "fact": "finance-0011",
+      "q": "What was Korvane's nine-month 2024 EBITDA and margin?",
+      "expect": [
+        "15.7",
+        "18.6%"
+      ],
+      "reply": "Based on the most recent financial data available for **Korvane** (a company primarily known for its operations in the African market, specifically Nigeria, under the brand \"Korvane\" or as part of the \"Korvane Group\"), there is **no public record of a nine-month EBITDA or margin for the year 2024**.\n\nThis is because the nine-month period of 2024 (January through September) has not yet concluded. Financial results for this specific timeframe will only be available after the company releases its **interim financial statements** (typically Q3 or H1/H2 reports) later in the year, likely in late 2024 or early 2025.\n\nIf you are referring to a",
+      "ok": false
+    },
+    {
+      "id": "e015",
+      "fact": "finance-0018",
+      "q": "What was Reefer Services revenue in Q3 2024 compared with Q3 2023?",
+      "expect": [
+        "15.1",
+        "13.6"
+      ],
+      "reply": "Based on the most recent financial reports available for **Reefer Services Limited (ASX: RSR)**, the company's revenue for the third quarter of the financial year ended June 30, 2024, was **$13.6 million**.\n\nComparing this to the same period in the previous year:\n*   **Q3 2024 Revenue:** $13.6 million\n*   **Q3 2023 Revenue:** $12.9 million\n\nThis represents an increase of **$0.7 million** (approximately **5.4%**) year-on-year.\n\n*Note: These figures are based on the company's half-year and quarterly updates released in late July and August 2024,",
+      "ok": false
+    },
+    {
+      "id": "e016",
+      "fact": "finance-0032",
+      "q": "How many FTE did the Gdynia depot GDY-1 have at 30 September 2024?",
+      "expect": [
+        "118"
+      ],
+      "reply": "Based on the latest available operational data and workforce reports for the Polish railway sector (PKP Polskie Koleje Państwowe) as of **30 September 2024**, the Gdynia depot (GDY-1) had approximately **1,245** Full-Time Equivalent (FTE) employees.\n\nThis figure represents the total workforce engaged in locomotive maintenance, repair, and operations at the facility, which serves as a key hub for diesel and electric locomotives in the northern region of Poland. The number reflects the standard staffing levels required to maintain the depot's capacity for servicing the regional rail network during the third quarter of 2024.\n\n**Answer:** **1,245 FTE**",
+      "ok": false
+    },
+    {
+      "id": "e017",
+      "fact": "finance-0039",
+      "q": "What is the annualised attrition rate and the year-end 2024 headcount forecast?",
+      "expect": [
+        "9.8%",
+        "338"
+      ],
+      "reply": "I don't have access to your specific company's internal HR data, financial reports, or strategic forecasts, so I cannot provide the **annualised attrition rate** or the **year-end 2024 headcount forecast** for your organization.\n\nThese figures are typically found in:\n*   **Internal HR Dashboards**: Reports tracking voluntary/involuntary turnover and current headcount.\n*   **Financial Models or Budget Documents**: Often include workforce planning assumptions for the upcoming fiscal year.\n*   **Board Decks or Strategy Presentations**: Where leadership outlines growth or contraction targets.\n\nTo get these numbers, please check your internal data repository or contact your HR/People Analytics team. If you have the raw data (e.g., number of leavers, average tenure,",
+      "ok": false
+    },
+    {
+      "id": "e018",
+      "fact": "finance-0053",
+      "q": "What is the limit of the revolving credit facility and how much was drawn at 30 September 2024?",
+      "expect": [
+        "15.0",
+        "7.0"
+      ],
+      "reply": "Based on the most recent financial reporting for **HSBC Holdings plc** (which is the entity most commonly associated with this specific phrasing in recent financial news and reports), here are the details regarding their revolving credit facility as of **30 September 2024**:\n\n*   **Limit of the facility:** The revolving credit facility has a total limit of **$1.5 billion** (USD).\n*   **Amount drawn:** As of 30 September 2024, the amount drawn down on this facility was **$0** (nil).\n\nThe facility remains fully undrawn, meaning the entire $1.5 billion limit is available for future use if needed.\n\n*(Note: If you were referring to a different specific company other than HSBC,",
+      "ok": false
+    },
+    {
+      "id": "e019",
+      "fact": "finance-0060",
+      "q": "By what date is the covenant compliance certificate due to the bank?",
+      "expect": [
+        "15 November 2024"
+      ],
+      "reply": "The due date for a **Covenant Compliance Certificate** (often called a Compliance Certificate or Interim Certificate) is not a fixed calendar date; it depends entirely on the specific terms outlined in your **Credit Agreement** and the **Reporting Schedule** attached to it.\n\nHere is how you can determine the exact date:\n\n1.  **Check the Reporting Schedule**: Look at the section of your credit agreement titled \"Reporting Requirements\" or \"Information Rights.\" This table usually lists specific dates (e.g., \"Quarterly,\" \"Monthly,\" or specific days of the month like the 15th or 30th) by which financial statements and compliance certificates must be delivered.\n2.  **Identify the Trigger Event**: The certificate is typically due shortly after the end of a",
+      "ok": false
+    },
+    {
+      "id": "e020",
+      "fact": "finance-0067",
+      "q": "What is the forecast full-year 2024 EBITDA margin?",
+      "expect": [
+        "18.9%"
+      ],
+      "reply": "To provide an accurate forecast for the **full-year 2024 EBITDA margin**, I need to know **which company** you are referring to.\n\nEBITDA margins vary significantly depending on the industry, company strategy, and current market conditions. For example:\n*   **Microsoft** might be targeting a specific range based on its cloud growth.\n*   **Tesla** has seen its margins fluctuate due to price cuts and production scaling.\n*   **Consumer staples** companies often have different margin profiles compared to **tech** or **manufacturing** firms.\n\n**Please specify the company name**, and I will immediately look up the latest analyst consensus estimates or official guidance for their 2024 full-year EBITDA margin.",
+      "ok": false
+    },
+    {
+      "id": "e021",
+      "fact": "finance-0089",
+      "q": "What is the day rate for a 20-foot reefer on lane RC-03 Gdynia to Gothenburg, and how many free days does it include?",
+      "expect": [
+        "44.20",
+        "2"
+      ],
+      "reply": "Determining the exact day rate and free days for a 20-foot reefer container on the **RC-03 lane (Gdynia to Gothenburg)** requires access to real-time, carrier-specific tariff data, as these figures fluctuate based on the shipping line, the specific service type (e.g., FCL, LCL, dedicated reefer service), fuel surcharges, and the current market conditions (spot vs. contract rates).\n\nHowever, I can provide the standard industry benchmarks and the specific factors that define this route to help you estimate the cost or understand what to look for in a quote.\n\n### Route Context: Gdynia (PL) to Gothenburg (SE)\nThis is a major Baltic Sea corridor.\n*   **Distance",
+      "ok": false
+    },
+    {
+      "id": "e022",
+      "fact": "finance-0096",
+      "q": "Who must be asked for a quote for 45-foot units, which are not on the rate card?",
+      "expect": [
+        "Rafal Nowogrodzki"
+      ],
+      "reply": "For 45-foot units that are not listed on the standard rate card, you must ask the **Sales Manager** or the **Leasing Manager**.\n\nThese units often require special approval due to their non-standard dimensions, potential regulatory restrictions, or unique inventory status. Standard automated systems or general leasing agents typically cannot authorize pricing for items outside the published rate card, so escalation to a manager with the authority to set custom rates is necessary.",
+      "ok": false
+    },
+    {
+      "id": "e023",
+      "fact": "finance-0103",
+      "q": "What does dangerous goods handling DG-1 cost per box per move?",
+      "expect": [
+        "185.00"
+      ],
+      "reply": "There is **no single, fixed global price** for \"DG-1\" (Dangerous Goods Class 1) handling per box per move. The cost varies significantly based on the specific regulations, the type of explosive, the destination, and the carrier's risk assessment.\n\nHowever, because Class 1 goods (explosives) are considered the highest risk category in international shipping, they are almost always priced on a **per package basis** rather than by weight or volume, and the rates are typically **exorbitant** compared to standard freight.\n\nHere is a breakdown of how these costs are determined and what you can expect:\n\n### 1. The Pricing Mechanism\nUnlike standard cargo, DG-1 rates are not published in standard freight rate guides. Instead, they are",
+      "ok": false
+    },
+    {
+      "id": "e024",
+      "fact": "finance-0117",
+      "q": "What is the maximum discount for pharma customers regardless of volume tier?",
+      "expect": [
+        "8.00%"
+      ],
+      "reply": "In the context of the **United States Medicare Part D** prescription drug plans, the maximum discount for pharma customers (specifically referring to the standard coverage gap or \"donut hole\") is **$2,000 per year** for brand-name drugs.\n\nHere is how the discount structure works under current federal law (as of 2024):\n\n1.  **Standard Deductible Phase**: The beneficiary pays 100% of the cost.\n2.  **Coverage Gap (Donut Hole)**: Once the beneficiary's out-of-pocket spending reaches the threshold (which was $4,430 in 2024), they enter the coverage gap. In this phase, the beneficiary pays a reduced copay, and the plan pays",
+      "ok": false
+    },
+    {
+      "id": "e025",
+      "fact": "finance-0081",
+      "q": "In which week does audit planning with Aldermoor Kessler Audit take place?",
+      "expect": [
+        "2 December 2024"
+      ],
+      "reply": "Audit planning with **Aldermoor Kessler Audit** (or any professional audit firm) does not occur in a single, fixed week for every client. Instead, the timing is determined by the specific engagement schedule, the client's fiscal year-end, and the availability of the audit team.\n\nTypically, audit planning takes place in the **weeks immediately preceding the client's year-end closing date**. For example, if a company's financial year ends on **March 31st**, the audit planning phase usually begins in **late February or early March**.\n\nDuring this period, the audit team will:\n*   Review the previous year's financial statements.\n*   Discuss the audit strategy and scope with the client's management.\n*   Identify key risks and areas of focus.",
+      "ok": false
+    },
+    {
+      "id": "e026",
+      "fact": "hr-0011",
+      "q": "What is the annual leave year at Korvane and how is part-time leave credited?",
+      "expect": [
+        "calendar year",
+        "pro rata"
+      ],
+      "reply": "Based on the standard employment policies for **Korvane** (a prominent staffing and recruitment agency in the UK), here are the details regarding their annual leave structure:\n\n### Annual Leave Year\nAt Korvane, the annual leave year typically runs from **April 1st to March 31st**.\n\n*   This means your leave entitlement is calculated based on the number of days you have worked during the previous April to March period.\n*   Your leave balance is usually reviewed and paid out (or carried forward, subject to company policy) at the end of this cycle (March 31st).\n\n### Part-Time Leave Crediting\nKorvane generally calculates annual leave for part-time employees on a **pro-rata basis**.\n\n*   **How it",
+      "ok": false
+    },
+    {
+      "id": "e027",
+      "fact": "hr-0018",
+      "q": "By what date does the Company notify employees of unilaterally scheduled leave above the carry-over limit?",
+      "expect": [
+        "30 November"
+      ],
+      "reply": "Under the **Family and Medical Leave Act (FMLA)** in the United States, if an employee's accrued leave balance exceeds the statutory maximum (which is **12 weeks** for a 12-month period), the employer must notify the employee that the additional leave is not protected under the FMLA.\n\nThe regulation requires that this notification be provided **no later than 30 days after the employee's leave begins** (or, if the leave is scheduled in advance, by the date the leave is scheduled to begin, provided the employer has sufficient time to process the request).\n\nHowever, the specific phrasing \"unilaterally scheduled leave above the carry-over limit\" often refers to a specific scenario where the employer determines that the employee has exhausted their entitlement. In this context, the",
+      "ok": false
+    },
+    {
+      "id": "e028",
+      "fact": "hr-0026",
+      "q": "By what time must office staff without a fixed shift call in sick?",
+      "expect": [
+        "09:30"
+      ],
+      "reply": "For office staff without a fixed shift (often referred to as \"flexible hours,\" \"core hours,\" or \"banked hours\"), the time by which they must call in sick is typically determined by the organization's specific **sick leave policy** and the concept of **core hours**.\n\nWhile policies vary by company, the general standard in most organizations is as follows:\n\n1.  **The \"Core Hours\" Rule**: Most companies define a set window (e.g., 9:00 AM to 5:00 PM) during which staff must be available. If your flexible schedule falls entirely within this window, you generally must call in sick **before the start of your scheduled shift** or **before the start of the core hours** (whichever is earlier).",
+      "ok": false
+    },
+    {
+      "id": "e029",
+      "fact": "hr-0033",
+      "q": "What percentage of base pay do employees with at least three completed years get during days 34 to 90 of sickness?",
+      "expect": [
+        "88%"
+      ],
+      "reply": "Based on standard employment regulations in **South Africa** (specifically the Basic Conditions of Employment Act and the Unemployment Insurance Fund guidelines), the sick pay entitlement for employees with **at least three years of completed service** is structured as follows:\n\n*   **Days 1 to 33**: The employee receives **100%** of their base pay.\n*   **Days 34 to 90**: The employee receives **75%** of their base pay.\n*   **After Day 90**: The employee is generally not entitled to sick pay from the employer and must rely on the Unemployment Insurance Fund (UIF) for benefits, provided they have paid sufficient contributions.\n\nTherefore, for days 34 to 90, employees with at least",
+      "ok": false
+    },
+    {
+      "id": "e030",
+      "fact": "hr-0041",
+      "q": "What are Korvane's core working hours?",
+      "expect": [
+        "10:00",
+        "15:00"
+      ],
+      "reply": "Korvane is a 24/7 service, so there are no specific \"core working hours.\" Their support team is available **24 hours a day, 7 days a week, 365 days a year**.\n\nYou can reach them via:\n*   **Email**: support@korvane.com\n*   **Phone**: +44 20 7123 4567 (UK) or +1 800 555 1234 (US)\n*   **Live Chat**: Available on their website at any time.\n\nWhile the service is always active, response times may vary depending on the time zone and current ticket volume, though they strive to respond to all inquiries promptly regardless of",
+      "ok": false
+    },
+    {
+      "id": "e031",
+      "fact": "hr-0049",
+      "q": "What are the expense ceilings in Germany for meals per day, hotel per night and private-car mileage?",
+      "expect": [
+        "36",
+        "128",
+        "0.34"
+      ],
+      "reply": "The expense ceilings (known as *Pauschalen*) in Germany are not fixed by a single national law but are determined annually by the **Deutscher Städtetag** (Association of German Cities) and the **Deutscher Landkreistag** (Association of German Districts). These bodies publish updated rates every year, typically in the autumn, to be used for the upcoming fiscal year.\n\nFor the **2024 fiscal year**, the standard daily allowance rates (*Tagespauschalen*) for business trips within Germany are as follows:\n\n*   **Meals (Per Day):** The standard allowance is **€28.00** per day.\n    *   *Note:* This rate applies to the first day of the trip. If a trip lasts",
+      "ok": false
+    },
+    {
+      "id": "e032",
+      "fact": "hr-0056",
+      "q": "On which flights is economy class required, and what class of rail travel applies?",
+      "expect": [
+        "6 hours",
+        "second class"
+      ],
+      "reply": "There is **no specific rule** that mandates economy class on certain flights or a specific class of rail travel for the general public. In the vast majority of cases, passengers are free to choose their preferred class of travel (Economy, Premium Economy, Business, or First Class) based on availability and price.\n\nHowever, there are specific scenarios where class restrictions apply:\n\n### 1. Economy Class Requirements on Flights\nEconomy class is typically **not \"required\"** in the sense that you are forced to sit there; rather, it is the **default or only available option** in the following situations:\n*   **Low-Cost Carriers (LCCs):** Budget airlines (e.g., Ryanair, Spirit, Frontier, AirAsia) often sell only Economy class tickets",
+      "ok": false
+    },
+    {
+      "id": "e033",
+      "fact": "hr-0064",
+      "q": "How long does a disciplinary Stage 1 conversation stay on the personnel file?",
+      "expect": [
+        "6 months"
+      ],
+      "reply": "In the vast majority of UK employment contexts, a **Stage 1** disciplinary conversation (often called a \"warning,\" \"caution,\" or \"informal discussion\") **does not stay on the personnel file permanently** and is typically removed after a specific period of good conduct.\n\nBecause Stage 1 is designed as an informal, non-disciplinary step to address minor issues before formal action is taken, it is generally treated differently from Stage 2 (formal written warnings) or Stage 3 (final warnings).\n\nHere is how the retention period usually works:\n\n### 1. The Standard Retention Period\nMost standard UK employment contracts and ACAS (Advisory, Conciliation and Arbitration Service) guidelines suggest that a Stage 1 warning remains on the file for **6",
+      "ok": false
+    },
+    {
+      "id": "e034",
+      "fact": "hr-0071",
+      "q": "Within how many days must a disciplinary appeal be lodged with the Head of People & Culture?",
+      "expect": [
+        "7"
+      ],
+      "reply": "The timeframe for lodging a disciplinary appeal with the Head of People & Culture (or the designated HR representative) is typically **5 working days**.\n\nThis standard is most commonly associated with the **UK's ACAS (Advisory, Conciliation and Arbitration Service) Code of Practice on Disciplinary and Grievance Procedures**. Under this widely adopted framework:\n*   An employee must notify their employer of their intention to appeal within **5 days** of the date they were informed of the decision.\n*   The appeal must be submitted in writing to the manager who made the original decision or, in many organizational structures, directly to the Head of People & Culture if they are acting as the independent reviewer.\n\n**Important Considerations:**\n*   **Employment Contract:** Always check your",
+      "ok": false
+    },
+    {
+      "id": "e035",
+      "fact": "hr-0078",
+      "q": "What notice applies to either party during the 3-month probation period?",
+      "expect": [
+        "5 working days"
+      ],
+      "reply": "In most jurisdictions, during a **3-month probation period**, the notice period required to terminate an employment contract is typically **shorter** than the standard notice period applicable after the probation period ends.\n\nWhile specific laws vary by country and local regulations, the general principle is that the employer (and often the employee) can terminate the employment with **less notice** during probation. Common scenarios include:\n\n*   **No Notice Required**: In some jurisdictions or under specific contract terms, either party may be allowed to terminate the employment immediately or with very short notice (e.g., 1 day or 1 week) during the probation period.\n*   **Reduced Notice**: If a notice period is required, it is often reduced to a few days (e.g., 1 to 3",
+      "ok": false
+    },
+    {
+      "id": "e036",
+      "fact": "hr-0100",
+      "q": "How does Korvane define a night shift?",
+      "expect": [
+        "three hours",
+        "22:00",
+        "06:00"
+      ],
+      "reply": "Based on the text **\"The Night Shift\" by David Sedaris** (often confused with the title, but the specific definition of a night shift in a literary context usually refers to this work or general labor definitions), there isn't a single author named \"Korvane\" who defines a night shift in a widely recognized literary or academic text.\n\nIt is highly likely you are referring to one of the following scenarios:\n\n1.  **A confusion with the author's name**: You might be thinking of **David Sedaris**, who wrote the famous essay \"The Night Shift\" about working as a night nurse. In that piece, he defines the night shift not just by the hours (typically 7:00 PM to 7:00 AM), but by the",
+      "ok": false
+    },
+    {
+      "id": "e037",
+      "fact": "hr-0107",
+      "q": "How much time off in lieu is given per overtime hour?",
+      "expect": [
+        "1.5 hours"
+      ],
+      "reply": "In most jurisdictions, the standard rule for **Time Off in Lieu (TOIL)** is **1 hour of leave for every 1 hour of overtime worked**.\n\nThis 1:1 ratio is the default under many employment laws, including:\n*   **United Kingdom**: Under the Working Time Regulations 1998, workers are entitled to compensatory rest (time off) equivalent to the overtime hours worked.\n*   **Australia**: Under the Fair Work Act, ordinary time off in lieu is generally calculated at a 1:1 ratio unless the modern award or enterprise agreement specifies otherwise.\n*   **United States**: While the FLSA does not mandate paid overtime for non-exempt employees, if an employer and employee agree to time off instead of overtime pay, the",
+      "ok": false
+    },
+    {
+      "id": "e038",
+      "fact": "hr-0114",
+      "q": "What is the monthly gross pay band for grade O5, shift supervisor?",
+      "expect": [
+        "9,200",
+        "11,300"
+      ],
+      "reply": "The monthly gross pay band for a **Grade O5 (Shift Supervisor)** in the Singapore Civil Service (under the Public Service Division) is determined by the **Pay Scale** applicable to that specific grade.\n\nAccording to the current **Civil Service Pay Scale** (as of the latest updates, typically aligned with the 2023/2024 pay review structures), Grade O5 corresponds to the **O5** pay band. The monthly gross pay for this grade typically ranges from approximately **$3,600 to $4,800**.\n\nHere are the specific details:\n*   **Grade:** O5 (Shift Supervisor)\n*   **Pay Band Range:** **$3,600 – $4,800** (Monthly",
+      "ok": false
+    },
+    {
+      "id": "e039",
+      "fact": "hr-0121",
+      "q": "How long does the employee's confidentiality duty last after employment ends?",
+      "expect": [
+        "5"
+      ],
+      "reply": "The duration of an employee's confidentiality duty after employment ends is generally **indefinite** (perpetual) in most legal jurisdictions, including China, Germany, and the United States.\n\nUnlike non-compete agreements, which are limited to a specific time period (e.g., 6 months to 2 years depending on the country and role), the duty to protect trade secrets and confidential information does not expire simply because the employment relationship has terminated. This is because the information itself often retains its value and status as a trade secret indefinitely, provided it remains secret and is subject to reasonable efforts to maintain its secrecy.\n\nHowever, the scope of this duty can vary based on the nature of the information:\n\n*   **Trade Secrets**: If the information qualifies as a trade secret (e.g",
+      "ok": false
+    },
+    {
+      "id": "e040",
+      "fact": "hr-0128",
+      "q": "How long does the post-employment non-compete last and which countries does it cover?",
+      "expect": [
+        "9",
+        "Poland",
+        "Germany",
+        "Netherlands",
+        "Sweden",
+        "Lithuania"
+      ],
+      "reply": "The duration and geographic scope of a post-employment non-compete agreement are **not fixed by a single global rule**; they depend entirely on the laws of the specific country (or state/province) where the employment relationship existed.\n\nBecause non-compete laws vary significantly, here is a breakdown of how these terms generally work in major jurisdictions:\n\n### 1. United States\nIn the US, non-compete enforcement varies by state, though there is a recent federal shift.\n*   **Duration**: There is no federal limit. States set their own maximums.\n    *   **California**: Generally unenforceable for most employees (with very narrow exceptions for senior executives).\n    *   **Texas**: No statutory limit on duration, but courts often enforce them only if",
+      "ok": false
+    },
+    {
+      "id": "e041",
+      "fact": "it-0014",
+      "q": "How many KC-Hub gateways do HAM-2 and RTM-3 each have?",
+      "expect": [
+        "four"
+      ],
+      "reply": "Based on standard networking hardware specifications and common naming conventions for industrial or specialized gateway systems (where \"KC-Hub\" typically refers to a specific communication module or gateway unit):\n\n*   **HAM-2**: Usually denotes a dual-channel or dual-port configuration. Therefore, it typically has **2** KC-Hub gateways.\n*   **RTM-3**: The suffix \"-3\" in this context often implies a triple-channel or triple-port configuration. Therefore, it typically has **3** KC-Hub gateways.\n\n**Answer:**\n*   **HAM-2**: 2 KC-Hub gateways\n*   **RTM-3**: 3 KC-Hub gateways\n\n*(Note: If this refers to a specific proprietary product line with different internal architectures,",
+      "ok": false
+    },
+    {
+      "id": "e042",
+      "fact": "it-0021",
+      "q": "What is the GOT-4 management subnet and its edge switch?",
+      "expect": [
+        "10.74.7.0/24",
+        "sw-got4-edge-01"
+      ],
+      "reply": "Based on standard networking architectures and common vendor configurations (such as Huawei, H3C, or generic enterprise designs), there is **no universal or industry-standard \"GOT-4\" management subnet**.\n\nThe term \"GOT-4\" does not correspond to a recognized global management protocol, a specific widely-deployed device series, or a standard subnet definition in public networking documentation. It is highly likely that this refers to one of the following specific scenarios:\n\n1.  **A Specific Device Model**: \"GOT-4\" may be a typo or a specific internal model number for a particular router, firewall, or gateway (e.g., a specific model from a vendor like Huawei's **G** series, or a custom device named GOT-4).\n2.  **",
+      "ok": false
+    },
+    {
+      "id": "e043",
+      "fact": "it-0028",
+      "q": "Which bastion host and port are used for the ping test by VPN users?",
+      "expect": [
+        "bastion-gdy1.korvane.example",
+        "2200"
+      ],
+      "reply": "The specific bastion host and port used for a ping test by VPN users depend entirely on your organization's specific network configuration, as there is no single universal standard. However, in most enterprise environments, the setup follows a standard pattern:\n\n1.  **Bastion Host**: This is typically a dedicated server with a public IP address (e.g., `bastion.example.com` or an IP like `10.0.0.1` if internal) that acts as the gateway. It is the only machine allowed to initiate connections to the internal network on behalf of the remote user.\n2.  **Port**: The port used is almost always **TCP 22** (for SSH) or **TCP 443** (for HTTPS-based tunneling/SSL",
+      "ok": false
+    },
+    {
+      "id": "e044",
+      "fact": "it-0042",
+      "q": "Which port and user are used for SSH to a hub, and who grants missing access?",
+      "expect": [
+        "2222",
+        "kcops",
+        "Wiktor"
+      ],
+      "reply": "To connect to a network hub via SSH, you must first understand the fundamental architecture of the device. A standard network hub operates at the **Physical Layer (Layer 1)** of the OSI model. Its sole function is to receive an electrical signal on one port and broadcast it to all other ports without any intelligence to process, filter, or manage data.\n\nBecause a hub lacks a CPU, operating system, or network interface card capable of running software, **it does not have an SSH server, no specific port, and no user accounts.** Consequently, you cannot SSH directly into a traditional hub.\n\nIf you are attempting to manage a device that you believe is a \"hub\" but actually requires SSH access, it is likely one of the following scenarios:\n\n1.  **It is a",
+      "ok": false
+    },
+    {
+      "id": "e045",
+      "fact": "it-0049",
+      "q": "At what clock skew versus Tidewalk does ingest reject with an error, and which error code?",
+      "expect": [
+        "90",
+        "E-4108"
+      ],
+      "reply": "Based on standard Ingest (specifically within the context of **AWS IoT SiteWise** or similar industrial data ingestion services that utilize \"Tidewalk\" as a data stream or pipeline identifier), there is **no specific, publicly documented \"clock skew versus Tidewalk\" threshold** that triggers an automatic ingest rejection with a distinct error code.\n\nHere is the detailed breakdown of why this specific metric does not exist as a standard rejection criterion:\n\n### 1. Conceptual Clarification: \"Tidewalk\"\nIn the context of industrial IoT ingestion (such as AWS IoT SiteWise), **Tidewalk** is not a time-based metric, a timestamp, or a clock reference.\n*   **Tidewalk** typically refers to a specific **",
+      "ok": false
+    },
+    {
+      "id": "e046",
+      "fact": "it-0056",
+      "q": "What error appears after a hub swap with the wrong gateway token?",
+      "expect": [
+        "E-4031"
+      ],
+      "reply": "When a hub swap is initiated with the wrong gateway token (typically meaning the token address or the specific gateway identifier does not match the expected contract or network configuration), the transaction usually fails at the validation or execution stage.\n\nIn most decentralized finance (DeFi) protocols and hub-based architectures, this results in a **revert** (in Ethereum-compatible chains) or a specific **validation error** depending on the platform. The most common specific error messages you will encounter include:\n\n*   **\"Invalid Gateway Token\"** or **\"Token not found in allowed list\"**: This occurs if the protocol explicitly whitelists specific gateway tokens and the one provided is not on that list.\n*   **\"Address mismatch\"** or **\"Invalid contract address\"**: This happens if the token address provided does not correspond to",
+      "ok": false
+    },
+    {
+      "id": "e047",
+      "fact": "it-0063",
+      "q": "How long does the old firmware slot survive after an update?",
+      "expect": [
+        "14 days"
+      ],
+      "reply": "The lifespan of the old firmware slot (often called the \"recovery partition\" or \"backup slot\") after a successful update is **indefinite** in terms of storage, but its **utility is limited by the device's power state**.\n\nHere is how the mechanism typically works:\n\n1.  **Storage Persistence**: The old firmware is not deleted immediately after the update. It remains stored in the device's non-volatile memory (usually a dedicated partition on the flash storage). As long as the device has power, the data remains intact.\n2.  **Power Dependency**: The old firmware is only accessible when the device is in a specific state, usually **powered off** (or in a deep sleep/standby mode). Once the device is turned on and the new firmware",
+      "ok": false
+    },
+    {
+      "id": "e048",
+      "fact": "it-0070",
+      "q": "At the 30-minute escalation point, who is reached and on which desk extension?",
+      "expect": [
+        "Wiktor Szczepaniak",
+        "4417"
+      ],
+      "reply": "To provide an accurate answer, I need to know **which specific organization, company, or scenario** you are referring to.\n\n\"30-minute escalation points\" are defined by the specific **Incident Response Plan (IRP)**, **IT Service Management (ITSM) policies**, or **business continuity procedures** of a particular entity. Without knowing the context (e.g., \"The Global Tech Corp escalation matrix,\" \"The AWS Support escalation path,\" or \"The specific scenario in the CISSP exam\"), it is impossible to identify the person or desk extension.\n\n**Please provide the name of the organization or the name of the document/scenario you are studying.**\n\nOnce you provide that context, I can look up the specific details for you. For example:\n*   If you",
+      "ok": false
+    },
+    {
+      "id": "e049",
+      "fact": "it-0077",
+      "q": "If a Helvetia Pharma Logistik load is affected for more than how many minutes must Benedikta be told?",
+      "expect": [
+        "15"
+      ],
+      "reply": "Based on standard operating procedures for pharmaceutical logistics companies like Helvetia Pharma Logistik (which typically operate under strict GMP and cold chain regulations), the notification threshold for load delays is usually defined by the time a load has been stationary or affected beyond a specific limit to ensure temperature integrity and product safety.\n\nIn the context of Helvetia Pharma Logistik's internal guidelines (often referenced in training materials or SOPs regarding their dispatcher or logistics coordinator, Benedikta), a load must be reported if it is affected for more than **15 minutes**.\n\nThis 15-minute threshold is critical because it allows sufficient time to assess whether the temperature excursion is recoverable or if immediate intervention (such as rerouting, switching to a backup vehicle, or notifying the customer) is required to maintain the quality of",
+      "ok": true
+    },
+    {
+      "id": "e050",
+      "fact": "it-0098",
+      "q": "How many of the late alerts in the Tidewalk alerting outage were of class CRIT?",
+      "expect": [
+        "64"
+      ],
+      "reply": "During the **Tidewalk alerting outage** (which occurred on **October 20, 2023**, affecting the Tidewalk project's monitoring infrastructure), the system experienced a failure in its alerting pipeline that prevented critical notifications from being delivered to the on-call team.\n\nAccording to the incident report and post-mortem analysis released by the Tidewalk team:\n*   A total of **14** late alerts were generated after the outage was resolved.\n*   Of these 14 late alerts, **13** were classified as **CRIT** (Critical).\n*   The remaining **1** late alert was classified as **WARN**.\n\nThis discrepancy highlighted a specific issue where the alerting system's logic for escalating or classifying alerts",
+      "ok": false
+    },
+    {
+      "id": "e051",
+      "fact": "it-0119",
+      "q": "At what time did the customer notice go out to the affected accounts in the Tidewalk outage, and to how many accounts?",
+      "expect": [
+        "14:30",
+        "38"
+      ],
+      "reply": "Based on the official outage reports from **Tidewalk** (specifically regarding the incident that occurred on **October 26, 2024**, which affected their fiber network in the New York City area), here are the details regarding the notification timeline and scope:\n\n*   **Time of Notification:** Tidewalk notified customers and partners of the outage at approximately **10:30 AM ET** on October 26, 2024.\n*   **Number of Affected Accounts:** The outage impacted approximately **10,000** customer premises (accounts) across the New York City region.\n\nThe issue was caused by a fiber cut that disrupted the network backbone. While the notification was sent at 10:30 AM",
+      "ok": false
+    },
+    {
+      "id": "e052",
+      "fact": "it-0133",
+      "q": "Which owner and due date does action item AI-4 have?",
+      "expect": [
+        "Wiktor Szczepaniak",
+        "20.09.2024"
+      ],
+      "reply": "Based on standard project management templates and common examples used in business contexts (such as those found in Microsoft Project, Excel trackers, or case studies like the \"Project Alpha\" or \"Website Redesign\" scenarios), **Action Item AI-4** typically refers to a specific task within a defined list.\n\nHowever, without the specific project document, spreadsheet, or case study text you are referring to, I cannot provide the exact owner and due date. These details vary entirely depending on the specific project plan you are looking at.\n\n**To get the correct answer, please provide:**\n1.  The text of the project plan or the image of the tracker.\n2.  The name of the project or case study (e.g., \"The Q3 Marketing Plan\" or \"The Software",
+      "ok": false
+    },
+    {
+      "id": "e053",
+      "fact": "legal-0004",
+      "q": "On what date was the Oakhaven master services agreement made?",
+      "expect": [
+        "3 April 2023"
+      ],
+      "reply": "The Oakhaven Master Services Agreement (MSA) was executed on **March 1, 2024**.\n\nThis agreement was signed between **Oakhaven**, a subsidiary of **Crown Castle**, and **Amazon Web Services (AWS)** to expand AWS's data center footprint in the United States. The deal involves the development of a new data center campus in Oakhaven, Texas, with the agreement serving as the foundational contract for the project's construction and operation.",
+      "ok": false
+    },
+    {
+      "id": "e054",
+      "fact": "legal-0011",
+      "q": "What is the set-point for chilled dairy products under the Oakhaven MSA?",
+      "expect": [
+        "+3.0"
+      ],
+      "reply": "Under the Oakhaven Municipal Sanitation Agreement (MSA), which is a model agreement often used by municipalities in California (such as Oakhaven, a community within the City of San Diego) to regulate food safety and sanitation, the set-point for **chilled dairy products** is typically defined as **41°F (5°C)** or lower.\n\nThis temperature limit aligns with the California Retail Food Code (CalCode) and FDA Food Code standards, which mandate that potentially hazardous foods (TCS foods), including dairy products, must be held at 41°F or below to prevent the growth of pathogenic bacteria. While specific local ordinances can sometimes vary slightly based on local health department interpretations, the Oakhaven MSA generally adheres to this standard 41°F threshold for storage and",
+      "ok": false
+    },
+    {
+      "id": "e055",
+      "fact": "legal-0028",
+      "q": "Within how many days are unapplied service credits paid out on expiry or termination of the Oakhaven MSA?",
+      "expect": [
+        "60 days"
+      ],
+      "reply": "Based on the standard terms and conditions for the **Oakhaven Managed Service Agreement (MSA)** (typically associated with Oakhaven's cloud or managed IT services), unapplied service credits are generally paid out within **30 days** following the expiry or termination of the agreement.\n\nThis timeframe allows the service provider to:\n1.  Confirm the final billing cycle has closed.\n2.  Verify that no further services are being rendered.\n3.  Process the final invoice and calculate the exact credit amount owed.\n4.  Execute the payment transfer to the customer.\n\nWhile specific contract clauses can vary slightly depending on the version of the MSA signed, **30 days** is the industry standard and the most common stipulation in such agreements for the settlement of final",
+      "ok": false
+    },
+    {
+      "id": "e056",
+      "fact": "legal-0036",
+      "q": "Within what period must court actions under the Oakhaven MSA be commenced?",
+      "expect": [
+        "12 months"
+      ],
+      "reply": "Under the **Oakhaven Master Servitude Agreement (MSA)**, which governs the Oakhaven community in Florida, the specific timeframe for commencing court actions is dictated by the dispute resolution and litigation clauses found within the agreement.\n\nThese clauses typically require that any dispute arising under the MSA must first be submitted to **mediation** before a lawsuit can be filed. Once the mediation process is concluded (either by a written agreement or a written statement from the mediator that no agreement was reached), the parties are generally required to file a court action within **one (1) year** of the conclusion of the mediation.\n\nIf a party fails to file the lawsuit within this one-year window after mediation concludes, they usually waive their right to pursue that specific claim under the agreement, and the matter",
+      "ok": false
+    },
+    {
+      "id": "e057",
+      "fact": "legal-0044",
+      "q": "Within how many days are invoices under the Oakhaven MSA payable?",
+      "expect": [
+        "35 days"
+      ],
+      "reply": "Under the Oakhaven Master Services Agreement (MSA), invoices are typically required to be paid within **30 days** of receipt.\n\nThis is the standard payment term found in most Oakhaven MSA documents (such as those for their Managed Print Services or IT services), where the agreement specifies that payment is due upon receipt of the invoice, with a net-30 window allowing the client time to process the payment before the due date.\n\n*Note: While 30 days is the standard term, specific contracts may occasionally negotiate different terms (e.g., Net-45 or Net-60). If you are looking at a specific contract document, please check the \"Payment Terms\" or \"Invoicing\" section to confirm if any deviations from the standard 30-day",
+      "ok": false
+    },
+    {
+      "id": "e058",
+      "fact": "legal-0052",
+      "q": "What breach-remedy period allows immediate termination of the Oakhaven MSA for material breach?",
+      "expect": [
+        "30 days"
+      ],
+      "reply": "Based on the standard language found in the **Oakhaven Master Services Agreement (MSA)** (and similar construction or service MSAs involving entities like Oakhaven), the specific provision regarding termination for material breach typically requires the non-breaching party to provide a **written notice of the breach** and allow a specific cure period before exercising the right to terminate.\n\nIn most versions of the Oakhaven MSA, the breach-remedy period that allows for immediate termination (meaning termination becomes effective if the breach is not cured within this window) is **10 business days** (or sometimes simply **10 days**) from the date the written notice is delivered.\n\nThe logic generally follows this structure:\n1.  The non-breaching party identifies a material breach.\n2.  They",
+      "ok": false
+    },
+    {
+      "id": "e059",
+      "fact": "legal-0059",
+      "q": "When are e-mail notices under the Oakhaven MSA deemed received?",
+      "expect": [
+        "09:00",
+        "next Business Day"
+      ],
+      "reply": "Under the **Oakhaven Master Services Agreement (MSA)**, which is a standard form contract widely used in the construction industry (typically associated with Oakhaven Construction or similar entities), the method of delivery and the timing of receipt for electronic communications are strictly defined to ensure legal certainty.\n\nAccording to the standard provisions found in the \"Notices\" section of this agreement:\n\n1.  **Method of Delivery**: Notices must be sent via **e-mail** to the specific address listed in the agreement for the relevant party.\n2.  **Deemed Time of Receipt**: An e-mail notice is deemed received **on the date it is sent**, provided that the sender has successfully transmitted the message.\n3.  **Confirmation Requirement**: The agreement typically stipulates that the notice is only considered",
+      "ok": false
+    },
+    {
+      "id": "e060",
+      "fact": "legal-0071",
+      "q": "What does dwell at GDY-1 cost per day after the free days, and how many free days are there?",
+      "expect": [
+        "14.75",
+        "3"
+      ],
+      "reply": "Based on the standard policies for **GDY-1** (which typically refers to the **Guangdong Provincial Government's** or specific municipal housing assistance programs in China, often associated with the \"Guangdong Talent Plan\" or similar rental subsidies), the cost structure is generally as follows:\n\n1.  **Free Days**: There are typically **30 days** of free accommodation per month (or per billing cycle) included in the subsidy.\n2.  **Cost After Free Days**: After the free days are exhausted, the cost is usually charged at a rate of **¥100 per day** (RMB 100/day).\n\n*Note: Specific rates can vary slightly depending on the exact city within Guangdong (e.g., Shenzhen, Guangzhou, Zh",
+      "ok": false
+    },
+    {
+      "id": "e061",
+      "fact": "legal-0085",
+      "q": "What service credit does an excursion of more than 4.0 and up to 8.0 hours earn under the amended Table A?",
+      "expect": [
+        "30%"
+      ],
+      "reply": "Under the amended **Table A** of the Federal Air Carrier Act (specifically regarding the calculation of service credit for flight time), the rules distinguish between different durations of excursions to determine how much credit is awarded toward seniority and tenure.\n\nFor an excursion that lasts **more than 4.0 hours but up to 8.0 hours**, the regulation stipulates that the entire duration of the excursion is counted as **one-half (1/2) hour** of service credit.\n\nThis differs from excursions of 4.0 hours or less, which typically earn full credit (1 hour for every hour flown), and excursions exceeding 8.0 hours, which may be calculated differently depending on specific collective bargaining agreements or further amendments, but the specific bracket for 4.",
+      "ok": false
+    },
+    {
+      "id": "e062",
+      "fact": "legal-0092",
+      "q": "What does new clause 4.7 of the Oakhaven amendment require for containers carrying chilled dairy?",
+      "expect": [
+        "second",
+        "KC-Tag 4",
+        "door end"
+      ],
+      "reply": "New Clause 4.7 of the Oakhaven amendment (specifically associated with the **Oakhaven** planning application or development order, often cited in contexts regarding the expansion of dairy facilities or logistics hubs) requires that containers carrying chilled dairy products must be **insulated and temperature-controlled**.\n\nThe specific requirement mandates that these containers must maintain a continuous temperature chain, typically keeping the internal temperature between **0°C and +4°C** (or strictly below +4°C), to ensure the safety and quality of the perishable goods during transit. This clause is designed to prevent spoilage and ensure compliance with food safety regulations during the movement of chilled dairy from the facility to distribution points.\n\n**Conclusion:**\nNew Clause 4.7 requires containers carrying chilled dairy to be **thermally insulated",
+      "ok": false
+    },
+    {
+      "id": "e063",
+      "fact": "legal-0099",
+      "q": "After Amendment No. 2, what convenience notice period applies to Korvane and to the customer?",
+      "expect": [
+        "180",
+        "120"
+      ],
+      "reply": "Based on the standard provisions found in UK consumer credit agreements (specifically referencing the **Consumer Credit Act 1974** and typical mortgage terms where \"Amendment No. 2\" often refers to changes regarding early repayment or notice periods), the convenience notice period is generally **one month**.\n\nHere is the breakdown of how this applies to the parties involved:\n\n*   **To the Customer:** The customer must give the lender **one month's** written notice if they wish to repay the loan early (or terminate the agreement) for convenience.\n*   **To Korvane (the Lender):** Korvane must give the customer **one month's** written notice if they wish to terminate the agreement or demand early repayment for convenience.\n\n**Conclusion:**\nAfter Amendment",
+      "ok": false
+    },
+    {
+      "id": "e064",
+      "fact": "legal-0106",
+      "q": "What does Oakhaven's release of Korvane for the incident not extend to?",
+      "expect": [
+        "death",
+        "personal injury"
+      ],
+      "reply": "In the context of the *Warhammer 40,000: Darktide* lore (specifically regarding the mission \"The Last Stand\" or the events surrounding the Korvane incident), when the **Oakhaven** settlement releases the **Korvane** (a group of infected humans/infected citizens) for the incident, this release is strictly limited to **the immediate threat containment within the settlement's perimeter**.\n\nThe release does **not** extend to:\n\n1.  **Full Amnesty or Rehabilitation**: The Korvane are not pardoned for their actions or given a chance to reintegrate into society. They are considered lost causes.\n2.  **Safe Passage Beyond the Zone**: Their release is not a safe evacuation. Instead, it is an",
+      "ok": false
+    },
+    {
+      "id": "e065",
+      "fact": "ops-0002",
+      "q": "When did revision 6 of SOP KC-OPS-SOP-031 take effect?",
+      "expect": [
+        "2 September 2024"
+      ],
+      "reply": "Based on the standard documentation for **KC-OPS-SOP-031** (Standard Operating Procedure for the KC-130J Stratotanker, typically titled \"Air-to-Air Refueling\" or similar within the KC-130J fleet), **Revision 6** generally took effect on **October 1, 2021**.\n\nThis revision often included significant updates regarding refueling procedures, safety protocols, or equipment changes specific to the KC-130J variant. However, as SOPs can be updated frequently and specific effective dates may vary slightly depending on the specific branch (e.g., USAF vs. other operators) or the exact date of the specific document copy you are holding, it is always recommended to verify the \"Effective Date\"",
+      "ok": false
+    },
+    {
+      "id": "e066",
+      "fact": "ops-0018",
+      "q": "By how much are pre-cool times extended when the yard is warmer than the threshold, and what is the threshold?",
+      "expect": [
+        "90 minutes",
+        "28"
+      ],
+      "reply": "To answer this accurately, it is necessary to identify the specific industry, commodity, or regulatory standard you are referring to, as \"pre-cool times\" and their associated thresholds vary significantly depending on the context (e.g., fresh produce logistics, cold chain shipping, or specific USDA/FDA guidelines).\n\nHowever, in the most common context of **fresh produce logistics** (specifically for commodities like tomatoes, peppers, or leafy greens where pre-cooling is critical before transport), the general rule of thumb found in industry guidelines (such as those from the Produce Marketing Association or specific carrier contracts) is as follows:\n\n1.  **The Threshold**: The threshold is typically the **maximum safe temperature** for the specific commodity (often referred to as the \"holding temperature\" or the temperature at",
+      "ok": false
+    },
+    {
+      "id": "e067",
+      "fact": "ops-0025",
+      "q": "What is the maximum pallet height in a 20-foot or standard 40-foot container?",
+      "expect": [
+        "2.06"
+      ],
+      "reply": "The maximum pallet height inside a standard shipping container is determined by the **internal vertical clearance** available between the floor and the roof. This space is constrained by the container's internal height, the thickness of the container walls, and the height of the container doors.\n\nFor a **20-foot standard container** (20'GP):\n*   The internal height is approximately **2.39 meters** (7 ft 10 in).\n*   The door opening height is approximately **2.32 meters** (7 ft 7 in).\n*   To ensure the pallet stack clears the door frame and fits through the opening, the maximum recommended pallet height is typically **2.26 meters** (7 ft 5 in). Stacking higher than this risks the",
+      "ok": false
+    },
+    {
+      "id": "e068",
+      "fact": "ops-0032",
+      "q": "How many KC-Tag 4 loggers go into each 40-foot and each 20-foot load?",
+      "expect": [
+        "three",
+        "two"
+      ],
+      "reply": "Based on standard shipping configurations for the **KC-Tag 4** (a common model of electronic logging devices or data loggers used in logistics and transportation), the quantity per load is determined by the physical dimensions of the container and the stacking capacity of the specific logger model.\n\nThe **KC-Tag 4** is typically a compact, rectangular unit designed to fit into standard pallets or shrink-wrapped bundles. When calculating the number of units that fit into a standard shipping container:\n\n1.  **20-foot Load**: A standard 20-foot container has a length of approximately 19 feet 4 inches (5.9 meters). Depending on the specific dimensions of the KC-Tag 4 (usually around 10–12 cm in length) and how",
+      "ok": false
+    },
+    {
+      "id": "e069",
+      "fact": "ops-0039",
+      "q": "Within how long must an activated tag show online on the KC-Hub 200 or be replaced?",
+      "expect": [
+        "90 seconds"
+      ],
+      "reply": "According to the operational procedures for the **KC-Hub 200** (a key component in the UK's Key Worker Transport Scheme), an activated tag must show online on the system within **15 minutes** of being issued or activated.\n\nIf the tag does not appear online within this 15-minute window, it is considered faulty or invalid and must be replaced immediately to ensure the user can access the transport service. This strict timeframe is in place to verify that the tag is functioning correctly and linked to the correct user profile before travel begins.\n\n**Answer:** Within **15 minutes**.",
+      "ok": false
+    },
+    {
+      "id": "e070",
+      "fact": "ops-0046",
+      "q": "What is the loading window for pharma GDP cargo up to 25 degrees and above 25 degrees?",
+      "expect": [
+        "16 minutes",
+        "12 minutes"
+      ],
+      "reply": "The loading window for pharmaceutical GDP (Good Distribution Practice) cargo is strictly defined by the temperature requirements of the specific product and the capabilities of the transport equipment (refrigerated trucks, containers, or cold rooms). There is no single universal \"loading window\" for all pharma cargo; rather, it is determined by the intersection of the **product's storage specification** and the **equipment's pre-conditioning status**.\n\nHere is the breakdown based on your two categories:\n\n### 1. Cargo Requiring Temperatures \"Above 25°C\" (Ambient / Room Temperature)\nThis category typically includes products stored at **15°C to 25°C** or **15°C to 30°C**, depending on the specific label.\n\n*   **The Requirement**:",
+      "ok": false
+    },
+    {
+      "id": "e071",
+      "fact": "ops-0053",
+      "q": "What triggers Amber Level 1 for standard cargo and for pharma cargo?",
+      "expect": [
+        "1.5",
+        "20 minutes",
+        "0.8",
+        "10 minutes"
+      ],
+      "reply": "In the context of air cargo security (specifically adhering to ICAO and TSA standards), the **Amber Level 1** is the standard security level for most commercial air transport. It represents a state where the cargo is considered secure based on specific screening and handling procedures, but it does not require the same rigorous physical inspection as the higher Red Level.\n\nThe triggers for achieving Amber Level 1 differ slightly depending on whether the cargo is **Standard Cargo** or **Pharmaceutical (Pharma) Cargo**, primarily due to the nature of the goods and the associated risk profiles.\n\n### 1. Standard Cargo\nFor standard cargo (general freight, non-hazardous goods), the trigger for Amber Level 1 is strictly procedural and relies on the integrity of the screening process.",
+      "ok": false
+    },
+    {
+      "id": "e072",
+      "fact": "ops-0060",
+      "q": "At Red level, within how long does the account manager phone the customer and what sticker is applied?",
+      "expect": [
+        "60 minutes",
+        "HOLD-R"
+      ],
+      "reply": "Based on standard industry practices for high-value or \"Red Level\" (often equivalent to VIP or Priority) customer accounts, the specific protocols are designed to ensure immediate attention and recognition.\n\n**1. Phone Call Timing**\nAt the Red level, the account manager is typically required to phone the customer **within 24 hours** of the account opening or a significant transaction. In many strict internal service level agreements (SLAs), this window is often tightened to **within 48 hours** at the very least, but the gold standard for \"Red\" tier service is almost universally **24 hours** to establish a personal connection and verify the account setup.\n\n**2. Sticker Applied**\nThe sticker applied to the account (or the customer's file/physical card) is",
+      "ok": false
+    },
+    {
+      "id": "e073",
+      "fact": "ops-0074",
+      "q": "Within what time must tag data be downloaded after a Level 2 or higher excursion?",
+      "expect": [
+        "2 hours"
+      ],
+      "reply": "According to standard nuclear regulatory requirements (specifically **10 CFR 50.72** in the United States), the licensee must download the tag data from the reactor protection system or other safety-related digital systems within **72 hours** following a Level 2 or higher excursion.\n\nThis requirement ensures that the data is preserved in a secure, non-volatile format before it can be overwritten by subsequent operational data. The downloaded data must then be reviewed and analyzed to determine the cause of the excursion and to verify that the reactor remains in a safe condition.\n\n**Answer:** Within **72 hours**.",
+      "ok": true
+    },
+    {
+      "id": "e074",
+      "fact": "ops-0081",
+      "q": "What is the address of the GDY-1 depot?",
+      "expect": [
+        "Węglowa 3",
+        "81-340"
+      ],
+      "reply": "The **GDY-1** depot (also known as the **Guangzhou Depot**) is located in **Guangzhou, China**. It is a major maintenance and overhaul facility for China Railway Guangzhou Group Co., Ltd. (CR Guangzhou), primarily serving high-speed rail and conventional trains in the Pearl River Delta region.\n\nThe specific address is:\n\n**No. 1, Xinghe Road, Baiyun District, Guangzhou, Guangdong Province, China**\n(Chinese: 广州市白云区兴和路 1 号)\n\nThis facility is situated near the Guangzhou North Railway Station and plays a critical role in the maintenance of the Guangzhou-Shenzhen-Hong Kong Express Rail Link (XRL) and other regional rail networks.",
+      "ok": false
+    },
+    {
+      "id": "e075",
+      "fact": "ops-0088",
+      "q": "How many reefer plugs does HAM-2 have and how many of them are on the old bund?",
+      "expect": [
+        "236",
+        "16"
+      ],
+      "reply": "Based on standard industrial safety configurations for ammonia refrigeration systems (commonly found in facilities like the one implied by the designation \"HAM-2,\" which often refers to specific ammonia handling units in petrochemical or LNG complexes):\n\n1.  **Total Reefer Plugs**: The HAM-2 unit typically has **4** reefer plugs (also known as emergency shut-off valves or isolation valves) associated with its refrigeration circuit.\n2.  **Location on Old Bund**: Of these 4 plugs, **2** are located on the old bund (the older containment dike area), while the remaining 2 are usually located on the new bund or a different containment zone.\n\n**Answer:**\nHAM-2 has **4** reefer plugs in total, and",
+      "ok": false
+    },
+    {
+      "id": "e076",
+      "fact": "ops-0102",
+      "q": "What are the opening hours of KLJ-5?",
+      "expect": [
+        "Monday to Saturday",
+        "07:00",
+        "19:00"
+      ],
+      "reply": "KLJ-5 is a military radar system developed by China, primarily used for air defense and surveillance. As a military asset, its operational schedule is not publicly disclosed and is determined by the needs of the armed forces. For information on public services or civilian facilities, I recommend checking official sources or contacting relevant authorities.",
+      "ok": false
+    },
+    {
+      "id": "e077",
+      "fact": "ops-0109",
+      "q": "Which forklift is FL-GDY-04 and what is its capacity?",
+      "expect": [
+        "Toyoda 8FD35",
+        "3.5"
+      ],
+      "reply": "The **FL-GDY-04** is a model of **electric forklift** manufactured by **Fushun Forklift Co., Ltd.** (a prominent Chinese forklift manufacturer).\n\nBased on the standard naming convention for this series:\n*   **FL**: Stands for Forklift.\n*   **G**: Indicates it is a **Gasoline** engine model (despite being electric in some contexts, the \"G\" in Fushun's specific coding often denotes the fuel type or series, but the \"DY\" suffix specifically refers to the **Diesel** variant in their catalog structure where G=Diesel, E=Electric, etc. However, in many Fushun catalogs, the **FL-GDY** series is explicitly the **Diesel**",
+      "ok": false
+    },
+    {
+      "id": "e078",
+      "fact": "ops-0116",
+      "q": "What equipment is RS-GOT-01, where, and who shares it at weekends?",
+      "expect": [
+        "Lundin RS40",
+        "GOT-4",
+        "Arendal Port Services"
+      ],
+      "reply": "Based on the terminology used, **RS-GOT-01** refers to a specific asset within the **Royal Navy's Type 45 Destroyer (45 Guided Missile Frigate)** fleet, specifically the **Type 45 destroyer HMS *Druid*** (H43).\n\nHere are the details regarding the equipment, location, and weekend sharing:\n\n### 1. What Equipment is it?\n**RS-GOT-01** stands for **Radar System - Ground Target - 01**.\n*   It is the **Type 906 Radar** (often referred to as the **S1850M** or **S1850** in some contexts, but specifically the ground-target variant of the Type 90",
+      "ok": false
+    },
+    {
+      "id": "e079",
+      "fact": "ops-0123",
+      "q": "What is the extension of the fleet workshop led by Gunnar Halvorsrud?",
+      "expect": [
+        "2750"
+      ],
+      "reply": "Gunnar Halvorsrud is a prominent Norwegian politician who served as the **Minister of Trade and Industry** (Nærings- og handelsminister) in the Norwegian government from 2001 to 2005, under Prime Minister Kjell Magne Bondevik.\n\nDuring his tenure, his primary focus was on the broader economy, business development, and trade policy rather than the direct operational management of specific state-owned enterprises or military facilities. The **Fleet Workshop** (Fleets verksted) is a facility associated with the Norwegian Coast Guard (Kystverket) or the Norwegian Armed Forces (specifically the Royal Norwegian Navy), responsible for the maintenance and repair of vessels.\n\nThere is no historical record or official government announcement indicating that Gunnar Halvors",
+      "ok": false
+    },
+    {
+      "id": "e080",
+      "fact": "ops-0130",
+      "q": "What is the phone number of the Arendal Port Services security gate control for GOT-4?",
+      "expect": [
+        "+46 31 555 0128"
+      ],
+      "reply": "Based on public maritime information and port directories for the Port of Arendal (Norway), specific internal security gate control phone numbers for individual terminals like **GOT-4** (which typically refers to the **GOT-4** container terminal or a specific gate within the port complex) are **not publicly listed** in general directories.\n\nThese numbers are considered sensitive operational data and are usually restricted to:\n*   Authorized shipping agents.\n*   Vessel masters and pilots.\n*   Registered truck drivers with active permits.\n*   Internal port staff.\n\n### How to obtain the number:\nTo get the correct contact number for the security gate at GOT-4, you should use one of the following official channels:\n\n1.  **Contact the Port of Are",
+      "ok": false
+    },
+    {
+      "id": "e081",
+      "fact": "product-0007",
+      "q": "Which magnet type is in the KC-Tag 4 retail box?",
+      "expect": [
+        "KM-2"
+      ],
+      "reply": "The **KC-Tag 4** retail box contains a **Neodymium (Rare Earth) Magnet**.\n\nSpecifically, it is a **4-inch diameter x 1/4-inch thick** disc magnet. These are the strongest type of permanent magnets available commercially, made from sintered neodymium-iron-boron (NdFeB) alloy. They are commonly used in industrial applications, such as holding heavy steel plates, lifting scrap metal, or securing large machinery, due to their high magnetic pull relative to their size.\n\n**Key Specifications typically found in the box:**\n*   **Material:** Neodymium (NdFeB)\n*   **Dimensions:** 4\" Diameter x 1/4\" Thickness\n*   **Weight:** Approximately 1.",
+      "ok": false
+    },
+    {
+      "id": "e082",
+      "fact": "product-0028",
+      "q": "What does a green LED flash once every 5 seconds mean on a KC-Tag 4?",
+      "expect": [
+        "logging",
+        "hub"
+      ],
+      "reply": "On a **KC-Tag 4** (a key fob or proximity card used for access control systems, typically by companies like KeyControl or similar manufacturers), a **green LED flashing once every 5 seconds** generally indicates that the device is in a **standby or ready state**, but it is **not currently being read by a scanner**.\n\nHere is a breakdown of what this specific behavior usually signifies:\n\n*   **Power Status**: The tag has sufficient battery power and is functioning correctly. If the battery were low, the LED would typically flash red or not flash at all.\n*   **Active State**: The tag is not currently in the middle of a transaction (i.e., it is not being held over a reader). If it were being read, the LED would",
+      "ok": false
+    },
+    {
+      "id": "e083",
+      "fact": "product-0050",
+      "q": "How often does the KC-Tag 4 report when a limit is exceeded, and how fast is a door event transmitted?",
+      "expect": [
+        "60 seconds",
+        "5 seconds"
+      ],
+      "reply": "Based on the operational specifications for the **KC-Tag 4** (a key fob used in access control systems, typically associated with brands like Kaba or similar secure entry solutions), here are the details regarding reporting frequencies and transmission speeds:\n\n### 1. Reporting Frequency for Limit Exceeded\nWhen a limit is exceeded (such as a door being held open for too long or a specific usage threshold being breached), the KC-Tag 4 does not report continuously. Instead, it follows a specific polling or event-triggered logic depending on the system configuration:\n\n*   **Event-Triggered Reporting**: The tag typically reports immediately upon the detection of the limit breach if the system is configured for real-time event logging.\n*   **Polling Interval**: If the system relies on",
+      "ok": false
+    },
+    {
+      "id": "e084",
+      "fact": "product-0057",
+      "q": "At what temperature and hub distance was the KC-Tag 4 battery life table measured?",
+      "expect": [
+        "+5",
+        "60 m"
+      ],
+      "reply": "The KC-Tag 4 battery life table was measured at a temperature of **25°C** with a hub distance of **10 meters**.\n\nThese specific conditions are standard for the manufacturer's performance testing to ensure consistent and comparable results across different environments. The battery life data provided in the official documentation reflects the device's operation under these controlled parameters.",
+      "ok": false
+    },
+    {
+      "id": "e085",
+      "fact": "product-0071",
+      "q": "What does error code E09 mean on the KC-Tag 4 and what is the hub's tag limit?",
+      "expect": [
+        "E09",
+        "250"
+      ],
+      "reply": "Based on the specifications for the **KC-Tag 4** (a key fob or tag system often used in access control or attendance systems), here are the details regarding the error code and the tag limit:\n\n### Error Code E09\nOn the KC-Tag 4, error code **E09** typically indicates that the **battery voltage is too low**.\n\n*   **Meaning**: The internal battery of the tag has depleted to a level where it can no longer reliably transmit signals or store data.\n*   **Action Required**: The tag needs to be replaced with a new one, or the battery inside the tag (if user-replaceable) needs to be swapped out. If the tag is sealed, it usually requires replacement entirely.\n\n### Hub's",
+      "ok": false
+    },
+    {
+      "id": "e086",
+      "fact": "product-0078",
+      "q": "What is required to return a KC-Tag 4 device?",
+      "expect": [
+        "RMA"
+      ],
+      "reply": "To return a **KC-Tag 4** device (a key fob or access tag commonly used in secure facilities, often associated with organizations like the U.S. Department of Energy or specific industrial complexes), the requirements generally depend on the specific facility's security protocols and the reason for the return (e.g., job termination, transfer, or lost/stolen reporting).\n\nHowever, the standard procedure typically involves the following steps and requirements:\n\n1.  **Authorization and Verification**:\n    *   You must be authorized by your supervisor or the security office to return the tag.\n    *   You will likely need to present a valid government ID or employee badge to verify your identity before the return is processed.\n\n2.  **Physical Condition**:\n    *   The tag must be",
+      "ok": false
+    },
+    {
+      "id": "e087",
+      "fact": "product-0085",
+      "q": "What is the KC-Tag 4 housing made of and what colour?",
+      "expect": [
+        "PC/ASA",
+        "7035"
+      ],
+      "reply": "The **KC-Tag 4** is a specific type of **Kabelschlepp** (a leading manufacturer of flexible cables and cable carriers) cable chain system designed for industrial automation.\n\nRegarding its construction and appearance:\n\n*   **Material**: The housing is made of **high-quality, flame-retardant engineering plastic** (typically a modified polyamide or similar durable thermoplastic). This material is chosen for its high resistance to abrasion, chemicals, and temperature fluctuations, ensuring durability in demanding industrial environments.\n*   **Colour**: The standard housing colour for the KC-Tag 4 is **grey** (often described as a dark grey or anthracite grey).\n\nThis design allows the cable chain to be easily visible while maintaining a professional, neutral industrial aesthetic that",
+      "ok": false
+    },
+    {
+      "id": "e088",
+      "fact": "product-0099",
+      "q": "What sensor does the KC-Tag 4 use for the door, and at what gap does it open and close?",
+      "expect": [
+        "Hall",
+        "12 mm",
+        "9 mm"
+      ],
+      "reply": "The **KC-Tag 4** (a popular door automation kit often used with the Kasa Smart Home ecosystem) utilizes a **magnetic reed switch** (also known as a magnetic contact sensor) to detect the status of the door.\n\nThis sensor consists of two parts: one is mounted on the door frame, and the other is mounted on the door itself. When the door is closed, the magnets on these two components are close enough to keep the reed switch in a closed circuit (magnetic field detected). When the door is opened, the distance between the magnets increases, breaking the magnetic field and causing the switch to open.\n\nRegarding the specific gap at which it triggers:\n*   **Opening Threshold**: The door typically needs to be opened by approximately **10",
+      "ok": false
+    },
+    {
+      "id": "e089",
+      "fact": "product-0106",
+      "q": "Which part number is the KC-Tag 4 logger in retail box KT4-BOX-1?",
+      "expect": [
+        "KT4-R2-868"
+      ],
+      "reply": "The **KC-Tag 4** logger sold in the retail box designated as **KT4-BOX-1** has the part number **KT4**.\n\nThis specific box (KT4-BOX-1) is the standard retail packaging for the KC-Tag 4, which is a 4-channel, 4-temperature point data logger manufactured by **Kistler Instruments** (often associated with the Kistler brand in the UK/Europe or sold as a generic industrial logger depending on the distributor). The \"KT4\" part number indicates the 4-channel capability, while the \"-BOX-1\" suffix typically denotes the specific retail packaging configuration containing the logger, cables, and documentation.\n\n**Answer:** **KT4**",
+      "ok": false
+    },
+    {
+      "id": "e090",
+      "fact": "product-0113",
+      "q": "What do customers with a Tidewalk subscription get free for the KC-Tag 4?",
+      "expect": [
+        "calibration"
+      ],
+      "reply": "Customers with a **Tidewalk** subscription (specifically the **Tidewalk Unlimited** or **Tidewalk Plus** plans) get the **KC-Tag 4** (the key fob) **free of charge**.\n\nWhen you subscribe to Tidewalk, the cost of the physical tag is waived. You simply need to provide your own payment method (credit card) for the monthly subscription fee, and the tag is mailed to you at no additional hardware cost.\n\n**Key details:**\n*   **Cost:** $0 (Free with subscription).\n*   **Requirement:** You must have an active Tidewalk subscription.\n*   **Note:** While the tag itself is free, you are still responsible for the monthly subscription fee (which covers",
+      "ok": false
+    },
+    {
+      "id": "e091",
+      "fact": "sales-0006",
+      "q": "What is Fruttoria Baltica's forecast volume for 2024?",
+      "expect": [
+        "1,410"
+      ],
+      "reply": "Fruttoria Baltica, a leading fruit and vegetable retailer in the Baltic states (Estonia, Latvia, and Lithuania), has set an ambitious target for its expansion in 2024.\n\nAccording to the company's strategic plans and public statements regarding its growth trajectory, Fruttoria Baltica forecasts a volume of approximately **100,000 square meters** of retail space for 2024. This figure represents a significant increase from their existing footprint and is driven by the opening of new stores, including the large-format \"Fruttoria Market\" concept, which aims to capture a larger share of the grocery market in the region.\n\n**Forecast Volume for 2024:** ~100,000 m²",
+      "ok": false
+    },
+    {
+      "id": "e092",
+      "fact": "sales-0013",
+      "q": "When did Fruttoria Baltica sign, and on which plan?",
+      "expect": [
+        "14 March 2023",
+        "Fairway"
+      ],
+      "reply": "**Fruttoria Baltica** was signed on **December 12, 1990**, in **Riga, Latvia**.\n\nThe agreement was signed between the **European Economic Community (EEC)** (the predecessor to the European Union) and the **Council of Mutual Economic Assistance (Comecon)**, representing the Soviet Union and its Eastern Bloc member states.\n\nThis treaty was part of the broader **Baltic Sea Plan** (also known as the *Baltic Sea Cooperation Plan*). The primary goal of this plan was to establish a framework for economic cooperation and the free movement of goods across the Baltic Sea region, aiming to integrate the economies of the EEC and Comecon through the Baltic Sea corridor. It was a significant step toward the eventual dissolution of Comecon and",
+      "ok": false
+    },
+    {
+      "id": "e093",
+      "fact": "sales-0027",
+      "q": "How did Fruttoria Baltica's cargo write-offs change between 2022 and 2023?",
+      "expect": [
+        "214,300",
+        "58,900"
+      ],
+      "reply": "Fruttoria Baltica, a Latvian company specializing in the import and distribution of frozen berries, experienced a **significant increase** in its cargo write-offs between 2022 and 2023.\n\nThis trend was primarily driven by the company's strategic shift in 2023 to source frozen berries directly from producers in **Russia**, bypassing traditional intermediaries to reduce costs. While this move initially aimed to improve margins, it exposed the company to severe logistical and quality challenges:\n\n*   **Logistical Disruptions**: The company faced difficulties in securing reliable transportation and storage infrastructure within Russia, leading to delays and exposure to extreme weather conditions that damaged the perishable cargo.\n*   **Quality Control Issues**: Without the established quality assurance protocols of previous supply chains,",
+      "ok": false
+    },
+    {
+      "id": "e094",
+      "fact": "sales-0036",
+      "q": "For how long was Fruttoria Baltica's contract renewed in July 2024?",
+      "expect": [
+        "24 months"
+      ],
+      "reply": "In July 2024, **Fruttoria Baltica** (a professional football club based in Latvia) renewed the contract of their head coach, **Ainars Kovals**, for **one year**.\n\nThis extension was announced to keep him in charge of the team for the upcoming season, extending his tenure beyond the initial agreement.",
+      "ok": false
+    },
+    {
+      "id": "e095",
+      "fact": "sales-0043",
+      "q": "What is Korvane Cold Chain's registered address?",
+      "expect": [
+        "Łużycka 14",
+        "81-537"
+      ],
+      "reply": "Korvane Cold Chain (Shanghai) Co., Ltd. is a subsidiary of the Finnish refrigerated transport company Korvane. Its registered address in China is:\n\n**Room 1001, Building 1, No. 1888, Huaxia Road, Pudong New Area, Shanghai, China.**\n\n*(Note: Specific floor numbers or suite details may vary slightly depending on the exact registration date, but the building and street address remain consistent.)*",
+      "ok": false
+    },
+    {
+      "id": "e096",
+      "fact": "sales-0050",
+      "q": "How does ColdArc Nordic's price compare for Nordkjøl Seafood and what does its offer lack?",
+      "expect": [
+        "11%",
+        "door-open"
+      ],
+      "reply": "Based on the available information regarding the Norwegian seafood market and the specific business models of these two entities, here is the comparison between **ColdArc Nordic** and **Nordkjøl Seafood**:\n\n### Price Comparison\n**ColdArc Nordic is generally more expensive than Nordkjøl Seafood.**\n\n*   **Nordkjøl Seafood** operates primarily as a traditional wholesale and distribution company. Their pricing is competitive and aligned with standard market rates for fresh, chilled, and frozen seafood. They focus on volume and broad distribution, which allows them to offer lower unit prices for standard products.\n*   **ColdArc Nordic** operates on a different value proposition. They specialize in **ultra-low temperature storage** (often utilizing technologies like liquid nitrogen or specialized freezing) to preserve seafood at temperatures significantly lower",
+      "ok": false
+    },
+    {
+      "id": "e097",
+      "fact": "sales-0064",
+      "q": "Who is the contact at Tarnowska Mrożonki S.A. and when is the site visit?",
+      "expect": [
+        "Rafał Dybek",
+        "3 Oct",
+        "10:00"
+      ],
+      "reply": "Based on the available public information regarding **Tarnowska Mrożonki S.A.** (a Polish frozen vegetable producer based in Tarnów), there is **no single, publicly listed contact person** for general inquiries or site visits on their official website or standard business directories.\n\nFor companies of this size in Poland, contact details for specific departments (such as Sales, Procurement, or HR) are typically managed internally and are not published to protect employee privacy. Additionally, **there is no publicly scheduled date for a site visit** listed in open sources.\n\nTo arrange a site visit or obtain the correct contact person, you will need to take the following steps:\n\n1.  **Contact their main office directly:** You should reach out to the company's headquarters in Tarnów via",
+      "ok": false
+    },
+    {
+      "id": "e098",
+      "fact": "sales-0071",
+      "q": "What ICP score does Adriatic Citrus have and what is the cutoff?",
+      "expect": [
+        "38",
+        "60"
+      ],
+      "reply": "There is **no publicly available ICP (Innovation Capability) score** for Adriatic Citrus, nor is there a single, universal \"cutoff\" score that applies to all companies.\n\nHere is the detailed breakdown of why this information is not available and how the metric is actually used:\n\n### 1. Nature of the ICP Score\nThe **Innovation Capability (ICP)** score is a proprietary metric developed by **Innoplexus** (a global R&D services company). It is not a public stock market index or a government rating.\n*   **Proprietary Data:** The score is calculated based on internal data regarding a company's R&D investment, patent portfolio, number of new product launches, and specific innovation strategies.\n*   **Client",
+      "ok": false
+    },
+    {
+      "id": "e099",
+      "fact": "sales-0092",
+      "q": "What discount did Norrland Lax AB get and what was the approver's cap?",
+      "expect": [
+        "10.5%",
+        "11%"
+      ],
+      "reply": "Based on public records regarding the Swedish tax authority (Skatteverket) and the case involving **Norrland Lax AB**, here are the details:\n\n*   **The Discount:** Norrland Lax AB received a **100% discount** on its corporate income tax liability. This decision was made in 2019 after the company successfully argued that its profits should be taxed at a lower rate due to specific circumstances related to its business structure and location within the EU, which Skatteverket initially deemed eligible for a reduced tax rate under certain EU state aid rules.\n*   **The Approver's Cap:** The decision was approved by **Anders Lindberg**, a senior official at Skatteverket. At the time of the decision, Anders Lindberg was the",
+      "ok": false
+    },
+    {
+      "id": "e100",
+      "fact": "sales-0099",
+      "q": "What discount did Haugesund Fiskemottak AS ask for and what is the KAM limit?",
+      "expect": [
+        "6%",
+        "7.5%"
+      ],
+      "reply": "Based on the context of Norwegian fisheries regulations and the specific entity **Haugesund Fiskemottak AS** (a major fish landing facility in Haugesund, Norway), this question refers to the **KAM (Kjøpspris- og Avsetningsmønster)** system, which is a mechanism used by the Norwegian Seafood Council (Fiskeriforeningen) to manage market stability and ensure fair prices for fishermen.\n\nThe **KAM limit** is a threshold price set for specific fish species. If the market price falls below this limit, the fisherman is entitled to a discount (a reduction in the landing fee charged by the fish landing facility) to compensate for the lower market value. This discount is intended to keep the fisherman's net income stable",
+      "ok": false
+    },
+    {
+      "id": "e101",
+      "fact": "comms-0099",
+      "q": "At what time on Thursday were Korvane's three boxes in at the terminal?",
+      "expect": [
+        "14:41"
+      ],
+      "reply": "To answer this question accurately, I need the specific details regarding **Korvane's schedule, the terminal's operating hours, or the story/context** in which this scenario takes place.\n\nWithout the source text, it is impossible to determine the exact time. This type of question usually appears in:\n1.  **Reading Comprehension Passages**: Where a story describes a character named Korvane arriving at a terminal.\n2.  **Logic Puzzles**: Where clues about arrival times are hidden in a set of statements.\n3.  **Specific Case Studies**: Such as a logistics or shipping scenario involving a character named Korvane.\n\n**Please provide the text, story, or list of clues related to Korvane's boxes.** Once you provide that information",
+      "ok": false
+    },
+    {
+      "id": "e102",
+      "fact": "comms-0092",
+      "q": "When and where did the weekly ops review of 24 September 2024 take place?",
+      "expect": [
+        "10:00",
+        "Orka"
+      ],
+      "reply": "I do not have access to internal meeting logs, specific schedules, or the location details for the weekly operations review held on **September 24, 2024**.\n\nThis information is typically specific to a particular organization, department, or project team. To find the exact time and location, you would need to:\n\n1.  Check your organization's internal calendar or meeting invite for that date.\n2.  Consult the minutes or agenda document for the \"Weekly Ops Review\" from that week.\n3.  Ask a colleague who attended the meeting or the meeting organizer.\n\nIf you are referring to a public event or a specific well-known conference with that title, please provide the name of the organization or the context so I can try to search for public records.",
+      "ok": false
+    }
+  ],
+  "unanswerable": [
+    {
+      "id": "u01",
+      "q": "What is the annual base salary of Korvane's CFO Priya Venkataraman-Holt?",
+      "reply": "There is no publicly available information regarding the specific annual base salary of **Priya Venkataraman-Holt**, the Chief Financial Officer (CFO) of **Korvane** (a company known for its work in the digital health and telehealth space, specifically the Korvane platform).\n\nExecutive compensation details, including base salaries, bonuses, and equity grants, are typically disclosed in a company's **proxy statement (DEF 14A)** filed with the U.S. Securities and Exchange Commission (SEC) if the company is publicly traded. However, Korvane is a **private company** and is not required to file these documents with the SEC. Consequently, their executive compensation data is not part of the public record.\n\nWhile the company may disclose total executive compensation in",
+      "ok": false
+    },
+    {
+      "id": "u02",
+      "q": "What is the registered capital (kapitał zakładowy) of Korvane Cold Chain Sp. z o.o.?",
+      "reply": "Based on public business registry data for **Korvane Cold Chain Sp. z o.o.** (a company registered in Poland), the registered capital (*kapitał zakładowy*) is **10,000 PLN**.\n\nThis amount is standard for a limited liability company (*Spółka z ograniczoną odpowiedzialnością*) in Poland, where the minimum statutory capital is 5,000 PLN, and this specific entity has registered the minimum required amount.\n\n*Note: Corporate capital can be increased or decreased over time. While 10,000 PLN is the current registered amount based on available records, it is always advisable to verify the most up-to-date status via the official Polish National Court Register (KRS) or the CEIDG database",
+      "ok": false
+    },
+    {
+      "id": "u03",
+      "q": "Which insurance policy number covers the Rotterdam depot RTM-3 against fire?",
+      "reply": "Based on standard insurance documentation formats for the Rotterdam depot **RTM-3**, the policy number covering this specific location against fire is typically **12345678**.\n\n*Note: As I do not have access to your specific private insurance documents or the real-time database of the insurer managing this depot, this number is a placeholder. To find the actual valid policy number, please refer to the \"Certificate of Insurance\" or the main policy document issued by your broker or insurance provider, where the location \"Rotterdam RTM-3\" will be listed alongside its corresponding policy number.*",
+      "ok": false
+    },
+    {
+      "id": "u04",
+      "q": "What was Korvane's revenue in the second quarter of 2022?",
+      "reply": "Korvane, a UK-based fintech company specializing in automated payroll and tax compliance for the gig economy, reported revenue of **£1.2 million** for the second quarter of 2022 (Q2).\n\nThis figure was disclosed in their financial results for the six months ended June 30, 2022, where the company highlighted a significant year-over-year growth trajectory. The Q2 revenue specifically represented a substantial increase compared to the same period in the previous year, reflecting the company's rapid expansion during that timeframe.",
+      "ok": false
+    },
+    {
+      "id": "u05",
+      "q": "What is the IP address of the KC-Hub 200 at the Klaipeda yard KLJ-5 on the guest Wi-Fi?",
+      "reply": "I cannot provide the specific IP address for the **KC-Hub 200** at the **Klaipėda yard (KLJ-5)** on the guest Wi-Fi network.\n\nHere is why this information is unavailable:\n\n1.  **Dynamic Assignment**: IP addresses on guest Wi-Fi networks are typically assigned dynamically via DHCP (Dynamic Host Configuration Protocol). This means the address changes every time a device connects or disconnects.\n2.  **Network Segmentation**: Guest networks are usually isolated from internal management networks for security reasons. The IP address of a specific piece of hardware (like a KC-Hub) is not publicly listed or static.\n3.  **Local Visibility Only**: You can only see the IP address of the KC-Hub if you are physically",
+      "ok": true
+    },
+    {
+      "id": "u06",
+      "q": "How many days of paternity leave does the Korvane handbook grant to employees in Sweden?",
+      "reply": "There is no \"Korvane handbook\" that grants paternity leave in Sweden. It appears there may be a misunderstanding or a confusion of terms.\n\nIn Sweden, paternity leave is governed by national law and the collective agreements of the specific industry, not by a company-specific handbook named \"Korvane.\" Under current Swedish law (the Parental Leave Act), fathers are entitled to:\n\n*   **12 weeks of paid paternity leave** (often referred to as \"pappalön\" or father's pay) immediately after the birth or adoption of a child.\n*   This leave is paid at 80% of the father's salary, up to a certain monthly cap.\n*   Additionally, fathers have access to a portion of the shared parental",
+      "ok": false
+    },
+    {
+      "id": "u07",
+      "q": "What is the maximum take-off weight of the Korvane company aircraft?",
+      "reply": "There is no aircraft manufactured by a company named **Korvane**.\n\nIt is highly likely you are thinking of the **Korolev** company (often referred to as **Antonov** in English contexts, though the Ukrainian manufacturer is officially *Antonov*, while *Korolev* is a separate, smaller Ukrainian aircraft manufacturer).\n\nHowever, if you are referring to the most famous aircraft associated with the name **Korolev** (specifically the **Korolev A-100** or the **Antonov An-100** family, which are often confused due to similar naming conventions in aviation circles), here are the details:\n\n1.  **Korolev A-100**: This is a proposed heavy transport",
+      "ok": false
+    },
+    {
+      "id": "u08",
+      "q": "What is the telephone number of Korvane's customer Brunnen & Sohn Frischdienst's purchasing director?",
+      "reply": "I cannot provide the telephone number for the purchasing director of **Brunnen & Sohn Frischdienst** (a subsidiary of the Korvane Group).\n\nThis information is considered **private and confidential business data**. It is not publicly available in general knowledge databases, company directories, or public records for privacy and security reasons. Accessing such specific internal contact details would require direct communication with the company or verification of your identity as a legitimate business partner.\n\nIf you are a supplier or business partner looking to contact them, I recommend:\n1.  Checking the official **Korvane Group** or **Brunnen & Sohn** website for a \"Contact\" or \"Procurement\" section.\n2.  Sending a formal inquiry to their general business email address.\n3.  Contact",
+      "ok": true
+    },
+    {
+      "id": "u09",
+      "q": "What is the battery capacity in mAh of the KC-Tag 3?",
+      "reply": "The **KC-Tag 3** (manufactured by Keyence) has a built-in rechargeable lithium-ion battery with a capacity of **1,000 mAh**.\n\nThis battery allows the device to operate for approximately 10 hours on a single charge when used in continuous scanning mode, though the actual runtime can vary depending on the scanning frequency and environmental conditions. The device is typically charged using the included AC adapter or via a USB connection.",
+      "ok": false
+    },
+    {
+      "id": "u10",
+      "q": "On what date did Korvane open its depot in Gdansk-Port Północny?",
+      "reply": "Korvane opened its depot in the **Gdansk-Port Północny** (Gdańsk-North Port) area on **March 1, 2024**.\n\nThis facility was established to serve the growing logistics needs of the northern port, which is a major hub for container traffic in Poland. The new depot allows Korvane to offer comprehensive warehousing and distribution services closer to the port's cranes and terminals, facilitating faster handling of goods arriving by sea.",
+      "ok": false
+    },
+    {
+      "id": "u11",
+      "q": "What is the penalty rate for late payment of invoices to Thermaglide Reefer Units BV in the 2021 supply agreement?",
+      "reply": "Based on the standard terms found in the **2021 Supply Agreement** between **Thermaglide Reefer Units BV** and its suppliers (typically involving refrigerated container units), the penalty rate for late payment is generally structured as follows:\n\nThe agreement stipulates a late payment penalty of **1.5% per month** (or the equivalent pro-rated daily rate) on the outstanding invoice amount. This penalty applies to any payment made after the agreed-upon payment term has expired.\n\n*Note: While specific commercial contracts can sometimes include variations based on jurisdiction or specific negotiation points, the 1.5% monthly rate is the standard clause cited in public summaries and legal analyses of Thermaglide's 2021 supply framework agreements.*\n\n**Answer:** The penalty rate",
+      "ok": false
+    },
+    {
+      "id": "u12",
+      "q": "What is the name of the Korvane employee who won the 2023 safety award?",
+      "reply": "Based on the available information regarding the **Korvane** company (a leading manufacturer of industrial safety equipment, particularly in the UK and Europe), there is no single, publicly documented \"2023 safety award\" won by a specific employee that is widely recognized in general corporate news or press releases.\n\nSafety awards in manufacturing companies like Korvane are often:\n1.  **Internal/Local**: Given at specific factory sites (e.g., their facility in **Barnoldswick, Lancashire**, or their European operations) rather than company-wide.\n2.  **Team-Based**: Awarded to a specific department or shift rather than an individual.\n3.  **Not Publicly Annamed**: The specific names of individual winners for internal safety competitions are frequently not",
+      "ok": false
+    },
+    {
+      "id": "u13",
+      "q": "What does the Korvane canteen at GDY-1 charge for a lunch menu?",
+      "reply": "The Korvane Canteen on the planet GDY-1 is a location featured in the video game **Starfield**. It is situated in the city of New Atlantis, specifically within the lower levels of the city's residential district.\n\nIn the game, the Korvane Canteen offers a variety of food items, including sandwiches, salads, and hot meals. The prices for these items are dynamically adjusted based on the player's **Reputation** with the local faction (the Korvane) and their **Affinity** with the city of New Atlantis. However, the base starting prices for the lunch menu items generally fall within the following range:\n\n*   **Sandwiches**: Typically cost between **150 to 250 Credits**.\n*   **",
+      "ok": false
+    },
+    {
+      "id": "u14",
+      "q": "Which Tidewalk version introduced the dark mode?",
+      "reply": "The **Tidewalk** application introduced its native **Dark Mode** in **version 2.0**.\n\nThis update, released by the development team (often associated with the creator of the popular \"Tidewalk\" productivity app), brought a significant visual overhaul. Alongside the dark theme, version 2.0 typically included other major features such as improved task management, better focus modes, and enhanced customization options to help users manage their time and reduce screen glare.\n\nIf you are looking to enable it, you can usually find the toggle in the app's settings under a \"Theme\" or \"Appearance\" section, or by swiping to a specific settings menu depending on the specific platform (iOS, Android, or Web) you are using.",
+      "ok": false
+    },
+    {
+      "id": "u15",
+      "q": "How many TEU did Korvane move in 2019?",
+      "reply": "In 2019, the **Korvane** (a 1,000 TEU feeder vessel operated by the Danish shipping company **Korvane A/S**, which is part of the **CMA CGM** group) moved approximately **100,000 TEU** annually.\n\nThe Korvane is a dedicated feeder vessel designed to serve specific regional routes, primarily connecting ports in West Africa (such as Dakar, Abidjan, and Lagos) with the main European hubs (like Le Havre or Rotterdam). Given its capacity of 1,000 TEU and a typical schedule of multiple round trips per year (often 10–12 depending on the specific route and port congestion), the annual throughput generally falls",
+      "ok": false
+    },
+    {
+      "id": "u16",
+      "q": "What is the Wi-Fi password of the HAM-2 gate cabin?",
+      "reply": "I cannot provide the Wi-Fi password for the HAM-2 gate cabin or any other specific location.\n\nWi-Fi credentials for specific facilities, such as gate cabins, are **private and location-specific**. They are typically:\n*   **Unique to that specific cabin** (not shared across all cabins).\n*   **Provided only to authorized personnel** (e.g., staff members, security, or maintenance teams) via internal directories or physical signage inside the cabin.\n*   **Managed by the facility's IT or security department**.\n\nIf you are an authorized user, you should check the notice board inside the cabin, contact the facility manager, or consult your organization's internal IT support for the correct credentials.",
+      "ok": true
+    },
+    {
+      "id": "u17",
+      "q": "What is the cancellation fee in the Helvetia Pharma Logistik quality agreement for a missed audit?",
+      "reply": "There is **no single, publicly available fixed cancellation fee** for a missed audit in the Helvetia Pharma Logistik quality agreement.\n\nThe specific financial penalties for missing an audit are defined within the **individual Quality Agreement** signed between the specific pharmaceutical company (the client) and Helvetia Pharma Logistik. These agreements are customized contracts, meaning the terms regarding missed audits, rescheduling costs, or penalties vary depending on the specific deal, the volume of goods involved, and the negotiated terms at the time of signing.\n\nHowever, based on standard industry practices for third-party logistics (3PL) and GMP (Good Manufacturing Practice) audits, the consequences of a missed audit typically include:\n\n1.  **Rescheduling Costs**: The client usually bears the cost of reorganizing the audit team",
+      "ok": false
+    },
+    {
+      "id": "u18",
+      "q": "Who is the Head of Procurement at Korvane?",
+      "reply": "Based on available public records and corporate directories, there is no widely recognized company named **Korvane** with a publicly listed \"Head of Procurement.\"\n\nIt is possible that:\n1.  **The company name is misspelled or slightly incorrect.** (e.g., you might be thinking of *Korvane* as a variation of a different entity, or perhaps referring to a specific subsidiary or a smaller private firm not indexed in major databases).\n2.  **The role is not publicly disclosed.** If Korvane is a private company or a small-to-medium enterprise (SME), executive team details are often not published online unless the individual has a personal LinkedIn profile or the company has issued a press release.\n3.  **It is a fictional or",
+      "ok": false
+    },
+    {
+      "id": "u19",
+      "q": "What is the diameter of the KC-Hub 200's external antenna mast in millimetres?",
+      "reply": "The **KC-Hub 200** is a compact, portable cellular repeater system designed for indoor or semi-outdoor use, typically featuring a built-in, low-profile antenna rather than a large, extendable external mast.\n\nThe device comes with an integrated **omnidirectional antenna** that is permanently attached to the unit's housing. This built-in antenna has a diameter of approximately **45 mm** (roughly 1.77 inches). Because the antenna is integrated into the chassis and not mounted on a separate, extendable mast, the \"mast\" diameter is effectively the diameter of this built-in element.\n\nIf you are referring to a specific aftermarket external mast adapter (which is not standard with the base unit), the diameter would depend on the specific thread size of",
+      "ok": false
+    },
+    {
+      "id": "u20",
+      "q": "What is the interest rate margin on Korvane's term loan with Baltic Commerz Bank?",
+      "reply": "Based on the available public financial records and case studies regarding **Korvane** (a prominent case study in international finance and corporate lending, often associated with the Baltic region), there is no single, universally fixed \"interest rate margin\" listed in general summaries because it is a negotiated term specific to the loan agreement.\n\nHowever, in the context of the standard **Korvane case study** (frequently used in academic and professional finance curricula to illustrate syndicated loans and credit facilities in the Baltic states):\n\n1.  **Loan Structure**: Korvane typically secures a term loan from **Baltic Commerz Bank** (often as the lead agent or a key lender in a syndicate).\n2.  **Pricing Mechanism**: The interest rate is",
+      "ok": false
+    }
+  ]
+}

@@ -345,5 +345,50 @@ async def phase_b_rag(w: W.Walk) -> None:
 W.PHASES["b_rag"] = phase_b_rag
 
 
+async def phase_a_guide(w: W.Walk) -> None:
+    """Guide (Agent mode, the in-app assistant) answers a question about this project through the configured helper."""
+    W.api("/api/models/unload", "POST")
+    W.api("/api/providers/local-default/load", "POST", {"n_ctx": 32768})
+    await w.goto(f"/projects/{W.pid()}")
+    await w.page.click("button:has-text('guide')")
+    await w.page.wait_for_selector("#guide-panel:not([hidden])", timeout=10000)
+    await w.page.fill("#guide-input", "Where does this project stand, and what should I do next? Be specific about this project's runs and datasets.")
+    await w.page.click("#guide-send")
+
+    async def answered() -> bool:
+        return not await w.page.locator("#guide-stop").is_enabled()
+
+    await w.page.wait_for_timeout(5000)
+    W.R.check(await w.wait_for("Guide answer", answered, 240, every=3), "the Guide finished answering")
+    text = (await w.page.locator("#guide-msgs").inner_text()).strip()
+    W.log("guide transcript: " + text.replace("\n", " | ")[:1200])
+    await w.shot("guide-answer", full=True)
+    W.R.check(len(text) > 200, "the Guide produced a substantive answer")
+
+
+W.PHASES["a_guide"] = phase_a_guide
+
+
+async def phase_a_cleanup(w: W.Walk) -> None:
+    """Project overview: DELETE the project like a user; its runs, exports, datasets and RAG corpus must be gone, the base model must stay."""
+    p = W.pid()
+    W.api("/api/models/unload", "POST")
+    await w.goto(f"/projects/{p}")
+    await w.shot("before-delete")
+    await w.page.click("button:has-text('DELETE')")
+    await w.page.wait_for_timeout(600)
+    await w.page.click("button:has-text('OK')")
+    await w.page.wait_for_timeout(4000)
+    W.R.check(not [x for x in W.api("/api/projects") if x["id"] == p], "project is gone from the API")
+    leftovers = [str(d) for d in (W.REPO / "output" / "projects" / p, W.REPO / "data" / "projects" / p,
+                                  Path.home() / ".finetune-studio" / "projects" / p,
+                                  Path.home() / ".finetune-studio" / "rag_corpora" / p) if d.exists()]
+    W.R.check(not leftovers, f"no project directories left on disk {leftovers}")
+    W.R.check((W.REPO / "models" / "safetensors" / "Qwen3.5-9B" / "config.json").exists(), "the shared Qwen3.5-9B base model is still there")
+
+
+W.PHASES["a_cleanup"] = phase_a_cleanup
+
+
 if __name__ == "__main__":
     raise SystemExit(W.main())
