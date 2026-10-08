@@ -112,10 +112,21 @@ _ABSTAIN = (
     "does not contain", "doesn't contain", "unable to find",
 )
 
+# Broader net for questions the documents do NOT answer: any of these in a reply counts as "the model declined". Kept apart from
+# _ABSTAIN, which fails a *correct-answer* case, where a false positive would wrongly punish a real answer.
+_DECLINE = _ABSTAIN + (
+    "don't know", "do not know", "not know", "no information", "not specified", "not provided", "cannot", "can't", "unable",
+    "no record", "not available", "isn't stated", "is not stated", "not in the", "not covered", "i have no", "unknown", "not aware",
+    "do not contain", "not contain", "no mention", "not found", "isn't something", "is not something", "don't have that",
+    "do not have that", "don't say", "do not say", "documents cover", "not say", "doesn't say", "no data", "not given", "not listed",
+    "not stated", "does not provide", "doesn't provide",
+)
 
-def is_abstention(text: str) -> bool:
+
+def is_abstention(text: str, *, broad: bool = False) -> bool:
+    """True when the text declines to answer. ``broad`` uses the wider net meant for unanswerable questions."""
     low = text.lower()
-    return any(p in low for p in _ABSTAIN)
+    return any(p in low for p in (_DECLINE if broad else _ABSTAIN))
 
 
 def judge_case_heuristic(

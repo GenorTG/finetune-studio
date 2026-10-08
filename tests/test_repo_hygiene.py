@@ -74,6 +74,7 @@ REQUIRED_TRACKED: tuple[str, ...] = (
     # Quiz sets scored by scripts/corpus_eval.py (paraphrased questions + unanswerable ones).
     "tests/corpus/korvane/eval/paraphrase_core.jsonl",
     "tests/corpus/korvane/eval/unanswerable_core.jsonl",
+    "tests/corpus/korvane/eval/korvane_quiz_core.jsonl",
 )
 
 # Binary/suffix patterns for runtime payloads that must never be tracked

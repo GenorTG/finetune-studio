@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, File, Request, UploadFile
 from fastapi.responses import JSONResponse
 
 from finetune_studio import db
@@ -440,6 +440,22 @@ async def _execute_benchmark(
 async def list_suites(project_id: str | None = None) -> list[dict[str, Any]]:
     """List available benchmark suites (files that exist + optional auto-suites)."""
     return _discover_suites(project_id)
+
+
+@router.post("/projects/{pid}/suites/import", response_model=None)
+async def import_suite_route(pid: str, file: UploadFile = File(...)) -> dict[str, Any] | JSONResponse:  # noqa: B008
+    """Upload a quiz (JSON / JSONL) as a project test suite for the Testing page."""
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    from finetune_studio.testing.suite_import import SuiteImportError, import_suite
+
+    raw = await file.read()
+    try:
+        meta = await asyncio.to_thread(import_suite, pid, file.filename or "quiz.json", raw)
+    except SuiteImportError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return {"ok": True, **meta}
 
 
 @router.get("/projects/{pid}/runs", response_model=None)

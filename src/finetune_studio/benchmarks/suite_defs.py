@@ -29,6 +29,7 @@ SuiteSource = Literal[
     "auto_suites",
     "huggingface",
     "project_qa",
+    "project_import",
 ]
 
 _FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
@@ -366,6 +367,19 @@ def discover_suites(project_id: str | None = None) -> list[dict[str, Any]]:
         corpus = ensure_full_corpus_suite_definition(project_id)
         if corpus is not None:
             found[f"project_qa:{corpus.name}"] = corpus.as_dict()
+
+        from finetune_studio.testing.suite_import import suites_dir
+
+        for f in sorted(suites_dir(project_id).glob("*.json")) if suites_dir(project_id).is_dir() else []:
+            found[f"project_import:{f.stem}"] = SuiteDefinition(
+                name=f.stem,
+                path=str(f),
+                title=f.stem,
+                description=f"Imported quiz: {f.name}",
+                suite_type="local",
+                source="project_import",
+                case_count=_case_count_from_file(f),
+            ).as_dict()
 
         with db.cursor() as c:
             rows = c.execute(

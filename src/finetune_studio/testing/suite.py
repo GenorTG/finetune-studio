@@ -62,6 +62,9 @@ class BenchmarkCase:
     # System turn the row was trained with (the retrieved CONTEXT of a grounded row). Such a row
     # teaches "answer from the context", so quizzing it bare measures the wrong skill.
     system_prompt: str = ""
+    # An unanswerable question: the right behaviour is to say the documents do not cover it, so an abstention PASSES
+    # and any confident answer FAILS (the opposite of every other case).
+    expect_abstain: bool = False
 
 
 @dataclass
@@ -84,6 +87,7 @@ class CaseResult:
     validity: str = ""
     source_id: str = ""
     chunk_idx: int = 0
+    expect_abstain: bool = False
 
 
 def load_test_suite(path: str) -> list[BenchmarkCase]:
@@ -121,6 +125,7 @@ def load_test_suite(path: str) -> list[BenchmarkCase]:
                 chunk_idx=int(item.get("chunk_idx") or 0),
                 row_index=int(item.get("row_index", -1)),
                 system_prompt=str(item.get("system_prompt") or ""),
+                expect_abstain=bool(item.get("expect_abstain")),
             ))
         elif "messages" in item:
             # v1 fallback: extract from messages format
@@ -171,6 +176,7 @@ def run_suite(engine, cases: list[BenchmarkCase], max_tokens: int = 512,
                 keywords=list(case.keywords),
                 source_id=case.source_id,
                 chunk_idx=case.chunk_idx,
+                expect_abstain=case.expect_abstain,
             ))
         except Exception as e:  # noqa: BLE001
             elapsed_ms = (time.time() - start) * 1000
@@ -187,6 +193,7 @@ def run_suite(engine, cases: list[BenchmarkCase], max_tokens: int = 512,
                 keywords=list(case.keywords),
                 source_id=case.source_id,
                 chunk_idx=case.chunk_idx,
+                expect_abstain=case.expect_abstain,
             ))
     return results
 
@@ -240,6 +247,17 @@ def _judge_each(results: list[CaseResult]) -> None:
         if r.verdict:
             continue
         if r.error and not r.model_answer:
+            continue
+
+        if r.expect_abstain:
+            abstained = is_abstention(r.model_answer or "", broad=True)
+            r.verdict = "pass" if abstained else "fail"
+            r.judge = r.judge_model = "heuristic"
+            r.scoring_method = "abstention_expected"
+            r.validity = "valid"
+            r.judge_reasoning = ("[abstention_expected; validity=valid] "
+                                 + ("the model said the documents do not cover it" if abstained
+                                    else "the model gave a confident answer to a question the documents do not answer"))
             continue
 
         if is_abstention(r.model_answer or "") and not is_abstention(r.correct_answer or ""):

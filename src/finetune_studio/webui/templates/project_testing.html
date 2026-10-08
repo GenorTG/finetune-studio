@@ -68,6 +68,16 @@
       <div class="text-xs dim mt-1" id="t-suite-empty">No test suites yet. The easiest way to get one: open <a href="/projects/{{ pid }}/wizard" data-link>Quick work</a> and run <b>Step 5 · Test it</b> &mdash; it generates a quiz from your training data for a finished run. (Advanced: add suite JSON files under <code>data/benchmarks/</code>.)</div>
       {% endif %}
       <div id="t-suite-hint" class="text-xs dim mt-1" style="display:none;"></div>
+      <details class="mt-2" id="t-suite-import-box">
+        <summary class="text-xs muted">Bring your own quiz (JSON / JSONL)</summary>
+        <div class="text-xs dim mt-1">Each question needs <code>q</code> (or <code>question</code>) and <code>expect</code> — a list of values the answer must contain
+          (pass = all, partial = some). Mark a question the documents do not answer with <code>"expect_abstain": true</code>: declining passes, a confident answer fails.</div>
+        <div class="flex gap-2 items-center mt-1">
+          <input type="file" id="t-suite-file" accept=".json,.jsonl,application/json" aria-label="Quiz file to import" class="text-xs">
+          <button type="button" class="btn sm" id="t-suite-import-btn">Import quiz</button>
+        </div>
+        <div id="t-suite-import-msg" class="text-xs dim mt-1" role="status" aria-live="polite"></div>
+      </details>
     </div>
     <div class="col-span-2">
       <button id="t-run-btn" onclick="runSuite()" class="btn primary" style="width:100%;" disabled
@@ -205,6 +215,40 @@
   const escapeHtml = (s) => String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+  async function importQuiz() {
+    const input = document.getElementById('t-suite-file');
+    const msg = document.getElementById('t-suite-import-msg');
+    if (!input || !input.files || !input.files.length) { msg.textContent = 'Choose a quiz file first.'; return; }
+    msg.textContent = 'Importing…';
+    const form = new FormData();
+    form.append('file', input.files[0]);
+    try {
+      const r = await fetch('/api/benchmarks/projects/' + encodeURIComponent(PID) + '/suites/import', { method: 'POST', body: form });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { msg.textContent = 'Import failed: ' + (data.error || ('HTTP ' + r.status)); return; }
+      const sel = document.getElementById('t-suite');
+      let opt = Array.from(sel.options).find((o) => o.value === data.path);
+      if (!opt) {
+        opt = document.createElement('option');
+        opt.value = data.path;
+        sel.appendChild(opt);
+      }
+      const label = data.name + ' · ' + data.case_count + ' questions' + (data.abstain_cases ? ' (' + data.abstain_cases + ' unanswerable)' : '');
+      opt.textContent = label;
+      opt.setAttribute('data-name', data.name);
+      opt.setAttribute('data-type', 'local');
+      opt.setAttribute('data-source', 'project_import');
+      opt.setAttribute('data-label', label);
+      sel.value = data.path;
+      sel.dispatchEvent(new Event('change'));
+      msg.textContent = 'Imported ' + label + ' — selected above.';
+    } catch (e) {
+      msg.textContent = 'Import failed: ' + ((e && e.message) || e);
+    }
+  }
+  const importBtn = document.getElementById('t-suite-import-btn');
+  if (importBtn) importBtn.addEventListener('click', importQuiz);
 
   function suiteLabelFromSelect() {
     const sel = document.getElementById('t-suite');

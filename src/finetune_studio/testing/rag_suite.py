@@ -320,6 +320,7 @@ def run_rag_suite(
                 keywords=list(case.keywords),
                 source_id=case.source_id,
                 chunk_idx=case.chunk_idx,
+                expect_abstain=case.expect_abstain,
             )
         except Exception as e:  # noqa: BLE001
             elapsed_ms = (time.time() - start) * 1000
@@ -337,6 +338,7 @@ def run_rag_suite(
                 keywords=list(case.keywords),
                 source_id=case.source_id,
                 chunk_idx=case.chunk_idx,
+                expect_abstain=case.expect_abstain,
             )
 
         matched = any(
