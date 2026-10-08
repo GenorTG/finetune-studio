@@ -291,6 +291,13 @@
           ? ' <span class="pill outline">rag-grounded</span>'
           : '')
       + '</div>';
+    const cats = scores.categories || {};
+    const catNames = Object.keys(cats);
+    if (catNames.length > 1) {
+      html += '<div class="case-results-summary" id="case-scores-categories">'
+        + catNames.map(function (k) { return '<span>' + escapeHtml(k) + ': ' + cats[k].passed + '/' + cats[k].total + '</span>'; }).join('')
+        + '</div>';
+    }
     // Grounded training rows are asked WITH their own retrieved context (transcript opens with a system turn);
     // plain rows are asked bare. They test different skills, so report them separately.
     const withCtx = (cases || []).filter(function (c) {

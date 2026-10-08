@@ -398,5 +398,193 @@ async def phase_a_cleanup(w: W.Walk) -> None:
 W.PHASES["a_cleanup"] = phase_a_cleanup
 
 
+# ── UI-only review and scoring ─────────────────────────────────────────────────────────────────────────────────────────────────
+REASONS = ["wrong value", "quote echo / not a real question", "duplicate of another pair", "junk / unusable",
+           "missing unit or wrong premise"]  # same order as the Pairs page's reason chips (keys 1-5)
+
+
+async def _review_state(w: W.Walk) -> dict | None:
+    return await w.page.evaluate(
+        "(() => { const it = _rq.items[_rq.cur]; return it ? {id: it.id, file: it.source_filename, chunk: it.chunk_idx, "
+        "q: it.question, a: it.answer, total: _rq.total, counts: _rq.counts} : null; })()")
+
+
+async def _settled(w: W.Walk) -> None:
+    await w.page.wait_for_function("!_rq.loading && _rq.inflight === 0", timeout=60000)
+    await w.page.evaluate("document.activeElement && document.activeElement.blur && document.activeElement.blur()")
+
+
+async def _next_pair(w: W.Walk, before_id: str) -> None:
+    await w.page.wait_for_function("id => (_rq.items[_rq.cur] || {}).id !== id", arg=before_id, timeout=15000)
+
+
+async def phase_a_review_ui(w: W.Walk) -> None:
+    """Pairs page: replay the reader's verdicts with the keyboard (A / R+reason / edit+Ctrl+Enter / N add). A pair that has no
+    verdict stops the run: nothing is ever approved by default and there is no 'approve all' click."""
+    path = Path(os.environ.get("FTS_VERDICTS", str(W.REPO / ".tmp" / "ui-verdicts.jsonl")))
+    verdicts: dict[str, dict] = {}
+    adds: list[dict] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        if row.get("add"):
+            adds.append(row)
+        else:
+            verdicts[row["id"]] = row
+    W.log(f"replaying {len(verdicts)} verdicts and {len(adds)} additions from {path.name}")
+    await w.goto(f"/projects/{W.pid()}/data-prep")
+    await w.page.wait_for_selector("#dp-rq-detail textarea#dp-rq-q", timeout=60000)
+    await w.page.click("#dp-jump-review")
+    await w.page.wait_for_timeout(800)
+    await w.shot("review-start")
+    done, started, missing = 0, time.time(), None
+    pending_adds = list(adds)
+    while True:
+        await _settled(w)
+        st = await _review_state(w)
+        if st is None:
+            break
+        for add in [x for x in pending_adds if x["file"] == st["file"] and int(x["chunk"]) == int(st["chunk"] or 0)]:
+            if not await w.page.locator("#dp-rq-add").is_visible():
+                await w.page.keyboard.press("n")
+            await w.page.fill("#dp-rq-add-q", add["q"])
+            await w.page.fill("#dp-rq-add-a", add["a"])
+            await w.page.press("#dp-rq-add-a", "Control+Enter")
+            await _settled(w)
+            pending_adds.remove(add)
+        st = await _review_state(w)
+        if st is None:
+            break
+        v = verdicts.get(st["id"])
+        if v is None:
+            missing = st
+            break
+        kind = v["v"]
+        if kind == "A":
+            await w.page.keyboard.press("a")
+        elif kind == "E":
+            await w.page.fill("#dp-rq-q", v["q"])
+            await w.page.fill("#dp-rq-a", v["a"])
+            await w.page.press("#dp-rq-a", "Control+Enter")
+        else:
+            reason = (v.get("reason") or "").strip() or "junk / unusable"
+            await w.page.keyboard.press("r")
+            if reason in REASONS:
+                await w.page.keyboard.press(str(REASONS.index(reason) + 1))
+            else:
+                await w.page.keyboard.press("0")
+                await w.page.keyboard.type(reason)
+                await w.page.keyboard.press("Enter")
+        await _next_pair(w, st["id"])
+        done += 1
+        if done % 200 == 0:
+            W.log(f"reviewed {done} pairs in {time.time() - started:.0f}s; pending {st['counts']['pending']}")
+    await _settled(w)
+    await w.shot("review-end", full=True)
+    counts = W.api(f"/api/projects/{W.pid()}/data-prep/qa/queue?limit=1")["counts"]
+    W.log(f"replayed {done} verdicts + {len(adds) - len(pending_adds)} additions in {time.time() - started:.0f}s; server counts {counts}")
+    W.R.check(missing is None, "every pending pair had a reader's verdict" if missing is None else
+              f"STOPPED: pair {missing['id']} ({missing['file']} c{missing['chunk']}) has no verdict; {missing['counts']['pending']} still pending")
+    W.R.check(not pending_adds, f"all {len(adds)} reviewer-written pairs were added in the UI ({len(pending_adds)} left)")
+    if missing is None:
+        W.R.check(counts["pending"] == 0, "nothing is left pending")
+    pairs = W.api(f"/api/projects/{W.pid()}/data-prep/qa")["items"]
+    no_stamp = [p for p in pairs if p["status"] in ("approved", "rejected") and not p.get("reviewed_at")]
+    W.R.check(not no_stamp, f"every approved/rejected pair carries a human verdict stamp ({len(no_stamp)} without)")
+    rejected_no_reason = [p for p in pairs if p["status"] == "rejected" and not p.get("note")]
+    W.R.check(not rejected_no_reason, f"every rejected pair carries a reason ({len(rejected_no_reason)} without)")
+
+
+async def _quiz_results(w: W.Walk, tag: str) -> dict:
+    """Read the finished run off the Testing page itself (summary line + every case row) and keep it as JSON."""
+    summary = (await w.page.inner_text("#case-scores-summary")).strip()
+    cats = (await w.page.inner_text("#case-scores-categories")).strip() if await w.page.locator("#case-scores-categories").count() else ""
+    rows = await w.page.locator("#case-results-table tbody tr").evaluate_all(
+        "trs => trs.map(tr => ({name: tr.querySelector('.case-col-name').textContent.trim(), "
+        "category: tr.querySelector('.case-col-cat').textContent.trim(), "
+        "question: tr.querySelector('.case-col-text').textContent.trim(), "
+        "answer: tr.querySelector('.case-answer-pre').textContent, verdict: tr.querySelector('.verdict-badge').textContent.trim(), "
+        "why: tr.querySelector('.judge-reasoning').textContent.trim()}))")
+    out = W.REPO / ".tmp" / "ui-results"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / f"{tag}.json").write_text(json.dumps({"summary": summary, "categories": cats, "cases": rows}, indent=1, ensure_ascii=False))
+    by: dict[str, dict[str, int]] = {}
+    for r in rows:
+        c = by.setdefault(r["category"], {"pass": 0, "partial": 0, "fail": 0, "none": 0})
+        c[r["verdict"] if r["verdict"] in c else "none"] += 1
+    W.log(f"[{tag}] {summary} | {cats}")
+    for cat, c in by.items():
+        total = sum(c.values())
+        W.log(f"[{tag}] {cat}: pass {c['pass']}/{total} = {100 * c['pass'] / max(total, 1):.1f}%  partial {c['partial']}  fail {c['fail']}")
+    return by
+
+
+async def phase_a_test_ui(w: W.Walk) -> None:
+    """Testing page: IMPORT the Korvane quiz, pick a model, RUN, read the scores off the page. FTS_TEST_MODEL = substring of the
+    model option (path or label); empty = the page's own default. FTS_EVAL_TAG names the saved results."""
+    tag = os.environ.get("FTS_EVAL_TAG", "run")
+    want = os.environ.get("FTS_TEST_MODEL", "")
+    await w.goto(f"/projects/{W.pid()}/testing")
+    await w.page.click("#t-suite-import-box summary")
+    await w.page.set_input_files("#t-suite-file", str(W.REPO / "tests" / "corpus" / "korvane" / "eval" / "korvane_quiz_core.jsonl"))
+    await w.page.click("#t-suite-import-btn")
+    await w.page.wait_for_function("document.getElementById('t-suite-import-msg').textContent.startsWith('Imported')", timeout=30000)
+    W.log("quiz import: " + await w.text("#t-suite-import-msg"))
+    if want:
+        opts = await w.page.locator("#t-model option").evaluate_all("els => els.map(e => ({v: e.value, t: e.textContent}))")
+        pick = next((o["v"] for o in opts if want.lower() in (o["v"] + " " + o["t"]).lower()), None)
+        W.R.check(pick is not None, f"the Testing page offers a model matching {want!r} ({len(opts)} options)")
+        if pick is None:
+            return
+        await w.page.select_option("#t-model", value=pick)
+    W.api("/api/models/unload", "POST")
+    await w.shot("quiz-ready", full=True)
+    await w.page.click("#t-run-btn")
+    started = time.time()
+
+    async def done() -> bool:
+        return await w.page.locator("#case-scores-summary").count() > 0
+
+    ok = await w.wait_for("quiz results on the page", done, float(os.environ.get("FTS_QUIZ_TIMEOUT", "2400")), every=10)
+    W.R.check(ok, f"the quiz finished in {time.time() - started:.0f}s")
+    if ok:
+        await w.shot("quiz-results", full=True)
+        by = await _quiz_results(w, tag)
+        W.R.check(sum(sum(c.values()) for c in by.values()) == 122, "all 122 questions were scored")
+
+
+async def phase_a_eval_ui(w: W.Walk) -> None:
+    """Testing page, Dataset evaluation card: FTS_EVAL_KIND = heldout | training_leakage (the memorization control)."""
+    kind = os.environ.get("FTS_EVAL_KIND", "training_leakage")
+    tag = os.environ.get("FTS_EVAL_TAG", kind)
+    await w.goto(f"/projects/{W.pid()}/testing")
+    want = os.environ.get("FTS_TEST_MODEL", "")
+    if want:
+        opts = await w.page.locator("#t-model option").evaluate_all("els => els.map(e => ({v: e.value, t: e.textContent}))")
+        pick = next((o["v"] for o in opts if want.lower() in (o["v"] + " " + o["t"]).lower()), None)
+        W.R.check(pick is not None, f"the Testing page offers a model matching {want!r}")
+        if pick is None:
+            return
+        await w.page.select_option("#t-model", value=pick)
+    await w.page.select_option("#t-eval-kind", value=kind)
+    await w.page.fill("#t-train-max", os.environ.get("FTS_EVAL_MAX", "200"))
+    W.api("/api/models/unload", "POST")
+    await w.shot("eval-ready")
+    await w.page.click("#t-train-eval-btn")
+
+    async def done() -> bool:
+        return await w.page.locator("#case-scores-summary").count() > 0
+
+    ok = await w.wait_for(f"{kind} results", done, float(os.environ.get("FTS_QUIZ_TIMEOUT", "2400")), every=10)
+    W.R.check(ok, f"the {kind} evaluation finished")
+    if ok:
+        await w.shot(f"{kind}-results", full=True)
+        await _quiz_results(w, tag)
+
+
+W.PHASES.update({"a_review_ui": phase_a_review_ui, "a_test_ui": phase_a_test_ui, "a_eval_ui": phase_a_eval_ui})
+
+
 if __name__ == "__main__":
     raise SystemExit(W.main())

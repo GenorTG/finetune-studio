@@ -1735,7 +1735,7 @@ function rqUrl(offset) {
 // Load a page. opts.append adds the next page; opts.keepId keeps the cursor on that pair after a reload.
 async function rqLoad(opts) {
   opts = opts || {};
-  if (_rq.loading) return;
+  if (_rq.loading) { if (!opts.append) _rq.queuedLoad = opts; return; }  // run it as soon as the one in flight ends
   _rq.loading = true;
   try {
     if (opts.append) await _rq.chain;  // pending saves must land first, or the server's offsets no longer match our list
@@ -1764,6 +1764,7 @@ async function rqLoad(opts) {
     _rq.loading = false;
   }
   rqRender();
+  if (_rq.queuedLoad) { var next = _rq.queuedLoad; _rq.queuedLoad = null; await rqLoad(next); }
 }
 
 function rqShell() {
@@ -1825,7 +1826,8 @@ function rqRender() {
   rqShell();
   rqRenderSources();
   rqRenderList();
-  rqRenderDetail();
+  // A background load (next page, 15 s refresh) must not rebuild the pane under the reviewer's hands: only a new pair does.
+  if ((rqCur() || {}).id !== _rq.shownId || !document.getElementById('dp-rq-q')) rqRenderDetail();
   rqIndicator();
   el.dataset.ready = '1';
 }
@@ -1883,6 +1885,7 @@ function rqRenderDetail() {
   var box = document.getElementById('dp-rq-detail');
   if (!box) return;
   var it = rqCur();
+  _rq.shownId = it ? it.id : null;
   if (!it) { box.innerHTML = '<div class="dp-empty">Nothing selected.</div>'; return; }
   var st = it.status || 'pending';
   box.innerHTML =
@@ -2076,16 +2079,25 @@ function rqShowAdd(on) {
 async function rqAddPair() {
   var it = rqCur(), q = document.getElementById('dp-rq-add-q'), a = document.getElementById('dp-rq-add-a');
   if (!it || !q || !a || !q.value.trim() || !a.value.trim()) { dpBridgeStatus('Write both a question and an answer.', 'error'); return; }
-  await _rq.chain;
-  var res = await fetch(rqBase() + '/qa', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ source_id: it.source_id, chunk_idx: it.chunk_idx, question: q.value, answer: a.value }),
-  });
-  var data = await res.json().catch(function () { return {}; });
-  if (!res.ok) { dpBridgeStatus(String(data.error || ('HTTP ' + res.status)), 'error'); return; }
-  _rq.counts.approved++;
-  dpBridgeStatus('Added and approved: ' + data.question.slice(0, 80), 'success');
-  await rqLoad({ keepId: it.id });
+  _rq.inflight++;  // counts as an unsaved change until the server has it and the list is back in step
+  rqIndicator();
+  try {
+    await _rq.chain;
+    var res = await fetch(rqBase() + '/qa', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source_id: it.source_id, chunk_idx: it.chunk_idx, question: q.value, answer: a.value }),
+    });
+    var data = await res.json().catch(function () { return {}; });
+    if (!res.ok) { dpBridgeStatus(String(data.error || ('HTTP ' + res.status)), 'error'); return; }
+    _rq.counts.approved++;
+    q.value = ''; a.value = '';
+    rqShowAdd(false);
+    dpBridgeStatus('Added and approved: ' + data.question.slice(0, 80), 'success');
+    await rqLoad({ keepId: it.id });
+  } finally {
+    _rq.inflight--;
+    rqIndicator();
+  }
 }
 
 function rqDetailClick(ev) {

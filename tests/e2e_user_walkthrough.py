@@ -189,7 +189,7 @@ R = Results()
 
 
 def pid() -> str:
-    p = load_state().get("pid", "")
+    p = os.environ.get("FTS_PID") or load_state().get("pid", "")  # FTS_PID: drive another project without touching the run's state
     if not p:
         raise SystemExit("no project yet: run --phase create first")
     return p
