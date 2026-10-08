@@ -21,6 +21,11 @@ Quiz 20.6 % (20 partial), unanswerable 0/20; **exact training questions 67 %**, 
 First run: untrained 2 % (3/20), SFT 17.6 % (0/20), base + RAG 75.5 % (20/20). SFT teaches the training questions, not paraphrase-robust facts, and removes
 "not in the documents". Use RAG for facts.
 
+## RAG diagnosis (2026-10-08, RESULTS.md section 8)
+
+Untrained Qwen3.5-9B q4_k_m as RAG reader, cap 16000: 87/102, 20/20 declined (tuned model + RAG: 80/102, 2/20). Old 5000-char context cap fed ~2 of 5 chunks. 11 questions are never retrieved:
+the default hybrid + ms-marco rerank gives recall@5 = 90 vs BM25-only 96, hybrid 94, hybrid + RRF-fused rerank 94. Next RAG work: default `max_context_chars` (rag_suite uses 5000; check the RAG chat route too), reranker as an RRF vote or a multilingual one, table-aware chunking, then rerun `scripts/rag_reader_compare.py`. Project `korvane-ragtrace` (id e9f951f8, index + imported quiz) is kept on purpose; delete it via the UI when done.
+
 ## Next steps (in order)
 
 1. **Export gate** auto-approves extractive `coverage_fill` pairs for chunks without an approved pair, at every export (unreviewed pairs reach training). Make it opt-in or leave them pending; test it (`data/prep/dataset_build.coverage_gate`, `coverage_fill`). The `reviewed_at` stamp now makes the leak visible.

@@ -19,6 +19,7 @@ from finetune_studio.testing.rag_suite import (
     _needs_table_arithmetic_retry,
     build_grounded_messages,
     compute_retrieval_metrics,
+    gold_presence,
     hit_matches_source,
     provenance_from_hit,
     resolve_corpus_path,
@@ -204,6 +205,33 @@ def test_run_rag_suite_preserves_transcript_context_hits() -> None:
     assert r.case_result.transcript[0]["role"] == "system"
     assert r.case_result.transcript[-1]["role"] == "assistant"
     assert rag.search_calls == [(question, 3)]
+
+
+def test_gold_presence_separates_retrieved_from_sent_to_the_model() -> None:
+    """Chunk 2 holds the answer but the context cap cuts it: retrieved yes, sent no."""
+    hits = [
+        {"rank": 1, "text": "x" * 80},
+        {"rank": 2, "text": "The fee is EUR 14,750 per day."},
+    ]
+    context = FakeRag().format_context(hits, max_chars=100)  # only the first block fits
+    retrieved, sent, n_in_context = gold_presence(["14750 per day"], hits, context)
+    assert (retrieved, sent, n_in_context) == (True, False, 1)
+    assert gold_presence([], hits, context) == (None, None, 1)
+
+
+def test_run_rag_suite_records_gold_trace_and_context_cap() -> None:
+    question = "What is the fee?"
+    hits = [{"rank": 1, "text": "filler " * 40, "document_id": "d", "chunk_id": "c0"},
+            {"rank": 2, "text": "The fee is EUR 44.2.", "document_id": "d", "chunk_id": "c1"}]
+    rag = FakeRag({question: hits})
+    cases = [BenchmarkCase(name="fee", question=question, correct_answer="44.2", keywords=["44.2"])]
+    wide = run_rag_suite(FakeEngine("44.2"), rag, cases, top_k=2, max_context_chars=5000)[0]
+    assert (wide.gold_in_retrieved, wide.gold_in_context, wide.chunks_in_context) == (True, True, 2)
+    tight = run_rag_suite(FakeEngine("44.2"), rag, cases, top_k=2, max_context_chars=300)[0]
+    assert (tight.gold_in_retrieved, tight.gold_in_context, tight.chunks_in_context) == (True, False, 1)
+    metrics = compute_retrieval_metrics([wide, tight])
+    assert metrics["gold_in_retrieved"] == 2 and metrics["gold_in_context"] == 1
+    assert tight.as_api_dict()["context_chars"] == len(tight.context_text)
 
 
 def test_run_rag_suite_expands_retrieval_when_source_is_missing() -> None:

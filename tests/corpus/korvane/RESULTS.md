@@ -120,3 +120,27 @@ looser than the quiz's all-values rule, so the two numbers are not directly comp
 - The Testing page cannot select the untrained base model, so the base baseline needs the Chat page or the script (open).
 - Helper load at `n_ctx 32768` OOMs next to the resident RAG embedder and falls back to 16 GPU layers (handled, slower; open).
 - Harness: mining wait 60 min was too short (now 3 h), helper load needed a longer HTTP timeout, handled GGUF OOM retry whitelisted.
+
+## 8. Why RAG is not at 100 % (2026-10-08, project `korvane-ragtrace`, results in `results/2026-10-08-ragtrace/`)
+
+Same 102 + 20 quiz, same 19 core files, same index (retrieval@5 reproduced: 92/102). New: per-question trace in the RAG suite
+(`gold_in_retrieved`, `gold_in_context`, `chunks_in_context`), `max_context_chars` as a request parameter, and `scripts/rag_reader_compare.py` /
+`scripts/rag_retrieval_ablation.py`. Readers: the **untrained** Qwen3.5-9B converted to q4_k_m (`convert_hf_to_gguf` + `llama-quantize`, deleted after) and the
+helper Gemma 4 12B (q4_k_m), temperature 0, top-5.
+
+| Reader | Context cap | Quiz pass (of 102) | Unanswerable declined (of 20) | Lost: not retrieved / cut by cap / reader |
+|---|---|---|---|---|
+| Qwen3.5-9B base | 5000 (old default) | 83 | 20 | 11 / 4 / 4 |
+| Qwen3.5-9B base | 16000 | **87 (85 %)** | 20 | 11 / 0 / 4 |
+| Gemma 4 12B | 5000 | 81 | 19 | 11 / 4 / 6 |
+| Gemma 4 12B | 16000 | 84 | 19 | 11 / 0 / 7 |
+| (run 2) SFT 6 epochs + RAG | 5000 | 80 | 2 | n/a |
+
+- **The 5000-char cap fed the model ~2 of the 5 retrieved chunks** (Korvane chunks average 2,111 chars): mean chunks in context 1.97 vs 5.0. Lifting it: +4 / +3.
+- **Retrieval is the main loss: 11 of 102 never reach the reader.** Of the 4 "reader missed" with Qwen, 3 are judge false negatives (`four` vs `4`, `bastion-gdy1` vs the
+  full host name, one value of two); real reader misses are ~1.
+- **Untrained base as reader beats the tuned model** (87 vs 80 answerable, 20/20 vs 2/20 declined). Tuning for facts hurts RAG.
+- Retrieval ablation (recall@k, 102 questions, `results/.../ablation.json`): dense 84 @5; **BM25 alone 96 @5**; hybrid (RRF) 94; **hybrid + the app's
+  cross-encoder rerank 90 (the default; 80 @1)**; rerank fused by RRF 94 (91 @3). The ms-marco English MiniLM reranker sharpens the first hit but pushes answers out of the top 5.
+  The e5 `query:`/`passage:` prefixes the app does not use change nothing here (dense 84 -> 81, hybrid 94 -> 93). The corpus is IDs and numbers: lexical matching wins.
+- Chunker (`rag/ingest.chunk_text`) joins words with spaces, so table rows lose their line structure. Not yet measured as a cause.

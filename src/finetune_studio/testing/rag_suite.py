@@ -182,6 +182,11 @@ class RagCaseResult:
     retrieval_hits: list[dict[str, Any]] = field(default_factory=list)
     context_text: str = ""
     retrieval_hit: bool = False
+    # Reader-visible trace: were the expected values retrieved, and did they survive the context cap?
+    gold_in_retrieved: bool | None = None
+    gold_in_context: bool | None = None
+    chunks_retrieved: int = 0
+    chunks_in_context: int = 0
 
     def as_api_dict(self) -> dict[str, Any]:
         r = self.case_result
@@ -208,6 +213,11 @@ class RagCaseResult:
             "retrieval_hits": list(self.retrieval_hits),
             "retrieval_hit": self.retrieval_hit,
             "context_text": self.context_text,
+            "gold_in_retrieved": self.gold_in_retrieved,
+            "gold_in_context": self.gold_in_context,
+            "chunks_retrieved": self.chunks_retrieved,
+            "chunks_in_context": self.chunks_in_context,
+            "context_chars": len(self.context_text),
         }
 
 
@@ -236,7 +246,14 @@ class RagSuiteReport:
 
 
 def compute_retrieval_metrics(rag_results: list[RagCaseResult]) -> dict[str, Any]:
-    """Hit counts / recall for cases that declare ``source_id``."""
+    """Hit counts / recall for cases that declare ``source_id``, plus the expected-value trace for cases that list them."""
+    with_gold = [r for r in rag_results if r.gold_in_retrieved is not None]
+    gold_stats: dict[str, Any] = {
+        "cases_with_expected_values": len(with_gold),
+        "gold_in_retrieved": sum(1 for r in with_gold if r.gold_in_retrieved),
+        "gold_in_context": sum(1 for r in with_gold if r.gold_in_context),
+        "mean_chunks_in_context": round(sum(r.chunks_in_context for r in rag_results) / len(rag_results), 2) if rag_results else 0.0,
+    }
     with_source = [r for r in rag_results if (r.case_result.source_id or "").strip()]
     n = len(with_source)
     hits = sum(1 for r in with_source if r.retrieval_hit)
@@ -246,7 +263,27 @@ def compute_retrieval_metrics(rag_results: list[RagCaseResult]) -> dict[str, Any
         "retrieval_misses": max(n - hits, 0),
         "recall_at_k": round(hits / n, 4) if n else None,
         "hit_rate": round(hits / n, 4) if n else None,
+        **gold_stats,
     }
+
+
+def _norm_text(text: str) -> str:
+    """Lowercase, drop thousands commas, collapse whitespace (matching is about content, not layout)."""
+    return " ".join(re.sub(r"(?<=\d),(?=\d{3}\b)", "", text.lower()).split())
+
+
+def gold_presence(keywords: list[str], hits: list[dict[str, Any]], context: str) -> tuple[bool | None, bool | None, int]:
+    """(all expected values in the retrieved chunks, all in the context sent to the model, chunks that fit the cap).
+
+    ``None`` when the case has no expected values (e.g. an unanswerable question).
+    """
+    n_in_context = sum(1 for h in hits if f"[{h.get('rank')}] " in context)
+    if not keywords:
+        return None, None, n_in_context
+    retrieved = _norm_text(" ".join(str(h.get("text", "")) for h in hits))
+    sent = _norm_text(context)
+    wanted = [_norm_text(k) for k in keywords]
+    return all(k in retrieved for k in wanted), all(k in sent for k in wanted), n_in_context
 
 
 def run_rag_suite(
@@ -344,12 +381,17 @@ def run_rag_suite(
         matched = any(
             hit_matches_source(h, case.source_id, case.chunk_idx) for h in provenance
         )
+        gold_retrieved, gold_context, n_in_context = gold_presence(case_result.keywords, hits_raw, context)
         out.append(
             RagCaseResult(
                 case_result=case_result,
                 retrieval_hits=provenance,
                 context_text=context,
                 retrieval_hit=matched,
+                gold_in_retrieved=gold_retrieved,
+                gold_in_context=gold_context,
+                chunks_retrieved=len(hits_raw),
+                chunks_in_context=n_in_context,
             )
         )
     return out
@@ -365,6 +407,7 @@ def run_rag_suite_evaluation(
     max_tokens: int = 512,
     temperature: float = 0.3,
     rag_query: RagSearchEngine | None = None,
+    max_context_chars: int = 5000,
 ) -> RagSuiteReport:
     """Load suite + corpus, run grounded eval, judge, and aggregate metrics.
 
@@ -389,6 +432,7 @@ def run_rag_suite_evaluation(
         top_k=top_k,
         max_tokens=max_tokens,
         temperature=temperature,
+        max_context_chars=max_context_chars,
     )
     case_results = [r.case_result for r in rag_results]
     apply_heuristic_judging(case_results)
