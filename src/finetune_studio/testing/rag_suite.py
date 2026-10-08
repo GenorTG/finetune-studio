@@ -20,6 +20,10 @@ from typing import Any, Protocol
 
 from finetune_studio.data.fs.paths import rag_corpus_dir
 from finetune_studio.data.rag_eval import UNKNOWN_REPLY
+from finetune_studio.data.rag_portable.prompt import (
+    DEFAULT_CONTEXT_CHARS,
+    context_char_budget,
+)
 from finetune_studio.testing.suite import (
     BenchmarkCase,
     CaseResult,
@@ -295,7 +299,7 @@ def run_rag_suite(
     max_tokens: int = 512,
     temperature: float = 0.3,
     think: bool = False,
-    max_context_chars: int = 5000,
+    max_context_chars: int = DEFAULT_CONTEXT_CHARS,
 ) -> list[RagCaseResult]:
     """Retrieve → ground prompt → generate → collect CaseResult + provenance."""
     out: list[RagCaseResult] = []
@@ -407,13 +411,15 @@ def run_rag_suite_evaluation(
     max_tokens: int = 512,
     temperature: float = 0.3,
     rag_query: RagSearchEngine | None = None,
-    max_context_chars: int = 5000,
+    max_context_chars: int | None = None,
 ) -> RagSuiteReport:
     """Load suite + corpus, run grounded eval, judge, and aggregate metrics.
 
     Blocking — call from ``asyncio.to_thread`` in async routes.
     """
     cases = load_test_suite(suite_path)
+    if not max_context_chars:   # sized from the loaded model's window (see rag_portable.prompt.context_char_budget)
+        max_context_chars = context_char_budget(getattr(engine, "n_ctx", None), max_new_tokens=max_tokens)
     resolved_corpus = ""
     query = rag_query
     if query is None:

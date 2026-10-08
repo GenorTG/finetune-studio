@@ -690,6 +690,14 @@ async def shared_model_stats():
     return sm_stats()
 
 
+def _active_n_ctx() -> int:
+    """Window of the active chat provider (0 when none is loaded or the provider has no known window)."""
+    from finetune_studio.models.manager import get_manager
+
+    active = get_manager().active() or {}
+    return int(active.get("n_ctx") or 0)
+
+
 @router.post("/{pid}/rag/chat")
 async def rag_chat(pid: str, req: ChatRequest):
     """RAG-augmented chat. Retrieves top-k from project corpus, prepends to
@@ -698,7 +706,10 @@ async def rag_chat(pid: str, req: ChatRequest):
     Returns: {reply, sources: [{filename, score, chunk_text}], messages_full}
     """
     from finetune_studio.data.rag_portable import PortableRAG
-    from finetune_studio.data.rag_portable.prompt import build_messages
+    from finetune_studio.data.rag_portable.prompt import (
+        build_messages,
+        context_char_budget,
+    )
     from finetune_studio.webui.app import inference_engine
 
     rag = PortableRAG(_corpus_dir(pid))
@@ -716,7 +727,10 @@ async def rag_chat(pid: str, req: ChatRequest):
     last_user = user_messages[-1]["content"]
 
     hits = q.search(last_user, top_k=req.top_k)
-    context = q.format_context(hits, max_chars=4000)
+    n_ctx = inference_engine.n_ctx if inference_engine.model is not None else (_active_n_ctx() or None)
+    history_chars = sum(len(str(m.get("content", ""))) for m in req.messages) + len(req.system_prompt or "")
+    context = q.format_context(hits, max_chars=context_char_budget(
+        n_ctx, max_new_tokens=req.max_tokens, history_chars=history_chars))
 
     # Layout lives in rag_portable.prompt — shared with the context-grounded
     # training rows (data/prep/grounding.py); do not inline it here again.

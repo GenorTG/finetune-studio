@@ -6,16 +6,21 @@ built a `Llama(**kwargs)` call and drifted apart. Every caller — data-prep's
 helper, chat, RAG, testing, benchmarks, the inference tab — now goes through
 this one function, so a fix or a new loader parameter lands everywhere at once.
 
-Load policy (Genor 2026-10-06): the context length is NEVER shrunk to make a load fit
-(agentic/tool use needs it). The GPU layer count adapts instead: ``models/gguf_fit.py``
-plans how many layers fit in free VRAM, and a load that still runs out of memory steps
-down until it fits — layers that do not fit run on the CPU. Only a model that cannot
-load even CPU-only raises, with the numbers in the message.
+Load policy (Genor 2026-10-06, extended 2026-10-08): an explicit ``n_ctx`` is NEVER shrunk to make a
+load fit (agentic/tool use needs it). With no ``n_ctx`` (``AUTO_N_CTX``) the model's NATIVE context is
+the default and is lowered only as far as needed for every layer to fit on the GPU, never below
+``MIN_AUTO_CTX``. The GPU layer count adapts after that: ``models/gguf_fit.py`` plans how many layers
+fit in free VRAM, and a load that still runs out of memory steps down until it fits — layers that do
+not fit run on the CPU. Only a model that cannot load even CPU-only raises, with the numbers in the
+message. Window-attention models (Gemma 3/4) load with a window-sized cache for their window layers
+(``swa_full=False``): measured 2026-10-08, Gemma 4 12B needs 18.3 GB at 32k with the full-size cache
+and 10.0 GB at its native 131k with the window-sized one.
 """
 
 from __future__ import annotations
 
 import gc
+import inspect
 import logging
 import multiprocessing
 import os
@@ -26,7 +31,9 @@ from typing import Any
 from finetune_studio.accel import is_oom_message, llama_gpu_kwargs
 from finetune_studio.models import llama_native_log
 from finetune_studio.models.gguf_fit import (
+    MIN_AUTO_CTX,
     FitPlan,
+    plan_auto_ctx,
     plan_gpu_layers,
     read_shape,
     step_down,
@@ -50,8 +57,11 @@ LOADER_PARAM_NAMES = (
 # <=384, 42/42 at 256 up to a 20k-token prompt; not memory related — it reproduces at 2.5 GB of 24 GB).
 # 256 costs ~8 % prompt-processing speed on a 12B. Override with FTS_LLAMA_UBATCH once upstream is fixed.
 DEFAULT_N_UBATCH = 256
-# Total load attempts: the planned one, geometric step-downs, and always a final CPU-only attempt.
-MAX_LOAD_ATTEMPTS = 6
+# Total load attempts: the planned one, context halvings (auto context only), geometric layer step-downs,
+# and always a final CPU-only attempt.
+MAX_LOAD_ATTEMPTS = 8
+# n_ctx value meaning "the model's native context, lowered only if it cannot fit" (see module docstring).
+AUTO_N_CTX = 0
 
 
 def default_n_ubatch() -> int:
@@ -127,7 +137,7 @@ def _describe_plan(plan: FitPlan | None) -> str:
 def load_llama_gguf(
     gguf_path: str,
     *,
-    n_ctx: int = 32768,
+    n_ctx: int = AUTO_N_CTX,
     n_gpu_layers: int = -1,
     n_batch: int = 512,
     n_ubatch: int | None = None,
@@ -144,8 +154,9 @@ def load_llama_gguf(
 ) -> LlamaLoadResult:
     """Build one `llama_cpp.Llama` instance. The single canonical loader.
 
-    ``n_gpu_layers``: -1 = automatic (as many layers on the GPU as fit), N = at most N. ``n_ctx`` is
-    kept exactly as asked; see the module docstring for the fit policy.
+    ``n_gpu_layers``: -1 = automatic (as many layers on the GPU as fit), N = at most N. An explicit
+    ``n_ctx`` is kept exactly as asked; ``AUTO_N_CTX`` (0) picks the native context and lowers it only to
+    fit (``result.final_n_ctx`` is what was loaded); see the module docstring for the fit policy.
     """
     from llama_cpp import Llama
 
@@ -180,6 +191,16 @@ def load_llama_gguf(
     resolved_threads = n_threads if n_threads and n_threads > 0 else multiprocessing.cpu_count()
     ubatch = min(n_ubatch or default_n_ubatch(), n_batch)
 
+    # ── context: an explicit n_ctx is kept; auto = native, lowered only to fit ──
+    requested = _normalise_layers(n_gpu_layers)
+    free_gb = _free_vram_gb()
+    shape = read_shape(gguf_path)
+    auto_ctx = n_ctx <= 0
+    ctx_floor = min(shape.native_ctx, MIN_AUTO_CTX) if shape.native_ctx > 0 else MIN_AUTO_CTX
+    native_ctx = shape.native_ctx
+    if auto_ctx:
+        n_ctx, _ctx_reason = plan_auto_ctx(gguf_path, type_k=type_k, type_v=type_v, requested=requested, free_gb=free_gb)
+
     kwargs: dict[str, Any] = {
         "model_path": gguf_path,
         "n_ctx": n_ctx,
@@ -191,6 +212,8 @@ def load_llama_gguf(
     }
     if chat_handler is not None:
         kwargs["chat_handler"] = chat_handler
+    if shape.uses_swa and "swa_full" in inspect.signature(Llama.__init__).parameters:
+        kwargs["swa_full"] = False   # window layers cache the window, not n_ctx cells (module docstring)
     # Route to the accelerator accel chose (main_gpu on multi-GPU hosts) and
     # surface a GPU-host/CPU-llama.cpp mismatch instead of degrading silently.
     gpu_extras, gpu_warnings = llama_gpu_kwargs()
@@ -217,17 +240,15 @@ def load_llama_gguf(
         kwargs["type_v"] = type_v
 
     # ── placement: plan from free VRAM, then let real attempts correct the estimate ──
-    requested = _normalise_layers(n_gpu_layers)
-    free_gb = _free_vram_gb()
     plan = (plan_gpu_layers(gguf_path, n_ctx=n_ctx, type_k=type_k, type_v=type_v, requested=requested,
                             free_gb=free_gb) if free_gb is not None else None)
     layers = plan.n_gpu_layers if plan is not None else requested
-    total_layers = plan.total_layers if plan is not None else read_shape(gguf_path).total_layers
+    total_layers = plan.total_layers if plan is not None else shape.total_layers
 
     log.info(
-        "load_llama_gguf %s (n_ctx=%d n_gpu_layers=%s n_batch=%d n_ubatch=%d n_threads=%d seed=%s "
+        "load_llama_gguf %s (n_ctx=%d%s n_gpu_layers=%s n_batch=%d n_ubatch=%d n_threads=%d seed=%s "
         "rope_base=%s rope_scale=%s flash=%s mmap=%s mlock=%s type_k=%s type_v=%s) — %s",
-        gguf_path, n_ctx, "auto" if requested < 0 else requested, n_batch, ubatch, resolved_threads,
+        gguf_path, n_ctx, f" auto, native {native_ctx}" if auto_ctx else "", "auto" if requested < 0 else requested, n_batch, ubatch, resolved_threads,
         seed, rope_freq_base, rope_freq_scale, flash_attn, mmap, mlock, type_k, type_v, _describe_plan(plan),
     )
 
@@ -249,13 +270,20 @@ def load_llama_gguf(
             if not oom:
                 # Corrupt/unsupported file etc.: retrying with other layer counts cannot help.
                 raise _with_detail(e, detail) from e
+            if auto_ctx and n_ctx > ctx_floor and len(result.attempts) < MAX_LOAD_ATTEMPTS - 1:
+                lowered = max(ctx_floor, n_ctx // 2 // 1024 * 1024)
+                log.warning("GGUF load ran out of memory at n_ctx=%d (auto); retrying at n_ctx=%d. %s", n_ctx, lowered, detail)
+                n_ctx = lowered
+                kwargs["n_ctx"] = n_ctx
+                gc.collect()
+                continue
             nxt = step_down(layers, total_layers)
             if nxt is not None and len(result.attempts) >= MAX_LOAD_ATTEMPTS - 1:
                 nxt = 0   # out of tries: the last one is always CPU-only, so a model that can load at all does
             if nxt is None:
                 raise LlamaLoadError(
                     f"Out of memory loading {Path(gguf_path).name} at n_ctx={n_ctx} even with every layer on the "
-                    f"CPU ({_describe_plan(plan)}). The context length was left unchanged on purpose: use a "
+                    f"CPU ({_describe_plan(plan)}). The context length was left unchanged on purpose (floor {ctx_floor}): use a "
                     f"smaller quantisation or model, or ask for a smaller n_ctx."
                     f"{' Native: ' + detail if detail else ''}"
                 ) from e
@@ -269,6 +297,11 @@ def load_llama_gguf(
         raise LlamaLoadError(f"{Path(gguf_path).name} did not load")
 
     result.final_n_ctx = n_ctx
+    if auto_ctx and native_ctx > 0 and n_ctx < native_ctx:
+        msg = (f"Context lowered to {n_ctx} (the model's native {native_ctx}) so that "
+               f"{'every layer fits on the GPU' if layers < 0 else 'the load fits'}.")
+        result.warnings.append(msg)
+        log.warning("load_llama_gguf: %s", msg)
     result.n_gpu_layers = layers
     result.total_layers = total_layers
     gpu_capable = _gpu_capable()
@@ -288,11 +321,11 @@ def load_llama_gguf(
     return result
 
 
-# Default context floor. helper.py's DEFAULT_HELPER_EXTRA, and every /load
-# route's `body.get("n_ctx", ...)` fallback, must agree on this number —
-# it used to be 16384 or 4096 in various places, silently below the 32k
-# floor the agentic/helper paths actually needed.
-DEFAULT_N_CTX = 32768
+# Default context. helper.py's DEFAULT_HELPER_EXTRA, and every /load route's
+# `body.get("n_ctx", ...)` fallback, must agree on this value. It used to be a fixed 32768 (and before
+# that 16384 or 4096 in various places); it is now "auto" = the model's native context, lowered only to
+# fit, never below MIN_AUTO_CTX (the 32k floor the agentic/helper paths actually need).
+DEFAULT_N_CTX = AUTO_N_CTX
 
 
 def resolve_loader_overrides(

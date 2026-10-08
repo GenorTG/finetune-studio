@@ -21,6 +21,12 @@ DEFAULT_SYSTEM_PROMPT = (
     "If the answer isn't in the context, say so. Quote the source filename in [brackets] when relevant."
 )
 
+# Retrieved context is sized from the loaded model's window, not a fixed few thousand characters (the old
+# 4000/5000-char caps fed a 32k-token model ~1.3k tokens of context: ~2 of the 5 retrieved chunks).
+CHARS_PER_TOKEN = 3            # conservative: ids and numbers tokenise at ~3.6 chars/token on the Korvane corpus
+PROMPT_OVERHEAD_TOKENS = 1024  # system prompt, source labels, the question
+DEFAULT_CONTEXT_CHARS = 24000  # when the window is unknown (API models): 5 chunks of up to ~4.5k chars
+
 CONTEXT_MARKER = "CONTEXT:\n"
 _BLOCK_SEP = "\n\n---\n\n"
 
@@ -38,6 +44,17 @@ def format_context_blocks(results: list[dict[str, Any]], max_chars: int = 4000) 
         blocks.append(block)
         total += len(block)
     return _BLOCK_SEP.join(blocks)
+
+
+def context_char_budget(n_ctx: int | None, *, max_new_tokens: int = 512, history_chars: int = 0) -> int:
+    """Characters of retrieved context that fit a model window of ``n_ctx`` tokens next to the answer and the chat history.
+
+    ``n_ctx`` unknown (API provider, nothing loaded) -> ``DEFAULT_CONTEXT_CHARS``.
+    """
+    if not isinstance(n_ctx, int) or n_ctx <= 0:   # engines report None / a non-number when the window is unknown
+        return DEFAULT_CONTEXT_CHARS
+    tokens = n_ctx - max_new_tokens - PROMPT_OVERHEAD_TOKENS - history_chars // CHARS_PER_TOKEN
+    return max(4000, tokens * CHARS_PER_TOKEN)
 
 
 def build_system_prompt(context: str, system_prompt: str = "") -> str:

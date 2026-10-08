@@ -41,8 +41,8 @@ ALTERNATE_HELPER_LABEL: str = "Helper · Qwen3-30B-A3B Uncensored GGUF"
 ALTERNATE_HELPER_GGUF_BASENAME: str = "Qwen3-30B-A3B-Instruct-2507-IQ4_XS.gguf"
 
 # Loader defaults for the seeded local_gguf provider.
-# 32k ctx per Genor (agentic tool-calling needs room); q8_0 KV cache keeps
-# the f16 KV cache from eating ~9.4GB at that depth (8 = GGML q8_0).
+# Context: auto = the model's native window, lowered only to fit, never below 32k (Genor 2026-10-08;
+# agentic tool-calling needs room). q8_0 KV cache keeps the f16 KV cache from eating ~9.4GB at 32k (8 = GGML q8_0).
 DEFAULT_HELPER_EXTRA: dict[str, Any] = {
     "n_ctx": DEFAULT_N_CTX,
     "n_gpu_layers": -1,  # all layers — real count comes from the GGUF header

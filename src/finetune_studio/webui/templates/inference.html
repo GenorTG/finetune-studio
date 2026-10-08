@@ -66,12 +66,12 @@
 
       <div class="mt-3">
         <label class="block text-xs muted mb-1"
-               title="Maximum number of tokens the model can attend to at once — the size of its short-term memory. KV cache size. Larger = longer conversations / bigger prompts / more VRAM. 32768 (~32k tokens ≈ 24k words) is the default floor and fits most tasks; raise for long documents. If it doesn't fit in VRAM, the loader shrinks this automatically instead of falling back to CPU offload.">
-          Context length <span id="n-ctx-val" class="mono violet">32768</span>
+               title="Maximum number of tokens the model can attend to at once — the size of its short-term memory. KV cache size. Auto (0) loads the model's NATIVE window and lowers it only if the whole model cannot fit on the GPU (never below 32768). An explicit value is never lowered: GPU layers step down instead.">
+          Context length <span id="n-ctx-val" class="mono violet">auto</span>
         </label>
-        <input type="range" id="n-ctx" aria-label="Context length" class="range" min="512" max="131072" step="512" value="32768"
-               oninput="document.getElementById('n-ctx-val').textContent=this.value; updateMemEstimate()">
-        <div class="text-[10px] dim mt-0.5">KV cache size. Larger = more VRAM.</div>
+        <input type="range" id="n-ctx" aria-label="Context length" class="range" min="0" max="1048576" step="1024" value="0"
+               oninput="document.getElementById('n-ctx-val').textContent=(this.value==0?'auto':this.value); updateMemEstimate()">
+        <div class="text-[10px] dim mt-0.5">Auto = the model's native window. Larger = more VRAM.</div>
       </div>
 
       <div class="mt-3">

@@ -75,8 +75,8 @@
         <p>Load a model here to start chatting — or switch the global one on the <a href="/inference" data-link>Inference</a> tab.</p>
         <div class="dp-chat-warn-load" id="chat-inline-load" hidden>
           <select id="chat-inline-model" class="select"></select>
-          <input id="chat-inline-ctx" type="number" class="input" style="width:6.5rem" value="32768" min="512" max="131072" step="512"
-                 title="Context window to load with (in tokens). Changing this here changes the shared default for every other page that loads this model too.">
+          <input id="chat-inline-ctx" type="number" class="input" style="width:6.5rem" value="0" min="0" max="1048576" step="512" placeholder="auto"
+                 title="Context window to load with (in tokens). 0 = auto: the model's native window, lowered only if it cannot fit on the GPU. Changing this here changes the shared default for every other page that loads this model too.">
           <button class="btn sm" id="chat-inline-load-btn" onclick="chatInlineLoad()">Load</button>
         </div>
       </div>
@@ -639,7 +639,7 @@ async function chatInlineLoad() {
   btn.disabled = true;
   btn.textContent = 'Loading…';
   try {
-    const nCtx = ctxEl ? (parseInt(ctxEl.value, 10) || 32768) : 32768;
+    const nCtx = ctxEl ? (parseInt(ctxEl.value, 10) || 0) : 0;   // 0 = auto (native window)
     const r = await fetch('/api/chat-v2/load', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

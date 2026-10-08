@@ -243,10 +243,10 @@
 
     <div>
       <label class="block text-xs muted mb-1" for="prep-helper-ctx"
-             title="Context window the helper model loads with for this job (in tokens). Higher fits longer chunks/prompts but uses more VRAM. Setting this here changes the helper's default everywhere it auto-loads (data-prep, RAG, chat) — not just this page.">
+             title="Context window the helper model loads with for this job (in tokens). 0 = auto: the model\'s native window, lowered only if it cannot fit on the GPU (never below 32768). Setting this here changes the helper's default everywhere it auto-loads (data-prep, RAG, chat) — not just this page.">
         Helper context <span class="dim">?</span>
       </label>
-      <input id="prep-helper-ctx" name="helper_n_ctx" type="number" value="32768" min="512" max="131072" step="512" class="input">
+      <input id="prep-helper-ctx" name="helper_n_ctx" type="number" value="0" min="0" max="1048576" step="512" class="input" placeholder="0 = auto (native)">
     </div>
 
     <div class="flex gap-2 mt-4" style="grid-column: 1 / -1; align-items: center; flex-wrap: wrap;">
@@ -2496,7 +2496,7 @@ function dpPrepSettings() {
 function dpHelperNCtx() {
   const el = document.getElementById('prep-helper-ctx');
   const v = el ? parseInt(el.value, 10) : NaN;
-  return v > 0 ? v : 32768;
+  return v > 0 ? v : 0;   // 0 = auto (native window, lowered only to fit)
 }
 
 async function dpEnsureHelperLoaded() {
@@ -2511,8 +2511,8 @@ async function dpEnsureHelperLoaded() {
   // the exact "one place has the option, the others silently ignore it"
   // gap. Passing n_ctx explicitly also persists it as the shared default
   // for every other page/auto-load of this provider (see ModelManager.load).
-  if (active && active.loaded && active.id === helperId && active.n_ctx === wantCtx) return;
-  prepSetStatus('Loading the built-in helper with full GPU offload, ' + wantCtx + ' ctx…', 'info');
+  if (active && active.loaded && active.id === helperId && (wantCtx === 0 || active.n_ctx === wantCtx)) return;
+  prepSetStatus('Loading the built-in helper with full GPU offload, ' + (wantCtx ? wantCtx + ' ctx' : 'native ctx') + '…', 'info');
   const r = await fetch('/api/providers/' + encodeURIComponent(helperId) + '/load', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ n_ctx: wantCtx }),
@@ -2558,14 +2558,11 @@ async function dpSyncHelperCtxField() {
   try {
     const providers = await fetch('/api/providers', { cache: 'no-store' }).then(function (r) { return r.json(); });
     const helperId = providers.helper_provider_id || _dpHelperProviderId || 'local-default';
-    if (providers.active && providers.active.id === helperId && providers.active.n_ctx) {
-      el.value = providers.active.n_ctx;
-      return;
-    }
+    // The configured ask (0 = auto), not what happens to be loaded: copying the loaded value would pin an auto helper.
     const p = (providers.providers || []).find(function (x) { return x.id === helperId; });
     const ctx = p && p.extra && p.extra.n_ctx;
-    if (ctx) el.value = ctx;
-  } catch (e) { /* keep the 32768 default on any lookup failure */ }
+    if (ctx !== undefined && ctx !== null) el.value = ctx;
+  } catch (e) { /* keep the auto (0) default on any lookup failure */ }
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', dpSyncHelperCtxField);
 else dpSyncHelperCtxField();

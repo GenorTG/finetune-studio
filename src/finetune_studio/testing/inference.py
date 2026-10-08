@@ -343,7 +343,7 @@ class InferenceEngine:
 
     @staticmethod
     def estimate_memory(model_path, n_ctx=DEFAULT_N_CTX, n_gpu_layers=-1):
-        """Estimate VRAM/RAM usage for a model. Returns dict with estimates in GB."""
+        """Estimate VRAM/RAM usage for a model. Returns dict with estimates in GB (``n_ctx`` 0 = native)."""
         from pathlib import Path
         path = Path(model_path)
         result = {"weights_gb": 0.0, "kv_cache_gb": 0.0, "total_vram_gb": 0.0, "total_ram_gb": 0.0, "total_layers": 0}
@@ -369,9 +369,16 @@ class InferenceEngine:
             weights_vram = size_gb * gpu_frac
             weights_ram = size_gb * (1.0 - gpu_frac)
 
-            # KV cache: n_ctx * 2 * n_layers * n_kv_heads * head_dim * 2 bytes (fp16)
-            kv_bytes = n_ctx * 2 * total_layers * num_kv_heads * head_dim * 2
-            kv_gb = kv_bytes / (1024**3)
+            # KV cache: hybrid / window-attention models hold full-length KV in only some layers (gguf_fit);
+            # n_ctx 0 = auto = the model's native window.
+            from finetune_studio.models import gguf_fit
+            shape = gguf_fit.read_shape(str(path))
+            if n_ctx <= 0:
+                n_ctx = shape.native_ctx or gguf_fit.MIN_AUTO_CTX
+            if shape.known:
+                kv_gb = gguf_fit.kv_gb_per_layer_avg(shape, n_ctx) * shape.total_layers
+            else:
+                kv_gb = n_ctx * 2 * total_layers * num_kv_heads * head_dim * 2 / (1024**3)
 
             result.update({
                 "weights_gb": round(weights_vram, 2),

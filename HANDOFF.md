@@ -26,6 +26,10 @@ First run: untrained 2 % (3/20), SFT 17.6 % (0/20), base + RAG 75.5 % (20/20). S
 Untrained Qwen3.5-9B q4_k_m as RAG reader, cap 16000: 87/102, 20/20 declined (tuned model + RAG: 80/102, 2/20). Old 5000-char context cap fed ~2 of 5 chunks. 11 questions are never retrieved:
 the default hybrid + ms-marco rerank gives recall@5 = 90 vs BM25-only 96, hybrid 94, hybrid + RRF-fused rerank 94. Next RAG work: default `max_context_chars` (rag_suite uses 5000; check the RAG chat route too), reranker as an RRF vote or a multilingual one, table-aware chunking, then rerun `scripts/rag_reader_compare.py`. Project `korvane-ragtrace` (id e9f951f8, index + imported quiz) is kept on purpose; delete it via the UI when done.
 
+## Context (2026-10-08)
+
+Default `n_ctx` is now AUTO (0): native window, lowered only to fit (floor 32768); explicit values untouched; `swa_full=False` for Gemma. Live: helper Gemma 4 12B loads at 131072, 48/48 layers, 9.8 GB (was ~19 GB at 32k). RAG chat/suite context chars derive from the loaded window. Provider `local-default` persisted n_ctx reset to 0; `local-qwen30b-a3b` still has the old 32768 (reset it with `POST /api/providers/<id>/load {"n_ctx":0}` when loading it).
+
 ## Next steps (in order)
 
 1. **Export gate** auto-approves extractive `coverage_fill` pairs for chunks without an approved pair, at every export (unreviewed pairs reach training). Make it opt-in or leave them pending; test it (`data/prep/dataset_build.coverage_gate`, `coverage_fill`). The `reviewed_at` stamp now makes the leak visible.
@@ -33,7 +37,7 @@ the default hybrid + ms-marco rerank gives recall@5 = 90 vs BM25-only 96, hybrid
 3. **Abstain pair builder** (`data/prep/preference.py`): 112/150 abstain questions were answerable from other files; check each against the whole project with RAG. DPO gave no abstention in run 1 and was not re-run.
 4. **Paraphrase augmentation** (`scripts/corpus_paraphrase.py`, needs a funded API key or ~2 h local): 3 re-worded questions per pair, train, compare on the Testing-page quiz.
 5. Evaluate the adapter on the 4-bit base without merging (bf16 merge beat q4_k_m by 8 points in run 1).
-6. Helper load at `n_ctx 32768` OOMs next to the resident RAG embedder (falls back to 16 layers); the CUDA abort at `n_ctx 16384` is still unexplained. Guide still says "SFT or DPO" after a run exists.
+6. The CUDA abort at `n_ctx 16384` is still unexplained. Guide still says "SFT or DPO" after a run exists.
 
 ## Commands
 

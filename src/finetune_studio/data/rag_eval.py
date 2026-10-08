@@ -29,6 +29,7 @@ from typing import Any, Protocol
 import numpy as np
 
 from finetune_studio.data.rag_portable import PortableRAG
+from finetune_studio.data.rag_portable.prompt import DEFAULT_CONTEXT_CHARS
 
 # Stable phrase the no-context protocol expects (also accepted loosely).
 UNKNOWN_REPLY = "I don't know from the provided documents."
@@ -380,7 +381,7 @@ def evaluate_answer_grounding(
     out: list[GroundingResult] = []
     for entry in qa:
         hits = rag_query.search(entry.query, top_k=top_k)
-        ctx = rag_query.format_context(hits, max_chars=5000)
+        ctx = rag_query.format_context(hits, max_chars=DEFAULT_CONTEXT_CHARS)
         ans = answers.get(entry.id, "")
         ctx_toks = _content_tokens(ctx)
         ans_toks = _content_tokens(ans)
@@ -457,7 +458,7 @@ def collect_rag_answers(
     answers: dict[str, str] = {}
     for entry in qa:
         hits = rag_query.search(entry.query, top_k=top_k)
-        ctx = rag_query.format_context(hits, max_chars=5000)
+        ctx = rag_query.format_context(hits, max_chars=DEFAULT_CONTEXT_CHARS)
         prompt = (
             "Use ONLY the context below. If the answer is not in the context, "
             f'reply exactly: "{UNKNOWN_REPLY}" Otherwise answer concisely.\n\n'
@@ -665,7 +666,7 @@ def run_rag_evaluation(
     if not resolved_answers and answer_fn is not None:
         for entry in qa:
             hits = rag_query.search(entry.query, top_k=top_k_answer)
-            ctx = rag_query.format_context(hits, max_chars=5000)
+            ctx = rag_query.format_context(hits, max_chars=DEFAULT_CONTEXT_CHARS)
             resolved_answers[entry.id] = answer_fn(entry.query, ctx)
 
     if not resolved_answers and mgr is not None:

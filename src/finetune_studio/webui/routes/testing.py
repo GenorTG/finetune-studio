@@ -171,7 +171,7 @@ async def run_rag_test_suite(request: Request):
 
     Body keys: ``project_id``/``pid``, ``suite_path``, ``model_path``/``path``,
     ``corpus_path`` (defaults to the project's PortableRAG corpus), ``top_k``,
-    ``max_tokens``, ``temperature``, ``max_context_chars`` (context cap, default 5000).
+    ``max_tokens``, ``temperature``, ``max_context_chars`` (context cap; default: sized from the loaded model's window).
 
     Blocking model + RAG work runs in ``asyncio.to_thread`` so the event loop
     stays responsive. Response includes transcripts, retrieval hits, context,
@@ -189,7 +189,7 @@ async def run_rag_test_suite(request: Request):
     top_k = int(body.get("top_k", 5))
     max_tokens = int(body.get("max_tokens", 512))
     temperature = float(body.get("temperature", 0.3))
-    max_context_chars = int(body.get("max_context_chars", 5000))
+    max_context_chars = int(body["max_context_chars"]) if body.get("max_context_chars") else None  # None = from the model's window
 
     from finetune_studio.testing.rag_suite import run_rag_suite_evaluation
 

@@ -98,3 +98,72 @@ def test_read_shape_reads_a_real_gguf_header(monkeypatch, tmp_path: Path) -> Non
     shape = gguf_fit.read_shape(str(path))
     assert (shape.total_layers, shape.kv_heads, shape.head_dim_k, shape.known) == (7, 8, 128, True)
     assert shape.file_gb > 0
+
+
+# ── auto context (Genor 2026-10-08): native by default, lowered only to fit ──────────────────────────────
+
+QWEN35 = {"qwen35.block_count": 32, "qwen35.context_length": 262144, "qwen35.embedding_length": 4096,
+          "qwen35.attention.head_count": 16, "qwen35.attention.head_count_kv": 4, "qwen35.attention.key_length": 256,
+          "qwen35.attention.value_length": 256, "qwen35.full_attention_interval": 4}
+GEMMA4 = {"gemma4.block_count": 48, "gemma4.context_length": 131072, "gemma4.embedding_length": 3840,
+          "gemma4.attention.head_count": 16, "gemma4.attention.head_count_kv": 1, "gemma4.attention.key_length": 512,
+          "gemma4.attention.value_length": 512, "gemma4.attention.sliding_window": 1024}
+
+
+@pytest.fixture
+def real_shape(monkeypatch, tmp_path):
+    """Undo the module-wide read_shape stub and feed read_shape() header values + a 5 GB file size."""
+    import importlib
+
+    importlib.reload(gguf_fit)   # drops the autouse stub
+    f = tmp_path / "m.gguf"
+    f.write_bytes(b"x")
+    size = {"gb": 5.24}
+    monkeypatch.setattr(Path, "stat", lambda self, **kw: type("S", (), {"st_size": int(size["gb"] * GIB)})())
+    monkeypatch.setattr(Path, "is_file", lambda self: True)
+
+    def use(vals: dict, file_gb: float = 5.24):
+        size["gb"] = file_gb
+        monkeypatch.setattr(gguf_fit, "gguf_header_values", lambda path: vals)
+        return gguf_fit.read_shape("m.gguf")
+
+    return use
+
+
+def test_hybrid_and_window_models_hold_kv_in_few_layers(real_shape) -> None:
+    qwen = real_shape(QWEN35)
+    assert (qwen.native_ctx, qwen.kv_layers, qwen.uses_swa) == (262144, 8, False)      # 1 attention layer in 4
+    gemma = real_shape(GEMMA4, 6.87)
+    assert (gemma.native_ctx, gemma.kv_layers, gemma.swa_window) == (131072, 8, 1024)  # 8 global of 48 (measured)
+
+
+def test_estimate_tracks_the_measured_vram_of_the_native_loads(real_shape) -> None:
+    """Measured on the 3090 (2026-10-08): Qwen3.5-9B Q4_K_M 262144 ctx = 13.3 GB, Gemma 4 12B 131072 = 10.0 GB."""
+    qwen = real_shape(QWEN35)
+    est = gguf_fit.estimate_gpu_gb(qwen, 262144, 0, 0, -1)
+    assert 13.3 <= est <= 13.3 * 1.25            # slightly pessimistic is the safe side
+    # the old all-layers formula would have said ~37 GB and refused the load
+    assert est < 20
+    gemma = real_shape(GEMMA4, 6.87)
+    est = gguf_fit.estimate_gpu_gb(gemma, 131072, 0, 0, -1)
+    assert 10.0 <= est <= 10.0 * 1.25
+
+
+def test_auto_ctx_is_native_when_it_fits_and_fitted_when_not(real_shape) -> None:
+    real_shape(QWEN35)
+    assert gguf_fit.plan_auto_ctx("m.gguf", free_gb=22.0) == (262144, "native")
+    ctx, reason = gguf_fit.plan_auto_ctx("m.gguf", free_gb=10.0)
+    shape = gguf_fit.read_shape("m.gguf")
+    assert reason == "fitted" and 32768 < ctx < 262144 and ctx % 1024 == 0
+    assert gguf_fit.estimate_gpu_gb(shape, ctx, 0, 0, -1) <= 10.0 < gguf_fit.estimate_gpu_gb(shape, ctx + 1024, 0, 0, -1)
+
+
+def test_auto_ctx_floor_and_no_gpu(real_shape) -> None:
+    real_shape(QWEN35)
+    assert gguf_fit.plan_auto_ctx("m.gguf", free_gb=5.0) == (32768, "floor")       # weights alone nearly fill it
+    assert gguf_fit.plan_auto_ctx("m.gguf", free_gb=None) == (32768, "floor")      # no GPU: KV would live in RAM
+    assert gguf_fit.plan_auto_ctx("m.gguf", free_gb=22.0, requested=0) == (32768, "floor")   # CPU requested
+    real_shape({k: v for k, v in QWEN35.items() if not k.endswith("context_length")})
+    assert gguf_fit.plan_auto_ctx("m.gguf", free_gb=22.0)[0] == 32768              # header without a context length
+    real_shape({**QWEN35, "qwen35.context_length": 8192})
+    assert gguf_fit.plan_auto_ctx("m.gguf", free_gb=22.0) == (8192, "native")      # small models keep their own limit

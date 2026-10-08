@@ -144,3 +144,7 @@ helper Gemma 4 12B (q4_k_m), temperature 0, top-5.
   cross-encoder rerank 90 (the default; 80 @1)**; rerank fused by RRF 94 (91 @3). The ms-marco English MiniLM reranker sharpens the first hit but pushes answers out of the top 5.
   The e5 `query:`/`passage:` prefixes the app does not use change nothing here (dense 84 -> 81, hybrid 94 -> 93). The corpus is IDs and numbers: lexical matching wins.
 - Chunker (`rag/ingest.chunk_text`) joins words with spaces, so table rows lose their line structure. Not yet measured as a cause.
+
+Context follow-up (same day): the loader now defaults to the model's native window (auto) and the RAG context cap is derived from it. Gemma 12B reader, auto context
+(131072 tokens, all 5 chunks in the prompt): 84/102 answerable, 19/20 declined, identical to the 16000-char run, so the cap was fixed, not the retrieval.
+Measured VRAM (3090, q4_k_m GGUF): Gemma 4 12B 18.3 GB at 32k (full-size window cache) -> 10.0 GB at native 131k (`swa_full=False`); Qwen3.5-9B 6.4 GB at 32k, 13.6 GB at native 262k.

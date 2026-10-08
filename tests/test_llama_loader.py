@@ -46,11 +46,13 @@ def _reset():
     FakeLlama.calls = []
 
 
-def _gpu_host(monkeypatch, mod, *, free_gb: float, layers: int, file_gb: float) -> None:
+def _gpu_host(monkeypatch, mod, *, free_gb: float, layers: int, file_gb: float, native_ctx: int = 0,
+              swa_window: int = 0) -> None:
     """Pretend: a GPU with ``free_gb`` free, and a GGUF with ``layers`` layers of ``file_gb`` total."""
     from finetune_studio.models.gguf_fit import ModelShape
 
-    shape = ModelShape(total_layers=layers, kv_heads=8, head_dim_k=128, head_dim_v=128, file_gb=file_gb, known=True)
+    shape = ModelShape(total_layers=layers, kv_heads=8, head_dim_k=128, head_dim_v=128, file_gb=file_gb, known=True,
+                       native_ctx=native_ctx, swa_window=swa_window)
     monkeypatch.setattr(mod, "_gpu_capable", lambda: True)
     monkeypatch.setattr(mod, "_free_vram_gb", lambda: free_gb)
     monkeypatch.setattr(mod, "read_shape", lambda path: shape)
@@ -182,6 +184,93 @@ class TestLoadLlamaGguf:
         assert FakeLlama.calls[-1]["offload_kqv"] is False and FakeLlama.calls[-1]["op_offload"] is False
         assert FakeLlama.calls[0]["offload_kqv"] is True and FakeLlama.calls[0]["op_offload"] is True
         assert len(FakeLlama.calls) == mod.MAX_LOAD_ATTEMPTS   # bounded, and the last attempt is the CPU-only one
+
+    def test_auto_context_loads_the_native_window_when_it_fits(self, tmp_path, monkeypatch):
+        from finetune_studio.models import llama_loader as mod
+
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+        _gpu_host(monkeypatch, mod, free_gb=1000.0, layers=40, file_gb=10.0, native_ctx=131072)
+        with patch("llama_cpp.Llama", FakeLlama):
+            result = mod.load_llama_gguf(str(gguf), detect_mmproj=False)    # default n_ctx = AUTO_N_CTX
+        assert FakeLlama.calls[0]["n_ctx"] == 131072 and result.final_n_ctx == 131072
+        assert not any("Context lowered" in w for w in result.warnings)
+
+    def test_auto_context_is_lowered_to_fit_but_an_explicit_one_is_not(self, tmp_path, monkeypatch):
+        from finetune_studio.models import llama_loader as mod
+
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+        # 10 GB weights; at 131072 ctx the KV alone is 40 layers * 4 GiB > 20 GB free -> the plan lowers the context
+        _gpu_host(monkeypatch, mod, free_gb=20.0, layers=40, file_gb=10.0, native_ctx=131072)
+        with patch("llama_cpp.Llama", FakeLlama):
+            result = mod.load_llama_gguf(str(gguf), detect_mmproj=False)
+        assert mod.MIN_AUTO_CTX <= FakeLlama.calls[0]["n_ctx"] < 131072 and FakeLlama.calls[0]["n_ctx"] % 1024 == 0
+        assert FakeLlama.calls[0]["n_gpu_layers"] == -1                      # every layer stays on the GPU
+        assert any("Context lowered" in w and "131072" in w for w in result.warnings)
+        _reset()
+        with patch("llama_cpp.Llama", FakeLlama):
+            mod.load_llama_gguf(str(gguf), n_ctx=131072, detect_mmproj=False)
+        assert FakeLlama.calls[0]["n_ctx"] == 131072                         # explicit: kept, layers are shed instead
+        assert FakeLlama.calls[0]["n_gpu_layers"] != -1
+
+    def test_auto_context_halves_on_oom_before_shedding_layers(self, tmp_path, monkeypatch):
+        from finetune_studio.models import llama_loader as mod
+
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+        _gpu_host(monkeypatch, mod, free_gb=1000.0, layers=40, file_gb=10.0, native_ctx=131072)
+
+        class OomAbove40k:
+            def __init__(self, **kwargs):
+                FakeLlama.calls.append(kwargs)
+                if kwargs["n_ctx"] > 40000:
+                    raise RuntimeError("CUDA out of memory")
+
+        with patch("llama_cpp.Llama", OomAbove40k):
+            result = mod.load_llama_gguf(str(gguf), detect_mmproj=False)
+        assert [c["n_ctx"] for c in FakeLlama.calls] == [131072, 65536, 32768]
+        assert {c["n_gpu_layers"] for c in FakeLlama.calls} == {-1}
+        assert result.final_n_ctx == 32768 and result.offload == "gpu"
+
+    def test_auto_context_never_goes_below_the_floor_then_sheds_layers(self, tmp_path, monkeypatch):
+        from finetune_studio.models import llama_loader as mod
+
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+        _gpu_host(monkeypatch, mod, free_gb=1000.0, layers=40, file_gb=10.0, native_ctx=131072)
+
+        class OomUnlessFewLayers:
+            def __init__(self, **kwargs):
+                FakeLlama.calls.append(kwargs)
+                if kwargs["n_gpu_layers"] != 0:
+                    raise RuntimeError("CUDA out of memory")
+
+        with patch("llama_cpp.Llama", OomUnlessFewLayers):
+            result = mod.load_llama_gguf(str(gguf), detect_mmproj=False)
+        assert min(c["n_ctx"] for c in FakeLlama.calls) == mod.MIN_AUTO_CTX
+        assert result.final_n_ctx == mod.MIN_AUTO_CTX and result.n_gpu_layers == 0
+
+    def test_window_attention_models_get_a_window_sized_cache(self, tmp_path, monkeypatch):
+        """Gemma 4 12B: 18.3 GB at 32k with the full-size window cache, 10.0 GB at its native 131k without it."""
+        from finetune_studio.models import llama_loader as mod
+
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+        _gpu_host(monkeypatch, mod, free_gb=1000.0, layers=48, file_gb=7.0, native_ctx=131072, swa_window=1024)
+
+        class SwaLlama:
+            def __init__(self, swa_full=True, **kwargs):
+                FakeLlama.calls.append({"swa_full": swa_full, **kwargs})
+
+        with patch("llama_cpp.Llama", SwaLlama):
+            mod.load_llama_gguf(str(gguf), detect_mmproj=False)
+        assert FakeLlama.calls[0]["swa_full"] is False
+        _reset()
+        _gpu_host(monkeypatch, mod, free_gb=1000.0, layers=40, file_gb=10.0, native_ctx=131072)   # no window
+        with patch("llama_cpp.Llama", SwaLlama):
+            mod.load_llama_gguf(str(gguf), detect_mmproj=False)
+        assert FakeLlama.calls[0]["swa_full"] is True                       # untouched default
 
     def test_micro_batch_is_capped_for_the_cuda_abort(self, tmp_path, monkeypatch):
         """llama.cpp aborts the process on a full 512-token micro-batch on some Q8_0 models; cap it."""

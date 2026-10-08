@@ -158,8 +158,8 @@ class LocalGGUFProvider(ModelProvider):
             type_k=self._kv_type_k,
             type_v=self._kv_type_v,
         )
-        # describe() must report what's actually loaded, not the ask.
-        self._n_ctx = self.engine.n_ctx or self._n_ctx
+        # describe() reports what is actually loaded (engine.n_ctx); self._n_ctx stays the ASK, so an
+        # auto (0) provider keeps choosing the native window again on its next load instead of pinning today's.
         self._loaded_at = time.time()
 
     def describe(self) -> dict:

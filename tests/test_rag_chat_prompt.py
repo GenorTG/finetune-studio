@@ -78,3 +78,35 @@ def test_missing_user_message_is_400(client) -> None:
     with patch("finetune_studio.data.rag_portable.PortableRAG", return_value=fake_rag):
         r = client.post(f"/api/projects/{pid}/rag/chat", json={"messages": [{"role": "assistant", "content": "x"}]})
     assert r.status_code == 400
+
+
+def test_context_cap_follows_the_loaded_window_not_a_fixed_4000_chars(client) -> None:
+    """The old cap fed a 32k-token model ~1.3k tokens (2 of 5 chunks); the budget is derived from n_ctx."""
+    from finetune_studio.webui import app as webapp
+
+    pid = _project(client)
+    fake_q = MagicMock()
+    fake_q.search.return_value = HITS
+    fake_q.format_context.return_value = "ctx"
+    fake_rag = MagicMock()
+    fake_rag.exists.return_value = True
+    fake_rag.load.return_value = fake_q
+    with patch("finetune_studio.data.rag_portable.PortableRAG", return_value=fake_rag), \
+         patch.object(webapp.inference_engine, "model", object()), \
+         patch.object(webapp.inference_engine, "n_ctx", 262144), \
+         patch.object(webapp.inference_engine, "generate", return_value="ok"):
+        r = client.post(f"/api/projects/{pid}/rag/chat",
+                        json={"messages": [{"role": "user", "content": "q"}], "max_tokens": 512})
+    assert r.status_code == 200, r.text
+    cap = fake_q.format_context.call_args.kwargs["max_chars"]
+    assert cap == (262144 - 512 - 1024) * 3          # one-character history costs 0 tokens
+
+
+def test_context_char_budget_rules() -> None:
+    from finetune_studio.data.rag_portable.prompt import DEFAULT_CONTEXT_CHARS, context_char_budget
+
+    assert context_char_budget(None) == DEFAULT_CONTEXT_CHARS == context_char_budget(0)   # API model / nothing loaded
+    assert context_char_budget(32768, max_new_tokens=512) == (32768 - 512 - 1024) * 3
+    # history eats window tokens (3 chars per token), the answer budget is reserved
+    assert context_char_budget(32768, max_new_tokens=512, history_chars=3000) == (32768 - 512 - 1024 - 1000) * 3
+    assert context_char_budget(2048, max_new_tokens=2000) == 4000                          # never below a usable floor

@@ -198,7 +198,7 @@ def _fields() -> dict[tuple[str, str], Field]:
         Field("pairs", "qa_per_chunk", "#prep-qpc", "int", "Pairs per chunk", minimum=1, maximum=10),
         Field("pairs", "difficulty", "#prep-diff", "choice", "Difficulty", choices=("easy", "medium", "hard", "expert")),
         Field("pairs", "style", "#prep-style", "choice", "Style", choices=("socratic", "direct", "factual", "eli5", "code")),
-        Field("pairs", "helper_n_ctx", "#prep-helper-ctx", "int", "Helper context", minimum=512, maximum=131072),
+        Field("pairs", "helper_n_ctx", "#prep-helper-ctx", "int", "Helper context", minimum=0, maximum=1048576),
         Field("pairs", "grounded", "#dp-grounded", "bool", "Include retrieved context"),
         Field("pairs", "grounded_pct", "#dp-grounded-pct", "int", "Percent of rows with retrieved context", minimum=1, maximum=100),
         Field("rag", "embedder", "#b-embedder", "choice", "Embedder",
@@ -210,7 +210,7 @@ def _fields() -> dict[tuple[str, str], Field]:
         Field("rag", "rerank_top_n", "#s-rerank-top-n", "int", "Rerank top-N", minimum=1, maximum=200),
         Field("testing", "eval_kind", "#t-eval-kind", "choice", "Evaluation type", choices=("heldout", "training_leakage")),
         Field("wizard", "epochs", "#wiz-epochs", "int", "Epochs override", minimum=1, maximum=100),
-        Field("inference", "n_ctx", "#n-ctx", "int", "Context length", minimum=512, maximum=131072),
+        Field("inference", "n_ctx", "#n-ctx", "int", "Context length", minimum=0, maximum=1048576),
     ]
     return {(x.page, x.name): x for x in f}
 

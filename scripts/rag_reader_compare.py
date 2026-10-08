@@ -25,10 +25,14 @@ ROOT = Path(__file__).resolve().parent.parent
 QUIZ = ROOT / "tests" / "corpus" / "korvane" / "eval" / "korvane_quiz_core.jsonl"
 
 
-def run_suite(base: str, pid: str, model_path: str, *, top_k: int, cap: int, quiz: Path) -> dict:
-    """One blocking RAG-suite run through the app (loads ``model_path`` if it is not the loaded one)."""
+def run_suite(base: str, pid: str, model_path: str, *, top_k: int, cap: int | None, quiz: Path) -> dict:
+    """One blocking RAG-suite run through the app (loads ``model_path`` if it is not the loaded one).
+
+    ``cap`` None = let the app size the context from the loaded model's window."""
     body = {"project_id": pid, "suite_path": str(quiz), "model_path": model_path, "top_k": top_k,
-            "max_context_chars": cap, "max_tokens": 512, "temperature": 0.0}
+            "max_tokens": 512, "temperature": 0.0}
+    if cap:
+        body["max_context_chars"] = cap
     req = urllib.request.Request(f"{base}/api/testing/run-rag-suite", method="POST",
                                  headers={"Content-Type": "application/json"}, data=json.dumps(body).encode())
     with urllib.request.urlopen(req, timeout=4 * 3600) as resp:
@@ -65,11 +69,11 @@ def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     for spec in args.reader:
         name, _, path = spec.partition("=")
-        for cap in args.cap or [5000]:
+        for cap in args.cap or [None]:   # no --cap: the app derives it from the model's window
             report = run_suite(args.base, args.pid, path, top_k=args.top_k, cap=cap, quiz=args.quiz)
-            (args.out / f"{name}-cap{cap}-k{args.top_k}.json").write_text(json.dumps(report, indent=1))
+            (args.out / f"{name}-cap{cap or 'auto'}-k{args.top_k}.json").write_text(json.dumps(report, indent=1))
             counts = split_misses(report["results"])
-            print(f"{name} cap={cap} k={args.top_k}: " + ", ".join(f"{k}={v}" for k, v in sorted(counts.items())),
+            print(f"{name} cap={cap or 'auto'} k={args.top_k}: " + ", ".join(f"{k}={v}" for k, v in sorted(counts.items())),
                   f"| chunks in context avg {report['retrieval']['mean_chunks_in_context']}", flush=True)
     return 0
 

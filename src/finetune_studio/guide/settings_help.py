@@ -107,9 +107,9 @@ SETTING_HELP: dict[str, dict[str, str]] = {
         "kb": "pairs",
     },
     "helper_n_ctx": {
-        "meaning": "Context window the helper model loads with while mining (default 32768).",
-        "guidance": "Raise for long chunks; lower to save VRAM.",
-        "pitfall": "Larger context uses more VRAM for the KV cache.",
+        "meaning": "Context window the helper model loads with while mining (0 = auto: the model's native window).",
+        "guidance": "Leave it at 0: the native window is used and only lowered if it cannot fit on the GPU (never below 32768).",
+        "pitfall": "An explicit value is kept as asked; a large one on a nearly full GPU pushes layers to the CPU.",
         "kb": "helper-model",
     },
     "grounded": {
@@ -173,9 +173,9 @@ SETTING_HELP: dict[str, dict[str, str]] = {
         "kb": "wizard",
     },
     "n_ctx": {
-        "meaning": "Context length (KV cache size) the model loads with.",
-        "guidance": "Larger means more VRAM; the loader never shrinks it, it steps GPU layers down instead.",
-        "pitfall": "A huge context on a nearly full GPU pushes layers to the CPU and slows generation.",
+        "meaning": "Context length (KV cache size) the model loads with; 0 = auto: the model's native window.",
+        "guidance": "Leave it at 0. Auto lowers the window only when the whole model cannot fit on the GPU (never below 32768); an explicit value is never lowered, GPU layers step down instead.",
+        "pitfall": "A huge explicit context on a nearly full GPU pushes layers to the CPU and slows generation.",
         "kb": "inference",
     },
 }
