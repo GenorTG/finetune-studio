@@ -112,7 +112,8 @@ class Monitor:
             return []
         self._journal_since = time.strftime("%Y-%m-%d %H:%M:%S")
         bad = ("Traceback", "ERROR", "CUDA error", "out of memory", "OutOfMemory", "ABRT", "Main process exited")
-        return [ln[:200] for ln in out.splitlines() if any(b in ln for b in bad)]
+        handled = ("merge base does not fit on",)   # logged by the app's own OOM ladder; the merge then continues on CPU
+        return [ln[:200] for ln in out.splitlines() if any(b in ln for b in bad) and not any(h in ln for h in handled)]
 
     async def _run(self, every: float) -> None:
         while True:

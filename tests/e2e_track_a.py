@@ -187,12 +187,14 @@ async def phase_a_chat(w: W.Walk) -> None:
         return await w.page.locator("#chat-inline-model option").count() > 0
 
     await w.wait_for("Chat model choices", options_ready, 20, every=0.5)
-    opts = await w.page.locator("#chat-inline-model option").all_inner_texts()
-    pick = next((o for o in opts if "q4_k_m" in o.lower()), None)
-    W.R.check(pick is not None, f"the exported q4_k_m model is selectable in Chat ({len(opts)} options)")
+    options = await w.page.locator("#chat-inline-model option").evaluate_all(
+        "els => els.map(e => ({value: e.value, text: e.textContent}))")
+    run_id = os.environ.get("FTS_RUN_ID", "")
+    pick = next((o["value"] for o in options if "q4_k_m" in o["value"].lower() and (not run_id or f"/{run_id}/" in o["value"])), None)
+    W.R.check(pick is not None, f"the exported q4_k_m model of run {run_id or 'any'} is selectable in Chat ({len(options)} options)")
     if pick is None:
         return
-    await w.page.select_option("#chat-inline-model", label=pick)
+    await w.page.select_option("#chat-inline-model", value=pick)
     await w.page.click("#chat-inline-load-btn")
 
     async def loaded() -> bool:
@@ -214,6 +216,133 @@ async def phase_a_chat(w: W.Walk) -> None:
 
 
 W.PHASES["a_chat"] = phase_a_chat
+
+
+async def phase_a_dpo_build(w: W.Walk) -> None:
+    """Pairs page: Preference pairs (DPO) card -> BUILD with the local helper (hallucination + abstain), read the summary."""
+    W.api("/api/models/unload", "POST")
+    W.api("/api/providers/local-default/load", "POST", {"n_ctx": 32768})
+    await w.goto(f"/projects/{W.pid()}/data-prep")
+    await w.page.fill("#dp-pref-max", os.environ.get("FTS_DPO_PAIRS", "300"))
+    await w.shot("dpo-card", full=True)
+    await w.page.click("#dp-pref-build")
+    started = time.time()
+    last = ""
+    while time.time() - started < float(os.environ.get("FTS_DPO_TIMEOUT", "3600")):
+        text = (await w.page.locator("#dp-pref-progress-text").inner_text()).strip()
+        if text != last:
+            W.log(f"preference build: {text}")
+            last = text
+        if await w.page.locator("#dp-pref-result").is_visible():
+            break
+        status = (await w.page.locator("#dp-pref-status").inner_text()).strip() if await w.page.locator("#dp-pref-status").is_visible() else ""
+        if status:
+            W.log(f"preference status: {status[:400]}")
+            break
+        await asyncio.sleep(10)
+    await w.shot("dpo-built", full=True)
+    result = (await w.page.locator("#dp-pref-result").inner_text()).strip() if await w.page.locator("#dp-pref-result").is_visible() else ""
+    W.log("preference result: " + result.replace("\n", " | ")[:900])
+    W.R.check(bool(result), "the preference pairs were built and a Train-with-this-dataset link is offered")
+
+
+W.PHASES["a_dpo_build"] = phase_a_dpo_build
+
+
+async def phase_a_dpo_train(w: W.Walk) -> None:
+    """Training page: Preference tuning (DPO) from the SFT run's merged model, with the REVIEWED preference JSONL uploaded."""
+    W.api("/api/providers/unload", "POST")
+    run_id = os.environ.get("FTS_RUN_ID", "")
+    await w.goto(f"/projects/{W.pid()}/training")
+    await w.page.check("input[name=training_mode][value=dpo]")
+    base = w.page.locator("#train-base-model")
+    opts = await base.locator("option").all_inner_texts()
+    await base.select_option(label=next(o for o in opts if "Qwen3.5-9B" in o))
+    start = w.page.locator("#start-run-select")
+    await w.wait_for("SFT runs offered as a DPO start", lambda: _has_options(start), 20, every=1)
+    values = await start.locator("option").evaluate_all("els => els.map(e => e.value)")
+    W.log(f"start-from options: {values}")
+    W.R.check(run_id in values, f"the SFT run {run_id} is offered as the DPO starting point")
+    await start.select_option(value=run_id)
+    await w.page.click("button.data-tab[data-tab=upload]")
+    await w.page.set_input_files("#dataset-upload", str(W.REPO / ".tmp" / "reviewed-preference.jsonl"))
+    await w.page.wait_for_timeout(4000)
+    W.log("upload status: " + (await w.page.locator("#dataset-upload-status").inner_text()).strip()[:300])
+    await w.shot("dpo-configured", full=True)
+    await w.page.click("#start-btn")
+    await w.page.wait_for_timeout(5000)
+    last = ""
+    started = time.time()
+    while time.time() - started < float(os.environ.get("FTS_TRAIN_TIMEOUT", "7200")):
+        st = W.api("/api/training/status")
+        line = f"dpo {st.get('status')} step {st.get('step')}/{st.get('total_steps')} loss={st.get('loss')} {str(st.get('message'))[:80]}"
+        if line != last:
+            W.log(line)
+            last = line
+        if st.get("status") in ("done", "error", "stopped", "idle") and time.time() - started > 30:
+            break
+        await asyncio.sleep(20)
+    st = W.api("/api/training/status")
+    await w.shot("dpo-finished", full=True)
+    W.R.check(st.get("status") == "done", f"DPO finished: {st.get('status')} {str(st.get('error') or '')[:300]}")
+    runs = W.api(f"/api/training/runs/{W.pid()}")
+    if runs:
+        W.log("run record: " + json.dumps({k: runs[0].get(k) for k in ("id", "status", "final_loss", "settings")}, default=str)[:900])
+
+
+async def _has_options(locator) -> bool:
+    return await locator.locator("option").count() > 1
+
+
+W.PHASES["a_dpo_train"] = phase_a_dpo_train
+
+
+async def phase_b_rag(w: W.Walk) -> None:
+    """Track B (RAG, separate from training): QUICK INDEX the project's files, SEARCH like a user, then quiz RAG chat with the loaded model."""
+    W.api("/api/models/unload", "POST")
+    await w.goto(f"/projects/{W.pid()}/rag")
+    await w.shot("rag-before")
+    await w.page.click("#quick-index-btn")
+
+    async def built() -> bool:
+        try:
+            d = W.api(f"/api/projects/{W.pid()}/rag/build/status")
+            return bool(d.get("ok", True)) and not d.get("building") and int(d.get("chunks") or d.get("chunk_count") or 0) > 0
+        except Exception:  # noqa: BLE001
+            return False
+
+    W.R.check(await w.wait_for("RAG index built", built, 900, every=5), "quick index finished")
+    st = W.api(f"/api/projects/{W.pid()}/rag")
+    W.log("rag status: " + json.dumps(st, default=str)[:500])
+    await w.page.reload(wait_until="networkidle")
+    await w.shot("rag-built", full=True)
+    for question in ("What incident reference number did Korvane open for the Oakhaven temperature excursion?",
+                     "Which certificate number did the lead auditor recommend maintaining?",
+                     "What is the Autumn Peak surcharge in the Oakhaven MSA?"):
+        await w.page.fill("#q-text", question)
+        await w.page.click("#q-btn")
+        await w.page.wait_for_timeout(4000)
+        await w.shot("rag-search")
+        W.log(f"searched: {question}")
+    # retrieval-only quiz over every paraphrase question (no model involved)
+    import urllib.request as _u
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from corpus_eval import variants
+    from corpus_coverage import norm
+    rows = [json.loads(ln) for ln in (ROOT / "eval" / "paraphrase_core.jsonl").read_text().splitlines() if ln.strip()]
+    hit = 0
+    for r in rows:
+        req = _u.Request(f"{W.BASE}/api/projects/{W.pid()}/rag/search", method="POST", headers={"Content-Type": "application/json"},
+                         data=json.dumps({"query": r["q"], "top_k": 5}).encode())
+        with _u.urlopen(req, timeout=120) as resp:
+            hits = json.loads(resp.read()).get("hits", [])
+        blob = norm(" ".join(str(h.get("text", "")) for h in hits))
+        hit += all(any(v in blob or v in blob.replace(",", "") for v in variants(x)) for x in r["expect"])
+    W.log(f"retrieval@5 over {len(rows)} paraphrase questions: {hit}/{len(rows)} = {100 * hit / len(rows):.1f}%")
+    W.R.check(hit >= int(0.8 * len(rows)), f"RAG search surfaced the expected facts for {hit}/{len(rows)} questions (>= 80 %)")
+
+
+W.PHASES["b_rag"] = phase_b_rag
 
 
 if __name__ == "__main__":

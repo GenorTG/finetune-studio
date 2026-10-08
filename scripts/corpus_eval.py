@@ -24,7 +24,9 @@ from corpus_coverage import BASE, norm
 WORDS = {"one": "1", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10"}
 ABSTAIN = ("don't know", "do not know", "not know", "no information", "not mentioned", "not specified", "not provided", "cannot",
            "can't", "unable", "no record", "not available", "isn't stated", "is not stated", "not in the", "not covered",
-           "i have no", "unknown", "not aware")
+           "i have no", "unknown", "not aware", "does not contain", "doesn't contain", "do not contain", "not contain", "no mention",
+           "not found", "isn't something", "is not something", "don't have that", "do not have that", "don't say", "do not say",
+           "documents cover", "not say", "doesn't say", "does not say", "not stated", "no data", "not given", "not listed")
 
 
 def ask(question: str, system: str, max_tokens: int = 160) -> str:
