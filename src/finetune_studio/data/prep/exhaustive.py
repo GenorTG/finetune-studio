@@ -104,22 +104,24 @@ def _cut_long(text: str) -> list[str]:
 
 def table_header_before(chunks: Sequence[str], idx: int) -> str:
     """Header row of the table a chunk continues (scan earlier chunks back to the last table-block start)."""
-    for prev in range(idx - 1, -1, -1):
-        lines = [ln.strip() for ln in chunks[prev].splitlines() if ln.strip()]
-        header = ""
-        run = 0
-        for ln in lines:
+    # Walk forward so a chunk that merely continues a table never promotes its first DATA row to "header": the header is
+    # set only where a table run really starts (after prose, a "===" marker, or at the document start).
+    header = ""
+    in_table = False
+    for prev in range(max(idx, 0)):
+        for raw in chunks[prev].splitlines():
+            ln = raw.strip()
+            if not ln:
+                continue
             if ln.startswith("==="):
-                header, run = "", 0
+                header, in_table = "", False
             elif _is_table_line(ln):
-                run += 1
-                if run == 1:
+                if not in_table:
                     header = ln
+                in_table = True
             else:
-                run = 0
-        if header:
-            return header
-    return ""
+                in_table = False
+    return header if in_table else ""
 
 
 def _content(text: str) -> set[str]:

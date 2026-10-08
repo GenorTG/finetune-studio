@@ -183,3 +183,17 @@ def test_table_rows_are_keyed_by_column_name_for_the_prompt() -> None:
 def test_a_title_wrapped_over_two_lines_is_joined() -> None:
     chunk = "KORVANE COLD CHAIN Sp. z o.o. — Employee\nHandbook, Version 4 (Extract)\nHR-HB-04 / EXTRACT-C · Effective 1 February 2024 · Owner: People & Culture."
     assert ex.document_title(chunk, "x.pdf") == "KORVANE COLD CHAIN Sp. z o.o. — Employee Handbook, Version 4 (Extract)"
+
+
+def test_a_table_split_over_many_chunks_keeps_its_real_header_not_a_data_row() -> None:
+    head = "opp_id | account | stage"
+    chunks = [f"{head}\n--- | --- | ---\nOPP-1 | Acme | Won", "OPP-2 | Beta | Lost\nOPP-3 | Gamma | Open", "OPP-4 | Delta | Won",
+              "OPP-5 | Eps | Lost"]
+    assert [ex.table_header_before(chunks, i) for i in range(4)] == ["", head, head, head]
+
+
+def test_a_new_table_after_prose_starts_a_new_header_and_a_finished_table_is_not_carried() -> None:
+    chunks = ["a | b\n1 | 2", "Some prose closes the table.\nc | d\n3 | 4", "5 | 6"]
+    assert ex.table_header_before(chunks, 1) == "a | b"
+    assert ex.table_header_before(chunks, 2) == "c | d"
+    assert ex.table_header_before(["a | b\n1 | 2\nA closing sentence here.", "x | y"], 1) == ""

@@ -34,6 +34,20 @@ def call(path: str, method: str = "GET", body: dict | None = None):
         return json.loads(r.read() or b"{}")
 
 
+def full_chunk(pid: str, pair: dict) -> str:
+    """The whole chunk from disk (the pair stores only its first 1,500 characters), falling back to the stored text."""
+    try:
+        from finetune_studio.data.prep.ingest import load_existing_chunks
+
+        chunks = load_existing_chunks(pid, str(pair.get("sha256") or ""))
+        idx = int(pair.get("chunk_idx") or 0)
+        if 1 <= idx <= len(chunks) and chunks[idx - 1]:
+            return chunks[idx - 1]
+    except Exception:  # noqa: BLE001 — a missing chunk file must not stop a review session
+        pass
+    return str(pair.get("chunk_text", ""))
+
+
 def ledger_ids(path: Path) -> dict[str, dict]:
     out: dict[str, dict] = {}
     if path.exists():
@@ -68,7 +82,7 @@ def main() -> int:
         for p in mine[a.offset:a.offset + a.limit]:
             if a.chunks and p.get("chunk_idx") != last_chunk:
                 last_chunk = p.get("chunk_idx")
-                print(f"\n=== CHUNK {last_chunk} ===\n{p.get('chunk_text', '')}\n")
+                print(f"\n=== CHUNK {last_chunk} ===\n{full_chunk(a.pid, p)}\n")
             print(f"[{p['id']}] c{p.get('chunk_idx')}\n  Q: {p.get('question')}\n  A: {p.get('answer')}")
         return 0
     if a.cmd == "apply":
