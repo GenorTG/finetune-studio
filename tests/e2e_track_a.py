@@ -297,6 +297,25 @@ async def _has_options(locator) -> bool:
 W.PHASES["a_dpo_train"] = phase_a_dpo_train
 
 
+def _retrieval_quiz(pid: str) -> tuple[int, int]:
+    """How many paraphrase questions have every expected value in the top-5 RAG chunks (blocking HTTP: run in a thread)."""
+    import urllib.request as _u
+
+    from corpus_coverage import norm
+    from corpus_eval import variants
+
+    rows = [json.loads(ln) for ln in (ROOT / "eval" / "paraphrase_core.jsonl").read_text().splitlines() if ln.strip()]
+    hit = 0
+    for r in rows:
+        req = _u.Request(f"{W.BASE}/api/projects/{pid}/rag/search", method="POST", headers={"Content-Type": "application/json"},
+                         data=json.dumps({"query": r["q"], "top_k": 5}).encode())
+        with _u.urlopen(req, timeout=120) as resp:
+            hits = json.loads(resp.read()).get("hits", [])
+        blob = norm(" ".join(str(h.get("text", "")) for h in hits))
+        hit += all(any(v in blob or v in blob.replace(",", "") for v in variants(x)) for x in r["expect"])
+    return hit, len(rows)
+
+
 async def phase_b_rag(w: W.Walk) -> None:
     """Track B (RAG, separate from training): QUICK INDEX the project's files, SEARCH like a user, then quiz RAG chat with the loaded model."""
     W.api("/api/models/unload", "POST")
@@ -325,19 +344,8 @@ async def phase_b_rag(w: W.Walk) -> None:
         await w.shot("rag-search")
         W.log(f"searched: {question}")
     # retrieval-only quiz over every paraphrase question (no model involved)
-    import urllib.request as _u
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-    from corpus_eval import variants
-    from corpus_coverage import norm
-    rows = [json.loads(ln) for ln in (ROOT / "eval" / "paraphrase_core.jsonl").read_text().splitlines() if ln.strip()]
-    hit = 0
-    for r in rows:
-        req = _u.Request(f"{W.BASE}/api/projects/{W.pid()}/rag/search", method="POST", headers={"Content-Type": "application/json"},
-                         data=json.dumps({"query": r["q"], "top_k": 5}).encode())
-        with _u.urlopen(req, timeout=120) as resp:
-            hits = json.loads(resp.read()).get("hits", [])
-        blob = norm(" ".join(str(h.get("text", "")) for h in hits))
-        hit += all(any(v in blob or v in blob.replace(",", "") for v in variants(x)) for x in r["expect"])
+    hit, total = await asyncio.to_thread(_retrieval_quiz, W.pid())
+    rows = range(total)
     W.log(f"retrieval@5 over {len(rows)} paraphrase questions: {hit}/{len(rows)} = {100 * hit / len(rows):.1f}%")
     W.R.check(hit >= int(0.8 * len(rows)), f"RAG search surfaced the expected facts for {hit}/{len(rows)} questions (>= 80 %)")
 

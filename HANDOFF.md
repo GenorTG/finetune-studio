@@ -5,49 +5,56 @@
 Local fine-tune, data-prep and RAG WebUI. GPU-first; never silently fall back.
 Commits, pushes, local service restarts and real-hardware tests are authorized.
 
-## State (verified 2026-10-07)
+## State (verified 2026-10-08)
 
 | Area | State |
 |---|---|
-| Git | `main` = three preference/guide lanes + `054c3e9` 4-bit fix + helper seat (API provider) + `feat/async-jobs` merge. Branch tips still on origin; worktree `../finetune-studio-wt/async-jobs` may exist (remove after confirming merged). |
-| Tests | Full suite on merged tree, 5 chunks: all pass except one (`test_gguf_layers::test_manager_translates_legacy_99`, fixed afterwards, file re-run green); ruff + codemap clean. |
-| Service | genorbox1 :7860 on the merged build; helper seat = **local** (API row configured: OpenCode Go, `deepseek-v4-flash`, effort `none`; key stored in `~/.finetune-studio/fts.db`, never in the repo). |
-| Walkthrough | All phases re-run green on the merged build; the gguf phase now waits for export jobs to reach `done`. |
-| Async exports | Real GGUF conversion (f16+q8_0, 15 s) with 73 concurrent `/api/projects` + export-page requests: slowest 0.01 s. Export page shows live phase/elapsed/progress + Cancel. Sandbox before/after: 19.98 s freeze → 0.07 s. |
-| Cleanup | ~4.6 GB of old `.tmp` experiments, stray DBs/logs, stale test project dirs under `~/.finetune-studio/projects`, `data/aethermoor` deleted; throwaway project + base model removed after tests. |
+| Git | `main` pushed: table-header carry fix, Qwen3.5 GGUF `--no-mtp` fix, review/eval tooling, Track A/B browser phases, archived results. |
+| Tests | Full suite on the final code, 5 chunks: 2,474 passed; the one failure (`test_repo_hygiene`, new Korvane fixtures not allow-listed) fixed and re-run green; `ruff check src/ scripts/` (the CI scope) clean. |
+| Service | genorbox1 :7860; helper seat = **local** Gemma 4 12B. API row `api-helper` exists, but OpenCode Go returned `402 Insufficient account funds` on 2026-10-08: API paraphrasing/benchmarks are blocked until it is topped up. |
+| Corpus | `tests/corpus/korvane` (19 core files, 1,130 facts), reusable for every future test. Golden reviewed pairs `golden/approved_pairs_core_2026-10-08.jsonl.gz` (2,491); what the miner got wrong `golden/rejected_with_reasons_2026-10-08.jsonl.gz` (1,964). |
+| Last full run | Track A + B, Qwen3.5-9B, fresh DB, browser-led, every pair read by hand: `tests/corpus/korvane/RESULTS.md`. Project, runs and exports deleted via the UI afterwards; base model kept. |
 
-## API helper — what was built and measured
+## The result that matters
 
-Settings → **Helper model**: choose the local GGUF or an API provider (preset OpenCode Go / OpenAI / OpenRouter / custom; Fetch model list, Test connection, reasoning effort; key write-only). The helper does mining, suite generation, preference pairs and the Guide ("Guide" = the in-app panel; the **helper** is the model behind it). The document text goes to the provider when the API seat is active (warned on the card).
-Same 14-document corpus, same RTX 3090 box, fresh project per row (`scripts/helper_bench.py`, `tests/e2e_user_walkthrough.py`):
+| Model | Paraphrase recall (102 Q) | Abstains on unknown (20 Q) |
+|---|---|---|
+| base, untrained | 2 % | 3/20 |
+| SFT 6 epochs, q4_k_m / merged bf16 | 17.6 % / 25.5 % | 0/20 |
+| DPO on top (188 reviewed pairs) | 15.7 % | 0/20 |
+| **base + RAG (Track B)** | **75.5 %** (retrieval@5 90 %) | **20/20** |
 
-| Helper | Mining 14 docs (12/12 facts in all) | Guide 5 questions (median / total) | 20 preference pairs |
-|---|---|---|---|
-| Local Gemma-4 12B Q4 | 111 s, 35 pairs | 2.3 s / 19 s (terse; answers often just the readiness line) | 45 s |
-| deepseek-v4-flash, effort none | **30 s**, 37 pairs | 5.3 s / 30 s with native tools (grounded, notices real state) | 92 s (17 "refusal as rejected" drops) |
-| deepseek-v4.1-flash, none | 30 s, 42 pairs | 8.2 s / 40 s (grounded) | 94 s |
-| mimo-v2.5, none | 70 s, 40 pairs | 12.3 s / 54 s (best explanations) | 251 s |
-| deepseek-v4-flash, default thinking | 70 s, 1 source got no pair | 6.6 s / 31 s | **failed** (empty answers 3×) |
+SFT on ~2.4 reviewed pairs per fact teaches style, not paraphrase-robust facts, and removes the model's ability to say "not in the context". Use RAG for facts. The gate for
+knowledge training is paraphrase recall (`scripts/corpus_eval.py`), not eval loss (its minimum sits at epoch ~2 while recall keeps rising).
 
-Verdict: for mining the API is 3.7× faster at equal fact coverage; local wins on short sequential calls (pairs); deepseek with `reasoning_effort: none` is the cheap pick, mimo-v2.5 only if answer prose matters. Before native tool declaration, deepseek-none returned raw `<｜｜DSML｜｜` markup as 3 of 5 Guide answers — fixed in `OpenAICompatProvider`.
+## Next steps (in order)
 
-## Next steps
-
-1. Concurrency for API helpers: `ModelManager._invoke_lock` serialises every call, so mining/pair authoring pay full network latency per call; allow N parallel requests when the seat is remote (pairs 92 s → ~15 s likely).
-2. Guide quality: it still recommends DPO for a project with approved pairs and no SFT run; answers quoting only the readiness line are terse. Tune `guide/prompt.py` / `guide/kb/training*.md`.
-3. Preference quality at scale: run `build-preference` + DPO on the SFT-merged run and measure (`scripts/pref_quality_eval.py`); add a length-ratio warning for chosen ≪ rejected (observed 0.13).
-4. Guide helper cold-load (~80 s local) shows no progress until the stream starts — confirm the "loading helper" status renders at once.
-5. Diagnose the official GSM8K UI run with bounded samples; decide whether `main` protection should require `ci-ok`; fan-dragon deploy stays deferred.
+1. **Export gate** auto-approves extractive `coverage_fill` pairs for chunks with no approved pair, at every export, so unreviewed pairs reach training. Make it opt-in or leave them pending; add a test
+   (`data/prep/dataset_build.coverage_gate`, `coverage_fill.fill_all_project_gaps`).
+2. **Abstain pair builder** (`data/prep/preference.py`): 112/150 abstain questions were answerable from other files. Check each candidate with a RAG search over the whole project
+   and drop answerable ones; same for "hallucination" pairs whose rejected answer is a generic non-answer.
+3. **Paraphrase-augmentation experiment** (`scripts/corpus_paraphrase.py`; needs a funded API key or ~2 h of local helper): 3 re-worded questions per reviewed pair, answers untouched,
+   train, compare recall. If recall rises materially, add "Paraphrase questions" to the pairs page.
+4. Split "under-training" from "QLoRA-merge loss": evaluate the adapter on the 4-bit base without merging (merged bf16 beat q4_k_m by 8 points).
+5. One whole-service CUDA abort (`illegal memory access`) while building preference pairs with the helper at `n_ctx 16384`; not reproduced at 32768. Look at `models/gguf_fit.py` n_ctx/ubatch handling.
+6. Guide still pushes "SFT or DPO" for a project that already has runs; tune `guide/kb/training*.md`. Backlog: delegate/background audit of every long operation, extended-tier runs,
+   API-helper benchmark rerun, concurrency for API helpers (`ModelManager._invoke_lock`), fan-dragon deploy (deferred), `main` protection vs `ci-ok`.
 
 ## Commands
 
-- Walkthrough: `FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_user_walkthrough.py --list` (create upload prep review rag export model train gguf chat test bench cleanup); manual guide: `tests/E2E_MANUAL_GUIDE.md`.
-- API helper UI E2E: `set -a; . ~/.openclaw/workspace/.env_opcgo; set +a; FTS_ALLOW_LIVE_E2E=1 FTS_E2E_API_KEY="$OPENCODE_GO_API_KEY" .venv/bin/python tests/e2e_helper_settings.py --model deepseek-v4-flash [--effort none]` (`--local` seats the GGUF again).
-- Benchmark current seat: `.venv/bin/python scripts/helper_bench.py --label <name>` (needs a project with approved pairs).
+- Track A/B: `tests/E2E_MANUAL_GUIDE.md` ("Current standard") lists every phase; driver `FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_track_a.py --list`.
+  Review tooling: `scripts/corpus_review.py dump|apply|add|status`; gates `corpus_parse_check.py`, `corpus_coverage.py --status approved`, `corpus_eval.py`, `corpus_eval_rag.py --pid <p>`.
+- Old synthetic walkthrough: `FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_user_walkthrough.py --list`.
+- API helper UI E2E: `set -a; . ~/.openclaw/workspace/.env_opcgo; set +a; FTS_ALLOW_LIVE_E2E=1 FTS_E2E_API_KEY="$OPENCODE_GO_API_KEY" .venv/bin/python tests/e2e_helper_settings.py --model deepseek-v4-flash` (`--local` re-seats the GGUF).
 - Focused tests: `.venv/bin/python -m pytest tests/<file>.py -q -p no:cacheprovider`; full suite = 5 parallel chunks (AGENTS gotcha), ~18 min; lint `.venv/bin/ruff check src/ scripts/`.
+
+## API helper (measured 2026-10-07, 14-doc corpus)
+
+deepseek-v4-flash with `reasoning_effort: none` mines 3.7x faster than the local helper at equal fact coverage (30 s vs 111 s); local wins on short sequential calls (preference pairs);
+mimo-v2.5 only when answer prose matters; deepseek with default thinking returned empty answers for pairs. Settings → Helper model; the document text goes to the provider while the API seat is active.
 
 ## Known issues
 
-- Preference tuning evidence is Qwen3-0.6B at tiny n (DPO + keep-chosen shifts behaviour but costs facts; KTO did not help): treat as opt-in. ORPO not wired.
-- Stale, not from this work: `.tmp/db-backup/` (8 MB) kept on purpose; `data/benchmarks/hf_cache` (228 MB benchmark dataset cache) kept.
+- DPO evidence is thin (Qwen3-0.6B and Qwen3.5-9B, tiny n): it shifts style, did not add abstention or recall here. ORPO not wired.
 - spa.js re-entry of full-loaded pages falls back to a full reload (AGENTS gotcha); it would cut an in-flight Guide stream.
+- Kept on purpose: `data/benchmarks/hf_cache` (228 MB).

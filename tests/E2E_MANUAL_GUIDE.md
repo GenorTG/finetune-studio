@@ -24,13 +24,23 @@ retrieved-context rows into a training dataset for a training test (`grounded_sh
   mining `scripts/corpus_coverage.py` (fact coverage, goal 100 %), after review the same tool with `--status approved`.
 - **Review is human:** every mined pair is read against its source chunk and gets a verdict in `.tmp/review-ledger.jsonl`
   (`scripts/corpus_review.py`); reviewers may edit a pair or add one the miner missed. No "approve all".
-- **Training gate:** NOT "final loss < 0.5". Unsloth: training loss ≈ 0.5–1.0 is healthy and < 0.2 suggests over-fitting; the real
-  gate is **eval loss reaching a minimum** (run past it, keep the checkpoint at the minimum) plus **paraphrase recall**
-  (`scripts/corpus_eval.py`: 102 re-worded questions about trained facts) plus **abstention** on 20 unanswerable questions.
+- **Training gate (revised after the 2026-10-08 run):** NOT "final loss < 0.5" and NOT eval-loss minimum. Unsloth: training loss ≈ 0.5–1.0 is
+  healthy and < 0.2 suggests over-fitting, but for facts the eval loss of a random pair hold-out *rises* while paraphrase recall keeps
+  improving (early stopping kept the epoch-2 weights: 12 % vs 18 % recall at 6 epochs). The gates are **paraphrase recall**
+  (`scripts/corpus_eval.py`: 102 re-worded questions about trained facts) and **abstention** on 20 unanswerable questions, measured on the
+  q4_k_m the user will run (and on the bf16 merge when judging training quality). Baseline numbers: `tests/corpus/korvane/RESULTS.md`.
+- **Reviewed preference pairs:** the in-app abstain builder produces mostly answerable questions (112/150); check every one against the whole corpus.
 - One GPU job at a time. Delete projects, exports, checkpoints and merged models when the run is done.
 
 ```bash
 FTS_ALLOW_LIVE_E2E=1 FTS_TIER=core .venv/bin/python tests/e2e_track_a.py --phase create --phase a_upload --phase a_prep
+# review by hand: scripts/corpus_review.py dump|apply|add|status (status must say "approved WITHOUT a reviewer 'A' verdict: 0")
+FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_track_a.py --phase a_export --phase a_train      # FTS_EPOCHS=6 FTS_EARLY_STOP=0 for facts
+FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_track_a.py --phase gguf                           # FTS_EXPORT_TIMEOUT=900 default
+FTS_ALLOW_LIVE_E2E=1 FTS_RUN_ID=<run> FTS_EVAL_TAG=<name> .venv/bin/python tests/e2e_track_a.py --phase a_chat   # load q4_k_m in Chat + corpus_eval
+FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_track_a.py --phase a_dpo_build --phase a_dpo_train   # review the pairs first (.tmp/reviewed-preference.jsonl)
+FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_track_a.py --phase b_rag; .venv/bin/python scripts/corpus_eval_rag.py --pid <project>   # Track B
+FTS_ALLOW_LIVE_E2E=1 .venv/bin/python tests/e2e_track_a.py --phase a_guide --phase a_cleanup
 ```
 
 (The numbered steps below are the older generic walkthrough, still valid for the page-by-page details; `rag` there is Track B.)
