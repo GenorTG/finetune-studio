@@ -64,3 +64,14 @@ def test_testing_models_filters_and_defaults() -> None:
     usable = models_for_testing_page(models)
     assert [m["path"] for m in usable] == ["/p/merged", "/p/gguf"]
     assert default_model_path_for_testing(usable) == "/p/merged"
+
+
+def test_local_model_missing_only_flags_absent_local_paths(tmp_path) -> None:
+    from finetune_studio.webui.testing_models import local_model_missing
+
+    present = tmp_path / "m.gguf"
+    present.write_bytes(b"x")
+    assert local_model_missing(str(present)) is False
+    assert local_model_missing(str(tmp_path / "gone.gguf")) is True
+    assert local_model_missing("Qwen/Qwen3.5-9B") is False  # Hub id, not a local path
+    assert local_model_missing("") is False

@@ -76,7 +76,7 @@ kbd { border:1px solid var(--border-strong); padding:0 4px; font-size:11px; }
       <label class="block text-xs muted mb-1" for="t-model">Model under test</label>
       <select id="t-model" aria-label="Model to test" class="select">
         <option value="">— latest merged export —</option>
-        {% if project.base_model %}<option value="__base__" title="{{ project.base_model }}">Base model (untrained) · {{ project.base_model.rstrip('/').split('/')[-1] }}</option>{% endif %}
+        {% if project.base_model %}<option value="__base__" title="{{ project.base_model }}"{% if base_model_missing %} disabled{% endif %}>Base model (untrained) · {{ project.base_model.rstrip('/').split('/')[-1] }}{% if base_model_missing %} — file missing on disk{% endif %}</option>{% endif %}
         {% for m in models %}
         <option value="{{ m.path }}"{% if default_model_path and m.path == default_model_path %} selected{% endif %}>{{ m.name }} · {{ m.format }} ({{ m.size_gb }} GB)</option>
         {% endfor %}

@@ -19,6 +19,15 @@ _DONE_STATUSES = frozenset({"done", "completed"})
 _INFERENCE_FORMATS = frozenset({"safetensors", "gguf"})
 
 
+def local_model_missing(path: str) -> bool:
+    """True when ``path`` names a local file/dir that is not on disk.
+
+    Hub ids (``org/name``) and empty values are not local paths, so they are never "missing".
+    """
+    p = (path or "").strip()
+    return p.startswith(("/", "~", "./", "../")) and not os.path.exists(os.path.expanduser(p))
+
+
 def is_run_done(run: dict[str, Any]) -> bool:
     """True when a training run is finished successfully."""
     return (run.get("status") or "").lower() in _DONE_STATUSES

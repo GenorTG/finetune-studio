@@ -31,7 +31,10 @@ from finetune_studio.webui import testing_jobs
 from finetune_studio.webui.app import inference_engine
 from finetune_studio.webui.engine_guard import ENGINE_LOCK
 from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
-from finetune_studio.webui.testing_models import resolve_latest_merged_model
+from finetune_studio.webui.testing_models import (
+    local_model_missing,
+    resolve_latest_merged_model,
+)
 
 router = APIRouter()
 _log = logging.getLogger(__name__)
@@ -144,6 +147,7 @@ def _target_model(project_id: str, override: str) -> str:
     """The model the run will use: the explicit choice, the project's untrained base, else the latest merged export.
 
     Never "whatever happens to be loaded": the helper or another page's model may be resident.
+    A local path that is no longer on disk is refused here, before a run is created.
     """
     if override == BASE_MODEL_CHOICE:
         from finetune_studio.db.runs import backfill_project_base_model
@@ -151,15 +155,18 @@ def _target_model(project_id: str, override: str) -> str:
         base = backfill_project_base_model(project_id) or str((db.get_project(project_id) or {}).get("base_model") or "")
         if not base.strip():
             raise ValueError("this project has no base model recorded yet; train a run or set one under project Settings")
-        return base.strip()
-    if override:
-        return override
-    merged = _resolve_merged_model(project_id)
-    if merged:
-        return merged
-    raise ValueError(
-        "no model to test: pick one in the Model list, or run training + merge/export first",
-    )
+        chosen = base.strip()
+    elif override:
+        chosen = override
+    else:
+        chosen = _resolve_merged_model(project_id) or ""
+        if not chosen:
+            raise ValueError(
+                "no model to test: pick one in the Model list, or run training + merge/export first",
+            )
+    if local_model_missing(chosen):
+        raise ValueError(f"model not found on disk: {chosen} (re-create it, or pick another model)")
+    return chosen
 
 
 def _started(row: dict[str, Any]) -> JSONResponse:
