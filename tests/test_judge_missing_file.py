@@ -7,7 +7,13 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from finetune_studio.testing.judge import JudgeCase, JudgeUnavailable, list_judge_providers, open_judge, parse_judge_reply
+from finetune_studio.testing.judge import (
+    JudgeCase,
+    JudgeUnavailable,
+    list_judge_providers,
+    open_judge,
+    parse_judge_reply,
+)
 
 
 def _local_provider(pid: str, path: Path) -> str:
