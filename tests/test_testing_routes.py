@@ -78,9 +78,9 @@ def _start_run(client: TestClient, pid: str, suite: str, **body: Any) -> dict[st
     return r.json()
 
 
-def _finished_run(client: TestClient, pid: str, tmp_path: Path, n: int = 3, **body: Any) -> str:
+def _finished_run(client: TestClient, pid: str, tmp_path: Path, n: int = 3, wait_judge: bool = False, **body: Any) -> str:
     bid = _start_run(client, pid, _suite(tmp_path, n), **body)["benchmark_id"]
-    wait_run_finished(bid, judge=bool(body.get("auto_judge")))
+    wait_run_finished(bid, judge=wait_judge or bool(body.get("auto_judge")))
     return bid
 
 
@@ -256,7 +256,7 @@ def test_the_saved_auto_judge_setting_applies_to_runs_that_do_not_say_otherwise(
 
     saved = client.put("/api/settings/testing", json={"auto_judge": True, "judge_provider_id": provider})
     assert saved.status_code == 200 and saved.json()["auto_judge"] is True
-    on = _finished_run(client, pid, tmp_path, n=2, auto_judge=None)
+    on = _finished_run(client, pid, tmp_path, n=2, wait_judge=True, auto_judge=None)  # the saved setting turns the judge on
     row = client.get(_runs(pid, on)).json()
     assert row["judge_status"] == "done" and row["judge_provider_id"] == provider and sorted(asked) == ["Q0", "Q1"]
 

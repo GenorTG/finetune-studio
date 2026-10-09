@@ -28,6 +28,13 @@ def isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return db_path
 
 
+@pytest.fixture(autouse=True)
+def _fake_model_paths_exist(monkeypatch: pytest.MonkeyPatch) -> None:
+    import finetune_studio.webui.app  # noqa: F401  (loads the routes in app order; a bare string patch would hit a circular import)
+
+    monkeypatch.setattr("finetune_studio.webui.routes.testing.local_model_missing", lambda _p: False)  # "/fake/model" below
+
+
 def _write_sharegpt(path: Path, pairs: list[tuple[str, str]]) -> None:
     with path.open("w", encoding="utf-8") as f:
         for q, a in pairs:
