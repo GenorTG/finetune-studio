@@ -923,7 +923,7 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
     # 100%-coverage gate (data.prep.dataset_build): never export a dataset with
     # silent coverage holes.
     try:
-        coverage = coverage_gate(pid, force=force, include_unreviewed_fill=include_unreviewed_fill)
+        coverage_gate(pid, force=force, include_unreviewed_fill=include_unreviewed_fill)
     except ExportBlocked as blocked:
         return JSONResponse(
             {

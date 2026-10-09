@@ -5,17 +5,19 @@
 Local fine-tune, data-prep and RAG WebUI. GPU-first; never silently fall back.
 Commits, pushes, local service restarts and real-hardware tests are authorized.
 
-## State (verified 2026-10-09)
+## State (verified 2026-10-09, evening pass)
 
 | Area | State |
 |---|---|
-| Git | `main` = run-then-judge rebuild + the 2026-10-09 pass: export gate opt-in, Compare tab on run-then-judge, row-preserving RAG chunking + top-k 10, missing-model 400, script fix. |
-| Tests | Full suite in 5 CI shards green on the merged code (`scripts/ci_shard.py i 5`); `ruff check src/ scripts/` clean. |
-| Live browser E2E (this pass) | Testing page: run (live progress), AI judge (Gemma helper, 26/26), human keys 1/3, key 0 restores the AI verdict, agreement chip. Drivers vs live app: `a_review_ui_judge` 12/12, `b_rag_quiz_ui` 10/10, `a_test_ui` 8/8. Scripts live: `rejudge_reports.py` ok, `rag_reader_compare.py` ok after the JSONL-import fix. Export page: opt-in checkbox off by default, pill "would add 415 pairs from 154 passages". Compare page renders. |
-| Not browser-verified | Starting a comparison from the Compare form (the project has one model only: needs 2); the Export checkbox actually changing an export; old indexes still use word chunks until rebuilt. |
-| Service | genorbox1 :7860 on the merged code. Helper seat = local Gemma 4 12B. OpenCode Go key still has no funds (`402`). |
-| Corpus | `tests/corpus/korvane` (19 core files, 1,130 facts), quiz `eval/korvane_quiz_core.jsonl` (102 + 20 unanswerable); hand-labelled judge gold `eval/judge_gold.json` (50 cases). |
-| Kept on purpose | project `korvane-ragtrace` (id e9f951f8: index, quiz; its `base_model` now points at the helper Gemma GGUF because the old Qwen base GGUF was deleted); `data/benchmarks/hf_cache` (228 MB). |
+| Git | `main` = run-then-judge rebuild + both 2026-10-09 passes; every leftover of the morning pass is done and browser-verified (below). |
+| Tests | Full suite green in 5 CI shards on the merged code; `ruff check src/ scripts/` clean. |
+| Browser-verified live (this pass) | Export page: opt-in checkbox off by default, pill count, blocked-export confirm, forced export of 415 unreviewed pairs with the right wording. Testing page: Dataset check run (driver `a_eval_ui` 7/7), comparison runs grouped under one header with a working deep link. Compare page: 2-model run (project base + a library model), group judge, human override ("you"), undo restoring the AI verdict. RAG page: rebuild from scratch on the new chunker (19 docs, 91 -> 143 chunks). Judge picker: a judge whose GGUF is gone is disabled with "file missing on disk". |
+| Bugs found live and fixed | Export gate approved 415 unreviewed pairs BEFORE answering 409 (declining "export anyway" kept them approved; the forced retry said "approved only"). SPA pushed the new URL AFTER re-running page scripts, so `/compare?group=` and `/testing?run=` reached through an in-app link ignored the query. A deleted judge GGUF failed with a bare path. "not retrieved" shown for quizzes that name no source. Queued comparison model shown as "answering 0/26". |
+| Chunker measurement | Gemma 12B reader, top-k 10, judge Gemma: old word chunks 92/102 quiz + 20/20 declined (4 not retrieved, 6 reader misses); row-preserving token chunks 91/102 + 20/20 (4 not retrieved, 7 reader misses; key values retrieved 94/102). Same within judge noise; the two row-mixing cases moved: e097 fail -> pass, e077 half -> partial. |
+| Not done | Stronger-judge comparison: the Qwen3-30B-A3B GGUF behind provider `local-qwen30b-a3b` is gone from disk and the API helper key has no funds (`402`), so no second judge is available; `rag_suite` gold-rank trace (`gold_rank_wide`) is unit-tested only (the Korvane quiz names no `source_id`). |
+| Service | genorbox1 :7860 on `main`. Helper seat = local Gemma 4 12B. |
+| Corpus | `tests/corpus/korvane` (19 core files, 1,130 facts), quiz `eval/korvane_quiz_core.jsonl` (102 + 20 unanswerable); judge gold `eval/judge_gold.json` (50 cases). |
+| Kept on purpose | project `korvane-ragtrace` (id e9f951f8: files, rebuilt index, quizzes; its 415 extractive fill pairs were reset to pending and this pass's runs/dataset deleted); `data/benchmarks/hf_cache` (228 MB). |
 
 ## What changed: run, then judge (Genor 2026-10-09; `docs/judging/RUN-THEN-JUDGE.md`)
 
@@ -35,14 +37,13 @@ declined; best = Qwen3.5-9B base top-20: 97/102, 20/20. Tuned model + RAG: 86/10
 
 ## Next steps (in order)
 
-1. **Measure the new chunker:** rebuild the project index (RAG page), rerun `scripts/rag_reader_compare.py --pid e9f951f8 --reader <name>=<gguf> --top-k 10` (live, before the rebuild: Gemma 12B top-k 10 = 92/102 quiz,
-   20/20 declined, 4 not retrieved, 6 reader misses) and compare. Then decide the reranker (RRF vote or multilingual).
-2. Judge the kept project's runs again with a stronger judge (API row or the 30B MoE: `scripts/judge_eval.py`), compare against Gemma, keep the better as default.
-3. Compare tab leftovers: move `_target_model` (lazily imported by `routes/comparison.py`) into `testing_models.py`; list `kind=compare` runs as a group on the Testing page; click through a real 2-model comparison.
+1. **Second judge:** re-download a strong local judge (Qwen3-30B-A3B GGUF, or fund the API key), run `scripts/judge_eval.py --provider <id>` on the 50 gold cases, then "Re-judge all" one Korvane RAG run and compare against Gemma; keep the better as default judge.
+2. **RAG reranker:** decide RRF vote vs multilingual cross-encoder (ms-marco MiniLM is English-only; hybrid + rerank recall@5 = 90 vs BM25 96 on the old chunks); measure with `scripts/rag_reader_compare.py --pid e9f951f8 --reader gemma12=<gguf> --top-k 10` (baseline above).
+3. **Quiz provenance:** add `source_id` to the Korvane quiz cases so `retrieval_hits` / `misses_found_wider` / `gold_rank_wide` report on the live runs, not only in unit tests.
 4. **Abstain pair builder** (`data/prep/preference.py`): 112/150 abstain questions were answerable from other files; check each against the whole project with RAG. DPO gave no abstention.
 5. **Paraphrase augmentation** (`scripts/corpus_paraphrase.py`, funded API key or ~2 h local): 3 re-worded questions per pair, train, compare on the Testing page.
 6. Evaluate the adapter on the 4-bit base without merging (bf16 merge beat q4_k_m by 8 points in run 1). Merged-bf16 test needs > 40 min for 122 questions: default to the GGUF.
-7. Follow-ups: audit MMLU/GSM8K/HellaSwag against official protocols; `rag_suite.run_rag_case` still widens retrieval using the case's gold `source_id` (inflates recall: drop it or report it separately).
+7. Follow-ups: audit MMLU/GSM8K/HellaSwag against official protocols; the Dataset-check run writes `full-ingested-corpus*.json` suites that then show up in the quiz pickers (two entries) — decide whether they belong there.
 
 ## Commands
 
@@ -56,4 +57,5 @@ declined; best = Qwen3.5-9B base top-20: 97/102, 20/20. Tuned model + RAG: 86/10
 
 - spa.js re-entry of full-loaded pages falls back to a full reload (AGENTS gotcha); it would cut an in-flight Guide stream.
 - Legacy runs (before 2026-10-09) show "old matcher" verdicts; judge them again from the Testing page.
+- Pairs approved by an earlier opt-in export stay approved (`corpus_review.py status` shows them); the option only adds, never un-approves.
 - The 2026-10-08 `heldout` / `memorization` reports in `results/2026-10-08-ui/` carry no answer keys, so they could not be re-judged.
