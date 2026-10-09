@@ -72,8 +72,6 @@ def test_the_scripted_judge_api_key_settings_are_gone(settings_file) -> None:
     assert not offenders, offenders
 
 
-@pytest.mark.xfail(strict=True, reason="BUG src/finetune_studio/webui/routes/settings.py `_redacted`: no longer redacts "
-                   "secrets, so a judge_api_key left in an existing settings.json is echoed by GET /api/settings")
 def test_a_legacy_judge_api_key_in_settings_json_is_never_echoed(client, settings_file) -> None:
     settings_file._save({"judge_api_key": "sk-legacy", "judge_mode": "ai"})
     assert "sk-legacy" not in client.get("/api/settings").text

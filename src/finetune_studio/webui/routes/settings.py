@@ -62,8 +62,14 @@ def get_test_settings() -> dict[str, Any]:
     }
 
 
+# Keys the pre-run-then-judge settings.json may still carry; never echoed (one held an API key).
+_LEGACY_JUDGE_KEYS = ("judge_api_key", "judge_mode", "judge_provider", "judge_model", "judge_base_url")
+
+
 def _redacted(current: dict[str, Any]) -> dict[str, Any]:
     out = {**DEFAULTS, **current}
+    for key in _LEGACY_JUDGE_KEYS:
+        out.pop(key, None)
     out["testing"] = get_test_settings()
     return out
 
