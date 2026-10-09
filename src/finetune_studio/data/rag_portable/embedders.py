@@ -84,6 +84,13 @@ def get_embedder(
         )
         return np.asarray(v, dtype=np.float32)
 
+    tokenizer = getattr(model, "tokenizer", None)
+    if tokenizer is not None:
+        def count_tokens(text: str) -> int:
+            return len(tokenizer(text, add_special_tokens=False, verbose=False)["input_ids"])
+        encode.count_tokens = count_tokens  # type: ignore[attr-defined]  # chunker sizes chunks with the embedder's own tokenizer
+        encode.max_seq_tokens = int(getattr(model, "max_seq_length", 0) or 0)  # type: ignore[attr-defined]
+
     import logging
     logging.getLogger(__name__).info("rag embedder %s loaded on %s (batch %d)", name, device, batch)
     info = EmbeddingModelInfo(

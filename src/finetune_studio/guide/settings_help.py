@@ -131,13 +131,13 @@ SETTING_HELP: dict[str, dict[str, str]] = {
         "kb": "rag",
     },
     "chunk_size": {
-        "meaning": "Size of each indexed slice of text (default 400).",
+        "meaning": "Size of each indexed slice of text, in embedder tokens (default 400). Table rows are never split.",
         "guidance": "300–500 is a good default; legal text wants bigger, chat logs smaller.",
         "pitfall": "Changing it requires 'Rebuild from scratch'.",
         "kb": "rag",
     },
     "overlap": {
-        "meaning": "How much each chunk shares with the previous one (default 80).",
+        "meaning": "How many tokens of whole prose lines each chunk shares with the previous one (default 80).",
         "guidance": "10–25% of chunk size so a fact on a boundary is not split.",
         "pitfall": "Too much overlap wastes storage and slows retrieval.",
         "kb": "rag",

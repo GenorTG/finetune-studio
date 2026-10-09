@@ -113,13 +113,20 @@ class PortableRAG:
             extensions = sorted(PARSERS.keys())
 
         encode, embed_info = get_embedder(name=embedder, device=device)
+        # Chunks are sized in the embedder's own tokens when it exposes a tokenizer, else by a chars/token estimate.
+        count_tokens = getattr(encode, "count_tokens", None)
+        max_seq = int(getattr(encode, "max_seq_tokens", 0) or 0)
+        if max_seq and chunk_size > max_seq:
+            log.warning("chunk_size %d tokens exceeds the embedder's %d-token window: chunk tails will not be embedded",
+                        chunk_size, max_seq)
         manifest = Manifest(
             name=name or self.dir.name,
             version=SCHEMA_VERSION,
             created_at=time.time(),
             updated_at=time.time(),
             embedding_model=embed_info,
-            chunk_settings=ChunkSettings(size=chunk_size, overlap=overlap),
+            chunk_settings=ChunkSettings(size=chunk_size, overlap=overlap,
+                                         splitter="rows+tokens" if count_tokens else "rows+chars"),
             rag_settings=RagSettings(embedder=embedder, reranker=DEFAULT_RERANKER,
                                      rerank_enabled=True, hybrid_enabled=True),
         )
@@ -179,7 +186,7 @@ class PortableRAG:
                                  "filename": display_name})
             chunks = chunk_text(text, chunk_size=chunk_size, overlap=overlap,
                                 metadata={"source": str(f), "filename": display_name},
-                                doc_id=doc_id)
+                                doc_id=doc_id, count_tokens=count_tokens)
             for c in chunks:
                 all_chunks.append({
                     "id": c.id, "document_id": doc_id, "chunk_index": c.chunk_index,
@@ -649,7 +656,7 @@ class PortableRAG:
 - Embedder: `{manifest.embedding_model.name}` ({manifest.embedding_model.dim}-dim, {'normalized' if manifest.embedding_model.normalize else 'raw'})
 - Reranker: `{manifest.rag_settings.reranker}` (enabled={manifest.rag_settings.rerank_enabled})
 - Hybrid retrieval: BM25 + dense (RRF k={manifest.rag_settings.rrf_k})
-- Chunking: word-based, size={manifest.chunk_settings.size}, overlap={manifest.chunk_settings.overlap}
+- Chunking: {manifest.chunk_settings.splitter} (whole lines, table rows never split; embedder tokens, else estimated), size={manifest.chunk_settings.size}, overlap={manifest.chunk_settings.overlap}
 - Documents: {manifest.documents}
 - Chunks: {manifest.chunks}
 

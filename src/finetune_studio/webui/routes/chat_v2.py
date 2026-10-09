@@ -11,6 +11,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from finetune_studio.data.rag_portable.constants import DEFAULT_TOP_K
 from finetune_studio.webui.engine_guard import ENGINE_LOCK
 
 router = APIRouter()
@@ -27,7 +28,7 @@ def _search_rag_attachment(
     store_path: str,
     query: str,
     *,
-    top_k: int = 5,
+    top_k: int = DEFAULT_TOP_K,
 ) -> list[dict[str, Any]]:
     """Search a project_rags store — PortableRAG when present, else Chroma VectorStore."""
     if _is_portable_corpus(store_path):
@@ -197,7 +198,7 @@ async def chat(request: Request, pid: str):
                 continue
             try:
                 results = _search_rag_attachment(
-                    rag["store_path"], user_msg, top_k=5
+                    rag["store_path"], user_msg, top_k=DEFAULT_TOP_K
                 )
                 for r in results:
                     all_sources.append({

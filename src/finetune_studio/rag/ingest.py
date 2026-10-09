@@ -12,6 +12,7 @@ parser package.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -59,26 +60,25 @@ def extract_text(file_path: str) -> str:
 
 
 def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50,
-               metadata: dict | None = None, doc_id: str = "") -> list[Chunk]:
-    """Split text into overlapping word-based chunks. Each Chunk has a unique
-    `id` and `document_id` so the vector store can dedupe and group."""
-    if not text.strip():
-        return []
-    words = text.split()
+               metadata: dict | None = None, doc_id: str = "",
+               count_tokens: Callable[[str], int] | None = None) -> list[Chunk]:
+    """Split text into overlapping, line-preserving chunks (``chunk_size``/``overlap`` in tokens).
+
+    Table rows stay on their own line and are never split or merged with a neighbour (see
+    ``data.rag_portable.chunking``). ``count_tokens`` is the embedder's tokenizer when the caller has one; without it a
+    chars-per-token estimate is used. Each Chunk has a unique `id` and `document_id` so the vector store can dedupe and
+    group."""
+    from finetune_studio.data.rag_portable.chunking import chunk_rows
+
     chunks: list[Chunk] = []
-    start, idx = 0, 0
-    while start < len(words):
-        end = min(start + chunk_size, len(words))
-        chunk_id = f"{doc_id}_{idx}" if doc_id else f"chunk_{idx}"
+    for idx, body in enumerate(chunk_rows(text, chunk_size, overlap, count_tokens)):
         chunks.append(Chunk(
-            id=chunk_id,
-            text=" ".join(words[start:end]),
+            id=f"{doc_id}_{idx}" if doc_id else f"chunk_{idx}",
+            text=body,
             chunk_index=idx,
             document_id=doc_id,
             metadata=metadata or {},
         ))
-        idx += 1
-        start += chunk_size - overlap
     return chunks
 
 

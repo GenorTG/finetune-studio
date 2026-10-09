@@ -36,12 +36,13 @@ declined; best = Qwen3.5-9B base top-20: 97/102, 20/20. Tuned model + RAG: 86/10
 1. **Export gate** auto-approves extractive `coverage_fill` pairs for chunks without an approved pair, at every export (unreviewed pairs reach training). Make it opt-in or leave
    them pending; test it (`data/prep/dataset_build.coverage_gate`, `coverage_fill`).
 2. Judge the live kept project's runs again once a stronger judge is connected (API row or the 30B MoE: `scripts/judge_eval.py`), then compare against Gemma; keep the better as default.
-3. RAG work: default `max_context_chars`, reranker as an RRF vote or multilingual, table-aware row-preserving chunking, default top-k 10-20; rerun `scripts/rag_reader_compare.py`.
+3. RAG work: reranker as an RRF vote or multilingual. **Landed on `feat/rag-row-chunking-topk` (unmeasured, no index rebuilt):** row-preserving token-sized chunker
+   (`data/rag_portable/chunking.py`), `DEFAULT_TOP_K = 10`; existing indexes keep the old word chunks until rebuilt (manifest `splitter` says which). Rebuild, then rerun `scripts/rag_reader_compare.py`.
 4. **Abstain pair builder** (`data/prep/preference.py`): 112/150 abstain questions were answerable from other files; check each against the whole project with RAG. DPO gave no abstention.
 5. **Paraphrase augmentation** (`scripts/corpus_paraphrase.py`, funded API key or ~2 h local): 3 re-worded questions per pair, train, compare on the Testing page.
 6. Evaluate the adapter on the 4-bit base without merging (bf16 merge beat q4_k_m by 8 points in run 1). Merged-bf16 test needs > 40 min for 122 questions: default to the GGUF.
-7. Follow-up cards filed 2026-10-09: Compare tab still keyword-scores (move to run-then-judge); audit MMLU/GSM8K/HellaSwag against official protocols; drop the corpus-specific
-   table-arithmetic retry in `rag_suite.run_rag_case`.
+7. Follow-up cards filed 2026-10-09: Compare tab still keyword-scores (move to run-then-judge); audit MMLU/GSM8K/HellaSwag against official protocols; `rag_suite.run_rag_case` still
+   widens retrieval using the case's gold `source_id` (inflates recall: drop it or report it separately).
 
 ## Commands
 

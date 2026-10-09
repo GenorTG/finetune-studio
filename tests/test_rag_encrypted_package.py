@@ -386,7 +386,7 @@ def test_http_bearer_auth_and_no_cors(corpus_dir: Path, tmp_path: Path) -> None:
 # ------------------------------------------------------ export-config model
 def test_export_config_defaults_and_validation() -> None:
     d = RagExportConfig()
-    assert d.encrypt and d.host == "127.0.0.1" and d.port == 8899 and d.top_k == 5
+    assert d.encrypt and d.host == "127.0.0.1" and d.port == 8899 and d.top_k == 10
     assert d.archive_format == "tar.gz" and not d.include_models and d.device == "auto"
     for bad in ({"device": "tpu"}, {"port": 0}, {"top_k": 0}, {"archive_format": "rar"},
                 {"host": "a b"}, {"kdf_log_n": 5}):

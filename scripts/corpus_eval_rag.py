@@ -1,6 +1,6 @@
 """Track B (RAG) quiz: the SAME questions as ``corpus_eval.py``, answered through the project's RAG chat.
 
-    .venv/bin/python scripts/corpus_eval_rag.py --pid <project> [--top-k 5] [--json out.json]
+    .venv/bin/python scripts/corpus_eval_rag.py --pid <project> [--top-k 10] [--json out.json]
 
 Uses whatever model is loaded (the base model and the fine-tuned one should both do well: retrieval, not training, carries the
 facts). Scores two things separately: RETRIEVAL (does any returned chunk contain every expected value) and the ANSWER (does the
@@ -41,7 +41,7 @@ def main() -> int:
     ap.add_argument("--pid", required=True)
     ap.add_argument("--set", default="paraphrase_core")
     ap.add_argument("--unanswerable", default="unanswerable_core")
-    ap.add_argument("--top-k", type=int, default=5)
+    ap.add_argument("--top-k", type=int, default=10)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--json", dest="json_out")
     a = ap.parse_args()

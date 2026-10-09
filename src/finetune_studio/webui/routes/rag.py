@@ -39,6 +39,7 @@ from finetune_studio.data.fs.paths import (
     project_files_root,
     rag_corpus_dir,
 )
+from finetune_studio.data.rag_portable.constants import DEFAULT_TOP_K
 from finetune_studio.webui.engine_guard import ENGINE_LOCK
 from finetune_studio.webui.live_sse import sse_data, sse_response
 
@@ -67,7 +68,7 @@ def _project_404(pid: str) -> JSONResponse | None:
 
 class SearchRequest(BaseModel):
     query: str
-    top_k: int = 5
+    top_k: int = DEFAULT_TOP_K
     hybrid: bool | None = None
     rerank: bool | None = None
     rerank_top_n: int | None = None
@@ -76,7 +77,7 @@ class SearchRequest(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[dict]
     system_prompt: str = ""
-    top_k: int = 5
+    top_k: int = DEFAULT_TOP_K
     temperature: float = 0.0
     max_tokens: int = 400
 

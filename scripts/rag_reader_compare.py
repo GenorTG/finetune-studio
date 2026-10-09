@@ -144,7 +144,7 @@ def main() -> int:
     ap.add_argument("--pid", required=True)
     ap.add_argument("--reader", action="append", required=True, metavar="NAME=PATH")
     ap.add_argument("--cap", action="append", type=int, default=[])
-    ap.add_argument("--top-k", type=int, default=5)
+    ap.add_argument("--top-k", type=int, default=10)
     ap.add_argument("--base", default="http://127.0.0.1:7860")
     ap.add_argument("--quiz", type=Path, default=QUIZ)
     ap.add_argument("--out", type=Path, default=ROOT / ".tmp" / "ragtrace")
