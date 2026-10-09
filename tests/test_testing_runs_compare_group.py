@@ -24,3 +24,4 @@ def test_runs_table_renders_a_group_header_linking_to_the_compare_page() -> None
     html = TEMPLATE.read_text(encoding="utf-8")
     assert "tp-group" in html and "/compare?group=" in html and "open side by side" in html
     assert "r.compare" in html and "tp-in-group" in html
+    assert "r.status === 'queued'" in html and ">queued<" in html   # a model waiting for its turn is not "answering 0/26"

@@ -405,7 +405,8 @@ kbd { border:1px solid var(--border-strong); padding:0 4px; font-size:11px; }
   // ── Runs list ──────────────────────────────────────────────────────────
   function runStatusCell(r) {
     const total = r.progress_total || 0, done = r.progress_done || 0;
-    if (r.status === 'running' || r.status === 'queued') {
+    if (r.status === 'queued') return '<span class="pill outline" title="Waits for its turn on the GPU (a comparison runs its models one after another)">queued</span> <span class="text-xs dim">0/' + total + '</span>';
+    if (r.status === 'running') {
       return '<span class="pill solid-blue">answering</span> ' + done + '/' + total + bar(done, total);
     }
     if (r.status === 'failed') return '<span class="pill solid-rose" title="' + esc(r.error) + '">run failed</span> <span class="text-xs dim">' + done + '/' + total + ' saved</span>';

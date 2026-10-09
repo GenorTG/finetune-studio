@@ -228,13 +228,15 @@
       // Fade-in + re-run page scripts
       c.style.opacity = "1";
       c.classList.remove("is-loading");
+      // The URL must be current BEFORE the page scripts run: they read deep links from location.search
+      // (Compare ?group=, Testing ?run=, chat ?mode=) and used to see the previous page's query instead.
+      if (push) history.pushState({}, "", url);
       // Re-execute inline <script> tags (#content first, then #page-scripts)
       if (!injectScripts(url)) return;
       // Re-init known page modules (data-poll spans, etc.)
       window.fts && window.fts.init && window.fts.init();
       // Re-mount sprites & animations for the new page
       window.spritesInit && window.spritesInit();
-      if (push) history.pushState({}, "", url);
       renderedKey = pageKey();
       // Scroll to top on new page
       c.scrollTo({ top: 0, behavior: "instant" });

@@ -59,3 +59,12 @@ def test_projects_page_puts_selectTemplate_in_page_scripts(client) -> None:
     # selectTemplate lives in {% block scripts %}, which must render inside page-scripts
     assert "function selectTemplate" in html[scripts_pos:]
     assert "function selectTemplate" not in html[content_pos:scripts_pos]
+
+
+def test_spa_navigate_updates_the_url_before_page_scripts_run() -> None:
+    """Live finding 2026-10-09: /compare?group=… reached through an in-app link listed the comparisons but opened
+    none, because the page script read location.search while the URL still belonged to the previous page."""
+    js = _SPA_JS.read_text(encoding="utf-8")
+    nav = js[js.index("async function navigate("):]
+    nav = nav[: nav.index("inFlight = nav_promise")]
+    assert nav.index('history.pushState({}, "", url)') < nav.index("injectScripts(url)")
