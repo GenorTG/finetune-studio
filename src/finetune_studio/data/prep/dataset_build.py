@@ -4,7 +4,9 @@ One owner for the steps behind ``GET /projects/{pid}/data-prep/export`` and
 ``fts dataset build``, so the route and the CLI can never drift:
 
 1. ``coverage_gate`` — the deterministic coverage-fill pass; a chunk that still
-   has no usable Q&A blocks the export (``ExportBlocked``) unless ``force``.
+   has no usable Q&A blocks the export (``ExportBlocked``) unless ``force``. The
+   extractive pairs it makes are PENDING (they wait for review and are not exported)
+   unless the caller opts in with ``include_unreviewed_fill``.
 2. ``data.prep.export.build_qa_export`` — dedupe, optional grounded rows, serialise.
 3. ``persist_export`` — write the JSONL into the project's datasets dir and
    register it (create or update) so the Training tab can select it.
@@ -46,16 +48,21 @@ class CoverageCheckFailed(Exception):
     """The coverage-fill pass itself crashed — never export without verifying coverage."""
 
 
-def coverage_gate(pid: str, *, force: bool = False) -> dict[str, Any]:
+def coverage_gate(pid: str, *, force: bool = False, include_unreviewed_fill: bool = False) -> dict[str, Any]:
     """Run the fill pass; return its summary. Raises ``ExportBlocked`` / ``CoverageCheckFailed``.
 
-    Fills the chunks the stochastic mining pass never converted as approved
-    extractive pairs, so a dataset never ships with silent coverage holes.
+    Makes extractive pairs for the chunks the stochastic mining pass never converted, so
+    a chunk that cannot yield any pair is reported (it blocks the export) instead of
+    vanishing. Those pairs are left PENDING for review; ``include_unreviewed_fill`` (the
+    user's explicit export option) approves them, so unreviewed text reaches training.
     With ``force`` the remaining uncovered chunks are logged, not blocking.
     """
     try:
         from finetune_studio.data.prep.coverage_fill import fill_all_project_gaps
-        summary = fill_all_project_gaps(pid)
+        if include_unreviewed_fill:
+            summary = fill_all_project_gaps(pid, "approve")
+        else:
+            summary = fill_all_project_gaps(pid)
     except Exception as exc:
         log.exception("coverage fill failed — export blocked")
         raise CoverageCheckFailed(f"dataset export blocked: coverage verification failed: {exc}") from exc
@@ -66,6 +73,18 @@ def coverage_gate(pid: str, *, force: bool = False) -> dict[str, Any]:
         log.warning("export: force=true — exporting project %s with %d uncovered chunk(s)",
                     pid, len(uncovered))
     return summary or {}
+
+
+def unreviewed_fill_preview(pid: str) -> dict[str, int]:
+    """Dry run for the export option: how many unreviewed extractive pairs would it approve?
+
+    Writes nothing. ``pairs`` counts the pairs of chunks without an approved pair that
+    ``include_unreviewed_fill`` would add to the export (waiting ones plus new ones).
+    """
+    from finetune_studio.data.prep.coverage_fill import fill_all_project_gaps
+    summary = fill_all_project_gaps(pid, "count")
+    return {"pairs": int(summary.get("pairs_would_add") or 0),
+            "chunks": int(summary.get("chunks_filled") or 0)}
 
 
 @dataclass(frozen=True)
@@ -143,13 +162,14 @@ class BuiltDataset:
 
 def build_project_dataset(pid: str, fmt: str = "sharegpt", only: str = "approved", *,
                           grounding: GroundingOptions | None = None, force: bool = False,
+                          include_unreviewed_fill: bool = False,
                           name: str | None = None) -> BuiltDataset:
     """Gate → export → persist. Raises ``ExportBlocked``, ``CoverageCheckFailed`` or ``ValueError``."""
     if fmt not in EXPORT_FORMATS:
         raise ValueError(f"unknown format: {fmt} (expected one of {', '.join(EXPORT_FORMATS)})")
     if only not in STATUS_FILTERS:
         raise ValueError(f"unknown only filter: {only} (expected one of {', '.join(STATUS_FILTERS)})")
-    coverage = coverage_gate(pid, force=force)
+    coverage = coverage_gate(pid, force=force, include_unreviewed_fill=include_unreviewed_fill)
     result = build_qa_export(pid, fmt, only, grounding=grounding)
     if result.rows == 0:
         raise ValueError(f"no {only} Q&A pairs to export for this project")

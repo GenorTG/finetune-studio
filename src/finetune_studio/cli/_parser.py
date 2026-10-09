@@ -237,6 +237,9 @@ def build_parser() -> argparse.ArgumentParser:
                             help="Seed for which rows get grounded (default: 42)")
     p_ds_build.add_argument("--force", action="store_true",
                             help="Export even if some chunks have no usable Q&A (blocked by default)")
+    p_ds_build.add_argument("--include-unreviewed-fill", action="store_true",
+                            help="Also approve and export the extractive pairs the coverage pass makes for chunks "
+                                 "without an approved pair. They are unreviewed text; off by default (they stay pending)")
     p_ds_build.add_argument("--out", metavar="PATH",
                             help="Also write the JSONL here (must be inside the project's directories)")
     p_ds_build.add_argument("--json", action="store_true", help="Print the summary as JSON")

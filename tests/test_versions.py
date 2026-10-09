@@ -99,7 +99,7 @@ def test_subset_dataset_build_route(client, project, temp_db, monkeypatch):
     monkeypatch.setattr(
         coverage_fill,
         "fill_sources_gaps",
-        lambda pid, source_ids: {"uncovered_chunks": [], "pairs_created": 0},
+        lambda pid, source_ids, mode="pending": {"uncovered_chunks": [], "pairs_created": 0},
     )
     # Point qa fs at a temp project dir
     tmp = Path(tempfile.mkdtemp(prefix="vers-subset-"))
@@ -160,7 +160,7 @@ def test_subset_empty_payload_rejected(client, project, temp_db, monkeypatch):
     monkeypatch.setattr(
         coverage_fill,
         "fill_sources_gaps",
-        lambda pid, source_ids: {"uncovered_chunks": [], "pairs_created": 0},
+        lambda pid, source_ids, mode="pending": {"uncovered_chunks": [], "pairs_created": 0},
     )
     tmp = Path(tempfile.mkdtemp(prefix="vers-empty-"))
     monkeypatch.setattr(qafs, "project_dir", lambda pid: tmp / pid)
@@ -185,7 +185,7 @@ def test_subset_build_blocks_uncovered_chunks(client, project, monkeypatch):
     monkeypatch.setattr(
         coverage_fill,
         "fill_sources_gaps",
-        lambda pid, source_ids: {
+        lambda pid, source_ids, mode="pending": {
             "uncovered_chunks": [{"source": "src-gap", "chunk_idx": 1}]
         },
     )

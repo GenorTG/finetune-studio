@@ -891,13 +891,16 @@ async def delete_source_route(pid: str, source_id: str):
 @router.get("/projects/{pid}/data-prep/export")
 async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
                      force: bool = False, grounded_share: float | None = None,
-                     distractors: int = 0):
+                     distractors: int = 0, include_unreviewed_fill: bool = False):
     """Export pairs as JSONL + register the dataset.
 
     ``grounded_share`` (0-1): fraction of rows rewritten to carry the RAG-chat
     prompt + CONTEXT from the pair's own source chunk. Omitted = auto (40% when
     the project has a built RAG corpus, else off); ``0`` = plain rows only.
     ``distractors`` (0-2): extra other-file chunks in that CONTEXT.
+    ``include_unreviewed_fill``: approve the extractive pairs made for chunks without an
+    approved pair, so they ship unreviewed. Default off: they stay pending and are not
+    exported (``/data-prep/export/fill-preview`` says how many it would add).
     """
     missing = _project_404(pid)
     if missing is not None:
@@ -919,7 +922,7 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
     # 100%-coverage gate (data.prep.dataset_build): never export a dataset with
     # silent coverage holes.
     try:
-        coverage_gate(pid, force=force)
+        coverage = coverage_gate(pid, force=force, include_unreviewed_fill=include_unreviewed_fill)
     except ExportBlocked as blocked:
         return JSONResponse(
             {
@@ -953,8 +956,24 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
             "Content-Disposition": f'attachment; filename="{pid}-{fmt}-{only}.jsonl"',
             "X-Rows": str(result.rows),
             "X-Grounded-Rows": str(n_grounded),
+            "X-Unreviewed-Fill-Pairs": str(coverage.get("pairs_created", 0) + coverage.get("pairs_promoted", 0)
+                                           if include_unreviewed_fill else 0),
         },
     )
+
+
+@router.get("/projects/{pid}/data-prep/export/fill-preview")
+async def export_fill_preview(pid: str):
+    """How many unreviewed extractive pairs the export option ``include_unreviewed_fill`` would add. Writes nothing."""
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    from finetune_studio.data.prep.dataset_build import unreviewed_fill_preview
+    try:
+        return unreviewed_fill_preview(pid)
+    except Exception as exc:
+        log.exception("fill preview failed")
+        return JSONResponse({"error": f"could not count extractive pairs: {exc}"}, status_code=500)
 
 
 # ── Ingestion log, audit + reprocess ───────────────────────────────────

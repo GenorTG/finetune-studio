@@ -305,6 +305,16 @@
       Only matters if you will chat with the trained model over this project's RAG corpus. That share of rows gets the RAG-chat prompt with the pair's own source passage (cited by filename) added; answers stay the same. In one test on a 0.6B model this took grounded RAG answers from 2/5 to 4/5.
       <span id="dp-grounded-state"></span>
     </div>
+    <div id="dp-fill-opts" class="flex gap-2 wrap items-center" style="margin-bottom:4px;">
+      <label class="text-sm flex gap-1 items-center" for="dp-fill-unreviewed">
+        <input type="checkbox" id="dp-fill-unreviewed">
+        Also include auto-extracted pairs I have not reviewed
+      </label>
+      <span class="pill" id="dp-fill-count" aria-live="polite">counting…</span>
+    </div>
+    <div class="text-xs dim" id="dp-fill-note" style="margin-bottom:8px;">
+      Some parts of your documents have no approved pair. The app can fill them with plain quotes taken straight from the text, but nobody has checked those pairs. They are left pending and kept out of the export unless you tick this box. Ticking it approves them and trains on them as they are. You can review them under Pending first.
+    </div>
     <pre id="dp-bridge-status" role="status" aria-live="polite" hidden
          style="margin:0 0 8px;font-size:12px;white-space:pre-wrap;"></pre>
     <div id="dp-exported-datasets" class="dp-exported-panel text-sm" hidden></div>
@@ -2260,16 +2270,39 @@ function dpGroundedShare() {
   }
 })();
 
+// How many unreviewed extractive pairs the "include unreviewed" box would add (server dry run, writes nothing).
+var _dpFillPairs = 0;
+async function dpRefreshFillCount() {
+  var pill = document.getElementById('dp-fill-count');
+  if (!pill) return;
+  try {
+    var res = await fetch('/api/projects/' + encodeURIComponent(_prepPid) + '/data-prep/export/fill-preview', { cache: 'no-store' });
+    var d = await res.json();
+    if (!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    _dpFillPairs = d.pairs || 0;
+    pill.textContent = _dpFillPairs
+      ? 'would add ' + _dpFillPairs + ' unreviewed pair(s) from ' + d.chunks + ' passage(s)'
+      : 'nothing to add: every passage already has an approved pair';
+  } catch (e) {
+    _dpFillPairs = 0;
+    pill.textContent = 'could not count (' + ((e && e.message) || e) + ')';
+  }
+}
+dpRefreshFillCount();
+
 async function dpExportApproved() {
   var approved = _rq.counts.approved;
-  if (!approved) {
+  var withFill = !!(document.getElementById('dp-fill-unreviewed') || {}).checked;
+  if (!approved && !(withFill && _dpFillPairs)) {
     dpBridgeStatus('No approved pairs yet. Approve pending rows first, then export.', 'error');
     return;
   }
-  dpBridgeStatus('Exporting ' + approved + ' approved pair(s)…', 'info');
+  dpBridgeStatus('Exporting ' + approved + ' approved pair(s)' +
+    (withFill ? ' plus ' + _dpFillPairs + ' unreviewed extracted pair(s)' : '') + '…', 'info');
   try {
     var url = '/api/projects/' + encodeURIComponent(_prepPid) +
-      '/data-prep/export?fmt=sharegpt&only=approved&grounded_share=' + dpGroundedShare();
+      '/data-prep/export?fmt=sharegpt&only=approved&grounded_share=' + dpGroundedShare() +
+      (withFill ? '&include_unreviewed_fill=true' : '');
     var r = await fetch(url, { cache: 'no-store' });
     if (r.status === 409) {
       var gap = {};
@@ -2287,6 +2320,8 @@ async function dpExportApproved() {
     }
     // Side effect on the server registers project_datasets; also offer a local download.
     var groundedRows = parseInt(r.headers.get('X-Grounded-Rows') || '0', 10) || 0;
+    var fillRows = parseInt(r.headers.get('X-Unreviewed-Fill-Pairs') || '0', 10) || 0;
+    var rowCount = parseInt(r.headers.get('X-Rows') || '', 10);
     var blob = await r.blob();
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -2296,8 +2331,10 @@ async function dpExportApproved() {
     a.remove();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
     await dpRefreshExportedDatasets();
+    dpRefreshFillCount();
     dpBridgeStatus(
-      'Exported ' + approved + ' approved pair(s)' +
+      'Exported ' + (isNaN(rowCount) ? approved : rowCount) + ' pair(s)' +
+      (fillRows ? ', including ' + fillRows + ' unreviewed extracted pair(s) you opted in' : ' (approved only)') +
       (groundedRows ? ' (' + groundedRows + ' with retrieved context)' : ' (no retrieved-context rows)') +
       ' into project datasets. Select it in Training → “From this project”, or review the JSONL in Data Editor.',
       'success'

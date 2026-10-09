@@ -194,6 +194,14 @@ def write_qa_pair(pid: str, qa: dict) -> None:
     qa_dir = project_dir(pid) / "qa" / "pairs"
     qa_dir.mkdir(parents=True, exist_ok=True)
     (qa_dir / f"{qa['id']}.json").write_text(json.dumps(qa, indent=2, ensure_ascii=False), encoding="utf-8")
+    _forget_cached_pair(qa_dir, f"{qa['id']}.json")
+
+
+def _forget_cached_pair(pairs_dir: Path, name: str) -> None:
+    """Drop one file from the listing cache. A rewrite within the same filesystem timestamp tick can keep both
+    mtime and size (``pending`` -> ``approved`` plus a shorter ``updated_at``), so stat alone would serve the stale pair."""
+    with _PAIR_CACHE_LOCK:
+        _PAIR_CACHE.get(str(pairs_dir), {}).pop(name, None)
 
 
 def write_qa_source(pid: str, source: dict) -> None:
@@ -285,6 +293,7 @@ def update_qa_pair(pid: str, qa_id: str, **fields) -> dict | None:
         qa[k] = v
     qa["updated_at"] = time.time()
     p.write_text(json.dumps(qa, indent=2, ensure_ascii=False), encoding="utf-8")
+    _forget_cached_pair(p.parent, p.name)
     return qa
 
 

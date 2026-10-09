@@ -33,8 +33,8 @@ declined; best = Qwen3.5-9B base top-20: 97/102, 20/20. Tuned model + RAG: 86/10
 
 ## Next steps (in order)
 
-1. **Export gate** auto-approves extractive `coverage_fill` pairs for chunks without an approved pair, at every export (unreviewed pairs reach training). Make it opt-in or leave
-   them pending; test it (`data/prep/dataset_build.coverage_gate`, `coverage_fill`).
+1. ~~Export gate auto-approval~~ done on `fix/export-coverage-gate-optin`: fill pairs stay pending; opt in via export option `include_unreviewed_fill` (Data prep Export
+   checkbox + count, API query, CLI flag). Tests `tests/test_export_fill_optin.py`. Existing projects keep their already-approved fill pairs (audit them with `corpus_review.py status`).
 2. Judge the live kept project's runs again once a stronger judge is connected (API row or the 30B MoE: `scripts/judge_eval.py`), then compare against Gemma; keep the better as default.
 3. RAG work: default `max_context_chars`, reranker as an RRF vote or multilingual, table-aware row-preserving chunking, default top-k 10-20; rerun `scripts/rag_reader_compare.py`.
 4. **Abstain pair builder** (`data/prep/preference.py`): 112/150 abstain questions were answerable from other files; check each against the whole project with RAG. DPO gave no abstention.

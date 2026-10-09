@@ -47,7 +47,8 @@ def project(monkeypatch: pytest.MonkeyPatch) -> dict:
     for i in range(10):
         qa_fs.write_qa_pair(proj["id"], _pair(i))
     monkeypatch.setattr("finetune_studio.data.prep.coverage_fill.fill_all_project_gaps",
-                        lambda pid: {"pairs_created": 2, "chunks_filled": 1, "uncovered_chunks": []})
+                        lambda pid, mode="pending": {"mode": mode, "pairs_created": 2, "chunks_filled": 1,
+                                                 "uncovered_chunks": []})
     return proj
 
 
@@ -63,7 +64,8 @@ def test_build_by_name_writes_and_registers_dataset(project, monkeypatch, capsys
     assert code == 0, err
     s = json.loads(out)
     assert s["rows"] == 10 and s["grounded_rows"] == 0 and s["grounding"] is None
-    assert s["coverage_fill"] == {"pairs_created": 2, "chunks_filled": 1, "skipped_no_content": 0, "uncovered": 0}
+    assert s["coverage_fill"] == {"mode": "pending", "pairs_created": 2, "pairs_promoted": 0, "chunks_filled": 1,
+                                  "skipped_no_content": 0, "uncovered": 0}
     path = Path(s["dataset"]["path"])
     assert path.name == f"{project['id']}-sharegpt-approved.jsonl"
     assert len(_rows(path)) == 10
@@ -108,7 +110,7 @@ def test_custom_name_fmt_and_text_summary(project, monkeypatch, capsys) -> None:
     code, out, err = run_cli(monkeypatch, capsys, "dataset", "build", "--project", project["id"],
                              "--name", "My set!", "--fmt", "openai", "--no-rag-grounding")
     assert code == 0, err
-    assert "Rows     : 10 (0 grounded" in out and "Coverage : 1 chunk(s) filled with 2 pair(s); 0 still uncovered" in out
+    assert "Rows     : 10 (0 grounded" in out and "Coverage : 1 chunk(s) filled with 2 extractive pair(s) (left pending for review, NOT in this dataset); 0 still uncovered" in out
     ds = list_datasets(project["id"])[0]
     assert ds["name"] == "My set!" and Path(ds["data_path"]).name == f"{project['id']}-My_set.jsonl"
     assert "messages" in _rows(Path(ds["data_path"]))[0]
@@ -160,7 +162,7 @@ def test_blocked_export_gate_exits_nonzero_and_force_overrides(monkeypatch, caps
         qa_fs.write_qa_pair(proj["id"], _pair(i))
     gap = {"source": "s9", "filename": "broken.pdf", "chunk_idx": 3, "reason": "no_specific_question"}
     monkeypatch.setattr("finetune_studio.data.prep.coverage_fill.fill_all_project_gaps",
-                        lambda pid: {"pairs_created": 0, "chunks_filled": 0, "uncovered_chunks": [gap]})
+                        lambda pid, mode="pending": {"pairs_created": 0, "chunks_filled": 0, "uncovered_chunks": [gap]})
     code, out, err = run_cli(monkeypatch, capsys, "dataset", "build", "--project", "gappy",
                              "--no-rag-grounding")
     assert code == 1 and out == ""

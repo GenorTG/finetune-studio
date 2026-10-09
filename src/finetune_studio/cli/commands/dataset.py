@@ -11,6 +11,7 @@ approved pairs; loads the helper model itself when none is resident and unloads 
 Examples:
   fts dataset build --project my-docs
   fts dataset build --project my-docs --grounded-share 0.5 --distractors 1 --seed 7
+  fts dataset build --project my-docs --include-unreviewed-fill
   fts dataset build --project my-docs --no-rag-grounding --fmt openai --out exports/plain.jsonl
   fts dataset build-preference --project my-docs --kinds hallucination,abstain --max-pairs 60 --json
 """
@@ -87,7 +88,9 @@ def _summary(built: BuiltDataset, project: dict[str, Any], fmt: str, out_copy: P
         "rows": built.export.rows,
         "grounded_rows": built.grounded_rows,
         "grounding": stats.as_dict() if stats else None,
-        "coverage_fill": {"pairs_created": cov.get("pairs_created", 0),
+        "coverage_fill": {"mode": cov.get("mode"),
+                          "pairs_created": cov.get("pairs_created", 0),
+                          "pairs_promoted": cov.get("pairs_promoted", 0),
                           "chunks_filled": cov.get("chunks_filled", 0),
                           "skipped_no_content": cov.get("skipped_no_content", 0),
                           "uncovered": len(cov.get("uncovered_chunks") or [])},
@@ -102,7 +105,9 @@ def _print_summary(s: dict[str, Any]) -> None:
     if s["copy"]:
         print(f"Copy     : {s['copy']}")
     print(f"Rows     : {s['rows']} ({s['grounded_rows']} grounded with retrieved context)")
-    print(f"Coverage : {cf['chunks_filled']} chunk(s) filled with {cf['pairs_created']} pair(s); "
+    added = cf["pairs_created"] + cf["pairs_promoted"]
+    kept_out = "approved, in this dataset" if cf["mode"] == "approve" else "left pending for review, NOT in this dataset"
+    print(f"Coverage : {cf['chunks_filled']} chunk(s) filled with {added} extractive pair(s) ({kept_out}); "
           f"{cf['uncovered']} still uncovered")
 
 
@@ -114,7 +119,8 @@ def _build(args: argparse.Namespace) -> None:
     out_copy = _resolve_out(pid, args.out) if args.out else None
     try:
         built = build_project_dataset(pid, args.fmt, args.only, grounding=grounding,
-                                      force=args.force, name=args.name)
+                                      force=args.force, include_unreviewed_fill=args.include_unreviewed_fill,
+                                      name=args.name)
     except ExportBlocked as blocked:
         lines = [str(blocked),
                  f"{len(blocked.uncovered_chunks)} chunk(s) uncovered in: {', '.join(blocked.files)}"]
