@@ -1,10 +1,9 @@
-"""Compare subpackage — retired.
+"""Compare: run the same questions through several models, then judge the saved answers.
 
-This package used to hold a parallel model-comparison implementation
-(``engine.py`` ``ComparisonEngine``, ``scorer.py`` ``Scorer``,
-``reporter.py``) that duplicated ``finetune_studio.benchmarks.comparison``
-(``ModelComparator`` / the ``comparator`` singleton) and had zero callers
-anywhere in the app or tests. It was removed; use
-``finetune_studio.benchmarks.comparison`` instead — that is what
-``fts compare`` and the WebUI ``/compare/*`` routes actually use.
+Same two-step design as the Testing page (run, then judge). A compare *group* is one ordinary test run per model
+(``benchmark_runs`` rows of kind ``compare`` sharing ``config["compare"]["group_id"]``), so every existing piece
+applies unchanged: transcripts are saved with no verdict, the AI judge (``testing/judge.py``) or a person decides
+afterwards, and each run's score follows its verdicts. Nothing here compares strings.
+
+``session`` reads a group back as one side-by-side view; the jobs live in ``webui/compare_jobs.py``.
 """

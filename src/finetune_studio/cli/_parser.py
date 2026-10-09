@@ -105,13 +105,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_rag_clear.add_argument("--confirm", action="store_true")
 
     # ── compare ──
-    p_cmp = sub.add_parser("compare", help="Compare models on test suite")
+    p_cmp = sub.add_parser("compare", help="Ask several models the same questions and show the answers side by side (judging is a separate step)")
     p_cmp.add_argument("--models", nargs="+", required=True, help="Model paths (name=path format)")
     p_cmp.add_argument("suite", help="Test suite JSON file")
     p_cmp.add_argument("--max-tokens", type=int, default=512)
-    p_cmp.add_argument("--temperature", type=float, default=0.7)
+    p_cmp.add_argument("--temperature", type=float, default=0.3)
     p_cmp.add_argument("--json", action="store_true", help="Output as JSON")
-    p_cmp.add_argument("--report", help="Save report to file")
+    p_cmp.add_argument("--report", help="Save the answers (and verdicts, with --judge) as JSON to this file")
+    p_cmp.add_argument(
+        "--judge", nargs="?", const="", default=None, metavar="PROVIDER_ID",
+        help="Afterwards let an AI judge read every answer (provider row id; default: the configured judge / helper seat)",
+    )
 
     # ── benchmark ──
     p_bench = sub.add_parser("benchmark", help="Run industry-standard benchmarks")

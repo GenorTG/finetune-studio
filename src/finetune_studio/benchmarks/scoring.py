@@ -1,24 +1,9 @@
-"""Scoring heuristics for model outputs.
+"""Exact-match scoring for the public multiple-choice / numeric benchmarks (MMLU, GSM8K, HellaSwag ...).
 
-WHAT THIS FILE DOES
-==================
-Implements various ways to score a model's response:
-  - Keyword matching: does the response contain expected keywords?
-  - Forbidden words: does it contain words it shouldn't?
-  - Length scoring: is the response the right length?
-  - Truthfulness scoring: are the claims factually accurate?
-
-KEY CONCEPTS
-============
-- Weighted scoring: different criteria have different weights
-  (e.g., keyword match is 70%, length is 20%, forbidden is 10%).
-- Fuzzy matching: keywords can match with case differences or partial
-  matches (e.g., "Python" matches "python").
-- Penalties vs bonuses: correct keywords ADD to the score, forbidden
-  words SUBTRACT.
+Open-ended answers are never scored here: whether a model's own-data answer is correct is decided afterwards by an
+AI judge or a person (``finetune_studio.testing.judge``), not by matching keywords.
 """
 
-"""Benchmark scoring module for Finetune Studio WebUI."""
 import re
 
 
@@ -159,58 +144,6 @@ class BenchmarkScorer:
         return {
             "prediction": pred,
             "method": "winogrande_extraction",
-        }
-
-    def score_open_ended(self, response: str, reference: str, keywords: list | None = None,
-                         forbidden: list | None = None) -> dict:
-        """Score open-ended response against reference."""
-        response_lower = response.lower()
-
-        # Keyword scoring
-        keyword_hits = []
-        keyword_misses = []
-        if keywords:
-            for kw in keywords:
-                if kw.lower() in response_lower:
-                    keyword_hits.append(kw)
-                else:
-                    keyword_misses.append(kw)
-            keyword_score = len(keyword_hits) / len(keywords) if keywords else 1.0
-        else:
-            keyword_score = 1.0
-
-        # Forbidden penalty
-        forbidden_hits = []
-        if forbidden:
-            for kw in forbidden:
-                if kw.lower() in response_lower:
-                    forbidden_hits.append(kw)
-            forbidden_penalty = len(forbidden_hits) / len(forbidden) if forbidden else 0
-        else:
-            forbidden_penalty = 0
-
-        # Length scoring
-        length = len(response.split())
-        if length < 3:
-            length_score = 0.2
-        elif length < 10:
-            length_score = 0.8
-        elif length < 200:
-            length_score = 1.0
-        else:
-            length_score = 0.7
-
-        total = max(0, keyword_score * 0.6 + length_score * 0.3 - forbidden_penalty * 0.4)
-
-        return {
-            "correct": total >= 0.5,
-            "score": round(total, 3),
-            "keyword_score": round(keyword_score, 3),
-            "length_score": round(length_score, 3),
-            "forbidden_hits": forbidden_hits,
-            "keyword_hits": keyword_hits,
-            "keyword_misses": keyword_misses,
-            "method": "open_ended_keywords",
         }
 
 

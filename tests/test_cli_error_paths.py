@@ -85,28 +85,6 @@ def test_suite_bad_file_fails_before_model_load(monkeypatch, capsys, tmp_path, b
     assert code == 1 and "Traceback" not in out and "Error" in out
 
 
-def test_compare_runs_v2_benchmark_cases(monkeypatch, capsys, tmp_path):
-    from finetune_studio.benchmarks.comparison import comparator
-
-    class Eng:
-        def generate(self, messages, **kw):
-            assert messages == [{"role": "user", "content": "Capital of France?"}]
-            return "Paris"
-
-        def unload(self):
-            pass
-
-    suite = tmp_path / "s.json"
-    suite.write_text('[{"name":"c","question":"Capital of France?","correct_answer":"Paris","keywords":["Paris"]}]')
-    model = tmp_path / "m"
-    model.mkdir()
-    monkeypatch.setattr(comparator, "load_model", lambda n, p: comparator.engines.__setitem__(n, Eng()))
-    code, out = run_cli(monkeypatch, capsys, "compare", str(suite), "--models", f"a={model}", "--json")
-    comparator.cleanup()
-    assert code == 0, out
-    assert '"accuracy": 100.0' in out
-
-
 def test_benchmark_unknown_suite_fails_before_model_load(monkeypatch, capsys, tmp_path):
     import finetune_studio.testing.inference as inf
 

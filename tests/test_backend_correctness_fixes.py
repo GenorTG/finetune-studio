@@ -50,15 +50,6 @@ def test_relative_path_and_output_both_resolve_in_project(env) -> None:
     assert not (cwd / "out.jsonl").exists()
 
 
-def test_compare_load_missing_path_is_clear_400(client, tmp_path) -> None:
-    ghost = str(tmp_path / "no-such-model")
-    r = client.post("/api/compare/compare/load", json={"name": "a", "path": ghost})
-    assert r.status_code == 400
-    assert r.json()["detail"] == f"model path not found: {ghost}"
-    r = client.post("/api/compare/compare/load", json={"name": "a", "path": "/x/m.gguf"})
-    assert r.status_code == 400 and "model path not found" in r.json()["detail"]
-
-
 def test_preset_start_honours_top_level_alpha_and_accum(client, tmp_path, monkeypatch) -> None:
     import finetune_studio.webui.routes.training as tr
     from tests import test_training_start_guard as g

@@ -10,8 +10,8 @@ Pins two removals:
   - ``finetune_studio.compare.engine`` / ``.reporter`` / ``.scorer`` no
     longer exist — they were an entirely unused duplicate of the live
     ``finetune_studio.benchmarks.comparison`` (``ModelComparator`` /
-    ``comparator`` singleton) used by ``fts compare`` and the WebUI
-    ``/compare/*`` routes.
+    ``comparator`` singleton), itself since replaced by the run-then-judge
+    Compare tab (``finetune_studio.compare`` + ``webui/compare_jobs.py``).
   - ``finetune_studio.benchmarks.samplers`` / ``.tool_calling`` no longer
     exist — both were fully orphaned (zero callers anywhere, including
     tests).
@@ -57,6 +57,7 @@ def test_benchmarks_init_has_no_dead_class_hierarchy() -> None:
         "finetune_studio.compare.engine",
         "finetune_studio.compare.reporter",
         "finetune_studio.compare.scorer",
+        "finetune_studio.benchmarks.comparison",
     ],
 )
 def test_dead_modules_no_longer_importable(module_name: str) -> None:
@@ -68,58 +69,8 @@ def test_scoring_module_has_no_dead_benchmark_result_dataclass() -> None:
     from finetune_studio.benchmarks import scoring
 
     assert not hasattr(scoring, "BenchmarkResult")
-    # The live scorer singleton used by benchmarks/comparison.py still works.
+    # The exact-match scorer used by the public benchmarks still works.
     assert scoring.scorer.score_mcq("B) Paris", "B")["correct"] is True
-
-
-def test_live_comparator_singleton_still_importable() -> None:
-    from finetune_studio.benchmarks.comparison import ComparisonResult, comparator
-
-    assert comparator.engines == {}
-    assert ComparisonResult(
-        source_name="m", question="q", response="r", score={}
-    ).source_name == "m"
-
-
-def test_comparator_serializes_run_and_cleanup() -> None:
-    """Cleanup must not unload an engine while comparison is using it."""
-    import threading
-
-    from finetune_studio.benchmarks.comparison import ModelComparator
-
-    started = threading.Event()
-    release = threading.Event()
-    unloaded = threading.Event()
-
-    class BlockingEngine:
-        def generate(self, *_args, **_kwargs):
-            started.set()
-            assert release.wait(timeout=2)
-            return "answer"
-
-        def unload(self):
-            unloaded.set()
-
-    instance = ModelComparator()
-    instance.engines["test"] = BlockingEngine()
-    runner = threading.Thread(
-        target=instance.run_comparison,
-        args=([{"name": "case", "messages": [], "expected": {}}],),
-    )
-    cleaner = threading.Thread(target=instance.cleanup)
-
-    runner.start()
-    assert started.wait(timeout=2)
-    cleaner.start()
-    assert not unloaded.wait(timeout=0.05)
-    release.set()
-    runner.join(timeout=2)
-    cleaner.join(timeout=2)
-
-    assert not runner.is_alive()
-    assert not cleaner.is_alive()
-    assert unloaded.is_set()
-    assert instance.model_names() == []
 
 
 def test_compare_package_still_imports_cleanly() -> None:

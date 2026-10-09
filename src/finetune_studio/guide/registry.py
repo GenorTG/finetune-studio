@@ -67,6 +67,7 @@ def _pages() -> dict[str, Page]:
         ("rag", "RAG index", "/projects/{pid}/rag", "rag.html", True, "Build, search and chat over a retrieval index; no training."),
         ("training", "Training", "/projects/{pid}/training", "project_training.html", True, "Configure and start a fine-tune; live progress; past runs."),
         ("testing", "Testing", "/projects/{pid}/testing", "project_testing.html", True, "Run a test on your own questions (saved answers), then judge them with an AI judge or by hand."),
+        ("compare", "Compare", "/projects/{pid}/compare", "project_compare.html", True, "Ask several models the same quiz, read the saved answers side by side, then judge them (AI judge or you)."),
         ("benchmarks", "Benchmarks", "/projects/{pid}/benchmarks", "benchmarks.html", True, "Public and synthetic benchmark suites; compare runs."),
         ("export", "Export", "/projects/{pid}/export", "export_models.html", True, "Export GGUF quants / merged / abliterated; browse trained exports."),
         ("chat", "Chat", "/projects/{pid}/chat", "chat_v2.html", True, "Test chat with the project's model, or Agent (guide) mode."),
@@ -138,6 +139,12 @@ def _controls() -> dict[str, Control]:
         ("testing.judge_provider", "testing", "#t-judge-provider", "Judge model"),
         ("testing.runs", "testing", "#t-runs", "Saved test runs"),
         ("testing.review", "testing", "#rv-list", "Cases of the open run (review list)"),
+        # compare
+        ("compare.models", "compare", "#cp-models", "Models to compare"),
+        ("compare.suite", "compare", "#cp-suite", "Question suite"),
+        ("compare.run", "compare", "#cp-run-btn", "Run comparison"),
+        ("compare.judge", "compare", "#cp-judge-btn", "Judge all answers"),
+        ("compare.cases", "compare", "#cp-cases", "Answers side by side"),
         # benchmarks
         ("benchmarks.run_latest", "benchmarks", "#bench-run-latest", "Run a new benchmark"),
         ("benchmarks.base_row", "benchmarks", "#bench-base-row", "Base-model benchmark row"),

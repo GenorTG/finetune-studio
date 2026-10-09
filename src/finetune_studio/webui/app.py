@@ -380,6 +380,7 @@ app.include_router(training.router, prefix="/api/training", tags=["training"])  
 app.include_router(data.router, prefix="/api/data", tags=["data"])  # type: ignore[has-type]
 app.include_router(testing.router, prefix="/api/testing", tags=["testing"])  # type: ignore[has-type]
 app.include_router(comparison.router, prefix="/api/compare", tags=["compare"])  # type: ignore[has-type]
+app.include_router(comparison.pages)  # type: ignore[has-type]  # HTML page /projects/{pid}/compare
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])  # type: ignore[has-type]
 app.include_router(quality.router)  # type: ignore[has-type]  # already self-prefixed /api/data
 app.include_router(benchmarks.router, prefix="/api/benchmarks", tags=["benchmarks"])  # type: ignore[has-type]

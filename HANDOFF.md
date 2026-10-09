@@ -40,8 +40,9 @@ declined; best = Qwen3.5-9B base top-20: 97/102, 20/20. Tuned model + RAG: 86/10
 4. **Abstain pair builder** (`data/prep/preference.py`): 112/150 abstain questions were answerable from other files; check each against the whole project with RAG. DPO gave no abstention.
 5. **Paraphrase augmentation** (`scripts/corpus_paraphrase.py`, funded API key or ~2 h local): 3 re-worded questions per pair, train, compare on the Testing page.
 6. Evaluate the adapter on the 4-bit base without merging (bf16 merge beat q4_k_m by 8 points in run 1). Merged-bf16 test needs > 40 min for 122 questions: default to the GGUF.
-7. Follow-up cards filed 2026-10-09: Compare tab still keyword-scores (move to run-then-judge); audit MMLU/GSM8K/HellaSwag against official protocols; drop the corpus-specific
-   table-arithmetic retry in `rag_suite.run_rag_case`.
+7. Follow-up cards filed 2026-10-09: audit MMLU/GSM8K/HellaSwag against official protocols; drop the corpus-specific table-arithmetic retry in `rag_suite.run_rag_case`.
+   Compare tab is done (branch `feat/compare-run-then-judge`): `compare/session.py` + `webui/compare_jobs.py` + `/projects/{pid}/compare`; the keyword `ModelComparator` is deleted.
+   Left over: Compare page not yet seen in a real browser; move `_target_model` (imported lazily by `routes/comparison.py`) into `testing_models.py`; list `kind=compare` runs on the Testing page as a group.
 
 ## Commands
 
