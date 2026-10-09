@@ -59,6 +59,14 @@
     {% if not models and not project.base_model %}
     <div class="text-xs dim mt-1">No project exports yet. <a href="/projects/{{ pid }}/export" data-link>Export a completed run →</a></div>
     {% endif %}
+    {% if library_models %}
+    <div class="text-xs muted mt-2 mb-1">Model library (other installed models — any of them can stand in as a second model)</div>
+    <div class="cp-models" id="cp-library-models" role="group" aria-label="Model library">
+      {% for m in library_models %}
+      <label title="{{ m.path }}"><input type="checkbox" name="cp-model" value="{{ m.path }}"> {{ m.name }} · {{ m.format }} ({{ m.size_gb }} GB)</label>
+      {% endfor %}
+    </div>
+    {% endif %}
   </div>
   <div class="grid grid-12 gap-3 items-end">
     <div class="col-span-5">

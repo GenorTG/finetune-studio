@@ -18,7 +18,6 @@ from finetune_studio.testing.rag_suite import (
     RagCaseResult,
     build_grounded_messages,
     compute_retrieval_metrics,
-    gold_presence,
     hit_matches_source,
     provenance_from_hit,
     resolve_corpus_path,
@@ -197,39 +196,13 @@ def test_run_rag_suite_preserves_transcript_context_hits() -> None:
     assert rag.search_calls == [(question, 3)]
 
 
-def test_gold_presence_separates_retrieved_from_sent_to_the_model() -> None:
-    """Chunk 2 holds the answer but the context cap cuts it: retrieved yes, sent no."""
-    hits = [
-        {"rank": 1, "text": "x" * 80},
-        {"rank": 2, "text": "The fee is EUR 14,750 per day."},
-    ]
-    context = FakeRag().format_context(hits, max_chars=100)  # only the first block fits
-    retrieved, sent, n_in_context = gold_presence(["14750 per day"], hits, context)
-    assert (retrieved, sent, n_in_context) == (True, False, 1)
-    assert gold_presence([], hits, context) == (None, None, 1)
-
-
-def test_run_rag_suite_records_gold_trace_and_context_cap() -> None:
-    question = "What is the fee?"
-    hits = [{"rank": 1, "text": "filler " * 40, "document_id": "d", "chunk_id": "c0"},
-            {"rank": 2, "text": "The fee is EUR 44.2.", "document_id": "d", "chunk_id": "c1"}]
-    rag = FakeRag({question: hits})
-    cases = [BenchmarkCase(name="fee", question=question, correct_answer="44.2", keywords=["44.2"])]
-    wide = run_rag_suite(FakeEngine("44.2"), rag, cases, top_k=2, max_context_chars=5000)[0]
-    assert (wide.gold_in_retrieved, wide.gold_in_context, wide.chunks_in_context) == (True, True, 2)
-    tight = run_rag_suite(FakeEngine("44.2"), rag, cases, top_k=2, max_context_chars=300)[0]
-    assert (tight.gold_in_retrieved, tight.gold_in_context, tight.chunks_in_context) == (True, False, 1)
-    metrics = compute_retrieval_metrics([wide, tight])
-    assert metrics["gold_in_retrieved"] == 2 and metrics["gold_in_context"] == 1
-    assert tight.as_api_dict()["context_chars"] == len(tight.context_text)
-
-
-def test_run_rag_suite_expands_retrieval_when_source_is_missing() -> None:
+def test_a_source_missed_at_top_k_is_reported_by_its_wide_rank_and_never_pulled_into_the_context() -> None:
     class ExpandingRag(FakeRag):
         def search(self, query: str, top_k: int = 5) -> list[dict]:
             self.search_calls.append((query, top_k))
             if top_k >= 20:
-                return [{"document_id": "source-b", "chunk_index": 0, "text": "answer"}]
+                return [{"document_id": "other", "chunk_index": 0, "text": "noise"},
+                        {"document_id": "source-b", "chunk_index": 0, "text": "answer"}]
             return []
 
     rag = ExpandingRag()
@@ -239,8 +212,23 @@ def test_run_rag_suite_expands_retrieval_when_source_is_missing() -> None:
         source_id="source-b",
     )
     results = run_rag_suite(engine, rag, [case], top_k=5)
-    assert results[0].retrieval_hit is True
-    assert rag.search_calls == [("question", 5), ("question", 20)]
+    r = results[0]
+    assert r.retrieval_hit is False and r.retrieval_hits == [] and r.context_text == ""   # the reader saw its real top-5
+    assert r.gold_rank_wide == 2 and r.as_api_dict()["gold_rank_wide"] == 2
+    assert rag.search_calls == [("question", 5), ("question", 40)]
+    metrics = compute_retrieval_metrics(results)
+    assert metrics["retrieval_misses"] == 1 and metrics["misses_found_wider"] == 1 and metrics["wide_search_top_k"] == 40
+
+
+def test_no_wide_search_when_the_source_was_retrieved_or_the_case_names_none() -> None:
+    hit = [{"document_id": "doc-a", "chunk_index": 0, "text": "x"}]
+    rag = FakeRag({"q1": hit, "q2": hit})
+    engine = FakeEngine(answer="x")
+    cases = [BenchmarkCase(name="a", question="q1", correct_answer="x", source_id="doc-a"),
+             BenchmarkCase(name="b", question="q2", correct_answer="x")]
+    results = run_rag_suite(engine, rag, cases, top_k=3)
+    assert [r.gold_rank_wide for r in results] == [None, None]
+    assert rag.search_calls == [("q1", 3), ("q2", 3)]
 
 
 def test_run_rag_suite_evaluation_scores_and_metrics(tmp_path: Path) -> None:
@@ -373,7 +361,7 @@ def test_run_rag_suite_route_starts_a_background_run_that_saves_transcripts_and_
     corpus.mkdir()
     (corpus / "manifest.json").write_text("{}", encoding="utf-8")
 
-    monkeypatch.setattr("finetune_studio.webui.routes.testing.local_model_missing", lambda _p: False)  # /override/model is a fake path
+    monkeypatch.setattr("finetune_studio.webui.testing_models.local_model_missing", lambda _p: False)  # /override/model is a fake path
     fake = FakeEngine("Ada Smit", model_path="/override/model")
     monkeypatch.setattr(app_module, "inference_engine", fake)
 
@@ -462,7 +450,7 @@ def test_run_rag_suite_route_missing_corpus_fails_the_run_with_the_reason(
     suite_path.write_text(
         json.dumps([{"name": "q1", "question": "Q?", "correct_answer": "A", "keywords": ["A"]}]), encoding="utf-8",
     )
-    monkeypatch.setattr("finetune_studio.webui.routes.testing.local_model_missing", lambda _p: False)  # /override/model is a fake path
+    monkeypatch.setattr("finetune_studio.webui.testing_models.local_model_missing", lambda _p: False)  # /override/model is a fake path
     monkeypatch.setattr(app_module, "inference_engine", FakeEngine(model_path="/override/model"))
     resp = client.post(
         "/api/testing/run-rag-suite",

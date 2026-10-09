@@ -22,6 +22,7 @@ from finetune_studio.compare import session
 from finetune_studio.testing.judge import JudgeUnavailable
 from finetune_studio.testing.suite import load_test_suite
 from finetune_studio.webui import compare_jobs, testing_jobs
+from finetune_studio.webui.testing_models import BASE_MODEL_CHOICE, target_model
 
 router = APIRouter()
 pages = APIRouter()
@@ -51,7 +52,6 @@ def _busy(exc: testing_jobs.TestingBusy) -> JSONResponse:
 def _resolve_models(pid: str, raw: Any) -> list[compare_jobs.CompareModel]:
     """``models`` is a list of model entries (path, ``__base__`` or ``{path, label}``); each is resolved like the Testing page's."""
     from finetune_studio.naming import display_for_path
-    from finetune_studio.webui.routes.testing import BASE_MODEL_CHOICE, _target_model
 
     if not isinstance(raw, list) or not 2 <= len(raw) <= MAX_MODELS:
         raise HTTPException(status_code=400, detail=f"models must list 2 to {MAX_MODELS} models to compare")
@@ -63,7 +63,7 @@ def _resolve_models(pid: str, raw: Any) -> list[compare_jobs.CompareModel]:
         if not choice:
             raise HTTPException(status_code=400, detail="every model needs a path (or __base__ for the untrained base)")
         try:
-            path = _target_model(pid, choice)
+            path = target_model(pid, choice)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from None
         if any(m.model_path == path for m in out):
@@ -159,6 +159,21 @@ async def cancel_group(pid: str, gid: str):
     return {"ok": True}
 
 
+def library_models_for_compare(exclude: set[str], base_model: str) -> list[dict[str, Any]]:
+    """Installed chat-capable models outside this project's exports: any trained export can be compared against any other
+    installed model. The project's own base and exports are listed separately, so they are left out here."""
+    from finetune_studio.models.registry import models_for_selectors
+    from finetune_studio.webui.app import discovered_models
+
+    out: list[dict[str, Any]] = []
+    for m in models_for_selectors(discovered_models):
+        path = str(getattr(m, "path", "") or "").rstrip("/\\")
+        if not path or path in exclude or path == base_model.rstrip("/\\"):
+            continue
+        out.append({"name": m.name, "path": path, "format": m.format, "size_gb": m.size_gb})
+    return out
+
+
 # ── HTML page ────────────────────────────────────────────────────────────────
 
 
@@ -182,6 +197,7 @@ async def compare_page(request: Request, pid: str):
     models = models_for_testing_page(ctx["project"].get("models") or [])
     return templates.TemplateResponse(request, "project_compare.html", {
         **ctx, "models": models, "default_model_path": default_model_path_for_testing(models),
+        "library_models": library_models_for_compare({m["path"] for m in models}, str(ctx["project"].get("base_model") or "")),
         "suites": [s for s in _discover_suites(pid) if s.get("scoring") == "judge"],
         "judge_providers": list_judge_providers(), "default_judge_provider_id": default_judge_provider_id(),
         "max_models": MAX_MODELS,

@@ -170,6 +170,21 @@ def hit_matches_source(
     return hit_chunk == int(chunk_idx)
 
 
+WIDE_SEARCH_MIN = 40
+
+
+def wide_rank_of_source(rag_query: RagSearchEngine, case: BenchmarkCase, hits: list[dict[str, Any]], *, top_k: int) -> int | None:
+    """1-based rank of the case's gold source in a wider search, only when it is missing from ``hits`` (None = still absent, or
+    the case names no source / the gold was retrieved). A diagnostic for the retrieval side; the reader never sees these hits."""
+    if not (case.source_id or "").strip() or any(hit_matches_source(h, case.source_id, case.chunk_idx) for h in hits):
+        return None
+    wide = list(rag_query.search(case.question, top_k=max(WIDE_SEARCH_MIN, top_k * 4)) or [])
+    for rank, hit in enumerate(wide, 1):
+        if hit_matches_source(hit, case.source_id, case.chunk_idx):
+            return rank
+    return None
+
+
 @dataclass
 class RagCaseResult:
     """One grounded suite case: CaseResult + retrieval provenance."""
@@ -183,6 +198,7 @@ class RagCaseResult:
     gold_in_context: bool | None = None
     chunks_retrieved: int = 0
     chunks_in_context: int = 0
+    gold_rank_wide: int | None = None   # rank of the gold source in a wider search when it missed the top-k (diagnostic only)
 
     def as_api_dict(self) -> dict[str, Any]:
         r = self.case_result
@@ -213,6 +229,7 @@ class RagCaseResult:
             "gold_in_context": self.gold_in_context,
             "chunks_retrieved": self.chunks_retrieved,
             "chunks_in_context": self.chunks_in_context,
+            "gold_rank_wide": self.gold_rank_wide,
             "context_chars": len(self.context_text),
         }
 
@@ -257,6 +274,9 @@ def compute_retrieval_metrics(rag_results: list[RagCaseResult]) -> dict[str, Any
         "cases_with_source_id": n,
         "retrieval_hits": hits,
         "retrieval_misses": max(n - hits, 0),
+        # misses whose source a wider search would have found (and how deep): retrieval ranking, not indexing, is the loss
+        "misses_found_wider": sum(1 for r in with_source if not r.retrieval_hit and r.gold_rank_wide),
+        "wide_search_top_k": WIDE_SEARCH_MIN,
         "recall_at_k": round(hits / n, 4) if n else None,
         "hit_rate": round(hits / n, 4) if n else None,
         **gold_stats,
@@ -297,24 +317,12 @@ def run_rag_case(
     start = time.time()
     hits_raw: list[dict] = []
     context = ""
+    gold_rank_wide: int | None = None
     try:
         hits_raw = list(rag_query.search(case.question, top_k=top_k) or [])
-        if case.source_id and not any(
-            hit_matches_source(hit, case.source_id, case.chunk_idx) for hit in hits_raw
-        ):
-            # A precise source-aware retry recovers short questions whose
-            # first lexical/vector pass is crowded out by distractors.
-            expanded_hits = list(rag_query.search(
-                case.question, top_k=max(20, top_k * 2)
-            ) or [])
-            matched_expanded = [
-                hit for hit in expanded_hits
-                if hit_matches_source(hit, case.source_id, case.chunk_idx)
-            ]
-            if matched_expanded:
-                # The wider search is only a recovery path; discard its
-                # distractors once the expected source is found.
-                hits_raw = matched_expanded
+        # The model only ever sees the top-k it would get in real use. When the gold source is not among them, its rank in a
+        # wider search is recorded as a diagnostic (``gold_rank_wide``); it is never pulled into the context.
+        gold_rank_wide = wide_rank_of_source(rag_query, case, hits_raw, top_k=top_k)
         provenance = [provenance_from_hit(h) for h in hits_raw]
         context = rag_query.format_context(hits_raw, max_chars=max_context_chars)
         messages = build_grounded_messages(case.question, context)
@@ -371,6 +379,7 @@ def run_rag_case(
         gold_in_context=gold_context,
         chunks_retrieved=len(hits_raw),
         chunks_in_context=n_in_context,
+        gold_rank_wide=gold_rank_wide,
     )
 
 

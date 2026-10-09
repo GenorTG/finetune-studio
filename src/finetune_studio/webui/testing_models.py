@@ -18,6 +18,8 @@ _DONE_STATUSES = frozenset({"done", "completed"})
 # Formats the Testing inference engine can load (HF dir or GGUF).
 _INFERENCE_FORMATS = frozenset({"safetensors", "gguf"})
 
+BASE_MODEL_CHOICE = "__base__"   # the Testing / Compare pages' "untrained base model" entry
+
 
 def local_model_missing(path: str) -> bool:
     """True when ``path`` names a local file/dir that is not on disk.
@@ -82,3 +84,28 @@ def default_model_path_for_testing(models: list[dict[str, Any]]) -> str | None:
         ):
             return m.get("path")
     return models[0]["path"] if models else None
+
+
+def target_model(pid: str, override: str) -> str:
+    """The model a test run will use: the explicit choice, the project's untrained base, else the latest merged export.
+
+    Never "whatever happens to be loaded": the helper or another page's model may be resident.
+    A local path that is no longer on disk is refused here, before a run is created.
+    """
+    if override == BASE_MODEL_CHOICE:
+        from finetune_studio import db
+        from finetune_studio.db.runs import backfill_project_base_model
+
+        base = backfill_project_base_model(pid) or str((db.get_project(pid) or {}).get("base_model") or "")
+        if not base.strip():
+            raise ValueError("this project has no base model recorded yet; train a run or set one under project Settings")
+        chosen = base.strip()
+    elif override:
+        chosen = override
+    else:
+        chosen = resolve_latest_merged_model(pid) or ""
+        if not chosen:
+            raise ValueError("no model to test: pick one in the Model list, or run training + merge/export first")
+    if local_model_missing(chosen):
+        raise ValueError(f"model not found on disk: {chosen} (re-create it, or pick another model)")
+    return chosen

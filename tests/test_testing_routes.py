@@ -42,7 +42,7 @@ def _isolated(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[str]:
     monkeypatch.setattr("finetune_studio.webui.routes.settings.SETTINGS_PATH", tmp_path / "settings.json")
     loads: list[str] = []
     monkeypatch.setattr(testing_jobs, "_load_model", loads.append)
-    monkeypatch.setattr("finetune_studio.webui.routes.testing.local_model_missing", lambda _p: False)  # fake paths below
+    monkeypatch.setattr("finetune_studio.webui.testing_models.local_model_missing", lambda _p: False)  # fake paths below
     return loads
 
 

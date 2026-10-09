@@ -32,8 +32,8 @@ from finetune_studio.webui.app import inference_engine
 from finetune_studio.webui.engine_guard import ENGINE_LOCK
 from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
 from finetune_studio.webui.testing_models import (
-    local_model_missing,
     resolve_latest_merged_model,
+    target_model,
 )
 
 router = APIRouter()
@@ -140,35 +140,6 @@ def _project_or_404(pid: str) -> None:
         raise HTTPException(status_code=404, detail="project not found")
 
 
-BASE_MODEL_CHOICE = "__base__"   # the Testing page's "untrained base model" entry
-
-
-def _target_model(project_id: str, override: str) -> str:
-    """The model the run will use: the explicit choice, the project's untrained base, else the latest merged export.
-
-    Never "whatever happens to be loaded": the helper or another page's model may be resident.
-    A local path that is no longer on disk is refused here, before a run is created.
-    """
-    if override == BASE_MODEL_CHOICE:
-        from finetune_studio.db.runs import backfill_project_base_model
-
-        base = backfill_project_base_model(project_id) or str((db.get_project(project_id) or {}).get("base_model") or "")
-        if not base.strip():
-            raise ValueError("this project has no base model recorded yet; train a run or set one under project Settings")
-        chosen = base.strip()
-    elif override:
-        chosen = override
-    else:
-        chosen = _resolve_merged_model(project_id) or ""
-        if not chosen:
-            raise ValueError(
-                "no model to test: pick one in the Model list, or run training + merge/export first",
-            )
-    if local_model_missing(chosen):
-        raise ValueError(f"model not found on disk: {chosen} (re-create it, or pick another model)")
-    return chosen
-
-
 def _started(row: dict[str, Any]) -> JSONResponse:
     return JSONResponse({"ok": True, "benchmark_id": row["id"], "benchmark": row}, status_code=202)
 
@@ -222,7 +193,7 @@ async def run_test_suite(request: Request):
     max_tokens, temperature = _sampling(body)
     auto, judge_pid = _judge_opts(body)
     try:
-        model = _target_model(project_id, str(body.get("model_path") or body.get("path") or "").strip())
+        model = target_model(project_id, str(body.get("model_path") or body.get("path") or "").strip())
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return await _start(testing_jobs.RunSpec(
@@ -272,7 +243,7 @@ async def run_rag_test_suite(request: Request):
         return JSONResponse({"error": str(e)}, status_code=400)
     auto, judge_pid = _judge_opts(body)
     try:
-        model = _target_model(project_id, str(body.get("model_path") or body.get("path") or "").strip())
+        model = target_model(project_id, str(body.get("model_path") or body.get("path") or "").strip())
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return await _start(testing_jobs.RunSpec(
@@ -320,7 +291,7 @@ async def evaluate_training_dataset(request: Request):
         return JSONResponse({"error": str(e)}, status_code=400)
     auto, judge_pid = _judge_opts(body)
     try:
-        model = _target_model(project_id, str(body.get("model_path") or body.get("path") or "").strip())
+        model = target_model(project_id, str(body.get("model_path") or body.get("path") or "").strip())
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return await _start(testing_jobs.RunSpec(
@@ -358,7 +329,17 @@ def _run_summary(bench: dict[str, Any]) -> dict[str, Any]:
         "judge_done": bench.get("judge_done", 0), "judge_total": bench.get("judge_total", 0),
         "judge_error": bench.get("judge_error", ""), "scores": scores, "config": bench.get("config", {}),
         "active": [j["kind"] for j in testing_jobs.active_jobs() if j["benchmark_id"] == bench["id"]],
+        "compare": _compare_membership(bench),
     }
+
+
+def _compare_membership(bench: dict[str, Any]) -> dict[str, Any] | None:
+    """For a ``kind=compare`` row: which comparison it belongs to, so the list can show the group as one unit."""
+    cfg = (bench.get("config") or {}).get("compare") if isinstance(bench.get("config"), dict) else None
+    if bench.get("kind") != "compare" or not isinstance(cfg, dict) or not cfg.get("group_id"):
+        return None
+    return {"group_id": str(cfg["group_id"]), "label": str(cfg.get("label") or ""), "index": int(cfg.get("index") or 0),
+            "models": [str(m) for m in (cfg.get("models") or [])]}
 
 
 @router.get("/projects/{pid}/runs")

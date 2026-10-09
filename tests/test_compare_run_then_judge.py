@@ -38,9 +38,7 @@ def _isolated(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, obje
     monkeypatch.setattr(testing_jobs, "_ACTIVE", {})
     monkeypatch.setattr(testing_jobs, "ENGINE_LOCK", asyncio.Lock())
     monkeypatch.setattr("finetune_studio.webui.routes.settings.SETTINGS_PATH", tmp_path / "settings.json")
-    import finetune_studio.webui.app  # noqa: F401  (loads the routes in app order; a bare string patch would hit a circular import)
-
-    monkeypatch.setattr("finetune_studio.webui.routes.testing.local_model_missing", lambda _p: False)  # fake model paths below
+    monkeypatch.setattr("finetune_studio.webui.testing_models.local_model_missing", lambda _p: False)  # fake model paths below
     state: dict[str, object] = {"model": "", "loads": [], "fail": set()}
 
     def load(path: str) -> None:
