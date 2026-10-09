@@ -9,11 +9,13 @@ Commits, pushes, local service restarts and real-hardware tests are authorized.
 
 | Area | State |
 |---|---|
-| Git | `main`: run-then-judge rebuild of the whole project test suite (this session); see the commit message. |
-| Tests | Full suite in 5 chunks green on the final code (chunk 2 has `test_repo_hygiene` red until the new files are committed). `ruff check src/ scripts/` clean. |
-| Service | genorbox1 :7860 restarted on the new code (schema migrated, 8 legacy runs rescored). Helper seat = local Gemma 4 12B. OpenCode Go key still has no funds (`402`). |
+| Git | `main` = run-then-judge rebuild + the 2026-10-09 pass: export gate opt-in, Compare tab on run-then-judge, row-preserving RAG chunking + top-k 10, missing-model 400, script fix. |
+| Tests | Full suite in 5 CI shards green on the merged code (`scripts/ci_shard.py i 5`); `ruff check src/ scripts/` clean. |
+| Live browser E2E (this pass) | Testing page: run (live progress), AI judge (Gemma helper, 26/26), human keys 1/3, key 0 restores the AI verdict, agreement chip. Drivers vs live app: `a_review_ui_judge` 12/12, `b_rag_quiz_ui` 10/10, `a_test_ui` 8/8. Scripts live: `rejudge_reports.py` ok, `rag_reader_compare.py` ok after the JSONL-import fix. Export page: opt-in checkbox off by default, pill "would add 415 pairs from 154 passages". Compare page renders. |
+| Not browser-verified | Starting a comparison from the Compare form (the project has one model only: needs 2); the Export checkbox actually changing an export; old indexes still use word chunks until rebuilt. |
+| Service | genorbox1 :7860 on the merged code. Helper seat = local Gemma 4 12B. OpenCode Go key still has no funds (`402`). |
 | Corpus | `tests/corpus/korvane` (19 core files, 1,130 facts), quiz `eval/korvane_quiz_core.jsonl` (102 + 20 unanswerable); hand-labelled judge gold `eval/judge_gold.json` (50 cases). |
-| Kept on purpose | project `korvane-ragtrace` (id e9f951f8: index, quiz, 2 runs of the new flow incl. `quiz_live25`); `data/benchmarks/hf_cache` (228 MB). Delete via the UI when done. |
+| Kept on purpose | project `korvane-ragtrace` (id e9f951f8: index, quiz; its `base_model` now points at the helper Gemma GGUF because the old Qwen base GGUF was deleted); `data/benchmarks/hf_cache` (228 MB). |
 
 ## What changed: run, then judge (Genor 2026-10-09; `docs/judging/RUN-THEN-JUDGE.md`)
 
@@ -33,18 +35,14 @@ declined; best = Qwen3.5-9B base top-20: 97/102, 20/20. Tuned model + RAG: 86/10
 
 ## Next steps (in order)
 
-1. ~~Export gate auto-approval~~ done on `fix/export-coverage-gate-optin`: fill pairs stay pending; opt in via export option `include_unreviewed_fill` (Data prep Export
-   checkbox + count, API query, CLI flag). Tests `tests/test_export_fill_optin.py`. Existing projects keep their already-approved fill pairs (audit them with `corpus_review.py status`).
-2. Judge the live kept project's runs again once a stronger judge is connected (API row or the 30B MoE: `scripts/judge_eval.py`), then compare against Gemma; keep the better as default.
-3. RAG work: reranker as an RRF vote or multilingual. **Landed on `feat/rag-row-chunking-topk` (unmeasured, no index rebuilt):** row-preserving token-sized chunker
-   (`data/rag_portable/chunking.py`), `DEFAULT_TOP_K = 10`; existing indexes keep the old word chunks until rebuilt (manifest `splitter` says which). Rebuild, then rerun `scripts/rag_reader_compare.py`.
+1. **Measure the new chunker:** rebuild the project index (RAG page), rerun `scripts/rag_reader_compare.py --pid e9f951f8 --reader <name>=<gguf> --top-k 10` (live, before the rebuild: Gemma 12B top-k 10 = 92/102 quiz,
+   20/20 declined, 4 not retrieved, 6 reader misses) and compare. Then decide the reranker (RRF vote or multilingual).
+2. Judge the kept project's runs again with a stronger judge (API row or the 30B MoE: `scripts/judge_eval.py`), compare against Gemma, keep the better as default.
+3. Compare tab leftovers: move `_target_model` (lazily imported by `routes/comparison.py`) into `testing_models.py`; list `kind=compare` runs as a group on the Testing page; click through a real 2-model comparison.
 4. **Abstain pair builder** (`data/prep/preference.py`): 112/150 abstain questions were answerable from other files; check each against the whole project with RAG. DPO gave no abstention.
 5. **Paraphrase augmentation** (`scripts/corpus_paraphrase.py`, funded API key or ~2 h local): 3 re-worded questions per pair, train, compare on the Testing page.
 6. Evaluate the adapter on the 4-bit base without merging (bf16 merge beat q4_k_m by 8 points in run 1). Merged-bf16 test needs > 40 min for 122 questions: default to the GGUF.
-7. Follow-up cards filed 2026-10-09: audit MMLU/GSM8K/HellaSwag against official protocols; drop the corpus-specific table-arithmetic retry in `rag_suite.run_rag_case`.
-   Compare tab is done (branch `feat/compare-run-then-judge`): `compare/session.py` + `webui/compare_jobs.py` + `/projects/{pid}/compare`; the keyword `ModelComparator` is deleted.
-   Left over: Compare page not yet seen in a real browser; move `_target_model` (imported lazily by `routes/comparison.py`) into `testing_models.py`; list `kind=compare` runs on the Testing page as a group.
-   Also: `rag_suite.run_rag_case` still widens retrieval using the case's gold `source_id` (inflates recall: drop it or report it separately).
+7. Follow-ups: audit MMLU/GSM8K/HellaSwag against official protocols; `rag_suite.run_rag_case` still widens retrieval using the case's gold `source_id` (inflates recall: drop it or report it separately).
 
 ## Commands
 
