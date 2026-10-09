@@ -8,7 +8,7 @@ from finetune_studio.data import project_filesystem as pfs
 from finetune_studio.data.audit import audit_qa_pairs, audit_source, audit_suite_cases
 from finetune_studio.data.fs import paths
 from finetune_studio.data.fs.metadata import hash_bytes
-from finetune_studio.testing.audit import recompute_cases
+from finetune_studio.testing.audit import audit_cases
 from finetune_studio.testing.generate_suite import generate_suite_from_training_data
 
 
@@ -74,31 +74,36 @@ def test_suite_audit_detects_truncation_and_suite_preserves_provenance(tmp_path)
     assert "suite_dataset_count_mismatch" in audit_suite_cases(str(suite), str(dataset))["errors"]
 
 
-def test_recompute_cases_preserves_source_grounded_scoring() -> None:
-    from finetune_studio.testing.audit import recompute_cases
+def _saved_run(rows: list[dict]) -> tuple[str, list[dict]]:
+    from finetune_studio import db
 
-    report = recompute_cases([{
-        "case_name": "approval",
-        "question": "What is the approval status?",
-        "correct_answer": "The request is not approved.",
-        "model_answer": "The request is approved.",
-        "source_id": "source-1",
-        "chunk_idx": 2,
-        "verdict": "fail",
-        "transcript": [],
-    }])
-
-    assert report["recomputed_scores"]["failed"] == 1
-    assert report["disagreements"] == []
-    assert report["passed"] is True
+    pid = db.create_project(name="audit")["id"]
+    rid = db.create_run(pid, "run")["id"]
+    bid = db.create_benchmark(rid, "quiz", {})["id"]
+    for i, r in enumerate(rows):
+        db.create_case(bid, rid, f"c{i}", "g", r["q"], r["key"], r["answer"], [])
+    return bid, db.list_cases(bid)
 
 
-def test_recompute_cases_does_not_trust_stored_verdict() -> None:
-    cases = [{"case_name": "n", "category": "numeric", "question": "How many units were shipped?",
-              "correct_answer": "8 (Source: budget.csv)", "model_answer": "8",
-              "verdict": "fail", "transcript": [{"role": "user", "content": "How many units were shipped?"},
-                                                     {"role": "assistant", "content": "8"}]}]
-    report = recompute_cases(cases)
-    assert report["recomputed_scores"]["passed"] == 1
-    assert report["disagreements"]
-    assert report["passed"] is False
+def test_audit_cases_reports_awaiting_and_where_verdicts_came_from(temp_db) -> None:
+    from finetune_studio.db import judgements as jdb
+
+    bid, cases = _saved_run([{"q": "Q1", "key": "8", "answer": "8"}, {"q": "Q2", "key": "9", "answer": "x"},
+                             {"q": "Q3", "key": "1", "answer": "y"}])
+    jdb.add_judgement(cases[0]["id"], kind="ai", verdict="pass", judge_model="m")
+    jdb.add_judgement(cases[1]["id"], kind="human", verdict="fail")
+    from finetune_studio import db
+
+    report = audit_cases(bid, db.list_cases(bid))
+    assert report["case_count"] == 3 and report["awaiting"] == 1
+    assert report["verdict_sources"] == {"ai": 1, "human": 1}
+    assert report["verdicts_without_judgement"] == [] and report["passed"] is True
+
+
+def test_audit_cases_flags_a_verdict_nobody_gave(temp_db) -> None:
+    from finetune_studio import db
+
+    bid, cases = _saved_run([{"q": "Q1", "key": "8", "answer": "8"}])
+    db.update_case(cases[0]["id"], verdict="pass", judge="ai")  # written behind the judgement table's back
+    report = audit_cases(bid, db.list_cases(bid))
+    assert report["verdicts_without_judgement"] == [cases[0]["id"]] and report["passed"] is False

@@ -102,10 +102,13 @@ handoff; it opens Training with the dataset preselected.
 The **Testing** page answers one question: *did it learn MY material?*
 Auto-generated project suites test **every row of the training dataset**
 (N rows → N questions, full coverage by default; sampling is an explicit,
-labeled opt-in). Results are strict-substring judged and reviewable
-case-by-case. Rule of thumb: if the auto-score says pass, spot-check 10–20
-answers with your own eyes — the judge is heuristic (on the Benchmarks page
-you can open any result and override a verdict case by case).
+labeled opt-in). A test is two steps: **Run** saves the model's raw answers next
+to the correct answers; **Judge** lets an AI judge (any connected model, the
+helper by default) or you decide pass / partial / fail for each saved answer
+(*Settings → Test judge* can start judging automatically after every run; it is
+off by default). Rule of thumb: spot-check 10–20 answers with your own eyes — the
+judge is a model, not truth — and press 1/2/3 in the review pane to override a
+verdict case by case.
 
 **Benchmarks** (global page) is separate: public exams — offline smoke
 suites styled after MMLU/GSM8K/HellaSwag, real HF splits when you allow

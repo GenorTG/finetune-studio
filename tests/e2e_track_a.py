@@ -497,94 +497,134 @@ async def phase_a_review_ui(w: W.Walk) -> None:
     W.R.check(not rejected_no_reason, f"every rejected pair carries a reason ({len(rejected_no_reason)} without)")
 
 
-async def _quiz_results(w: W.Walk, tag: str) -> dict:
-    """Read the finished run off the Testing page itself (summary line + every case row) and keep it as JSON."""
-    summary = (await w.page.inner_text("#case-scores-summary")).strip()
-    cats = (await w.page.inner_text("#case-scores-categories")).strip() if await w.page.locator("#case-scores-categories").count() else ""
-    rows = await w.page.locator("#case-results-table tbody tr").evaluate_all(
-        "trs => trs.map(tr => ({name: tr.querySelector('.case-col-name').textContent.trim(), "
-        "category: tr.querySelector('.case-col-cat').textContent.trim(), "
-        "question: tr.querySelector('.case-col-text').textContent.trim(), "
-        "answer: tr.querySelector('.case-answer-pre').textContent, verdict: tr.querySelector('.verdict-badge').textContent.trim(), "
-        "why: tr.querySelector('.judge-reasoning').textContent.trim()}))")
-    out = W.REPO / ".tmp" / "ui-results"
-    out.mkdir(parents=True, exist_ok=True)
-    (out / f"{tag}.json").write_text(json.dumps({"summary": summary, "categories": cats, "cases": rows}, indent=1, ensure_ascii=False))
-    by: dict[str, dict[str, int]] = {}
-    for r in rows:
-        c = by.setdefault(r["category"], {"pass": 0, "partial": 0, "fail": 0, "none": 0})
-        c[r["verdict"] if r["verdict"] in c else "none"] += 1
-    W.log(f"[{tag}] {summary} | {cats}")
-    for cat, c in by.items():
-        total = sum(c.values())
-        W.log(f"[{tag}] {cat}: pass {c['pass']}/{total} = {100 * c['pass'] / max(total, 1):.1f}%  partial {c['partial']}  fail {c['fail']}")
-    return by
+async def _pick_model(w: W.Walk, want: str) -> bool:
+    """Select the Testing model whose path/label contains ``want`` (empty = keep the page default)."""
+    if not want:
+        return True
+    opts = await w.page.locator("#t-model option").evaluate_all("els => els.map(e => ({v: e.value, t: e.textContent}))")
+    pick = next((o["v"] for o in opts if want.lower() in (o["v"] + " " + o["t"]).lower()), None)
+    W.R.check(pick is not None, f"the Testing page offers a model matching {want!r} ({len(opts)} options)")
+    if pick is not None:
+        await w.page.select_option("#t-model", value=pick)
+    return pick is not None
+
+
+def _all_scored(by: dict[str, dict[str, int]], want: int) -> bool:
+    """Every question has a saved case AND a verdict (nothing still 'awaiting')."""
+    return sum(sum(c.values()) for c in by.values()) == want and not sum(c["none"] for c in by.values())
 
 
 async def phase_a_test_ui(w: W.Walk) -> None:
-    """Testing page: IMPORT the Korvane quiz, pick a model, RUN, read the scores off the page. FTS_TEST_MODEL = substring of the
-    model option (path or label); empty = the page's own default. FTS_EVAL_TAG names the saved results."""
+    """Testing page: IMPORT the Korvane quiz, pick a model, RUN (raw answers only), then JUDGE the saved run (FTS_E2E_JUDGE_PROVIDER)
+    and read the scores off the run API. FTS_TEST_MODEL = substring of the model option; FTS_EVAL_TAG names the saved results."""
     tag = os.environ.get("FTS_EVAL_TAG", "run")
-    want = os.environ.get("FTS_TEST_MODEL", "")
     await w.goto(f"/projects/{W.pid()}/testing")
     await w.page.click("#t-suite-import-box summary")
     await w.page.set_input_files("#t-suite-file", str(W.REPO / "tests" / "corpus" / "korvane" / "eval" / "korvane_quiz_core.jsonl"))
     await w.page.click("#t-suite-import-btn")
     await w.page.wait_for_function("document.getElementById('t-suite-import-msg').textContent.startsWith('Imported')", timeout=30000)
     W.log("quiz import: " + await w.text("#t-suite-import-msg"))
-    if want:
-        opts = await w.page.locator("#t-model option").evaluate_all("els => els.map(e => ({v: e.value, t: e.textContent}))")
-        pick = next((o["v"] for o in opts if want.lower() in (o["v"] + " " + o["t"]).lower()), None)
-        W.R.check(pick is not None, f"the Testing page offers a model matching {want!r} ({len(opts)} options)")
-        if pick is None:
-            return
-        await w.page.select_option("#t-model", value=pick)
+    if not await _pick_model(w, os.environ.get("FTS_TEST_MODEL", "")):
+        return
     W.api("/api/models/unload", "POST")
     await w.shot("quiz-ready", full=True)
-    await w.page.click("#t-run-btn")
-    started = time.time()
-
-    async def done() -> bool:
-        return await w.page.locator("#case-scores-summary").count() > 0
-
-    ok = await w.wait_for("quiz results on the page", done, float(os.environ.get("FTS_QUIZ_TIMEOUT", "2400")), every=10)
-    W.R.check(ok, f"the quiz finished in {time.time() - started:.0f}s")
-    if ok:
-        await w.shot("quiz-results", full=True)
-        by = await _quiz_results(w, tag)
-        W.R.check(sum(sum(c.values()) for c in by.values()) == 122, "all 122 questions were scored")
+    by = await W.testing_run_and_judge(w, "quiz", tag, float(os.environ.get("FTS_QUIZ_TIMEOUT", "2400")), "quiz")
+    if by is not None:
+        W.R.check(_all_scored(by, 122), "all 122 questions were answered and judged (none awaiting)")
 
 
 async def phase_a_eval_ui(w: W.Walk) -> None:
-    """Testing page, Dataset evaluation card: FTS_EVAL_KIND = heldout | training_leakage (the memorization control)."""
+    """Testing page, Dataset check mode: FTS_EVAL_KIND = heldout | training_leakage (the memorization control); run, then judge."""
     kind = os.environ.get("FTS_EVAL_KIND", "training_leakage")
     tag = os.environ.get("FTS_EVAL_TAG", kind)
     await w.goto(f"/projects/{W.pid()}/testing")
-    want = os.environ.get("FTS_TEST_MODEL", "")
-    if want:
-        opts = await w.page.locator("#t-model option").evaluate_all("els => els.map(e => ({v: e.value, t: e.textContent}))")
-        pick = next((o["v"] for o in opts if want.lower() in (o["v"] + " " + o["t"]).lower()), None)
-        W.R.check(pick is not None, f"the Testing page offers a model matching {want!r}")
-        if pick is None:
-            return
-        await w.page.select_option("#t-model", value=pick)
+    await w.page.locator('label:has(input[name="t-mode"][value="dataset"])').click()
+    if not await _pick_model(w, os.environ.get("FTS_TEST_MODEL", "")):
+        return
     await w.page.select_option("#t-eval-kind", value=kind)
     await w.page.fill("#t-train-max", os.environ.get("FTS_EVAL_MAX", "200"))
     W.api("/api/models/unload", "POST")
     await w.shot("eval-ready")
-    await w.page.click("#t-train-eval-btn")
-
-    async def done() -> bool:
-        return await w.page.locator("#case-scores-summary").count() > 0
-
-    ok = await w.wait_for(f"{kind} results", done, float(os.environ.get("FTS_QUIZ_TIMEOUT", "2400")), every=10)
-    W.R.check(ok, f"the {kind} evaluation finished")
-    if ok:
-        await w.shot(f"{kind}-results", full=True)
-        await _quiz_results(w, tag)
+    await W.testing_run_and_judge(w, "dataset", tag, float(os.environ.get("FTS_QUIZ_TIMEOUT", "2400")), f"{kind} evaluation")
 
 
-W.PHASES.update({"a_review_ui": phase_a_review_ui, "a_test_ui": phase_a_test_ui, "a_eval_ui": phase_a_eval_ui})
+def _human_agreement(bid: str) -> tuple[int, int, int]:
+    """(human-reviewed cases, AI-vs-human comparisons, agreements) summed over every judge model of the run."""
+    ag = W.testing_run(bid).get("agreement") or {}
+    judges = (ag.get("judges") or {}).values()
+    return int(ag.get("human_reviewed") or 0), sum(j["compared"] for j in judges), sum(j["agree"] for j in judges)
+
+
+def _ai_latest(case: dict) -> dict[str, str]:
+    """Latest AI verdict per judge model of a case (same rule as db.judgements.agreement)."""
+    out: dict[str, str] = {}
+    for j in case.get("judgements", []):
+        if j.get("kind") == "ai" and j.get("verdict") in ("pass", "partial", "fail"):
+            out[j.get("judge_model") or j.get("provider_id") or "ai"] = j["verdict"]
+    return out
+
+
+async def phase_a_review_ui_judge(w: W.Walk) -> None:
+    """Testing page, run detail: press 1 and 3 on two cases with the keyboard; the API must show judge=='human' and the agreement
+    must move; then 0 on both gives the AI verdicts back. FTS_RUN_BID = run to open (default: the last run these phases made)."""
+    bid = os.environ.get("FTS_RUN_BID") or W.load_state().get("test_run_id", "")
+    if not bid:
+        runs = [r for r in W.api(f"/api/testing/projects/{W.pid()}/runs") if r["status"] == "done" and r["judge_status"] == "done"]
+        bid = runs[0]["id"] if runs else ""
+    W.R.check(bool(bid), "a finished, judged test run exists to review")
+    if not bid:
+        return
+    run = W.testing_run(bid)
+    W.log(f"reviewing run {bid} ({run.get('suite_name')}), judge {run.get('judge_model') or run.get('judge_provider_id')}")
+    await w.goto(f"/projects/{W.pid()}/testing?run={bid}")
+    await w.page.wait_for_selector("#t-run-detail:not([hidden]) #rv-list .rv-row[data-cid]", timeout=60000)
+    await w.shot("review-open", full=True)
+    before = _human_agreement(bid)
+    cases = {c["id"]: c for c in W.testing_cases(bid)}
+    todo = [cid for cid, c in cases.items() if c.get("judge") != "human"][:2]
+    W.R.check(len(todo) == 2, f"two cases without a human verdict are available ({len(todo)})")
+    if len(todo) < 2:
+        return
+    keys, want = ("1", "3"), ("pass", "fail")
+    done: list[str] = []
+    for i, cid in enumerate(todo):
+        await w.page.click(f"#rv-list .rv-row[data-cid='{cid}']")
+        await w.page.wait_for_selector(f"#rv-list .rv-row.cur[data-cid='{cid}']")
+        await w.page.evaluate("document.activeElement && document.activeElement.blur && document.activeElement.blur()")
+        await w.page.keyboard.press(keys[i])
+
+        async def stored(cid: str = cid, verdict: str = want[i]) -> bool:
+            c = W.api(f"/api/testing/projects/{W.pid()}/runs/{bid}/cases/{cid}")
+            return c.get("judge") == "human" and c.get("verdict") == verdict
+
+        ok = await w.wait_for(f"human verdict {want[i]} on {cid}", stored, 15, every=0.5)
+        W.R.check(ok, f"key {keys[i]} stored a human '{want[i]}' verdict (judge == 'human') in the API")
+        if ok:
+            done.append(cid)
+        await w.page.wait_for_function("id => !document.querySelector(`#rv-list .rv-row.cur[data-cid='${id}']`)", arg=cid, timeout=10000)
+    await w.shot("review-verdicts", full=True)
+    after = _human_agreement(bid)
+    exp_cmp = sum(len(_ai_latest(cases[c])) for c in done)
+    exp_agree = sum(sum(v == w_ for v in _ai_latest(cases[c]).values()) for c, w_ in zip(todo, want, strict=False) if c in done)
+    W.R.check(after[0] == before[0] + len(done), f"agreement.human_reviewed {before[0]} -> {after[0]} (+{len(done)})")
+    W.R.check(after[1] - before[1] == exp_cmp and after[2] - before[2] == exp_agree,
+              f"AI-vs-human agreement moved as the judge's own verdicts predict (compared +{after[1] - before[1]}/{exp_cmp}, agree +{after[2] - before[2]}/{exp_agree})")
+    chips = await w.text("#rv-summary")
+    W.R.check("reviewed by you" in chips, "the run summary shows the 'reviewed by you' chip")
+    for cid in done:   # leave the AI verdicts in force so the judged score stays the judge's
+        await w.page.click(f"#rv-list .rv-row[data-cid='{cid}']")
+        await w.page.wait_for_selector(f"#rv-list .rv-row.cur[data-cid='{cid}']")
+        await w.page.keyboard.press("0")
+
+        async def cleared(cid: str = cid) -> bool:
+            return W.api(f"/api/testing/projects/{W.pid()}/runs/{bid}/cases/{cid}").get("judge") != "human"
+
+        W.R.check(await w.wait_for(f"human verdict on {cid} cleared", cleared, 15, every=0.5), "key 0 withdrew the human verdict")
+    W.R.check(_human_agreement(bid)[0] == before[0], "agreement.human_reviewed is back to its starting value")
+
+
+W.PHASES.update({"a_review_ui": phase_a_review_ui, "a_test_ui": phase_a_test_ui, "a_eval_ui": phase_a_eval_ui,
+                 "a_review_ui_judge": phase_a_review_ui_judge})
 
 
 async def phase_a_adds_ui(w: W.Walk) -> None:
@@ -642,41 +682,30 @@ W.PHASES["a_adds_ui"] = phase_a_adds_ui
 
 
 async def phase_b_rag_quiz_ui(w: W.Walk) -> None:
-    """Testing page, RAG-grounded suite: the imported Korvane quiz answered from retrieved passages by the selected model.
+    """Testing page, RAG-grounded mode: the imported Korvane quiz answered from retrieved passages by the selected model, then judged.
     FTS_TEST_MODEL / FTS_EVAL_TAG as in a_test_ui."""
     tag = os.environ.get("FTS_EVAL_TAG", "rag")
-    want = os.environ.get("FTS_TEST_MODEL", "")
     W.api("/api/models/unload", "POST")
     await w.goto(f"/projects/{W.pid()}/testing")
+    await w.page.locator('label:has(input[name="t-mode"][value="rag"])').click()
     opts = await w.page.locator("#t-suite option").evaluate_all("els => els.map(e => ({v: e.value, t: e.textContent}))")
     suite = next((o["v"] for o in opts if "korvane_quiz_core" in (o["v"] + o["t"])), None)
     W.R.check(suite is not None, f"the imported quiz is still offered as a suite ({len(opts)} options)")
     if suite is None:
         return
     await w.page.select_option("#t-suite", value=suite)
-    if want:
-        mopts = await w.page.locator("#t-model option").evaluate_all("els => els.map(e => ({v: e.value, t: e.textContent}))")
-        pick = next((o["v"] for o in mopts if want.lower() in (o["v"] + " " + o["t"]).lower()), None)
-        W.R.check(pick is not None, f"the Testing page offers a model matching {want!r}")
-        if pick is None:
-            return
-        await w.page.select_option("#t-model", value=pick)
+    if not await _pick_model(w, os.environ.get("FTS_TEST_MODEL", "")):
+        return
     await w.page.fill("#t-rag-topk", "5")
     await w.page.fill("#t-rag-maxtok", "160")
     await w.shot("rag-suite-ready", full=True)
-    await w.page.click("#t-run-rag-btn")
-    started = time.time()
-
-    async def done() -> bool:
-        return await w.page.locator("#case-scores-summary").count() > 0
-
-    ok = await w.wait_for("RAG quiz results", done, float(os.environ.get("FTS_QUIZ_TIMEOUT", "3600")), every=10)
-    W.R.check(ok, f"the RAG-grounded quiz finished in {time.time() - started:.0f}s")
-    if ok:
-        await w.shot("rag-suite-results", full=True)
-        W.log("retrieval line: " + (await w.text("#t-rag-retrieval-summary") if await w.page.locator("#t-rag-retrieval-summary").count() else "none"))
-        by = await _quiz_results(w, tag)
-        W.R.check(sum(sum(c.values()) for c in by.values()) == 122, "all 122 questions were scored")
+    by = await W.testing_run_and_judge(w, "rag", tag, float(os.environ.get("FTS_QUIZ_TIMEOUT", "3600")), "RAG-grounded quiz")
+    if by is not None:
+        bid = W.load_state().get("test_run_id", "")
+        sc = W.testing_run(bid).get("scores") or {}
+        W.log("retrieval metrics: " + json.dumps(sc.get("retrieval"), default=str))
+        W.R.check(bool(sc.get("retrieval")), "the RAG run recorded retrieval metrics")
+        W.R.check(_all_scored(by, 122), "all 122 questions were answered and judged (none awaiting)")
 
 
 W.PHASES["b_rag_quiz_ui"] = phase_b_rag_quiz_ui

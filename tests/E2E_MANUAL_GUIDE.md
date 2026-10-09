@@ -28,11 +28,20 @@ retrieved-context rows into a training dataset for a training test (`grounded_sh
   "approve all". `plan --ui` pre-fills the verdicts of pairs identical (file, chunk, question, answer) to the golden review in
   `tests/corpus/korvane/golden/`; everything else is NOVEL and must be read. Facts no approved answer states yet are added in the UI
   (`--phase a_adds_ui`, reads `.tmp/missing_adds.json`).
-- **Scoring happens in the Testing page**, not in a script: `--phase a_test_ui` imports `tests/corpus/korvane/eval/korvane_quiz_core.jsonl`
-  (102 questions, pass = every expected value; 20 `expect_abstain` questions, pass = the model declines), picks a model and reads
-  the scores off the page; `--phase a_eval_ui` runs the Dataset-evaluation card (`FTS_EVAL_KIND=training_leakage` = memorization
-  control on exact training questions, `heldout`); `--phase b_rag_quiz_ui` runs the same quiz RAG-grounded. Use the **q4_k_m GGUF**: the
-  merged bf16 through the Testing page took > 40 min for 122 questions. `scripts/corpus_eval*.py` remain as cross-checks only.
+- **Scoring happens in the Testing page**, in two separate steps: a test RUN only saves raw transcripts (question, the model's answer,
+  the answer key) and has **no verdict and no score**; correctness is decided afterwards by a **judge**, an AI judge (any provider row,
+  default = the helper seat) or you. Nothing is scored by string matching. `--phase a_test_ui` imports
+  `tests/corpus/korvane/eval/korvane_quiz_core.jsonl` (102 questions + 20 `expect_abstain` ones that should be declined), picks a model,
+  presses **Run test**, waits for the run to finish through the run API, then presses **Judge unjudged** in the run detail (judge:
+  `FTS_E2E_JUDGE_PROVIDER`, empty = the select's default) and reads the scores off the run API. `--phase a_eval_ui` does the same in
+  **Dataset check** mode (`FTS_EVAL_KIND=training_leakage` = memorization control, `heldout`); `--phase b_rag_quiz_ui` in **RAG-grounded**
+  mode; `--phase a_review_ui_judge` presses keys `1` / `3` on two cases and checks the human verdict and the agreement in the API.
+  Use the **q4_k_m GGUF**: the merged bf16 through the Testing page took > 40 min for 122 questions. `scripts/corpus_eval*.py` remain as
+  cross-checks only.
+- **Reporting a score:** an unjudged run is "awaiting" (no pass rate), `auto_judge` is a saved setting and is **off** by default, and the
+  judge is a model, so **always name it next to the number** ("62/122 = 50.8 % judged by `<judge_model>`"; the phases write `judge_model`
+  and `awaiting` into `.tmp/ui-results/<tag>.json`). A score from a different judge is a different measurement; where you disagree you
+  override the verdict yourself (below) and the run shows how often the judge agrees with you.
 - **Training gate (revised after the 2026-10-08 run):** NOT "final loss < 0.5" and NOT eval-loss minimum. Unsloth: training loss ≈ 0.5–1.0 is
   healthy and < 0.2 suggests over-fitting, but for facts the eval loss of a random pair hold-out *rises* while paraphrase recall keeps
   improving (early stopping kept the epoch-2 weights: 12 % vs 18 % recall at 6 epochs). The gates are **paraphrase recall**
@@ -198,18 +207,30 @@ ORPO/KTO are not exposed: the installed TRL 1.14.1 runtime provides DPOTrainer b
 
 ## 9. Test the trained model [`test`]
 
-Page `/projects/<id>/testing`. **Model** = *auto (latest merged)*; **Test suite** = `auto · <project>-sharegpt-approved (N cases)`
-(generated automatically at the end of training — if it is missing the run failed to record it; `POST
-/api/training/runs/<run>/auto-suites/generate` makes one) → **RUN**.
-- Wait ≈ 40–90 s for 61 cases (the model is auto-loaded first; the status line counts seconds). The Results card shows
-  `total / judged / passed / failed / pass_rate` and, when the dataset has retrieved-context rows, a second line:
-  **from memory (no context): a/b** and **answering from retrieved context: c/d**.
-- Read it correctly: plain rows are *recall of training facts*; grounded rows are asked with their own context. Neither is
-  generalisation. The honest generalisation number is **RUN HELD-OUT EVAL** (the seed-42 10 % slice the trainer never saw;
-  last run 3/7 = 42.9 %).
-- Check a few rows by hand (the heuristic judge is not truth): expected vs model answer, and watch for training-data bugs showing
-  up as "expected" (e.g. an answer cut at `Dr.`).
-- Also try **RUN WITH RAG** (retrieval then answer) and the **Full training set** eval kind.
+Page `/projects/<id>/testing`. Testing is **two steps**, and only the second one produces a score.
+
+**1 · Run.** Pick the mode (**Project quiz**, **RAG-grounded**, **Dataset check**), the **Model under test** (default = latest merged
+export) and the quiz (the auto-generated `<project>-sharegpt-approved` suite, or import your own JSON/JSONL under *Bring your own quiz*),
+then **Run test** (≈ 40–90 s for 61 cases; the model is auto-loaded first). The run opens below as `?run=<id>`; it saves each raw answer
+as it goes. A finished run shows **awaiting** everywhere: no verdicts, no pass rate. Nothing is compared by string matching.
+
+**2 · Judge.** In the run detail pick the judge model (**Judge this run**; default = the helper seat, any connected provider row works)
+and press **Judge unjudged** (**Re-judge all** asks again; earlier AI opinions stay for comparison). The summary chips then show
+`judged / awaiting / pass / partial / fail / pass rate`, with the judge named under *Last judge*. The checkbox *judge automatically after
+each run* (`auto_judge`, saved, **off** by default) makes step 2 start by itself after step 1.
+- **Override a verdict yourself:** open a case (list on the left, pane on the right) and press `1` pass, `2` partial, `3` fail, `0` clear
+  your verdict (or use the buttons; add a note in the field). Your verdict always wins over the AI's; the chips then show
+  *reviewed by you* and how often each judge agrees with you. Filters: all / awaiting / pass / partial / fail / not reviewed by me / mine.
+- Read it correctly: plain rows are *recall of training facts*; grounded rows are asked with their own context (chips **from memory** vs
+  **answering from retrieved context**). Neither is generalisation. The honest generalisation number is a **Dataset check → Held-out
+  slice** run (the seed-42 10 % slice the trainer never saw).
+- Check a few cases by hand even when an AI judged them: answer key vs model answer vs the judge's reasoning, and watch for
+  training-data bugs showing up as the key (e.g. an answer cut at `Dr.`). **A pass rate is only as good as its judge: state the judge's
+  name with every number you report.**
+- API (what the E2E phases poll): `GET /api/testing/projects/<pid>/runs/<bid>` → `status` (running|done|failed|cancelled),
+  `progress_done/total`, `judge_status` (''|running|done|failed|cancelled), `judge_model`, `scores{total,judged,awaiting,passed,partial,
+  failed,pass_rate,retrieval}`, `agreement`; `.../cases` lists cases with `verdict`, `judge` (`ai`|`human`|`none`) and `judgements[]`.
+- Also try **RAG-grounded** mode (retrieval then answer; the run also records retrieval metrics) and **Dataset check → Full training set**.
 
 ## 10. Benchmark [`bench`]
 

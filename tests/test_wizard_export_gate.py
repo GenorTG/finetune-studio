@@ -29,5 +29,5 @@ def test_force_is_never_implicit() -> None:
 
 def test_quiz_result_separates_memory_from_with_context_rows() -> None:
     html = _html()
-    assert 'x.transcript[0].role === "system"' in html
+    assert "x.judge_input && x.judge_input.grounded" in html
     assert "from memory (no context)" in html

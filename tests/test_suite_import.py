@@ -1,4 +1,4 @@
-"""Bring-your-own quiz: import, discovery in the Testing page, run scoring (all-values pass, expected-abstention)."""
+"""Bring-your-own quiz: import, discovery in the Testing page, and what the run records for the judge to read."""
 from __future__ import annotations
 
 import io
@@ -7,8 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from finetune_studio.testing.judge import is_abstention
-from finetune_studio.testing.suite import CaseResult, _judge_each, load_test_suite
+from finetune_studio import db
+from finetune_studio.testing.judge import JudgeCase, build_judge_messages
+from finetune_studio.testing.suite import load_test_suite, run_suite
 from finetune_studio.testing.suite_import import SuiteImportError, import_suite
 
 QUIZ = Path(__file__).resolve().parent / "corpus" / "korvane" / "eval" / "korvane_quiz_core.jsonl"
@@ -29,7 +30,7 @@ def test_import_normalises_short_rows_and_marks_unanswerable_ones(project_env) -
     assert meta["case_count"] == 122 and meta["abstain_cases"] == 20 and meta["name"] == "korvane-quiz"
     cases = load_test_suite(meta["path"])
     first, last = cases[0], cases[-1]
-    assert first.keywords == ["INC-2024-0614"] and not first.expect_abstain and first.correct_answer.startswith("Expected:")
+    assert first.keywords == ["INC-2024-0614"] and not first.expect_abstain and first.correct_answer == "INC-2024-0614"
     assert last.expect_abstain and last.category == "unanswerable"
 
 
@@ -46,26 +47,51 @@ def test_import_rejects_unusable_files_with_a_reason(project_env, raw: bytes, fr
         import_suite(pid, "bad.json", raw)
 
 
-def _judged(question: str, answer: str, *, keywords: list[str] | None = None, abstain: bool = False) -> CaseResult:
-    r = CaseResult(case_name="c", category="quiz", question=question, correct_answer="Expected: x", model_answer=answer,
-                   keywords=keywords or [], expect_abstain=abstain)
-    _judge_each([r])
-    return r
+def _imported_cases(project_env):
+    _client, pid, _ = project_env
+    return load_test_suite(import_suite(pid, "korvane quiz.jsonl", QUIZ.read_bytes())["path"])
 
 
-def test_all_expected_values_pass_some_are_partial_none_fail() -> None:
-    kws = ["HELV-PH-0917", "18"]
-    assert _judged("q", "Trailer HELV-PH-0917 carried 18 pallets.", keywords=kws).verdict == "pass"
-    assert _judged("q", "Trailer HELV-PH-0917 carried a few pallets.", keywords=kws).verdict == "partial"
-    assert _judged("q", "I am not sure.", keywords=kws).verdict in ("fail", "partial")
+def test_running_an_imported_quiz_records_answers_and_never_a_verdict(project_env) -> None:
+    class Echo:
+        def generate(self, messages, **_kw):
+            return "The provided documents do not contain this information."
+
+    results = run_suite(Echo(), _imported_cases(project_env)[:3])
+    assert [r.model_answer for r in results] == ["The provided documents do not contain this information."] * 3
+    assert all(r.verdict == "" and r.judge == "none" for r in results)  # judged afterwards, never by a matcher
+    assert results[0].keywords == ["INC-2024-0614"]
 
 
-def test_an_unanswerable_question_passes_only_when_the_model_declines() -> None:
-    declined = _judged("q", "The provided documents do not contain this information.", abstain=True)
-    invented = _judged("q", "The registered capital is PLN 5,000,000.", abstain=True)
-    assert (declined.verdict, declined.scoring_method) == ("pass", "abstention_expected")
-    assert invented.verdict == "fail" and "confident answer" in invented.judge_reasoning
-    assert is_abstention("That isn't something the files state.", broad=True) and not is_abstention("PLN 5,000,000", broad=True)
+def test_the_judge_sees_the_expected_values_and_the_unanswerable_flag(project_env) -> None:
+    cases = _imported_cases(project_env)
+    answerable = cases[0]
+    prompt = build_judge_messages(JudgeCase(
+        answerable.question, answerable.correct_answer, "some answer", keywords=list(answerable.keywords),
+        expect_abstain=answerable.expect_abstain))[1]["content"]
+    # a short row's answer key IS its expected values, so the prompt does not list them twice
+    assert "ANSWER KEY:\nINC-2024-0614" in prompt and "KEY VALUES" not in prompt and "UNANSWERABLE" not in prompt
+    native = JudgeCase("q?", "Invoice 77 was paid on 4 March.", "paid", keywords=["77", "4 March"])
+    assert "KEY VALUES:\n- 77\n- 4 March" in build_judge_messages(native)[1]["content"]
+    unanswerable = cases[-1]
+    prompt = build_judge_messages(JudgeCase(
+        unanswerable.question, unanswerable.correct_answer, "PLN 5,000,000",
+        keywords=list(unanswerable.keywords), expect_abstain=unanswerable.expect_abstain))[1]["content"]
+    assert "UNANSWERABLE" in prompt and "KEY VALUES" not in prompt
+
+
+def test_quiz_cases_survive_a_saved_run_with_their_expectations(project_env) -> None:
+    """keywords / expect_abstain are stored on the case row, so the judge step sees them after a restart."""
+    _client, pid, _ = project_env
+    cases = _imported_cases(project_env)
+    rid = db.create_run(pid, "run")["id"]
+    bid = db.create_benchmark(rid, "quiz", {}, status="running", kind="suite")["id"]
+    for c in (cases[0], cases[-1]):
+        db.create_case(bid, rid, c.name, c.category, c.question, c.correct_answer, "x", [],
+                       keywords=list(c.keywords), expect_abstain=c.expect_abstain)
+    first, last = db.list_cases(bid)
+    assert first["keywords"] == ["INC-2024-0614"] and not first["expect_abstain"]
+    assert last["expect_abstain"] is True
 
 
 def test_upload_route_registers_the_quiz_in_the_suite_list(project_env) -> None:

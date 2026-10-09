@@ -367,41 +367,6 @@ async def project_training_page(request: Request, pid: str):
     )
 
 
-def _recent_suite_runs(pid: str, limit: int = 5) -> list[dict]:
-    """Return the most recent benchmark suite runs for a project (newest first)."""
-    import json
-    import time as _time
-
-    from finetune_studio import db
-
-    runs = db.list_runs(pid)
-    run_name_map = {r["id"]: r["name"] for r in runs}
-    rows: list[dict] = []
-    for run in runs:
-        for b in db.list_benchmarks(run["id"]):
-            scores = b.get("scores") or {}
-            if isinstance(scores, str):
-                try:
-                    scores = json.loads(scores)
-                except json.JSONDecodeError:
-                    scores = {}
-            pass_rate = scores.get("pass_rate") if isinstance(scores, dict) else None
-            rows.append(
-                {
-                    "suite_name": b.get("suite_name") or b.get("suite") or "—",
-                    "run_name": run_name_map.get(run["id"], run["id"]),
-                    "pass_rate": pass_rate,
-                    "ran_at": b.get("ran_at") or 0,
-                    "ran_at_str": _time.strftime(
-                        "%Y-%m-%d %H:%M",
-                        _time.localtime(b.get("ran_at") or 0),
-                    ),
-                }
-            )
-    rows.sort(key=lambda x: x["ran_at"], reverse=True)
-    return rows[:limit]
-
-
 @router.get("/projects/{pid}/testing", response_class=HTMLResponse)
 async def project_testing_page(request: Request, pid: str):
     """Testing / inference playground for a project."""
@@ -415,8 +380,9 @@ async def project_testing_page(request: Request, pid: str):
     ctx = _project_ctx(pid)
     if not ctx:
         raise HTTPException(status_code=404, detail="Project not found")
-    suites = _discover_suites(pid)
-    recent_runs = _recent_suite_runs(pid, limit=5)
+    # Only the user's own Q&A suites are tested here (answers saved, judged afterwards); public / built-in
+    # multiple-choice suites keep their exact-match scoring on the Benchmarks page.
+    suites = [s for s in _discover_suites(pid) if s.get("scoring") == "judge"]
     # Project-scoped exports only (not global HF discovery) so merge-at-export
     # results appear in the selector and match auto-load.
     models = models_for_testing_page(ctx["project"].get("models") or [])
@@ -427,6 +393,12 @@ async def project_testing_page(request: Request, pid: str):
         get_configured_helper_provider,
         get_helper_provider_id,
     )
+    from finetune_studio.testing.judge import (
+        default_judge_provider_id,
+        list_judge_providers,
+    )
+    from finetune_studio.webui.routes.settings import get_test_settings
+
     helper = get_configured_helper_provider()
     training_datasets = datasets_db.list_datasets(pid)
     return templates.TemplateResponse(
@@ -438,7 +410,9 @@ async def project_testing_page(request: Request, pid: str):
             "default_model_path": default_path,
             "inference_engine": inference_engine,
             "suites": suites,
-            "recent_suite_runs": recent_runs,
+            "test_settings": get_test_settings(),
+            "judge_providers": list_judge_providers(),
+            "default_judge_provider_id": default_judge_provider_id(),
             "training_datasets": training_datasets,
             "helper_label": (helper or {}).get("label") or DEFAULT_HELPER_LABEL,
             "helper_provider_id": get_helper_provider_id(),
@@ -530,7 +504,9 @@ async def benchmarks_page(request: Request, pid: str, bid: str = ""):
         (r for r in db.list_runs(pid, include_base_probe=True) if r.get("name") == "__base_model__"),
         None,
     )
-    suites = _discover_suites(pid)
+    # Public / built-in multiple-choice suites only (exact-match scoring). The user's own quizzes are tests on the
+    # Testing page: their answers are saved and judged afterwards.
+    suites = [s for s in _discover_suites(pid) if s.get("scoring") == "exact"]
     for run in runs:
         run["latest_benchmark"] = _latest_benchmark(run["id"])
     all_benchmarks = []

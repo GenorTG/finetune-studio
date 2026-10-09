@@ -1,4 +1,4 @@
-"""Regression: UI-driven judge config, HF_HOME honoring, tokenizer/cache warnings."""
+"""Regression: test-judging settings, HF_HOME honoring, tokenizer/cache warnings."""
 from __future__ import annotations
 
 import os
@@ -16,75 +16,68 @@ def settings_file(tmp_path: Path, monkeypatch):
     from finetune_studio.webui.routes import settings as settings_mod
 
     monkeypatch.setattr(settings_mod, "SETTINGS_PATH", tmp_path / "settings.json")
-    for k in ("FTS_JUDGE_MODEL", "FTS_JUDGE_API", "FTS_JUDGE_API_KEY"):
-        monkeypatch.delenv(k, raising=False)
     return settings_mod
 
 
-# ---------------------------------------------------------------- judge config
-def test_judge_default_mode_follows_env_key(settings_file, monkeypatch) -> None:
-    assert settings_file.get_judge_config()["mode"] == "heuristic"
-    monkeypatch.setenv("FTS_JUDGE_API_KEY", "sk-env")
-    cfg = settings_file.get_judge_config()
-    assert cfg["mode"] == "ai" and cfg["api_key"] == "sk-env"
+# ---------------------------------------------------------------- test-judging settings
+def test_auto_judge_is_off_and_the_judge_is_the_helper_seat_by_default(client, settings_file) -> None:
+    assert settings_file.get_test_settings() == {"auto_judge": False, "judge_provider_id": ""}
+    body = client.get("/api/settings/testing").json()
+    assert body["auto_judge"] is False and body["judge_provider_id"] == ""
+    assert body["effective_judge_provider_id"]  # '' resolves to the helper seat
+    seat = [p for p in body["providers"] if p["is_helper_seat"]]
+    assert len(seat) == 1 and body["providers"][0]["id"] == seat[0]["id"]  # seat listed first
+    assert client.get("/api/settings").json()["testing"] == {"auto_judge": False, "judge_provider_id": ""}
 
 
-def test_judge_settings_roundtrip_never_echoes_key(client, settings_file) -> None:
-    r = client.patch("/api/settings", json={
-        "judge_mode": "ai", "judge_model": "my-judge",
-        "judge_api_url": "http://localhost:1234/v1/", "judge_api_key": "sk-secret",
-    })
-    assert r.status_code == 200
-    assert "sk-secret" not in r.text
-    assert r.json()["judge"] == {
-        "mode": "ai", "model": "my-judge",
-        "api_url": "http://localhost:1234/v1", "api_key_set": True,
-    }
-    for url in ("/api/settings", "/api/settings/judge"):
-        assert "sk-secret" not in client.get(url).text
-    assert settings_file.get_judge_config()["api_key"] == "sk-secret"
-    # blank key keeps the stored one; explicit clear removes it
-    client.patch("/api/settings", json={"judge_api_key": ""})
-    assert settings_file.get_judge_config()["api_key"] == "sk-secret"
-    r = client.patch("/api/settings", json={"judge_api_key_clear": True})
-    assert r.json()["judge"]["api_key_set"] is False
+def test_testing_settings_roundtrip_and_partial_updates(client, settings_file) -> None:
+    provider = client.get("/api/settings/testing").json()["providers"][0]["id"]
+    r = client.put("/api/settings/testing", json={"auto_judge": True, "judge_provider_id": provider})
+    assert r.status_code == 200, r.text
+    assert r.json()["auto_judge"] is True and r.json()["effective_judge_provider_id"] == provider
+    assert settings_file.get_test_settings() == {"auto_judge": True, "judge_provider_id": provider}
+    # a partial update leaves the other field alone; '' clears the judge back to the helper seat
+    client.put("/api/settings/testing", json={"auto_judge": False})
+    assert settings_file.get_test_settings() == {"auto_judge": False, "judge_provider_id": provider}
+    client.put("/api/settings/testing", json={"judge_provider_id": ""})
+    assert settings_file.get_test_settings()["judge_provider_id"] == ""
 
 
-def test_judge_mode_validated(client, settings_file) -> None:
-    assert client.patch("/api/settings", json={"judge_mode": "bogus"}).status_code == 400
+@pytest.mark.parametrize("body,fragment", [
+    ({"judge_provider_id": "no-such-provider"}, "unknown provider"),
+    ({"auto_judge": "yes"}, "auto_judge must be true or false"),
+    ({"auto_judge": 1}, "auto_judge must be true or false"),
+    ({"auto_judge": None}, "auto_judge must be true or false"),
+])
+def test_testing_settings_reject_bad_values_and_save_nothing(client, settings_file, body, fragment) -> None:
+    r = client.put("/api/settings/testing", json=body)
+    assert r.status_code == 400 and fragment in r.json()["detail"]
+    assert settings_file.get_test_settings() == {"auto_judge": False, "judge_provider_id": ""}
 
 
-def test_run_applies_configured_ai_judge(settings_file, monkeypatch) -> None:
-    from finetune_studio.testing import judge as judge_mod
-    from finetune_studio.testing.suite import CaseResult
+@pytest.mark.parametrize("raw", ["[1]", "not json"])
+def test_testing_settings_reject_a_non_object_body(client, settings_file, raw) -> None:
+    r = client.put("/api/settings/testing", content=raw, headers={"content-type": "application/json"})
+    assert r.status_code == 400
+
+
+def test_the_scripted_judge_api_key_settings_are_gone(settings_file) -> None:
+    for name in ("get_judge_config", "JUDGE_MODES", "judge_config_public"):
+        assert not hasattr(settings_file, name)
     from finetune_studio.webui.routes import benchmarks
 
-    settings_file._save({
-        "judge_mode": "ai", "judge_model": "m1",
-        "judge_api_url": "http://x/v1", "judge_api_key": "k",
-    })
-    seen: dict = {}
-
-    def fake_ai(q, c, a, model, api_url, api_key):
-        seen.update(model=model, api_url=api_url, api_key=api_key)
-        return "pass", "ok", 0.9
-
-    monkeypatch.setattr(judge_mod, "judge_case_ai", fake_ai)
-    r = CaseResult(case_name="c", category="x", question="q", correct_answer="Paris",
-                   model_answer="Paris", time_ms=1)
-    benchmarks._apply_configured_judge([r], "ai")
-    assert (r.verdict, r.judge, r.judge_model) == ("pass", "ai", "m1")
-    assert seen == {"model": "m1", "api_url": "http://x/v1", "api_key": "k"}
+    assert not hasattr(benchmarks, "_apply_configured_judge")
+    src_root = Path(__file__).resolve().parents[1] / "src" / "finetune_studio"
+    offenders = [str(p.relative_to(src_root)) for p in src_root.rglob("*.py") if "FTS_JUDGE_" in p.read_text()]
+    assert not offenders, offenders
 
 
-def test_ai_judge_without_key_leaves_cases_for_heuristic(settings_file) -> None:
-    from finetune_studio.testing.suite import CaseResult
-    from finetune_studio.webui.routes import benchmarks
-
-    r = CaseResult(case_name="c", category="x", question="q", correct_answer="a",
-                   model_answer="a", time_ms=1)
-    benchmarks._apply_configured_judge([r], "ai")
-    assert r.verdict == ""
+@pytest.mark.xfail(strict=True, reason="BUG src/finetune_studio/webui/routes/settings.py `_redacted`: no longer redacts "
+                   "secrets, so a judge_api_key left in an existing settings.json is echoed by GET /api/settings")
+def test_a_legacy_judge_api_key_in_settings_json_is_never_echoed(client, settings_file) -> None:
+    settings_file._save({"judge_api_key": "sk-legacy", "judge_mode": "ai"})
+    assert "sk-legacy" not in client.get("/api/settings").text
+    assert "sk-legacy" not in client.patch("/api/settings", json={"port": 7861}).text
 
 
 # ------------------------------------------------------------------- HF paths

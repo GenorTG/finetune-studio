@@ -1,7 +1,7 @@
 """Command-level regression tests for CLI truthfulness.
 
 Audit finding (docs/audit/APP-AUDIT-2026-10-02.md, "CLI truthfulness"):
-options accepted but ignored, ``fts suite`` scoring an unjudged run, and
+options accepted but ignored, ``fts suite`` scoring a run nobody judged, and
 ``fts validate`` printing invalid while exiting zero. Every test drives the
 real entry point (``cli.main`` with a patched ``sys.argv``) so the parser,
 registry and handler are exercised together.
@@ -79,7 +79,7 @@ def test_validate_reports_every_file_then_fails(monkeypatch, capsys, tmp_path: P
     assert code != 0
 
 
-# ── fts suite: never score an unjudged collection ────────────────────────────
+# ── fts suite: record answers, judge only on request, never string-match ─────
 
 
 class _FakeEngine:
@@ -119,24 +119,90 @@ def suite_env(monkeypatch, tmp_path: Path):
     return model, suite
 
 
-def test_suite_judges_results_before_scoring(monkeypatch, capsys, suite_env) -> None:
+def _fake_judge(monkeypatch, replies: dict[str, str]):
+    """Replace ``open_judge`` with a judge that answers by the question text found in the prompt."""
+    from contextlib import contextmanager
+
+    from finetune_studio.testing import judge as judge_mod
+
+    def chat(messages) -> str:
+        user = messages[-1]["content"]
+        return next(reply for q, reply in replies.items() if q in user)
+
+    @contextmanager
+    def fake_open(_provider_id: str):
+        yield judge_mod.LoadedJudge(chat=chat, provider_id="fake", model="fake-judge", label="Fake judge", concurrent=False)
+
+    monkeypatch.setattr(judge_mod, "open_judge", fake_open)
+    monkeypatch.setattr(judge_mod, "default_judge_provider_id", lambda: "fake")
+
+
+def test_suite_records_answers_and_never_scores_them(monkeypatch, capsys, suite_env) -> None:
     model, suite = suite_env
-    _FakeEngine.answers = {"Capital of France?": "It is Paris.",
-                           "Color of grass?": "blue"}
+    _FakeEngine.answers = {"Capital of France?": "It is Paris.", "Color of grass?": "blue"}
     code, out = run_cli(monkeypatch, capsys, "suite", str(model), str(suite))
     assert code == 0, out
-    assert "Pass rate: 50.0% (1/2)" in out
+    assert "Pass rate" not in out and "[pass]" not in out and "[fail]" not in out
+    assert "2 answers recorded, none judged" in out
+    assert "A: It is Paris." in out and "key: Paris" in out
 
 
-def test_suite_json_includes_verdicts(monkeypatch, capsys, suite_env) -> None:
+def test_suite_json_has_transcripts_and_no_verdicts(monkeypatch, capsys, suite_env) -> None:
     model, suite = suite_env
     _FakeEngine.answers = {"Capital of France?": "Paris", "Color of grass?": "green"}
     code, out = run_cli(monkeypatch, capsys, "suite", str(model), str(suite), "--json")
     assert code == 0, out
-    payload = json.loads(out[out.index("{"):])
-    assert [r["verdict"] for r in payload["results"]] == ["pass", "pass"]
-    assert payload["scores"]["judged"] == 2
-    assert payload["scores"]["pass_rate"] == 100.0
+    payload = json.JSONDecoder().raw_decode(out[out.index("{"):])[0]
+    assert [r["response"] for r in payload["results"]] == ["Paris", "green"]
+    assert [r["correct_answer"] for r in payload["results"]] == ["Paris", "green"]
+    assert payload["judged"] == 0 and payload["judge"] is None
+    assert "scores" not in payload and all("verdict" not in r and "judge" not in r for r in payload["results"])
+
+
+def test_suite_judge_flag_has_an_ai_judge_read_the_saved_answers(monkeypatch, capsys, suite_env) -> None:
+    model, suite = suite_env
+    _FakeEngine.answers = {"Capital of France?": "It is Paris.", "Color of grass?": "blue"}
+    _fake_judge(monkeypatch, {
+        "Capital of France?": '{"reasoning": "Paris present", "verdict": "pass"}',
+        "Color of grass?": '{"reasoning": "blue is not green", "verdict": "fail"}',
+    })
+    code, out = run_cli(monkeypatch, capsys, "suite", str(model), str(suite), "--judge")
+    assert code == 0, out
+    assert "[pass] capital" in out and "[fail] color" in out and "judge: blue is not green" in out
+    assert "Judge Fake judge: 1 pass, 0 partial, 1 fail, 0 not judged (of 2)" in out
+
+
+def test_suite_judge_json_carries_the_judge_verdicts(monkeypatch, capsys, suite_env) -> None:
+    model, suite = suite_env
+    _FakeEngine.answers = {"Capital of France?": "Paris", "Color of grass?": "green"}
+    _fake_judge(monkeypatch, {q: '{"reasoning": "ok", "verdict": "pass"}' for q in ("Capital of France?", "Color of grass?")})
+    code, out = run_cli(monkeypatch, capsys, "suite", str(model), str(suite), "--judge", "--json")
+    assert code == 0, out
+    payload = json.JSONDecoder().raw_decode(out[out.index("{"):])[0]
+    assert [r["judge"]["verdict"] for r in payload["results"]] == ["pass", "pass"]
+    assert payload["judged"] == 2 and payload["judge"] == "Fake judge"
+
+
+def test_suite_judge_that_cannot_read_a_case_leaves_it_unjudged_and_fails(monkeypatch, capsys, suite_env) -> None:
+    model, suite = suite_env
+    _FakeEngine.answers = {"Capital of France?": "Paris", "Color of grass?": "green"}
+    _fake_judge(monkeypatch, {
+        "Capital of France?": '{"reasoning": "ok", "verdict": "pass"}',
+        "Color of grass?": "looks fine to me",
+    })
+    code, out = run_cli(monkeypatch, capsys, "suite", str(model), str(suite), "--judge")
+    assert code == 1, out
+    assert "[unjudged] color" in out and "1 not judged" in out
+
+
+def test_suite_out_keeps_the_transcripts_for_later_judging(monkeypatch, capsys, suite_env, tmp_path: Path) -> None:
+    model, suite = suite_env
+    _FakeEngine.answers = {"Capital of France?": "Paris", "Color of grass?": "green"}
+    dump = tmp_path / "t.jsonl"
+    code, out = run_cli(monkeypatch, capsys, "suite", str(model), str(suite), "--out", str(dump))
+    assert code == 0, out
+    rows = [json.loads(x) for x in dump.read_text(encoding="utf-8").splitlines()]
+    assert [r["response"] for r in rows] == ["Paris", "green"] and "verdict" not in rows[0]
 
 
 def test_suite_with_no_judged_cases_fails_without_score(monkeypatch, capsys, suite_env) -> None:
@@ -148,14 +214,14 @@ def test_suite_with_no_judged_cases_fails_without_score(monkeypatch, capsys, sui
     assert "unjudged" in out.lower()
 
 
-def test_suite_json_with_no_judged_cases_reports_no_score(monkeypatch, capsys, suite_env) -> None:
+def test_suite_json_with_every_case_errored_still_exits_nonzero_without_a_score(monkeypatch, capsys, suite_env) -> None:
     model, suite = suite_env
     _FakeEngine.fail = True
     code, out = run_cli(monkeypatch, capsys, "suite", str(model), str(suite), "--json")
     assert code != 0
     payload = json.JSONDecoder().raw_decode(out[out.index("{"):])[0]
-    assert payload["scores"] is None
-    assert payload["scores_unavailable"]
+    assert payload["judged"] == 0 and "scores" not in payload
+    assert all("engine crashed" in r["error"] for r in payload["results"])
 
 
 # ── accepted-but-ignored flags are removed from the parser ───────────────────

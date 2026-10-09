@@ -63,31 +63,24 @@ VERDICTS = ("pass", "partial", "fail")
 
 
 def _rescore_benchmark(bid: str) -> dict[str, Any]:
-    """Recompute a benchmark's aggregate scores from its stored case verdicts.
+    """Recompute a benchmark's aggregate scores from its stored case verdicts (every verdict change goes here)."""
+    from finetune_studio.testing.scoring import rescore_benchmark
 
-    Every verdict change (re-judge or human override) must go through this, or
-    the headline score shown in "Recent scores" goes stale. Non-score metadata
-    already in the scores (``eval_kind``, ``leakage_warning``, dataset fields
-    written by training-set evals) is kept.
-    """
-    from finetune_studio.testing.suite import CaseResult, score_results
+    return rescore_benchmark(bid)
 
-    results = [
-        CaseResult(
-            case_name=c.get("case_name") or c.get("name") or "",
-            category=c.get("category") or "",
-            question=c.get("question") or "",
-            correct_answer=c.get("correct_answer") or "",
-            model_answer=c.get("model_answer") or "",
-            verdict=c.get("verdict") or "",
-            time_ms=c.get("time_ms") or 0,
-        )
-        for c in db.list_cases(bid)
-    ]
-    old = (db.get_benchmark(bid) or {}).get("scores") or {}
-    scores = {**(old if isinstance(old, dict) else {}), **score_results(results)}
-    db.update_benchmark_scores(bid, scores)
-    return scores
+
+
+def _quiz_suite_redirect(suite_path: str, pid: str) -> JSONResponse | None:
+    """400 for a user's own Q&A suite: it is a test run (saved transcripts, judged afterwards), not a benchmark."""
+    from finetune_studio.benchmarks.suite_defs import scoring_mode_for_suite
+
+    if scoring_mode_for_suite(str(suite_path), pid) == "exact":
+        return None
+    return JSONResponse(
+        {"error": "this is a project quiz, not a public benchmark: run it on the Testing page, where the "
+                  "transcripts are saved and judged afterwards (AI judge or you)"},
+        status_code=400,
+    )
 
 
 def _int_field(body: dict[str, Any], key: str, default: int) -> int:
@@ -251,76 +244,25 @@ def _suite_scores_for_run(run_id: str) -> dict[str, float | None]:
     return out
 
 
-def _apply_configured_judge(results: list[Any], judge_mode: str) -> None:
-    """Judge ``results`` in place with the AI/local judge from Settings.
-
-    Cases the judge cannot verdict (no key, API error, load failure) are left
-    unjudged so the caller's heuristic pass handles them — never silent.
-    """
-    from finetune_studio.testing.judge import judge_case_ai, judge_case_local
-    from finetune_studio.webui.routes.settings import get_judge_config
-
-    cfg = get_judge_config()
-    todo = [r for r in results if not r.verdict and (r.model_answer or "").strip()]
-    if not todo:
-        return
-    if judge_mode == "ai":
-        if not cfg["api_key"]:
-            _log.warning("judge_mode=ai but no judge API key is set; using heuristic")
-            return
-        for r in todo:
-            verdict, reasoning, _conf = judge_case_ai(
-                r.question, r.correct_answer, r.model_answer,
-                model=cfg["model"], api_url=cfg["api_url"], api_key=cfg["api_key"],
-            )
-            if verdict:
-                r.verdict, r.judge = verdict, "ai"
-                r.judge_model, r.judge_reasoning = cfg["model"], reasoning
-            else:
-                _log.warning("AI judge gave no verdict (%s); using heuristic", reasoning)
-        return
-    # local: cfg["model"] must be a local model path
-    model_path = cfg["model"]
-    if not os.path.exists(os.path.expanduser(model_path)):
-        _log.warning("judge_mode=local but judge model %r is not a local path; using heuristic", model_path)
-        return
-    from finetune_studio.testing.inference import InferenceEngine
-
-    judge_engine = InferenceEngine()
-    try:
-        _unload_global_inference()
-        judge_engine.load(os.path.expanduser(model_path))
-        for r in todo:
-            verdict, reasoning, _conf = judge_case_local(
-                judge_engine, r.question, r.correct_answer, r.model_answer,
-            )
-            if verdict:
-                r.verdict, r.judge = verdict, "local"
-                r.judge_model, r.judge_reasoning = model_path, reasoning
-    except Exception as exc:  # noqa: BLE001
-        _log.warning("local judge failed (%s); using heuristic", exc)
-    finally:
-        judge_engine.unload()
-
-
 async def _execute_benchmark(
     *,
     rid: str,
     suite_name: str,
-    judge_mode: str,
     max_tokens: int,
     target_model: str,
     cases: list[BenchmarkCase],
     real_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any] | JSONResponse:
-    """Load model, run suite, judge, persist. Always unloads the bench engine."""
+    """Official public / built-in multiple-choice benchmarks: load model, run, exact-match score, persist.
+
+    These keep their published scoring (one letter / one number), so no judge is involved. Custom Q&A suites
+    never come through here — they are test runs (``/api/testing``), judged afterwards.
+    """
+    from finetune_studio.testing import run_store
     from finetune_studio.testing.inference import InferenceEngine
-    from finetune_studio.testing.suite import (
-        apply_heuristic_judging,
-        ensure_reasoning,
-        run_suite,
-        score_results,
-    )
+    from finetune_studio.testing.scoring import rescore_benchmark
+    from finetune_studio.testing.strict_scoring import apply_exact_scoring
+    from finetune_studio.testing.suite import run_suite
 
     # Real MCQ/GSM8K prompts need short generations; keep caller max_tokens
     # but default cooler sampling for strict extraction.
@@ -349,63 +291,27 @@ async def _execute_benchmark(
                 temperature=run_temperature,
             )
             dt_ms = int((time.time() - t0) * 1000)
+            apply_exact_scoring(results)
 
-            if judge_mode == "none":
-                ensure_reasoning(results)
-            elif judge_mode in ("ai", "local") and not real_meta:
-                engine.unload()  # free VRAM before a local judge loads
-                _apply_configured_judge(results, judge_mode)
-                apply_heuristic_judging(results)  # fallback for unjudged cases
-            else:
-                # heuristic, and real MCQ/GSM8K suites (strict scoring is exact)
-                apply_heuristic_judging(results)
-
-            scores = score_results(results)
-            # Persist the exact artifact used; merged and quantized exports can
-            # produce materially different answers and must not be conflated.
-            scores["model_path"] = target_model
-            if real_meta:
-                scores["is_real_benchmark"] = True
-                scores["benchmark_metadata"] = real_meta
-                scores["accuracy"] = scores.get("pass_rate")
-
-            case_dicts: list[dict[str, Any]] = []
-            for r in results:
-                judge_input = {
-                    "question": r.question,
-                    "correct_answer": r.correct_answer,
-                    "model_answer": r.model_answer,
-                    "keywords": list(r.keywords),
-                    "scoring_method": r.scoring_method,
-                    "judge_mode": judge_mode,
-                }
-                case_dicts.append({
-                    "name": r.case_name,
-                    "category": r.category,
-                    "question": r.question,
-                    "correct_answer": r.correct_answer,
-                    "model_answer": r.model_answer,
-                    "transcript": r.transcript,
-                    "judge": r.judge or "none",
-                    "judge_model": r.judge_model,
-                    "verdict": r.verdict,
-                    "judge_reasoning": r.judge_reasoning,
-                    "scored_at": time.time() if r.verdict else None,
-                    "scoring_method": r.scoring_method,
-                    "validity": r.validity,
-                    "error": r.error,
-                    "judge_input": judge_input,
-                    "source_id": getattr(r, "source_id", ""),
-                    "chunk_idx": getattr(r, "chunk_idx", 0),
-                })
-
-            benchmark = db.create_benchmark(
-                rid, suite_name, scores, dt_ms, cases=case_dicts,
-                model_path=target_model,
+            bench = run_store.start_run(
+                rid, suite_name, model_path=target_model, kind="public", scoring="exact",
+                config={"max_tokens": eff_max_tokens, "temperature": run_temperature}, total=len(results),
             )
+            for r in results:
+                run_store.save_exact_case(bench["id"], rid, r)
+            extra: dict[str, Any] = {"model_path": target_model}
+            if real_meta:
+                extra["is_real_benchmark"] = True
+                extra["benchmark_metadata"] = real_meta
+            benchmark = run_store.finish_run(bench["id"], status="done", time_ms=dt_ms, extra_scores=extra)
+            scores = rescore_benchmark(bench["id"])
+            if real_meta:
+                scores["accuracy"] = scores.get("pass_rate")
+                db.update_benchmark_scores(bench["id"], scores)
 
             return {
                 "benchmark": benchmark,
+                "benchmark_id": bench["id"],
                 "scores": scores,
                 "results": [
                     {
@@ -433,6 +339,7 @@ async def _execute_benchmark(
     if "_load_error" in result:
         return JSONResponse({"error": f"load failed: {result['_load_error']}"}, status_code=500)
     return result
+
 
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
@@ -479,9 +386,6 @@ async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] 
     body = await request.json()
     suite_name = body.get("suite_name", "default")
     suite_path = body.get("suite_path", "")
-    from finetune_studio.webui.routes.settings import get_judge_config
-
-    judge_mode = str(body.get("judge_mode") or get_judge_config()["mode"])
     try:
         max_tokens = _int_field(body, "max_tokens", 512)
         num_samples, full_run, seed, order = _parse_sample_knobs(body)
@@ -518,6 +422,9 @@ async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] 
     if suite_err is not None:
         return suite_err
     assert cases is not None
+    redirect = _quiz_suite_redirect(str(suite_path), pid)
+    if redirect is not None:
+        return redirect
 
     requested_model = str(body.get("model_path") or "").strip()
     target_model = requested_model or _resolve_trained_target(run)
@@ -538,7 +445,6 @@ async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] 
         return await _execute_benchmark(
             rid=rid,
             suite_name=str(suite_name),
-            judge_mode=str(judge_mode),
             max_tokens=max_tokens,
             target_model=target_model,
             cases=cases,
@@ -554,9 +460,6 @@ async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSO
     body = await request.json()
     suite_name = body.get("suite_name", "default")
     suite_path = body.get("suite_path", "")
-    from finetune_studio.webui.routes.settings import get_judge_config
-
-    judge_mode = str(body.get("judge_mode") or get_judge_config()["mode"])
     try:
         max_tokens = _int_field(body, "max_tokens", 512)
         num_samples, full_run, seed, order = _parse_sample_knobs(body)
@@ -586,6 +489,9 @@ async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSO
     if suite_err is not None:
         return suite_err
     assert cases is not None
+    redirect = _quiz_suite_redirect(str(suite_path), pid)
+    if redirect is not None:
+        return redirect
 
     # Persist results against a synthetic "base" context: create or reuse a
     # placeholder run so create_benchmark has a run_id FK. Prefer an existing
@@ -612,7 +518,6 @@ async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSO
         return await _execute_benchmark(
             rid=base_run["id"],
             suite_name=str(suite_name),
-            judge_mode=str(judge_mode),
             max_tokens=max_tokens,
             target_model=target_model,
             cases=cases,
@@ -665,210 +570,37 @@ async def delete_benchmark(pid: str, bid: str) -> dict[str, bool] | JSONResponse
     return {"ok": True}
 
 
-@router.post("/projects/{pid}/benchmarks/{bid}/judge", response_model=None)
-async def judge_benchmark(pid: str, bid: str, request: Request) -> dict[str, Any] | JSONResponse:
-    """Run AI/human judge over all cases in a benchmark."""
-    body = await request.json()
-    from finetune_studio.webui.routes.settings import get_judge_config
-
-    judge_cfg = get_judge_config()
-    judge_mode = body.get("judge_mode") or judge_cfg["mode"]
-    judge_model = body.get("judge_model", "")
-
-    benchmark = _benchmark_for_project(bid, pid)
-    if isinstance(benchmark, JSONResponse):
-        return benchmark
-
-    cases = db.list_cases(bid)
-    if not cases:
-        return JSONResponse({"error": "no cases in benchmark"}, status_code=400)
-
-    from finetune_studio.testing.inference import InferenceEngine
-    from finetune_studio.testing.judge import (
-        judge_case_ai,
-        judge_case_heuristic,
-        judge_case_local,
-    )
-    from finetune_studio.testing.suite import fallback_reasoning
-
-    if judge_mode == "heuristic":
-        updated = 0
-        for case in cases:
-            if not case.get("model_answer"):
-                continue
-            verdict, reasoning, _confidence = judge_case_heuristic(
-                question=case["question"],
-                correct_answer=case["correct_answer"],
-                model_answer=case["model_answer"],
-            )
-            db.update_case(
-                case["id"],
-                judge="heuristic",
-                judge_model="heuristic",
-                verdict=verdict,
-                judge_reasoning=fallback_reasoning(verdict, reasoning, judge="heuristic"),
-                scored_at=time.time(),
-            )
-            updated += 1
-        return {
-            "ok": True,
-            "judged": updated,
-            "judge_mode": "heuristic",
-            "scores": _rescore_benchmark(bid),
-        }
-
-    if judge_mode == "ai":
-        # One blocking HTTP call to the judge API per case (seconds each):
-        # the whole loop runs on a worker thread, never on the event loop.
-        def _ai_judge() -> int:
-            judged = 0
-            for case in cases:
-                if not case.get("model_answer"):
-                    continue
-                verdict, reasoning, _confidence = judge_case_ai(
-                    question=case["question"],
-                    correct_answer=case["correct_answer"],
-                    model_answer=case["model_answer"],
-                    model=judge_model or judge_cfg["model"],
-                    api_url=judge_cfg["api_url"],
-                    api_key=judge_cfg["api_key"],
-                )
-                db.update_case(
-                    case["id"],
-                    judge="ai",
-                    judge_model=judge_model or judge_cfg["model"],
-                    verdict=verdict,
-                    judge_reasoning=fallback_reasoning(verdict, reasoning, judge="ai"),
-                    scored_at=time.time(),
-                )
-                judged += 1
-            return judged
-
-        updated = await asyncio.to_thread(_ai_judge)
-        return {"ok": True, "judged": updated, "scores": _rescore_benchmark(bid)}
-
-    if judge_mode == "local":
-        run = db.get_run(benchmark["run_id"])
-        model_path = judge_model or (
-                judge_cfg["model"] if os.path.exists(os.path.expanduser(judge_cfg["model"])) else ""
-            ) or (run.get("base_model", "") if run else "")
-        if not model_path:
-            return JSONResponse(
-                {"error": "no model path for local judge"},
-                status_code=400,
-            )
-
-        def _local_judge() -> int:
-            judge_engine = InferenceEngine()
-            try:
-                _unload_global_inference()
-                judge_engine.load(model_path)
-                updated = 0
-                for case in cases:
-                    if not case.get("model_answer"):
-                        continue
-                    verdict, reasoning, _confidence = judge_case_local(
-                        judge_engine,
-                        question=case["question"],
-                        correct_answer=case["correct_answer"],
-                        model_answer=case["model_answer"],
-                    )
-                    db.update_case(
-                        case["id"],
-                        judge="local",
-                        judge_model=model_path,
-                        verdict=verdict,
-                        judge_reasoning=fallback_reasoning(verdict, reasoning, judge="local"),
-                        scored_at=time.time(),
-                    )
-                    updated += 1
-                return updated
-            finally:
-                judge_engine.unload()
-
-        updated = await asyncio.to_thread(_local_judge)
-        return {"ok": True, "judged": updated, "scores": _rescore_benchmark(bid)}
-
-    if judge_mode == "secondary_local":
-        model_path = str(judge_model or "").strip()
-        if not model_path:
-            return JSONResponse(
-                {"error": "judge_model is required for secondary_local"},
-                status_code=400,
-            )
-
-        def _secondary_judge() -> int:
-            judge_engine = InferenceEngine()
-            try:
-                _unload_global_inference()
-                judge_engine.load(model_path)
-                updated = 0
-                for case in cases:
-                    if not case.get("model_answer"):
-                        continue
-                    verdict, reasoning, confidence = judge_case_local(
-                        judge_engine,
-                        question=case["question"],
-                        correct_answer=case["correct_answer"],
-                        model_answer=case["model_answer"],
-                        transcript=case.get("transcript") or [],
-                    )
-                    judge_input = case.get("judge_input") or {}
-                    judge_input["secondary_judge"] = {
-                        "verdict": verdict,
-                        "reasoning": reasoning,
-                        "confidence": confidence,
-                        "model": model_path,
-                        "judged_at": time.time(),
-                    }
-                    db.update_case(case["id"], judge_input=judge_input)
-                    updated += 1
-                return updated
-            finally:
-                judge_engine.unload()
-
-        updated = await asyncio.to_thread(_secondary_judge)
-        return {
-            "ok": True,
-            "judged": updated,
-            "judge_mode": "secondary_local",
-            "judge_model": model_path,
-            "authoritative_scores_unchanged": True,
-        }
-
-    return JSONResponse(
-        {"error": f"unknown judge_mode: {judge_mode}"},
-        status_code=400,
-    )
-
-
 @router.get("/projects/{pid}/benchmarks/{bid}/cases", response_model=None)
 async def list_benchmark_cases(pid: str, bid: str) -> list[dict[str, Any]] | JSONResponse:
     """List all cases + judge verdicts for a benchmark."""
     benchmark = _benchmark_for_project(bid, pid)
     if isinstance(benchmark, JSONResponse):
         return benchmark
-    return db.list_cases(bid)
+    from finetune_studio.db import judgements as jdb
+
+    by_case: dict[str, list[dict[str, Any]]] = {}
+    for j in jdb.list_judgements(benchmark_id=bid):
+        by_case.setdefault(j["case_id"], []).append(j)
+    return [{**c, "judgements": by_case.get(c["id"], [])} for c in db.list_cases(bid)]
 
 
 @router.get("/projects/{pid}/benchmarks/{bid}/audit", response_model=None)
 async def audit_benchmark(pid: str, bid: str) -> dict[str, Any] | JSONResponse:
-    """Return every persisted transcript plus an independent score recomputation."""
+    """Every persisted transcript plus an integrity check: each verdict must be backed by a judgement row."""
     benchmark = _benchmark_for_project(bid, pid)
     if isinstance(benchmark, JSONResponse):
         return benchmark
-    from finetune_studio.testing.audit import recompute_cases
+    from finetune_studio.testing.audit import audit_cases
 
     cases = db.list_cases(bid)
-    return {"benchmark": benchmark, "case_count": len(cases), "cases": cases,
-            "independent_audit": recompute_cases(cases)}
+    return {"benchmark": benchmark, "case_count": len(cases), "cases": cases, "audit": audit_cases(bid, cases)}
 
 
 @router.post("/projects/{pid}/benchmarks/{bid}/cases/{cid}/verdict", response_model=None)
 async def set_verdict(
     pid: str, bid: str, cid: str, request: Request
 ) -> dict[str, Any] | JSONResponse:
-    """Human overrides/sets a verdict, then rescores the benchmark."""
+    """Human sets a verdict (kept as a judgement; it beats any AI/exact verdict), then the run is rescored."""
     benchmark = _benchmark_for_project(bid, pid)
     if isinstance(benchmark, JSONResponse):
         return benchmark
@@ -881,13 +613,10 @@ async def set_verdict(
     verdict = body.get("verdict") if isinstance(body, dict) else None
     if verdict not in VERDICTS:
         return JSONResponse({"error": f"verdict must be one of {', '.join(VERDICTS)}"}, status_code=400)
-    db.update_case(
-        cid,
-        verdict=verdict,
-        judge="human",
-        judge_reasoning=str(body.get("reasoning") or "human override"),
-        scored_at=time.time(),
-    )
+    from finetune_studio.db import judgements as jdb
+
+    jdb.add_judgement(cid, kind="human", verdict=verdict, reasoning=str(body.get("reasoning") or "human override"),
+                      judge_model="human")
     return {"ok": True, "scores": _rescore_benchmark(bid)}
 
 
@@ -973,10 +702,10 @@ async def compare_runs(pid: str, run_a: str = "", run_b: str = "") -> dict[str, 
 async def evaluate_training_for_run(
     pid: str, rid: str, request: Request
 ) -> dict[str, Any] | JSONResponse:
-    """Benchmark a trained run against the project's training dataset.
+    """Test a trained run on questions built from the project's training dataset.
 
-    Persists a benchmark row with ``eval_kind=training_leakage`` in scores and
-    full per-case results (same table pattern as synthetic suites).
+    Starts a test run (202 + ``benchmark_id``) with ``eval_kind=training_leakage``: raw transcripts are saved, and
+    judging is a separate step on the Testing page.
     """
     body = await request.json()
     dataset_id = (body.get("dataset_id") or "").strip() or None
@@ -985,7 +714,6 @@ async def evaluate_training_for_run(
         max_tokens = _int_field(body, "max_tokens", 512)
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
-    judge_mode = str(body.get("judge_mode", "heuristic"))
 
     run = db.get_run(rid)
     if not run:
@@ -1006,6 +734,7 @@ async def evaluate_training_for_run(
         build_training_eval,
         suite_label_for_training_eval,
     )
+    from finetune_studio.webui import testing_jobs
 
     try:
         cases, meta = await asyncio.to_thread(
@@ -1016,27 +745,14 @@ async def evaluate_training_for_run(
     except (FileNotFoundError, ValueError) as e:
         return JSONResponse({"error": str(e)}, status_code=400)
 
-    target_model = _resolve_trained_target(run)
-    result = await _execute_benchmark(
-        rid=rid,
-        suite_name=suite_label_for_training_eval(meta),
-        judge_mode=judge_mode,
-        max_tokens=max_tokens,
-        target_model=target_model,
-        cases=cases,
-    )
-    if isinstance(result, JSONResponse):
-        return result
-
-    scores = dict(result.get("scores") or {})
-    scores["eval_kind"] = meta.eval_kind
-    scores["leakage_warning"] = meta.leakage_warning
-    scores["dataset_id"] = meta.dataset_id
-    scores["dataset_name"] = meta.dataset_name
-    bid = (result.get("benchmark") or {}).get("id")
-    if bid:
-        db.update_benchmark_scores(bid, scores)
-        result["benchmark"] = db.get_benchmark(bid) or result.get("benchmark")
-    result["scores"] = scores
-    result["eval"] = meta.as_dict()
-    return result
+    try:
+        row = await testing_jobs.start_run_job(testing_jobs.RunSpec(
+            project_id=pid, kind="training_leakage", suite_name=suite_label_for_training_eval(meta), cases=cases,
+            model_path=_resolve_trained_target(run), run_id=rid, max_tokens=max_tokens,
+            config={"eval": meta.as_dict()},
+            extra_scores={"eval_kind": meta.eval_kind, "leakage_warning": meta.leakage_warning,
+                          "dataset_id": meta.dataset_id, "dataset_name": meta.dataset_name},
+        ))
+    except testing_jobs.TestingBusy as exc:
+        return JSONResponse({"error": str(exc), "active": exc.active}, status_code=409)
+    return JSONResponse({"ok": True, "benchmark_id": row["id"], "benchmark": row}, status_code=202)

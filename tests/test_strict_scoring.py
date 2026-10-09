@@ -1,15 +1,16 @@
-"""Regression tests: strict MCQ/numeric scoring rejects keyword false positives."""
+"""Regression tests: strict MCQ/numeric scoring (official benchmarks only) rejects keyword false positives."""
 
 from __future__ import annotations
 
+from finetune_studio.testing import strict_scoring
 from finetune_studio.testing.strict_scoring import (
+    apply_exact_scoring,
     detect_task_kind,
     score_multiple_choice,
     score_numeric,
-    score_source_grounded,
     score_strict,
 )
-from finetune_studio.testing.suite import CaseResult, apply_heuristic_judging
+from finetune_studio.testing.suite import CaseResult
 
 _MCQ_Q = (
     "What is the capital of France?\n"
@@ -106,34 +107,7 @@ def test_numeric_rejects_wrong_extra_conflicting_finals() -> None:
     assert s.validity in {"wrong_extra", "ambiguous"}
 
 
-def test_source_grounded_open_answer_rejects_unrelated_proper_action() -> None:
-    s = score_source_grounded(
-        correct_answer="Management must close the maintenance action by 2026-08-15.",
-        model_answer="The next maintenance action is due no later than 2026-08-15.",
-    )
-    assert s is not None
-    assert s.verdict in {"fail", "partial"}
-
-
-def test_source_grounded_open_answer_rejects_wrong_named_contact() -> None:
-    s = score_source_grounded(
-        correct_answer="Pavel Novak is the Rotterdam maintenance contact.",
-        model_answer="Mira Varga is the Rotterdam maintenance contact.",
-    )
-    assert s is not None
-    assert s.verdict == "fail"
-
-
-def test_source_grounded_rejects_contradictory_approval_state() -> None:
-    s = score_source_grounded(
-        correct_answer="The request is not approved. Operations rejected it because carrier rate limits are unknown.",
-        model_answer="CR-77 is approved pending a carrier scan.",
-    )
-    assert s is not None
-    assert s.verdict == "fail"
-
-
-def test_apply_heuristic_records_scoring_metadata() -> None:
+def test_apply_exact_scoring_records_scoring_metadata() -> None:
     results = [
         CaseResult(
             case_name="mcq",
@@ -160,7 +134,8 @@ def test_apply_heuristic_records_scoring_metadata() -> None:
             keywords=["8"],
         ),
     ]
-    apply_heuristic_judging(results)
+    assert apply_exact_scoring(results) == 3
+    assert all(r.judge == "exact" for r in results)
     assert results[0].verdict == "pass"
     assert results[0].scoring_method == "strict_mcq"
     assert results[0].validity == "valid"
@@ -181,148 +156,25 @@ def test_score_strict_returns_none_for_open() -> None:
     ) is None
 
 
-def test_source_grounded_scoring_rejects_wrong_date() -> None:
-    score = score_source_grounded(
-        correct_answer="The review is scheduled for 2026-10-05.",
-        model_answer="The review is scheduled for 2026-11-15.",
+def test_open_answers_are_never_string_matched_they_stay_unjudged() -> None:
+    """Custom-dataset answers go to the AI judge / a human; the exact scorer leaves them without a verdict."""
+    open_case = CaseResult(
+        case_name="open", category="knowledge", question="Who is the Rotterdam maintenance contact?",
+        correct_answer="Pavel Novak is the Rotterdam maintenance contact.",
+        model_answer="Pavel Novak is the Rotterdam maintenance contact.", keywords=["Pavel Novak"],
     )
-    assert score is not None
-    assert score.verdict == "fail"
+    assert apply_exact_scoring([open_case]) == 0
+    assert open_case.verdict == "" and open_case.judge == "none"
 
 
-def test_source_grounded_scoring_accepts_number_words() -> None:
-    score = score_source_grounded(
-        correct_answer="Two of 86 lots exceeded the 2 percent rule.",
-        model_answer="2 of 86 lots exceeded the 2% rule.",
-    )
-    assert score is not None
-    assert score.verdict == "pass"
+def test_exact_scoring_skips_errored_and_already_judged_cases() -> None:
+    errored = CaseResult(case_name="e", category="math", question="How many?", correct_answer="8",
+                         model_answer="", error="engine down")
+    judged = CaseResult(case_name="j", category="math", question="How many?", correct_answer="8",
+                        model_answer="9", verdict="pass", judge="human")
+    assert apply_exact_scoring([errored, judged]) == 0
+    assert (errored.verdict, judged.verdict, judged.judge) == ("", "pass", "human")
 
 
-def test_source_grounded_scoring_accepts_plural_zero_word() -> None:
-    score = score_source_grounded(
-        question="What changed for SKU values?",
-        correct_answer="A leading zero is now preserved in SKU values.",
-        model_answer="Leading zeros are now preserved in SKU values.",
-    )
-    assert score is not None
-    assert score.verdict == "pass"
-
-
-def test_source_grounded_does_not_require_unasked_date_or_site() -> None:
-    lane = score_source_grounded(
-        question="Which lane was activated when C-17 stopped?",
-        correct_answer="Lane C-12 was activated on 2026-08-04 at Rotterdam.",
-        model_answer="Lane C-12 was activated.",
-    )
-    case = score_source_grounded(
-        question="What is the case identifier and what did the customer report?",
-        correct_answer="Case CS-491 reported a missing parcel on 2026-08-09.",
-        model_answer="The case is CS-491 and the customer reported a missing parcel.",
-    )
-    assert lane is not None and lane.verdict == "pass"
-    assert case is not None and case.verdict == "pass"
-
-
-def test_source_grounded_still_requires_date_when_question_asks_when() -> None:
-    score = score_source_grounded(
-        question="When was C-17 restored?",
-        correct_answer="C-17 was restored on 2026-08-04 at 10:18.",
-        model_answer="C-17 was restored at 10:18.",
-    )
-    assert score is not None
-    assert score.verdict == "partial"
-
-
-def test_source_grounded_purpose_answer_can_be_concise() -> None:
-    precise = score_source_grounded(
-        question="What is the purpose of including the scanner identifier?",
-        correct_answer=(
-            "The scanner identifier is one required field and provides traceability "
-            "of which scanner produced the failed read."
-        ),
-        model_answer="It helps trace which scanner produced the exception.",
-    )
-    vague = score_source_grounded(
-        question="What is the overall purpose of the Customer Communication Guide?",
-        correct_answer=(
-            "It provides a standard for known facts, checks, update timing, refunds, "
-            "card numbers, and escalation to the duty manager."
-        ),
-        model_answer="The guide provides a standard for communicating with customers about delays.",
-    )
-    assert precise is not None and precise.verdict == "pass"
-    assert vague is not None and vague.verdict == "partial"
-
-
-def test_source_grounded_ignores_unrelated_rows_in_legacy_table_answer() -> None:
-    score = score_source_grounded(
-        question="Who is the recorded owner of risk RK-04?",
-        correct_answer=(
-            "risk_id | owner\n--- | ---\n"
-            "RK-01 | Pavel Novak\nRK-04 | Elian Mertens"
-        ),
-        model_answer="Elian Mertens is the owner of risk RK-04.",
-    )
-    assert score is not None
-    assert score.verdict == "pass"
-
-
-def test_source_grounded_table_focus_still_rejects_wrong_owner() -> None:
-    score = score_source_grounded(
-        question="Who is the recorded owner of risk RK-04?",
-        correct_answer="risk_id | owner\n--- | ---\nRK-04 | Elian Mertens",
-        model_answer="Nadiya Petrov is the owner of risk RK-04.",
-    )
-    assert score is not None
-    assert score.verdict == "fail"
-
-
-def test_question_supplied_identifier_is_not_required_in_answer() -> None:
-    score = score_source_grounded(
-        question="What is the approval status of CR-77?",
-        correct_answer="CR-77 is not approved.",
-        model_answer="The request is not approved.",
-    )
-    assert score is not None
-    assert score.verdict == "pass"
-
-
-def test_question_aware_scoring_still_rejects_wrong_date() -> None:
-    score = score_source_grounded(
-        question="When is the review scheduled?",
-        correct_answer="The review is scheduled for 2026-10-05.",
-        model_answer="The review is scheduled for 2026-11-15.",
-    )
-    assert score is not None
-    assert score.verdict == "fail"
-
-
-def test_external_api_answer_is_not_penalized_by_unrelated_metrics_table() -> None:
-    score = score_source_grounded(
-        question="What is the external API status for project OCTOPUS-7741, and which release will revert it?",
-        correct_answer=(
-            "metric | value | project | date\n--- | --- | --- | ---\n"
-            "external_api_hidden | true | OCTOPUS-7741 | 2026-09-09"
-        ),
-        model_answer=(
-            "The external API fields remain hidden; the change is reverted in release 2026.08.2."
-        ),
-    )
-    assert score is not None
-    assert score.verdict == "pass"
-
-
-def test_question_focused_scope_and_glossary_answers_pass_without_extra_prose() -> None:
-    scope = score_source_grounded(
-        question="What are the third and fourth scope items listed in the brief?",
-        correct_answer="The third scope item is Tool-calling chat, and the fourth is an E2E WebUI stress test dated 2026-09-10.",
-        model_answer="The third scope item is Tool-calling chat, and the fourth is an E2E WebUI stress test.",
-    )
-    glossary = score_source_grounded(
-        question="Which glossary term specifically requires human action?",
-        correct_answer="Exception requires human action after the third failure.",
-        model_answer="The glossary term is exception, which requires human action.",
-    )
-    assert scope is not None and scope.verdict == "pass"
-    assert glossary is not None and glossary.verdict == "pass"
+def test_the_source_grounded_keyword_scorer_is_gone() -> None:
+    assert not hasattr(strict_scoring, "score_source_grounded")

@@ -57,3 +57,19 @@ Plus interactive flow tests:
 `59 / 59 PASS · 0 FAIL` against `http://fan-dragon:7860` (2026-09-07).
 This is historical evidence, not a claim about the current checkout; rerun the
 suite to verify current behavior.
+
+## Testing page (`e2e_track_a.py` / `e2e_user_walkthrough.py`)
+
+The Testing page is a two-step flow and the drivers follow it:
+
+1. **Run** (`#t-run-btn`, mode radios `t-mode` = quiz | rag | dataset) saves only raw transcripts. The drivers wait for
+   `GET /api/testing/projects/<pid>/runs/<bid>` to report `status` done, not for a table to appear. An unjudged run has no score:
+   `scores.pass_rate` is `null` and every case is "awaiting"; the drivers assert that.
+2. **Judge** (`#rv-judge-new` in the run detail) is a separate job. The judge is a model: `FTS_E2E_JUDGE_PROVIDER` picks the provider
+   row (empty = the select's default, normally the helper seat) and `judge_status` is polled to `done` (`FTS_JUDGE_TIMEOUT`, default
+   1800 s). `auto_judge` is a saved setting that is **off** by default; if it is on, the drivers just wait for the judge it starts.
+
+Scores of record come from the run API and are written to `.tmp/ui-results/<tag>.json` with `judge_model` and `awaiting`; always quote the
+judge's name next to a pass rate. Phase `a_review_ui_judge` presses `1` / `3` / `0` on cases and checks that the human verdict
+(`judge == "human"`) overrides the AI one and that the judge-vs-human `agreement` follows. Env: `FTS_TEST_MODEL`, `FTS_EVAL_TAG`,
+`FTS_EVAL_KIND`, `FTS_QUIZ_TIMEOUT`, `FTS_RUN_BID`. `e2e_ui_qa.py` only loads the Testing page (no run).

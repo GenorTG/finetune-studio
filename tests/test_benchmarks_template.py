@@ -77,12 +77,12 @@ def test_benchmarks_template_shows_scores_summary() -> None:
     assert "judged: 0" in html
 
 
-def test_benchmarks_template_exposes_secondary_judge_contract() -> None:
+def test_benchmarks_template_has_no_judge_ui_only_exact_scoring() -> None:
+    """Public benchmarks keep their official exact scoring; judging belongs to the Testing page."""
     html = _BENCH.read_text(encoding="utf-8")
-    assert 'id="secondary-judge-card"' in html
-    assert 'judge_mode: "secondary_local"' in html
-    assert "authoritative source-grounded score" in html
-    assert "runSecondaryJudge" in html
+    for gone in ("secondary-judge-card", "runSecondaryJudge", "secondary_local", "judge_mode"):
+        assert gone not in html
+    assert "/testing" in html  # points project quizzes at the Testing page
 
 
 def test_case_results_table_is_horizontally_scrollable() -> None:

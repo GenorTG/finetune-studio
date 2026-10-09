@@ -1,7 +1,9 @@
 """Regression tests for testing-page auto-load (QABUG-007 / QABUG-011).
 
 Training runs use status ``done`` (not ``completed``). Merge-at-export
-leaves ``merged/`` under the run output — Testing must find those.
+leaves ``merged/`` under the run output — Testing must find those. The run is a
+background job (202 + benchmark id); without ``model_path`` it uses that merged
+export, else the request is refused (never whatever happens to be loaded).
 """
 
 from __future__ import annotations
@@ -16,17 +18,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from finetune_studio import db
-from finetune_studio.config import settings
 from finetune_studio.webui import app as app_module
-from finetune_studio.webui.app import app
-
-
-@pytest.fixture
-def client_and_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    db_path = tmp_path / "fts_test.db"
-    monkeypatch.setattr(settings, "db_path", str(db_path))
-    db.init_db()
-    return TestClient(app), db_path
+from tests.testing_run_support import wait_run_finished
 
 
 def _fake_engine(monkeypatch: pytest.MonkeyPatch) -> tuple[Any, list[str]]:
@@ -75,12 +68,11 @@ def _suite(tmp_path: Path) -> Path:
 
 
 def test_testing_auto_loads_merged_model_status_done(
-    client_and_db: tuple[TestClient, Path],
+    client: TestClient,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Live training writes status=done; auto-load must accept it."""
-    client, _db_path = client_and_db
     r = client.post(
         "/api/projects",
         json={"name": f"auto-{uuid.uuid4().hex[:6]}", "base_model": "x/test"},
@@ -108,19 +100,20 @@ def test_testing_auto_loads_merged_model_status_done(
             "max_tokens": 32,
         },
     )
-    assert resp.status_code == 200, resp.text
+    assert resp.status_code == 202, resp.text
+    done = wait_run_finished(resp.json()["benchmark_id"])
+    assert done["status"] == "done", done
     assert load_calls, "expected inference_engine.load to be called"
     assert load_calls[0] == str(merged)
-    assert resp.json().get("model_path") == str(merged)
+    assert done["model_path"] == str(merged) == resp.json()["benchmark"]["model_path"]
 
 
 def test_testing_auto_loads_merged_model_status_completed_compat(
-    client_and_db: tuple[TestClient, Path],
+    client: TestClient,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Older fixtures used status=completed — keep accepting it."""
-    client, _db_path = client_and_db
     r = client.post(
         "/api/projects",
         json={"name": f"auto-{uuid.uuid4().hex[:6]}", "base_model": "x/test"},
@@ -143,16 +136,16 @@ def test_testing_auto_loads_merged_model_status_completed_compat(
         "/api/testing/run-suite",
         json={"suite_path": str(suite_path), "project_id": pid},
     )
-    assert resp.status_code == 200, resp.text
+    assert resp.status_code == 202, resp.text
+    assert wait_run_finished(resp.json()["benchmark_id"])["status"] == "done"
     assert load_calls[0] == str(merged)
 
 
 def test_testing_skips_done_run_without_merged_weights(
-    client_and_db: tuple[TestClient, Path],
+    client: TestClient,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client, _db_path = client_and_db
     r = client.post(
         "/api/projects",
         json={"name": f"nomerged-{uuid.uuid4().hex[:6]}", "base_model": "x/test"},
@@ -178,24 +171,23 @@ def test_testing_skips_done_run_without_merged_weights(
         fake,
     )
 
-    suite_path = tmp_path / "suite.json"
-    suite_path.write_text("[]", encoding="utf-8")
+    suite_path = _suite(tmp_path)
 
     resp = client.post(
         "/api/testing/run-suite",
         json={"suite_path": str(suite_path), "project_id": pid},
     )
     assert resp.status_code == 400, resp.text
-    assert "no completed training run" in resp.json()["error"]
+    assert "no model to test" in resp.json()["error"]
     fake.load.assert_not_called()
+    assert db.list_benchmarks_for_project(pid) == []  # a refused run leaves no row behind
 
 
 def test_testing_returns_400_when_no_completed_run(
-    client_and_db: tuple[TestClient, Path],
+    client: TestClient,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client, _db_path = client_and_db
     r = client.post(
         "/api/projects",
         json={"name": f"empty-{uuid.uuid4().hex[:6]}", "base_model": "x/test"},
@@ -213,23 +205,22 @@ def test_testing_returns_400_when_no_completed_run(
         fake,
     )
 
-    suite_path = tmp_path / "suite.json"
-    suite_path.write_text("[]", encoding="utf-8")
+    suite_path = _suite(tmp_path)
 
     resp = client.post(
         "/api/testing/run-suite",
         json={"suite_path": str(suite_path), "project_id": pid},
     )
     assert resp.status_code == 400, resp.text
-    assert "no completed training run" in resp.json()["error"]
+    assert "no model to test" in resp.json()["error"]
+    fake.load.assert_not_called()
 
 
 def test_testing_override_model_path(
-    client_and_db: tuple[TestClient, Path],
+    client: TestClient,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client, _db_path = client_and_db
     r = client.post(
         "/api/projects",
         json={"name": f"ovr-{uuid.uuid4().hex[:6]}", "base_model": "x/test"},
@@ -252,5 +243,6 @@ def test_testing_override_model_path(
             "model_path": str(override),
         },
     )
-    assert resp.status_code == 200, resp.text
+    assert resp.status_code == 202, resp.text
+    assert wait_run_finished(resp.json()["benchmark_id"])["status"] == "done"
     assert load_calls == [str(override)]

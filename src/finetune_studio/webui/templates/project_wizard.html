@@ -724,24 +724,62 @@
       var suite = suites[0];
       line("Running the " + suite.case_count + "-question test against the trained model — this can take 10-20 minutes…");
       set("wiz-test", "running " + suite.case_count + " questions…");
-      var res = await post("/api/testing/run-suite", {
+      var started = await post("/api/testing/run-suite", {
         project_id: PID, suite_path: suite.suite_path,
         model_path: (run.output_path || "") + "/merged", max_tokens: 256,
       });
-      if (res.error) throw new Error(res.error);
-      var results = res.results || [];
-      var passed = results.filter(function (x) { return x.passed; }).length;
-      var pct = results.length ? Math.round(1000 * passed / results.length) / 10 : 0;
-      line("Test result: " + passed + "/" + results.length + " passed (" + pct + "%).");
+      if (started.error) throw new Error(started.error);
+      var bid = started.benchmark_id;
+      var runRow = null;
+      for (;;) {
+        await sleep(4000);
+        runRow = await api("/api/testing/projects/" + PID + "/runs/" + bid);
+        set("wiz-test", "answering " + (runRow.progress_done || 0) + "/" + (runRow.progress_total || suite.case_count) + "…");
+        if (["done", "failed", "cancelled"].indexOf(runRow.status) >= 0) break;
+      }
+      if (runRow.status === "failed") throw new Error(runRow.error || "the test run failed");
+      line("The model answered " + (runRow.progress_done || 0) + " question(s); the raw answers are saved with the correct answers.");
+      // Judging is a separate step. It only starts by itself when the user turned auto-judge on.
+      var autoJudge = false;
+      try { autoJudge = !!((await api("/api/settings/testing")).auto_judge); } catch (e) { /* default off */ }
+      var link = "/projects/" + PID + "/testing?run=" + encodeURIComponent(bid);
+      if (!autoJudge) {
+        line("Not judged yet (auto-judge is off). Judge the answers with an AI model or review them yourself: " + link);
+        set("wiz-test", "answers saved — awaiting judgement");
+        pill("wiz-test", "unjudged", false);
+        wizRefresh("test");
+        return true;
+      }
+      line("Auto-judge is on — the judge is reading the saved answers…");
+      for (;;) {
+        await sleep(4000);
+        runRow = await api("/api/testing/projects/" + PID + "/runs/" + bid);
+        set("wiz-test", "judging " + (runRow.judge_done || 0) + "/" + (runRow.judge_total || "?") + "…");
+        if (["done", "failed", "cancelled"].indexOf(runRow.judge_status) >= 0) break;
+        if (!runRow.judge_status && runRow.status === "done" && !(runRow.active || []).length) break;
+      }
+      if (runRow.judge_status === "failed") {
+        line("Judging failed: " + (runRow.judge_error || "unknown error") + ". The answers are saved; judge them from the Testing page: " + link);
+        set("wiz-test", "answers saved — judging failed");
+        pill("wiz-test", "unjudged", false);
+        wizRefresh("test");
+        return true;
+      }
+      var sc = runRow.scores || {};
+      var cases = await api("/api/testing/projects/" + PID + "/runs/" + bid + "/cases");
+      var passed = sc.passed || 0, total = sc.total || cases.length;
+      var pct = sc.pass_rate != null ? sc.pass_rate : 0;
+      line("Test result (judge " + (runRow.judge_model || "?") + "): " + passed + "/" + total + " passed (" + pct + "%)"
+        + (sc.awaiting ? ", " + sc.awaiting + " not judged" : "") + ". Review or override verdicts: " + link);
       // Grounded rows are asked with the CONTEXT they were trained with (transcript opens with a
       // system turn); plain rows are asked bare. Two different skills, so report both.
-      var withCtx = results.filter(function (x) { return x.transcript && x.transcript[0] && x.transcript[0].role === "system"; });
+      var withCtx = cases.filter(function (x) { return x.judge_input && x.judge_input.grounded; });
       if (withCtx.length) {
-        var okCtx = withCtx.filter(function (x) { return x.passed; }).length;
-        var plain = results.length - withCtx.length, okPlain = passed - okCtx;
+        var okCtx = withCtx.filter(function (x) { return x.verdict === "pass"; }).length;
+        var plain = cases.length - withCtx.length, okPlain = passed - okCtx;
         line("  from memory (no context): " + okPlain + "/" + plain + " · answering from the retrieved context they were trained with: " + okCtx + "/" + withCtx.length);
       }
-      set("wiz-test", passed + "/" + results.length + " passed (" + pct + "%)");
+      set("wiz-test", passed + "/" + total + " passed (" + pct + "%)");
       pill("wiz-test", pct >= 80 ? "strong" : pct >= 50 ? "ok" : "weak", pct >= 50);
       wizRefresh("test");
       return true;

@@ -18,9 +18,9 @@ from finetune_studio.benchmarks.suite_defs import (
     list_builtin_offline_suites,
     list_builtin_smoke_suites,
 )
+from finetune_studio.testing.strict_scoring import apply_exact_scoring
 from finetune_studio.testing.suite import (
     CaseResult,
-    apply_heuristic_judging,
     load_test_suite,
     score_results,
 )
@@ -75,7 +75,7 @@ def test_smoke_labels_mark_not_industry() -> None:
         assert "synthetic ·" in s.label()
 
 
-def test_offline_strict_scoring_is_deterministic() -> None:
+def test_offline_exact_scoring_is_deterministic() -> None:
     meta = offline_suite_metas()[0]
     path = (
         Path(__file__).resolve().parents[1]
@@ -97,11 +97,11 @@ def test_offline_strict_scoring_is_deterministic() -> None:
         )
         for c in cases[:5]
     ]
-    apply_heuristic_judging(results)
+    assert apply_exact_scoring(results) == 5
     scores = score_results(results)
     assert scores["judged"] == 5
     assert scores["passed"] == 5
-    assert scores["unjudged"] == 0
+    assert scores["awaiting"] == 0
     assert scores["pass_rate"] == 100.0
     assert all(r.scoring_method.startswith("strict_") for r in results)
-    assert all(r.validity == "valid" for r in results)
+    assert all(r.validity == "valid" and r.judge == "exact" for r in results)

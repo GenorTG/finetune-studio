@@ -34,13 +34,22 @@ from finetune_studio.db.benchmarks import (
     create_benchmark,
     create_case,
     get_benchmark,
+    get_case,
     list_benchmarks,
     list_cases,
+    reconcile_stale_benchmarks,
+    update_benchmark,
     update_benchmark_scores,
     update_case,
 )
 from finetune_studio.db.benchmarks import (
+    list_for_project as list_benchmarks_for_project,
+)
+from finetune_studio.db.benchmarks import (
     list_recent as list_benchmarks_recent,
+)
+from finetune_studio.db.benchmarks import (
+    list_unfinished as list_unfinished_benchmarks,
 )
 from finetune_studio.db.connection import cursor, init_db, row_to_dict
 from finetune_studio.db.data_prep_runs import (
@@ -273,6 +282,7 @@ __all__ = [
     "delete_version",
     "ensure_portable_rag",
     "get_benchmark",
+    "get_case",
     "get_data_prep_run",
     "get_dataset",
     "get_export",
@@ -293,6 +303,7 @@ __all__ = [
     "list_active_exports",
     "list_activity_events_recent",
     "list_benchmarks",
+    "list_benchmarks_for_project",
     "list_benchmarks_recent",
     "list_cases",
     "list_data_prep_for_project",
@@ -311,6 +322,7 @@ __all__ = [
     "list_review",
     "list_runs",
     "list_stale_data_prep_runs",
+    "list_unfinished_benchmarks",
     "list_updates_recent",
     "list_versions",
     "mark_data_prep_done",
@@ -331,6 +343,7 @@ __all__ = [
     "mark_update_done",
     "mark_update_failed",
     "mark_update_running",
+    "reconcile_stale_benchmarks",
     "reconcile_stale_data_prep",
     "reconcile_stale_exports",
     "reconcile_stale_rag_builds",
@@ -341,6 +354,7 @@ __all__ = [
     "remove_model_favorite",
     "row_to_dict",
     "set_export_phase",
+    "update_benchmark",
     "update_benchmark_scores",
     "update_case",
     "update_data_prep_run",

@@ -52,14 +52,13 @@ def test_case_results_is_table_not_json_dump() -> None:
     assert "tojson(indent" not in html
 
 
-def test_testing_results_render_table() -> None:
+def test_testing_results_render_a_review_pane_not_a_json_dump() -> None:
     html = _TESTING.read_text(encoding="utf-8")
-    assert "case-results-table" in html
-    assert "case-results-scroll" in html
-    assert "renderResults" in html
+    assert "rv-list" in html and "rv-pane" in html
+    assert "verdict-badge" in html
     assert "JSON.stringify(scores" not in html
-    assert "t-results-debug" in html
-    assert "Debug JSON" in html
+    # raw transcripts are one click away as a download and inside each case, never the primary view
+    assert "rv-export-json" in html and "Full transcript" in html
 
 
 def test_training_detail_debug_is_collapsed() -> None:

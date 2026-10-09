@@ -30,7 +30,7 @@ def create_run(project_id: str, name: str, base_model: str = "",
              json.dumps(rag_ids or []), json.dumps(settings_obj or {}),
              system_prompt, system_prompt_mode, parent_run_id, notes, now),
         )
-        if base_model and name != BASE_PROBE_RUN_NAME:
+        if base_model and name not in (BASE_PROBE_RUN_NAME, EVAL_RUN_NAME):
             c.execute(
                 "UPDATE projects SET base_model = ?, updated_at = ? "
                 "WHERE id = ? AND (base_model IS NULL OR base_model = '')",
@@ -48,9 +48,9 @@ def backfill_project_base_model(project_id: str) -> str:
         if (cur[0] or "").strip():
             return cur[0]
         row = c.execute(
-            "SELECT base_model FROM training_runs WHERE project_id = ? AND name != ? "
+            "SELECT base_model FROM training_runs WHERE project_id = ? AND name NOT IN (?, ?) "
             "AND base_model IS NOT NULL AND base_model != '' ORDER BY created_at DESC LIMIT 1",
-            (project_id, BASE_PROBE_RUN_NAME),
+            (project_id, BASE_PROBE_RUN_NAME, EVAL_RUN_NAME),
         ).fetchone()
         if not row:
             return ""
@@ -64,6 +64,10 @@ def get_run(rid: str) -> dict | None:
 
 
 BASE_PROBE_RUN_NAME = "__base_model__"
+# Hidden placeholder that owns test runs of a model that is not a training run's output (an imported GGUF, a
+# base model checked from the Testing page): benchmark_runs needs a run to hang off.
+EVAL_RUN_NAME = "__evaluation__"
+_HIDDEN_RUN_NAMES = frozenset({BASE_PROBE_RUN_NAME, EVAL_RUN_NAME})
 
 
 def list_runs(project_id: str | None = None, *, include_base_probe: bool = False) -> list[dict]:
@@ -79,7 +83,7 @@ def list_runs(project_id: str | None = None, *, include_base_probe: bool = False
             rows = c.execute("SELECT * FROM training_runs ORDER BY created_at DESC").fetchall()
     runs = [row_to_dict(r) for r in rows]
     if not include_base_probe:
-        runs = [r for r in runs if r.get("name") != BASE_PROBE_RUN_NAME]
+        runs = [r for r in runs if r.get("name") not in _HIDDEN_RUN_NAMES]
     # Compute duration from started_at/finished_at if not set
     for run in runs:
         started = run.get("started_at")

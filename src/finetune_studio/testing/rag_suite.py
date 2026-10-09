@@ -1,9 +1,12 @@
 """Retrieval-grounded test suite — answer from PortableRAG context only.
 
 Pairs a Q&A ``BenchmarkCase`` suite with a PortableRAG (or compatible)
-search engine so held-out / source-disjoint cases can be scored with the
-same strict/heuristic judges as ``run_suite``, while forcing the model to
-use retrieved document chunks (or refuse when the context lacks the fact).
+search engine so held-out / source-disjoint cases can be asked with the
+retrieved document chunks as the only context (or refused when the context
+lacks the fact). Like ``run_suite`` it only records transcripts; judging
+happens afterwards (testing/judge.py). The ``gold_*`` retrieval trace below
+is a diagnostic of the *retriever* (were the expected values in the chunks),
+never a verdict on the answer.
 
 This lives under ``testing/`` (not the route) so CLI / benchmarks / scripts
 can reuse it without FastAPI.
@@ -14,6 +17,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
@@ -27,7 +31,6 @@ from finetune_studio.data.rag_portable.prompt import (
 from finetune_studio.testing.suite import (
     BenchmarkCase,
     CaseResult,
-    apply_heuristic_judging,
     load_test_suite,
     score_results,
 )
@@ -290,6 +293,112 @@ def gold_presence(keywords: list[str], hits: list[dict[str, Any]], context: str)
     return all(k in retrieved for k in wanted), all(k in sent for k in wanted), n_in_context
 
 
+def run_rag_case(
+    engine: ChatEngine,
+    rag_query: RagSearchEngine,
+    case: BenchmarkCase,
+    *,
+    top_k: int = 5,
+    max_tokens: int = 512,
+    temperature: float = 0.3,
+    think: bool = False,
+    max_context_chars: int = DEFAULT_CONTEXT_CHARS,
+) -> RagCaseResult:
+    """Retrieve -> ground the prompt -> generate -> record the transcript and the retrieval provenance."""
+    start = time.time()
+    hits_raw: list[dict] = []
+    context = ""
+    try:
+        hits_raw = list(rag_query.search(case.question, top_k=top_k) or [])
+        if case.source_id and not any(
+            hit_matches_source(hit, case.source_id, case.chunk_idx) for hit in hits_raw
+        ):
+            # A precise source-aware retry recovers short questions whose
+            # first lexical/vector pass is crowded out by distractors.
+            expanded_hits = list(rag_query.search(
+                case.question, top_k=max(20, top_k * 2)
+            ) or [])
+            matched_expanded = [
+                hit for hit in expanded_hits
+                if hit_matches_source(hit, case.source_id, case.chunk_idx)
+            ]
+            if matched_expanded:
+                # The wider search is only a recovery path; discard its
+                # distractors once the expected source is found.
+                hits_raw = matched_expanded
+        provenance = [provenance_from_hit(h) for h in hits_raw]
+        context = rag_query.format_context(hits_raw, max_chars=max_context_chars)
+        messages = build_grounded_messages(case.question, context)
+        response = engine.generate(
+            messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            think=think,
+        )
+        if _needs_table_arithmetic_retry(case.question, response, context):
+            correction = (
+                "Re-answer this question from the table. It asks for total actual_hours: "
+                "sum the actual_hours column for the requested month/sites. Do not use "
+                "variance_hours, budget_hours, or variance values. Answer concisely."
+            )
+            retry_messages = messages + [{"role": "user", "content": correction}]
+            response = engine.generate(
+                retry_messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                think=think,
+            )
+            messages = retry_messages
+        elapsed_ms = (time.time() - start) * 1000
+        transcript = list(messages) + [{"role": "assistant", "content": response}]
+        case_result = CaseResult(
+            case_name=case.name,
+            category=case.category,
+            question=case.question,
+            correct_answer=case.correct_answer,
+            model_answer=response,
+            transcript=transcript,
+            time_ms=round(elapsed_ms, 1),
+            keywords=list(case.keywords),
+            source_id=case.source_id,
+            chunk_idx=case.chunk_idx,
+            expect_abstain=case.expect_abstain,
+        )
+    except Exception as e:  # noqa: BLE001
+        elapsed_ms = (time.time() - start) * 1000
+        provenance = [provenance_from_hit(h) for h in hits_raw]
+        messages = build_grounded_messages(case.question, context)
+        case_result = CaseResult(
+            case_name=case.name,
+            category=case.category,
+            question=case.question,
+            correct_answer=case.correct_answer,
+            model_answer="",
+            transcript=list(messages) + [{"role": "assistant", "content": ""}],
+            error=str(e),
+            time_ms=round(elapsed_ms, 1),
+            keywords=list(case.keywords),
+            source_id=case.source_id,
+            chunk_idx=case.chunk_idx,
+            expect_abstain=case.expect_abstain,
+        )
+
+    matched = any(
+        hit_matches_source(h, case.source_id, case.chunk_idx) for h in provenance
+    )
+    gold_retrieved, gold_context, n_in_context = gold_presence(case_result.keywords, hits_raw, context)
+    return RagCaseResult(
+        case_result=case_result,
+        retrieval_hits=provenance,
+        context_text=context,
+        retrieval_hit=matched,
+        gold_in_retrieved=gold_retrieved,
+        gold_in_context=gold_context,
+        chunks_retrieved=len(hits_raw),
+        chunks_in_context=n_in_context,
+    )
+
+
 def run_rag_suite(
     engine: ChatEngine,
     rag_query: RagSearchEngine,
@@ -300,105 +409,32 @@ def run_rag_suite(
     temperature: float = 0.3,
     think: bool = False,
     max_context_chars: int = DEFAULT_CONTEXT_CHARS,
+    on_result: Callable[[RagCaseResult], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> list[RagCaseResult]:
-    """Retrieve → ground prompt → generate → collect CaseResult + provenance."""
+    """Run every case through retrieve -> ground -> generate. Records transcripts; never judges."""
     out: list[RagCaseResult] = []
     for case in cases:
-        start = time.time()
-        hits_raw: list[dict] = []
-        context = ""
-        try:
-            hits_raw = list(rag_query.search(case.question, top_k=top_k) or [])
-            if case.source_id and not any(
-                hit_matches_source(hit, case.source_id, case.chunk_idx) for hit in hits_raw
-            ):
-                # A precise source-aware retry recovers short questions whose
-                # first lexical/vector pass is crowded out by distractors.
-                expanded_hits = list(rag_query.search(
-                    case.question, top_k=max(20, top_k * 2)
-                ) or [])
-                matched_expanded = [
-                    hit for hit in expanded_hits
-                    if hit_matches_source(hit, case.source_id, case.chunk_idx)
-                ]
-                if matched_expanded:
-                    # The wider search is only a recovery path; discard its
-                    # distractors once the expected source is found.
-                    hits_raw = matched_expanded
-            provenance = [provenance_from_hit(h) for h in hits_raw]
-            context = rag_query.format_context(hits_raw, max_chars=max_context_chars)
-            messages = build_grounded_messages(case.question, context)
-            response = engine.generate(
-                messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                think=think,
-            )
-            if _needs_table_arithmetic_retry(case.question, response, context):
-                correction = (
-                    "Re-answer this question from the table. It asks for total actual_hours: "
-                    "sum the actual_hours column for the requested month/sites. Do not use "
-                    "variance_hours, budget_hours, or variance values. Answer concisely."
-                )
-                retry_messages = messages + [{"role": "user", "content": correction}]
-                response = engine.generate(
-                    retry_messages,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    think=think,
-                )
-                messages = retry_messages
-            elapsed_ms = (time.time() - start) * 1000
-            transcript = list(messages) + [{"role": "assistant", "content": response}]
-            case_result = CaseResult(
-                case_name=case.name,
-                category=case.category,
-                question=case.question,
-                correct_answer=case.correct_answer,
-                model_answer=response,
-                transcript=transcript,
-                time_ms=round(elapsed_ms, 1),
-                keywords=list(case.keywords),
-                source_id=case.source_id,
-                chunk_idx=case.chunk_idx,
-                expect_abstain=case.expect_abstain,
-            )
-        except Exception as e:  # noqa: BLE001
-            elapsed_ms = (time.time() - start) * 1000
-            provenance = [provenance_from_hit(h) for h in hits_raw]
-            messages = build_grounded_messages(case.question, context)
-            case_result = CaseResult(
-                case_name=case.name,
-                category=case.category,
-                question=case.question,
-                correct_answer=case.correct_answer,
-                model_answer="",
-                transcript=list(messages) + [{"role": "assistant", "content": ""}],
-                error=str(e),
-                time_ms=round(elapsed_ms, 1),
-                keywords=list(case.keywords),
-                source_id=case.source_id,
-                chunk_idx=case.chunk_idx,
-                expect_abstain=case.expect_abstain,
-            )
-
-        matched = any(
-            hit_matches_source(h, case.source_id, case.chunk_idx) for h in provenance
+        if should_stop is not None and should_stop():
+            break
+        result = run_rag_case(
+            engine, rag_query, case, top_k=top_k, max_tokens=max_tokens, temperature=temperature,
+            think=think, max_context_chars=max_context_chars,
         )
-        gold_retrieved, gold_context, n_in_context = gold_presence(case_result.keywords, hits_raw, context)
-        out.append(
-            RagCaseResult(
-                case_result=case_result,
-                retrieval_hits=provenance,
-                context_text=context,
-                retrieval_hit=matched,
-                gold_in_retrieved=gold_retrieved,
-                gold_in_context=gold_context,
-                chunks_retrieved=len(hits_raw),
-                chunks_in_context=n_in_context,
-            )
-        )
+        out.append(result)
+        if on_result is not None:
+            on_result(result)
     return out
+
+
+def open_rag_query(
+    *, project_id: str = "", corpus_path: str = "", rag_query: RagSearchEngine | None = None,
+) -> tuple[RagSearchEngine, str]:
+    """The search engine for a run plus the corpus path it was loaded from."""
+    if rag_query is not None:
+        return rag_query, (corpus_path or "").strip() or (str(default_corpus_path(project_id)) if project_id else "")
+    path = resolve_corpus_path(project_id, corpus_path)
+    return load_portable_rag_query(path), str(path)
 
 
 def run_rag_suite_evaluation(
@@ -413,24 +449,15 @@ def run_rag_suite_evaluation(
     rag_query: RagSearchEngine | None = None,
     max_context_chars: int | None = None,
 ) -> RagSuiteReport:
-    """Load suite + corpus, run grounded eval, judge, and aggregate metrics.
+    """Load suite + corpus, run the grounded suite and aggregate retrieval metrics. No judging.
 
-    Blocking — call from ``asyncio.to_thread`` in async routes.
+    Blocking — call from ``asyncio.to_thread`` in async routes. Every case in the report is unjudged; use
+    ``testing.judging.judge_benchmark`` on a saved run (or a human) to decide correctness.
     """
     cases = load_test_suite(suite_path)
     if not max_context_chars:   # sized from the loaded model's window (see rag_portable.prompt.context_char_budget)
         max_context_chars = context_char_budget(getattr(engine, "n_ctx", None), max_new_tokens=max_tokens)
-    resolved_corpus = ""
-    query = rag_query
-    if query is None:
-        path = resolve_corpus_path(project_id, corpus_path)
-        resolved_corpus = str(path)
-        query = load_portable_rag_query(path)
-    else:
-        resolved_corpus = (corpus_path or "").strip() or (
-            str(default_corpus_path(project_id)) if project_id else ""
-        )
-
+    query, resolved_corpus = open_rag_query(project_id=project_id, corpus_path=corpus_path, rag_query=rag_query)
     rag_results = run_rag_suite(
         engine,
         query,
@@ -440,9 +467,7 @@ def run_rag_suite_evaluation(
         temperature=temperature,
         max_context_chars=max_context_chars,
     )
-    case_results = [r.case_result for r in rag_results]
-    apply_heuristic_judging(case_results)
-    scores = score_results(case_results)
+    scores = score_results([r.case_result for r in rag_results])
     retrieval = compute_retrieval_metrics(rag_results)
     model_path = getattr(engine, "model_path", None) or ""
     return RagSuiteReport(
@@ -467,8 +492,10 @@ __all__ = [
     "default_corpus_path",
     "hit_matches_source",
     "load_portable_rag_query",
+    "open_rag_query",
     "provenance_from_hit",
     "resolve_corpus_path",
+    "run_rag_case",
     "run_rag_suite",
     "run_rag_suite_evaluation",
 ]

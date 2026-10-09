@@ -165,3 +165,38 @@ The page's keyword judge is a plain substring test: `44.2` vs `44.20`, `185` vs 
 - e077: the model name sits in another table row of the flattened table; the reader gave half the answer.
 - e044: a real reader miss: the answer (`ssh -p 2222 kcops@..., ask Wiktor`) is in the context, Qwen said "I don't know". It passed at top-5, so 15 extra chunks cost one answer.
 Reading: ~1 of 102 is a model miss, 2 are retrieval, 2 are chunking/table structure, 1 is the judge. Top-20 retrieval is affordable now (about 12k tokens of 131k-262k) and keeps abstention intact (Qwen 20/20).
+
+## 9. Re-judged by the AI judge (2026-10-09; results in `results/2026-10-09-rejudged/`)
+
+Every score in §3-§8 came from the Testing page's substring / keyword matcher, which the app no longer uses: a test run now saves the raw answers and a separate
+judge (an AI model on any provider row, or you) decides pass / partial / fail (`docs/judging/RUN-THEN-JUDGE.md`). All 14 archived reports were judged again from
+their saved answers with `scripts/rejudge_reports.py` (judge: Gemma 4 12B, the helper seat, checklist prompt v4; answer key = the quiz's expected values; the 20
+unanswerable questions are judged "declining is correct").
+
+**Is the judge trustworthy?** `scripts/judge_eval.py` runs a judge against 50 hand-labelled cases (`eval/judge_gold.json`: 31 wrong/partial answers from run 2 that the
+old matcher mis-scored plus clear passes, clear fails and unanswerable questions). Prompt v3 (a verdict only): 44/50 = 88 %, every error too *lenient* (it accepted
+"week 46" for "2 December 2024" and a missing `kcops`). Prompt v4 (the judge lists every required fact with a quoted piece of the answer; the verdict follows the list and a
+quote that is not in the answer is not trusted): 48/50 = 96 % at first run, 0 too lenient; both misses were label errors of mine on re-reading (relabelled in the file: 50/50). The gold set is small and was partly built from the cases that exposed v3's leniency, so read it as a sanity check, not a benchmark.
+
+| Report (archive name) | Old matcher: quiz pass /102 | AI judge: pass / partial / fail | Unanswerable declined, old -> AI |
+|---|---|---|---|
+| untrained base, no RAG (`base-alone`) | 2 | 3 / 4 / 95 | 3 -> 6 /20 |
+| base + RAG (`rag-base`) | 77 | 76 / 5 / 21 | 0 -> **20** /20 |
+| tuned run 2 + RAG (`rag-trained-run2`) | 83 | 82 / 5 / 15 | 0 -> 0 /20 |
+| SFT run 1, 3 ep early stop | 12 | 15 / 15 / 72 | 0 -> 0 |
+| SFT run 2, 6 ep (`run2-6ep-noearly`) | 18 | 19 / 23 / 60 | 0 -> 0 |
+| SFT run 2 merged bf16 | 26 | 28 / 23 / 51 | 0 -> 0 |
+| run 3 = DPO on run 2 | 16 | 18 / 20 / 64 | 0 -> 0 |
+| §7 scores of record: run 2 q4_k_m, Testing page (`ui-sft6-q4km`) | 21 (+20 partial) | 24 / 20 / 58 | 0 -> 0 |
+| §7 tuned run 2 q4_k_m + RAG (`ui-sft6-q4km-rag`) | 80 (+8 partial) | 86 / 3 / 13 | 2 -> 2 |
+| §8 Gemma 12B reader, top-5, 16k cap | 84 (+8) | 90 / 5 / 7 | 19 -> 19 |
+| §8 Gemma 12B reader, top-10 | 87 (+6) | 92 / 4 / 6 | 19 -> 20 |
+| §8 Gemma 12B reader, top-20 | 89 (+8) | 94 / 5 / 3 | 19 -> 20 |
+| §8 Qwen3.5-9B base reader, top-5, 16k cap | 87 (+4) | 92 / 2 / 8 | 20 -> 20 |
+| §8 **Qwen3.5-9B base reader, top-20** | **92 (+4)** | **97 / 2 / 3** | **20 -> 20** |
+
+Reading: the conclusions stand, the numbers move by +2..+6 points. SFT teaches facts (quiz ~20-25 % pass, another ~20 % partial: right entity, one wrong value) and removes "not in
+the documents" (0/20); base + RAG is 76-97 % depending on reader and top-k with 20/20 declines. The matcher's mistakes were mostly format (`44.2` vs `44.20`, `four` vs `4`, a
+host's short name) and, for the SFT runs, partial credit it could not give. The old `ok` files of §3 have no partial class, which is why their pass counts barely change. The untrained base
+"declines" 6/20 unanswerable questions without RAG because it says it has no public information, not because it read the documents.
+

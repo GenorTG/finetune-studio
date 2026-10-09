@@ -13,9 +13,9 @@
     fine-tune did not damage general ability. To ask “did it learn MY material?” use
     <a href="/projects/{{ pid }}/testing" data-link>testing (step 4)</a> instead.
     <br><span class="text-xs">Sources: <strong>real</strong> HuggingFace MMLU / GSM8K / HellaSwag
-    (official splits, downloaded on first use, strict MCQ / GSM8K scoring); built-in
-    <em>synthetic</em> smoke suites (same shape, local, <em>not</em> industry scores); or your own
-    project Q&amp;A suites — all runnable against a trained run or the untrained base.</span></div>
+    (official splits, downloaded on first use, exact MCQ / GSM8K scoring) and built-in
+    <em>synthetic</em> look-alikes (same shape, local, <em>not</em> industry scores) — all runnable against a trained run
+    or the untrained base. Your own Q&amp;A quizzes live on the <a href="/projects/{{ pid }}/testing" data-link>Testing</a> page, where answers are saved and judged afterwards.</span></div>
 </div>
 
 
@@ -67,7 +67,7 @@
     "local": ("Your suite", "A test file you added to this project."),
     "auto": ("From your data", "Questions generated from this project's own documents after training."),
   } %}
-  <div class="text-sm dim mb-2">Available test suites. <b>Official</b> suites are public test sets, so scores compare with published results; <b>Practice</b> and <b>Quick smoke test</b> suites are built-in synthetic look-alikes for checking the setup (not industry scores); <b>From your data</b> tests what the model learned from your documents.</div>
+  <div class="text-sm dim mb-2">Available test suites. <b>Official</b> suites are public test sets, so scores compare with published results; <b>Practice</b> and <b>Quick smoke test</b> suites are built-in synthetic look-alikes for checking the setup (not industry scores);</div>
   <div class="table-scroll bench-table-scroll mb-4">
   <table class="table text-sm" id="suite-catalog">
     <thead>
@@ -188,24 +188,11 @@
     <h3 style="margin:0">Case results{% if selected_bench %}
       <span class="text-sm dim">— {{ selected_bench._run_name }} · {{ selected_bench.suite_name or '—' }} · {{ selected_bench._ran_at_str }}</span>{% endif %}</h3>
     {% if selected_bench %}
-    <button type="button" class="btn sm" id="bench-audit-btn" title="Re-score every stored answer from scratch with the rule-based judge and compare with the saved verdicts. Nothing is changed.">Re-check score</button>
+    <button type="button" class="btn sm" id="bench-audit-btn" title="Check that every stored verdict is backed by a judgement (exact match, AI judge or you) and show where the verdicts came from. Nothing is changed.">Check verdicts</button>
     <button type="button" class="btn sm danger" id="bench-delete-btn" title="Delete this result and all its case answers.">Delete this result</button>
     {% endif %}
   </div>
   <div id="bench-audit-out" class="text-xs mb-2" hidden role="status"></div>
-  {% if latest_benchmark_id and cases %}
-  <div class="card mb-3" id="secondary-judge-card">
-    <div class="card-title">Secondary transcript judge</div>
-    <div class="card-sub">Loads a separate local model after generation. Its verdict is stored as an annotation; the authoritative source-grounded score and audit remain unchanged.</div>
-    <div class="flex gap-2 items-end mt-2">
-      <label class="flex-1"><span class="block text-xs muted mb-1">Judge model path</span>
-        <input id="secondary-judge-model" class="input" type="text" placeholder="/path/to/judge-model" autocomplete="off">
-      </label>
-      <button type="button" id="secondary-judge-btn" class="btn" onclick="runSecondaryJudge()">Judge transcripts</button>
-    </div>
-    <div id="secondary-judge-status" class="text-xs dim mt-2" role="status"></div>
-  </div>
-  {% endif %}
   <div id="bench-cases-panel">
     {% include "_case_results.html" %}
     {% if not cases %}
@@ -323,34 +310,6 @@
   var btn = document.getElementById("cmp-run-btn");
   var empty = document.getElementById("cmp-empty");
   var wrap = document.getElementById("cmp-table-wrap");
-
-  window.runSecondaryJudge = async function runSecondaryJudge() {
-    var model = (document.getElementById("secondary-judge-model") || {}).value || "";
-    var btn = document.getElementById("secondary-judge-btn");
-    var status = document.getElementById("secondary-judge-status");
-    if (!model.trim()) {
-      if (status) status.textContent = "Enter a local judge model path first.";
-      return;
-    }
-    if (btn) { btn.disabled = true; btn.textContent = "Judging…"; }
-    if (status) status.textContent = "Loading the secondary model after generation…";
-    try {
-      var r = await fetch("/api/benchmarks/projects/" + encodeURIComponent(PID)
-        + "/benchmarks/{{ latest_benchmark_id }}/judge", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ judge_mode: "secondary_local", judge_model: model.trim() }),
-        });
-      var data = await r.json().catch(function () { return {}; });
-      if (!r.ok || data.error) throw new Error(data.error || ("HTTP " + r.status));
-      if (status) status.textContent = "Stored secondary judgments for " + data.judged + " transcript(s).";
-      if (window.fts && window.fts.notify) window.fts.notify("Secondary judge finished", "success");
-      location.reload();
-    } catch (e) {
-      if (status) status.textContent = "Secondary judge failed: " + (e.message || e);
-      if (btn) { btn.disabled = false; btn.textContent = "Judge transcripts"; }
-    }
-  };
 
   function syncBtn() {
     if (!btn) return;
@@ -538,24 +497,25 @@
   if (auditBtn && auditOut) auditBtn.addEventListener("click", async function () {
     auditBtn.disabled = true;
     auditOut.hidden = false;
-    auditOut.textContent = "Re-checking every stored answer…";
+    auditOut.textContent = "Checking every stored verdict…";
     try {
       var r = await fetch(BASE + "/audit");
       var d = await r.json();
       if (!r.ok || d.error) throw new Error(d.error || ("HTTP " + r.status));
-      var a = d.independent_audit || {};
+      var a = d.audit || {};
       var stored = (d.benchmark && d.benchmark.scores) || {};
-      var re = a.recomputed_scores || {};
-      var diff = (a.disagreements || []).length;
+      var src = a.verdict_sources || {};
+      var srcText = Object.keys(src).map(function (k) { return k + " " + src[k]; }).join(" · ") || "none";
       var msg = "Saved score " + (stored.pass_rate != null ? stored.pass_rate + "%" : "—") +
-                " · rule-based recount " + (re.pass_rate != null ? re.pass_rate + "%" : "—") +
-                " over " + (a.case_count || 0) + " cases. ";
-      msg += diff ? (diff + " case(s) have a different saved verdict (AI, local or your own overrides) — that is expected when another judge was used.")
-                  : "Every saved verdict matches the recount.";
+                " over " + (a.case_count || 0) + " cases. Verdicts from: " + srcText + ". " +
+                (a.awaiting ? (a.awaiting + " case(s) have no verdict. ") : "");
+      msg += (a.verdicts_without_judgement || []).length
+        ? ((a.verdicts_without_judgement || []).length + " verdict(s) are not backed by a judgement record.")
+        : "Every verdict is backed by a judgement record.";
       if ((a.malformed_transcripts || []).length) msg += " " + a.malformed_transcripts.length + " transcript(s) could not be read.";
       auditOut.textContent = msg;
     } catch (e) {
-      auditOut.textContent = "Re-check failed: " + (e.message || e);
+      auditOut.textContent = "Check failed: " + (e.message || e);
     } finally {
       auditBtn.disabled = false;
     }

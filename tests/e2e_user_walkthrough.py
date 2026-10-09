@@ -556,12 +556,124 @@ async def phase_train(w: Walk) -> None:
         save_state(run_id=runs[0]["id"], run_path=runs[0].get("output_path", ""))
 
 
-async def _results_text(w: Walk) -> str:
-    return (await w.page.locator("text=RESULTS").first.locator("xpath=ancestor::div[contains(@class,'card')][1]").inner_text())[:1500]
+# ── Testing page: two steps (RUN saves raw transcripts, JUDGE decides) ──────────────────────────────────────────────────────────
+JUDGE_PROVIDER = os.environ.get("FTS_E2E_JUDGE_PROVIDER", "")   # '' = leave the judge select on its default (helper seat)
+_RUN_END = ("done", "failed", "cancelled")
+_JUDGE_END = ("done", "failed", "cancelled")
+
+
+def testing_run(bid: str) -> dict:
+    return api(f"/api/testing/projects/{pid()}/runs/{bid}")
+
+
+def testing_cases(bid: str) -> list[dict]:
+    return api(f"/api/testing/projects/{pid()}/runs/{bid}/cases")
+
+
+async def testing_start(w: Walk, mode: str) -> str:
+    """Pick the mode radio (its label: the input is visually hidden), press Run test, return the benchmark id from ?run=."""
+    await w.page.locator(f'label:has(input[name="t-mode"][value="{mode}"])').click()
+    auto = bool(api("/api/settings/testing").get("auto_judge"))
+    log(f"Testing mode {mode}; saved auto-judge default: {'ON' if auto else 'off'}")
+    await w.page.click("#t-run-btn")
+    try:
+        await w.page.wait_for_function("new URLSearchParams(location.search).get('run')", timeout=60000)
+    except Exception:  # noqa: BLE001
+        log("run did not start: " + await w.text("#t-status"))
+        return ""
+    bid = await w.page.evaluate("new URLSearchParams(location.search).get('run')")
+    save_state(test_run_id=bid)
+    log(f"run {bid} started; status line: {await w.text('#t-status')}")
+    return str(bid)
+
+
+async def testing_wait_run(w: Walk, bid: str, timeout: float) -> bool:
+    """Poll the run API until the answering job is terminal (the page's own table is not the signal)."""
+    async def finished() -> bool:
+        r = testing_run(bid)
+        return r["status"] in _RUN_END
+
+    ok = await w.wait_for(f"run {bid} answered", finished, timeout, every=10)
+    r = testing_run(bid)
+    log(f"run {bid}: {r['status']} {r.get('progress_done')}/{r.get('progress_total')} {str(r.get('error') or '')[:200]}")
+    return ok and r["status"] == "done"
+
+
+async def testing_judge(w: Walk, bid: str, timeout: float | None = None) -> bool:
+    """Step 2 through the run detail: Judge unjudged (judge = FTS_E2E_JUDGE_PROVIDER, '' = default), wait for judge_status."""
+    timeout = timeout or float(os.environ.get("FTS_JUDGE_TIMEOUT", "1800"))
+    if testing_run(bid)["judge_status"] != "running":   # auto-judge may already have started it
+        if JUDGE_PROVIDER:
+            await w.page.select_option("#rv-provider", value=JUDGE_PROVIDER)
+        await w.page.click("#rv-judge-new", timeout=60000)
+
+    async def judged() -> bool:
+        return testing_run(bid)["judge_status"] in _JUDGE_END
+
+    ok = await w.wait_for(f"judge of run {bid}", judged, timeout, every=10)
+    r = testing_run(bid)
+    log(f"judge {r.get('judge_model') or r.get('judge_provider_id')}: {r['judge_status']} {r.get('judge_done')}/{r.get('judge_total')} {str(r.get('judge_error') or '')[:200]}")
+    return ok and r["judge_status"] == "done"
+
+
+def testing_report(bid: str, tag: str) -> dict[str, dict[str, int]]:
+    """Scores of record from the run API (with the judge named next to them) -> .tmp/ui-results/<tag>.json; returns per-category counts."""
+    run = testing_run(bid)
+    sc = run.get("scores") or {}
+    judge = run.get("judge_model") or run.get("judge_provider_id") or "none"
+    cases = testing_cases(bid)
+    rows = []
+    for c in cases:
+        ai = [j for j in c.get("judgements", []) if j.get("kind") == "ai" and j.get("reasoning")]
+        rows.append({"name": c.get("case_name", ""), "category": c.get("category", ""), "question": c.get("question", ""),
+                     "answer": c.get("model_answer", ""), "verdict": c.get("verdict") or "awaiting", "judge": c.get("judge", ""),
+                     "why": c.get("judge_reasoning") or (ai[-1]["reasoning"] if ai else "")})
+    by: dict[str, dict[str, int]] = {}
+    for r in rows:
+        c = by.setdefault(r["category"], {"pass": 0, "partial": 0, "fail": 0, "none": 0})
+        c[r["verdict"] if r["verdict"] in c else "none"] += 1
+    rate = sc.get("pass_rate")
+    summary = (f"{sc.get('passed')}/{sc.get('total')} pass, {sc.get('partial')} partial, {sc.get('failed')} fail, "
+               f"awaiting {sc.get('awaiting')}, pass rate {'n/a (not judged)' if rate is None else f'{rate}%'} | judge: {judge}")
+    cats = "; ".join(f"{k}: pass {v['pass']} partial {v['partial']} fail {v['fail']} awaiting {v['none']}" for k, v in by.items())
+    out = REPO / ".tmp" / "ui-results"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / f"{tag}.json").write_text(json.dumps(
+        {"run_id": bid, "summary": summary, "categories": cats, "judge_model": judge, "awaiting": sc.get("awaiting"),
+         "scores": sc, "retrieval": sc.get("retrieval"), "agreement": run.get("agreement"), "cases": rows},
+        indent=1, ensure_ascii=False, default=str))
+    log(f"[{tag}] {summary}")
+    for cat, c in by.items():
+        total = sum(c.values())
+        log(f"[{tag}] {cat}: pass {c['pass']}/{total} = {100 * c['pass'] / max(total, 1):.1f}%  partial {c['partial']}  fail {c['fail']}  "
+            f"awaiting {c['none']}  (judge: {judge})")
+    return by
+
+
+async def testing_run_and_judge(w: Walk, mode: str, tag: str, run_timeout: float, what: str) -> dict[str, dict[str, int]] | None:
+    """Whole two-step flow for the current form: run, wait, (unjudged run has NO score), judge, wait, report."""
+    auto = bool(api("/api/settings/testing").get("auto_judge"))
+    bid = await testing_start(w, mode)
+    R.check(bool(bid), f"{what}: Run test started a run (?run= appeared)")
+    if not bid:
+        return None
+    started = time.time()
+    R.check(await testing_wait_run(w, bid, run_timeout), f"{what}: the model answered every question in {time.time() - started:.0f}s")
+    await w.shot(f"{tag}-answered", full=True)
+    r = testing_run(bid)
+    if not auto and r["judge_status"] == "":
+        sc = r["scores"]
+        R.check(sc.get("pass_rate") is None and sc.get("awaiting") == sc.get("total") and sc.get("judged") == 0,
+                f"{what}: an unjudged run has no score (awaiting {sc.get('awaiting')}/{sc.get('total')}, pass_rate {sc.get('pass_rate')})")
+    R.check(await testing_judge(w, bid), f"{what}: the judge finished")
+    await w.shot(f"{tag}-judged", full=True)
+    r = testing_run(bid)
+    log(f"{what}: judged by {r.get('judge_model') or r.get('judge_provider_id')}")
+    return testing_report(bid, tag)
 
 
 async def phase_test(w: Walk) -> None:
-    """Testing page: run the project quiz on the trained model, then the held-out eval and the RAG-grounded suite."""
+    """Testing page: run the project quiz on the trained model, judge it as a second step, then the held-out eval."""
     await w.goto(f"/projects/{pid()}/testing")
     model_opts = await w.page.locator("#t-model option").all_inner_texts()
     log(f"model options: {model_opts}")
@@ -572,25 +684,13 @@ async def phase_test(w: Walk) -> None:
     if mine:
         await w.page.select_option("#t-suite", label=mine)
         await w.shot("suite-picked")
-        await w.page.click("#t-run-btn")
-        await w.page.wait_for_timeout(3000)
-        await w.shot("quiz-running")
-
-        async def has_result() -> bool:
-            return await w.page.locator("#case-scores-summary").count() > 0
-
-        R.check(await w.wait_for("quiz results", has_result, 300, every=4), "quiz produced a result")
-        await w.shot("quiz-results", full=True)
-        log("RESULTS: " + (await w.text("#case-scores-summary")))
-        if await w.page.locator("#case-scores-split").count():
-            log("SPLIT:   " + (await w.text("#case-scores-split")))
+        by = await testing_run_and_judge(w, "quiz", "quiz", 600, "project quiz")
+        if by is not None:
+            R.check(bool(by) and sum(sum(c.values()) for c in by.values()) > 0, "the quiz run holds saved cases")
+    await w.goto(f"/projects/{pid()}/testing")
+    await w.page.locator('label:has(input[name="t-mode"][value="dataset"])').click()
     await w.page.select_option("#t-eval-kind", index=0)
-    await w.page.click("#t-train-eval-btn")
-    await w.page.wait_for_timeout(8000)
-    await w.shot("heldout-eval", full=True)
-    body = (await w.text("body")).replace("\n", " ")
-    i = max(body.lower().find("held-out"), 0)
-    log("HELD-OUT: " + body[i:i + 350])
+    await testing_run_and_judge(w, "dataset", "heldout", 600, "held-out dataset check")
 
 
 async def phase_gguf(w: Walk) -> None:

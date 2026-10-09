@@ -1,12 +1,13 @@
-"""Quiz questions are whole clauses, judge reasoning is never blank, errors are honest."""
+"""Quiz questions are whole clauses, a judge always explains itself or records why it could not, errors are honest."""
 from __future__ import annotations
 
+import json
+
+from finetune_studio import db
 from finetune_studio.data.prep.coverage_fill import _make_pairs_from_chunk
-from finetune_studio.testing.suite import (
-    CaseResult,
-    apply_heuristic_judging,
-    fallback_reasoning,
-)
+from finetune_studio.db import judgements as jdb
+from finetune_studio.testing.judge import LoadedJudge
+from finetune_studio.testing.judging import judge_benchmark
 
 
 def test_extractive_questions_have_no_ellipsis_fragment():
@@ -26,25 +27,39 @@ def test_unusable_sentence_is_skipped_not_fragmented():
     assert _make_pairs_from_chunk("Yes. See above. OK then.", seen_questions=set()) == []
 
 
-def test_fallback_reasoning_variants():
-    assert fallback_reasoning("pass", "because") == "because"
-    assert "failed" in fallback_reasoning("", "", error="boom")
-    assert "no verdict" in fallback_reasoning("", "")
-    assert "without an explanation" in fallback_reasoning("pass", "", judge="heuristic")
+def _saved_one_case_run() -> tuple[str, str]:
+    pid = db.create_project(name="p")["id"]
+    rid = db.create_run(pid, "run")["id"]
+    bid = db.create_benchmark(rid, "quiz", {}, status="running", kind="suite")["id"]
+    cid = db.create_case(bid, rid, "c", "x", "q?", "Paris", "It is Paris.", [])
+    return bid, cid
 
 
-def test_heuristic_judging_always_sets_reasoning():
-    ok = CaseResult(
-        case_name="c", category="x", question="q?", correct_answer="Paris",
-        model_answer="It is Paris.",
-    )
-    bad = CaseResult(
-        case_name="e", category="x", question="q?", correct_answer="Paris",
-        model_answer="", error="engine down",
-    )
-    apply_heuristic_judging([ok, bad])
-    assert ok.judge_reasoning.strip()
-    assert bad.judge_reasoning.strip()
+def test_a_failed_judge_call_records_why_instead_of_a_blank_reasoning():
+    bid, cid = _saved_one_case_run()
+
+    def down(_messages):
+        raise ConnectionError("provider down")
+
+    judge = LoadedJudge(chat=down, provider_id="fake", model="fake", label="Fake", concurrent=False)
+    assert judge_benchmark(bid, judge).failed == 1
+    row = jdb.list_judgements(case_id=cid)[0]
+    assert row["verdict"] == "" and "provider down" in row["error"]
+    assert db.get_case(cid)["verdict"] == ""  # unjudged, not failed
+
+
+def test_a_judge_verdict_always_arrives_with_its_reasoning():
+    bid, cid = _saved_one_case_run()
+    reply = json.dumps({"reasoning": "key fact Paris is present", "verdict": "pass"})
+    judge = LoadedJudge(chat=lambda _m: reply, provider_id="fake", model="fake", label="Fake", concurrent=False)
+    judge_benchmark(bid, judge)
+    assert db.get_case(cid)["judge_reasoning"].strip()
+
+
+def test_there_is_no_scripted_reasoning_fallback_left():
+    import finetune_studio.testing.suite as suite_mod
+
+    assert not hasattr(suite_mod, "fallback_reasoning") and not hasattr(suite_mod, "apply_heuristic_judging")
 
 
 def test_training_start_bad_body_is_400(client):

@@ -45,11 +45,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_test.add_argument("--temperature", type=float, default=0.7)
 
     # ── suite ──
-    p_suite = sub.add_parser("suite", help="Run a test suite")
+    p_suite = sub.add_parser("suite", help="Run a test suite and record the raw answers (judging is a separate step)")
     p_suite.add_argument("model", help="Path to model")
     p_suite.add_argument("suite", help="Path to test suite JSON")
     p_suite.add_argument("--max-tokens", type=int, default=512)
     p_suite.add_argument("--json", action="store_true", help="Output as JSON")
+    p_suite.add_argument("--out", help="Write the transcripts (one JSON object per line) to this file")
+    p_suite.add_argument(
+        "--judge", nargs="?", const="", default=None, metavar="PROVIDER_ID",
+        help="Afterwards let an AI judge read the answers (provider row id; default: the configured judge / helper seat)",
+    )
 
     # ── validate ──
     p_val = sub.add_parser("validate", help="Validate training data")

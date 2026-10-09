@@ -2,7 +2,7 @@
 
 Gaps (UI coverage audit 2026-10-03): only the latest benchmark's cases were
 viewable; the verdict-override, audit and delete routes had no UI. Bugs found
-alongside: no verdict change except the heuristic re-judge recomputed the
+alongside: no verdict change except the (since removed) scripted re-judge recomputed the
 benchmark's headline score (stale "Recent scores"), that re-judge dropped
 training-eval metadata from the scores, any string was accepted as a verdict,
 and deleting a benchmark left its cases orphaned.
@@ -65,15 +65,29 @@ def test_invalid_verdict_is_400(client_and_db, tmp_path, bad):
     assert db.list_cases(b["id"])[0]["verdict"] == "pass"
 
 
-def test_heuristic_rejudge_keeps_training_eval_metadata(client_and_db, tmp_path):
+def test_human_review_and_retraction_on_the_testing_route_keep_training_eval_metadata(client_and_db, tmp_path):
+    """There is no scripted re-judge any more: a person overrides on the Testing route, and retracting restores the
+    earlier opinion — rescoring keeps the training-eval metadata either way."""
     client, _ = client_and_db
     pid, rid = _create_project_and_run(client, tmp_path)
     b = _bench(rid, ["fail"], eval_kind="holdout", dataset_name="faq")
-    r = client.post(f"/api/benchmarks/projects/{pid}/benchmarks/{b['id']}/judge",
-                    json={"judge_mode": "heuristic"})
-    assert r.status_code == 200, r.text
+    cid = db.list_cases(b["id"])[0]["id"]
+    url = f"/api/testing/projects/{pid}/runs/{b['id']}/cases/{cid}/verdict"
+    assert client.put(url, json={"verdict": "pass", "reasoning": "synonym"}).status_code == 200
     s = _scores(b["id"])
-    assert s["eval_kind"] == "holdout" and s["dataset_name"] == "faq"
+    assert s["pass_rate"] == 100.0 and s["eval_kind"] == "holdout" and s["dataset_name"] == "faq"
+    assert client.put(url, json={"verdict": ""}).status_code == 200
+    s = _scores(b["id"])
+    assert s["pass_rate"] == 0.0 and s["eval_kind"] == "holdout" and s["dataset_name"] == "faq"
+    assert db.list_cases(b["id"])[0]["verdict"] == "fail"  # the earlier opinion applies again
+
+
+def test_the_rejudge_route_is_gone(client_and_db, tmp_path):
+    client, _ = client_and_db
+    pid, rid = _create_project_and_run(client, tmp_path)
+    b = _bench(rid, ["fail"])
+    r = client.post(f"/api/benchmarks/projects/{pid}/benchmarks/{b['id']}/judge", json={"judge_mode": "heuristic"})
+    assert r.status_code in (404, 405)
 
 
 def test_delete_benchmark_removes_its_cases(client_and_db, tmp_path):
@@ -98,7 +112,8 @@ def test_page_opens_any_benchmark_by_id(client_and_db, tmp_path):
     assert "OLDER-ONLY QUESTION" in html
     assert f"?bid={older['id']}" in html  # recent-scores rows link to their cases
     assert 'class="select verdict-select"' in html  # human override control, themed
-    assert "Re-check score" in html and "Delete this result" in html
+    assert "Delete this result" in html
+    assert "Re-check score" not in html  # the scripted re-judge button went with the scripted judge
 
 
 def test_unknown_bid_falls_back_to_latest(client_and_db, tmp_path):

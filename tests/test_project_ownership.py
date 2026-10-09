@@ -5,8 +5,8 @@ Four verified findings, one regression test group each:
 1. Chat (``chat_v2``) must not search a RAG owned by another project.
 2. File-library version/conversion data + routes must be scoped to the
    project in the URL (a foreign file id is a 404, never metadata/paths).
-3. ``_persist_rag_report`` must not attach an evaluation to a run that
-   belongs to a different project.
+3. A test run must not attach to a training run that belongs to a different
+   project (``run_store.resolve_owner_run``).
 4. The RAG build/status source root must follow ``FTS_ROOT`` (the shared
    ``data.fs.paths`` helpers), not a hard-coded ``~/.finetune-studio``.
 """
@@ -155,65 +155,48 @@ def test_mutating_file_routes_404_for_foreign_file_id(
     assert client.get(f"/api/projects/{pid_b}/files/{fid_b}").status_code == 200
 
 
-# ── 3. _persist_rag_report run ownership ─────────────────────────────────
+# ── 3. test-run ownership ───────────────────────────────────────────────
 
 
-def _report() -> dict:
-    return {
-        "model_path": "/models/m",
-        "results": [],
-        "scores": {},
-        "retrieval": {},
-        "corpus_path": "/c",
-    }
-
-
-def test_persist_rag_report_does_not_link_foreign_run(client) -> None:
-    from finetune_studio.webui.routes.testing import _persist_rag_report
+def test_test_run_does_not_attach_to_a_foreign_run(client) -> None:
+    from finetune_studio.testing.run_store import resolve_owner_run
 
     pid_a = _mk_project(client, "own-run-a")
     pid_b = _mk_project(client, "own-run-b")
     foreign_run = db.create_run(project_id=pid_b, name="run-b")
 
-    bench = _persist_rag_report(
-        project_id=pid_a,
-        requested_run_id=foreign_run["id"],
-        suite_path="/s/suite.json",
-        report=_report(),
-    )
-    assert bench["run_id"] != foreign_run["id"]
-    assert db.get_run(bench["run_id"])["project_id"] == pid_a
+    owner = resolve_owner_run(pid_a, "/models/m", requested_run_id=foreign_run["id"])
+    assert owner != foreign_run["id"]
+    assert db.get_run(owner)["project_id"] == pid_a
     assert db.list_benchmarks(foreign_run["id"]) == []
 
 
-def test_persist_rag_report_links_own_run(client) -> None:
-    from finetune_studio.webui.routes.testing import _persist_rag_report
+def test_test_run_links_the_projects_own_run(client) -> None:
+    from finetune_studio.testing.run_store import resolve_owner_run
 
     pid_a = _mk_project(client, "own-run-ok")
     run = db.create_run(project_id=pid_a, name="run-a")
-    bench = _persist_rag_report(
-        project_id=pid_a,
-        requested_run_id=run["id"],
-        suite_path="/s/suite.json",
-        report=_report(),
-    )
-    assert bench["run_id"] == run["id"]
+    assert resolve_owner_run(pid_a, "/models/m", requested_run_id=run["id"]) == run["id"]
 
 
-def test_persist_rag_report_without_project_rejects_requested_run(client) -> None:
-    """No project to prove ownership against -> fail closed, never link the run."""
-    from finetune_studio.webui.routes.testing import _persist_rag_report
+def test_test_run_without_project_fails_closed(client) -> None:
+    """No project to prove ownership against -> refuse, never link the run."""
+    from finetune_studio.testing.run_store import resolve_owner_run
 
     pid_b = _mk_project(client, "own-run-noproj")
     run = db.create_run(project_id=pid_b, name="run-b")
     with pytest.raises(ValueError, match="project_id"):
-        _persist_rag_report(
-            project_id="",
-            requested_run_id=run["id"],
-            suite_path="/s/suite.json",
-            report=_report(),
-        )
+        resolve_owner_run("", "/models/m", requested_run_id=run["id"])
     assert db.list_benchmarks(run["id"]) == []
+
+
+def test_models_that_are_not_a_training_run_share_one_hidden_placeholder(client) -> None:
+    from finetune_studio.testing.run_store import resolve_owner_run
+
+    pid = _mk_project(client, "own-run-placeholder")
+    first = resolve_owner_run(pid, "/models/imported.gguf")
+    assert resolve_owner_run(pid, "/models/another.gguf") == first
+    assert all(r["id"] != first for r in db.list_runs(pid))  # hidden from the training run list
 
 
 # ── 4. RAG source root honours FTS_ROOT ──────────────────────────────────

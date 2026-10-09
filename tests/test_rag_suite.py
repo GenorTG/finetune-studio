@@ -29,6 +29,7 @@ from finetune_studio.testing.rag_suite import (
 from finetune_studio.testing.suite import BenchmarkCase, CaseResult
 from finetune_studio.webui import app as app_module
 from finetune_studio.webui.app import app
+from tests.testing_run_support import wait_run_finished
 
 
 class FakeRag:
@@ -329,7 +330,9 @@ def test_run_rag_suite_evaluation_scores_and_metrics(tmp_path: Path) -> None:
     assert payload["retrieval"]["retrieval_hits"] == 1
     assert payload["retrieval"]["recall_at_k"] == 0.5
     assert payload["scores"]["total"] == 2
-    assert payload["scores"]["passed"] >= 1
+    assert payload["scores"]["judged"] == 0 and payload["scores"]["awaiting"] == 2  # recorded, not judged
+    assert payload["scores"]["pass_rate"] is None
+    assert all(r["verdict"] == "" for r in payload["results"])
     hit_row = next(r for r in payload["results"] if r["name"] == "hit_case")
     assert hit_row["retrieval_hit"] is True
     assert hit_row["context_text"]
@@ -354,12 +357,11 @@ def client_and_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return TestClient(app), db_path
 
 
-def test_run_rag_suite_route_with_fake_engine_and_rag(
-    client_and_db: tuple[TestClient, Path],
+def test_run_rag_suite_route_starts_a_background_run_that_saves_transcripts_and_no_verdict(
+    client: TestClient,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client, _ = client_and_db
     r = client.post(
         "/api/projects",
         json={"name": f"rag-{uuid.uuid4().hex[:6]}", "base_model": "x/test"},
@@ -384,10 +386,6 @@ def test_run_rag_suite_route_with_fake_engine_and_rag(
 
     fake = FakeEngine("Ada Smit", model_path="/override/model")
     monkeypatch.setattr(app_module, "inference_engine", fake)
-    monkeypatch.setattr(
-        "finetune_studio.webui.routes.testing.inference_engine",
-        fake,
-    )
 
     rag = FakeRag(
         {
@@ -410,18 +408,6 @@ def test_run_rag_suite_route_with_fake_engine_and_rag(
         lambda _path: rag,
     )
 
-    to_thread_calls: list[Any] = []
-    real_to_thread = __import__("asyncio").to_thread
-
-    async def _tracking_to_thread(fn: Any, *args: Any, **kwargs: Any) -> Any:
-        to_thread_calls.append(fn)
-        return await real_to_thread(fn, *args, **kwargs)
-
-    monkeypatch.setattr(
-        "finetune_studio.webui.routes.testing.asyncio.to_thread",
-        _tracking_to_thread,
-    )
-
     resp = client.post(
         "/api/testing/run-rag-suite",
         json={
@@ -433,31 +419,31 @@ def test_run_rag_suite_route_with_fake_engine_and_rag(
             "max_tokens": 64,
         },
     )
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert to_thread_calls, "expected asyncio.to_thread to be used"
-    assert body["model_path"] == "/override/model"
-    assert body["corpus_path"] == str(corpus)
-    assert body["top_k"] == 2
-    assert body["retrieval"]["retrieval_hits"] == 1
-    assert body["retrieval"]["recall_at_k"] == 1.0
-    assert body["scores"]["total"] == 1
-    assert body["benchmark_id"]
-    benchmark = db.get_benchmark(body["benchmark_id"])
-    assert benchmark is not None
-    assert benchmark["model_path"] == "/override/model"
-    cases = db.list_cases(body["benchmark_id"])
+    assert resp.status_code == 202, resp.text
+    bid = resp.json()["benchmark_id"]
+    assert resp.json()["benchmark"]["status"] == "running" and resp.json()["benchmark"]["kind"] == "rag"
+    done = wait_run_finished(bid)
+
+    assert done["status"] == "done" and done["model_path"] == "/override/model"
+    assert done["scores"]["corpus_path"] == str(corpus)
+    assert done["scores"]["retrieval"]["retrieval_hits"] == 1
+    assert done["scores"]["retrieval"]["recall_at_k"] == 1.0
+    assert done["scores"]["total"] == 1 and done["scores"]["awaiting"] == 1 and done["scores"]["pass_rate"] is None
+    assert done["config"]["rag"]["top_k"] == 2
+    cases = db.list_cases(bid)
     assert len(cases) == 1
     assert cases[0]["source_id"] == "doc-rk04"
     assert cases[0]["transcript"]
+    assert cases[0]["verdict"] == "" and cases[0]["model_answer"] == "Ada Smit"
     assert cases[0]["judge_input"]["retrieval_hit"] is True
-    row = body["results"][0]
-    assert row["name"] == "rk04_owner"
-    assert row["retrieval_hit"] is True
-    assert row["context_text"]
-    assert row["transcript"]
-    assert row["retrieval_hits"][0]["document_id"] == "doc-rk04"
     assert rag.search_calls
+
+    listed = client.get(f"/api/testing/projects/{pid}/runs/{bid}/cases").json()
+    assert listed[0]["question"] == "Who owns RK-04?" and listed[0]["judge_input"]["retrieval_hit"] is True
+    assert "context_text" not in listed[0]["judge_input"]  # heavy fields only on the single-case fetch
+    full = client.get(f"/api/testing/projects/{pid}/runs/{bid}/cases/{listed[0]['id']}").json()
+    assert full["judge_input"]["context_text"] and full["judge_input"]["retrieval_hits"][0]["document_id"] == "doc-rk04"
+    assert full["transcript"]
 
 
 def test_run_rag_suite_route_requires_suite_path(
@@ -476,40 +462,35 @@ def test_run_rag_suite_route_requires_suite_path(
     assert "suite_path" in resp.json()["error"]
 
 
-def test_run_rag_suite_route_missing_corpus_404(
-    client_and_db: tuple[TestClient, Path],
+def test_run_rag_suite_route_missing_corpus_fails_the_run_with_the_reason(
+    client: TestClient,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client, _ = client_and_db
+    pid = client.post("/api/projects", json={"name": f"rag-{uuid.uuid4().hex[:6]}", "base_model": "x/test"}).json()["id"]
     suite_path = tmp_path / "suite.json"
     suite_path.write_text(
-        json.dumps(
-            [
-                {
-                    "name": "q1",
-                    "question": "Q?",
-                    "correct_answer": "A",
-                    "keywords": ["A"],
-                }
-            ]
-        ),
-        encoding="utf-8",
+        json.dumps([{"name": "q1", "question": "Q?", "correct_answer": "A", "keywords": ["A"]}]), encoding="utf-8",
     )
-    fake = FakeEngine()
-    monkeypatch.setattr(app_module, "inference_engine", fake)
-    monkeypatch.setattr(
-        "finetune_studio.webui.routes.testing.inference_engine",
-        fake,
-    )
-    missing = tmp_path / "no-such-corpus"
+    monkeypatch.setattr(app_module, "inference_engine", FakeEngine(model_path="/override/model"))
     resp = client.post(
         "/api/testing/run-rag-suite",
         json={
             "suite_path": str(suite_path),
+            "project_id": pid,
             "model_path": "/override/model",
-            "corpus_path": str(missing),
+            "corpus_path": str(tmp_path / "no-such-corpus"),
         },
     )
-    assert resp.status_code == 404
-    assert "RAG corpus" in resp.json()["error"]
+    assert resp.status_code == 202, resp.text
+    done = wait_run_finished(resp.json()["benchmark_id"])
+    assert done["status"] == "failed" and "RAG corpus not found" in done["error"]
+    assert db.list_cases(done["id"]) == []
+
+
+def test_run_rag_suite_route_needs_a_project(client_and_db: tuple[TestClient, Path], tmp_path: Path) -> None:
+    client, _ = client_and_db
+    suite_path = tmp_path / "suite.json"
+    suite_path.write_text(json.dumps([{"name": "q1", "question": "Q?", "correct_answer": "A"}]), encoding="utf-8")
+    resp = client.post("/api/testing/run-rag-suite", json={"suite_path": str(suite_path)})
+    assert resp.status_code == 400 and "project_id" in resp.json()["error"]

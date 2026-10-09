@@ -6,9 +6,9 @@ Replaces permissive keyword/substring matching for MCQ and numeric items:
 - Numeric requires a single normalized final answer equal to the expected
   value; substring hits inside larger numbers or rival finals are rejected.
 
-Source-grounded open-ended cases use conservative content-term coverage; unrelated
-answers must not pass merely because they share a few generic words. Non-source
-open-ended cases retain the caller's legacy path.
+This module is ONLY for the official public benchmarks and built-in multiple-choice / numeric suites, where
+the answer is one letter or one number and exact match is the published method. Open-ended answers about a
+user's own documents are never scored here: those are read by the AI judge (testing/judge.py) or a human.
 """
 
 from __future__ import annotations
@@ -55,205 +55,11 @@ _PROVENANCE_SUFFIX = re.compile(
     r"(?is)\s*(?:\n\s*)?(?:\(|\[)?\s*(?:source|filename|file)\s*:\s*"
     r"[^\n\)\]]+\.(?:md|txt|csv|json|jsonl|html|pdf|docx|xlsx|rst)\s*(?:\)|\])?\s*$"
 )
-_FACT_TOKEN = re.compile(
-    r"\b\d{4}[-/]\d{1,2}[-/]\d{1,2}\b|"
-    r"\b\d{1,2}:\d{2}\b|"
-    r"\b[A-Z]{2,}[-_]\d+\b|\b[A-Z]-\d+\b|"
-    r"\b\d+(?:,\d{3})*(?:\.\d+)?\s*%|"
-    r"\b\d+(?:,\d{3})*(?:\.\d+)?\b",
-    re.IGNORECASE,
-)
-_NUMBER_WORDS = {
-    "zero": "0", "one": "1", "two": "2", "three": "3",
-    "four": "4", "five": "5", "six": "6", "seven": "7",
-    "eight": "8", "nine": "9", "ten": "10", "fifteen": "15",
-    "twenty": "20", "twenty-five": "25",
-}
-_CONTENT_STOPWORDS = {
-    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
-    "how", "in", "is", "it", "of", "on", "or", "that", "the", "this",
-    "to", "was", "what", "when", "where", "which", "who", "with", "why",
-    "percent",
-}
-_NAMED_ENTITY = re.compile(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b|\b[A-Z]{2,}[-_]\d+\b|\b[A-Z]-\d+\b")
-_ROLE_WORDS = {"director", "control", "lead", "officer", "supervisor", "desk", "team", "privacy", "manager"}
-_CONTENT_TERM_ALIASES = {"traceability": "trace"}
 
 
 def strip_provenance_suffix(text: str) -> str:
     """Ignore an approved source citation when scoring the answer body."""
     return _PROVENANCE_SUFFIX.sub("", text or "").strip()
-
-
-def extract_critical_facts(text: str) -> set[str]:
-    """Extract dates, times, IDs, percentages, and explicit numeric facts."""
-    cleaned = strip_provenance_suffix(text).lower()
-    cleaned = re.sub(r"(\d+(?:\.\d+)?)\s+percent(?:age)?\b", r"\1%", cleaned)
-    cleaned = re.sub(r"\bzero(?:es|s)\b", "0", cleaned)
-    for word, number in _NUMBER_WORDS.items():
-        cleaned = re.sub(rf"\b{re.escape(word)}\b", number, cleaned)
-    return {
-        re.sub(r"[\s,]", "", match).lower()
-        for match in _FACT_TOKEN.findall(cleaned)
-    }
-
-
-def extract_content_terms(text: str) -> set[str]:
-    """Return meaningful lexical anchors for source-grounded open answers."""
-    cleaned = strip_provenance_suffix(text).lower()
-    return {
-        _CONTENT_TERM_ALIASES.get(term, term)
-        for term in re.findall(r"[a-z][a-z0-9'-]{3,}", cleaned)
-        if term not in _CONTENT_STOPWORDS
-    }
-
-
-def _focused_expected_answer(question: str, answer: str) -> str:
-    """Drop unrelated rows from legacy table/record-shaped expected answers."""
-    if "|" not in answer and not (answer.count("{") >= 2 and answer.count("}") >= 2):
-        return answer
-    question_lower = question.lower()
-    rows = [line.strip() for line in answer.splitlines() if "|" in line]
-    anchors = re.findall(r"\b(?:[a-z]{2,}[-_]\d+|[a-z]{2,}\d+|\d{4}-\d{2}-\d{2})\b", question_lower)
-    anchors += [term for term in re.findall(r"\b[a-z]{4,}\b", question_lower)
-                if term not in _CONTENT_STOPWORDS]
-    id_anchors = [anchor for anchor in anchors if re.fullmatch(r"[a-z]{2,}[-_]\d+|[a-z]{2,}\d+|\d{4}-\d{2}-\d{2}", anchor)]
-    if id_anchors:
-        selected = [row for row in rows if any(anchor in row.lower() for anchor in id_anchors)]
-        if selected:
-            return "\n".join(selected)
-    row_scores = [sum(anchor in row.lower() for anchor in anchors) for row in rows]
-    best = max(row_scores, default=0)
-    selected = [row for row, score in zip(rows, row_scores) if score == best and score]
-    if selected:
-        return "\n".join(selected)
-    objects = re.findall(r"\{[^{}]*\}", answer, re.DOTALL)
-    selected_objects = [obj for obj in objects if any(anchor in obj.lower() for anchor in anchors)]
-    if selected_objects:
-        return "\n".join(selected_objects)
-    # A table with no row matching the question is malformed as an expected
-    # answer; retain its header only so it cannot impose unrelated entities.
-    # No matching record means the legacy target is not question-focused.
-    return "" if rows or objects else answer
-
-
-def _normalise_phrase(text: str) -> str:
-    return re.sub(r"\s+", " ", text.lower()).strip().removeprefix("the ")
-
-
-def _question_requests_date(question: str) -> bool:
-    q = question.strip().lower()
-    return bool(re.search(
-        r"^when\b|\bon what date\b|\b(?:what|which) date\b|\bdate (?:is|was|did)\b",
-        q,
-    ))
-
-
-def score_source_grounded(
-    *, question: str = "", correct_answer: str, model_answer: str,
-) -> StrictScore | None:
-    """Require facts and meaningful content coverage for source-grounded answers."""
-    table_expected = "|" in correct_answer
-    correct_answer = _focused_expected_answer(question, correct_answer)
-    question_facts = extract_critical_facts(question)
-    expected = extract_critical_facts(correct_answer) - question_facts
-    if question and not _question_requests_date(question):
-        expected = {
-            fact for fact in expected
-            if not re.fullmatch(r"\d{4}[-/]\d{1,2}[-/]\d{1,2}", fact)
-        }
-    purpose_query = "purpose" in question.lower()
-    if purpose_query:
-        expected = {
-            fact for fact in expected
-            if not re.fullmatch(r"[-+]?\d+(?:\.\d+)?%?", fact)
-        }
-    expected = {
-        fact for fact in expected
-        if not (re.search(r"[a-z]-\d+|[a-z]{2,}-\d+", fact)
-                and fact not in question_facts)
-    }
-    actual = extract_critical_facts(model_answer)
-    missing_facts = expected - actual
-    expected_terms = extract_content_terms(correct_answer) - extract_content_terms(question)
-    actual_terms = extract_content_terms(model_answer)
-    identity_query = not question or bool(re.search(
-        r"\b(?:who|owner|contact|reviewer|responsible|supervisor)\b", question, re.IGNORECASE
-    ))
-    if question and (identity_query or "status" in question.lower()):
-        expected = set()
-        missing_facts = expected - actual
-    if "scope item" in question.lower() or "which glossary term" in question.lower():
-        expected = set()
-        missing_facts = set()
-    entity_matches = [entity.lower() for entity in _NAMED_ENTITY.findall(correct_answer)]
-    entity_matches = [
-        entity for entity in entity_matches
-        if not re.fullmatch(r"[a-z]{2,}[-_]\d+|[a-z]-\d+", entity)
-    ]
-    expected_entities = set(entity_matches) if identity_query else set()
-    if table_expected and expected_entities:
-        expected_entities = {entity_matches[0]}
-    question_phrase = _normalise_phrase(question)
-    expected_entities = {
-        entity for entity in expected_entities
-        if _normalise_phrase(entity) not in question_phrase
-        and not any(word in _normalise_phrase(entity).split() for word in _ROLE_WORDS)
-    }
-    actual_lower = strip_provenance_suffix(model_answer).lower()
-    actual_phrase = _normalise_phrase(actual_lower)
-    missing_entities = {
-        entity for entity in expected_entities
-        if _normalise_phrase(entity) not in actual_phrase
-    }
-    expected_rejection = bool(re.search(r"\b(?:not approved|rejected|denied)\b", correct_answer, re.IGNORECASE))
-    contradictory_approval = expected_rejection and bool(
-        re.search(r"\bapproved\b", model_answer, re.IGNORECASE)
-    ) and not bool(re.search(r"\bnot approved\b|\brejected\b|\bdenied\b", model_answer, re.IGNORECASE))
-    if missing_entities or contradictory_approval:
-        missing = sorted(missing_entities or {"expected rejection/approval state"})
-        return StrictScore(
-            verdict="fail", scoring_method="source_critical_facts",
-            validity="valid", reasoning=f"missing or contradictory source anchors: {', '.join(missing)}",
-        )
-    missing_terms = expected_terms - actual_terms
-    term_ratio = len(expected_terms & actual_terms) / max(1, len(expected_terms))
-    expected_negative = bool(re.search(r"\b(?:false|did not|no|not)\b", correct_answer, re.IGNORECASE))
-    model_negative = bool(re.search(r"\b(?:false|did not|no|not)\b", model_answer, re.IGNORECASE))
-    if purpose_query:
-        content_ok = term_ratio >= 0.25
-    elif (
-        (expected_negative and model_negative and not missing_entities)
-        or (identity_query and question)
-        or ("status" in question.lower() and (expected_rejection or "approved" in actual_lower))
-        or (question.lower().startswith("how many") and actual)
-        or ("which glossary term" in question.lower() and "exception" in actual_lower
-            and re.search(r"manual|human action", actual_lower))
-        or ("third" in question.lower() and "fourth" in question.lower()
-            and "scope item" in question.lower())
-        or ("external api" in question.lower() and "hidden" in actual_lower
-            and re.search(r"release\s+2026\.08\.2", actual_lower))
-    ):
-        content_ok = True
-    else:
-        content_ok = not missing_terms or (question and term_ratio >= 0.1)
-    if not missing_facts and content_ok:
-        return StrictScore(
-            verdict="pass", scoring_method="source_critical_facts",
-            validity="valid", reasoning="all critical facts and content anchors are present",
-        )
-    matched_facts = len(expected & actual)
-    matched = matched_facts + len(expected_terms & actual_terms)
-    verdict: Verdict = "partial" if matched else "fail"
-    if term_ratio < 0.35 and not matched_facts and not (purpose_query and matched):
-        verdict = "fail"
-    if expected and missing_facts and matched_facts == 0:
-        verdict = "fail"
-    missing = sorted(missing_facts | missing_terms)
-    return StrictScore(
-        verdict=verdict, scoring_method="source_critical_facts",
-        validity="valid", reasoning=f"missing source anchors: {', '.join(missing)}",
-    )
 
 
 @dataclass(frozen=True)
@@ -525,9 +331,9 @@ def score_strict(
     correct_answer: str,
     model_answer: str,
 ) -> StrictScore | None:
-    """Score with the strict scorer when the task kind is MCQ or numeric.
+    """Score with the exact scorer when the task kind is MCQ or numeric.
 
-    Returns None for open-ended cases so callers can keep legacy heuristics.
+    Returns None for anything else: the case stays unjudged rather than being string-matched.
     """
     kind = detect_task_kind(question, correct_answer)
     if kind == "multiple_choice":
@@ -541,3 +347,25 @@ def score_strict(
             model_answer=model_answer,
         )
     return None
+
+
+def apply_exact_scoring(results: list) -> int:
+    """Exact-match score MCQ / numeric ``CaseResult``s in place (official public benchmarks only).
+
+    Cases that errored without an answer, or that are not MCQ / numeric, keep an empty verdict. Returns how many
+    cases received a verdict.
+    """
+    scored = 0
+    for r in results:
+        if r.verdict or (r.error and not r.model_answer):
+            continue
+        strict = score_strict(question=r.question, correct_answer=r.correct_answer, model_answer=r.model_answer)
+        if strict is None:
+            continue
+        r.verdict = strict.verdict
+        r.judge = r.judge_model = "exact"
+        r.scoring_method = strict.scoring_method
+        r.validity = strict.validity
+        r.judge_reasoning = f"[{strict.scoring_method}; validity={strict.validity}] {strict.reasoning}"
+        scored += 1
+    return scored

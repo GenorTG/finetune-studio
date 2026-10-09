@@ -1,4 +1,4 @@
-"""Regression tests for bench-exec heuristic judge (QABUG-006 / QABUG-010)."""
+"""Benchmarks route: public / built-in multiple-choice suites are exact-scored here; a project quiz is not (QABUG-006 / QABUG-010)."""
 
 from __future__ import annotations
 
@@ -75,133 +75,117 @@ def _stub_engine(monkeypatch: pytest.MonkeyPatch, answer: str) -> None:
     )
 
 
-def _write_suite(tmp_path: Path, keywords: list[str], correct: str = "Paris") -> str:
-    suite = [
-        {
-            "name": "capital_fr",
-            "category": "geo",
-            "question": "Capital of France?",
-            "correct_answer": correct,
-            "keywords": keywords,
-        }
-    ]
-    path = tmp_path / "suite.json"
-    path.write_text(json.dumps(suite), encoding="utf-8")
+def _exact_suite() -> str:
+    """A built-in multiple-choice suite: the one kind of suite the benchmarks route runs and scores itself."""
+    from finetune_studio.benchmarks.suite_defs import list_builtin_smoke_suites
+
+    return list_builtin_smoke_suites()[0].path
+
+
+def _write_quiz(tmp_path: Path) -> str:
+    path = tmp_path / "quiz.json"
+    path.write_text(json.dumps([{
+        "name": "capital_fr", "category": "geo", "question": "Capital of France?",
+        "correct_answer": "Paris", "keywords": ["Paris"],
+    }]), encoding="utf-8")
     return str(path)
 
 
-def test_bench_judge_invokes_heuristic(
-    client_and_db: tuple[TestClient, Path],
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    client, _db_path = client_and_db
-    pid, rid = _create_project_and_run(client, tmp_path)
-    _stub_engine(monkeypatch, "Paris")
-    suite_path = _write_suite(tmp_path, ["Paris"])
+def _answer_key_engine(monkeypatch: pytest.MonkeyPatch, *, wrong: bool = False) -> None:
+    """An engine that replies with each case's answer key (or a letter that is never right)."""
+    from finetune_studio.testing.suite import load_test_suite
 
-    r = client.post(
-        f"/api/benchmarks/projects/{pid}/runs/{rid}/run",
-        json={
-            "suite_path": suite_path,
-            "suite_name": "kw-test",
-            "judge_mode": "heuristic",
-            "max_tokens": 32,
-        },
-    )
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert "error" not in body or not body.get("error"), body
-    results = body["results"]
-    assert len(results) == 1
-    assert results[0]["verdict"] == "pass"
+    key = {c.question: c.correct_answer for c in load_test_suite(_exact_suite())}
+
+    class KeyEngine:
+        model = None
+        model_path = None
+
+        def load(self, path: str, **_kw: Any) -> None:
+            self.model, self.model_path = object(), path
+
+        def unload(self) -> None:
+            self.model = None
+
+        def generate(self, messages: list, **_kw: Any) -> str:
+            return "Answer: Z" if wrong else key[messages[-1]["content"]]
+
+    monkeypatch.setattr("finetune_studio.testing.inference.InferenceEngine", KeyEngine)
+    monkeypatch.setattr("finetune_studio.webui.app.inference_engine", MagicMock(model=None, unload=MagicMock()),
+                        raising=False)
 
 
-def test_bench_judge_records_verdict_in_db(
+def test_public_suite_is_scored_by_exact_match_and_marked_so(
     client_and_db: tuple[TestClient, Path],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client, db_path = client_and_db
     pid, rid = _create_project_and_run(client, tmp_path)
-    _stub_engine(monkeypatch, "Paris")
-    suite_path = _write_suite(tmp_path, ["Paris"])
+    _answer_key_engine(monkeypatch)
 
     r = client.post(
         f"/api/benchmarks/projects/{pid}/runs/{rid}/run",
-        json={
-            "suite_path": suite_path,
-            "suite_name": "kw-db",
-            "judge_mode": "heuristic",
-            "max_tokens": 32,
-        },
+        json={"suite_path": _exact_suite(), "suite_name": "mcq", "max_tokens": 32},
     )
     assert r.status_code == 200, r.text
-    bid = r.json()["benchmark"]["id"]
+    body = r.json()
+    assert body["scores"]["pass_rate"] == 100.0 and body["scores"]["by_judge"] == {"exact": body["scores"]["total"]}
+    assert {x["judge"] for x in body["results"]} == {"exact"}
+    assert body["benchmark"]["scoring"] == "exact"
 
     con = sqlite3.connect(str(db_path))
     try:
-        row = con.execute(
-            "SELECT verdict, judge FROM benchmark_cases WHERE benchmark_id = ?",
-            (bid,),
-        ).fetchone()
+        rows = con.execute("SELECT verdict, judge FROM benchmark_cases WHERE benchmark_id = ?",
+                           (body["benchmark_id"],)).fetchall()
+        recorded = con.execute("SELECT kind, verdict FROM case_judgements WHERE benchmark_id = ?",
+                               (body["benchmark_id"],)).fetchall()
     finally:
         con.close()
-    assert row is not None
-    assert row[0] == "pass"
-    assert row[1] == "heuristic"
+    assert rows and {r[1] for r in rows} == {"exact"} and {r[0] for r in rows} == {"pass"}
+    assert len(recorded) == len(rows) and {k for k, _v in recorded} == {"exact"}
 
 
-def test_bench_judge_marks_fail_when_keywords_missed(
+def test_public_suite_wrong_answers_fail_exactly(
     client_and_db: tuple[TestClient, Path],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client, _db_path = client_and_db
     pid, rid = _create_project_and_run(client, tmp_path)
-    _stub_engine(monkeypatch, "London")
-    suite_path = _write_suite(tmp_path, ["Paris"])
+    _answer_key_engine(monkeypatch, wrong=True)
 
-    r = client.post(
-        f"/api/benchmarks/projects/{pid}/runs/{rid}/run",
-        json={
-            "suite_path": suite_path,
-            "suite_name": "kw-fail",
-            "judge_mode": "heuristic",
-            "max_tokens": 32,
-        },
-    )
+    r = client.post(f"/api/benchmarks/projects/{pid}/runs/{rid}/run", json={"suite_path": _exact_suite()})
     assert r.status_code == 200, r.text
-    assert r.json()["results"][0]["verdict"] == "fail"
+    assert {x["verdict"] for x in r.json()["results"]} == {"fail"}
+    assert r.json()["scores"]["pass_rate"] == 0.0
 
 
-def test_secondary_local_judge_is_persisted_without_overwriting_source_score(
+def test_a_project_quiz_is_refused_here_and_points_at_the_testing_page(
     client_and_db: tuple[TestClient, Path],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client, _db_path = client_and_db
     pid, rid = _create_project_and_run(client, tmp_path)
-    _stub_engine(monkeypatch, '{"verdict":"pass","reasoning":"exact","confidence":0.9}')
-    suite_path = _write_suite(tmp_path, ["Paris"])
-    run = client.post(
-        f"/api/benchmarks/projects/{pid}/runs/{rid}/run",
-        json={"suite_path": suite_path, "suite_name": "secondary", "judge_mode": "heuristic"},
-    )
-    assert run.status_code == 200, run.text
-    bid = run.json()["benchmark"]["id"]
-    original_verdict = db.list_cases(bid)[0]["verdict"]
+    _stub_engine(monkeypatch, "Paris")
 
-    judged = client.post(
-        f"/api/benchmarks/projects/{pid}/benchmarks/{bid}/judge",
-        json={"judge_mode": "secondary_local", "judge_model": "judge-model"},
-    )
-    assert judged.status_code == 200, judged.text
-    assert judged.json()["authoritative_scores_unchanged"] is True
-    case = db.list_cases(bid)[0]
-    assert case["verdict"] == original_verdict
-    assert case["judge"] == "heuristic"
-    assert case["judge_input"]["secondary_judge"]["model"] == "judge-model"
+    r = client.post(f"/api/benchmarks/projects/{pid}/runs/{rid}/run", json={"suite_path": _write_quiz(tmp_path)})
+    assert r.status_code == 400, r.text
+    assert "Testing page" in r.json()["error"]
+    assert db.list_benchmarks_for_project(pid) == []  # nothing was saved or scored
+
+
+def test_the_scripted_rejudge_route_and_judge_mode_are_gone(
+    client_and_db: tuple[TestClient, Path],
+    tmp_path: Path,
+) -> None:
+    client, _db_path = client_and_db
+    pid, rid = _create_project_and_run(client, tmp_path)
+    bench = db.create_benchmark(rid, "x", {}, status="done", kind="suite")
+    r = client.post(f"/api/benchmarks/projects/{pid}/benchmarks/{bench['id']}/judge",
+                    json={"judge_mode": "heuristic"})
+    assert r.status_code in (404, 405)
 
 
 def test_benchmark_routes_reject_another_projects_benchmark(
@@ -239,10 +223,6 @@ def test_benchmark_routes_reject_another_projects_benchmark(
     ).status_code == 404
     assert client.get(
         f"/api/benchmarks/projects/{outsider_pid}/benchmarks/{bid}/audit"
-    ).status_code == 404
-    assert client.post(
-        f"/api/benchmarks/projects/{outsider_pid}/benchmarks/{bid}/judge",
-        json={"judge_mode": "secondary_local", "judge_model": "judge-model"},
     ).status_code == 404
     assert client.post(
         f"/api/benchmarks/projects/{outsider_pid}/benchmarks/{bid}/cases/{case['id']}/verdict",

@@ -23,6 +23,8 @@ SuiteType = Literal[
     "local",
     "auto",
 ]
+# Suites whose published scoring is exact match on one letter / number; everything else is judged afterwards.
+EXACT_SUITE_TYPES = frozenset({"real", "synthetic_smoke", "synthetic_offline"})
 SuiteSource = Literal[
     "builtin",
     "data_benchmarks",
@@ -145,9 +147,17 @@ class SuiteDefinition:
             return f"local · {title} ({n} cases)"
         return f"local · {title}"
 
+    @property
+    def scoring(self) -> str:
+        """``exact``: official public / built-in multiple-choice suites keep their published exact-match scoring.
+        ``judge``: a user's own Q&A (local files, auto suites, imported quizzes) is judged afterwards by an AI judge
+        or a human — see testing/judge.py."""
+        return "exact" if self.suite_type in EXACT_SUITE_TYPES else "judge"
+
     def as_dict(self) -> dict[str, Any]:
         """Serialize for API / template discovery entries."""
         return {
+            "scoring": self.scoring,
             "name": self.name,
             "path": self.path,
             "description": self.description,
@@ -440,3 +450,16 @@ def is_selectable_suite(
         except OSError:
             continue
     return resolved in resolved_allowed
+
+
+def scoring_mode_for_suite(suite_path: str, project_id: str | None = None) -> str:
+    """``exact`` for official public / built-in multiple-choice suites, ``judge`` for any other (user) suite."""
+    from finetune_studio.benchmarks.real_benchmarks import is_real_suite_path
+
+    raw = str(suite_path or "")
+    if is_real_suite_path(raw):
+        return "exact"
+    for entry in discover_suites(project_id):
+        if str(entry.get("path")) == raw:
+            return str(entry.get("scoring") or "judge")
+    return "judge"

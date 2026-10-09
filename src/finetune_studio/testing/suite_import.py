@@ -1,10 +1,10 @@
-"""Import a quiz the user brought (JSON or JSONL) as a project test suite, so the Testing page can run and score it.
+"""Import a quiz the user brought (JSON or JSONL) as a project test suite, so the Testing page can run and judge it.
 
 Accepted rows (JSON list, ``{"cases": [...]}`` or one JSON object per line). Two spellings are understood:
   * native:  ``{"name", "question", "correct_answer", "keywords": [...], "category"}``
-  * short:   ``{"id", "q", "expect": ["value", ...]}`` — the answer passes when it contains EVERY expected value
-Add ``"expect_abstain": true`` for a question the documents do not answer: the right reply is "not covered", so a decline passes
-and a confident answer fails. A short row with neither ``expect`` nor ``correct_answer`` must say so explicitly; it is never guessed.
+  * short:   ``{"id", "q", "expect": ["value", ...]}`` — a correct answer holds EVERY expected value (the judge reads them as the answer key)
+Add ``"expect_abstain": true`` for a question the documents do not answer: the right reply is "not covered", so a decline is correct
+and a confident answer is not. A short row with neither ``expect`` nor ``correct_answer`` must say so explicitly; it is never guessed.
 """
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ def _case(item: object, index: int) -> dict:
     if abstain:
         answer = answer or "The documents do not say."
     elif not answer:
-        answer = "Expected: " + "; ".join(expect)  # never a bare number, which the strict numeric scorer would pick up
+        answer = "; ".join(expect)  # the judge reads it as the answer key (and sees the values listed as key values)
     name = str(item.get("name") or item.get("id") or f"q{index:04d}")
     return {"name": name, "category": str(item.get("category") or ("unanswerable" if abstain else "quiz")), "question": question,
             "correct_answer": answer, "keywords": expect, "expect_abstain": abstain}

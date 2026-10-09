@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +30,7 @@ def _save(data: dict[str, Any]) -> None:
     SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
     tmp = SETTINGS_PATH.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(data, indent=2))
-    tmp.chmod(0o600)  # may hold the judge API key
+    tmp.chmod(0o600)
     tmp.replace(SETTINGS_PATH)
 
 
@@ -47,49 +46,25 @@ DEFAULTS: dict[str, Any] = {
 }
 
 
-# ── AI judge configuration ──
-# Stored in settings.json under judge_*; env vars (FTS_JUDGE_*) are the
-# defaults. The API key is write-only: it is never returned by any endpoint.
-JUDGE_MODES = ("none", "heuristic", "ai", "local")
-_JUDGE_KEY_FIELD = "judge_api_key"
+# ── Test judging ──
+# Judging is a separate step after a test run. The judge is any provider row (default: the helper seat);
+# auto-judge makes a finished run start that step by itself. Off by default: a run ends at the raw transcripts.
+_TEST_AUTO_JUDGE = "test_auto_judge"
+_TEST_JUDGE_PROVIDER = "test_judge_provider_id"
 
 
-def get_judge_config() -> dict[str, Any]:
-    """Effective judge config: saved settings over env-var defaults.
-
-    Includes the real ``api_key`` — server-side use only, never serialize it.
-    """
-    from finetune_studio.testing import judge as _j
-
+def get_test_settings() -> dict[str, Any]:
+    """Effective test-judging settings. ``judge_provider_id`` '' means "use the helper seat"."""
     saved = _load()
-    key = str(saved.get(_JUDGE_KEY_FIELD) or "").strip() or os.environ.get("FTS_JUDGE_API_KEY", "")
-    mode = str(saved.get("judge_mode") or "").strip().lower()
-    if mode not in JUDGE_MODES:
-        mode = "ai" if key else "heuristic"
     return {
-        "mode": mode,
-        "model": str(saved.get("judge_model") or "").strip()
-        or os.environ.get("FTS_JUDGE_MODEL", _j.DEFAULT_JUDGE_MODEL),
-        "api_url": (
-            str(saved.get("judge_api_url") or "").strip()
-            or os.environ.get("FTS_JUDGE_API", _j.DEFAULT_JUDGE_API)
-        ).rstrip("/"),
-        "api_key": key,
+        "auto_judge": bool(saved.get(_TEST_AUTO_JUDGE, False)),
+        "judge_provider_id": str(saved.get(_TEST_JUDGE_PROVIDER) or "").strip(),
     }
-
-
-def public_judge_config() -> dict[str, Any]:
-    """Judge config safe to send to the browser (key reduced to set/not set)."""
-    cfg = get_judge_config()
-    key_set = bool(cfg.pop("api_key"))
-    cfg["api_key_set"] = key_set
-    return cfg
 
 
 def _redacted(current: dict[str, Any]) -> dict[str, Any]:
     out = {**DEFAULTS, **current}
-    out.pop(_JUDGE_KEY_FIELD, None)
-    out["judge"] = public_judge_config()
+    out["testing"] = get_test_settings()
     return out
 
 
@@ -99,10 +74,42 @@ async def get_settings():
     return _redacted(_load())
 
 
-@router.get("/api/settings/judge")
-async def get_judge_settings():
-    """Judge config for the Settings page; key shown only as set/not set."""
-    return public_judge_config()
+@router.get("/api/settings/testing")
+async def get_testing_settings():
+    """Test-judging settings plus the provider rows that can judge (helper seat first)."""
+    from finetune_studio.testing.judge import (
+        default_judge_provider_id,
+        list_judge_providers,
+    )
+
+    return {**get_test_settings(), "effective_judge_provider_id": default_judge_provider_id(),
+            "providers": list_judge_providers()}
+
+
+@router.put("/api/settings/testing")
+async def put_testing_settings(request: Request):
+    """Save ``auto_judge`` and/or ``judge_provider_id`` ('' = helper seat)."""
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid JSON") from None
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="expected JSON object")
+    current = _load()
+    if "auto_judge" in body:
+        if not isinstance(body["auto_judge"], bool):
+            raise HTTPException(status_code=400, detail="auto_judge must be true or false")
+        current[_TEST_AUTO_JUDGE] = body["auto_judge"]
+    if "judge_provider_id" in body:
+        pid = str(body["judge_provider_id"] or "").strip()
+        if pid:
+            from finetune_studio.models.manager import get_manager
+
+            if get_manager().get_provider(pid) is None:
+                raise HTTPException(status_code=400, detail=f"unknown provider '{pid}'")
+        current[_TEST_JUDGE_PROVIDER] = pid
+    _save(current)
+    return await get_testing_settings()
 
 
 @router.patch("/api/settings")
@@ -114,16 +121,8 @@ async def update_settings(request: Request):
         raise HTTPException(status_code=400, detail="invalid JSON") from None
     if not isinstance(body, dict):
         raise HTTPException(status_code=400, detail="expected JSON object")
-    clear_key = bool(body.pop("judge_api_key_clear", False))
-    mode = body.get("judge_mode")
-    if mode is not None and str(mode).strip().lower() not in JUDGE_MODES:
-        raise HTTPException(status_code=400, detail=f"judge_mode must be one of {JUDGE_MODES}")
-    if _JUDGE_KEY_FIELD in body and not str(body[_JUDGE_KEY_FIELD] or "").strip():
-        body.pop(_JUDGE_KEY_FIELD)  # blank = keep the stored key
     current = _load()
     current.update(body)
-    if clear_key:
-        current.pop(_JUDGE_KEY_FIELD, None)
     _save(current)
     return _redacted(current)
 

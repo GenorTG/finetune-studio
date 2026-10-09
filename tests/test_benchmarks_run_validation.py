@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import uuid
 from pathlib import Path
 from typing import Any, ClassVar
@@ -33,23 +32,11 @@ def _create_project(client: TestClient) -> str:
     return r.json()["id"]
 
 
-def _write_suite(tmp_path: Path) -> str:
-    path = tmp_path / "suite.json"
-    path.write_text(
-        json.dumps(
-            [
-                {
-                    "name": "capital_fr",
-                    "category": "geo",
-                    "question": "Capital of France?",
-                    "correct_answer": "Paris",
-                    "keywords": ["Paris"],
-                }
-            ]
-        ),
-        encoding="utf-8",
-    )
-    return str(path)
+def _write_suite(_tmp_path: Path) -> str:
+    """An exact-scored built-in suite: the benchmarks route only runs those (a project quiz is a Testing-page run)."""
+    from finetune_studio.benchmarks.suite_defs import list_builtin_smoke_suites
+
+    return list_builtin_smoke_suites()[0].path
 
 
 class _TrackingEngine:
@@ -74,7 +61,7 @@ class _TrackingEngine:
         self.model = None
 
     def generate(self, messages: list, **_kwargs: Any) -> str:
-        return "Paris"
+        return "C) Paris"
 
 
 def _install_tracking_engine(
@@ -119,7 +106,6 @@ def test_missing_suite_returns_404_without_loading(
         json={
             "suite_path": str(tmp_path / "does_not_exist.json"),
             "suite_name": "missing",
-            "judge_mode": "heuristic",
         },
     )
     assert r.status_code == 404, r.text
@@ -152,7 +138,6 @@ def test_failed_run_returns_409(
         json={
             "suite_path": suite_path,
             "suite_name": "kw",
-            "judge_mode": "heuristic",
         },
     )
     assert r.status_code == 409, r.text
@@ -193,7 +178,6 @@ def test_done_run_loads_and_unloads_even_when_run_suite_raises(
         json={
             "suite_path": suite_path,
             "suite_name": "kw",
-            "judge_mode": "heuristic",
             "max_tokens": 16,
         },
     )

@@ -1,26 +1,20 @@
-"""Test suite — Q&A benchmark cases with AI/human judging.
+"""Test suite — Q&A cases, run against a model, judged afterwards.
 
 WHAT THIS FILE DOES
-==================
-Defines benchmark cases as Q&A pairs (not keyword matching):
-  - BenchmarkCase: a question + the correct answer from training data
-  - CaseResult: the model's response + judge verdict + reasoning
-  - SuiteRunner: executes a suite, collects transcripts, then judges
-
-KEY CONCEPTS
-============
-- Each case is a Q&A pair — we know the correct answer because we created
-  the training data (or extracted it from existing data).
-- The model under test is asked the question. Its full transcript is saved.
-- A judge (AI model or human) evaluates: did the model answer correctly?
-- Cases start with judge="none". The judge step runs separately so you
-  can use a powerful external model (GPT-4, Claude) to score cheaply.
+===================
+  - BenchmarkCase: a question + the correct answer from the data (+ optional key values)
+  - CaseResult: what the model answered, with the full transcript — and, once judged, the verdict
+  - run_suite(): asks the model every question and records the raw transcripts. It never scores.
 
 FLOW
 ====
-  1. run_suite() → ask model each question, store transcript + model answer
-  2. judge_suite() → send each transcript to an AI judge (or queue for human)
-  3. score_results() → aggregate pass/fail/partial + judge confidence
+  1. run_suite()      -> raw transcripts (question, model answer, answer key), no verdict
+  2. judging          -> a separate step (testing/judge.py + testing/judging.py): an AI judge on any provider row,
+                         and/or a human in the UI, reads each saved case and decides pass / partial / fail
+  3. score_results()  -> aggregates whatever verdicts exist; unjudged cases are counted as "awaiting"
+
+Nothing here compares strings to decide correctness. The one exception is the official public benchmarks
+(MMLU/GSM8K ...), which keep their standard exact-match scoring in testing/strict_scoring.py.
 
 Suite JSON format (v2):
 [
@@ -29,7 +23,8 @@ Suite JSON format (v2):
     "category": "knowledge",
     "question": "What is LoRA and how does it work?",
     "correct_answer": "LoRA is a parameter-efficient training method that adds small adapter matrices...",
-    "context": "optional extra context for the judge"
+    "keywords": ["optional", "key values the judge should look for"],
+    "expect_abstain": false
   }
 ]
 """
@@ -38,12 +33,13 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Literal
 
 from finetune_studio.training.formatting import with_system_prompt
 
-JudgeType = Literal["none", "ai", "human", "heuristic", "local"]
+JudgeType = Literal["none", "ai", "human", "exact", "scripted"]
 Verdict = Literal["pass", "fail", "partial", ""]
 
 
@@ -150,206 +146,60 @@ def load_test_suite(path: str) -> list[BenchmarkCase]:
     return cases
 
 
+def run_case(engine, case: BenchmarkCase, *, max_tokens: int = 512, temperature: float = 0.3,
+             think: bool = False, system_prompt: str = "") -> CaseResult:
+    """Ask the model one question and record the raw transcript. No verdict."""
+    start = time.time()
+    messages = with_system_prompt([{"role": "user", "content": case.question}],
+                                  case.system_prompt or system_prompt)
+    common = {
+        "case_name": case.name, "category": case.category, "question": case.question,
+        "correct_answer": case.correct_answer, "keywords": list(case.keywords), "source_id": case.source_id,
+        "chunk_idx": case.chunk_idx, "expect_abstain": case.expect_abstain,
+    }
+    try:
+        response = engine.generate(messages, max_tokens=max_tokens, temperature=temperature, think=think)
+    except Exception as e:  # noqa: BLE001
+        return CaseResult(
+            model_answer="", transcript=[*messages, {"role": "assistant", "content": ""}],
+            error=str(e), time_ms=round((time.time() - start) * 1000, 1), **common,
+        )
+    return CaseResult(
+        model_answer=response, transcript=[*messages, {"role": "assistant", "content": response}],
+        time_ms=round((time.time() - start) * 1000, 1), **common,
+    )
+
+
 def run_suite(engine, cases: list[BenchmarkCase], max_tokens: int = 512,
               temperature: float = 0.3, think: bool = False,
-              system_prompt: str = "") -> list[CaseResult]:
-    """Run each case through the model. No judging yet — just collect transcripts."""
-    results = []
+              system_prompt: str = "", *,
+              on_result: Callable[[CaseResult], None] | None = None,
+              should_stop: Callable[[], bool] | None = None) -> list[CaseResult]:
+    """Run each case through the model and collect transcripts. Judging is a separate step.
+
+    ``on_result`` is called as each case finishes (the test job saves it at once, so a crash loses nothing);
+    ``should_stop`` ends the run early between cases.
+    """
+    results: list[CaseResult] = []
     for case in cases:
-        start = time.time()
-        try:
-            messages = with_system_prompt([{"role": "user", "content": case.question}],
-                                          case.system_prompt or system_prompt)
-            response = engine.generate(messages, max_tokens=max_tokens,
-                                       temperature=temperature, think=think)
-            elapsed_ms = (time.time() - start) * 1000
-            # Build transcript: user question + model answer
-            transcript = messages + [{"role": "assistant", "content": response}]
-            results.append(CaseResult(
-                case_name=case.name,
-                category=case.category,
-                question=case.question,
-                correct_answer=case.correct_answer,
-                model_answer=response,
-                transcript=transcript,
-                time_ms=round(elapsed_ms, 1),
-                keywords=list(case.keywords),
-                source_id=case.source_id,
-                chunk_idx=case.chunk_idx,
-                expect_abstain=case.expect_abstain,
-            ))
-        except Exception as e:  # noqa: BLE001
-            elapsed_ms = (time.time() - start) * 1000
-            results.append(CaseResult(
-                case_name=case.name,
-                category=case.category,
-                question=case.question,
-                correct_answer=case.correct_answer,
-                model_answer="",
-                transcript=[{"role": "user", "content": case.question},
-                           {"role": "assistant", "content": ""}],
-                error=str(e),
-                time_ms=round(elapsed_ms, 1),
-                keywords=list(case.keywords),
-                source_id=case.source_id,
-                chunk_idx=case.chunk_idx,
-                expect_abstain=case.expect_abstain,
-            ))
+        if should_stop is not None and should_stop():
+            break
+        result = run_case(engine, case, max_tokens=max_tokens, temperature=temperature,
+                          think=think, system_prompt=system_prompt)
+        results.append(result)
+        if on_result is not None:
+            on_result(result)
     return results
 
 
-def fallback_reasoning(
-    verdict: str, reasoning: str, *, judge: str = "", error: str = "",
-) -> str:
-    """Never leave the 'Judge reasoning' cell blank: say why there is none."""
-    text = (reasoning or "").strip()
-    if text:
-        return text
-    if error:
-        return f"[not scored] the model run failed before judging: {error}"
-    if not verdict:
-        return "[not scored] no verdict was produced for this case"
-    who = judge or "judge"
-    return f"[{who}] returned a {verdict} verdict without an explanation"
-
-
-def ensure_reasoning(results: list[CaseResult]) -> None:
-    """Fill an explanation on every result that has none (in place)."""
-    for r in results:
-        r.judge_reasoning = fallback_reasoning(
-            r.verdict, r.judge_reasoning, judge=r.judge, error=r.error,
-        )
-
-
-def apply_heuristic_judging(results: list[CaseResult]) -> None:
-    """Judge in place (see _judge_each); every row ends with a reasoning."""
-    _judge_each(results)
-    ensure_reasoning(results)
-
-
-def _judge_each(results: list[CaseResult]) -> None:
-    """Mutate results in place: set verdict/judge via strict or legacy scoring.
-
-    Prefer task-aware strict scoring for multiple-choice and numeric cases
-    (exact option / normalized final number; rejects wrong extras). Open-ended
-    cases keep keyword matching when ``keywords`` is non-empty, else
-    ``judge_case_heuristic``.
-
-    Skips cases that already have a verdict or that errored with an empty answer.
-    """
-    from finetune_studio.testing.judge import is_abstention, judge_case_heuristic
-    from finetune_studio.testing.strict_scoring import (
-        score_source_grounded,
-        score_strict,
-    )
-
-    for r in results:
-        if r.verdict:
-            continue
-        if r.error and not r.model_answer:
-            continue
-
-        if r.expect_abstain:
-            abstained = is_abstention(r.model_answer or "", broad=True)
-            r.verdict = "pass" if abstained else "fail"
-            r.judge = r.judge_model = "heuristic"
-            r.scoring_method = "abstention_expected"
-            r.validity = "valid"
-            r.judge_reasoning = ("[abstention_expected; validity=valid] "
-                                 + ("the model said the documents do not cover it" if abstained
-                                    else "the model gave a confident answer to a question the documents do not answer"))
-            continue
-
-        if is_abstention(r.model_answer or "") and not is_abstention(r.correct_answer or ""):
-            r.verdict = "fail"
-            r.judge = "heuristic"
-            r.judge_model = "heuristic"
-            r.scoring_method = "abstention"
-            r.validity = "valid"
-            r.judge_reasoning = "[abstention; validity=valid] model declined to answer (said the text does not cover it)"
-            continue
-
-        if r.source_id:
-            source_score = score_source_grounded(
-                question=r.question,
-                correct_answer=r.correct_answer,
-                model_answer=r.model_answer,
-            )
-            if source_score is not None:
-                r.verdict = source_score.verdict
-                r.judge = "heuristic"
-                r.judge_model = "heuristic"
-                r.scoring_method = source_score.scoring_method
-                r.validity = source_score.validity
-                r.judge_reasoning = (
-                    f"[{source_score.scoring_method}; validity={source_score.validity}] "
-                    f"{source_score.reasoning}"
-                )
-                continue
-
-        strict = score_strict(
-            question=r.question,
-            correct_answer=r.correct_answer,
-            model_answer=r.model_answer,
-        )
-        if strict is not None:
-            r.verdict = strict.verdict
-            r.judge = "heuristic"
-            r.judge_model = "heuristic"
-            r.scoring_method = strict.scoring_method
-            r.validity = strict.validity
-            r.judge_reasoning = (
-                f"[{strict.scoring_method}; validity={strict.validity}] "
-                f"{strict.reasoning}"
-            )
-            continue
-
-        if r.keywords:
-            lower = (r.model_answer or "").lower()
-            hits = [k for k in r.keywords if k.lower() in lower]
-            n = len(r.keywords)
-            n_hits = len(hits)
-            if n_hits == n and n > 0:
-                r.verdict = "pass"
-            elif n_hits > 0:
-                r.verdict = "partial"
-            else:
-                r.verdict = "fail"
-            r.judge = "heuristic"
-            r.judge_model = "heuristic"
-            r.scoring_method = "keyword_substring"
-            r.validity = "valid" if n_hits == n else ("partial" if n_hits else "valid")
-            r.judge_reasoning = (
-                f"[keyword_substring; validity={r.validity}] "
-                f"keywords matched {n_hits}/{n}"
-            )
-            continue
-        verdict, reasoning, _conf = judge_case_heuristic(
-            question=r.question,
-            correct_answer=r.correct_answer,
-            model_answer=r.model_answer,
-        )
-        if not verdict:
-            continue
-        r.verdict = verdict
-        r.judge = "heuristic"
-        r.judge_model = "heuristic"
-        r.scoring_method = "heuristic_overlap"
-        r.validity = "valid"
-        r.judge_reasoning = f"[heuristic_overlap; validity=valid] {reasoning}"
-
-
 def score_results(results: list[CaseResult]) -> dict:
-    """Aggregate stats over judged results.
+    """Aggregate stats over whatever verdicts exist.
 
-    ``pass_rate`` and ``weighted_score`` are computed against ``total``, not
-    just the judged subset: a case that errored (engine crash, judge API
-    failure, no judge configured) ends up with an empty ``verdict`` and is
-    excluded from ``judged``, but it must still count against the score —
-    otherwise a run where half the cases errored out would silently report
-    100% on the half that happened to pass, inflating the reported accuracy.
-    ``unjudged`` remains in the output so callers can see how many cases
-    never got a verdict at all.
+    A case without a verdict is *awaiting* judgement (``awaiting``/``unjudged``): it is not a failure, but it
+    still counts in ``total`` — ``pass_rate`` and ``weighted_score`` are shares of ALL cases, so a half-judged
+    run (or one where cases errored) never reports an inflated score. ``pass_rate`` is ``None`` while nothing is
+    judged, because a rate computed from zero verdicts is not a measurement. ``by_judge`` counts verdicts per
+    source (human / ai / exact / scripted) so a score shows what it rests on.
     """
     judged = [r for r in results if r.verdict]
     total = len(results)
@@ -360,12 +210,9 @@ def score_results(results: list[CaseResult]) -> dict:
     unjudged = total - n_judged
     avg_time = (sum(r.time_ms for r in results) / max(total, 1)) if total else 0
 
-    # Compute weighted score: pass=1.0, partial=0.5, fail=0.0, unjudged=0.0 —
-    # denominator is total cases, so errored/unjudged cases drag the score
-    # down instead of being silently excluded from it.
+    # pass=1.0, partial=0.5, fail=0.0, awaiting=0.0 over ALL cases.
     weighted = (passed * 1.0 + partial * 0.5) / max(total, 1) * 100 if total else 0
 
-    # Category breakdown
     cats: dict[str, dict] = {}
     for r in judged:
         if r.category not in cats:
@@ -374,15 +221,21 @@ def score_results(results: list[CaseResult]) -> dict:
         if r.verdict == "pass":
             cats[r.category]["passed"] += 1
 
+    by_judge: dict[str, int] = {}
+    for r in judged:
+        by_judge[r.judge or "none"] = by_judge.get(r.judge or "none", 0) + 1
+
     return {
         "total": total,
         "judged": n_judged,
         "unjudged": unjudged,
+        "awaiting": unjudged,
         "passed": passed,
         "partial": partial,
         "failed": failed,
-        "pass_rate": round(passed / max(total, 1) * 100, 1) if total else 0,
-        "weighted_score": round(weighted, 1),
+        "pass_rate": round(passed / max(total, 1) * 100, 1) if n_judged else None,
+        "weighted_score": round(weighted, 1) if n_judged else None,
         "avg_time_ms": round(avg_time, 1),
         "categories": cats,
+        "by_judge": by_judge,
     }

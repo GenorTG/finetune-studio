@@ -59,8 +59,8 @@ def test_testing_page_uses_testing_events() -> None:
     html = _TESTING_HTML.read_text(encoding="utf-8")
     assert "/api/testing/events" in html
     assert "setInterval(tickLive, 2000)" not in html
-    assert "t-results-debug" in html
-    assert "Debug JSON" in html
+    assert "fts.subscribe" in html or "window.fts.subscribe" in html
+    assert "rv-export-json" in html
 
 
 def test_export_page_wires_export_events() -> None:

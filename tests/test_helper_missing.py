@@ -68,14 +68,30 @@ def test_short_run_summary_uses_mean_loss_not_zero():
 
 
 def test_abstention_is_not_a_pass():
-    from finetune_studio.testing.judge import is_abstention, judge_case_heuristic
+    """A refusal to a question the key answers is the judge's call, not a substring match: the prompt says so and the
+    verdict the judge returns is what gets saved, whatever words the answer contains."""
+    from finetune_studio import db
+    from finetune_studio.testing import judge as judge_mod
+    from finetune_studio.testing.judge import (
+        JudgeCase,
+        LoadedJudge,
+        build_judge_messages,
+    )
+    from finetune_studio.testing.judging import judge_benchmark
 
-    v, why, _ = judge_case_heuristic(
-        "Who founded Zorblax?", "Tomasz Wrona founded Zorblax in 2019.",
-        "The provided text does not mention who founded Zorblax Tomasz Wrona.")
-    assert v == "fail" and "declined" in why
-    assert is_abstention("I don't know")
-    assert not is_abstention("Tomasz Wrona founded it.")
+    declined = "The provided text does not mention who founded Zorblax Tomasz Wrona."
+    system = build_judge_messages(JudgeCase("Who founded Zorblax?", "Tomasz Wrona founded Zorblax in 2019.", declined))[0]
+    assert "a refusal" in system["content"] and "I don't know" in system["content"] and '"fail" = no fact present' in system["content"]
+
+    pid = db.create_project(name="p")["id"]
+    rid = db.create_run(pid, "run")["id"]
+    bid = db.create_benchmark(rid, "quiz", {}, status="running", kind="suite")["id"]
+    cid = db.create_case(bid, rid, "c", "g", "Who founded Zorblax?", "Tomasz Wrona founded Zorblax in 2019.", declined, [])
+    reply = '{"reasoning": "declined although the key answers it", "verdict": "fail"}'
+    judge_benchmark(bid, LoadedJudge(chat=lambda _m: reply, provider_id="f", model="m", label="F", concurrent=False))
+    case = db.get_case(cid)
+    assert case["verdict"] == "fail" and "declined" in case["judge_reasoning"]
+    assert not hasattr(judge_mod, "is_abstention") and not hasattr(judge_mod, "judge_case_heuristic")
 
 
 def test_rag_weak_match_and_duplicate_project(client):

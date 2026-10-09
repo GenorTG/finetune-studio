@@ -1,276 +1,370 @@
-"""AI judge — evaluates model answers against correct answers.
+"""The AI judge: decides afterwards whether a saved model answer holds the information the answer key holds.
 
-THE JUDGE'S ONLY JOB: Does the model know the right information?
+A test run only records what the model was asked, what it answered and what the correct answer is. Nothing in
+this module (or anywhere on the custom-dataset test path) compares strings: a model may word, order or format a
+correct answer in a way no matcher anticipates, so a *model* reads each saved case the way a person would and
+returns pass / partial / fail with its reasoning. Any provider row can be the judge (local helper GGUF, API
+helper, any OpenAI-compatible provider); a human can override any verdict in the UI.
 
-It does NOT care about:
-- Verbosity (a 5-word answer can pass if correct)
-- Brevity (a 500-word answer can fail if it's wrong)
-- Speaking style (formal, casual, poetic, terse — all fine)
-- Word choice or phrasing (paraphrases are fine)
-- Length of response (short and long are both fine)
-
-It ONLY checks:
-- Are the KEY FACTS present? (entities, names, numbers, relationships)
-- Is the knowledge ACCURATE? (no hallucinated facts)
-- Is the answer COMPLETE? (covers what the question asks)
-
-If the model knows the right things → pass. If it's missing things → partial. If it's wrong → fail.
+Failure is never converted into a verdict: when the judge call fails or its reply cannot be parsed the case
+stays unjudged and the error is recorded, so a flaky judge cannot silently fail (or pass) a model.
 """
 
 from __future__ import annotations
 
 import json
-import os
-from typing import Literal
+import logging
+import re
+from collections.abc import Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from typing import Any, Literal
+
+log = logging.getLogger(__name__)
 
 Verdict = Literal["pass", "fail", "partial", ""]
+VERDICTS = ("pass", "partial", "fail")
+JUDGE_PROMPT_VERSION = "4"
+JUDGE_MAX_TOKENS = 800
+JUDGE_PARALLEL_API = 4  # concurrent requests to an API provider; a local GGUF is one GPU and runs one at a time
 
-# Default judge model — can be overridden via env or settings
-DEFAULT_JUDGE_MODEL = os.environ.get("FTS_JUDGE_MODEL", "gpt-4o-mini")
-DEFAULT_JUDGE_API = os.environ.get("FTS_JUDGE_API", "https://api.openai.com/v1")
-DEFAULT_JUDGE_KEY = os.environ.get("FTS_JUDGE_API_KEY", "")
+ChatFn = Callable[[list[dict]], str]
 
-JUDGE_PROMPT = """You are an expert knowledge evaluator. Your ONLY job is to check whether a model's answer contains the correct information.
+JUDGE_PROMPT = """You are a strict but fair grader. A model under test was asked a question; the ANSWER KEY holds the information a correct answer must contain. Decide whether the MODEL ANSWER holds that information.
 
-You will be given:
-- QUESTION: what the model was asked
-- CORRECT ANSWER: the ground truth answer (from the training data)
-- MODEL ANSWER: what the model under test responded
+You get: QUESTION, ANSWER KEY (the reference answer from the source documents), optionally KEY VALUES (values a complete answer must contain), and MODEL ANSWER.
 
-RULES FOR JUDGING:
-1. IGNORE speaking style, tone, length, and verbosity. A model can answer in 5 words or 500 words — both are fine.
-2. IGNORE word choice and phrasing. Paraphrases are correct if they mean the same thing.
-3. IGNORE whether the answer is formal, casual, poetic, or terse.
-4. ONLY check: Does the model answer contain the KEY FACTS? Is the knowledge ACCURATE?
+Grade the information, not the wording. Ignore style, tone, length, structure and ordering: a 5-word answer and a 500-word answer can both be right.
 
-SCORING:
-- "pass": The model answer contains all the key facts AND does NOT introduce any incorrect or fabricated information. Even if the model adds extra correct details or is very verbose, it still passes. Even if the answer is extremely brief but hits the key points and adds nothing wrong, it passes.
-- "partial": The model answer has some correct facts but is missing important ones, OR includes a minor inaccuracy alongside correct information. A vague or generic answer that hints at the right topic but doesn't give specifics = partial.
-- "fail": The model answer contains misinformation, hallucinated facts, or factually incorrect claims. Even if the correct facts are present, adding fabricated details = fail. Completely wrong or irrelevant = fail.
+Procedure (for a normal case):
+1. List every distinct fact the answer key requires: one entry per value, name, number, date or relationship.
+2. For each fact give a status and copy the EXACT words of the model answer that state it into "evidence" (empty when there are none):
+   - "present": the model answer states the same value. Only a pure change of form is the same value: 44.20 = 44.2, "four" = 4, 12,750 = 12750, "EUR 14.5k" = 14,500 euros, 4 March 2026 = 2026-03-04, a list in another order.
+   - "wrong": the model answer gives a different value for it (another number, name, date, unit) or contradicts it.
+   - "missing": the model answer does not say it, or only names the topic.
+   Never infer one value from another. A week number is not a date, a role is not a name, a nearby or enclosing value is not the value, a range is not the value inside it, a similar-looking identifier is not the identifier.
+3. Set "extra_wrong" to true only when the model answer adds a claim that contradicts the key or invents a conflicting specific. Extra correct detail is fine.
+4. Verdict: "pass" = every fact present and extra_wrong false; "fail" = no fact present (wrong, missing, irrelevant, or a refusal / "I don't know" to a question the key answers: the case type says whether the documents hold the answer, so never speculate that they might not); "partial" = anything in between.
 
-CRITICAL RULE: If the model adds any fact, name, number, or claim that is NOT in the correct answer and is NOT common knowledge (like Paris being a city in France), it must be penalized. Correct facts + made-up facts = partial or fail depending on severity.
+If the case is marked UNANSWERABLE, the documents do NOT contain the answer, so the only correct behaviour is to say the information is not available / not in the documents. Use an empty "facts" list. "pass" = the model clearly declines and invents nothing; "partial" = it hedges but still offers made-up specifics; "fail" = it answers confidently with specifics.
 
-DO NOT penalize for:
-- Being too short
-- Being too long
-- Using different words than the correct answer
-- Adding extra details (even unrelated ones, as long as the required facts are there)
-- Different sentence structure
-
-Example 1:
-Q: What is the capital of France?
-Correct: Paris
-Model: The capital of France is Paris, a city known for the Eiffel Tower.
-→ PASS (extra details are fine, key fact "Paris" is there)
-
-Example 2:
-Q: What is the capital of France?
-Correct: Paris
-Model: The capital of France is London.
-→ FAIL (wrong fact)
-
-Example 3:
-Q: What is the capital of France?
-Correct: Paris
-Model: A major European city.
-→ PARTIAL (vague, doesn't give the specific fact)
-
-Respond in JSON:
-{
-  "verdict": "pass" | "partial" | "fail",
-  "reasoning": "brief explanation focusing on what facts were present/missing/wrong",
-  "confidence": 0.0 to 1.0
-}
-"""
+Reply with ONE JSON object and nothing else:
+{"facts": [{"fact": "<required fact>", "status": "present" | "wrong" | "missing", "evidence": "<exact words from the model answer, or empty>"}], "extra_wrong": true | false, "reasoning": "<one to three plain sentences>", "verdict": "pass" | "partial" | "fail", "confidence": <0.0 to 1.0>}"""
 
 
-_STOPWORDS = {
-    "a", "an", "and", "are", "as", "at", "be", "been", "but", "by", "can", "did", "do",
-    "does", "for", "from", "had", "has", "have", "how", "in", "into", "is", "it", "its",
-    "of", "on", "or", "that", "the", "their", "them", "then", "there", "these", "they",
-    "this", "to", "was", "were", "what", "when", "where", "which", "who", "why", "will",
-    "with", "you", "your",
-}
+@dataclass
+class JudgeCase:
+    """Everything the judge sees about one saved case."""
 
-# Fraction of the correct answer's key words that must appear in the model answer.
-_PASS_RATIO = 0.6
-_PARTIAL_RATIO = 0.3
+    question: str
+    correct_answer: str
+    model_answer: str
+    keywords: list[str] = field(default_factory=list)
+    expect_abstain: bool = False
 
 
-def _key_words(text: str) -> set[str]:
-    """Content words of a text: lowercased, punctuation-stripped, stopwords removed."""
-    import re
+@dataclass
+class JudgeResult:
+    """One judge call. ``verdict`` is empty when the call failed — ``error`` then says why."""
 
-    words = re.findall(r"[\w']+", text.lower())
-    return {w for w in words if len(w) > 2 and w not in _STOPWORDS}
-
-
-_ABSTAIN = (
-    "does not mention", "doesn't mention", "do not mention", "not mentioned",
-    "no information", "not provided", "cannot find", "can't find", "could not find",
-    "i don't know", "i do not know", "not enough information", "does not say",
-    "does not contain", "doesn't contain", "unable to find",
-)
-
-# Broader net for questions the documents do NOT answer: any of these in a reply counts as "the model declined". Kept apart from
-# _ABSTAIN, which fails a *correct-answer* case, where a false positive would wrongly punish a real answer.
-_DECLINE = _ABSTAIN + (
-    "don't know", "do not know", "not know", "no information", "not specified", "not provided", "cannot", "can't", "unable",
-    "no record", "not available", "isn't stated", "is not stated", "not in the", "not covered", "i have no", "unknown", "not aware",
-    "do not contain", "not contain", "no mention", "not found", "isn't something", "is not something", "don't have that",
-    "do not have that", "don't say", "do not say", "documents cover", "not say", "doesn't say", "no data", "not given", "not listed",
-    "not stated", "does not provide", "doesn't provide",
-)
+    verdict: Verdict = ""
+    reasoning: str = ""
+    confidence: float | None = None
+    error: str = ""
+    raw: str = ""
+    facts: list[dict[str, Any]] = field(default_factory=list)  # the judge's per-fact checklist (rubric), when it gave one
 
 
-def is_abstention(text: str, *, broad: bool = False) -> bool:
-    """True when the text declines to answer. ``broad`` uses the wider net meant for unanswerable questions."""
-    low = text.lower()
-    return any(p in low for p in (_DECLINE if broad else _ABSTAIN))
-
-
-def judge_case_heuristic(
-    question: str,
-    correct_answer: str,
-    model_answer: str,
-) -> tuple[Verdict, str, float]:
-    """Judge locally with no API key and no model — key-word overlap.
-
-    Checks how many of the correct answer's content words appear in the model
-    answer. Crude compared to an AI judge (it cannot detect hallucinated extras
-    or credit true paraphrases that share no vocabulary), but it always returns
-    a verdict, so scores never stay stuck at judged: 0.
-    """
-    expected = _key_words(correct_answer)
-    answer = model_answer.strip()
-
-    if not answer:
-        return "fail", "model gave no answer", 1.0
-    if not expected:
-        # Nothing to match against — cannot say anything meaningful.
-        return "", "no correct_answer to compare against", 0.0
-
-    if is_abstention(answer) and not is_abstention(correct_answer):
-        return "fail", "model declined to answer (said the text does not cover it)", 0.9
-
-    found = expected & _key_words(model_answer)
-    ratio = len(found) / len(expected)
-    missing = sorted(expected - found)
-
-    detail = (
-        f"matched {len(found)}/{len(expected)} key words from the correct answer"
-        f" ({ratio:.0%})"
-    )
-    if missing:
-        detail += f"; missing: {', '.join(missing[:8])}"
-
-    if ratio >= _PASS_RATIO:
-        return "pass", detail, min(0.5 + ratio / 2, 1.0)
-    if ratio >= _PARTIAL_RATIO:
-        return "partial", detail, 0.5
-    return "fail", detail, min(0.5 + (1 - ratio) / 2, 1.0)
-
-
-def build_judge_messages(
-    question: str,
-    correct_answer: str,
-    model_answer: str,
-    transcript: list[dict] | None = None,
-) -> list[dict]:
-    """Build the chat messages for the judge prompt."""
-    user_content = (
-        f"QUESTION:\n{question}\n\n"
-        f"CORRECT ANSWER:\n{correct_answer}\n\n"
-        f"MODEL ANSWER:\n{model_answer}"
-    )
-    if transcript:
-        user_content += f"\n\nTRANSCRIPT:\n{json.dumps(transcript, ensure_ascii=False)}"
+def build_judge_messages(case: JudgeCase) -> list[dict]:
+    """Chat messages for one case."""
+    parts = [f"QUESTION:\n{case.question.strip()}"]
+    if case.expect_abstain:
+        parts.append(
+            "CASE TYPE: UNANSWERABLE — the documents do not contain the answer; the model should decline.\n"
+            f"ANSWER KEY:\n{case.correct_answer.strip() or '(none: the information is not in the documents)'}"
+        )
+    else:
+        parts.append(f"ANSWER KEY:\n{case.correct_answer.strip() or '(none given)'}")
+        if case.keywords and "; ".join(case.keywords) != case.correct_answer.strip():
+            parts.append("KEY VALUES:\n" + "\n".join(f"- {k}" for k in case.keywords))
+    parts.append(f"MODEL ANSWER:\n{case.model_answer.strip() or '(empty)'}")
     return [
         {"role": "system", "content": JUDGE_PROMPT},
-        {"role": "user", "content": user_content},
+        {"role": "user", "content": "\n\n".join(parts)},
     ]
 
 
-def judge_case_ai(
-    question: str,
-    correct_answer: str,
-    model_answer: str,
-    model: str = DEFAULT_JUDGE_MODEL,
-    api_url: str = DEFAULT_JUDGE_API,
-    api_key: str = DEFAULT_JUDGE_KEY,
-) -> tuple[Verdict, str, float]:
-    """Send one case to an AI judge. Returns (verdict, reasoning, confidence)."""
-    model = model or DEFAULT_JUDGE_MODEL
-    api_url = (api_url or DEFAULT_JUDGE_API).rstrip("/")
-    if not api_key:
-        # No API key configured — can't judge with AI
-        return "", "no API key configured for AI judge", 0.0
+_THINK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+_FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL | re.IGNORECASE)
+_VERDICT_FIELD = re.compile(r'"verdict"\s*:\s*"?\s*(pass|partial|fail)\b', re.IGNORECASE)
+_VERDICT_LINE = re.compile(r"(?im)^\W*verdict\W*[:=]\W*(pass|partial|fail)\b")
 
-    messages = build_judge_messages(question, correct_answer, model_answer)
 
+def _json_objects(text: str) -> Iterator[str]:
+    """Every balanced ``{...}`` span in ``text``, in order (string-aware, so braces in reasoning don't confuse it)."""
+    depth, start, in_str, esc = 0, -1, False, False
+    for i, ch in enumerate(text):
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}" and depth:
+            depth -= 1
+            if depth == 0:
+                yield text[start:i + 1]
+
+
+_FACT_STATUS = ("present", "wrong", "missing")
+
+
+def _squash(text: str) -> str:
+    """Case, spacing, punctuation and markdown carry no meaning when checking that a quote is really in an answer."""
+    return re.sub(r"\W+", "", (text or "").lower())
+
+
+def _quote_in(evidence: str, answer: str) -> bool:
+    """Is the judge's quoted evidence really inside the model answer? (every ``...``-separated piece must be)."""
+    pieces = [p for p in re.split(r"\.\.\.|…", evidence or "") if _squash(p)]
+    haystack = _squash(answer)
+    return bool(pieces) and all(_squash(p) in haystack for p in pieces)
+
+
+def _read_facts(raw_facts: Any) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for f in raw_facts if isinstance(raw_facts, list) else []:
+        if not isinstance(f, dict):
+            continue
+        status = str(f.get("status") or "").strip().lower()
+        if str(f.get("fact") or "").strip() and status in _FACT_STATUS:
+            out.append({"fact": str(f["fact"]).strip(), "status": status, "evidence": str(f.get("evidence") or "").strip()})
+    return out
+
+
+def _rubric(facts: list[dict[str, Any]], extra_wrong: bool, answer: str) -> tuple[Verdict, str]:
+    """Verdict implied by the judge's own checklist, plus the checklist as readable text.
+
+    The judge decides, per fact, whether the answer states it; this only adds them up. A "present" claim whose quoted
+    evidence is not actually in the model answer is not trusted (a small judge inventing a quote is the failure to catch).
+    """
+    lines: list[str] = []
+    present = 0
+    for f in facts:
+        ok = f["status"] == "present"
+        if ok and not _quote_in(f["evidence"], answer):
+            f["status"] = "unverified"
+            ok = False
+            lines.append(f"? {f['fact']} — the judge's quote {f['evidence']!r} is not in the answer")
+        elif ok:
+            lines.append(f"✔ {f['fact']} — “{f['evidence']}”")
+        else:
+            lines.append(f"✘ {f['fact']} ({f['status']})" + (f": “{f['evidence']}”" if f["evidence"] else ""))
+        present += int(ok)
+    if present == len(facts) and not extra_wrong:
+        verdict: Verdict = "pass"
+    elif present == 0:
+        verdict = "fail"
+    else:
+        verdict = "partial"
+    if extra_wrong:
+        lines.append("✘ the answer adds a claim that contradicts the key")
+    return verdict, "\n".join(lines)
+
+
+def parse_judge_reply(raw: str, case: JudgeCase | None = None) -> JudgeResult:
+    """Parse a judge reply. Accepts a JSON object (optionally fenced / after <think>) or an explicit ``verdict:`` field.
+
+    With ``case`` and a usable per-fact checklist in the reply, the verdict is the one the checklist implies (see
+    :func:`_rubric`). Never infers a verdict from free prose: an unparseable reply returns an empty verdict with ``error`` set.
+    """
+    text = _THINK.sub("", raw or "").strip()
+    if not text:
+        return JudgeResult(error="the judge returned an empty reply", raw=raw or "")
+    candidates = [m.group(1) for m in _FENCE.finditer(text)] + [text]
+    for blob in candidates:
+        for span in _json_objects(blob):
+            try:
+                data = json.loads(span)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(data, dict):
+                continue
+            verdict = str(data.get("verdict") or "").strip().lower()
+            facts = _read_facts(data.get("facts"))
+            use_rubric = bool(facts) and case is not None and not case.expect_abstain
+            if verdict not in VERDICTS and not use_rubric:
+                continue
+            try:
+                conf = float(data["confidence"]) if data.get("confidence") is not None else None
+            except (TypeError, ValueError):
+                conf = None
+            reasoning = str(data.get("reasoning") or "").strip()
+            if use_rubric:
+                implied, checklist = _rubric(facts, bool(data.get("extra_wrong")), case.model_answer)  # type: ignore[union-attr]
+                if verdict in VERDICTS and verdict != implied:
+                    reasoning = f"{reasoning}\n(the judge first said {verdict}; its checklist below gives {implied})".strip()
+                verdict = implied
+                reasoning = f"{reasoning}\n{checklist}".strip()
+            return JudgeResult(
+                verdict=verdict,  # type: ignore[arg-type]
+                reasoning=reasoning,
+                confidence=None if conf is None else max(0.0, min(1.0, conf)),
+                raw=raw,
+                facts=facts,
+            )
+    m = _VERDICT_FIELD.search(text) or _VERDICT_LINE.search(text)
+    if m:
+        return JudgeResult(verdict=m.group(1).lower(), reasoning=text[:600], raw=raw)  # type: ignore[arg-type]
+    return JudgeResult(error=f"could not read a verdict from the judge reply: {text[:160]!r}", raw=raw)
+
+
+def judge_one(chat: ChatFn, case: JudgeCase, *, attempts: int = 2) -> JudgeResult:
+    """Ask the judge about one case. A malformed reply is retried once with a reminder; errors never become verdicts."""
+    messages = build_judge_messages(case)
+    last = JudgeResult(error="judge was not called")
+    for attempt in range(max(attempts, 1)):
+        try:
+            raw = chat(messages)
+        except Exception as exc:  # noqa: BLE001 - provider errors vary; the text is what the user needs
+            return JudgeResult(error=f"judge call failed: {exc}")
+        last = parse_judge_reply(raw, case)
+        if last.verdict:
+            return last
+        if attempt + 1 < attempts:
+            messages = [*build_judge_messages(case), {"role": "assistant", "content": raw},
+                        {"role": "user", "content": 'Reply with ONE JSON object only: {"facts": [...], "extra_wrong": false, "reasoning": "...", "verdict": "pass|partial|fail", "confidence": 0.0}'}]
+    return last
+
+
+# ── Judge backends: any provider row ──────────────────────────────────────────
+
+
+class JudgeUnavailable(RuntimeError):
+    """The chosen provider cannot judge right now (unknown row, missing GGUF, load failure)."""
+
+
+@dataclass
+class LoadedJudge:
+    """A provider that is loaded and ready: ``chat`` answers judge prompts."""
+
+    chat: ChatFn
+    provider_id: str
+    model: str            # what is recorded next to every verdict
+    label: str
+    concurrent: bool      # API providers serve parallel requests
+
+
+def list_judge_providers() -> list[dict[str, Any]]:
+    """Provider rows that can act as judge, helper seat first. No keys are ever returned."""
+    from finetune_studio.models.helper import annotate_provider, get_helper_provider_id
+    from finetune_studio.models.manager import get_manager
+
+    seat = get_helper_provider_id()
+    rows = []
+    for row in get_manager().list_providers():
+        row = annotate_provider(row)
+        rows.append({
+            "id": row["id"],
+            "label": row.get("label") or row.get("name") or row["id"],
+            "kind": row.get("kind", ""),
+            "model_id": row.get("model_id", ""),
+            "is_helper_seat": row["id"] == seat,
+            "local": row.get("kind") == "local_gguf",
+        })
+    rows.sort(key=lambda r: (not r["is_helper_seat"], r["label"].lower()))
+    return rows
+
+
+def default_judge_provider_id() -> str:
+    """The configured default judge, else the helper seat."""
+    from finetune_studio.models.helper import get_helper_provider_id
+    from finetune_studio.webui.routes.settings import get_test_settings
+
+    return get_test_settings()["judge_provider_id"] or get_helper_provider_id()
+
+
+@contextmanager
+def open_judge(provider_id: str) -> Iterator[LoadedJudge]:
+    """Load ``provider_id`` as the judge, yield it, and free the GPU afterwards.
+
+    A local GGUF judge replaces whatever model is resident (the one under test was already run and saved), so run
+    and judge never compete for the card; an API provider uses no VRAM and leaves resident models alone.
+    """
+    from finetune_studio.models.helper import (
+        annotate_provider,
+        missing_gguf_for_provider,
+    )
+    from finetune_studio.models.manager import get_manager
+
+    mgr = get_manager()
+    row = mgr.get_provider(provider_id)
+    if row is None:
+        raise JudgeUnavailable(f"unknown provider '{provider_id}'")
+    row = annotate_provider(row)
+    local = row.get("kind") == "local_gguf"
+    if local:
+        missing = missing_gguf_for_provider(provider_id)
+        if missing:
+            raise JudgeUnavailable(missing)
+        from finetune_studio.data.rag_portable.model_cache import release_rag_models
+        from finetune_studio.models.llama_loader import unload_all_models
+
+        unload_all_models()
+        release_rag_models("test judge load")
     try:
-        import urllib.error
-        import urllib.request
-
-        payload = json.dumps({
-            "model": model,
-            "messages": messages,
-            "temperature": 0.0,
-            "max_tokens": 500,
-            "response_format": {"type": "json_object"},
-        }).encode()
-
-        req = urllib.request.Request(
-            f"{api_url}/chat/completions",
-            data=payload,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-            },
-            method="POST",
+        mgr.load(provider_id)
+    except Exception as exc:
+        raise JudgeUnavailable(f"could not load judge '{row.get('label') or provider_id}': {exc}") from exc
+    try:
+        yield LoadedJudge(
+            chat=lambda messages: mgr.chat(messages, max_tokens=JUDGE_MAX_TOKENS, temperature=0.0),
+            provider_id=provider_id,
+            model=str(row.get("model_id") or row.get("name") or provider_id),
+            label=str(row.get("label") or provider_id),
+            concurrent=not local,
         )
-
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            result = json.loads(resp.read())
-
-        content = result["choices"][0]["message"]["content"]
-        data = json.loads(content)
-
-        verdict = data.get("verdict", "")
-        if verdict not in ("pass", "partial", "fail"):
-            verdict = "fail"
-
-        return verdict, data.get("reasoning", ""), float(data.get("confidence", 0.5))
-
-    except Exception as e:  # noqa: BLE001
-        return "", f"AI judge error: {e}", 0.0
+    finally:
+        if local:
+            mgr.unload()
 
 
-def judge_case_local(
-    engine,
-    question: str,
-    correct_answer: str,
-    model_answer: str,
-    think: bool = False,
-    transcript: list[dict] | None = None,
-) -> tuple[Verdict, str, float]:
-    """Judge using a local model (the inference engine)."""
-    messages = build_judge_messages(question, correct_answer, model_answer, transcript)
-    try:
-        raw = engine.generate(messages, max_tokens=500, temperature=0.0, think=think)
-        # Try to parse JSON from response
-        data = json.loads(raw)
-        verdict = data.get("verdict", "")
-        if verdict not in ("pass", "partial", "fail"):
-            verdict = "fail"
-        return verdict, data.get("reasoning", ""), float(data.get("confidence", 0.5))
-    except json.JSONDecodeError:
-        # Fallback: try to extract verdict from plain text
-        low = raw.lower()
-        if "pass" in low and "partial" not in low:
-            return "pass", raw, 0.5
-        if "partial" in low:
-            return "partial", raw, 0.5
-        return "fail", raw, 0.5
-    except Exception as e:  # noqa: BLE001
-        return "", f"local judge error: {e}", 0.0
+def judge_many(
+    judge: LoadedJudge,
+    items: list[tuple[str, JudgeCase]],
+    on_result: Callable[[str, JudgeResult], None],
+    *,
+    should_stop: Callable[[], bool] = lambda: False,
+) -> int:
+    """Judge ``(key, case)`` pairs, calling ``on_result(key, result)`` as each finishes. Returns how many were attempted.
+
+    Sequential for a local GGUF, a small thread pool for an API provider. ``on_result`` always runs on the calling
+    thread, so it may write the DB without extra locking.
+    """
+    done = 0
+    if not judge.concurrent or len(items) < 2:
+        for key, case in items:
+            if should_stop():
+                break
+            on_result(key, judge_one(judge.chat, case))
+            done += 1
+        return done
+    with ThreadPoolExecutor(max_workers=JUDGE_PARALLEL_API, thread_name_prefix="fts-judge") as pool:
+        for start in range(0, len(items), JUDGE_PARALLEL_API * 4):
+            if should_stop():
+                break
+            batch = items[start:start + JUDGE_PARALLEL_API * 4]
+            futures = [(key, pool.submit(judge_one, judge.chat, case)) for key, case in batch]
+            for key, fut in futures:
+                on_result(key, fut.result())
+                done += 1
+    return done

@@ -311,10 +311,16 @@ flickers as the GPU accelerates.
 
 ### Testing — step 4 (`/projects/{pid}/testing`)
 
-Did it learn *your* material? Auto-generated project suites test **every
-row** of the training dataset (N rows → N questions; sampling is an
-explicit, labeled opt-in), strict-substring judged and reviewable
-case-by-case.
+Did it learn *your* material? A test is two separate steps. **Run** asks the
+model every question (auto-generated project suites cover **every row** of the
+training dataset; sampling is an explicit, labeled opt-in, or import your own
+quiz) and saves exactly what it answered next to the correct answer. **Judge**
+is a separate pass: an AI judge (any connected model; by default the helper)
+reads each saved answer and decides pass / partial / fail with its reasoning,
+and you can override any verdict by hand in the review pane. Nothing is scored
+by string matching, so a right answer worded differently still passes; an
+unjudged run shows "awaiting judgement", never a made-up score. Judging can
+start by itself after each run if you turn that on in Settings (off by default).
 
 ![Testing](docs/screenshots/10_testing.png)
 

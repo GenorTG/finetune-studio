@@ -295,51 +295,49 @@ function wireHosting() {
 
 
 /* ============================================================
-   Benchmark judge settings — key is write-only (set / not set)
+   Test judge — default judge provider + auto-judge toggle
    ============================================================ */
 function wireJudge() {
   const $ = (id) => document.getElementById(id);
   if (!$('judge-card')) return;
   const setStatus = (m) => { if ($('judge-status')) $('judge-status').textContent = m; };
 
-  function apply(j) {
-    $('judge-mode').value = j.mode;
-    $('judge-model').value = j.model || '';
-    $('judge-api-url').value = j.api_url || '';
-    $('judge-api-key').value = '';
-    $('judge-key-state').textContent = j.api_key_set ? '(set)' : '(not set)';
+  function apply(d) {
+    const sel = $('judge-provider');
+    sel.innerHTML = '';
+    (d.providers || []).forEach((p) => {
+      const o = document.createElement('option');
+      o.value = p.id;
+      o.textContent = p.label + (p.is_helper_seat ? ' (helper seat)' : '') + (p.local ? ' · local GPU' : ' · API');
+      sel.appendChild(o);
+    });
+    sel.value = d.judge_provider_id || d.effective_judge_provider_id || '';
+    $('judge-auto').checked = !!d.auto_judge;
   }
 
   async function load() {
     try {
-      const r = await fetch('/api/settings/judge');
+      const r = await fetch('/api/settings/testing');
       if (!r.ok) throw new Error('HTTP ' + r.status);
       apply(await r.json());
     } catch (e) { setStatus('Failed to load: ' + e.message); }
   }
 
-  async function save(extra) {
-    const body = Object.assign({
-      judge_mode: $('judge-mode').value,
-      judge_model: $('judge-model').value.trim(),
-      judge_api_url: $('judge-api-url').value.trim(),
-      judge_api_key: $('judge-api-key').value,
-    }, extra || {});
+  async function save() {
     try {
-      const r = await fetch('/api/settings', {
-        method: 'PATCH',
+      const r = await fetch('/api/settings/testing', {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ judge_provider_id: $('judge-provider').value, auto_judge: $('judge-auto').checked }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(typeof d.detail === 'string' ? d.detail : 'HTTP ' + r.status);
-      apply(d.judge);
+      apply(d);
       setStatus('Saved.');
     } catch (e) { setStatus('Failed: ' + e.message); }
   }
 
-  $('btn-judge-save').addEventListener('click', () => save());
-  $('btn-judge-clear-key').addEventListener('click', () => save({ judge_api_key: '', judge_api_key_clear: true }));
+  $('btn-judge-save').addEventListener('click', save);
   load();
 }
 wireJudge();

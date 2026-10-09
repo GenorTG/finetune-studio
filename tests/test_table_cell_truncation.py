@@ -13,7 +13,7 @@ def _t(name: str) -> str:
 
 
 def test_suite_name_cells_wrap() -> None:
-    assert '<td class="mono cell-wrap">{{ r.suite_name }}</td>' in _t("project_testing.html")
+    assert '<td class="cell-wrap"><span class="mono">\' + esc(r.suite_name)' in _t("project_testing.html")
     assert '<td class="mono cell-wrap">{{ b.suite_name' in _t("benchmarks.html")
 
 

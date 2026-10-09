@@ -106,6 +106,27 @@ CREATE TABLE IF NOT EXISTS benchmark_cases (
 CREATE INDEX IF NOT EXISTS idx_bc_benchmark ON benchmark_cases(benchmark_id);
 CREATE INDEX IF NOT EXISTS idx_bc_run ON benchmark_cases(run_id);
 
+-- Every opinion on a case's correctness, never overwritten: an AI judge, a human, or (legacy rows only) the old
+-- scripted matcher. benchmark_cases.verdict is the EFFECTIVE verdict derived from these rows (human > AI > scripted).
+CREATE TABLE IF NOT EXISTS case_judgements (
+    id            TEXT PRIMARY KEY,
+    case_id       TEXT NOT NULL,
+    benchmark_id  TEXT NOT NULL,
+    kind          TEXT NOT NULL,                 -- ai | human | exact (official public benchmark) | scripted (legacy rows)
+    provider_id   TEXT NOT NULL DEFAULT '',
+    judge_model   TEXT NOT NULL DEFAULT '',
+    verdict       TEXT NOT NULL DEFAULT '',      -- pass | partial | fail | '' (a failed judge call, or a retracted human verdict)
+    reasoning     TEXT NOT NULL DEFAULT '',
+    confidence    REAL,
+    error         TEXT NOT NULL DEFAULT '',
+    prompt_version TEXT NOT NULL DEFAULT '',     -- judge prompt revision that produced an AI verdict
+    created_at    REAL NOT NULL,
+    FOREIGN KEY (case_id) REFERENCES benchmark_cases(id) ON DELETE CASCADE,
+    FOREIGN KEY (benchmark_id) REFERENCES benchmark_runs(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_cj_case ON case_judgements(case_id);
+CREATE INDEX IF NOT EXISTS idx_cj_benchmark ON case_judgements(benchmark_id);
+
 CREATE TABLE IF NOT EXISTS auto_suites (
     id              TEXT PRIMARY KEY,
     run_id          TEXT NOT NULL,
@@ -507,6 +528,49 @@ def init_db() -> None:
         _safe_alter(c, "ALTER TABLE benchmark_cases ADD COLUMN source_id TEXT NOT NULL DEFAULT ''")
         _safe_alter(c, "ALTER TABLE benchmark_cases ADD COLUMN chunk_idx INTEGER NOT NULL DEFAULT 0")
         _safe_alter(c, "ALTER TABLE benchmark_runs ADD COLUMN model_path TEXT NOT NULL DEFAULT ''")
+        # A test run is a job now: raw transcripts are saved as it goes, judging is a second, separate job.
+        for col in (
+            "status TEXT NOT NULL DEFAULT 'done'",          # queued | running | done | failed | cancelled
+            "kind TEXT NOT NULL DEFAULT 'suite'",           # suite | rag | heldout | training_leakage | public
+            "scoring TEXT NOT NULL DEFAULT 'judge'",        # judge (AI/human) | exact (official public benchmark)
+            "config_json TEXT NOT NULL DEFAULT '{}'",       # suite path, top_k, corpus, sampling, dataset ...
+            "error TEXT NOT NULL DEFAULT ''",
+            "progress_done INTEGER NOT NULL DEFAULT 0",
+            "progress_total INTEGER NOT NULL DEFAULT 0",
+            "heartbeat_at REAL",
+            "judge_status TEXT NOT NULL DEFAULT ''",        # '' (never) | running | done | failed | cancelled
+            "judge_provider_id TEXT NOT NULL DEFAULT ''",
+            "judge_model TEXT NOT NULL DEFAULT ''",
+            "judge_done INTEGER NOT NULL DEFAULT 0",
+            "judge_total INTEGER NOT NULL DEFAULT 0",
+            "judge_error TEXT NOT NULL DEFAULT ''",
+        ):
+            _safe_alter(c, f"ALTER TABLE benchmark_runs ADD COLUMN {col}")
+        _safe_alter(c, "ALTER TABLE benchmark_cases ADD COLUMN keywords TEXT NOT NULL DEFAULT '[]'")
+        _safe_alter(c, "ALTER TABLE benchmark_cases ADD COLUMN expect_abstain INTEGER NOT NULL DEFAULT 0")
+        _safe_alter(c, "ALTER TABLE benchmark_cases ADD COLUMN time_ms REAL NOT NULL DEFAULT 0")
+        _safe_alter(c, "ALTER TABLE case_judgements ADD COLUMN prompt_version TEXT NOT NULL DEFAULT ''")
+        c.execute(  # runs saved before progress was tracked: they are complete, so progress = their cases
+            "UPDATE benchmark_runs SET "
+            "progress_total = (SELECT COUNT(*) FROM benchmark_cases WHERE benchmark_id = benchmark_runs.id), "
+            "progress_done = (SELECT COUNT(*) FROM benchmark_cases WHERE benchmark_id = benchmark_runs.id) "
+            "WHERE progress_total = 0 AND status = 'done'"
+        )
+        c.execute(  # official public benchmarks (HF MMLU/GSM8K ...) were always exact-match scored
+            "UPDATE benchmark_runs SET scoring = 'exact', kind = 'public' "
+            "WHERE scoring = 'judge' AND kind = 'suite' AND scores_json LIKE '%\"is_real_benchmark\": true%'"
+        )
+        # Verdicts written before case_judgements existed become judgement rows, once, so the history is complete.
+        c.execute(
+            "INSERT INTO case_judgements (id, case_id, benchmark_id, kind, provider_id, judge_model, verdict, "
+            "reasoning, confidence, error, created_at) "
+            "SELECT lower(hex(randomblob(6))), bc.id, bc.benchmark_id, "
+            "  CASE WHEN br.scoring = 'exact' THEN 'exact' WHEN bc.judge = 'human' THEN 'human' "
+            "       WHEN bc.judge IN ('ai', 'local') THEN 'ai' ELSE 'scripted' END, "
+            "  '', bc.judge_model, bc.verdict, bc.judge_reasoning, NULL, '', COALESCE(bc.scored_at, 0) "
+            "FROM benchmark_cases bc JOIN benchmark_runs br ON br.id = bc.benchmark_id "
+            "WHERE bc.verdict != '' AND NOT EXISTS (SELECT 1 FROM case_judgements cj WHERE cj.case_id = bc.id)"
+        )
         # Auto-generated "Run · <dataset file>" names collide for every run on
         # the same dataset; tag them with the run id so selectors can tell
         # runs (and their exports) apart. Custom names are left untouched.

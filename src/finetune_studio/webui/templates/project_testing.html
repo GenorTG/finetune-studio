@@ -12,38 +12,71 @@
 <div class="page-head">
   <h1>Testing</h1>
   <div class="sub"><b>Step 4 · Train a model.</b> Did it actually learn your material?
-    This quizzes a trained run on questions built from your own dataset — one question
-    per row by default — and shows pass/fail with the model's raw answer per case.
-    <br><span class="text-xs">Auto-generated quizzes are deterministic; LLM-assisted generation
-    uses <span class="mono">{{ helper_label }}</span> only — never a silent fallback to
-    another loaded model. For public leaderboards (MMLU/GSM8K) use
-    <a href="/projects/{{ pid }}/benchmarks" data-link>benchmarks</a> instead.</span></div>
+    A test is two separate steps: <b>1 · Run</b> asks the model your questions and saves exactly what it answered next to the
+    correct answer; <b>2 · Judge</b> lets an AI judge (any model you have connected) or <b>you</b> read each saved answer and decide
+    pass / partial / fail. Nothing is scored by string matching.
+    <br><span class="text-xs">Quizzes come from your own dataset or an imported file; LLM-assisted quiz generation
+    uses <span class="mono">{{ helper_label }}</span> only — never a silent fallback to another loaded model. Public leaderboards
+    (MMLU/GSM8K) run on <a href="/projects/{{ pid }}/benchmarks" data-link>benchmarks</a> with their official scoring.</span></div>
 </div>
 
+<style>
+.tp-seg { display:inline-flex; border:1px solid var(--border); }
+.tp-seg label { padding:4px 12px; cursor:pointer; font-size:12px; color:var(--text-muted); border-right:1px solid var(--border); }
+.tp-seg label:last-child { border-right:0; }
+.tp-seg input { position:absolute; opacity:0; pointer-events:none; }
+.tp-seg input:checked + span { color:var(--accent); font-weight:600; }
+.tp-seg label:has(input:checked) { background:var(--bg-panel-2); }
+.tp-seg label:has(input:focus-visible) { outline:1px solid var(--accent); outline-offset:-2px; }
+.tp-bar { height:6px; background:var(--bg-panel-2); border:1px solid var(--border); min-width:90px; }
+.tp-bar > i { display:block; height:100%; background:var(--accent); }
+.tp-bar.judge > i { background:var(--cyan); }
+.tp-runs tr.sel td { background:var(--bg-panel-2); box-shadow:inset 3px 0 0 var(--accent); }
+.tp-runs tr { cursor:pointer; }
+.tp-chips { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0; }
+.tp-chip { padding:2px 9px; border:1px solid var(--border); font-size:12px; color:var(--text-muted); }
+.tp-chip b { color:var(--text); }
+.tp-chip.pass b { color:var(--ok); } .tp-chip.fail b { color:var(--err); } .tp-chip.partial b { color:var(--warn-text, var(--warn)); }
+.tp-warn { border:1px solid var(--warn); padding:8px 10px; font-size:12px; margin:8px 0; }
+.rv-main { display:grid; grid-template-columns:minmax(260px,36%) 1fr; gap:12px; align-items:start; }
+@media (max-width: 900px) { .rv-main { grid-template-columns:1fr; } }
+.rv-list { max-height:74vh; overflow-y:auto; border:1px solid var(--border); }
+.rv-row { display:grid; grid-template-columns:2.2rem 5.2rem 1fr; gap:6px; align-items:center; padding:5px 8px; border-bottom:1px solid var(--border); cursor:pointer; font-size:12px; }
+.rv-row.cur { background:var(--bg-panel-2); box-shadow:inset 3px 0 0 var(--accent); }
+.rv-row .q { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rv-pane { position:sticky; top:8px; max-height:90vh; overflow-y:auto; border:1px solid var(--border); padding:10px 12px; background:var(--bg-panel); }
+.rv-pane h4 { margin:10px 0 3px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); }
+.rv-text { white-space:pre-wrap; word-break:break-word; font-size:13px; padding:7px 9px; border:1px solid var(--border); background:var(--bg-app); max-height:34vh; overflow-y:auto; }
+.rv-text.key { border-color:var(--ok); }
+.rv-actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:8px 0; }
+.rv-j { border-left:3px solid var(--border-strong); padding:4px 8px; margin:5px 0; font-size:12px; }
+.rv-j.human { border-left-color:var(--cyan); }
+.rv-j .why { color:var(--text-muted); white-space:pre-wrap; }
+.rv-j .err { color:var(--err); }
+.rv-filter { display:flex; flex-wrap:wrap; gap:5px; margin:8px 0; align-items:center; }
+.rv-filter .btn.on { border-color:var(--accent); color:var(--accent); }
+kbd { border:1px solid var(--border-strong); padding:0 4px; font-size:11px; }
+.tp-src { font-size:10px; color:var(--text-dim); text-transform:uppercase; }
+</style>
 
-<div class="card mb-6" id="quiz-vs-benchmark">
-  <div class="text-xs"><b>Quiz vs benchmark.</b>
-    The <b>project quiz</b> (Testing page) is built from <em>your own</em> files and Q&amp;A pairs,
-    so it answers "did the model learn my material?". The benchmark
-    <b>Synthetic knowledge MCQ (offline)</b> is a small built-in set of general-knowledge
-    multiple-choice questions that ships with the app: it never sees your data, runs without
-    downloading anything, and its score is <em>not</em> comparable with published MMLU numbers.
-    Use it only as a quick check that the model still answers general questions after fine-tuning.
-    <a href="/projects/{{ pid }}/benchmarks" data-link>Open benchmarks →</a></div>
-</div>
-
-<div class="card mb-6">
+<div class="card mb-6" id="t-run-card">
   <div class="card-head">
     <div>
-      <div class="card-title">Run a suite</div>
-      <div class="card-sub">Pick a suite — the backend auto-loads the project's latest merged model.</div>
+      <div class="card-title">1 · Run a test</div>
+      <div class="card-sub">Asks the model every question and saves its raw answers. It does not decide what is correct.</div>
+    </div>
+    <div class="tp-seg" role="radiogroup" aria-label="What to test">
+      <label title="Questions from a quiz file, or the quiz the wizard built from your data"><input type="radio" name="t-mode" value="quiz" checked><span>Project quiz</span></label>
+      <label title="Retrieve from the project's RAG index and answer only from the retrieved text"><input type="radio" name="t-mode" value="rag"><span>RAG-grounded</span></label>
+      <label title="Questions built from the project's training dataset"><input type="radio" name="t-mode" value="dataset"><span>Dataset check</span></label>
     </div>
   </div>
   <div class="grid grid-12 gap-3 items-end">
     <div class="col-span-5">
-      <label class="block text-xs muted mb-1">Model</label>
+      <label class="block text-xs muted mb-1" for="t-model">Model under test</label>
       <select id="t-model" aria-label="Model to test" class="select">
-        <option value="">— auto (latest merged) —</option>
+        <option value="">— latest merged export —</option>
+        {% if project.base_model %}<option value="__base__" title="{{ project.base_model }}">Base model (untrained) · {{ project.base_model.rstrip('/').split('/')[-1] }}</option>{% endif %}
         {% for m in models %}
         <option value="{{ m.path }}"{% if default_model_path and m.path == default_model_path %} selected{% endif %}>{{ m.name }} · {{ m.format }} ({{ m.size_gb }} GB)</option>
         {% endfor %}
@@ -52,8 +85,8 @@
       <div class="text-xs dim mt-1">No project merged/GGUF exports yet. <a href="/projects/{{ pid }}/export" data-link>Export a completed run →</a></div>
       {% endif %}
     </div>
-    <div class="col-span-5">
-      <label class="block text-xs muted mb-1">Test suite</label>
+    <div class="col-span-5" id="t-suite-wrap">
+      <label class="block text-xs muted mb-1" for="t-suite">Question suite</label>
       <select id="t-suite" aria-label="Question suite" class="select" onchange="onSuitePicked()">
         <option value="">— pick a suite —</option>
         {% for s in suites %}
@@ -65,708 +98,678 @@
         {% endfor %}
       </select>
       {% if not suites %}
-      <div class="text-xs dim mt-1" id="t-suite-empty">No test suites yet. The easiest way to get one: open <a href="/projects/{{ pid }}/wizard" data-link>Quick work</a> and run <b>Step 5 · Test it</b> &mdash; it generates a quiz from your training data for a finished run. (Advanced: add suite JSON files under <code>data/benchmarks/</code>.)</div>
+      <div class="text-xs dim mt-1" id="t-suite-empty">No quizzes yet. Open <a href="/projects/{{ pid }}/wizard" data-link>Quick work</a> and run <b>Step 5 · Test it</b> to generate one from your training data, or import your own below.</div>
       {% endif %}
       <div id="t-suite-hint" class="text-xs dim mt-1" style="display:none;"></div>
-      <details class="mt-2" id="t-suite-import-box">
-        <summary class="text-xs muted">Bring your own quiz (JSON / JSONL)</summary>
-        <div class="text-xs dim mt-1">Each question needs <code>q</code> (or <code>question</code>) and <code>expect</code> — a list of values the answer must contain
-          (pass = all, partial = some). Mark a question the documents do not answer with <code>"expect_abstain": true</code>: declining passes, a confident answer fails.</div>
-        <div class="flex gap-2 items-center mt-1">
-          <input type="file" id="t-suite-file" accept=".json,.jsonl,application/json" aria-label="Quiz file to import" class="text-xs">
-          <button type="button" class="btn sm" id="t-suite-import-btn">Import quiz</button>
-        </div>
-        <div id="t-suite-import-msg" class="text-xs dim mt-1" role="status" aria-live="polite"></div>
-      </details>
     </div>
     <div class="col-span-2">
-      <button id="t-run-btn" onclick="runSuite()" class="btn primary" style="width:100%;" disabled
-              title="Pick a test suite first">Run</button>
+      <button id="t-run-btn" type="button" onclick="runTest()" class="btn primary" style="width:100%;" disabled
+              title="Pick a quiz first">Run test</button>
     </div>
   </div>
-  <div id="t-status" class="mt-3 text-xs" aria-live="polite" role="status">
-    {% if not models %}
-    No project merged/GGUF exports yet — <a href="/projects/{{ pid }}/export" data-link>Export a completed run</a> first, then pick a suite.
-    {% elif not suites %}
-    No test suites yet — generate one in <a href="/projects/{{ pid }}/wizard" data-link>Quick work</a> (Step 5 · Test it) after a training run finishes.
-    {% else %}
-    Pick a suite to enable Run.
-    {% endif %}
-  </div>
-  <pre id="t-live-log" class="text-xs mono mt-2" role="log" aria-live="polite" style="display:none;max-height:120px;overflow-y:auto;border:1px solid var(--border);padding:8px;white-space:pre-wrap;margin:0;background:var(--bg-app);"></pre>
-</div>
 
-<div class="card mb-6" id="t-rag-card">
-  <div class="card-head">
-    <div>
-      <div class="card-title">RAG-grounded suite</div>
-      <div class="card-sub">Uses the Model + Test suite above. Retrieves from the project's PortableRAG corpus, then answers only from retrieved context (or says it does not know). Prefer this for source-disjoint / unseen-document cases.</div>
+  <details class="mt-2" id="t-suite-import-box">
+    <summary class="text-xs muted">Bring your own quiz (JSON / JSONL)</summary>
+    <div class="text-xs dim mt-1">Each question needs <code>q</code> (or <code>question</code>) and <code>expect</code> — the values a complete answer holds (the judge reads them as the answer key).
+      Mark a question the documents do not answer with <code>"expect_abstain": true</code>: the right behaviour is to decline.</div>
+    <div class="flex gap-2 items-center mt-1">
+      <input type="file" id="t-suite-file" accept=".json,.jsonl,application/json" aria-label="Quiz file to import" class="text-xs">
+      <button type="button" class="btn sm" id="t-suite-import-btn">Import quiz</button>
     </div>
-  </div>
-  <div class="grid grid-12 gap-3 items-end">
+    <div id="t-suite-import-msg" class="text-xs dim mt-1" role="status" aria-live="polite"></div>
+  </details>
+
+  <div id="t-opts-rag" class="grid grid-12 gap-3 items-end mt-3" hidden>
     <div class="col-span-6">
       <label class="block text-xs muted mb-1" for="t-rag-corpus">Corpus path (optional)</label>
       <input id="t-rag-corpus" class="input mono text-sm" type="text"
              placeholder="default: ~/.finetune-studio/rag_corpora/{{ pid }}"
              title="Leave blank to use the project's PortableRAG corpus (or registered project_rags store).">
     </div>
-    <div class="col-span-2">
-      <label class="block text-xs muted mb-1" for="t-rag-topk">Results returned</label>
-      <input id="t-rag-topk" class="input" type="number" min="1" max="32" value="5"
-             title="How many chunks to retrieve per question.">
+    <div class="col-span-3">
+      <label class="block text-xs muted mb-1" for="t-rag-topk">Chunks retrieved per question</label>
+      <input id="t-rag-topk" class="input" type="number" min="1" max="50" value="10">
     </div>
-    <div class="col-span-2">
-      <label class="block text-xs muted mb-1" for="t-rag-maxtok">Max tokens</label>
+    <div class="col-span-3">
+      <label class="block text-xs muted mb-1" for="t-rag-maxtok">Max answer tokens</label>
       <input id="t-rag-maxtok" class="input" type="number" min="32" max="4096" value="512">
     </div>
-    <div class="col-span-2">
-      <button id="t-run-rag-btn" type="button" onclick="runRagSuite()" class="btn"
-              style="width:100%;" disabled title="Pick a test suite first">Run with RAG</button>
-    </div>
   </div>
-  <div id="t-rag-status" class="mt-3 text-xs" aria-live="polite" role="status">
-    Pick a suite above to enable RAG-grounded Run.
-  </div>
-</div>
 
-<div class="card mb-6">
-  <div class="card-head">
-    <div>
-      <div class="card-title">Dataset evaluation</div>
-      <div class="card-sub">Choose a real held-out validation slice for quality, or the full training set for a separate memorization check.</div>
-    </div>
-  </div>
-  <div class="grid grid-12 gap-3 items-end">
-    <div class="col-span-7">
-      <label class="block text-xs muted mb-1">Training dataset</label>
+  <div id="t-opts-dataset" class="grid grid-12 gap-3 items-end mt-3" hidden>
+    <div class="col-span-5">
+      <label class="block text-xs muted mb-1" for="t-train-ds">Training dataset</label>
       <select id="t-train-ds" aria-label="Dataset to check" class="select">
         <option value="">— latest project dataset —</option>
         {% for d in training_datasets %}
         <option value="{{ d.id }}">{{ d.name }} · {{ d.qa_count or 0 }} pairs · {{ d.source or 'dataset' }}</option>
         {% endfor %}
       </select>
-      {% if not training_datasets %}
-      <div class="text-xs dim mt-1">No registered datasets yet. Approve + export pairs first.</div>
-      {% endif %}
+      {% if not training_datasets %}<div class="text-xs dim mt-1">No registered datasets yet. Approve + export pairs first.</div>{% endif %}
     </div>
     <div class="col-span-3">
-      <label class="block text-xs muted mb-1">Max cases</label>
-      <input id="t-train-max" aria-label="Max questions" class="input" type="number" min="1" max="500" value="100">
-    </div>
-    <div class="col-span-3">
-      <label class="block text-xs muted mb-1">Evaluation kind</label>
-      <select id="t-eval-kind" aria-label="Evaluation type" class="select" onchange="syncTrainEvalBtn()">
-        <option value="heldout">Held-out validation (quality)</option>
-        <option value="training_leakage">Full training set (memorization check)</option>
+      <label class="block text-xs muted mb-1" for="t-eval-kind">Which questions</label>
+      <select id="t-eval-kind" aria-label="Evaluation type" class="select">
+        <option value="heldout">Held-out slice (quality)</option>
+        <option value="training_leakage">Full training set (memorisation)</option>
       </select>
     </div>
     <div class="col-span-2">
-      <button id="t-train-eval-btn" type="button" onclick="runTrainingEval()" class="btn"
-              style="width:100%;" {% if not models %}disabled title="Export a merged model first"{% endif %}>
-        Run held-out eval
-      </button>
+      <label class="block text-xs muted mb-1" for="t-train-max">Max questions</label>
+      <input id="t-train-max" aria-label="Max questions" class="input" type="number" min="1" max="500" value="100">
     </div>
+    <div class="col-span-12 text-xs dim" id="t-train-hint">Held-out uses the same deterministic 10 % validation slice used by training: the relevant score for in-domain quality. The full training set only shows memorisation.</div>
   </div>
-    <div id="t-train-hint" class="text-xs dim mt-2" role="status">
-    Held-out uses the same deterministic 10% validation slice used by training; it is the relevant score for in-domain quality.
+
+  <div class="flex flex-wrap items-center gap-3 mt-3 text-xs" id="t-judge-row">
+    <b>2 · Judge</b>
+    <label class="flex items-center gap-1" title="Saved as your default. When on, a finished run starts the judge by itself; when off the run ends at the raw answers.">
+      <input type="checkbox" id="t-auto-judge"{% if test_settings.auto_judge %} checked{% endif %}> judge automatically after each run
+    </label>
+    <label class="flex items-center gap-1">with
+      <select id="t-judge-provider" class="select" aria-label="Judge model" style="max-width:340px">
+        {% for p in judge_providers %}
+        <option value="{{ p.id }}"{% if p.id == default_judge_provider_id %} selected{% endif %}>{{ p.label }}{% if p.is_helper_seat %} (helper seat){% endif %}{% if p.local %} · local GPU{% else %} · API{% endif %}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <span class="dim" id="t-judge-note">Your choice here is the default judge for new runs. You can also judge any saved run later, with any judge, or mark answers yourself.</span>
+  </div>
+
+  <div id="t-status" class="mt-3 text-xs" aria-live="polite" role="status">
+    {% if not models %}
+    No project merged/GGUF exports yet — <a href="/projects/{{ pid }}/export" data-link>export a completed run</a> first, then pick a quiz.
+    {% elif not suites %}
+    No quizzes yet — generate one in <a href="/projects/{{ pid }}/wizard" data-link>Quick work</a> (Step 5 · Test it) or import your own above.
+    {% else %}
+    Pick a quiz to enable Run.
+    {% endif %}
   </div>
 </div>
 
-{% if recent_suite_runs %}
-<div class="card mb-6">
+<div class="card mb-6" id="t-runs-card">
   <div class="card-head">
     <div>
-      <div class="card-title">Recent runs</div>
-      <div class="card-sub">Last {{ recent_suite_runs|length }} suite run{{ '' if (recent_suite_runs|length == 1) else 's' }} for this project.</div>
+      <div class="card-title">Saved test runs</div>
+      <div class="card-sub">Every run keeps its raw transcripts. Open one to judge it, re-judge it with another model, or review the answers yourself.</div>
     </div>
   </div>
-  <table class="table w-full text-xs">
-    <thead><tr><th>Suite</th><th>Run</th><th>Pass rate</th><th>When</th></tr></thead>
-    <tbody>
-      {% for r in recent_suite_runs %}
-      <tr>
-        <td class="mono cell-wrap">{{ r.suite_name }}</td>
-        <td class="cell-wrap">{{ r.run_name }}</td>
-        <td class="mono">{% if r.pass_rate is not none %}{{ '%.1f'|format(r.pass_rate) }}%{% else %}—{% endif %}</td>
-        <td class="dim">{{ r.ran_at_str }}</td>
-      </tr>
+  <div id="t-runs" class="text-sm muted">Loading…</div>
+</div>
+
+<div class="card" id="t-run-detail" hidden>
+  <div class="card-head">
+    <div>
+      <div class="card-title" id="rv-title">Run</div>
+      <div class="card-sub" id="rv-sub"></div>
+    </div>
+    <div class="flex gap-2 items-center">
+      <a class="btn sm" id="rv-export-json" download title="Raw transcripts, answer keys and every judgement as JSON">Export JSON</a>
+      <a class="btn sm" id="rv-export-jsonl" download title="One case per line">JSONL</a>
+      <button class="btn sm danger" id="rv-delete" type="button">Delete run</button>
+    </div>
+  </div>
+
+  <div id="rv-progress" class="text-xs"></div>
+  <div id="rv-summary" class="tp-chips"></div>
+  <div id="rv-legacy" class="tp-warn" hidden></div>
+
+  <div class="flex flex-wrap items-center gap-2 text-xs mt-2" id="rv-judge-controls">
+    <b>Judge this run</b>
+    <select id="rv-provider" class="select" aria-label="Judge model for this run" style="max-width:340px">
+      {% for p in judge_providers %}
+      <option value="{{ p.id }}" data-local="{{ '1' if p.local else '' }}"{% if p.id == default_judge_provider_id %} selected{% endif %}>{{ p.label }}{% if p.is_helper_seat %} (helper seat){% endif %}{% if p.local %} · local GPU{% else %} · API{% endif %}</option>
       {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-<div class="card">
-  <div class="card-head">
-    <div>
-      <div class="card-title">Results</div>
-      <div class="card-sub">Pass rate and per-case breakdown appear here as the suite runs.</div>
-    </div>
+    </select>
+    <button class="btn sm primary" id="rv-judge-new" type="button" title="Judge the answers that have no AI or human verdict yet (also replaces old scripted verdicts)">Judge unjudged</button>
+    <button class="btn sm" id="rv-judge-all" type="button" title="Ask this judge about every answer again; your own verdicts always stay in force">Re-judge all</button>
+    <button class="btn sm danger" id="rv-stop" type="button" hidden>Stop</button>
+    <span class="dim" id="rv-judge-hint"></span>
   </div>
-  <div id="t-results" class="text-sm muted">No run yet.</div>
+
+  <div class="rv-filter" id="rv-filter" role="group" aria-label="Filter cases"></div>
+  <div class="text-xs dim mb-2">Keys: <kbd>1</kbd> pass · <kbd>2</kbd> partial · <kbd>3</kbd> fail · <kbd>0</kbd> clear mine · <kbd>j</kbd>/<kbd>k</kbd> next/previous.
+    <label class="ml-2"><input type="checkbox" id="rv-advance" checked> jump to the next unreviewed case after a verdict</label></div>
+  <div class="rv-main">
+    <div class="rv-list" id="rv-list" role="listbox" aria-label="Cases"></div>
+    <div class="rv-pane" id="rv-pane"><span class="muted">Pick a case.</span></div>
+  </div>
 </div>
 
 <script>
 (function() {
   const PID = {{ pid|tojson }};
-  const fts = window.fts || {};
-  const api = fts.api || {};
-  const notify = fts.notify || function(msg) { console.log(msg); };
-  const escapeHtml = (s) => String(s == null ? '' : s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const BASE = '/api/testing/projects/' + encodeURIComponent(PID);
+  const notify = (window.fts && window.fts.notify) || function(m) { console.log(m); };
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const root = $('t-run-card');
+
+  const S = {
+    runs: [], cur: '', run: null, cases: [], full: {}, sel: '', filter: 'all', text: '',
+    notes: {}, sig: '', paneSig: '', timer: null, busy: false,
+  };
+
+  async function jreq(method, url, body) {
+    const opt = { method: method, headers: {} };
+    if (body !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+    const r = await fetch(url, opt);
+    const data = await r.json().catch(function() { return {}; });
+    if (!r.ok) {
+      const err = new Error(data.error || data.detail || ('HTTP ' + r.status));
+      err.status = r.status; err.data = data;
+      throw err;
+    }
+    return data;
+  }
+
+  function baseName(p) { const parts = String(p || '').replace(/\/+$/, '').split('/'); return parts[parts.length - 1] || p || ''; }
+  // a run's model path usually ends in 'merged' or a bare file name: keep the parent folder for context
+  function shortModel(p) { const parts = String(p || '').replace(/\/+$/, '').split('/'); return parts.slice(-2).join('/') || p || ''; }
+  function when(ts) { if (!ts) return '—'; const d = new Date(ts * 1000); return d.toLocaleString(); }
+  function pct(v) { return (v == null) ? '—' : (v + '%'); }
+  function verdictBadge(v) {
+    const cls = v === 'pass' ? 'verdict-pass' : v === 'partial' ? 'verdict-partial' : v === 'fail' ? 'verdict-fail' : 'verdict-none';
+    return '<span class="verdict-badge ' + cls + '">' + esc(v || 'awaiting') + '</span>';
+  }
+  function srcLabel(j) { return { human: 'you', ai: 'AI', exact: 'exact', scripted: 'old matcher', heuristic: 'old matcher', local: 'AI' }[j] || ''; }
+  function bar(done, total, cls) {
+    const w = total > 0 ? Math.min(100, Math.round(done / total * 100)) : 0;
+    return '<div class="tp-bar ' + (cls || '') + '" title="' + done + ' / ' + total + '"><i style="width:' + w + '%"></i></div>';
+  }
+  function isActive(r) { return r && (r.status === 'running' || r.status === 'queued' || r.judge_status === 'running'); }
+
+  // ── Run form ───────────────────────────────────────────────────────────
+  function mode() { const el = document.querySelector('input[name="t-mode"]:checked'); return el ? el.value : 'quiz'; }
+
+  function syncMode() {
+    const m = mode();
+    $('t-opts-rag').hidden = m !== 'rag';
+    $('t-opts-dataset').hidden = m !== 'dataset';
+    $('t-suite-wrap').style.display = m === 'dataset' ? 'none' : '';
+    $('t-suite-import-box').style.display = m === 'dataset' ? 'none' : '';
+    syncRunButton();
+  }
+
+  function suiteLabel() {
+    const sel = $('t-suite');
+    if (!sel || !sel.value) return '';
+    const opt = sel.options[sel.selectedIndex];
+    return (opt && opt.getAttribute('data-label')) || baseName(sel.value);
+  }
+
+  function syncRunButton() {
+    const btn = $('t-run-btn'), status = $('t-status');
+    const m = mode();
+    const ready = m === 'dataset' ? true : !!$('t-suite').value;
+    btn.disabled = S.busy || !ready;
+    btn.title = ready ? 'Start the test' : 'Pick a quiz first';
+    if (status && !status.dataset.busy && ready) {
+      status.textContent = m === 'dataset' ? 'Ready — dataset check.' : ('Ready — ' + suiteLabel());
+    }
+  }
+
+  window.onSuitePicked = function() {
+    const hint = $('t-suite-hint'), sel = $('t-suite');
+    if (!sel.value) { hint.style.display = 'none'; hint.textContent = ''; }
+    else {
+      const opt = sel.options[sel.selectedIndex];
+      const src = opt.getAttribute('data-source') || '';
+      hint.style.display = '';
+      hint.textContent = '✓ ' + suiteLabel() + (src ? ' · source: ' + src : '');
+    }
+    syncRunButton();
+  };
 
   async function importQuiz() {
-    const input = document.getElementById('t-suite-file');
-    const msg = document.getElementById('t-suite-import-msg');
+    const input = $('t-suite-file'), msg = $('t-suite-import-msg');
     if (!input || !input.files || !input.files.length) { msg.textContent = 'Choose a quiz file first.'; return; }
     msg.textContent = 'Importing…';
     const form = new FormData();
     form.append('file', input.files[0]);
     try {
       const r = await fetch('/api/benchmarks/projects/' + encodeURIComponent(PID) + '/suites/import', { method: 'POST', body: form });
-      const data = await r.json().catch(() => ({}));
+      const data = await r.json().catch(function() { return {}; });
       if (!r.ok) { msg.textContent = 'Import failed: ' + (data.error || ('HTTP ' + r.status)); return; }
-      const sel = document.getElementById('t-suite');
-      let opt = Array.from(sel.options).find((o) => o.value === data.path);
-      if (!opt) {
-        opt = document.createElement('option');
-        opt.value = data.path;
-        sel.appendChild(opt);
-      }
+      const sel = $('t-suite');
+      let opt = Array.from(sel.options).find(function(o) { return o.value === data.path; });
+      if (!opt) { opt = document.createElement('option'); opt.value = data.path; sel.appendChild(opt); }
       const label = data.name + ' · ' + data.case_count + ' questions' + (data.abstain_cases ? ' (' + data.abstain_cases + ' unanswerable)' : '');
       opt.textContent = label;
-      opt.setAttribute('data-name', data.name);
-      opt.setAttribute('data-type', 'local');
-      opt.setAttribute('data-source', 'project_import');
-      opt.setAttribute('data-label', label);
+      opt.setAttribute('data-name', data.name); opt.setAttribute('data-type', 'local');
+      opt.setAttribute('data-source', 'project_import'); opt.setAttribute('data-label', label);
       sel.value = data.path;
-      sel.dispatchEvent(new Event('change'));
+      window.onSuitePicked();
       msg.textContent = 'Imported ' + label + ' — selected above.';
     } catch (e) {
       msg.textContent = 'Import failed: ' + ((e && e.message) || e);
     }
   }
-  const importBtn = document.getElementById('t-suite-import-btn');
-  if (importBtn) importBtn.addEventListener('click', importQuiz);
 
-  function suiteLabelFromSelect() {
-    const sel = document.getElementById('t-suite');
-    if (!sel || !sel.value) return '';
-    const opt = sel.options[sel.selectedIndex];
-    return (opt && opt.getAttribute('data-label')) || suiteLabel(sel.value);
-  }
-
-  function suiteLabel(path) {
-    if (!path) return '';
-    const parts = path.split('/');
-    return parts[parts.length - 1] || path;
-  }
-
-  function verdictClass(v) {
-    if (v === 'pass') return 'verdict-pass';
-    if (v === 'partial') return 'verdict-partial';
-    if (v === 'fail') return 'verdict-fail';
-    return 'verdict-none';
-  }
-
-  function renderResults(scores, cases, meta) {
-    meta = meta || {};
-    const judged = scores.judged || 0;
-    const passRate = judged === 0
-      ? '—'
-      : (scores.pass_rate != null ? scores.pass_rate + '%' : '—');
-    let html = '<div class="case-results-summary" id="case-scores-summary">'
-      + '<span>total: ' + (scores.total || 0) + '</span>'
-      + '<span>judged: ' + judged + '</span>'
-      + '<span>unjudged: ' + (scores.unjudged || 0) + '</span>'
-      + '<span>passed: ' + (scores.passed || 0) + '</span>'
-      + '<span>partial: ' + (scores.partial || 0) + '</span>'
-      + '<span>failed: ' + (scores.failed || 0) + '</span>'
-      + '<span class="pass-rate">pass_rate: ' + passRate + '</span>'
-      + (scores.eval_kind
-          ? ' <span class="pill outline">' + escapeHtml(scores.eval_kind) + '</span>'
-          : '')
-      + (meta.mode === 'rag'
-          ? ' <span class="pill outline">rag-grounded</span>'
-          : '')
-      + '</div>';
-    const cats = scores.categories || {};
-    const catNames = Object.keys(cats);
-    if (catNames.length > 1) {
-      html += '<div class="case-results-summary" id="case-scores-categories">'
-        + catNames.map(function (k) { return '<span>' + escapeHtml(k) + ': ' + cats[k].passed + '/' + cats[k].total + '</span>'; }).join('')
-        + '</div>';
-    }
-    // Grounded training rows are asked WITH their own retrieved context (transcript opens with a system turn);
-    // plain rows are asked bare. They test different skills, so report them separately.
-    const withCtx = (cases || []).filter(function (c) {
-      return c && c.transcript && c.transcript[0] && c.transcript[0].role === 'system';
-    });
-    if (withCtx.length) {
-      const okCtx = withCtx.filter(function (c) { return c.passed || c.verdict === 'pass'; }).length;
-      const plain = (cases || []).length - withCtx.length;
-      const okPlain = (scores.passed || 0) - okCtx;
-      html += '<div class="case-results-summary" id="case-scores-split" title="Plain rows are recalled from memory; '
-        + 'grounded rows are answered from the retrieved context they were trained with.">'
-        + '<span>from memory (no context): ' + okPlain + '/' + plain + '</span>'
-        + '<span>answering from retrieved context: ' + okCtx + '/' + withCtx.length + '</span></div>';
-    }
-    if (meta.retrieval && typeof meta.retrieval === 'object') {
-      const ret = meta.retrieval;
-      const recall = ret.recall_at_k != null ? ret.recall_at_k : ret.hit_rate;
-      html += '<div class="text-xs mt-2" id="t-rag-retrieval-summary" role="status">'
-        + 'Retrieval: hits ' + (ret.retrieval_hits != null ? ret.retrieval_hits : '—')
-        + ' / ' + (ret.cases_with_source_id != null ? ret.cases_with_source_id : '—')
-        + ' with source_id'
-        + (recall != null ? (' · recall@k ' + recall) : '')
-        + (meta.corpus_path ? (' · corpus <code class="mono">' + escapeHtml(String(meta.corpus_path)) + '</code>') : '')
-        + (meta.model_path ? (' · model <code class="mono">' + escapeHtml(String(meta.model_path)) + '</code>') : '')
-        + '</div>';
-    }
-    if (scores.leakage_warning) {
-      html += '<div class="text-xs dim mt-1" role="status">'
-        + escapeHtml(scores.leakage_warning) + '</div>';
-    }
-    const showRetHit = cases.some(function (c) {
-      return c && (c.retrieval_hit === true || c.retrieval_hit === false);
-    });
-    html += '<div class="case-results-scroll" role="region" aria-label="Case results" tabindex="0">'
-      + '<table class="table case-results-table" id="case-results-table"><thead><tr>'
-      + '<th class="case-col-idx">#</th><th class="case-col-name">Case name</th>'
-      + '<th class="case-col-cat">Category</th><th class="case-col-text">Question</th>'
-      + '<th class="case-col-text">Expected</th><th class="case-col-answer">Model answer</th>'
-      + '<th class="case-col-verdict">Verdict</th>'
-      + (showRetHit ? '<th class="case-col-ret">Retrieval</th>' : '')
-      + '<th class="case-col-judge">Judge reasoning</th>'
-      + '<th class="case-col-time">Time (ms)</th>'
-      + '</tr></thead><tbody>';
-    cases.forEach((c, i) => {
-      const v = c.verdict || '';
-      const answer = c.model_answer || c.response || '';
-      html += '<tr>'
-        + '<td class="case-col-idx">' + (i + 1) + '</td>'
-        + '<td class="mono case-col-name">' + escapeHtml(c.name || '') + '</td>'
-        + '<td class="case-col-cat">' + escapeHtml(c.category || '') + '</td>'
-        + '<td class="case-col-text case-col-fixed">' + escapeHtml(c.question || '') + '</td>'
-        + '<td class="case-col-text case-col-fixed">' + escapeHtml(c.correct_answer || '') + '</td>'
-        + '<td class="case-col-answer"><pre class="case-answer-pre">' + escapeHtml(answer) + '</pre></td>'
-        + '<td class="case-col-verdict"><span class="verdict-badge ' + verdictClass(v) + '">'
-        + escapeHtml(v || 'none') + '</span></td>';
-      if (showRetHit) {
-        const hit = c.retrieval_hit;
-        const hitLabel = hit === true ? 'hit' : (hit === false ? 'miss' : '—');
-        const hitCls = hit === true ? 'verdict-pass' : (hit === false ? 'verdict-fail' : 'verdict-none');
-        html += '<td class="case-col-ret"><span class="verdict-badge ' + hitCls + '">'
-          + hitLabel + '</span></td>';
-      }
-      const why = c.judge_reasoning
-        || (c.error ? '[not scored] the model run failed: ' + c.error : '')
-        || (v ? '[' + (c.judge || 'judge') + '] ' + v + ' verdict, no explanation recorded'
-                : '[not scored] no verdict for this case');
-      html += '<td class="judge-reasoning case-col-judge">'
-        + '<details><summary>reasoning</summary><div class="text-xs">' + escapeHtml(why) + '</div></details></td>'
-        + '<td class="mono case-col-time">' + Math.round(c.time_ms || 0) + '</td>'
-        + '</tr>';
-    });
-    html += '</tbody></table></div>';
-    // Raw payload stays behind an explicit Debug control — not the primary view.
-    const debugPayload = { scores: scores, results: cases };
-    if (meta.retrieval) debugPayload.retrieval = meta.retrieval;
-    if (meta.corpus_path) debugPayload.corpus_path = meta.corpus_path;
-    if (meta.model_path) debugPayload.model_path = meta.model_path;
-    html += '<details class="mt-3" id="t-results-debug"><summary class="text-xs muted">Debug JSON</summary>'
-      + '<pre class="mono text-xs" style="max-height:240px;overflow:auto;white-space:pre-wrap;margin:8px 0 0;">'
-      + escapeHtml(JSON.stringify(debugPayload, null, 2))
-      + '</pre></details>';
-    return html;
-  }
-
-  function setRagRunEnabled(enabled, title) {
-    const ragBtn = document.getElementById('t-run-rag-btn');
-    const ragStatus = document.getElementById('t-rag-status');
-    if (ragBtn) {
-      ragBtn.disabled = !enabled;
-      ragBtn.title = title || (enabled ? 'Run suite with PortableRAG grounding' : 'Pick a test suite first');
-    }
-    if (ragStatus && !ragStatus.dataset.busy) {
-      ragStatus.textContent = enabled
-        ? ('Ready — RAG-grounded run for ' + (suiteLabelFromSelect() || 'selected suite'))
-        : 'Pick a suite above to enable RAG-grounded Run.';
-    }
-  }
-
-  window.onSuitePicked = function() {
-    const hint = document.getElementById('t-suite-hint');
-    const sel = document.getElementById('t-suite');
-    const runBtn = document.getElementById('t-run-btn');
-    const status = document.getElementById('t-status');
-    if (!hint || !sel) return;
-    if (!sel.value) {
-      hint.style.display = 'none';
-      hint.textContent = '';
-      if (runBtn) {
-        runBtn.disabled = true;
-        runBtn.title = 'Pick a test suite first';
-      }
-      setRagRunEnabled(false, 'Pick a test suite first');
-      if (status && !status.dataset.busy) {
-        status.textContent = 'Pick a suite to enable Run.';
-      }
-      return;
-    }
-    const opt = sel.options[sel.selectedIndex];
-    const type = (opt && opt.getAttribute('data-type')) || 'local';
-    const source = (opt && opt.getAttribute('data-source')) || '';
-    const label = suiteLabelFromSelect();
-    hint.style.display = '';
-    hint.textContent = '✓ ' + label + (source ? ' · source: ' + source : '') + ' · type: ' + type;
-    if (runBtn) {
-      runBtn.disabled = false;
-      runBtn.title = 'Run suite: ' + label;
-    }
-    setRagRunEnabled(true, 'Run with RAG: ' + label);
-    if (status && !status.dataset.busy) {
-      status.textContent = 'Ready — ' + label;
-    }
-  };
-
-  // QABUG-011 / QABUG-013: do NOT call /api/testing/load first — the
-  // run-suite handler auto-loads the project's latest merged model.
-  window.runSuite = async function() {
-    const status = document.getElementById('t-status');
-    const liveLog = document.getElementById('t-live-log');
-    const results = document.getElementById('t-results');
-    const runBtn = document.getElementById('t-run-btn');
-    const suite = document.getElementById('t-suite').value.trim();
-    if (!suite) {
-      status.textContent = 'Please pick a test suite.';
-      if (runBtn) runBtn.disabled = true;
-      return;
-    }
-    const suiteName = suiteLabelFromSelect() || suiteLabel(suite);
-    if (status) status.dataset.busy = '1';
-    if (runBtn) runBtn.disabled = true;
-    status.textContent = '✓ Using suite: ' + suiteName + ' — Running…';
-    results.innerHTML = '<span class="muted">Running suite (auto-loading model if needed)…</span>';
-    if (liveLog) {
-      liveLog.style.display = 'block';
-      liveLog.textContent = 'suite: ' + suiteName + '\nwaiting for /api/testing/status…';
-    }
-    // Live model status via SSE while the suite request is in flight.
-    const started = Date.now();
-    let stopLive = null;
-    let elapsedTimer = null;
-    let lastModelLine = 'model: (checking…)';
-    const paintLive = () => {
-      const elapsed = Math.round((Date.now() - started) / 1000);
-      status.textContent = '✓ Using suite: ' + suiteName + ' — Running… ' + elapsed + 's';
-      if (liveLog) {
-        liveLog.textContent = [
-          'suite: ' + suiteName,
-          'elapsed: ' + elapsed + 's',
-          lastModelLine,
-          'awaiting /api/testing/run-suite response…',
-        ].join('\n');
-      }
-    };
-    const applyLive = (s) => {
-      if (s && typeof s === 'object') {
-        if (s.loaded) {
-          lastModelLine = 'model loaded: ' + (s.model_path || '(path unknown)');
-        } else {
-          lastModelLine = 'model: not loaded yet (auto-load on suite start)';
-        }
-      }
-      paintLive();
-    };
-    elapsedTimer = setInterval(paintLive, 1000);
-    const sub = window.fts && window.fts.subscribe;
-    if (sub) {
-      stopLive = sub('/api/testing/events', applyLive, {
-        pollUrl: '/api/testing/status',
-        fallbackMs: 5000,
+  async function saveJudgeDefaults() {
+    try {
+      await jreq('PUT', '/api/settings/testing', {
+        auto_judge: $('t-auto-judge').checked, judge_provider_id: $('t-judge-provider').value,
       });
-    } else {
-      applyLive({});
-      const t = setInterval(() => applyLive({}), 5000);
-      stopLive = () => clearInterval(t);
-    }
-    const stopAll = () => {
-      if (stopLive) { stopLive(); stopLive = null; }
-      if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
+      notify('Judge default saved', 'success');
+    } catch (e) { notify('Could not save the judge default: ' + e.message, 'error'); }
+  }
+
+  window.runTest = async function() {
+    const status = $('t-status'), m = mode();
+    const common = {
+      project_id: PID, auto_judge: $('t-auto-judge').checked, judge_provider_id: $('t-judge-provider').value,
     };
-    try {
-      const modelSel = document.getElementById('t-model');
-      const modelPath = modelSel ? (modelSel.value || '').trim() : '';
-      const body = { suite_path: suite, project_id: PID, max_tokens: 512 };
-      if (modelPath) body.model_path = modelPath;
-      let r;
-      if (api.post) {
-        r = await api.post('/api/testing/run-suite', body);
+    const model = ($('t-model').value || '').trim();
+    if (model) common.model_path = model;
+    let url, body;
+    if (m === 'dataset') {
+      url = '/api/testing/evaluate-training';
+      body = Object.assign({}, common, {
+        max_cases: Math.max(1, parseInt($('t-train-max').value || '100', 10) || 100),
+        eval_kind: $('t-eval-kind').value, max_tokens: 512,
+      });
+      if ($('t-train-ds').value) body.dataset_id = $('t-train-ds').value;
+    } else {
+      const suite = $('t-suite').value.trim();
+      if (!suite) { status.textContent = 'Please pick a quiz.'; return; }
+      body = Object.assign({}, common, { suite_path: suite, max_tokens: 512, temperature: 0.3 });
+      if (m === 'rag') {
+        url = '/api/testing/run-rag-suite';
+        body.top_k = Math.max(1, parseInt($('t-rag-topk').value || '10', 10) || 10);
+        body.max_tokens = Math.max(32, parseInt($('t-rag-maxtok').value || '512', 10) || 512);
+        const corpus = ($('t-rag-corpus').value || '').trim();
+        if (corpus) body.corpus_path = corpus;
       } else {
-        const resp = await fetch('/api/testing/run-suite', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        r = await resp.json();
-        if (!resp.ok && r.error) throw new Error(r.error);
+        url = '/api/testing/run-suite';
       }
-      if (stopAll) stopAll();
-      if (r.error) {
-        status.textContent = 'Error: ' + r.error;
-        results.innerHTML = '<span class="err">' + escapeHtml(r.error) + '</span>';
-        if (liveLog) liveLog.textContent = 'error: ' + r.error;
-        notify(r.error, 'error');
-        return;
-      }
-      const scores = r.scores || {};
-      const cases = r.results || [];
-      const elapsed = Math.round((Date.now() - started) / 1000);
-      status.textContent = 'Done — pass rate ' + (scores.pass_rate || 0) + '% · ' + elapsed + 's';
-      if (liveLog) {
-        liveLog.textContent = [
-          'suite: ' + suiteName,
-          'elapsed: ' + elapsed + 's',
-          'cases: ' + cases.length,
-          'pass_rate: ' + (scores.pass_rate != null ? scores.pass_rate : '—'),
-        ].join('\n');
-      }
-      results.innerHTML = renderResults(scores, cases);
-      notify('Suite finished: ' + (scores.passed || 0) + '/' + cases.length + ' passed', 'success');
-    } catch (e) {
-      stopAll();
-      const msg = (e && e.message) || String(e);
-      status.textContent = 'Error: ' + msg;
-      results.innerHTML = '<span class="err">' + escapeHtml(msg) + '</span>';
-      if (liveLog) liveLog.textContent = 'error: ' + msg;
-      notify(msg, 'error');
-    } finally {
-      stopAll();
-      if (status) delete status.dataset.busy;
-      if (runBtn) {
-        const sel = document.getElementById('t-suite');
-        runBtn.disabled = !(sel && sel.value);
-        runBtn.title = runBtn.disabled ? 'Pick a test suite first' : ('Run suite: ' + suiteName);
-      }
-      const sel = document.getElementById('t-suite');
-      setRagRunEnabled(!!(sel && sel.value), (sel && sel.value) ? ('Run with RAG: ' + suiteName) : 'Pick a test suite first');
     }
-  };
-
-  window.runRagSuite = async function() {
-    const status = document.getElementById('t-status');
-    const ragStatus = document.getElementById('t-rag-status');
-    const liveLog = document.getElementById('t-live-log');
-    const results = document.getElementById('t-results');
-    const runBtn = document.getElementById('t-run-btn');
-    const ragBtn = document.getElementById('t-run-rag-btn');
-    const suite = document.getElementById('t-suite').value.trim();
-    if (!suite) {
-      if (ragStatus) ragStatus.textContent = 'Please pick a test suite above.';
-      if (status) status.textContent = 'Please pick a test suite.';
-      setRagRunEnabled(false, 'Pick a test suite first');
-      return;
-    }
-    const suiteName = suiteLabelFromSelect() || suiteLabel(suite);
-    const corpusEl = document.getElementById('t-rag-corpus');
-    const topkEl = document.getElementById('t-rag-topk');
-    const maxTokEl = document.getElementById('t-rag-maxtok');
-    const corpusPath = corpusEl ? (corpusEl.value || '').trim() : '';
-    const topK = topkEl ? Math.max(1, parseInt(topkEl.value || '5', 10) || 5) : 5;
-    const maxTokens = maxTokEl ? Math.max(32, parseInt(maxTokEl.value || '512', 10) || 512) : 512;
-    if (status) status.dataset.busy = '1';
-    if (ragStatus) ragStatus.dataset.busy = '1';
-    if (runBtn) runBtn.disabled = true;
-    if (ragBtn) ragBtn.disabled = true;
-    if (status) status.textContent = '✓ RAG suite: ' + suiteName + ' — Running…';
-    if (ragStatus) ragStatus.textContent = 'Retrieving + generating (auto-loads model if needed)…';
-    if (results) {
-      results.innerHTML = '<span class="muted">Running RAG-grounded suite…</span>';
-    }
-    if (liveLog) {
-      liveLog.style.display = 'block';
-      liveLog.textContent = 'mode: rag-grounded\nsuite: ' + suiteName + '\nawaiting /api/testing/run-rag-suite…';
-    }
-    const started = Date.now();
+    S.busy = true; status.dataset.busy = '1'; syncRunButton();
+    status.textContent = 'Starting…';
     try {
-      const modelSel = document.getElementById('t-model');
-      const modelPath = modelSel ? (modelSel.value || '').trim() : '';
-      const body = {
-        suite_path: suite,
-        project_id: PID,
-        top_k: topK,
-        max_tokens: maxTokens,
-        temperature: 0.3,
-      };
-      if (modelPath) body.model_path = modelPath;
-      if (corpusPath) body.corpus_path = corpusPath;
-      let r;
-      if (api.post) {
-        r = await api.post('/api/testing/run-rag-suite', body);
-      } else {
-        const resp = await fetch('/api/testing/run-rag-suite', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        r = await resp.json();
-        if (!resp.ok && r.error) throw new Error(r.error);
-      }
-      if (r.error) {
-        if (status) status.textContent = 'Error: ' + r.error;
-        if (ragStatus) ragStatus.textContent = 'Error: ' + r.error;
-        if (results) results.innerHTML = '<span class="err">' + escapeHtml(r.error) + '</span>';
-        if (liveLog) liveLog.textContent = 'error: ' + r.error;
-        notify(r.error, 'error');
-        return;
-      }
-      const scores = r.scores || {};
-      const cases = r.results || [];
-      const elapsed = Math.round((Date.now() - started) / 1000);
-      const ret = r.retrieval || {};
-      if (status) {
-        status.textContent = 'RAG done — pass rate ' + (scores.pass_rate || 0)
-          + '% · retrieval hits ' + (ret.retrieval_hits != null ? ret.retrieval_hits : '—')
-          + ' · ' + elapsed + 's';
-      }
-      if (ragStatus) {
-        ragStatus.textContent = 'Done — '
-          + (scores.passed || 0) + '/' + cases.length + ' passed'
-          + (ret.recall_at_k != null ? (' · recall@k ' + ret.recall_at_k) : '');
-      }
-      if (liveLog) {
-        liveLog.textContent = [
-          'mode: rag-grounded',
-          'suite: ' + suiteName,
-          'elapsed: ' + elapsed + 's',
-          'corpus: ' + (r.corpus_path || '(default)'),
-          'model: ' + (r.model_path || '—'),
-          'retrieval_hits: ' + (ret.retrieval_hits != null ? ret.retrieval_hits : '—'),
-          'pass_rate: ' + (scores.pass_rate != null ? scores.pass_rate : '—'),
-        ].join('\n');
-      }
-      if (results) {
-        results.innerHTML = renderResults(scores, cases, {
-          mode: 'rag',
-          retrieval: ret,
-          corpus_path: r.corpus_path || '',
-          model_path: r.model_path || '',
-        });
-      }
-      notify('RAG suite finished: ' + (scores.passed || 0) + '/' + cases.length + ' passed', 'success');
+      const r = await jreq('POST', url, body);
+      status.textContent = 'Started — the model is answering; the run appears below and saves each answer as it goes.';
+      notify('Test run started', 'success');
+      await selectRun(r.benchmark_id);
     } catch (e) {
-      const msg = (e && e.message) || String(e);
-      if (status) status.textContent = 'Error: ' + msg;
-      if (ragStatus) ragStatus.textContent = 'Error: ' + msg;
-      if (results) results.innerHTML = '<span class="err">' + escapeHtml(msg) + '</span>';
-      if (liveLog) liveLog.textContent = 'error: ' + msg;
-      notify(msg, 'error');
+      status.textContent = 'Error: ' + e.message;
+      notify(e.message, 'error');
     } finally {
-      if (status) delete status.dataset.busy;
-      if (ragStatus) delete ragStatus.dataset.busy;
-      const sel = document.getElementById('t-suite');
-      const hasSuite = !!(sel && sel.value);
-      if (runBtn) {
-        runBtn.disabled = !hasSuite;
-        runBtn.title = hasSuite ? ('Run suite: ' + suiteName) : 'Pick a test suite first';
-      }
-      setRagRunEnabled(hasSuite, hasSuite ? ('Run with RAG: ' + suiteName) : 'Pick a test suite first');
+      S.busy = false; delete status.dataset.busy; syncRunButton();
     }
   };
 
-  // Keep the dataset-eval button label in step with the chosen evaluation kind.
-  window.syncTrainEvalBtn = function() {
-    const kindEl = document.getElementById('t-eval-kind');
-    const btn = document.getElementById('t-train-eval-btn');
-    if (!kindEl || !btn) return;
-    btn.textContent = kindEl.value === 'training_leakage'
-      ? 'Run training-set check'
-      : 'Run held-out eval';
-  };
-  window.syncTrainEvalBtn();
+  // ── Runs list ──────────────────────────────────────────────────────────
+  function runStatusCell(r) {
+    const total = r.progress_total || 0, done = r.progress_done || 0;
+    if (r.status === 'running' || r.status === 'queued') {
+      return '<span class="pill solid-blue">answering</span> ' + done + '/' + total + bar(done, total);
+    }
+    if (r.status === 'failed') return '<span class="pill solid-rose" title="' + esc(r.error) + '">run failed</span> <span class="text-xs dim">' + done + '/' + total + ' saved</span>';
+    if (r.status === 'cancelled') return '<span class="pill solid-orange">stopped</span> <span class="text-xs dim">' + done + '/' + total + ' saved</span>';
+    return '<span class="pill solid-green">answered</span> <span class="text-xs dim">' + done + '/' + total + '</span>';
+  }
 
-  window.runTrainingEval = async function() {
-    const status = document.getElementById('t-status');
-    const hint = document.getElementById('t-train-hint');
-    const results = document.getElementById('t-results');
-    const btn = document.getElementById('t-train-eval-btn');
-    const dsSel = document.getElementById('t-train-ds');
-    const maxEl = document.getElementById('t-train-max');
-    const kindEl = document.getElementById('t-eval-kind');
-    const modelSel = document.getElementById('t-model');
-    const datasetId = dsSel ? (dsSel.value || '').trim() : '';
-    const maxCases = maxEl ? Math.max(1, parseInt(maxEl.value || '100', 10) || 100) : 100;
-    const evalKind = kindEl ? (kindEl.value || 'heldout') : 'heldout';
-    const modelPath = modelSel ? (modelSel.value || '').trim() : '';
-    if (btn) btn.disabled = true;
-    if (status) {
-      status.dataset.busy = '1';
-      status.textContent = evalKind === 'heldout'
-        ? 'Running held-out validation evaluation…'
-        : 'Running training-data (leakage) evaluation…';
+  function judgeCell(r) {
+    const sc = r.scores || {};
+    if (r.scoring === 'exact') return '<span class="pill outline" title="Official public benchmark: exact match">exact match</span>';
+    if (r.judge_status === 'running') {
+      return '<span class="pill solid-cyan">judging</span> ' + (r.judge_done || 0) + '/' + (r.judge_total || 0) + bar(r.judge_done || 0, r.judge_total || 0, 'judge');
     }
-    if (hint) {
-      hint.textContent = evalKind === 'heldout'
-        ? 'Held-out validation in progress — this is the meaningful in-domain quality score.'
-        : 'Leakage eval in progress — high pass rates mean memorization, not generalization.';
+    const by = sc.by_judge || {};
+    const legacy = (by.scripted || 0) + (by.heuristic || 0);
+    const parts = [(sc.judged || 0) + '/' + (sc.total || 0) + ' judged'];
+    if (legacy && !(by.ai || by.human)) parts.push('<span class="pill solid-orange" title="These verdicts come from the retired scripted string matcher. Open the run and judge it again.">old matcher</span>');
+    if (r.judge_status === 'failed') parts.push('<span class="err" title="' + esc(r.judge_error) + '">judge failed</span>');
+    return parts.join(' · ');
+  }
+
+  function renderRuns() {
+    const el = $('t-runs');
+    if (!S.runs.length) { el.innerHTML = '<span class="muted">No test runs yet. Pick a quiz above and press Run test.</span>'; return; }
+    let h = '<table class="table w-full text-xs tp-runs" id="t-runs-table"><thead><tr><th>When</th><th>Test</th><th>Model</th><th>Run</th><th>Judging</th><th>Pass rate</th></tr></thead><tbody>';
+    S.runs.forEach(function(r) {
+      const sc = r.scores || {};
+      h += '<tr data-bid="' + esc(r.id) + '" class="' + (r.id === S.cur ? 'sel' : '') + '" tabindex="0">'
+        + '<td class="dim">' + esc(when(r.ran_at)) + '</td>'
+        + '<td class="cell-wrap"><span class="mono">' + esc(r.suite_name) + '</span> <span class="pill outline">' + esc(r.kind) + '</span></td>'
+        + '<td class="mono cell-wrap" title="' + esc(r.model_path) + '">' + esc(shortModel(r.model_path)) + '</td>'
+        + '<td>' + runStatusCell(r) + '</td>'
+        + '<td>' + judgeCell(r) + '</td>'
+        + '<td class="mono">' + (sc.pass_rate == null ? '<span class="dim">awaiting</span>' : esc(pct(sc.pass_rate))) + '</td></tr>';
+    });
+    el.innerHTML = h + '</tbody></table>';
+    el.querySelectorAll('tr[data-bid]').forEach(function(tr) {
+      const open = function() { selectRun(tr.getAttribute('data-bid')); };
+      tr.addEventListener('click', open);
+      tr.addEventListener('keydown', function(ev) { if (ev.key === 'Enter') open(); });
+    });
+  }
+
+  // ── Run detail ─────────────────────────────────────────────────────────
+  async function selectRun(bid) {
+    S.cur = bid; S.sel = ''; S.sig = ''; S.paneSig = ''; S.cases = []; S.full = {};
+    $('t-run-detail').hidden = false;
+    $('rv-export-json').href = BASE + '/runs/' + bid + '/export?fmt=json';
+    $('rv-export-jsonl').href = BASE + '/runs/' + bid + '/export?fmt=jsonl';
+    try { history.replaceState(null, '', location.pathname + '?run=' + encodeURIComponent(bid)); } catch (_e) { /* ignore */ }
+    await refresh(true);
+    $('t-run-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function chip(label, value, cls) { return '<span class="tp-chip ' + (cls || '') + '">' + esc(label) + ' <b>' + esc(value) + '</b></span>'; }
+
+  function renderSummary(r, agree) {
+    const sc = r.scores || {};
+    const by = sc.by_judge || {};
+    let h = chip('cases', sc.total || r.progress_total || 0)
+      + chip('judged', sc.judged || 0)
+      + chip('awaiting', sc.awaiting != null ? sc.awaiting : (sc.unjudged || 0))
+      + chip('pass', sc.passed || 0, 'pass') + chip('partial', sc.partial || 0, 'partial') + chip('fail', sc.failed || 0, 'fail')
+      + chip('pass rate', sc.pass_rate == null ? '— (nothing judged yet)' : pct(sc.pass_rate));
+    const srcs = Object.keys(by).map(function(k) { return srcLabel(k) + ' ' + by[k]; });
+    if (srcs.length) h += chip('verdicts from', srcs.join(' · '));
+    if (sc.eval_kind) h += chip('eval', sc.eval_kind);
+    // Grounded training rows are asked WITH their retrieved context, plain rows bare: different skills, reported apart.
+    const grounded = S.cases.filter(function(c) { return c.judge_input && c.judge_input.grounded; });
+    if (grounded.length && grounded.length < S.cases.length) {
+      const okG = grounded.filter(function(c) { return c.verdict === 'pass'; }).length;
+      const plain = S.cases.length - grounded.length;
+      const okP = S.cases.filter(function(c) { return c.verdict === 'pass'; }).length - okG;
+      h += chip('from memory (no context)', okP + '/' + plain) + chip('answering from retrieved context', okG + '/' + grounded.length);
     }
-    if (results) {
-      results.innerHTML = '<span class="muted">Evaluating training dataset…</span>';
+    const ret = sc.retrieval;
+    if (ret && ret.cases_with_source_id) {
+      h += chip('retrieval', (ret.retrieval_hits || 0) + '/' + ret.cases_with_source_id + (ret.recall_at_k != null ? ' · recall@k ' + ret.recall_at_k : ''));
     }
+    if (ret && ret.cases_with_expected_values) {
+      h += chip('answer text in retrieved chunks', ret.gold_in_retrieved + '/' + ret.cases_with_expected_values)
+        + chip('…and inside the context sent', ret.gold_in_context + '/' + ret.cases_with_expected_values);
+    }
+    if (agree && agree.human_reviewed) {
+      Object.keys(agree.judges || {}).forEach(function(k) {
+        const a = agree.judges[k];
+        h += chip(k + ' agrees with you', a.agree + '/' + a.compared + (a.agreement != null ? ' (' + Math.round(a.agreement * 100) + '%)' : ''));
+      });
+      h += chip('reviewed by you', agree.human_reviewed);
+    }
+    $('rv-summary').innerHTML = h;
+    const legacy = $('rv-legacy'), n = (by.scripted || 0) + (by.heuristic || 0);
+    if (n) {
+      legacy.hidden = false;
+      legacy.innerHTML = '<b>' + n + ' verdict(s) come from the old scripted matcher</b> (string comparison), which this app no longer trusts. '
+        + 'Use <b>Judge unjudged</b> to have an AI judge read them, or check them yourself.';
+    } else legacy.hidden = true;
+  }
+
+  function renderProgress(r) {
+    const el = $('rv-progress');
+    let h = '';
+    if (r.status === 'running' || r.status === 'queued') h += 'Model answering: <b>' + (r.progress_done || 0) + ' / ' + (r.progress_total || 0) + '</b>' + bar(r.progress_done || 0, r.progress_total || 0);
+    else if (r.status === 'failed') h += '<span class="err">Run failed: ' + esc(r.error) + '</span> — the ' + (r.progress_done || 0) + ' answers saved so far are kept below.';
+    else if (r.status === 'cancelled') h += 'Run stopped after ' + (r.progress_done || 0) + ' of ' + (r.progress_total || 0) + ' answers (kept below).';
+    if (r.judge_status === 'running') h += '<div class="mt-1">Judge <b>' + esc(baseName(r.judge_model || r.judge_provider_id)) + '</b>: <b>' + (r.judge_done || 0) + ' / ' + (r.judge_total || 0) + '</b>' + bar(r.judge_done || 0, r.judge_total || 0, 'judge') + '</div>';
+    else if (r.judge_status === 'failed') h += '<div class="mt-1 err">Judge failed: ' + esc(r.judge_error) + '</div>';
+    else if (r.judge_status === 'cancelled') h += '<div class="mt-1">Judging stopped (verdicts so far are kept).</div>';
+    else if (r.judge_status === 'done' && r.judge_model) h += '<div class="mt-1 dim">Last judge: ' + esc(r.judge_model) + '</div>';
+    el.innerHTML = h;
+  }
+
+  function renderControls(r) {
+    const exact = r.scoring === 'exact';
+    const running = r.status === 'running' || r.status === 'queued';
+    const judging = r.judge_status === 'running';
+    $('rv-judge-controls').style.display = exact ? 'none' : '';
+    $('rv-judge-new').disabled = running || judging;
+    $('rv-judge-all').disabled = running || judging;
+    $('rv-provider').disabled = judging;
+    $('rv-stop').hidden = !(running || judging);
+    $('rv-stop').textContent = running ? 'Stop run' : 'Stop judging';
+    $('rv-delete').disabled = running || judging;
+    const sel = $('rv-provider');
+    if (!judging && r.judge_provider_id && S.providerSeen !== r.id) {
+      const opt = Array.from(sel.options).find(function(o) { return o.value === r.judge_provider_id; });
+      if (opt) sel.value = r.judge_provider_id;
+      S.providerSeen = r.id;
+    }
+    const opt = sel.options[sel.selectedIndex];
+    $('rv-judge-hint').textContent = opt && opt.getAttribute('data-local')
+      ? 'Local judge: loads onto the GPU after the run (the tested model is unloaded first).'
+      : 'API judge: no GPU needed; several answers are judged in parallel.';
+  }
+
+  function matchesFilter(c) {
+    const f = S.filter;
+    if (f === 'awaiting' && c.verdict) return false;
+    if ((f === 'pass' || f === 'partial' || f === 'fail') && c.verdict !== f) return false;
+    if (f === 'mine' && c.judge !== 'human') return false;
+    if (f === 'unreviewed' && c.judge === 'human') return false;
+    if (f === 'errors' && !c.error) return false;
+    if (S.text) {
+      const t = S.text.toLowerCase();
+      if ((c.question + ' ' + c.correct_answer + ' ' + c.model_answer + ' ' + c.case_name).toLowerCase().indexOf(t) < 0) return false;
+    }
+    return true;
+  }
+
+  function renderFilters() {
+    const cs = S.cases;
+    const n = function(fn) { return cs.filter(fn).length; };
+    const defs = [
+      ['all', 'All ' + cs.length], ['awaiting', 'Awaiting ' + n(function(c) { return !c.verdict; })],
+      ['pass', 'Pass ' + n(function(c) { return c.verdict === 'pass'; })], ['partial', 'Partial ' + n(function(c) { return c.verdict === 'partial'; })],
+      ['fail', 'Fail ' + n(function(c) { return c.verdict === 'fail'; })],
+      ['unreviewed', 'Not reviewed by me ' + n(function(c) { return c.judge !== 'human'; })],
+      ['mine', 'Mine ' + n(function(c) { return c.judge === 'human'; })],
+    ];
+    if (cs.some(function(c) { return c.error; })) defs.push(['errors', 'Run errors ' + n(function(c) { return !!c.error; })]);
+    let h = defs.map(function(d) { return '<button type="button" class="btn sm' + (S.filter === d[0] ? ' on' : '') + '" data-f="' + d[0] + '">' + esc(d[1]) + '</button>'; }).join('');
+    h += '<input type="search" id="rv-search" class="input" placeholder="search question / answer…" value="' + esc(S.text) + '" style="max-width:260px" aria-label="Search cases">';
+    const box = $('rv-filter');
+    box.innerHTML = h;
+    box.querySelectorAll('button[data-f]').forEach(function(b) {
+      b.addEventListener('click', function() { S.filter = b.getAttribute('data-f'); renderFilters(); renderList(); });
+    });
+    $('rv-search').addEventListener('input', function(ev) {
+      S.text = ev.target.value; renderList();
+    });
+  }
+
+  function renderList() {
+    const el = $('rv-list');
+    const top = el.scrollTop;
+    const rows = S.cases.map(function(c, i) { return { c: c, i: i }; }).filter(function(x) { return matchesFilter(x.c); });
+    if (!rows.length) { el.innerHTML = '<div class="rv-row"><span></span><span></span><span class="dim">' + (S.cases.length ? 'No case matches this filter.' : 'No answers saved yet.') + '</span></div>'; return; }
+    el.innerHTML = rows.map(function(x) {
+      const c = x.c;
+      return '<div class="rv-row' + (c.id === S.sel ? ' cur' : '') + '" role="option" data-cid="' + esc(c.id) + '">'
+        + '<span class="dim">' + (x.i + 1) + '</span>'
+        + '<span>' + verdictBadge(c.verdict) + (c.verdict ? '<div class="tp-src">' + esc(srcLabel(c.judge)) + '</div>' : '') + '</span>'
+        + '<span class="q" title="' + esc(c.question) + '">' + esc(c.question) + '</span></div>';
+    }).join('');
+    el.scrollTop = top;
+    el.querySelectorAll('.rv-row[data-cid]').forEach(function(row) {
+      row.addEventListener('click', function() { pick(row.getAttribute('data-cid')); });
+    });
+  }
+
+  function curCase() { return S.cases.find(function(c) { return c.id === S.sel; }) || null; }
+
+  async function pick(cid) {
+    S.sel = cid; S.paneSig = '';
+    renderList(); renderPane();
+    if (!S.full[cid]) {
+      try { S.full[cid] = await jreq('GET', BASE + '/runs/' + S.cur + '/cases/' + encodeURIComponent(cid)); S.paneSig = ''; renderPane(); }
+      catch (_e) { /* the list payload is enough to review */ }
+    }
+  }
+
+  function judgementHtml(j) {
+    const who = j.kind === 'human' ? 'you' : j.kind === 'ai' ? ('AI · ' + baseName(j.judge_model || j.provider_id)) : j.kind === 'exact' ? 'exact match' : 'old scripted matcher';
+    const conf = (j.confidence != null && j.kind === 'ai') ? ' <span class="dim">conf ' + Math.round(j.confidence * 100) + '%'
+      + (j.prompt_version ? ' · prompt v' + esc(j.prompt_version) : '') + '</span>' : '';
+    let h = '<div class="rv-j ' + esc(j.kind) + '"><b>' + esc(who) + '</b> ' + (j.verdict ? verdictBadge(j.verdict) : (j.error ? '' : '<span class="dim">retracted</span>')) + conf;
+    if (j.error) h += ' <span class="err">' + esc(j.error) + '</span>';
+    if (j.reasoning) h += '<div class="why">' + esc(j.reasoning) + '</div>';
+    return h + '</div>';
+  }
+
+  function renderPane() {
+    const c = curCase(), pane = $('rv-pane');
+    if (!c) { pane.innerHTML = '<span class="muted">Pick a case.</span>'; return; }
+    const f = S.full[c.id] || {};
+    const sig = c.id + '|' + c.verdict + '|' + c.judge + '|' + (c.judgements || []).length + '|' + (f.id ? 1 : 0);
+    if (sig === S.paneSig) return;
+    S.paneSig = sig;
+    const ji = f.judge_input || c.judge_input || {};
+    const kws = c.keywords || [];
+    let h = '<div class="flex items-center gap-2"><b>' + esc(c.case_name) + '</b> <span class="pill outline">' + esc(c.category) + '</span> '
+      + (c.expect_abstain ? '<span class="pill solid-orange" title="The documents do not answer this: declining is the right behaviour">unanswerable</span>' : '')
+      + '<span style="margin-left:auto">' + verdictBadge(c.verdict) + ' <span class="tp-src">' + esc(srcLabel(c.judge)) + '</span></span></div>';
+    h += '<h4>Question</h4><div class="rv-text">' + esc(c.question) + '</div>';
+    h += '<h4>Answer key' + (c.expect_abstain ? ' (none — should decline)' : '') + '</h4><div class="rv-text key">' + esc(c.correct_answer || '(none)') + '</div>';
+    if (kws.length) h += '<div class="text-xs mt-1">Key values: ' + kws.map(function(k) { return '<span class="pill outline">' + esc(k) + '</span>'; }).join(' ') + '</div>';
+    h += '<h4>Model answer' + (c.time_ms ? ' <span class="dim">· ' + Math.round(c.time_ms) + ' ms</span>' : '') + '</h4><div class="rv-text">' + (c.error && !c.model_answer ? '<span class="err">run failed: ' + esc(c.error) + '</span>' : esc(c.model_answer || '(empty)')) + '</div>';
+    if (ji.retrieval_hit != null || ji.chunks_retrieved != null) {
+      h += '<div class="text-xs mt-1">Retrieval: source ' + (ji.retrieval_hit ? '<b class="ok">retrieved</b>' : '<b class="err">not retrieved</b>')
+        + (ji.chunks_retrieved != null ? ' · ' + ji.chunks_retrieved + ' chunks retrieved, ' + (ji.chunks_in_context != null ? ji.chunks_in_context : '?') + ' fit the context' : '')
+        + (ji.gold_in_retrieved != null ? ' · key values in retrieved text: ' + (ji.gold_in_retrieved ? 'yes' : 'no') + ', in context sent: ' + (ji.gold_in_context ? 'yes' : 'no') : '') + '</div>';
+    }
+    if (ji.context_text) h += '<details class="mt-1"><summary class="text-xs muted">Retrieved context the model saw</summary><div class="rv-text mono text-xs">' + esc(ji.context_text) + '</div></details>';
+    if (f.transcript) h += '<details class="mt-1"><summary class="text-xs muted">Full transcript</summary><div class="rv-text mono text-xs">' + esc(JSON.stringify(f.transcript, null, 2)) + '</div></details>';
+    h += '<h4>Judgements</h4>';
+    const js = (c.judgements || []).slice().reverse();
+    h += js.length ? js.map(judgementHtml).join('') : '<div class="dim text-xs">Not judged yet.</div>';
+    h += '<h4>Your verdict</h4><div class="rv-actions">'
+      + '<button type="button" class="btn sm" data-v="pass" id="rv-pass">Pass <kbd>1</kbd></button>'
+      + '<button type="button" class="btn sm" data-v="partial" id="rv-partial">Partial <kbd>2</kbd></button>'
+      + '<button type="button" class="btn sm" data-v="fail" id="rv-fail">Fail <kbd>3</kbd></button>'
+      + '<button type="button" class="btn sm ghost" data-v="" id="rv-clear" title="Withdraw your verdict; the AI verdict applies again">Clear mine <kbd>0</kbd></button></div>'
+      + '<input type="text" id="rv-note" class="input text-xs" placeholder="optional note (why)" value="' + esc(S.notes[c.id] || '') + '" aria-label="Note for your verdict">';
+    pane.innerHTML = h;
+    pane.querySelectorAll('button[data-v]').forEach(function(b) {
+      b.addEventListener('click', function() { setVerdict(b.getAttribute('data-v')); });
+    });
+    $('rv-note').addEventListener('input', function(ev) { S.notes[c.id] = ev.target.value; });
+  }
+
+  async function setVerdict(v) {
+    const c = curCase();
+    if (!c) return;
     try {
-      const body = {
-        project_id: PID,
-        max_cases: maxCases,
-        max_tokens: 512,
-        eval_kind: evalKind,
-      };
-      if (datasetId) body.dataset_id = datasetId;
-      if (modelPath) body.model_path = modelPath;
-      let r;
-      if (api.post) {
-        r = await api.post('/api/testing/evaluate-training', body);
-      } else {
-        const resp = await fetch('/api/testing/evaluate-training', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        r = await resp.json();
-        if (!resp.ok && r.error) throw new Error(r.error);
+      const r = await jreq('PUT', BASE + '/runs/' + S.cur + '/cases/' + encodeURIComponent(c.id) + '/verdict', { verdict: v, reasoning: S.notes[c.id] || '' });
+      const idx = S.cases.findIndex(function(x) { return x.id === c.id; });
+      if (idx >= 0 && r.case) S.cases[idx] = r.case;
+      delete S.full[c.id]; S.paneSig = '';
+      if (S.run) { S.run.scores = r.scores; }
+      renderSummary(S.run, r.agreement); renderFilters(); renderList(); renderPane();
+      if (v && $('rv-advance').checked) {
+        const rest = S.cases.slice(idx + 1).concat(S.cases.slice(0, idx)).filter(function(x) { return x.judge !== 'human' && matchesFilter(x); });
+        if (rest.length) pick(rest[0].id);
       }
-      if (r.error) {
-        if (status) status.textContent = 'Error: ' + r.error;
-        if (results) results.innerHTML = '<span class="err">' + escapeHtml(r.error) + '</span>';
-        notify(r.error, 'error');
-        return;
-      }
-      const scores = r.scores || {};
-      const cases = r.results || [];
-      if (status) {
-        status.textContent = (evalKind === 'heldout' ? 'Held-out eval done — ' : 'Training-data eval done — ')
-          + (scores.pass_rate != null ? scores.pass_rate + '%' : '—')
-          + ' pass · ' + cases.length + ' cases (' + evalKind + ')';
-      }
-      if (hint && scores.leakage_warning) {
-        hint.textContent = scores.leakage_warning;
-      }
-      if (results) results.innerHTML = renderResults(scores, cases);
-      notify('Training-data eval finished (' + cases.length + ' cases)', 'success');
-    } catch (e) {
-      const msg = (e && e.message) || String(e);
-      if (status) status.textContent = 'Error: ' + msg;
-      if (results) results.innerHTML = '<span class="err">' + escapeHtml(msg) + '</span>';
-      notify(msg, 'error');
-    } finally {
-      if (status) delete status.dataset.busy;
-      if (btn) btn.disabled = false;
-    }
-  };
+      refresh(false);
+    } catch (e) { notify('Could not save the verdict: ' + e.message, 'error'); }
+  }
 
-  // Sync Run button if a suite was pre-selected.
-  if (typeof window.onSuitePicked === 'function') window.onSuitePicked();
+  async function startJudge(onlyUnjudged) {
+    const provider = $('rv-provider').value;
+    try {
+      await jreq('POST', BASE + '/runs/' + S.cur + '/judge', { provider_id: provider, only_unjudged: onlyUnjudged });
+      notify('Judging started', 'success');
+      await refresh(true);
+    } catch (e) { notify(e.message, 'error'); }
+  }
+
+  async function refresh(force) {
+    if (!root.isConnected) { if (S.timer) clearTimeout(S.timer); return; }
+    try {
+      S.runs = await jreq('GET', BASE + '/runs');
+    } catch (e) { $('t-runs').innerHTML = '<span class="err">' + esc(e.message) + '</span>'; schedule(); return; }
+    renderRuns();
+    if (S.cur) {
+      const row = S.runs.find(function(r) { return r.id === S.cur; });
+      if (!row) { S.cur = ''; $('t-run-detail').hidden = true; schedule(); return; }
+      const sig = [row.status, row.progress_done, row.judge_status, row.judge_done, (row.scores || {}).judged, (row.scores || {}).passed].join('|');
+      if (force || sig !== S.sig || isActive(row)) {
+        S.sig = sig;
+        try {
+          const detail = await jreq('GET', BASE + '/runs/' + S.cur);
+          S.run = detail;
+          const cases = await jreq('GET', BASE + '/runs/' + S.cur + '/cases');
+          const prevSel = S.sel;
+          S.cases = cases;
+          if (!prevSel || !curCase()) {
+            const first = cases.find(function(c) { return !c.verdict; }) || cases[0];
+            S.sel = first ? first.id : '';
+            if (S.sel) pick(S.sel);
+          }
+          $('rv-title').textContent = detail.suite_name;
+          $('rv-sub').textContent = detail.kind + ' · ' + shortModel(detail.model_path) + ' · ' + when(detail.ran_at)
+            + (detail.time_ms ? ' · ' + Math.round(detail.time_ms / 1000) + ' s' : '');
+          renderProgress(detail); renderControls(detail); renderSummary(detail, detail.agreement);
+          renderFilters(); renderList(); S.paneSig = ''; renderPane();
+        } catch (e) { notify(e.message, 'error'); }
+      }
+    }
+    schedule();
+  }
+
+  // Live updates come from the /api/testing/events stream (it carries each job's progress); this slow timer is only
+  // a safety net for a dropped stream, never a redraw loop.
+  function schedule() {
+    if (S.timer) clearTimeout(S.timer);
+    S.timer = setTimeout(function() { refresh(false); }, 20000);
+  }
+
+  let pushTimer = null;
+  function onLive() {
+    if (pushTimer || !root.isConnected) return;
+    pushTimer = setTimeout(function() { pushTimer = null; refresh(false); }, 400);   // coalesce bursts of events
+  }
+  const subscribe = window.fts && window.fts.subscribe;
+  if (subscribe) subscribe('/api/testing/events', onLive, { pollUrl: '/api/testing/status', fallbackMs: 5000 });
+
+  // ── Wiring ─────────────────────────────────────────────────────────────
+  document.querySelectorAll('input[name="t-mode"]').forEach(function(el) { el.addEventListener('change', syncMode); });
+  $('t-suite-import-btn').addEventListener('click', importQuiz);
+  $('t-auto-judge').addEventListener('change', saveJudgeDefaults);
+  $('t-judge-provider').addEventListener('change', saveJudgeDefaults);
+  $('rv-judge-new').addEventListener('click', function() { startJudge(true); });
+  $('rv-judge-all').addEventListener('click', function() {
+    if (confirm('Ask this judge about every answer again? Your own verdicts stay in force; earlier AI opinions are kept for comparison.')) startJudge(false);
+  });
+  $('rv-provider').addEventListener('change', function() { renderControls(S.run || {}); });
+  $('rv-stop').addEventListener('click', async function() {
+    try { await jreq('POST', BASE + '/runs/' + S.cur + '/cancel'); notify('Stopping after the current answer…', 'info'); refresh(true); }
+    catch (e) { notify(e.message, 'error'); }
+  });
+  $('rv-delete').addEventListener('click', async function() {
+    if (!confirm('Delete this run with all its saved answers and judgements?')) return;
+    try { await jreq('DELETE', BASE + '/runs/' + S.cur); S.cur = ''; $('t-run-detail').hidden = true; refresh(true); }
+    catch (e) { notify(e.message, 'error'); }
+  });
+
+  function onKey(ev) {
+    if (!root.isConnected) { document.removeEventListener('keydown', onKey); return; }
+    if ($('t-run-detail').hidden || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    const tag = (ev.target && ev.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    const map = { '1': 'pass', '2': 'partial', '3': 'fail', '0': '' };
+    if (ev.key in map) { ev.preventDefault(); setVerdict(map[ev.key]); return; }
+    if (ev.key === 'j' || ev.key === 'ArrowDown' || ev.key === 'k' || ev.key === 'ArrowUp') {
+      const rows = S.cases.filter(matchesFilter);
+      const i = rows.findIndex(function(c) { return c.id === S.sel; });
+      const next = rows[(ev.key === 'j' || ev.key === 'ArrowDown') ? Math.min(rows.length - 1, i + 1) : Math.max(0, i - 1)];
+      if (next) { ev.preventDefault(); pick(next.id); }
+    }
+  }
+  document.addEventListener('keydown', onKey);
+
+  syncMode();
+  window.onSuitePicked();
+  const want = new URLSearchParams(location.search).get('run');
+  refresh(false).then(function() { if (want && S.runs.some(function(r) { return r.id === want; })) selectRun(want); });
 })();
 </script>
 {% endblock %}

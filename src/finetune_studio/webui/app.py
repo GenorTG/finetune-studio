@@ -121,6 +121,14 @@ async def lifespan(app: FastAPI):
         n = db.reconcile_stale_exports()
         if n:
             print(f"Reconciled {n} stale model_exports row(s)")
+        n = db.reconcile_stale_benchmarks()
+        if n:
+            print(f"Reconciled {n} stale test run/judge job(s)")
+        from finetune_studio.testing.scoring import rescore_legacy_benchmarks
+
+        n = rescore_legacy_benchmarks()
+        if n:
+            print(f"Rescored {n} legacy test run(s) with verdict sources")
     except Exception:  # noqa: BLE001
         _log.exception("Failed to reconcile stale RAG builds/exports")
     # Resume data-prep runs interrupted mid-flight by the restart instead of

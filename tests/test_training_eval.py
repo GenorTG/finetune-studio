@@ -17,6 +17,7 @@ from finetune_studio.testing.training_eval import (
     cases_from_training_jsonl,
     suite_label_for_training_eval,
 )
+from tests.testing_run_support import FakeEngine, install_engine, wait_run_finished
 
 
 @pytest.fixture
@@ -141,13 +142,9 @@ def test_build_training_eval_meta(isolated_db: Path, tmp_path: Path) -> None:
     assert "training_leakage:" in suite_label_for_training_eval(meta)
 
 
-def test_evaluate_training_api_returns_per_case_table(
-    isolated_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_evaluate_training_api_starts_a_run_that_saves_per_case_transcripts_without_verdicts(
+    client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from fastapi.testclient import TestClient
-
-    from finetune_studio.webui.app import app
-
     proj = db.create_project(name="tev-api", base_model="x/y")
     p = tmp_path / "approved.jsonl"
     _write_sharegpt(p, [
@@ -158,46 +155,50 @@ def test_evaluate_training_api_returns_per_case_table(
         proj["id"], "sky", str(p), source="data-prep-export", qa_count=2
     )
 
-    class FakeEngine:
-        model = object()
-        model_path = "/fake/model"
+    def answer(q: str) -> str:
+        return "The sky is blue" if "sky" in q.lower() else "4"
 
-        def generate(self, messages, max_tokens=512, temperature=0.3, think=False):
-            q = messages[0]["content"]
-            if "sky" in q.lower():
-                return "The sky is blue"
-            if "2+2" in q:
-                return "4"
-            return "unknown"
+    install_engine(monkeypatch, FakeEngine(answer, model_path="/fake/model"))
 
-        def load(self, *a, **k):
-            return None
-
-        def unload(self):
-            return None
-
-    fake = FakeEngine()
-    monkeypatch.setattr(
-        "finetune_studio.webui.routes.testing.inference_engine", fake
-    )
-    monkeypatch.setattr(
-        "finetune_studio.webui.app.inference_engine", fake
-    )
-
-    client = TestClient(app)
     r = client.post(
         "/api/testing/evaluate-training",
-        json={"project_id": proj["id"], "dataset_id": ds["id"], "max_cases": 10},
+        json={"project_id": proj["id"], "dataset_id": ds["id"], "max_cases": 10, "model_path": "/fake/model"},
     )
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["eval"]["eval_kind"] == "training_leakage"
-    assert "memorization" in body["eval"]["leakage_warning"].lower() or "leakage" in body["scores"]["leakage_warning"].lower()
-    assert body["scores"]["eval_kind"] == "training_leakage"
-    assert len(body["results"]) == 2
-    assert "verdict" in body["results"][0]
-    assert "model_answer" in body["results"][0]
-    assert "transcript" in body["results"][0]
-    assert "source_id" in body["results"][0]
-    assert "chunk_idx" in body["results"][0]
-    assert body["scores"]["judged"] >= 1
+    assert r.status_code == 202, r.text
+    started = r.json()
+    assert started["ok"] is True and started["benchmark"]["kind"] == "training_leakage"
+    assert started["benchmark"]["progress_total"] == 2
+    done = wait_run_finished(started["benchmark_id"])
+
+    assert done["status"] == "done"
+    assert done["scores"]["eval_kind"] == "training_leakage"
+    assert "memorization" in done["scores"]["leakage_warning"].lower() or "leakage" in done["scores"]["leakage_warning"].lower()
+    assert done["scores"]["dataset_id"] == ds["id"] and done["config"]["eval"]["eval_kind"] == "training_leakage"
+    assert done["scores"]["total"] == 2 and done["scores"]["judged"] == 0 and done["scores"]["pass_rate"] is None
+
+    cases = client.get(f"/api/testing/projects/{proj['id']}/runs/{started['benchmark_id']}/cases").json()
+    assert len(cases) == 2
+    assert cases[0]["model_answer"] and cases[0]["correct_answer"] and cases[0]["verdict"] == ""
+    assert "source_id" in cases[0] and "chunk_idx" in cases[0]
+    full = client.get(
+        f"/api/testing/projects/{proj['id']}/runs/{started['benchmark_id']}/cases/{cases[0]['id']}"
+    ).json()
+    assert full["transcript"]
+
+
+def test_evaluate_training_api_heldout_kind_is_recorded(
+    client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    proj = db.create_project(name="tev-heldout", base_model="x/y")
+    p = tmp_path / "approved.jsonl"
+    _write_sharegpt(p, [(f"Q{i}?", f"A{i}") for i in range(20)])
+    ds = datasets_db.create_dataset(proj["id"], "approved", str(p), source="data-prep-export", qa_count=20)
+    install_engine(monkeypatch, FakeEngine(lambda q: "x", model_path="/fake/model"))
+    r = client.post(
+        "/api/testing/evaluate-training",
+        json={"project_id": proj["id"], "dataset_id": ds["id"], "eval_kind": "heldout", "model_path": "/fake/model"},
+    )
+    assert r.status_code == 202, r.text
+    assert r.json()["benchmark"]["kind"] == "heldout"
+    done = wait_run_finished(r.json()["benchmark_id"])
+    assert done["scores"]["eval_kind"] == "heldout" and done["scores"]["total"] == 2

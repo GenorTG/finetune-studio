@@ -96,9 +96,10 @@
     {
       target: null,
       title: "5 · CHECK THE RESULT YOURSELF",
-      body: "Testing scores the trained model on held-out questions. Benchmarks keeps every " +
-            "result: open one, read each answer, and override the judge where it got it wrong — " +
-            "automatic scores are a heuristic, so spot-check 10–20 answers before trusting one. " +
+      body: "Testing runs your questions and saves exactly what the model answered; then an AI judge " +
+            "(or you) decides pass / partial / fail for every saved answer. Open a run, read the answers, " +
+            "and press 1/2/3 to override the judge where it got it wrong — the judge is a model, not truth, " +
+            "so spot-check 10–20 answers before trusting a score. " +
             "Then Export (GGUF for llama.cpp, LM Studio, Ollama) or talk to it in Chat.",
     },
     {

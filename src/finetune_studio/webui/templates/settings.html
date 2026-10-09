@@ -139,35 +139,20 @@
 
     <div class="card mb-4" id="judge-card">
       <div class="card-head">
-        <div class="card-title">Benchmark judge</div>
-        <div class="card-sub">How benchmark answers are judged. Environment variables (FTS_JUDGE_*) are the defaults; values saved here override them.</div>
+        <div class="card-title">Test judge</div>
+        <div class="card-sub">After a test run saves the model's raw answers, a judge decides whether each one is correct. The judge is any model you have connected (see the helper model below and the provider list); you can always override it by hand on the Testing page.</div>
       </div>
       <div class="mb-3">
-        <label class="block text-xs muted mb-1" for="judge-mode">Mode</label>
-        <select id="judge-mode" class="select" style="max-width:260px">
-          <option value="heuristic">heuristic (rule-based, no model)</option>
-          <option value="ai">ai (OpenAI-compatible API)</option>
-          <option value="local">local (judge model path on this machine)</option>
-          <option value="none">none (do not judge)</option>
-        </select>
+        <label class="block text-xs muted mb-1" for="judge-provider">Default judge</label>
+        <select id="judge-provider" class="select" style="max-width:420px" aria-label="Default test judge"></select>
+        <div class="text-xs dim mt-1">A local GGUF judge loads onto the GPU after the run (the tested model is unloaded first); an API judge needs no GPU. Leave on the helper seat unless you want a stronger judge.</div>
       </div>
       <div class="mb-3">
-        <label class="block text-xs muted mb-1" for="judge-model">Model (API model name, or local model path for local mode)</label>
-        <input id="judge-model" type="text" class="input" style="max-width:420px" autocomplete="off" />
-      </div>
-      <div class="mb-3">
-        <label class="block text-xs muted mb-1" for="judge-api-url">API base URL</label>
-        <input id="judge-api-url" type="text" class="input" style="max-width:420px" autocomplete="off" />
-      </div>
-      <div class="mb-3">
-        <label class="block text-xs muted mb-1" for="judge-api-key">API key <span id="judge-key-state" class="dim">(not set)</span></label>
-        <input id="judge-api-key" type="password" class="input" style="max-width:420px" autocomplete="new-password"
-               placeholder="leave blank to keep the current key" />
-        <div class="text-xs dim mt-1">Stored on the server only and never shown again.</div>
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="judge-auto"> Judge automatically when a test run finishes</label>
+        <div class="text-xs dim mt-1">Off: a run ends at the raw transcripts and you start the judge (or review by hand) from the Testing page.</div>
       </div>
       <div class="flex gap-2 mt-3">
         <button class="btn sm primary" id="btn-judge-save">Save judge settings</button>
-        <button class="btn sm" id="btn-judge-clear-key" title="Remove the saved API key (an FTS_JUDGE_API_KEY env var still applies)">Clear saved key</button>
         <span id="judge-status" class="text-xs dim">Idle.</span>
       </div>
     </div>
@@ -272,5 +257,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/settings.js?v=9"></script>
+<script src="/static/js/settings.js?v=10"></script>
 {% endblock %}

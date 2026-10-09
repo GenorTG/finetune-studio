@@ -6,12 +6,13 @@ sources to extract targeted fact-bearing sentences that map to the held-out
 questions the model most often gets wrong. Writes:
 
   * ``<project>/augmented-pairs-v2.jsonl`` — new pairs to merge into qa/pairs/
-  * ``<project>/held-out.jsonl`` — single-JSON wrapped suite for run-suite
+  * ``<project>/held-out.json`` — single-JSON wrapped suite for the Testing page / ``fts suite`` (a test run only
+    records the model's answers; an AI judge or a person grades them afterwards — see docs/judging/RUN-THEN-JUDGE.md)
   * ``<project>/datasets/<pid>-sharegpt-approved.jsonl`` — full export
     including the new pairs (canonical Training-tab dataset)
 
-Run on fan-dragon after the held-out WebUI run lands a low score, before the
-next training run is started.
+Run on fan-dragon after the judged held-out test run lands a low pass rate, before the
+next training run is started. This script never calls the testing API.
 """
 from __future__ import annotations
 
