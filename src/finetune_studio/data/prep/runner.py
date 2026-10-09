@@ -386,12 +386,12 @@ class DataPrepRunner:
                 fill_coverage_gaps,
             )
 
-            # Exhaustive mining closes its own gaps (flagged extractive pairs, pending review). The legacy fill would add
-            # AUTO-APPROVED extractive pairs on top of every chunk whose model pairs are still pending review.
+            # Exhaustive mining closes its own gaps (flagged extractive pairs, pending review). The legacy fill likewise
+            # leaves its extractive pairs pending: approving them is the reviewer's call (or the export option).
             fill = FillResult() if self.mode == "exhaustive" else fill_coverage_gaps(
                 self.pid, self.source_id, meta.sha256,
                 chunk_texts={i: c for i, c in enumerate(chunks, 1)},
-                filename=self.filename,
+                filename=self.filename, mode="pending",
             )
             fill_summary = fill.as_dict()
             fill_pairs = fill.pairs_created

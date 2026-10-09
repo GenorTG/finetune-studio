@@ -147,7 +147,8 @@ async def build_subset_dataset(pid: str, request: Request):
     """Specialized build: hand-picked sources → coverage-filled → registered dataset.
 
     Body: {source_ids: [...], fmt: sharegpt, name: optional,
-           grounded_share: optional 0-1 (default: auto), distractors: optional 0-2}
+           grounded_share: optional 0-1 (default: auto), distractors: optional 0-2,
+           include_unreviewed_fill: optional bool (default false: extractive fill pairs stay pending)}
     Guarantees the same no-skips contract as the full export, scoped to the
     picked sources.
     """
@@ -172,7 +173,7 @@ async def build_subset_dataset(pid: str, request: Request):
 
     # Subset coverage gate BEFORE export — mirror of the full-export gate.
     try:
-        fill = fill_sources_gaps(pid, source_ids)
+        fill = fill_sources_gaps(pid, source_ids, "approve" if body.get("include_unreviewed_fill") is True else "pending")
         if fill.get("uncovered_chunks"):
             return JSONResponse(
                 {

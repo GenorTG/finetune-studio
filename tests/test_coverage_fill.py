@@ -60,7 +60,8 @@ def test_fill_creates_pairs_for_uncovered_chunk(proj: str) -> None:
     assert result.chunks_still_uncovered == []
     rows = pfs.list_qa_pairs(proj, source_id=source_id)
     assert rows, "no pairs written"
-    assert all(r["status"] == "approved" for r in rows)
+    # unreviewed extractive text waits for a reviewer by default
+    assert all(r["status"] == "pending" for r in rows)
     assert all(r.get("origin") == "coverage_fill" for r in rows)
     for r in rows:
         assert r["answer"].rstrip(".").lower() in CHARTER.lower()

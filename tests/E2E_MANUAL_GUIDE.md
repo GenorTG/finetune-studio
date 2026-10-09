@@ -121,7 +121,7 @@ Page `/projects/<id>/data-prep` ("pairs"). In **Parsed sources** tick every file
 - After helper auto-unload (wait for `GET /api/inference/status` → `loaded: false`), start another selected-source job. Pass only if
   the helper reloads before mining (`active.loaded: true`, VRAM rises); a job that says `done` while the journal says
   `Local model not loaded` is a failure even if coverage-fill rows were produced.
-- Pass: every source has ≥ 1 pair; helper pairs are **pending** (need review), coverage-fill pairs **approved**.
+- Pass: every source has ≥ 1 pair; helper pairs and coverage-fill pairs are both **pending** (need review); coverage-fill pairs are approved only by the export option "Also include auto-extracted pairs I have not reviewed".
 - Quality checks (do these by reading, not by trusting counts): questions are self-contained and specific; answers are
   verbatim/faithful to the source (spot-check 10: a number or name that is not in the file is a hallucination); no pair opens
   with a pronoun or "the above"; no chunk starts mid-word; vague files (`scan_0042.txt`) yield vague or no pairs — that is the

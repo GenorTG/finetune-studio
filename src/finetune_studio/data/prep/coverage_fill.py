@@ -25,10 +25,11 @@ no such question is NOT given a vague one ("What does the source say about
 the runner marks the source ``generated_incomplete`` and the export gate blocks
 it (``force=true`` overrides).
 
-Extractive pairs are marked ``status="approved"`` with
-``origin="coverage_fill"`` provenance: content is quoted, not invented, so
-the triage bar the human reviewer applies to model guesses is not needed
-for verbatim extraction.
+Extractive pairs carry ``origin="coverage_fill"`` provenance and are written
+``status="pending"`` by default: quoted text is still unreviewed text, and a
+human verdict decides what trains. ``mode="approve"`` (the export option "include
+unreviewed extractive pairs") approves them instead; ``mode="count"`` writes
+nothing and only reports how many pairs approving would add.
 """
 
 from __future__ import annotations
@@ -38,7 +39,7 @@ import re
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from finetune_studio.data import project_filesystem as pfs
 from finetune_studio.data.prep.coverage_question import (
@@ -64,9 +65,17 @@ _MIN_SENT_CHARS = 25
 _MAX_PER_CHUNK = 3
 
 
+# pending: write unreviewed pairs to the review queue · approve: write/promote them as approved · count: dry run
+FillMode = Literal["approve", "pending", "count"]
+
+
 @dataclass
 class FillResult:
     pairs_created: int = 0
+    # existing pending coverage_fill pairs flipped to approved (mode="approve")
+    pairs_promoted: int = 0
+    # mode="count": approved pairs the "approve" mode would add (promotions + new pairs)
+    pairs_would_add: int = 0
     chunks_filled: int = 0
     chunks_still_uncovered: list[dict[str, int]] = field(default_factory=list)
     skipped_no_content: int = 0
@@ -76,6 +85,8 @@ class FillResult:
     def as_dict(self) -> dict[str, Any]:
         return {
             "pairs_created": self.pairs_created,
+            "pairs_promoted": self.pairs_promoted,
+            "pairs_would_add": self.pairs_would_add,
             "chunks_filled": self.chunks_filled,
             "chunks_still_uncovered": self.chunks_still_uncovered,
             "skipped_no_content": self.skipped_no_content,
@@ -85,7 +96,7 @@ class FillResult:
 
 # ── project-wide entry ──────────────────────────────────────────────────
 
-def _fill_sources(pid: str, sources: list[dict[str, Any]]) -> dict[str, Any]:
+def _fill_sources(pid: str, sources: list[dict[str, Any]], mode: FillMode) -> dict[str, Any]:
     """Fill the given qa source manifests; aggregate into one summary."""
     total = FillResult()
     uncovered: list[dict[str, Any]] = []
@@ -100,6 +111,7 @@ def _fill_sources(pid: str, sources: list[dict[str, Any]]) -> dict[str, Any]:
                 pid, sid, sha,
                 chunk_texts={i: c for i, c in enumerate(chunks, 1)} or None,
                 filename=filename,
+                mode=mode,
             )
         except Exception as exc:
             # a source whose parsed artifacts are gone must surface, not vanish
@@ -112,6 +124,8 @@ def _fill_sources(pid: str, sources: list[dict[str, Any]]) -> dict[str, Any]:
             )
             continue
         total.pairs_created += result.pairs_created
+        total.pairs_promoted += result.pairs_promoted
+        total.pairs_would_add += result.pairs_would_add
         total.chunks_filled += result.chunks_filled
         total.skipped_no_content += result.skipped_no_content
         total.no_specific_question += result.no_specific_question
@@ -129,20 +143,22 @@ def _fill_sources(pid: str, sources: list[dict[str, Any]]) -> dict[str, Any]:
             )
     summary = total.as_dict()
     summary["uncovered_chunks"] = uncovered
+    summary["mode"] = mode
     return summary
 
 
-def fill_all_project_gaps(pid: str) -> dict[str, Any]:
+def fill_all_project_gaps(pid: str, mode: FillMode = "pending") -> dict[str, Any]:
     """Run the fill pass for every qa source in the project.
 
     Returns an aggregate summary used by the export gate:
-    ``{pairs_created, chunks_filled, skipped_no_content, uncovered_chunks}``. This is the function the export pipeline calls so a
-    dataset can never ship with silently-unmined chunks.
+    ``{pairs_created, pairs_promoted, pairs_would_add, chunks_filled, skipped_no_content, uncovered_chunks, mode}``.
+    This is the function the export pipeline calls so a dataset can never ship with silently-unmined chunks.
+    ``mode`` decides what the extractive pairs become (see the module docstring); the default leaves them pending.
     """
-    return _fill_sources(pid, pfs.list_qa_sources(pid))
+    return _fill_sources(pid, pfs.list_qa_sources(pid), mode)
 
 
-def fill_sources_gaps(pid: str, source_ids: list[str]) -> dict[str, Any]:
+def fill_sources_gaps(pid: str, source_ids: list[str], mode: FillMode = "pending") -> dict[str, Any]:
     """Coverage-fill ONLY the given sources (subset builds).
 
     Same semantics as `fill_all_project_gaps` but restricted to the picked
@@ -152,7 +168,7 @@ def fill_sources_gaps(pid: str, source_ids: list[str]) -> dict[str, Any]:
     """
     wanted = {s for s in source_ids if s}
     return _fill_sources(
-        pid, [s for s in pfs.list_qa_sources(pid) if str(s.get("id") or "") in wanted]
+        pid, [s for s in pfs.list_qa_sources(pid) if str(s.get("id") or "") in wanted], mode
     )
 
 
@@ -279,8 +295,17 @@ def fill_coverage_gaps(
     *,
     chunk_texts: dict[int, str] | None = None,
     filename: str = "",
+    mode: FillMode = "pending",
 ) -> FillResult:
-    """Create approved extractive pairs for every chunk with no accepted pair.
+    """Create extractive pairs for every chunk with no approved pair.
+
+    ``mode`` (default ``"pending"``: unreviewed pairs never train on their own):
+    ``"pending"`` writes the pairs to the review queue, ``"approve"`` writes them
+    approved and also approves pending ``coverage_fill`` pairs an earlier pass left
+    on those chunks, ``"count"`` writes nothing and reports ``pairs_would_add``.
+    A chunk a fill pass already visited (it holds any ``coverage_fill`` pair) is never
+    re-filled, so repeated exports do not pile up pending pairs and a rejected fill
+    pair stays rejected; only its pending pairs are approved by ``"approve"``.
 
     ``chunk_texts`` optionally maps 1-based chunk index -> chunk text. When
     omitted (the normal case), chunks are loaded from the stored parsed
@@ -305,6 +330,19 @@ def fill_coverage_gaps(
     result = FillResult()
     now = time.time()
     for idx in gaps:
+        prior_fill = [r for r in existing
+                      if r.get("origin") == "coverage_fill" and int(r.get("chunk_idx") or 0) == idx]
+        if prior_fill:
+            waiting = [r for r in prior_fill if r.get("status") == "pending"]
+            if mode == "count" and waiting:
+                result.pairs_would_add += len(waiting)
+                result.chunks_filled += 1
+            elif mode == "approve" and waiting:
+                for r in waiting:
+                    pfs.update_qa_pair(pid, str(r["id"]), status="approved")
+                result.pairs_promoted += len(waiting)
+                result.chunks_filled += 1
+            continue
         text = chunk_texts[idx]
         if not text or not text.strip():
             # surfaced as uncovered: the export gate only reads chunks_still_uncovered
@@ -328,6 +366,10 @@ def fill_coverage_gaps(
                 {"chunk_idx": idx, "chars": len(text), "reason": reason}
             )
             continue
+        if mode == "count":
+            result.pairs_would_add += len(made)
+            result.chunks_filled += 1
+            continue
         for q, a in made:
             qa_id = uuid.uuid4().hex[:12]
             qa = build_qa_record(
@@ -340,7 +382,7 @@ def fill_coverage_gaps(
                 style="extractive",
                 score=1.0,
                 created_at=now,
-                status="approved",
+                status="approved" if mode == "approve" else "pending",
             )
             qa["origin"] = "coverage_fill"
             pfs.write_qa_pair(pid, qa)

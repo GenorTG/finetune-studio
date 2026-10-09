@@ -55,7 +55,7 @@ After DPO (loss 0.10) recall did not improve (15.7 %) and abstention stayed 0/20
 - Miner: the first DATA row of a chunk was carried to the next chunk as the table header (CRM chunks 3-9, 8 files re-mined). Fixed in `exhaustive.table_header_before`.
 - GGUF: a trained+merged Qwen3.5 has no `mtp.*` weights but the config declares them, so the GGUF promised a block it lacked and llama.cpp refused to load it. Fixed
   with the converter's `--no-mtp` (`gguf_convert.converter_extra_args`).
-- Export gate auto-approves extractive `coverage_fill` pairs for any chunk without an approved pair, at every export (open, see HANDOFF).
+- Export gate auto-approved extractive `coverage_fill` pairs for any chunk without an approved pair, at every export (fixed 2026-10-09: now opt-in; this run predates the fix).
 - Harness: the GGUF wait was 240 s (a 9B needs ~8 min); the journal watcher flagged the app's own handled merge-OOM fallback as an error.
 - One CUDA illegal-memory-access abort of the whole service during preference building with the helper at `n_ctx 16384` (not reproduced at 32768).
 
