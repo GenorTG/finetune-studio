@@ -26,6 +26,8 @@ First run: untrained 2 % (3/20), SFT 17.6 % (0/20), base + RAG 75.5 % (20/20). S
 Untrained Qwen3.5-9B q4_k_m as RAG reader, cap 16000: 87/102, 20/20 declined (tuned model + RAG: 80/102, 2/20). Old 5000-char context cap fed ~2 of 5 chunks. 11 questions are never retrieved:
 the default hybrid + ms-marco rerank gives recall@5 = 90 vs BM25-only 96, hybrid 94, hybrid + RRF-fused rerank 94. Next RAG work: default `max_context_chars` (rag_suite uses 5000; check the RAG chat route too), reranker as an RRF vote or a multilingual one, table-aware chunking, then rerun `scripts/rag_reader_compare.py`. Project `korvane-ragtrace` (id e9f951f8, index + imported quiz) is kept on purpose; delete it via the UI when done.
 
+RAG attribution (2026-10-09, RESULTS.md section 8 end): Qwen3.5-9B base, auto context, top-20: 92/102 page judge, 96/102 with `scripts/rag_rejudge.py`, 20/20 declined. The gap is retrieval (2), flattened CSV/table chunks (2), the substring judge (4-5), one real reader miss: not the models. Next: token-aware, row-preserving chunking (keep newlines, one CSV row per chunk line), default top-k 10-20, normalised judge in `testing/suite.py`.
+
 ## Context (2026-10-08)
 
 Default `n_ctx` is now AUTO (0): native window, lowered only to fit (floor 32768); explicit values untouched; `swa_full=False` for Gemma. Live: helper Gemma 4 12B loads at 131072, 48/48 layers, 9.8 GB (was ~19 GB at 32k). RAG chat/suite context chars derive from the loaded window. Provider `local-default` persisted n_ctx reset to 0; `local-qwen30b-a3b` still has the old 32768 (reset it with `POST /api/providers/<id>/load {"n_ctx":0}` when loading it).

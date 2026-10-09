@@ -148,3 +148,20 @@ helper Gemma 4 12B (q4_k_m), temperature 0, top-5.
 Context follow-up (same day): the loader now defaults to the model's native window (auto) and the RAG context cap is derived from it. Gemma 12B reader, auto context
 (131072 tokens, all 5 chunks in the prompt): 84/102 answerable, 19/20 declined, identical to the 16000-char run, so the cap was fixed, not the retrieval.
 Measured VRAM (3090, q4_k_m GGUF): Gemma 4 12B 18.3 GB at 32k (full-size window cache) -> 10.0 GB at native 131k (`swa_full=False`); Qwen3.5-9B 6.4 GB at 32k, 13.6 GB at native 262k.
+
+### Is the remaining gap the models? (2026-10-09; `scripts/rag_rejudge.py`, auto context, same index)
+
+| Reader | top-k | Page judge (of 102) | Normalised judge | Unanswerable declined |
+|---|---|---|---|---|
+| Gemma 4 12B | 5 | 84 | 88 | 19/20 |
+| Gemma 4 12B | 10 | 87 | 91 | 19/20 |
+| Gemma 4 12B | 20 | 89 | 93 | 19/20 |
+| **Qwen3.5-9B base** | 20 | **92** | **96 (94 %)** | **20/20** |
+
+The page's keyword judge is a plain substring test: `44.2` vs `44.20`, `185` vs `185.00`, `4` vs `four`, `bastion-gdy1` vs `bastion-gdy1.korvane.example` (4 right answers marked wrong; the same 4 for every reader). Of the 6 misses left for Qwen at top-20:
+- e002, e101: gold not in the top 20 (retrieval; dense recall@50 is 99/102, so they exist).
+- e076: judge (`Mon-Sat` vs `Monday to Saturday`).
+- e097: chunking, not the model. The flattened CSV puts "Contact Rafał Dybek ... Visit 3 Oct 10:00" next to the *next* row's id (`OPP-24-0307 | Vestfold Fisk AS`); both readers correctly answered "don't know".
+- e077: the model name sits in another table row of the flattened table; the reader gave half the answer.
+- e044: a real reader miss: the answer (`ssh -p 2222 kcops@..., ask Wiktor`) is in the context, Qwen said "I don't know". It passed at top-5, so 15 extra chunks cost one answer.
+Reading: ~1 of 102 is a model miss, 2 are retrieval, 2 are chunking/table structure, 1 is the judge. Top-20 retrieval is affordable now (about 12k tokens of 131k-262k) and keeps abstention intact (Qwen 20/20).
