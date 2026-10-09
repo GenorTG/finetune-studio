@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from finetune_studio.testing.judge import JudgeUnavailable, list_judge_providers, open_judge
+from finetune_studio.testing.judge import JudgeCase, JudgeUnavailable, list_judge_providers, open_judge, parse_judge_reply
 
 
 def _local_provider(pid: str, path: Path) -> str:
@@ -46,3 +46,14 @@ def test_pickers_disable_a_missing_judge_file(client: TestClient, tmp_path: Path
 def test_run_detail_never_preselects_a_disabled_judge() -> None:
     html = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/project_testing.html").read_text(encoding="utf-8")
     assert "if (opt && !opt.disabled) sel.value = r.judge_provider_id;" in html
+
+
+def test_a_malformed_checklist_reply_is_an_error_not_the_bare_verdict() -> None:
+    """Live case e039 (2026-10-09): the judge's JSON broke inside "evidence", the regex fallback took "pass"
+    although the checklist said the only fact was missing. Such a reply is unreadable, so the case is retried / left unjudged."""
+    raw = '```json\n{"facts": [{"fact": "5", "status": "missing", "evidence":"}], "extra_wrong": false, "verdict": "pass"}\n```'
+    case = JudgeCase(question="How long?", correct_answer="5", model_answer="I don't know from the provided documents.")
+    r = parse_judge_reply(raw, case)
+    assert r.verdict == "" and "checklist could not be read" in r.error
+    clean = parse_judge_reply('{"verdict": "fail", "reasoning": "missing"}', case)
+    assert clean.verdict == "fail"

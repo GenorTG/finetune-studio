@@ -222,6 +222,10 @@ def parse_judge_reply(raw: str, case: JudgeCase | None = None) -> JudgeResult:
                 raw=raw,
                 facts=facts,
             )
+    if '"facts"' in text:
+        # The judge wrote a per-fact checklist that the JSON path could not read (malformed JSON): a bare verdict
+        # next to an unreadable checklist is not trusted (live case 2026-10-09: "pass" beside a fact marked missing).
+        return JudgeResult(error=f"the judge's checklist could not be read (malformed JSON): {text[:160]!r}", raw=raw)
     m = _VERDICT_FIELD.search(text) or _VERDICT_LINE.search(text)
     if m:
         return JudgeResult(verdict=m.group(1).lower(), reasoning=text[:600], raw=raw)  # type: ignore[arg-type]
