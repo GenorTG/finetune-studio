@@ -32,7 +32,8 @@ class RagSettings:
 class ChunkSettings:
     size: int = 400
     overlap: int = 80
-    splitter: str = "word"
+    splitter: str = "word"   # "word" = indexes built before row-preserving chunking; "rows+tokens" / "rows+chars" = size counted
+                             # in embedder tokens / by the chars-per-token estimate (data.rag_portable.chunking)
 
 
 @dataclass

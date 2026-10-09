@@ -66,7 +66,7 @@ MAX_BODY = 1 << 20
 MAX_TOP_K = 100
 
 DEFAULT_CONFIG: dict = {
-    "host": "127.0.0.1", "port": 8899, "top_k": 5, "device": "auto",
+    "host": "127.0.0.1", "port": 8899, "top_k": 10, "device": "auto",
     "reranker": True, "auth_token": "", "embed_model": "",
     "embed_base_url": "", "embed_api_key": "",
 }
@@ -591,7 +591,7 @@ _TOOLS = [{
         "type": "object",
         "properties": {
             "query": {"type": "string", "description": "What to look up."},
-            "top_k": {"type": "integer", "description": "How many passages (server default, usually 5)."},
+            "top_k": {"type": "integer", "description": "How many passages (server default, usually 10)."},
         },
         "required": ["query"],
     },
@@ -675,7 +675,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--query", help="run one search and print JSON, then exit")
     ap.add_argument("--host", help="bind address (default 127.0.0.1)")
     ap.add_argument("--port", type=int, help="HTTP port (default 8899)")
-    ap.add_argument("--top-k", dest="top_k", type=int, help="results per search (default 5)")
+    ap.add_argument("--top-k", dest="top_k", type=int, help="results per search (default 10)")
     ap.add_argument("--device", help="auto (GPU first, default) | cpu | cuda | cuda:N | xpu | mps for bundled models")
     ap.add_argument("--reranker", dest="reranker", action="store_true", default=None,
                     help="enable the bundled reranker")

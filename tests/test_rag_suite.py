@@ -16,7 +16,6 @@ from finetune_studio.config import settings
 from finetune_studio.data.rag_eval import UNKNOWN_REPLY
 from finetune_studio.testing.rag_suite import (
     RagCaseResult,
-    _needs_table_arithmetic_retry,
     build_grounded_messages,
     compute_retrieval_metrics,
     gold_presence,
@@ -94,20 +93,10 @@ def test_build_grounded_messages_mentions_unknown_fallback() -> None:
     assert "chunk about RK-04" in msgs[1]["content"]
 
 
-def test_build_grounded_messages_warns_against_variance_for_table_totals() -> None:
-    msgs = build_grounded_messages("What is the total actual_hours?", "actual_hours | variance_hours")
-    assert "not a variance" in msgs[0]["content"]
-
-
-def test_table_arithmetic_retry_detects_variance_mixup() -> None:
-    assert _needs_table_arithmetic_retry(
-        "What was the total actual overtime hours?",
-        "54 plus 29, totaling 83 variance hours.",
-        "month | actual_hours | variance_hours",
-    )
-    assert not _needs_table_arithmetic_retry(
-        "Who owns RK-04?", "Elian Mertens", "owner | risk_id"
-    )
+def test_build_grounded_messages_gives_generic_table_guidance() -> None:
+    system = build_grounded_messages("What is the total actual_hours?", "actual_hours | variance_hours")[0]["content"]
+    assert "use the row and column named by the question" in system
+    assert "variance" not in system.lower()      # no corpus-specific column names in the shared prompt
 
 
 def test_hit_matches_source_and_chunk() -> None:
@@ -384,6 +373,7 @@ def test_run_rag_suite_route_starts_a_background_run_that_saves_transcripts_and_
     corpus.mkdir()
     (corpus / "manifest.json").write_text("{}", encoding="utf-8")
 
+    monkeypatch.setattr("finetune_studio.webui.routes.testing.local_model_missing", lambda _p: False)  # /override/model is a fake path
     fake = FakeEngine("Ada Smit", model_path="/override/model")
     monkeypatch.setattr(app_module, "inference_engine", fake)
 
@@ -472,6 +462,7 @@ def test_run_rag_suite_route_missing_corpus_fails_the_run_with_the_reason(
     suite_path.write_text(
         json.dumps([{"name": "q1", "question": "Q?", "correct_answer": "A", "keywords": ["A"]}]), encoding="utf-8",
     )
+    monkeypatch.setattr("finetune_studio.webui.routes.testing.local_model_missing", lambda _p: False)  # /override/model is a fake path
     monkeypatch.setattr(app_module, "inference_engine", FakeEngine(model_path="/override/model"))
     resp = client.post(
         "/api/testing/run-rag-suite",

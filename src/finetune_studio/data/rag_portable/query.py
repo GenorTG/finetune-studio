@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from finetune_studio.data.rag_portable.bm25 import BM25Index
+from finetune_studio.data.rag_portable.constants import DEFAULT_TOP_K
 
 # Process-wide cached reranker (model_cache); keep the ``get_reranker`` name — tests patch it.
 from finetune_studio.data.rag_portable.model_cache import (
@@ -44,7 +45,7 @@ class PortableRAGQuery:
             )
         return self._reranker
 
-    def search(self, query: str, top_k: int = 5,
+    def search(self, query: str, top_k: int = DEFAULT_TOP_K,
                hybrid: bool | None = None,
                rerank: bool | None = None,
                rerank_top_n: int | None = None) -> list[dict]:

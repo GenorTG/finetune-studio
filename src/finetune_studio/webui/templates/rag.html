@@ -110,12 +110,12 @@
     </div>
     <div class="col-span-3">
       <label class="block text-xs muted mb-1"
-             title="A chunk is a contiguous slice of text (in words) that gets embedded as one unit. Too small = each chunk lacks context. Too large = the embedder mixes unrelated topics and retrieval gets fuzzy. 300–500 is a good default; tune based on your documents (legal text wants bigger; chat logs want smaller).">Chunk size (words) <span class="dim">?</span></label>
+             title="A chunk is a run of whole lines (sized in embedder tokens; a table row is never split) that gets embedded as one unit. Too small = each chunk lacks context. Too large = the embedder mixes unrelated topics and retrieval gets fuzzy. 300–500 is a good default; tune based on your documents (legal text wants bigger; chat logs want smaller).">Chunk size (tokens) <span class="dim">?</span></label>
       <input id="b-chunk" aria-label="Chunk size in characters" type="number" min="100" max="2000" value="400" class="input">
     </div>
     <div class="col-span-3">
       <label class="block text-xs muted mb-1"
-             title="Overlap is how many words each chunk shares with the previous chunk. Prevents a fact that straddles the chunk boundary from being split across chunks and lost. Typical: 10–25% of chunk size. Too much overlap wastes storage + slows retrieval.">Overlap (words) <span class="dim">?</span></label>
+             title="Overlap is how many tokens of whole prose lines each chunk shares with the previous chunk. Prevents a fact that straddles the chunk boundary from being split across chunks and lost. Typical: 10–25% of chunk size. Too much overlap wastes storage + slows retrieval.">Overlap (tokens) <span class="dim">?</span></label>
       <input id="b-overlap" aria-label="Chunk overlap in characters" type="number" min="0" max="500" value="80" class="input">
     </div>
     <div class="col-span-2 flex gap-2">
@@ -371,7 +371,7 @@
       </div>
       <div class="col-span-1">
         <label class="block text-xs muted mb-1" for="mcp-topk" title="How many matching passages each search returns.">Results returned</label>
-        <input id="mcp-topk" type="number" min="1" max="100" class="input" value="5">
+        <input id="mcp-topk" type="number" min="1" max="100" class="input" value="10">
       </div>
     </div>
     <div class="flex gap-4 items-center mb-2 text-xs">
@@ -647,7 +647,7 @@
     if (status) status.textContent = 'Searching…';
     if (results) { results.hidden = false; results.innerHTML = '<span class="muted">Searching…</span>'; }
     try {
-      const d = await api().post('/api/projects/' + PID + '/rag/search', { query: q, top_k: 5 });
+      const d = await api().post('/api/projects/' + PID + '/rag/search', { query: q, top_k: 10 });
       if (d.error) {
         if (status) status.textContent = 'Error: ' + d.error;
         if (results) results.innerHTML = '<span class="err">' + esc(d.error) + '</span>';
@@ -701,7 +701,7 @@
     try {
       const d = await api().post('/api/projects/' + PID + '/rag/chat', {
         messages: [{ role: 'user', content: text }],
-        top_k: 5,
+        top_k: 10,
       });
       if (d.error) {
         box.insertAdjacentHTML('beforeend',
@@ -794,7 +794,7 @@
       device: g('mcp-device').value.trim() || 'auto',
       host: g('mcp-host').value.trim() || '127.0.0.1',
       port: parseInt(g('mcp-port').value, 10) || 8899,
-      top_k: parseInt(g('mcp-topk').value, 10) || 5,
+      top_k: parseInt(g('mcp-topk').value, 10) || 10,
       include_models: g('mcp-models').checked,
       reranker_enabled: g('mcp-rerank').checked,
       encrypt: !g('mcp-noenc').checked,

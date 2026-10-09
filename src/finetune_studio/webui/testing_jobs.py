@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from finetune_studio import db
+from finetune_studio.data.rag_portable.constants import DEFAULT_TOP_K
 from finetune_studio.testing import run_store
 from finetune_studio.testing.judge import (
     JudgeUnavailable,
@@ -184,7 +185,7 @@ def _execute_run(spec: RunSpec, bid: str, owner_run_id: str, job: _Job) -> dict[
             progress()
 
         run_rag_suite(
-            inference_engine, query, spec.cases, top_k=int(spec.rag.get("top_k") or 5), max_tokens=spec.max_tokens,
+            inference_engine, query, spec.cases, top_k=int(spec.rag.get("top_k") or DEFAULT_TOP_K), max_tokens=spec.max_tokens,
             temperature=spec.temperature, max_context_chars=int(max_chars), on_result=on_rag,
             should_stop=job.stop.is_set,
         )

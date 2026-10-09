@@ -18,6 +18,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from finetune_studio.data.rag_portable.constants import DEFAULT_TOP_K
+
 log = logging.getLogger(__name__)
 
 SETTINGS_KEY = "rag_export"
@@ -35,7 +37,7 @@ class RagExportConfig(BaseModel):
     device: str = "auto"               # auto (GPU first) | cpu | cuda | cuda:N | xpu | mps
     host: str = "127.0.0.1"            # non-loopback requires an auth token
     port: int = Field(8899, ge=1, le=65535)
-    top_k: int = Field(5, ge=1, le=100)
+    top_k: int = Field(DEFAULT_TOP_K, ge=1, le=100)
     encrypt: bool = True               # --no-encrypt is the explicit opt-out
     kdf_log_n: int = Field(17, ge=10, le=20)   # scrypt cost (N = 2**kdf_log_n)
 

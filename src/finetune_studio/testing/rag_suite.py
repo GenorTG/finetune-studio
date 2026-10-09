@@ -24,6 +24,7 @@ from typing import Any, Protocol
 
 from finetune_studio.data.fs.paths import rag_corpus_dir
 from finetune_studio.data.rag_eval import UNKNOWN_REPLY
+from finetune_studio.data.rag_portable.constants import DEFAULT_TOP_K
 from finetune_studio.data.rag_portable.prompt import (
     DEFAULT_CONTEXT_CHARS,
     context_char_budget,
@@ -41,15 +42,14 @@ RAG_SYSTEM_PROMPT = (
     "Answer using only the provided context. "
     "If the answer isn't in the context, say you don't know. "
     "For tables, use the row and column named by the question; calculate requested totals "
-    "from the underlying values, not a variance or unrelated row."
+    "from the underlying values."
 )
-
 
 
 class RagSearchEngine(Protocol):
     """Minimal PortableRAGQuery-compatible search surface."""
 
-    def search(self, query: str, top_k: int = 5) -> list[dict]:
+    def search(self, query: str, top_k: int = DEFAULT_TOP_K) -> list[dict]:
         ...
 
     def format_context(self, results: list[dict], max_chars: int = 4000) -> str:
@@ -142,17 +142,6 @@ def build_grounded_messages(question: str, context: str) -> list[dict[str, str]]
     ]
 
 
-def _needs_table_arithmetic_retry(question: str, response: str, context: str) -> bool:
-    """Detect the common actual-hours/variance mix-up in tabular answers."""
-    return bool(
-        "actual" in question.lower()
-        and "total" in question.lower()
-        and "actual_hours" in context
-        and "variance_hours" in context
-        and re.search(r"\bvariance\b|\bplus\b|\b\d+\s*\+\s*\d+", response or "", re.IGNORECASE)
-    )
-
-
 def hit_matches_source(
     hit: dict[str, Any],
     source_id: str,
@@ -237,7 +226,7 @@ class RagSuiteReport:
     retrieval: dict[str, Any] = field(default_factory=dict)
     corpus_path: str = ""
     model_path: str = ""
-    top_k: int = 5
+    top_k: int = DEFAULT_TOP_K
     unknown_reply: str = UNKNOWN_REPLY
 
     def as_api_dict(self) -> dict[str, Any]:
@@ -298,7 +287,7 @@ def run_rag_case(
     rag_query: RagSearchEngine,
     case: BenchmarkCase,
     *,
-    top_k: int = 5,
+    top_k: int = DEFAULT_TOP_K,
     max_tokens: int = 512,
     temperature: float = 0.3,
     think: bool = False,
@@ -335,20 +324,6 @@ def run_rag_case(
             temperature=temperature,
             think=think,
         )
-        if _needs_table_arithmetic_retry(case.question, response, context):
-            correction = (
-                "Re-answer this question from the table. It asks for total actual_hours: "
-                "sum the actual_hours column for the requested month/sites. Do not use "
-                "variance_hours, budget_hours, or variance values. Answer concisely."
-            )
-            retry_messages = messages + [{"role": "user", "content": correction}]
-            response = engine.generate(
-                retry_messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                think=think,
-            )
-            messages = retry_messages
         elapsed_ms = (time.time() - start) * 1000
         transcript = list(messages) + [{"role": "assistant", "content": response}]
         case_result = CaseResult(
@@ -404,7 +379,7 @@ def run_rag_suite(
     rag_query: RagSearchEngine,
     cases: list[BenchmarkCase],
     *,
-    top_k: int = 5,
+    top_k: int = DEFAULT_TOP_K,
     max_tokens: int = 512,
     temperature: float = 0.3,
     think: bool = False,
@@ -443,7 +418,7 @@ def run_rag_suite_evaluation(
     suite_path: str,
     corpus_path: str = "",
     project_id: str = "",
-    top_k: int = 5,
+    top_k: int = DEFAULT_TOP_K,
     max_tokens: int = 512,
     temperature: float = 0.3,
     rag_query: RagSearchEngine | None = None,

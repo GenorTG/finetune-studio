@@ -13,6 +13,10 @@ DEFAULT_RERANKER = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 EMBEDDER_FALLBACK = "sentence-transformers/all-MiniLM-L6-v2"
 RRF_K = 60  # standard RRF constant
 
+# Passages a search returns when the caller does not say. Measured on the Korvane quiz (tests/corpus/korvane/RESULTS.md §8):
+# readers answer 84 -> 87 -> 89 of 102 at top-5/10/20, and 10 chunks still fit comfortably in a modern context window.
+DEFAULT_TOP_K = 10
+
 # Magic prefixes that mean "the model lives at the local path next to the corpus"
 EMBEDDER_LOCAL_PREFIX = "embedder_local:"  # -> <corpus_dir>/embedder
 RERANKER_LOCAL_PREFIX = "reranker_local:"  # -> <corpus_dir>/reranker
