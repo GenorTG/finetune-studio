@@ -171,7 +171,7 @@ kbd { border:1px solid var(--border-strong); padding:0 4px; font-size:11px; }
     <label class="flex items-center gap-1">with
       <select id="t-judge-provider" class="select" aria-label="Judge model" style="max-width:340px">
         {% for p in judge_providers %}
-        <option value="{{ p.id }}"{% if p.id == default_judge_provider_id %} selected{% endif %}>{{ p.label }}{% if p.is_helper_seat %} (helper seat){% endif %}{% if p.local %} · local GPU{% else %} · API{% endif %}</option>
+        <option value="{{ p.id }}"{% if p.id == default_judge_provider_id and not p.file_missing %} selected{% endif %}{% if p.file_missing %} disabled{% endif %}>{{ p.label }}{% if p.is_helper_seat %} (helper seat){% endif %}{% if p.local %} · local GPU{% else %} · API{% endif %}{% if p.file_missing %} — file missing on disk{% endif %}</option>
         {% endfor %}
       </select>
     </label>
@@ -220,7 +220,7 @@ kbd { border:1px solid var(--border-strong); padding:0 4px; font-size:11px; }
     <b>Judge this run</b>
     <select id="rv-provider" class="select" aria-label="Judge model for this run" style="max-width:340px">
       {% for p in judge_providers %}
-      <option value="{{ p.id }}" data-local="{{ '1' if p.local else '' }}"{% if p.id == default_judge_provider_id %} selected{% endif %}>{{ p.label }}{% if p.is_helper_seat %} (helper seat){% endif %}{% if p.local %} · local GPU{% else %} · API{% endif %}</option>
+      <option value="{{ p.id }}" data-local="{{ '1' if p.local else '' }}"{% if p.id == default_judge_provider_id and not p.file_missing %} selected{% endif %}{% if p.file_missing %} disabled{% endif %}>{{ p.label }}{% if p.is_helper_seat %} (helper seat){% endif %}{% if p.local %} · local GPU{% else %} · API{% endif %}{% if p.file_missing %} — file missing on disk{% endif %}</option>
       {% endfor %}
     </select>
     <button class="btn sm primary" id="rv-judge-new" type="button" title="Judge the answers that have no AI or human verdict yet (also replaces old scripted verdicts)">Judge unjudged</button>
@@ -644,7 +644,8 @@ kbd { border:1px solid var(--border-strong); padding:0 4px; font-size:11px; }
     if (kws.length) h += '<div class="text-xs mt-1">Key values: ' + kws.map(function(k) { return '<span class="pill outline">' + esc(k) + '</span>'; }).join(' ') + '</div>';
     h += '<h4>Model answer' + (c.time_ms ? ' <span class="dim">· ' + Math.round(c.time_ms) + ' ms</span>' : '') + '</h4><div class="rv-text">' + (c.error && !c.model_answer ? '<span class="err">run failed: ' + esc(c.error) + '</span>' : esc(c.model_answer || '(empty)')) + '</div>';
     if (ji.retrieval_hit != null || ji.chunks_retrieved != null) {
-      h += '<div class="text-xs mt-1">Retrieval: source ' + (ji.retrieval_hit ? '<b class="ok">retrieved</b>' : '<b class="err">not retrieved</b>')
+      // "not retrieved" only means something when the quiz names the source; the wide rank says how deep it was hiding.
+      h += '<div class="text-xs mt-1">Retrieval: source ' + (ji.retrieval_hit ? '<b class="ok">retrieved</b>' : (c.source_id ? '<b class="err">not retrieved</b>' + (ji.gold_rank_wide ? ' (rank ' + ji.gold_rank_wide + ' in a wider search)' : '') : '<span class="dim">none named in the quiz</span>'))
         + (ji.chunks_retrieved != null ? ' · ' + ji.chunks_retrieved + ' chunks retrieved, ' + (ji.chunks_in_context != null ? ji.chunks_in_context : '?') + ' fit the context' : '')
         + (ji.gold_in_retrieved != null ? ' · key values in retrieved text: ' + (ji.gold_in_retrieved ? 'yes' : 'no') + ', in context sent: ' + (ji.gold_in_context ? 'yes' : 'no') : '') + '</div>';
     }

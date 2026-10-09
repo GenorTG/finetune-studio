@@ -111,7 +111,7 @@
     <label class="text-xs muted" for="cp-judge">Judge</label>
     <select id="cp-judge" class="select" aria-label="Judge model" style="max-width:340px;">
       {% for p in judge_providers %}
-      <option value="{{ p.id }}"{% if p.id == default_judge_provider_id %} selected{% endif %}>{{ p.label }}{% if p.is_helper_seat %} (helper seat){% endif %}{% if p.local %} · local GPU{% endif %}</option>
+      <option value="{{ p.id }}"{% if p.id == default_judge_provider_id and not p.file_missing %} selected{% endif %}{% if p.file_missing %} disabled{% endif %}>{{ p.label }}{% if p.is_helper_seat %} (helper seat){% endif %}{% if p.local %} · local GPU{% endif %}{% if p.file_missing %} — file missing on disk{% endif %}</option>
       {% endfor %}
     </select>
     <button type="button" class="btn" id="cp-judge-btn">Judge all answers</button>

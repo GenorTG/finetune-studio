@@ -266,20 +266,27 @@ class LoadedJudge:
 
 def list_judge_providers() -> list[dict[str, Any]]:
     """Provider rows that can act as judge, helper seat first. No keys are ever returned."""
-    from finetune_studio.models.helper import annotate_provider, get_helper_provider_id
+    from finetune_studio.models.helper import (
+        annotate_provider,
+        get_helper_provider_id,
+        missing_gguf_for_provider,
+    )
     from finetune_studio.models.manager import get_manager
 
     seat = get_helper_provider_id()
     rows = []
     for row in get_manager().list_providers():
         row = annotate_provider(row)
+        local = row.get("kind") == "local_gguf"
         rows.append({
             "id": row["id"],
             "label": row.get("label") or row.get("name") or row["id"],
             "kind": row.get("kind", ""),
             "model_id": row.get("model_id", ""),
             "is_helper_seat": row["id"] == seat,
-            "local": row.get("kind") == "local_gguf",
+            "local": local,
+            # a local judge whose GGUF was deleted: pickers disable it instead of failing at judge time
+            "file_missing": bool(local and missing_gguf_for_provider(row["id"])),
         })
     rows.sort(key=lambda r: (not r["is_helper_seat"], r["label"].lower()))
     return rows
@@ -315,7 +322,7 @@ def open_judge(provider_id: str) -> Iterator[LoadedJudge]:
     if local:
         missing = missing_gguf_for_provider(provider_id)
         if missing:
-            raise JudgeUnavailable(missing)
+            raise JudgeUnavailable(f"judge model file not found on disk: {missing} (download it again in Model library, or pick another judge)")
         from finetune_studio.data.rag_portable.model_cache import release_rag_models
         from finetune_studio.models.llama_loader import unload_all_models
 

@@ -84,6 +84,7 @@ def rag_judge_input(rag: RagCaseResult) -> dict[str, Any]:
         "gold_in_context": rag.gold_in_context,
         "chunks_retrieved": rag.chunks_retrieved,
         "chunks_in_context": rag.chunks_in_context,
+        "gold_rank_wide": rag.gold_rank_wide,
     }
 
 
