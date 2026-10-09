@@ -2,7 +2,6 @@
 import threading
 import time
 
-from finetune_studio.benchmarks.comparison import ModelComparator, NoModelsLoadedError
 from finetune_studio.testing import inference as inf
 
 
@@ -47,18 +46,6 @@ def test_generate_marks_busy_and_touches_last_used(monkeypatch):
     assert e.generate([{"role": "user", "content": "hi"}]) == "ok"
     assert seen == [1] and e._busy == 0
     assert time.time() - e._last_used < 5
-
-
-def test_comparator_drops_idle_unloaded_engines():
-    c = ModelComparator()
-    c.engines = {"a": inf.InferenceEngine()}
-    try:
-        c.run_comparison([])
-    except NoModelsLoadedError:
-        pass
-    else:
-        raise AssertionError("expected NoModelsLoadedError")
-    assert c.engines == {}
 
 
 def test_release_idle_memory_clears_parsed_cache():

@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% block title %}Compare — {{ project.name }}{% endblock %}
+{% block nav_compare %}active{% endblock %}
+{% block breadcrumb_tab %}compare{% endblock %}
+{% block workspace %}model{% endblock %}
+{% block sb_path %}~ / projects / {{ project.name }} / compare{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Compare</h1>
+  <div class="sub"><b>Which model answers better?</b> Pick two or more models and one quiz.
+    <b>1 · Run</b> asks every model every question and saves the raw answers next to the correct answer;
+    <b>2 · Judge</b> lets an AI judge (any model you have connected) or <b>you</b> read each saved answer and decide pass / partial / fail.
+    Nothing is scored by string matching, so a score appears only after answers are judged.
+    <br><span class="text-xs">Each model's answers are also an ordinary run on the <a href="/projects/{{ pid }}/testing" data-link>Testing</a> page.
+    Public leaderboards (MMLU/GSM8K) stay on <a href="/projects/{{ pid }}/benchmarks" data-link>Benchmarks</a>.</span></div>
+</div>
+
+<style>
+.cp-models { display:flex; flex-wrap:wrap; gap:6px 14px; }
+.cp-models label { display:flex; gap:6px; align-items:center; font-size:13px; }
+.cp-cols { display:grid; gap:10px; }
+.cp-q { border:1px solid var(--border); margin:10px 0; background:var(--bg-panel); }
+.cp-q > header { padding:7px 10px; border-bottom:1px solid var(--border); display:flex; gap:8px; align-items:baseline; font-size:13px; }
+.cp-q .keybox { padding:7px 10px; border-bottom:1px solid var(--border); font-size:12px; }
+.cp-q .keybox b { color:var(--ok); }
+.cp-ans { padding:8px 10px; border-right:1px solid var(--border); min-width:0; }
+.cp-ans:last-child { border-right:0; }
+.cp-ans .who { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); display:flex; gap:6px; align-items:center; margin-bottom:4px; }
+.cp-ans .txt { white-space:pre-wrap; word-break:break-word; font-size:13px; max-height:30vh; overflow-y:auto; }
+.cp-ans .why { font-size:12px; color:var(--text-muted); white-space:pre-wrap; margin-top:4px; }
+.cp-ans .acts { display:flex; gap:5px; margin-top:6px; flex-wrap:wrap; }
+.cp-ans .acts .btn.on { border-color:var(--accent); color:var(--accent); }
+.cp-sum { display:grid; gap:10px; margin:8px 0; }
+.cp-sum > div { border:1px solid var(--border); padding:8px 10px; }
+.cp-sum .big { font-size:20px; }
+.cp-filter { display:flex; flex-wrap:wrap; gap:5px; margin:8px 0; align-items:center; }
+.cp-filter .btn.on { border-color:var(--accent); color:var(--accent); }
+.cp-src { font-size:10px; color:var(--text-dim); text-transform:uppercase; }
+</style>
+
+<div class="card mb-6" id="cp-run-card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">1 · Run a comparison</div>
+      <div class="card-sub">The models answer one after another (one GPU), each loaded in turn. Nothing is judged yet.</div>
+    </div>
+  </div>
+  <div class="mb-3">
+    <div class="text-xs muted mb-1">Models to compare (pick 2–{{ max_models }})</div>
+    <div class="cp-models" id="cp-models" role="group" aria-label="Models to compare">
+      {% if project.base_model %}
+      <label title="{{ project.base_model }}"><input type="checkbox" name="cp-model" value="__base__"> Base model (untrained) · {{ project.base_model.rstrip('/').split('/')[-1] }}</label>
+      {% endif %}
+      {% for m in models %}
+      <label title="{{ m.path }}"><input type="checkbox" name="cp-model" value="{{ m.path }}"{% if default_model_path and m.path == default_model_path %} checked{% endif %}> {{ m.name }} · {{ m.format }} ({{ m.size_gb }} GB)</label>
+      {% endfor %}
+    </div>
+    {% if not models and not project.base_model %}
+    <div class="text-xs dim mt-1">No project exports yet. <a href="/projects/{{ pid }}/export" data-link>Export a completed run →</a></div>
+    {% endif %}
+  </div>
+  <div class="grid grid-12 gap-3 items-end">
+    <div class="col-span-5">
+      <label class="block text-xs muted mb-1" for="cp-suite">Question suite</label>
+      <select id="cp-suite" class="select" aria-label="Question suite">
+        <option value="">— pick a suite —</option>
+        {% for s in suites %}
+        <option value="{{ s.path }}">{{ s.label if s.label is defined else s.name }}</option>
+        {% endfor %}
+      </select>
+      {% if not suites %}
+      <div class="text-xs dim mt-1">No quizzes yet. Make or import one on the <a href="/projects/{{ pid }}/testing" data-link>Testing</a> page.</div>
+      {% endif %}
+    </div>
+    <div class="col-span-2">
+      <label class="block text-xs muted mb-1" for="cp-maxtok">Max answer tokens</label>
+      <input id="cp-maxtok" class="input" type="number" min="32" max="4096" value="512">
+    </div>
+    <div class="col-span-3">
+      <label class="text-xs"><input type="checkbox" id="cp-auto"> judge automatically when the run finishes</label>
+    </div>
+    <div class="col-span-2">
+      <button id="cp-run-btn" type="button" class="btn primary" style="width:100%;" disabled title="Pick 2 models and a quiz">Run comparison</button>
+    </div>
+  </div>
+  <div id="cp-run-msg" class="text-xs dim mt-2" role="status" aria-live="polite"></div>
+</div>
+
+<div class="card mb-6">
+  <div class="card-head"><div><div class="card-title">Saved comparisons</div></div></div>
+  <div id="cp-groups"><div class="empty small">Loading…</div></div>
+</div>
+
+<div class="card mb-6" id="cp-view-card" hidden>
+  <div class="card-head">
+    <div>
+      <div class="card-title">2 · Judge and read side by side</div>
+      <div class="card-sub" id="cp-view-sub"></div>
+    </div>
+  </div>
+  <div class="flex gap-2 items-center flex-wrap mb-2">
+    <label class="text-xs muted" for="cp-judge">Judge</label>
+    <select id="cp-judge" class="select" aria-label="Judge model" style="max-width:340px;">
+      {% for p in judge_providers %}
+      <option value="{{ p.id }}"{% if p.id == default_judge_provider_id %} selected{% endif %}>{{ p.label }}{% if p.is_helper_seat %} (helper seat){% endif %}{% if p.local %} · local GPU{% endif %}</option>
+      {% endfor %}
+    </select>
+    <button type="button" class="btn" id="cp-judge-btn">Judge all answers</button>
+    <button type="button" class="btn" id="cp-judge-redo" title="Judge every answer again with the chosen judge (your own verdicts always win)">Judge again</button>
+    <button type="button" class="btn danger" id="cp-stop-btn" hidden>Stop</button>
+    <span class="text-xs dim" id="cp-job-msg" role="status" aria-live="polite"></span>
+  </div>
+  <div class="cp-sum" id="cp-sum"></div>
+  <div class="cp-filter" id="cp-filter">
+    <span class="text-xs muted">Show</span>
+    <button type="button" class="btn sm on" data-f="all">all</button>
+    <button type="button" class="btn sm" data-f="disagree" title="Judged models got different verdicts">models differ</button>
+    <button type="button" class="btn sm" data-f="awaiting">awaiting judgement</button>
+    <button type="button" class="btn sm" data-f="fail">any fail</button>
+  </div>
+  <div id="cp-cases"></div>
+</div>
+
+<script>
+(function() {
+  const PID = {{ pid|tojson }};
+  const API = '/api/compare/projects/' + encodeURIComponent(PID);
+  const TEST = '/api/testing/projects/' + encodeURIComponent(PID);
+  const MAX_MODELS = {{ max_models }};
+  const notify = (window.fts && window.fts.notify) || function(m) { console.log(m); };
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const S = { gid: new URLSearchParams(location.search).get('group') || '', view: null, filter: 'all', timer: null, sig: '' };
+
+  async function jreq(method, url, body) {
+    const opt = { method: method, headers: {} };
+    if (body !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+    const r = await fetch(url, opt);
+    const data = await r.json().catch(function() { return {}; });
+    if (!r.ok) throw new Error(data.error || data.detail || ('HTTP ' + r.status));
+    return data;
+  }
+  function verdictBadge(v) {
+    const cls = v === 'pass' ? 'verdict-pass' : v === 'partial' ? 'verdict-partial' : v === 'fail' ? 'verdict-fail' : 'verdict-none';
+    return '<span class="verdict-badge ' + cls + '">' + esc(v || 'awaiting') + '</span>';
+  }
+  const SRC = { human: 'you', ai: 'AI', exact: 'exact', scripted: 'old matcher' };
+  const pct = (v) => (v == null ? 'awaiting judgement' : (Math.round(v * 10) / 10) + '% pass');
+
+  // ── 1 · run form ──
+  function picked() { return Array.prototype.map.call(document.querySelectorAll('input[name="cp-model"]:checked'), function(i) { return i.value; }); }
+  function syncRunBtn() {
+    const n = picked().length, ok = n >= 2 && n <= MAX_MODELS && $('cp-suite').value;
+    $('cp-run-btn').disabled = !ok;
+    $('cp-run-btn').title = ok ? '' : 'Pick 2–' + MAX_MODELS + ' models and a quiz';
+  }
+  document.querySelectorAll('input[name="cp-model"]').forEach(function(i) { i.addEventListener('change', syncRunBtn); });
+  $('cp-suite').addEventListener('change', syncRunBtn);
+  $('cp-run-btn').addEventListener('click', async function() {
+    $('cp-run-btn').disabled = true;
+    $('cp-run-msg').textContent = 'Starting…';
+    try {
+      const r = await jreq('POST', API + '/runs', {
+        suite_path: $('cp-suite').value, models: picked(), max_tokens: parseInt($('cp-maxtok').value, 10) || 512,
+        auto_judge: $('cp-auto').checked,
+      });
+      $('cp-run-msg').textContent = 'Started — the models answer in turn; the table fills in as they do.';
+      await open(r.group_id);
+    } catch (e) {
+      $('cp-run-msg').textContent = '';
+      notify('Could not start the comparison: ' + e.message, 'error');
+    } finally { syncRunBtn(); }
+  });
+
+  // ── saved comparisons ──
+  async function loadGroups() {
+    try {
+      const groups = await jreq('GET', API + '/groups');
+      $('cp-groups').innerHTML = groups.length ? '<table class="table"><thead><tr><th>Quiz</th><th>Models</th><th>State</th><th></th></tr></thead><tbody>'
+        + groups.map(function(g) {
+          const state = g.status.run === 'running' ? 'answering…' : g.status.judge === 'running' ? 'judging…' : g.status.run;
+          return '<tr><td class="mono cell-wrap">' + esc(g.suite_name) + '</td><td class="cell-wrap">'
+            + g.models.map(function(m) { return esc(m.label) + ' <span class="dim">(' + esc(pct(m.scores.pass_rate)) + ')</span>'; }).join('<br>')
+            + '</td><td>' + esc(state) + '</td><td><button class="btn sm" data-open="' + esc(g.group_id) + '">Open</button></td></tr>';
+        }).join('') + '</tbody></table>'
+        : '<div class="empty small">No comparisons yet. Pick models and a quiz above.</div>';
+      $('cp-groups').querySelectorAll('[data-open]').forEach(function(b) { b.addEventListener('click', function() { open(b.getAttribute('data-open')); }); });
+    } catch (e) { $('cp-groups').innerHTML = '<div class="empty small">Could not load comparisons: ' + esc(e.message) + '</div>'; }
+  }
+
+  // ── side-by-side view ──
+  async function open(gid) {
+    S.gid = gid; S.sig = '';
+    history.replaceState(null, '', location.pathname + '?group=' + encodeURIComponent(gid));
+    await refresh();
+    loadGroups();
+    $('cp-view-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  async function refresh() {
+    if (!S.gid) return;
+    clearTimeout(S.timer);
+    try { S.view = await jreq('GET', API + '/groups/' + encodeURIComponent(S.gid)); }
+    catch (e) { notify('Could not load the comparison: ' + e.message, 'error'); return; }
+    render();
+    const busy = S.view.status.run === 'running' || S.view.status.judge === 'running';
+    if (busy) S.timer = setTimeout(refresh, 2000);
+    else loadGroups();
+  }
+  function render() {
+    const v = S.view;
+    $('cp-view-card').hidden = false;
+    const running = v.status.run === 'running', judging = v.status.judge === 'running';
+    $('cp-view-sub').textContent = v.suite_name + ' · ' + v.models.length + ' models · '
+      + (running ? 'answering…' : judging ? 'judging…' : 'run ' + v.status.run);
+    $('cp-stop-btn').hidden = !(running || judging);
+    $('cp-judge-btn').disabled = $('cp-judge-redo').disabled = running || judging;
+    const err = v.models.filter(function(m) { return m.error || m.judge_error; });
+    $('cp-job-msg').textContent = err.map(function(m) { return m.label + ': ' + (m.error || m.judge_error); }).join(' · ');
+    const cols = 'repeat(' + v.models.length + ', minmax(0, 1fr))';
+    $('cp-sum').style.gridTemplateColumns = cols;
+    $('cp-sum').innerHTML = v.models.map(function(m) {
+      const s = m.scores, prog = m.status === 'queued' ? 'queued' : m.status === 'running' ? 'answering ' + m.progress_done + '/' + m.progress_total : m.status;
+      const jp = m.judge_status === 'running' ? ' · judging ' + m.judge_done + '/' + m.judge_total : '';
+      return '<div><div class="text-xs muted">' + esc(m.label) + '</div><div class="big">' + esc(pct(s.pass_rate)) + '</div>'
+        + '<div class="text-xs dim">' + (s.judged || 0) + ' of ' + (s.total || 0) + ' judged · pass ' + (s.passed || 0) + ' · partial ' + (s.partial || 0) + ' · fail ' + (s.failed || 0)
+        + '</div><div class="text-xs dim">' + esc(prog) + esc(jp) + (m.judge_model ? ' · judge ' + esc(m.judge_model) : '') + '</div></div>';
+    }).join('');
+    const sig = JSON.stringify(v.cases) + S.filter;
+    if (sig === S.sig) return;
+    S.sig = sig;
+    const keep = window.scrollY;
+    $('cp-cases').innerHTML = v.cases.filter(matches).map(function(c) { return caseHtml(c, cols); }).join('')
+      || '<div class="empty small">No answers to show yet.</div>';
+    $('cp-cases').querySelectorAll('[data-v]').forEach(function(b) {
+      b.addEventListener('click', function() { setVerdict(b.getAttribute('data-b'), b.getAttribute('data-c'), b.getAttribute('data-v')); });
+    });
+    window.scrollTo(0, keep);
+  }
+  function matches(c) {
+    const vs = Object.keys(c.answers).map(function(b) { return c.answers[b].verdict; });
+    if (S.filter === 'disagree') return c.disagree;
+    if (S.filter === 'awaiting') return vs.some(function(x) { return !x; });
+    if (S.filter === 'fail') return vs.some(function(x) { return x === 'fail'; });
+    return true;
+  }
+  function caseHtml(c, cols) {
+    const v = S.view;
+    let h = '<div class="cp-q"><header><b>#' + (c.index + 1) + '</b><span class="mono dim">' + esc(c.case_name) + '</span>'
+      + (c.category ? '<span class="pill outline">' + esc(c.category) + '</span>' : '')
+      + (c.disagree ? '<span class="pill outline">models differ</span>' : '') + '</header>'
+      + '<div class="keybox"><div>' + esc(c.question) + '</div><div class="mt-1"><b>Answer key' + (c.expect_abstain ? ' (none — should decline)' : '') + ':</b> '
+      + esc(c.correct_answer || '(none)') + '</div></div><div class="cp-cols" style="grid-template-columns:' + cols + '">';
+    v.models.forEach(function(m) {
+      const a = c.answers[m.benchmark_id];
+      if (!a) { h += '<div class="cp-ans"><div class="who">' + esc(m.label) + '</div><span class="dim">no answer saved</span></div>'; return; }
+      const mark = function(x) { return a.judge === 'human' && a.verdict === x ? ' on' : ''; };
+      h += '<div class="cp-ans"><div class="who">' + esc(m.label) + '<span style="margin-left:auto">' + verdictBadge(a.verdict)
+        + (a.verdict ? ' <span class="cp-src">' + esc(SRC[a.judge] || '') + '</span>' : '') + '</span></div>'
+        + '<div class="txt">' + (a.error && !a.model_answer ? '<span class="err">run failed: ' + esc(a.error) + '</span>' : esc(a.model_answer || '(empty)')) + '</div>'
+        + (a.judge_reasoning ? '<div class="why">' + esc((a.judge === 'human' ? 'you: ' : 'judge: ') + a.judge_reasoning) + '</div>' : '')
+        + '<div class="acts">' + ['pass', 'partial', 'fail'].map(function(x) {
+          return '<button type="button" class="btn sm' + mark(x) + '" data-b="' + esc(m.benchmark_id) + '" data-c="' + esc(a.case_id) + '" data-v="' + x + '">' + x + '</button>';
+        }).join('') + '<button type="button" class="btn sm" data-b="' + esc(m.benchmark_id) + '" data-c="' + esc(a.case_id) + '" data-v="" title="Take back your verdict">undo</button></div></div>';
+    });
+    return h + '</div></div>';
+  }
+  async function setVerdict(bid, cid, verdict) {
+    try {
+      await jreq('PUT', TEST + '/runs/' + encodeURIComponent(bid) + '/cases/' + encodeURIComponent(cid) + '/verdict', { verdict: verdict, reasoning: '' });
+      await refresh();
+    } catch (e) { notify('Could not save the verdict: ' + e.message, 'error'); }
+  }
+  $('cp-filter').querySelectorAll('[data-f]').forEach(function(b) {
+    b.addEventListener('click', function() {
+      S.filter = b.getAttribute('data-f');
+      $('cp-filter').querySelectorAll('[data-f]').forEach(function(x) { x.classList.toggle('on', x === b); });
+      render();
+    });
+  });
+  async function judge(onlyUnjudged) {
+    try {
+      await jreq('POST', API + '/groups/' + encodeURIComponent(S.gid) + '/judge', { provider_id: $('cp-judge').value, only_unjudged: onlyUnjudged });
+      await refresh();
+    } catch (e) { notify('Could not start judging: ' + e.message, 'error'); }
+  }
+  $('cp-judge-btn').addEventListener('click', function() { judge(true); });
+  $('cp-judge-redo').addEventListener('click', function() { judge(false); });
+  $('cp-stop-btn').addEventListener('click', async function() {
+    try { await jreq('POST', API + '/groups/' + encodeURIComponent(S.gid) + '/cancel'); await refresh(); }
+    catch (e) { notify('Could not stop: ' + e.message, 'error'); }
+  });
+
+  syncRunBtn();
+  loadGroups();
+  if (S.gid) refresh();
+})();
+</script>
+{% endblock %}

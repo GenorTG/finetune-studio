@@ -220,14 +220,15 @@ def _latest_benchmark(run_id: str) -> dict | None:
 
 
 def _primary_score(scores: dict | None) -> float | None:
-    """Pick a comparable numeric score from a benchmark scores dict."""
+    """The comparable score of a run: its pass rate, which is ``None`` while nothing is judged.
+
+    No other number stands in for it: the first numeric value of an unjudged run is its case count, which the
+    Compare table would show as a score.
+    """
     if not scores or not isinstance(scores, dict):
         return None
     for key in ("pass_rate", "score", "accuracy", "overall"):
         val = scores.get(key)
-        if isinstance(val, (int, float)):
-            return float(val)
-    for val in scores.values():
         if isinstance(val, (int, float)):
             return float(val)
     return None
