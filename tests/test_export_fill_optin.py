@@ -168,6 +168,30 @@ def test_route_opt_in_exports_the_fill_and_reports_the_count(env) -> None:
     assert client.get(f"/api/projects/{pid}/data-prep/export/fill-preview").json()["pairs"] == 0
 
 
+def test_blocked_opt_in_export_approves_nothing_until_the_user_forces_it(env) -> None:
+    """Live finding 2026-10-09: the gate approved 415 unreviewed pairs, THEN answered 409; declining 'export anyway'
+    would have left them approved, and the forced retry reported 0 fill pairs."""
+    client, pid = env
+    pfs.write_qa_source(pid, {
+        "id": "noisesrc", "sha256": "noisesha0001", "filename": "noise.txt", "mime_type": "text/plain",
+        "char_count": 11, "chunk_count": 1, "parser": "text_v1", "status": "ready", "data_path": "", "path": "",
+    })
+    noise = pfs.file_dir(pid, "noisesha0001") / "chunks"
+    noise.mkdir()
+    (noise / "0000.txt").write_text("~~~ *** ###", encoding="utf-8")   # unfillable: blocks the export
+    params = {"fmt": "sharegpt", "only": "approved", "include_unreviewed_fill": "true"}
+    blocked = client.get(f"/api/projects/{pid}/data-prep/export", params=params)
+    assert blocked.status_code == 409 and blocked.json()["uncovered_count"] == 1
+    assert _fill_rows(pid) == [] or {x["status"] for x in _fill_rows(pid)} == {"pending"}   # nothing approved behind a 409
+    forced = client.get(f"/api/projects/{pid}/data-prep/export", params={**params, "force": "true"})
+    assert forced.status_code == 200, forced.text
+    n_fill = len(_fill_rows(pid))
+    assert n_fill > 0 and {x["status"] for x in _fill_rows(pid)} == {"approved"}
+    assert forced.headers["X-Unreviewed-Fill-Pairs"] == str(n_fill) and forced.headers["X-Rows"] == str(1 + n_fill)
+    again = client.get(f"/api/projects/{pid}/data-prep/export", params={**params, "force": "true"})
+    assert again.headers["X-Unreviewed-Fill-Pairs"] == str(n_fill)   # the same unreviewed pairs ship again: say so
+
+
 def test_fill_preview_route_is_read_only_and_404s_unknown_project(env) -> None:
     client, pid = env
     body = client.get(f"/api/projects/{pid}/data-prep/export/fill-preview").json()

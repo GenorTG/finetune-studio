@@ -59,7 +59,13 @@ def coverage_gate(pid: str, *, force: bool = False, include_unreviewed_fill: boo
     """
     try:
         from finetune_studio.data.prep.coverage_fill import fill_all_project_gaps
-        if include_unreviewed_fill:
+        if include_unreviewed_fill and not force:
+            # Decide first, approve second: a blocked export (uncovered chunks, no force) must not leave
+            # unreviewed pairs approved behind it when the user then declines "export anyway".
+            summary = fill_all_project_gaps(pid, "count")
+            if not summary.get("uncovered_chunks"):
+                summary = fill_all_project_gaps(pid, "approve")
+        elif include_unreviewed_fill:
             summary = fill_all_project_gaps(pid, "approve")
         else:
             summary = fill_all_project_gaps(pid)

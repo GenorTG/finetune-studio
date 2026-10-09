@@ -2334,7 +2334,7 @@ async function dpExportApproved() {
     dpRefreshFillCount();
     dpBridgeStatus(
       'Exported ' + (isNaN(rowCount) ? approved : rowCount) + ' pair(s)' +
-      (fillRows ? ', including ' + fillRows + ' unreviewed extracted pair(s) you opted in' : ' (approved only)') +
+      (fillRows ? ', including ' + fillRows + ' auto-extracted pair(s) nobody reviewed (you opted in)' : ' (reviewed, approved pairs only)') +
       (groundedRows ? ' (' + groundedRows + ' with retrieved context)' : ' (no retrieved-context rows)') +
       ' into project datasets. Select it in Training → “From this project”, or review the JSONL in Data Editor.',
       'success'

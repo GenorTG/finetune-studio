@@ -907,6 +907,7 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
         return missing
     if only not in ("approved", "pending", "rejected", "all"):
         return JSONResponse({"error": f"unknown only filter: {only}"}, status_code=400)
+    from finetune_studio.data.prep.coverage_fill import approved_fill_pairs
     from finetune_studio.data.prep.dataset_build import (
         CoverageCheckFailed,
         ExportBlocked,
@@ -956,8 +957,9 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
             "Content-Disposition": f'attachment; filename="{pid}-{fmt}-{only}.jsonl"',
             "X-Rows": str(result.rows),
             "X-Grounded-Rows": str(n_grounded),
-            "X-Unreviewed-Fill-Pairs": str(coverage.get("pairs_created", 0) + coverage.get("pairs_promoted", 0)
-                                           if include_unreviewed_fill else 0),
+            # every approved extractive pair in the dataset, not only the ones this call approved (a forced retry
+            # or a second opt-in export ships the same unreviewed pairs again)
+            "X-Unreviewed-Fill-Pairs": str(approved_fill_pairs(pid) if include_unreviewed_fill else 0),
         },
     )
 

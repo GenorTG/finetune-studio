@@ -158,6 +158,16 @@ def fill_all_project_gaps(pid: str, mode: FillMode = "pending") -> dict[str, Any
     return _fill_sources(pid, pfs.list_qa_sources(pid), mode)
 
 
+def approved_fill_pairs(pid: str) -> int:
+    """How many approved pairs of the project are extractive ``coverage_fill`` pairs: what the export option
+    ``include_unreviewed_fill`` ships, this time or from an earlier opt-in (they stay approved)."""
+    return sum(
+        1 for src in pfs.list_qa_sources(pid)
+        for r in pfs.list_qa_pairs(pid, source_id=str(src.get("id") or ""))
+        if r.get("origin") == "coverage_fill" and r.get("status") == "approved"
+    )
+
+
 def fill_sources_gaps(pid: str, source_ids: list[str], mode: FillMode = "pending") -> dict[str, Any]:
     """Coverage-fill ONLY the given sources (subset builds).
 
