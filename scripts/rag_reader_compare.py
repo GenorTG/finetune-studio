@@ -89,11 +89,28 @@ def _poll(base: str, pid: str, bid: str, *, done_key: str, total_key: str, statu
         time.sleep(POLL_SECONDS)
 
 
+def import_quiz(base: str, pid: str, quiz: Path) -> str:
+    """Store ``quiz`` as a project suite through the app's own import (it normalises JSONL ``id/q/expect`` rows into cases) and
+    return the stored suite path, which is what the run routes load. A ``.json`` suite is used as it is."""
+    if quiz.suffix != ".jsonl":
+        return str(quiz)
+    boundary = "----rrc" + str(int(time.time() * 1000))
+    body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{quiz.name}\"\r\n"
+            "Content-Type: application/octet-stream\r\n\r\n").encode() + quiz.read_bytes() + f"\r\n--{boundary}--\r\n".encode()
+    req = urllib.request.Request(f"{base}/api/benchmarks/projects/{pid}/suites/import", data=body, method="POST",
+                                 headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return str(json.loads(resp.read())["path"])
+    except urllib.error.HTTPError as exc:
+        raise ApiError(exc.code, exc.read().decode(errors="replace")) from None
+
+
 def run_suite(base: str, pid: str, model_path: str, *, top_k: int, cap: int | None, quiz: Path) -> dict:
     """One RAG-suite run through the app (loads ``model_path`` if it is not the loaded one); blocks until it ends.
 
     ``cap`` None = let the app size the context from the loaded model's window. Returns the final run row."""
-    body: dict[str, Any] = {"project_id": pid, "suite_path": str(quiz), "model_path": model_path, "top_k": top_k,
+    body: dict[str, Any] = {"project_id": pid, "suite_path": import_quiz(base, pid, quiz), "model_path": model_path, "top_k": top_k,
                             "max_tokens": 512, "temperature": 0.0, "auto_judge": False}
     if cap:
         body["max_context_chars"] = cap
