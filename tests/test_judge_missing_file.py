@@ -41,3 +41,8 @@ def test_pickers_disable_a_missing_judge_file(client: TestClient, tmp_path: Path
         html = client.get(page).text
         assert 'value="gone-judge-2" disabled' in html or 'value="gone-judge-2" data-local="1" disabled' in html, page
         assert "file missing on disk" in html
+
+
+def test_run_detail_never_preselects_a_disabled_judge() -> None:
+    html = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/project_testing.html").read_text(encoding="utf-8")
+    assert "if (opt && !opt.disabled) sel.value = r.judge_provider_id;" in html
