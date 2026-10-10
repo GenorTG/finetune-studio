@@ -15,3 +15,8 @@ def test_unit_execstart_is_the_supervisor_with_control_group_kill():
 
 def test_installer_waits_on_the_cheap_health_route():
     assert "/api/health" in SCRIPT
+
+
+def test_update_script_warns_when_the_unit_predates_the_supervisor():
+    update = (Path(__file__).resolve().parent.parent / "update.sh").read_text(encoding="utf-8")
+    assert "finetune_studio.supervisor" in update and "install-service.sh" in update

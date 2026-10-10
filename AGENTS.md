@@ -9,13 +9,14 @@ Both run the `finetune-studio` systemd **user** unit on :7860.
 1. `HANDOFF.md` — current state, in-flight work, next steps (≤120 lines; longer = stale, rewrite it).
 2. `docs/WORKPLAN.md` — iron rules (binding) + ordered plan (last updated 2026-10-02; HANDOFF has newer state).
 3. `docs/PRODUCT-BRIEF.md` — north star / quality bar. `docs/GOTCHAS.md` — full learned-rule log.
-4. On demand: `docs/README.md` (doc map), `docs/CODEMAP.md` (symbol map), `RESTART.md` (service ops).
+4. On demand: `docs/README.md` (doc map), `docs/CODEMAP.md` (symbol map), `RESTART.md` (service ops), `docs/TOPOLOGY.md` (processes, owners, supervisor plan P1-P4).
 
 ## Commands
 - Setup/repair: `bash install.sh` (`--plan` preview GPU plan, `--check`, `--repair`, `--cpu`, `--gpu <vendor>`); dev extras: `uv pip install --python .venv/bin/python -e '.[dev]'`.
 - Tests: `.venv/bin/python -m pytest -q -p no:cacheprovider --ignore=tests/test_vram.py` (full suite ~21 min); one file: `.venv/bin/python -m pytest tests/test_x.py -q`. `make test` = verbose full run incl. GPU tests.
 - Lint: `.venv/bin/ruff check src/ scripts/` (must stay clean; `tests/` has ~108 legacy findings). `make lint` hides failures (`|| true`) — never trust it.
 - Run: `make run` (= `bash run.sh`, uvicorn :7860). Prefer the service: `systemctl --user restart finetune-studio`; logs `journalctl --user -u finetune-studio -f`.
+- Service ops without HTTP: `fts status|restart web|logs web|events -f|doctor|up` (the unit runs `finetune_studio.supervisor`, which owns :7860 and the web child; `fts restart web` is ~3 s and applies a changed Compute device choice).
 - Accelerator check: `.venv/bin/fts accel` (nonzero only on a GPU host that fell back to CPU).
 - Symbols: `make codemap` / `.venv/bin/python scripts/codemap.py --grep NAME`; `make codemap-check` fails on drift.
 - E2E browser suite: `tests/run_qa.sh` (see `tests/README_E2E.md`; can mutate live data).
@@ -126,3 +127,4 @@ Both run the `finetune-studio` systemd **user** unit on :7860.
 - `ruff check` ending in "No fixes available (1 hidden fix…)" is a FAILURE (an error that only `--unsafe-fixes` could touch, e.g. F841): read the lines above it; only "All checks passed!" is clean (CI red on 2026-10-09 after two local "looked fine" runs).
 - Qwen3.5 (hybrid/recurrent) GGUFs under llama-cpp-python 0.3.36 can abort the server with a CUDA illegal memory access at the auto 262k window + q8 KV + flash-attn (2026-10-09 judge job); load them with `n_ctx` 32768, `type_k/type_v` 0 and `flash_attn` false until the wheel is bumped. Quantized V cache needs flash-attn on (llama.cpp refuses otherwise).
 - Vendor CLIs go through `accel.env.vendor_tool` (PATH, then `~/.local/bin`, `/usr/lib/nvidia/current`, `/opt/rocm/bin`…), never a bare `shutil.which`: the user unit gets the system PATH only and genorbox1's `/usr/bin/nvidia-smi` is a dangling alternatives link (real binary in `~/.local/bin`), so the live Compute device card listed zero GPUs (2026-10-10). systemd `Environment=` values with spaces need quotes: `Environment="FTS_GPU_EXCLUDE=GTX 1070"` (unquoted, the service saw `GTX`).
+- Supervisor (`src/finetune_studio/supervisor/`) must stay small and never import torch/llama.cpp/the web app: it is the one process that has to survive every child. It hands the :7860 fd to the web child, and `supervisor/env.py` strips the GPU variables that `import finetune_studio` applied to ITS OWN environment (else the child reports `source: env`); per-phase plan and live evidence in `docs/TOPOLOGY.md` (tests `tests/test_supervisor_*.py`). Decided 2026-10-10: one inference worker with one resident model, heavy GPU runs (training) evict it first, a crashed worker is reported and never auto-reloaded.

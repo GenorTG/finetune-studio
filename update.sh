@@ -198,6 +198,9 @@ fi
 # ── Step 6: restart ─────────────────────────────────────────────────────
 if [ "$NO_RESTART" = "0" ] && [ "$CHECK_MODE" = "0" ]; then
     if systemctl --user is-active finetune-studio >/dev/null 2>&1; then
+        if ! grep -q "finetune_studio.supervisor" "$HOME/.config/systemd/user/finetune-studio.service" 2>/dev/null; then
+            warn "finetune-studio.service still runs a bare uvicorn (no supervisor): run 'bash install-service.sh' once on this host"
+        fi
         log "Restarting finetune-studio.service..."
         systemctl --user restart finetune-studio 2>&1 \
             || warn "service restart failed (will keep current code path)"
