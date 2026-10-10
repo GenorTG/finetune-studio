@@ -271,7 +271,7 @@ def test_tests_never_write_into_docs_or_user_media():
 _DEV_DOC_FILES = (
     "ARCHITECTURE.md", "CODEMAP.md", "DEVELOPER.md", "GOTCHAS.md", "PRODUCT-BRIEF.md",
     "README.md", "REFACTOR-SPEC.md", "UI-AUDIT-PLAN.md", "WORKFLOW-EXECUTION-PLAN.md",
-    "WORKPLAN.md",
+    "WORKPLAN.md", "TOPOLOGY.md",
 )
 _DEV_DOC_DIRS = ("modules/", "audit/", "archive/", "judging/")
 _PUBLIC_DOCS = ("README.md", "docs/index.html", "docs/TUTORIAL.md", "docs/INSTALL.md",
