@@ -157,10 +157,12 @@ Wants=network-online.target
 [Service]
 Type=exec
 WorkingDirectory=$REPO_DIR
-ExecStart=$VENV_PY -m uvicorn finetune_studio.webui.app:app --host $HOST --port $PORT --no-access-log
+# The supervisor owns the listening socket and the web child; systemd only supervises the supervisor.
+ExecStart=$VENV_PY -m finetune_studio.supervisor --host $HOST --port $PORT
+KillMode=control-group
 Restart=on-failure
 RestartSec=5
-TimeoutStopSec=20
+TimeoutStopSec=30
 StandardOutput=journal
 StandardError=journal
 Environment=PYTHONUNBUFFERED=1
@@ -227,7 +229,7 @@ log "Starting $UNIT_NAME..."
 
 # Poll the health endpoint for up to 20 seconds
 log "Waiting for webui to come up on :$PORT..."
-HEALTH_URL="http://127.0.0.1:$PORT/api/providers"
+HEALTH_URL="http://127.0.0.1:$PORT/api/health"
 for i in $(seq 1 40); do
     sleep 0.5
     if curl -fsS --max-time 2 "$HEALTH_URL" >/dev/null 2>&1; then

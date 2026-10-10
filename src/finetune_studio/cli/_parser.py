@@ -73,6 +73,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_web.add_argument("--port", type=int, default=7860)
     p_web.add_argument("--reload", action="store_true")
 
+    # ── supervisor ──
+    p_sup = sub.add_parser("supervisor", help="Run the supervisor (what the systemd unit runs)")
+    p_sup.add_argument("--host", default="0.0.0.0")
+    p_sup.add_argument("--port", type=int, default=7860)
+    p_status = sub.add_parser("status", help="Component table from the supervisor (exit 1 degraded, 3 supervisor down)")
+    p_status.add_argument("--json", action="store_true")
+    for verb in ("start", "stop", "restart"):
+        p_act = sub.add_parser(verb, help=f"{verb.capitalize()} a supervised component")
+        p_act.add_argument("name", nargs="?", default="web", help="Component name (default: web)")
+    p_logs = sub.add_parser("logs", help="Recent output of a supervised component")
+    p_logs.add_argument("name", nargs="?", default="web")
+    p_logs.add_argument("-n", "--lines", type=int, default=100)
+    p_events = sub.add_parser("events", help="Supervisor event log (spawns, exits, health, restarts)")
+    p_events.add_argument("-n", "--lines", type=int, default=50)
+    p_events.add_argument("-f", "--follow", action="store_true")
+    sub.add_parser("up", help="Bootstrap: start the supervisor via systemd when it is down")
+    p_doc = sub.add_parser("doctor", help="Diagnose the install with the app down (supervisor, port, unit, GPU choice)")
+    p_doc.add_argument("--port", type=int, default=7860)
+
     # ── rag ──
     p_rag = sub.add_parser("rag", help="RAG operations")
     rag_sub = p_rag.add_subparsers(dest="rag_command")

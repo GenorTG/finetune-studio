@@ -99,6 +99,29 @@ async def gpu_text():
     return PlainTextResponse(f"{g['name']} · {g['pct']}%")
 
 
+@router.get("/api/health")
+async def health():
+    """Liveness for the supervisor probe: answers from the event loop, touches no GPU, DB or model."""
+    return {"status": "ok"}
+
+
+@router.get("/api/system/supervisor")
+async def supervisor_status():
+    """Component table from the supervisor when this process runs under one, else ``managed: false``."""
+    import asyncio
+
+    from finetune_studio.supervisor.client import (
+        SupervisorClient,
+        SupervisorUnavailable,
+    )
+
+    try:
+        snap = await asyncio.to_thread(SupervisorClient(timeout=2.0).status)
+    except SupervisorUnavailable:
+        return {"managed": False, "components": {}}
+    return {"managed": True, **snap}
+
+
 @router.get("/api/system/version")
 async def version():
     """Exact build identity of the running service.

@@ -26,6 +26,15 @@ from finetune_studio.cli.commands.optimize import cmd_optimize
 from finetune_studio.cli.commands.rag import cmd_rag
 from finetune_studio.cli.commands.rag_test import cmd_rag_test
 from finetune_studio.cli.commands.suite import cmd_suite
+from finetune_studio.cli.commands.supervisor import (
+    cmd_component_action,
+    cmd_doctor,
+    cmd_events,
+    cmd_logs,
+    cmd_status,
+    cmd_supervisor,
+    cmd_up,
+)
 from finetune_studio.cli.commands.test import cmd_test
 from finetune_studio.cli.commands.train import cmd_train
 from finetune_studio.cli.commands.validate import cmd_validate
@@ -55,6 +64,15 @@ COMMANDS = {
     "accel": cmd_accel,
     "files": cmd_files,
     "dataset": cmd_dataset,
+    "supervisor": cmd_supervisor,
+    "status": cmd_status,
+    "start": cmd_component_action,
+    "stop": cmd_component_action,
+    "restart": cmd_component_action,
+    "logs": cmd_logs,
+    "events": cmd_events,
+    "up": cmd_up,
+    "doctor": cmd_doctor,
 }
 
 
