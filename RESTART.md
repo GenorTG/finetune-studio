@@ -99,14 +99,23 @@ Expect `active`, and the :7860 pid's cgroup line containing `finetune-studio.ser
 
 ## Supervisor (from 2026-10-10)
 
-systemd runs `python -m finetune_studio.supervisor`; it owns :7860 and runs the web UI as its child, restarting it with backoff when it dies or stops answering `/api/health`. Operate it with `fts` (needs no HTTP):
+The supervisor owns :7860 and runs the web UI as its child, restarting it with backoff when it dies or stops answering `/api/health`. Start it either way (both are first-class):
+
+```bash
+fts up --manual       # detached supervisor, no systemd; log in $FTS_ROOT/run/supervisor.log  (or `fts supervisor` in a terminal)
+fts service install   # once: write + enable the systemd user unit (wraps install-service.sh; --no-start to only install)
+fts up --systemd      # start the unit.   `fts up` alone picks systemd when installed, else manual
+fts down              # stop it, whichever way it was started
+fts service uninstall | status | restart
+```
+
+Operate it with `fts` (no HTTP needed) or from Settings -> Service in the web UI:
 
 ```bash
 fts status            # component table; exit 0 all ready, 1 degraded, 3 supervisor down
-fts restart web       # restart only the web child: ~3 s, port stays open, picks up a changed Settings -> Compute device
+fts restart web       # only the web child: ~6 s, port stays open, applies a changed Settings -> Compute device
 fts logs web -n 100   # child output tail;  fts events -f  # spawns, exits (with signal), health, backoff
 fts doctor            # works with everything down: supervisor, port, unit, compute-device file, last event
-fts up                # supervisor down: start the systemd unit
 ```
 
-`systemctl --user restart finetune-studio` still restarts the whole tree. Plain `run.sh` / `fts webui` run without a supervisor (`GET /api/system/supervisor` -> `managed: false`).
+`systemctl --user restart finetune-studio` restarts the whole tree (needed when supervisor code itself changed; `fts restart web` only reloads the web child). A manual supervisor started inside another unit's cgroup dies with that unit. Plain `run.sh` / `fts webui` run without a supervisor (`/api/service/status` -> `managed: false`).

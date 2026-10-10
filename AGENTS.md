@@ -16,7 +16,7 @@ Both run the `finetune-studio` systemd **user** unit on :7860.
 - Tests: `.venv/bin/python -m pytest -q -p no:cacheprovider --ignore=tests/test_vram.py` (full suite ~21 min); one file: `.venv/bin/python -m pytest tests/test_x.py -q`. `make test` = verbose full run incl. GPU tests.
 - Lint: `.venv/bin/ruff check src/ scripts/` (must stay clean; `tests/` has ~108 legacy findings). `make lint` hides failures (`|| true`) — never trust it.
 - Run: `make run` (= `bash run.sh`, uvicorn :7860). Prefer the service: `systemctl --user restart finetune-studio`; logs `journalctl --user -u finetune-studio -f`.
-- Service ops without HTTP: `fts status|restart web|logs web|events -f|doctor|up` (the unit runs `finetune_studio.supervisor`, which owns :7860 and the web child; `fts restart web` is ~3 s and applies a changed Compute device choice).
+- Service ops without HTTP: `fts status|restart web|logs web|events -f|doctor`; start/stop: `fts up --manual|--systemd`, `fts down`, `fts service install|uninstall|status` (manual and systemd are separate options; this dev box keeps the systemd unit on). The supervisor owns :7860 and the web child; `fts restart web` is ~6 s and applies a changed Compute device choice. Web UI: Settings -> Service + a banner on every page (`routes/service.py`, `static/js/service.js`).
 - Accelerator check: `.venv/bin/fts accel` (nonzero only on a GPU host that fell back to CPU).
 - Symbols: `make codemap` / `.venv/bin/python scripts/codemap.py --grep NAME`; `make codemap-check` fails on drift.
 - E2E browser suite: `tests/run_qa.sh` (see `tests/README_E2E.md`; can mutate live data).

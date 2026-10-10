@@ -4701,3 +4701,4 @@ body::before {
   border: 1px solid var(--border); background: var(--bg-app);
   white-space: pre-wrap; word-break: break-word;
 }
+#service-table td:last-child { white-space: normal; overflow: visible; text-overflow: clip; min-width: 160px; }

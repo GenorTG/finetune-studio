@@ -37,7 +37,7 @@ def test_css_is_tokens_only_and_cache_busted() -> None:
     for rule in (".guide-pulse", ".guide-prefilled", ".guide-tag", ".guide-tool", "body.guide-open .app"):
         assert rule in block
     assert "prefers-reduced-motion" in block
-    assert "app.css?v=81" in _r("templates/base.html")
+    assert "app.css?v=82" in _r("templates/base.html")
 
 
 def test_js_contract() -> None:
