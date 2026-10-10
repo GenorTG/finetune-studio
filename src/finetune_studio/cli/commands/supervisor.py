@@ -27,7 +27,7 @@ EXIT_DEGRADED = 1  # reachable, some component not ready
 
 
 def _fail_down(exc: Exception) -> None:
-    print(f"Supervisor is not running: {exc}\nStart it with `fts up` (or `systemctl --user start {UNIT}`); `fts doctor` explains why.",
+    print(f"Supervisor is not running: {exc}\nStart it with `fts up` (manual or systemd); `fts doctor` explains why.",
           file=sys.stderr)
     sys.exit(EXIT_DOWN)
 
@@ -116,22 +116,6 @@ def cmd_supervisor(args) -> None:
 
 def _unit_installed() -> bool:
     return (Path.home() / ".config/systemd/user" / f"{UNIT}.service").is_file()
-
-
-def cmd_up(args) -> None:
-    """Bootstrap path for when the supervisor is down: start the systemd unit, else say how to run it."""
-    try:
-        SupervisorClient().status()
-        print("Supervisor already running.")
-        return
-    except SupervisorUnavailable:
-        pass
-    if _unit_installed() and shutil.which("systemctl"):
-        rc = subprocess.run(["systemctl", "--user", "start", UNIT], check=False).returncode
-        print(f"systemctl --user start {UNIT}: {'ok' if rc == 0 else f'failed (exit {rc})'}")
-        sys.exit(rc)
-    print(f"No {UNIT} user unit installed. Run `bash install-service.sh`, or `fts supervisor` in a terminal.", file=sys.stderr)
-    sys.exit(1)
 
 
 def _port_open(port: int) -> bool:

@@ -128,9 +128,9 @@ def list_unfinished() -> list[dict]:
     return [_decode_run(row_to_dict(r)) for r in rows]  # type: ignore[misc]
 
 
-def reconcile_stale_benchmarks() -> int:
+def reconcile_stale_benchmarks(cause: str = "") -> int:
     """Startup: a test run or judge job left running by a dead process becomes failed (its saved cases are kept)."""
-    reason = "interrupted: the server restarted while this job was running"
+    reason = "interrupted: the server restarted while this job was running" + cause
     with cursor() as c:
         n = c.execute(
             "UPDATE benchmark_runs SET status = 'failed', error = ? WHERE status IN ('queued', 'running')", (reason,),

@@ -65,3 +65,6 @@ class SupervisorClient:
 
     def act(self, name: str, action: str) -> dict[str, Any]:
         return self._call("POST", f"/v1/components/{name}/{action}")
+
+    def shutdown(self) -> dict[str, Any]:
+        return self._call("POST", "/v1/shutdown")

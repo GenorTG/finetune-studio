@@ -103,11 +103,14 @@ async def lifespan(app: FastAPI):
     # Finalize system_updates / training_runs orphaned when the previous
     # process was restarted (APPLY UPDATE kills its streaming worker; a hard
     # kill leaves training rows in loading/training/saving).
+    from finetune_studio.webui.restart_cause import restart_cause
+
+    cause = restart_cause()
     try:
         n = db.reconcile_stale_updates()
         if n:
             print(f"Reconciled {n} stale system_updates row(s)")
-        n_runs = db.reconcile_stale_runs()
+        n_runs = db.reconcile_stale_runs(cause)
         if n_runs:
             print(f"Reconciled {n_runs} stale training_runs row(s)")
     except Exception:  # noqa: BLE001
@@ -115,13 +118,13 @@ async def lifespan(app: FastAPI):
     # Independent reconciles first, so a failed data-prep resume below cannot
     # skip them.
     try:
-        n = db.reconcile_stale_rag_builds()
+        n = db.reconcile_stale_rag_builds("interrupted by service restart" + cause)
         if n:
             print(f"Reconciled {n} stale rag_corpora row(s)")
-        n = db.reconcile_stale_exports()
+        n = db.reconcile_stale_exports("interrupted by service restart" + cause)
         if n:
             print(f"Reconciled {n} stale model_exports row(s)")
-        n = db.reconcile_stale_benchmarks()
+        n = db.reconcile_stale_benchmarks(cause)
         if n:
             print(f"Reconciled {n} stale test run/judge job(s)")
         from finetune_studio.testing.scoring import rescore_legacy_benchmarks
@@ -422,6 +425,10 @@ app.include_router(_helper_settings.router)  # type: ignore[has-type]  # /api/se
 from finetune_studio.webui.routes import compute_device as _compute_device
 
 app.include_router(_compute_device.router)  # /api/system/compute-device
+
+from finetune_studio.webui.routes import service as _service
+
+app.include_router(_service.router)  # /api/service/*: supervisor status, events, logs, restart
 
 from finetune_studio.webui.routes import datasets as _datasets
 

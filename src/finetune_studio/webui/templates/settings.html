@@ -204,6 +204,26 @@
       </div>
     </div>
 
+    <div class="card mb-4" id="service-card">
+      <div class="card-head">
+        <div class="card-title">Service</div>
+        <div class="card-sub">What keeps the app running: the supervisor restarts the web server if it crashes or stops answering, and records why.</div>
+      </div>
+      <div class="text-xs mb-3" id="service-mode">Loading…</div>
+      <div class="table-scroll mb-3" role="region" aria-label="Supervised components">
+        <table class="table" id="service-table" hidden>
+          <thead><tr><th>Component</th><th>State</th><th>PID</th><th>Up</th><th>Restarts</th><th>Last exit / health</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="flex gap-2 mb-3" id="service-actions" hidden>
+        <button class="btn sm" id="btn-service-restart" type="button" title="Restart only the web server (about 3 s); the supervisor and the port stay up">Restart web server</button>
+        <button class="btn sm" id="btn-service-log" type="button">Show web log</button>
+        <button class="btn sm" id="btn-service-events" type="button">Show events</button>
+      </div>
+      <pre class="service-detail mono text-xs" id="service-detail" hidden></pre>
+    </div>
+
     <div class="card mb-4" id="compute-card">
       <div class="card-head">
         <div class="card-title">Compute device</div>
@@ -257,5 +277,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/settings.js?v=10"></script>
+<script src="/static/js/settings.js?v=11"></script>
 {% endblock %}

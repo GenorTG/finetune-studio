@@ -489,7 +489,7 @@ function wireCompute() {
     const rs = $('compute-restart');
     rs.hidden = !d.restart_required;
     if (d.restart_required) {
-      rs.innerHTML = `Restart required — the saved choice takes effect when the service restarts. Run <code>${esc(d.restart_command)}</code> on the host.`;
+      rs.innerHTML = `Restart required — the saved choice takes effect when the service restarts. ${d.restart_command.startsWith('fts ') ? `Press <em>Restart web server</em> in the Service card above, or run <code>${esc(d.restart_command)}</code> on the host.` : `To apply it: ${esc(d.restart_command)}.`}`;
     }
   }
 

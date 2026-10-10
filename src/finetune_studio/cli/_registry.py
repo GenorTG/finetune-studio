@@ -25,6 +25,7 @@ from finetune_studio.cli.commands.models import cmd_models
 from finetune_studio.cli.commands.optimize import cmd_optimize
 from finetune_studio.cli.commands.rag import cmd_rag
 from finetune_studio.cli.commands.rag_test import cmd_rag_test
+from finetune_studio.cli.commands.service import cmd_down, cmd_service, cmd_up
 from finetune_studio.cli.commands.suite import cmd_suite
 from finetune_studio.cli.commands.supervisor import (
     cmd_component_action,
@@ -33,7 +34,6 @@ from finetune_studio.cli.commands.supervisor import (
     cmd_logs,
     cmd_status,
     cmd_supervisor,
-    cmd_up,
 )
 from finetune_studio.cli.commands.test import cmd_test
 from finetune_studio.cli.commands.train import cmd_train
@@ -72,6 +72,8 @@ COMMANDS = {
     "logs": cmd_logs,
     "events": cmd_events,
     "up": cmd_up,
+    "down": cmd_down,
+    "service": cmd_service,
     "doctor": cmd_doctor,
 }
 

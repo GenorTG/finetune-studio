@@ -63,7 +63,7 @@ def test_get_reports_devices_and_defaults(client, host) -> None:
     assert d["effective"]["device"] == "cuda:0" and d["effective"]["device_id"] == ID_3090
     assert d["effective"]["source"] == "default" and d["effective"]["is_gpu"] is True
     assert d["restart_required"] is False and d["overridden_by_env"] is False and d["env_overrides"] == []
-    assert d["restart_command"] == "systemctl --user restart finetune-studio"
+    assert d["restart_command"] in (cd.RESTART_COMMAND, cd.UNSUPERVISED_RESTART)
 
 
 def test_masked_card_is_listed_but_not_visible(client, host, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -197,5 +197,5 @@ def test_effective_note_surfaces_why_a_saved_gpu_was_not_applied(client, host) -
 def test_settings_page_has_the_card_and_script(client, host) -> None:
     html = client.get("/settings").text
     for needle in ('id="compute-card"', 'id="compute-select"', 'id="btn-compute-save"',
-                   'data-testid="compute-restart-required"', "settings.js?v=10"):
+                   'data-testid="compute-restart-required"', "settings.js?v=11"):
         assert needle in html, needle

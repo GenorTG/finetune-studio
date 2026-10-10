@@ -48,8 +48,14 @@ def build_app(sup: Supervisor) -> Starlette:
             return JSONResponse({"error": f"unknown component {name!r}"}, status_code=404)
         return JSONResponse({"component": name, "action": action, "accepted": True}, status_code=202)
 
+    async def shutdown(_: Request) -> JSONResponse:
+        sup.events.emit("supervisor", "shutdown_requested")
+        sup.shutdown()
+        return JSONResponse({"accepted": True}, status_code=202)
+
     return Starlette(routes=[
         Route("/v1/status", status),
+        Route("/v1/shutdown", shutdown, methods=["POST"]),
         Route("/v1/events", events),
         Route("/v1/components/{name}/logs", logs),
         Route("/v1/components/{name}/{action}", act, methods=["POST"]),

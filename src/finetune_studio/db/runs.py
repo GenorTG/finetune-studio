@@ -137,12 +137,13 @@ _STALE_RUN_STATUSES: tuple[str, ...] = (
 _STALE_RUN_ERROR = "Interrupted: server restarted during this run"
 
 
-def reconcile_stale_runs() -> int:
+def reconcile_stale_runs(cause: str = "") -> int:
     """Mark in-flight training_runs as failed after a process restart.
 
     Any row still in queued/loading/training/saving/running cannot still be
     running after the server process died — mark them failed so the UI does
-    not show forever-spinning orphans. Returns the number of rows updated.
+    not show forever-spinning orphans. ``cause`` (e.g. the signal that killed the
+    server) is appended to the stored error. Returns the number of rows updated.
     """
     placeholders = ", ".join("?" for _ in _STALE_RUN_STATUSES)
     now = time.time()
@@ -155,6 +156,6 @@ def reconcile_stale_runs() -> int:
             c.execute(
                 "UPDATE training_runs SET status = ?, error = ?, finished_at = ? "
                 "WHERE id = ?",
-                ("failed", _STALE_RUN_ERROR, now, r["id"]),
+                ("failed", _STALE_RUN_ERROR + cause, now, r["id"]),
             )
     return len(rows)

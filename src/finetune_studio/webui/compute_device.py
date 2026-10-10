@@ -20,7 +20,15 @@ from finetune_studio.webui import gpu_probe
 
 log = logging.getLogger(__name__)
 
-RESTART_COMMAND = "systemctl --user restart finetune-studio"
+RESTART_COMMAND = "fts restart web"  # same under systemd and a manual start; applies the Settings choice
+UNSUPERVISED_RESTART = "stop the server and start it again (it is not running under a supervisor)"
+
+
+def restart_command() -> str:
+    """The restart that applies a saved choice: the supervisor's, or a plain instruction when unsupervised."""
+    from finetune_studio.supervisor.paths import socket_path
+
+    return RESTART_COMMAND if socket_path().exists() else UNSUPERVISED_RESTART
 _VISIBILITY_VARS = ("CUDA_VISIBLE_DEVICES", "HIP_VISIBLE_DEVICES")
 
 
@@ -143,5 +151,5 @@ def report(saved: SavedChoice, devices: list[DeviceInfo] | None = None) -> dict[
         "overridden_by_env": overridden,
         # An env override is not lifted by a restart, so it never counts as "restart to apply".
         "restart_required": (not overridden) and saved != applied.saved,
-        "restart_command": RESTART_COMMAND,
+        "restart_command": restart_command(),
     }

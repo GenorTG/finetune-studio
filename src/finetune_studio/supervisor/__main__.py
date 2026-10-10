@@ -31,7 +31,9 @@ def take_lock(path: Path):
 
 
 async def run(host: str, port: int) -> None:
-    sup = Supervisor([web_spec(host, port, cwd=os.getcwd())], EventLog(events_path()))
+    launcher = "systemd" if os.environ.get("INVOCATION_ID") else "manual"  # systemd sets INVOCATION_ID for every unit
+    sup = Supervisor([web_spec(host, port, cwd=os.getcwd())], EventLog(events_path()),
+                     meta={"launcher": launcher, "listen": f"{host}:{port}"})
     server = await control.serve(sup, socket_path())
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):

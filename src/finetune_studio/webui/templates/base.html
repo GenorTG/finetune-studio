@@ -67,7 +67,7 @@
   </style>
   <title>{% block title %}Finetune Studio{% endblock %} · {{ release_channel }}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/css/app.css?v=80">
+  <link rel="stylesheet" href="/static/css/app.css?v=81">
 </head>
 <body>
   <div id="toasts" class="toasts" aria-live="polite"></div>
@@ -243,6 +243,9 @@
       </div>
     </header>
 
+    {# Service health: restart/crash/unreachable notices (service.js, GET /api/service/status) #}
+    <div id="service-banner" class="service-banner" role="alert" hidden></div>
+
     {# QABUG-009: sticky breadcrumb on every project tab #}
     {% if pid is defined and pid %}
     <nav id="project-breadcrumb" class="project-breadcrumb" aria-label="Breadcrumb">
@@ -389,6 +392,7 @@
   <script src="/static/js/palette.js?v=15"></script>
   <script src="/static/js/tutorial.js?v=16"></script>
   <script src="/static/js/activity.js?v=16"></script>
+  <script src="/static/js/service.js?v=1"></script>
   <script src="/static/js/guide.js?v=1"></script>
   <script>
     window.ftsCopyText = async function (text) {

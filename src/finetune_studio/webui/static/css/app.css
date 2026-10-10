@@ -4680,3 +4680,24 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   .guide, .guide-pulse, .guide-thinking { animation: none; transition: none; }
 }
+
+/* ===== Service health banner + Settings "Service" card (service.js) ===== */
+.service-banner {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 0; padding: 8px 14px;
+  border-bottom: 1px solid var(--border-strong);
+  border-left: 4px solid var(--warn);
+  background: var(--bg-app);
+  color: var(--text);
+  font-size: 12.5px; line-height: 1.4;
+}
+.service-banner[hidden] { display: none; }
+.service-banner .sb-msg { flex: 1 1 320px; min-width: 0; }
+.service-banner.error   { border-left-color: var(--err);  color: var(--err-text, var(--err)); }
+.service-banner.warning { border-left-color: var(--warn); color: var(--warn-text, var(--warn)); }
+.service-banner.notice  { border-left-color: var(--cyan); color: var(--text); }
+.service-detail {
+  max-height: 260px; overflow: auto; margin: 0; padding: 8px 10px;
+  border: 1px solid var(--border); background: var(--bg-app);
+  white-space: pre-wrap; word-break: break-word;
+}

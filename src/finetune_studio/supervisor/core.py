@@ -64,8 +64,9 @@ class UnknownComponent(KeyError):
 
 
 class Supervisor:
-    def __init__(self, specs: list[ComponentSpec], events: EventLog | None = None) -> None:
+    def __init__(self, specs: list[ComponentSpec], events: EventLog | None = None, meta: dict[str, Any] | None = None) -> None:
         self.events = events or EventLog()
+        self.meta = dict(meta or {})  # launcher (systemd|manual), listen address: shown in the status
         self.started_at = time.time()
         self._components = {s.name: _Component(spec=s) for s in specs}
         self._stopping = False
@@ -126,7 +127,8 @@ class Supervisor:
                 "health": dict(c.health),
                 "retry_in_s": round(max(0.0, c.backoff_until - time.monotonic()), 1) if c.state is State.BACKOFF else None,
             }
-        return {"supervisor": {"pid": os.getpid(), "started_at": self.started_at, "uptime_s": round(now - self.started_at, 1)},
+        return {"supervisor": {"pid": os.getpid(), "started_at": self.started_at, "uptime_s": round(now - self.started_at, 1),
+                               **self.meta},
                 "components": comps}
 
     def _get(self, name: str) -> _Component:

@@ -205,7 +205,16 @@ if [ "$NO_RESTART" = "0" ] && [ "$CHECK_MODE" = "0" ]; then
         systemctl --user restart finetune-studio 2>&1 \
             || warn "service restart failed (will keep current code path)"
     else
-        warn "finetune-studio.service not active on this host"
+        # No systemd unit: a manually started supervisor (`fts up --manual`) restarts only its web child.
+        "$VENV_PY" -m finetune_studio.cli restart web >/dev/null 2>&1
+        rc=$?
+        if [ "$rc" = "0" ]; then
+            log "Restarting finetune-studio.service (web component of the manual supervisor)..."
+        elif [ "$rc" = "3" ]; then
+            warn "finetune-studio is not running under systemd or a supervisor on this host; start it with 'fts up'"
+        else
+            warn "supervisor restart of the web component failed (exit $rc)"
+        fi
     fi
 else
     log "skipping service restart."
