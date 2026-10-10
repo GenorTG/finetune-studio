@@ -12,6 +12,7 @@ from pathlib import Path
 from finetune_studio.supervisor import control
 from finetune_studio.supervisor.core import Supervisor
 from finetune_studio.supervisor.events import EventLog
+from finetune_studio.supervisor.launcher import detect as detect_launcher
 from finetune_studio.supervisor.paths import events_path, lock_path, socket_path
 from finetune_studio.supervisor.web import web_spec
 
@@ -31,9 +32,8 @@ def take_lock(path: Path):
 
 
 async def run(host: str, port: int) -> None:
-    launcher = "systemd" if os.environ.get("INVOCATION_ID") else "manual"  # systemd sets INVOCATION_ID for every unit
     sup = Supervisor([web_spec(host, port, cwd=os.getcwd())], EventLog(events_path()),
-                     meta={"launcher": launcher, "listen": f"{host}:{port}"})
+                     meta={"launcher": detect_launcher(), "listen": f"{host}:{port}"})
     server = await control.serve(sup, socket_path())
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
