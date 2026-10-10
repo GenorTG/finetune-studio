@@ -27,6 +27,8 @@ ACTIONS = ("start", "stop", "restart")
 
 
 def _exit_text(last: dict[str, Any]) -> str:
+    if last.get("reason") == "requested":
+        return "restarted on request"
     if last.get("reason") in ("unhealthy", "start_timeout"):
         return "stopped answering health checks and was killed"
     if last.get("signal"):

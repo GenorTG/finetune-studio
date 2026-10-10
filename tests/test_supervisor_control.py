@@ -159,3 +159,16 @@ def test_doctor_runs_with_everything_down(monkeypatch):
     rows = cli_sup.doctor_checks(port=1)
     by = {check: status for status, check, _ in rows}
     assert by["supervisor"] == "fail" and by["port 1"] == "fail"
+
+
+def test_requested_restart_is_not_shown_as_a_kill_and_web_has_a_short_graceful_cap():
+    snap = {"supervisor": {"pid": 1, "uptime_s": 5}, "components": {
+        "web": {"state": "ready", "pid": 9, "uptime_s": 3, "restarts": 1, "last_exit": {"signal": "SIGKILL", "code": None, "reason": "requested"}, "health": {}}}}
+    assert "restarted on request" in "\n".join(cli_sup.format_status(snap))
+    from finetune_studio.supervisor.web import GRACEFUL_SHUTDOWN_S, web_spec
+    spec = web_spec("127.0.0.1", 0)
+    try:
+        argv = spec.argv()
+        assert "--timeout-graceful-shutdown" in argv and argv[argv.index("--timeout-graceful-shutdown") + 1] == str(GRACEFUL_SHUTDOWN_S)
+    finally:
+        spec.release()

@@ -45,7 +45,8 @@ def format_status(snap: dict[str, Any]) -> list[str]:
     lines.append(f"{'COMPONENT':<12}{'STATE':<11}{'PID':<9}{'UP':<9}{'RESTARTS':<9}LAST EXIT / HEALTH")
     for name, c in snap["components"].items():
         last = c.get("last_exit") or {}
-        why = (f"signal {last['signal']}" if last.get("signal") else f"code {last['code']}" if last.get("code") is not None
+        why = ("restarted on request" if last.get("reason") == "requested" else
+               f"signal {last['signal']}" if last.get("signal") else f"code {last['code']}" if last.get("code") is not None
                else last.get("error", "")) if last else ""
         health = c.get("health", {}).get("detail", "")
         note = why or health

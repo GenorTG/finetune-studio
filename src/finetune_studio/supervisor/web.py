@@ -9,6 +9,9 @@ import urllib.request
 from finetune_studio.supervisor.spec import ComponentSpec
 
 WEB_APP = "finetune_studio.webui.app:app"
+# Open SSE streams (activity feed, jobs) never end by themselves: without a cap, uvicorn waits for them until the
+# supervisor's SIGKILL (15 s). In-flight jobs die with the process anyway, so a short cap only makes restarts fast.
+GRACEFUL_SHUTDOWN_S = 3
 
 
 class ListenSocket:
@@ -64,7 +67,8 @@ def web_spec(host: str, port: int, *, cwd: str | None = None) -> ComponentSpec:
     probe_url = f"http://[{probe_host}]:{port}/api/health" if ":" in probe_host else f"http://{probe_host}:{port}/api/health"
     return ComponentSpec(
         name="web",
-        argv=lambda: [sys.executable, "-m", "uvicorn", WEB_APP, "--fd", str(listen.fileno()), "--no-access-log"],
+        argv=lambda: [sys.executable, "-m", "uvicorn", WEB_APP, "--fd", str(listen.fileno()), "--no-access-log",
+                      "--timeout-graceful-shutdown", str(GRACEFUL_SHUTDOWN_S)],
         pass_fds=lambda: (listen.fileno(),),
         prepare=listen.open,
         release=listen.close,

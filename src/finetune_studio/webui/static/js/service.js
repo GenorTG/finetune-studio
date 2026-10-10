@@ -75,9 +75,9 @@
   function lastExitText(c) {
     const l = c.last_exit;
     if (!l) return c.health && c.health.detail ? esc(c.health.detail) : '–';
-    const how = l.signal ? `killed by ${l.signal}` : l.code != null ? `exit code ${l.code}` : esc(l.error || 'exited');
+    const how = l.reason === 'requested' ? 'restarted on request' : l.signal ? `killed by ${l.signal}` : l.code != null ? `exit code ${l.code}` : esc(l.error || 'exited');
     const when = l.at ? new Date(l.at * 1000).toLocaleTimeString() : '';
-    return `${esc(how)}${l.reason === 'requested' ? ' (restart on request)' : ''} <span class="dim">${esc(when)}</span>`;
+    return `${esc(how)} <span class="dim">${esc(when)}</span>`;
   }
 
   function renderCard(body) {
