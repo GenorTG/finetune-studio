@@ -13,11 +13,10 @@ import logging
 import os
 import platform
 import re
-import shutil
 import subprocess
 from typing import Any
 
-from finetune_studio.accel.env import PhysicalGPU
+from finetune_studio.accel.env import PhysicalGPU, vendor_tool
 from finetune_studio.accel.env import matches as policy_matches
 
 log = logging.getLogger(__name__)
@@ -26,10 +25,11 @@ MIB = 1024 ** 2
 
 
 def _run(cmd: list[str], timeout: float = 3.0) -> str | None:
-    if shutil.which(cmd[0]) is None:
+    tool = vendor_tool(cmd[0])  # PATH, then the known install dirs (a user unit has no ~/.local/bin)
+    if tool is None:
         return None
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
+        r = subprocess.run([tool, *cmd[1:]], capture_output=True, text=True, timeout=timeout, check=False)
     except (OSError, subprocess.SubprocessError):
         return None
     return r.stdout if r.returncode == 0 else None

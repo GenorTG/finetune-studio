@@ -48,8 +48,40 @@ class PhysicalGPU:
     name: str
 
 
+# Where vendor CLIs live when they are NOT on PATH. A systemd --user unit gets the
+# system PATH only: genorbox1's /usr/bin/nvidia-smi is a dangling alternatives link
+# and the real binary sits in ~/.local/bin, so `shutil.which` alone listed no GPU.
+_TOOL_DIRS: tuple[str, ...] = (
+    "~/.local/bin",
+    "/usr/lib/nvidia/current",
+    "/usr/lib/wsl/lib",
+    "/usr/local/cuda/bin",
+    "/opt/rocm/bin",
+    "/opt/intel/oneapi/bin",
+)
+
+
+def vendor_tool(name: str) -> str | None:
+    """Absolute path of a vendor CLI (``nvidia-smi``, ``rocm-smi``, …) or ``None``.
+
+    PATH first, then the well-known install dirs above. A dangling symlink is not
+    a tool (``os.path.isfile`` follows the link and fails).
+    """
+    found = shutil.which(name)
+    if found:
+        return found
+    for d in _TOOL_DIRS:
+        cand = os.path.join(os.path.expanduser(d), name)
+        if os.path.isfile(cand) and os.access(cand, os.X_OK):
+            return cand
+    return None
+
+
 def _run(cmd: list[str]) -> str:
-    out = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
+    tool = vendor_tool(cmd[0])
+    if tool is None:
+        return ""
+    out = subprocess.run([tool, *cmd[1:]], capture_output=True, text=True, timeout=10, check=False)
     return out.stdout if out.returncode == 0 else ""
 
 
@@ -71,7 +103,7 @@ def matches(gpu: PhysicalGPU, tokens: list[str], indices: frozenset[int]) -> boo
 
 
 def list_nvidia(run: Runner = _run) -> list[PhysicalGPU]:
-    if shutil.which("nvidia-smi") is None and run is _run:
+    if vendor_tool("nvidia-smi") is None and run is _run:
         return []
     gpus: list[PhysicalGPU] = []
     for line in run(["nvidia-smi", "--query-gpu=index,uuid,name",
@@ -83,7 +115,7 @@ def list_nvidia(run: Runner = _run) -> list[PhysicalGPU]:
 
 
 def list_amd(run: Runner = _run) -> list[PhysicalGPU]:
-    if shutil.which("rocm-smi") is None and run is _run:
+    if vendor_tool("rocm-smi") is None and run is _run:
         return []
     try:
         data = json.loads(run(["rocm-smi", "--showproductname", "--json"]) or "{}")
