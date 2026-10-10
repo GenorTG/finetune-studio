@@ -16,6 +16,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
+from finetune_studio.supervisor.env import child_env
 from finetune_studio.supervisor.events import EventLog
 from finetune_studio.supervisor.spec import ComponentSpec, State
 
@@ -179,7 +180,7 @@ class Supervisor:
         try:
             if spec.prepare:
                 spec.prepare()
-            env = {**os.environ, **spec.env}
+            env = child_env(spec.env)
             c.proc = await asyncio.create_subprocess_exec(
                 *spec.argv(), cwd=spec.cwd, env=env, stdin=asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
