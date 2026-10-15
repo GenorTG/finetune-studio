@@ -123,7 +123,9 @@ async def lifespan(app: FastAPI):
     # Independent reconciles first, so a failed data-prep resume below cannot
     # skip them.
     try:
-        n = db.reconcile_stale_brain_builds("interrupted by service restart" + cause)
+        from finetune_studio.webui.brain_build_jobs import running_build_ids
+        # A build whose job process is still alive (the web restarted, the build did not) is left alone.
+        n = db.reconcile_stale_brain_builds("interrupted by service restart" + cause, keep=running_build_ids())
         if n:
             print(f"Reconciled {n} stale brain_builds row(s)")
         from finetune_studio.webui.export_jobs import running_export_ids
@@ -131,7 +133,9 @@ async def lifespan(app: FastAPI):
         n = db.reconcile_stale_exports("interrupted by service restart" + cause, keep=running_export_ids())
         if n:
             print(f"Reconciled {n} stale model_exports row(s)")
-        n = db.reconcile_stale_benchmarks(cause)
+        from finetune_studio.webui.testing_jobs import running_benchmark_ids
+        # A test run / judge / comparison whose job process is still alive is left alone.
+        n = db.reconcile_stale_benchmarks(cause, keep=running_benchmark_ids())
         if n:
             print(f"Reconciled {n} stale test run/judge job(s)")
         from finetune_studio.testing.scoring import rescore_legacy_benchmarks
@@ -155,10 +159,11 @@ async def lifespan(app: FastAPI):
     from finetune_studio.knowledge.sources import resume_unfinished
 
     threading.Thread(target=resume_unfinished, name="resume-parses", daemon=True).start()
-    # Mining jobs run in this process: after a restart nothing runs them, so say so on their rows (items and pairs stay).
+    # Mining runs in the mining worker job: files whose worker outlived the restart are left alone, the rest are
+    # interrupted (Fill gaps continues them) and still-queued files get a worker.
     try:
-        from finetune_studio.data.mining import interrupt_after_restart
-        interrupt_after_restart()
+        from finetune_studio.data.mining import recover_after_restart
+        recover_after_restart()
     except Exception:  # noqa: BLE001 - startup recovery must never block boot
         _log.exception("Mining restart recovery failed")
     import asyncio
@@ -166,6 +171,11 @@ async def lifespan(app: FastAPI):
     from finetune_studio.jobs import watch
     from finetune_studio.webui import export_jobs
     watch.on_finished(export_jobs.KIND, export_jobs.on_finished)
+    from finetune_studio.data.mining import scheduler as mining_scheduler
+    from finetune_studio.webui import brain_build_jobs, download_jobs
+    watch.on_finished(mining_scheduler.KIND, mining_scheduler.on_finished)
+    watch.on_finished(download_jobs.KIND, download_jobs.on_finished)        # settle row + refresh model registry
+    watch.on_finished(brain_build_jobs.KIND, brain_build_jobs.on_finished)  # fail a row its dead job left active
     reaper = asyncio.create_task(_idle_reaper())
     watcher = asyncio.create_task(watch.run_forever())
     try:
