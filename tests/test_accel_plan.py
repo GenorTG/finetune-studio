@@ -507,12 +507,15 @@ def test_cpu_only_cli_is_rebuilt_on_a_gpu_host(monkeypatch, tmp_path) -> None:
 
 # ── CLI + the real shell installer on fake hardware ────────────────────────
 
-def _bash_plan(tmp_path: Path, fixture: dict, *flags: str) -> dict:
+def _bash_plan(tmp_path: Path, fixture: dict, *flags: str, venv: Path | None = None) -> dict:
     fx = tmp_path / "fx.json"
     fx.write_text(json.dumps({"system": "Linux", "machine": "x86_64", **fixture}))
+    # Own venv dir: the checkout's .venv may hold a stored --cpu choice (CI installs with --cpu) that wins over the fixture.
+    env = {**os.environ, "FTS_ACCEL_FIXTURE": str(fx), "PATH": os.environ["PATH"], "CUDA_VISIBLE_DEVICES": "",
+           "VENV_DIR": str(venv or tmp_path / "no-venv")}
+    env.pop("FTS_FORCE_VENDOR", None)
     r = subprocess.run(["bash", str(ROOT / "install.sh"), "--plan", *flags], capture_output=True, text=True,
-                       env={**os.environ, "FTS_ACCEL_FIXTURE": str(fx), "PATH": os.environ["PATH"],
-                            "CUDA_VISIBLE_DEVICES": ""}, cwd=ROOT, check=False, timeout=60)
+                       env=env, cwd=ROOT, check=False, timeout=60)
     assert r.returncode == 0, r.stderr
     return json.loads(r.stdout)   # stdout is the plan and nothing else (D12): logs go to stderr
 
@@ -529,6 +532,14 @@ def test_install_sh_plan_resolves_every_vendor(tmp_path: Path) -> None:
     # --cpu wins over detected hardware; --gpu overrides detection
     assert _bash_plan(tmp_path, nvidia([R3090], "580.1", "13.0"), "--cpu")["torch_tag"] == "cpu"
     assert _bash_plan(tmp_path, {}, "--gpu", "amd")["torch_tag"] == "rocm7.2"
+
+
+def test_install_sh_plan_honours_the_stored_accelerator_choice(tmp_path: Path) -> None:
+    venv = tmp_path / "venv"
+    venv.mkdir()
+    (venv / "fts-force-vendor").write_text("none\n")
+    assert _bash_plan(tmp_path, nvidia([R3090], "580.1", "13.0"), venv=venv)["torch_tag"] == "cpu"
+    assert _bash_plan(tmp_path, nvidia([R3090], "580.1", "13.0"), "--gpu", "nvidia", venv=venv)["torch_tag"] == "cu132"
 
 
 def test_unsloth_profile_installs_without_the_stack_pins(monkeypatch, tmp_path) -> None:
