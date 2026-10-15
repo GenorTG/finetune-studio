@@ -23,6 +23,13 @@ KINDS: dict[str, str] = {
     "selftest": "finetune_studio.jobs.kinds.selftest:run",
     "training": "finetune_studio.jobs.kinds.training:run",
     "export": "finetune_studio.jobs.kinds.export:run",
+    # Being converted (2026-10-15); a kind whose module does not exist yet fails as a bad spec, never silently.
+    "testrun": "finetune_studio.jobs.kinds.testrun:run",
+    "judge": "finetune_studio.jobs.kinds.judge:run",
+    "compare": "finetune_studio.jobs.kinds.compare:run",
+    "mining": "finetune_studio.jobs.kinds.mining:run",
+    "download": "finetune_studio.jobs.kinds.download:run",
+    "brain_build": "finetune_studio.jobs.kinds.brain_build:run",
 }
 
 EXIT_DONE, EXIT_FAILED, EXIT_BAD_SPEC, EXIT_STOPPED = 0, 1, 2, 3
@@ -73,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         spec = store.read_spec(args.id)
         fn = _resolve(spec.kind)
-    except (FileNotFoundError, KeyError, ValueError, TypeError) as e:
+    except (FileNotFoundError, KeyError, ValueError, TypeError, ImportError) as e:
         print(f"[job] {e}", file=sys.stderr, flush=True)
         try:
             store.write_exit(args.id, {"status": "failed", "error": str(e), "code": EXIT_BAD_SPEC})
