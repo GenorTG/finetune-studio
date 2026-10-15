@@ -73,68 +73,63 @@
   {# ── Right column: Debug info + Storage Paths + Hosting ────────────── #}
   {# min-width:0 lets the compute table scroll inside its card instead of widening the grid column #}
   <div style="min-width:0">
-    <div class="card mb-4">
+    <div class="card mb-4" id="access-card">
       <div class="card-head">
-        <div class="card-title">Server & Hosting</div>
-        <div class="card-sub">Port, CORS, trusted hosts, reverse proxy. Changes require a restart.</div>
+        <div class="card-title">Access &amp; network</div>
+        <div class="card-sub">Who can open this web UI, and with what.</div>
       </div>
+      <p id="access-summary" class="mb-3" role="status">Loading…</p>
 
-      <div class="mb-3">
-        <label class="block text-xs muted mb-1" for="hosting-port"
-               title="Network port the server listens on. Default 7860.">Port</label>
-        <input id="hosting-port" type="number" class="input" style="max-width:140px"
-               value="7860" min="1" max="65535" />
-      </div>
+      <h3 class="text-xs muted mb-1">Password</h3>
+      <p class="text-xs dim mb-2" id="access-pw-note"></p>
+      <form id="access-pw-form" class="access-form mb-3" autocomplete="off">
+        <input id="access-pw-current" class="input" type="password" autocomplete="current-password"
+               placeholder="Current password" hidden>
+        <input id="access-pw-new" class="input" type="password" autocomplete="new-password" placeholder="New password">
+        <div class="flex gap-2">
+          <button class="btn sm primary" type="submit" id="access-pw-save">Set password</button>
+          <button class="btn sm" type="button" id="access-pw-off" hidden>Turn password off</button>
+        </div>
+      </form>
 
-      <div class="mb-3">
-        <label class="block text-xs muted mb-1" for="hosting-host"
-               title="0.0.0.0 = listen on all interfaces. 127.0.0.1 = localhost only.">Bind host</label>
-        <select id="hosting-host" class="select" style="max-width:200px">
-          <option value="0.0.0.0">0.0.0.0 (all interfaces — for hosting)</option>
-          <option value="127.0.0.1">127.0.0.1 (localhost only)</option>
+      <h3 class="text-xs muted mb-1">Listen address</h3>
+      <p class="text-xs dim mb-2">Applies when the service restarts (Settings -&gt; Service, or <code>fts down &amp;&amp; fts up</code>).</p>
+      <form id="access-server-form" class="access-form mb-3">
+        <select id="access-host" class="select">
+          <option value="127.0.0.1">This computer only (127.0.0.1)</option>
+          <option value="0.0.0.0">Every network this machine is on (0.0.0.0)</option>
         </select>
+        <input id="access-port" class="input" type="number" min="1" max="65535" aria-label="Port">
+        <input id="access-allowed" class="input" type="text"
+               placeholder="Extra host names, comma separated (reverse proxy), e.g. studio.example">
+        <button class="btn sm" type="submit">Save address</button>
+      </form>
+
+      <h3 class="text-xs muted mb-1">API tokens</h3>
+      <p class="text-xs dim mb-2">For scripts and other tools: <code>Authorization: Bearer &lt;token&gt;</code>. Only used while a password is set.</p>
+      <ul id="access-tokens" class="access-list mb-2"></ul>
+      <form id="access-token-form" class="flex gap-2 mb-2">
+        <input id="access-token-name" class="input" type="text" maxlength="60" placeholder="Token name, e.g. backup script">
+        <button class="btn sm" type="submit">Create token</button>
+      </form>
+      <p id="access-token-new" class="access-secret mb-3" hidden></p>
+
+      <h3 class="text-xs muted mb-1">Signed-in browsers</h3>
+      <div class="flex gap-2 items-center mb-3">
+        <span id="access-sessions" class="text-xs"></span>
+        <button class="btn sm" type="button" id="access-signout-others">Sign out other browsers</button>
+        <button class="btn sm" type="button" id="access-signout" hidden>Sign out</button>
       </div>
 
-      <div class="mb-3">
-        <label class="block text-xs muted mb-1" for="hosting-cors"
-               title="One origin per line (e.g. https://mydomain.com). Empty = no CORS (only same-origin requests allowed).">CORS allowed origins</label>
-        <textarea id="hosting-cors" class="input" rows="3" style="min-width:260px;font-family:monospace;font-size:12px;"
-                  placeholder="https://mydomain.com&#10;https://app.mydomain.com"></textarea>
-      </div>
-
-      <div class="mb-3">
-        <label class="flex items-center gap-2 text-xs">
-          <input id="hosting-cors-creds" type="checkbox" checked />
-          Allow credentials (cookies, authorization headers)
-        </label>
-      </div>
-
-      <div class="mb-3">
-        <label class="block text-xs muted mb-1" for="hosting-trusted"
-               title="Optional: restrict to these hosts. Empty = accept all.">Trusted hosts (optional)</label>
-        <textarea id="hosting-trusted" class="input" rows="2" style="min-width:260px;font-family:monospace;font-size:12px;"
-                  placeholder="mydomain.com&#10;www.mydomain.com"></textarea>
-      </div>
-
-      <div class="mb-3">
-        <label class="flex items-center gap-2 text-xs">
-          <input id="hosting-proxy" type="checkbox" />
-          Enable proxy headers (for nginx / Caddy / Traefik)
-        </label>
-        <div class="text-xs dim mt-1">When on a reverse proxy, enable this so the app sees the real client IP and protocol.</div>
-      </div>
-
-      <div class="mb-3">
-        <label class="block text-xs muted mb-1" for="hosting-rootpath"
-               title="If served under a subpath (e.g. https://mydomain.com/fts), set this to the prefix.">Root path (optional)</label>
-        <input id="hosting-rootpath" type="text" class="input" style="max-width:260px"
-               placeholder="/fts" />
-      </div>
-
-      <div class="flex gap-2 mt-3">
-        <button class="btn sm primary" id="btn-hosting-save" title="Save hosting settings (restart required to take effect)">Save &amp; Restart</button>
-        <span id="hosting-status" class="text-xs dim">Idle.</span>
-      </div>
+      <details class="mb-2">
+        <summary class="text-xs muted">Advanced: reverse proxy and CORS</summary>
+        <label class="block text-xs muted mt-2 mb-1" for="hosting-cors">Other sites allowed to call this API (CORS origins, one per line)</label>
+        <textarea id="hosting-cors" class="input access-mono" rows="3" placeholder="https://app.example"></textarea>
+        <label class="flex items-center gap-2 text-xs mt-2"><input id="hosting-cors-creds" type="checkbox"> Send cookies with those calls</label>
+        <label class="flex items-center gap-2 text-xs mt-2"><input id="hosting-proxy" type="checkbox"> Behind nginx / Caddy / Traefik (trust X-Forwarded-* headers)</label>
+        <button class="btn sm mt-2" type="button" id="btn-hosting-save">Save (applies on restart)</button>
+      </details>
+      <p id="access-status" class="text-xs" role="status"></p>
     </div>
 
     <div class="card mb-4" id="judge-card">
@@ -321,5 +316,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/settings.js?v=13"></script>
+<script src="/static/js/settings.js?v=14"></script>
+<script src="/static/js/security.js?v=1"></script>
 {% endblock %}

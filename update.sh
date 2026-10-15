@@ -220,8 +220,14 @@ if [ "$NO_RESTART" = "0" ] && [ "$CHECK_MODE" = "0" ]; then
     if [ "$unit_active" = "1" ] && [ "$(readlink -f "$unit_dir" 2>/dev/null)" != "$(readlink -f "$PWD")" ]; then
         warn "finetune-studio.service runs ${unit_dir:-another checkout}, not $PWD: not restarting it"
     elif [ "$unit_active" = "1" ]; then
-        if ! systemctl --user show -p ExecStart --value finetune-studio 2>/dev/null | grep -q "finetune_studio.supervisor"; then
+        unit_exec="$(systemctl --user show -p ExecStart --value finetune-studio 2>/dev/null)"
+        if ! grep -q "finetune_studio.supervisor" <<<"$unit_exec"; then
             warn "finetune-studio.service still runs a bare uvicorn (no supervisor): run 'bash install-service.sh' once on this host"
+        elif grep -q -- "--host" <<<"$unit_exec"; then
+            # Units before 2026-10-15 baked the address into ExecStart, which overrides server.json (Settings ->
+            # Access & network). Rewrite the unit; install-service.sh carries the old address into server.json.
+            log "Moving the listen address out of the unit into server.json..."
+            bash install-service.sh --no-start 2>&1 | tail -4 || warn "unit rewrite failed; run bash install-service.sh"
         fi
         log "Restarting finetune-studio.service..."
         systemctl --user restart finetune-studio 2>&1 \

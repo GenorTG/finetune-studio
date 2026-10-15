@@ -117,7 +117,8 @@ def cmd_events(args) -> None:
 
 def cmd_supervisor(args) -> None:
     from finetune_studio.supervisor.__main__ import main
-    sys.exit(main(["--host", args.host, "--port", str(args.port)]))
+    argv = [*(["--host", args.host] if args.host else []), *(["--port", str(args.port)] if args.port else [])]
+    sys.exit(main(argv))
 
 
 def _unit_installed() -> bool:
@@ -139,8 +140,37 @@ DOCUMENT_TOOLS = (
 )
 
 
-def doctor_checks(port: int = 7860) -> list[tuple[str, str, str]]:
+def _unit_listen_host() -> str | None:
+    """A unit written before server.json existed bakes ``--host`` into ExecStart; that one wins."""
+    if not shutil.which("systemctl"):
+        return None
+    res = subprocess.run(["systemctl", "--user", "show", "-p", "ExecStart", "--value", UNIT],
+                         capture_output=True, text=True, check=False)
+    parts = res.stdout.replace(";", " ").split()
+    return parts[parts.index("--host") + 1] if "--host" in parts[:-1] else None
+
+
+def access_check() -> tuple[str, str, str]:
+    from finetune_studio.access import server, store
+    try:
+        addr, cfg = server.load(), store.load()
+    except (ValueError, RuntimeError) as e:
+        return ("fail", "access", str(e))
+    host = _unit_listen_host() or addr.host
+    where = "this computer only" if server.is_loopback(host) else "the network"
+    detail = f"listening on {host} ({where}), password {'on' if cfg.enabled else 'off'}, {len(cfg.tokens)} API token(s)"
+    if not server.is_loopback(host) and not cfg.enabled:
+        return ("fail", "access", detail + ": anyone on the network can control it -> fts auth set-password")
+    return ("ok", "access", detail)
+
+
+def doctor_checks(port: int | None = None) -> list[tuple[str, str, str]]:
     """(status, check, detail) rows; status is ok | warn | fail. Works with everything down."""
+    from finetune_studio.access import server
+    try:
+        port = port or server.load().port
+    except ValueError:
+        port = port or 7860
     rows: list[tuple[str, str, str]] = []
     try:
         snap = SupervisorClient(timeout=2.0).status()
@@ -157,6 +187,7 @@ def doctor_checks(port: int = 7860) -> list[tuple[str, str, str]]:
         rows.append(("ok" if state == "active" else "fail", f"systemd unit {UNIT}", state))
     else:
         rows.append(("warn", f"systemd unit {UNIT}", "not installed (run install-service.sh)"))
+    rows.append(access_check())
     from finetune_studio.accel.saved_choice import choice_path
 
     choice = choice_path()

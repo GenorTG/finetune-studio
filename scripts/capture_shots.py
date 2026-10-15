@@ -28,7 +28,7 @@ PAGES: list[tuple[str, str]] = [
     ("08_models", f"{BASE}/projects/{PID}/models"),
     ("09_export", f"{BASE}/projects/{PID}/export"),
     ("10_testing", f"{BASE}/projects/{PID}/testing"),
-    ("11_benchmarks", f"{BASE}/benchmarks"),
+    ("11_benchmarks", f"{BASE}/projects/{PID}/benchmarks"),
     ("12_settings", f"{BASE}/settings"),
     ("13_chat", f"{BASE}/projects/{PID}/chat"),
 ]

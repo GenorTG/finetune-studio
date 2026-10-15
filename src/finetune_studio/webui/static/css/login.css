@@ -1,0 +1,23 @@
+/* Sign-in page (templates/login.html): stands alone, no app chrome. Uses the app.css tokens. */
+.login-body {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--bg-app);
+  color: var(--text);
+  margin: 0;
+  padding: 16px;
+}
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  padding: 28px 24px;
+}
+.login-title { margin: 0 0 4px; font-size: 1.4rem; color: var(--accent); }
+.login-sub { margin: 0 0 20px; color: var(--text-muted); }
+.login-form { display: grid; gap: 10px; }
+.login-form input[type="password"] { width: 100%; box-sizing: border-box; }
+.login-error { margin: 4px 0 0; color: var(--err); }
+.login-help { margin: 20px 0 0; font-size: 0.85rem; color: var(--text-dim); }

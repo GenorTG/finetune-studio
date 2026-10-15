@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+
+from finetune_studio.access import paths as access_paths
 
 router = APIRouter()
 log = logging.getLogger(__name__)
 
 # Settings file location (user-data preserved across updates)
-SETTINGS_PATH = Path.home() / ".finetune-studio" / "settings.json"
+SETTINGS_PATH = access_paths.root() / "settings.json"     # $FTS_ROOT, like every other piece of app state
 
 
 def _load() -> dict[str, Any]:
@@ -35,14 +36,11 @@ def _save(data: dict[str, Any]) -> None:
 
 
 # ── Default settings (used when settings.json doesn't exist) ──
+# The listen address is NOT here: it lives in $FTS_ROOT/server.json (access.server, Settings -> Access & network).
 DEFAULTS: dict[str, Any] = {
-    "host": "0.0.0.0",
-    "port": 7860,
     "cors_origins": [],
     "cors_allow_credentials": True,
-    "trusted_hosts": [],
     "proxy_headers": False,
-    "root_path": "",
 }
 
 
@@ -132,12 +130,3 @@ async def update_settings(request: Request):
     _save(current)
     return _redacted(current)
 
-
-@router.post("/api/settings/reload")
-async def reload_settings():
-    """Tell the app to reload settings from disk (e.g. after port change).
-
-    Returns whether a restart is needed."""
-    current = _load()
-    needs_restart = "port" in current or "host" in current
-    return {"ok": True, "needs_restart": needs_restart, "settings": _redacted(current)}

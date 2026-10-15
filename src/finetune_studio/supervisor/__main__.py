@@ -54,14 +54,20 @@ async def run(host: str, port: int) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m finetune_studio.supervisor")
-    parser.add_argument("--host", default="0.0.0.0")
-    parser.add_argument("--port", type=int, default=7860)
+    parser.add_argument("--host", default=None, help="default: $FTS_ROOT/server.json (127.0.0.1 = this computer only)")
+    parser.add_argument("--port", type=int, default=None, help="default: $FTS_ROOT/server.json, else 7860")
     args = parser.parse_args(argv)
+    from finetune_studio.access import server
+    try:
+        addr = server.resolve(args.host, args.port)
+    except ValueError as e:
+        print(f"[supervisor] {e}", file=sys.stderr)
+        return 2
     lock = take_lock(lock_path())
     if lock is None:
         print(f"[supervisor] another supervisor already runs for this FTS_ROOT ({lock_path()})", file=sys.stderr)
         return 1
-    asyncio.run(run(args.host, args.port))
+    asyncio.run(run(addr.host, addr.port))
     return 0
 
 

@@ -238,6 +238,16 @@ def project_env(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _testclient_host_is_local(monkeypatch):
+    """TestClient sends ``Host: testserver``; the DNS-rebinding guard only lets loopback names through while the
+    app listens on this computer only. Count it as one here (tests/test_access.py checks the guard itself)."""
+    from finetune_studio.access import middleware as _access_mw
+    monkeypatch.setattr(_access_mw, "LOOPBACK_NAMES", _access_mw.LOOPBACK_NAMES | {"testserver"})
+    _access_mw._cache.update(mtime=None, cfg=None)
+    _access_mw._addr_cache.update(mtime=None, addr=None)
+
+
+@pytest.fixture(autouse=True)
 def _no_real_inference_worker(monkeypatch):
     """No test may start a REAL inference worker (torch import, GPU context, minutes). A test that needs
     a worker uses the fake engine explicitly (see tests/test_inference_worker.py); everything else

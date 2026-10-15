@@ -28,7 +28,7 @@ else
     source .venv/bin/activate
 fi
 
-PORT="${PORT:-7860}"
-HOST="${HOST:-0.0.0.0}"
-echo "[run] Finetune Studio → http://localhost:$PORT"
-exec python -m uvicorn finetune_studio.webui.app:app --host "$HOST" --port "$PORT" "$@"
+# Address: $FTS_ROOT/server.json (Settings -> Access & network; default 127.0.0.1:7860, this computer only).
+# HOST=... / PORT=... override it for this run.
+echo "[run] Finetune Studio, address: $(python -m finetune_studio.cli server show)"
+exec python -m finetune_studio.cli webui ${HOST:+--host "$HOST"} ${PORT:+--port "$PORT"} "$@"

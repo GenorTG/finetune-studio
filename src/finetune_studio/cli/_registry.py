@@ -14,6 +14,7 @@ import sys
 
 from finetune_studio.cli._parser import build_parser
 from finetune_studio.cli.commands.accel import cmd_accel
+from finetune_studio.cli.commands.access import cmd_auth, cmd_server
 from finetune_studio.cli.commands.analyze import cmd_analyze
 from finetune_studio.cli.commands.augment import cmd_augment
 from finetune_studio.cli.commands.benchmark import cmd_benchmark
@@ -44,6 +45,8 @@ from finetune_studio.cli.commands.vram import cmd_vram
 from finetune_studio.cli.commands.webui import cmd_webui
 
 COMMANDS = {
+    "auth": cmd_auth,
+    "server": cmd_server,
     "models": cmd_models,
     "train": cmd_train,
     "test": cmd_test,

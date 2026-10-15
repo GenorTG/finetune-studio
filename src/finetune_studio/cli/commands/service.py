@@ -91,7 +91,8 @@ def cmd_up(args) -> None:
     log_path = run_dir() / "supervisor.log"
     with log_path.open("ab") as log:
         subprocess.Popen(  # detached: survives this terminal
-            [sys.executable, "-m", "finetune_studio.supervisor", "--host", args.host, "--port", str(args.port)],
+            [sys.executable, "-m", "finetune_studio.supervisor",
+             *(["--host", args.host] if args.host else []), *(["--port", str(args.port)] if args.port else [])],
             cwd=cwd, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
         )
     _report_started(f"manual, log {log_path}")

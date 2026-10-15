@@ -17,7 +17,8 @@
 # Detects:
 #   - systemd availability (falls back to a clear error if missing)
 #   - venv location (defaults to ./venv relative to the repo)
-#   - port (defaults to 7860)
+#   - listen address: $FTS_ROOT/server.json (Settings -> Security / `fts server set`; default
+#     127.0.0.1:7860 = this computer only). HOST=... PORT=... in the environment save a new one.
 #
 # Verifies:
 #   - service is active after start (polls /api/providers for up to 20s)
@@ -34,8 +35,9 @@ cd "$(dirname "$(readlink -f "$0")")"
 INSTALL_MODE="user"      # "user" or "system"
 ACTION="install"
 VENV_DIR="${VENV_DIR:-.venv}"
-PORT="${PORT:-7860}"
-HOST="${HOST:-0.0.0.0}"
+# Explicit HOST/PORT save a new listen address; unset = keep $FTS_ROOT/server.json.
+REQ_HOST="${HOST:-}"
+REQ_PORT="${PORT:-}"
 FTS_ROOT="${FTS_ROOT:-}"
 NO_START=0
 
@@ -119,12 +121,32 @@ fi
 log "Installing systemd $INSTALL_MODE unit..."
 log "  unit file: $UNIT_FILE"
 log "  python:    $VENV_PY"
-log "  port:      $PORT"
 
 # Sanity: venv must exist + importable
 [ -x "$VENV_PY" ] || die "venv python not found at $VENV_PY — run install.sh first."
 "$VENV_PY" -c "import fastapi, jinja2" 2>/dev/null \
     || die "venv python can't import fastapi/jinja2 — run install.sh first."
+
+# ── Listen address (server.json) ────────────────────────────────────────
+# Units written before 2026-10-15 baked "--host 0.0.0.0 --port 7860" into ExecStart. Carry that address into
+# server.json once, so an existing network install keeps working (and is warned about a missing password)
+# instead of silently becoming local-only.
+FTS_CLI=("$VENV_PY" -m finetune_studio.cli)
+SERVER_JSON="${FTS_ROOT:-$HOME/.finetune-studio}/server.json"
+if [ -z "$REQ_HOST" ] && [ -z "$REQ_PORT" ] && [ ! -f "$SERVER_JSON" ] && [ -f "$UNIT_FILE" ]; then
+    OLD_EXEC="$(grep -m1 '^ExecStart=' "$UNIT_FILE" || true)"
+    REQ_HOST="$(sed -n 's/.*--host \([^ ]*\).*/\1/p' <<<"$OLD_EXEC")"
+    REQ_PORT="$(sed -n 's/.*--port \([0-9]*\).*/\1/p' <<<"$OLD_EXEC")"
+    [ -n "$REQ_HOST$REQ_PORT" ] && log "Moving the listen address of the old unit into $SERVER_JSON"
+fi
+if [ -n "$REQ_HOST$REQ_PORT" ]; then
+    "${FTS_CLI[@]}" server set ${REQ_HOST:+--host "$REQ_HOST"} ${REQ_PORT:+--port "$REQ_PORT"} --yes \
+        || die "could not save the listen address"
+fi
+read -r HOST PORT <<<"$("${FTS_CLI[@]}" server show | sed -E 's/^(.*):([0-9]+).*$/\1 \2/')"
+log "  address:   $HOST:$PORT  (\$FTS_ROOT/server.json; change: Settings -> Security or fts server set)"
+"${FTS_CLI[@]}" auth status 2>&1 | grep -q '^WARNING' \
+    && warn "listening on $HOST without a password: anyone on the network can use it. Run: .venv/bin/fts auth set-password"
 
 # Build environment block (overridable via FTS_ROOT etc.)
 ENV_BLOCK=""
@@ -156,7 +178,7 @@ fi
 "${SUDO[@]}" tee "$UNIT_FILE" >/dev/null <<EOF
 # Finetune Studio — systemd unit (managed by install-service.sh)
 [Unit]
-Description=Finetune Studio WebUI (port $PORT)
+Description=Finetune Studio WebUI
 After=network-online.target
 Wants=network-online.target
 
@@ -165,7 +187,8 @@ Type=exec${USER_BLOCK:+
 $USER_BLOCK}
 WorkingDirectory=$REPO_DIR
 # The supervisor owns the listening socket and the web child; systemd only supervises the supervisor.
-ExecStart=$VENV_PY -m finetune_studio.supervisor --host $HOST --port $PORT
+# Listen address and port come from \$FTS_ROOT/server.json (Settings -> Security), not from this unit.
+ExecStart=$VENV_PY -m finetune_studio.supervisor
 KillMode=control-group
 Restart=on-failure
 RestartSec=5
@@ -236,7 +259,8 @@ log "Starting $UNIT_NAME..."
 
 # Poll the health endpoint for up to 20 seconds
 log "Waiting for webui to come up on :$PORT..."
-HEALTH_URL="http://127.0.0.1:$PORT/api/health"
+case "$HOST" in 0.0.0.0|::|localhost|127.*|::1) PROBE_HOST="127.0.0.1" ;; *) PROBE_HOST="$HOST" ;; esac
+case "$PROBE_HOST" in *:*) HEALTH_URL="http://[$PROBE_HOST]:$PORT/api/health" ;; *) HEALTH_URL="http://$PROBE_HOST:$PORT/api/health" ;; esac
 for i in $(seq 1 40); do
     sleep 0.5
     if curl -fsS --max-time 2 "$HEALTH_URL" >/dev/null 2>&1; then

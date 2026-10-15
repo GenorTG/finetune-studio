@@ -12,7 +12,7 @@ git clone https://github.com/GenorTG/finetune-studio.git
 cd finetune-studio
 ./install.sh                       # does everything below
 source .venv/bin/activate
-fts webui --host 0.0.0.0 --port 7860
+fts webui                          # address: Settings -> Access & network (default 127.0.0.1:7860)
 ```
 
 Then open http://localhost:7860.
@@ -126,14 +126,44 @@ CMAKE_ARGS="-DGGML_METAL=on" python -m pip install llama-cpp-python --force-rein
 ### 4. Start the studio
 
 ```bash
-source .venv/bin/activate
-fts webui --host 0.0.0.0 --port 7860
-# or directly:
-python -m finetune_studio webui
+bash run.sh                       # or: source .venv/bin/activate && fts webui
+bash install-service.sh           # optional: run it as a systemd user service (restarts on crash and reboot)
 ```
 
 Open http://localhost:7860 in any modern browser. First visit triggers the
 onboarding tutorial.
+
+### 5. Access: who can open the web UI
+
+By default Finetune Studio listens on **127.0.0.1:7860: this computer only, no password**. A terminal install
+asks once whether other devices on your network should reach it; if yes, it asks for a password.
+Change it any time in **Settings -> Access & network**, or on the machine itself:
+
+```bash
+fts auth status                   # address, password on/off, sessions, API tokens
+fts auth set-password             # turn sign-in on / change the password (prompt; or --password-file FILE)
+fts server set --host 0.0.0.0     # reachable from the network (asks for a password first; applies on restart)
+fts auth token create "backup"    # API token for scripts: Authorization: Bearer <token> (shown once)
+fts auth disable                  # no sign-in (only sensible on 127.0.0.1)
+```
+
+Forgot the password? Run `fts auth set-password` on the machine. A web UI reachable from the network
+without a password shows a red warning on every page, and `fts doctor` reports it as a failure.
+
+**Automated installs** pass a config file instead of answering (`bash install.sh --config FILE`, or
+`FTS_INSTALL_CONFIG=FILE`). The file is parsed, never executed; an unknown key is an error:
+
+```ini
+FTS_BIND_HOST=0.0.0.0                      # 127.0.0.1 (default) = this computer only
+FTS_PORT=7860
+FTS_AUTH=password                          # password | off (off is refused with a network address)
+FTS_ADMIN_PASSWORD_FILE=/run/secrets/fts   # or FTS_ADMIN_PASSWORD=... in this file (chmod 600 it)
+FTS_ALLOWED_HOSTS=studio.example           # extra host names for a reverse proxy, comma separated
+FTS_INSTALL_SERVICE=1                      # also install the systemd user unit
+```
+
+State lives under `$FTS_ROOT` (default `~/.finetune-studio`): `server.json` (address) and `auth/` (password hash,
+API token hashes, sessions; mode 0600). No plain password or token is ever stored.
 
 ---
 
@@ -194,7 +224,7 @@ brew install python@3.12 git cmake
    python -m pip install --upgrade pip
    python -m pip install torch --index-url https://download.pytorch.org/whl/cu121
    python -m pip install -e ".[parsers]"
-fts webui --host 0.0.0.0 --port 7860
+fts webui                          # address: Settings -> Access & network (default 127.0.0.1:7860)
    ```
 5. Allow Python through Windows Firewall when prompted
 6. Open http://localhost:7860
@@ -241,7 +271,7 @@ print('peft:', peft.__version__)
 print('fastapi:', fastapi.__version__)
 print('CUDA available:', torch.cuda.is_available())
 "
-fts webui --host 0.0.0.0 --port 7860 &
+fts webui &
 sleep 5
 curl -s http://localhost:7860/api/projects | head -c 200
 ```

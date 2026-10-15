@@ -30,13 +30,6 @@ def test_updater_defaults_to_installer_project_local_llama_cpp() -> None:
     assert 'LLAMA_CPP_DIR="${LLAMA_CPP_DIR:-$PWD/.llama.cpp}"' in source
 
 
-def test_legacy_launcher_uses_the_checkout_venv_not_a_fixed_home_path() -> None:
-    source = (ROOT / "scripts/run.sh").read_text(encoding="utf-8")
-    assert 'REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"' in source
-    assert 'PYTHON="$REPO_DIR/.venv/bin/python"' in source
-    assert "$HOME/finetune-studio/.venv" not in source
-
-
 def test_pip_fallback_contains_version_bounds_and_parser_packages() -> None:
     source = (ROOT / "requirements.txt").read_text(encoding="utf-8")
     assert "transformers>=5.0.0,<6.0.0" in source
@@ -48,7 +41,7 @@ def test_pip_fallback_contains_version_bounds_and_parser_packages() -> None:
         )
 
 
-SHELL_SCRIPTS = ["install.sh", "update.sh", "run.sh", "install-service.sh", "scripts/run.sh"]
+SHELL_SCRIPTS = ["install.sh", "update.sh", "run.sh", "install-service.sh"]
 
 
 @pytest.mark.parametrize("script", SHELL_SCRIPTS)

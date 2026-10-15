@@ -2,7 +2,7 @@
 
 Builds the ``app`` object served on port 7860: lifespan startup (model scan,
 DB init, restart reconciliation), the mutating-request activity middleware,
-CORS / proxy-header middleware from ``~/.finetune-studio/settings.json``, the
+CORS / proxy-header middleware from ``$FTS_ROOT/settings.json``, the
 no-cache static mount, and every router include. Also owns the process-wide
 ``training_engine`` / ``inference_engine`` / ``discovered_models`` singletons
 that route modules import lazily from here.
@@ -327,10 +327,9 @@ def _record_activity_event(request: Request, started: float, http_status: int) -
         pass
 
 # ── CORS + proxy headers (configured via Settings page) ──
-# trusted_hosts / root_path are stored by /api/settings but not applied here.
-def _apply_hosting_middleware():
-    """Apply CORS and proxy-header middleware from user settings."""
-    settings_path = Path.home() / ".finetune-studio" / "settings.json"
+def _apply_hosting_middleware() -> list[str]:
+    """Apply CORS and proxy-header middleware from user settings; returns the CORS origins (trusted for writes)."""
+    from finetune_studio.webui.routes.settings import SETTINGS_PATH as settings_path
     user: dict = {}
     if settings_path.exists():
         try:
@@ -350,8 +349,14 @@ def _apply_hosting_middleware():
     if user.get("proxy_headers"):
         from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
         app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+    return origins
 
-_apply_hosting_middleware()
+_cors_origins = _apply_hosting_middleware()
+
+# Outermost: who may reach the app at all (password / API tokens / cross-site and DNS-rebinding guards).
+from finetune_studio.access.middleware import AccessMiddleware
+
+app.add_middleware(AccessMiddleware, trusted_origins=_cors_origins)
 
 static_dir = Path(__file__).parent / "static"
 templates_dir = Path(__file__).parent / "templates"
@@ -446,6 +451,9 @@ app.include_router(_versions.router, prefix="/api", tags=["versions"])  # /api/p
 from finetune_studio.webui.routes import settings as _settings
 
 app.include_router(_settings.router)  # type: ignore[has-type]  # /api/settings
+from finetune_studio.webui.routes import access as _access
+
+app.include_router(_access.router)  # /login, /api/auth/*, /api/settings/security*
 
 from finetune_studio.webui.routes import helper_settings as _helper_settings
 

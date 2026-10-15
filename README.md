@@ -33,11 +33,13 @@ git clone https://github.com/GenorTG/finetune-studio.git
 cd finetune-studio
 ./install.sh                       # detects the GPU and installs the matching torch / llama.cpp build
 source .venv/bin/activate
-fts webui --host 127.0.0.1 --port 7860
+fts webui
 ```
 
 Open http://localhost:7860. The first visit walks you through an 8-step
-onboarding tour. Prerequisites and Windows/macOS notes: [docs/INSTALL.md](docs/INSTALL.md).
+onboarding tour. By default only this computer can open it; to use it from other devices, set a password
+(the installer asks, or **Settings -> Access & network**, or `fts auth set-password`): see
+[docs/INSTALL.md](docs/INSTALL.md#5-access-who-can-open-the-web-ui). Prerequisites and Windows/macOS notes: [docs/INSTALL.md](docs/INSTALL.md).
 
 ---
 
@@ -392,7 +394,7 @@ dataset curation.
 
 ![Chat](docs/screenshots/13_chat.png)
 
-### Benchmarks (optional, `/benchmarks`)
+### Benchmarks (optional, per project: `/projects/{pid}/benchmarks`)
 
 Public exams, separate from your project test: offline smoke suites
 (MMLU-/GSM8K-/HellaSwag-style) plus project-local suites, real HF splits

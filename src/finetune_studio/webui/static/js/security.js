@@ -1,0 +1,145 @@
+/* Settings -> Access & network: password, listen address, API tokens, sessions, CORS/proxy.
+   API: /api/settings/security* (routes/access.py). Every error shows the server's `detail`. */
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  if (!$('access-card')) return;
+  const status = (msg, bad) => { const el = $('access-status'); el.textContent = msg; el.classList.toggle('err', !!bad); };
+
+  async function api(method, url, body) {
+    const r = await fetch(url, {
+      method, credentials: 'same-origin',
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (r.status === 204) return null;
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `HTTP ${r.status}`);
+    return data;
+  }
+
+  const when = (ts) => ts ? new Date(ts * 1000).toLocaleString() : 'never';
+
+  function render(s) {
+    const srv = s.server;
+    const where = srv.loopback_only ? 'this computer only' : 'every device on the network';
+    const pw = s.password_set ? 'a password is required' : 'no password';
+    let summary = `Reachable from ${where} (${srv.listening_on}:${srv.listening_port}); ${pw}.`;
+    if (s.exposed_without_password) summary += ' Anyone on your network can use it: set a password.';
+    if (srv.restart_needed) summary += ` Saved address ${srv.host}:${srv.port} applies after a restart.`;
+    $('access-summary').textContent = summary;
+    $('access-summary').classList.toggle('err', s.exposed_without_password);
+
+    $('access-pw-note').textContent = s.password_set
+      ? `Set ${when(s.password_changed_at)}. Changing it signs out every other browser.`
+      : `Off. Set one (${s.password_min_length}+ characters) before opening this instance to the network.`;
+    $('access-pw-current').hidden = !s.password_set;
+    $('access-pw-off').hidden = !s.password_set;
+    $('access-pw-save').textContent = s.password_set ? 'Change password' : 'Set password';
+    $('access-signout').hidden = !s.password_set;
+
+    const host = $('access-host');
+    if (![...host.options].some(o => o.value === srv.host)) host.add(new Option(srv.host, srv.host));
+    host.value = srv.host;
+    $('access-port').value = srv.port;
+    $('access-allowed').value = srv.allowed_hosts.join(', ');
+
+    const list = $('access-tokens');
+    list.replaceChildren(...s.tokens.map(t => {
+      const li = document.createElement('li');
+      li.textContent = `${t.name} · created ${when(t.created_at)} · last used ${when(t.last_used_at)} `;
+      const b = document.createElement('button');
+      b.className = 'btn sm'; b.type = 'button'; b.textContent = 'Revoke';
+      b.addEventListener('click', () => run(async () => {
+        await api('DELETE', `/api/settings/security/tokens/${encodeURIComponent(t.id)}`);
+        return 'Token revoked.';
+      }));
+      li.append(b);
+      return li;
+    }));
+    if (!s.tokens.length) list.replaceChildren(Object.assign(document.createElement('li'), { textContent: 'No tokens.' }));
+    $('access-sessions').textContent = `${s.sessions} signed-in browser(s)`;
+  }
+
+  async function load() { render(await api('GET', '/api/settings/security')); }
+
+  async function run(fn) {
+    try { const msg = await fn(); await load(); status(msg || 'Saved.'); }
+    catch (e) { status(e.message, true); }
+  }
+
+  $('access-pw-form').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    run(async () => {
+      await api('PUT', '/api/settings/security/password', {
+        new_password: $('access-pw-new').value,
+        current_password: $('access-pw-current').value || null,
+      });
+      $('access-pw-new').value = ''; $('access-pw-current').value = '';
+      return 'Password saved. This browser stays signed in.';
+    });
+  });
+  $('access-pw-off').addEventListener('click', () => run(async () => {
+    const current = $('access-pw-current').value;
+    if (!current) throw new Error('Type the current password first.');
+    await api('POST', '/api/settings/security/disable', { current_password: current });
+    $('access-pw-current').value = '';
+    return 'Password removed.';
+  }));
+
+  $('access-server-form').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    run(async () => {
+      const body = {
+        host: $('access-host').value, port: parseInt($('access-port').value, 10),
+        allowed_hosts: $('access-allowed').value.split(',').map(x => x.trim()).filter(Boolean),
+      };
+      try { await api('PUT', '/api/settings/security/server', body); }
+      catch (e) {
+        if (!/password/.test(e.message) || !window.confirm(e.message + '\n\nSave anyway?')) throw e;
+        await api('PUT', '/api/settings/security/server', { ...body, confirm_no_password: true });
+      }
+      return 'Address saved: restart the service to apply it.';
+    });
+  });
+
+  $('access-token-form').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    run(async () => {
+      const t = await api('POST', '/api/settings/security/tokens', { name: $('access-token-name').value });
+      $('access-token-name').value = '';
+      const out = $('access-token-new');
+      out.textContent = `New token "${t.name}" (shown once, copy it now): ${t.token}`;
+      out.hidden = false;
+      return 'Token created.';
+    });
+  });
+
+  $('access-signout-others').addEventListener('click', () => run(async () => {
+    const r = await api('DELETE', '/api/settings/security/sessions');
+    return `Signed out ${r.signed_out_elsewhere} other browser(s).`;
+  }));
+  $('access-signout').addEventListener('click', async () => {
+    await api('POST', '/api/auth/logout').catch(() => null);
+    window.location.assign('/login');
+  });
+
+  // CORS / proxy headers: still stored in settings.json and applied at app start.
+  async function loadHosting() {
+    const s = await api('GET', '/api/settings');
+    $('hosting-cors').value = (s.cors_origins || []).join('\n');
+    $('hosting-cors-creds').checked = !!s.cors_allow_credentials;
+    $('hosting-proxy').checked = !!s.proxy_headers;
+  }
+  $('btn-hosting-save').addEventListener('click', () => run(async () => {
+    await api('PATCH', '/api/settings', {
+      cors_origins: $('hosting-cors').value.split('\n').map(x => x.trim()).filter(Boolean),
+      cors_allow_credentials: $('hosting-cors-creds').checked,
+      proxy_headers: $('hosting-proxy').checked,
+    });
+    return 'Saved: applies when the service restarts.';
+  }));
+
+  load().catch(e => status(e.message, true));
+  loadHosting().catch(e => status(e.message, true));
+})();

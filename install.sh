@@ -28,6 +28,9 @@
 #   --cpu           force CPU-only (skip GPU wheel selection)
 #   --gpu VENDOR    override detection: nvidia | amd | intel | apple | none
 #   --plan          print the detected accelerator + install plan, change nothing
+#   --config FILE   access settings for automated installs (FTS_BIND_HOST, FTS_PORT, FTS_AUTH,
+#                   FTS_ADMIN_PASSWORD_FILE, FTS_ALLOWED_HOSTS, FTS_INSTALL_SERVICE; docs/INSTALL.md).
+#                   Also read from FTS_INSTALL_CONFIG. Without it a terminal install asks one question.
 #   --rebuild-llama-cpp  rebuild the llama.cpp CLI even if present
 #   --no-gguf       skip llama-cpp-python entirely
 #   --no-llama-cpp  skip building the llama.cpp CLI (.llama.cpp/)
@@ -63,11 +66,13 @@ REBUILD_LLAMA=0
 SKIP_GGUF=0
 SKIP_LLAMA_CPP=0
 LLAMA_CPP_ONLY=0
+INSTALL_CONFIG="${FTS_INSTALL_CONFIG:-}"
 
 while [ "$#" -gt 0 ]; do
     arg="$1"; shift
     case "$arg" in
         --gpu)            FORCE_GPU="${1:-}"; [ -n "$FORCE_GPU" ] || die "--gpu needs a vendor"; shift ;;
+        --config)         INSTALL_CONFIG="${1:-}"; [ -n "$INSTALL_CONFIG" ] || die "--config needs a file"; shift ;;
         --gpu=*)          FORCE_GPU="${arg#--gpu=}" ;;
         --plan)           PLAN_ONLY=1 ;;
         --rebuild-llama-cpp) REBUILD_LLAMA=1 ;;
@@ -84,6 +89,10 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 : "${MODE:=install}"
+if [ -n "$INSTALL_CONFIG" ]; then
+    [ -r "$INSTALL_CONFIG" ] || die "--config: cannot read $INSTALL_CONFIG"
+    INSTALL_CONFIG="$(readlink -f "$INSTALL_CONFIG")"
+fi
 
 # ── Delegate to Python diagnostic for these modes ──────────────────────
 # The Python module (scripts/install_diagnose.py) owns the deep health
@@ -443,6 +452,28 @@ else
     warn "Or set FTS_AUTO_REPAIR=1 to make install.sh auto-fix without prompting."
 fi
 
+# ── Access: who may open the web UI ($FTS_ROOT/server.json + auth/auth.json) ──
+# A config file (automated installs) wins; else a terminal install asks once, the first time only.
+FTS_CLI=("$PYTHON_CMD" -m finetune_studio.cli)
+STATE_ROOT="${FTS_ROOT:-$HOME/.finetune-studio}"
+WANT_SERVICE=0
+if [ -n "$INSTALL_CONFIG" ]; then
+    log "Applying access settings from $INSTALL_CONFIG..."
+    ACCESS_OUT="$("${FTS_CLI[@]}" auth apply-config "$INSTALL_CONFIG")" || die "install config rejected (see above)"
+    grep -v '^INSTALL_SERVICE=' <<<"$ACCESS_OUT" || true
+    grep -q '^INSTALL_SERVICE=1$' <<<"$ACCESS_OUT" && WANT_SERVICE=1
+elif [ -t 0 ] && [ -t 1 ] && [ ! -f "$STATE_ROOT/server.json" ] && [ ! -f "$STATE_ROOT/auth/auth.json" ]; then
+    "${FTS_CLI[@]}" auth setup || warn "access setup skipped; change it later in Settings -> Security or with fts auth"
+fi
+WEB_ADDR="$("${FTS_CLI[@]}" server show 2>/dev/null | cut -d' ' -f1 || echo 127.0.0.1:7860)"
+case "$WEB_ADDR" in 0.0.0.0:*|"[::]":*|:::*) WEB_URL="http://<this machine's address>:${WEB_ADDR##*:}" ;;
+                    127.*|localhost:*) WEB_URL="http://localhost:${WEB_ADDR##*:}" ;;
+                    *) WEB_URL="http://$WEB_ADDR" ;; esac
+if [ "$WANT_SERVICE" = "1" ]; then
+    log "FTS_INSTALL_SERVICE=1: installing the systemd user unit..."
+    bash install-service.sh || warn "service install failed; run bash install-service.sh to see why"
+fi
+
 echo ""
 echo "═══════════════════════════════════════════════════════════════"
 log "✓ Install complete."
@@ -455,7 +486,8 @@ case "$ACTIVATE_HINT" in
 esac
 echo ""
 echo "Run:           $PYTHON_CMD -m finetune_studio --help"
-echo "WebUI:         bash run.sh            (http://localhost:7860)"
+echo "WebUI:         bash run.sh            ($WEB_URL)"
+echo "Access:        $("${FTS_CLI[@]}" auth status 2>/dev/null | head -2 | tr -s ' ' | paste -sd ';' -)"
 echo "As a service:  bash install-service.sh   (systemd; survives crashes and reboots)"
 echo "Verify:        bash install.sh --check"
 echo "═══════════════════════════════════════════════════════════════"

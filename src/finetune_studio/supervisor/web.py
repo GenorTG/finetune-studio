@@ -74,4 +74,6 @@ def web_spec(host: str, port: int, *, cwd: str | None = None) -> ComponentSpec:
         release=listen.close,
         probe=http_probe(probe_url),
         cwd=cwd,
+        # The app reads these to know who can reach it (no-password-on-the-network warning, host checks).
+        env={"FTS_LISTEN_HOST": host, "FTS_LISTEN_PORT": str(port)},
     )
