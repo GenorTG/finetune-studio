@@ -81,18 +81,19 @@ def test_brain_build_uses_subscribe_not_1_5s_poll() -> None:
     assert "runQuery" in html
     assert "run-kv-table" in html
     assert "Debug JSON" in html
-    # Sync build path: UI must finish when building===false (no false "Queued…").
-    assert "!r.building" in html or "r.building === false" in html or "if (!r.building)" in html
-    assert "docs, " in html and "chunks indexed" in html
+    # A build is a job: the page follows its build row to the end (and re-attaches on load).
+    assert "/brain/builds/" in html and "followBuild" in html and "resumeBuild" in html
+    assert "docs, " in html and "chunks" in html and " indexed." in html
 
 
-def test_brain_build_sync_response_not_building(client, tmp_path, monkeypatch) -> None:
-    """POST /brain/build is synchronous — response must not say building=true."""
+def test_brain_build_answers_202_then_the_build_row_carries_the_result(client, tmp_path, monkeypatch) -> None:
+    """POST /brain/build starts a job (a web restart does not end it): 202 + build_id, building=true; the build row
+    then carries the counts."""
     from pathlib import Path
     from unittest.mock import MagicMock, patch
 
     from finetune_studio.data.fs.paths import brain_index_dir
-    from tests.knowledge_helpers import add_source
+    from tests.knowledge_helpers import add_source, wait_build
 
     pid = client.post("/api/projects", json={"name": "RAG sync status"}).json()["id"]
     add_source(pid, "a.txt", "hi there, a sentence to index")
@@ -109,13 +110,15 @@ def test_brain_build_sync_response_not_building(client, tmp_path, monkeypatch) -
         return_value=mock_rag,
     ):
         r = client.post(f"/api/projects/{pid}/brain/build", json={"reset": False})
-    assert r.status_code == 200, r.text
+        build = wait_build(client, pid, r)
     body = r.json()
     assert body["ok"] is True
-    assert body["building"] is False
-    assert body["documents"] == 1
-    assert body["chunks"] == 2
+    assert body["building"] is True and body["build_id"] == build["build_id"]
     assert Path(body["corpus_dir"]) == corpus
+    assert build["ok"] is True and build["status"] == "done"
+    assert build["documents"] == 1
+    assert build["chunks"] == 2
+    assert build["vector_dim"] == 8
 
 
 def test_data_prep_polls_mining_jobs_only_while_they_run() -> None:
@@ -185,20 +188,18 @@ def test_activity_collect_snapshot() -> None:
 
 def test_activity_collect_handles_none_started_at(monkeypatch) -> None:
     """Regression: explicit started_at=None must not break sort (unary -)."""
-    from finetune_studio.webui.routes import hf_models
+    from finetune_studio.webui import download_jobs
     from finetune_studio.webui.routes.activity import collect_activity
 
-    monkeypatch.setitem(
-        hf_models._DOWNLOADS,
-        "job-none-started",
-        {
-            "status": "downloading",
-            "repo_id": "org/model-with-none-started",
-            "started_at": None,
-            "bytes_done": 0,
-            "bytes_total": 0,
-        },
-    )
+    # A running download (its job process alive) as the activity feed reads it.
+    monkeypatch.setattr(download_jobs, "live_downloads", lambda: [{
+        "job_id": "job-none-started",
+        "status": "downloading",
+        "repo_id": "org/model-with-none-started",
+        "started_at": None,
+        "bytes_done": 0,
+        "bytes_total": 0,
+    }])
     payload = collect_activity()
     assert "tasks" in payload
     downloads = [t for t in payload["tasks"] if t.get("kind") == "download"]

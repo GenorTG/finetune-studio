@@ -17,3 +17,23 @@ def add_source(pid: str, filename: str, content: str | bytes, *, parse: bool = T
     meta = fl.write_uploaded_file(pid, data, filename)
     source = sources.stage(pid, meta.file_id)
     return sources.parse(pid, source.id) if parse else source
+
+
+def wait_build(client, pid: str, response, timeout: float = 30.0) -> dict:
+    """An index build answers 202 with its ``build_id`` (a job; in-process under the test suite): poll the build
+    until it is finished and return it (``ok``, ``documents``, ``chunks``, ``error``...). Call it inside any
+    ``patch(...)`` block the build needs: the job runs on a thread after the POST returned."""
+    import time
+
+    assert response.status_code == 202, response.text
+    body = response.json()
+    bid = body.get("build_id") or (body.get("build") or {}).get("build_id")
+    assert bid, body
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        r = client.get(f"/api/projects/{pid}/brain/builds/{bid}")
+        assert r.status_code == 200, r.text
+        if r.json()["finished"]:
+            return r.json()
+        time.sleep(0.05)
+    raise AssertionError(f"build {bid} still running after {timeout} s: {r.json()}")

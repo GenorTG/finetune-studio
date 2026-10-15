@@ -13,12 +13,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import re
 import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -30,7 +29,6 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 _LOCAL = Path.home() / ".finetune-studio" / "hf_models"
-_DOWNLOADS: dict[str, dict] = {}  # job_id -> progress dict (process-wide)
 _REPO_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
@@ -238,172 +236,52 @@ class DownloadRequest(BaseModel):
 
 
 @router.post("/hf/download")
-async def hf_download(req: DownloadRequest, background: BackgroundTasks):
-    """Start a background download; return immediately with a job_id.
-    Track progress via /hf/download/progress?job_id=..."""
-    from finetune_studio import db
-    _local_dir(req.repo_id)  # reject traversal before queueing
-    job_row = db.create_hf_download(repo_id=req.repo_id, filename=req.filename or "")
-    job_id = job_row["id"]
-    _DOWNLOADS[job_id] = {
-        "job_id": job_id,
-        "status": "queued",
-        "repo_id": req.repo_id,
-        "filename": req.filename,
-        "started_at": job_row.get("started_at"),
-        "created_at": job_row.get("created_at"),
-        "bytes_done": 0,
-        "bytes_total": None,
-        "path": None,
-        "error": None,
-    }
-    background.add_task(_download_worker, job_id, req.repo_id, req.filename, req.revision)
-    return {"ok": True, "job_id": job_id, "started_at": _DOWNLOADS[job_id]["started_at"]}
+async def hf_download(req: DownloadRequest):
+    """Start a download as its own job process (``webui.download_jobs``); return at once with its job_id.
+    Track progress via /hf/download/progress?job_id=... A web restart does not end the download."""
+    from finetune_studio.jobs import launch
+    from finetune_studio.webui import download_jobs
+    from finetune_studio.webui.errors import ApiError
+
+    dest = _local_dir(req.repo_id)  # reject traversal before queueing
+    try:
+        row = await asyncio.to_thread(download_jobs.start, repo_id=req.repo_id, filename=req.filename,
+                                      revision=req.revision, dest=str(dest))
+    except launch.JobRejected as e:
+        raise ApiError(e.status if e.status >= 400 else 503, f"could not start the download: {e}",
+                       code=e.code or None) from e
+    return {"ok": True, "job_id": row["id"], "started_at": row.get("started_at")}
 
 
 @router.get("/hf/download/progress")
 async def hf_download_progress(job_id: str):
-    # Prefer in-memory dict (freshest). Fall back to DB row for restart
-    # survivors + historical jobs.
-    p = _DOWNLOADS.get(job_id)
-    if p:
-        return p
-    from finetune_studio import db
-    row = db.get_hf_download(job_id)
-    if row is None:
+    """The download row (the job process writes it), with live byte counts while it runs."""
+    from finetune_studio.webui import download_jobs
+
+    p = await asyncio.to_thread(download_jobs.progress, job_id)
+    if p is None:
         return JSONResponse({"detail": "unknown job_id"}, status_code=404)
-    return row
+    return p
 
 
 @router.post("/hf/download/cancel")
 async def hf_download_cancel(job_id: str):
-    """Mark a job as cancelled (best-effort — child subprocesses may continue briefly)."""
-    p = _DOWNLOADS.get(job_id)
-    if not p:
-        # Maybe a historical DB row exists.
-        from finetune_studio import db
-        row = db.get_hf_download(job_id)
-        if row is None:
-            return JSONResponse({"detail": "unknown job_id"}, status_code=404)
-        if row.get("status") in ("completed", "error", "cancelled"):
-            return {"ok": True, "job_id": job_id, "status": row["status"]}
-        db.mark_hf_download_cancelled(job_id)
-        return {"ok": True, "job_id": job_id, "status": "cancelled"}
-    if p.get("status") in ("completed", "error", "cancelled"):
-        return {"ok": True, "job_id": job_id, "status": p["status"]}
-    p["status"] = "cancelled"
-    p["error"] = "user cancelled"
-    try:
-        from finetune_studio import db
-        db.mark_hf_download_cancelled(job_id)
-    except Exception:  # noqa: BLE001, S110
-        pass
-    return {"ok": True, "job_id": job_id, "status": "cancelled"}
+    """Cancel a download: the row says cancelled at once and its job process is stopped."""
+    from finetune_studio.webui import download_jobs
 
-
-def _download_worker(job_id: str, repo_id: str, filename: str | None, revision: str):
-    """Background download via huggingface_hub.snapshot_download or hf_hub_download."""
-    from finetune_studio import db
-    try:
-        from huggingface_hub import hf_hub_download, snapshot_download
-        db.mark_hf_download_running(job_id)
-        if job_id in _DOWNLOADS:
-            _DOWNLOADS[job_id].update({"status": "downloading", "bytes_done": 0})
-        dest_root = _local_dir(repo_id)
-        dest_root.mkdir(parents=True, exist_ok=True)
-        if filename:
-            # Single-file download
-            local_path = hf_hub_download(
-                repo_id=repo_id, filename=filename, revision=revision,
-                local_dir=str(dest_root),
-            )
-            size = os.path.getsize(local_path) if os.path.exists(local_path) else 0
-            db.mark_hf_download_done(job_id, path=local_path,
-                                     bytes_total=size, bytes_done=size)
-            if job_id in _DOWNLOADS:
-                _DOWNLOADS[job_id].update({
-                    "status": "completed",
-                    "bytes_total": size, "bytes_done": size,
-                    "path": local_path,
-                })
-        else:
-            # Snapshot the whole repo
-            local_path = snapshot_download(
-                repo_id=repo_id, revision=revision,
-                local_dir=str(dest_root),
-                # tqdm progress gets noisy in logs; we just mark progress at the end
-            )
-            total = 0
-            for p in Path(local_path).rglob("*"):
-                if p.is_file():
-                    total += p.stat().st_size
-            db.mark_hf_download_done(job_id, path=local_path,
-                                     bytes_total=total, bytes_done=total)
-            if job_id in _DOWNLOADS:
-                _DOWNLOADS[job_id].update({
-                    "status": "completed",
-                    "bytes_total": total, "bytes_done": total,
-                    "path": local_path,
-                })
-        try:
-            n = _refresh_model_registry()
-            log.info(
-                "HF download %s complete — registry now has %d model(s)",
-                job_id,
-                n,
-            )
-        except Exception:
-            log.exception("registry refresh after HF download failed")
-    except Exception as e:
-        log.exception("download failed")
-        try:
-            db.mark_hf_download_failed(job_id, str(e))
-        except Exception:  # noqa: BLE001, S110
-            pass
-        if job_id in _DOWNLOADS:
-            _DOWNLOADS[job_id].update({"status": "error", "error": str(e)})
+    status = await asyncio.to_thread(download_jobs.cancel, job_id)
+    if status is None:
+        return JSONResponse({"detail": "unknown job_id"}, status_code=404)
+    return {"ok": True, "job_id": job_id, "status": status}
 
 
 def restore_in_progress_downloads() -> int:
-    """Re-populate the in-memory _DOWNLOADS dict from the DB on startup.
+    """Web startup: downloads whose job process is gone are marked failed; running ones are left alone.
 
-    Jobs that were 'queued' or 'downloading' when the service died are
-    marked 'error' (the BackgroundTasks entry / worker is gone, nothing
-    resumes them) and restored in that state so they remain observable.
+    Returns the number of rows marked failed (``download_jobs.reconcile_on_startup``)."""
+    from finetune_studio.webui import download_jobs
 
-    Returns the count of restored rows.
-    """
-    from finetune_studio import db
-    in_progress = db.list_hf_downloads_in_progress(limit=200)
-    restored = 0
-    for row in in_progress:
-        job_id = row["id"]
-        if job_id in _DOWNLOADS:
-            continue
-        # A queued/downloading job from a dead process will never progress.
-        status = row["status"]
-        if status in ("queued", "downloading"):
-            db.mark_hf_download_failed(job_id, "service restarted before download finished")
-            status = "error"
-            row["status"] = status
-            row["error"] = "service restarted before download finished"
-        _DOWNLOADS[job_id] = {
-            "job_id": job_id,
-            "status": status,
-            "repo_id": row.get("repo_id", ""),
-            "filename": row.get("filename", ""),
-            "started_at": row.get("started_at"),
-            "finished_at": row.get("finished_at"),
-            "created_at": row.get("created_at"),
-            "bytes_done": row.get("bytes_done") or 0,
-            "bytes_total": row.get("bytes_total"),
-            "path": row.get("path"),
-            "error": row.get("error"),
-        }
-        restored += 1
-    if restored:
-        log.info("Restored %d HF download job(s) from DB", restored)
-    return restored
+    return download_jobs.reconcile_on_startup()
 
 
 @router.get("/hf/local")

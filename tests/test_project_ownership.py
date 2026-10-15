@@ -231,7 +231,8 @@ def test_brain_build_indexes_the_projects_parsed_sources(client, fts_root, monke
     mock_rag.build_from_documents.return_value = {"documents": 1, "chunks": 1, "vector_dim": 8}
     with patch("finetune_studio.smart_brain.BrainIndex", return_value=mock_rag):
         r = client.post(f"/api/projects/{pid}/brain/build", json={"reset": True})
-    assert r.status_code == 200, r.text
+        from tests.knowledge_helpers import wait_build
+        assert wait_build(client, pid, r)["ok"]
     assert r.json()["queued_files"] == 1
     [doc] = mock_rag.build_from_documents.call_args.args[0]
     assert doc.document_id == src.id and doc.filename == "hello.txt" and "hello corpus" in doc.text

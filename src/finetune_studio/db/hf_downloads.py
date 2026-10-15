@@ -34,6 +34,43 @@ def mark_running(rid: str) -> dict | None:
     return update_job(rid, status="downloading", started_at=time.time())
 
 
+ACTIVE = ("queued", "downloading")
+
+
+def start_if_queued(rid: str) -> bool:
+    """``downloading`` only while the row is still queued (a cancel can land before the job starts)."""
+    with cursor() as c:
+        cur = c.execute("UPDATE hf_downloads SET status = 'downloading', started_at = ? "
+                        "WHERE id = ? AND status = 'queued'", (time.time(), rid))
+        return cur.rowcount > 0
+
+
+def finish_if_active(rid: str, status: str, *, error: str = "", path: str = "", bytes_total: int | None = None,
+                     bytes_done: int | None = None) -> bool:
+    """Record the final state only while the row is queued/downloading, in one statement: the download job is
+    another process, so a cancel from the web app and the job's own result must never overwrite each other.
+    True when this call finished the row."""
+    now = time.time()
+    with cursor() as c:
+        cur = c.execute(
+            "UPDATE hf_downloads SET status = ?, finished_at = ?, "
+            "duration_ms = CASE WHEN started_at IS NULL THEN NULL ELSE CAST((? - started_at) * 1000 AS INTEGER) END, "
+            "error = ?, path = CASE WHEN ? = '' THEN path ELSE ? END, "
+            "bytes_total = COALESCE(?, bytes_total), bytes_done = COALESCE(?, bytes_done) "
+            f"WHERE id = ? AND status IN ({', '.join('?' for _ in ACTIVE)})",
+            (status, now, now, error[:500], path, path, bytes_total, bytes_done, rid, *ACTIVE),
+        )
+        return cur.rowcount > 0
+
+
+def set_progress(rid: str, *, bytes_done: int, bytes_total: int | None = None) -> None:
+    """Live byte counts of a running download (never touches its status)."""
+    with cursor() as c:
+        c.execute("UPDATE hf_downloads SET bytes_done = ?, bytes_total = COALESCE(?, bytes_total) "
+                  f"WHERE id = ? AND status IN ({', '.join('?' for _ in ACTIVE)})",
+                  (bytes_done, bytes_total, rid, *ACTIVE))
+
+
 def mark_done(rid: str, *, path: str = "", bytes_total: int | None = None,
               bytes_done: int | None = None) -> dict | None:
     with cursor() as c:

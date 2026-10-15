@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from finetune_studio import db
+from tests.knowledge_helpers import wait_build
 
 
 def _project(client) -> str:
@@ -49,13 +50,14 @@ def test_brain_build_registers_project_rags_row(
                 "reset": True,
             },
         )
-    assert r.status_code == 200, r.text
+        build = wait_build(client, pid, r)
     body = r.json()
     assert body.get("ok") is True
-    # Sync build must not claim an in-flight job after the handler returns.
-    assert body.get("building") is False
-    assert body.get("documents") == 3
-    assert body.get("chunks") == 7
+    # The build is a job: 202 + build id; the finished build row carries the counts.
+    assert body.get("building") is True
+    assert build["ok"] is True
+    assert build["documents"] == 3
+    assert build["chunks"] == 7
 
     rags = db.list_brain_indexes(pid)
     assert len(rags) == 1
@@ -90,7 +92,7 @@ def test_brain_build_updates_existing_row_same_corpus(
             f"/api/projects/{pid}/brain/build",
             json={"reset": False},
         )
-    assert r.status_code == 200, r.text
+        assert wait_build(client, pid, r)["ok"]
     rags = db.list_brain_indexes(pid)
     assert len(rags) == 1
     assert rags[0]["id"] == first["id"]

@@ -496,21 +496,34 @@
     } finally { setBusy(false); }
   };
 
+  // An index build is its own job process (the POST answers 202 + build_id): poll its row until it is finished.
+  // A web restart in between only costs a few failed polls (retried); the build itself keeps going.
+  async function wizWaitBuild(buildId) {
+    var url = "/api/projects/" + PID + "/brain/builds/" + encodeURIComponent(buildId);
+    for (;;) {
+      await sleep(2000);
+      var b;
+      try { b = await api(url); }
+      catch (e) { if (!e.status || e.status >= 500) continue; throw e; }
+      if (b.finished) {
+        if (!b.ok) throw new Error(b.error || "the index build failed");
+        return b;
+      }
+    }
+  }
+
   window.wizBrainQuick = async function () {
     if (busy) { line("Already running — wait for the current step."); return false; }
     setBusy(true);
     try {
       pill("wiz-brain", "building…", false);
-      set("wiz-brain", "building the index — the first build downloads the embedding model and can take a minute or two. Keep this page open.");
+      set("wiz-brain", "building the index — the first build downloads the embedding model and can take a minute or two. It keeps going if you leave this page.");
       line("Smart Brain quick build: parsing every unparsed file + building the index…");
       var d = await post("/api/projects/" + PID + "/brain/quick", {});
-      var b = d.build || {};
-      if (b.ok === false) throw new Error(b.detail || "build failed");
-      line("Smart Brain ready: " + (b.documents != null ? b.documents : "?") + " docs / "
-           + (b.chunks != null ? b.chunks : "?") + " chunks"
-           + (d.promoted ? " · " + d.promoted + " file(s) newly promoted" : "")
+      line("Smart Brain: " + (d.promoted ? d.promoted + " file(s) newly promoted, " : "") + "index build started…");
+      var b = await wizWaitBuild((d.build || {}).build_id || d.build_id);
+      line("Smart Brain ready: " + b.documents + " docs / " + b.chunks + " chunks"
            + (d.failed && d.failed.length ? " · " + d.failed.length + " file(s) could not parse (see the Smart Brain page)" : ""));
-      await sleep(1500);  /* coverage endpoint can lag the manifest flush by ~1s */
       await wizRefresh("brain");
       return true;
     } catch (e) {
@@ -827,9 +840,11 @@
     set("wiz-brain", "building the index — the first build downloads the embedding model and can take a minute or two.");
     line("Smart Brain build starting (can take a minute on first use)…");
     post("/api/projects/" + PID + "/brain/build", { reset: false }).then(function (d) {
-      line("Smart Brain build done: " + d.documents + " docs / " + d.chunks + " chunks");
+      return wizWaitBuild(d.build_id);
+    }).then(function (b) {
+      line("Smart Brain build done: " + b.documents + " docs / " + b.chunks + " chunks");
       wizRefresh("brain");
-    }).catch(function (e) { line("Smart Brain build FAILED: " + e.message); });
+    }).catch(function (e) { line("Smart Brain build FAILED: " + e.message); wizRefresh("brain"); });
   };
 
   ["files", "qa", "dataset", "brain", "train", "test", "version"].forEach(wizRefresh);

@@ -7,7 +7,7 @@ from finetune_studio import db
 from finetune_studio.data.fs import file_library as fl
 from finetune_studio.knowledge import index, sources
 from finetune_studio.knowledge.errors import IndexBuildError
-from tests.knowledge_helpers import add_source
+from tests.knowledge_helpers import add_source, wait_build
 from tests.test_brain_rebuild_sources import _fake_get_embedder
 
 
@@ -80,8 +80,8 @@ def test_build_routes_answer_with_the_reason(pid: str, client) -> None:
     assert r.status_code == 400 and "no parsed files" in r.json()["detail"]
     add_source(pid, "a.txt", "File A says the gate closes at 22:00.")
     r = client.post(f"/api/projects/{pid}/brain/build", json={"embedder": "fake-deterministic"})
-    assert r.status_code == 200, r.text
-    assert r.json()["documents"] == 1
+    b = wait_build(client, pid, r)
+    assert b["ok"] and b["documents"] == 1, b
     status = client.get(f"/api/projects/{pid}/brain").json()
     assert status["exists"] and status["state"]["fresh"]
 

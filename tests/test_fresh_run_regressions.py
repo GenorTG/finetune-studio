@@ -121,8 +121,9 @@ def test_brain_build_indexes_uploaded_txt_once(client, monkeypatch, tmp_path):
     assert r.status_code in (200, 201), r.text
     r = client.post(f"/api/projects/{pid}/brain/build",
                     json={"chunk_size": 200, "overlap": 20, "embedder": "fake", "reset": True})
-    assert r.status_code == 200, r.text
-    assert r.json().get("documents") == 1, r.json()
+    from tests.knowledge_helpers import wait_build
+    b = wait_build(client, pid, r)
+    assert b["ok"] and b["documents"] == 1, b
 
 
 def _fake_llama(monkeypatch):

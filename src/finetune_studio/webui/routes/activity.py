@@ -392,10 +392,11 @@ def collect_activity() -> dict[str, Any]:
     # ``_persistent_tasks`` (which tracks queued/running/done/error with real
     # doc & chunk counts) rather than scanning disk for lockfiles.
 
-    # ── HF downloads (in-flight, in-memory) ────────────────
+    # ── HF downloads (in flight: rows whose download job process is running) ────────────────
     try:
-        from finetune_studio.webui.routes.hf_models import _DOWNLOADS
-        for jid, entry in _DOWNLOADS.items():
+        from finetune_studio.webui.download_jobs import live_downloads
+        for entry in live_downloads():
+            jid = entry["job_id"]
             status = entry.get("status", "queued")
             if status not in ("queued", "downloading", "completed", "error", "cancelled"):
                 continue

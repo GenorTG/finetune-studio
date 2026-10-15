@@ -878,41 +878,112 @@
     } catch (_e) { /* no index yet: keep defaults */ }
   };
 
+  // Disable the build buttons while a build runs (this page's or one found running on load).
+  function setBuildBusy(on) {
+    ['quick-index-btn', 'build-btn', 'rebuild-btn'].forEach(function (id) {
+      const b = document.getElementById(id);
+      if (b) b.disabled = !!on;
+    });
+  }
+
+  // A build runs as its own job process (the POST answers 202 + build_id), so it outlives a web restart and this
+  // page. Follow it: SSE-first via fts.subscribe (silent poll of /build/status every 5 s when SSE is unavailable,
+  // e.g. while the web app restarts), then read the build row for the result. Resolves with the finished row;
+  // rejects with the build's real error.
+  function followBuild(buildId) {
+    const wrap = document.getElementById('build-progress-wrap');
+    const fill = document.getElementById('build-progress-fill');
+    const progText = document.getElementById('build-progress-text');
+    const sseUrl = '/api/projects/' + PID + '/brain/build/progress';
+    const pollUrl = '/api/projects/' + PID + '/brain/build/status';
+    const rowUrl = '/api/projects/' + PID + '/brain/builds/' + encodeURIComponent(buildId);
+    wrap.hidden = false;
+    fill.style.width = '5%';
+    progText.textContent = 'QUEUED…';
+    return new Promise(function (resolve, reject) {
+      let stopLive = null;
+      let ended = false;
+      const stop = function () { if (stopLive) { stopLive(); stopLive = null; } };
+      const finish = async function () {
+        if (ended) return;
+        ended = true;
+        stop();
+        try {
+          const b = await api().get(rowUrl);
+          if (!b.finished) { ended = false; setTimeout(listen, 1000); return; }   // the job is still exiting
+          wrap.hidden = true;
+          if (b.ok) resolve(b);
+          else reject(new Error(b.error || 'the index build failed'));
+        } catch (e) {
+          if (!e.status || e.status >= 500) { ended = false; setTimeout(listen, 5000); return; }   // restarting
+          wrap.hidden = true;
+          reject(e);
+        }
+      };
+      const applyProgress = function (p) {
+        if (!p || typeof p !== 'object' || ended) return;
+        if (p.phase === 'queued' || p.phase === 'embedding') {
+          fill.style.width = p.phase === 'embedding' ? '50%' : '5%';
+          progText.textContent = p.phase.toUpperCase() + ' ' + (p.files_total || 0) + ' files  ' +
+            (p.elapsed_s != null ? p.elapsed_s + 's' : '');
+          return;
+        }
+        if (p.phase === 'timeout') { stop(); listen(); return; }   // a long build: keep following it
+        finish();                                                     // done | error | idle: the row says which
+      };
+      const listen = function () {
+        const sub = window.fts && window.fts.subscribe;
+        if (sub) {
+          stopLive = sub(sseUrl, applyProgress, { pollUrl: pollUrl, fallbackMs: 5000 });
+        } else {
+          // Slow fallback only — never a 2s full redraw.
+          const tick = async function () {
+            try { applyProgress(await api().get(pollUrl)); } catch (_e) { /* restarting: try again */ }
+          };
+          tick();
+          const t = setInterval(tick, 5000);
+          stopLive = function () { clearInterval(t); };
+        }
+      };
+      listen();
+      document.addEventListener('fts:beforeNavigate', function () { ended = true; stop(); }, { once: true });
+    });
+  }
+
+  function buildDone(b) {
+    if (typeof window.loadIndexedDocs === 'function') window.loadIndexedDocs();
+    if (typeof window.loadBrainStatus === 'function') window.loadBrainStatus();
+    return (b.documents != null ? b.documents : '?') + ' docs, ' + (b.chunks != null ? b.chunks : '?') + ' chunks';
+  }
+
   window.quickIndex = async function () {
     const status = document.getElementById('build-status');
-    const btn = document.getElementById('quick-index-btn');
-    const buildBtn = document.getElementById('build-btn');
-    const rebuildBtn = document.getElementById('rebuild-btn');
-    btn.disabled = true; if (buildBtn) buildBtn.disabled = true; if (rebuildBtn) rebuildBtn.disabled = true;
-    status.textContent = 'Quick index: converting unparsed files to text, then embedding… (first build downloads the embedder ~2.2 GB)';
+    setBuildBusy(true);
+    status.textContent = 'Quick index: converting unparsed files to text… (first build downloads the embedder ~2.2 GB)';
     try {
-      // A failed build is a 4xx/5xx whose detail says how many files were converted first.
+      // A build that cannot start is a 4xx/5xx whose detail says how many files were converted first.
       const r = await api().post('/api/projects/' + PID + '/brain/quick', {});
-      const b = r.build || {};
       const failed = (r.failed || []).length;
-      status.textContent = '⚡ Converted ' + (r.promoted || 0) + ' new file(s)' +
-        (failed ? ' (' + failed + ' failed to parse)' : '') + ' · index: ' +
-        (b.documents != null ? b.documents : '?') + ' docs, ' + (b.chunks != null ? b.chunks : '?') + ' chunks.';
-      notify('Quick index done: ' + (r.promoted || 0) + ' converted · ' + (b.chunks != null ? b.chunks : '?') + ' chunks', 'success');
-      loadIndexedDocs();
+      const converted = '⚡ Converted ' + (r.promoted || 0) + ' new file(s)' +
+        (failed ? ' (' + failed + ' failed to parse)' : '');
+      status.textContent = converted + ' · building the index (it runs on its own: you can leave this page)…';
+      const b = await followBuild((r.build || {}).build_id || r.build_id);
+      status.textContent = converted + ' · index: ' + buildDone(b) + '.';
+      notify('Quick index done: ' + (r.promoted || 0) + ' converted · ' + b.chunks + ' chunks', 'success');
     } catch (e) {
       status.textContent = 'Failed: ' + e.message;
       notify('Quick index failed: ' + e.message, 'error');
     } finally {
-      btn.disabled = false; if (buildBtn) buildBtn.disabled = false; if (rebuildBtn) rebuildBtn.disabled = false;
+      setBuildBusy(false);
     }
   };
 
   window.buildIndex = async function(rebuild) {
     const status = document.getElementById('build-status');
-    const btn = document.getElementById('build-btn');
-    const rebuildBtn = document.getElementById('rebuild-btn');
     const embedderEl = document.getElementById('b-embedder');
     const embedder = embedderEl ? embedderEl.value : '';
-    btn.disabled = true;
-    if (rebuildBtn) rebuildBtn.disabled = true;
+    setBuildBusy(true);
     status.textContent = (rebuild ? 'Rebuilding' : 'Building') + ' index…';
-    let stopLive = null;
     try {
       const body = {
         embedder: embedder,
@@ -920,85 +991,40 @@
         fact_cards: !!(document.getElementById('b-fact-cards') || {}).checked,
       };
       const r = await api().post('/api/projects/' + PID + '/brain/build', body);
-      // Sync build: POST returns only after the index is written.
-      if (!r.building) {
-        const docs = r.documents != null ? r.documents : '?';
-        const m = r.chunks != null ? r.chunks : '?';
-        status.textContent = 'Done — ' + docs + ' docs, ' + m + ' chunks indexed.';
-        notify('Index built: ' + docs + ' docs · ' + m + ' chunks', 'success');
-        const wrap = document.getElementById('build-progress-wrap');
-        if (wrap) wrap.hidden = true;
-        if (typeof window.loadIndexedDocs === 'function') window.loadIndexedDocs();
-        if (typeof window.loadBrainStatus === 'function') window.loadBrainStatus();
-        return;
-      }
       const q = r.queued_files != null ? r.queued_files : '?';
-      status.textContent = 'Queued ' + q + ' file' + (q === 1 ? '' : 's') + ' — embedding…';
-      notify('Index build started: ' + q + ' files queued', 'info');
-
-      const wrap = document.getElementById('build-progress-wrap');
-      const fill = document.getElementById('build-progress-fill');
-      const progText = document.getElementById('build-progress-text');
-      wrap.hidden = false;
-      fill.style.width = '0%';
-      progText.textContent = 'INIT…';
-
-      // SSE-first via fts.subscribe. Silent poll of /build/status
-      // (fallbackMs 5s) only when EventSource is unavailable/broken.
-      const applyProgress = (p) => {
-        if (!p || typeof p !== 'object') return;
-        const total = p.files_total || 1;
-        const done = p.files_done || 0;
-        const pct = Math.min(100, Math.round((done / total) * 100));
-        fill.style.width = pct + '%';
-        const phaseTag = (p.phase || '').toUpperCase();
-        progText.textContent = phaseTag + ' ' + done + '/' + total +
-          ' files  ' + pct + '%  ' + (p.elapsed_s != null ? p.elapsed_s + 's' : '');
-        if (p.phase === 'done') {
-          const m = p.chunks || '?';
-          status.textContent = 'Done — ' + m + ' chunks indexed.';
-          notify('Index built: ' + m + ' chunks', 'success');
-          if (stopLive) { stopLive(); stopLive = null; }
-          wrap.hidden = true;
-          if (typeof window.loadIndexedDocs === 'function') window.loadIndexedDocs();
-          if (typeof window.loadBrainStatus === 'function') window.loadBrainStatus();
-        } else if (p.phase === 'timeout' || p.phase === 'error') {
-          status.textContent = p.phase === 'timeout'
-            ? 'Build still running — see status panel.'
-            : ('Build error' + (p.message ? ': ' + p.message : ''));
-          if (stopLive) { stopLive(); stopLive = null; }
-        }
-      };
-
-      const sseUrl = '/api/projects/' + PID + '/brain/build/progress';
-      const pollUrl = '/api/projects/' + PID + '/brain/build/status';
-      const sub = window.fts && window.fts.subscribe;
-      if (sub) {
-        stopLive = sub(sseUrl, applyProgress, { pollUrl: pollUrl, fallbackMs: 5000 });
-        document.addEventListener('fts:beforeNavigate', function() {
-          if (stopLive) { stopLive(); stopLive = null; }
-        }, { once: true });
-      } else {
-        // Slow fallback only — never a 2s full redraw.
-        const tick = async () => {
-          try {
-            const s = await api().get(pollUrl);
-            applyProgress(s);
-          } catch (_e) { /* ignore */ }
-        };
-        tick();
-        const t = setInterval(tick, 5000);
-        stopLive = () => clearInterval(t);
-      }
+      status.textContent = 'Embedding ' + q + ' file' + (q === 1 ? '' : 's') +
+        '… (it runs on its own: you can leave this page)';
+      notify('Index build started: ' + q + ' files', 'info');
+      const b = await followBuild(r.build_id);
+      const done = buildDone(b);
+      status.textContent = 'Done — ' + done + ' indexed.';
+      notify('Index built: ' + done, 'success');
     } catch (e) {
       const msg = (e && e.message) || String(e);
-      status.textContent = 'Error: ' + msg;
+      status.textContent = 'Build failed: ' + msg;
       notify(msg, 'error');
     } finally {
-      btn.disabled = false;
-      if (rebuildBtn) rebuildBtn.disabled = false;
+      setBuildBusy(false);
     }
   };
+
+  // A build started earlier (another tab, before a reload or a web restart) is still running: follow it.
+  async function resumeBuild() {
+    let p;
+    try { p = await api().get('/api/projects/' + PID + '/brain/build/status'); } catch (_e) { return; }
+    if (!p || !p.build_id || (p.phase !== 'queued' && p.phase !== 'embedding')) return;
+    const status = document.getElementById('build-status');
+    setBuildBusy(true);
+    status.textContent = 'An index build is running…';
+    try {
+      const b = await followBuild(p.build_id);
+      status.textContent = 'Done — ' + buildDone(b) + ' indexed.';
+    } catch (e) {
+      status.textContent = 'Build failed: ' + ((e && e.message) || String(e));
+    } finally {
+      setBuildBusy(false);
+    }
+  }
 
   // DOMContentLoaded fires on a full load (this script runs before app.js);
   // after an SPA swap it never fires, so run immediately in that case.
@@ -1008,6 +1034,7 @@
     loadBrainStatus();
     loadSharedModels();
     loadMcpDefaults();
+    resumeBuild();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();

@@ -173,8 +173,9 @@ def test_build_then_documents_list_the_index(client, tmp_path: Path, monkeypatch
 
     monkeypatch.setattr("finetune_studio.smart_brain.BrainIndex", _FakeIndex)
     r = client.post(f"/api/projects/{pid}/brain/build", json={"reset": True})
-    assert r.status_code == 200, r.text
-    assert r.json()["documents"] == 1
+    from tests.knowledge_helpers import wait_build
+    b = wait_build(client, pid, r)
+    assert b["ok"] and b["documents"] == 1, b
     docs = client.get(f"/api/projects/{pid}/brain/documents").json()
     assert docs["document_count"] == 1 and docs["chunk_count"] == 2
     assert client.post(f"/api/projects/{pid}/brain/rebuild", json={}).status_code == 404

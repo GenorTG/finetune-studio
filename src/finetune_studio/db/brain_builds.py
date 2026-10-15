@@ -112,8 +112,18 @@ def latest_for_project(project_id: str) -> dict | None:
     return row_to_dict(row)
 
 
-def reconcile_stale(error: str = "interrupted by service restart") -> int:
-    """Mark in-flight brain_builds rows as failed after a process restart.
+def fail_if_active(rid: str, error: str) -> bool:
+    """``mark_failed`` only while the row is queued/running, in one statement (the build job is another process: a
+    read-then-write could land after it recorded its result). True when the row was updated."""
+    with cursor() as c:
+        cur = c.execute("UPDATE brain_builds SET status = 'error', error = ?, finished_at = ? "
+                        "WHERE id = ? AND status IN ('queued', 'running')", (error[:500], time.time(), rid))
+        return cur.rowcount > 0
+
+
+def reconcile_stale(error: str = "interrupted by service restart",
+                    keep: set[str] | frozenset[str] = frozenset()) -> int:
+    """Mark in-flight brain_builds rows as failed after a web restart, except ``keep`` (their job process is alive).
 
     Returns the number of rows updated.
     """
@@ -125,6 +135,7 @@ def reconcile_stale(error: str = "interrupted by service restart") -> int:
             f"SELECT id FROM brain_builds WHERE status IN ({placeholders})",
             stale,
         ).fetchall()
+        rows = [r for r in rows if r["id"] not in keep]
         for r in rows:
             c.execute(
                 "UPDATE brain_builds SET status = 'failed', error = ?, finished_at = ? WHERE id = ?",

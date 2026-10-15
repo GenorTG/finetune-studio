@@ -132,43 +132,67 @@ def state(pid: str) -> IndexState:
     return st
 
 
-def build(pid: str, *, embedder: str | None = None, reset: bool = False,
-          fact_cards: bool | None = None) -> dict[str, Any]:
-    """(Re)build the project index from every ready source. Tracked as a build row; the chat attaches to it.
+def prepare(pid: str, *, fact_cards: bool | None = None) -> dict[str, Any]:
+    """Check a build can run and record it (a ``queued`` build row). Raises IndexBuildError (404 / 400).
 
-    ``fact_cards`` None keeps what the last build used (off for a first build).
+    Returns ``build_id``, ``queued_files`` (parsed files to index) and the resolved ``fact_cards`` choice
+    (None keeps what the last build used; off for a first build). ``run`` does the work (a job process in the web
+    app: ``webui.brain_build_jobs``).
     """
-    from finetune_studio.smart_brain import DEFAULT_EMBEDDER, BrainIndex
-
     project = db.get_project(pid)
     if not project:
         raise IndexBuildError(f"project {pid} not found", 404)
     if fact_cards is None:
         fact_cards = bool((_manifest_extra(pid) or {}).get("fact_cards"))
     docs = documents(pid, fact_cards=fact_cards)
-    if not any(not d.document_id.endswith(FACTS_SUFFIX) for d in docs):
+    queued = sum(1 for d in docs if not d.document_id.endswith(FACTS_SUFFIX))
+    if not queued:
         raise IndexBuildError("no parsed files in this project yet: upload files and let them parse first", 400)
     corpus = brain_index_dir(pid)
-    if reset and corpus.exists():
-        shutil.rmtree(corpus)
     rows = db.list_brain_indexes(pid)
     index_id = (rows[0] if rows else db.create_brain_index(pid, project["name"], store_path=str(corpus)))["id"]
-    run = db.create_brain_build(pid, index_id)
-    db.mark_brain_build_running(run["id"])
-    hashes = {s.id: s.text_sha for s in sources.list_sources(pid) if s.ready}
-    extra = {"built_from": {d.document_id: hashes.get(d.document_id, "") for d in docs
-                            if not d.document_id.endswith(FACTS_SUFFIX)},
-             "fact_cards": fact_cards, "facts_sha": facts_sha(pid) if fact_cards else ""}
+    run_row = db.create_brain_build(pid, index_id)
+    return {"build_id": run_row["id"], "queued_files": queued, "fact_cards": fact_cards}
+
+
+def run(pid: str, build_id: str, *, embedder: str | None = None, reset: bool = False,
+        fact_cards: bool = False) -> dict[str, Any]:
+    """Embed every ready source into the project index for a ``prepare``d build row; the row ends done or error
+    (with the real error, then re-raised)."""
+    from finetune_studio.smart_brain import DEFAULT_EMBEDDER, BrainIndex
+
+    db.mark_brain_build_running(build_id)
     try:
+        project = db.get_project(pid)
+        if not project:
+            raise IndexBuildError(f"project {pid} not found", 404)
+        docs = documents(pid, fact_cards=fact_cards)
+        corpus = brain_index_dir(pid)
+        if reset and corpus.exists():
+            shutil.rmtree(corpus)
+        hashes = {s.id: s.text_sha for s in sources.list_sources(pid) if s.ready}
+        extra = {"built_from": {d.document_id: hashes.get(d.document_id, "") for d in docs
+                                if not d.document_id.endswith(FACTS_SUFFIX)},
+                 "fact_cards": fact_cards, "facts_sha": facts_sha(pid) if fact_cards else ""}
         result = BrainIndex(corpus).build_from_documents(
             docs, name=project["name"], embedder=embedder or DEFAULT_EMBEDDER, chunk_size=0, overlap=0,
             splitter="passages", extra=extra)
     except Exception as e:
         log.exception("index build failed for %s", pid)
-        db.mark_brain_build_failed(run["id"], error=str(e))
+        db.mark_brain_build_failed(build_id, error=str(e) or type(e).__name__)
         raise
     n_docs, n_chunks = int(result.get("documents") or 0), int(result.get("chunks") or 0)
-    db.mark_brain_build_done(run["id"], doc_count=n_docs, chunk_count=n_chunks)
+    db.mark_brain_build_done(build_id, doc_count=n_docs, chunk_count=n_chunks)
     db.ensure_brain_index(pid, str(corpus), name=project["name"], doc_count=n_docs, chunk_count=n_chunks)
-    return {**result, "corpus_dir": str(corpus), "build_id": run["id"], "fact_cards": fact_cards,
+    return {**result, "corpus_dir": str(corpus), "build_id": build_id, "fact_cards": fact_cards,
             "fact_card_count": sum(len(d.chunks) for d in docs if d.document_id.endswith(FACTS_SUFFIX))}
+
+
+def build(pid: str, *, embedder: str | None = None, reset: bool = False,
+          fact_cards: bool | None = None) -> dict[str, Any]:
+    """(Re)build the project index from every ready source, here and now (the CLI). Tracked as a build row.
+
+    ``fact_cards`` None keeps what the last build used (off for a first build).
+    """
+    plan = prepare(pid, fact_cards=fact_cards)
+    return run(pid, plan["build_id"], embedder=embedder, reset=reset, fact_cards=plan["fact_cards"])
