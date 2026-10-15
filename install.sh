@@ -29,7 +29,7 @@
 #   --gpu VENDOR    override detection: nvidia | amd | intel | apple | none
 #   --plan          print the detected accelerator + install plan, change nothing
 #   --config FILE   access settings for automated installs (FTS_BIND_HOST, FTS_PORT, FTS_AUTH,
-#                   FTS_ADMIN_PASSWORD_FILE, FTS_ALLOWED_HOSTS, FTS_TAILSCALE, FTS_INSTALL_SERVICE; docs/INSTALL.md).
+#                   FTS_ADMIN_PASSWORD_FILE, FTS_LISTEN_LAN, FTS_TAILSCALE, FTS_LISTEN_CUSTOM, ...; docs/INSTALL.md).
 #                   Also read from FTS_INSTALL_CONFIG. Without it a terminal install asks one question.
 #   --rebuild-llama-cpp  rebuild the llama.cpp CLI even if present
 #   --no-gguf       skip llama-cpp-python entirely

@@ -37,11 +37,11 @@ def test_password_hash_roundtrip_and_policy() -> None:
 
 
 def test_server_address_defaults_to_this_computer_only() -> None:
-    assert server.load() == server.ServerAddress("127.0.0.1", 7860)
+    assert server.load() == server.ServerAddress(7860) and server.load().binds() == ("127.0.0.1",)
     assert server.is_loopback("localhost") and server.is_loopback("::1") and server.is_loopback("127.0.0.2")
     assert not server.is_loopback("0.0.0.0") and not server.is_loopback("192.0.2.4") and not server.is_loopback("box")
-    server.save(server.validate("0.0.0.0", 8080, ["Studio.Example"]))
-    assert server.load() == server.ServerAddress("0.0.0.0", 8080, ("studio.example",))
+    server.save(server.validate("0.0.0.0", 8080, ["Studio.Example"]))    # the pre-switches form
+    assert server.load() == server.ServerAddress(8080, lan=True, tailscale=True, allowed_hosts=("studio.example",))
     with pytest.raises(ValueError):
         server.validate("0.0.0.0", 70000)
 
@@ -90,7 +90,9 @@ def test_dns_rebinding_host_is_refused_while_listening_locally(client) -> None:
 
 
 def test_listening_on_the_network_without_a_password_is_reported(client, monkeypatch) -> None:
-    monkeypatch.setenv("FTS_LISTEN_HOST", "0.0.0.0")
+    monkeypatch.setenv("FTS_LISTEN_ADDRS", "0.0.0.0")
+    assert client.get("/api/auth/state").json()["exposed_without_password"] is False   # LAN switched off: refused
+    server.save(server.make(7860, lan=True))
     assert client.get("/api/auth/state").json()["exposed_without_password"] is True
     store.set_password(PW)
     assert client.get("/api/auth/state").json()["exposed_without_password"] is False
@@ -196,12 +198,12 @@ def test_tokens_from_settings_are_shown_once(client) -> None:
 
 
 def test_opening_to_the_network_without_a_password_needs_confirmation(client) -> None:
-    body = {"host": "0.0.0.0", "port": 7860}
+    body = {"lan": True, "port": 7860}
     r = client.put("/api/settings/security/server", json=body, headers=SAME)
-    assert r.status_code == 409 and "password" in r.json()["detail"]
+    assert r.status_code == 409 and "password" in r.json()["detail"] and "local network" in r.json()["detail"]
     r = client.put("/api/settings/security/server", json={**body, "confirm_no_password": True}, headers=SAME)
-    assert r.status_code == 200 and r.json()["server"]["host"] == "0.0.0.0"
-    assert json.loads((_root() / "server.json").read_text())["host"] == "0.0.0.0"
+    assert r.status_code == 200 and r.json()["server"]["binds"] == ["0.0.0.0"]
+    assert json.loads((_root() / "server.json").read_text())["lan"] is True
 
 
 def test_disabling_the_password_needs_it(client) -> None:
@@ -242,13 +244,14 @@ def test_install_config_network_with_password_file(tmp_path: Path) -> None:
     """))
     done = install_config.apply(cfg)
     assert cfg.install_service and any("password set" in d for d in done)
-    assert server.load() == server.ServerAddress("0.0.0.0", 7861, ("lab.example", "studio.example"))
+    assert server.load() == server.ServerAddress(7861, lan=True, tailscale=True,
+                                                 allowed_hosts=("lab.example", "studio.example"))
     assert store.check_password(PW)
 
 
 def test_install_config_refuses_the_network_without_a_password(tmp_path: Path) -> None:
     from finetune_studio.access import install_config
-    with pytest.raises(ValueError, match="reaches the network"):
+    with pytest.raises(ValueError, match="local network .*FTS_AUTH is not 'password'"):
         install_config.apply(install_config.parse(_cfg(tmp_path, "FTS_BIND_HOST=0.0.0.0\n")))
     assert not (_root() / "server.json").exists()                  # nothing half-written
 

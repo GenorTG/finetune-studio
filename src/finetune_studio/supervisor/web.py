@@ -6,6 +6,7 @@ import logging
 import socket
 import sys
 import urllib.request
+from collections.abc import Callable
 
 from finetune_studio.supervisor.spec import ComponentSpec
 
@@ -39,6 +40,8 @@ class ListenSocket:
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 if self.freebind and family == socket.AF_INET and sys.platform.startswith("linux"):
                     sock.setsockopt(socket.IPPROTO_IP, IP_FREEBIND, 1)
+                if family == socket.AF_INET6 and self.host.strip("[]") == "::":
+                    sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)     # "::" = IPv4 too
                 sock.bind((self.host, self.port))
                 sock.listen(128)
             except OSError:
@@ -72,16 +75,42 @@ def http_probe(url: str, timeout: float = 4.0):
     return probe
 
 
-class ExtraListeners:
-    """Optional extra addresses (the Tailscale IP). One that cannot be bound is logged and skipped: the web UI
-    stays up on the main address instead of failing to start."""
+class Listeners:
+    """The web UI's listening sockets for one plan (addresses + port). The first address must bind; any other
+    that cannot (a Tailscale IP while tailscaled is down on a non-Linux box) is logged and skipped, so the UI stays
+    up. ``open(plan)`` with a different plan closes the old sockets and binds the new ones (a changed setting
+    applies on the next web start)."""
 
-    def __init__(self, hosts: tuple[str, ...], port: int) -> None:
-        self.sockets = [ListenSocket(h, port, freebind=True) for h in hosts]
+    def __init__(self) -> None:
+        self.plan: tuple[tuple[str, ...], int] | None = None
+        self.sockets: list[ListenSocket] = []
         self.failed: dict[str, str] = {}
+        self.error = ""          # why the last requested plan was not used (shown in Settings)
 
-    def open(self) -> None:
-        for ls in self.sockets:
+    def open(self, plan: tuple[tuple[str, ...], int]) -> None:
+        if plan == self.plan:
+            self.error = ""                          # what is saved is what is bound
+        else:
+            hosts, port = plan
+            fresh = [ListenSocket(h, port, freebind=i > 0) for i, h in enumerate(hosts)]
+            if self.plan is not None:
+                # A busy port or a gone address must not leave the UI unreachable (it is where you fix it).
+                self.close()
+                try:
+                    fresh[0].open()
+                except OSError as e:
+                    self.error = f"cannot listen on {hosts[0]}:{port}: {e}"
+                    _log.error("%s; keeping %s", self.error, ", ".join(f"{h}:{self.plan[1]}" for h in self.plan[0]))
+                    self.sockets[0].open()
+                    self._bind_extras()
+                    return
+            self.sockets, self.plan, self.failed, self.error = fresh, plan, {}, ""
+            _log.info("web UI listens on %s", ", ".join(f"{h}:{port}" for h in hosts))
+        self.sockets[0].open()                       # the main address: failing here is a failed start
+        self._bind_extras()
+
+    def _bind_extras(self) -> None:
+        for ls in self.sockets[1:]:
             try:
                 ls.open()
                 self.failed.pop(ls.host, None)
@@ -98,43 +127,52 @@ class ExtraListeners:
             ls.close()
 
 
-def web_spec(host: str, port: int, *, cwd: str | None = None, extra_hosts: tuple[str, ...] = ()) -> ComponentSpec:
-    listen = ListenSocket(host, port)
-    extra = ExtraListeners(extra_hosts, port)
-    probe_host = "127.0.0.1" if host in ("0.0.0.0", "") else ("::1" if host == "::" else host)
-    probe_url = f"http://[{probe_host}]:{port}/api/health" if ":" in probe_host else f"http://{probe_host}:{port}/api/health"
+def _probe_url(host: str, port: int) -> str:
+    h = "127.0.0.1" if host in ("0.0.0.0", "") else ("::1" if host == "::" else host)
+    return f"http://[{h}]:{port}/api/health" if ":" in h else f"http://{h}:{port}/api/health"
+
+
+def web_spec(host: str | None = None, port: int | None = None, *, cwd: str | None = None,
+             extra_hosts: tuple[str, ...] = (),
+             plan: Callable[[], tuple[tuple[str, ...], int]] | None = None) -> ComponentSpec:
+    """``plan`` (re-read before every web start) or a fixed ``host`` + ``extra_hosts`` on ``port``."""
+    if plan is None:
+        fixed = ((host or "127.0.0.1", *extra_hosts), int(port or 0))
+        plan = lambda: fixed
+    listeners = Listeners()
 
     def fds() -> tuple[int, ...]:
-        return (listen.fileno(), *(ls.fileno() for ls in extra.opened()))
+        return tuple(ls.fileno() for ls in listeners.opened())
 
     def argv() -> list[str]:
-        if not extra.opened():
-            return [sys.executable, "-m", "uvicorn", WEB_APP, "--fd", str(listen.fileno()), "--no-access-log",
+        if len(listeners.opened()) == 1:
+            return [sys.executable, "-m", "uvicorn", WEB_APP, "--fd", str(fds()[0]), "--no-access-log",
                     "--timeout-graceful-shutdown", str(GRACEFUL_SHUTDOWN_S)]
         # uvicorn's CLI takes one --fd; webui.serve hands uvicorn several sockets.
         return [sys.executable, "-m", "finetune_studio.webui.serve", *(a for fd in fds() for a in ("--fd", str(fd))),
                 "--timeout-graceful-shutdown", str(GRACEFUL_SHUTDOWN_S)]
 
     def prepare() -> None:
-        listen.open()
-        extra.open()
-
-    def release() -> None:
-        listen.close()
-        extra.close()
+        listeners.open(plan())
 
     def env() -> dict[str, str]:
-        # The app reads these to know who can reach it (no-password-on-the-network warning, host checks).
-        return {"FTS_LISTEN_HOST": host, "FTS_LISTEN_PORT": str(port),
-                "FTS_LISTEN_EXTRA": ",".join(ls.host for ls in extra.opened())}
+        # The app reads these to know who can reach it (no-password warning, Settings -> Access & network).
+        bound = [ls.host for ls in listeners.opened()]
+        return {"FTS_LISTEN_ADDRS": ",".join(bound), "FTS_LISTEN_HOST": bound[0],
+                "FTS_LISTEN_PORT": str(listeners.plan[1] if listeners.plan else port),
+                "FTS_LISTEN_ERROR": listeners.error}
+
+    async def probe() -> tuple[bool, str]:
+        hosts, p = listeners.plan or plan()
+        return await http_probe(_probe_url(hosts[0], p))()
 
     return ComponentSpec(
         name="web",
         argv=argv,
         pass_fds=fds,
         prepare=prepare,
-        release=release,
-        probe=http_probe(probe_url),
+        release=listeners.close,
+        probe=probe,
         cwd=cwd,
         env=env,
     )

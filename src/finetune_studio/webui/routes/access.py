@@ -16,11 +16,10 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from finetune_studio.access import server, sessions, store, tailscale, throttle
+from finetune_studio.access import netinfo, server, sessions, store, tailscale, throttle
 from finetune_studio.access.middleware import (
     exposed_without_password,
-    listen_extra,
-    listen_host,
+    listening,
     session_token,
 )
 from finetune_studio.access.passwords import MIN_LENGTH
@@ -106,10 +105,11 @@ async def auth_state(request: Request) -> dict[str, Any]:
 async def _security_state() -> dict[str, Any]:
     cfg = store.load()
     addr = server.load()
-    listening = listen_host()
+    bound = listening()
     listening_port = int(os.environ.get("FTS_LISTEN_PORT") or addr.port)
-    extra = listen_extra()
     tailnet = await asyncio.to_thread(tailscale.detect_cached)
+    lan = await asyncio.to_thread(netinfo.lan_addresses)
+    wildcard = any(server.is_wildcard(b) for b in bound)
     return {
         "mode": cfg.mode,
         "password_set": cfg.enabled,
@@ -117,21 +117,23 @@ async def _security_state() -> dict[str, Any]:
         "password_min_length": MIN_LENGTH,
         "tokens": [t.public() for t in cfg.tokens],
         "sessions": sessions.count(),
-        "server": {"host": addr.host, "port": addr.port, "allowed_hosts": list(addr.allowed_hosts),
-                   "listening_on": listening, "loopback_only": server.is_loopback(listening),
-                   "listening_port": listening_port,
-                   "listening_also": list(extra),
-                   # Saved but not in use yet: the listen sockets are opened at service start.
-                   "restart_needed": (listening, listening_port, extra) != (addr.host, addr.port, addr.extra_hosts())},
-        "tailscale": {
-            "detected": tailnet.public() if tailnet else None,
-            "enabled": addr.tailscale,
-            "ip": addr.tailscale_ip,
-            "names": list(addr.tailscale_names),
-            # Listening on every address already includes the Tailscale one.
-            "covered_by_host": server.is_wildcard(addr.host),
-            "listening": addr.tailscale_ip in extra or (server.is_wildcard(listening) and bool(tailnet)),
+        # Settings -> Access & network: one switch per kind of device, plus custom addresses.
+        "reach": {
+            "lan": {"on": addr.lan, "listening": addr.lan and wildcard, "addresses": [a.public() for a in lan]},
+            "tailscale": {"on": addr.tailscale, "detected": tailnet.public() if tailnet else None,
+                          "ip": addr.tailscale_ip, "names": list(addr.tailscale_names),
+                          "listening": addr.tailscale and (wildcard or addr.tailscale_ip in bound)},
+            "custom": {"addresses": list(addr.custom),
+                       "listening": [c for c in addr.custom if c in bound or wildcard]},
+            "now": server.effective(bound, addr),
+            "saved": server.describe(addr),
         },
+        "server": {"port": addr.port, "allowed_hosts": list(addr.allowed_hosts),
+                   "binds": list(addr.binds()), "listening": list(bound), "listening_port": listening_port,
+                   "loopback_only": addr.loopback_only,
+                   # Saved but not in use yet: switching ON or a new port applies when the web UI restarts.
+                   "restart_needed": (tuple(bound), listening_port) != (addr.binds(), addr.port),
+                   "listen_error": os.environ.get("FTS_LISTEN_ERROR", "")},
         "exposed_without_password": exposed_without_password(),
     }
 
@@ -203,33 +205,38 @@ async def clear_sessions(request: Request) -> dict[str, Any]:
 
 
 class ServerBody(BaseModel):
-    host: str
-    port: int
-    allowed_hosts: list[str] = []
-    tailscale: bool | None = None          # also listen on this computer's Tailscale address; None = keep as saved
+    """Every field optional: None = keep as saved. ``host`` is the pre-switches single address."""
+    port: int | None = None
+    lan: bool | None = None
+    tailscale: bool | None = None
+    custom: list[str] | None = None
+    allowed_hosts: list[str] | None = None
+    host: str | None = None
     confirm_no_password: bool = False
 
 
 @router.put("/api/settings/security/server")
 async def set_server(body: ServerBody, request: Request) -> dict[str, Any]:
     saved = server.load()
-    want_tailscale = saved.tailscale if body.tailscale is None else body.tailscale
     tailnet = await asyncio.to_thread(tailscale.detect) if body.tailscale else None
-    if body.tailscale and tailnet is None:
+    if body.tailscale and tailnet is None and not saved.tailscale_ip:
         raise HTTPException(status_code=409, detail=(
             "Tailscale is not detected on this computer (not installed, logged out or down): "
             "start it (tailscale up) and try again"))
     try:
-        base = server.validate(body.host, body.port, body.allowed_hosts, tailscale_ip=saved.tailscale_ip,
-                               tailscale_names=saved.tailscale_names)
-        addr = server.with_tailscale(base, want_tailscale, tailnet)
+        base = saved
+        if body.host:
+            legacy = server.from_host(body.host, body.port or saved.port, saved.allowed_hosts)
+            base = server.change(saved, lan=legacy.lan, tailscale=legacy.tailscale, custom=legacy.custom)
+        addr = server.change(base, port=body.port, lan=body.lan, tailscale=body.tailscale, custom=body.custom,
+                             allowed_hosts=body.allowed_hosts, tailnet=tailnet)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     if not addr.loopback_only and not store.load().enabled and not body.confirm_no_password:
-        who = "your Tailscale devices" if server.is_loopback(addr.host) else "other machines"
         raise HTTPException(status_code=409, detail=(
-            f"this lets {who} reach this instance, and no password is set: anyone there could run training, "
-            "delete projects or start an update. Set a password first, or confirm."))
+            f"this lets {server.describe(addr).removeprefix('this computer + ')} reach this instance, and no "
+            "password is set: anyone there could run training, delete projects or start an update. "
+            "Set a password first, or confirm."))
     server.save(addr)
     state = await _security_state()
     state["saved_at"] = time.time()

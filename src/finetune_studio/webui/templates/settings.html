@@ -92,22 +92,43 @@
         </div>
       </form>
 
-      <h3 class="text-xs muted mb-1">Listen address</h3>
-      <p class="text-xs dim mb-2">Applies when the service restarts (Settings -&gt; Service, or <code>fts down &amp;&amp; fts up</code>).</p>
+      <h3 class="text-xs muted mb-1">Who can open it</h3>
+      <p class="text-xs dim mb-2">Anything beyond this computer needs a password. Switching off works at once;
+        switching on or a new port applies when the web UI restarts (a few seconds).</p>
       <form id="access-server-form" class="access-form mb-3">
-        <select id="access-host" class="select">
-          <option value="127.0.0.1">This computer only (127.0.0.1)</option>
-          <option value="0.0.0.0">Every network this machine is on (0.0.0.0)</option>
-        </select>
-        <input id="access-port" class="input" type="number" min="1" max="65535" aria-label="Port">
-        <input id="access-allowed" class="input" type="text"
-               placeholder="Extra host names, comma separated (reverse proxy), e.g. studio.example">
-        <label id="access-ts-row" class="text-xs access-ts" hidden>
-          <input id="access-ts" type="checkbox"> Also listen on Tailscale <span id="access-ts-where" class="dim"></span>
-        </label>
-        <button class="btn sm" type="submit">Save address</button>
+        <div class="access-reach" role="group" aria-label="Who can open the web UI">
+          <label class="access-switch">
+            <input type="checkbox" checked disabled>
+            <span><strong>This computer</strong> <span class="dim">always on (localhost)</span></span>
+          </label>
+          <label class="access-switch">
+            <input id="access-lan" type="checkbox">
+            <span><strong>Local network</strong> <span class="dim" id="access-lan-where">devices on your LAN / Wi-Fi</span></span>
+            <span class="access-state" id="access-lan-state"></span>
+          </label>
+          <label class="access-switch" id="access-ts-row">
+            <input id="access-ts" type="checkbox">
+            <span><strong>Tailscale</strong> <span class="dim" id="access-ts-where">your tailnet devices</span></span>
+            <span class="access-state" id="access-ts-state"></span>
+          </label>
+        </div>
+        <details id="access-advanced">
+          <summary class="text-xs muted">Custom addresses, port, host names</summary>
+          <label class="block text-xs muted mt-2 mb-1" for="access-custom">Other addresses of this computer to listen on
+            (comma separated; <code>0.0.0.0</code> or <code>::</code> = every network, no filter)</label>
+          <input id="access-custom" class="input access-mono" type="text" placeholder="e.g. 198.51.100.2, fd00::5">
+          <label class="block text-xs muted mt-2 mb-1" for="access-port">Port</label>
+          <input id="access-port" class="input" type="number" min="1" max="65535">
+          <label class="block text-xs muted mt-2 mb-1" for="access-allowed">Extra host names browsers may use
+            (reverse proxy), comma separated</label>
+          <input id="access-allowed" class="input" type="text" placeholder="e.g. studio.example">
+        </details>
+        <div class="flex gap-2">
+          <button class="btn sm primary" type="submit">Save</button>
+          <button class="btn sm" type="button" id="access-apply" hidden>Apply now (restart web UI)</button>
+        </div>
       </form>
-      <p id="access-ts-note" class="text-xs dim mb-3" hidden></p>
+      <p id="access-reach-note" class="text-xs dim mb-3" hidden></p>
 
       <h3 class="text-xs muted mb-1">API tokens</h3>
       <p class="text-xs dim mb-2">For scripts and other tools: <code>Authorization: Bearer &lt;token&gt;</code>. Only used while a password is set.</p>
@@ -321,5 +342,5 @@
 
 {% block scripts %}
 <script src="/static/js/settings.js?v=15"></script>
-<script src="/static/js/security.js?v=2"></script>
+<script src="/static/js/security.js?v=3"></script>
 {% endblock %}

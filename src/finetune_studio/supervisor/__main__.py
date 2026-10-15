@@ -37,11 +37,32 @@ def take_lock(path: Path):
     return fh
 
 
-async def run(host: str, port: int, extra_hosts: tuple[str, ...] = ()) -> None:
+def listen_plan(host: str | None, port: int | None):
+    """Re-read before every web start: a changed Settings -> Access & network applies with ``fts restart web``."""
+    from finetune_studio.access import server
+
+    last: dict[str, tuple[tuple[str, ...], int]] = {}
+
+    def plan() -> tuple[tuple[str, ...], int]:
+        try:
+            addr = server.refresh_tailscale(server.resolve(host, port))
+            last["plan"] = (addr.binds(), addr.port)
+        except ValueError as e:
+            if "plan" not in last:
+                raise
+            print(f"[supervisor] {e}; keeping the previous listen addresses", file=sys.stderr, flush=True)
+        return last["plan"]
+
+    return plan
+
+
+async def run(host: str | None, port: int | None) -> None:
     from finetune_studio.supervisor.jobs import JobTable
     events = EventLog(events_path())
-    listen = ", ".join(f"{h}:{port}" for h in (host, *extra_hosts))
-    sup = Supervisor([web_spec(host, port, cwd=os.getcwd(), extra_hosts=extra_hosts),
+    plan = listen_plan(host, port)
+    binds, bound_port = plan()
+    listen = ", ".join(f"{h}:{bound_port}" for h in binds)
+    sup = Supervisor([web_spec(plan=plan, cwd=os.getcwd()),
                       inference_spec(inference_socket_path(), cwd=os.getcwd())], events,
                      meta={"launcher": detect_launcher(), "listen": listen},
                      jobs=JobTable(events, cwd=os.getcwd(), inference_socket=inference_socket_path()))
@@ -66,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
     logsetup.setup("supervisor")
     from finetune_studio.access import server
     try:
-        addr = server.refresh_tailscale(server.resolve(args.host, args.port))
+        server.resolve(args.host, args.port)              # fail fast on a broken server.json
     except ValueError as e:
         print(f"[supervisor] {e}", file=sys.stderr)
         return 2
@@ -74,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
     if lock is None:
         print(f"[supervisor] another supervisor already runs for this FTS_ROOT ({lock_path()})", file=sys.stderr)
         return 1
-    asyncio.run(run(addr.host, addr.port, addr.extra_hosts()))
+    asyncio.run(run(args.host, args.port))
     return 0
 
 

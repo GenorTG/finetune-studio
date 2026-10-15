@@ -9,9 +9,13 @@ def cmd_webui(args) -> None:
 
     from finetune_studio.access import server
     addr = server.resolve(args.host, args.port)
-    # The app reads these to know who can reach it (the "no password on the network" warning, host checks).
-    os.environ["FTS_LISTEN_HOST"], os.environ["FTS_LISTEN_PORT"] = addr.host, str(addr.port)
-    if addr.extra_hosts():
-        print(f"note: fts webui listens on {addr.host} only; the Tailscale address {addr.tailscale_ip} is served by "
-              "the service (fts up / systemd)")
-    uvicorn.run("finetune_studio.webui.app:app", host=addr.host, port=addr.port, reload=args.reload)
+    binds = addr.binds()
+    # One uvicorn socket here: 0.0.0.0 when the switches need more than one address; the middleware then refuses
+    # whatever is switched off (the service binds each address on its own instead).
+    host = binds[0] if len(binds) == 1 else "0.0.0.0"
+    os.environ["FTS_LISTEN_ADDRS"] = os.environ["FTS_LISTEN_HOST"] = host
+    os.environ["FTS_LISTEN_PORT"] = str(addr.port)
+    if len(binds) > 1:
+        print(f"note: fts webui listens on 0.0.0.0:{addr.port} and refuses what is switched off "
+              f"({server.describe(addr)} is on); the service binds {', '.join(binds)} only")
+    uvicorn.run("finetune_studio.webui.app:app", host=host, port=addr.port, reload=args.reload)

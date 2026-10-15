@@ -112,7 +112,7 @@
   }
 
   const RESTART_TEXT = {
-    web: 'Restart the web server? It is back in a few seconds. Running jobs stop and are marked failed; the loaded model stays (it lives in the inference worker).',
+    web: 'Restart the web server? It is back in a few seconds. Training runs keep going (they are their own processes); other running work such as exports and test runs stops and is marked failed. The loaded model stays (it lives in the inference worker).',
     inference: 'Restart the inference worker? The loaded model is dropped and its VRAM freed; load it again afterwards. The web server stays up.',
   };
 

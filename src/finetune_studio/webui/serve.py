@@ -1,7 +1,7 @@
 """Run the web app on several listening sockets the supervisor already bound (``--fd`` repeated).
 
 uvicorn's own CLI takes a single ``--fd``; this is only used when the web UI also listens on a second address
-(the Tailscale IP, ``access.server.ServerAddress.extra_hosts``).
+(the Tailscale IP or a custom address, ``access.server.ServerAddress.binds``).
 """
 from __future__ import annotations
 

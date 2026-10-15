@@ -132,12 +132,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_srv = sub.add_parser("server", help="Listen address of the web UI ($FTS_ROOT/server.json)")
     srv_sub = p_srv.add_subparsers(dest="server_action", required=True)
     srv_sub.add_parser("show")
-    p_srv_set = srv_sub.add_parser("set", help="Save the address; it applies on the next service start")
-    p_srv_set.add_argument("--host", help="127.0.0.1 = this computer only, 0.0.0.0 = every network interface")
+    p_srv_set = srv_sub.add_parser("set", help="Who can reach the web UI (switches; this computer always can)")
+    p_srv_set.add_argument("--lan", choices=("on", "off"), help="Devices on your local network / Wi-Fi")
+    p_srv_set.add_argument("--tailscale", choices=("on", "off"), help="Your Tailscale devices")
+    p_srv_set.add_argument("--custom", help="Comma list of other addresses of this computer to listen on "
+                                            "(e.g. 198.51.100.2, :: or 0.0.0.0 = every network); '' clears it")
     p_srv_set.add_argument("--port", type=int)
     p_srv_set.add_argument("--allowed-hosts", help="Comma list of extra host names browsers may use (reverse proxy)")
-    p_srv_set.add_argument("--tailscale", choices=("on", "off"),
-                           help="Also listen on this computer's Tailscale address (needs a password)")
+    p_srv_set.add_argument("--host", help="Old single-address form: 127.0.0.1 = this computer, 0.0.0.0 = LAN + "
+                                          "Tailscale, other = a custom address")
     p_srv_set.add_argument("--yes", action="store_true", help="Allow a network address without a password")
 
     p_doc = sub.add_parser("doctor", help="Diagnose the install with the app down (supervisor, port, unit, GPU choice)")

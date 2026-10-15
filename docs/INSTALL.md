@@ -135,38 +135,53 @@ onboarding tutorial.
 
 ### 5. Access: who can open the web UI
 
-By default Finetune Studio listens on **127.0.0.1:7860: this computer only, no password**. A terminal install
-asks once whether other devices on your network should reach it; if yes, it asks for a password. When the computer
-is on a [Tailscale](https://tailscale.com) network, it also offers **this computer + my Tailscale devices**: a second
-listener on the Tailscale address only, so the LAN cannot reach it (also needs a password).
-Change it any time in **Settings -> Access & network**, or on the machine itself:
+By default Finetune Studio is reachable from **this computer only (127.0.0.1:7860), no password**. Who else can
+open it is a set of switches; anything beyond this computer needs a password:
+
+| Switch | Who | Listens on |
+|---|---|---|
+| This computer | always on | 127.0.0.1 |
+| Local network | devices on your LAN / Wi-Fi | 0.0.0.0, and refuses what is switched off |
+| Tailscale | your [Tailscale](https://tailscale.com) devices (offered when Tailscale is detected) | the Tailscale address only |
+| Custom addresses | any other address of this computer (a VPN, `::`, `0.0.0.0` = every network) | those addresses |
+
+A terminal install asks one question per switch (Tailscale only when it is detected), then a password if any is on.
+Change them any time in **Settings -> Access & network**: switching off works at once; switching on, or a new port,
+applies with **Apply now** (restarts the web UI in a few seconds; training keeps running). On the machine itself:
 
 ```bash
-fts auth status                   # address, password on/off, sessions, API tokens
+fts server show                   # each switch, this computer's LAN / Tailscale addresses, what is bound
+fts server set --lan on           # devices on the local network (asks for a password first)
+fts server set --tailscale on     # your Tailscale devices
+fts server set --custom 198.51.100.2   # other addresses ('' clears); --port N; --allowed-hosts for a reverse proxy
+fts restart web                   # apply switching on / a new port
+fts auth status                   # password on/off, who can reach it, sessions, API tokens
 fts auth set-password             # turn sign-in on / change the password (prompt; or --password-file FILE)
-fts server set --host 0.0.0.0     # reachable from the network (asks for a password first; applies on restart)
-fts server set --tailscale on     # also listen on this computer's Tailscale address (needs a password)
 fts auth token create "backup"    # API token for scripts: Authorization: Bearer <token> (shown once)
-fts auth disable                  # no sign-in (only sensible on 127.0.0.1)
+fts auth disable                  # no sign-in (only sensible for this computer only)
 ```
 
-Forgot the password? Run `fts auth set-password` on the machine. A web UI reachable from the network
-without a password shows a red warning on every page, and `fts doctor` reports it as a failure.
+Forgot the password? Run `fts auth set-password` on the machine. A web UI reachable from other machines
+without a password shows a red warning on every page, and `fts doctor` reports it as a failure. If a new port is
+taken, the web UI keeps the previous one and Settings says why.
 
 **Automated installs** pass a config file instead of answering (`bash install.sh --config FILE`, or
 `FTS_INSTALL_CONFIG=FILE`). The file is parsed, never executed; an unknown key is an error:
 
 ```ini
-FTS_BIND_HOST=0.0.0.0                      # 127.0.0.1 (default) = this computer only
+FTS_LISTEN_LAN=1                           # devices on the local network / Wi-Fi
+FTS_TAILSCALE=1                            # your Tailscale devices
+FTS_LISTEN_CUSTOM=198.51.100.2             # other addresses, comma separated (0.0.0.0 = every network)
 FTS_PORT=7860
-FTS_AUTH=password                          # password | off (off is refused with a network address)
+FTS_AUTH=password                          # password | off (off is refused with any switch on)
 FTS_ADMIN_PASSWORD_FILE=/run/secrets/fts   # or FTS_ADMIN_PASSWORD=... in this file (chmod 600 it)
 FTS_ALLOWED_HOSTS=studio.example           # extra host names for a reverse proxy, comma separated
-FTS_TAILSCALE=1                            # also listen on the Tailscale address (needs FTS_AUTH=password)
 FTS_INSTALL_SERVICE=1                      # also install the systemd user unit
 ```
 
-State lives under `$FTS_ROOT` (default `~/.finetune-studio`): `server.json` (address) and `auth/` (password hash,
+`FTS_BIND_HOST` (the older single address; `0.0.0.0` = local network + Tailscale) still works.
+
+State lives under `$FTS_ROOT` (default `~/.finetune-studio`): `server.json` (the switches and port) and `auth/` (password hash,
 API token hashes, sessions; mode 0600). No plain password or token is ever stored.
 
 ---

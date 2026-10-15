@@ -161,16 +161,16 @@ def access_check() -> tuple[str, str, str]:
         addr, cfg = server.load(), store.load()
     except (ValueError, RuntimeError) as e:
         return ("fail", "access", str(e))
-    host = _unit_listen_host() or addr.host
-    shown = addr if host == addr.host else server.ServerAddress(host=host, port=addr.port)
-    detail = (f"listening on {host} ({server.describe(shown)}), password {'on' if cfg.enabled else 'off'}, "
-              f"{len(cfg.tokens)} API token(s)")
+    legacy = _unit_listen_host()
+    shown = server.from_host(legacy, addr.port) if legacy else addr
+    detail = (f"reachable from {server.describe(shown)} (listens on {', '.join(shown.binds())}:{shown.port}), "
+              f"password {'on' if cfg.enabled else 'off'}, {len(cfg.tokens)} API token(s)")
     if not shown.loopback_only and not cfg.enabled:
         return ("fail", "access", detail + ": anyone who can reach it can control it -> fts auth set-password")
-    if shown.tailscale:
+    if shown.tailscale and not shown.lan:
         from finetune_studio.access import tailscale
         if tailscale.detect() is None:
-            return ("warn", "access", detail + f": Tailscale is not running, {addr.tailscale_ip} answers once it is")
+            return ("warn", "access", detail + f": Tailscale is not running, {shown.tailscale_ip} answers once it is")
     return ("ok", "access", detail)
 
 

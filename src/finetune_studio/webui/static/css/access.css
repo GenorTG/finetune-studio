@@ -8,7 +8,13 @@
 }
 .access-banner a { color: #fff; text-decoration: underline; margin-left: 4px; }
 .access-form { display: grid; gap: 8px; max-width: 420px; }
-.access-ts { display: flex; gap: 6px; align-items: center; }
+.access-reach { display: grid; gap: 6px; }
+.access-switch { display: flex; gap: 8px; align-items: baseline; font-size: 0.85rem; cursor: pointer; }
+.access-switch input { flex: none; }
+.access-switch input:disabled + span { cursor: default; }
+.access-state { margin-left: auto; font-size: 0.75rem; white-space: nowrap; color: var(--muted, inherit); }
+.access-state.on { color: var(--ok, inherit); }
+.access-state.pending { color: var(--warn); }
 .access-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 0.85rem; }
 .access-list .btn { margin-left: 6px; }
 .access-secret { word-break: break-all; padding: 8px; border: 1px dashed var(--warn); color: var(--warn); font-size: 0.85rem; }

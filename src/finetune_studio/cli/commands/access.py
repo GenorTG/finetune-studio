@@ -39,7 +39,7 @@ def cmd_auth(args) -> None:
             sys.exit(1)
         addr = server.load()
         print(f"password:   {'on' if cfg.enabled else 'off'} (changed {_when(cfg.password_changed_at)})")
-        print(f"address:    {addr.host}:{addr.port} ({server.describe(addr)})")
+        print(f"reachable:  {server.describe(addr)}, port {addr.port} (fts server show)")
         print(f"sessions:   {sessions.count()} signed-in browser(s)")
         print(f"API tokens: {len(cfg.tokens)}")
         for t in cfg.tokens:
@@ -107,29 +107,49 @@ def cmd_auth(args) -> None:
     raise SystemExit(f"unknown auth action {action!r}")
 
 
+def _onoff(v: bool) -> str:
+    return "on " if v else "off"
+
+
 def cmd_server(args) -> None:
+    from finetune_studio.access import netinfo, tailscale
     current = server.load()
-    from finetune_studio.access import tailscale
     if args.server_action == "show":
-        print(f"{current.host}:{current.port} ({server.describe(current)})"
-              + (f"  allowed host names: {', '.join(current.allowed_hosts)}" if current.allowed_hosts else ""))
+        # First line "<address>:<port> (<who>)": install-service.sh reads the address and port from it.
+        print(f"{current.probe_host()}:{current.port} ({server.describe(current)})")
+        lan = ", ".join(f"{a.ip} {a.interface}" for a in netinfo.lan_addresses()) or "no LAN address found"
         tailnet = tailscale.detect()
-        if tailnet and not current.tailscale and server.is_loopback(current.host):
-            print(f"Tailscale detected ({tailnet.ipv4}{' · ' + tailnet.dns_name if tailnet.dns_name else ''}): "
-                  "fts server set --tailscale on")
+        ts = (f"{tailnet.ipv4}{' · ' + tailnet.dns_name if tailnet.dns_name else ''}" if tailnet
+              else f"not detected{f', last known {current.tailscale_ip}' if current.tailscale_ip else ''}")
+        print("  this computer   on  (always)")
+        print(f"  local network   {_onoff(current.lan)} ({lan})")
+        print(f"  Tailscale       {_onoff(current.tailscale)} ({ts})")
+        print(f"  custom          {', '.join(current.custom) or 'none'}")
+        print(f"  listens on      {', '.join(current.binds())}  port {current.port}")
+        if current.allowed_hosts:
+            print(f"  extra host names {', '.join(current.allowed_hosts)}")
+        if tailnet and not current.tailscale and not current.lan:
+            print("Tailscale detected: fts server set --tailscale on")
         return
-    allowed = current.allowed_hosts if args.allowed_hosts is None else tuple(
-        n for n in args.allowed_hosts.split(",") if n.strip())
     tailnet = tailscale.detect() if args.tailscale == "on" else None
-    if args.tailscale == "on" and tailnet is None:
+    if args.tailscale == "on" and tailnet is None and not current.tailscale_ip:
         print("Not saved: Tailscale is not detected on this computer (not installed, logged out or down).",
               file=sys.stderr)
         sys.exit(2)
-    want_ts = current.tailscale if args.tailscale is None else args.tailscale == "on"
+
+    def switch(v: str | None) -> bool | None:
+        return None if v is None else v == "on"
+
+    def csv(v: str | None) -> list[str] | None:
+        return None if v is None else [x for x in v.split(",") if x.strip()]
+
     try:
-        base = server.validate(args.host or current.host, args.port or current.port, allowed,
-                               tailscale_ip=current.tailscale_ip, tailscale_names=current.tailscale_names)
-        addr = server.with_tailscale(base, want_ts, tailnet)
+        base = current
+        if args.host:                                   # the pre-switches single address
+            legacy = server.from_host(args.host, args.port or current.port)
+            base = server.change(current, lan=legacy.lan, tailscale=legacy.tailscale, custom=legacy.custom)
+        addr = server.change(base, port=args.port, lan=switch(args.lan), tailscale=switch(args.tailscale),
+                             custom=csv(args.custom), allowed_hosts=csv(args.allowed_hosts), tailnet=tailnet)
     except ValueError as e:
         print(f"Not saved: {e}", file=sys.stderr)
         sys.exit(2)
@@ -138,5 +158,5 @@ def cmd_server(args) -> None:
               "Set one first (fts auth set-password) or repeat with --yes.", file=sys.stderr)
         sys.exit(2)
     server.save(addr)
-    print(f"Saved {addr.host}:{addr.port} ({server.describe(addr)}). It applies when the service restarts: "
-          "fts restart web is not enough; run systemctl --user restart finetune-studio (or fts down && fts up).")
+    print(f"Saved: {server.describe(addr)}, port {addr.port} (listens on {', '.join(addr.binds())}). "
+          "Switching something off applies at once; on, or a new port, after: fts restart web")

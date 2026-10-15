@@ -95,9 +95,11 @@ def test_an_old_network_unit_keeps_its_address_through_server_json(box: Path) ->
     unit.parent.mkdir(parents=True)
     unit.write_text("[Service]\nExecStart=/x/python -m finetune_studio.supervisor --host 0.0.0.0 --port 7861\n")
     rc, _ = _run(box, "--no-start")
-    assert rc == 0 and _server_json(box)["host"] == "0.0.0.0" and _server_json(box)["port"] == 7861
+    sj = _server_json(box)                       # 0.0.0.0 = local network + Tailscale (the switches)
+    assert rc == 0 and sj["lan"] is True and sj["tailscale"] is True and sj["port"] == 7861
 
 
 def test_explicit_host_and_port_are_saved(box: Path) -> None:
     rc, _ = _run(box, "--no-start", HOST="127.0.0.1", PORT="7870")
-    assert rc == 0 and (_server_json(box)["host"], _server_json(box)["port"]) == ("127.0.0.1", 7870)
+    sj = _server_json(box)
+    assert rc == 0 and (sj["lan"], sj["tailscale"], sj["custom"], sj["port"]) == (False, False, [], 7870)

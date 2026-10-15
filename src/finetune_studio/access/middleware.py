@@ -3,14 +3,16 @@
 Always:
 - a state-changing request (POST/PUT/PATCH/DELETE) whose ``Origin`` is another site is refused (403): otherwise any
   web page you visit could POST to ``localhost:7860`` (start an update, delete a project);
-- while listening on loopback (plus Tailscale), the ``Host`` must be a loopback name, in ``server.json``
-  ``allowed_hosts``, or this machine's Tailscale IP / MagicDNS name: blocks DNS-rebinding pages posing as a local site.
+- a connection that arrived on an address whose switch is off (local network / Tailscale, ``server.json``) is refused;
+- while the local network is off, the ``Host`` must be a loopback name, in ``allowed_hosts``, a custom address, or
+  this machine's Tailscale IP / MagicDNS name: blocks DNS-rebinding pages posing as a local site.
 With a password (``auth.json`` mode ``password``): every route except the sign-in page, static files and
 ``/api/health`` needs a session cookie or ``Authorization: Bearer fts_...``. Pages redirect to ``/login``, API calls
 answer 401 JSON. Cookie-authenticated writes must carry a same-origin ``Origin`` or ``Referer`` (CSRF).
 """
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 import os
@@ -28,22 +30,24 @@ UNSAFE = {"POST", "PUT", "PATCH", "DELETE"}
 LOOPBACK_NAMES = {"localhost", "127.0.0.1", "::1", "[::1]"}
 
 
+def listening() -> tuple[str, ...]:
+    """Addresses this process listens on: the supervisor passes what it bound; standalone runs use server.json."""
+    env = os.environ.get("FTS_LISTEN_ADDRS") or os.environ.get("FTS_LISTEN_HOST")
+    if env:
+        return tuple(h for h in env.split(",") if h)
+    return _address().binds()
+
+
 def listen_host() -> str:
-    """The address this process listens on: the supervisor passes it; standalone runs fall back to server.json."""
-    return os.environ.get("FTS_LISTEN_HOST") or _address().host
-
-
-def listen_extra() -> tuple[str, ...]:
-    """Extra addresses the supervisor bound (the Tailscale IP); empty for a standalone run."""
-    return tuple(h for h in os.environ.get("FTS_LISTEN_EXTRA", "").split(",") if h)
+    return listening()[0]
 
 
 def exposed_without_password() -> bool:
     """True when other machines can reach this instance and nothing asks them for a password."""
     try:
-        reachable = not server.is_loopback(listen_host()) or bool(listen_extra())
-        return reachable and not _config().enabled
-    except RuntimeError:
+        reach = server.effective(listening(), _address())
+        return reach != ["this computer"] and not _config().enabled
+    except (RuntimeError, ValueError):
         return False
 
 
@@ -51,9 +55,18 @@ _cache: dict[str, Any] = {"mtime": None, "cfg": None}
 _addr_cache: dict[str, Any] = {"mtime": None, "addr": None}
 
 
+def _stamp(f: Any) -> tuple[int, int, int] | None:
+    """Changed-file key: two saves inside one clock tick share an mtime; the atomic rename gives a new inode."""
+    try:
+        st = f.stat()
+    except FileNotFoundError:
+        return None
+    return st.st_mtime_ns, st.st_ino, st.st_size
+
+
 def _address() -> server.ServerAddress:
     f = server_file()
-    mtime = f.stat().st_mtime_ns if f.exists() else None
+    mtime = _stamp(f)
     if _addr_cache["addr"] is None or mtime != _addr_cache["mtime"]:
         _addr_cache["addr"], _addr_cache["mtime"] = server.load(), mtime
     return _addr_cache["addr"]
@@ -62,7 +75,7 @@ def _address() -> server.ServerAddress:
 def _config() -> store.AuthConfig:
     """auth.json, re-read only when it changes (Settings / the CLI write it while the app runs)."""
     f = auth_file()
-    mtime = f.stat().st_mtime_ns if f.exists() else None
+    mtime = _stamp(f)
     if _cache["cfg"] is None or mtime != _cache["mtime"]:
         _cache["cfg"], _cache["mtime"] = store.load(), mtime
     return _cache["cfg"]
@@ -115,7 +128,7 @@ class AccessMiddleware:
         if method == "OPTIONS":                     # CORS preflight: no credentials, changes nothing
             await self.app(scope, receive, send)
             return
-        refusal = self._browser_guard(method, h, host, self.trusted_origins)
+        refusal = self._reach_guard(scope) or self._browser_guard(method, h, host, self.trusted_origins)
         if refusal:
             await _reply(scope, send, 403, refusal, "request_refused")
             return
@@ -156,22 +169,39 @@ class AccessMiddleware:
         await _reply(scope, send, 401, "sign in required", "auth_required")
 
     @staticmethod
+    def _reach_guard(scope: dict[str, Any]) -> str | None:
+        """The connection arrived on an address whose switch is off (Settings -> Access & network): refuse it.
+        Switching something off this way works at once, before the listening sockets are rebuilt."""
+        local = (scope.get("server") or ("",))[0] or ""
+        try:
+            ipaddress.ip_address(local.removeprefix("::ffff:"))
+        except ValueError:
+            return None                                   # a Unix socket or the test client: nothing to classify
+        try:
+            addr = _address()
+        except ValueError:
+            return None
+        if addr.allows(local):
+            return None
+        kind = addr.kind_of(local)
+        return (f"opening Finetune Studio from {kind} is switched off; switch it on under Settings -> "
+                "Access & network on this computer")
+
+    @staticmethod
     def _browser_guard(method: str, h: dict[str, str], host: str, trusted: set[str]) -> str | None:
         origin = h.get("origin")
         if (method in UNSAFE and origin and not _same_origin(origin, host)
                 and origin.rstrip("/").lower() not in trusted):
             return f"cross-site request from {origin} refused"
         try:
-            bind = listen_host()
-            addr = _address()
+            names = _address().host_names()
         except ValueError:
             return None
-        if server.is_loopback(bind) and host:
+        if names is not None and host:
             name = _host_only(host)
-            tailnet = (addr.tailscale_ip, *addr.tailscale_names) if addr.tailscale else ()
-            if name not in LOOPBACK_NAMES and name not in addr.allowed_hosts and name not in tailnet:
-                return (f"host name {name!r} is not allowed while Finetune Studio listens on this computer only "
-                        f"(add it under Settings -> Security -> allowed host names)")
+            if name not in LOOPBACK_NAMES and name not in names:
+                return (f"host name {name!r} is not allowed while the local network is switched off "
+                        "(add it under Settings -> Access & network -> extra host names)")
         return None
 
 
