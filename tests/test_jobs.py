@@ -16,8 +16,9 @@ from finetune_studio.jobs.store import JobSpec
 
 @pytest.fixture(autouse=True)
 def _no_supervisor(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    """Never talk to a live supervisor: its socket lives under the (temp) FTS_ROOT."""
+    """Never talk to a live supervisor: its socket lives under the (temp) FTS_ROOT. Real job processes here."""
     monkeypatch.setenv("FTS_ROOT", str(tmp_path / "root"))
+    monkeypatch.delenv("FTS_JOBS_INPROCESS", raising=False)
 
 
 def _spec(**params) -> JobSpec:
@@ -188,3 +189,51 @@ def test_a_web_restart_under_the_supervisor_leaves_the_job_running(short_root) -
             await server.stop()
 
     asyncio.run(main())
+
+
+def test_the_in_process_executor_runs_the_same_kind_code_and_stops(monkeypatch: pytest.MonkeyPatch) -> None:
+    """What the rest of the suite uses (FTS_JOBS_INPROCESS=1): same runner.execute, a thread instead of a pid."""
+    monkeypatch.setenv("FTS_JOBS_INPROCESS", "1")
+    done = _spec(steps=2, delay_s=0.01)
+    launch.start(done)
+    d = launch.wait(done.id, timeout=30)
+    assert d["exit"]["status"] == "done" and d["state"]["step"] == 2 and store.read_pid(done.id) is None
+    slow = _spec(steps=500, delay_s=0.05)
+    launch.start(slow)
+    assert launch.describe(slow.id)["running"]
+    launch.stop(slow.id)
+    assert launch.wait(slow.id, timeout=30)["exit"]["status"] == "stopped"
+
+
+def test_the_web_side_watcher_runs_a_kind_follow_up_once_per_finished_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    from finetune_studio.jobs import watch
+    monkeypatch.setenv("FTS_JOBS_INPROCESS", "1")
+    monkeypatch.setattr(watch, "_HANDLERS", {})
+    monkeypatch.setattr(watch, "_seen_running", set())
+    monkeypatch.setattr(watch, "_handled", set())
+    old = _spec(steps=1, delay_s=0.0)
+    launch.start(old)
+    launch.wait(old.id, timeout=30)
+    seen: list[str] = []
+    watch.on_finished("selftest", lambda j: seen.append(j["id"]))
+    assert watch.poll_once(first=True) == [] and seen == []          # ended before this web process: recorded only
+    job = _spec(steps=40, delay_s=0.02)
+    launch.start(job)
+    watch.poll_once()                                                 # seen running
+    launch.wait(job.id, timeout=30)
+    assert watch.poll_once() == [job.id] and seen == [job.id]
+    assert watch.poll_once() == [] and seen == [job.id]
+
+
+def test_a_finished_gpu_job_that_released_the_card_does_not_block_the_next(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FTS_JOBS_INPROCESS", "1")
+    first = _spec(steps=300, delay_s=0.05, gpu=True)
+    launch.start(first)
+    with pytest.raises(launch.JobRejected):
+        launch.start(_spec(steps=1, gpu=True))
+    store.release_gpu(first.id)                                      # past its GPU work, only its exit is left
+    second = _spec(steps=1, delay_s=0.0, gpu=True)
+    launch.start(second)
+    launch.wait(second.id, timeout=30)
+    launch.stop(first.id)
+    launch.wait(first.id, timeout=30)

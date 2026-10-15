@@ -828,7 +828,6 @@ async def quantize_run(run_id: str, request: Request):
         find_llama_quantize,
     )
     from finetune_studio.webui import export_jobs
-    from finetune_studio.webui.export_work import imatrix_work
 
     body = await request.json()
     method = body.get("method", "imatrix")
@@ -858,13 +857,11 @@ async def quantize_run(run_id: str, request: Request):
         row = export_jobs.start_job(
             project_id=run.get("project_id", ""), run_id=run_id, fmt="imatrix",
             quant=",".join(quants), quants=quants,
-            make_work=lambda eid: imatrix_work(
-                eid, run=run, merged_dir=merged_dir,
-                output_dir=os.path.join(output_path, "imatrix"),
-                imatrix_path=imatrix_path, quants=quants,
-                bits=int(body.get("bits", 4)),
-                group_size=int(body.get("group_size", 128)),
-            ),
+            work=("imatrix_work", {"run": run, "merged_dir": merged_dir,
+                                   "output_dir": os.path.join(output_path, "imatrix"),
+                                   "imatrix_path": imatrix_path, "quants": quants,
+                                   "bits": int(body.get("bits", 4)),
+                                   "group_size": int(body.get("group_size", 128))}),
         )
     except export_jobs.ExportBusy as busy:
         return JSONResponse(

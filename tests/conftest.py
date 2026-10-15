@@ -18,6 +18,9 @@ import pytest
 
 # Tests never write into a live $FTS_ROOT/logs (logsetup.setup is a no-op; tests/test_logsetup.py opts back in).
 os.environ["FTS_LOG_TO_FILES"] = "0"
+# Jobs (training, exports, ...) run on a thread of the test process (jobs.launch): monkeypatches reach them and
+# nothing outlives a test. tests/test_jobs.py turns it off to test the real job processes.
+os.environ["FTS_JOBS_INPROCESS"] = "1"
 
 # Ensure src/ is on path
 ROOT = Path(__file__).resolve().parent.parent

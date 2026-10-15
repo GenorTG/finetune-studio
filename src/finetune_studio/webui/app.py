@@ -126,7 +126,9 @@ async def lifespan(app: FastAPI):
         n = db.reconcile_stale_brain_builds("interrupted by service restart" + cause)
         if n:
             print(f"Reconciled {n} stale brain_builds row(s)")
-        n = db.reconcile_stale_exports("interrupted by service restart" + cause)
+        from finetune_studio.webui.export_jobs import running_export_ids
+        # An export whose job process is still alive (the web restarted, the export did not) is left alone.
+        n = db.reconcile_stale_exports("interrupted by service restart" + cause, keep=running_export_ids())
         if n:
             print(f"Reconciled {n} stale model_exports row(s)")
         n = db.reconcile_stale_benchmarks(cause)
@@ -160,11 +162,17 @@ async def lifespan(app: FastAPI):
     except Exception:  # noqa: BLE001 - startup recovery must never block boot
         _log.exception("Mining restart recovery failed")
     import asyncio
+
+    from finetune_studio.jobs import watch
+    from finetune_studio.webui import export_jobs
+    watch.on_finished(export_jobs.KIND, export_jobs.on_finished)
     reaper = asyncio.create_task(_idle_reaper())
+    watcher = asyncio.create_task(watch.run_forever())
     try:
         yield
     finally:
         reaper.cancel()
+        watcher.cancel()
 
 app = FastAPI(title="Finetune Studio", version="0.1.0", lifespan=lifespan)
 

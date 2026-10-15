@@ -31,7 +31,13 @@ DEFAULT_QUANT = "Q4_K_M"
 
 
 def refresh_registry_quietly() -> None:
-    """Make new exports visible to Chat/Inference without a restart."""
+    """Make new exports visible to Chat/Inference without a restart.
+
+    Only in the web process: a job process has no registry to refresh (and must not import the web app); the web
+    app refreshes when it sees the job end (``export_jobs.on_finished`` via ``jobs.watch``)."""
+    import sys
+    if "finetune_studio.webui.app" not in sys.modules:
+        return
     try:
         from finetune_studio.webui.routes.models import refresh_model_registry
 
@@ -80,7 +86,6 @@ def multi_export_work(
             raise RuntimeError(_failure_text(payload))
         ctx.phase(export_job.PHASE_FINALIZING, "registering the exported files")
         _register_artifacts(eid, run, fmt, payload)
-        refresh_registry_quietly()
 
     return work
 
@@ -173,7 +178,6 @@ def run_single_quant_gguf(
         size_human=human_size(size),
         intermediate_path=result.get("intermediate_path") or "",
     )
-    refresh_registry_quietly()
 
 
 def single_quant_work(
@@ -260,6 +264,5 @@ def imatrix_work(
         if failed:
             # mark_done leaves ``error`` alone, so the partial-failure note stays.
             log.warning("imatrix export %s: %s", eid, note)
-        refresh_registry_quietly()
 
     return work

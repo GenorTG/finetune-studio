@@ -22,6 +22,7 @@ from finetune_studio.jobs import store
 KINDS: dict[str, str] = {
     "selftest": "finetune_studio.jobs.kinds.selftest:run",
     "training": "finetune_studio.jobs.kinds.training:run",
+    "export": "finetune_studio.jobs.kinds.export:run",
 }
 
 EXIT_DONE, EXIT_FAILED, EXIT_BAD_SPEC, EXIT_STOPPED = 0, 1, 2, 3
@@ -82,6 +83,9 @@ def main(argv: list[str] | None = None) -> int:
 
     from finetune_studio import logsetup
     logsetup.setup(f"job-{spec.kind}")
+    if spec.db_path:
+        from finetune_studio.config import settings
+        settings.db_path = spec.db_path           # the web app's DB, not one relative to this cwd
     store.write_pid(spec.id, os.getpid())
     ctx = JobContext(spec=spec)
 
@@ -94,6 +98,13 @@ def main(argv: list[str] | None = None) -> int:
     signal.signal(signal.SIGTERM, _on_term)
     signal.signal(signal.SIGINT, _on_term)
     log.info("job %s (%s) started, pid %d", spec.id, spec.kind, os.getpid())
+    return execute(ctx, fn)
+
+
+def execute(ctx: JobContext, fn: Any = None) -> int:
+    """Run the kind and leave its exit record. Shared by the job process and the in-process test executor."""
+    spec = ctx.spec
+    fn = fn or _resolve(spec.kind)
     started = time.time()
     try:
         result = fn(ctx) or {}
@@ -114,7 +125,6 @@ def main(argv: list[str] | None = None) -> int:
                                    "traceback": traceback.format_exc()[-4000:],
                                    "ran_s": round(time.time() - started, 1)}, overwrite=True)
         return EXIT_FAILED
-
 
 if __name__ == "__main__":
     sys.exit(main())

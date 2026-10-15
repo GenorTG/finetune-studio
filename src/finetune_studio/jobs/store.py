@@ -40,6 +40,8 @@ class JobSpec:
     title: str = ""
     project_id: str | None = None
     created_at: float = field(default_factory=time.time)
+    # The main DB the launching process uses (absolute); the job opens the same one whatever its cwd.
+    db_path: str = ""
 
 
 def _write_json(path: Path, data: Any) -> None:
@@ -113,6 +115,19 @@ def pid_alive(job_id: str) -> bool:
     except OSError:
         return False
     return "finetune_studio.jobs.runner" in cmdline and job_id in cmdline
+
+
+def release_gpu(job_id: str) -> None:
+    """The job is past its GPU work (only its exit is left): the next GPU job may start. A finished export's
+    process is still exiting when the page already posts the next selected format."""
+    (job_dir(job_id) / "gpu_released").touch()
+
+
+def gpu_released(job_id: str) -> bool:
+    try:
+        return (job_dir(job_id) / "gpu_released").exists()
+    except ValueError:
+        return False
 
 
 def list_ids() -> list[str]:

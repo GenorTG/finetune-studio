@@ -169,6 +169,9 @@ from finetune_studio.db.model_exports import (
 from finetune_studio.db.model_exports import (
     set_phase as set_export_phase,
 )
+from finetune_studio.db.model_exports import (
+    set_phase_if_active as set_export_phase_if_active,
+)
 from finetune_studio.db.project_versions import (
     create_version,
     delete_version,
@@ -323,6 +326,7 @@ __all__ = [
     "remove_model_favorite",
     "row_to_dict",
     "set_export_phase",
+    "set_export_phase_if_active",
     "update_benchmark",
     "update_benchmark_scores",
     "update_brain_build",

@@ -1,4 +1,4 @@
-"""Export job lifecycle on a worker thread, driven through REAL child processes.
+"""Export job lifecycle (a job: in-process under the test suite, see jobs.launch), driven through REAL children.
 
 ``tests/_fake_llama.py`` provides a fake convert script + ``llama-quantize``;
 the whole pipeline (run_export -> gguf_convert -> proc_runner) runs unmocked.
@@ -14,7 +14,6 @@ import pytest
 
 from finetune_studio import db
 from finetune_studio.webui import export_jobs
-from finetune_studio.webui.export_work import multi_export_work
 from tests._fake_llama import install_fake_llama, make_merged_run
 
 TERMINAL = {"done", "failed", "cancelled"}
@@ -35,9 +34,8 @@ def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 def _start(pid: str, run: dict, quants: list[str]) -> dict:
     return export_jobs.start_job(
         project_id=pid, run_id=run["id"], fmt="gguf", quant=quants[0], quants=quants,
-        make_work=lambda eid: multi_export_work(
-            eid, run=run, fmt="gguf", quants=quants, force=True, base_model=None,
-        ),
+        work=("multi_export_work", {"run": run, "fmt": "gguf", "quants": quants, "force": True,
+                                    "base_model": None}),
     )
 
 

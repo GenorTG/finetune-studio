@@ -48,6 +48,18 @@ def set_phase(eid: str, phase: str, detail: str = "") -> None:
                   heartbeat_at=time.time())
 
 
+def set_phase_if_active(eid: str, phase: str, detail: str = "") -> bool:
+    """``set_phase`` only while the row is queued/running, in one statement (the job is another process: a
+    read-then-write could land after it recorded its final state). True when the row was updated."""
+    with cursor() as c:
+        cur = c.execute(
+            "UPDATE model_exports SET phase = ?, phase_detail = ?, heartbeat_at = ? "
+            "WHERE id = ? AND status IN ('queued', 'running')",
+            (phase, detail[:200], time.time(), eid),
+        )
+        return cur.rowcount > 0
+
+
 def heartbeat(eid: str) -> None:
     update_export(eid, heartbeat_at=time.time())
 
@@ -139,8 +151,9 @@ def list_recent(limit: int = 50) -> list[dict]:
     return [row_to_dict(r) for r in rows]
 
 
-def reconcile_stale(error: str = "interrupted by service restart") -> int:
-    """Mark in-flight model_exports as failed after a process restart.
+def reconcile_stale(error: str = "interrupted by service restart",
+                    keep: set[str] | frozenset[str] = frozenset()) -> int:
+    """Mark in-flight model_exports as failed after a web restart, except ``keep`` (their job process is alive).
 
     Returns the number of rows updated.
     """
@@ -152,6 +165,7 @@ def reconcile_stale(error: str = "interrupted by service restart") -> int:
             f"SELECT id FROM model_exports WHERE status IN ({placeholders})",
             stale,
         ).fetchall()
+        rows = [r for r in rows if r["id"] not in keep]
         for r in rows:
             c.execute(
                 "UPDATE model_exports SET status = 'failed', phase = 'failed', "

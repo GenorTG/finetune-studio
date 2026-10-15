@@ -66,7 +66,7 @@ class JobTable:
         if job_id in self._jobs and self._jobs[job_id].proc.returncode is None:
             return self.describe(job_id)
         if spec.gpu:
-            holder = next((j for j in self.running() if j.spec.gpu), None)
+            holder = next((j for j in self.running() if j.spec.gpu and not store.gpu_released(j.spec.id)), None)
             if holder:
                 raise JobBusy(f"the GPU is busy with {holder.spec.kind} job {holder.spec.id} "
                               f"({holder.spec.title or 'untitled'}); wait for it or stop it")

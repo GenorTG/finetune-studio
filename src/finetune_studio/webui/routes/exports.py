@@ -30,10 +30,8 @@ from finetune_studio.training.export_response import ExportResult
 from finetune_studio.training.run_export import validate_export_request
 from finetune_studio.webui import export_jobs
 from finetune_studio.webui.export_work import (
-    multi_export_work,
     refresh_registry_quietly,
     run_single_quant_gguf,
-    single_quant_work,
 )
 from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
 
@@ -209,10 +207,8 @@ async def export_run(pid: str, rid: str, request: Request):
         )
         return _start(
             pid, rid, fmt=fmt, quant=label, quants=quants,
-            make_work=lambda eid: multi_export_work(
-                eid, run=run, fmt=fmt, quants=quants,
-                force=bool(body.get("force", False)), base_model=base_model,
-            ),
+            work=("multi_export_work", {"run": run, "fmt": fmt, "quants": quants,
+                                        "force": bool(body.get("force", False)), "base_model": base_model}),
         )
 
     if fmt != "gguf":
@@ -245,22 +241,19 @@ async def export_run(pid: str, rid: str, request: Request):
     return _start(
         pid, rid, fmt=fmt, quant=quant, quants=[quant],
         extra={"output_path": out_path},
-        make_work=lambda eid: single_quant_work(
-            eid, run=run, base_model=base_model, auto_merge=auto_merge,
-            out_path=out_path, quant=quant,
-        ),
+        work=("single_quant_work", {"run": run, "base_model": base_model, "auto_merge": auto_merge,
+                                    "out_path": out_path, "quant": quant}),
     )
 
 
 def _start(
     pid: str, rid: str, *, fmt: str, quant: str, quants: list[str] | None,
-    make_work, extra: dict | None = None,
+    work: export_jobs.WorkSpec, extra: dict | None = None,
 ) -> JSONResponse:
-    """Queue the job; 202 with its id, or 409 when another export is running."""
+    """Queue the job; 202 with its id, or 409 when another export (or GPU job) is running."""
     try:
         row = export_jobs.start_job(
-            project_id=pid, run_id=rid, fmt=fmt, quant=quant, quants=quants,
-            make_work=make_work,
+            project_id=pid, run_id=rid, fmt=fmt, quant=quant, quants=quants, work=work,
         )
     except export_jobs.ExportBusy as busy:
         return JSONResponse(
