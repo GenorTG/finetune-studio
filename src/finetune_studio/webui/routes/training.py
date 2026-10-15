@@ -631,6 +631,13 @@ async def start_training(request: Request):
 
     if training_engine.state.status in ("training", "loading", "saving"):
         return JSONResponse({"detail": "another training run is in progress"}, status_code=409)
+    # Test runs use the inference worker's model without a GPU lease: training would unload it mid-run.
+    from finetune_studio.webui.testing_jobs import active_jobs as testing_active
+    on_card = [j for j in testing_active() if j["gpu"]]
+    if on_card:
+        return JSONResponse({"detail": f"a test {on_card[0]['kind']} is using the GPU (benchmark "
+                                       f"{on_card[0]['benchmark_id']}); wait for it or cancel it on the Testing page",
+                             "code": "gpu_busy"}, status_code=409)
 
     # Create a run record
     run = db.create_run(

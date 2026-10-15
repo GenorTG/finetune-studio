@@ -142,3 +142,15 @@ def test_start_passes_the_run_to_the_job_and_a_busy_gpu_is_a_409(client, fake_en
     assert r.json()["code"] == "gpu_busy" and "GPU is busy" in r.json()["detail"]
     refused = [x for x in db.list_runs(pid) if x["id"] != run_id]
     assert [x["status"] for x in refused] == ["error"]
+
+
+def test_training_is_refused_while_a_test_run_uses_the_card(client, fake_engine, tmp_path, monkeypatch):
+    """Test runs hold no GPU lease (they use the inference worker's model): training must not unload it mid-run."""
+    import finetune_studio.webui.testing_jobs as tj
+    model_dir = tmp_path / "local-model"
+    model_dir.mkdir()
+    monkeypatch.setattr(tj, "active_jobs", lambda: [{"benchmark_id": "b1", "kind": "run", "gpu": True,
+                                                     "stopping": False, "job_id": "testrun-x"}])
+    r = _start(client, _project(client), _jsonl(tmp_path), str(model_dir))
+    assert r.status_code == 409 and r.json()["code"] == "gpu_busy" and "test run" in r.json()["detail"]
+    assert not fake_engine.started

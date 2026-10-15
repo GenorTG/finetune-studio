@@ -392,7 +392,8 @@ def unload_all_models() -> None:
        actually loaded anymore.
     """
     try:
-        from finetune_studio.webui.app import inference_engine
+        from finetune_studio.models.manager import process_engine
+        inference_engine = process_engine()      # a job process (a local judge) never imports the web app
         if getattr(inference_engine, "model", None) is not None:
             inference_engine.unload()
     except Exception:

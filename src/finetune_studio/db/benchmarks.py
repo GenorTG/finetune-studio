@@ -128,15 +128,21 @@ def list_unfinished() -> list[dict]:
     return [_decode_run(row_to_dict(r)) for r in rows]  # type: ignore[misc]
 
 
-def reconcile_stale_benchmarks(cause: str = "") -> int:
-    """Startup: a test run or judge job left running by a dead process becomes failed (its saved cases are kept)."""
+def reconcile_stale_benchmarks(cause: str = "", keep: set[str] | frozenset[str] = frozenset()) -> int:
+    """Startup: a test run or judge job left running by a dead process becomes failed (its saved cases are kept).
+
+    ``keep``: rows whose job process is still alive (the web restarted, the job did not) are left alone."""
     reason = "interrupted: the server restarted while this job was running" + cause
+    kept = sorted(keep)
+    skip = f" AND id NOT IN ({', '.join('?' * len(kept))})" if kept else ""
     with cursor() as c:
         n = c.execute(
-            "UPDATE benchmark_runs SET status = 'failed', error = ? WHERE status IN ('queued', 'running')", (reason,),
+            f"UPDATE benchmark_runs SET status = 'failed', error = ? WHERE status IN ('queued', 'running'){skip}",
+            (reason, *kept),
         ).rowcount
         n += c.execute(
-            "UPDATE benchmark_runs SET judge_status = 'failed', judge_error = ? WHERE judge_status = 'running'", (reason,),
+            f"UPDATE benchmark_runs SET judge_status = 'failed', judge_error = ? WHERE judge_status = 'running'{skip}",
+            (reason, *kept),
         ).rowcount
     return n
 

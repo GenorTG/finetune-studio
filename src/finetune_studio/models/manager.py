@@ -14,6 +14,7 @@ import threading
 import time
 from contextlib import closing
 from pathlib import Path
+from typing import Any
 
 from finetune_studio.models.gguf_layers import resolve_block_count
 from finetune_studio.models.providers import (
@@ -446,3 +447,17 @@ def get_manager() -> ModelManager:
         if _manager is None:
             _manager = ModelManager()
         return _manager
+
+
+def process_engine() -> Any:
+    """This process's inference engine without importing the web app.
+
+    In the web process (and the tests, which replace it) that is ``webui.app.inference_engine``; a job process
+    never imports the web app (its import sets up the web log and every route), so it gets the manager's engine:
+    the same kind of proxy to the one inference worker.
+    """
+    import sys
+
+    app = sys.modules.get("finetune_studio.webui.app")
+    engine = getattr(app, "inference_engine", None) if app is not None else None
+    return engine if engine is not None else get_manager().engine

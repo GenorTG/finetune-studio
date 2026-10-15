@@ -8,7 +8,6 @@ are faked (tests/testing_run_support.py); the jobs, the DB rows and the routes a
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import time
 from pathlib import Path
@@ -34,9 +33,7 @@ MODEL_A, MODEL_B = "/m/a/merged", "/m/b/merged"
 
 @pytest.fixture(autouse=True)
 def _isolated(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, object]:
-    """Fresh job registry + engine lock, a private settings file, and a model load that records which model is resident."""
-    monkeypatch.setattr(testing_jobs, "_ACTIVE", {})
-    monkeypatch.setattr(testing_jobs, "ENGINE_LOCK", asyncio.Lock())
+    """A private settings file and a model load that records which model is resident."""
     monkeypatch.setattr("finetune_studio.webui.routes.settings.SETTINGS_PATH", tmp_path / "settings.json")
     monkeypatch.setattr("finetune_studio.webui.testing_models.local_model_missing", lambda _p: False)  # fake model paths below
     state: dict[str, object] = {"model": "", "loads": [], "fail": set()}
@@ -263,7 +260,10 @@ def test_group_cancel_route_and_busy_gpu(
     assert client.post(f"{API}/{pid}/groups/{done}/cancel").status_code == 409  # nothing running
     assert client.post(f"{API}/{pid}/groups/nope/cancel").status_code == 404
 
-    testing_jobs._ACTIVE[("other", "run")] = testing_jobs._Job("other", "run", True)
+    from finetune_studio.jobs.store import JobSpec
+
+    other = JobSpec(id="testrun-other", kind="testrun", params={"role": "run", "bids": ["other"], "uses_gpu": True})
+    monkeypatch.setattr(testing_jobs, "_live_specs", lambda: [other])  # a test run job is alive elsewhere
     r = client.post(f"{API}/{pid}/runs", json={"suite_path": _suite(tmp_path), "models": [MODEL_A, MODEL_B]})
     assert r.status_code == 409 and r.json()["active"]["benchmark_id"] == "other"
     assert len(session.list_groups(pid)) == 1  # the refused request left no rows behind

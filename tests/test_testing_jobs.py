@@ -40,9 +40,7 @@ from tests.testing_run_support import (
 
 @pytest.fixture(autouse=True)
 def _isolated_jobs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[str]:
-    """Fresh job registry + engine lock per test, a private settings file, and a model load that records itself."""
-    monkeypatch.setattr(testing_jobs, "_ACTIVE", {})
-    monkeypatch.setattr(testing_jobs, "ENGINE_LOCK", asyncio.Lock())
+    """A private settings file and a model load that records itself (jobs run on a thread: FTS_JOBS_INPROCESS)."""
     monkeypatch.setattr("finetune_studio.webui.routes.settings.SETTINGS_PATH", tmp_path / "settings.json")
     loads: list[str] = []
     monkeypatch.setattr(testing_jobs, "_load_model", loads.append)
@@ -256,22 +254,27 @@ async def test_a_second_gpu_job_is_refused_while_one_is_active(monkeypatch: pyte
 
 @pytest.mark.asyncio
 async def test_a_test_never_takes_the_card_from_training_or_data_prep(monkeypatch: pytest.MonkeyPatch) -> None:
-    from types import SimpleNamespace
-
-    from finetune_studio.webui import app as app_mod
+    from finetune_studio.jobs import launch, store
 
     pid, rid = make_project_run()
     install_engine(monkeypatch, FakeEngine())
     finished = saved_run(rid, [("Q?", "k", "a")])
 
-    monkeypatch.setattr(app_mod, "training_engine", SimpleNamespace(state=SimpleNamespace(status="training")))
-    with pytest.raises(TestingBusy, match="training"):
-        await start_run_job(_spec(pid, 1))
-    with pytest.raises(TestingBusy, match="training"):  # a local judge would unload the trainer's model too
-        await start_judge_job(finished, "local-default")
-    assert [b["id"] for b in db.list_benchmarks_for_project(pid)] == [finished]  # no row for the refused run
+    # Training and exports are job processes holding the GPU lease: a running gpu job stands in for one.
+    gpu_job = store.JobSpec(id=store.new_id("selftest"), kind="selftest", gpu=True, title="pretend training",
+                            params={"steps": 10_000, "delay_s": 0.01})
+    launch.start(gpu_job)
+    try:
+        with pytest.raises(TestingBusy, match="GPU is busy: a selftest job is using it"):
+            await start_run_job(_spec(pid, 1))
+        with pytest.raises(TestingBusy, match="selftest"):  # a local judge would unload the trainer's model too
+            await start_judge_job(finished, "local-default")
+        assert [b["id"] for b in db.list_benchmarks_for_project(pid)] == [finished]  # no row for the refused run
+        assert db.get_benchmark(finished)["judge_status"] == ""
+    finally:
+        launch.stop(gpu_job.id)
+        launch.wait(gpu_job.id, timeout=10)
 
-    monkeypatch.setattr(app_mod, "training_engine", SimpleNamespace(state=SimpleNamespace(status="idle")))
     monkeypatch.setattr(db.mining, "list_jobs", lambda *a, **k: [{"id": "job"}])
     with pytest.raises(TestingBusy, match="mining job"):
         await start_run_job(_spec(pid, 1))
@@ -305,7 +308,7 @@ async def test_an_api_judge_runs_beside_a_gpu_run_but_not_twice_on_the_same_run(
 
 
 @pytest.mark.asyncio
-async def test_the_engine_lock_is_released_after_a_run_even_when_it_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_nothing_stays_active_after_a_run_that_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     pid, _rid = make_project_run()
     install_engine(monkeypatch)
 
@@ -315,7 +318,7 @@ async def test_the_engine_lock_is_released_after_a_run_even_when_it_fails(monkey
     monkeypatch.setattr(testing_jobs, "_load_model", boom)
     row = await start_run_job(_spec(pid, 1))
     await await_finished(row["id"])
-    assert not testing_jobs.ENGINE_LOCK.locked() and testing_jobs.active_jobs() == []
+    assert testing_jobs.active_jobs() == [] and testing_jobs.running_benchmark_ids() == set()
 
 
 # ── cancel ───────────────────────────────────────────────────────────────────
@@ -401,7 +404,7 @@ async def test_a_judge_that_cannot_be_opened_fails_the_job(monkeypatch: pytest.M
     await start_judge_job(bid, "local-default")
     done = await await_finished(bid, judge=True)
     assert done["judge_status"] == "failed" and "file missing" in done["judge_error"]
-    assert not testing_jobs.ENGINE_LOCK.locked()
+    assert testing_jobs.active_jobs() == []
 
 
 def test_reconcile_stale_benchmarks_marks_running_rows_failed_and_keeps_their_cases() -> None:
@@ -427,34 +430,81 @@ def test_reconcile_stale_benchmarks_marks_running_rows_failed_and_keeps_their_ca
     assert benchmarks_db.list_unfinished() == [] and db.reconcile_stale_benchmarks() == 0
 
 
-# ── the engine lock: local judge waits for it, API judge does not ────────────
+# ── the GPU lease: a local judge takes it, an API judge and a test run do not ──
+
+
+def _job_spec(bid: str):
+    from finetune_studio.jobs import store
+
+    job = next(j for j in testing_jobs.active_jobs() if j["benchmark_id"] == bid)
+    return store.read_spec(job["job_id"])
 
 
 @pytest.mark.asyncio
-async def test_an_api_judge_does_not_take_the_engine_lock(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_an_api_judge_job_takes_no_gpu_lease_and_a_local_judge_does(monkeypatch: pytest.MonkeyPatch) -> None:
     _pid, rid = make_project_run()
     provider = add_api_provider()
-    bid = saved_run(rid, [("Q1", "k", "a"), ("Q2", "k", "a")])
-    install_judge(monkeypatch, concurrent=True)
-    async with testing_jobs.ENGINE_LOCK:  # the GPU is busy with something else
-        await start_judge_job(bid, provider)
-        done = await await_finished(bid, judge=True, timeout=5)
-        assert testing_jobs.ENGINE_LOCK.locked()
-    assert done["judge_status"] == "done" and done["scores"]["passed"] == 2
+    gate = threading.Event()
+    install_judge(monkeypatch, concurrent=True, on_chat=lambda _q: gate.wait(10))
+    api_bid = saved_run(rid, [("Q1", "k", "a")])
+    local_bid = saved_run(rid, [("Q1", "k", "a")])
+    try:
+        await start_judge_job(api_bid, provider)
+        spec = _job_spec(api_bid)
+        assert (spec.kind, spec.gpu, spec.params["uses_gpu"], spec.params["role"]) == ("judge", False, False, "judge")
+        await start_judge_job(local_bid, "local-default")
+        spec = _job_spec(local_bid)
+        assert (spec.gpu, spec.params["uses_gpu"]) == (True, True)
+    finally:
+        gate.set()
+    assert (await await_finished(api_bid, judge=True))["judge_status"] == "done"
+    assert (await await_finished(local_bid, judge=True))["judge_status"] == "done"
 
 
 @pytest.mark.asyncio
-async def test_a_local_judge_waits_for_the_engine_lock_then_runs(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_test_run_uses_the_inference_worker_and_takes_no_gpu_lease(monkeypatch: pytest.MonkeyPatch) -> None:
+    pid, _rid = make_project_run()
+    gate = threading.Event()
+    install_engine(monkeypatch, FakeEngine(on_generate=lambda _q: gate.wait(10)))
+    try:
+        row = await start_run_job(_spec(pid, 1))
+        spec = _job_spec(row["id"])
+        assert (spec.kind, spec.gpu, spec.params["uses_gpu"], spec.params["bids"]) == ("testrun", False, True, [row["id"]])
+        assert testing_jobs.running_benchmark_ids() == {row["id"]}
+    finally:
+        gate.set()
+    await await_finished(row["id"])
+
+
+@pytest.mark.asyncio
+async def test_a_model_swapped_in_mid_run_fails_the_run_instead_of_answering_with_another_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pid, _rid = make_project_run()
+    engine = FakeEngine(model_path="/m/merged")
+
+    def other_page_loads(question: str) -> None:
+        if question == "Q1":
+            engine.model_path = "/some/chat/model.gguf"  # e.g. the Chat page loaded its model into the worker
+
+    engine.on_generate = other_page_loads
+    install_engine(monkeypatch, engine)
+    row = await start_run_job(_spec(pid, 4))
+    done = await await_finished(row["id"])
+    assert done["status"] == "failed" and "/some/chat/model.gguf" in done["error"] and "replaced" in done["error"]
+    assert done["progress_done"] == 2 and len(db.list_cases(row["id"])) == 2  # what was saved is kept
+
+
+def test_reconcile_keeps_rows_whose_job_is_alive() -> None:
     _pid, rid = make_project_run()
-    bid = saved_run(rid, [("Q1", "k", "a")])
-    asked = install_judge(monkeypatch)
-    async with testing_jobs.ENGINE_LOCK:
-        await start_judge_job(bid, "local-default")
-        await asyncio.sleep(0.3)
-        row = db.get_benchmark(bid)
-        assert row["judge_status"] == "running" and row["judge_done"] == 0 and asked == []
-    done = await await_finished(bid, judge=True)
-    assert done["judge_status"] == "done" and asked == ["Q1"]
+    alive = saved_run(rid, [("Q1", "k", "a")], status="running")
+    judged = saved_run(rid, [("Q1", "k", "a")], status="done")
+    db.update_benchmark(judged, judge_status="running")
+    dead = saved_run(rid, [("Q1", "k", "a")], status="running")
+    assert db.reconcile_stale_benchmarks(" (update)", keep={alive, judged}) == 1
+    assert db.get_benchmark(alive)["status"] == "running" and db.get_benchmark(judged)["judge_status"] == "running"
+    row = db.get_benchmark(dead)
+    assert row["status"] == "failed" and row["error"].endswith("(update)")
 
 
 # ── what may be judged ───────────────────────────────────────────────────────

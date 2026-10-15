@@ -7,7 +7,6 @@ a person can set or retract any verdict. Only the inference engine and the judge
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import threading
 from pathlib import Path
@@ -36,9 +35,7 @@ API = "/api/testing"
 
 @pytest.fixture(autouse=True)
 def _isolated(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[str]:
-    """Fresh job registry + engine lock, a private settings file, and a model load that records itself."""
-    monkeypatch.setattr(testing_jobs, "_ACTIVE", {})
-    monkeypatch.setattr(testing_jobs, "ENGINE_LOCK", asyncio.Lock())
+    """A private settings file, and a model load that records itself."""
     monkeypatch.setattr("finetune_studio.webui.routes.settings.SETTINGS_PATH", tmp_path / "settings.json")
     loads: list[str] = []
     monkeypatch.setattr(testing_jobs, "_load_model", loads.append)
