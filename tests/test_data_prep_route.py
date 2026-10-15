@@ -1,0 +1,107 @@
+"""Regression test for QABUG-016: the /projects/{pid}/data-prep page route
+handler was missing, causing the URL to fall through to the SPA's 404
+fallback (which returns only the base layout — ~474 chars, 10 refs —
+without the main content). The data_prep.html template existed but had no
+mounted route, so the page silently rendered as a near-empty stub."""
+
+from __future__ import annotations
+
+import pytest
+from starlette.testclient import TestClient
+
+from finetune_studio import db
+
+
+@pytest.fixture
+def client(monkeypatch, tmp_path):
+    """Isolated FastAPI TestClient backed by a temp SQLite db + temp fs root.
+
+    Mirrors the pattern in tests/test_dataset_register.py — points the app's
+    Settings.db_path at a tmp file so the test never touches a real install's
+    state.db. The Settings.fs_root is monkey-patched so file-library helpers
+    route to a tmp dir.
+    """
+    db_path = tmp_path / "finetune_studio.db"
+    fs_root = tmp_path / "fs"
+    fs_root.mkdir()
+
+    monkeypatch.setenv("FTS_TEST_DB_PATH", str(db_path))
+    monkeypatch.setenv("FTS_TEST_FS_ROOT", str(fs_root))
+
+    # Re-init the app's settings singleton to pick up the tmp paths.
+    from finetune_studio import config as cfg_mod
+
+    cfg = cfg_mod.Settings()
+    cfg.db_path = str(db_path)
+    cfg.fs_root = str(fs_root)
+    # Re-bind the module-level Settings so app code reads the patched one.
+    monkeypatch.setattr(cfg_mod, "settings", cfg)
+
+    # ``db.connection`` imported ``settings`` by value at import time, so
+    # patching only ``cfg_mod.settings`` (or reloading the ``db`` package,
+    # which does not re-execute already-imported submodules) left every DB
+    # write pointing at the REAL dev database — each run added a qabug-*
+    # row to data/finetune_studio.db. Patch the reference ``_connect``
+    # actually reads, same fix as conftest (b573758).
+    import finetune_studio.db.connection as _conn
+
+    monkeypatch.setattr(_conn, "settings", cfg)
+    _conn.init_db()
+
+    import importlib
+
+    importlib.reload(db)
+
+    # Re-bind the routes' Settings imports to point at the patched singleton.
+    # (FastAPI captured Settings at import time; we need a fresh app instance.)
+    import finetune_studio.webui.app as app_mod
+    importlib.reload(app_mod)
+    yield TestClient(app_mod.app)
+
+
+def _make_project(client) -> str:
+    """Create a project + return its id (uses the real /api/projects route)."""
+    r = client.post(
+        "/api/projects",
+        json={
+            "name": "qabug-016-data-prep",
+            "description": "regression fixture",
+            "base_model": "",
+            "system_prompt": "test",
+        },
+    )
+    assert r.status_code == 200, r.text
+    return r.json()["id"]
+
+
+def test_data_prep_route_returns_200(client):
+    """GET /projects/{pid}/data-prep returns 200 — not 404 (the bug)."""
+    pid = _make_project(client)
+    r = client.get(f"/projects/{pid}/data-prep")
+    assert r.status_code == 200, (
+        f"Expected 200, got {r.status_code}. "
+        f"QABUG-016: missing route handler in pages.py — fix is the new "
+        f"`project_data_prep_page` handler added between `project_data_page` "
+        f"and `project_training_page`. Body (first 400 chars): {r.text[:400]}"
+    )
+
+
+def test_data_prep_route_renders_main_content(client):
+    """Response body contains the data_prep.html template content (not just the base layout)."""
+    pid = _make_project(client)
+    r = client.get(f"/projects/{pid}/data-prep")
+    assert r.status_code == 200
+    body = r.text
+    # The data_prep.html template has these anchors in its main content (QABUG-016: a missing route rendered the 404 SPA).
+    assert "Uploaded files" in body
+    assert "Mine pairs, file by file" in body
+    assert "Training / Q&amp;A output" in body or "Training / Q&A output" in body
+    assert 'id="dp-files"' in body and 'id="dp-mine-selected"' in body
+
+
+def test_data_prep_route_renders_the_files_table_host(client):
+    """A fresh project renders the (empty) files table host and the per-file panel host; the script fills them."""
+    pid = _make_project(client)
+    body = client.get(f"/projects/{pid}/data-prep").text
+    assert '<div id="dp-files" class="text-sm">Loading…</div>' in body
+    assert 'id="dp-file-panel"' in body

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>⚡ Finetune Studio — self-hosted LLM workshop</title>
+<meta name="description" content="A self-hosted local-LLM workshop: one route for your files, then LoRA fine-tuning or a Smart Brain that answers from them, plus evaluation, export, and chat. Runs on your hardware; optional model downloads and integrations may use external services.">
+<meta property="og:title" content="⚡ Finetune Studio">
+<meta property="og:description" content="A self-hosted workshop for the whole local-LLM lifecycle: documents → datasets → LoRA training → merge/export → benchmarks → chat. Single repo, terminal-styled UI, explicitly gated live E2E checks.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#050a06; --panel:#0a140c; --panel2:#0d1a10;
+    --border:#1d3a24; --border-strong:#2a5233;
+    --fg:#b8e6c0; --dim:#5f8a66; --accent:#00ff66; --amber:#ffb000; --violet:#b388ff;
+    --mono:'Share Tech Mono',ui-monospace,monospace; --code:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--fg);font-family:var(--mono);line-height:1.6;overflow-x:hidden}
+  /* CRT scanlines */
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:99;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.14) 0 1px,transparent 1px 3px);opacity:.5}
+  a{color:var(--accent);text-decoration:none} a:hover{text-shadow:0 0 8px var(--accent)}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+  /* nav */
+  nav{position:sticky;top:0;z-index:100;background:rgba(5,10,6,.92);backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--border);padding:10px 0}
+  nav .wrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .logo{color:var(--accent);font-weight:700;letter-spacing:.06em;text-shadow:0 0 10px rgba(0,255,102,.5)}
+  nav .links{margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-size:13px}
+  nav .links a{color:var(--dim)} nav .links a:hover{color:var(--accent)}
+  /* hero */
+  header{padding:88px 0 64px;text-align:center;position:relative}
+  header::before{content:"";position:absolute;inset:auto 0 0 0;height:1px;
+    background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.4}
+  h1{font-size:clamp(34px,6vw,64px);color:var(--accent);letter-spacing:.04em;
+    text-shadow:0 0 18px rgba(0,255,102,.45),0 0 60px rgba(0,255,102,.15)}
+  h1 .cursor{display:inline-block;width:.55ch;background:var(--accent);color:transparent;
+    animation:blink 1.1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .tagline{max-width:760px;margin:18px auto 0;color:var(--fg);font-size:clamp(15px,2vw,19px)}
+  .sub{color:var(--dim);margin-top:10px;font-size:14px}
+  .cta{margin-top:34px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  .btn{border:1px solid var(--border-strong);padding:12px 22px;color:var(--fg);
+    letter-spacing:.08em;font-size:14px;transition:.15s;display:inline-block}
+  .btn:hover{border-color:var(--accent);color:var(--accent);box-shadow:0 0 14px rgba(0,255,102,.25)}
+  .btn.primary{background:rgba(0,255,102,.12);border-color:var(--accent);color:var(--accent)}
+  .badges{margin-top:26px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  .badges img{height:20px}
+  /* sections */
+  section{padding:64px 0}
+  h2{color:var(--accent);font-size:clamp(20px,3vw,28px);letter-spacing:.06em;margin-bottom:6px}
+  h2::before{content:"▐ "}
+  h3{color:var(--accent);font-size:15px;letter-spacing:.05em;margin-bottom:8px}
+  h3 .tag{color:var(--violet);font-size:11px;border:1px solid var(--violet);
+    padding:1px 6px;margin-left:8px;vertical-align:2px}
+  .lead{color:var(--dim);margin-bottom:30px;max-width:720px}
+  /* feature grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:14px}
+  .card{background:var(--panel);border:1px solid var(--border);padding:18px;position:relative;transition:.15s}
+  .card:hover{border-color:var(--border-strong);transform:translateY(-2px);
+    box-shadow:0 8px 24px rgba(0,0,0,.4)}
+  .card p{font-size:13px;color:var(--fg)} .card .dim{color:var(--dim)}
+  /* usecases */
+  .usecases{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+  .usecase{background:var(--panel);border:1px solid var(--border);padding:20px}
+  .usecase h4{color:var(--accent);font-size:14px;letter-spacing:.04em;margin-bottom:6px}
+  .usecase blockquote{margin:0 0 10px;color:var(--fg);font-style:italic;font-size:13px;
+    border-left:2px solid var(--border-strong);padding-left:10px}
+  .usecase p{font-size:13px;color:var(--fg)}
+  /* new in v2 */
+  .pillbox{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .pill{font-size:11px;color:var(--amber);border:1px solid var(--amber);padding:2px 8px;
+    letter-spacing:.05em;display:inline-block}
+  /* gallery */
+  figure{background:var(--panel);border:1px solid var(--border);padding:10px;margin:0}
+  figure img{width:100%;display:block;border:1px solid var(--border)}
+  figcaption{font-size:12px;color:var(--dim);padding:9px 3px 2px;letter-spacing:.04em}
+  figcaption b{color:var(--accent);font-weight:400}
+  .gallery-hero{margin-bottom:18px}
+  .gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+  /* pipeline */
+  pre.diagram{background:var(--panel2);border:1px solid var(--border);padding:22px;
+    overflow-x:auto;color:var(--fg);font-family:var(--code);font-size:12.5px;line-height:1.5}
+  pre.diagram .g{color:var(--accent)} pre.diagram .a{color:var(--amber)}
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{border:1px solid var(--border);padding:10px 12px;text-align:left;vertical-align:top}
+  th{color:var(--accent);font-weight:400;letter-spacing:.05em;background:var(--panel2)}
+  td:first-child{color:var(--dim)} td:last-child{color:var(--fg)}
+  /* quickstart */
+  .codeblock{background:#030804;border:1px solid var(--border-strong);padding:22px;
+    font-family:var(--code);font-size:13.5px;overflow-x:auto;line-height:1.8}
+  .codeblock .p{color:var(--accent)} .codeblock .c{color:var(--dim)}
+  /* docs */
+  .docs{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+  .docs a{display:block;background:var(--panel);border:1px solid var(--border);padding:14px 16px;
+    color:var(--fg);font-size:13px;transition:.15s}
+  .docs a:hover{border-color:var(--accent)}
+  .docs b{color:var(--accent);display:block;margin-bottom:3px;font-weight:400;letter-spacing:.05em}
+  footer{border-top:1px solid var(--border);padding:40px 0 54px;text-align:center;color:var(--dim);font-size:13px}
+  footer .motto{color:var(--fg);margin-bottom:10px}
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <span class="logo">root@fts:~$ ⚡FINETUNE-STUDIO</span>
+  <span class="links">
+    <a href="#usecases">use cases</a>
+    <a href="#new">new in v2</a>
+    <a href="#gallery">screenshots</a>
+    <a href="#pipeline">pipeline</a>
+    <a href="#why">why</a>
+    <a href="#quickstart">quickstart</a>
+    <a href="#docs">docs</a>
+    <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/TUTORIAL.md">tutorial ↗</a>
+    <a href="https://github.com/GenorTG/finetune-studio">github ↗</a>
+  </span>
+</div></nav>
+
+<header><div class="wrap">
+  <h1>⚡ FINETUNE STUDIO<span class="cursor">▮</span></h1>
+  <p class="tagline">A self-hosted workshop for local-model training,
+  inference, and evaluation.</p>
+  <p class="sub">A self-hosted workshop for the whole lifecycle: documents →
+  datasets → LoRA training → merge/export → benchmarks → chat. One
+  dark-themed WebUI that lives in your browser. The app runs on your host;
+  model downloads and optional integrations can contact third-party services.</p>
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/GenorTG/finetune-studio">[ CLONE THE REPO ]</a>
+    <a class="btn" href="#quickstart">[ QUICKSTART ↓ ]</a>
+  </div>
+  <div class="badges">
+    <img alt="python 3.12–3.13" src="https://img.shields.io/badge/python-3.12--3.13-blue.svg">
+    <img alt="polyform noncommercial" src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-ff8800.svg">
+    <img alt="cuda" src="https://img.shields.io/badge/GPU-CUDA-76b900.svg">
+    <img alt="fastapi" src="https://img.shields.io/badge/WebUI-FastAPI%20%2B%20Jinja2-009688.svg">
+    <img alt="Playwright E2E requires explicit opt-in" src="https://img.shields.io/badge/E2E-explicit_opt--in-green.svg">
+  </div>
+</div></header>
+
+<section id="usecases"><div class="wrap">
+  <h2>FOUR USE CASES</h2>
+  <p class="lead">You don't have to use everything. Pick what you need — most
+  users start with one and grow.</p>
+
+  <div class="usecases">
+    <div class="usecase">
+      <h4>1 · SMART BRAIN OVER PRIVATE DOCUMENTS</h4>
+      <blockquote>"I have a pile of PDFs and want to ask questions about
+      them in plain English — without uploading anything to the cloud."</blockquote>
+      <p>Every file is parsed once in <b>Files &amp; Knowledge</b> (PDF, DOCX, TXT, MD, HTML, code, CSV, JSON,
+      images via OCR or a Vision reader). The <b>Smart Brain</b> answers from that parse with sources: semantic +
+      keyword search, rank fusion, reranking, an answer gate — often called RAG. Live build progress via SSE,
+      an index status that says when files changed, optional <b>fact cards</b> from reviewed pairs. One-click
+      <b>⚡ Quick index</b>; export it as a standalone MCP + HTTP server.</p>
+      <div class="pillbox"><span class="pill">SMART BRAIN</span><span class="pill">HYBRID SEARCH</span></div>
+    </div>
+
+    <div class="usecase">
+      <h4>2 · FINE-TUNE A MODEL</h4>
+      <blockquote>"I want to teach a small open model how my company talks."</blockquote>
+      <p>Point at a JSONL or your mined dataset, pick a base model, run
+      LoRA / QLoRA. Live loss curves, VRAM profiles, adapter merge, then
+      export (merged / abliterated; GGUF when host tools are
+      installed). Per past-run Actions (⭐ Set Production, ▶ Inference, ⬇
+      Download).</p>
+      <div class="pillbox"><span class="pill">LoRA</span><span class="pill">QLoRA</span><span class="pill">MERGE</span><span class="pill">EXPORT</span></div>
+    </div>
+
+    <div class="usecase">
+      <h4>3 · BENCHMARK BEFORE SHIP</h4>
+      <blockquote>"I trained two variants. Which one is actually better?"</blockquote>
+      <p>Offline smoke suites styled after MMLU / GSM8K / HellaSwag (not the
+      full HuggingFace dataset downloads), plus project-local suites. Two
+      tabs: <b>Recent scores</b> and <b>Compare two runs</b> (per-suite Δ =
+      B − A, colored).</p>
+      <div class="pillbox"><span class="pill">MMLU-style</span><span class="pill">GSM8K-style</span><span class="pill">HellaSwag-style</span></div>
+    </div>
+
+    <div class="usecase">
+      <h4>4 · JUST CHAT LOCALLY</h4>
+      <blockquote>"I want to run Llama 3 locally with my own chat history
+      and image support."</blockquote>
+      <p>Pick a safetensors or GGUF model, load with auto-unload-on-idle
+      to free VRAM. Image input for multimodal. Per-session
+      temperature / top-p / system prompt. Conversation persists.</p>
+      <div class="pillbox"><span class="pill">safetensors</span><span class="pill">GGUF</span><span class="pill">VISION</span></div>
+    </div>
+  </div>
+</div></section>
+
+<section id="new"><div class="wrap">
+  <h2>FEATURES</h2>
+  <p class="lead">A quick overview of the current self-hosted workflow. See
+  the README and tutorial for installation requirements and step-by-step use.</p>
+  <ul style="color:var(--fg);font-size:13px;line-height:1.8;list-style:none;padding:0">
+    <li>· <b style="color:var(--accent)">⚡ Quick work</b> — the entire model pipeline on one page (upload → pairs → dataset → train → test → pin), live status pills per step, and a <b>Run steps 2–5</b> chain that drives dataset → training → test unattended</li>
+    <li>· <b style="color:var(--accent)">One project flow</b> — <code style="color:var(--amber)">1 Files &amp; Knowledge → 2 train or 2 Smart Brain → 3 test → 4 use it</code>: every file parsed once, both routes read that parse</li>
+    <li>· <b style="color:var(--accent)">File browser v2</b> — folder chips with drag-to-move, tag pills, bulk actions, zip export, per-file usage chain (file → pairs → datasets → runs → Smart Brain), knowledge search over facts and passages, 7-day trash with restore-all</li>
+    <li>· <b style="color:var(--accent)">Chunk-coverage fallback</b> — export can fill chunks without an approved generated pair with verbatim extractive pairs; the project data audit reports coverage issues. Coverage does not guarantee that a model learned every fact.</li>
+    <li>· <b style="color:var(--accent)">Full-coverage test suites</b> — auto-suites test every dataset row (N rows → N questions); sampling is an explicit, labeled opt-in</li>
+    <li>· <b style="color:var(--accent)">Project versions</b> — immutable manifests pinning datasets + sources + corpora + runs + base model, with lineage</li>
+    <li>· <b style="color:var(--accent)">Standalone Smart Brain</b> — the index ships as a self-installing tarball (MCP + HTTP, <code style="color:var(--amber)">setup.sh</code>, optional bundled embedder + reranker for fully offline semantic search)</li>
+    <li>· <b style="color:var(--accent)">Parsed-text editor</b> — fix a bad parse in-app; corrections feed mining + the next Smart Brain build while raw bytes stay immutable</li>
+    <li>· <b style="color:var(--accent)">Per-commit build chip + self-update</b> — Settings → Apply update pulls, repairs, migrates, restarts</li>
+    <li>· <b style="color:var(--accent)">Dark and light themes</b> — switch themes in the UI; regression checks cover theme and responsive behavior</li>
+  </ul>
+</div></section>
+
+<section id="gallery"><div class="wrap">
+  <h2>SCREENSHOTS</h2>
+  <p class="lead">Terminal-grade UI: tmux-style session bar, numbered flow
+  steps, phosphor-green notches, animated sprites, command palette on
+  Ctrl+K. Default listen port <span class="dim">:7860</span>.</p>
+
+  <figure class="gallery-hero">
+    <img src="screenshots/03_quick_work.png" alt="Quick work — the whole training pipeline on one page" loading="lazy">
+    <figcaption><b>⚡ QUICK WORK</b> — upload → pairs → dataset → train → test → pin on one page, live status pills, one-click chain for steps 2–5.</figcaption>
+  </figure>
+  <div class="gallery">
+    <figure><img src="screenshots/01_dashboard.png" alt="Dashboard with host resources and project cards" loading="lazy">
+      <figcaption><b>DASHBOARD</b> — host resources (RAM/VRAM bars updated live), your projects, quick-create.</figcaption></figure>
+    <figure><img src="screenshots/02_project.png" alt="Project home with the two-card flow picker" loading="lazy">
+      <figcaption><b>PROJECT HOME</b> — answers "where do I start": 🧠 Train a model vs 🧠 Smart Brain (no training), plus live counts, runs, exports, activity.</figcaption></figure>
+    <figure><img src="screenshots/04_files.png" alt="File browser v2" loading="lazy">
+      <figcaption><b>FILES · STEP 1</b> — immutable deduped uploads, folder chips, tags, bulk actions, zip export, usage chain, parsed-text editor, 7-day trash.</figcaption></figure>
+    <figure><img src="screenshots/05_pairs.png" alt="Question-answer pairs page" loading="lazy">
+      <figcaption><b>PAIRS · STEP 2</b> — mine question-answer pairs from your sources, triage in bulk; export can add extractive pairs for chunks without approved generated pairs.</figcaption></figure>
+    <figure><img src="screenshots/06_brain.png" alt="Smart Brain page" loading="lazy">
+      <figcaption><b>SMART BRAIN</b> — ⚡ Quick index, documents-in-index, search test, grounded chat, standalone MCP + HTTP server export.</figcaption></figure>
+    <figure><img src="screenshots/07_training.png" alt="Training with past-run Actions" loading="lazy">
+      <figcaption><b>TRAINING · STEP 3</b> — LoRA config, live loss curve; each past run has Actions (⭐ Set Production, ▶ Inference, ⬇ Download).</figcaption></figure>
+    <figure><img src="screenshots/10_testing.png" alt="Testing page" loading="lazy">
+      <figcaption><b>TESTING · STEP 4</b> — did it learn YOUR material? Auto-suites test every dataset row; case-by-case strict judging.</figcaption></figure>
+    <figure><img src="screenshots/08_models.png" alt="Models with expand rows" loading="lazy">
+      <figcaption><b>MODELS · STEP 5</b> — trained-exports table; expand any row for the parent run, settings, dir contents, ▶ Open in inference.</figcaption></figure>
+    <figure><img src="screenshots/09_export.png" alt="Export page" loading="lazy">
+      <figcaption><b>EXPORT</b> — merged / abliterated first-class; GGUF when host tools are present; failures land in the run row, never silent.</figcaption></figure>
+    <figure><img src="screenshots/13_chat.png" alt="Chat" loading="lazy">
+      <figcaption><b>CHAT</b> — safetensors or GGUF, streaming with sprite feedback, Smart Brain sources, Agent mode for tool-driven dataset curation.</figcaption></figure>
+    <figure><img src="screenshots/12_settings.png" alt="Settings" loading="lazy">
+      <figcaption><b>SETTINGS</b> — per-project config + WebUI log tail + Apply update + Replay Tutorial.</figcaption></figure>
+  </div>
+  <p class="lead"><b>BENCHMARKS</b> — optional public exams with offline smoke suites, real HF splits, recent scores, and two-run comparison.</p>
+</div></section>
+
+<section id="pipeline"><div class="wrap">
+  <h2>THE PIPELINE</h2>
+  <p class="lead">From raw documents to a benchmarked, chat-ready model —
+  one project, one flow — or let ⚡ Quick work chain it from one page:</p>
+<pre class="diagram"><span class="g">upload</span> ──► <span class="g">file library</span>      sha256 dedup · MIME auto-folders · versioning · 7-day trash · rename · per-file purge · parsed MD
+   └─► <span class="g">parse once</span>         text · code · data · office · email · images(OCR / Vision reader) ── passages
+        └─► <span class="g">Smart Brain</span>       index: semantic + keyword search, rank fusion, reranking · live SSE
+             └─► <span class="g">Q&amp;A mining</span>      batch prep job  OR  <span class="a">agentic tool-calling chat</span>
+                  └─► <span class="g">review</span>           approve / reject / edit pairs ──► JSONL datasets
+                       └─► <span class="a">train</span>           LoRA / QLoRA / full · live loss · VRAM profiles · per-run Actions
+                            └─► <span class="a">merge + export</span> adapter → merged → optional GGUF when tools installed
+                                 └─► <span class="g">benchmark</span>     offline smoke suites · compare tab (Δ = B − A, colored)
+                                      └─► <span class="g">chat</span>          single-model engine · vision · Smart Brain sources · log tail</pre>
+</div></section>
+
+<section id="why"><div class="wrap">
+  <h2>WHY THIS OVER DOING IT MANUALLY?</h2>
+  <p class="lead">None of the pieces are impossible by hand. The point is that
+  all of them are now in one place, with your data in
+  <span class="dim">~/.finetune-studio/</span> where you can find it.</p>
+  <table>
+    <tr><th>What you'd do manually</th><th>What Finetune Studio does</th></tr>
+    <tr><td>Five terminal windows + a Notion page of "things to remember"</td><td>One browser tab, one project concept</td></tr>
+    <tr><td>Hand-craft chunking + embedding loops</td><td>Click Build — SSE progress the whole way</td></tr>
+    <tr><td>Write your own eval harness</td><td>Pick a suite, click Run, get a comparison table</td></tr>
+    <tr><td>Lose an afternoon to CUDA install issues</td><td>One ./install.sh — GPU-aware wheels, self-repair</td></tr>
+    <tr><td>Guess why a model will not load</td><td>See estimated VRAM needed, free VRAM, and the named GPU processes using it</td></tr>
+    <tr><td>Compare two trained runs by hand</td><td>Compare tab — pick run A + B, get the Δ table</td></tr>
+    <tr><td>SSH in to grep server logs</td><td>Settings → WebUI log tail, Refresh + Auto-refresh</td></tr>
+  </table>
+</div></section>
+
+<section id="quickstart"><div class="wrap">
+  <h2>QUICKSTART</h2>
+  <p class="lead">Linux / macOS / Windows(WSL2). Auto-detects your GPU and
+  picks the right CUDA wheels.</p>
+<pre class="codeblock"><span class="p">$</span> git clone https://github.com/GenorTG/finetune-studio.git
+<span class="p">$</span> cd finetune-studio
+<span class="p">$</span> ./install.sh                    <span class="c"># GPU detection, venv, wheels</span>
+<span class="p">$</span> source .venv/bin/activate
+<span class="p">$</span> fts web --host 0.0.0.0 --port 7860
+<span class="c"># open http://localhost:7860 — an 8-step tour walks you through it</span></pre>
+</div></section>
+
+<section id="docs"><div class="wrap">
+  <h2>DOCS</h2>
+  <div class="docs">
+    <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/TUTORIAL.md"><b>TUTORIAL.md</b>your first model, end to end — workflow, tips, first-run pitfalls</a>
+    <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/INSTALL.md"><b>INSTALL.md</b>install on Linux / macOS / Windows, prerequisites, troubleshooting</a>
+    <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/DEPENDENCIES.md"><b>DEPENDENCIES.md</b>every dep → where it's used, GPU-wheel story</a>
+    <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/DEPLOYMENT.md"><b>DEPLOYMENT.md</b>service, update pipeline, generic ops notes</a>
+    <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/ATTRIBUTIONS.md"><b>ATTRIBUTIONS.md</b>packages, versions, licenses</a>
+    <a href="https://genortg.github.io/finetune-studio/"><b>PRESENTATION PAGE</b>you're reading it</a>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <p class="motto">Built by a hacker, for hackers. Self-hosted by default;
+  optional downloads and integrations may use external services.</p>
+  <p>⚡ Finetune Studio · <a href="https://github.com/GenorTG/finetune-studio">GitHub</a> ·
+  PolyForm Noncommercial License 1.0.0</p>
+</div></footer>
+
+</body>
+</html>

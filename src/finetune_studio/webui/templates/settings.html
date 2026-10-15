@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+{% block title %}Settings · Finetune Studio{% endblock %}
+{% block sb_path %}~ / settings{% endblock %}
+
+{% block content %}
+<div class="grid grid-1-2" style="gap: 16px;">
+
+  {# ── Left column: Updates + Tutorial + Quick Ref ──────── #}
+  <div>
+    <div class="card mb-4">
+      <div class="card-head">
+        <div class="card-title">Updates</div>
+        <div class="card-sub">Self-healing pipeline: git pull → venv health → deps → migrations → restart.</div>
+      </div>
+      <div class="flex gap-2 wrap mb-3">
+        <button class="btn sm" id="btn-update-check" title="Dry run: report drift + venv health, changes nothing">Check</button>
+        <button class="btn sm primary" id="btn-update-apply" title="Pull main, sync deps, migrate DB, restart service (~10s downtime)">Apply update</button>
+        <button class="btn sm" id="btn-update-repair" title="Recreate the venv from scratch (slow, thorough)">Repair</button>
+      </div>
+      <div id="update-status" class="text-xs dim mb-2">Idle.</div>
+      <pre id="update-log" class="text-xs" style="display:none;max-height:220px;overflow-y:auto;border:1px solid var(--border);padding:8px;white-space:pre-wrap"></pre>
+      <div id="update-history" class="text-xs dim mt-2"></div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-head">
+        <div class="card-title">Tutorial</div>
+        <div class="card-sub">First-run onboarding walkthrough.</div>
+      </div>
+      <div class="text-sm mb-3">
+        A guided 7-step tour explaining how the studio works. Skip anytime,
+        replay anytime. Nothing runs during the tutorial.
+      </div>
+      <button class="btn primary" id="btn-replay-tutorial">
+        <span>▶</span> REPLAY TUTORIAL
+      </button>
+      <div class="text-xs dim mt-2" id="tutorial-status">Last completed: <span id="tutorial-last">never</span></div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-head">
+        <div class="card-title">Quick Reference</div>
+        <div class="card-sub">Hotkeys that work everywhere.</div>
+      </div>
+      <table class="ref-table">
+        <tr><td><kbd>Ctrl</kbd>+<kbd>K</kbd></td><td>Open command palette</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Close overlay / drawer</td></tr>
+        <tr><td><kbd>↑</kbd>/<kbd>↓</kbd></td><td>Navigate palette results</td></tr>
+        <tr><td><kbd>↵</kbd></td><td>Open highlighted item</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">About</div>
+      <div class="card-sub">Finetune Studio · <strong style="color:var(--accent)">EARLY BETA</strong> · v{{ app_version }}</div>
+      </div>
+      <div class="text-sm">
+        <p class="mb-2">
+          <strong style="color:var(--accent)">EARLY BETA:</strong> A self-hosted training studio for local LLMs: build a Smart Brain from your files,
+          fine-tune models on your own hardware, run benchmarks, chat —
+          all in one place. No cloud, no lock-in.
+        </p>
+        <p class="dim text-xs">
+          See <code>README.md</code> for the full
+          rationale, <code>docs/INSTALL.md</code> for installation, and
+          <code>docs/ATTRIBUTIONS.md</code> for package licenses.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  {# ── Right column: Debug info + Storage Paths + Hosting ────────────── #}
+  {# min-width:0 lets the compute table scroll inside its card instead of widening the grid column #}
+  <div style="min-width:0">
+    <div class="card mb-4">
+      <div class="card-head">
+        <div class="card-title">Server & Hosting</div>
+        <div class="card-sub">Port, CORS, trusted hosts, reverse proxy. Changes require a restart.</div>
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-xs muted mb-1" for="hosting-port"
+               title="Network port the server listens on. Default 7860.">Port</label>
+        <input id="hosting-port" type="number" class="input" style="max-width:140px"
+               value="7860" min="1" max="65535" />
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-xs muted mb-1" for="hosting-host"
+               title="0.0.0.0 = listen on all interfaces. 127.0.0.1 = localhost only.">Bind host</label>
+        <select id="hosting-host" class="select" style="max-width:200px">
+          <option value="0.0.0.0">0.0.0.0 (all interfaces — for hosting)</option>
+          <option value="127.0.0.1">127.0.0.1 (localhost only)</option>
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-xs muted mb-1" for="hosting-cors"
+               title="One origin per line (e.g. https://mydomain.com). Empty = no CORS (only same-origin requests allowed).">CORS allowed origins</label>
+        <textarea id="hosting-cors" class="input" rows="3" style="min-width:260px;font-family:monospace;font-size:12px;"
+                  placeholder="https://mydomain.com&#10;https://app.mydomain.com"></textarea>
+      </div>
+
+      <div class="mb-3">
+        <label class="flex items-center gap-2 text-xs">
+          <input id="hosting-cors-creds" type="checkbox" checked />
+          Allow credentials (cookies, authorization headers)
+        </label>
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-xs muted mb-1" for="hosting-trusted"
+               title="Optional: restrict to these hosts. Empty = accept all.">Trusted hosts (optional)</label>
+        <textarea id="hosting-trusted" class="input" rows="2" style="min-width:260px;font-family:monospace;font-size:12px;"
+                  placeholder="mydomain.com&#10;www.mydomain.com"></textarea>
+      </div>
+
+      <div class="mb-3">
+        <label class="flex items-center gap-2 text-xs">
+          <input id="hosting-proxy" type="checkbox" />
+          Enable proxy headers (for nginx / Caddy / Traefik)
+        </label>
+        <div class="text-xs dim mt-1">When on a reverse proxy, enable this so the app sees the real client IP and protocol.</div>
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-xs muted mb-1" for="hosting-rootpath"
+               title="If served under a subpath (e.g. https://mydomain.com/fts), set this to the prefix.">Root path (optional)</label>
+        <input id="hosting-rootpath" type="text" class="input" style="max-width:260px"
+               placeholder="/fts" />
+      </div>
+
+      <div class="flex gap-2 mt-3">
+        <button class="btn sm primary" id="btn-hosting-save" title="Save hosting settings (restart required to take effect)">Save &amp; Restart</button>
+        <span id="hosting-status" class="text-xs dim">Idle.</span>
+      </div>
+    </div>
+
+    <div class="card mb-4" id="judge-card">
+      <div class="card-head">
+        <div class="card-title">Test judge</div>
+        <div class="card-sub">After a test run saves the model's raw answers, a judge decides whether each one is correct. The judge is any model you have connected (see the helper model below and the provider list); you can always override it by hand on the Testing page.</div>
+      </div>
+      <div class="mb-3">
+        <label class="block text-xs muted mb-1" for="judge-provider">Default judge</label>
+        <select id="judge-provider" class="select" style="max-width:420px" aria-label="Default test judge"></select>
+        <div class="text-xs dim mt-1">A local GGUF judge loads onto the GPU after the run (the tested model is unloaded first); an API judge needs no GPU. Leave on the helper seat unless you want a stronger judge.</div>
+      </div>
+      <div class="mb-3">
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="judge-auto"> Judge automatically when a test run finishes</label>
+        <div class="text-xs dim mt-1">Off: a run ends at the raw transcripts and you start the judge (or review by hand) from the Testing page.</div>
+      </div>
+      <div class="flex gap-2 mt-3">
+        <button class="btn sm primary" id="btn-judge-save">Save judge settings</button>
+        <span id="judge-status" class="text-xs dim">Idle.</span>
+      </div>
+    </div>
+
+    <div class="card mb-4" id="helper-card">
+      <div class="card-head">
+        <div class="card-title">Helper model</div>
+        <div class="card-sub">The helper does the tedious model work for you: mining Q&amp;A pairs from big document sets, building test suites and preference pairs, and answering in the Guide. Run it on this machine, or connect an API provider.</div>
+      </div>
+      <div class="mb-3 flex gap-4 items-center">
+        <label class="flex items-center gap-2"><input type="radio" name="helper-seat" id="helper-seat-local" value="local" /> Local model on this machine <span id="helper-local-label" class="dim text-xs"></span></label>
+        <label class="flex items-center gap-2"><input type="radio" name="helper-seat" id="helper-seat-api" value="api" /> API provider</label>
+      </div>
+      <div id="helper-api-fields">
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="helper-api-preset">Provider</label>
+          <select id="helper-api-preset" class="select" style="max-width:260px"></select>
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="helper-api-url">API base URL</label>
+          <input id="helper-api-url" type="text" class="input" style="max-width:420px" autocomplete="off" />
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="helper-api-key">API key <span id="helper-key-state" class="dim">(not set)</span></label>
+          <input id="helper-api-key" type="password" class="input" style="max-width:420px" autocomplete="new-password"
+                 placeholder="leave blank to keep the current key" />
+          <div class="text-xs dim mt-1">Stored on this computer only (never in the project or the repo) and never shown again.</div>
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="helper-api-model">Model <button class="btn sm" id="btn-helper-models" type="button">Fetch model list</button></label>
+          <input id="helper-api-model" type="text" class="input" style="max-width:420px" autocomplete="off" list="helper-api-model-list" />
+          <datalist id="helper-api-model-list"></datalist>
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="helper-api-effort">Reasoning effort (only if the model supports it; &ldquo;none&rdquo; is fastest and cheapest for extraction work)</label>
+          <select id="helper-api-effort" class="select" style="max-width:260px">
+            <option value="">provider default</option>
+            <option value="none">none</option><option value="minimal">minimal</option><option value="low">low</option>
+            <option value="medium">medium</option><option value="high">high</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="helper-api-concurrency">Parallel calls while mining (1–32; the provider's rate limit is the ceiling)</label>
+          <input id="helper-api-concurrency" type="number" class="input" min="1" max="32" step="1" style="max-width:120px" />
+        </div>
+        <div class="text-xs mb-3" style="color:var(--warn-text, var(--warn))">With the API helper, the text of the documents you mine and the questions you ask the Guide are sent to that provider.</div>
+      </div>
+      <div class="flex gap-2 mt-3">
+        <button class="btn sm primary" id="btn-helper-save">Save helper settings</button>
+        <button class="btn sm" id="btn-helper-test" title="One real request with the values above: checks URL, key and model, and shows the delay">Test connection</button>
+        <button class="btn sm" id="btn-helper-clear-key" title="Remove the saved API key">Clear saved key</button>
+        <span id="helper-status" class="text-xs dim">Idle.</span>
+      </div>
+    </div>
+
+    <div class="card mb-4" id="vision-card">
+      <div class="card-head">
+        <div class="card-title">Vision reader</div>
+        <div class="card-sub">Reads pictures inside your documents while mining: scanned pages, charts and tables pasted as images. Without it, those pictures are mined from OCR text, which keeps the numbers but often loses which label each number belongs to.</div>
+      </div>
+      <div class="flex flex-col gap-1 mb-3" role="radiogroup" aria-label="Vision reader">
+        <label class="flex items-center gap-2"><input type="radio" name="vision-mode" id="vision-mode-off" value="off" /> Off: OCR only</label>
+        <label class="flex items-center gap-2"><input type="radio" name="vision-mode" id="vision-mode-local" value="local" /> Local model on this machine (needs an mmproj file next to the GGUF)</label>
+        <label class="flex items-center gap-2"><input type="radio" name="vision-mode" id="vision-mode-api" value="api" /> API vision model</label>
+      </div>
+      <div id="vision-local-fields" class="mb-3">
+        <label class="block text-xs muted mb-1" for="vision-local-model">Vision model: path to a GGUF (suggestions: models found with an mmproj)</label>
+        <input id="vision-local-model" type="text" class="input" style="max-width:640px" autocomplete="off" list="vision-local-list" />
+        <datalist id="vision-local-list"></datalist>
+        <div class="text-xs dim mt-1">It loads into the one inference worker while a batch with pictures is mined and is unloaded after. With a local helper, pick the helper's own GGUF here (if it has an mmproj) or use an API vision model.</div>
+      </div>
+      <div id="vision-api-fields">
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="vision-api-url">API base URL</label>
+          <input id="vision-api-url" type="text" class="input" style="max-width:420px" autocomplete="off" />
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="vision-api-key">API key <span id="vision-key-state" class="dim">(not set)</span></label>
+          <input id="vision-api-key" type="password" class="input" style="max-width:420px" autocomplete="new-password" placeholder="leave empty to keep the saved key" />
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="vision-api-model">Model (must accept images)</label>
+          <input id="vision-api-model" type="text" class="input" style="max-width:420px" autocomplete="off" />
+        </div>
+        <div class="text-xs mb-3" style="color:var(--warn-text, var(--warn))">With an API vision model, the pictures in the documents you mine (scans, charts, page images) are sent to that provider.</div>
+      </div>
+      <div class="flex gap-2 mt-3">
+        <button class="btn sm primary" id="btn-vision-save" type="button">Save vision settings</button>
+        <button class="btn sm" id="btn-vision-test" type="button" title="Reads a generated picture with a random code: checks the model really sees, and shows the delay">Test reading</button>
+        <span id="vision-status" class="text-xs dim">Idle.</span>
+      </div>
+    </div>
+
+    <div class="card mb-4" id="service-card">
+      <div class="card-head">
+        <div class="card-title">Service</div>
+        <div class="card-sub">What keeps the app running: the supervisor restarts the web server if it crashes or stops answering, and records why.</div>
+      </div>
+      <div class="text-xs mb-3" id="service-mode">Loading…</div>
+      <div class="table-scroll mb-3" role="region" aria-label="Supervised components">
+        <table class="table" id="service-table" hidden>
+          <thead><tr><th>Component</th><th>State</th><th>PID</th><th>Up</th><th>Restarts</th><th>Last exit</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="flex gap-2 mb-3" id="service-actions" hidden>
+        <button class="btn sm" id="btn-service-restart" type="button" title="Restart only the web server (about 6 s); the supervisor, the port and the loaded model stay">Restart web server</button>
+        <button class="btn sm" id="btn-service-restart-inference" type="button" title="Restart the inference worker: drops the loaded model and frees its VRAM; the web server stays up">Restart inference worker</button>
+        <select class="select sm" id="service-log-which" aria-label="Which log to show" style="max-width:9rem"><option value="web">web</option><option value="inference">inference</option></select>
+        <button class="btn sm" id="btn-service-log" type="button">Show log</button>
+        <button class="btn sm" id="btn-service-events" type="button">Show events</button>
+      </div>
+      <pre class="service-detail mono text-xs" id="service-detail" hidden></pre>
+    </div>
+
+    <div class="card mb-4" id="compute-card">
+      <div class="card-head">
+        <div class="card-title">Compute device</div>
+        <div class="card-sub">Which GPU (or the CPU) the studio trains and runs models on. A saved change is applied when the service starts.</div>
+      </div>
+      <div id="compute-env" class="gpu-degraded mb-3" role="alert" data-testid="compute-env-override" hidden></div>
+      <div class="table-scroll mb-3" role="region" aria-label="Detected compute devices">
+        <table class="table" id="compute-table">
+          <thead><tr>
+            <th style="width:38%">Device</th><th style="width:20%">Runtime</th>
+            <th style="width:20%">VRAM free</th><th style="width:22%">State</th>
+          </tr></thead>
+          <tbody><tr><td colspan="4" class="dim text-xs">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="text-xs dim mb-3" id="compute-effective">Loading…</div>
+      <div class="mb-3">
+        <label class="block text-xs muted mb-1" for="compute-select">Use at next start</label>
+        <select id="compute-select" class="select" style="max-width:420px" disabled>
+          <option value="auto">Auto (best detected GPU, CPU only if there is none)</option>
+        </select>
+      </div>
+      <div id="compute-restart" class="gpu-degraded mb-3" role="alert" data-testid="compute-restart-required" hidden></div>
+      <div class="flex gap-2 mt-3">
+        <button class="btn sm primary" id="btn-compute-save" title="Save the choice (restart required to apply it)" disabled>Save compute device</button>
+        <span id="compute-status" class="text-xs dim">Idle.</span>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-head">
+        <div class="card-title">Debug Info</div>
+        <div class="card-sub">Live system snapshot.</div>
+      </div>
+      <div id="debug-info" class="debug-grid">
+        <div class="text-xs dim">Loading…</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Storage Paths</div>
+        <div class="card-sub">Where Finetune Studio keeps your data.</div>
+      </div>
+      <table class="ref-table" id="paths-table">
+        <tr><td colspan="2" class="dim text-xs">Loading…</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/settings.js?v=13"></script>
+{% endblock %}

@@ -1,0 +1,1090 @@
+{% extends "base.html" %}
+{% block title %}Smart Brain — {{ project.name }}{% endblock %}
+{% block sb_path %}~ / projects / {{ project.name }} / smart brain{% endblock %}
+{% block breadcrumb_tab %}smart brain{% endblock %}
+
+{% block content %}
+{% set res_compact = true %}
+{% include "_resources.html" %}
+
+<div class="page-head row">
+  <div>
+    <h1>🧠 Smart Brain</h1>
+    <div class="sub"><b>Step 2 · Answer from your files, no training.</b> The Smart Brain reads the files you
+      prepared in <a href="/projects/{{ pid }}/data" data-link>Files &amp; Knowledge</a>, finds the passages that
+      answer a question and quotes them; then <a href="/projects/{{ pid }}/chat" data-link>chat with it</a> or
+      <a href="/projects/{{ pid }}/testing" data-link>test it (step 3)</a>.</div>
+    <div class="text-xs dim mt-1">Methods: semantic search (multilingual embeddings) + keyword search (BM25), combined by
+      rank fusion, then reranking (cross-encoder); an answer gate declines when nothing found covers the question.
+      Often called RAG (retrieval-augmented generation).</div>
+    <details class="page-more">
+      <summary>More about the Smart Brain</summary>
+      <p class="text-sm">It reads exactly the text that training uses: each file is parsed once in Files &amp; Knowledge,
+        including pictures read by the Vision reader and your hand edits. New or edited files only need a rebuild
+        (minutes, not hours) and model weights never change. Export it as an encrypted bundle or a standalone server
+        that runs without this app.</p>
+    </details>
+  </div>
+  <div class="actions flex gap-2 wrap">
+    <a href="/projects/{{ pid }}/data" class="btn primary" data-link
+       id="brain-cta-data">⬆ Files &amp; Knowledge (step 1)</a>
+  </div>
+</div>
+
+{# Where the Smart Brain sits in the project flow #}
+<div class="card mb-4" id="brain-workflow" style="border-color: var(--accent);">
+  <div class="card-head">
+    <div>
+      <div class="card-title">How the Smart Brain fits in</div>
+      <div class="card-sub">Files are prepared once; the Smart Brain and training both read that one parse.</div>
+    </div>
+  </div>
+  <ol class="brain-workflow-steps" aria-label="Smart Brain steps">
+    <li><a href="/projects/{{ pid }}/data" data-link><b>Upload</b></a> files in Files &amp; Knowledge; each one is parsed on arrival (pictures are read by the Vision reader during mining)</li>
+    <li><b>Check or edit</b> the parsed text there if a file read badly</li>
+    <li><b>Build</b> the index below (section 2); the status shows files that changed since the last build</li>
+    <li><b>Test</b> a search and chat below, or score it on the <a href="/projects/{{ pid }}/testing" data-link>test page</a></li>
+  </ol>
+  <p class="text-xs dim mt-2 mb-0">
+    Stored on disk: the passages, their vectors, the keyword index and the search settings. Shared embedder and
+    reranker weights live under <code>~/.finetune-studio/shared_models/</code> (not inside your fine-tuned model).
+  </p>
+</div>
+
+<details class="card mb-4" id="brain-agent-help">
+  <summary class="card-head" style="cursor:pointer;list-style:none;">
+    <div>
+      <div class="card-title">Optional: ask Agent chat for help</div>
+      <div class="card-sub">Chat can recommend chunk size / embedder and call Build — it does not replace uploading files (step 1).</div>
+    </div>
+    <a href="/projects/{{ pid }}/chat?mode=agent" class="btn" data-link onclick="event.stopPropagation()">Open Agent chat →</a>
+  </summary>
+  <div class="text-xs dim" style="padding:0 16px 14px;">
+    Example prompts: <i>"Recommend an embedder for my sources."</i>
+    or <i>"Build the index with fact cards on."</i>
+  </div>
+</details>
+
+{# Status #}
+<div class="card mb-4" id="brain-dashboard">
+  <div class="card-head">
+    <div>
+      <div class="card-title">1. Index status</div>
+      <div class="card-sub">Whether a search index exists on disk for this project, and where it lives (external memory, not model weights).</div>
+    </div>
+    <span class="pill solid-purple" id="brain-summary-badge" hidden></span>
+  </div>
+  <div id="brain-status" class="text-sm muted">Loading…</div>
+  <div id="shared-models-info" class="mt-2 text-xs dim"></div>
+</div>
+
+{# Build #}
+<div class="card mb-4" id="brain-ingest">
+  <div class="card-head">
+    <div>
+      <div class="card-title">2. Build the index</div>
+      <div class="card-sub">
+        Split this project's <b>parsed text sources</b> into chunks and turn them
+        into a searchable index. First build may download the embedding model
+        (~2.2 GB); later rebuilds reuse it.
+        Upload new files on the files page first — there is no upload on this page.
+      </div>
+    </div>
+  </div>
+  <div class="grid grid-12 gap-3 items-end">
+    <div class="col-span-4">
+      <label class="block text-xs muted mb-1"
+             title="An embedder is a small ML model that converts text into a fixed-length numeric vector (e.g. 1024 numbers). Texts with similar meaning land near each other in that vector space, which lets the system find chunks semantically related to a query. multilingual-e5-large handles 100+ languages; bge-large-en is stronger for English-only corpora; all-MiniLM-L6-v2 is tiny and fast but weaker.">Embedder <span class="dim">?</span></label>
+      <select id="b-embedder" class="select"
+              title="Pick the embedding model. Larger = better retrieval quality but more disk + slower build. You can change this and rebuild to compare results.">
+        <option value="intfloat/multilingual-e5-large" selected>multilingual-e5-large (1024d, multilingual, recommended)</option>
+        <option value="BAAI/bge-large-en-v1.5">bge-large-en-v1.5 (1024d, English only, strong)</option>
+        <option value="sentence-transformers/all-MiniLM-L6-v2">all-MiniLM-L6-v2 (384d, fast, weaker)</option>
+      </select>
+    </div>
+    <div class="col-span-6 text-xs dim" style="align-self:center;"
+         title="The index uses the passages each file was split into when it was parsed (Files &amp; Knowledge), the same passages mining reads. Measured on the Korvane quiz: right passage in the top 5 for 95/102 questions vs 89/102 with separate 400-token chunks.">
+      Passages: the same ones mining reads (one split per file, set when it is parsed). <span class="dim">?</span>
+    </div>
+    <div class="col-span-2 flex gap-2">
+      <button onclick="quickIndex()" id="quick-index-btn" class="btn primary"
+              title="⚡ One click: turn every library file that is not parsed yet into text (raw → parsed + chunks), then build the index from all parsed text. This is the quick flow — the controls below stay for fine-tuning.">⚡ Quick index</button>
+      <button onclick="buildIndex(false)" id="build-btn" class="btn" style="flex:1;"
+              title="Build the Smart Brain index: chunk your sources, embed each chunk, index for fast retrieval. First build downloads the embedder (~2.2 GB) which takes a few minutes.">Build</button>
+      <button onclick="buildIndex(true)" id="rebuild-btn" class="btn"
+              title="Wipe the existing index and rebuild from scratch. Use this when you change the embedder — the existing vectors are no longer valid.">⟲ Rebuild from scratch</button>
+    </div>
+  </div>
+  <label class="text-xs flex items-center gap-2 mt-3" style="cursor:pointer;"
+         title="Also index every APPROVED question-answer pair as its own short card next to its file's passages, so a question can land on a reviewed fact. Off by default: measure it on your own questions (test page, Smart Brain mode) before relying on it. Kept for later rebuilds.">
+    <input type="checkbox" id="b-fact-cards"> Fact cards: also index the reviewed (approved) Q&amp;A pairs
+  </label>
+  <div id="build-status" class="mt-3 text-xs dim"></div>
+  <div id="build-progress-wrap" class="mt-2" hidden>
+    <div class="hpbar"><div id="build-progress-fill" class="hpbar-fill"></div></div>
+    <div id="build-progress-text" class="text-xs mono mt-1"></div>
+  </div>
+</div>
+
+{# Settings #}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">3. Search settings</div>
+      <div class="card-sub">
+        Saved with this project's index. Hybrid = keyword match + meaning match
+        combined; rerank = a second scoring pass that reorders results for
+        accuracy. These affect retrieval only — they never retrain the chat model.
+      </div>
+    </div>
+  </div>
+  <div class="grid grid-12 gap-3 items-end">
+    <div class="col-span-5">
+      <label class="block text-xs muted mb-1"
+             title="A reranker is a small cross-encoder model (separate from the embedder) that reads the query AND each candidate chunk together and outputs a relevance score. More accurate than raw embedding similarity but slower.">Reranker (cross-encoder) <span class="dim">?</span></label>
+      <select id="s-reranker" aria-label="Reranker model" class="select">
+        <option value="cross-encoder/ms-marco-MiniLM-L-6-v2" selected>ms-marco-MiniLM-L-6-v2 (English, fast)</option>
+        <option value="BAAI/bge-reranker-v2-m3">bge-reranker-v2-m3 (multilingual, larger)</option>
+      </select>
+    </div>
+    <div class="col-span-3">
+      <label class="block text-xs muted mb-1"
+             title="How many candidate chunks to rerank. More = slower but possibly better precision. The reranker then returns the top-K (configured separately) of these. Typical: 30–100.">Rerank top-N <span class="dim">?</span></label>
+      <input id="s-rerank-top-n" aria-label="Candidates to rerank" type="number" min="1" max="200" value="50" class="input">
+    </div>
+    <div class="col-span-2 flex items-center gap-3">
+      <label class="flex items-center gap-2 text-xs" title="Re-rank dense-vector search results with the cross-encoder. Adds latency but improves precision. Disable for fast lookup-only workflows."><input id="s-rerank-enabled" type="checkbox" checked> Rerank</label>
+      <label class="flex items-center gap-2 text-xs" title="Hybrid retrieval = combine meaning-based (embedding) search with BM25 keyword search (classic exact-word matching), then rerank. Better recall than either alone — embedding catches paraphrases, BM25 catches exact terms / code / names."><input id="s-hybrid-enabled" type="checkbox" checked> Hybrid</label>
+    </div>
+    <div class="col-span-2">
+      <button onclick="saveSettings()" class="btn primary" style="width:100%;">Save</button>
+    </div>
+  </div>
+</div>
+
+{# Documents indexed #}
+<div class="card mb-4" id="brain-docs-panel">
+  <div class="card-head">
+    <div>
+      <div class="card-title">4. Documents in the index</div>
+      <div class="card-sub">
+        What actually got indexed — not your raw uploads (files page), and not the
+        parsed sources list. If a file is missing here, it wasn't parsed or wasn't
+        included in the last build.
+        <span id="brain-docs-summary">
+          {{ indexed_doc_count | default(0) }} document{{ '' if (indexed_doc_count | default(0)) == 1 else 's' }}
+          · {{ indexed_chunk_count | default(0) }} chunk{{ '' if (indexed_chunk_count | default(0)) == 1 else 's' }}
+        </span>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button class="btn sm" onclick="loadIndexedDocs()" title="Refresh inventory">⟲ Refresh</button>
+      <button class="btn sm danger" onclick="clearAllDocuments()" title="Remove all parsed source files from the index. After this, press Build again to re-index from whatever sources remain.">Remove all sources</button>
+    </div>
+  </div>
+  <div id="brain-docs-body">
+    {% set docs = indexed_docs | default([]) %}
+    {% if docs %}
+    <div class="table-scroll brain-docs-scroll">
+    <table class="table ref-table" id="brain-docs-table">
+      <thead>
+        <tr>
+          <th class="brain-col-name">Doc name</th>
+          <th class="brain-col-type">Type</th>
+          <th class="brain-col-chunks">Chunks</th>
+          <th class="brain-col-status">Status</th>
+          <th class="brain-col-indexed">Last indexed</th>
+          <th class="brain-col-actions">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in docs %}
+        <tr data-doc-id="{{ d.id }}">
+          <td class="mono cell-wrap brain-col-name" title="{{ d.name }}">{{ d.name }}</td>
+          <td class="dim text-xs brain-col-type">{{ d.mime }}</td>
+          <td class="brain-col-chunks">{{ d.chunks }}</td>
+          <td class="brain-col-status">
+            {% if d.status == 'indexed' %}
+            <span class="pill solid-green">indexed</span>
+            {% elif d.status == 'pending' %}
+            <span class="pill solid-amber">pending</span>
+            {% else %}
+            <span class="pill solid-rose">error</span>
+            {% endif %}
+          </td>
+          <td class="dim text-xs brain-col-indexed">{{ d.last_indexed or '—' }}</td>
+          <td class="brain-col-actions">
+            <div class="brain-doc-actions">
+              <button class="btn sm ghost" data-view="{{ d.id }}" data-name="{{ d.name }}" onclick="viewDocChunks(this.dataset.view, this.dataset.name)" title="View chunks">View chunks</button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="text-sm muted" id="brain-docs-empty">
+      No documents indexed yet. Upload and parse sources on the
+      <a href="/projects/{{ pid }}/data" data-link>files page</a>,
+      then use <b>Build</b> above to embed them into this index.
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+{# Chunks modal #}
+<div id="brain-chunks-modal" class="modal-back" hidden onclick="if(event.target===this)this.hidden=true">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head">
+      <span id="brain-chunks-title">Chunks</span>
+      <button class="btn ghost icon" onclick="document.getElementById('brain-chunks-modal').hidden=true" style="margin-left:auto;">✕</button>
+    </div>
+    <div class="modal-body" id="brain-chunks-body" style="max-height:420px;overflow-y:auto;"></div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="document.getElementById('brain-chunks-modal').hidden=true">Close</button>
+    </div>
+  </div>
+</div>
+
+{# Test #}
+<div class="card mb-4" id="brain-search">
+  <div class="card-head">
+    <div>
+      <div class="card-title">5. Search test</div>
+      <div class="card-sub">
+        Search the index and see which passages come back — no AI answer is
+        generated. Use it to check whether your build and settings retrieve
+        the right text before you chat or train.
+      </div>
+    </div>
+  </div>
+  <div class="flex gap-2">
+    <input id="q-text" type="text" placeholder="Ask a question about this project's documents…"
+           class="input" style="flex:1;"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();runQuery();}"
+           title="Run a retrieval-only query (no LLM generation). Shows the top-K chunks the system would feed to the chat model, with their retrieval scores. Useful for tuning chunk size / overlap / embedder before training.">
+    <button onclick="runQuery()" id="q-btn" class="btn primary"
+            title="Embed your query and retrieve the top-K most similar chunks from the index. Doesn't call the LLM — just shows what the retriever found.">Search</button>
+  </div>
+  <div id="q-status" class="mt-2 text-xs dim"></div>
+  <div id="q-results" class="mt-3" hidden></div>
+</div>
+
+{# Chat #}
+<div class="card mb-4" id="brain-chat">
+  <div class="card-head">
+    <div>
+      <div class="card-title">6. Ask the model (grounded)</div>
+      <div class="card-sub">
+        Chat that looks up your documents first and answers using them as context
+        (needs a chat model loaded — see the pill in the top bar).
+        The grounding comes from this index, not from fine-tuned weights.
+      </div>
+    </div>
+  </div>
+  <div id="chat-messages" class="flex flex-col gap-2 mb-3" style="min-height:120px;max-height:360px;overflow-y:auto;background:var(--bg-app);border:1px solid var(--border);border-radius:var(--radius);padding:12px;"></div>
+  <div class="flex gap-2">
+    <input id="chat-input" type="text" placeholder="Ask anything — model uses the retrieved documents as context…"
+           class="input" style="flex:1;"
+           title="A retrieval-augmented chat: your question is embedded, top-K matching chunks are pulled from the index, and the model is asked to answer using those chunks as context. Reduces hallucination and lets the model cite sources."
+           onkeydown="if(event.key==='Enter'){event.preventDefault();sendChat();}">
+    <button onclick="sendChat()" id="chat-btn" class="btn primary"
+            title="Send your question. The system retrieves relevant chunks, prepends them to your message, and sends everything to the loaded model. Requires a model to be loaded first (top-bar pill turns green when one is).">Send</button>
+  </div>
+</div>
+
+{# Bundle #}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">7. Download / export the index</div>
+      <div class="card-sub">
+        Studio-to-studio copy of this index (documents, chunks, vectors, keyword index, settings) as one
+        <b>encrypted</b> <code>.ftsrag</code> file saved inside the project. The passphrase is never stored.
+        Search-model files are not included &mdash; use the standalone package below for an offline pack.
+      </div>
+    </div>
+  </div>
+  <div class="grid grid-12 gap-3 items-end mb-3">
+    <div class="col-span-5">
+      <label class="block text-xs muted mb-1">File name (without extension)</label>
+      {% set _bundle_default = ((project.name|trim|lower|replace(' ', '-')) ~ '-docs-v1') if project and project.name else 'my-docs-v1' %}
+      <input id="bundle-name" type="text" placeholder="{{ _bundle_default }}" value="{{ _bundle_default }}" class="input">
+    </div>
+    <div class="col-span-5">
+      <label class="block text-xs muted mb-1">Passphrase (blank = generate one)</label>
+      <input id="bundle-pass" type="password" autocomplete="new-password" class="input" placeholder="min 8 characters">
+    </div>
+    <div class="col-span-2">
+      <button id="bundle-btn" onclick="startBundleDownload()" class="btn primary" style="width:100%;" title="Encrypt the index into a single .ftsrag file you can move to another studio.">Export</button>
+    </div>
+  </div>
+  <div class="grid grid-12 gap-3 items-end mb-3">
+    <div class="col-span-5">
+      <label class="block text-xs muted mb-1">Import a bundle (.ftsrag, or legacy .tar/.zip)</label>
+      <input id="bundle-import-file" aria-label=".ftsrag bundle file" type="file" accept=".ftsrag,.tar,.tar.gz,.tgz,.zip" class="input">
+    </div>
+    <div class="col-span-5">
+      <label class="block text-xs muted mb-1">Passphrase</label>
+      <input id="bundle-import-pass" aria-label="Bundle passphrase" type="password" autocomplete="off" class="input">
+    </div>
+    <div class="col-span-2">
+      <button id="bundle-import-btn" onclick="startBundleImport()" class="btn" style="width:100%;" title="Replaces this project's index.">Import</button>
+    </div>
+  </div>
+  <div class="mt-3" id="mcp-pkg-panel">
+    <div class="text-sm" style="font-weight:600;">Standalone Smart Brain server (MCP + HTTP)</div>
+    <p class="text-xs dim mb-2">An archive with the index, a small Python server, installer, run scripts and a README. Speaks plain HTTP and MCP. <b>Encrypted by default</b> (AES-256-GCM); the passphrase is never stored — it is shown once below.</p>
+    <div class="grid grid-12 gap-3 items-end mb-2">
+      <div class="col-span-4">
+        <label class="block text-xs muted mb-1">Passphrase (blank = generate one)</label>
+        <input id="mcp-pass" type="password" autocomplete="new-password" class="input" placeholder="min 8 characters"
+               title="Used to derive the encryption key. Never saved by Finetune Studio. Lose it and the package cannot be opened.">
+      </div>
+      <div class="col-span-2">
+        <label class="block text-xs muted mb-1">Archive</label>
+        <select id="mcp-fmt" class="select">
+          <option value="tar.gz">.tar.gz</option><option value="tar">.tar</option><option value="zip">.zip</option>
+        </select>
+      </div>
+      <div class="col-span-2">
+        <label class="block text-xs muted mb-1">Device</label>
+        <input id="mcp-device" type="text" class="input" value="auto" title="auto (GPU first, CPU only without one) | cpu | cuda | cuda:N | xpu | mps">
+      </div>
+      <div class="col-span-2">
+        <label class="block text-xs muted mb-1">Bind host</label>
+        <input id="mcp-host" type="text" class="input" value="127.0.0.1" title="Default 127.0.0.1. A non-loopback host needs an auth token at runtime (RAG_AUTH_TOKEN) or the server refuses to start.">
+      </div>
+      <div class="col-span-1">
+        <label class="block text-xs muted mb-1">Port</label>
+        <input id="mcp-port" type="number" min="1" max="65535" class="input" value="8899">
+      </div>
+      <div class="col-span-1">
+        <label class="block text-xs muted mb-1" for="mcp-topk" title="How many matching passages each search returns.">Results returned</label>
+        <input id="mcp-topk" type="number" min="1" max="100" class="input" value="10">
+      </div>
+    </div>
+    <div class="flex gap-4 items-center mb-2 text-xs">
+      <label class="flex items-center gap-2" title="Ship the embedding model (+ reranker) inside for offline meaning-search (~2 GB). Model weights are public and are NOT encrypted."><input id="mcp-models" type="checkbox"> Include models (not encrypted)</label>
+      <label class="flex items-center gap-2"><input id="mcp-rerank" type="checkbox" checked> Reranker on by default</label>
+      <label class="flex items-center gap-2" style="color:var(--err, #c33);" title="Off the default path. Documents and index become plain files in the archive."><input id="mcp-noenc" type="checkbox"> Export WITHOUT encryption (plaintext)</label>
+    </div>
+    <div class="flex gap-2 items-center">
+      <button class="btn primary" type="button" id="mcp-pkg-btn" onclick="startMcpPackage()"
+              title="Build the standalone package with the options above, then download it.">&#11015; Build &amp; download standalone server</button>
+      <button class="btn" type="button" onclick="saveMcpDefaults('studio')" title="Save these options as the studio-wide export defaults (never the passphrase).">Save as defaults</button>
+      <button class="btn" type="button" onclick="saveMcpDefaults('project')" title="Save these options as an override for this project only.">Save for this project</button>
+    </div>
+    <div id="mcp-pass-box" style="display:none;" class="mt-2 card" >
+      <div class="text-xs"><b>Passphrase (shown once &mdash; copy it now, it is not stored anywhere):</b></div>
+      <div class="flex gap-2 items-center mt-1">
+        <code id="mcp-pass-val" style="user-select:all;word-break:break-all;"></code>
+        <button class="btn" type="button" onclick="copyMcpPass()">Copy</button>
+        <button class="btn" type="button" onclick="hideMcpPass()">I saved it</button>
+      </div>
+    </div>
+    <p class="text-xs dim mt-2" id="mcp-pkg-note">Runs anywhere with Python 3.10+. Keyword search works out of the box; for meaning-based search point it at an embeddings endpoint or include the models. Settings baked in here are written to <code>rag.config.json</code> inside the package and can be overridden by env vars and flags.</p>
+  </div>
+  <span id="bundle-status" class="block mt-2 text-xs dim"></span>
+</div>
+
+{# Shared models #}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">8. Shared search models</div>
+      <div class="card-sub">
+        The embedder and reranker model files (the helpers that turn text into
+        searchable numbers) live in <code>~/.finetune-studio/shared_models/</code> —
+        one copy shared by every index here. They are separate from your
+        fine-tuned chat models in the Model workspace.
+      </div>
+    </div>
+    <button class="btn ghost" onclick="loadSharedModels()">Refresh</button>
+  </div>
+  <div id="shared-models-list" class="text-xs muted">Loading…</div>
+</div>
+
+{# Danger zone #}
+<div class="card" style="border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.04);">
+  <div class="card-head">
+    <div>
+      <div class="card-title err">Danger zone</div>
+      <div class="card-sub">Clears source text and all search indexes; keeps the index directory and bundled model files.</div>
+    </div>
+    <button class="btn danger" onclick="wipeIndex()">Clear the index</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  // Look up fts lazily — base.html loads app.js AFTER the content
+  // script runs, so window.fts may not exist yet at first render.
+  const api = () => {
+    const a = window.fts && window.fts.api;
+    if (!a) throw new Error('fts.api not loaded yet — wait a moment and retry');
+    return a;
+  };
+  const notify = (msg, type) => {
+    const n = window.fts && window.fts.notify;
+    if (n) n(msg, type); else console.log(msg);
+  };
+  const PID = {{ pid | tojson }};
+  const esc = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+  function statusPill(status) {
+    if (status === 'indexed') return '<span class="pill solid-green">indexed</span>';
+    if (status === 'pending') return '<span class="pill solid-amber">pending</span>';
+    return '<span class="pill solid-rose">' + esc(status || 'error') + '</span>';
+  }
+
+  function renderDocsTable(docs) {
+    const body = document.getElementById('brain-docs-body');
+    const summary = document.getElementById('brain-docs-summary');
+    if (!body) return;
+    const list = docs || [];
+    const totalChunks = list.reduce((n, d) => n + (d.chunks || 0), 0);
+    if (summary) {
+      summary.textContent = list.length + ' document' + (list.length === 1 ? '' : 's')
+        + ' · ' + totalChunks + ' chunk' + (totalChunks === 1 ? '' : 's');
+    }
+    if (!list.length) {
+      body.innerHTML = '<p class="text-sm muted" id="brain-docs-empty">'
+        + 'No documents indexed yet. Upload and parse sources on the '
+        + '<a href="/projects/' + PID + '/data" data-link>files page</a>, '
+        + 'then use <b>Build</b> above to embed them into this index.</p>';
+      return;
+    }
+    body.innerHTML = '<div class="table-scroll brain-docs-scroll">'
+      + '<table class="table ref-table" id="brain-docs-table"><thead><tr>'
+      + '<th class="brain-col-name">Doc name</th><th class="brain-col-type">Type</th>'
+      + '<th class="brain-col-chunks">Chunks</th><th class="brain-col-status">Status</th>'
+      + '<th class="brain-col-indexed">Last indexed</th><th class="brain-col-actions">Actions</th>'
+      + '</tr></thead><tbody>'
+      + list.map(function(d) {
+          const id = esc(d.id);
+          return '<tr data-doc-id="' + id + '">'
+            + '<td class="mono cell-wrap brain-col-name" title="' + esc(d.name) + '">' + esc(d.name) + '</td>'
+            + '<td class="dim text-xs brain-col-type">' + esc(d.mime || 'text/plain') + '</td>'
+            + '<td class="brain-col-chunks">' + (d.chunks || 0) + '</td>'
+            + '<td class="brain-col-status">' + statusPill(d.status) + '</td>'
+            + '<td class="dim text-xs brain-col-indexed">' + esc(d.last_indexed || '—') + '</td>'
+            + '<td class="brain-col-actions"><div class="brain-doc-actions">'
+            + '<button class="btn sm ghost" data-view="' + id + '" data-name="' + esc(d.name || d.id) + '" onclick="viewDocChunks(this.dataset.view, this.dataset.name)" title="View chunks">View chunks</button>'
+            + '</div></td></tr>';
+        }).join('')
+      + '</tbody></table></div>';
+  }
+
+  window.saveSettings = async function() {
+    const reranker = (document.getElementById('s-reranker') || {}).value || '';
+    const topNEl = document.getElementById('s-rerank-top-n');
+    const rerankOn = document.getElementById('s-rerank-enabled');
+    const hybridOn = document.getElementById('s-hybrid-enabled');
+    const body = {
+      reranker: reranker || null,
+      rerank_top_n: topNEl ? parseInt(topNEl.value, 10) || 50 : 50,
+      rerank_enabled: !!(rerankOn && rerankOn.checked),
+      hybrid_enabled: !!(hybridOn && hybridOn.checked),
+    };
+    try {
+      const d = await api().post('/api/projects/' + PID + '/brain/settings', body);
+      if (d && d.error) {
+        notify(d.error, 'error');
+        return;
+      }
+      notify('Retrieval settings saved', 'success');
+    } catch (e) {
+      notify('Save failed: ' + (e.message || e), 'error');
+    }
+  };
+
+  window.loadIndexedDocs = async function() {
+    const body = document.getElementById('brain-docs-body');
+    if (!body) return;
+    try {
+      const r = await fetch('/api/projects/' + PID + '/brain/documents');
+      const d = await r.json();
+      if (!r.ok) {
+        body.innerHTML = '<span class="dim">' + esc(d.detail || d.error || 'Failed to load') + '</span>';
+        return;
+      }
+      renderDocsTable(d.docs || []);
+    } catch (e) {
+      body.innerHTML = '<span class="dim">Failed: ' + esc(e.message) + '</span>';
+    }
+  };
+
+  window.viewDocChunks = async function(docId, docName) {
+    const modal = document.getElementById('brain-chunks-modal');
+    const title = document.getElementById('brain-chunks-title');
+    const body = document.getElementById('brain-chunks-body');
+    if (!modal || !body) return;
+    title.textContent = 'Chunks — ' + (docName || docId);
+    body.innerHTML = '<span class="dim">Loading…</span>';
+    modal.hidden = false;
+    try {
+      const r = await fetch('/api/projects/' + PID + '/brain/documents/' + encodeURIComponent(docId) + '/chunks');
+      const d = await r.json();
+      if (!r.ok) {
+        body.innerHTML = '<span class="dim">' + esc(d.detail || d.error || 'Failed') + '</span>';
+        return;
+      }
+      const chunks = d.chunks || [];
+      if (!chunks.length) {
+        body.innerHTML = '<p class="text-sm muted">No chunks for this document.</p>';
+        return;
+      }
+      body.innerHTML = '<table class="ref-table"><thead><tr><th>chunk_id</th><th>Preview</th></tr></thead><tbody>'
+        + chunks.map(function(c) {
+            return '<tr><td class="mono text-xs">' + esc(c.chunk_id) + '</td>'
+              + '<td class="text-xs">' + esc(c.preview || '') + '</td></tr>';
+          }).join('')
+        + '</tbody></table>';
+    } catch (e) {
+      body.innerHTML = '<span class="dim">Failed: ' + esc(e.message) + '</span>';
+    }
+  };
+
+  window.clearAllDocuments = async function() {
+    if (!await fts.confirm('Remove ALL sources? You will need to rebuild the index.', {danger: true, okText: 'Remove all'})) return;
+    try {
+      const r = await fetch('/api/projects/' + PID + '/brain/documents', { method: 'DELETE' });
+      const d = await r.json();
+      if (d.error) { notify(d.error, 'error'); }
+      else { loadIndexedDocs(); notify('All sources cleared', 'success'); }
+    } catch (e) { notify('Failed: ' + e.message, 'error'); }
+  };
+
+  // ── Index status card (readable fields, not JSON) ─────────────────
+  window.loadBrainStatus = async function() {
+    const el = document.getElementById('brain-status');
+    const badge = document.getElementById('brain-summary-badge');
+    if (!el) return;
+    try {
+      const d = await api().get('/api/projects/' + PID + '/brain');
+      if (!d || d.error) {
+        el.innerHTML = '<span class="dim">' + esc((d && (d.detail || d.error)) || 'Failed') + '</span>';
+        return;
+      }
+      if (!d.exists) {
+        el.innerHTML = '<p class="text-sm muted">No index yet. Configure chunking below and click Build.</p>'
+          + '<div class="text-xs dim mono mt-1">' + esc(d.corpus_dir || '') + '</div>';
+        if (badge) badge.hidden = true;
+        return;
+      }
+      if (badge) {
+        badge.hidden = false;
+        badge.textContent = (d.chunks || 0) + ' chunks';
+      }
+      // What changed since the build (knowledge.index.state): edited, new and removed files need a rebuild.
+      const st = d.state || {};
+      const changed = (st.stale || []).length, added = (st.missing || []).length, gone = (st.removed || []).length;
+      const fc = document.getElementById('b-fact-cards');
+      if (fc) fc.checked = !!st.fact_cards;
+      const fresh = st.fresh
+        ? '<span class="pill solid-green text-xs">up to date</span>'
+        : '<span class="pill solid-amber text-xs">rebuild needed</span> <span class="text-xs muted">'
+          + [changed ? changed + ' file(s) changed since the build' : '', added ? added + ' new file(s)' : '',
+             gone ? gone + ' file(s) removed' : '', st.facts_changed ? 'reviewed facts changed' : '']
+            .filter(Boolean).join(' · ') + '</span>';
+      el.innerHTML = '<div class="mb-2">' + fresh + '</div><table class="table text-xs run-kv-table"><tbody>'
+        + '<tr><td class="meta muted">Name</td><td class="mono" title="' + esc(d.name || '—') + '">' + esc(d.name || '—') + '</td></tr>'
+        + '<tr><td class="meta muted">Documents</td><td class="mono">' + esc(d.documents) + '</td></tr>'
+        + '<tr><td class="meta muted">Chunks</td><td class="mono">' + esc(d.chunks) + '</td></tr>'
+        + '<tr><td class="meta muted">Embedder</td><td class="mono" title="' + esc(d.embedder || '—') + '">' + esc(d.embedder || '—') + '</td></tr>'
+        + '<tr><td class="meta muted">Path</td><td class="mono text-xs" title="' + esc(d.corpus_dir || '') + '">' + esc(d.corpus_dir || '') + '</td></tr>'
+        + '</tbody></table>'
+        + '<details class="mt-2"><summary class="text-xs muted">Debug JSON</summary>'
+        + '<pre class="mono text-xs" style="max-height:160px;overflow:auto;white-space:pre-wrap;margin:6px 0 0;">'
+        + esc(JSON.stringify(d, null, 2)) + '</pre></details>';
+    } catch (e) {
+      el.innerHTML = '<span class="dim">Failed: ' + esc(e.message) + '</span>';
+    }
+  };
+
+  // ── Live test query — hits table + Debug JSON ─────────────────────
+  window.runQuery = async function() {
+    const qEl = document.getElementById('q-text');
+    const status = document.getElementById('q-status');
+    const results = document.getElementById('q-results');
+    const btn = document.getElementById('q-btn');
+    const q = (qEl && qEl.value || '').trim();
+    if (!q) { if (status) status.textContent = 'Enter a query first.'; return; }
+    if (btn) btn.disabled = true;
+    if (status) status.textContent = 'Searching…';
+    if (results) { results.hidden = false; results.innerHTML = '<span class="muted">Searching…</span>'; }
+    try {
+      const d = await api().post('/api/projects/' + PID + '/brain/search', { query: q, top_k: 10 });
+      if (d.error) {
+        if (status) status.textContent = 'Error: ' + d.error;
+        if (results) results.innerHTML = '<span class="err">' + esc(d.error) + '</span>';
+        notify(d.error, 'error');
+        return;
+      }
+      const hits = d.hits || [];
+      if (status) status.textContent = hits.length + ' hit' + (hits.length === 1 ? '' : 's');
+      if (!hits.length) {
+        results.innerHTML = '<p class="text-sm muted">No matching chunks.</p>';
+        return;
+      }
+      let html = d.weak ? '<p class="text-sm warn">⚠ ' + esc(d.note) + '</p>' : '';
+      html += '<div class="table-scroll"><table class="table ref-table brain-hits-table"><thead><tr>'
+        + '<th class="brain-hit-rank">#</th><th class="brain-hit-score">Score</th>'
+        + '<th class="brain-hit-source">Source</th><th class="brain-hit-preview">Preview</th></tr></thead><tbody>';
+      hits.forEach(function(h, i) {
+        html += '<tr>'
+          + '<td class="mono brain-hit-rank">' + (h.rank != null ? h.rank : (i + 1)) + '</td>'
+          + '<td class="mono brain-hit-score">' + (h.score != null ? Number(h.score).toFixed(3) : '—') + '</td>'
+          + '<td class="mono text-xs cell-wrap brain-hit-source" title="' + esc(h.filename || h.source || '') + '">'
+          + esc(h.filename || h.source || '—') + '</td>'
+          + '<td class="text-xs cell-wrap brain-hit-preview">' + esc((h.text || h.preview || '').slice(0, 280)) + '</td>'
+          + '</tr>';
+      });
+      html += '</tbody></table></div>';
+      html += '<details class="mt-2"><summary class="text-xs muted">Debug JSON</summary>'
+        + '<pre class="mono text-xs" style="max-height:200px;overflow:auto;white-space:pre-wrap;margin:6px 0 0;">'
+        + esc(JSON.stringify(d, null, 2)) + '</pre></details>';
+      results.innerHTML = html;
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      if (status) status.textContent = 'Error: ' + msg;
+      if (results) results.innerHTML = '<span class="err">' + esc(msg) + '</span>';
+      notify(msg, 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
+
+  window.sendChat = async function() {
+    const input = document.getElementById('chat-input');
+    const box = document.getElementById('chat-messages');
+    const btn = document.getElementById('chat-btn');
+    const text = (input && input.value || '').trim();
+    if (!text || !box) return;
+    if (btn) btn.disabled = true;
+    box.insertAdjacentHTML('beforeend',
+      '<div class="text-xs"><b>You</b>: ' + esc(text) + '</div>');
+    if (input) input.value = '';
+    try {
+      const d = await api().post('/api/projects/' + PID + '/brain/chat', {
+        messages: [{ role: 'user', content: text }],
+        top_k: 10,
+      });
+      if (d.error) {
+        box.insertAdjacentHTML('beforeend',
+          '<div class="text-xs err">' + esc(d.error) + '</div>');
+        notify(d.error, 'error');
+        return;
+      }
+      const reply = d.reply || d.response || '';
+      box.insertAdjacentHTML('beforeend',
+        '<div class="text-xs"><b>Assistant</b>: ' + esc(reply) + '</div>');
+      if (d.sources && d.sources.length) {
+        box.insertAdjacentHTML('beforeend',
+          '<div class="text-xs dim">Sources: ' + esc(d.sources.map(function(s) {
+            return s.filename || s.source || s;
+          }).join(', ')) + '</div>');
+      }
+      box.scrollTop = box.scrollHeight;
+    } catch (e) {
+      box.insertAdjacentHTML('beforeend',
+        '<div class="text-xs err">' + esc(e.message || e) + '</div>');
+      notify(String(e.message || e), 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
+
+  function showPassphrase(p) {
+    if (!p) return;
+    document.getElementById('mcp-pass-val').textContent = p;
+    var box = document.getElementById('mcp-pass-box');
+    box.style.display = '';
+    box.style.outline = '2px solid var(--warn)';
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    notify('Copy the passphrase now \u2014 it is shown once and never stored.', 'warn');
+  }
+
+  window.startBundleDownload = async function() {
+    const status = document.getElementById('bundle-status');
+    const btn = document.getElementById('bundle-btn');
+    const passEl = document.getElementById('bundle-pass');
+    const body = { name: (document.getElementById('bundle-name') || {}).value || null,
+                   passphrase: passEl.value || null };
+    if (status) status.textContent = 'Encrypting the index…';
+    if (btn) btn.disabled = true;
+    try {
+      const r = await fetch('/api/projects/' + PID + '/brain/bundle', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || r.statusText);
+      passEl.value = '';
+      showPassphrase(d.passphrase);
+      if (status) status.textContent = 'Encrypted bundle ' + d.filename + ' (' + humanBytes(d.size) + ') ready — downloading.';
+      window.location.href = d.download_url;
+    } catch (e) {
+      if (status) status.textContent = 'Bundle export failed: ' + (e.message || e);
+      notify(String(e.message || e), 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
+
+  window.startBundleImport = async function() {
+    const status = document.getElementById('bundle-status');
+    const f = document.getElementById('bundle-import-file').files[0];
+    if (!f) { notify('Choose a bundle file first', 'error'); return; }
+    if (!await fts.confirm('Importing replaces this project\u2019s current index. Continue?', {danger: true, okText: 'Import'})) return;
+    const fd = new FormData();
+    fd.append('file', f);
+    fd.append('passphrase', document.getElementById('bundle-import-pass').value);
+    if (status) status.textContent = 'Importing…';
+    try {
+      const r = await fetch('/api/projects/' + PID + '/brain/import?overwrite=true', { method: 'POST', body: fd });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || r.statusText);
+      document.getElementById('bundle-import-pass').value = '';
+      if (status) status.textContent = 'Imported ' + (d.documents || 0) + ' documents, ' + (d.chunks || 0) + ' chunks.';
+      setTimeout(() => window.location.reload(), 800);
+    } catch (e) {
+      if (status) status.textContent = 'Import failed: ' + (e.message || e);
+      notify(String(e.message || e), 'error');
+    }
+  };
+
+  function mcpVals() {
+    var g = function (id) { return document.getElementById(id); };
+    return {
+      archive_format: g('mcp-fmt').value,
+      device: g('mcp-device').value.trim() || 'auto',
+      host: g('mcp-host').value.trim() || '127.0.0.1',
+      port: parseInt(g('mcp-port').value, 10) || 8899,
+      top_k: parseInt(g('mcp-topk').value, 10) || 10,
+      include_models: g('mcp-models').checked,
+      reranker_enabled: g('mcp-rerank').checked,
+      encrypt: !g('mcp-noenc').checked,
+    };
+  }
+
+  function applyMcpVals(c) {
+    var g = function (id) { return document.getElementById(id); };
+    if (!c) return;
+    g('mcp-fmt').value = c.archive_format; g('mcp-device').value = c.device;
+    g('mcp-host').value = c.host; g('mcp-port').value = c.port;
+    g('mcp-topk').value = c.top_k; g('mcp-models').checked = !!c.include_models;
+    g('mcp-rerank').checked = !!c.reranker_enabled; g('mcp-noenc').checked = !c.encrypt;
+  }
+
+  window.loadMcpDefaults = async function () {
+    try {
+      var r = await fetch('/api/projects/' + PID + '/brain/export-config');
+      if (r.ok) applyMcpVals((await r.json()).effective);
+    } catch (e) { /* defaults stay as rendered */ }
+  };
+
+  window.saveMcpDefaults = async function (scope) {
+    var note = document.getElementById('mcp-pkg-note');
+    try {
+      var r = await fetch('/api/projects/' + PID + '/brain/export-config', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope: scope, values: mcpVals() }),
+      });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.detail || r.statusText);
+      if (note) note.textContent = scope === 'studio'
+        ? 'Saved as studio-wide export defaults (the passphrase is never saved).'
+        : 'Saved as this project\u2019s export override (the passphrase is never saved).';
+    } catch (e) { notify(String(e.message || e), 'error'); }
+  };
+
+  window.hideMcpPass = function () {
+    var box = document.getElementById('mcp-pass-box');
+    document.getElementById('mcp-pass-val').textContent = '';
+    if (box) box.style.display = 'none';
+  };
+
+  window.copyMcpPass = function () {
+    var v = document.getElementById('mcp-pass-val').textContent;
+    if (navigator.clipboard) navigator.clipboard.writeText(v);
+  };
+
+  window.startMcpPackage = async function () {
+    var btn = document.getElementById('mcp-pkg-btn');
+    var note = document.getElementById('mcp-pkg-note');
+    var passEl = document.getElementById('mcp-pass');
+    var body = mcpVals();
+    if (passEl.value && body.encrypt) body.passphrase = passEl.value;
+    if (note) note.textContent = body.include_models
+      ? 'Building the package with the embedding model inside (~2 GB) \u2014 this takes a minute, then the download starts.'
+      : 'Building the package \u2014 the download starts when it is ready.';
+    if (btn) btn.disabled = true;
+    try {
+      var r = await fetch('/api/projects/' + PID + '/brain/standalone', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.detail || r.statusText);
+      passEl.value = '';
+      showPassphrase(d.passphrase);
+      if (note) note.textContent = (d.encrypted ? 'Encrypted package ' : 'PLAINTEXT package ')
+        + d.filename + ' (' + humanBytes(d.size) + ') ready \u2014 downloading.';
+      window.location.href = d.download_url;
+    } catch (e) {
+      if (note) note.textContent = 'Package build failed: ' + (e.message || e);
+      notify(String(e.message || e), 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
+
+  function humanBytes(n) {
+    var size = Number(n);
+    if (!isFinite(size) || size < 0) return '—';
+    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var i = 0;
+    while (size >= 1024 && i < units.length - 1) { size /= 1024; i++; }
+    return (i === 0 ? String(Math.round(size)) : size.toFixed(1)) + ' ' + units[i];
+  }
+
+  /** Normalize /api/shared-models/stats shapes: flat models/items OR embedders+rerankers. */
+  function normalizeSharedModelList(d) {
+    if (!d || typeof d !== 'object') return [];
+    if (Array.isArray(d.models) && d.models.length) return d.models;
+    if (Array.isArray(d.items) && d.items.length) return d.items;
+    var emb = Array.isArray(d.embedders) ? d.embedders : [];
+    var rer = Array.isArray(d.rerankers) ? d.rerankers : [];
+    return emb.map(function(m) { return Object.assign({ kind: 'embedder' }, m); })
+      .concat(rer.map(function(m) { return Object.assign({ kind: 'reranker' }, m); }));
+  }
+
+  window.loadSharedModels = async function() {
+    const el = document.getElementById('shared-models-list');
+    if (!el) return;
+    try {
+      const r = await fetch('/api/shared-models/stats');
+      const d = await r.json().catch(function() { return {}; });
+      if (!r.ok || d.error) {
+        el.innerHTML = '<span class="dim">' + esc(d.detail || d.error || ('HTTP ' + r.status)) + '</span>';
+        return;
+      }
+      const models = normalizeSharedModelList(d);
+      if (!models.length) {
+        el.innerHTML = '<span class="dim">No shared models cached yet.</span>';
+        return;
+      }
+      var total = d.total_size_bytes != null
+        ? ('<div class="text-xs dim mb-2">Total cached: ' + esc(humanBytes(d.total_size_bytes)) + '</div>')
+        : '';
+      el.innerHTML = total
+        + '<table class="ref-table"><thead><tr><th>Kind</th><th>Model</th><th>Size</th></tr></thead><tbody>'
+        + models.map(function(m) {
+            var label = m.name || m.id || m.short_id || m.path || '';
+            var kind = m.kind || (String(m.short_id || '').indexOf('rerank') >= 0 ? 'reranker' : 'embedder');
+            var sz = m.size_human || m.size || (m.size_bytes != null ? humanBytes(m.size_bytes) : '—');
+            return '<tr><td class="mono text-xs">' + esc(kind) + '</td>'
+              + '<td class="mono text-xs">' + esc(label) + '</td>'
+              + '<td class="mono">' + esc(sz) + '</td></tr>';
+          }).join('')
+        + '</tbody></table>';
+    } catch (e) {
+      el.innerHTML = '<span class="dim">Failed: ' + esc(e.message) + '</span>';
+    }
+  };
+
+  window.wipeIndex = async function() {
+    if (!await fts.confirm('Clear all source text and search indexes for this project? This keeps the index directory and bundled model files.', {danger: true, okText: 'Clear index'})) return;
+    try {
+      // rebuild with reset=true wipes the index dir; we only need the wipe
+      // when there are no files — fall back to clearing sources.
+      const r = await fetch('/api/projects/' + PID + '/brain/documents', { method: 'DELETE' });
+      const d = await r.json().catch(function() { return {}; });
+      if (!r.ok || d.error) {
+        notify(d.error || d.detail || ('HTTP ' + r.status), 'error');
+        return;
+      }
+      notify('Index sources cleared — rebuild to re-index', 'success');
+      loadBrainStatus();
+      loadIndexedDocs();
+    } catch (e) {
+      notify('Failed: ' + e.message, 'error');
+    }
+  };
+
+  // Fill the form controls from the saved manifest so "Save" doesn't
+  // silently overwrite stored settings with the hardcoded defaults.
+  window.loadRagSettings = async function() {
+    try {
+      const r = await fetch('/api/projects/' + PID + '/brain/settings');
+      if (!r.ok) return;
+      const s = await r.json();
+      const setVal = function(id, v) {
+        const el = document.getElementById(id);
+        if (!el || v == null) return;
+        if (el.tagName === 'SELECT' && ![].some.call(el.options, function(o) { return o.value === String(v); })) return;
+        el.value = v;
+      };
+      const setChk = function(id, v) {
+        const el = document.getElementById(id);
+        if (el && v != null) el.checked = !!v;
+      };
+      setVal('s-reranker', s.reranker);
+      setVal('s-rerank-top-n', s.rerank_top_n);
+      setChk('s-rerank-enabled', s.rerank_enabled);
+      setChk('s-hybrid-enabled', s.hybrid_enabled);
+      setVal('b-embedder', s.embedder);
+    } catch (_e) { /* no index yet: keep defaults */ }
+  };
+
+  window.quickIndex = async function () {
+    const status = document.getElementById('build-status');
+    const btn = document.getElementById('quick-index-btn');
+    const buildBtn = document.getElementById('build-btn');
+    const rebuildBtn = document.getElementById('rebuild-btn');
+    btn.disabled = true; if (buildBtn) buildBtn.disabled = true; if (rebuildBtn) rebuildBtn.disabled = true;
+    status.textContent = 'Quick index: converting unparsed files to text, then embedding… (first build downloads the embedder ~2.2 GB)';
+    try {
+      const r = await api().post('/api/projects/' + PID + '/brain/quick', {});
+      if (r.error) { status.textContent = 'Error: ' + r.error; notify(r.error, 'error'); return; }
+      const b = r.build || {};
+      if (b.ok === false) {
+        status.textContent = 'Converted ' + (r.promoted || 0) + ' file(s) — build failed: ' + (b.error || '?');
+        notify('Build failed: ' + (b.error || '?'), 'error');
+        return;
+      }
+      const failed = (r.failed || []).length;
+      status.textContent = '⚡ Converted ' + (r.promoted || 0) + ' new file(s)' +
+        (failed ? ' (' + failed + ' failed to parse)' : '') + ' · index: ' +
+        (b.documents != null ? b.documents : '?') + ' docs, ' + (b.chunks != null ? b.chunks : '?') + ' chunks.';
+      notify('Quick index done: ' + (r.promoted || 0) + ' converted · ' + (b.chunks != null ? b.chunks : '?') + ' chunks', 'success');
+      loadIndexedDocs();
+    } catch (e) {
+      status.textContent = 'Failed: ' + e.message;
+      notify('Quick index failed: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false; if (buildBtn) buildBtn.disabled = false; if (rebuildBtn) rebuildBtn.disabled = false;
+    }
+  };
+
+  window.buildIndex = async function(rebuild) {
+    const status = document.getElementById('build-status');
+    const btn = document.getElementById('build-btn');
+    const rebuildBtn = document.getElementById('rebuild-btn');
+    const embedderEl = document.getElementById('b-embedder');
+    const embedder = embedderEl ? embedderEl.value : '';
+    btn.disabled = true;
+    if (rebuildBtn) rebuildBtn.disabled = true;
+    status.textContent = (rebuild ? 'Rebuilding' : 'Building') + ' index…';
+    let stopLive = null;
+    try {
+      const body = {
+        embedder: embedder,
+        reset: !!rebuild,
+        fact_cards: !!(document.getElementById('b-fact-cards') || {}).checked,
+      };
+      const r = await api().post('/api/projects/' + PID + '/brain/build', body);
+      if (r.error) {
+        status.textContent = 'Error: ' + r.error;
+        notify(r.error, 'error');
+        return;
+      }
+      // Sync build: POST returns only after the index is written.
+      if (!r.building) {
+        const docs = r.documents != null ? r.documents : '?';
+        const m = r.chunks != null ? r.chunks : '?';
+        status.textContent = 'Done — ' + docs + ' docs, ' + m + ' chunks indexed.';
+        notify('Index built: ' + docs + ' docs · ' + m + ' chunks', 'success');
+        const wrap = document.getElementById('build-progress-wrap');
+        if (wrap) wrap.hidden = true;
+        if (typeof window.loadIndexedDocs === 'function') window.loadIndexedDocs();
+        if (typeof window.loadBrainStatus === 'function') window.loadBrainStatus();
+        return;
+      }
+      const q = r.queued_files != null ? r.queued_files : '?';
+      status.textContent = 'Queued ' + q + ' file' + (q === 1 ? '' : 's') + ' — embedding…';
+      notify('Index build started: ' + q + ' files queued', 'info');
+
+      const wrap = document.getElementById('build-progress-wrap');
+      const fill = document.getElementById('build-progress-fill');
+      const progText = document.getElementById('build-progress-text');
+      wrap.hidden = false;
+      fill.style.width = '0%';
+      progText.textContent = 'INIT…';
+
+      // SSE-first via fts.subscribe. Silent poll of /build/status
+      // (fallbackMs 5s) only when EventSource is unavailable/broken.
+      const applyProgress = (p) => {
+        if (!p || typeof p !== 'object') return;
+        const total = p.files_total || 1;
+        const done = p.files_done || 0;
+        const pct = Math.min(100, Math.round((done / total) * 100));
+        fill.style.width = pct + '%';
+        const phaseTag = (p.phase || '').toUpperCase();
+        progText.textContent = phaseTag + ' ' + done + '/' + total +
+          ' files  ' + pct + '%  ' + (p.elapsed_s != null ? p.elapsed_s + 's' : '');
+        if (p.phase === 'done') {
+          const m = p.chunks || '?';
+          status.textContent = 'Done — ' + m + ' chunks indexed.';
+          notify('Index built: ' + m + ' chunks', 'success');
+          if (stopLive) { stopLive(); stopLive = null; }
+          wrap.hidden = true;
+          if (typeof window.loadIndexedDocs === 'function') window.loadIndexedDocs();
+          if (typeof window.loadBrainStatus === 'function') window.loadBrainStatus();
+        } else if (p.phase === 'timeout' || p.phase === 'error') {
+          status.textContent = p.phase === 'timeout'
+            ? 'Build still running — see status panel.'
+            : ('Build error' + (p.message ? ': ' + p.message : ''));
+          if (stopLive) { stopLive(); stopLive = null; }
+        }
+      };
+
+      const sseUrl = '/api/projects/' + PID + '/brain/build/progress';
+      const pollUrl = '/api/projects/' + PID + '/brain/build/status';
+      const sub = window.fts && window.fts.subscribe;
+      if (sub) {
+        stopLive = sub(sseUrl, applyProgress, { pollUrl: pollUrl, fallbackMs: 5000 });
+        document.addEventListener('fts:beforeNavigate', function() {
+          if (stopLive) { stopLive(); stopLive = null; }
+        }, { once: true });
+      } else {
+        // Slow fallback only — never a 2s full redraw.
+        const tick = async () => {
+          try {
+            const s = await api().get(pollUrl);
+            applyProgress(s);
+          } catch (_e) { /* ignore */ }
+        };
+        tick();
+        const t = setInterval(tick, 5000);
+        stopLive = () => clearInterval(t);
+      }
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      status.textContent = 'Error: ' + msg;
+      notify(msg, 'error');
+    } finally {
+      btn.disabled = false;
+      if (rebuildBtn) rebuildBtn.disabled = false;
+    }
+  };
+
+  // DOMContentLoaded fires on a full load (this script runs before app.js);
+  // after an SPA swap it never fires, so run immediately in that case.
+  function init() {
+    loadRagSettings();
+    loadIndexedDocs();
+    loadBrainStatus();
+    loadSharedModels();
+    loadMcpDefaults();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+{% endblock %}

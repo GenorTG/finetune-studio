@@ -1,0 +1,81 @@
+---
+out: calibration_certificate_template.pdf
+tier: extended
+---
+# KORVANE COLD CHAIN — CALIBRATION CERTIFICATE
+
+Form KC-CAL-T, issue 4, valid from 01.03.2024 (replaces issue 3 of 2022). To be completed in ink or by the KC-Service Tool export. Fields marked with an asterisk are mandatory; a certificate with an empty mandatory field is void and must be reissued with a new number.
+
+Certificate no.*: KCC-2024-_____ (five digits, assigned in running order by Bay 3; the numbers are never reused, even if a certificate is cancelled)
+
+Issued by: Korvane Cold Chain Sp. z o.o., Calibration Laboratory, Bay 3, building GDY-1, ul. Łużycka 14, 81-537 Gdynia
+
+## 1. Device under test
+
+| Field | Entry |
+|---|---|
+| Device type* | KC-Tag 4 (KT4-R2-868) / KC-Tag 4 R1 — delete one |
+| Serial number* | KT4-____-_____ |
+| Firmware version at the start* | ______ |
+| Customer / order reference | ______________ |
+| Date of calibration* | ____.____.20___ |
+| Technician* | ______________ |
+
+## 2. Reference equipment
+
+| Item | Entry |
+|---|---|
+| Dry-block calibrator | TB-120, asset no. ______ |
+| Reference probe | RX-400, serial 88213; certificate ACC-LAB-2024-0113 of 12 February 2024 |
+| Humidity chamber | HC-2 with LiCl (11.3 % RH) and NaCl (75.3 % RH) at +25 °C |
+| Ambient conditions | ____ °C / ____ % RH |
+
+The reference probe is traceable to the national standard through the accredited laboratory Thermetrix Kalibracja Sp. z o.o. in Gdańsk (the certificate named above). The certificate is valid for 12 months and the next calibration of the probe is due in February 2025.
+
+## 3. Results — temperature
+
+Offset = reading of the device minus reference. All values in °C.
+
+| Point | Reference (°C) | Offset as found | Offset after adjustment | Limit |
+|---|---|---|---|---|
+| 1 | +40.0 | _____ | _____ | ±0.25 as found; ±0.10 after adjustment |
+| 2 | 0.0 | _____ | _____ | ±0.25 as found; ±0.10 after adjustment |
+| 3 | −25.0 | _____ | _____ | ±0.25 as found; ±0.10 after adjustment |
+
+For KC-Tag 4 R1 devices the as-found limit is ±0.40 °C.
+
+## 4. Results — humidity
+
+| Point | Reference (% RH) | Offset as found (% RH) | Offset after adjustment (% RH) | Limit |
+|---|---|---|---|---|
+| 1 | 11.3 | _____ | _____ | ±2.0 |
+| 2 | 75.3 | _____ | _____ | ±2.0 |
+
+Humidity points are adjusted only when the customer needs humidity (see the service manual KC-SM-4, chapter 7.4).
+
+## 5. Statement
+
+☐ As found: within limits, no adjustment made.
+☐ Adjusted: offsets written to the device, re-measured within limits.
+☐ Rejected: see rejection report (sensor board replaced, calibration repeated).
+
+The expanded uncertainty of measurement for the temperature points is ±0.08 °C (coverage factor k = 2, confidence level approximately 95 %). The statement of conformity is made with the simple acceptance rule: no guard band is applied.
+
+Next calibration due*: ____.____.20___ (12 months after the date of calibration). The device displays the error E12 from 13 months after this date.
+
+## 6. Signatures
+
+Technician: __________________ Date: __________
+Checked by (second person, mandatory for pharma customers): __________________ Date: __________
+
+---
+
+Notes for the issuer (not printed on the customer copy):
+
+1. The original is filed in the grey cabinet, Bay 3, shelf 2; a PDF copy is attached to the device record in Tidewalk within one working day.
+2. Retention period 7 years.
+3. Customers under a pharma contract receive the certificate within 24 hours after the calibration, others within 5 working days.
+4. Forms printed before 01.03.2024 (issue 3) must be destroyed; the old form had only a two-point temperature check, which is not accepted any more.
+5. Issue 4 was approved by Benedikta Aaltonen on 26 February 2024.
+
+Page 1 of 1. This certificate shall not be reproduced except in full without the written approval of the laboratory.

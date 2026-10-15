@@ -1,0 +1,64 @@
+---
+out: kctag3_end_of_life_notice_2023.docx
+tier: extended
+---
+# PRODUCT END-OF-LIFE NOTICE (PEOL-2023-03)
+
+**Korvane Cold Chain Sp. z o.o.** · ul. Łużycka 14 · 81-537 Gdynia
+Product Management / Customer Success · Gdynia, 14th of March 2023
+
+**To:** all customers and partners operating KC-Tag 3 loggers (model code KT3-B, hardware revisions B2 and B3)
+**Copy:** Rafał Nowogrodzki (Head of Sales), Yusuf Demirkıran (Key Account Management), Gunnar Halvorsrud (Fleet & Maintenance), Tomasz Wrzesiński (CTO)
+**Subject:** Discontinuation of the KC-Tag 3 and transition to the KC-Tag 4
+
+Dear Customer,
+
+After more than six years in service the KC-Tag 3 has reached the end of its commercial life. This letter informs you about the dates which are binding for Korvane Cold Chain, about what we will and will not continue to do for the installed base, and about the offer we have prepared for the transition to the KC-Tag 4. Please read it fully, since some of the conditions are time-limited, and please forward it to the colleague who is responsible for your logistics equipment, if that is not you.
+
+## 1. Why we are doing this
+
+We would like to be honest here and not hide behind the usual formula of "evolving market needs". The KC-Tag 3 was designed around a radio chip which its manufacturer has put on its own end-of-life list, and the supply of this chip will end in the course of 2023. We could have bought a last lot of the chips, but our colleagues in Hardware Engineering and in the Gdynia workshop were of the opinion that this would only move the problem into 2026, when the first customers with 10-year contracts would then have a logger which we cannot repair. In addition, the KC-Tag 3 has no door-open sensor, a memory of only 8,192 records and a battery that has to be replaced in Gdynia by opening a glued housing. The KC-Tag 4 has solved all three points.
+
+## 2. The binding dates
+
+| Milestone | Date |
+|---|---|
+| Last-time-buy order window opens | 1 April 2023 |
+| Last-time-buy order window closes (orders must be received by 17:00 Central European Time) | 30 June 2023 |
+| End of sales (last shipment of KC-Tag 3 from Gdynia) | 31 October 2023 |
+| End of the repair service (no more repairs and no more spare boards) | 31 December 2024 |
+| End of support in Tidewalk (device type "KT3" disappears from the supported list) | 31 December 2025 |
+
+Please note that the repair service ends one year before the Tidewalk support. In the year 2025 a KC-Tag 3 that is defective can still be reported in Tidewalk, but it cannot be repaired by us. We know this is somewhat unusual, but the reason is the supply of the boards: the last spare main boards KT3-MB-B3 were ordered together with the last production lot, and the quantity (1,150 pieces) was calculated on the basis of the failure statistics of the years 2021 and 2022.
+
+## 3. What continues and what does not
+
+- **Hub compatibility.** The KC-Tag 3 will be supported by the KC-Hub 200 until the end of support date. The KC-Hub 200 firmware 3.x keeps the 433 MHz receiver module slot that the KC-Tag 3 requires. A KC-Hub 200 that is purchased after 31 October 2023 may be delivered without that module unless the customer orders it explicitly with the option code H2-433.
+- **Battery replacement.** Battery replacement for the KC-Tag 3 is part of the repair service and ends on 31 December 2024 as well. After that date customers who replace batteries by themselves do so at their own risk, and the warranty and any pharma validation (GDP) status of the logger lapse.
+- **Calibration.** Calibration of KC-Tag 3 loggers continues until 31 December 2025, which is the end of support date, but it will no longer be done in-house for loggers that need a sensor repair.
+- **Prices.** For the KC-Tag 3 the price on the last-time-buy window is EUR 61.00 per piece, which is EUR 4.00 more than the current price, and the minimum order is 20 pieces. The price is fixed until 30 June 2023.
+
+## 4. The transition offer
+
+Customers who return KC-Tag 3 loggers to Gdynia in a state that is mechanically complete (a working battery is not required) between 1 April 2023 and 31 December 2024 receive a trade-in credit of EUR 38.00 per logger, which is deducted from the purchase of a KC-Tag 4. The credit cannot be paid out in cash, it cannot be combined with the volume discount of the framework contract, and it is valid only for KC-Tag 4 orders of at least 10 pieces. For key accounts with more than 500 loggers in the field, Yusuf Demirkıran will agree an individual roll-out plan; the first of these plans is already being discussed with Fruttoria Baltica.
+
+Customers with a pharma contract must keep in mind that moving from one logger model to another is a change that must be validated under their own quality system. Helvetia Pharma Logistik GmbH has been informed in advance and has received a validation package. Benedikta Aaltonen is available for questions from quality departments.
+
+### 4.1 Technical differences you should know
+
+The KC-Tag 4 uses the 868 MHz band, the KC-Tag 3 used 433 MHz, so a KC-Tag 4 will not be heard by an old hub and a KC-Tag 3 will not be heard by a new hub without the 433 module (see above). The KC-Tag 3 reported every 15 minutes with no alternative; the KC-Tag 4 allows 2 to 30 minutes. The KC-Tag 3 weighs 186 g, the KC-Tag 4 weighs 148 g. The mounting holes are different: the old magnet-less bracket KB3 does not fit.
+
+## 5. What we ask you to do
+
+1. Tell us by 30 June 2023 how many KC-Tag 3 loggers you expect to need as a last-time buy.
+2. Plan the replacement of the loggers in your fleet in the period up to 31 December 2024; do not wait until the final month, because the Gdynia workshop will be full.
+3. Send returns with the RMA number from the Customer Success portal. Returns without the RMA number cannot be credited.
+
+Questions: Customer Success, eol@korvane.example, telephone +48 58 555 01 62.
+
+With kind regards,
+
+Anneliese Wójcik-Brandt
+Product Manager Monitoring
+
+*This notice is sent for information and does not change the terms of existing contracts, which keep their own notice periods. In the case of a conflict between this letter and a signed contract, the contract applies, save where the contract itself refers to the manufacturer's end-of-life dates.*

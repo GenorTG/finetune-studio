@@ -1,0 +1,622 @@
+"""Lifecycle tests: assert every task type populates its DB fields end-to-end.
+
+Each test simulates the full lifecycle for one task type (training,
+benchmark, data-prep, brain-ingest, hf-download) and asserts that every
+field the UI / activity feed / dashboard expects is actually present
+in the persisted row.
+
+Uses the real SQLite DB via the `mock_settings` fixture — same DB
+schema, same CRUD helpers, no mocks.
+"""
+
+from __future__ import annotations
+
+import os
+import tempfile
+import time
+
+import pytest
+
+# ── Training run lifecycle ───────────────────────────────────────────────
+
+
+class TestTrainingRunLifecycle:
+    """A training run should land these fields on every state transition:
+    status, started_at (first active transition), finished_at (done/error),
+    output_path (the parent <output_dir>/), error (on failure), metrics.
+    """
+
+    def test_run_created_with_default_fields(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="Lifecycle Train", description="")["id"]
+        rid = db.create_run(project_id=pid, name="Train Run",
+                            base_model="Qwen/Qwen2-7B",
+                            settings_obj={"lora_rank": 64})["id"]
+        run = db.get_run(rid)
+        assert run["status"] == "created"
+        assert run["started_at"] is None
+        assert run["finished_at"] is None
+        assert run["output_path"] == ""
+        assert run["error"] == ""
+
+    def test_running_transition_writes_started_at(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="T", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        before = time.time()
+        db.update_run(rid, status="running", started_at=time.time())
+        run = db.get_run(rid)
+        assert run["status"] == "running"
+        assert run["started_at"] is not None
+        assert run["started_at"] >= before
+
+    def test_done_transition_writes_finished_at_and_output_path(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="T", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        with tempfile.TemporaryDirectory() as out:
+            os.makedirs(os.path.join(out, "adapter"))
+            db.update_run(rid, status="running", started_at=time.time())
+            db.update_run(rid, status="done", finished_at=time.time(),
+                          output_path=out)
+            run = db.get_run(rid)
+            assert run["status"] == "done"
+            assert run["finished_at"] is not None
+            assert run["output_path"] == out
+            # Adapter dir should be findable at output_path/adapter
+            assert os.path.isdir(os.path.join(run["output_path"], "adapter"))
+
+    def test_error_transition_writes_error_and_output_path_if_adapter_exists(
+        self, mock_settings
+    ):
+        from finetune_studio import db
+        pid = db.create_project(name="T", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        with tempfile.TemporaryDirectory() as out:
+            os.makedirs(os.path.join(out, "adapter"))
+            db.update_run(rid, status="running", started_at=time.time())
+            db.update_run(rid, status="error", finished_at=time.time(),
+                          error="CUDA OOM after step 100", output_path=out)
+            run = db.get_run(rid)
+            assert run["status"] == "error"
+            assert run["error"] == "CUDA OOM after step 100"
+            # output_path should still be populated so user can recover the adapter
+            assert run["output_path"] == out
+
+    def test_error_transition_omits_output_path_without_adapter(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="T", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        db.update_run(rid, status="running", started_at=time.time())
+        db.update_run(rid, status="error", finished_at=time.time(),
+                      error="load failed before any save")
+        run = db.get_run(rid)
+        assert run["status"] == "error"
+        assert run["error"] == "load failed before any save"
+        assert run["output_path"] == ""
+
+    def test_metrics_and_settings_round_trip(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="T", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m",
+                            settings_obj={"lora_rank": 32, "lr": 1e-4})["id"]
+        db.update_run(rid, metrics_json={"step": 100, "loss": 1.23, "epoch": 0.5})
+        run = db.get_run(rid)
+        assert run["metrics"]["step"] == 100
+        assert run["metrics"]["loss"] == 1.23
+        assert run["settings"]["lora_rank"] == 32
+
+    def test_error_field_in_allowed_set(self, mock_settings):
+        """Regression: the engine sets .error via update_run — make sure
+        the allowed-set whitelist actually contains 'error'."""
+        from finetune_studio import db
+        pid = db.create_project(name="T", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        # This should NOT raise or silently drop the field.
+        db.update_run(rid, error="some failure")
+        assert db.get_run(rid)["error"] == "some failure"
+
+
+# ── Benchmark lifecycle ──────────────────────────────────────────────────
+
+
+class TestBenchmarkLifecycle:
+    """benchmark_runs: ran_at, time_ms, scores_json, suite_name. One row per
+    successful benchmark. Failure case still returns 200 with {error}.
+    """
+
+    def test_create_benchmark_writes_required_fields(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="B", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        before = time.time()
+        bid = db.create_benchmark(run_id=rid, suite_name="default",
+                                  scores={"loss": 0.5, "perplexity": 12.3},
+                                  time_ms=4321)["id"]
+        b = db.get_benchmark(bid)
+        assert b["suite_name"] == "default"
+        assert b["scores"]["loss"] == 0.5
+        assert b["scores"]["perplexity"] == 12.3
+        assert b["time_ms"] == 4321
+        assert b["ran_at"] >= before
+
+    def test_list_benchmarks_for_run(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="B", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        db.create_benchmark(run_id=rid, suite_name="suite-1", scores={"acc": 0.9})
+        db.create_benchmark(run_id=rid, suite_name="suite-2", scores={"acc": 0.7})
+        benches = db.list_benchmarks(run_id=rid)
+        assert len(benches) == 2
+        suites = {b["suite_name"] for b in benches}
+        assert suites == {"suite-1", "suite-2"}
+
+
+# ── Data-prep lifecycle ──────────────────────────────────────────────────
+
+
+class TestMiningJobLifecycle:
+    """mining_jobs / mining_items / mining_rounds: one job per file, its inventory and every helper call."""
+
+    def test_job_round_and_item_records(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="P", description="")["id"]
+        job = db.mining.create_job(pid, "src1", "doc.pdf", "mine", {"model": "m"})
+        assert job["status"] == "queued" and job["helper"] == {"model": "m"}
+        db.mining.update_job(job["id"], status="running", stage="mining", stats_json={"calls": 2})
+        assert db.mining.get_job(job["id"])["stats"] == {"calls": 2}
+        rid = db.mining.add_round(project_id=pid, source_id="src1", job_id=job["id"], chunk_idx=1, kind="mine",
+                                  model="m", messages=[{"role": "user", "content": "hi"}], item_ids=["i1"])
+        db.mining.finish_round(rid, reply="[]", seconds=1.25, parsed=3, accepted=2)
+        full = db.mining.get_round(pid, rid)
+        assert full["messages"][0]["content"] == "hi" and full["item_ids"] == ["i1"] and full["accepted"] == 2
+        assert "messages" not in db.mining.list_rounds(pid, "src1")[0]
+        ids = db.mining.insert_items(pid, "src1", job["id"], [
+            {"chunk_idx": 1, "origin": "rule", "kind": "prose", "text": "t", "values": ["21"]}])
+        assert db.mining.list_items(pid, "src1")[0]["values"] == ["21"]
+        assert db.mining.set_item_exclusion(pid, ids[0], "noise")["excluded_reason"] == "noise"
+        with pytest.raises(KeyError):
+            db.mining.update_job(job["id"], bogus=1)
+
+    def test_active_jobs_and_interruption(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="P", description="")["id"]
+        a = db.mining.create_job(pid, "s1", "a", "mine")
+        b = db.mining.create_job(pid, "s2", "b", "fill")
+        db.mining.update_job(b["id"], status="done")
+        assert [j["id"] for j in db.mining.list_jobs(pid, active=True)] == [a["id"]]
+        assert db.mining.interrupt_active_jobs("restart") == 1
+        assert db.mining.get_job(a["id"])["status"] == "interrupted"
+
+
+# ── RAG ingest lifecycle ─────────────────────────────────────────────────
+
+
+class TestRagIngestLifecycle:
+    """brain_indexes gains: status, last_build_at, last_build_status, error.
+    rag_corpora table: one row per build attempt with status, timing,
+    final doc/chunk counts.
+    """
+
+    def test_brain_corpora_lifecycle_done(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="R", description="")["id"]
+        rid = db.create_brain_index(project_id=pid, name="My RAG",
+                            store_path="/tmp/brain-test")["id"]
+        # Start a build
+        build = db.create_brain_build(project_id=pid, index_id=rid)
+        bid = build["id"]
+        assert build["status"] == "queued"
+        # Mark running
+        db.mark_brain_build_running(bid)
+        b = db.get_brain_build(bid)
+        assert b["status"] == "running"
+        assert b["started_at"] is not None
+        # Mark done
+        time.sleep(0.01)
+        db.mark_brain_build_done(bid, doc_count=5, chunk_count=137)
+        b = db.get_brain_build(bid)
+        assert b["status"] == "done"
+        assert b["doc_count"] == 5
+        assert b["chunk_count"] == 137
+        assert b["finished_at"] is not None
+        assert b["duration_ms"] is not None and b["duration_ms"] > 0
+
+    def test_project_rags_widened_status_fields(self, mock_settings):
+        """The widened update_brain_index allowed set must accept the new columns."""
+        from finetune_studio import db
+        pid = db.create_project(name="R", description="")["id"]
+        rid = db.create_brain_index(project_id=pid, name="X",
+                            store_path="/tmp/x")["id"]
+        db.update_brain_index(rid, status="building",
+                      last_build_at=time.time(),
+                      last_build_status="running")
+        rag = db.get_brain_index(rid)
+        assert rag["status"] == "building"
+        assert rag["last_build_status"] == "running"
+        assert rag["last_build_at"] is not None
+        # Update through to 'ready'
+        db.update_brain_index(rid, status="ready",
+                      last_build_status="ok",
+                      doc_count=10, chunk_count=200)
+        rag = db.get_brain_index(rid)
+        assert rag["status"] == "ready"
+        assert rag["last_build_status"] == "ok"
+        assert rag["doc_count"] == 10
+        assert rag["chunk_count"] == 200
+
+    def test_failure_records_error(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="R", description="")["id"]
+        rid = db.create_brain_index(project_id=pid, name="X",
+                            store_path="/tmp/x")["id"]
+        build = db.create_brain_build(project_id=pid, index_id=rid)
+        db.mark_brain_build_running(build["id"])
+        db.mark_brain_build_failed(build["id"], "embedding OOM")
+        db.update_brain_index(rid, status="error", last_build_status="failed",
+                      error="embedding OOM")
+        rag = db.get_brain_index(rid)
+        assert rag["status"] == "error"
+        assert rag["last_build_status"] == "failed"
+        assert "embedding OOM" in rag["error"]
+        # History row
+        latest = db.latest_brain_build(rid)
+        assert latest["status"] == "error"
+        assert "embedding OOM" in latest["error"]
+
+
+# ── HF download lifecycle ────────────────────────────────────────────────
+
+
+class TestHfDownloadLifecycle:
+    """hf_downloads: status, started_at, finished_at, duration_ms,
+    bytes_total, bytes_done, path, error.
+    """
+
+    def test_full_lifecycle_completed(self, mock_settings):
+        from finetune_studio import db
+        job = db.create_hf_download(repo_id="Qwen/Qwen2-1.5B",
+                                    filename="model.safetensors")
+        jid = job["id"]
+        assert job["status"] == "queued"
+        db.mark_hf_download_running(jid)
+        j = db.get_hf_download(jid)
+        assert j["status"] == "downloading"
+        assert j["started_at"] is not None
+        time.sleep(0.01)
+        db.mark_hf_download_done(jid, path="/tmp/Qwen/Qwen2-1.5B/model.safetensors",
+                                 bytes_total=2_500_000_000, bytes_done=2_500_000_000)
+        j = db.get_hf_download(jid)
+        assert j["status"] == "completed"
+        assert j["finished_at"] is not None
+        assert j["duration_ms"] is not None and j["duration_ms"] > 0
+        assert j["bytes_total"] == 2_500_000_000
+        assert j["bytes_done"] == 2_500_000_000
+        assert j["path"].endswith("model.safetensors")
+
+    def test_failure_records_error(self, mock_settings):
+        from finetune_studio import db
+        jid = db.create_hf_download(repo_id="bad/repo")["id"]
+        db.mark_hf_download_running(jid)
+        db.mark_hf_download_failed(jid, "404 not found")
+        j = db.get_hf_download(jid)
+        assert j["status"] == "error"
+        assert j["error"] == "404 not found"
+        assert j["finished_at"] is not None
+
+    def test_cancellation(self, mock_settings):
+        from finetune_studio import db
+        jid = db.create_hf_download(repo_id="cancelled/repo")["id"]
+        db.mark_hf_download_running(jid)
+        db.mark_hf_download_cancelled(jid)
+        j = db.get_hf_download(jid)
+        assert j["status"] == "cancelled"
+        assert "cancelled" in j["error"].lower()
+
+    def test_list_in_progress_finds_running_and_queued(self, mock_settings):
+        from finetune_studio import db
+        # queued
+        db.create_hf_download(repo_id="queued/r1")
+        # running
+        jid = db.create_hf_download(repo_id="running/r2")["id"]
+        db.mark_hf_download_running(jid)
+        # completed — should NOT appear
+        jid_done = db.create_hf_download(repo_id="done/r3")["id"]
+        db.mark_hf_download_running(jid_done)
+        db.mark_hf_download_done(jid_done, path="/tmp/d", bytes_total=1, bytes_done=1)
+        # failed — should NOT appear
+        in_prog = db.list_hf_downloads_in_progress()
+        repos = {j["repo_id"] for j in in_prog}
+        assert "queued/r1" in repos
+        assert "running/r2" in repos
+        assert "done/r3" not in repos
+
+    def test_list_recent_ordered_newest_first(self, mock_settings):
+        from finetune_studio import db
+        for i in range(3):
+            db.create_hf_download(repo_id=f"r{i}")
+            time.sleep(0.005)
+        recent = db.list_hf_downloads_recent(limit=2)
+        assert len(recent) == 2
+        # Newest first
+        assert recent[0]["created_at"] >= recent[1]["created_at"]
+
+
+# ── Model export lifecycle ───────────────────────────────────────────────
+
+
+class TestModelExportLifecycle:
+    """model_exports: status, started_at, finished_at, duration_ms,
+    output_path, size_bytes, size_human, intermediate_path, error.
+    """
+
+    def test_full_lifecycle_done(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="E", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        job = db.create_export(project_id=pid, run_id=rid, quant="Q4_K_M")
+        eid = job["id"]
+        assert job["status"] == "queued"
+        assert job["format"] == "gguf"
+        assert job["quant"] == "Q4_K_M"
+        db.mark_export_running(eid)
+        r = db.get_export(eid)
+        assert r["status"] == "running"
+        assert r["started_at"] is not None
+        time.sleep(0.01)
+        db.mark_export_done(eid, output_path="/tmp/q.gguf", size_bytes=98765,
+                            size_human="96.5 KB",
+                            intermediate_path="/tmp/q-fp16.gguf")
+        r = db.get_export(eid)
+        assert r["status"] == "done"
+        assert r["finished_at"] is not None
+        assert r["duration_ms"] is not None and r["duration_ms"] > 0
+        assert r["size_bytes"] == 98765
+        assert r["size_human"] == "96.5 KB"
+        assert r["intermediate_path"] == "/tmp/q-fp16.gguf"
+
+    def test_failure_records_error(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="E", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        eid = db.create_export(project_id=pid, run_id=rid, quant="Q4_K_M")["id"]
+        db.mark_export_running(eid)
+        db.mark_export_failed(eid, "convert_hf_to_gguf failed (rc=1): OOM")
+        r = db.get_export(eid)
+        assert r["status"] == "failed"
+        assert "OOM" in r["error"]
+        assert r["finished_at"] is not None
+
+    def test_list_for_run(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="E", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        db.create_export(project_id=pid, run_id=rid, quant="Q4_K_M")
+        db.create_export(project_id=pid, run_id=rid, quant="Q8_0")
+        exports = db.list_exports_for_run(rid)
+        assert len(exports) == 2
+        quants = {e["quant"] for e in exports}
+        assert quants == {"Q4_K_M", "Q8_0"}
+
+    def test_cascade_delete_project_removes_exports(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="E", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        db.create_export(project_id=pid, run_id=rid, quant="Q4_K_M")
+        db.delete_project(pid)
+        assert db.list_exports_for_run(rid) == []
+
+
+# ── System update lifecycle ─────────────────────────────────────────────
+
+
+class TestSystemUpdateLifecycle:
+    """system_updates: status, started_at, finished_at, duration_ms,
+    log_text (append + truncate), error, options_json, triggered_by.
+    """
+
+    def test_create_with_options(self, mock_settings):
+        from finetune_studio import db
+        row = db.create_update(mode="update", options={"no_pull": True},
+                               triggered_by="user")
+        assert row["status"] == "queued"
+        assert row["mode"] == "update"
+        # row_to_dict decodes *_json TEXT → unsuffixed dict (same as settings).
+        assert row["options"] == {"no_pull": True}
+        assert "options_json" not in row
+        assert row["triggered_by"] == "user"
+
+    def test_done_lifecycle_preserves_log(self, mock_settings):
+        from finetune_studio import db
+        uid = db.create_update(mode="update")["id"]
+        db.mark_update_running(uid)
+        assert db.get_update(uid)["status"] == "running"
+        db.append_update_log(uid, "step 1: pull\n")
+        db.append_update_log(uid, "step 2: pip\n")
+        db.append_update_log(uid, "step 3: restart\n")
+        db.mark_update_done(uid)
+        r = db.get_update(uid)
+        assert r["status"] == "done"
+        assert r["finished_at"] is not None
+        assert r["duration_ms"] is not None and r["duration_ms"] >= 0
+        # mark_done MUST NOT wipe log_text
+        assert "step 1: pull" in r["log_text"]
+        assert "step 3: restart" in r["log_text"]
+
+    def test_failed_lifecycle(self, mock_settings):
+        from finetune_studio import db
+        uid = db.create_update(mode="repair")["id"]
+        db.mark_update_running(uid)
+        db.append_update_log(uid, "trying cmake...\n")
+        db.mark_update_failed(uid, error="cmake not found")
+        r = db.get_update(uid)
+        assert r["status"] == "error"
+        assert "cmake not found" in r["error"]
+        assert "trying cmake" in r["log_text"]  # log preserved
+
+    def test_cancellation(self, mock_settings):
+        from finetune_studio import db
+        uid = db.create_update(mode="update")["id"]
+        db.mark_update_running(uid)
+        db.mark_update_cancelled(uid)
+        r = db.get_update(uid)
+        assert r["status"] == "cancelled"
+        assert r["finished_at"] is not None
+
+    def test_append_log_truncates_at_256kb(self, mock_settings):
+        from finetune_studio import db
+        uid = db.create_update(mode="update")["id"]
+        for _ in range(60):  # 60 * 5KB = 300KB > 256KB cap
+            db.append_update_log(uid, "x" * 5000)
+        r = db.get_update(uid)
+        assert len(r["log_text"]) <= 256_000
+        # Truncation is from the top, so newest content is preserved
+        assert r["log_text"].endswith("x" * 5000)
+
+    def test_latest_in_progress_excludes_done(self, mock_settings):
+        from finetune_studio import db
+        # queued
+        q = db.create_update(mode="update")["id"]
+        # running
+        r = db.create_update(mode="update")["id"]
+        db.mark_update_running(r)
+        # done — should NOT appear
+        d = db.create_update(mode="update")["id"]
+        db.mark_update_running(d)
+        db.mark_update_done(d)
+        latest = db.latest_update_in_progress()
+        assert latest is not None
+        assert latest["id"] in (q, r)
+        assert latest["status"] in ("queued", "running")
+
+    def test_list_recent_ordered_newest_first(self, mock_settings):
+        from finetune_studio import db
+        ids = []
+        for _ in range(3):
+            ids.append(db.create_update(mode="update")["id"])
+            time.sleep(0.005)
+        recent = db.list_updates_recent(limit=3)
+        assert [r["id"] for r in recent] == list(reversed(ids))
+
+
+# ── FK + cascade ─────────────────────────────────────────────────────────
+
+
+class TestForeignKeys:
+    """PRAGMA defer_foreign_keys = ON — child rows can be INSERTed in the
+    same transaction as the parent without the parent being 'visible'
+    to the FK check until COMMIT. And ON DELETE CASCADE cleans up properly.
+    """
+
+    def test_cascade_delete_project_removes_runs_and_rags(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="C", description="")["id"]
+        rid = db.create_run(project_id=pid, name="r",
+                            base_model="m", settings_obj={})["id"]
+        index_id = db.create_brain_index(project_id=pid, name="rag",
+                               store_path="/tmp/r")["id"]
+        db.mining.create_job(pid, "s1", "f", "mine")
+        # Delete the project — everything should cascade.
+        db.delete_project(pid)
+        assert db.get_run(rid) is None
+        assert db.get_brain_index(index_id) is None
+        assert db.mining.list_jobs(pid) == []
+
+    def test_cascade_delete_rag_removes_rag_corpora(self, mock_settings):
+        from finetune_studio import db
+        pid = db.create_project(name="C", description="")["id"]
+        rid = db.create_brain_index(project_id=pid, name="rag",
+                            store_path="/tmp/r")["id"]
+        build_id = db.create_brain_build(project_id=pid, index_id=rid)["id"]
+        # Delete the rag — the build history should cascade.
+        db.delete_brain_index(rid)
+        assert db.get_brain_build(build_id) is None
+
+
+# ── Engine helpers ───────────────────────────────────────────────────────
+
+
+class TestEngineHelpers:
+    """merge_adapter_for_run + engine helpers — no actual model load."""
+
+    def test_merge_skips_when_merged_dir_exists(self, mock_settings):
+        import tempfile
+
+        from finetune_studio.training.engine import merge_adapter_for_run
+        with tempfile.TemporaryDirectory() as out:
+            os.makedirs(os.path.join(out, "adapter"))
+            os.makedirs(os.path.join(out, "merged"))
+            # Drop a fake file in merged/ so the size is non-zero.
+            with open(os.path.join(out, "merged", "model.safetensors"), "wb") as f:
+                f.write(b"x" * 100)
+            r = merge_adapter_for_run(
+                {"output_path": out, "base_model": "/anywhere"}, force=False,
+            )
+            assert r["skipped"] is True
+            assert r["size_bytes"] == 100
+            assert r["merged_path"] == os.path.join(out, "merged")
+
+    def test_merge_raises_without_output_path(self, mock_settings):
+        from finetune_studio.training.engine import merge_adapter_for_run
+        with pytest.raises(ValueError, match="no output_path"):
+            merge_adapter_for_run({})
+
+    def test_merge_raises_without_base_model(self, mock_settings):
+        from finetune_studio.training.engine import merge_adapter_for_run
+        with pytest.raises(ValueError, match="no base_model"):
+            merge_adapter_for_run({"output_path": "/tmp/x"})
+
+    def test_merge_raises_without_adapter_dir(self, mock_settings):
+        from finetune_studio.training.engine import merge_adapter_for_run
+        with (
+            tempfile.TemporaryDirectory() as out,
+            pytest.raises(ValueError, match="adapter dir not found"),
+        ):
+            merge_adapter_for_run(
+                {"output_path": out, "base_model": "/anywhere"},
+            )
+
+    def test_merge_skip_via_env_var(self, mock_settings, monkeypatch):
+        """FTS_SKIP_MERGE=1 short-circuits the actual merge and writes a
+        marker file so a follow-up test can confirm the merge was attempted."""
+        from finetune_studio.training.engine import merge_adapter_for_run
+        monkeypatch.setenv("FTS_SKIP_MERGE", "1")
+        with tempfile.TemporaryDirectory() as out:
+            os.makedirs(os.path.join(out, "adapter"))
+            r = merge_adapter_for_run(
+                {"output_path": out, "base_model": "/anywhere"}, force=True,
+            )
+            assert r["skipped"] is True
+            assert os.path.exists(os.path.join(out, "merged", "SKIPPED_BY_TEST"))
+
+    def test_engine_helpers(self, mock_settings):
+        from finetune_studio.training.engine import (
+            TrainingConfig,
+            _dir_size,
+            _human_size,
+        )
+        cfg = TrainingConfig()
+        assert cfg.merge_on_save is False
+        assert _human_size(0) == "0 B"
+        assert "KB" in _human_size(2048)
+        assert "MB" in _human_size(2 * 1024 * 1024)
+        assert "GB" in _human_size(2 * 1024 ** 3)
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "a"), "wb") as f:
+                f.write(b"x" * 100)
+            assert _dir_size(d) == 100
+        # Merging on save still possible via constructor kwarg
+        cfg2 = TrainingConfig(merge_on_save=True)
+        assert cfg2.merge_on_save is True

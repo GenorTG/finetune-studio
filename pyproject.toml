@@ -1,0 +1,90 @@
+[project]
+name = "finetune-studio"
+version = "0.1.0"
+description = "Full-featured model training app with WebUI"
+license = {file = "LICENSE"}
+classifiers = ["License :: Other/Proprietary License"]
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "jinja2>=3.1.0",
+    "python-multipart>=0.0.9",
+    "torch>=2.1.0",
+    "transformers>=5.0.0,<6.0.0",  # 5.x: the <5 cap only existed for the removed GPTQ export family (c9783d5)
+    "trl>=0.12.0",
+    "peft>=0.14.0",
+    "datasets>=4.7.0",  # tool-call SFT uses JSON-backed Arrow columns for arbitrary tool arguments
+    "accelerate>=1.0.0",
+    "safetensors>=0.4.0",
+    "huggingface-hub>=0.27.0",
+    "rich>=13.0.0",
+    "pydantic>=2.0.0",
+    "cryptography>=42",  # RAG export: AES-256-GCM encrypted-at-rest packages
+    "aiosqlite>=0.20.0",
+    "sentence-transformers>=3.0.0,<6.0.0",
+    "sentencepiece>=0.2.0",
+    "tiktoken>=0.7.0",
+    "requests>=2.31.0",
+    "httpx>=0.27.0",            # Guide / agent chat API-provider calls and the test client (was only transitive via chromadb)
+    "aiofiles>=23.2.0",
+    "gguf>=0.10.0",
+]
+
+[project.optional-dependencies]
+# GGUF is also in [project.dependencies] so `pip install -e .` includes it.
+# install.sh installs llama-cpp-python with GPU-aware wheel selection and
+# builds the llama.cpp CLI binaries (.llama.cpp/) for the export endpoint.
+# Optional extras below add bitsandbytes for 4-bit base-model loading.
+bitsandbytes = ["bitsandbytes>=0.43.0"]
+unsloth = ["unsloth>=2024.10.0"]
+abliteration = ["numpy>=1.24.0", "scipy>=1.10.0"]
+# Python packages for registered MIME parsers (finetune_studio.data.parsers).
+# System tools (antiword, tesseract, poppler/pdftotext) are NOT Python deps —
+# install those via the OS package manager when OCR / legacy .doc is needed.
+parsers = [
+    "pypdf>=4.0.0",
+    "python-docx>=1.1.0",
+    "olefile>=0.47",
+    "openpyxl>=3.1.0",
+    "xlrd>=2.0.0",
+    "python-pptx>=0.6.21",
+    "beautifulsoup4>=4.12.0",
+    "striprtf>=0.0.26",
+    "Pillow>=10.0.0",
+]
+dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "ruff>=0.6.0", "xlwt>=1.3.0"]
+all = [
+    "bitsandbytes>=0.43.0",
+    "unsloth>=2024.10.0",
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "pypdf>=4.0.0",
+    "python-docx>=1.1.0",
+    "olefile>=0.47",
+    "openpyxl>=3.1.0",
+    "xlrd>=2.0.0",
+    "python-pptx>=0.6.21",
+    "beautifulsoup4>=4.12.0",
+    "striprtf>=0.0.26",
+    "Pillow>=10.0.0",
+]
+
+[project.scripts]
+finetune-studio = "finetune_studio.cli:main"
+fts = "finetune_studio.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/finetune_studio"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/finetune_studio/benchmarks/fixtures" = "finetune_studio/benchmarks/fixtures"
+
+[tool.ruff.lint.isort]
+# A runtime `datasets/` directory sits in the repo root on dev boxes (gitignored) and would make
+# ruff classify the HF `datasets` package as first-party there but third-party in a fresh clone / CI.
+known-third-party = ["datasets"]

@@ -1,0 +1,1492 @@
+"""Training engine — the main training loop.
+
+WHAT THIS FILE DOES
+==================
+The core of the training pipeline. Loads a base model, configures
+LoRA (Low-Rank Adaptation), runs supervised fine-tuning (SFT), and
+saves the trained adapter.
+
+KEY CONCEPTS
+============
+- SFT (Supervised Fine-Tuning): training on input-output pairs to
+  teach the model a specific behavior.
+- LoRA (Low-Rank Adaptation): a parameter-efficient training method.
+  Instead of updating all model weights, we add small "adapter"
+  matrices and only train those. Much faster, much less memory.
+- Unsloth: a library that optimizes LoRA training for speed.
+  2-5x faster than vanilla HuggingFace + PEFT.
+- Training loop: forward pass → compute loss → backward pass → update
+  weights. Repeat for each batch.
+- Checkpointing: save the model periodically so we can resume if
+  training crashes.
+- Progress notification: callbacks to update the UI as training progresses.
+- Mixed VRAM/RAM: if the model doesn't fit entirely in VRAM, we fall
+  back to device_map="auto" which layers between GPU and CPU memory.
+  Slower, but lets you train larger models than your GPU could hold.
+"""
+
+import json
+import logging
+import math
+import os
+import shutil
+from pathlib import Path
+
+# Training runs inside the threaded uvicorn server with CUDA initialised, so
+# any forked Dataset.map / tokenizer pool deadlocks (E2E-27: 8 workers stuck in
+# futex/pipe_read, run frozen at "Loading model…"). Unsloth's own escape hatch
+# "0" forces in-process tokenization; users can still override via env.
+os.environ.setdefault("UNSLOTH_DATASET_NUM_PROC", "0")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+import threading
+import time
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Any
+
+from finetune_studio.training.preference_metrics import (
+    extract_preference_metrics,
+    format_metric_suffix,
+)
+
+log = logging.getLogger(__name__)
+
+
+def _format_exc(exc: BaseException) -> str:
+    """``Type: msg`` without a trailing empty ``: `` when msg is blank."""
+    return f"{type(exc).__name__}: {exc}".rstrip(": ")
+
+
+def _register_patched_trl_classes(
+    trainer_module: Any, config_module: Any,
+) -> None:
+    """Make patched TRL classes resolvable by pickle's module lookup."""
+    import sys
+
+    sys.modules["trl.trainer.sft_trainer"].SFTTrainer = trainer_module.SFTTrainer
+    sys.modules["trl.trainer.sft_config"].SFTConfig = config_module.SFTConfig
+
+
+# Mirrors unsloth/_gpu_init.py: critical modules it patches at import time.
+# torch is deliberately absent: unsloth does not warn on a torch-first import.
+_UNSLOTH_CRITICAL_MODULES: tuple[str, ...] = ("trl", "transformers", "peft")
+
+
+def _unsloth_preimport_blockers() -> list[str]:
+    """Critical modules already in ``sys.modules`` before unsloth is imported.
+
+    unsloth patches these at import time and only warns (never raises) if they
+    loaded first, so a run can silently lose its optimizations. The ordering
+    inside ``_train_unsloth`` is correct; the risk is process history, because
+    ``training_engine`` is a module-level singleton in ``webui/app.py`` and any
+    earlier standard run / quant / abliteration / export leaves the trio
+    imported for the rest of that process's life.
+
+    Returns an empty list when unsloth will import clean, which is the case for
+    the first unsloth run in a fresh process.
+    """
+    import sys
+
+    return [m for m in _UNSLOTH_CRITICAL_MODULES if m in sys.modules]
+
+
+def _merged_dir_complete(merged_dir: str) -> bool:
+    """True when merged/ has weight files (not just a partial config dump)."""
+    if not os.path.isdir(merged_dir):
+        return False
+    for name in os.listdir(merged_dir):
+        if name.endswith((".safetensors", ".bin")):
+            return True
+    return False
+
+
+def _stop_training_callback(engine: "TrainingEngine") -> Any:
+    """Create the Trainer callback that turns a stop request into a stop flag."""
+    from transformers import TrainerCallback
+
+    class StopCallback(TrainerCallback):
+        def on_step_end(self, args: Any, state: Any, control: Any, **kwargs: Any) -> Any:
+            if engine._stop_requested():
+                control.should_training_stop = True
+            return control
+
+    return StopCallback()
+
+
+def _free_cuda() -> None:
+    """Drop refs the caller already deleted and release the accelerator cache (any vendor)."""
+    from finetune_studio import accel
+    accel.empty_cache()
+
+
+def _dir_size(path: str) -> int:
+    """Sum of file sizes under `path`, in bytes. Missing dir → 0."""
+    if not os.path.isdir(path):
+        return 0
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(root, f))
+            except OSError:
+                pass
+    return total
+
+
+def _human_size(n: float) -> str:
+    """1.4 GB / 235 MB / 12 KB style."""
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1024:
+            return f"{n:.1f} {unit}" if unit != "B" else f"{n} B"
+        n /= 1024
+    return f"{n:.1f} PB"
+
+
+@dataclass
+class TrainingConfig:
+    model_path: str = ""
+    output_dir: str = "output"
+    lora_rank: int = 64
+    lora_alpha: int = 128
+    learning_rate: float = 8e-5
+    num_epochs: int = 4
+    batch_size: int = 2
+    gradient_accumulation_steps: int = 4
+    max_seq_length: int = 2048
+    warmup_steps: int = 20
+    weight_decay: float = 0.005
+    save_steps: int = 100
+    save_checkpoints: bool = True  # False -> no intermediate checkpoints
+    save_total_limit: int = 3  # checkpoints kept on disk (older ones deleted)
+    eval_steps: int = 0  # eval on the held-out split every N steps; 0 = off
+    early_stopping: bool = False  # needs eval_steps > 0
+    early_stopping_patience: int = 3  # evals without eval_loss improvement
+    logging_steps: int = 10
+    bf16: bool = True
+    unsloth: bool = True
+    merge_on_save: bool = False
+    export_gguf: bool = False  # also export GGUF at <output_dir>/gguf/
+    gguf_quants: list = field(default_factory=lambda: ["f16", "q8_0", "q4_k_m", "q5_k_m"])
+    data_path: str = ""  # training data path (for auto-suite generation)
+    project_id: str = ""  # project ID (for DB recording)
+    # Abliteration settings
+    abliterate: bool = False  # remove refusals after training
+    abliteration_strength: float = 1.0  # 0.0 = no change, 1.0 = full removal
+    # System prompt handling
+    # "bake" = prepend to every training example (current behavior)
+    # "runtime" = don't bake, save separately for inference-time use
+    # "none" = no system prompt at all
+    system_prompt_mode: str = "bake"
+    # Advanced quantization
+    export_imatrix: bool = False
+    imatrix_calibration: str = ""
+    lora_target_modules: list = field(default_factory=lambda: [
+        "q_proj", "k_proj", "v_proj", "o_proj",
+        "gate_proj", "up_proj", "down_proj",
+    ])
+    training_mode: str = "sft"  # sft | dpo | kto | tool_sft | continued_pretraining | reasoning_distillation
+    preference_beta: float = 0.1  # DPO/KTO KL strength (TRL + DPO-paper default)
+    # DPO only: weight of an extra NLL-on-chosen term (TRL ``loss_type=["sigmoid","sft"]``).
+    # 0 = plain DPO. Counters likelihood displacement, where DPO lowers the chosen
+    # answer's probability too and a short run forgets facts (see HANDOFF "DPO quality").
+    preference_sft_weight: float = 0.0
+
+@dataclass
+class TrainingState:
+    status: str = "idle"
+    current_step: int = 0
+    total_steps: int = 0
+    loss: float = 0.0
+    final_loss: float | None = None
+    eval_loss: float | None = None  # last held-out eval loss (eval_steps > 0)
+    best_eval_loss: float | None = None
+    learning_rate: float = 0.0
+    epoch: float = 0.0
+    elapsed: float = 0.0
+    eta: float = 0.0
+    message: str = ""
+    error: str = ""
+    log_lines: list = field(default_factory=list)
+    # Latest preference metrics (DPO/KTO): ``rewards/accuracies``, ``rewards/margins``,
+    # ``eval_`` twins, ... empty for every other route.
+    pref_metrics: dict = field(default_factory=dict)
+
+
+def _early_stop_step(cfg: TrainingConfig, trainer_state: Any) -> int:
+    """Step at which early stopping ended the run, or 0 if it ran to completion."""
+    if not cfg.early_stopping:
+        return 0
+    step, planned = trainer_state.global_step, trainer_state.max_steps
+    return step if 0 < step < planned else 0
+
+
+def apply_trainer_log(
+    state: TrainingState,
+    logs: dict,
+    *,
+    global_step: int,
+    epoch: float | None,
+    total_steps: int,
+    elapsed: float,
+) -> None:
+    """Fold one ``TrainerCallback.on_log`` payload into ``state``.
+
+    Only step logs carry ``loss``. The end-of-train summary (``train_loss``,
+    ``train_runtime``) and evaluation logs (``eval_loss``) must not reset the
+    live/final loss to 0 — that is what made finished runs report no loss.
+    """
+    state.current_step = global_step
+    state.pref_metrics.update(extract_preference_metrics(logs))
+    state.epoch = round(epoch or 0, 2)
+    state.elapsed = round(elapsed, 1)
+    if global_step > 0:
+        state.eta = round(elapsed / global_step * max(0, total_steps - global_step), 1)
+    if "loss" in logs and logs["loss"] is not None:
+        state.loss = round(float(logs["loss"]), 4)
+        state.final_loss = state.loss
+        if logs.get("learning_rate") is not None:
+            state.learning_rate = round(float(logs["learning_rate"]), 8)
+        state.log_lines.append(
+            f"Step {global_step}/{total_steps} | loss={state.loss} | lr={state.learning_rate}"
+            + format_metric_suffix(state.pref_metrics)
+        )
+    elif logs.get("eval_loss") is not None:
+        state.eval_loss = round(float(logs["eval_loss"]), 4)
+        if state.best_eval_loss is None or state.eval_loss < state.best_eval_loss:
+            state.best_eval_loss = state.eval_loss
+        state.log_lines.append(
+            f"Step {global_step}/{total_steps} | eval_loss={round(float(logs['eval_loss']), 4)}"
+            + format_metric_suffix(state.pref_metrics, prefix="eval_")
+        )
+    elif logs.get("train_loss") is not None:
+        mean_loss = round(float(logs["train_loss"]), 4)
+        if state.final_loss is None:
+            # Runs shorter than the logging interval never emit a step loss;
+            # the mean train loss is then the only honest number to report.
+            state.final_loss = mean_loss
+            last = "n/a (run shorter than the logging interval)"
+        else:
+            last = state.loss
+        state.log_lines.append(f"Train summary | mean loss={mean_loss} | last loss={last}")
+
+
+class _ThreadChild:
+    """Duck-typed process handle wrapping a thread (test hook only)."""
+
+    def __init__(self, thread: threading.Thread) -> None:
+        self._thread = thread
+        self.exitcode: int | None = None
+
+    def is_alive(self) -> bool:
+        return self._thread.is_alive()
+
+    def join(self, timeout: float | None = None) -> None:
+        self._thread.join(timeout=timeout)
+        if not self._thread.is_alive():
+            self.exitcode = 0
+
+    def terminate(self) -> None:
+        # Threads cannot be hard-killed; cooperative stop + join is the test path.
+        self.exitcode = -15
+
+    def kill(self) -> None:
+        self.exitcode = -9
+
+
+class TrainingEngine:
+    def __init__(self):
+        self.state = TrainingState()
+        self.config = TrainingConfig()
+        self.current_run_id: str | None = None
+        self._thread: threading.Thread | None = None
+        self._stop_event = threading.Event()
+        self._callbacks: list = []
+        # E2E-40: training runs in a spawn child so uvicorn never imports unsloth.
+        self._process: object | None = None
+        self._mp_stop: object | None = None
+        self._out_queue: object | None = None
+        self._listener: threading.Thread | None = None
+
+    def on_update(self, callback):
+        """Subscribe to state changes; returns an idempotent unsubscribe."""
+        self._callbacks.append(callback)
+
+        def _unsubscribe() -> None:
+            if callback in self._callbacks:
+                self._callbacks.remove(callback)
+
+        return _unsubscribe
+
+    def _notify(self):
+        for cb in self._callbacks:
+            try:
+                cb(self.state)
+            except Exception:  # one bad callback must not kill training
+                # Not log.exception: _notify runs per step, so a broken
+                # callback would flood the journal with tracebacks.
+                log.warning("Training state callback failed", exc_info=True)
+
+    def start(self, config, training_data, system_prompt="", *, _worker_target=None):
+        """Start training in a spawn child process (never in the uvicorn process).
+
+        ``_worker_target`` is a test hook: when set, the target runs in a daemon
+        thread (same Queue protocol) so callables need not be picklable. Production
+        always uses ``multiprocessing`` spawn + ``training.worker.training_worker``.
+        """
+        if self.state.status in ("training", "loading", "saving"):
+            raise RuntimeError("Training already in progress")
+        if self._process is not None and getattr(self._process, "is_alive", lambda: False)():
+            raise RuntimeError("Training already in progress")
+
+        import multiprocessing as mp
+        import queue as queue_mod
+
+        from finetune_studio.smart_brain.model_cache import release_brain_models
+        from finetune_studio.training.worker import config_to_dict, training_worker
+
+        # The RAG embedder/reranker cache lives in this process; free its VRAM
+        # before the worker loads the trainable base.
+        release_brain_models("training start")
+        self.config = config
+        self._stop_event.clear()
+        self.state = TrainingState(status="loading", message="Starting training worker...")
+        self._notify()
+
+        cfg_dict = config_to_dict(config)
+        if _worker_target is not None:
+            # In-process fake child for unit tests (identical message protocol).
+            self._out_queue = queue_mod.Queue()
+            self._mp_stop = threading.Event()
+            target = _worker_target
+            thread = threading.Thread(
+                target=target,
+                args=(cfg_dict, training_data, system_prompt, self._out_queue, self._mp_stop),
+                daemon=True,
+                name="fts-training-worker-test",
+            )
+            self._process = _ThreadChild(thread)
+            thread.start()
+        else:
+            from finetune_studio import accel
+            ctx = mp.get_context("spawn")
+            self._out_queue = ctx.Queue()
+            self._mp_stop = ctx.Event()
+            self._process = ctx.Process(
+                target=training_worker,
+                args=(
+                    cfg_dict,
+                    training_data,
+                    system_prompt,
+                    self._out_queue,
+                    self._mp_stop,
+                    # The chosen card becomes the child's device 0 (see ``accel.isolated_env``).
+                    accel.isolated_env(accel.get_accelerator()),
+                ),
+                daemon=True,
+                name="fts-training-worker",
+            )
+            self._process.start()
+        self._listener = threading.Thread(
+            target=self._listen_child, daemon=True, name="fts-training-listener",
+        )
+        self._listener.start()
+
+    def _apply_state_dict(self, payload: dict) -> None:
+        """Copy a child state snapshot onto ``self.state`` and notify parents."""
+        for key in (
+            "status", "current_step", "total_steps", "loss", "final_loss", "eval_loss", "best_eval_loss",
+            "learning_rate", "epoch", "elapsed", "eta", "message", "error",
+        ):
+            if key in payload:
+                setattr(self.state, key, payload[key])
+        if isinstance(payload.get("pref_metrics"), dict):
+            self.state.pref_metrics = dict(payload["pref_metrics"])
+        if "log_lines" in payload and isinstance(payload["log_lines"], list):
+            self.state.log_lines = list(payload["log_lines"])
+        self._notify()
+
+    def _listen_child(self) -> None:
+        """Drain the child queue until ``op=done`` or the process exits."""
+        import queue as queue_mod
+
+        q = self._out_queue
+        proc = self._process
+        if q is None:
+            return
+        while True:
+            try:
+                msg = q.get(timeout=0.5)
+            except queue_mod.Empty:
+                if proc is not None and not getattr(proc, "is_alive", lambda: False)():
+                    break
+                continue
+            except Exception:  # noqa: BLE001
+                if proc is not None and not getattr(proc, "is_alive", lambda: False)():
+                    break
+                continue
+            if not isinstance(msg, dict):
+                continue
+            op = msg.get("op")
+            if op == "state":
+                payload = msg.get("state") or {}
+                if isinstance(payload, dict):
+                    self._apply_state_dict(payload)
+            elif op == "done":
+                break
+        # If the child died without a clean terminal status, surface it.
+        if self.state.status in ("loading", "training", "saving", "running"):
+            exitcode = getattr(proc, "exitcode", None) if proc is not None else None
+            if self._stop_event.is_set() or (
+                self._mp_stop is not None and getattr(self._mp_stop, "is_set", lambda: False)()
+            ):
+                self.state.status = "stopped"
+                self.state.message = "Stopped by user"
+                self._notify()
+            elif exitcode not in (0, None):
+                self.state.status = "error"
+                self.state.error = self.state.error or f"Training worker exited with code {exitcode}"
+                self.state.message = self.state.error
+                self._notify()
+        self._cleanup_child_handles()
+
+    def _cleanup_child_handles(self) -> None:
+        proc = self._process
+        if proc is not None:
+            try:
+                if getattr(proc, "is_alive", lambda: False)():
+                    proc.join(timeout=0.1)
+            except Exception:  # noqa: BLE001, S110
+                pass
+        self._process = None
+        self._mp_stop = None
+        self._out_queue = None
+        self._listener = None
+
+    def stop(self) -> None:
+        """Request cooperative stop, then terminate the child if it hangs."""
+        self._stop_event.set()
+        if self._mp_stop is not None:
+            try:
+                self._mp_stop.set()  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001, S110
+                pass
+        self.state.message = "Stopping..."
+        self._notify()
+
+        proc = self._process
+        if proc is None:
+            if self.state.status not in ("done", "error", "stopped", "idle"):
+                self._mark_stopped()
+            return
+
+        # Cooperative window for TrainerCallback / phase gates.
+        try:
+            proc.join(timeout=3.0)  # type: ignore[union-attr]
+        except Exception:  # noqa: BLE001, S110
+            pass
+        if getattr(proc, "is_alive", lambda: False)():
+            try:
+                proc.terminate()  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001, S110
+                pass
+            try:
+                proc.join(timeout=3.0)  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001, S110
+                pass
+        if getattr(proc, "is_alive", lambda: False)():
+            try:
+                proc.kill()  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001, S110
+                pass
+            try:
+                proc.join(timeout=1.0)  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001, S110
+                pass
+
+        if self.state.status not in ("done", "error", "stopped"):
+            self._mark_stopped()
+
+    def _stop_requested(self) -> bool:
+        return self._stop_event.is_set() or (
+            self._mp_stop is not None
+            and getattr(self._mp_stop, "is_set", lambda: False)()
+        )
+
+    def _mark_stopped(self) -> None:
+        """Terminal state when the user hits Stop (adapter may still be valid)."""
+        self.state.status = "stopped"
+        self.state.message = "Stopped by user"
+        self._notify()
+        if not self.current_run_id:
+            return
+        try:
+            from finetune_studio.db.runs import update_run
+            fields: dict = {
+                "status": "stopped",
+                "notes": "Stopped by user",
+            }
+            if self.config.output_dir and os.path.isdir(
+                os.path.join(self.config.output_dir, "adapter")
+            ):
+                fields["output_path"] = self.config.output_dir
+            update_run(self.current_run_id, **fields)
+        except Exception:  # run-state persistence is best-effort
+            log.exception("Failed to persist run state")
+
+    def _sync_run_error(self, message: str) -> None:
+        """Best-effort: persist a post-train export/merge failure into the
+        run row so "done" never silently swallows a broken export."""
+        if not self.current_run_id:
+            return
+        try:
+            from finetune_studio.db.runs import update_run
+            update_run(self.current_run_id, error=message[:2000])
+        except Exception:  # status sync must never crash the run
+            log.exception("failed to sync run error")
+
+    def _maybe_merge(self, model: object, tokenizer: object, output_dir: str) -> None:
+        """Run merge; failures are non-fatal (adapter on disk is still valid)."""
+        try:
+            self._do_merge(model, tokenizer, output_dir)
+        except Exception as e:
+            merge_msg = _format_exc(e)
+            note = f"Training complete — merge failed: {merge_msg}"
+            log.exception("Merge failed after training; adapter remains at %s", output_dir)
+            self.state.message = note
+            self.state.error = note
+            self._notify()
+
+    def _train(self, training_data, system_prompt):
+        try:
+            from finetune_studio.training.data import (
+                format_for_continued_pretraining,
+                format_for_preference,
+                format_for_sft,
+                format_for_unpaired,
+                split_data,
+            )
+            self._early_stop_step = 0
+            self.state.status = "loading"
+            self.state.message = "Loading model..."
+            self._notify()
+            mode = getattr(self.config, 'system_prompt_mode', 'bake')
+            # "none"/"runtime" never bake the prompt into training examples.
+            bake_prompt = "" if mode in ("none", "runtime") else system_prompt
+            training_mode = getattr(self.config, "training_mode", "sft")
+            if training_mode == "dpo":
+                formatted = format_for_preference(training_data, bake_prompt)
+            elif training_mode == "kto":
+                formatted = format_for_unpaired(training_data, bake_prompt)
+            elif training_mode == "continued_pretraining":
+                formatted = format_for_continued_pretraining(training_data)
+            elif training_mode in {"sft", "tool_sft", "reasoning_distillation"}:
+                formatted = format_for_sft(training_data, bake_prompt)
+            else:
+                raise ValueError(f"Unsupported training mode: {training_mode}")
+            if mode == "runtime" and system_prompt:
+                # Save system prompt next to the output for inference-time use.
+                os.makedirs(self.config.output_dir, exist_ok=True)
+                prompt_path = os.path.join(self.config.output_dir, "system_prompt.txt")
+                with open(prompt_path, "w") as f:
+                    f.write(system_prompt)
+            train_data, val_data = split_data(formatted)
+            if self._stop_requested():
+                self._mark_stopped()
+                return
+            self.state.message = (
+                f"Training on {len(train_data)} examples; "
+                f"holding out {len(val_data)} for validation..."
+            )
+            self._notify()
+            from finetune_studio import accel
+            from finetune_studio.training.accel_plan import resolve_train_plan
+            accel.activate()  # this (worker) thread's current device = the accelerator, not cuda:0
+            accel.enable_fast_matmul()
+            plan = resolve_train_plan(self.config.bf16, self.config.unsloth)
+            self._plan = plan
+            log.info("train plan: %s", plan)
+            if training_mode in ("dpo", "kto"):
+                self._train_preference(train_data, val_data)
+            elif plan.use_unsloth:
+                try:
+                    self._train_unsloth(train_data, val_data)
+                except ImportError:
+                    self._train_standard(train_data, val_data)
+            else:
+                if self.config.unsloth:
+                    log.info("unsloth skipped on %s — using the standard PEFT path", plan.kind)
+                self._train_standard(train_data, val_data)
+            if self.state.status == "stopped":
+                return
+            if self.state.status not in ("error",):
+                self.state.status = "done"
+                if not (self.state.message or "").startswith("Training complete — merge failed"):
+                    self.state.message = self._completion_message()
+                self._notify()
+                self._persist_run_output()
+        except Exception as e:
+            msg = _format_exc(e)
+            log.exception("Training failed: %s", msg)
+            self.state.status = "error"
+            self.state.error = msg
+            self.state.message = msg
+            self._notify()
+            # Persist the error to the DB so the UI can surface it on the run row
+            try:
+                self._persist_run_error(msg)
+            except Exception:  # error path must not raise
+                log.exception("Failed to persist run error")
+
+    def _preference_args(self, kind: str, plan: Any, train_data: list, has_eval: bool) -> Any:
+        """``DPOConfig`` / ``KTOConfig`` for ``kind``; checkpoint + eval rules shared with SFT.
+
+        ``max_length`` is TRL 1.14's single length knob (there is no
+        ``max_prompt_length``): over-long completions are cut at the end and rows whose
+        prompt alone fills it are dropped. ``beta`` is the KL strength (TRL default 0.1,
+        the DPO paper's value); lower lets the policy drift further from the reference.
+        """
+        from finetune_studio import accel
+        from finetune_studio.training.sft_args import checkpoint_eval_kwargs
+
+        cfg = self.config
+        steps = max(1, math.ceil(len(train_data) / max(1, cfg.batch_size * cfg.gradient_accumulation_steps)))
+        total = steps * cfg.num_epochs
+        kwargs: dict[str, Any] = {
+            "output_dir": cfg.output_dir,
+            "per_device_train_batch_size": cfg.batch_size,
+            "per_device_eval_batch_size": cfg.batch_size,
+            "gradient_accumulation_steps": cfg.gradient_accumulation_steps,
+            "num_train_epochs": cfg.num_epochs,
+            "learning_rate": cfg.learning_rate,
+            "warmup_steps": cfg.warmup_steps,
+            "weight_decay": cfg.weight_decay,
+            # Preference runs are short: log often enough that the live panel shows
+            # rewards/accuracies and margins move instead of one point at the end.
+            "logging_steps": max(1, min(cfg.logging_steps, total // 8)),
+            "save_steps": cfg.save_steps,
+            "bf16": plan.bf16,
+            "fp16": plan.fp16,
+            "use_cpu": plan.use_cpu,
+            "optim": plan.optim,
+            "seed": 3407,
+            "gradient_checkpointing": True,
+            "max_length": cfg.max_seq_length,
+            "beta": cfg.preference_beta,
+            "report_to": "none",
+            "push_to_hub": False,
+            "hub_token": None,
+        }
+        extra = checkpoint_eval_kwargs(cfg, has_eval=has_eval)
+        kwargs.update(extra)
+        if kind == "kto":
+            from trl import KTOConfig
+
+            n_good = sum(1 for row in train_data if row["label"])
+            n_bad = len(train_data) - n_good
+            # KTO paper Eq. 8: weighted desirable:undesirable ratio should sit in [1, 4/3].
+            if 0 < n_good < n_bad:
+                kwargs["desirable_weight"] = round(n_bad / n_good * 1.1, 2)
+            elif 0 < n_bad < n_good:
+                kwargs["undesirable_weight"] = round(n_good / n_bad / 1.1, 2)
+            return accel.pin_trainer_args(KTOConfig(**kwargs))
+        from trl import DPOConfig
+
+        if cfg.preference_sft_weight > 0:
+            kwargs["loss_type"] = ["sigmoid", "sft"]
+            kwargs["loss_weights"] = [1.0, float(cfg.preference_sft_weight)]
+        return accel.pin_trainer_args(DPOConfig(**kwargs))
+
+    def _train_preference(self, train_data: list, val_data: list) -> None:
+        """Run DPO or KTO with a PEFT adapter in the isolated worker.
+
+        With PEFT the reference policy is the base model with the adapter disabled, so no
+        second copy sits in VRAM. When the base is an SFT-merged run, that merged model is
+        the reference — the usual SFT → preference recipe.
+        """
+        from datasets import Dataset
+        from peft import LoraConfig, get_peft_model
+
+        from finetune_studio.training.preference_tokens import (
+            describe_mismatch,
+            preference_template_kwargs,
+            prefix_mismatches,
+        )
+
+        cfg = self.config
+        kind = "kto" if cfg.training_mode == "kto" else "dpo"
+        completion_keys = ("completion",) if kind == "kto" else ("chosen", "rejected")
+        self.state.message = "Loading preference-training model..."
+        self._notify()
+        from finetune_studio.hf_env import load_tokenizer
+        tokenizer = load_tokenizer(cfg.model_path)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        # Thinking-by-default templates (Qwen3.5) render the prompt's generation turn
+        # differently from a finished turn; without this TRL mis-splits every row.
+        template_kwargs = preference_template_kwargs(tokenizer)
+        if template_kwargs:
+            for rows in (train_data, val_data):
+                for row in rows:
+                    row["chat_template_kwargs"] = dict(template_kwargs)
+        bad = prefix_mismatches(tokenizer, train_data, template_kwargs, completion_keys=completion_keys)
+        if bad:
+            note = describe_mismatch(bad, len(train_data))
+            log.warning(note)
+            self.state.log_lines.append(note)
+        model = self._load_model_with_fallback(cfg.model_path, tokenizer)
+        if self._stop_requested():
+            self._mark_stopped()
+            return
+        model = get_peft_model(model, LoraConfig(
+            r=cfg.lora_rank,
+            lora_alpha=cfg.lora_alpha,
+            target_modules=cfg.lora_target_modules,
+            lora_dropout=0,
+            bias="none",
+            task_type="CAUSAL_LM",
+        ))
+        if self._stop_requested():
+            self._mark_stopped()
+            return
+
+        from finetune_studio.training.accel_plan import resolve_train_plan
+        plan = getattr(self, "_plan", None) or resolve_train_plan(cfg.bf16, False)
+        has_eval = bool(val_data) and cfg.eval_steps > 0
+        args = self._preference_args(kind, plan, train_data, has_eval)
+        train_dataset = Dataset.from_list(train_data)
+        eval_dataset = Dataset.from_list(val_data) if has_eval else None
+        total = max(1, math.ceil(len(train_dataset) / max(
+            1, cfg.batch_size * cfg.gradient_accumulation_steps
+        ))) * cfg.num_epochs
+        self.state.total_steps = total
+        from transformers import TrainerCallback
+        start_time = time.time()
+        engine = self
+
+        class ProgressCallback(TrainerCallback):
+            def on_log(self, args, state, control, logs=None, **kwargs):
+                if logs:
+                    apply_trainer_log(
+                        engine.state, logs, global_step=state.global_step,
+                        epoch=state.epoch, total_steps=total,
+                        elapsed=time.time() - start_time,
+                    )
+                    engine._notify()
+
+        callbacks = [ProgressCallback(), _stop_training_callback(self)]
+        if cfg.early_stopping and eval_dataset is not None:
+            from transformers import EarlyStoppingCallback
+            callbacks.append(EarlyStoppingCallback(early_stopping_patience=cfg.early_stopping_patience))
+        if kind == "kto":
+            from trl import KTOTrainer as _Trainer
+        else:
+            from trl import DPOTrainer as _Trainer
+        trainer = _Trainer(
+            model=model,
+            ref_model=None,
+            args=args,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            processing_class=tokenizer,
+            callbacks=callbacks,
+        )
+        self.state.status = "training"
+        self.state.message = f"Training with {kind.upper()} preferences..."
+        self._notify()
+        trainer.train()
+        self._early_stop_step = _early_stop_step(cfg, trainer.state)
+        if self._stop_requested():
+            try:
+                self._save_adapter(model, tokenizer)
+            except Exception:
+                log.exception("Failed to save %s adapter after stop", kind.upper())
+            self._mark_stopped()
+            return
+        self.state.status = "saving"
+        self.state.message = "Saving preference-tuned model..."
+        self._notify()
+        self._save_adapter(model, tokenizer, with_chat_template=True)
+        if cfg.merge_on_save:
+            self._maybe_merge(model, tokenizer, cfg.output_dir)
+        if cfg.export_gguf:
+            self._export_gguf_after_train(model, tokenizer)
+        self._auto_suite_non_fatal()
+        self.state.status = "done"
+        self.state.message = self._completion_message()
+        self._notify()
+
+    def _persist_run_error(self, error_msg: str) -> None:
+        """Write the failure reason to the training_runs.error column.
+
+        Called from the except branch in start() so failed runs show the
+        real exception in the UI instead of a bare `failed` status.
+        """
+        if not self.current_run_id:
+            return
+        try:
+            from finetune_studio.db.runs import update_run
+            # current_run_id is the full 8-char hex like "bdc217b1" — use it as-is
+            update_run(self.current_run_id, status="failed", error=error_msg[:2000])
+        except Exception:  # best-effort status write
+            log.exception("Failed to mark run %s as failed", self.current_run_id)
+
+    def _persist_run_output(self) -> None:
+        """Update the DB run record with the output path so the merge
+        endpoint can find the adapter after training completes."""
+        if not self.current_run_id or not self.config.output_dir:
+            return
+        run_id = self.current_run_id.split("-")[-1] if "-" in self.current_run_id else self.current_run_id
+        try:
+            from finetune_studio.db.runs import update_run
+            fields: dict = {
+                "output_path": self.config.output_dir,
+                "status": "done",
+            }
+            final_loss = getattr(self.state, "final_loss", None)
+            if final_loss is not None:
+                fields["final_loss"] = final_loss
+            # Merge (or post-train export) failed soft — keep status done, surface note.
+            err = (self.state.error or "").strip()
+            if err:
+                fields["error"] = err[:2000]
+                fields["notes"] = err[:2000]
+            update_run(run_id, **fields)
+        except Exception:  # best-effort run-row write
+            log.exception("Failed to update run %s", run_id)
+
+    def _load_model_with_fallback(self, model_path, tokenizer):
+        """Load the base model: full GPU offload -> 4-bit (OOM) -> RAM+VRAM mix.
+
+        GPU-first on every vendor via ``accel``; a host without a GPU loads on
+        the CPU in fp32. See ``models.hf_loader.load_causal_lm``.
+        """
+        from finetune_studio.models.hf_loader import load_causal_lm, training_needs_4bit
+
+        def _status(msg: str) -> None:
+            self.state.message = msg
+            self._notify()
+
+        force_4bit, why = training_needs_4bit(model_path)
+        if force_4bit:
+            log.warning(why)
+            self.state.log_lines.append(why)
+            _status(why)
+        return load_causal_lm(model_path, force_4bit=force_4bit, on_status=_status)
+
+    def _build_sft_args(self, has_eval: bool) -> Any:
+        """``SFTConfig`` whose precision / optimizer / device follow the accelerator plan."""
+        from finetune_studio.training.accel_plan import resolve_train_plan
+        from finetune_studio.training.sft_args import (
+            build_sft_training_args,
+            checkpoint_eval_kwargs,
+        )
+        cfg = self.config
+        plan = getattr(self, "_plan", None) or resolve_train_plan(cfg.bf16, cfg.unsloth)
+        extra = checkpoint_eval_kwargs(cfg, has_eval=has_eval)
+        # fp16 is passed explicitly: sft_args' default ``fp16 = not bf16`` would
+        # switch fp16 AMP on for a CPU run (and for a GPU the plan left in fp32).
+        extra.update(fp16=plan.fp16, use_cpu=plan.use_cpu)
+        return build_sft_training_args(
+            output_dir=cfg.output_dir, num_train_epochs=cfg.num_epochs,
+            per_device_train_batch_size=cfg.batch_size,
+            gradient_accumulation_steps=cfg.gradient_accumulation_steps,
+            learning_rate=cfg.learning_rate, warmup_steps=cfg.warmup_steps,
+            weight_decay=cfg.weight_decay, logging_steps=cfg.logging_steps,
+            save_steps=extra.pop("save_steps", cfg.save_steps),
+            bf16=plan.bf16, optim=plan.optim, **extra,
+        )
+
+    def _save_adapter(self, model, tokenizer, *, with_chat_template: bool = False) -> None:
+        """Write the PEFT adapter + tokenizer to ``<output_dir>/adapter/``."""
+        adapter_dir = os.path.join(self.config.output_dir, "adapter")
+        os.makedirs(self.config.output_dir, exist_ok=True)
+        model.save_pretrained(adapter_dir)
+        tokenizer.save_pretrained(adapter_dir)
+        if with_chat_template and getattr(tokenizer, "chat_template", None):
+            try:
+                with open(os.path.join(adapter_dir, "chat_template.jinja"), "w") as f:
+                    f.write(tokenizer.chat_template)
+            except Exception:
+                log.warning("Could not persist chat_template.jinja", exc_info=True)
+
+    def _export_gguf_after_train(self, model, tokenizer) -> None:
+        """Post-train GGUF export; failures are non-fatal and surfaced on the run.
+
+        The export converts ``<output_dir>/merged/``, so with no merge it would
+        be a silent no-op (QABUG run 8a1962c3 asked for q8_0, got nothing).
+        Auto-merge first when the user asked for GGUF but unchecked merge.
+        """
+        output_dir = self.config.output_dir
+        merged_dir = os.path.join(output_dir, "merged")
+        if not self.config.merge_on_save and (
+            not os.path.isdir(merged_dir) or not os.listdir(merged_dir)
+        ):
+            self._maybe_merge(model, tokenizer, output_dir)
+        try:
+            gguf_result = self._do_export_gguf(output_dir)
+            if not gguf_result.get("ok"):
+                err = gguf_result.get("error") or gguf_result.get("reason") or "GGUF export failed"
+                self.state.error = f"Training complete — GGUF export failed: {err}"
+        except Exception as e:
+            log.exception("GGUF export failed (non-fatal)")
+            self.state.error = f"Training complete — GGUF export failed: {_format_exc(e)}"
+        if self.state.error:
+            self.state.message = self.state.error
+            self._notify()  # copy into run.error so the run row is honest
+            self._sync_run_error(self.state.error)
+
+    def _completion_message(self) -> str:
+        """Final status line; names an early stop so a short run is not a mystery."""
+        step = getattr(self, "_early_stop_step", 0)
+        if not step:
+            return "Training complete!"
+        return (f"Training complete! Stopped early at step {step}/{self.state.total_steps}: "
+                "validation loss stopped improving, best checkpoint kept.")
+
+    def _eval_setup(self, val_data: list, format_chat: Callable[[dict], dict]) -> tuple[Any, list]:
+        """Held-out eval dataset + early-stopping callback, per ``self.config``.
+
+        Returns ``(None, [])`` when eval is off or the held-out split is empty;
+        ``checkpoint_eval_kwargs`` then degrades the run to plain training.
+        """
+        cfg = self.config
+        if cfg.eval_steps <= 0:
+            return None, []
+        if not val_data:
+            log.warning("eval_steps=%d but the held-out split is empty; "
+                        "training without eval/early stopping", cfg.eval_steps)
+            return None, []
+        from datasets import Dataset
+        eval_dataset = Dataset.from_list(val_data, on_mixed_types="use_json").map(
+            format_chat, remove_columns=list(val_data[0].keys()))
+        callbacks: list = []
+        if cfg.early_stopping:
+            from transformers import EarlyStoppingCallback
+            callbacks.append(EarlyStoppingCallback(
+                early_stopping_patience=cfg.early_stopping_patience))
+        return eval_dataset, callbacks
+
+    def _train_unsloth(self, train_data, val_data=()):
+        from datasets import Dataset
+
+        # Read the precondition BEFORE importing unsloth: once unsloth is in
+        # sys.modules its own import is what consumed the check. Logging keeps
+        # a degraded run visible instead of silently slower / more VRAM.
+        _blockers = _unsloth_preimport_blockers()
+        if _blockers:
+            log.warning(
+                "unsloth importing after %s — unsloth's at-import patches will "
+                "NOT apply to this run (slower, more VRAM). Cause: this worker "
+                "process already imported them on an earlier request. Restart "
+                "the service before benchmarking.",
+                ", ".join(_blockers),
+            )
+        else:
+            log.info("unsloth importing clean (no critical modules preloaded)")
+
+        from unsloth import FastLanguageModel
+
+        cfg = self.config
+        self.state.message = "Loading model with Unsloth..."
+        self._notify()
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            model_name=cfg.model_path, max_seq_length=cfg.max_seq_length,
+            dtype=None, load_in_4bit=True,
+        )
+        if self._stop_requested():
+            self._mark_stopped()
+            return
+        model = FastLanguageModel.get_peft_model(
+            model, r=cfg.lora_rank, target_modules=cfg.lora_target_modules,
+            lora_alpha=cfg.lora_alpha, lora_dropout=0, bias="none",
+            use_gradient_checkpointing="unsloth", random_state=3407,
+        )
+
+        # Fix PicklingError: unsloth monkey-patches SFTTrainer/SFTConfig but
+        # pickle looks up the original class by module path. Re-patch sys.modules
+        # so pickle finds the patched classes.
+        import trl.trainer.sft_config as _sft_config_mod
+        import trl.trainer.sft_trainer as _sft_trainer_mod
+        _register_patched_trl_classes(_sft_trainer_mod, _sft_config_mod)
+
+        # Monkey-patch Trainer._save to avoid PicklingError when saving
+        # training args. Unsloth's class replacement chain breaks pickle.
+        import json as _json
+
+        from trl import SFTTrainer
+        def _patched_save(self_trainer, output_dir, _internal_call=False):
+            import os as _os
+            if hasattr(self_trainer.model, 'save_pretrained'):
+                self_trainer.model.save_pretrained(output_dir)
+            if hasattr(self_trainer, 'tokenizer') and self_trainer.tokenizer is not None:
+                self_trainer.tokenizer.save_pretrained(output_dir)
+            args_path = _os.path.join(output_dir, "training_args.json")
+            with open(args_path, "w") as f:
+                _json.dump(self_trainer.args.to_dict(), f, indent=2, default=str)
+        SFTTrainer._save = _patched_save
+
+        from finetune_studio.training.formatting import render_chat_text
+        def format_chat(example):
+            text = render_chat_text(tokenizer, example["messages"])
+            return {"text": text}
+        dataset = Dataset.from_list(train_data).map(format_chat, remove_columns=list(train_data[0].keys()))
+        if self._stop_requested():
+            self._mark_stopped()
+            return
+        denom = max(1, cfg.batch_size * cfg.gradient_accumulation_steps)
+        steps_per_epoch = max(1, math.ceil(len(dataset) / denom))
+        total = steps_per_epoch * cfg.num_epochs
+        self.state.total_steps = total
+        eval_dataset, eval_callbacks = self._eval_setup(list(val_data), format_chat)
+        # SFTConfig (not TrainingArguments): avoids TRL KeyError push_to_hub_token.
+        args = self._build_sft_args(eval_dataset is not None)
+        start_time = time.time()
+        engine = self
+        from transformers import TrainerCallback
+        class ProgressCallback(TrainerCallback):
+            def on_log(self2, args, state, control, logs=None, **kwargs):
+                if logs:
+                    apply_trainer_log(
+                        engine.state, logs, global_step=state.global_step,
+                        epoch=state.epoch, total_steps=total,
+                        elapsed=time.time() - start_time,
+                    )
+                    engine._notify()
+        trainer = SFTTrainer(
+            model=model, processing_class=tokenizer, train_dataset=dataset,
+            eval_dataset=eval_dataset, args=args,
+            callbacks=[ProgressCallback(), _stop_training_callback(engine), *eval_callbacks],
+        )
+        self.state.status = "training"
+        self.state.message = "Training…"
+        self._notify()
+        trainer.train()
+        self._early_stop_step = _early_stop_step(cfg, trainer.state)
+        if self._stop_requested():
+            # Persist the partial adapter so the work is not lost, then stop.
+            try:
+                self._save_adapter(model, tokenizer)
+            except Exception:
+                log.exception("Failed to save adapter after stop")
+            self._mark_stopped()
+            return
+        self.state.status = "saving"
+        self.state.message = "Saving model..."
+        self._notify()
+        self._save_adapter(model, tokenizer, with_chat_template=True)
+        if self._stop_requested():
+            self._mark_stopped()
+            return
+        if cfg.merge_on_save:
+            self._maybe_merge(model, tokenizer, cfg.output_dir)
+        if cfg.export_gguf:
+            self._export_gguf_after_train(model, tokenizer)
+        if cfg.export_imatrix:
+            self._do_export_imatrix(cfg.output_dir)
+        self._auto_suite_non_fatal()
+        # Optional: Abliteration (de-censor)
+        if getattr(cfg, 'abliterate', False):
+            self._do_abliteration()
+        self.state.status = "done"
+        if not (self.state.message or "").startswith("Training complete —"):
+            self.state.message = self._completion_message()
+        self._notify()
+
+    def _train_standard(self, train_data, val_data=()):
+        from datasets import Dataset
+        from peft import LoraConfig, get_peft_model
+        cfg = self.config
+        self.state.message = "Loading model..."
+        self._notify()
+        from finetune_studio.hf_env import load_tokenizer
+        tokenizer = load_tokenizer(cfg.model_path)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        model = self._load_model_with_fallback(cfg.model_path, tokenizer)
+        if self._stop_requested():
+            self._mark_stopped()
+            return
+        lora_config = LoraConfig(
+            r=cfg.lora_rank, lora_alpha=cfg.lora_alpha,
+            target_modules=cfg.lora_target_modules, lora_dropout=0,
+            bias="none", task_type="CAUSAL_LM",
+        )
+        model = get_peft_model(model, lora_config)
+        from finetune_studio.training.formatting import render_chat_text
+        def format_chat(example):
+            text = (
+                example["text"]
+                if "text" in example
+                else render_chat_text(tokenizer, example["messages"], tools=example.get("tools"))
+            )
+            return {"text": text}
+        dataset = Dataset.from_list(train_data, on_mixed_types="use_json").map(
+            format_chat, remove_columns=list(train_data[0].keys())
+        )
+        if self._stop_requested():
+            self._mark_stopped()
+            return
+        denom = max(1, cfg.batch_size * cfg.gradient_accumulation_steps)
+        steps_per_epoch = max(1, math.ceil(len(dataset) / denom))
+        total = steps_per_epoch * cfg.num_epochs
+        self.state.total_steps = total
+        # Fix PicklingError: re-patch sys.modules after any unsloth/trl patches
+        import trl.trainer.sft_config as _sft_config_mod
+        import trl.trainer.sft_trainer as _sft_trainer_mod
+        _register_patched_trl_classes(_sft_trainer_mod, _sft_config_mod)
+
+        from trl import SFTTrainer
+        eval_dataset, eval_callbacks = self._eval_setup(list(val_data), format_chat)
+        # SFTConfig (not TrainingArguments): avoids TRL KeyError push_to_hub_token.
+        args = self._build_sft_args(eval_dataset is not None)
+        start_time = time.time()
+        engine = self
+        from transformers import TrainerCallback
+        class ProgressCallback(TrainerCallback):
+            def on_log(self2, args, state, control, logs=None, **kwargs):
+                if logs:
+                    apply_trainer_log(
+                        engine.state, logs, global_step=state.global_step,
+                        epoch=state.epoch, total_steps=total,
+                        elapsed=time.time() - start_time,
+                    )
+                    engine._notify()
+        trainer = SFTTrainer(
+            model=model, processing_class=tokenizer, train_dataset=dataset,
+            eval_dataset=eval_dataset, args=args,
+            callbacks=[ProgressCallback(), _stop_training_callback(engine), *eval_callbacks],
+        )
+        self.state.status = "training"
+        self.state.message = "Training…"
+        self._notify()
+        trainer.train()
+        self._early_stop_step = _early_stop_step(cfg, trainer.state)
+        if self._stop_requested():
+            # Persist the partial adapter so the work is not lost, then stop.
+            try:
+                self._save_adapter(model, tokenizer)
+            except Exception:
+                log.exception("Failed to save adapter after stop")
+            self._mark_stopped()
+            return
+        self.state.status = "saving"
+        self.state.message = "Saving model..."
+        self._notify()
+        self._save_adapter(model, tokenizer, with_chat_template=True)
+        if self._stop_requested():
+            self._mark_stopped()
+            return
+        if cfg.merge_on_save:
+            self._maybe_merge(model, tokenizer, cfg.output_dir)
+        if cfg.export_gguf:
+            self._export_gguf_after_train(model, tokenizer)
+        # The quiz used to be generated only by the Unsloth path, which FTS_UNSLOTH=auto skips on current
+        # torch: every default run finished without a project quiz and the Testing page had nothing to run.
+        if getattr(cfg, "training_mode", "sft") != "continued_pretraining":
+            self._auto_suite_non_fatal()
+        self.state.status = "done"
+        if not (self.state.message or "").startswith("Training complete —"):
+            self.state.message = self._completion_message()
+        self._notify()
+
+    def _auto_suite_non_fatal(self) -> None:
+        """Generate the project quiz after a run; a failure is reported on the run but never fails the training."""
+        try:
+            self._auto_generate_suite()
+        except Exception as e:
+            log.exception("Auto-suite failed (non-fatal)")
+            if not (self.state.message or "").startswith("Training complete —"):
+                self.state.message = (
+                    f"Training complete — auto-suite failed: {_format_exc(e)}"
+                )
+                self.state.error = self.state.message
+                self._notify()
+
+    def _do_merge(self, model, tokenizer, output_dir: str) -> dict:
+        """Merge the PEFT adapter onto a 16-bit base and save to ``merged/``.
+
+        Frees the training model first, resolves a non-quantized base via
+        ``resolve_merge_base``, loads it in bfloat16, then
+        ``PeftModel.from_pretrained`` + ``merge_and_unload``. Partial
+        ``merged/`` dirs are removed on failure.
+        """
+        merged_dir = os.path.join(output_dir, "merged")
+        if _merged_dir_complete(merged_dir):
+            size = _dir_size(merged_dir)
+            self.state.message = "Merged model already exists; skipping."
+            self._notify()
+            return {"merged_path": merged_dir, "size_bytes": size,
+                    "size_human": _human_size(size), "skipped": True}
+        # Stale partial merge (config-only) — wipe before retrying.
+        if os.path.isdir(merged_dir):
+            shutil.rmtree(merged_dir, ignore_errors=True)
+        os.makedirs(merged_dir, exist_ok=True)
+        if os.environ.get("FTS_SKIP_MERGE") == "1":
+            self.state.message = "FTS_SKIP_MERGE=1 — skipping merge."
+            self._notify()
+            return {"merged_path": merged_dir, "size_bytes": 0,
+                    "size_human": "0 B", "skipped": True}
+        self.state.message = "Merging adapter into full model..."
+        self._notify()
+
+        # Free the in-memory QLoRA training model before loading a 16-bit base.
+        try:
+            del model
+        except Exception:  # noqa: BLE001, S110
+            pass
+        _free_cuda()
+
+        from finetune_studio.models.hf_loader import load_merge_base, load_peft_adapter
+        from finetune_studio.training.merge_base import resolve_merge_base
+
+        adapter_dir = os.path.join(output_dir, "adapter")
+        base_path = resolve_merge_base(self.config.model_path)
+        base = None
+        peft_model = None
+        merged = None
+        try:
+            base = load_merge_base(base_path)
+            peft_model = load_peft_adapter(base, adapter_dir)
+            merged = peft_model.merge_and_unload()
+            if hasattr(merged, "config") and hasattr(merged.config, "quantization_config"):
+                merged.config.quantization_config = None
+            merged.save_pretrained(merged_dir)
+            tokenizer.save_pretrained(merged_dir)
+            src = os.path.join(adapter_dir, "chat_template.jinja")
+            if os.path.exists(src):
+                shutil.copy(src, os.path.join(merged_dir, "chat_template.jinja"))
+            prompt_src = os.path.join(output_dir, "system_prompt.txt")
+            if os.path.exists(prompt_src):
+                shutil.copy(prompt_src, os.path.join(merged_dir, "system_prompt.txt"))
+        except Exception:
+            if os.path.isdir(merged_dir):
+                shutil.rmtree(merged_dir, ignore_errors=True)
+            raise
+        finally:
+            try:
+                del base, peft_model, merged
+            except Exception:  # noqa: BLE001, S110
+                pass
+            _free_cuda()
+
+        size = _dir_size(merged_dir)
+        self.state.message = f"Saved merged model ({_human_size(size)})."
+        self._notify()
+        return {"merged_path": merged_dir, "size_bytes": size,
+                "size_human": _human_size(size), "skipped": False}
+
+    def _do_abliteration(self) -> dict:
+        """Optional: Remove refusal direction from the merged model."""
+        merged_dir = os.path.join(self.config.output_dir, "merged")
+        if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
+            return {"skipped": True, "reason": "no merged model"}
+        abliterated_dir = os.path.join(self.config.output_dir, "abliterated")
+        self.state.message = "Abliterating (de-censoring) model..."
+        self._notify()
+        try:
+            from finetune_studio.training.abliteration import abliterate_model
+            result = abliterate_model(
+                model_path=merged_dir,
+                output_dir=abliterated_dir,
+                strength=getattr(self.config, 'abliteration_strength', 1.0),
+            )
+            self.state.message = f"Abliteration complete (magnitude: {result.get('refusal_magnitude', 0):.4f})."
+            self._notify()
+            return result
+        except Exception as e:
+            log.exception("Abliteration failed")
+            self.state.message = f"Abliteration failed: {e}"
+            self._notify()
+            return {"error": str(e)}
+
+    def _do_export_imatrix(self, output_dir: str) -> dict:
+        """Export the merged model using imatrix-based GGUF quantization."""
+        merged_dir = os.path.join(output_dir, "merged")
+        if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
+            return {"skipped": True, "reason": "no merged model"}
+        imatrix_dir = os.path.join(output_dir, "imatrix")
+        self.state.message = "Exporting imatrix GGUF..."
+        self._notify()
+        try:
+            from finetune_studio.training.advanced_quant import quantize_gguf_imatrix
+            result = quantize_gguf_imatrix(
+                model_path=merged_dir,
+                output_dir=imatrix_dir,
+                imatrix_path=getattr(self.config, 'imatrix_calibration', ''),
+                quants=getattr(self.config, 'gguf_quants', ['q4_k_m', 'q5_k_m', 'q8_0']),
+            )
+            self.state.message = "Imatrix GGUF exported."
+            self._notify()
+            return result
+        except Exception as e:
+            log.exception("Imatrix GGUF export failed")
+            self.state.message = f"Imatrix GGUF export failed: {e}"
+            self._notify()
+            return {"error": str(e)}
+
+    def _auto_generate_suite(self) -> dict:
+        """Auto-generate a benchmark suite from training data (full coverage)."""
+        data_path = getattr(self.config, 'data_path', '')
+        if not data_path or not os.path.isfile(data_path):
+            self.state.message = "Auto-suite: no training data found, skipping."
+            self._notify()
+            return {}
+        from finetune_studio.testing.generate_suite import (
+            generate_suite_from_training_data,
+        )
+        output_dir = self.config.output_dir
+        result = generate_suite_from_training_data(data_path, output_dir)
+        if result.get("error"):
+            self.state.message = f"Auto-suite: {result['error']}"
+            self._notify()
+            return result
+        try:
+            from time import time as _time
+
+            from finetune_studio.db.connection import cursor, new_id
+            suite_id = new_id()
+            project_id = getattr(self.config, 'project_id', '')
+            # The training runs in a child process whose engine never learns the parent's run id (the insert hit
+            # NOT NULL on auto_suites.run_id and the quiz was never recorded); the run's own directory names it:
+            # output/projects/<pid>/runs/<run_id>.
+            out = Path(self.config.output_dir)
+            run_id = self.current_run_id or out.name
+            if not project_id and out.parent.name == "runs":
+                project_id = out.parent.parent.name
+            with cursor() as c:
+                c.execute(
+                    "INSERT INTO auto_suites (id, run_id, project_id, suite_name, suite_path, case_count, categories_json, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (suite_id, run_id, project_id,
+                     result.get("suite_name", "auto"), result.get("suite_path", ""),
+                     result.get("case_count", 0),
+                     json.dumps(result.get("categories", {})), _time()),
+                )
+        except Exception:
+            log.exception("Auto-suite generated but not recorded in the DB")
+        self.state.message = (
+            f"Auto-suite: {result.get('case_count', 0)} cases saved "
+            f"({result.get('coverage', 'full')} coverage)."
+        )
+        self._notify()
+        return result
+
+    def _do_export_gguf(self, output_dir: str, force: bool = False) -> dict:
+        """Export the merged model to GGUF via llama.cpp (shared converter).
+
+        Saves to ``<output_dir>/gguf/``. Success only when requested quants
+        produce non-empty ``.gguf`` files. Uses ``convert_hf_to_gguf.py`` and
+        ``llama-quantize`` discovered via ``gguf_convert``.
+        """
+        from finetune_studio.training.gguf_convert import convert_merged_to_gguf
+
+        gguf_dir = os.path.join(output_dir, "gguf")
+        merged_dir = os.path.join(output_dir, "merged")
+        if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
+            return {
+                "ok": False,
+                "gguf_path": gguf_dir,
+                "skipped": True,
+                "reason": "no merged model to convert",
+                "error": "no merged model to convert",
+            }
+        quants = (
+            list(self.config.gguf_quants)
+            if hasattr(self.config, "gguf_quants") and self.config.gguf_quants
+            else ["f16", "q8_0"]
+        )
+        self.state.message = f"Exporting GGUF ({', '.join(quants)})..."
+        self._notify()
+        result = convert_merged_to_gguf(
+            merged_dir, gguf_dir, quants, force=force,
+        )
+        if result.get("ok"):
+            size_h = result.get("size_human") or _human_size(
+                int(result.get("size_bytes") or 0)
+            )
+            n = len(result.get("files") or [])
+            self.state.message = f"GGUF exported ({size_h}, {n} file(s))."
+            self._notify()
+            return result
+        err = result.get("error") or result.get("reason") or "GGUF failed"
+        self.state.message = f"GGUF export failed: {err}"
+        self._notify()
+        return result
+
+
+def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
+    """Merge a persisted run's adapter on disk into a standalone model.
+
+    Loads `run.base_model` + `<run.output_path>/adapter/`, merges via
+    PEFT's `merge_and_unload()`, saves to `<run.output_path>/merged/`.
+
+    Idempotent: if `<output_path>/merged/` already has files and `force`
+    is False, the existing merge is returned without reloading the model.
+
+    Returns: {merged_path, size_bytes, size_human, skipped, run}.
+    Raises ValueError for the obvious pre-conditions (no base_model,
+    no output_path, no adapter dir on disk).
+    """
+    output_path = (run.get("output_path") or "").strip()
+    base_model = (run.get("base_model") or "").strip()
+    if not output_path:
+        raise ValueError("run has no output_path yet; nothing to merge")
+    if not base_model:
+        raise ValueError("run has no base_model; cannot load base for merging")
+    adapter_dir = os.path.join(output_path, "adapter")
+    if not os.path.isdir(adapter_dir):
+        raise ValueError(f"adapter dir not found on disk: {adapter_dir}")
+    merged_dir = os.path.join(output_path, "merged")
+    if _merged_dir_complete(merged_dir) and not force:
+        size = _dir_size(merged_dir)
+        return {"merged_path": merged_dir, "size_bytes": size,
+                "size_human": _human_size(size), "skipped": True, "run": run}
+    if os.path.isdir(merged_dir):
+        shutil.rmtree(merged_dir, ignore_errors=True)
+    if os.environ.get("FTS_SKIP_MERGE") == "1":
+        os.makedirs(merged_dir, exist_ok=True)
+        with open(os.path.join(merged_dir, "SKIPPED_BY_TEST"), "w") as f:
+            f.write("FTS_SKIP_MERGE=1\n")
+        return {"merged_path": merged_dir, "size_bytes": 0,
+                "size_human": "0 B", "skipped": True, "run": run}
+    os.makedirs(merged_dir, exist_ok=True)
+    from finetune_studio.hf_env import load_tokenizer
+    from finetune_studio.models.hf_loader import load_merge_base, load_peft_adapter
+    from finetune_studio.training.merge_base import resolve_merge_base
+    tokenizer = load_tokenizer(adapter_dir)
+    base_path = resolve_merge_base(base_model)
+    from finetune_studio.smart_brain.model_cache import release_brain_models
+    release_brain_models("adapter merge")
+    _free_cuda()
+    base = None
+    model = None
+    merged = None
+    try:
+        base = load_merge_base(base_path)
+        model = load_peft_adapter(base, adapter_dir)
+        merged = model.merge_and_unload()
+        # Strip quantization config from merged model
+        if hasattr(merged, "config") and hasattr(merged.config, "quantization_config"):
+            merged.config.quantization_config = None
+        merged.save_pretrained(merged_dir)
+        tokenizer.save_pretrained(merged_dir)
+        src = os.path.join(adapter_dir, "chat_template.jinja")
+        if os.path.exists(src):
+            shutil.copy(src, os.path.join(merged_dir, "chat_template.jinja"))
+        # Also carry runtime system prompt file if it exists
+        prompt_src = os.path.join(os.path.dirname(adapter_dir), "system_prompt.txt")
+        if os.path.exists(prompt_src):
+            shutil.copy(prompt_src, os.path.join(merged_dir, "system_prompt.txt"))
+    except Exception:
+        if os.path.isdir(merged_dir) and not _merged_dir_complete(merged_dir):
+            shutil.rmtree(merged_dir, ignore_errors=True)
+        raise
+    finally:
+        try:
+            del base, model, merged
+        except Exception:  # noqa: BLE001, S110
+            pass
+        _free_cuda()
+    size = _dir_size(merged_dir)
+    return {"merged_path": merged_dir, "size_bytes": size,
+            "size_human": _human_size(size), "skipped": False, "run": run}

@@ -1,0 +1,269 @@
+"""Pair-by-pair human review helper: show each pair with the chunk it came from, record a verdict per pair.
+
+    .venv/bin/python scripts/corpus_review.py dump  --pid P --file NAME [--offset 0] [--limit 25] [--status pending]
+    .venv/bin/python scripts/corpus_review.py apply --pid P --ledger .tmp/review-ledger.jsonl <<'V'
+    <pair-id> A                      # approve
+    <pair-id> R wrong number         # reject + reason
+    <pair-id> E new question text || new answer text    # edit wording, then approve
+    V
+    .venv/bin/python scripts/corpus_review.py add --pid P --file NAME --chunk N --ledger L <<'V'
+    reviewer-written question || reviewer-written answer      # a pair the miner never wrote (origin=human_review, approved)
+    V
+    .venv/bin/python scripts/corpus_review.py status --pid P --ledger .tmp/review-ledger.jsonl
+
+With ``--ui`` the verdicts are NOT sent to the app: ``apply --ui`` / ``add --ui`` append them to ``--verdicts`` (default
+.tmp/ui-verdicts.jsonl) and the ledger, and ``tests/e2e_track_a.py --phase a_review_ui`` replays them through the Pairs page with
+the keyboard, so the clicking is the real user flow and only the reading happens here. ``plan --golden`` pre-fills the file from the
+2026-10-08 golden review for pairs whose file + chunk + question + answer are identical to one reviewed then; everything else
+prints as NOVEL and still needs a reader.
+
+``apply`` PATCHes each pair through the app API and appends ``{id, verdict, reason, file, ts}`` to the ledger, so a review is
+auditable and resumable: ``dump`` skips pairs that already have a verdict in the ledger. A pair never gets approved unless a
+verdict line names it.
+"""
+from __future__ import annotations
+
+import argparse
+import contextlib
+import json
+import sys
+import time
+import urllib.request
+from pathlib import Path
+
+BASE = "http://127.0.0.1:7860"
+
+
+def call(path: str, method: str = "GET", body: dict | None = None):
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(BASE + path, data=data, method=method, headers={"Content-Type": "application/json"} if data else {})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.loads(r.read() or b"{}")
+
+
+def full_chunk(pid: str, pair: dict) -> str:
+    """The whole chunk from disk (the pair stores only its first 1,500 characters), falling back to the stored text."""
+    from finetune_studio.knowledge.sources import passages
+
+    with contextlib.suppress(Exception):  # a missing chunk file must not stop a review session
+        chunks = passages(pid, str(pair.get("sha256") or ""))
+        idx = int(pair.get("chunk_idx") or 0)
+        if 1 <= idx <= len(chunks) and chunks[idx - 1]:
+            return chunks[idx - 1]
+    return str(pair.get("chunk_text", ""))
+
+
+def ledger_ids(path: Path) -> dict[str, dict]:
+    out: dict[str, dict] = {}
+    if path.exists():
+        for line in path.read_text().splitlines():
+            if line.strip():
+                row = json.loads(line)
+                out[row["id"]] = row
+    return out
+
+
+def record_ui(path: Path, row: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as fh:
+        fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def _norm(text: object) -> str:
+    return " ".join(str(text or "").split()).lower()
+
+
+def plan_from_golden(pid: str, pairs: list[dict], sources: dict[str, str], ledger: Path, verdicts: Path) -> int:
+    """Pre-fill verdicts from the golden review for pairs identical to one reviewed then (same file, chunk, question, answer).
+
+    Duplicates are matched as a multiset: golden kept ONE copy of a repeated pair and rejected the rest, so the first mined copy
+    gets A and the following copies get R. Golden pairs the miner did not write again are listed: reviewer-written ones
+    (origin=human_review) are queued as additions, mined-then-edited ones are shown for the reader.
+    """
+    import collections
+    import gzip
+
+    golden_dir = Path(__file__).resolve().parents[1] / "tests" / "corpus" / "korvane" / "golden"
+
+    def load(prefix: str) -> list[dict]:
+        out: list[dict] = []
+        for f in sorted(golden_dir.glob(f"{prefix}*.jsonl.gz")):
+            with gzip.open(f, "rt", encoding="utf-8") as fh:
+                out += [json.loads(x) for x in fh if x.strip()]
+        return out
+
+    key = lambda r: (r["file"], int(r.get("chunk") or 0), _norm(r["q"]), _norm(r["a"]))
+    approved: dict[tuple, list[dict]] = collections.defaultdict(list)
+    for r in load("approved"):
+        approved[key(r)].append(r)
+    rejected: dict[tuple, list[dict]] = collections.defaultdict(list)
+    for r in load("rejected"):
+        rejected[key(r)].append(r)
+    done = ledger_ids(ledger)
+    rows: list[dict] = []
+    novel = 0
+    pending = sorted((p for p in pairs if p.get("status") == "pending" and p["id"] not in done),
+                     key=lambda p: (sources.get(p.get("source_id"), ""), p.get("chunk_idx", 0), p.get("created_at", 0), p["id"]))
+    for p in pending:
+        k = (sources.get(p.get("source_id"), ""), int(p.get("chunk_idx") or 0), _norm(p.get("question")), _norm(p.get("answer")))
+        if approved.get(k):
+            approved[k].pop()
+            rows.append({"id": p["id"], "v": "A", "reason": "", "src": "golden"})
+        elif rejected.get(k):
+            rows.append({"id": p["id"], "v": "R", "reason": str(rejected[k].pop().get("reason") or "rejected in the golden review"), "src": "golden"})
+        else:
+            novel += 1
+    ledger.parent.mkdir(parents=True, exist_ok=True)
+    with ledger.open("a") as lf:
+        for r in rows:
+            record_ui(verdicts, r)
+            lf.write(json.dumps({"id": r["id"], "verdict": r["v"], "reason": r["reason"] or "golden", "file": "", "ts": time.time()}) + "\n")
+    left = [r for rs in approved.values() for r in rs]
+    adds = [r for r in left if r.get("origin") == "human_review"]
+    queued = set()
+    if verdicts.exists():
+        queued = {(x["file"], int(x["chunk"]), _norm(x["q"])) for x in map(json.loads, verdicts.read_text().splitlines()) if x.get("add")}
+    adds = [r for r in adds if (r["file"], int(r.get("chunk") or 1), _norm(r["q"])) not in queued]  # re-running the plan adds nothing twice
+    for r in adds:
+        record_ui(verdicts, {"add": True, "file": r["file"], "chunk": int(r.get("chunk") or 1), "q": r["q"], "a": r["a"], "src": "golden"})
+    print(f"pending pairs: {len(pending)}; matched the golden review: {len(rows)} "
+          f"(A {sum(r['v'] == 'A' for r in rows)}, R {sum(r['v'] == 'R' for r in rows)}); NOVEL, needs a reader: {novel}")
+    print(f"golden approved pairs not mined again: {len(left)} (queued as additions: {len(adds)} reviewer-written; "
+          f"{len(left) - len(adds)} were mined-then-edited or are otherwise absent)")
+    return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("cmd", choices=["dump", "apply", "add", "status", "plan"])
+    ap.add_argument("--ui", action="store_true", help="record verdicts for the browser replay instead of PATCHing the app")
+    ap.add_argument("--verdicts", default=".tmp/ui-verdicts.jsonl")
+    ap.add_argument("--pid", required=True)
+    ap.add_argument("--file")
+    ap.add_argument("--offset", type=int, default=0)
+    ap.add_argument("--limit", type=int, default=25)
+    ap.add_argument("--status", default="pending")
+    ap.add_argument("--ledger", default=".tmp/review-ledger.jsonl")
+    ap.add_argument("--chunk", type=int, default=1)
+    ap.add_argument("--chunks", action="store_true", help="print the full source chunk once per chunk")
+    a = ap.parse_args()
+    ledger = Path(a.ledger)
+    sources = {s["id"]: s["filename"] for s in call(f"/api/projects/{a.pid}/data-prep/sources")["sources"]}
+    pairs = call(f"/api/projects/{a.pid}/data-prep/qa")["items"]
+    done = ledger_ids(ledger)
+    if a.cmd == "plan":
+        return plan_from_golden(a.pid, pairs, sources, ledger, Path(a.verdicts))
+    if a.cmd == "dump":
+        mine = [p for p in pairs if sources.get(p.get("source_id")) == a.file and p.get("status") == a.status and p["id"] not in done]
+        mine.sort(key=lambda p: (p.get("chunk_idx", 0), p["id"]))
+        print(f"# {a.file}: {len(mine)} unreviewed {a.status} pairs; showing {a.offset}..{a.offset + a.limit}")
+        last_chunk = None
+        for p in mine[a.offset:a.offset + a.limit]:
+            if a.chunks and p.get("chunk_idx") != last_chunk:
+                last_chunk = p.get("chunk_idx")
+                print(f"\n=== CHUNK {last_chunk} ===\n{full_chunk(a.pid, p)}\n")
+            print(f"[{p['id']}] c{p.get('chunk_idx')}\n  Q: {p.get('question')}\n  A: {p.get('answer')}")
+        return 0
+    if a.cmd == "apply":
+        by_id = {p["id"]: p for p in pairs}
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        n = 0
+        with ledger.open("a") as fh:
+            for line in sys.stdin.read().splitlines():
+                # a trailing " # note" is a comment, except inside an edit ("question || answer") where # is text
+                line = (line if "||" in line else line.split(" #")[0]).strip()
+                if not line:
+                    continue
+                parts = line.split(None, 2)
+                pid_, verdict = parts[0], parts[1].upper()[:1]
+                reason = parts[2] if len(parts) > 2 else ""
+                if pid_ not in by_id or verdict not in "ARE":
+                    print(f"SKIP bad line: {line}", file=sys.stderr)
+                    continue
+                if verdict == "E":
+                    q, _, ans = reason.partition("||")
+                    if not q.strip() or not ans.strip():
+                        print(f"SKIP edit without 'question || answer': {line}", file=sys.stderr)
+                        continue
+                    if a.ui:
+                        record_ui(Path(a.verdicts), {"id": pid_, "v": "E", "q": q.strip(), "a": ans.strip()})
+                        fh.write(json.dumps({"id": pid_, "verdict": "A", "reason": f"edited: {reason}", "file": sources.get(by_id[pid_].get("source_id")),
+                                             "ts": time.time()}) + "\n")
+                        n += 1
+                        continue
+                    call(f"/api/projects/{a.pid}/data-prep/qa/{pid_}", "PATCH",
+                         {"question": q.strip(), "answer": ans.strip(), "status": "approved"})
+                    reason = f"edited: {reason}"
+                elif a.ui:
+                    record_ui(Path(a.verdicts), {"id": pid_, "v": verdict, "reason": reason})
+                else:
+                    call(f"/api/projects/{a.pid}/data-prep/qa/{pid_}", "PATCH",
+                         {"status": "approved" if verdict == "A" else "rejected"})
+                fh.write(json.dumps({"id": pid_, "verdict": "A" if verdict == "E" else verdict, "reason": reason, "file": sources.get(by_id[pid_].get("source_id")),
+                                     "ts": time.time()}) + "\n")
+                n += 1
+        print(f"recorded {n} verdicts")
+        return 0
+    if a.cmd == "add" and a.ui:
+        n = 0
+        with ledger.open("a") as fh:
+            for line in sys.stdin.read().splitlines():
+                q, sep, ans = line.partition("||")
+                if not sep or not q.strip() or not ans.strip():
+                    continue
+                record_ui(Path(a.verdicts), {"add": True, "file": a.file, "chunk": a.chunk, "q": q.strip(), "a": ans.strip()})
+                fh.write(json.dumps({"id": f"ui-add-{time.time_ns()}", "verdict": "A", "reason": "added by reviewer", "file": a.file,
+                                     "ts": time.time()}) + "\n")
+                n += 1
+        print(f"queued {n} reviewer-written pairs for the browser replay")
+        return 0
+    if a.cmd == "add":
+        from finetune_studio.data.fs import qa as qa_fs
+        from finetune_studio.knowledge.sources import get_source
+        src = next((sid for sid, name in sources.items() if name == a.file), None)
+        if not src:
+            print(f"no source named {a.file}", file=sys.stderr)
+            return 2
+        meta = get_source(a.pid, src)
+        chunk_text = next((p.get("chunk_text", "") for p in pairs if p.get("source_id") == src and p.get("chunk_idx") == a.chunk
+                           and p.get("chunk_text")), "")
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        n = 0
+        with ledger.open("a") as fh:
+            for line in sys.stdin.read().splitlines():
+                q, sep, ans = line.partition("||")
+                if not sep or not q.strip() or not ans.strip():
+                    continue
+                import uuid
+                qa_id = uuid.uuid4().hex[:12]
+                now = time.time()
+                qa_fs.write_qa_pair(a.pid, {
+                    "id": qa_id, "source_id": src, "sha256": meta.sha256 if meta else "", "chunk_idx": a.chunk, "chunk_text": chunk_text,
+                    "question": q.strip(), "answer": ans.strip(), "difficulty": "medium", "style": "factual", "score": 1.0,
+                    "status": "approved", "origin": "human_review", "created_at": now, "updated_at": now,
+                    "provenance": {"source_id": src, "filename": a.file, "chunk_idx": a.chunk, "generator": "human-review"},
+                    "validation": {"accepted": True, "version": "human", "reasons": []},
+                })
+                fh.write(json.dumps({"id": qa_id, "verdict": "A", "reason": "added by reviewer", "file": a.file, "ts": now}) + "\n")
+                n += 1
+        print(f"added {n} reviewer-written pairs")
+        return 0
+    per: dict[str, list[int]] = {}
+    for p in pairs:
+        f = sources.get(p.get("source_id"), "?")
+        row = per.setdefault(f, [0, 0, 0])
+        row[0] += 1
+        if p["id"] in done:
+            row[1 if done[p["id"]]["verdict"] == "A" else 2] += 1
+    approved = [p for p in pairs if p.get("status") == "approved"]
+    unreviewed_ok = [p for p in approved if done.get(p["id"], {}).get("verdict") != "A"]
+    print(f"approved pairs: {len(approved)}; approved WITHOUT a reviewer 'A' verdict: {len(unreviewed_ok)} "
+          f"(origins: {sorted({str(p.get('origin')) for p in unreviewed_ok})}) - approved in the app but not checked here yet")
+    print(f"{'file':56} pairs  approved  rejected  unreviewed")
+    for f, (t, ap_, rj) in sorted(per.items()):
+        print(f"{f:56} {t:5} {ap_:8} {rj:9} {t - ap_ - rj:10}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Monitoring FAQ - KC-Tag 4 &amp; KC-Hub 200 | Korvane Support</title>
+<meta name="generator" content="Kentico Xperience 13.0.78">
+<meta name="robots" content="index,follow">
+<link rel="stylesheet" href="/assets/css/korvane-support.min.css?v=20240905">
+</head>
+<body class="support faq">
+<div class="skip"><a href="#faq">Skip to content</a></div>
+<div class="cookie-banner" role="dialog">This website uses cookies. Necessary cookies are always active; others only with your OK. <a href="#">Settings</a> <button>OK</button></div>
+
+<header>
+  <a class="logo" href="/">KORVANE Cold Chain</a>
+  <ul class="nav">
+    <li><a href="/support">Support</a></li>
+    <li><a href="/support/downloads">Downloads</a></li>
+    <li class="on"><a href="/support/faq">FAQ</a></li>
+    <li><a href="/support/status">System status</a></li>
+    <li><a href="/contact">Contact</a></li>
+    <li><a href="/login">Customer login</a></li>
+  </ul>
+  <form class="search" action="/search"><input name="q" placeholder="Search support..."><button>Go</button></form>
+</header>
+
+<main id="faq">
+<h1>Frequently asked questions &mdash; monitoring devices</h1>
+<p class="intro">Last reviewed 5 September 2024 by Customer Support Engineering (Dagny P.-V.). Answers apply to the KC-Tag 4 (hardware R2) with firmware 2.8 or newer and the KC-Hub 200 with firmware 3.4 or newer, unless it says something else. If your device is older, your results may differ and you should ask us.</p>
+
+<div class="faq-group">
+<h2>Getting started</h2>
+
+<details open><summary>My new KC-Tag 4 does nothing when I put it on the door. Is it broken?</summary>
+<p>Nine times out of ten the red pull-tab is still in the battery compartment. Pull it, and the LED will go amber for two seconds and then green. If the LED stays dark after that, press the button for one second; the tag sleeps to save the battery and shows its state only when asked. Only if there is still no light should you write to us with the serial number from the calibration card.</p></details>
+
+<details><summary>How long can I use the tag before it needs a new battery?</summary>
+<p>That depends on the reporting interval you choose. With the factory setting of 10 minutes you can count on about 38 months at normal yard temperatures; at 30 minutes it is 61 months; at 2 minutes only 11 months. In a freezer at &minus;25 &deg;C or colder you lose roughly a third of that. The battery is replaced by Korvane service, please do not open the tag yourself &mdash; it voids the warranty and (not a joke) it leaks if the gasket is not exchanged.</p></details>
+
+<details><summary>Can I fit the tag on any container?</summary>
+<p>On any reefer or dry box with a door frame on which the bracket can be screwed. Fit it 1.4 metres above the floor on the frame, with the magnet on the leaf that opens first. For stack-end poles at yards there is a pole adapter, but this is a special item that we only supply on request (the Kłaipėda yard uses them).</p></details>
+
+<details><summary>What do the blinking colours mean?</summary>
+<p>The short version: green is fine, amber is a warning, red is a problem. One green blink every five seconds means all is well. Two green blinks mean the tag cannot reach the hub at the moment but is storing readings, which is normal for a container that is on a ship or inside a stack. Amber blinking once every ten seconds means the battery is under 20 %; blinking twice means a limit has been exceeded. The full table is in the quick start guide, which you can download under Downloads.</p></details>
+
+<h2>Pairing and the hub</h2>
+
+<details><summary>How long do I have to pair a tag to the hub?</summary>
+<p>Since firmware 2.8 the pairing window is 180 seconds. The older guide Rev. D still says 120 seconds, which was correct for older firmware; a new revision of the guide is in preparation. You hold the tag button for 4 seconds, press PAIR on the hub for 2 seconds, and stay within about 5 metres.</p></details>
+
+<details><summary>How many tags can one hub handle?</summary>
+<p>250. The 251st tag gets error E09 and has to be paired with another hub. If you have tags from an earlier project on the hub, release them in Tidewalk (Devices &rarr; Release) to free the places.</p></details>
+
+<details><summary>What power does the hub need?</summary>
+<p>Power over Ethernet (802.3af, class 3) is the usual way: the hub takes typically 6.4 W. If your switch does not provide PoE, use the PoE injector from the box, or a 12&ndash;24 V DC supply on the barrel connector. The Ethernet cable must be shorter than 100 metres.</p></details>
+
+<details><summary>Our IT department asks which ports the hub needs.</summary>
+<p>Outbound only: TCP 8883 (MQTT over TLS) to hubs-in.tidewalk.korvane.example, TCP 443 for firmware, and UDP 123 for time. No inbound ports. We strongly recommend not using a transparent proxy that re-signs TLS &mdash; the hub will not trust it.</p></details>
+
+<details><summary>The hub's CLOUD lamp is amber. What now?</summary>
+<p>The hub has network but cannot reach Tidewalk. First check whether the firewall lets port 8883 through. Your readings are not lost: the hub buffers up to 72 hours of reports from 250 tags and uploads them afterwards.</p></details>
+
+<h2>Alarms and data</h2>
+
+<details><summary>How fast do I get an alarm when the temperature is too high?</summary>
+<p>The tag measures every 30 seconds. When a limit is exceeded it switches to reporting every 60 seconds, so in the typical case you see the alarm in Tidewalk within about a minute and a half after the limit was crossed, provided the tag is in contact with a hub. Since firmware 2.9 the alarm is repeated every 60 seconds until somebody acknowledges it.</p></details>
+
+<details><summary>Why did I get a "door left open" alarm?</summary>
+<p>Because the door was open for more than 20 minutes. This function came with firmware 2.9 (August 2024) and the limit cannot yet be changed by the customer. We know some customers loading at a quay would like a longer time; it is on our list.</p></details>
+
+<details><summary>Does the tag keep data when there is no hub?</summary>
+<p>Yes. The tag stores 65,536 readings, which at 30 seconds is about 22.7 days. When the memory is more than 98 % full the tag shows error E06. Once a hub is within range the readings are uploaded.</p></details>
+
+<details><summary>How accurate is it?</summary>
+<p>&plusmn;0.3 &deg;C for temperature between &minus;25 and +40 &deg;C, &plusmn;0.6 &deg;C outside that band up to the limits of the operating range, and &plusmn;3 % RH for humidity between 20 and 80 % RH. The tag is calibrated at the factory with a three-point calibration and the certificate is valid 12 months.</p></details>
+
+<h2>Calibration, service and warranty</h2>
+
+<details><summary>My tag shows E12. What is that?</summary>
+<p>The calibration is older than 13 months. The certificate itself is valid 12 months; we add one month of tolerance. Please send the tag in for calibration (RMA number from support first) &mdash; it takes 15 working days, or 3 working days with the express service for EUR 45.00 per tag. Customers with a Tidewalk subscription get the first renewal free.</p></details>
+
+<details><summary>How long is the warranty?</summary>
+<p>24 months from delivery for the tag and the hub. The battery is not covered. Damage from over-tightened bracket screws (more than 1.5 N&middot;m) is considered a customer cause.</p></details>
+
+<details><summary>Where can I send a defective tag?</summary>
+<p>Only with an RMA number. The goods receipt in Gdynia works Monday to Friday from 07:30 to 15:30. Shipments that arrive without an RMA number cannot be accepted and go back at your expense.</p></details>
+
+<h2>The older KC-Tag 3</h2>
+
+<details><summary>We still use KC-Tag 3 loggers. Until when are they supported?</summary>
+<p>Repairs end on 31 December 2024 (the date set in the end-of-life notice of March 2023). Tidewalk support continues until 31 December 2025. If you return working or dead KC-Tag 3 loggers you get a trade-in credit of EUR 38.00 per piece on an order of at least 10 KC-Tag 4. The KC-Hub 200 needs the 433 MHz option H2-433 to hear a KC-Tag 3.</p></details>
+
+<details><summary>Can I mix KC-Tag 3 and KC-Tag 4 on the same hub?</summary>
+<p>Yes, if the hub has the 433 MHz module. The KC-Tag 3 reports every 15 minutes, the KC-Tag 4 as you configure it.</p></details>
+</div>
+
+<p class="contact">Not answered here? Write to <a href="mailto:support.tags@korvane.example">support.tags@korvane.example</a> or call +48 58 555 01 47 (Mon&ndash;Fri 07:00&ndash;19:00 CET). Typical first reply time is 4 working hours; for tickets with priority P1 (cargo at risk) the target is 30 minutes.</p>
+</main>
+
+<footer>
+  <p>&copy; 2024 Korvane Cold Chain Sp. z o.o. &middot; <a href="/imprint">Imprint</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot; Page ID 5120 &middot; Template: support-faq-v3</p>
+</footer>
+</body>
+</html>

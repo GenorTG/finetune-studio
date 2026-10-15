@@ -1,0 +1,1146 @@
+"""File library — disk layout + DB helpers for the per-project file library.
+
+Stage 1 of the REFACTOR-SPEC.
+
+Design:
+- Raw files live under {FTS_ROOT}/projects/{pid}/files/raw/{auto_kind}/{id}_{stem}.{ext}
+  where {auto_kind} is one of pdfs, imgs, csvs, docs, code, other (MIME-segregated,
+  immutable, system-managed).
+- Each readable file has ONE parse (``knowledge.sources``): ``files/<sha12>/`` + a
+  ``file_conversions`` row (format 'parsed'). Purging a file forgets its parse, pairs and
+  mining records; a trashed file keeps them until then.
+- Folders are DB entities (file_folders table), referenced by name. Raw subfolders
+  are also DB rows with kind='auto' so the UI can render them consistently.
+- Soft delete: deleted_at + trash_kind fields; on disk the file moves to
+  raw/.RAW_TRASH/. Restorable until the
+  purge job sweeps it (default 7 days).
+- All disk paths are absolute (resolved against FTS_ROOT via paths.project_files_root).
+"""
+from __future__ import annotations
+
+import hashlib
+import logging
+import mimetypes
+import os
+import time
+import uuid
+from dataclasses import dataclass
+from pathlib import Path
+
+from fastapi import HTTPException
+
+from finetune_studio.data.fs.paths import project_files_root
+
+log = logging.getLogger(__name__)
+
+# ── MIME → auto-kind routing ──────────────────────────────────────────────
+# Used to decide which raw subfolder a new upload lands in. The six buckets
+# cover 99% of what people feed to a data-prep pipeline; anything else
+# goes to 'other'.
+
+_PDF_MIMES = {"application/pdf"}
+_IMG_MIMES = {"image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "image/tiff", "image/bmp"}
+_CSV_MIMES = {"text/csv", "application/csv", "application/vnd.ms-excel"}
+_DOC_MIMES = {
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/rtf",
+    "text/rtf",
+    "application/epub+zip",
+    "application/vnd.oasis.opendocument.text",
+}
+_CODE_MIMES = {"text/x-python", "text/x-java", "text/x-c", "text/x-cpp", "text/javascript", "application/json", "text/html", "text/xml", "text/css", "application/x-sh"}
+
+_AUTO_KINDS = ("pdfs", "imgs", "csvs", "docs", "code", "other")
+
+_RAW_TRASH_DIR = ".RAW_TRASH"
+
+
+def _sniff_mime(filename: str, sniffed: str | None = None) -> str:
+    """Best-effort MIME detection: prefer the python-magic 'sniffed' value
+    if the caller already ran libmagic, else fall back to mimetypes by
+    extension."""
+    if sniffed:
+        return sniffed
+    if not filename:
+        return "application/octet-stream"
+    mt, _ = mimetypes.guess_type(filename)
+    return mt or "application/octet-stream"
+
+
+def auto_kind_for(mime: str) -> str:
+    """Map a MIME type to one of the six raw subfolders."""
+    if mime in _PDF_MIMES:
+        return "pdfs"
+    if mime in _IMG_MIMES:
+        return "imgs"
+    if mime in _CSV_MIMES:
+        return "csvs"
+    if mime in _DOC_MIMES:
+        return "docs"
+    if mime in _CODE_MIMES:
+        return "code"
+    return "other"
+
+
+def _ext_for_filename(name: str) -> str:
+    """Return lowercase extension WITHOUT the dot, or '' if none."""
+    if "." not in name:
+        return ""
+    return name.rsplit(".", 1)[-1].lower()
+
+
+def _safe_stem(name: str) -> str:
+    """Stem suitable for embedding in a filename. Strips directories, replaces
+    any non-[A-Za-z0-9._-] with '_', collapses repeats, caps length."""
+    base = name.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    stem = base.rsplit(".", 1)[0] if "." in base else base
+    if not stem:
+        stem = "file"
+    cleaned = []
+    for ch in stem:
+        if ch.isalnum() or ch in "._-":
+            cleaned.append(ch)
+        else:
+            cleaned.append("_")
+    s = "".join(cleaned)
+    while "__" in s:
+        s = s.replace("__", "_")
+    return s[:80] or "file"
+
+
+def sha256_of_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+@dataclass
+class FileMetadata:
+    file_id: str                # first 16 hex of sha256
+    original_name: str
+    mime_type: str
+    size_bytes: int
+    raw_path: str
+    raw_hash: str
+    auto_kind: str
+    version: int
+
+    @property
+    def raw_filename(self) -> str:
+        return Path(self.raw_path).name
+
+
+# ── Path helpers ──────────────────────────────────────────────────────────
+
+def raw_subdir(pid: str, auto_kind: str) -> Path:
+    """The directory where raw files of this MIME kind live for this project."""
+    if auto_kind not in _AUTO_KINDS:
+        raise ValueError(f"unknown auto_kind: {auto_kind}")
+    return project_files_root(pid) / "raw" / auto_kind
+
+
+def raw_trash_dir(pid: str) -> Path:
+    return project_files_root(pid) / "raw" / _RAW_TRASH_DIR
+
+
+def raw_path_for(pid: str, file_id: str, original_name: str, auto_kind: str) -> Path:
+    """Build the on-disk path for a raw file. Includes file_id prefix so
+    duplicates with the same name don't collide."""
+    ext = _ext_for_filename(original_name)
+    stem = _safe_stem(original_name)
+    return raw_subdir(pid, auto_kind) / f"{file_id}_{stem}{('.' + ext) if ext else ''}"
+
+
+def ensure_dirs(pid: str) -> None:
+    """Create the full directory tree (idempotent)."""
+    root = project_files_root(pid)
+    for kind in _AUTO_KINDS:
+        (root / "raw" / kind).mkdir(parents=True, exist_ok=True)
+    (root / "raw" / _RAW_TRASH_DIR).mkdir(parents=True, exist_ok=True)
+    (root / "converted").mkdir(parents=True, exist_ok=True)
+
+
+# ── DB row helpers ────────────────────────────────────────────────────────
+
+def get_or_create_auto_folder(pid: str, auto_kind: str) -> dict:
+    """Get the DB row for a raw auto-folder, creating it if missing.
+
+    Auto-folders are the MIME-routed raw subfolders. They're DB rows with
+    kind='auto' so the UI treats them like any other folder (read-only).
+    """
+    from finetune_studio import db
+    with db.cursor() as c:
+        row = c.execute(
+            "SELECT id, project_id, name, kind, parent_id, created_at FROM file_folders WHERE project_id = ? AND name = ? AND kind = 'auto'",
+            (pid, auto_kind),
+        ).fetchone()
+        if row:
+            return dict(row)
+        fid = f"fld_auto_{auto_kind}_{int(time.time()*1000)}"
+        c.execute(
+            "INSERT INTO file_folders (id, project_id, name, kind, parent_id, created_at) VALUES (?, ?, ?, 'auto', NULL, ?)",
+            (fid, pid, auto_kind, time.time()),
+        )
+        row = c.execute(
+            "SELECT id, project_id, name, kind, parent_id, created_at FROM file_folders WHERE id = ?",
+            (fid,),
+        ).fetchone()
+        return dict(row)
+
+
+def find_existing_hash(pid: str, raw_hash: str) -> dict | None:
+    """Look up an existing live file (deleted_at IS NULL) by its raw hash.
+    Used for sha256 dedup on upload."""
+    from finetune_studio import db
+    with db.cursor() as c:
+        row = c.execute(
+            """SELECT pf.id, pf.original_name, pf.size_bytes, pf.current_version
+                 FROM project_files pf
+                 JOIN file_versions fv ON fv.file_id = pf.id AND fv.version = pf.current_version
+                WHERE pf.project_id = ? AND fv.raw_hash = ? AND pf.deleted_at IS NULL
+                LIMIT 1""",
+            (pid, raw_hash),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def record_uploaded_file(
+    *,
+    pid: str,
+    file_id: str,
+    original_name: str,
+    mime_type: str,
+    size_bytes: int,
+    raw_path: str,
+    raw_hash: str,
+    raw_size: int,
+    auto_kind: str,
+    auto_folder_id: str,
+    uploaded_by: str = "user",
+) -> dict:
+    """Insert a new project_files row + first file_versions row, and add the
+    file to the auto-folder. Returns the new row."""
+    from finetune_studio import db
+    now = time.time()
+    with db.cursor() as c:
+        c.execute(
+            """INSERT INTO project_files
+                 (id, project_id, original_name, mime_type, current_version, size_bytes, uploaded_at, uploaded_by)
+               VALUES (?, ?, ?, ?, 1, ?, ?, ?)""",
+            (file_id, pid, original_name, mime_type, size_bytes, now, uploaded_by),
+        )
+        c.execute(
+            """INSERT INTO file_versions
+                 (file_id, version, raw_path, raw_hash, raw_size, uploaded_at, uploaded_by)
+               VALUES (?, 1, ?, ?, ?, ?, ?)""",
+            (file_id, raw_path, raw_hash, raw_size, now, uploaded_by),
+        )
+        c.execute(
+            "INSERT OR IGNORE INTO folder_membership (folder_id, file_id) VALUES (?, ?)",
+            (auto_folder_id, file_id),
+        )
+        row = c.execute(
+            "SELECT id, project_id, original_name, mime_type, current_version, size_bytes, uploaded_at, uploaded_by FROM project_files WHERE id = ?",
+            (file_id,),
+        ).fetchone()
+    return dict(row)
+
+
+def list_files(
+    pid: str,
+    *,
+    folder_id: str | None = None,
+    include_deleted: bool = False,
+    mime_prefix: str | None = None,
+    search: str | None = None,
+) -> list[dict]:
+    """List files for a project. If folder_id is given, restrict to files
+    in that folder. Otherwise return all live files."""
+    from finetune_studio import db
+    clauses = ["pf.project_id = ?"]
+    params: list = [pid]
+    if not include_deleted:
+        clauses.append("pf.deleted_at IS NULL")
+    if folder_id:
+        clauses.append("pf.id IN (SELECT file_id FROM folder_membership WHERE folder_id = ?)")
+        params.append(folder_id)
+    if mime_prefix:
+        clauses.append("pf.mime_type LIKE ?")
+        params.append(mime_prefix + "%")
+    if search:
+        clauses.append("pf.original_name LIKE ?")
+        params.append("%" + search + "%")
+    sql = f"""SELECT pf.id, pf.original_name, pf.mime_type, pf.current_version,
+                     pf.size_bytes, pf.uploaded_at, pf.uploaded_by,
+                     pf.last_trained_at, pf.deleted_at, pf.tags, pf.notes,
+                     (SELECT name FROM file_folders WHERE id IN
+                        (SELECT folder_id FROM folder_membership WHERE file_id = pf.id)) AS first_folder,
+                     (SELECT folder_id FROM folder_membership WHERE file_id = pf.id LIMIT 1) AS folder_id
+                FROM project_files pf
+                WHERE {' AND '.join(clauses)}
+                ORDER BY pf.uploaded_at DESC"""
+    with db.cursor() as c:
+        rows = c.execute(sql, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+def list_folders(pid: str, *, include_auto: bool = True) -> list[dict]:
+    from finetune_studio import db
+    with db.cursor() as c:
+        if include_auto:
+            rows = c.execute(
+                "SELECT id, project_id, name, kind, parent_id, created_at FROM file_folders WHERE project_id = ? ORDER BY kind, name",
+                (pid,),
+            ).fetchall()
+        else:
+            rows = c.execute(
+                "SELECT id, project_id, name, kind, parent_id, created_at FROM file_folders WHERE project_id = ? AND kind = 'user' ORDER BY name",
+                (pid,),
+            ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_file(pid: str, file_id: str, *, include_deleted: bool = False) -> dict | None:
+    from finetune_studio import db
+    clauses = ["pf.project_id = ?", "pf.id = ?"]
+    params: list = [pid, file_id]
+    if not include_deleted:
+        clauses.append("pf.deleted_at IS NULL")
+    sql = f"""SELECT pf.id, pf.project_id, pf.original_name, pf.mime_type,
+                     pf.current_version, pf.size_bytes, pf.uploaded_at,
+                     pf.uploaded_by, pf.last_trained_at, pf.deleted_at,
+                     pf.tags, pf.notes
+                FROM project_files pf
+                WHERE {' AND '.join(clauses)}
+                LIMIT 1"""
+    with db.cursor() as c:
+        row = c.execute(sql, params).fetchone()
+    return dict(row) if row else None
+
+
+def list_versions(pid: str, file_id: str) -> list[dict]:
+    """Return all raw versions of a file, newest first.
+
+    Scoped to ``pid``: a file id owned by another project yields ``[]`` so its
+    on-disk paths never leak through this project's URL.
+    """
+    from finetune_studio import db
+    with db.cursor() as c:
+        rows = c.execute(
+            """SELECT fv.id, fv.file_id, fv.version, fv.raw_path, fv.raw_hash,
+                      fv.raw_size, fv.uploaded_at, fv.uploaded_by
+                 FROM file_versions fv
+                 JOIN project_files pf ON pf.id = fv.file_id
+                WHERE fv.file_id = ? AND pf.project_id = ?
+                ORDER BY fv.version DESC""",
+            (file_id, pid),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def list_conversions(pid: str, file_id: str) -> list[dict]:
+    """Return a file's conversions, newest first, scoped to ``pid``."""
+    from finetune_studio import db
+    with db.cursor() as c:
+        rows = c.execute(
+            """SELECT fc.id, fc.file_id, fc.version, fc.format, fc.converted_path,
+                      fc.converted_hash, fc.converted_size, fc.converter,
+                      fc.converted_at, fc.status, fc.error_message
+                 FROM file_conversions fc
+                 JOIN project_files pf ON pf.id = fc.file_id
+                WHERE fc.file_id = ? AND pf.project_id = ?
+                ORDER BY fc.converted_at DESC""",
+            (file_id, pid),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def create_folder(pid: str, name: str) -> dict:
+    from finetune_studio import db
+    safe = _safe_stem(name)
+    if not safe:
+        raise HTTPException(status_code=400, detail="invalid folder name")
+    fid = f"fld_user_{int(time.time()*1000)}_{safe}"
+    now = time.time()
+    try:
+        with db.cursor() as c:
+            c.execute(
+                "INSERT INTO file_folders (id, project_id, name, kind, parent_id, created_at) VALUES (?, ?, ?, 'user', NULL, ?)",
+                (fid, pid, safe, now),
+            )
+            # Also create the on-disk dir under files/converted/{name}/
+            (project_files_root(pid) / "converted" / safe).mkdir(parents=True, exist_ok=True)
+            row = c.execute(
+                "SELECT id, project_id, name, kind, parent_id, created_at FROM file_folders WHERE id = ?",
+                (fid,),
+            ).fetchone()
+    except Exception as e:
+        # SQLite UNIQUE constraint
+        if "UNIQUE" in str(e):
+            raise HTTPException(status_code=409, detail=f"folder '{safe}' already exists")
+        raise
+    return dict(row)
+
+
+def rename_folder(pid: str, folder_id: str, new_name: str) -> dict:
+    from finetune_studio import db
+    safe = _safe_stem(new_name)
+    if not safe:
+        raise HTTPException(status_code=400, detail="invalid folder name")
+    with db.cursor() as c:
+        row = c.execute(
+            "SELECT id, kind, name FROM file_folders WHERE id = ? AND project_id = ?",
+            (folder_id, pid),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="folder not found")
+        if row["kind"] == "auto":
+            raise HTTPException(status_code=403, detail="cannot rename auto-folder")
+        try:
+            c.execute(
+                "UPDATE file_folders SET name = ? WHERE id = ?",
+                (safe, folder_id),
+            )
+        except Exception as e:
+            if "UNIQUE" in str(e):
+                raise HTTPException(status_code=409, detail=f"folder '{safe}' already exists")
+            raise
+        # Best-effort disk rename (only if the dir exists and is empty of files
+        # at root; converted files live inside it so we just rename the dir).
+        old_name = row["name"]
+        old_dir = project_files_root(pid) / "converted" / old_name
+        new_dir = project_files_root(pid) / "converted" / safe
+        if old_dir.exists() and not new_dir.exists():
+            try:
+                old_dir.rename(new_dir)
+            except OSError:
+                pass
+        updated = c.execute(
+            "SELECT id, project_id, name, kind, parent_id, created_at FROM file_folders WHERE id = ?",
+            (folder_id,),
+        ).fetchone()
+    return dict(updated)
+
+
+def delete_folder(pid: str, folder_id: str) -> dict:
+    """Delete a user folder. The files in it remain — only the membership
+    rows are removed (so files become folder-less, ready to be re-bucketed)."""
+    from finetune_studio import db
+    with db.cursor() as c:
+        row = c.execute(
+            "SELECT id, kind FROM file_folders WHERE id = ? AND project_id = ?",
+            (folder_id, pid),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="folder not found")
+        if row["kind"] == "auto":
+            raise HTTPException(status_code=403, detail="cannot delete auto-folder")
+        c.execute("DELETE FROM folder_membership WHERE folder_id = ?", (folder_id,))
+        c.execute("DELETE FROM file_folders WHERE id = ?", (folder_id,))
+    return {"deleted": folder_id}
+
+
+def move_file_to_folder(pid: str, file_id: str, folder_id: str) -> dict:
+    """Move a file to a different folder.
+
+    Invariants (enforced here so the UI cannot violate them):
+    - Auto→auto moves must stay in the file's own MIME bucket.
+    - Auto→user is the organizing move the file browser offers: membership is
+      a DB label, the raw bytes never move, so the audit trail is unaffected.
+    - Files in a user folder cannot move back into an auto folder.
+    """
+    from finetune_studio import db
+    with db.cursor() as c:
+        f = c.execute(
+            "SELECT id, mime_type FROM project_files WHERE id = ? AND project_id = ? AND deleted_at IS NULL",
+            (file_id, pid),
+        ).fetchone()
+        if not f:
+            raise HTTPException(status_code=404, detail="file not found")
+        target = c.execute(
+            "SELECT id, kind, name FROM file_folders WHERE id = ? AND project_id = ?",
+            (folder_id, pid),
+        ).fetchone()
+        if not target:
+            raise HTTPException(status_code=404, detail="folder not found")
+
+        # Find the file's current folder
+        current = c.execute(
+            """SELECT ff.id, ff.kind, ff.name FROM file_folders ff
+                 JOIN folder_membership fm ON fm.folder_id = ff.id
+                WHERE fm.file_id = ?""",
+            (file_id,),
+        ).fetchone()
+
+        # Rule 1: auto→auto must stay in the file's own MIME bucket.
+        # auto→user is allowed (organizing label only — raw bytes stay put).
+        if current and current["kind"] == "auto" and target["kind"] == "auto":
+            file_kind = auto_kind_for(f["mime_type"])
+            if file_kind != target["name"]:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"file mime {f['mime_type']} does not belong in {target['name']}/",
+                )
+
+        # Rule 2: a file in a user folder cannot be moved to an auto folder.
+        # Auto folders are MIME-routed system folders; only the upload pipeline
+        # writes into them.
+        if current and current["kind"] == "user" and target["kind"] == "auto":
+            raise HTTPException(
+                status_code=409,
+                detail="user-organised files cannot be moved into auto (raw) folders",
+            )
+
+        # If we get here, the move is legal. Apply it.
+        c.execute("DELETE FROM folder_membership WHERE file_id = ?", (file_id,))
+        c.execute(
+            "INSERT OR IGNORE INTO folder_membership (folder_id, file_id) VALUES (?, ?)",
+            (folder_id, file_id),
+        )
+    return {"file_id": file_id, "folder_id": folder_id}
+
+
+def soft_delete_file(pid: str, file_id: str) -> dict:
+    """Soft-delete: move the raw bytes to the trash dir and set deleted_at. Reversible via restore;
+    the file's parse, pairs and mining records stay until it is purged."""
+    from finetune_studio import db
+    ensure_dirs(pid)
+    now = time.time()
+    with db.cursor() as c:
+        f = c.execute(
+            "SELECT id, original_name FROM project_files WHERE id = ? AND project_id = ? AND deleted_at IS NULL",
+            (file_id, pid),
+        ).fetchone()
+        if not f:
+            raise HTTPException(status_code=404, detail="file not found or already deleted")
+        # Move raw versions
+        versions = c.execute(
+            "SELECT id, raw_path FROM file_versions WHERE file_id = ?", (file_id,)
+        ).fetchall()
+        for v in versions:
+            src = Path(v["raw_path"])
+            if src.exists():
+                dst = raw_trash_dir(pid) / src.name
+                try:
+                    src.rename(dst)
+                except OSError:
+                    pass
+        c.execute(
+            "UPDATE project_files SET deleted_at = ?, trash_kind = 'raw' WHERE id = ?",
+            (now, file_id),
+        )
+    return {"deleted": file_id, "deleted_at": now}
+
+
+def restore_file(pid: str, file_id: str) -> dict:
+    """Restore a soft-deleted file from trash back to its original auto-folder (its parse is still there)."""
+    from finetune_studio import db
+    with db.cursor() as c:
+        f = c.execute(
+            "SELECT id, original_name, mime_type, current_version FROM project_files WHERE id = ? AND project_id = ? AND deleted_at IS NOT NULL",
+            (file_id, pid),
+        ).fetchone()
+        if not f:
+            raise HTTPException(status_code=404, detail="file not in trash")
+        # Find the live (non-trash) raw on disk for the current version
+        live_version = c.execute(
+            "SELECT raw_path FROM file_versions WHERE file_id = ? AND version = ?",
+            (file_id, f["current_version"]),
+        ).fetchone()
+        if live_version:
+            src = Path(live_version["raw_path"])
+            if not src.exists():
+                # The file is in trash; move it back to its original MIME folder
+                candidate = None
+                for cand in raw_trash_dir(pid).glob(f"{file_id}_*"):
+                    candidate = cand
+                    break
+                if candidate is None:
+                    raise HTTPException(status_code=409, detail="trash file missing on disk")
+                kind = auto_kind_for(f["mime_type"])
+                target_dir = raw_subdir(pid, kind)
+                target_dir.mkdir(parents=True, exist_ok=True)
+                target_path = target_dir / candidate.name
+                try:
+                    candidate.rename(target_path)
+                except OSError as e:
+                    raise HTTPException(status_code=500, detail=f"restore failed: {e}")
+                c.execute(
+                    "UPDATE file_versions SET raw_path = ? WHERE file_id = ? AND version = ?",
+                    (str(target_path), file_id, f["current_version"]),
+                )
+        # Clear deleted_at
+        c.execute(
+            "UPDATE project_files SET deleted_at = NULL, trash_kind = NULL WHERE id = ?",
+            (file_id,),
+        )
+    return {"restored": file_id}
+
+
+def purge_trash(pid: str, older_than_days: int = 7) -> dict:
+    """Hard-delete everything in trash older than N days."""
+    from finetune_studio import db
+    cutoff = time.time() - older_than_days * 86400
+    purged_files: list[str] = []
+    disk_errors: list[str] = []
+    raw_trash = raw_trash_dir(pid)
+    forgotten: list[str] = []
+    with db.cursor() as c:
+        rows = c.execute(
+            "SELECT id, original_name, deleted_at FROM project_files WHERE project_id = ? AND deleted_at IS NOT NULL AND deleted_at < ?",
+            (pid, cutoff),
+        ).fetchall()
+        for r in rows:
+            fid = r["id"]
+            # Remove files from disk. soft_delete_file() moves bytes into
+            # .RAW_TRASH/.CONVERTED_TRASH WITHOUT updating file_versions.raw_path
+            # or file_conversions.converted_path (same invariant documented on
+            # _current_raw_path()), so the DB-recorded path is stale and almost
+            # never exists post-delete. Check the recorded path (covers the rare
+            # case the soft-delete rename itself failed and bytes never moved)
+            # AND the actual trash directory (the normal case) so purge doesn't
+            # silently leave orphaned bytes on disk while deleting the DB rows.
+            versions = c.execute(
+                "SELECT raw_path FROM file_versions WHERE file_id = ?", (fid,)
+            ).fetchall()
+            for v in versions:
+                p = Path(v["raw_path"])
+                if p.exists() and _RAW_TRASH_DIR in p.parts:
+                    try:
+                        p.unlink()
+                    except OSError as e:
+                        disk_errors.append(f"{fid}:{p.name}: {e}")
+            if raw_trash.exists():
+                for cand in raw_trash.glob(f"{fid}_*"):
+                    try:
+                        cand.unlink()
+                    except OSError as e:
+                        disk_errors.append(f"{fid}:{cand.name}: {e}")
+            forgotten.extend(str(v["raw_hash"]) for v in c.execute(
+                "SELECT raw_hash FROM file_versions WHERE file_id = ?", (fid,)).fetchall())
+            # Cascade DB rows
+            c.execute("DELETE FROM file_conversions WHERE file_id = ?", (fid,))
+            c.execute("DELETE FROM file_versions WHERE file_id = ?", (fid,))
+            c.execute("DELETE FROM folder_membership WHERE file_id = ?", (fid,))
+            c.execute("DELETE FROM project_files WHERE id = ?", (fid,))
+            purged_files.append(r["original_name"])
+    from finetune_studio.knowledge.sources import forget_hashes
+
+    forget_hashes(pid, forgotten)
+    if disk_errors:
+        log.warning("purge_trash(%s): %d disk unlink failures: %s", pid, len(disk_errors), disk_errors)
+    return {"purged": purged_files, "count": len(purged_files), "disk_errors": disk_errors}
+
+
+def list_trash(pid: str) -> list[dict]:
+    """List files currently in trash, with how many days until purge."""
+    from finetune_studio import db
+    now = time.time()
+    with db.cursor() as c:
+        rows = c.execute(
+            """SELECT id, original_name, mime_type, deleted_at, trash_kind
+                 FROM project_files
+                WHERE project_id = ? AND deleted_at IS NOT NULL
+                ORDER BY deleted_at DESC""",
+            (pid,),
+        ).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["age_days"] = round((now - r["deleted_at"]) / 86400, 1)
+        out.append(d)
+    return out
+
+
+# ── Soft-delete revival on re-upload (QABUG 2026-09-18) ──────────────────
+
+def _revive_deleted_file(pid: str, file_id: str, original_name: str,
+                         data: bytes, mime: str, kind: str, raw_hash: str,
+                         auto_folder_id: str, uploaded_by: str) -> FileMetadata:
+    """Undelete a soft-deleted row, or add a version to a live row, for a re-upload of the same filename.
+
+    Delete moved the physical raw file to trash and set deleted_at; the
+    (project_id, original_name) UNIQUE still belongs to that trash row. So
+    a deliberate delete + re-upload must revive: undelete the row, write a
+    NEW raw copy (trash copy stays for restore), bump current_version and
+    append a file_versions row.
+    """
+    import time as _time
+
+    from finetune_studio import db
+    now = _time.time()
+    with db.cursor() as c:
+        prev = c.execute(
+            "SELECT current_version FROM project_files WHERE id = ?", (file_id,)
+        ).fetchone()
+        prev_version = (prev[0] if prev else 0) or 0
+        next_version = prev_version + 1
+        raw_path = raw_path_for(pid, file_id, original_name, kind)
+        if raw_path.exists():
+            # Live file re-uploaded with new bytes: keep the earlier version's copy.
+            raw_path = raw_path.with_name(f"v{next_version}_{raw_path.name}")
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_path.write_bytes(data)
+        c.execute(
+            "UPDATE project_files SET deleted_at = NULL, trash_kind = NULL, "
+            "mime_type = ?, size_bytes = ?, current_version = ?, "
+            "uploaded_at = ?, uploaded_by = ? WHERE id = ?",
+            (mime, len(data), next_version, now, uploaded_by, file_id),
+        )
+        c.execute(
+            "INSERT INTO file_versions "
+            "(file_id, version, raw_path, raw_hash, raw_size, uploaded_at, uploaded_by) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (file_id, next_version, str(raw_path), raw_hash, len(data), now,
+             uploaded_by),
+        )
+        c.execute(
+            "INSERT OR IGNORE INTO folder_membership (folder_id, file_id) VALUES (?, ?)",
+            (auto_folder_id, file_id),
+        )
+    return FileMetadata(
+        file_id=file_id,
+        original_name=original_name,
+        mime_type=mime,
+        size_bytes=len(data),
+        raw_path=str(raw_path),
+        raw_hash=raw_hash,
+        auto_kind=kind,
+        version=next_version,
+    )
+
+
+# ── Single-file write path (used by routes/file_library.py) ──────────────
+
+def write_uploaded_file(pid: str, data: bytes, original_name: str, *, mime_hint: str | None = None, uploaded_by: str = "user") -> FileMetadata:
+    """Write bytes to the correct MIME-segregated raw subfolder. Compute
+    sha256. Create the project_files + file_versions rows. Returns metadata.
+
+    Dedup is NOT applied here — the caller (route handler) checks for an
+    existing hash first and decides whether to call this.
+
+    The file_id is namespaced by project (``{pid[:8]}-{raw_hash[:16]}``) so
+    identical content uploaded to two different projects gets two distinct
+    rows. ``project_files.id`` is a global PRIMARY KEY; using the bare
+    hash prefix collided across projects and broke OCR/image ingestion on
+    the deploy host where the same test image was reused.
+    """
+    ensure_dirs(pid)
+    mime = _sniff_mime(original_name, mime_hint)
+    kind = auto_kind_for(mime)
+    raw_hash = sha256_of_bytes(data)
+    file_id = f"{pid[:8]}-{raw_hash[:16]}"
+    auto_folder = get_or_create_auto_folder(pid, kind)
+
+    # Re-upload of a deliberately deleted (name) must revive the trash row
+    # instead of colliding on the (project_id, original_name) UNIQUE — the
+    # dedup pass upstream ignores deleted rows by design, so without this
+    # the re-upload could never land (QABUG 2026-09-18).
+    from finetune_studio import db as _db_mod
+    with _db_mod.cursor() as c:
+        trash = c.execute(
+            "SELECT id FROM project_files WHERE project_id = ? AND original_name = ? AND deleted_at IS NOT NULL",
+            (pid, original_name),
+        ).fetchone()
+    if trash:
+        return _revive_deleted_file(
+            pid, trash["id"], original_name, data, mime, kind, raw_hash,
+            auto_folder["id"], uploaded_by,
+        )
+
+    raw_path = raw_path_for(pid, file_id, original_name, kind)
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    raw_path.write_bytes(data)
+
+    try:
+        row = record_uploaded_file(
+            pid=pid,
+            file_id=file_id,
+            original_name=original_name,
+            mime_type=mime,
+            size_bytes=len(data),
+            raw_path=str(raw_path),
+            raw_hash=raw_hash,
+            raw_size=len(data),
+            auto_kind=kind,
+            auto_folder_id=auto_folder["id"],
+            uploaded_by=uploaded_by,
+        )
+    except Exception as e:
+        # Race / cross-project collision: a row with this id already exists.
+        # In-project duplicate is the caller's responsibility (route dedup);
+        # cross-project collision is retried with a uuid suffix so the new
+        # upload lands as its own row.
+        from finetune_studio import db
+        msg = str(e)
+        if "UNIQUE constraint failed: project_files.id" in msg:
+            with db.cursor() as c:
+                row = c.execute(
+                    "SELECT project_id, deleted_at FROM project_files WHERE id = ?", (file_id,)
+                ).fetchone()
+            # In-project duplicate of a LIVE row = caller bug (raise).
+            # Soft-deleted row holding the id: the user deleted that file on
+            # purpose — recycle a fresh uuid so the re-upload lands instead
+            # of poisoning the id forever (QABUG: re-upload after delete
+            # failed with UNIQUE constraint).
+            if row and row[0] == pid and row[1] is None:
+                raise  # live in-project duplicate: caller should have caught it via dedup
+            file_id = f"{pid[:8]}-{uuid.uuid4().hex[:16]}"
+            raw_path = raw_path_for(pid, file_id, original_name, kind)
+            raw_path.parent.mkdir(parents=True, exist_ok=True)
+            raw_path.write_bytes(data)
+            row = record_uploaded_file(
+                pid=pid,
+                file_id=file_id,
+                original_name=original_name,
+                mime_type=mime,
+                size_bytes=len(data),
+                raw_path=str(raw_path),
+                raw_hash=raw_hash,
+                raw_size=len(data),
+                auto_kind=kind,
+                auto_folder_id=auto_folder["id"],
+                uploaded_by=uploaded_by,
+            )
+        else:
+            raise
+    return FileMetadata(
+        file_id=file_id,
+        original_name=original_name,
+        mime_type=mime,
+        size_bytes=len(data),
+        raw_path=str(raw_path),
+        raw_hash=raw_hash,
+        auto_kind=kind,
+        version=row["current_version"],
+    )
+
+
+def write_staged_upload(
+    pid: str,
+    staged_path: Path,
+    original_name: str,
+    *,
+    raw_hash: str,
+    size_bytes: int,
+    mime_hint: str | None = None,
+    uploaded_by: str = "user",
+) -> FileMetadata:
+    """Atomically adopt a streamed upload without loading it back into RAM.
+
+    ``staged_path`` must be on the project filesystem. The caller computes the
+    hash while streaming the multipart body and remains responsible for
+    deleting the staging file when this function raises.
+    """
+    ensure_dirs(pid)
+    mime = _sniff_mime(original_name, mime_hint)
+    kind = auto_kind_for(mime)
+    file_id = f"{pid[:8]}-{raw_hash[:16]}"
+    auto_folder = get_or_create_auto_folder(pid, kind)
+
+    from finetune_studio import db as _db_mod
+    with _db_mod.cursor() as c:
+        trash = c.execute(
+            "SELECT id FROM project_files WHERE project_id = ? "
+            "AND original_name = ?",
+            (pid, original_name),
+        ).fetchone()
+    if trash:
+        # Re-upload recovery is rare; retain the established helper's exact
+        # versioning behavior even though it needs bytes for this branch.
+        data = staged_path.read_bytes()
+        staged_path.unlink(missing_ok=True)
+        return _revive_deleted_file(
+            pid, trash["id"], original_name, data, mime, kind, raw_hash,
+            auto_folder["id"], uploaded_by,
+        )
+
+    raw_path = raw_path_for(pid, file_id, original_name, kind)
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(staged_path, raw_path)
+    try:
+        row = record_uploaded_file(
+            pid=pid,
+            file_id=file_id,
+            original_name=original_name,
+            mime_type=mime,
+            size_bytes=size_bytes,
+            raw_path=str(raw_path),
+            raw_hash=raw_hash,
+            raw_size=size_bytes,
+            auto_kind=kind,
+            auto_folder_id=auto_folder["id"],
+            uploaded_by=uploaded_by,
+        )
+    except Exception as exc:
+        if "UNIQUE constraint failed: project_files.id" not in str(exc):
+            raise
+        with _db_mod.cursor() as c:
+            collision = c.execute(
+                "SELECT project_id, deleted_at FROM project_files WHERE id = ?",
+                (file_id,),
+            ).fetchone()
+        if collision and collision[0] == pid and collision[1] is None:
+            raise
+        file_id = f"{pid[:8]}-{uuid.uuid4().hex[:16]}"
+        retry_path = raw_path_for(pid, file_id, original_name, kind)
+        retry_path.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(raw_path, retry_path)
+        raw_path = retry_path
+        row = record_uploaded_file(
+            pid=pid,
+            file_id=file_id,
+            original_name=original_name,
+            mime_type=mime,
+            size_bytes=size_bytes,
+            raw_path=str(raw_path),
+            raw_hash=raw_hash,
+            raw_size=size_bytes,
+            auto_kind=kind,
+            auto_folder_id=auto_folder["id"],
+            uploaded_by=uploaded_by,
+        )
+    return FileMetadata(
+        file_id=file_id,
+        original_name=original_name,
+        mime_type=mime,
+        size_bytes=size_bytes,
+        raw_path=str(raw_path),
+        raw_hash=raw_hash,
+        auto_kind=kind,
+        version=row["current_version"],
+    )
+
+
+# ── Rename / per-file purge ──────────────────────────────────────────────
+
+def _validate_rename_name(new_name: str) -> str:
+    """Validate a user-facing rename target. Returns the stripped name.
+
+    Rejects empty names, path separators, and unsafe (non-alnum) extensions.
+    """
+    name = (new_name or "").strip()
+    if not name:
+        raise HTTPException(
+            status_code=400, detail="new_name must be non-empty"
+        )
+    if "/" in name or "\\" in name or name in {".", ".."} or ".." in name:
+        raise HTTPException(
+            status_code=400,
+            detail="path separators not allowed in new_name",
+        )
+    # Basename only — reject absolute / drive-like names
+    if os.path.basename(name) != name:
+        raise HTTPException(
+            status_code=400,
+            detail="path separators not allowed in new_name",
+        )
+    ext = _ext_for_filename(name)
+    if ext and not ext.replace("_", "").isalnum():
+        raise HTTPException(
+            status_code=400, detail=f"unsafe extension: .{ext}"
+        )
+    return name
+
+
+def _current_raw_path(pid: str, file_id: str, current_version: int) -> Path | None:
+    """Resolve the on-disk path for the file's current version.
+
+    Soft-delete moves bytes into .RAW_TRASH without always updating raw_path,
+    so we fall back to a trash glob when the recorded path is missing.
+    """
+    from finetune_studio import db
+    with db.cursor() as c:
+        row = c.execute(
+            "SELECT raw_path FROM file_versions WHERE file_id = ? AND version = ?",
+            (file_id, current_version),
+        ).fetchone()
+    if not row:
+        return None
+    p = Path(row["raw_path"])
+    if p.exists():
+        return p
+    # Soft-deleted: look in trash for {file_id}_*
+    trash = raw_trash_dir(pid)
+    if trash.exists():
+        for cand in trash.glob(f"{file_id}_*"):
+            if cand.is_file():
+                return cand
+    return None
+
+
+def rename_file(pid: str, file_id: str, new_name: str) -> dict:
+    """Rename a live file: update project_files.original_name and rename on disk.
+
+    Returns ``{ok: True, file: {...}}``. Raises 404 / 409 / 400 via HTTPException.
+    """
+    from finetune_studio import db
+
+    safe_name = _validate_rename_name(new_name)
+    with db.cursor() as c:
+        f = c.execute(
+            """SELECT id, original_name, mime_type, current_version, size_bytes,
+                      uploaded_at, uploaded_by, deleted_at, tags, notes
+                 FROM project_files
+                WHERE id = ? AND project_id = ?""",
+            (file_id, pid),
+        ).fetchone()
+        if not f:
+            raise HTTPException(status_code=404, detail="file not found")
+        if f["deleted_at"] is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="cannot rename a trashed file; restore it first",
+            )
+        if f["original_name"] == safe_name:
+            return {"ok": True, "file": get_file(pid, file_id)}
+
+        clash = c.execute(
+            """SELECT id FROM project_files
+                WHERE project_id = ? AND original_name = ?
+                  AND id != ? AND deleted_at IS NULL""",
+            (pid, safe_name, file_id),
+        ).fetchone()
+        if clash:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"a file named '{safe_name}' already exists "
+                    "in this project"
+                ),
+            )
+
+        ver = c.execute(
+            "SELECT id, raw_path FROM file_versions "
+            "WHERE file_id = ? AND version = ?",
+            (file_id, f["current_version"]),
+        ).fetchone()
+        if ver:
+            old_path = Path(ver["raw_path"])
+        else:
+            # No file_versions row (e.g. files created before the versions
+            # table existed). Find the file on disk by ID prefix — storage
+            # layout may differ from raw_path_for() (flat vs mime-kind subdir).
+            from finetune_studio.data.fs.paths import project_dir as _project_dir
+            _root = Path(_project_dir(pid)) / "files"
+            # File may live directly under _root or inside an ID-named
+            # directory (flat vs nested layout); search both.
+            candidates = list(_root.glob(f"{file_id}*/*")) + list(_root.glob(f"{file_id}*"))
+            file_matches = [p for p in candidates if p.is_file()]
+            if not file_matches:
+                raise HTTPException(
+                    status_code=404,
+                    detail="file missing on disk",
+                )
+            old_path = file_matches[0]
+            log.info(
+                "rename: no file_versions row for %s; using %s",
+                file_id, old_path,
+            )
+        kind = auto_kind_for(
+            f["mime_type"] or "application/octet-stream"
+        )
+        # Prefer keeping the file in its current directory (may differ from
+        # MIME auto-folder after a move); only rebuild the filename.
+        if old_path.exists():
+            new_name_on_disk = raw_path_for(
+                pid, file_id, safe_name, kind
+            ).name
+            new_path = old_path.parent / new_name_on_disk
+            if new_path != old_path:
+                if new_path.exists():
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            "target path already exists on disk: "
+                            f"{new_path.name}"
+                        ),
+                    )
+                try:
+                    old_path.rename(new_path)
+                except OSError as e:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"disk rename failed: {e}",
+                    ) from e
+            if ver:
+                c.execute(
+                    "UPDATE file_versions SET raw_path = ? WHERE id = ?",
+                    (str(new_path), ver["id"]),
+                )
+        else:
+            log.warning(
+                "rename: raw missing on disk for %s (%s)",
+                file_id,
+                old_path,
+            )
+
+        c.execute(
+            "UPDATE project_files SET original_name = ? WHERE id = ?",
+            (safe_name, file_id),
+        )
+
+    updated = get_file(pid, file_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="file not found after rename")
+    return {"ok": True, "file": updated}
+
+
+def purge_file(pid: str, file_id: str) -> dict:
+    """Hard-delete a single trashed file (disk + DB rows).
+
+    File must already be soft-deleted (``deleted_at IS NOT NULL``). Returns
+    ``{ok: True, fid: '...'}``.
+    """
+    from finetune_studio import db
+
+    with db.cursor() as c:
+        f = c.execute(
+            """SELECT id, original_name, deleted_at FROM project_files
+                WHERE id = ? AND project_id = ?""",
+            (file_id, pid),
+        ).fetchone()
+        if not f:
+            raise HTTPException(status_code=404, detail="file not found")
+        if f["deleted_at"] is None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "file is not in trash — soft-delete it first "
+                    "(DELETE /files/{fid})"
+                ),
+            )
+
+        versions = c.execute(
+            "SELECT raw_path FROM file_versions WHERE file_id = ?", (file_id,)
+        ).fetchall()
+        for v in versions:
+            p = Path(v["raw_path"])
+            if p.exists():
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
+        # Soft-delete may have moved bytes to trash without updating raw_path
+        trash = raw_trash_dir(pid)
+        if trash.exists():
+            for cand in trash.glob(f"{file_id}_*"):
+                try:
+                    cand.unlink()
+                except OSError:
+                    pass
+
+        hashes = [str(v["raw_hash"]) for v in c.execute(
+            "SELECT raw_hash FROM file_versions WHERE file_id = ?", (file_id,)).fetchall()]
+        c.execute("DELETE FROM file_conversions WHERE file_id = ?", (file_id,))
+        c.execute("DELETE FROM file_versions WHERE file_id = ?", (file_id,))
+        c.execute("DELETE FROM folder_membership WHERE file_id = ?", (file_id,))
+        c.execute("DELETE FROM project_files WHERE id = ?", (file_id,))
+
+    from finetune_studio.knowledge.sources import forget_hashes
+
+    forget_hashes(pid, hashes)
+    return {"ok": True, "fid": file_id}

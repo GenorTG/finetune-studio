@@ -1,0 +1,6546 @@
+{
+ "dense": {
+  "e001": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e002": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e003": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e004": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e005": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e006": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e007": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e008": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e009": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e010": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e011": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e012": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e013": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e014": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e015": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e016": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e017": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e018": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e019": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e020": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e021": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e022": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e023": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e024": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e025": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  },
+  "e026": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e027": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e028": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e029": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e030": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e031": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e032": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e033": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e034": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e035": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e036": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e037": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e038": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e039": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e040": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e041": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e042": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e043": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e044": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e045": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  },
+  "e046": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e047": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e048": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e049": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e050": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e051": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e052": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e053": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e054": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e055": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e056": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e057": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e058": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e059": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e060": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e061": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e062": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e063": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e064": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e065": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e066": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e067": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e068": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e069": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e070": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e071": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e072": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e073": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e074": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e075": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e076": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e077": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e078": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e079": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e080": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e081": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e082": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e083": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  },
+  "e084": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e085": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e086": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e087": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e088": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e089": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e090": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e091": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e092": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e093": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e094": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e095": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e096": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e097": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e098": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e099": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e100": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e101": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  },
+  "e102": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  }
+ },
+ "bm25": {
+  "e001": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e002": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e003": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e004": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e005": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e006": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e007": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e008": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e009": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e010": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e011": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e012": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e013": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e014": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e015": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e016": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e017": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e018": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e019": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e020": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e021": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e022": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e023": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e024": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e025": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e026": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e027": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e028": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e029": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e030": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e031": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e032": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e033": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e034": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e035": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e036": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e037": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e038": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e039": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e040": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  },
+  "e041": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e042": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e043": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e044": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e045": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e046": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e047": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e048": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e049": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e050": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e051": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e052": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e053": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e054": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e055": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e056": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e057": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e058": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e059": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e060": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e061": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e062": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e063": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e064": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e065": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e066": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e067": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e068": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e069": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e070": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e071": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e072": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e073": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e074": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e075": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e076": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e077": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e078": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e079": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e080": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e081": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e082": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e083": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e084": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e085": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e086": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e087": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e088": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e089": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e090": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e091": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e092": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e093": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e094": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e095": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e096": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e097": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e098": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e099": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e100": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e101": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e102": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  }
+ },
+ "hybrid": {
+  "e001": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e002": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e003": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e004": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e005": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e006": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e007": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e008": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e009": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e010": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e011": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e012": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e013": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e014": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e015": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e016": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e017": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e018": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e019": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e020": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e021": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e022": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e023": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e024": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e025": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e026": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e027": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e028": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e029": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e030": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e031": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e032": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e033": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e034": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e035": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e036": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e037": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e038": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e039": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e040": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e041": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e042": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e043": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e044": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e045": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e046": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e047": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e048": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  },
+  "e049": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e050": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e051": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e052": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e053": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e054": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e055": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e056": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e057": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e058": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e059": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e060": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e061": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e062": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e063": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e064": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e065": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e066": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e067": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e068": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e069": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e070": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e071": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e072": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e073": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e074": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e075": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e076": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e077": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e078": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e079": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e080": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e081": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e082": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e083": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e084": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e085": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e086": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e087": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e088": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e089": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e090": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e091": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e092": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e093": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e094": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e095": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e096": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e097": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e098": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e099": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e100": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e101": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  },
+  "e102": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  }
+ },
+ "hybrid+rerank": {
+  "e001": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e002": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e003": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e004": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e005": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e006": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e007": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e008": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e009": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e010": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e011": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e012": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e013": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e014": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e015": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e016": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e017": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e018": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e019": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e020": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e021": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e022": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e023": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e024": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e025": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e026": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e027": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e028": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e029": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e030": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  },
+  "e031": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e032": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e033": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e034": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e035": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e036": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e037": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e038": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e039": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e040": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e041": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e042": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e043": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e044": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e045": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e046": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  },
+  "e047": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e048": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e049": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e050": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e051": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e052": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e053": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e054": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e055": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e056": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e057": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e058": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e059": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e060": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e061": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e062": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e063": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e064": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e065": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e066": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e067": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e068": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e069": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e070": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e071": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e072": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e073": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e074": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e075": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e076": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e077": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e078": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e079": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e080": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e081": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e082": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e083": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e084": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e085": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e086": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e087": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e088": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e089": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e090": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e091": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e092": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e093": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e094": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e095": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e096": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e097": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e098": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e099": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e100": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e101": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e102": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  }
+ },
+ "bm25+rerank": {
+  "e001": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e002": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e003": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e004": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e005": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e006": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e007": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e008": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e009": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e010": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e011": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e012": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e013": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e014": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e015": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e016": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e017": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e018": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e019": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e020": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e021": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e022": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e023": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e024": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e025": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e026": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e027": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e028": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e029": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e030": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e031": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e032": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e033": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e034": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e035": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e036": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e037": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e038": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e039": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e040": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e041": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e042": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e043": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e044": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e045": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e046": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  },
+  "e047": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e048": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e049": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e050": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e051": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e052": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e053": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e054": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e055": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e056": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e057": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e058": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e059": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e060": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e061": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e062": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e063": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e064": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e065": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e066": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e067": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e068": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e069": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e070": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e071": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e072": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e073": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e074": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e075": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e076": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e077": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e078": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e079": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e080": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e081": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e082": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e083": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e084": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e085": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e086": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e087": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e088": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e089": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e090": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e091": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e092": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e093": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e094": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e095": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e096": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e097": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e098": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e099": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e100": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e101": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  },
+  "e102": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  }
+ },
+ "dense+e5": {
+  "e001": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e002": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e003": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e004": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e005": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e006": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e007": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e008": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e009": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e010": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e011": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e012": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e013": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e014": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e015": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e016": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e017": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e018": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e019": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e020": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e021": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e022": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e023": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e024": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e025": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e026": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e027": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e028": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e029": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e030": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e031": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e032": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e033": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e034": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e035": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e036": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e037": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e038": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e039": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e040": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e041": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e042": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e043": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e044": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e045": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e046": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e047": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e048": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e049": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e050": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e051": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e052": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e053": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e054": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e055": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e056": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e057": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  },
+  "e058": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e059": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e060": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e061": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e062": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e063": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e064": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e065": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e066": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e067": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e068": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e069": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e070": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e071": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e072": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e073": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e074": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e075": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  },
+  "e076": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e077": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e078": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e079": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e080": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e081": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e082": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e083": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e084": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e085": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e086": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e087": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e088": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e089": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e090": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e091": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e092": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e093": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e094": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e095": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e096": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e097": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e098": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e099": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e100": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e101": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e102": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  }
+ },
+ "hybrid+e5": {
+  "e001": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e002": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e003": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e004": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e005": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e006": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e007": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e008": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e009": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e010": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e011": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e012": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e013": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e014": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e015": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e016": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e017": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e018": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e019": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e020": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e021": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e022": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e023": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e024": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e025": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e026": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e027": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e028": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e029": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e030": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e031": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e032": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e033": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e034": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e035": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e036": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e037": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e038": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e039": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e040": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e041": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e042": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e043": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e044": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e045": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e046": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e047": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e048": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  },
+  "e049": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e050": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e051": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e052": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e053": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e054": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e055": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e056": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e057": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e058": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e059": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e060": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e061": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e062": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e063": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e064": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e065": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e066": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e067": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e068": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e069": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e070": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e071": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e072": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e073": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e074": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e075": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e076": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e077": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e078": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e079": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e080": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e081": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e082": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e083": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e084": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e085": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e086": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e087": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e088": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e089": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e090": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e091": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e092": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e093": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e094": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e095": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e096": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e097": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e098": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e099": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e100": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e101": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  },
+  "e102": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  }
+ },
+ "hybrid+rerank+e5": {
+  "e001": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e002": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e003": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e004": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e005": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e006": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e007": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e008": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e009": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e010": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e011": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e012": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e013": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e014": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e015": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e016": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e017": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e018": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e019": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e020": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e021": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e022": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e023": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e024": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e025": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e026": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e027": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e028": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e029": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e030": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  },
+  "e031": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e032": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e033": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e034": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e035": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e036": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e037": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e038": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e039": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e040": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e041": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e042": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e043": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e044": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e045": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e046": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": true,
+   "50": true
+  },
+  "e047": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e048": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e049": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e050": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e051": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e052": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e053": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e054": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e055": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e056": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e057": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e058": {
+   "1": false,
+   "3": false,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e059": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e060": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e061": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e062": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e063": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e064": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e065": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e066": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e067": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e068": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e069": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e070": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e071": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e072": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e073": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e074": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e075": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e076": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": false
+  },
+  "e077": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e078": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e079": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e080": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e081": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e082": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e083": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e084": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e085": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e086": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e087": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e088": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e089": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e090": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e091": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e092": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e093": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e094": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e095": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e096": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e097": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e098": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e099": {
+   "1": false,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e100": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  },
+  "e101": {
+   "1": false,
+   "3": false,
+   "5": false,
+   "10": false,
+   "20": false,
+   "50": true
+  },
+  "e102": {
+   "1": true,
+   "3": true,
+   "5": true,
+   "10": true,
+   "20": true,
+   "50": true
+  }
+ }
+}

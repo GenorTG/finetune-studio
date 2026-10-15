@@ -1,0 +1,73 @@
+---
+out: case_study_fruttoria_baltica.pdf
+tier: core
+---
+KORVANE COLD CHAIN  |  CUSTOMER STORIES  |  Edition 03/2024
+
+# Fruttoria Baltica: 410 tags, 1,236 TEU, and Monday mornings nobody dreads any more
+
+*How a family-run citrus importer stopped finding out about warm containers from its own customers.*
+
+There is a particular kind of silence in a citrus importer's office when a container of Navelina oranges arrives at the quay warmer than it left Spain. Nobody shouts. People simply start opening spreadsheets. For Fruttoria Baltica, one of the busiest importers of lemons, oranges and mandarins on the southern Baltic coast, that silence used to arrive roughly every second Monday. Today it hardly arrives at all, and the story of how that changed begins, rather unromantically, with a dying data logger.
+
+## The customer
+
+Fruttoria Baltica Sp. z o.o. was founded in 1998 by the Marchwicki family and still has the feel of a family firm, even though it now supplies about 640 retail stores and 31 wholesale markets across Poland, Lithuania and Latvia. Fruit comes in from Valencia, Damietta and Durban, is received at the Gdynia terminal, and travels the last 20 km to the company's ripening complex in Pruszcz Gdański, where eight ripening rooms turn green-ish deliveries into something a shopper will actually buy. In 2023 the company moved 1,236 TEU through Korvane's network; the forecast for 2024 is 1,410 TEU.
+
+Ewelina Marchwicka, Fruttoria's Director of Logistics since 2019, describes the old regime with the weary fondness people reserve for things they are glad to have escaped. "We used KC-Tag 3 loggers, which were fine, honestly, for what they were. But a logger that you only read when the container is already at your gate tells you what went wrong, not that it is going wrong. We were doing archaeology, not logistics."
+
+## The problem in numbers
+
+Before the switch, Fruttoria's own audit for 2022 found that the average gap between a temperature excursion starting and anybody at the company knowing about it was 3 h 40 min. Cargo written off that year, mostly on the Gdynia to Pruszcz Gdański leg and in yard waiting time, came to EUR 214,300. For this study an *excursion* is any episode lasting more than 15 minutes outside the setpoint by more than 1.5 °C, which is the definition Fruttoria's quality team has used since 2021, and not one we invented for the brochure.
+
+The finance team had its own private Monday ritual. Every month they matched paper logger printouts against insurance claims, a job that swallowed 46 hours of an analyst's time. "I used to joke that we employed a person whose only skill was reading faded thermal paper," says Ewelina. "It was not entirely a joke."
+
+## Why Korvane
+
+Fruttoria did not simply wave a contract through. In the winter of 2022/23 Ewelina's team ran a proper tender and invited three providers, and a five-person committee scored them on alerting, price, integration with the ripening-room scheduler and, in her words, "whether anybody would pick up the phone on Boxing Day". To settle the argument with evidence, Korvane lent Fruttoria 25 tags for a six-week pilot on the Valencia to Gdynia lane, starting on 9 January 2023. The pilot caught two genuine excursions, one of them a refrigeration unit that failed its defrost cycle on the road leg, and that was more or less the end of the debate. The Fruttoria CFO, Dominik Szewczyk, signed off the choice on 21 February 2023, three weeks before the contract itself.
+
+## The rollout, in three waves
+
+Fruttoria signed on 14 March 2023 for Tidewalk on the Fairway plan together with KC-Tag 4 hardware. The rollout was deliberately staged so the ripening rooms were never left blind in peak weeks:
+
+- **Wave 1:** 120 KC-Tag 4 tags, in service from the week of 3 April 2023. Two training sessions of 3.5 hours each, on 29 and 30 March, brought 14 dispatchers and ripening-room supervisors up to speed.
+- **Wave 2:** 160 tags on 22 September 2023, timed just after the Egyptian orange harvest began shipping.
+- **Wave 3:** 130 tags delivered on 9 September 2024, which brings the fleet to 410 tags. Two KC-Hub 200 gateways cover the Pruszcz Gdański site; the yard side is covered by Korvane's own hubs at GDY-1.
+
+Yusuf Demirkıran, Korvane's Key Account Manager for the Baltic region, remembers wave 2 as the one where everything nearly went sideways: "A forklift driver in Pruszcz parked a pallet jack right in front of the second hub and we lost half the site's signal for an afternoon. Moved the hub up on the wall, problem gone, and now there's a laminated sign. Tiny things."
+
+> "I get a call from the night shift before I get the call from the customer. For fifteen years it was the other way round, and I will never get tired of the new order." — Ewelina Marchwicka, Director of Logistics, Fruttoria Baltica
+
+## What actually changed
+
+On 17 January 2024 at 02:41 an alert fired for a container of mandarins parked in the Gdynia yard: the door had been left open for 22 minutes during a gate check. The night dispatchers at GDY-1 (the owls, as everybody calls them) phoned the yard, the door was shut, and the box was back inside setpoint by 03:12. Olek Maraszek, Senior Dispatcher on the night shift, remembers it mostly because of the coffee. "Honestly a nice quiet one. Thirty-one minutes start to finish and the customer never heard about it until the morning report. That is the whole point."
+
+Across the account the broader picture is a strong one. Alerts for temperature excursions fell from 6.8 per 1,000 container-days in 2022 to 1.9 in the first half of 2024. The average time between an excursion starting and Fruttoria knowing fell from 3 h 40 min to 11 minutes. Cargo written off dropped from EUR 214,300 in 2022 to EUR 58,900 in 2023. The monthly claims reconciliation that used to eat 46 hours now takes 9, and the analyst has, we are told, been redeployed to something involving actual judgement.
+
+[[chart bar "Excursion alerts per 1,000 container-days" | 2022=6.8, H1 2023=5.2, H2 2023=2.7, H1 2024=1.9 | unit=alerts]]
+
+*Figure 1. Temperature excursion alerts per 1,000 container-days at Fruttoria Baltica, 2022 to H1 2024 (customer data, unaudited). The dip in H2 2023 coincides with the completion of wave 2.*
+
+### A side effect nobody planned
+
+The insurer noticed. When Fruttoria renewed its cargo policy through Seaboard Insurance Brokers on 1 January 2024, the premium came down by 8.5 percent, helped along by a 2023 loss record that no longer needed footnotes. "Our broker actually asked for a copy of the Tidewalk monthly report," says Ewelina. "In nineteen years nobody has asked me for a logistics report voluntarily."
+
+## At a glance
+
+| Fruttoria Baltica | The numbers |
+|---|---|
+| Customer since | 14 March 2023 |
+| Plan | Tidewalk Fairway + KC-Tag 4 |
+| Fleet | 410 KC-Tag 4 tags, 2 KC-Hub 200 at Pruszcz Gdański |
+| Volume | 1,236 TEU (2023), forecast 1,410 TEU (2024) |
+| Excursion alerts per 1,000 container-days | 6.8 (2022) down to 1.9 (H1 2024) |
+| Cargo written off | EUR 214,300 (2022) down to EUR 58,900 (2023) |
+| Contract renewed | July 2024, 24 months |
+
+## Renewal, and what is next
+
+The contract was renewed in July 2024 for 24 months, with a volume discount that kicks in above a yearly volume Fruttoria passed comfortably. Next on the list is single sign-on: Ewelina's IT department has asked for Tidewalk SSO before the end of November 2024, and Fruttoria has also been pencilled in as one of the first accounts to be invited to the Tidewalk v7 beta in spring 2025. "We are not shy about being the guinea pig," she says, "as long as the guinea pig gets a direct phone number."
+
+Interested in how this would look for your own network? Talk to your Korvane account manager or write to sales@korvane.example. We would love to hear which Monday morning you would like to get rid of.
+
+*Footnotes and small print.* Figures were supplied by Fruttoria Baltica and have not been independently audited. Published with the customer's written approval of 2 September 2024 (their ref. FB-LEGAL-0917). Photography by Aleksander Rybicki, Gdynia; the mandarins are not the ones from 17 January. Korvane Cold Chain Sp. z o.o., ul. Łużycka 14, 81-537 Gdynia. Layout and copy: Lotte Sandberg, Marketing. Please do not forward this PDF outside the company before the official launch on Thursday 12 September 2024 -- yes, that includes you, sales team.

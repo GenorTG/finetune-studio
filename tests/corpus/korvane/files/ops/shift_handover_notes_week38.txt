@@ -1,0 +1,57 @@
+OWLS HANDOVER - week 38 (16-22 sept 2024) - GDY-1 - night shift 22:00-06:00
+written by whoever is still awake at 5. read it, ack it in tidewalk, dont reply-all lol
+
+=== MON 16.09 (night 16->17) ===
+crew: olek, mateusz, kasia + 3 agency = 6 (the min for gdy-1 so zero slack, if anyone calls in sick we are under)
+- gate B barrier arm stuck up from 23:40, the day guys said "known issue". reset it with the key twice. ticket FAC-2209 raised by mateusz, no answer yet
+- pad B: 7 free plugs at midnight, pad C: 31 free. expecting 14 boxes off the 02:30 train from the south so keep pad C clear!!
+- the 14 boxes arrived 03:05 not 02:30. nobody cares anymore
+- KCU-0141 (fruttoria baltica, oranges) tag 1 went amber at 01:15, +1.9 over setpoint for 20 min. level 1 so just me walking over with a torch. door seal on the left side was folded. fixed, reading back down by 01:50. logged on the board only
+- FL-GDY-04 forklift low on diesel, refuelled 04:10. 62 litres. whoever uses it next check the gauge it lies a bit
+
+=== TUE 17.09 (night 17->18) ===
+crew: olek, kasia, mateusz + 2 agency = 5. one agency guy no-show. told jarek by sms 22:30, he said "manage" which is not an answer
+- 02:15 three fruttoria boxes in from rtm-3 (vessel was 5 h late). plugged on pad C row 4 within 12 min, ok
+- 03:20 greynline (annelie's desk was closed but the on-call broker rang) hold on box TGHU 482915 3 at the port side, doc mismatch AGAIN, batch number. she said do not ring the customer. ok. no idea how it ended, day shift pls check the CR ticket
+- kasia found two plugs on pad C row 4 only half-seated (positions 12 and 15). day crew left them. unplugged, reseated, wrote it on the board and told wacław in a note. he will be thrilled
+- coffee machine in the shift office dead again. 3rd time this month. someone bring the thermos
+- unit KCU-0177 alarm AL-21 at 04:40, compressor overload. second this year i think? sent to gunnar's list for the morning
+
+=== WED 18.09 (night 18->19) ===
+crew: olek, mateusz, kasia + 3 agency = 6
+- STORM. forecast gusts 25 m/s from 01:00. rmg (GC-GDY-01) stopped lifting at 01:40 when the anemometer showed 16 m/s sustained, as per the manual. storm pins in at 03:10 when it hit 21. nobody on the quay after 03:10 except me and mateusz walking the plug rows with a radio
+- reach stacker RS-GDY-01 stopped at 18 m/s, 02:05, the sustained limit. gusts on the tablet up to 27 m/s at 03:30, record for this year
+- 4 boxes waiting for the 05:00 truck on T-A stayed in the yard, all plugged, all fine
+- roof tile came off the shift office porch 03:25, nobody under it. facility told 05:50
+- one of the agency guys wanted to go and look at the crane. no. said no. said it again.
+- ice machine broken, ignore, its september
+
+=== THU 19.09 (night 19->20) ===
+crew: olek, kasia, mateusz + 2 agency = 5 (one agency guy went home sick at 01:00)
+- kc-hub 200 on pad A rebooted 3 times between 00:20 and 02:10, tags went offline for about 4 min each time. ticket TW-INC-5521. called kamil zdunek at 04:30 (he picked up, respect). he says firmware, will push a patch friday night
+- during the offline windows nothing alarmed, so for 12 min total we were blind on 26 boxes. i walked rows A and B with the handheld, all fine
+- olek: DO NOT forget, the tag battery limit is 2.85 V. found 3 tags at 2.79, 2.80 and 2.81 on pad A, put in the red bin
+- delivery of 18 pallets of berries (samso co-op) 05:20, loaded into a 40' as 18 pallets, pharma-style spacing as asked by the customer. two re-opens of the doors, 4 min each. the third would have needed a supervisor name so we didnt
+- fire alarm test planned for 03:00 was moved to friday 03:00 by the safety steward (hi ola)
+
+=== FRI 20.09 (night 20->21) ===
+crew: olek, mateusz, kasia + 3 agency = 6
+- hub patch pushed 23:55 by kamil, hub on pad A stable since, 0 reboots all night. closed the ticket TW-INC-5521 at 05:40
+- fire alarm test 03:00. evacuation to AP-1 took 4 min 05 s with 6 people. fine i guess. the agency guys went to AP-2 by mistake, wind was from the north-west so ap-1 was right... ammonia drill rule says south-east, not our rule tonight
+- amber on box KCU-0152 02:30, +2.2 over for 25 min, left door seal again. same seal as monday? maybe same box? check kasia's notes. level 1, no call
+- two trucks late for T-A (the 03:30 one left at 04:05 because the driver wanted to wait for the pharma pallets, which was not asked)
+- found a sticker HOLD-Y on a box nobody remembers sticking. peeled it, photo in the folder. idk
+
+=== SAT 21.09 (night 21->22) ===
+crew: olek, mateusz, kasia + 1 agency = 4 (weekend... we asked for 5)
+- quiet. pad B 12 free plugs, pad C 19 free
+- 00:30 call from the hamburg gate (greta's guard, K. Aydin) about a truck with a pharma reefer at +3.4 vs setpoint +2, asked if we saw anything upstream. looked up the tag history. nothing from our side, he left gdy at 18:40 saturday so before our shift
+- 05:10 one agency guy cut his thumb on a seal clamp. first aid, plaster, SAF-2 filled in by me at 05:20, within the 4 h. he went back to work. that is a category C
+- tidewalk slow from 04:00 to 04:35, kamil says lintu cloud hosting maintenance not announced. told duty ops list. lol
+
+=== SUN 22.09 (night 22->23) ===
+crew: olek, kasia + mateusz sick, so 2 + 2 agency = 4. gate B has only one guard because weekend
+- 22:10 got the gdy-1 gate hours wrong in my head: sunday gate is 06:00-20:00 so last truck in was 19:50 and nobody after. all good
+- 01:20 plug row H on pad C: pedestal P-C-118 hot to the touch. switched off, tagged red cable tie, unit moved to P-C-121. infrared scan on monday please!
+- 03:45 KCU-0229 AL-64 door switch again. gunnar wants a list of the repeats, will send it
+- last note: week total from my tally: 5 amber events, 0 orange, 0 red, 1 category C, 1 storm stop. the day shift can ignore everything else. goodnight. -olek

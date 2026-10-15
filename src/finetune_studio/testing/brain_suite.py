@@ -1,0 +1,485 @@
+"""Retrieval-grounded test suite — answer from BrainIndex context only.
+
+Pairs a Q&A ``BenchmarkCase`` suite with a BrainIndex (or compatible)
+search engine so held-out / source-disjoint cases can be asked with the
+retrieved document chunks as the only context (or refused when the context
+lacks the fact). Like ``run_suite`` it only records transcripts; judging
+happens afterwards (testing/judge.py). The ``gold_*`` retrieval trace below
+is a diagnostic of the *retriever* (were the expected values in the chunks),
+never a verdict on the answer.
+
+This lives under ``testing/`` (not the route) so CLI / benchmarks / scripts
+can reuse it without FastAPI.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import time
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Protocol
+
+from finetune_studio.data.fs.paths import brain_index_dir
+from finetune_studio.smart_brain.constants import DEFAULT_TOP_K
+from finetune_studio.smart_brain.evaluation import UNKNOWN_REPLY
+from finetune_studio.smart_brain.prompt import (
+    DEFAULT_CONTEXT_CHARS,
+    context_char_budget,
+)
+from finetune_studio.testing.suite import (
+    BenchmarkCase,
+    CaseResult,
+    load_test_suite,
+    score_results,
+)
+
+_log = logging.getLogger(__name__)
+
+BRAIN_SYSTEM_PROMPT = (
+    "Answer using only the provided context. "
+    "If the answer isn't in the context, say you don't know. "
+    "For tables, use the row and column named by the question; calculate requested totals "
+    "from the underlying values."
+)
+
+
+class BrainSearch(Protocol):
+    """Minimal BrainQuery-compatible search surface."""
+
+    def search(self, query: str, top_k: int = DEFAULT_TOP_K) -> list[dict]:
+        ...
+
+    def format_context(self, results: list[dict], max_chars: int = 4000) -> str:
+        ...
+
+
+class ChatEngine(Protocol):
+    """Minimal inference engine surface (``generate(messages, ...)``)."""
+
+    def generate(
+        self,
+        messages: list[dict],
+        *,
+        max_tokens: int = 512,
+        temperature: float = 0.3,
+        think: bool = False,
+    ) -> str:
+        ...
+
+    model_path: str | None
+
+
+def default_corpus_path(pid: str) -> Path:
+    """Canonical BrainIndex directory for a project id."""
+    return brain_index_dir(pid)
+
+
+def resolve_corpus_path(pid: str = "", corpus_path: str = "") -> Path:
+    """Resolve corpus path: explicit override, then brain_indexes, then default."""
+    raw = (corpus_path or "").strip()
+    if raw:
+        return Path(raw)
+
+    pid = (pid or "").strip()
+    if not pid:
+        raise ValueError("corpus_path or project_id/pid required")
+
+    try:
+        from finetune_studio.db.brain_indexes import list_brain_indexes
+
+        for row in list_brain_indexes(pid):
+            sp = Path(str(row.get("store_path") or ""))
+            if sp.is_dir() and (sp / "manifest.json").is_file():
+                return sp
+    except Exception as exc:  # noqa: BLE001
+        _log.debug("list_brain_indexes fallback for pid=%s: %s", pid, exc)
+
+    return default_corpus_path(pid)
+
+
+def load_brain_query(corpus_path: str | Path) -> Any:
+    """Load a BrainIndex query engine from ``corpus_path``."""
+    from finetune_studio.smart_brain import BrainIndex
+
+    path = Path(corpus_path)
+    if not path.is_dir():
+        raise FileNotFoundError(f"RAG corpus not found: {path}")
+    rag = BrainIndex(path)
+    if not rag.exists():
+        raise FileNotFoundError(f"RAG corpus incomplete (missing manifest/vectors): {path}")
+    return rag.load()
+
+
+def provenance_from_hit(hit: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a search hit into stable provenance fields."""
+    score = hit.get("score")
+    if score is None:
+        score = hit.get("rrf_score") or hit.get("ce_score") or 0.0
+    return {
+        "document_id": str(hit.get("document_id") or ""),
+        "source": str(hit.get("source") or ""),
+        "filename": str(hit.get("filename") or ""),
+        "chunk_index": int(hit.get("chunk_index") or 0),
+        "chunk_id": str(hit.get("chunk_id") or ""),
+        "rank": int(hit.get("rank") or 0),
+        "score": float(score or 0.0),
+    }
+
+
+def build_grounded_messages(question: str, context: str) -> list[dict[str, str]]:
+    """System + user messages that enforce context-only answering."""
+    user = (
+        "Use ONLY the context below. If the answer is not in the context, "
+        f'reply exactly: "{UNKNOWN_REPLY}" Otherwise answer concisely.\n\n'
+        f"CONTEXT:\n{context}\n\nQUESTION: {question}"
+    )
+    return [
+        {"role": "system", "content": BRAIN_SYSTEM_PROMPT},
+        {"role": "user", "content": user},
+    ]
+
+
+def hit_matches_source(
+    hit: dict[str, Any],
+    source_id: str,
+    chunk_idx: int = 0,
+) -> bool:
+    """True when a retrieval hit plausibly matches suite ``source_id`` / chunk."""
+    sid = (source_id or "").strip()
+    if not sid:
+        return False
+    sid_l = sid.lower()
+    matched_doc = False
+    for key in ("document_id", "source", "filename", "chunk_id"):
+        val = str(hit.get(key) or "").lower()
+        if not val:
+            continue
+        if sid_l == val or sid_l in val or val in sid_l:
+            matched_doc = True
+            break
+    if not matched_doc:
+        return False
+    if not chunk_idx:
+        return True
+    hit_chunk = int(hit.get("chunk_index") or 0)
+    if not hit_chunk:
+        return True
+    return hit_chunk == int(chunk_idx)
+
+
+WIDE_SEARCH_MIN = 40
+
+
+def wide_rank_of_source(brain_query: BrainSearch, case: BenchmarkCase, hits: list[dict[str, Any]], *, top_k: int) -> int | None:
+    """1-based rank of the case's gold source in a wider search, only when it is missing from ``hits`` (None = still absent, or
+    the case names no source / the gold was retrieved). A diagnostic for the retrieval side; the reader never sees these hits."""
+    if not (case.source_id or "").strip() or any(hit_matches_source(h, case.source_id, case.chunk_idx) for h in hits):
+        return None
+    wide = list(brain_query.search(case.question, top_k=max(WIDE_SEARCH_MIN, top_k * 4)) or [])
+    for rank, hit in enumerate(wide, 1):
+        if hit_matches_source(hit, case.source_id, case.chunk_idx):
+            return rank
+    return None
+
+
+@dataclass
+class BrainCaseResult:
+    """One grounded suite case: CaseResult + retrieval provenance."""
+
+    case_result: CaseResult
+    retrieval_hits: list[dict[str, Any]] = field(default_factory=list)
+    context_text: str = ""
+    retrieval_hit: bool = False
+    # Reader-visible trace: were the expected values retrieved, and did they survive the context cap?
+    gold_in_retrieved: bool | None = None
+    gold_in_context: bool | None = None
+    chunks_retrieved: int = 0
+    chunks_in_context: int = 0
+    gold_rank_wide: int | None = None   # rank of the gold source in a wider search when it missed the top-k (diagnostic only)
+
+    def as_api_dict(self) -> dict[str, Any]:
+        r = self.case_result
+        return {
+            "name": r.case_name,
+            "category": r.category,
+            "question": r.question,
+            "correct_answer": r.correct_answer,
+            "response": r.model_answer,
+            "model_answer": r.model_answer,
+            "passed": r.verdict == "pass",
+            "verdict": r.verdict,
+            "judge": r.judge,
+            "judge_model": r.judge_model,
+            "judge_reasoning": r.judge_reasoning,
+            "scoring_method": r.scoring_method,
+            "validity": r.validity,
+            "source_id": r.source_id,
+            "chunk_idx": r.chunk_idx,
+            "keywords": list(r.keywords),
+            "transcript": list(r.transcript),
+            "time_ms": r.time_ms,
+            "error": r.error,
+            "retrieval_hits": list(self.retrieval_hits),
+            "retrieval_hit": self.retrieval_hit,
+            "context_text": self.context_text,
+            "gold_in_retrieved": self.gold_in_retrieved,
+            "gold_in_context": self.gold_in_context,
+            "chunks_retrieved": self.chunks_retrieved,
+            "chunks_in_context": self.chunks_in_context,
+            "gold_rank_wide": self.gold_rank_wide,
+            "context_chars": len(self.context_text),
+        }
+
+
+@dataclass
+class BrainSuiteReport:
+    """Full RAG-grounded suite payload (ready for API serialization)."""
+
+    results: list[BrainCaseResult] = field(default_factory=list)
+    scores: dict[str, Any] = field(default_factory=dict)
+    retrieval: dict[str, Any] = field(default_factory=dict)
+    corpus_path: str = ""
+    model_path: str = ""
+    top_k: int = DEFAULT_TOP_K
+    unknown_reply: str = UNKNOWN_REPLY
+
+    def as_api_dict(self) -> dict[str, Any]:
+        return {
+            "results": [r.as_api_dict() for r in self.results],
+            "scores": dict(self.scores),
+            "retrieval": dict(self.retrieval),
+            "corpus_path": self.corpus_path,
+            "model_path": self.model_path,
+            "top_k": self.top_k,
+            "unknown_reply": self.unknown_reply,
+        }
+
+
+def compute_retrieval_metrics(brain_results: list[BrainCaseResult]) -> dict[str, Any]:
+    """Hit counts / recall for cases that declare ``source_id``, plus the expected-value trace for cases that list them."""
+    with_gold = [r for r in brain_results if r.gold_in_retrieved is not None]
+    gold_stats: dict[str, Any] = {
+        "cases_with_expected_values": len(with_gold),
+        "gold_in_retrieved": sum(1 for r in with_gold if r.gold_in_retrieved),
+        "gold_in_context": sum(1 for r in with_gold if r.gold_in_context),
+        "mean_chunks_in_context": round(sum(r.chunks_in_context for r in brain_results) / len(brain_results), 2) if brain_results else 0.0,
+    }
+    with_source = [r for r in brain_results if (r.case_result.source_id or "").strip()]
+    n = len(with_source)
+    hits = sum(1 for r in with_source if r.retrieval_hit)
+    return {
+        "cases_with_source_id": n,
+        "retrieval_hits": hits,
+        "retrieval_misses": max(n - hits, 0),
+        # misses whose source a wider search would have found (and how deep): retrieval ranking, not indexing, is the loss
+        "misses_found_wider": sum(1 for r in with_source if not r.retrieval_hit and r.gold_rank_wide),
+        "wide_search_top_k": WIDE_SEARCH_MIN,
+        "recall_at_k": round(hits / n, 4) if n else None,
+        "hit_rate": round(hits / n, 4) if n else None,
+        **gold_stats,
+    }
+
+
+def _norm_text(text: str) -> str:
+    """Lowercase, drop thousands commas, collapse whitespace (matching is about content, not layout)."""
+    return " ".join(re.sub(r"(?<=\d),(?=\d{3}\b)", "", text.lower()).split())
+
+
+def gold_presence(keywords: list[str], hits: list[dict[str, Any]], context: str) -> tuple[bool | None, bool | None, int]:
+    """(all expected values in the retrieved chunks, all in the context sent to the model, chunks that fit the cap).
+
+    ``None`` when the case has no expected values (e.g. an unanswerable question).
+    """
+    n_in_context = sum(1 for h in hits if f"[{h.get('rank')}] " in context)
+    if not keywords:
+        return None, None, n_in_context
+    retrieved = _norm_text(" ".join(str(h.get("text", "")) for h in hits))
+    sent = _norm_text(context)
+    wanted = [_norm_text(k) for k in keywords]
+    return all(k in retrieved for k in wanted), all(k in sent for k in wanted), n_in_context
+
+
+def run_brain_case(
+    engine: ChatEngine,
+    brain_query: BrainSearch,
+    case: BenchmarkCase,
+    *,
+    top_k: int = DEFAULT_TOP_K,
+    max_tokens: int = 512,
+    temperature: float = 0.3,
+    think: bool = False,
+    max_context_chars: int = DEFAULT_CONTEXT_CHARS,
+) -> BrainCaseResult:
+    """Retrieve -> ground the prompt -> generate -> record the transcript and the retrieval provenance."""
+    start = time.time()
+    hits_raw: list[dict] = []
+    context = ""
+    gold_rank_wide: int | None = None
+    try:
+        hits_raw = list(brain_query.search(case.question, top_k=top_k) or [])
+        # The model only ever sees the top-k it would get in real use. When the gold source is not among them, its rank in a
+        # wider search is recorded as a diagnostic (``gold_rank_wide``); it is never pulled into the context.
+        gold_rank_wide = wide_rank_of_source(brain_query, case, hits_raw, top_k=top_k)
+        provenance = [provenance_from_hit(h) for h in hits_raw]
+        context = brain_query.format_context(hits_raw, max_chars=max_context_chars)
+        messages = build_grounded_messages(case.question, context)
+        response = engine.generate(
+            messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            think=think,
+        )
+        elapsed_ms = (time.time() - start) * 1000
+        transcript = list(messages) + [{"role": "assistant", "content": response}]
+        case_result = CaseResult(
+            case_name=case.name,
+            category=case.category,
+            question=case.question,
+            correct_answer=case.correct_answer,
+            model_answer=response,
+            transcript=transcript,
+            time_ms=round(elapsed_ms, 1),
+            keywords=list(case.keywords),
+            source_id=case.source_id,
+            chunk_idx=case.chunk_idx,
+            expect_abstain=case.expect_abstain,
+        )
+    except Exception as e:  # noqa: BLE001
+        elapsed_ms = (time.time() - start) * 1000
+        provenance = [provenance_from_hit(h) for h in hits_raw]
+        messages = build_grounded_messages(case.question, context)
+        case_result = CaseResult(
+            case_name=case.name,
+            category=case.category,
+            question=case.question,
+            correct_answer=case.correct_answer,
+            model_answer="",
+            transcript=list(messages) + [{"role": "assistant", "content": ""}],
+            error=str(e),
+            time_ms=round(elapsed_ms, 1),
+            keywords=list(case.keywords),
+            source_id=case.source_id,
+            chunk_idx=case.chunk_idx,
+            expect_abstain=case.expect_abstain,
+        )
+
+    matched = any(
+        hit_matches_source(h, case.source_id, case.chunk_idx) for h in provenance
+    )
+    gold_retrieved, gold_context, n_in_context = gold_presence(case_result.keywords, hits_raw, context)
+    return BrainCaseResult(
+        case_result=case_result,
+        retrieval_hits=provenance,
+        context_text=context,
+        retrieval_hit=matched,
+        gold_in_retrieved=gold_retrieved,
+        gold_in_context=gold_context,
+        chunks_retrieved=len(hits_raw),
+        chunks_in_context=n_in_context,
+        gold_rank_wide=gold_rank_wide,
+    )
+
+
+def run_brain_suite(
+    engine: ChatEngine,
+    brain_query: BrainSearch,
+    cases: list[BenchmarkCase],
+    *,
+    top_k: int = DEFAULT_TOP_K,
+    max_tokens: int = 512,
+    temperature: float = 0.3,
+    think: bool = False,
+    max_context_chars: int = DEFAULT_CONTEXT_CHARS,
+    on_result: Callable[[BrainCaseResult], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
+) -> list[BrainCaseResult]:
+    """Run every case through retrieve -> ground -> generate. Records transcripts; never judges."""
+    out: list[BrainCaseResult] = []
+    for case in cases:
+        if should_stop is not None and should_stop():
+            break
+        result = run_brain_case(
+            engine, brain_query, case, top_k=top_k, max_tokens=max_tokens, temperature=temperature,
+            think=think, max_context_chars=max_context_chars,
+        )
+        out.append(result)
+        if on_result is not None:
+            on_result(result)
+    return out
+
+
+def open_brain_query(
+    *, project_id: str = "", corpus_path: str = "", brain_query: BrainSearch | None = None,
+) -> tuple[BrainSearch, str]:
+    """The search engine for a run plus the corpus path it was loaded from."""
+    if brain_query is not None:
+        return brain_query, (corpus_path or "").strip() or (str(default_corpus_path(project_id)) if project_id else "")
+    path = resolve_corpus_path(project_id, corpus_path)
+    return load_brain_query(path), str(path)
+
+
+def run_brain_suite_evaluation(
+    engine: ChatEngine,
+    *,
+    suite_path: str,
+    corpus_path: str = "",
+    project_id: str = "",
+    top_k: int = DEFAULT_TOP_K,
+    max_tokens: int = 512,
+    temperature: float = 0.3,
+    brain_query: BrainSearch | None = None,
+    max_context_chars: int | None = None,
+) -> BrainSuiteReport:
+    """Load suite + corpus, run the grounded suite and aggregate retrieval metrics. No judging.
+
+    Blocking — call from ``asyncio.to_thread`` in async routes. Every case in the report is unjudged; use
+    ``testing.judging.judge_benchmark`` on a saved run (or a human) to decide correctness.
+    """
+    cases = load_test_suite(suite_path)
+    if not max_context_chars:   # sized from the loaded model's window (see smart_brain.prompt.context_char_budget)
+        max_context_chars = context_char_budget(getattr(engine, "n_ctx", None), max_new_tokens=max_tokens)
+    query, resolved_corpus = open_brain_query(project_id=project_id, corpus_path=corpus_path, brain_query=brain_query)
+    brain_results = run_brain_suite(
+        engine,
+        query,
+        cases,
+        top_k=top_k,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        max_context_chars=max_context_chars,
+    )
+    scores = score_results([r.case_result for r in brain_results])
+    retrieval = compute_retrieval_metrics(brain_results)
+    model_path = getattr(engine, "model_path", None) or ""
+    return BrainSuiteReport(
+        results=brain_results,
+        scores=scores,
+        retrieval=retrieval,
+        corpus_path=resolved_corpus,
+        model_path=str(model_path),
+        top_k=top_k,
+    )
+
+
+__all__ = [
+    "BRAIN_SYSTEM_PROMPT",
+    "UNKNOWN_REPLY",
+    "BrainCaseResult",
+    "BrainSearch",
+    "BrainSuiteReport",
+    "ChatEngine",
+    "build_grounded_messages",
+    "compute_retrieval_metrics",
+    "default_corpus_path",
+    "hit_matches_source",
+    "load_brain_query",
+    "open_brain_query",
+    "provenance_from_hit",
+    "resolve_corpus_path",
+    "run_brain_case",
+    "run_brain_suite",
+    "run_brain_suite_evaluation",
+]

@@ -1,0 +1,452 @@
+{% extends "base.html" %}
+{% block title %}Inference · Finetune Studio{% endblock %}
+{% block nav_inference %}active{% endblock %}
+{% block sb_path %}~ / tools / inference{% endblock %}
+
+{% block content %}
+<div class="grid grid-1-3 inference-layout" id="inference-layout">
+
+  {# ── Left: model loader + params ──────────────────────── #}
+  <div class="card inference-loader-pane" id="inference-loader-pane">
+    <div class="card-head">
+      <div class="card-title">Model</div>
+      {% if loaded %}
+      <span class="pill solid-green">● loaded</span>
+      {% else %}
+      <span class="pill">unloaded</span>
+      {% endif %}
+    </div>
+
+    {# Loaded-model summary (always shown when loaded) #}
+    {% if loaded %}
+    <div class="model-info-box mb-4" style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;">
+      <div class="flex items-baseline gap-2 mb-1">
+        <span class="font-bold mono">{{ (loaded.name or loaded.path.split('/')[-1])|replace('__', '/') }}</span>
+        <span class="pill solid-blue">{{ loaded.format|upper }}</span>
+        {% if loaded.vision %}<span class="pill solid-purple">vision</span>{% endif %}
+      </div>
+      <div class="grid grid-cols-auto gap-x-4 gap-y-1 text-xs dim mt-2" style="grid-template-columns:auto 1fr;">
+        <span>Size</span><span class="mono">{{ "%.1f"|format(loaded.size_gb) }} GB</span>
+        {% if loaded.architecture %}<span>Architecture</span><span class="mono">{{ loaded.architecture }}</span>{% endif %}
+        {% if loaded.parameters %}<span>Parameters</span><span class="mono">{{ loaded.parameters }}</span>{% endif %}
+        {% if loaded.context_length %}<span>Context</span><span class="mono">{{ "%.0f"|format(loaded.context_length/1000) }}K tokens</span>{% endif %}
+        {% if loaded.quantization %}<span>Quant</span><span class="mono">{{ loaded.quantization }}</span>{% endif %}
+      </div>
+      <div class="text-[10px] dim mt-2 truncate mono" title="{{ loaded.path }}">{{ loaded.path }}</div>
+    </div>
+    {% endif %}
+
+    {# Model picker (always available, so user can swap) #}
+    <select id="model-select" class="select mb-3"
+            title="Choose which model to load. GGUF = quantised weights (smaller, faster on consumer hardware; Q4_K_M is a good balance, Q8_0 is higher quality). SAFETENSORS = full-precision weights (larger, best quality). merged = this project's trained model after adapter merge.">
+      <option value="">— pick a model —</option>
+      {% for m in models %}
+        <option value="{{ m.path }}" {% if loaded and loaded.path == m.path %}selected{% endif %}
+                title="{{ m.name }} — format: {{ m.format|upper }}, size: {{ '%.1f' % m.size_gb }} GB">
+          {{ m.name }} · {{ m.format|upper }} · {{ "%.1f"|format(m.size_gb) }}GB
+        </option>
+      {% endfor %}
+    </select>
+
+    {# Memory estimation bar #}
+    <div id="mem-bar-wrap" class="mb-3" hidden>
+      <div class="flex justify-between text-xs muted mb-1">
+        <span>VRAM estimate</span>
+        <span id="mem-label" class="mono">—</span>
+      </div>
+      <div class="mem-bar-track">
+        <div id="mem-bar" class="mem-bar-fill" style="width:0%"></div>
+      </div>
+      <div class="text-[10px] dim mt-1" id="mem-detail"></div>
+    </div>
+
+    {# ── Loader controls (LM Studio-style) ─────────────────── #}
+    <details open class="loader-params">
+      <summary class="text-sm mb-2 cursor-pointer">Loader settings</summary>
+
+      <div class="mt-3">
+        <label class="block text-xs muted mb-1"
+               title="Maximum number of tokens the model can attend to at once — the size of its short-term memory. KV cache size. Auto (0) loads the model's NATIVE window and lowers it only if the whole model cannot fit on the GPU (never below 32768). An explicit value is never lowered: GPU layers step down instead.">
+          Context length <span id="n-ctx-val" class="mono violet">auto</span>
+        </label>
+        <input type="range" id="n-ctx" aria-label="Context length" class="range" min="0" max="1048576" step="1024" value="0"
+               oninput="document.getElementById('n-ctx-val').textContent=(this.value==0?'auto':this.value); updateMemEstimate()">
+        <div class="text-[10px] dim mt-0.5">Auto = the model's native window. Larger = more VRAM.</div>
+      </div>
+
+      <div class="mt-3">
+        <label class="block text-xs muted mb-1"
+               title="How many transformer layers run on GPU VRAM. Leave it at the maximum for automatic placement: as many layers as fit in free VRAM go on the GPU and the rest run on the CPU (slower). Lower it to force fewer. The context length is never reduced to make a model fit. The real layer count comes from the model file itself.">
+          GPU offload layers <span id="n-gpu-val" class="mono violet">all</span>
+        </label>
+        <input type="range" id="n-gpu-layers" aria-label="GPU layers" class="range" min="0" max="0" step="1" value="0" disabled
+               oninput="document.getElementById('n-gpu-val').textContent=this.value>=parseInt(this.max)?'all '+String(this.max)+'/'+String(this.max):this.value+' / '+String(this.max); updateMemEstimate()">
+        <div class="text-[10px] dim mt-0.5" id="n-gpu-hint">Loading model topology…</div>
+      </div>
+
+      <div class="mt-3">
+        <label class="block text-xs muted mb-1"
+               title="How many tokens are processed at once during the initial prompt evaluation. Higher = faster prompt ingestion but more VRAM spike. 512 is a safe default for most consumer GPUs.">
+          Batch size <span id="n-batch-val" class="mono violet">512</span>
+        </label>
+        <input type="range" id="n-batch" aria-label="Batch size" class="range" min="64" max="2048" step="64" value="512"
+               oninput="document.getElementById('n-batch-val').textContent=this.value">
+        <div class="text-[10px] dim mt-0.5">Prompt eval batch. 512 is a good default.</div>
+      </div>
+
+      <button onclick="toggleAdv()" id="adv-toggle" class="text-xs mt-3 mb-2" type="button"
+              title="Show advanced loader settings: CPU threads, RNG seed, RoPE scaling, flash attention, mmap, mlock. Most users don't need these — the defaults are tuned for typical hardware.">
+        ▶ Advanced settings
+      </button>
+
+      <div id="adv-panel" hidden>
+        <div class="grid-2 gap-3">
+          <div>
+            <label class="block text-xs muted mb-1"
+                   title="How many CPU threads to use for layers that don't fit in VRAM. 0 = auto (let llama.cpp pick based on your CPU). Set explicitly only if you've benchmarked.">
+              CPU threads <span id="n-threads-val" class="mono violet">auto</span>
+            </label>
+            <input type="range" id="n-threads" class="range" min="0" max="32" step="1" value="0"
+                   oninput="document.getElementById('n-threads-val').textContent=this.value==0?'auto':this.value">
+            <div class="text-[10px] dim mt-0.5">0 = auto</div>
+          </div>
+          <div>
+            <label class="block text-xs muted mb-1"
+                   title="RNG seed. -1 = random each load (recommended for varied sampling). Fixed value = reproducible outputs (useful for benchmarking + tests).">Seed</label>
+            <input type="number" id="seed" min="-1" placeholder="random" class="input">
+            <div class="text-[10px] dim mt-0.5">-1 = random</div>
+          </div>
+          <div>
+            <label class="block text-xs muted mb-1"
+                   title="Rotary Position Embedding base frequency. 0 = use the model's default. Override to extend the context window beyond what the model was trained for — risky but can work. Most users should leave at 0.">RoPE freq base</label>
+            <input type="number" id="rope-freq-base" min="0" step="1" value="0" class="input">
+            <div class="text-[10px] dim mt-0.5">0 = model default</div>
+          </div>
+          <div>
+            <label class="block text-xs muted mb-1"
+                   title="Rotary Position Embedding frequency scale. 0 = model default. >1 = stretch position encoding to support longer context. Most users should leave at 0 unless extending context.">RoPE freq scale</label>
+            <input type="number" id="rope-freq-scale" min="0" step="0.01" value="0" class="input">
+            <div class="text-[10px] dim mt-0.5">0 = model default</div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-3 mt-3 text-xs">
+          <label class="flex items-center gap-2 muted" title="Use the FlashAttention kernel — a faster, more memory-efficient attention implementation. Recommended on modern GPUs (Ampere or newer).">
+            <input type="checkbox" id="flash-attn" checked> Flash attention
+          </label>
+          <label class="flex items-center gap-2 muted" title="Memory-map the model file from disk instead of loading it all into RAM. Lets you run models larger than your RAM, with a small startup-time cost.">
+            <input type="checkbox" id="mmap" checked> mmap
+          </label>
+          <label class="flex items-center gap-2 muted" title="Pin the model in physical RAM so the OS doesn't swap it out. Useful for latency-sensitive serving; needs enough RAM to hold the whole model + KV cache.">
+            <input type="checkbox" id="mlock"> mlock (pin in RAM)
+          </label>
+          <label class="flex items-center gap-2 muted" title="Don't free the model when you click Unload. Faster to reload, but holds VRAM/RAM the whole time.">
+            <input type="checkbox" id="keep-in-memory">
+            Keep model in memory after unload
+          </label>
+        </div>
+      </div>
+    </details>
+
+    <div class="mt-4 flex gap-2 inference-load-actions" id="inference-load-actions">
+      {% if loaded %}
+      <button class="btn primary" id="load-btn" onclick="loadModel()">Reload model</button>
+      <button class="btn danger" id="unload-btn" onclick="unloadModel()">Unload</button>
+      {% else %}
+      <button class="btn primary" id="load-btn" onclick="loadModel()" {% if not models %}disabled{% endif %}
+              title="Load the selected model into GPU/CPU memory. The first load downloads weights if needed (e.g. GGUF ~16 GB) which can take a minute; subsequent loads are seconds. Loading a new model unloads the currently active one (one model in VRAM at a time).">Load model</button>
+      {% endif %}
+    </div>
+
+    <div class="divider"></div>
+
+    {# Generation params (only when loaded) #}
+    {% if loaded %}
+    <div class="card-title">Generation</div>
+    <div class="mt-3">
+      <label class="block text-xs muted mb-1"
+             title="Sampling temperature. 0 = deterministic, always picks the most likely token. 1 = standard. 2 = very creative / chaotic. Lower for factual / coding tasks; higher for creative writing.">
+        Temperature <span id="t-val" class="violet mono">0.7</span>
+      </label>
+      <input type="range" id="t" class="range" min="0" max="2" step="0.05" value="0.7"
+             oninput="document.getElementById('t-val').textContent=this.value">
+    </div>
+    <div class="mt-3">
+      <label class="block text-xs muted mb-1"
+             title="Maximum number of tokens the model will generate before stopping. 1 token ≈ ¾ of a word. 512 ≈ 380 words. Higher = longer replies, more VRAM, slower.">
+        Max tokens <span id="m-val" class="violet mono">512</span>
+      </label>
+      <input type="range" id="m" class="range" min="32" max="4096" step="32" value="512"
+             oninput="document.getElementById('m-val').textContent=this.value">
+    </div>
+    <div class="mt-3">
+      <label class="block text-xs muted mb-1"
+             title="Nucleus sampling: the model picks the next token from the smallest set of tokens whose cumulative probability exceeds this value. 0.9 is standard; lower (0.5) is more focused, higher (0.95) more diverse.">
+        Top-P <span id="p-val" class="violet mono">0.9</span>
+      </label>
+      <input type="range" id="p" class="range" min="0" max="1" step="0.05" value="0.9"
+             oninput="document.getElementById('p-val').textContent=this.value">
+    </div>
+    <div class="mt-3">
+      <label class="block text-xs muted mb-1"
+             title="The instruction the model sees at the start of every conversation. Sets its persona, tone, and constraints. Different from the user message — think of it as 'the system tells the model what kind of assistant it should be'.">System prompt</label>
+      <textarea id="sp" class="textarea" rows="3" placeholder="You are a helpful assistant."></textarea>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Right: chat ────────────────────────────────────────────── #}
+  <div class="card" style="display:flex;flex-direction:column;overflow:hidden;">
+    <div class="card-head">
+      <div class="card-title">Chat</div>
+      <div class="text-xs dim" id="chat-status">{{ 'Ready' if loaded else 'Load a model first' }}</div>
+    </div>
+
+    <div class="chat" style="flex:1;">
+      <div class="msgs" id="msgs">
+        {% if not loaded %}
+        <div class="empty">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+          </svg>
+          <div>Load a model on the left to start chatting.</div>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if loaded %}
+      <div class="chat-input">
+        <textarea id="msg" rows="1" placeholder="Message… (Shift+Enter for newline)"
+                  onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"></textarea>
+        <button class="btn primary" onclick="send()" id="send-btn">Send</button>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+  .mem-bar-track { background: var(--bg-elev); height: 10px; border-radius: 0; overflow: hidden;
+                    border: 1px solid var(--border); }
+  .mem-bar-fill  { background: repeating-linear-gradient(90deg, var(--accent) 0 6px, var(--accent-2) 6px 8px); height: 100%; transition: width .3s; }
+  .loader-params summary { list-style: none; user-select: none; }
+  .loader-params summary::-webkit-details-marker { display: none; }
+  .loader-params[open] > summary { font-weight: 600; }
+</style>
+<script>
+const $ = (id) => document.getElementById(id);
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+function readLoaderParams() {
+  const v = (id) => $(id).value;
+  const i = (id) => $(id).checked;
+  const seed = v('seed').trim();
+  const ropeBase = v('rope-freq-base').trim();
+  const ropeScale = v('rope-freq-scale').trim();
+  return {
+    n_ctx: parseInt(v('n-ctx')),
+    n_gpu_layers: (function(){ const s=document.getElementById('n-gpu-layers'); const v=parseInt(s && s.value); if (!s || isNaN(v)) return -1; return v >= parseInt(s.max || 0) ? -1 : v; })(),
+    n_batch: parseInt(v('n-batch')),
+    n_threads: parseInt(v('n-threads')) || null,
+    seed: seed === '' || seed === '-1' ? -1 : parseInt(seed),
+    rope_freq_base: ropeBase === '' ? 0 : parseFloat(ropeBase),
+    rope_freq_scale: ropeScale === '' ? 0 : parseFloat(ropeScale),
+    flash_attn: i('flash-attn'),
+    mmap: i('mmap'),
+    mlock: i('mlock'),
+  };
+}
+
+function toggleAdv() {
+  const p = $('adv-panel');
+  p.hidden = !p.hidden;
+  $('adv-toggle').textContent = p.hidden ? '▶ Advanced settings' : '▼ Advanced settings';
+}
+
+let modelMetaCache = {};
+async function getModelMeta(path) {
+  if (modelMetaCache[path]) return modelMetaCache[path];
+  // Route is GET /api/models/info?path=… (POST returns 405).
+  const r = await fts.api.get('/api/models/info?path=' + encodeURIComponent(path));
+  if (r && r.path) {
+    modelMetaCache[path] = r;
+    return r;
+  }
+  return null;
+}
+
+function applyModelMeta(meta) {
+  const slider = document.getElementById('n-gpu-layers');
+  if (!slider) return;
+  // Real layer count from the model's GGUF header (block_count). The API
+  // exposes it as total_layers / block_count; no more 99-magic defaults.
+  const maxLayers = meta && (meta.total_layers || meta.num_layers || meta.block_count)
+    ? Math.round(meta.total_layers || meta.num_layers || meta.block_count)
+    : 0;
+  const hint = document.getElementById('n-gpu-hint');
+  if (maxLayers > 0) {
+    slider.max = maxLayers;
+    // At the maximum = automatic (as many layers as fit in free VRAM, the rest on the CPU);
+    // anything lower is an explicit cap the loader will not exceed.
+    slider.disabled = false;
+    slider.value = maxLayers;
+    const valEl = document.getElementById('n-gpu-val');
+    if (valEl) {
+      const v = parseInt(slider.value);
+      valEl.textContent = v >= maxLayers
+        ? 'all ' + maxLayers + '/' + maxLayers
+        : v + ' / ' + maxLayers;
+    }
+    if (hint) hint.textContent = 'This model has ' + maxLayers + ' layers (read from the model file). At the maximum the loader fits as many as VRAM allows and keeps your context length; the rest run on the CPU.';
+    slider.title = 'Maximum = automatic placement. Lower values cap the number of layers on the GPU.';
+  } else {
+    slider.disabled = true;
+    if (hint) hint.textContent = 'Layer count unknown for this model — placement is automatic (as many layers as fit on the GPU).';
+  }
+}
+let memTimer = null;
+function updateMemEstimate() {
+  clearTimeout(memTimer);
+  memTimer = setTimeout(async () => {
+    const path = $('model-select').value;
+    if (!path) { $('mem-bar-wrap').hidden = true; return; }
+    const params = readLoaderParams();
+    try {
+      const r = await fts.api.post('/api/inference/memory-estimate', { path, ...params });
+      if (r.error) { $('mem-bar-wrap').hidden = true; return; }
+      const total = (r.total_vram_gb || r.vram_gb || 0);
+      const weights = (r.weights_gb || 0);
+      const ctx = (r.kv_cache_gb || 0);
+      const used = (r.currently_used_gb || 0);
+      const cap = (r.total_gpu_gb || 24);
+      const pct = Math.min(100, (used + total) / cap * 100);
+      $('mem-bar-wrap').hidden = false;
+      $('mem-bar').style.width = pct + '%';
+      $('mem-bar').style.background = pct > 90 ? 'var(--err)' : pct > 75 ? 'var(--warn)' : 'linear-gradient(90deg, var(--accent), var(--accent-2))';
+      $('mem-label').textContent = `${total.toFixed(1)} GB est (used ${used.toFixed(1)} / ${cap.toFixed(0)})`;
+      $('mem-detail').textContent = `weights ${weights.toFixed(1)} GB · KV cache ${ctx.toFixed(2)} GB`;
+    } catch (e) {
+      $('mem-bar-wrap').hidden = true;
+    }
+  }, 250);
+}
+
+async function loadModel() {
+  const path = $('model-select').value;
+  if (!path) return fts.notify('Pick a model first', 'warn');
+  const btn = $('load-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Loading…';
+  // show wire-transfer overlay
+  const wt = document.createElement('div');
+  wt.style.cssText = 'margin-top:12px;';
+  wt.appendChild(spriteWireTransfer('TRANSMITTING ' + (path.split('/').pop() || 'model')));
+  btn.parentElement.appendChild(wt);
+  try {
+    const params = readLoaderParams();
+    const r = await fts.api.post('/api/models/load', { path, ...params });
+    const failed = !r || r.error || r.status === 'error' || r.loaded === false;
+    if (failed) {
+      throw new Error((r && r.error) || 'Model failed to load (still unloaded)');
+    }
+    // Never claim loaded from HTTP 200 alone — confirm status endpoint.
+    const st = await fts.api.get('/api/inference/status').catch(() => null);
+    if (!st || !st.loaded) {
+      throw new Error(
+        (r && r.error) ||
+        'Load reported success but inference status still shows unloaded. Check VRAM/RAM and GPU processes.'
+      );
+    }
+    // Layers that did not fit in VRAM run on the CPU: say so (the context is never reduced).
+    const placementWarnings = (r && Array.isArray(r.warnings)) ? r.warnings : [];
+    fts.notify('Model loaded', 'success');
+    placementWarnings.forEach((w) => fts.notify(w, 'warn'));
+    setTimeout(() => location.reload(), placementWarnings.length ? 4500 : 600);
+  } catch (e) {
+    fts.notify('Load failed: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Load model';
+    wt.remove();
+  }
+}
+
+async function unloadModel() {
+  if (!await fts.confirm('Unload the model and free VRAM?', {danger: true, okText: 'Unload'})) return;
+  const btn = $('unload-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Unloading…';
+  try {
+    await fts.api.post('/api/models/unload', {});
+    fts.notify('Model unloaded', 'success');
+    setTimeout(() => location.reload(), 400);
+  } catch (e) {
+    fts.notify('Unload failed: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Unload';
+  }
+}
+
+async function send() {
+  const ta = $('msg');
+  const text = ta.value.trim();
+  if (!text) return;
+  const msgs = $('msgs');
+  const userDiv = document.createElement('div');
+  userDiv.className = 'bubble user';
+  userDiv.textContent = text;
+  msgs.appendChild(userDiv);
+  ta.value = '';
+
+  const aDiv = document.createElement('div');
+  aDiv.className = 'bubble assistant';
+  aDiv.innerHTML = '<span class="meta">assistant</span><span class="spinner"></span> thinking…';
+  msgs.appendChild(aDiv);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  $('send-btn').disabled = true;
+  $('chat-status').textContent = 'Generating…';
+  const start = performance.now();
+
+  try {
+    const params = {
+      temperature: parseFloat($('t').value),
+      max_tokens: parseInt($('m').value),
+      top_p: parseFloat($('p').value),
+      system_prompt: $('sp').value || '',
+      messages: [{role: 'user', content: text}],
+    };
+    const r = await fts.api.post('/api/inference/chat', params);
+    const body = (r.response || r.text || '').trim() || '(no response)';
+    const dt = ((performance.now() - start) / 1000).toFixed(1);
+
+    let thinking = '';
+    const tm = r.thinking || r.reasoning || '';
+    if (tm) thinking = `<details><summary>thinking (${tm.length} chars)</summary><pre>${esc(tm)}</pre></details>`;
+    aDiv.innerHTML = `<span class="meta">assistant · ${dt}s</span>${thinking}${esc(body)}`;
+    msgs.scrollTop = msgs.scrollHeight;
+    $('chat-status').innerHTML = '<span class="ok">● live</span> · ' + dt + 's';
+  } catch (e) {
+    aDiv.innerHTML = '<span class="meta err">error</span> ' + esc(e.message);
+  } finally {
+    $('send-btn').disabled = false;
+  }
+}
+
+// Refresh memory estimate + layer topology for the selected model.
+async function refreshSelectedModel() {
+  updateMemEstimate();
+  const path = $('model-select').value;
+  if (!path) return;
+  try {
+    applyModelMeta(await getModelMeta(path));
+  } catch (e) {
+    fts.notify('Model info failed: ' + (e.message || e), 'error');
+  }
+}
+$('model-select').addEventListener('change', refreshSelectedModel);
+refreshSelectedModel();
+</script>
+{% endblock %}

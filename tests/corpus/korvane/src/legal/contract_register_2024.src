@@ -1,0 +1,31 @@
+---
+out: contract_register_2024.xlsx
+tier: extended
+---
+## Active
+| Contract register 2024 - Korvane Legal (S. Brandão) - position as at 04.10.2024 - dates DD.MM.YYYY unless ISO | | | | | | | | |
+| Ref | Counterparty | Type | Signed | Current term ends | Notice / action deadline | Owner | Annual value EUR | Notes |
+| KCC/MSA/2023/017 | Oakhaven Dairy Ltd | Master services agreement | 03.04.2023 | 30.04.2026 | 31.12.2025 non-renewal (120 days) | Y. Demirkıran | 1420000 | Amendment No. 2 signed 29.08.2024, effective 01.10.2024; new Customer convenience notice 120 days. Settlement paid |
+| HPL-LV-2016-0418 | Helvetia Pharma Logistik GmbH | Pharma logistics services agreement | 14.09.2016 | 13.09.2026 | 13.09.2025 non-renewal (12 months) | Y. Demirkıran | 2310000 | Renews in 5-year periods. DPA KCC/DPA/2023/003 runs with it; GDP audit due Q1 2025 |
+| KCC/SUP/2022/009 | Thermaglide Reefer Units B.V. | Supply and service agreement (reefer units) | 2022-09-07 | 2027-09-30 | 2026-09-30 non-renewal (12 months) | G. Halvorsrud | 1580000 | Firm Order Schedule 80 units complete. Price freeze ended 30.09.2024, CBS index applies from 01.10.2024 |
+| KCC/LSE/2018/002 | Portowa Dzierżawa Gdynia Sp. z o.o. | Lease, GDY-1 yard Parcel 214/6 | 22.05.2018 | 30.06.2028 | 30.09.2025 tenant break (9 months); 30.06.2027 renewal option | S. Brandão | 560000 | Rent EUR 46,650 a month from 01.07.2024. Plug-bank notification letter still missing |
+| KCC/SBC/2021/011 | Samsø Berry Co-op amba | Seasonal cold chain services agreement | 18.03.2021 | 01.11.2024 | Terminated by Co-op, notice dated 02.09.2024 | Y. Demirkıran | 2140000 | Claim DKK 486,000 open; response due 23.09.2024; 180 loggers to come back to HAM-2 |
+| KCC/BNS/2022/006 | Brunnen & Sohn Frischdienst | Transport and monitoring framework | 12.05.2022 | 11.05.2025 | 11.02.2025 non-renewal (3 months) | R. Nowogrodzki | 870000 | Auto-renews for 1 year. Volume bonus review each March |
+| KCC/NKS/2023/008 | Nordkjøl Seafood AS | Reefer transport agreement | 07.02.2023 | 06.02.2026 | 06.08.2025 non-renewal (6 months) | R. Nowogrodzki | 1190000 | Liability cap 2x annual fees |
+| KCC/VBS/2023/011 | Voltrac Battery Systems | Supply agreement, KC-Tag 4 batteries | 20.06.2023 | 19.06.2026 | 19.12.2025 non-renewal (6 months) | T. Wrzesiński | 340000 | Cell lot warranty 36 months |
+| KCC/LCH/2021/013 | Lintu Cloud Hosting Oy | Hosting agreement for Tidewalk | 15.12.2021 | 31.12.2025 | 30.06.2025 non-renewal (6 months) | K. Zdunek | 262000 | Sub-processor under Helvetia DPA; Tampere and Kajaani |
+| KCC/BRK/2020/001 | Seaboard Insurance Brokers | Brokerage agreement | 03.12.2020 | 31.12.2024 | 02.10.2024 renewal instruction (90 days) | P. Venkataraman-Holt | 48000 | Cargo cover raised to EUR 6,000,000 for Oakhaven from 01.10.2024; renewal instruction sent late, needs a comfort e-mail |
+| KCC/APS/2022/004 | Arendal Port Services | Terminal access and gate data agreement, GOT-4 | 01.03.2022 | 28.02.2027 | 28.08.2026 non-renewal (6 months) | J. Lindqvist | 215000 | Gate data feed is sub-processor service |
+| KCC/GLC/2023/010 | GreyLine Customs Agency | Customs brokerage services | 09.05.2023 | 08.05.2025 | 08.02.2025 non-renewal (3 months) | S. Brandão | 96000 | Fixed fee EUR 8,000 a month |
+| KCC/LKO/2024/002 | Lumikko Foods Oy | Pilot transport agreement | 11.01.2024 | 31.12.2024 | 31.10.2024 decision on conversion | R. Nowogrodzki | 210000 | Converts to framework if 120 containers shipped by 30.09.2024 |
+
+## Expired
+| Contract register 2024 - expired and terminated contracts retained for reference - position as at 04.10.2024 | | | | | |
+| Ref | Counterparty | Type | Signed | Expired | Notes |
+| KCC/SUP/2017/003 | Kaltmeer Kältetechnik GmbH | Previous refrigeration unit supply agreement | 20.03.2017 | 30.09.2022 | Replaced by Thermaglide agreement; prices were reopened three times in 2021 |
+| KCC/VBS/2019/005 | Voltrac Battery Systems | KC-Tag 3 battery supply agreement | 18.09.2019 | 31.12.2023 | Ended with KC-Tag 3 end-of-life |
+| KCC/NDA/2022/004 | Thermaglide Reefer Units B.V. | Mutual NDA (project HADDOCK) | 09.02.2022 | 08.02.2024 | Disclosure Period ended; confidentiality obligations survive to 08.02.2029 |
+| KCC/LSE/2021/009 | Maasvlakte Terminal Services B.V. | Interim yard licence, Rotterdam | 01.11.2021 | 28.02.2022 | Replaced by RTM-3 depot from March 2022 |
+| KCC/SMS/2023/001 | SMSGate Nordic ApS | SMS and voice alert gateway | 01.02.2023 | 14.04.2024 | Replaced by Brightline Messaging AB from 15.04.2024; notice under DPA clause 4.2 given 11.03.2024 |
+| KCC/FLK/2020/007 | Hanseatic Gabelstapler Vermietung GmbH | Forklift rental, HAM-2 | 02.07.2020 | 30.06.2023 | Fleet bought out for EUR 143,000 |
+| KCC/MSA/2019/014 | Fruttoria Baltica | Seasonal citrus agreement | 04.09.2019 | 31.03.2022 | Not renewed; relationship continues on spot orders |

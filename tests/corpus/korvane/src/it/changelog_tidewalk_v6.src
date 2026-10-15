@@ -1,0 +1,145 @@
+---
+out: changelog_tidewalk_v6.md
+tier: extended
+---
+# Tidewalk 6.x — CHANGELOG
+
+_maintained by hand by whoever cuts the release, newest first. bug ids = TW-nnnn in the tracker (JIRA export). if you add an entry without an id i will find you — W.S._
+
+_last touched 2025-01-08 (D.P.: added 6.8 notes, fixed the 6.2 date which was wrong for a year)_
+
+---
+
+## 6.8.0 — 2024-12-17 (Tue)
+
+**Headline:** wall-display links get an expiry banner, "hub groups" in the console, SCIM 2.0 leaves beta.
+
+- SCIM 2.0 provisioning is GA. Deprovisioning latency target **under 5 minutes** (measured p95 3 min 40 s on the Kowarzik tenant, our own). TW-4172
+- Hub groups: a hub can belong to a group such as "quayside" and rules can target the group. Max **12 groups per site**. TW-4088
+- Wall-display link now shows a yellow banner **7 days before** it expires; before it just died at 3am. Several people have told us about it. TW-4150
+- Export of the audit log to syslog/CEF now supports TCP+TLS on port **6514** besides UDP (UDP was never a good idea). TW-4101
+- Fixed: Excursion Report listed alerts twice if the container changed customer group mid-trip. TW-4163
+- Fixed: Android app crashed on opening an alert with an attachment over **8 MB** on devices with less than 3 GB RAM. App 3.3.1. TW-4179
+- Known issue: GDP Compliance Pack can be slow (~9 min) for 20 containers with 3 tags each. TW-4181, targeted 6.8.1.
+- Dropped: support for Internet Explorer 11 in the console. It was dropped in 2022 in practice, we are now just admitting it.
+
+Release engineer: Wiktor. Rollback tested on staging in 11 minutes. Change freeze started 13.12 18:00 as per rota.
+
+## 6.7.0 — 2024-11-26 (Tue)
+
+- New default for `rule.clear.hysteresis_n`... no wait, that stayed 3. Ignore the draft notes, they were from the branch that got abandoned. (the setting range was widened to 1–10 though, TW-3987)
+- Hub list in the console now shows both firmware slot versions (A/B) per hub. TW-3920
+- Fixed: geofence polygons with more than 40 vertices were accepted by the API and silently dropped in the console. Now rejected with TW-400-01. TW-4027
+- Fixed: "Senior Dispatcher can edit thresholds on other sites if the profile is cloned" (!!). Security. Backported to 6.5.3 and 6.6.1. TW-4051
+- Fixed: Excursion Report CSV had the column `ack_by` empty for acknowledgements made through the API. TW-4044
+- Perf: dashboard tile "alerts last 24 h" no longer times out for tenants with more than 3,000 alerts a day (it used to take 31 s, now under 2 s). TW-4060
+
+## 6.6.0 — 2024-10-29 (Tue)
+
+Rc cycle: rc1 on 2024-10-01, rc2 on 2024-10-15, rc3 on 2024-10-22. Three rcs is one more than we planned, blame the SSO thing.
+
+- Map view: cluster tiles, 1,500 containers load in 1.9 s median instead of 4.4 s (thx Aneta). TW-3792
+- API: `GET /hubs/{name}/status` now returns the firmware slot versions. TW-3811
+- API sandbox reset moved from Saturday 04:00 to **Sunday 04:00 UTC**, because Saturday was when the partner in Hamburg ran their demos. TW-3902
+- Excursion Report CSV gains the column `ack_by`. TW-3866
+- Fixed: SMS segment count wrong for messages with the euro sign (€ is in the GSM-7 extension table and counts double). TW-3874
+- Fixed: timezone dropdown missing Europe/Warsaw when the browser language was Lithuanian. Yes, really. TW-3951
+
+## 6.5.0 — 2024-09-24 (Tue)
+
+- 6.5.0 is the first release built with the new CI pipeline (build time **38 min → 14 min**).
+- Hardware keys (WebAuthn): up to **4 factors** per user total (was 2). TW-3702
+- Break-glass login now e-mails all other Tenant Admins + the support mailbox. TW-3688
+- Retention: Pharma deviation records **15 years** (was 10 — Helvetia asked, Sofia agreed). TW-3721
+- Tag list: grey badge for KC-Tag 3 devices (EOL 2023), they can no longer raise FATAL. TW-3655
+- Voice calls (beta, Pharma only): rings **40 seconds**, 2 attempts. TW-3811
+- SSO: SAML metadata refresh every **24 h**; manual refresh at most **once per hour**. TW-3866
+- SSO: clock tolerance now **120 s** (was 300 s — Brunnen & Sohn's identity provider drifted; no wait, that was a different customer, whatever. security asked for 120). New error code TW-SSO-214 for skew, replaces the generic TW-SSO-001 for that case. TW-3874
+- Quiet hours per contact (1–10 h). TW-3790
+- Mobile app 3.2 (iOS 16+, Android 11+): offline queue of the last **200 alerts**. TW-3920
+- "Calibration due" INFO alert now fires **30 days** before tag calibration expiry (was 14). TW-4012
+- API: `POST /exports` is limited to **6 per hour** per key (was 20). People were running it in a loop. TW-3902
+- Fixed: after a hub came back from HUB_HEARTBEAT_LOST, TAGSILENT rules were re-enabled immediately and fired false CRITs. Now waits for 2 heartbeats. TW-3947
+- Fixed: webhook secret rotation did not keep the old secret for 24 h on tenants with more than 10 webhooks. TW-3731
+- 6.5.1 (2024-10-08): fixed the retention job deleting 5-minute aggregates one day early on the last day of the month (!). No customer data lost, the job was running in dry-run for that bucket. TW-3774
+- 6.5.2 (2024-10-17): login page CSS for Safari 15. TW-3800
+- 6.5.3 (2024-11-28): backport of the Senior Dispatcher fix, see 6.7.0.
+
+## 6.4.3 — 2024-09-05 (Thu)
+
+Direct follow-up to PM-2024-07.
+
+- `alert.dispatch.batch_window_ms` now validated: **max 30000**. Anything higher makes the notifier refuse to start and log `E-CFG-017`. TW-3668 (this is AI-1)
+- CI check on the rendered `values-prod.yaml`: fails the build when a platform setting is outside its schema bounds. TW-3669
+- notifier restart now logs the effective batch window at INFO. (should have been there from day 1)
+
+## 6.4.2 — 2024-08-21 (Wed)  ⚠
+
+Hotfix. Contents: fix for TW-3598 (duplicate SMS to contacts that appear in two escalation levels) and the dependency bump for the SMS client.
+
+**This is the release that went out with the wrong batch window. See PM-2024-07. Do not deploy 6.4.2 values files anywhere.** The code itself is fine; the values file was the problem. 6.4.3 supersedes it.
+
+## 6.4.1 — 2024-07-02
+
+- New default door-open rules: WARN after **4 min**, CRIT after **9 min** (before: WARN 10 min, CRIT none). Triggered by the Oakhaven incident of 14.06, Gunnar's team asked. TW-3541
+- Default profile PHARMA-2-8: CRIT above +8.0 °C after **3 min** (was 5 min). TW-3544
+- Fixed: tag battery warn threshold in the UI was shown as 20% while the engine used 15%. The engine was right. TW-3530
+
+## 6.4.0 — 2024-05-14 (Tue)
+
+- New rule review report (rules not fired in **180 days**, more than **500** fires in 30 days, deactivated contacts). TW-3412
+- GDP Compliance Pack: SHA-256 checksum on last page. TW-3388
+- Backup: Friday 17:30 ingest-db backup window shortened from **20 min to 12 min** max freeze at GDY-1 (new snapshot tooling at Lintu). TW-3425
+- Geofences: polygon vertices max **40** (was 25). TW-3401
+- Admin guide R7 published the same day, nobody noticed.
+- Fixed: "Contacts with a + in the e-mail address could not receive alerts". Everyone with a gmail plus-alias, including me. TW-3419
+
+## 6.3.0 — 2024-01-23 (Tue)
+
+- WebAuthn / FIDO2 hardware keys. TW-3201
+- Default `hub.hb.timeout_s` changed from 240 to **420** s after the flapping tickets of Q4 2023. Range 180–900. TW-3250
+- Webhooks: HMAC-SHA256 signature header `X-Tidewalk-Signature`. (Before: shared secret in a query string, yes, we know.) TW-3188
+- Pingwave replaces the old SMS provider. Throttle **120/min** across all tenants (the old one had none, and a bill to match). TW-3231
+- Dropped: KC-Tag 3 firmware updates over the hub (the tags are EOL end of 2023). TW-3260
+
+## 6.2.0 — 2023-09-12
+
+(date was wrong in this file for a year, it said 2023-08-12. D.P.)
+
+- **Senior Dispatcher** role. Requested by the night shift (Olek's team). TW-2977
+- Flapping suppression default changed to **6 transitions in 20 minutes** (before: 5 in 30). TW-3040
+- Snooze limits per role (Dispatcher 2 h, Senior 4 h, Tenant Admin 8 h; CRIT max 2 h for everyone). TW-3012
+- Fixed: export of exactly **250,000** rows produced a corrupt XLSX (Excel's limit is 1,048,576, so not that; it was our zip writer). TW-3055
+
+## 6.1.0 — 2023-05-09
+
+- TAGSILENT: single hub alert replaces the tag-silent alerts of containers behind a lost hub. Reason: 6 Feb hub outage at RTM-3 generated 212... no, 1,212 SMS in 9 minutes. TW-2760
+- Hub firmware rollout rings 0/1/2 (soak 72 h / 48 h). TW-2801
+- Tenant limits table introduced, Standard capped at **400 containers** (was unlimited, which was a pricing mistake). TW-2788
+- Fixed: CHILL-A profile WARN was +6.5 °C instead of +6.0 °C since 6.0.0. Sorry, Nordkjøl. TW-2790
+
+## 6.0.2 — 2023-03-12
+
+- Public API v2 GA. Base path `/v2`. v1 stays alive "for now". TW-2655
+
+## 6.0.1 — 2023-02-28
+
+- Fixed: dark-mode text unreadable on alert detail. TW-2602
+- Fixed: migration from v5 duplicated customer groups for tenants with groups named with trailing spaces. TW-2611 (hello, 14 tenants)
+
+## 6.0.0 — 2023-02-14
+
+The big one. New rule engine (rewritten in Go, replaces the Python one), new console, new data model.
+
+- TLS 1.0 and 1.1 switched off for the console and API. TW-2501
+- Rule engine evaluates time-based conditions every **30 s**. TW-2480
+- New alert classes INFO / WARN / CRIT / FATAL (v5 had low/medium/high). TW-2470
+- Retention: raw readings **90 days** Standard (was 60). TW-2533
+- v5 imports: done by Dominik over 11 weekends. thank you Dominik.
+
+---
+
+### unreleased / not-in-any-release (parking lot)
+
+- TW-3306 customer-uploaded calibration certificates (Pharma) — still open, "someday". Do NOT promise this to Yusuf again.
+- TW-4200 v7 beta branch: rule editor rewrite, WebSocket live view. Target 2025.

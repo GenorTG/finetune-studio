@@ -1,0 +1,11 @@
+OCTOPUS-7741 — Plain-text notes dump
+
+Project OCTOPUS-7741 kicked off on 2026-09-08. Owner: @genor.
+Primary goal: keep VRAM steady-state under 22 GiB on RTX 3090.
+Regression: unload() must actually free VRAM (fix landed in a34c08b).
+Secondary: External-API fields stay hidden when Local provider is selected (11d4cbc).
+
+Pipeline order: parse -> chunk -> Q&A -> curate -> export.
+Qwen3.8-27B-abliterated-Q4_K_M runs the tool-calling chat.
+
+E2E fixture needle: OCTOPUS-7741.

@@ -1,0 +1,778 @@
+{% extends "base.html" %}
+{% block title %}Chat · {{ project.name }} · Finetune Studio{% endblock %}
+{% block nav_project_chat %}active{% endblock %}
+{% block sb_path %}~ / projects / {{ project.name }} / chat{% endblock %}
+{% block breadcrumb_tab %}chat{% endblock %}
+{% block content %}
+<div class="page-head flex items-baseline justify-between gap-3 wrap">
+  <div>
+    <h1>Chat — {{ project.name }}</h1>
+    <div class="sub">Two modes. <b>Test</b> = simple Q&amp;A with the project's system prompt, optionally with the Smart Brain's sources. <b>Agent</b> = the app guide: it explains any page, checks your project, recommends settings, opens pages, points at controls and pre-fills forms. It is the same Guide that opens from the <b>guide</b> button on every page.</div>
+  </div>
+</div>
+
+<div class="card mb-6">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Mode</div>
+      <div class="card-sub">Pick what the chat is <i>for</i>. The endpoint, system prompt, and tools change with the mode.</div>
+    </div>
+  </div>
+
+  <div class="grid grid-2 gap-3 mt-2">
+    <label class="flex items-start gap-3 p-3 card-inner" style="cursor:pointer; border:1px solid var(--border);">
+      <input type="radio" name="chat-mode" value="test" checked class="mt-1">
+      <div>
+        <div class="font-bold">Test</div>
+        <div class="text-xs muted">Simple chat with the project's production system prompt. Optionally use the Smart Brain so answers come with sources. Best for: testing the trained model, comparing runs, debugging prompts.</div>
+      </div>
+    </label>
+    <label class="flex items-start gap-3 p-3 card-inner" style="cursor:pointer; border:1px solid var(--border);">
+      <input type="radio" name="chat-mode" value="agent" class="mt-1">
+      <div>
+        <div class="font-bold">Agent <span class="pill solid-purple text-[10px] ml-1">tool-calling</span></div>
+        <div class="text-xs muted">Ask how a page or setting works or what this project still needs. It opens the docked Guide, can navigate, highlight controls and pre-fill forms (editable, never submitted). It never trains, approves, exports, deletes or changes settings for you.</div>
+      </div>
+    </label>
+  </div>
+
+  <div id="chat-mode-test-extras" class="mt-3">
+    {# ── Smart Brain selector (only relevant in Test mode) ─────────── #}
+    {% if indexes %}
+    <div>
+      <span class="block text-xs muted mb-1">Smart Brain <span class="dim">(answers with sources from your files)</span></span>
+      <div class="flex flex-wrap gap-3 text-xs">
+        {% for idx in indexes %}
+        <label class="flex items-center gap-1 muted">
+          <input type="checkbox" name="chat-brain-enabled" value="{{ idx.id }}" checked>
+          {{ idx.name }} <span class="dim">({{ idx.doc_count }} docs · {{ idx.chunk_count }} chunks)</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mb-6">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Conversation</div>
+      <div class="card-sub">Test-mode messages render below. Agent mode runs in the docked Guide panel (every lookup, check and action is shown there with its result).</div>
+    </div>
+    <button class="btn sm" id="chat-stop" onclick="_chatStop()" title="Stop generation" disabled>⏹ Stop</button>
+    <button class="btn sm" id="chat-copy" onclick="_chatCopyAll()" title="Copy conversation to clipboard">⎘ Copy all</button>
+    <button class="btn sm" id="chat-export" onclick="_chatExport()" title="Download conversation as Markdown">⇩ Export</button>
+    <button class="btn sm" id="chat-clear" onclick="_chatClear()" title="Forget all messages in this session">Clear</button>
+  </div>
+
+  <div id="chat-model-warn" class="dp-chat-warn" hidden>
+    <div class="dp-chat-warn-box">
+      <div class="dp-chat-warn-title">⚠ No model loaded</div>
+      <div class="dp-chat-warn-body">
+        <p>Load a model here to start chatting — or switch the global one on the <a href="/inference" data-link>Inference</a> tab.</p>
+        <div class="dp-chat-warn-load" id="chat-inline-load" hidden>
+          <select id="chat-inline-model" class="select"></select>
+          <input id="chat-inline-ctx" type="number" class="input" style="width:6.5rem" value="0" min="0" max="1048576" step="512" placeholder="auto"
+                 title="Context window to load with (in tokens). 0 = auto: the model's native window, lowered only if it cannot fit on the GPU. Changing this here changes the shared default for every other page that loads this model too.">
+          <button class="btn sm" id="chat-inline-load-btn" onclick="chatInlineLoad()">Load</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="chat-msgs" class="dp-chat-msgs">
+    <div class="dp-chat-empty" id="chat-empty">
+      <span data-empty="test">
+        {% if indexes %}
+        Load a model above to start chatting — or use the one-click loader in the red ⚠ panel just below. The Smart Brain's sources are added when a model is loaded and it is enabled.
+        {% else %}
+        No Smart Brain index yet. You can still chat — answers won't come with sources. Build it on the <a href="/projects/{{ pid }}/brain" data-link>Smart Brain</a> page.
+        {% endif %}
+        <div class="dim mt-2">Tip: Switch to <b>Agent</b> mode above to let the AI organize your files into training pairs.</div>
+      </span>
+      <span data-empty="agent" hidden>
+        Agent mode lives in the docked <b>Guide</b> panel on the right (also on every page via the <b>guide</b> button). It answers app questions, checks this project, recommends training settings, and walks you through each step.
+        <div class="dim mt-2">Example (not a live result): <i>"How do I train a model on my documents?"</i> or <i>"List my sources, then generate 5 socratic Q&amp;A pairs from the first one."</i></div>
+      </span>
+    </div>
+  </div>
+  <details class="dp-chat-prev" id="chat-prev-session" hidden>
+    <summary>Previous session (saved locally — not a live result)</summary>
+    <p class="dim text-xs mb-2">These messages were restored from this browser. They are not proof that an action just completed.</p>
+    <div id="chat-prev-msgs" class="dp-chat-prev-msgs"></div>
+    <button type="button" class="btn sm mt-2" id="chat-prev-clear" onclick="_chatDiscardPrevSession()">Discard saved history</button>
+  </details>
+
+  <div class="flex gap-2 mt-3">
+    <textarea id="chat-input" rows="2" placeholder="Message… (Shift+Enter for newline)" class="input flex-1"></textarea>
+    <button id="chat-send" class="btn primary" onclick="chatSend()">Send</button>
+  </div>
+
+  {# System prompt (Test mode) — presets below write into it; sent as system_prompt_override #}
+  <label class="block mt-2" style="font-size:11px;">
+    <span class="dim">System prompt (Test mode)</span>
+    <textarea id="chat-system-prompt" name="system_prompt" rows="2" class="input" style="width:100%;">{{ project.system_prompt or '' }}</textarea>
+  </label>
+  <div class="flex gap-2 mt-2" style="font-size:11px;flex-wrap:wrap;">
+    <span class="dim" style="align-self:center;">Preset:</span>
+    <button type="button" class="btn sm" onclick="document.querySelector('[name=system_prompt]').value='You are a helpful assistant.'" title="Reset to default">Default</button>
+    <button type="button" class="btn sm" onclick="document.querySelector('[name=system_prompt]').value='You are an expert tutor. Always show your work step by step.'" title="Tutor mode">Tutor</button>
+    <button type="button" class="btn sm" onclick="document.querySelector('[name=system_prompt]').value='You are a research assistant. Answer based on the provided context. If you don\'t know, say so.'" title="RAG mode">RAG</button>
+    <button type="button" class="btn sm" onclick="document.querySelector('[name=system_prompt]').value='You are a creative writer. Be vivid and imaginative.'" title="Creative mode">Creative</button>
+  </div>
+
+  {# Chat parameter controls #}
+  <div class="flex gap-3 mt-2" style="font-size:11px;flex-wrap:wrap;">
+    <label class="flex items-center gap-1" title="Temperature: randomness of the reply. Higher (e.g. 1.0) = more varied and creative; lower (e.g. 0.2) = more focused and repeatable.">
+      <span class="dim">Temp</span>
+      <input type="range" id="chat-temperature" min="0" max="2" step="0.1" value="0.7" style="width:60px;" oninput="document.getElementById('chat-temp-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="mono" id="chat-temp-val" style="width:24px;">0.7</span>
+    </label>
+    <label class="flex items-center gap-1" title="Top-p: only pick from the most likely words whose probabilities add up to this share. Lower = safer, more predictable wording; 1.0 = no limit.">
+      <span class="dim">Top-p</span>
+      <input type="range" id="chat-top-p" min="0" max="1" step="0.05" value="0.9" style="width:60px;" oninput="document.getElementById('chat-topp-val').textContent=parseFloat(this.value).toFixed(2)">
+      <span class="mono" id="chat-topp-val" style="width:32px;">0.90</span>
+    </label>
+    <label class="flex items-center gap-1" title="Top-k: only pick from the K most likely next words. Lower = more predictable; 0 = no limit.">
+      <span class="dim">Top-k</span>
+      <input type="number" id="chat-top-k" value="40" min="0" max="200" style="width:72px;" class="input">
+    </label>
+    <label class="flex items-center gap-1" title="Max tokens: the longest reply allowed, in tokens (a token is roughly ¾ of a word). The reply stops when it hits this limit.">
+      <span class="dim">Max</span>
+      <input type="number" id="chat-max-tokens" value="4096" min="1" max="16384" style="width:88px;" class="input">
+    </label>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Project context</div>
+      <div class="card-sub">What's pinned to the conversation. Toggle Mode above to swap the system prompt + tools.</div>
+    </div>
+  </div>
+  <table class="table compact">
+    <tr><td class="meta muted" title="This project's stable identifier (8-hex-char). Used in all URLs and exports.">Project ID</td><td class="mono cell-wrap">{{ pid }}</td></tr>
+    <tr data-mode="test"><td class="meta muted" title="The instruction the model sees at the start of every conversation in Test mode. Sets its persona + behaviour. Edit it on the project overview page.">System prompt</td><td class="mono cell-wrap">{{ project.system_prompt or '(none)' }}</td></tr>
+    <tr data-mode="agent"><td class="meta muted" title="Set by the server. Answers come from the app knowledge base and live project state; UI tools only navigate, highlight and pre-fill allow-listed controls.">Agent system prompt</td><td class="mono cell-wrap">App guide: knowledge base + project/system state + page guidance + source-grounded Q&amp;A preparation.</td></tr>
+    <tr><td class="meta muted" title="The base model this project is built around. The trained model is an adapter (LoRA) on top of this base. Use it on the Inference tab to chat with the un-fine-tuned version.">Base model</td><td class="mono cell-wrap">{{ project.base_model or '—' }}</td></tr>
+    <tr><td class="meta muted" title="The training run designated as 'production' for this project — typically the best-scoring run. Set on the project overview page; this is what the Chat page serves by default.">Production run</td><td class="mono cell-wrap">{{ project.production_run or '(none)' }}</td></tr>
+    <tr><td class="meta muted" title="The Smart Brain index built from this project's parsed files. Test mode adds its sources to the chat. Build it on the Smart Brain page.">Smart Brain</td><td class="mono cell-wrap">{{ rags|length if rags else 0 }} attached</td></tr>
+  </table>
+  <div class="flex gap-2 mt-4 wrap">
+    <a href="/projects/{{ pid }}" class="btn" data-link>← Back to project</a>
+    <a href="/inference" class="btn" data-link>Load / switch model →</a>
+    <a href="/projects/{{ pid }}/data-prep" class="btn" data-link>Question-answer pairs →</a>
+  </div>
+</div>
+
+<style>
+.dp-chat-msgs {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated, #0a0a0a);
+  padding: 12px;
+  max-height: 480px;
+  overflow-y: auto;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dp-chat-warn { border:1px solid var(--warn); background:rgba(245,158,11,.08); color:var(--warn-text, var(--warn)); padding:10px 12px; margin-bottom:12px; font-size:13px; line-height:1.4; }
+.dp-chat-warn a { color:inherit; text-decoration:underline; }
+.dp-chat-empty {
+  color: var(--text-dim, #888);
+  font-style: italic;
+  text-align: left;
+  padding: 24px 12px;
+  line-height: 1.5;
+}
+.dp-chat-prev {
+  margin-top: 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text-dim, #888);
+  background: var(--bg-app, transparent);
+}
+.dp-chat-prev summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-muted, #aaa);
+}
+.dp-chat-prev-msgs {
+  margin-top: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  font-style: italic;
+  opacity: 0.85;
+}
+.dp-chat-prev-msgs .dp-chat-msg {
+  border-left-style: dashed;
+}
+.dp-chat-msg { padding: 8px 10px; border-left: 2px solid var(--border); }
+.dp-chat-user      { border-left-color: var(--accent); }
+.dp-chat-assistant { border-left-color: var(--accent, #00ccff); }
+.dp-chat-tool      { border-left-color: var(--accent-violet, #cc88ff); }
+.dp-chat-error     { border-left-color: var(--err, #ff4444); color: var(--err, #ff4444); }
+.dp-chat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim, #888);
+  margin-bottom: 4px;
+}
+.dp-chat-body { white-space: pre-wrap; word-break: break-word; }
+.dp-chat-meta { font-size: 10px; color: var(--text-dim, #888); margin-top: 4px; }
+.dp-chat-sources {
+  font-size: 10px;
+  color: var(--text-dim, #888);
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+.dp-chat-sources summary { cursor: pointer; }
+.dp-chat-source {
+  margin: 4px 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--border);
+}
+.dp-chat-tool-block {
+  font-size: 11px;
+  border: 1px dashed var(--accent-violet, #cc88ff);
+  padding: 4px 8px;
+  margin-top: 4px;
+}
+.dp-chat-tool-block summary { cursor: pointer; }
+.dp-chat-tool-block pre {
+  font-size: 10px;
+  margin: 4px 0 0;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--bg, #000);
+  padding: 6px;
+  white-space: pre-wrap;
+}
+/* Status color for tool blocks: green ok, red error, amber partial */
+.dp-chat-tool-ok      { border-left: 3px solid var(--accent); }
+.dp-chat-tool-err     { border-left: 3px solid var(--err, #ff4444); }
+.dp-chat-tool-partial { border-left: 3px solid #ffaa00; }
+/* Header line layout: [icon] tool_name [args] → result [copy] */
+.dp-chat-tool-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 2px 0;
+}
+.dp-chat-tool-icon {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--accent);
+}
+.dp-chat-tool-err .dp-chat-tool-icon { color: var(--err, #ff4444); }
+.dp-chat-tool-partial .dp-chat-tool-icon { color: #ffaa00; }
+.dp-chat-tool-name {
+  font-weight: 700;
+  color: var(--accent-violet, #cc88ff);
+}
+.dp-chat-tool-args { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.dp-chat-tool-arg {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: var(--text-dim, #aaa);
+}
+.dp-chat-tool-result-sum {
+  font-size: 11px;
+  color: var(--text-dim, #888);
+}
+.dp-chat-tool-card {
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 6px 0;
+  background: rgba(255, 255, 255, 0.02);
+}
+.dp-chat-tool-status {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text, #ddd);
+}
+.dp-chat-tool-status-err { color: var(--err, #ff6666); }
+.dp-chat-tool-table {
+  width: 100%;
+  margin-top: 6px;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.dp-chat-tool-table th,
+.dp-chat-tool-table td {
+  text-align: left;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border, #333);
+}
+.dp-chat-tool-list {
+  margin: 6px 0 0 1.1em;
+  padding: 0;
+  font-size: 11px;
+}
+.dp-chat-tool-debug {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-dim, #888);
+}
+.dp-chat-tool-debug summary {
+  cursor: pointer;
+  user-select: none;
+}
+.dp-chat-tool-copy {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim, #888);
+  cursor: pointer;
+  border-radius: 3px;
+}
+.dp-chat-tool-copy:hover { color: var(--accent, #00ccff); border-color: var(--accent, #00ccff); }
+/* Structured body sections */
+.dp-chat-section { margin-top: 6px; }
+.dp-chat-section-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim, #666);
+  margin-bottom: 2px;
+}
+.dp-chat-pre {
+  font-size: 10px;
+  margin: 0;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--bg, #000);
+  padding: 6px;
+  white-space: pre-wrap;
+  border: 1px solid var(--border);
+}
+.dp-chat-pre-preview { white-space: pre-wrap; }
+</style>
+
+<script>
+const _chatHistory = [];
+const _chatPid = "{{ pid }}";
+let _chatAbort = null;  // AbortController for in-flight requests
+
+// ── Chat history persistence (survives refresh / navigation) ──────
+const _chatStorageKey = 'fts.chat.history.' + _chatPid;
+function _chatPeekHistory() {
+  try {
+    const raw = localStorage.getItem(_chatStorageKey);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return (Array.isArray(parsed) && parsed.length) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+function _chatSaveHistory() {
+  try {
+    localStorage.setItem(_chatStorageKey, JSON.stringify(_chatHistory));
+  } catch (_) { /* quota — ignore */ }
+}
+
+function _chatRenderPrevSession(saved) {
+  const panel = document.getElementById('chat-prev-session');
+  const box = document.getElementById('chat-prev-msgs');
+  if (!panel || !box) return;
+  box.innerHTML = '';
+  if (!saved || !saved.length) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  saved.forEach((m) => {
+    if (m.role !== 'assistant' && m.role !== 'user') return;
+    const el = document.createElement('div');
+    el.className = 'dp-chat-msg dp-chat-' + m.role;
+    el.innerHTML =
+      '<div class="dp-chat-label">' + (m.role === 'user' ? 'You' : 'Assistant') +
+      ' · prior</div><div class="dp-chat-body"></div>';
+    el.querySelector('.dp-chat-body').textContent = String(m.content || '').slice(0, 2000);
+    box.appendChild(el);
+  });
+}
+
+function _chatDiscardPrevSession() {
+  try { localStorage.removeItem(_chatStorageKey); } catch (_) { /* ignore */ }
+  _chatHistory.length = 0;
+  const panel = document.getElementById('chat-prev-session');
+  if (panel) panel.hidden = true;
+  const box = document.getElementById('chat-prev-msgs');
+  if (box) box.innerHTML = '';
+  if (window.fts) window.fts.notify('Saved chat history discarded', 'info');
+}
+
+// Idle load: keep empty state. Never inject saved success into the live pane.
+const _chatSavedOnLoad = _chatPeekHistory();
+_chatHistory.length = 0;
+_chatRenderPrevSession(_chatSavedOnLoad);
+
+function _chatCurrentMode() {
+  const r = document.querySelector('input[name="chat-mode"]:checked');
+  return r ? r.value : 'test';
+}
+
+async function _chatCheckModel() {
+  try {
+    // Source of truth #1: the ModelManager (registered providers +
+    // loaded-via-manager). Source of truth #2: the global inference
+    // engine loaded via /api/chat-v2/load. We accept either.
+    let active = null;
+    let niceName = null;
+    let pillKind = null;
+    let loadedModelPath = null;
+    try {
+      const r = await fetch('/api/providers').then((r) => r.json());
+      if (r.active && r.active.loaded) active = r.active;
+    } catch (_) {}
+    try {
+      const ie = await fetch('/api/inference/status').then((r) => r.json());
+      if (ie && ie.loaded && ie.model) {
+        loadedModelPath = ie.model;
+        if (!active || !active.loaded) {
+          // Synthesize an active descriptor from the global engine so
+          // the pill stays accurate even when the user only loaded
+          // via /inference.
+          active = { id: '_global_inference', name: ie.model, kind: 'local_gguf', model_id: ie.model, loaded: true };
+        }
+      }
+    } catch (_) {}
+    // Model status is shown ONCE: the sprite row at the top of the first card (sprites.js, polls the same
+    // endpoints); this function only gates the send button and the inline loader.
+    const warnEl = document.getElementById('chat-model-warn');
+    const sendBtn = document.getElementById('chat-send');
+    const modelLoaded = !!(active && active.loaded);
+    if (sendBtn) sendBtn.disabled = !modelLoaded && _chatCurrentMode() !== 'agent';
+    if (warnEl) {
+      warnEl.hidden = modelLoaded;
+      // Populate inline loader if no model is loaded
+      if (!modelLoaded) chatPopulateInlineLoad();
+      warnEl.style.display = (_chatCurrentMode() === 'agent') ? 'none' : '';
+    }
+  } catch (e) { /* ignore */ }
+}
+
+// Run once immediately so the warn banner + pill are correct on first paint
+// instead of waiting up to 5s for the first interval tick.
+_chatCheckModel();
+
+function _chatAppend(role, content, meta, sources) {
+  const msgs = document.getElementById('chat-msgs');
+  const empty = msgs.querySelector('.dp-chat-empty');
+  if (empty) empty.remove();
+  const div = document.createElement('div');
+  div.className = 'dp-chat-msg dp-chat-' + role;
+  const label = document.createElement('div');
+  label.className = 'dp-chat-label';
+  label.textContent = role.toUpperCase();
+  const body = document.createElement('div');
+  body.className = 'dp-chat-body';
+  if (typeof content === 'string') {
+    body.textContent = content;
+  } else {
+    body.appendChild(content);
+  }
+  div.appendChild(label);
+  div.appendChild(body);
+  if (Array.isArray(sources)) {
+    const det = document.createElement('details');
+    det.className = 'dp-chat-sources';
+    const sum = document.createElement('summary');
+    if (sources.length) {
+      sum.textContent = '▾ ' + sources.length + ' source chunk(s) used as context';
+      det.appendChild(sum);
+      sources.forEach((s) => {
+        const src = document.createElement('div');
+        src.className = 'dp-chat-source';
+        const truncated = (s.text || '').slice(0, 300);
+        src.textContent = '[' + (s.index_name || '?') + ' · score ' + (s.score || '?') + '] ' + truncated + (s.text && s.text.length > 300 ? '…' : '');
+        det.appendChild(src);
+      });
+    } else {
+      sum.textContent = 'No source chunks retrieved';
+      det.appendChild(sum);
+      const empty = document.createElement('div');
+      empty.className = 'dp-chat-tool-status';
+      empty.setAttribute('role', 'status');
+      empty.textContent = 'No sources found';
+      det.appendChild(empty);
+      const dbg = document.createElement('details');
+      dbg.className = 'dp-chat-tool-debug';
+      const dbgSum = document.createElement('summary');
+      dbgSum.textContent = 'Debug · raw JSON';
+      dbg.appendChild(dbgSum);
+      const pre = document.createElement('pre');
+      pre.className = 'dp-chat-pre';
+      pre.textContent = JSON.stringify({ sources: [] }, null, 2);
+      dbg.appendChild(pre);
+      det.appendChild(dbg);
+    }
+    div.appendChild(det);
+  }
+  if (meta) {
+    const m = document.createElement('div');
+    m.className = 'dp-chat-meta';
+    m.textContent = meta;
+    div.appendChild(m);
+  }
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+async function chatSend() {
+  const ta = document.getElementById('chat-input');
+  const text = ta.value.trim();
+  if (!text) return;
+  if (_chatCurrentMode() === 'agent') {
+    // Agent mode IS the docked Guide: one conversation that survives page changes and streams
+    // its tool calls (static/js/guide.js). Nothing is sent from this page's own history.
+    ta.value = '';
+    if (window.ftsGuide) window.ftsGuide.ask(text);
+    return;
+  }
+  const sendBtn = document.getElementById('chat-send');
+  if (sendBtn && sendBtn.disabled) {
+    fts.notify('Load a model before sending a message.', 'error');
+    return;
+  }
+  const stopBtn = document.getElementById('chat-stop');
+  sendBtn.disabled = true;
+  if (stopBtn) stopBtn.disabled = false;
+  ta.value = '';
+  _chatAppend('user', text);
+  _chatHistory.push({ role: 'user', content: text });
+  _chatSaveHistory();
+
+  // AbortController for stop button
+  const requestAbort = new AbortController();
+  _chatAbort = requestAbort;
+
+  try {
+    const enabled_index_ids = [...document.querySelectorAll('input[name="chat-brain-enabled"]:checked')].map((c) => c.value);
+    const url = '/api/chat-v2/projects/' + _chatPid + '/chat';
+    const body = { messages: _chatHistory, enabled_index_ids, system_prompt_override: (document.getElementById('chat-system-prompt')?.value || '').trim() || undefined, temperature: parseFloat(document.getElementById('chat-temperature').value), top_p: parseFloat(document.getElementById('chat-top-p').value), top_k: parseInt(document.getElementById('chat-top-k').value) || 0, max_tokens: parseInt(document.getElementById('chat-max-tokens').value) || 1024 };
+    const parseFn = (b) => ({
+      reply: b.response || b.reply || '',
+      sources: b.sources || [],
+      rounds: b.chunks_retrieved,
+    });
+
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: requestAbort.signal,
+    });
+    const raw = await r.json();
+    if (raw.error) throw new Error(raw.error);
+    const parsed = parseFn(raw);
+
+    if (parsed.reply) {
+      _chatHistory.push({ role: 'assistant', content: parsed.reply });
+      _chatAppend('assistant', parsed.reply, (parsed.rounds || 0) + ' chunk(s) retrieved', parsed.sources);
+    } else {
+      _chatHistory.push({ role: 'assistant', content: '(no reply)' });
+      _chatAppend('assistant', '(no reply)', '0 chunk(s) retrieved');
+    }
+    _chatSaveHistory();
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      _chatAppend('info', 'Generation stopped by user');
+    } else {
+      _chatAppend('error', (e && e.message) || String(e));
+    }
+  } finally {
+    sendBtn.disabled = false;
+    if (stopBtn) stopBtn.disabled = true;
+    if (_chatAbort === requestAbort) _chatAbort = null;
+  }
+}
+
+function _chatStop() {
+  if (_chatAbort) { _chatAbort.abort(); _chatAbort = null; }
+  const stopBtn = document.getElementById('chat-stop');
+  if (stopBtn) stopBtn.disabled = true;
+}
+
+async function chatInlineLoad() {
+  const sel = document.getElementById('chat-inline-model');
+  const btn = document.getElementById('chat-inline-load-btn');
+  const ctxEl = document.getElementById('chat-inline-ctx');
+  if (!sel || !sel.value) return;
+  btn.disabled = true;
+  btn.textContent = 'Loading…';
+  try {
+    const nCtx = ctxEl ? (parseInt(ctxEl.value, 10) || 0) : 0;   // 0 = auto (native window)
+    const r = await fetch('/api/chat-v2/load', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model_path: sel.value, n_ctx: nCtx }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && !d.error) {
+      location.reload();
+    } else {
+      fts.notify('Failed to load model: ' + (d.error || d.detail || ('HTTP ' + r.status)), 'error');
+    }
+  } catch (e) {
+    fts.notify('Failed to load model: ' + ((e && e.message) || e), 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Load';
+  }
+}
+
+// Populate inline model selector when warning is shown
+async function chatPopulateInlineLoad() {
+  const loadEl = document.getElementById('chat-inline-load');
+  const sel = document.getElementById('chat-inline-model');
+  if (!loadEl || !sel) return;
+  try {
+    // Use the canonical registry so size/format labels match Models and Inference.
+    const r = await fetch('/api/models');
+    if (!r.ok) return;
+    const d = await r.json();
+    const models = Array.isArray(d) ? d : (d.models || []);
+    let tuned = '';
+    try {
+      const cr = await fetch('/api/chat-v2/projects/' + _chatPid + '/context');
+      if (cr.ok) tuned = (await cr.json()).tuned_model_path || '';
+    } catch (_) { /* base models still selectable */ }
+    if (models.length === 0 && !tuned) return;
+    sel.innerHTML = '';
+    if (tuned) {
+      const opt = document.createElement('option');
+      opt.value = tuned;
+      opt.textContent = '★ Your fine-tuned model (this project)';
+      sel.appendChild(opt);
+    }
+    models.forEach((m) => {
+      if (tuned && m.path === tuned) return;
+      const opt = document.createElement('option');
+      opt.value = m.path;
+      // /api/hf/local returns repo_id + size_bytes (no name / size_gb)
+      const label = m.name || m.repo_id || String(m.path || '').split('/').pop();
+      const gb = m.size_gb != null ? m.size_gb : (m.size_bytes || 0) / 1e9;
+      opt.textContent = label + ' (' + Number(gb).toFixed(2) + ' GB)';
+      sel.appendChild(opt);
+    });
+    loadEl.hidden = false;
+  } catch (_) { /* ignore */ }
+}
+
+function _chatCopyAll() {
+  const lines = _chatHistory.map((m) => {
+    const role = m.role === 'user' ? '**You**' : '**Assistant**';
+    return `${role}: ${m.content}`;
+  });
+  const text = lines.join('\n\n---\n\n');
+  navigator.clipboard.writeText(text).then(() => {
+    if (window.fts) window.fts.notify('Conversation copied to clipboard', 'success');
+  }).catch(() => {
+    if (window.fts) window.fts.notify('Copy failed — clipboard unavailable', 'error');
+  });
+}
+
+function _chatExport() {
+  const lines = [
+    `# Chat — {{ project.name }}`,
+    `Exported: ${new Date().toISOString()}`,
+    '',
+    ..._chatHistory.flatMap((m) => {
+      const role = m.role === 'user' ? '**You**' : '**Assistant**';
+      return [`${role}: ${m.content}`, ''];
+    }),
+  ];
+  const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `chat-{{ project.name }}-${Date.now()}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+  if (window.fts) window.fts.notify('Chat exported as Markdown', 'success');
+}
+
+function _chatClear() {
+  _chatHistory.length = 0;
+  _chatSaveHistory();
+  const msgs = document.getElementById('chat-msgs');
+  if (!msgs) return;
+  msgs.innerHTML = '';
+  const empty = document.createElement('div');
+  empty.className = 'dp-chat-empty';
+  empty.id = 'chat-empty';
+  const emptyTemplate = document.querySelector('[data-empty="' + _chatCurrentMode() + '"]');
+  empty.innerHTML = emptyTemplate ? emptyTemplate.innerHTML : 'Conversation cleared.';
+  msgs.appendChild(empty);
+  const panel = document.getElementById('chat-prev-session');
+  if (panel) panel.hidden = true;
+  const box = document.getElementById('chat-prev-msgs');
+  if (box) box.innerHTML = '';
+  if (window.fts) window.fts.notify('Conversation cleared', 'info');
+}
+
+// Toggle Mode → swap the empty-state hint + show/hide the right
+// context-table rows.
+document.querySelectorAll('input[name="chat-mode"]').forEach((r) => {
+  r.addEventListener('change', () => {
+    const mode = r.value;
+    // Swap empty state
+    const empty = document.getElementById('chat-empty');
+    if (empty) {
+      empty.innerHTML = document.querySelector('[data-empty="' + mode + '"]').innerHTML;
+    }
+    // Toggle context rows
+    document.querySelectorAll('tr[data-mode]').forEach((tr) => {
+      tr.style.display = (tr.getAttribute('data-mode') === mode) ? '' : 'none';
+    });
+    // Toggle Smart Brain extras visibility
+    const extras = document.getElementById('chat-mode-test-extras');
+    if (extras) extras.style.display = (mode === 'test') ? '' : 'none';
+    // Agent mode is the docked Guide: open it when selected.
+    if (mode === 'agent' && window.ftsGuide) window.ftsGuide.open();
+    _chatCheckModel();
+  });
+});
+// Honour ?mode=agent|test from deep links (e.g. data-prep "Open chat in Agent mode").
+(() => {
+  const want = new URLSearchParams(location.search).get('mode');
+  const radio = want && document.querySelector('input[name="chat-mode"][value="' + want + '"]');
+  if (radio && !radio.checked) {
+    radio.checked = true;
+    radio.dispatchEvent(new Event('change'));
+  }
+})();
+
+// Enter to send, Shift+Enter for newline
+document.getElementById('chat-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    chatSend();
+  }
+});
+
+// Poll model status every 5s; stop when the SPA navigates away.
+var _chatPoll = setInterval(_chatCheckModel, 5000);
+document.addEventListener('fts:beforeNavigate', () => {
+  clearInterval(_chatPoll);
+  if (_chatAbort) _chatAbort.abort();
+}, { once: true });
+</script>
+{% endblock %}

@@ -1,0 +1,286 @@
+---
+out: safety_manual_depots_2024.pdf
+tier: extended
+---
+# Korvane Cold Chain Sp. z o.o. — Depot Safety Manual 2024
+
+Document KC-QHS-001 · version 4.2 · issued 4 March 2024 · owner: Quality & Compliance (Benedikta Aaltonen) · approved by Dieter Ahlbeck-Roe, COO · applies to GDY-1, HAM-2, RTM-3, GOT-4 and KLJ-5
+
+Uncontrolled when printed. The master copy lives in the Tidewalk document library under QHS/001. Version 4.1 (issued 19 September 2023) is withdrawn with effect from the date above and any copy of it still pinned to a noticeboard should be taken down, folded once and put in the paper bin.
+
+## 1. Introduction, scope and how to read this manual
+
+This manual sets out the minimum safety rules that apply to every person who enters a Korvane depot, whether employed by Korvane Cold Chain Sp. z o.o. (hereinafter "the Company"), by an agency, by a contractor or by a customer, and whether they arrive on foot, by truck, by forklift or, as happened once at Waltershof, by hovering drone. It is to be read together with the employee handbook v4, the depot-specific local rules posted at each gate and the operating procedures of the Operations department, in particular KC-OPS-SOP-031 (reefer loading) and KC-OPS-SOP-044 (refrigerant leaks). Where national or local law is stricter than this manual, the law prevails. Where this manual is stricter than the law, this manual prevails, and nobody is to say "but it is legal" to a safety steward in a raised voice.
+
+We have deliberately not cited statutory sections. They change more often than we reissue the manual, and an out-of-date citation is worse than none. Questions of interpretation go to the Quality & Compliance team at qhs@korvane.example, and the team promises an answer within 3 working days. The manual is reviewed every 12 months; the next review is due by 31 March 2025.
+
+The five depots differ in size, climate and the number of people who know where the fuse boxes are, so Sections 5, 8, 9 and the appendices contain depot-specific values. Where a rule is stated once without a depot name it applies everywhere. The Company reserves the right to issue temporary amendments (marked "TA-" followed by a number) by e-mail to depot managers; these are binding from the moment they are sent and are folded into the next version.
+
+Some chapters were drafted by the people who actually do the work, and their notes have been left in, lightly edited, on the theory that a rule written by somebody who has stood in the wind is more likely to be followed than one written by a committee. You will recognise them.
+
+## 2. Roles and responsibilities
+
+**Depot Managers** (Gdynia: Jarek Lindqvist acting through the GDY-1 shift supervisors; Rotterdam: Hanneke Dijkgraaf; the other depots have their own named managers listed in Appendix A) are accountable for safety at their site and may not delegate that accountability, only the tasks. **Shift supervisors** are responsible for the shift. **Every employee** is responsible for not hurting themselves or anybody else, which is the simplest sentence in this document and the hardest one to live up to.
+
+**Safety stewards.** Each depot elects one safety steward for every 25 employees working a given shift pattern, rounded up. Stewards serve a term of 2 years, complete 16 hours of steward training in their first quarter, and are released from their normal duties for 2 paid hours a week to walk the site. A steward is not a police officer and is not liable for anything that goes wrong; a steward's job is to notice, write it down and say it loudly.
+
+**Stop-work authority.** Every person on site, including a visitor and including a driver who is not ours, may stop any operation they believe to be dangerous by showing the orange STOP card (kept in every shift office and in every forklift) or by shouting the word "STOP" in any language. Work may only restart once the shift supervisor has looked at the situation in person. Nobody is ever disciplined for a good-faith stop. We have had 11 stop-work events in 2023 and the Company considers that number too low.
+
+**The Safety Committee** meets every 6 weeks, in rotation at the depots (video link for the others), under the chair of Benedikta Aaltonen. A quorum is 4 members, of whom at least one must be an elected steward. Minutes are posted in Tidewalk within 5 working days. The committee reviews every incident of category B or worse (Section 11), the near-miss trend and any proposed change to this manual.
+
+**Contractors** are bound by this manual through their contract with us. The contractor's site supervisor must attend the Company induction (Section 3) and a contractor may not start work without a permit-to-work signed by the depot manager or the shift supervisor on duty.
+
+## 3. Getting onto site
+
+Nobody gets a gate pass, not even the CEO, without induction. The induction for new employees and agency workers takes 3 hours 40 minutes on the first day and covers this manual in digest form, a walk of the site, the muster point for the shift and a practical exercise with a fire extinguisher. Contractors receive the same induction on the first day of their first job and a 40-minute refresher every 12 months. A visitor receives a 25-minute video (available in Polish, English, German, Dutch and Swedish; for other languages a laminated card is given and a host is responsible) and must be escorted in all operational areas at all times, including the toilets near the yard. We are not joking about the toilets.
+
+Badges are colour-coded and must be worn on a lanyard above the waist: green for Korvane employees, yellow for contractors, orange for visitors and white for external truck drivers. A driver who has only a white pass may not leave the driver's waiting room except to go to the assigned bay, and may never walk across a reefer row. Lost badges are reported to the gate immediately; the Company charges 15 EUR for a replacement badge unless a police or Duty Ops report shows it was stolen.
+
+Smoking and vaping are permitted only at the designated points. Those points shall be at least 25 m from any reefer row and at least 50 m from the Hall 4 ammonia plant at GDY-1, and they are marked with a blue bin. Mobile phones are not to be used while walking in the yard or while operating machinery; hands-free radios are exempt. The Company runs random breath tests on 1 shift in 40, drawn by lot by the safety steward, and the Company's limit is 0.1 ‰, which is stricter than the legal limit in at least one of the countries in which we operate. A positive test leads to immediate removal from site and a conversation with HR (Ines Baptista-Okafor's team), not to a telephone call to the police unless there is an additional offence.
+
+Note from Greta (HAM-2): at Waltershof the gate guards may refuse a driver with open-toed shoes, and this rule has been enforced against a visiting customer's CEO. He took it well. He bought boots at the kiosk. Also, please stop saying Lane 2 is "unofficial". It is official after 18:00.
+
+## 4. Personal protective equipment (PPE)
+
+PPE is the last line of defence, not the first, but it is the one that is checked at the gate. The table gives the minimum PPE by zone. Zone boundaries are painted on the ground in yellow and are reproduced on the site plan in each depot's local rules.
+
+| Zone | Minimum PPE | Remarks |
+|---|---|---|
+| Whole yard, including reefer rows | Safety helmet, hi-vis garment class 3 (EN ISO 20471), S3 safety boots | Helmets may be left off only inside a vehicle cab or inside a building |
+| Reefer plugging and unplugging | As above plus cut-resistant gloves level C | Insulating gloves class 0 (1,000 V) when working at an open socket or a damaged plug |
+| Cold store and cold rooms | Parka rated to −40 °C, insulated boots, balaclava, thermal gloves | Issued by the depot; a personal parka must be approved by the steward |
+| Ammonia plant room (GDY-1 Hall 4) | Chemical-resistant gloves, safety goggles, escape mask in the pocket | Nobody enters alone; see Section 8 |
+| Workshop and fleet bays | Safety glasses, hearing protection, cut-resistant gloves level C | Hearing protection is compulsory above 82 dB(A); noise map dated November 2023 |
+| Roof of a container or work above 1.5 m | Full-body harness with fall arrest and double lanyard, helmet with chin strap | Only with a signed permit-to-work (Section 7) |
+
+Replacement intervals are as follows. Safety helmets are replaced 4 years after the manufacture date stamped inside, or immediately after any impact whatever it looks like. Hi-vis garments are replaced after 12 months or when the reflective bands fall below the legible washing-label standard, whichever comes first. Each employee at the yard is entitled to 2 pairs of S3 boots per year on the depot's account. Cut-resistant gloves are consumables and are replaced when worn through, which for Waltershof apparently means about every 9 days. Insulating gloves class 0 are tested every 6 months by the electricians and carry a tag with the test date; a pair without a tag from the last 6 months is not insulating gloves, it is a pair of gloves.
+
+**Cold exposure.** Prolonged work in low temperature is limited as shown below. A person who shivers uncontrollably, slurs words or stops being able to work a zip must leave the room immediately; there is no prize for finishing the pallet.
+
+| Room temperature | Maximum continuous time | Compulsory rest in a warm room |
+|---|---|---|
+| −5 °C to −15 °C | 90 minutes | 20 minutes |
+| −16 °C to −25 °C | 45 minutes | 15 minutes |
+| colder than −25 °C | 30 minutes | 20 minutes |
+
+Work below −25 °C is never done alone, and the person outside the room holds a radio and the stopwatch. The Hall 4 deep-freeze room at GDY-1 runs at −28 °C, which means the 30-minute row applies there and the steward has been known to time people with an egg timer.
+
+## 5. Moving things: yard traffic, forklifts, reach stackers and cranes
+
+**Speed limits.** The speed limits below apply to every vehicle including bicycles, golf carts and the CEO's electric scooter.
+
+| Area | Speed limit |
+|---|---|
+| Gate zone (the 40 m before and after the barrier) | 10 km/h |
+| Yard roads | 15 km/h |
+| Reefer rows | 8 km/h |
+| Stack aisles | 5 km/h |
+| Pedestrian crossings, Hall 4, workshop doors | 3 km/h |
+
+Speed is measured by the radar at the gate at GDY-1 and HAM-2 and by the depot manager's gut elsewhere. A first speeding offence by an employee is a written warning; a second one within 12 months removes the internal driving card for 30 days.
+
+**Licences.** No one operates a forklift or reach stacker without the internal KFL card. The KFL card is issued after a 3-day course of 24 hours in total and a practical and written test, and is valid for 3 years; a refresher of 4 hours is compulsory before renewal. Reach stacker operators additionally need an endorsement, which requires 40 hours of supervised operation, and the medical examination must be repeated every 2 years. Cards are personal. Lending your card is a dismissible offence, and so is borrowing it.
+
+**Pre-shift check.** Before the first lift of the shift, the operator completes the 11-point check on the tablet or paper sheet: tyres and wheel nuts, forks or spreader and their locks, mast chains, hydraulic leaks, horn, lights, the blue spotlight, the seat belt buckle, the load-plate legibility, the fire extinguisher and the brakes. A machine with any defect in the first eight items gets a red tag and goes to the workshop. The seat belt is worn at all times and it is not optional on a short trip.
+
+**Reversing.** Every reach stacker, forklift and terminal tractor has a reversing alarm and a blue spotlight that projects a mark 5 m behind the machine. Containers are reversed in the stack only with a banksman on radio channel 3. No person stands within 6 m of a loaded reach stacker, and nobody stands within 12 m of the gantry crane at GDY-1 while a lift is under way. Nobody works under raised forks, ever, whether the hydraulics are "known to be fine" or not.
+
+**Load charts and wind.** A reach stacker such as the Lundin RS45 lifts its rated load only in the first row; the chart plate in the cab shows that in the third row the safe working load is 31 t. At HAM-2, where RS-HAM-01 is derated, the plate says 42 t and that is the number. Container lifts with a reach stacker stop when sustained wind exceeds 18 m/s or a gust exceeds 24 m/s. The gantry crane at GDY-1 stops lifting at a wind speed of 16 m/s, measured at the anemometer on the crane boom, and is parked with the storm pins in at 21 m/s. The shift supervisor records the wind speed that triggered a stop.
+
+**LPG and battery trucks.** LPG cylinders are changed only outdoors, with the engine off, by a person trained in the 45-minute LPG module. Battery trucks are charged only in the marked charging bays (at HAM-2 this is bay 3), where the ventilation runs continuously and a hydrogen detector is fitted; the detector alarms at 10 percent of the lower explosive limit and the charger cuts out. LPG trucks are used indoors in Hall 4 only with the gas alarm on.
+
+**Racking.** The racking in Hall 4 at GDY-1 is labelled with the beam load plates, which state 1,400 kg per level for the standard bays. A pallet heavier than that goes to the floor, no matter how awkward it is to get to later.
+
+Note from Wacław (GDY-1): people complain about the 3 km/h at Hall 4 doors. They complain until they have seen the doors from the inside at 6 in the morning when the fog from the cold room comes out and you cannot see your own boots. 3 km/h. It is what it is.
+
+## 6. Reefer plugs and electrical work
+
+Plugging a reefer is the most frequent electrical operation we do, about 1,100 times in a normal week across the depots, and one that hurts people when done lazily. The sequence is: inspect the plug and the socket for damage; make sure the pedestal switch is OFF; connect the plug fully, twisting it home until the lock clicks; switch the pedestal ON; check that the phase-rotation lamp on the unit is green. The unit should appear in Tidewalk within 3 minutes of the pedestal being switched on, and if it does not, the person who plugged it in rings the shift supervisor and does not simply walk away. Plugs are never pulled under load, which means the pedestal switch goes OFF before the plug comes out.
+
+The standard reefer connection is a 32 A, 3-phase, 400 V plug. A small number of positions, for example 6 plugs at KLJ-5, only supply 16 A and are labelled with a yellow band; a frozen load never goes on those without the shift supervisor's sign-off. Pedestals are numbered by pad, row and position (for example P-C-118 is pad C, row 1, position 18) and the number is quoted in every fault call.
+
+Every month an electrician scans all plugs and sockets of the depot with an infrared camera. Any pin that measures hotter than 70 °C is taken out of service at once and marked with a red cable tie. The insulation resistance of the pedestals is measured every 12 months. No extension lead longer than 30 m may be used on the temporary pad C positions at GDY-1, and no extension lead of any length is permitted anywhere else.
+
+Work on any electrical equipment other than plugging and unplugging may only be performed by an electrician holding the SEP licence for working up to 1 kV. Live working is prohibited except for fault-finding by two persons, one of whom holds the insulating rescue hook.
+
+**Lock-out / tag-out.** An isolation of any pedestal, panel, unit or machine is secured by a personal red padlock engraved with the employee number, plus a tag carrying the name and the date. Only the person who put on the lock removes it. If that person has gone home with the key in their pocket, which has happened to practically everyone, the lock may be cut off only after 24 hours and only by the shift supervisor together with a holder of the SEP licence, who both sign the lock-out book and phone the owner first. Every lock-out is entered in the book with the equipment number, the time, the name and the reason, in that order, and Quality audits the book once a quarter.
+
+## 7. Working at height, on and around containers
+
+Nobody climbs on the roof of a container, a reefer unit or a stack without a permit-to-work on form PTW-2. The permit is valid for one shift or 8 hours, whichever is shorter, names the people and the task, and is countersigned by the shift supervisor. Wherever possible the work is done from a mobile platform or a cherry-picker instead; the roof is the method of last resort. Above a fall height of 1.5 m the full-body harness with double lanyard is mandatory (Section 4), and harnesses are inspected by a competent person every 6 months and tagged with the inspection date. A person never walks on the refrigeration unit itself, whatever the colour of the paint suggests.
+
+Portable ladders are limited to a working height of 3 m, are inspected every month by the steward, and are never leant against a container that is on a stack. Someone who needs to look into a container on the third tier asks for a reach stacker and a person-cage, not for a ladder and a good attitude.
+
+When opening the doors of a container, two people do it, standing to the side and not in the line of the doors, because cargo that has shifted comes out like a landslide. The doors are opened by 10 cm first. A container carrying a fumigation warning label (and we see them mostly in dry cargo that wanders into reefer rows by mistake) is not opened until the shift supervisor has a gas-free certificate or has measured less than 0.5 ppm of the labelled gas with the handheld meter.
+
+Maximum stack heights are fixed per depot because of ground bearing capacity and wind exposure. They are counted in containers, with the bottom container counted as tier 1.
+
+| Depot | Maximum laden stack | Maximum empty stack |
+|---|---|---|
+| GDY-1 | 5 high | 7 high |
+| HAM-2 | 4 high | 6 high |
+| RTM-3 | 5 high | 8 high |
+| GOT-4 | 3 high | 5 high |
+| KLJ-5 | 3 high | 4 high |
+
+Reefers are not stacked, with the exception of empty reefers at GDY-1 and RTM-3, where they may be stacked 2 high on the dedicated storage pad. Reefers with units on are always at tier 1 in plug rows.
+
+## 8. Ammonia and refrigerant leaks
+
+This chapter was rewritten after the 2023 audit and is the only part of the manual that Benedikta insisted on printing in a larger font. Read it before you need it.
+
+**8.1 Where we have what.** Only GDY-1 has ammonia. The cold store in Hall 4 is cooled by a central plant in the plant room on the north side of Hall 4, containing a charge of 1,850 kg of anhydrous ammonia (R-717). HAM-2 has a glycol-cooled chiller for its small cold room, and RTM-3, GOT-4 and KLJ-5 have no cold store at all. Refrigerant leaks from reefer units (R-452A in the units of the current fleet and R-134a in the oldest ones) can occur anywhere and are covered in 8.5.
+
+**8.2 Detection and alarms.** The plant room and the Hall 4 corridors have fixed ammonia detectors. At 18 ppm the pre-alarm sounds: an amber beacon and an intermittent tone. At 62 ppm the evacuation alarm starts: a red beacon, a continuous siren in Hall 4 and a second alarm at the outer doors, the extraction fans go to stage 2, and the plant control system closes the liquid line valves. Both thresholds are tested every 3 months by a bump test and recalibrated every 12 months. The alarm panel is outside the north door of Hall 4, and the plant-room telephone is on ext 2199. Portable detectors worn by the plant team alarm at 25 ppm. A smell is not a detector: most people notice ammonia at far below 18 ppm and then stop noticing, which is exactly the problem.
+
+**8.3 What to do.** The person who first notices a smell, a hiss or an alarm presses the nearest red call point, which sounds the Hall 4 siren, and then does the following in order. Leave the area at once, walking quickly, not running. Do not take the lift. Do not go back for belongings. Walk upwind or across the wind, never downwind, and at GDY-1 go to AP-1 if the wind is blowing from the south-east quarter and to AP-2 otherwise (see Section 9). Hold a wet cloth over nose and mouth if there is one to hand. The shift supervisor rings Duty Ops on ext 2000, who ring 112 and say "ammonia release, container terminal, Gdynia, Hall 4". Nobody goes into the plant room except the emergency response team.
+
+The emergency response team at GDY-1 consists of 6 trained responders per shift, each qualified on the 32-hour ammonia responder course with an annual refresher of 8 hours. Responders wear gas-tight suits and breathing apparatus (SCBA), always in pairs, with a third person as the safety observer outside. Their first actions are to confirm the closure of the liquid valves and to start the water curtain at the north side to knock down the cloud, which is a task they practise twice a year. They call the fire brigade into the picture as soon as it arrives, hand over the plant drawings and the safety data sheet, and step back.
+
+**8.4 Re-entry.** The area is declared safe only when two portable detectors held by two different people both read below 12 ppm for a continuous 30 minutes, with the extraction fans on stage 2 throughout. The decision to re-enter is taken by Jarek Lindqvist or his deputy together with the plant engineer, not by the shift supervisor alone. Cold-store product that was exposed to an uncontrolled release is blocked and handled by Quality; no product leaves the Hall 4 cold store until Benedikta Aaltonen or her deputy has signed the release.
+
+**8.5 Leaks from reefer units.** If a reefer unit hisses, frosts up at a joint or the unit alarm shows a low refrigerant code, the operator switches off the unit at the pedestal (not at the unit), moves away at least 20 m, and tells the shift supervisor. The fleet workshop on ext 2750 is called. Nobody smokes within 20 m of a suspected leak, and nobody tries to tighten a fitting. Gunnar Halvorsrud's team recovers the refrigerant, because venting it is an offence and it also costs about 38 EUR per kilogram of R-452A, which the Company would rather keep.
+
+**8.6 Controlled-atmosphere (CA) boxes.** A box running with low oxygen (typically for fruit) can contain a nitrogen-rich atmosphere with less than 5 percent oxygen. Nobody enters a CA box. If it must be inspected, the doors are opened wide and the box ventilated for 30 minutes, and the oxygen is measured with the handheld meter at the doors and at 2 m depth. Only when the reading is at or above 20.5 percent may a person enter, and the handheld alarm is set to 19.0 percent. A person in a CA box that has not been verified is a rescue operation waiting to happen, and the rescuer in that picture is invariably somebody else's colleague.
+
+**8.7 Drills.** The emergency response team practises a full ammonia scenario twice a year. The last full drill took place in November 2023 and is recorded in Appendix C along with the evacuation times.
+
+Note from Wacław (GDY-1): I have smelt ammonia on the quay exactly twice in 20 years. Both times I was outside before I had finished the thought. This is the right order for the thought.
+
+## 9. Fire, alarms and evacuation
+
+The alarm signals are the same at all depots, although the sirens sound different. A continuous siren means evacuate the building or area at once. A pattern of 3 short blasts and 1 long (GDY-1 only) means an ammonia release and you follow Section 8. An intermittent tone means a pre-alarm, so be ready to move. A single long blast of 10 seconds at the end of a drill means the drill is over; nobody should mistake it for permission to go to lunch.
+
+On hearing the evacuation signal everyone stops work, switches off whatever they can switch off safely, leaves the doors closed (but not locked) behind them and goes to the assembly point of their depot. The shift supervisor takes the shift roster and the visitor register and takes the roll call at the assembly point. The evacuation must be complete within 4 minutes 30 seconds from the alarm, and the roll call must be reported to Duty Ops within 6 minutes. A person who cannot be accounted for is reported at once to the fire brigade on arrival, with the last known location, and nobody goes back inside to look for them.
+
+| Depot | Primary assembly point | Secondary assembly point | Roll call lead |
+|---|---|---|---|
+| GDY-1 | AP-1, at the weighbridge office at the north end of the Gate B road | AP-2, the grass triangle opposite the HQ car park | Shift supervisor on duty |
+| HAM-2 | AP-A, at the flagpole beside the Lane 1 office | AP-B, on the old bund at the east fence behind plug row H | Greta Hohenfeld or her deputy |
+| RTM-3 | Marker Blue 12, at the end of reefer row R12 | The security cabin at the gate | Hanneke Dijkgraaf or the shift lead |
+| GOT-4 | The Arendal Port Services guardhouse (shared with the port) | Lamp post L-17 on the west quay road | Axel Torvaldsson-Beck |
+| KLJ-5 | The yellow yard-office container | The road gate on Nemuno g. | Rūta Jakubauskaitė |
+
+Fire equipment is inspected every month by the depot steward and every 12 months by an external company. Numbers of portable extinguishers (all of them ABC powder or CO2) are 118 at GDY-1, 64 at HAM-2, 52 at RTM-3, 31 at GOT-4 and 19 at KLJ-5. Every extinguisher is within 25 m of a person at any point in any building. Fire hydrants are the property of the ports, but the stewards know where they are. Do not fight a fire unless you have been trained, you are not alone, the way out is behind you and the fire is smaller than a waste bin. If any of those conditions fails, you leave.
+
+A fire involving a reefer unit should be treated as an electrical fire first: the pedestal is switched OFF, the plug is left in, and a CO2 extinguisher is used. Hot work (welding, grinding, cutting) needs a hot-work permit on form PTW-4, valid for 4 hours and followed by a fire watch lasting at least 60 minutes after the work has stopped.
+
+Note from Hanneke (RTM-3): the Maasvlakte wind will take your hard hat if you let it, and at RTM-3 the muster point "Blue 12" is next to the stack that people complain is in the way of the wind. It is. That is the point.
+
+## 10. First aid
+
+There must be one trained first-aider for every 15 employees on a shift, with at least two on any shift at GDY-1. First-aiders complete the 16-hour first-aid course and renew every 2 years. First-aid rooms exist at GDY-1 and HAM-2; the other depots keep a first-aid cabinet in the shift office, checked on the first working day of each month by the steward. Automated defibrillators (AEDs) are located as follows: 4 at GDY-1, 2 at HAM-2, 2 at RTM-3, 1 at GOT-4 and 1 at KLJ-5, in the shift office, the gate cabin, and in the case of GDY-1 also one at the Hall 4 entrance and one in the workshop.
+
+In a serious emergency the first action is to ring 112 and the second is Duty Ops on ext 2000. Not the other way around, and not through a colleague's phone call to their brother-in-law who is a doctor. The caller says the depot code, the exact position (pad and row, or hall and bay) and the number of casualties.
+
+**Cold injuries.** A person with frostbite is not rubbed with snow or anything else; the affected part is warmed in water at 37 to 39 °C for at least 20 minutes and then covered loosely. A person with signs of hypothermia is moved to a warm room, wrapped, given a warm sweet drink if conscious, and 112 is called anyway. **Ammonia exposure.** Eyes and skin are rinsed with plenty of water for at least 15 minutes and the casualty is taken to hospital whatever they say about being fine.
+
+First-aid use is recorded on the inside of the cabinet door, and on form SAF-2 if more than a plaster was used.
+
+## 11. Incident reporting and investigation
+
+Reporting is not a confession. It is the only way the Company learns what to fix, and it is obligatory. Incidents are classified in four categories, from A (the worst) to D.
+
+| Category | Definition | What happens and by when |
+|---|---|---|
+| D | Near miss, hazard observation, unsafe condition | Entered in Tidewalk on form SAF-1 within 24 hours |
+| C | First-aid case without lost time | Shift supervisor told at once; form SAF-2 within 4 hours |
+| B | Lost-time injury (absent for 1 shift or more after the day of injury), property damage above 5,000 EUR, or a dangerous occurrence such as a crane overload or a spill | Duty Ops rung within 15 minutes; form SAF-3 within 24 hours; investigation started within 5 working days |
+| A | Fatality, hospital stay of more than 24 hours, ammonia release outside the building, a fire needing the brigade | Jarek Lindqvist rung immediately; Quality notifies the authority; the scene is not touched |
+
+Legal notifications to the authorities in each country are made by Quality & Compliance (with Sofia Brandão, Legal Counsel, copied) and never by the depot, and deadlines are tracked by them; the depot's responsibility is to ring Duty Ops in time. A depot manager who rings the inspector directly, out of enthusiasm, has probably started a second investigation without meaning to. Press and customer enquiries about an incident are referred to Lotte Sandberg in Marketing and are never answered at the gate.
+
+Before anything is moved the person in charge takes photographs from at least 3 angles. Witness statements are taken within 48 hours. The investigation uses the 5-Whys method and the written report is due within 10 working days of the incident. Corrective actions are entered in Tidewalk with an owner and a due date and are tracked until closed; an action more than 30 days overdue is escalated to the COO, who has so far been asked to deal with exactly 3 of these, and has said what he thinks of the experience.
+
+Statistics for the record: in 2023 the Company recorded 5 lost-time injuries in 612,000 hours worked, a lost-time injury frequency rate (LTIFR) of 8.2 per million hours. The target for 2024 is 6.0. Near-miss reports numbered 214 in 2023, and the 2024 target is 300; a rise in near-miss reports is a good sign, not a bad one, and anybody who says otherwise has misread the chart.
+
+## 12. Lone working and night shifts
+
+Anyone working alone in the yard, a plug row or a remote corner of a depot checks in by radio with Duty Ops (or with the owls' dispatch desk) every 40 minutes. A missed check-in is chased by radio within 5 minutes and, if there is still no answer, a search is started. At GDY-1 and RTM-3 every lone worker wears a personal alarm which transmits a man-down signal after 30 seconds without movement.
+
+Lone working is prohibited altogether in cold rooms colder than −25 °C, on roofs, in the ammonia plant room, in a CA box and inside a stack. No person works more than 12 hours in one shift, and there must be at least 11 hours of rest between two shifts. Minimum night crews are 6 people at GDY-1 and 4 at RTM-3; GOT-4 has a contracted night guard from Arendal Port Services plus an on-call supervisor, and KLJ-5 is unmanned at night, with the gate locked from 19:00.
+
+Note from Rūta (KLJ-5): at Klaipėda we have 2 people on the early shift and one forklift. The rule that nobody works alone is a lovely rule. We do our best. Ring GDY-1 if the forklift dies.
+
+## 13. Weather: winter, wind, fog, heat
+
+The Baltic is generous with weather. When the yard temperature falls below −10 °C the winter protocol begins: grit is spread on all walkways and the gate zone 20 minutes before the shift starts, forklift cabs are run warm 10 minutes before use and pedestal covers are checked for ice before plugging. A yard under black ice is closed to pedestrians until the steward has signed off the grit. When visibility drops below 50 m in fog, the yard speed limit falls to 5 km/h, hazard lights are on and the gate guard reads out the position of every machine on the radio every 10 minutes.
+
+All crane and reach stacker lifts stop when lightning is observed within 10 km of the depot, and restart 30 minutes after the last observed strike. Wind limits are in Section 5. When the temperature in the yard exceeds 30 °C every outside worker has a water break of at least 10 minutes in every 45 minutes, and the steward checks that the ice machine in the shift office is working.
+
+## 14. Contractors, visitors, temporary work
+
+A contractor works at a depot only on a signed permit-to-work and within the area named in it. Contractors using their own machines show the inspection certificate of the machine at the gate and the operator's card, which the shift supervisor copies. An unescorted contractor who has not completed the induction is removed from site, whoever they are, and whoever they claim to know.
+
+Temporary pad C positions at GDY-1 (24 plugs, October to January) are covered by an additional risk assessment, RA-17, and the shift supervisor walks them at the start of each shift. Customers who audit the depot are escorted by the depot manager or his deputy and wear the orange badge; pharma auditors are given the full safety briefing even when they declare that they have done it before.
+
+## 15. Training matrix
+
+The following training is compulsory by role. Training records are kept in the Tidewalk people module, and a person whose training lapsed may not perform the task until it is renewed.
+
+| Course | For whom | Duration | Valid for |
+|---|---|---|---|
+| Site induction | All new staff | 3 hours 40 minutes | Contractors repeat the 40-minute refresher every 12 months |
+| KFL forklift card | Forklift drivers | 24 hours | 3 years, with a 4-hour refresher |
+| Reach stacker endorsement | Reach stacker operators | 40 hours supervised | Medical every 2 years |
+| First aid | First-aiders | 16 hours | 2 years |
+| Fire warden | Shift supervisors, stewards | 6 hours | 3 years |
+| Ammonia responder | Emergency response team, GDY-1 | 32 hours | 8-hour refresher every year |
+| Working at height | Anybody on a PTW-2 | 8 hours | 3 years |
+| Electrical awareness and lock-out | Plug crews and fleet | 4 hours | 2 years |
+| LPG cylinder handling | LPG truck users | 45 minutes | 5 years |
+| Safety steward | Elected stewards | 16 hours | 2-year term |
+
+## 16. Spills, chemicals, batteries and manual handling
+
+**Spills.** Every depot has spill kits (a 120-litre wheeled bin with absorbent pads, granules, drain mats and a pair of bags for the used material), at the rate of one kit per 5,000 m² of yard area and one in every shift office and workshop. A spill of fuel, hydraulic oil or glycol of less than 20 litres is dealt with by the shift using the kit and recorded on SAF-1. A spill of 20 litres or more, or any spill of any size that reaches a storm drain, is a category B dangerous occurrence under Section 11. At RTM-3 the yard drains into the harbour basin, so every spill there is reported to the port authority through Duty Ops, no matter how small it feels at 3 in the morning. The drain mats are placed first and the discussion about whose fault it was comes second.
+
+Diesel is dispensed only at GDY-1 and RTM-3 from the fuel bowsers, which hold up to 9,000 litres at GDY-1 and 6,000 litres at RTM-3. Machines are refuelled with the engine off and the handbrake on, and nobody refuels while smoking, using a phone or standing in the rain thinking about lunch. At the other depots, machines are refuelled by a contracted fuel truck that arrives on Tuesdays and Fridays.
+
+**Chemicals.** Only cleaning products and chemicals on the approved Chemical List CL-2024 may be bought or used at a depot. The safety data sheets for them are kept in a binder in each shift office and are reviewed every 6 months by the steward. Glycol, battery acid and cleaning concentrates are stored in the bunded cabinet in the workshop and never in a drinks bottle, a lesson we have taken from the single incident at HAM-2 in 2021 that will not be described here out of consideration for the person involved.
+
+**KC-Tag 4 batteries.** The loggers are powered by lithium cells supplied by Voltrac Battery Systems. New and spare tags are stored in the fireproof tag cabinet in each shift office, with a maximum of 200 tags per cabinet. A tag with a swollen, hot, leaking or smoking cell is put in the sand bucket (not water) and left outside until cold, and the incident is reported on SAF-1. Spent cells are collected in the red bin for hazardous waste and are not to be thrown into the general waste, whatever the person at the gate bin says.
+
+**Manual handling.** No person lifts more than 25 kg alone, and no more than 40 kg between two. Anything heavier is moved with a trolley, a pallet truck or a forklift. A box of tags weighs 4.2 kg and a full pallet jack handle is not a toy. Carrying seals, probes and tag cases up the ladder at the crane base is permitted only in the red tool bags, one hand always free for the rail.
+
+**Housekeeping.** Walkways and the aisles in the shift office are kept clear to a width of 1.2 m. Waste is separated into four bins: blue for paper and cardboard, yellow for plastic and wrapping, black for general waste and red for hazardous waste (oily rags, spent batteries, empty aerosols, used absorbent). The bins are emptied each night by the cleaning contractor, and the red bin only by the steward, who signs a collection sheet.
+
+**Noise and hearing.** Staff who work in the workshops at GDY-1 and HAM-2 have a hearing test every 2 years, and the results are held by the occupational health provider, not by the Company. Noise near the reefer rows, when 40 units run together on a hot afternoon, can reach 79 dB(A) at the row edge; ear protection is not compulsory there but the steward will gladly hand you a pair and has been known to leave them on the bonnet of your car.
+
+Note from Greta (HAM-2): the HAM-2 spill kit lives in the red cabinet by the Lane 1 office, not the blue one. The blue one has the hi-vis jackets. Yes, somebody once emptied the blue one into a puddle of hydraulic oil. Yes, he was wearing a very clean jacket afterwards.
+
+## Appendix A — Depot managers, stewards, contacts
+
+| Depot | Manager / lead | Contact extension | Elected stewards |
+|---|---|---|---|
+| GDY-1 | Jarek Lindqvist (acting, through the shift supervisors) | 2100 | 9 |
+| HAM-2 | Greta Hohenfeld, depot supervisor | 2300 | 5 |
+| RTM-3 | Hanneke Dijkgraaf, depot manager | 2400 | 4 |
+| GOT-4 | Axel Torvaldsson-Beck, yard manager | 2500 | 3 |
+| KLJ-5 | Rūta Jakubauskaitė, yard supervisor | 2600 | 2 |
+
+Quality & Compliance: Benedikta Aaltonen, ext 2620. Duty Ops: ext 2000, staffed 24 hours a day. Fleet and maintenance: Gunnar Halvorsrud, ext 2750.
+
+## Appendix B — Revision history
+
+| Version | Date | Change |
+|---|---|---|
+| 4.0 | 22 May 2023 | Complete rewrite after the merger of the five local depot rule books |
+| 4.1 | 19 September 2023 | Ammonia chapter rewritten; yard road speed limit set at 20 km/h |
+| 4.2 | 4 March 2024 | Yard road speed limit lowered from 20 km/h to 15 km/h; lone-working check-in changed from 60 to 40 minutes; training matrix added |
+
+## Appendix C — Drill log 2023
+
+Full evacuation drills in November 2023, measured from the alarm to the last person at the assembly point. The target is 4 minutes 30 seconds.
+
+| Depot | Date | Time achieved | Result |
+|---|---|---|---|
+| GDY-1 | 14 November 2023 | 4 min 12 s | Pass |
+| HAM-2 | 21 November 2023 | 5 min 03 s | Fail, repeat drill ordered |
+| RTM-3 | 9 November 2023 | 3 min 47 s | Pass |
+| GOT-4 | 16 November 2023 | 4 min 20 s | Pass |
+| KLJ-5 | 28 November 2023 | 2 min 58 s | Pass |
+
+The HAM-2 drill failed mainly because people at the far end of plug row H did not hear the siren over the reefer units; two additional sounder horns have been fitted on the bund. The ammonia scenario drill at GDY-1 was run on 15 November 2023 and the plant was isolated in 11 minutes 40 seconds.
+
+*End of KC-QHS-001 version 4.2. The next version will be larger. Nobody asked for that, but it will be.*

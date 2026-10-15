@@ -1,0 +1,45 @@
+OPS WEEKLY REVIEW - Tue 24.09.2024 - 10:00 to ~11:25 - room "Orka" (3rd floor, Łużycka) + Teams for HAM and RTM
+minutes: Ola F. (sorry, typed on the fly, pls shout if I got a number wrong)
+
+present: Jarek L. (chair), Olek M., Wacek B. (Wacław Bielicki), Gunnar H., Ola F., Benedikta A. (left 10:25, she had the ISO people), Kamil Z. (joined 10:40 for item 6 only). On Teams: Hanneke D. (RTM), Ingo (HAM-2)
+apologies: Dieter (Hamburg), Priya
+
+1. VISTULA STAR CUT-OFF (the mess of last week)
+Cut-off for the stack changed 3 times in 4 days: 16:00 -> 13:30 (Wed 00:20, terminal crane trouble) -> 15:00 (Thu 09:18, via Hanneke and the agent). Our 3 boxes were in at 14:41 Thu so we were fine, but only because Jarek kept shouting. Printed Monday sheet still said Friday. Wacek says the sheet is "a lie by Tuesday every week" and wants it gone. Agreed: Wacek to price 2 wall screens for the gate cabin and the shift office (live Tidewalk view + one banner line for cut-offs). Facilities quote was 2,180 PLN for both incl. mounting; Jarek said anything up to 3,000 PLN he signs without PO. Olek to write a one-page "cut-off change" routine (whiteboard AND Tidewalk banner AND handover, in that order, strike through never delete). Due Fri 04.10. Olek asked who tells the day shift when it changes at night - answer: whoever takes the call, by sms to Wacek, not chat.
+
+2. GATE 2 / GUARD LIST
+Helvetia trailer 17.09 was held at the gate 16 min because the guard list had 16 pallets vs 18 real. Root cause: the list went out 23:10, the repack added 2 pallets after. New: guard list goes out by 22:00 and again at 01:00 if anything changes (owner Ola F.). Also the barrier at gate 2 stays down 02:15-02:45 during guard break; Jarek will ask the guard firm (Bastion Ochrona) to stagger the break to 02:00-02:30 from 1 Oct. Not agreed yet, "in principle", needs it in writing. Ola F. to chase, by Fri.
+
+3. PLUGS / POWER
+C-37 trips the breaker above 14 A (Wacek, again). Plug sheet that people use is from August!! -> sheet gets re-issued on the first Monday of every month, owner Gunnar. C-41 is the new 32 A socket (11.8 A measured on pull-down), C-42 and C-44 the same type. Gunnar will get a quote from the electrician (Elmar-Instal) to convert C-36 to C-40 to 32 A; budget cap 6,400 PLN, anything above comes back here. D-09 "ghosts" - use D-12 until fixed (spare line, blue). Electrician visit pencilled for Wed 02.10.
+
+4. ROTTERDAM FEEDER - 3 TRUCKS -> 2 TRUCKS
+Hanneke: from Mon 23.09 the night feeder RTM-3 -> GDY-1 runs 2 trucks per night instead of 3. Reason (her words): night loaders at Maasvlakte short by 2 FTE until the agency people start, and the 3rd truck was always half empty anyway, avg 9 pallets. Review on 31.10, if load goes up above 19 pallets/night average we go back to 3. Olek's worry is that GDY-1 gets bursts. Jarek: "we live with it for five weeks".
+
+5. EARLY ARRIVALS (Brunnen & Sohn BS-GDY-77, 4h early on Fri 20.09)
+Truck came 02:30 instead of 06:30, driver slept in the cab, Olek lent him a blanket from the gate cabin box (this is a thing, apparently, Jarek did not know). Proposal Jarek: arrivals more than 3 hours before slot wait in the lay-by on ul. Hutnicza, not in the yard. Benedikta had said before she left that Seaboard (insurance) wants any unattended driver on the yard limited, so changed to MORE THAN 2 HOURS early = lay-by, unless the dispatcher OKs it by phone. Blankets stay, no policy needed lol.
+
+6. IT BITS (Kamil joined)
+a) HAM-2: VPN renews 03:00 sharp every night since the update, 3 hub alarms in 20 min on Wed 18.09 (cleared 03:14). Kamil to ask Hamburg network and report Fri 27.09.
+b) Yard B hub is YB-H03. Please stop calling it "the old one".
+c) Alarm to the night desk phone - "pick up within 3 rings" is now in the owls' onboarding sheet (Wacek).
+
+7. FLEET (Gunnar)
+- Pool fuel card for the white Renault T went missing 16.09 night, old card blocked Tue, new one ends 7741, daily limit 400 PLN. Reserve in tank 60 l.
+- TPMS sensor on fleet no. 42 ("Mała Berta", old Volvo) reads 7.2 bar when the real value is 8.1. Replace at the next service, week 42. Not a safety issue.
+- 24 V charger for handhelds with the loose pin to be binned. Two spare chargers in the key cabinet, 2nd drawer.
+
+8. AOB
+- Jarek out Mon 07.10 - Fri 11.10. Olek deputises for ops, Wacek for the yard.
+- Next meeting Tue 01.10, 10:00, same room. Ola F. brings the pierogi list, not the pierogi.
+
+ACTIONS (short)
+Wacek - wall screens quote (2 screens, <= 3,000 PLN) - Fri 04.10
+Olek - cut-off change routine, 1 page - Fri 04.10
+Ola F. - guard list 22:00 + 01:00, chase Bastion re break 02:00-02:30 - Fri 27.09
+Gunnar - Elmar-Instal quote C-36..C-40 (cap 6,400 PLN), monthly plug sheet - Wed 02.10 visit
+Kamil - HAM-2 VPN question - Fri 27.09
+Hanneke - Rotterdam feeder numbers for the 31.10 review - Thu 31.10
+
+--- added Wed 25.09 by Jarek (via sms to Ola, pasted here) ---
+guard break: Bastion say 02:00-02:30 is fine from Tue 1 Oct, but in writing only after their boss is back 30.09. and electrician moved to Thu 03.10 not Wed. otherwise as above.

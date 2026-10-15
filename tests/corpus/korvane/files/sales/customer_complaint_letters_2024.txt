@@ -1,0 +1,120 @@
+KORVANE COLD CHAIN - SALES - COMPLAINTS FILE 2024 (customer correspondence, scanned and retyped by T. Banaś, Q3 2024)
+Four letters, in order of receipt. Originals in the sales share under /Customers/Complaints/2024. Retyped as received, including typos. -- TB
+
+======================================================================
+LETTER 1 of 4
+======================================================================
+
+Brunnen & Sohn Frischdienst GmbH
+Kaiser-Joseph-Strasse 227
+79098 Freiburg im Breisgau
+
+Freiburg, 11 September 2024
+
+Korvane Cold Chain Sp. z o.o.
+z. Hd. Frau Katharina Voss
+HAM-2 Hamburg-Waltershof
+
+Betreff / Subject: Invoice 2024-HAM-004417 of 2 September 2024 - duplicated items
+
+Dear Ms Voss,
+
+I hope you are well and that the summer in Hamburg was kinder to you than it was to our berry suppliers in Baden.
+
+I am writing with a small but, I am afraid, rather precise complaint. Our accounts department has reviewed the invoice 2024-HAM-004417 for the month of August and found that three items appear twice: the Fairway subscription (EUR 1,190.00), 1,100 tag-days of rental at EUR 0.58 each (EUR 638.00) and 7 additional container-days at EUR 2.60 (EUR 18.20). The second set sits in a block headed "carried over from previous period" which, as far as we can tell, has no previous period to carry anything over from. The duplicated amount is EUR 1,846.20 in total, and the invoice has a due date of 2 October 2024 under our usual 30 days.
+
+I want to be clear that this is not a complaint about the service. Our dispatchers in Freiburg are happy with Tidewalk, the alerts are timely, and I have told my brother (who runs the Basel warehouse and who is considerably harder to please than I am) that he should speak to you. We are in fact planning to add two sites, Freiburg and Basel, to the monitoring contract, and we would very much like to discuss this in October. But my finance director, Herr Wendelin Aschoff, has told me in no uncertain terms that nobody at our company will sign a new commercial commitment while an old invoice is wrong, and I find it hard to argue.
+
+Could you therefore please issue a credit note for EUR 1,846.20 no later than 20 September 2024, and confirm in writing that the corrected invoice will be sent to our accounts address (rechnungen@brunnen-sohn.example) and not to my personal one, which has become a depository of unreadable PDFs.
+
+With best regards, and thank you for your help,
+
+Konrad Brunnen
+Geschäftsführer
+Brunnen & Sohn Frischdienst GmbH
+
+cc: Herr Aschoff (Finanzen)
+
+======================================================================
+LETTER 2 of 4
+======================================================================
+
+From: Tuomas Rautio <tuomas.rautio@lumikko.example>
+To: Rafał Nowogrodzki; Yusuf Demirkıran; Anders Bjørkman
+Date: Wed, 7 Aug 2024 07:48
+Subject: URGENT - lost cargo, Tidewalk alert NEVER ARRIVED
+
+To whom it concerns at Korvane,
+
+On the night of Saturday 3 August 2024 container TRIU 8830215, carrying 18 pallets of our frozen ready meals bound for Helsinki via Gothenburg, stood in your yard at GOT-4 with its door open from 22:14 until 01:19 on Sunday. That is 3 hours and 5 minutes. Your own Tidewalk dashboard shows the alert as "SENT" at 22:15. Nobody at Lumikko received it. Not a text message, not an e-mail, nothing, and my phone was on and in my hand because I was watching the football.
+
+We found out at 07:30 on Sunday morning, when our own warehouse supervisor Pekka Lahtinen called me from Vuosaari because the container felt warm to the touch. By then the core temperature of the pallets had climbed to minus 4 degrees. We rejected the whole load. The value of the goods is EUR 9,740 and I expect that to be paid in full. I also expect an explanation of how your system can report an alert as sent when nothing has been sent.
+
+You sold us this service on the promise that "somebody at Korvane knows before you do". On 3 August somebody at Korvane knew nothing and neither did we. I have been a customer of cold-chain providers for 17 years and I have never had to write a letter with this many capital letters. I want a written root-cause explanation within 7 days and a decision on the claim within 14. If I do not have both by 21 August 2024 my lawyers in Helsinki will be writing the next letter, and they do not enjoy reading.
+
+Do not call me about new quotes. We will talk about a new quote when the claim is closed and not one hour before.
+
+Tuomas Rautio
+Logistics Manager, Lumikko Foods Oy
+Helsinki
+
+======================================================================
+LETTER 3 of 4
+======================================================================
+
+Helvetia Pharma Logistik GmbH
+Qualitätssicherung / Quality Assurance
+Hardturmstrasse 161, 8005 Zürich
+
+24 September 2024
+
+Korvane Cold Chain Sp. z o.o.
+Attn.: Mr Rafał Nowogrodzki, Head of Sales
+Copy: Ms Katharina Voss; Ms Benedikta Aaltonen, Quality & Compliance Manager
+
+Re: Observation from our GDP self-inspection of 17 September 2024 - missing calibration certificates
+
+Dear Mr Nowogrodzki,
+
+In the course of our annual GDP self-inspection on 17 September 2024 we verified the calibration records of the temperature loggers used on pharmaceutical shipments handled under our contract with Korvane. For 14 of the KC-Tag 4 units, serial numbers 20417 to 20430 from batch KT4-R2, no calibration certificate could be found in our quality system. Your delivery note of 11 June 2024 lists the certificates as "enclosed", but they were not in the shipment received by our goods-in department.
+
+Under our quality agreement every logger used on a GDP shipment must carry a valid calibration certificate and be recalibrated at least every 12 months. Until the certificates are produced, we have placed the 14 units in quarantine and have removed them from active use. We do not consider this a critical deviation, but it is a major observation under our own SOP and it will be reported as such to our Responsible Person.
+
+We therefore request: (1) copies of the calibration certificates for all 14 units; (2) a corrective and preventive action (CAPA) response from Korvane, to reach us no later than 18 October 2024; and (3) confirmation that the 12-month recalibration cycle has been applied to every KC-Tag 4 delivered to us since the start of 2024.
+
+We are mindful that our team's audit of Korvane is scheduled for 5 November 2024, and we would prefer to treat this matter as closed by then. Please note that the extension of our cooperation, currently under discussion, depends on a satisfactory response.
+
+Yours sincerely,
+
+Dr. Annelie Roth
+Head of Quality Assurance
+Helvetia Pharma Logistik GmbH
+
+======================================================================
+LETTER 4 of 4
+======================================================================
+
+DOLINA WARZYW Sp. z o.o.
+ul. Gdańska 41, 83-140 Gniew
+
+Gniew, 20.09.2024
+
+Do: Korvane Cold Chain, dział sprzedaży (Wiktoria Szulc / p. Nowogrodzki)
+
+Dotyczy / Re: awaria huba i obiecana instalacja
+
+Szanowni Państwo,
+
+writing in English because my son says you like it better, but I am angry in Polish. Yesterday, 19 September 2024, our KC-Hub 200 in Gniew stopped talking to your Tidewalk between 14:05 and 15:03. That is 58 minutes. During that time twelve containers of cauliflower were on our yard and we saw NOTHING on the screen, just "no data". Nobody called us. Nobody sent an e-mail. My dispatcher counted the minutes with a stopwatch, and he was right to do it.
+
+I have been your customer for two years and in July, when we renewed the contract for 24 months on the Harbour plan with 60 tags, your Ms Szulc told me we would get one free hub installation as a thank-you. This was agreed in July and written in a chat message from Mr Nowogrodzki, she said. Today is 20 September and nobody has installed anything. Your technician was supposed to come on 2 September and then on 13 September and cancelled both times, once with one hour notice, once with no notice at all. My wife says you take our money faster than you take our calls.
+
+I do not ask for a discount. I ask for three things: (1) the free installation of the second hub, with a date, in writing; (2) a written explanation what happened on 19 September; (3) one phone number which is answered. If I do not have these by 4 October 2024 I will look at TermoTrans, who called me again last week and offered EUR 0.49 per tag per day without any contract at all. I do not want to change. Changing is a lot of work. But I want to be treated like a customer who pays on time, which we are, always, within 8 days.
+
+Z poważaniem,
+
+Marzena Dolina-Wiącek
+Właściciel / Owner
+Dolina Warzyw Sp. z o.o.
+
+PS. The cauliflower was fine in the end. That is not the point.

@@ -1,0 +1,789 @@
+{% extends "base.html" %}
+{% block title %}Export — {{ project.name }}{% endblock %}
+{% block nav_project_export %}active{% endblock %}
+{% block sb_path %}~ / projects / {{ project.name }} / export{% endblock %}
+{% block breadcrumb_tab %}export{% endblock %}
+
+{% block content %}
+{% set res_compact = true %}
+{% include "_resources.html" %}
+
+<div class="page-head">
+  <h1>Export models</h1>
+  <div class="sub"><b>Step 4 · Use it.</b> Take a finished training run out of the
+    studio: <b>GGUF</b> to run it in llama.cpp / LM Studio / Ollama, or
+    <b>abliterated</b> for an uncensored variant. Adapter-only
+    runs are merged onto their base automatically at export time.
+    Want to talk to it instead? <a href="/projects/{{ pid }}/chat" data-link>Open chat</a>.</div>
+</div>
+
+{# ── Available runs to export ─────────────────────────────────────── #}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Training runs</div>
+      <div class="card-sub">Pick a completed run. A <b>merged</b> run is already a standalone full model and exports directly. An <b>adapter-only</b> run saved just a small add-on file that needs its base model, so it is combined with the base model below first.</div>
+    </div>
+  </div>
+  <div id="export-runs" class="p-2">
+    {% set exportable = project.runs|selectattr('exportable')|list %}
+    {% if exportable %}
+      <div class="grid grid-1 gap-2">
+        {% for run in exportable %}
+        <div class="export-run-row"
+             data-run-id="{{ run.id }}"
+             data-output-path="{{ run.output_path }}"
+             data-base-model="{{ run.base_model or '' }}"
+             data-has-merged="{{ '1' if run.has_merged else '0' }}"
+             data-has-adapter="{{ '1' if run.has_adapter else '0' }}">
+          <div class="row items-center gap-3 p-2 export-run-pick" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
+            <input type="radio" name="export-run" value="{{ run.id }}" class="export-run-radio">
+            <div class="flex-1">
+              <div class="text-sm font-bold">{{ run.name or run.id[:8] }}</div>
+              <div class="text-xs dim">
+                {% if run.final_loss %}loss: {{ '%.4f'|format(run.final_loss) }} · {% endif %}
+                {% if run.duration %}{{ '%.0f'|format(run.duration // 60) }}m {{ '%.0f'|format(run.duration % 60) }}s · {% endif %}
+                {{ run.status }}
+                {% if run.has_merged %}
+                  · <span class="pill outline">merged</span>
+                {% elif run.has_adapter %}
+                  · <span class="pill outline">adapter only — merge at export</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="text-xs mono dim">{{ run.output_path }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty">No exportable runs. Finish a training run that writes an adapter or merged model first.</div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Compatible base for adapter-only merge ───────────────────────── #}
+<div class="card mb-4" id="export-base-card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Compatible base model</div>
+      <div class="card-sub">Needed only when the selected run is adapter-only (it has no standalone full model yet). Point this at the full-precision (16-bit) version of the model you trained on — not its 4-bit compressed download, which cannot be merged cleanly.</div>
+    </div>
+  </div>
+  <div class="p-2">
+    <input class="input w-full mono text-sm" type="text" id="export-base-model"
+           placeholder="e.g. Qwen/Qwen3-4B or /path/to/16bit/snapshot"
+           value="">
+  </div>
+</div>
+
+{# ── Export options ───────────────────────────────────────────────── #}
+{% set caps = export_caps if export_caps is defined else {'gguf': false, 'gguf_hint': ''} %}
+<div class="card mb-4">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Export format</div>
+      <div class="card-sub">Choose one or more outputs. Formats whose converter is not installed are greyed out, and an export never reports success unless the files were actually written.</div>
+    </div>
+  </div>
+  <div id="export-caps" class="p-2 pt-0 text-xs"
+       data-gguf="{{ '1' if caps.gguf else '0' }}"
+       {% if not caps.gguf %}role="status"{% endif %}>
+    {% if not caps.gguf %}
+    <div class="err mb-1" id="export-gguf-unavailable">GGUF unavailable — {{ caps.gguf_hint }}</div>
+    {% endif %}
+  </div>
+  <div class="grid grid-2 gap-3 p-2">
+    <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);{% if not caps.gguf %}opacity:0.55;cursor:not-allowed;{% else %}cursor:pointer;{% endif %}">
+      <input type="checkbox" name="export-format" value="gguf" class="mt-1"
+             {% if caps.gguf %}checked{% else %}disabled title="{{ caps.gguf_hint }}"{% endif %}>
+      <div>
+        <div class="text-sm font-bold">GGUF{% if not caps.gguf %} <span class="pill outline">unavailable</span>{% endif %}</div>
+        <div class="text-xs dim">For llama.cpp, Ollama, LM Studio. Most compatible.</div>
+      </div>
+    </label>
+    <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
+      <input type="checkbox" name="export-format" value="abliterated" class="mt-1"
+             {% if not caps.gguf %}checked{% endif %}>
+      <div>
+        <div class="text-sm font-bold">Abliterated</div>
+        <div class="text-xs dim">Removes the model&rsquo;s built-in refusal behaviour (full model, safetensors). Warning: it can also make the model comply with harmful requests.</div>
+      </div>
+    </label>
+    <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
+      <input type="checkbox" name="export-format" value="merged" class="mt-1">
+      <div>
+        <div class="text-sm font-bold">Merged</div>
+        <div class="text-xs dim">Full safetensors merge (no quantization).</div>
+      </div>
+    </label>
+  </div>
+
+  {# GGUF quant options — only shown when GGUF is selected and available #}
+  <div id="gguf-quants" class="p-2 pt-0" {% if not caps.gguf %}hidden{% endif %}>
+    <div class="text-xs muted mb-1">GGUF quantizations (select at least one):</div>
+    <div class="flex flex-col gap-1 text-xs">
+      {% set quant_hints = {
+        'f16': 'full precision, largest file, no quality loss',
+        'q8_0': '~8.5 bits/weight, near-lossless, about half of f16',
+        'q6_k': '~6.6 bits/weight, very close to full quality',
+        'q5_k_m': '~5.7 bits/weight, good quality, a bit larger than q4',
+        'q4_k_m': '~4.8 bits/weight, smallest that usually keeps quality — recommended',
+        'q3_k_m': '~3.9 bits/weight, small, noticeable quality loss',
+        'q2_k': '~2.6 bits/weight, smallest, large quality loss',
+      } %}
+      {% for q in ['f16', 'q8_0', 'q6_k', 'q5_k_m', 'q4_k_m', 'q3_k_m', 'q2_k'] %}
+      <label class="flex items-center gap-1" title="{{ quant_hints[q] }}">
+        <input type="checkbox" name="gguf-quant" value="{{ q }}"
+               {% if not caps.gguf %}disabled{% elif q == 'q4_k_m' %}checked{% endif %}>
+        {{ q }} <span class="dim">— {{ quant_hints[q] }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="p-2 pt-0 flex items-center gap-2">
+    <button class="btn primary" id="export-btn" onclick="startExport()" disabled title="Select a training run above first">Export selected</button>
+    <span id="export-btn-hint" class="text-xs dim">Select a training run above to enable export.</span>
+    <label class="flex items-center gap-1 text-xs">
+      <input type="checkbox" id="export-force" value="1">
+      Overwrite existing
+    </label>
+    <button class="btn danger" id="export-cancel-btn" type="button" hidden>Cancel export</button>
+    <span id="export-status" class="text-xs dim" role="status"></span>
+  </div>
+  <div id="export-job" class="p-2 pt-0" hidden role="status" aria-live="polite">
+    <div class="row items-center gap-2 mb-1">
+      <span class="pill solid-cyan" id="export-job-state">queued</span>
+      <b id="export-job-title" class="text-sm"></b>
+      <span class="text-xs dim mono" id="export-job-elapsed"></span>
+    </div>
+    <div class="bar"><div class="fill indeterminate" id="export-job-bar"></div></div>
+    <div class="text-xs dim mt-1" id="export-job-detail"></div>
+    <div class="text-xs dim mt-1" id="export-job-queue"></div>
+    <div class="err text-xs mt-1" id="export-job-error"></div>
+  </div>
+  <div id="export-result" class="p-2 pt-0" style="display:none;"></div>
+</div>
+
+{# ── Existing / trained exports (expand-row) ──────────────────────── #}
+<style>
+  tr.export-detail { display: none; }
+  tr.export-row.expanded + tr.export-detail { display: table-row; }
+  tr.export-row.expanded td.name { color: var(--accent); }
+  tr.export-row .name-btn {
+    background: none; border: none; padding: 0; margin: 0;
+    font: inherit; color: inherit; cursor: pointer; text-align: left;
+  }
+  tr.export-row .name-btn:hover { color: var(--accent); text-decoration: underline; }
+  .export-detail-inner { padding: 12px 16px 16px; background: var(--bg-app); }
+  .export-detail-inner .detail-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  @media (max-width: 900px) {
+    .export-detail-inner .detail-grid { grid-template-columns: 1fr; }
+  }
+  .export-detail-inner .detail-block h4 {
+    margin: 0 0 8px; font-size: 12px; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--muted);
+  }
+  .export-detail-inner table.kv td { padding: 2px 8px 2px 0; vertical-align: top; }
+  .export-detail-inner table.kv td.k { color: var(--muted); white-space: nowrap; }
+  .export-detail-inner .files-list { list-style: none; margin: 0; padding: 0; }
+  .export-detail-inner .files-list li {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 2px 0; font-family: var(--mono, ui-monospace, monospace); font-size: 12px;
+  }
+  .export-detail-inner .files-list .sz { color: var(--muted); }
+</style>
+
+<div class="card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Trained exports</div>
+      <div class="card-sub">Already-exported models from this project. Click a name to expand.</div>
+    </div>
+  </div>
+  {% if project.models %}
+  <div class="table-scroll models-table-scroll trained-exports-table-scroll" id="trained-exports-table-scroll" role="region" aria-label="Trained exports">
+  <table class="table" id="trained-exports-table">
+    <thead>
+      <tr>
+        <th class="exports-col-name">Name</th>
+        <th class="exports-col-format">Format</th>
+        <th class="exports-col-size">Size</th>
+        <th class="exports-col-source">Source run</th>
+        <th class="exports-col-created">Created</th>
+        <th class="exports-col-copy">Copy path</th>
+        <th class="exports-col-actions">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in project.models %}
+      {% set run = runs_by_id.get(m.run_id) if runs_by_id is defined else none %}
+      {% set settings = (run.settings if run and run.settings else {}) %}
+      {% set row_id = 'm-' ~ (m.path | replace('/', '-') | replace(' ', '_') | replace('.', '_')) %}
+      <tr class="row-hover export-row"
+          id="{{ row_id }}"
+          data-row-id="{{ row_id }}"
+          data-model-path="{{ m.path }}"
+          data-run-id="{{ m.run_id }}">
+        <td class="name exports-col-name" title="{{ m.name }}">
+          <button type="button" class="name-btn" title="{{ m.name }} — click for details" onclick='flToggleExportRow({{ m.path|tojson }})'>{{ m.name }}</button>
+        </td>
+        <td class="exports-col-format"><span class="pill outline">{{ m.format }}</span>{% if m.quant %} <span class="pill">{{ m.quant }}</span>{% elif m.subdir in ('merged', 'abliterated') %} <span class="pill">{{ m.subdir }}</span>{% endif %}</td>
+        <td class="num mono exports-col-size">{{ m.size_gb }} GB</td>
+        <td class="meta exports-col-source" title="{{ m.run_name or '' }}">{{ m.run_name or (m.run_id[:8] if m.run_id else '—') }}</td>
+        <td class="meta exports-col-created">{{ m.created_at }}</td>
+        <td class="exports-col-copy">
+          <button class="btn sm" type="button"
+                  data-copy-path="{{ m.path }}" onclick="ftsCopyText(this.dataset.copyPath)">Copy path</button>
+        </td>
+        <td class="exports-col-actions">
+          <button type="button" class="btn sm primary"
+                  data-model-path="{{ m.path }}" onclick="flOpenInInference(this.dataset.modelPath)">▶ Open in inference</button>
+        </td>
+      </tr>
+      <tr class="export-detail" data-for="{{ row_id }}" data-model-path="{{ m.path }}">
+        <td colspan="7">
+          <div class="export-detail-inner">
+            <div class="detail-grid">
+              <div class="detail-block">
+                <h4>Source run</h4>
+                {% if run %}
+                <table class="kv">
+                  <tr>
+                    <td class="k">Name</td>
+                    <td>
+                      <a href="/projects/{{ pid }}/training?run={{ run.id }}" data-link>{{ run.name }}</a>
+                      <span class="pill {{ {'running':'solid-amber','done':'solid-green','failed':'solid-rose','stopped':'outline'}.get(run.status, 'outline') }}">{{ run.status }}</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="k">Started</td>
+                    <td class="mono js-time" data-ts="{{ run.started_at or '' }}">—</td>
+                  </tr>
+                  <tr>
+                    <td class="k">Finished</td>
+                    <td class="mono js-time" data-ts="{{ run.finished_at or '' }}">—</td>
+                  </tr>
+                  <tr>
+                    <td class="k">Duration</td>
+                    <td class="mono js-duration" data-secs="{{ run.duration or '' }}">—</td>
+                  </tr>
+                </table>
+                {% else %}
+                <div class="dim text-xs">No run metadata available.</div>
+                {% endif %}
+              </div>
+              <div class="detail-block">
+                <h4>Training settings</h4>
+                <table class="kv">
+                  <tr><td class="k">Learning rate</td><td class="mono">{{ settings.get('learning_rate', '—') }}</td></tr>
+                  <tr><td class="k">LoRA rank</td><td class="mono">{{ settings.get('lora_rank', '—') }}</td></tr>
+                  <tr><td class="k">Batch size</td><td class="mono">{{ settings.get('batch_size', '—') }}</td></tr>
+                  <tr><td class="k">Num epochs</td><td class="mono">{{ settings.get('num_epochs', '—') }}</td></tr>
+                  <tr><td class="k">Max seq length</td><td class="mono">{{ settings.get('max_seq_length', '—') }}</td></tr>
+                  <tr><td class="k">Merge on save</td><td class="mono">{{ settings.get('merge_on_save', '—') }}</td></tr>
+                </table>
+              </div>
+              <div class="detail-block" style="grid-column: 1 / -1;">
+                <h4>Output dir contents</h4>
+                <ul class="files-list js-export-files" data-path="{{ m.path }}">
+                  <li class="dim">Expand to load…</li>
+                </ul>
+              </div>
+            </div>
+            <div class="flex gap-1 wrap" style="margin-top:12px;">
+              <button type="button" class="btn sm primary"
+                      data-model-path="{{ m.path }}" onclick="flOpenInInference(this.dataset.modelPath)">▶ Open in inference</button>
+              <a class="btn sm" href="/projects/{{ pid }}/training?run={{ m.run_id }}" data-link>View run →</a>
+            </div>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty">No exports yet. Finish a training run and export above, or wait for a run that writes merged/GGUF output.</div>
+  {% endif %}
+</div>
+
+<script>
+// Enable export button when a run is selected; prefill base_model.
+document.querySelectorAll('.export-run-radio').forEach(r => {
+  r.addEventListener('change', () => {
+    document.getElementById('export-btn').disabled = false;
+    document.getElementById('export-btn').title = '';
+    const hint = document.getElementById('export-btn-hint');
+    if (hint) hint.hidden = true;
+    const row = r.closest('.export-run-row');
+    const baseInput = document.getElementById('export-base-model');
+    if (row && baseInput) {
+      const fromRun = row.getAttribute('data-base-model') || '';
+      if (!baseInput.value || baseInput.dataset.fromRun === '1') {
+        baseInput.value = fromRun;
+        baseInput.dataset.fromRun = '1';
+      }
+    }
+  });
+});
+
+document.querySelectorAll('.export-run-pick').forEach(box => {
+  box.addEventListener('click', ev => {
+    const radio = box.querySelector('.export-run-radio');
+    if (!radio || ev.target === radio) return;
+    radio.checked = true;
+    radio.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+});
+(function () {
+  const radios = document.querySelectorAll('.export-run-radio');
+  if (radios.length === 1) { radios[0].checked = true; radios[0].dispatchEvent(new Event('change', { bubbles: true })); }
+})();
+
+// ── Export job UI ─────────────────────────────────────────────────────
+// An export is a server-side job (queued → merging/converting/quantizing →
+// done | failed | cancelled). POST only queues it; this code shows the live
+// phase + elapsed time from the job's SSE stream, re-attaches to a running job
+// after a reload/navigation (GET .../exports/active), runs the selected formats
+// one after another (the server runs one export at a time), and locks the
+// controls while anything is running. Wrapped in an IIFE: spa.js re-runs inline
+// scripts and column-0 const/let would collide.
+(function () {
+  const PID = {{ pid|tojson }};
+  const API = '/api/projects/' + encodeURIComponent(PID);
+  const PLAN_KEY = 'fts-export-plan-' + PID;
+  const TERMINAL = ['done', 'failed', 'error', 'cancelled'];
+  const PHASE_LABEL = {
+    queued: 'Queued', preparing: 'Freeing GPU memory', merging: 'Merging adapter into the base model',
+    converting: 'Converting to GGUF', quantizing: 'Quantizing', abliterating: 'Removing refusal behaviour',
+    finalizing: 'Registering files', cancelling: 'Cancelling…', done: 'Done', failed: 'Failed',
+    cancelled: 'Cancelled',
+  };
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const notify = (msg, kind) => { if (window.fts && window.fts.notify) window.fts.notify(msg, kind || 'info'); };
+
+  let unsub = null;        // SSE subscription of the job on screen
+  let ticker = null;       // 1 s elapsed-time refresh
+  let current = null;      // last row received for the job on screen
+  let clockSkew = 0;       // server_now - Date.now()/1000, refreshed on every event
+
+  function savePlan(plan) {
+    try { if (plan) localStorage.setItem(PLAN_KEY, JSON.stringify(plan)); else localStorage.removeItem(PLAN_KEY); }
+    catch (_e) { /* storage unavailable: the running job still re-attaches */ }
+  }
+  function loadPlan() {
+    try { return JSON.parse(localStorage.getItem(PLAN_KEY) || 'null'); } catch (_e) { return null; }
+  }
+
+  // ── controls ──
+  const lockable = () => Array.from(document.querySelectorAll(
+    '#export-btn, #export-force, #export-base-model, input[name="export-run"], ' +
+    'input[name="export-format"], input[name="gguf-quant"]'));
+  function setLocked(locked, hint) {
+    lockable().forEach((el) => {
+      if (locked && !el.disabled) { el.disabled = true; el.dataset.jobLock = '1'; }
+      else if (!locked && el.dataset.jobLock === '1') { el.disabled = false; delete el.dataset.jobLock; }
+    });
+    const btn = $('export-btn');
+    if (btn) {
+      if (locked) btn.title = hint || 'An export is running';
+      else btn.disabled = !document.querySelector('input[name="export-run"]:checked');
+    }
+    const h = $('export-btn-hint');
+    if (h) { h.hidden = !(locked && hint); if (locked && hint) h.textContent = hint; }
+  }
+
+  // ── rendering ──
+  function fmtElapsed(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return (m ? m + 'm ' : '') + String(s).padStart(2, '0') + 's';
+  }
+  function quantsText(row) {
+    return Array.isArray(row.quants) && row.quants.length ? row.quants.join(', ') : (row.quant || '');
+  }
+  function renderElapsed() {
+    const el = $('export-job-elapsed');
+    if (!el || !current) return;
+    const start = current.started_at || current.created_at;
+    const end = TERMINAL.includes(current.status) ? current.finished_at : (Date.now() / 1000 + clockSkew);
+    el.textContent = start && end ? 'elapsed ' + fmtElapsed(end - start) : '';
+    const beat = current.heartbeat_at;
+    if (!TERMINAL.includes(current.status) && beat) {
+      const quiet = (Date.now() / 1000 + clockSkew) - beat;
+      if (quiet > 30) el.textContent += ' · no sign of life for ' + fmtElapsed(quiet);
+    }
+  }
+  function render(row) {
+    current = row;
+    if (row.server_now) clockSkew = row.server_now - Date.now() / 1000;
+    const panel = $('export-job');
+    if (!panel) return;
+    panel.hidden = false;
+    const terminal = TERMINAL.includes(row.status);
+    const failed = row.status === 'failed' || row.status === 'error';
+    const state = $('export-job-state');
+    state.textContent = row.status === 'running' ? 'running' : row.status;
+    state.className = 'pill ' + (failed ? 'solid-rose' : row.status === 'done' ? 'solid-green'
+      : row.status === 'cancelled' ? 'outline' : 'solid-cyan');
+    $('export-job-title').textContent = (row.format || 'export') + (quantsText(row) ? ' · ' + quantsText(row) : '');
+    const phase = row.phase || row.status;
+    const detail = row.phase_detail ? ' — ' + row.phase_detail : '';
+    $('export-job-detail').textContent = terminal && !failed && row.status === 'done'
+      ? 'Finished' + (row.size_human ? ' · ' + row.size_human : '') + (row.output_path ? ' · ' + row.output_path : '')
+      : (PHASE_LABEL[phase] || phase) + detail;
+    const bar = $('export-job-bar');
+    bar.className = 'fill' + (terminal ? (failed ? ' err' : ' ok') : ' indeterminate');
+    bar.style.width = terminal ? '100%' : '';
+    $('export-job-error').textContent = failed || row.status === 'cancelled' ? (row.error || '') : '';
+    $('export-status').textContent = terminal ? '' : (PHASE_LABEL[phase] || phase);
+    $('export-status').classList.toggle('err', failed);
+    const cancel = $('export-cancel-btn');
+    cancel.hidden = terminal;
+    cancel.disabled = phase === 'cancelling';
+    const plan = loadPlan();
+    $('export-job-queue').textContent = plan && plan.queue && plan.queue.length && !terminal
+      ? 'Next: ' + plan.queue.map((q) => q.format).join(', ') : '';
+    renderElapsed();
+  }
+
+  function stopWatching() {
+    if (unsub) { unsub(); unsub = null; }
+    if (ticker) { clearInterval(ticker); ticker = null; }
+  }
+
+  // ── following one job ──
+  function follow(eid) {
+    stopWatching();
+    setLocked(true, 'An export is running — buttons unlock when it finishes.');
+    ticker = setInterval(() => {
+      if (!$('export-job')) { stopWatching(); return; }   // navigated away (SPA)
+      renderElapsed();
+    }, 1000);
+    const sub = window.fts && window.fts.subscribe;
+    const onRow = (row) => {
+      if (!row) return;
+      render(row);
+      if (TERMINAL.includes(row.status)) { stopWatching(); onTerminal(row); }
+    };
+    if (sub) {
+      unsub = sub(API + '/exports/' + eid + '/events', onRow,
+        { pollUrl: API + '/exports/' + eid, fallbackMs: 5000 });
+    } else {
+      // No EventSource wrapper: slow poll is still correct, just less live.
+      const poll = () => fetch(API + '/exports/' + eid).then((r) => r.json()).then(onRow).catch(() => {});
+      poll();
+      const t = setInterval(poll, 3000);
+      unsub = () => clearInterval(t);
+    }
+  }
+
+  async function onTerminal(row) {
+    const plan = loadPlan();
+    let failed = row.status === 'failed' || row.status === 'error';
+    // A "done" export must name a non-empty artifact — never celebrate a bare ack.
+    if (row.status === 'done' && (!row.output_path || (row.size_bytes != null && Number(row.size_bytes) <= 0))) {
+      failed = true;
+      row = Object.assign({}, row, { status: 'failed', error: row.format === 'gguf'
+        ? 'Export finished without a non-empty GGUF artifact' : 'Export finished without a non-empty artifact' });
+      render(row);
+      showResultCard([['Format', row.format], ['Status', 'failed'], ['Error', row.error], ['Path', row.output_path || '—']]);
+    }
+    if (row.status === 'done' && plan && plan.queue && plan.queue.length) {
+      const next = plan.queue.shift();
+      savePlan(plan);
+      await post(plan.runId, next, plan);
+      return;
+    }
+    savePlan(null);
+    setLocked(false);
+    $('export-cancel-btn').hidden = true;
+    if (row.status === 'done') {
+      showResultCard([['Export id', row.id], ['Format', row.format], ['Quant', quantsText(row) || '—'],
+        ['Path', row.output_path || '—'], ['Size', row.size_human || row.size_bytes || '—']]);
+      notify('Export finished', 'success');
+      setTimeout(() => location.reload(), 1500);   // refresh the "Trained exports" list
+    } else {
+      notify((row.format || 'export') + ' export ' + (failed ? 'failed: ' + (row.error || '') : row.status), 'error');
+    }
+  }
+
+  // ── starting jobs ──
+  function showResultCard(rows) {
+    const box = $('export-result');
+    box.style.display = '';
+    box.innerHTML = '<table class="table text-xs run-kv-table"><tbody>' + rows.map(([k, v]) =>
+      '<tr><td class="meta muted">' + esc(k) + '</td><td class="mono">' + esc(v) + '</td></tr>').join('')
+      + '</tbody></table>';
+  }
+  function showError(fmt, text, extra) {
+    $('export-status').textContent = '✗ ' + fmt + ': ' + text;
+    $('export-status').classList.add('err');
+    showResultCard([['Format', fmt], ['Status', 'failed'], ['Error', text], ...(extra || [])]);
+    notify(fmt + ' export failed: ' + text, 'error');
+  }
+
+  async function post(runId, entry, plan) {
+    const fmt = entry.format;
+    $('export-status').textContent = 'Queueing ' + fmt + '…';
+    $('export-status').classList.remove('err');
+    let r, d = {};
+    try {
+      r = await fetch(API + '/runs/' + encodeURIComponent(runId) + '/export', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry.body),
+      });
+      try { d = await r.json(); } catch (_parseErr) {
+        throw new Error('Export returned a non-JSON response (HTTP ' + r.status + ')');
+      }
+    } catch (e) {
+      savePlan(null); setLocked(false);
+      showError(fmt, e.message || String(e));
+      return;
+    }
+    const failed = !r.ok || d.ok === false || d.status === 'failed' || !!d.error;
+    if (failed) {
+      savePlan(null);
+      const text = d.error || d.reason || d.message || d.detail || ('HTTP ' + r.status);
+      if (r.status === 409 && d.active_export_id) {
+        // Another export (maybe from another tab) owns the GPU: show it live instead of failing.
+        notify(text, 'info');
+        follow(d.active_export_id);
+        return;
+      }
+      setLocked(false);
+      showError(fmt, text, [['Missing', Array.isArray(d.missing) ? d.missing.join(', ') : '—']]);
+      return;
+    }
+    plan.current = d.export_id;
+    savePlan(plan);
+    $('export-result').style.display = 'none';
+    follow(d.export_id);
+  }
+
+  window.startExport = async function startExport() {
+    const runRadio = document.querySelector('input[name="export-run"]:checked');
+    if (!runRadio) { notify('Select a run first', 'error'); return; }
+    const runId = runRadio.value;
+    const row = runRadio.closest('.export-run-row');
+    const needsMerge = row && row.getAttribute('data-has-merged') !== '1';
+    const baseModel = ($('export-base-model').value || '').trim();
+    if (needsMerge && !baseModel) {
+      notify('Adapter-only run: set a compatible 16-bit base model before export', 'error');
+      return;
+    }
+    const formats = Array.from(document.querySelectorAll('input[name="export-format"]:checked:not(:disabled)'))
+      .map((cb) => cb.value);
+    if (formats.length === 0) {
+      notify('Select at least one available export format (GGUF stays disabled until converters are installed)', 'error');
+      return;
+    }
+    // Never POST disabled formats even if the DOM was tampered with.
+    const capsEl = $('export-caps');
+    const ggufOk = !capsEl || capsEl.getAttribute('data-gguf') === '1';
+    if (formats.includes('gguf') && !ggufOk) {
+      notify((($('export-gguf-unavailable') || {}).textContent) || 'GGUF converter unavailable', 'error');
+      return;
+    }
+    const quants = Array.from(document.querySelectorAll('input[name="gguf-quant"]:checked')).map((cb) => cb.value);
+    const force = $('export-force').checked;
+    const queue = formats.map((fmt) => {
+      const body = { format: fmt, force };
+      if (fmt === 'gguf') body.quants = quants;
+      if (baseModel) body.base_model = baseModel;
+      return { format: fmt, body };
+    });
+    const first = queue.shift();
+    const plan = { runId, queue, current: null };
+    savePlan(plan);
+    setLocked(true, 'Starting export…');
+    await post(runId, first, plan);
+  };
+
+  $('export-cancel-btn').addEventListener('click', async () => {
+    if (!current) return;
+    const plan = loadPlan();
+    if (plan) { plan.queue = []; savePlan(plan); }     // cancel = stop the whole selection
+    $('export-cancel-btn').disabled = true;
+    try {
+      const r = await fetch(API + '/exports/' + current.id + '/cancel', { method: 'POST' });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { notify(d.error || ('Cancel failed (HTTP ' + r.status + ')'), 'error'); }
+    } catch (e) { notify('Cancel failed: ' + (e.message || e), 'error'); }
+  });
+
+  // ── re-attach after reload / navigation ──
+  async function reattach() {
+    let active = { project: [], other: [] };
+    try {
+      const r = await fetch(API + '/exports/active', { cache: 'no-store' });
+      if (r.ok) active = await r.json();
+    } catch (_e) { /* offline: leave the page usable */ }
+    if (active.project.length) {
+      const row = active.project[0];
+      render(row);
+      follow(row.id);
+      return;
+    }
+    if (active.other.length) {
+      // One export at a time across the studio: this page is read-only until it ends.
+      setLocked(true, 'Another project is exporting right now — try again when it finishes.');
+      return;
+    }
+    // No running job; a stored plan may be waiting on a job that finished while the page was closed.
+    const plan = loadPlan();
+    if (!plan || !plan.current) { savePlan(null); return; }
+    try {
+      const r = await fetch(API + '/exports/' + plan.current, { cache: 'no-store' });
+      if (!r.ok) { savePlan(null); return; }
+      const row = await r.json();
+      render(row);
+      await onTerminal(row);
+    } catch (_e) { savePlan(null); }
+  }
+  window.addEventListener('pagehide', stopWatching);
+  reattach();
+})();
+
+// Pre-select a run when navigated with ?run=<id> (e.g. from training Actions).
+(function () {
+  const params = new URLSearchParams(location.search);
+  const runId = params.get("run");
+  if (!runId) return;
+  const radio = document.querySelector(
+    '.export-run-radio[value="' + CSS.escape(runId) + '"]'
+  );
+  if (radio) {
+    radio.checked = true;
+    radio.dispatchEvent(new Event("change", { bubbles: true }));
+    const row = radio.closest(".export-run-row");
+    if (row) row.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+})();
+
+// Expand-row + Open in inference (same pattern as project_models.html).
+(function () {
+  const PID = {{ pid|tojson }};
+
+  function notify(msg, kind) {
+    if (window.fts && window.fts.notify) window.fts.notify(msg, kind || "info");
+    else console.log(kind || "info", msg);
+  }
+
+  function pathToRowId(modelPath) {
+    return "m-" + String(modelPath || "").replace(/[\/\s.]/g, function (ch) {
+      if (ch === "/") return "-";
+      if (ch === " ") return "_";
+      return "_";
+    });
+  }
+
+  function contentsUrl(modelPath) {
+    const rel = String(modelPath || "").replace(/^\/+/, "");
+    return "/api/projects/" + encodeURIComponent(PID) + "/models/" +
+      rel.split("/").map(encodeURIComponent).join("/") + "/contents";
+  }
+
+  function formatBytes(n) {
+    const b = Number(n) || 0;
+    if (b < 1024) return b + " B";
+    if (b < 1024 * 1024) return (b / 1024).toFixed(1) + " KB";
+    if (b < 1024 * 1024 * 1024) return (b / (1024 * 1024)).toFixed(1) + " MB";
+    return (b / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+  }
+
+  async function loadContents(detailTr) {
+    const list = detailTr.querySelector(".js-export-files");
+    if (!list || list.dataset.loaded === "1") return;
+    const path = list.dataset.path || detailTr.dataset.modelPath || "";
+    list.innerHTML = '<li class="dim">Loading…</li>';
+    try {
+      const r = await fetch(contentsUrl(path));
+      const data = await r.json().catch(function () { return {}; });
+      if (!r.ok) {
+        list.innerHTML = '<li class="dim"></li>';
+        list.firstChild.textContent = String(data.detail || data.error || ("HTTP " + r.status));
+        return;
+      }
+      const files = data.files || [];
+      if (!files.length) {
+        list.innerHTML = '<li class="dim">Empty directory</li>';
+      } else {
+        list.innerHTML = files.map(function (f) {
+          const label = f.is_dir ? (f.name + "/") : f.name;
+          const sz = f.is_dir ? "dir" : formatBytes(f.size_bytes);
+          return "<li><span>" + label.replace(/&/g, "&amp;").replace(/</g, "&lt;") +
+            '</span><span class="sz">' + sz + "</span></li>";
+        }).join("");
+        if (data.truncated) {
+          list.innerHTML += '<li class="dim">…truncated</li>';
+        }
+      }
+      list.dataset.loaded = "1";
+    } catch (e) {
+      list.innerHTML = '<li class="dim"></li>';
+      list.firstChild.textContent = "Failed to load: " + (e.message || e);
+    }
+  }
+
+  window.flToggleExportRow = function (modelPath) {
+    const rowId = pathToRowId(modelPath);
+    const row = document.querySelector('tr.export-row[data-row-id="' + rowId + '"]') ||
+      document.getElementById(rowId);
+    if (!row) return;
+    const opening = !row.classList.contains("expanded");
+    document.querySelectorAll("tr.export-row.expanded").forEach(function (el) {
+      el.classList.remove("expanded");
+    });
+    if (opening) {
+      row.classList.add("expanded");
+      const detail = document.querySelector('tr.export-detail[data-for="' + rowId + '"]');
+      if (detail) loadContents(detail);
+      try {
+        history.replaceState(null, "", "#" + rowId);
+      } catch (_) { /* ignore */ }
+    } else {
+      try {
+        history.replaceState(null, "", location.pathname + location.search);
+      } catch (_) { /* ignore */ }
+    }
+  };
+
+  window.flOpenInInference = async function (modelPath) {
+    if (!modelPath) { notify("No model path", "error"); return; }
+    try {
+      const api = window.fts && window.fts.api;
+      const r = api
+        ? await api.post("/api/models/load", { path: modelPath })
+        : await fetch("/api/models/load", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path: modelPath }),
+          }).then(function (x) { return x.json(); });
+      if (r && (r.error || r.status === "error" || r.loaded === false)) {
+        notify(r.error || "Model failed to load (still unloaded)", "error");
+        return;
+      }
+      notify("Model loaded", "success");
+      location.href = "/inference";
+    } catch (e) {
+      notify("Load failed: " + (e.message || e), "error");
+    }
+  };
+
+  const hash = (location.hash || "").replace(/^#/, "");
+  if (hash && hash.indexOf("m-") === 0) {
+    const row = document.getElementById(hash);
+    if (row && row.classList.contains("export-row")) {
+      const path = row.dataset.modelPath;
+      if (path) flToggleExportRow(path);
+    }
+  }
+})();
+</script>
+{% endblock %}

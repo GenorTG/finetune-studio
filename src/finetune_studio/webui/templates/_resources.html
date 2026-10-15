@@ -1,0 +1,111 @@
+{# Partial: host RAM + per-GPU VRAM bars. Polled every 3s by the fetcher at the bottom. #}
+{# Theme note: this card used hardcoded tailwind greys (bg-gray-900 /
+   text-gray-300) that never followed the light palette — in light mode it
+   stayed dark navy while its text switched to light-theme colours, giving
+   2.92:1. Everything here is token-driven now. #}
+<div id="sys-resources" class="res-card {% if res_compact %}res-compact mb-3{% else %}mb-6{% endif %}">
+  <div class="flex items-center justify-between mb-3">
+    <h3 class="res-card-title">Host Resources</h3>
+    <span id="sys-resources-updated" class="text-xs muted" title="When these host readings were last refreshed"></span>
+  </div>
+  <div class="space-y-5">
+    {# RAM row — single bar #}
+    <div>
+      <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs mb-1.5">
+        <span class="res-label" title="System memory in use on the machine running the studio">RAM</span>
+        <span id="ram-text" class="res-value">— / — GB (—%)</span>
+      </div>
+      <div class="res-track">
+        <div id="ram-bar" class="res-fill" style="width:0%"></div>
+      </div>
+    </div>
+    {# VRAM rows — one per GPU, populated by JS #}
+    <div id="vram-rows" class="space-y-5"></div>
+    <div id="accel-line" class="text-xs muted" data-testid="accel-line"></div>
+    {# Visible whenever GPU hardware exists but compute fell back to CPU (accel.degraded_reason). #}
+    <div id="accel-warn" class="res-warn" role="alert" data-testid="accel-degraded" hidden></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const ramText = document.getElementById('ram-text');
+  const ramBar = document.getElementById('ram-bar');
+  const vramRows = document.getElementById('vram-rows');
+  const updated = document.getElementById('sys-resources-updated');
+  const accelLine = document.getElementById('accel-line');
+  const accelWarn = document.getElementById('accel-warn');
+
+  /* Token-driven severity so the bars follow the active theme. */
+  function colorFor(pct) {
+    if (pct < 60) return 'ok';
+    if (pct < 85) return 'warn';
+    return 'crit';
+  }
+
+  function fmtGb(g) { return (g || 0).toFixed(1); }
+
+  function renderRam(ram) {
+    if (!ram || !ram.available) {
+      ramText.textContent = 'unavailable';
+      ramBar.style.width = '0%';
+      return;
+    }
+    ramText.textContent = `${fmtGb(ram.used_gb)} / ${fmtGb(ram.total_gb)} GB (${ram.pct}%)`;
+    ramBar.style.width = Math.min(100, ram.pct) + '%';
+    ramBar.className = 'res-fill ' + colorFor(ram.pct);
+  }
+
+  function renderVram(vram) {
+    if (!vram || vram.length === 0) {
+      vramRows.innerHTML = '<div class="text-xs muted">No GPU in use \u2014 training needs a GPU (NVIDIA CUDA, AMD ROCm, Intel XPU or Apple Metal); the Smart Brain and data prep run fine on CPU.</div>';
+      return;
+    }
+    vramRows.innerHTML = vram.map(g => `
+      <div data-vram-idx="${g.index}">
+        <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs mb-1.5">
+          <span class="res-label truncate" title="Graphics memory on ${g.name} — this is what limits training size">VRAM · ${g.name}</span>
+          <span class="vram-text res-value">${fmtGb(g.used_gb)} / ${fmtGb(g.total_gb)} GB (${g.pct}%)</span>
+        </div>
+        <div class="res-track">
+          <div class="vram-bar res-fill ${colorFor(g.pct)}" style="width:${Math.min(100, g.pct)}%"></div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderAccel(a) {
+    if (!a) return;
+    accelLine.textContent = a.is_gpu
+      ? `Compute: ${a.device} \u00b7 ${a.name} \u00b7 ${a.runtime}`
+      : 'Compute: CPU';
+    accelWarn.hidden = !a.degraded_reason;
+    accelWarn.textContent = a.degraded_reason ? '\u26a0 Running on CPU: ' + a.degraded_reason : '';
+  }
+
+  async function poll() {
+    try {
+      const r = await fetch('/api/system/resources', { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      renderRam(d.ram);
+      renderVram(d.vram);
+      renderAccel(d.accelerator);
+      const t = new Date();
+      updated.textContent = 'updated ' + t.toLocaleTimeString();
+    } catch (e) {
+      updated.textContent = 'fetch failed';
+    }
+  }
+
+  // 5 s, and never while the tab is hidden: a background tab must not keep probing the GPU.
+  poll();
+  const pollTimer = setInterval(() => { if (!document.hidden) poll(); }, 5000);
+  const onVisible = () => { if (!document.hidden) poll(); };
+  document.addEventListener('visibilitychange', onVisible);
+  document.addEventListener('fts:beforeNavigate', function stopResourcePolling() {
+    clearInterval(pollTimer);
+    document.removeEventListener('visibilitychange', onVisible);
+  }, { once: true });
+})();
+</script>

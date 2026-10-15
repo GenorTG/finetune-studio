@@ -1,0 +1,438 @@
+"""Models tab — list, download, configure models."""
+
+import asyncio
+import logging
+import os
+import subprocess
+
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
+
+from finetune_studio.models.gguf_layers import is_gguf_path, resolve_block_count
+from finetune_studio.models.loader import load_model_info
+from finetune_studio.webui.engine_guard import ENGINE_LOCK
+
+router = APIRouter()
+log = logging.getLogger(__name__)
+
+
+async def _json_body(request: Request) -> dict:
+    """Parse the request body as a JSON object (400 otherwise, never 500)."""
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid JSON body") from None
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="JSON object body required")
+    return body
+
+
+def _identify_process(args_line: str, pid: int) -> str:
+    """Human-identifiable name for a GPU consumer. `ps comm` truncates
+    everything to 'python3.12' — useless. Prefer a recognizable project
+    marker from the full cmdline, then the script basename."""
+    low = args_line.lower()
+    for marker in ("comfyui", "comfy", "ollama", "vllm", "lmstudio", "lm studio",
+                   "stable-diffusion", "sd-webui", "fooocus", "kohaku",
+                   "text-generation-webui", "jupyter", "tensorboard"):
+        if marker in low:
+            return marker
+    try:
+        import shlex
+        parts = shlex.split(args_line)
+    except ValueError:
+        parts = args_line.split()
+    for p in parts:
+        if p.endswith((".py", ".js", ".sh", ".ts", ".jar")):
+            return os.path.basename(p)
+    if parts:
+        return os.path.basename(parts[0])
+    return f"pid-{pid}"
+
+
+def _gpu_snapshot():
+    """Return (free_mib, top consumers) for the active GPU of any vendor, or (None, [])."""
+    from finetune_studio.webui.gpu_probe import free_and_consumers
+    try:
+        free, top = free_and_consumers()
+    except Exception:  # noqa: BLE001
+        return None, []
+    for t in top:
+        try:
+            cmd = subprocess.run(
+                ["ps", "-o", "args=", "-p", str(t["pid"])],
+                capture_output=True, text=True, timeout=3, check=False,
+            ).stdout.strip()
+            t["name"] = _identify_process(cmd, t["pid"]) if cmd else f"pid-{t['pid']}"
+        except Exception:  # noqa: BLE001
+            t["name"] = f"pid-{t['pid']}"
+    return free, top
+
+
+def _vram_hint(model_path: str) -> str:
+    """Actionable VRAM-capacity note appended to load errors, or '' if fine."""
+    free, top = _gpu_snapshot()
+    if free is None:
+        return ""
+    try:
+        need_mib = int(os.path.getsize(model_path) / (1024 * 1024) * 1.2) + 1024
+    except OSError:
+        return ""
+    if need_mib <= free:
+        return ""
+    occ = ", ".join(
+        f"{t['name']}(pid {t['pid']}) {t['vram_mib'] / 1024:.1f}GB"
+        for t in top if t["vram_mib"] > 1024
+    )
+    return (
+        f" — not enough VRAM: model needs ~{need_mib / 1024:.1f} GB but only "
+        f"{free / 1024:.1f} GB is free"
+        + (f"; top consumers: {occ}. Close them or load a smaller quant."
+           if occ else ".")
+    )
+
+
+def _resource_snapshot_detail(model_path: str = "") -> str:
+    """Always-on VRAM/RAM/process note for load failures (actionable UI copy)."""
+    parts: list[str] = []
+    free, top = _gpu_snapshot()
+    if free is not None:
+        parts.append(f"GPU free VRAM {free / 1024:.1f} GB")
+        if top:
+            occ = ", ".join(
+                f"{t['name']}(pid {t['pid']}) {t['vram_mib'] / 1024:.1f}GB"
+                for t in top[:3]
+            )
+            parts.append(f"top GPU consumers: {occ}")
+    if model_path:
+        try:
+            size_mib = int(os.path.getsize(model_path) / (1024 * 1024))
+            parts.append(f"model file ~{size_mib / 1024:.1f} GB")
+        except OSError:
+            pass
+    try:
+        import psutil
+
+        vm = psutil.virtual_memory()
+        parts.append(
+            f"system RAM {vm.available / (1024 ** 3):.1f} GB free / "
+            f"{vm.total / (1024 ** 3):.1f} GB total"
+        )
+    except Exception:  # noqa: BLE001, S110
+        pass
+    if not parts:
+        return ""
+    return " — " + "; ".join(parts)
+
+
+def _load_failure(status_code: int, error: str, model_path: str = "") -> JSONResponse:
+    """Honest failure: a real 4xx/5xx whose JSON body keeps ``status``/``loaded``/``error``/``model``.
+
+    ``fts.api.post`` throws on non-2xx with ``body.error`` as the message, so the
+    UI shows the same text the 200-with-status:"error" body used to carry.
+    """
+    hint = _vram_hint(model_path) if model_path else ""
+    detail = hint or _resource_snapshot_detail(model_path)
+    msg = f"{error}{detail}" if detail and detail not in error else error
+    return JSONResponse(
+        {"status": "error", "loaded": False, "error": msg, "model": None},
+        status_code=status_code,
+    )
+
+@router.get("/")
+async def models_root(for_selector: bool = False, for_training: bool = False):
+    """Root models endpoint — returns list of discovered models."""
+    return await list_models(for_selector=for_selector, for_training=for_training)
+
+
+@router.get("/list")
+async def list_models(for_selector: bool = False, for_training: bool = False):
+    from finetune_studio.models.registry import (
+        models_for_selectors,
+        models_for_training,
+    )
+    from finetune_studio.webui.app import discovered_models
+    if for_training:
+        models = models_for_training(discovered_models)
+    elif for_selector:
+        models = models_for_selectors(discovered_models)
+    else:
+        models = discovered_models
+    return [
+        {
+            "name": m.name,
+            "path": m.path,
+            "format": m.format,
+            "size_gb": m.size_gb,
+            "architecture": m.architecture,
+            "vision": getattr(m, "vision", False),
+            "category": getattr(m, "category", "discovered"),
+            "project_id": getattr(m, "project_id", ""),
+            "run_id": getattr(m, "run_id", ""),
+        }
+        for m in models
+    ]
+
+@router.get("/info")
+async def model_info(path: str):
+    info = load_model_info(path)
+    # Enrich with context length and parameter count if available
+    if info and not info.get('context_length'):
+        info['context_length'] = _guess_context_length(info)
+    # Real layer count: for GGUF files read it straight from the file header
+    # (no guessing, no 99-magic). The Inference UI slider uses total_layers.
+    if info and not info.get("total_layers"):
+        layers = info.get("num_layers")
+        if not layers and is_gguf_path(path):
+            topo = resolve_block_count(path)
+            layers = topo.get("block_count")
+            if topo.get("context_length") and not info.get("context_length_native"):
+                info["context_length_native"] = topo["context_length"]
+        if layers:
+            info["total_layers"] = int(layers)
+    return info
+
+def _guess_context_length(info: dict) -> int:
+    """Guess context length from architecture or model name."""
+    arch = (info.get('architecture') or '').lower()
+    name = (info.get('name') or info.get('path') or '').lower()
+    # Common context lengths by architecture
+    if 'llama' in arch or 'llama' in name:
+        return 131072 if '3' in name else 8192
+    elif 'qwen' in arch or 'qwen' in name:
+        return 131072 if '2' in name or '3' in name else 8192
+    elif 'gemma' in arch or 'gemma' in name:
+        return 131072 if '2' in name else 8192
+    elif 'mistral' in arch or 'mistral' in name:
+        return 32768
+    elif 'phi' in arch or 'phi' in name:
+        return 131072 if '3' in name or '4' in name else 4096
+    return 0
+
+def refresh_model_registry() -> int:
+    """Rescan model dirs (incl. HF Explorer cache) into ``discovered_models``.
+
+    Blocking (disk walk). The list is replaced in one slice assignment so
+    concurrent readers never observe it empty. Returns the model count.
+    """
+    from finetune_studio.config import settings
+    from finetune_studio.models.registry import scan_models
+    from finetune_studio.webui.app import discovered_models
+    dirs = list(settings.model_dirs)
+    for d in settings.model_dirs_extra:
+        if d not in dirs:
+            dirs.append(d)
+    discovered = scan_models(dirs)
+    discovered_models[:] = discovered
+    return len(discovered)
+
+
+@router.post("/refresh")
+async def refresh_models():
+    return {"count": await asyncio.to_thread(refresh_model_registry)}
+
+
+@router.post("/load")
+async def load_model_endpoint(request: Request):
+    """Load a model into the global inference engine.
+
+    Accepts either {"path": "..."} (inference page) or {"model_path": "..."}
+    (legacy chat_v2 form). All inference parameters have sensible defaults
+    so the inference-page call Just Works.
+
+    Success (HTTP 200) always includes ``status="loaded"`` and ``loaded=True``.
+    Failures are real HTTP errors — 400 no path, 404 path does not exist, 500
+    load failed / nothing held after the load — with ``status="error"``,
+    ``loaded=False`` and an actionable ``error`` string in the body. Never claim
+    loaded unless the engine actually holds a model.
+    """
+    from finetune_studio.webui.app import inference_engine
+    body = await _json_body(request)
+    model_path = body.get("path") or body.get("model_path") or ""
+    if not model_path:
+        return await asyncio.to_thread(_load_failure, 400, "No model path provided")
+    _mp = str(model_path)
+    if _mp.startswith(("/", "./", "../", "~")) and not os.path.exists(os.path.expanduser(_mp)):
+        return await asyncio.to_thread(
+            _load_failure, 404, f"model path does not exist: {_mp}", _mp,
+        )
+    try:
+        # Run the blocking load off the event loop. Loading a multi-GB model
+        # can take seconds-to-minutes; doing it inline froze the entire WebUI
+        # (every other request, the activity SSE, navigation) until it
+        # finished. to_thread keeps the loop responsive so the "loading…"
+        # activity row is visible and the UI stays live.
+        from finetune_studio.models.llama_loader import resolve_loader_overrides
+        overrides = resolve_loader_overrides(body, caller="models/load", model_path=model_path)
+        # Free whatever ModelManager (data-prep's helper, /api/providers/*)
+        # has resident before loading into inference_engine — otherwise both
+        # sit in VRAM simultaneously until someone happens to click Unload.
+        from finetune_studio.models.manager import get_manager
+        async with ENGINE_LOCK:
+            await asyncio.to_thread(get_manager().unload)
+            await asyncio.to_thread(inference_engine.load, model_path, **overrides)
+    except Exception as e:  # noqa: BLE001
+        return await asyncio.to_thread(_load_failure, 500, str(e), model_path)
+
+    if getattr(inference_engine, "model", None) is None:
+        return await asyncio.to_thread(
+            _load_failure, 500,
+            "Load finished but no model is held in memory", model_path,
+        )
+    vision = getattr(inference_engine, "vision", False)
+    offload = dict(getattr(inference_engine, "offload", None) or {})
+    return {
+        "status": "loaded",
+        "loaded": True,
+        "model": model_path,
+        "vision": vision,
+        # What was really loaded: the context is exactly what was asked; layers that did not fit in VRAM
+        # run on the CPU (offload.mode "partial"/"cpu", with a human warning).
+        "n_ctx": getattr(inference_engine, "n_ctx", None),
+        "n_gpu_layers": getattr(inference_engine, "n_gpu_layers", None),
+        "offload": offload,
+        "warnings": offload.get("warnings", []),
+    }
+
+
+@router.post("/unload")
+async def unload_model_endpoint():
+    """Manually unload the currently loaded model (both engines — E2E-22)."""
+    from finetune_studio.models.llama_loader import unload_all_models
+    from finetune_studio.smart_brain.model_cache import release_brain_models
+    try:
+        # Freeing a CUDA model + cache can take seconds: keep it off the loop.
+        await asyncio.to_thread(unload_all_models)
+        await asyncio.to_thread(release_brain_models, "unload all models")
+        return {"status": "unloaded"}
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+# ── /api/inference/* (status, chat, memory-estimate) ─────────────
+# The inference page's own namespace. /api/inference/load is kept as an
+# alias of /api/models/load because docs/DEPLOYMENT.md tells operators
+# to call it after a restart.
+
+inference_router = APIRouter()
+
+
+@inference_router.get("/status")
+async def inference_status():
+    from finetune_studio.smart_brain.model_cache import brain_model_cache
+    from finetune_studio.testing.inference import idle_timeout
+    from finetune_studio.webui.app import inference_engine
+    loaded = inference_engine.model is not None
+    model_display = None
+    if loaded:
+        try:
+            from finetune_studio import naming as _naming
+            model_display = _naming.display_for_path(inference_engine.model_path or "")
+        except Exception:  # noqa: BLE001  # display helper must never break status
+            model_display = None
+    return {
+        "loaded": loaded,
+        "model": inference_engine.model_path if loaded else None,
+        "model_display": model_display,
+        "vision": getattr(inference_engine, "vision", False) if loaded else False,
+        "is_gguf": inference_engine.is_gguf if loaded else False,
+        # Real placement of the loaded model (context as asked; layers that did not fit run on the CPU).
+        "n_ctx": getattr(inference_engine, "n_ctx", None) if loaded else None,
+        "n_gpu_layers": getattr(inference_engine, "n_gpu_layers", None) if loaded else None,
+        "offload": dict(getattr(inference_engine, "offload", None) or {}) if loaded else {},
+        "idle_seconds": inference_engine.idle_seconds,
+        "idle_timeout": idle_timeout(),
+        "auto_unload_remaining": (
+            max(0, idle_timeout() - inference_engine.idle_seconds)
+            if loaded and idle_timeout() > 0
+            else None
+        ),
+        # RAG embedder/reranker cache (separate lifecycle from the chat model).
+        "rag_models": brain_model_cache.stats(),
+        # The process that holds the model (supervisor P2); None for a test double without one.
+        "worker": inference_engine.worker_info() if hasattr(inference_engine, "worker_info") else None,
+    }
+
+
+@inference_router.post("/load")
+async def inference_load(request: Request):
+    """Alias for /api/models/load — same handler."""
+    return await load_model_endpoint(request)
+
+
+@inference_router.post("/chat")
+async def inference_chat(request: Request):
+    """Generate a chat completion using the global inference engine."""
+    from fastapi.responses import JSONResponse
+
+    from finetune_studio.webui.app import inference_engine
+    from finetune_studio.webui.thinking import split_thinking
+
+    if inference_engine.model is None:
+        return JSONResponse(
+            {"error": "No model loaded. Click 'Load model' first."}, status_code=409
+        )
+
+    body = await _json_body(request)
+    messages = body.get("messages") or []
+    # Prepend system prompt if provided
+    sp = str(body.get("system_prompt") or "").strip()
+    if sp:
+        messages = [{"role": "system", "content": sp}] + messages
+
+    try:
+        async with ENGINE_LOCK:
+            response = await asyncio.to_thread(
+                inference_engine.generate,
+                messages,
+                max_tokens=body.get("max_tokens", 512),
+                temperature=body.get("temperature", 0.7),
+                top_p=body.get("top_p", 0.9),
+                top_k=body.get("top_k", 40),
+                repeat_penalty=body.get("repeat_penalty", 1.1),
+            )
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+    # inference_engine.generate() returns a string — split thinking from response
+    if isinstance(response, dict):
+        resp_text = response.get("response", "")
+        thinking_text = response.get("thinking", "")
+    else:
+        parts = split_thinking(str(response))
+        resp_text = parts["response"]
+        thinking_text = parts["thinking"]
+
+    return {
+        "response": resp_text,
+        "thinking": thinking_text,
+        "vision": getattr(inference_engine, "vision", False),
+    }
+
+
+@inference_router.post("/memory-estimate")
+async def inference_memory_estimate(request: Request):
+    """Estimate VRAM needed for a model with given loader params."""
+    from finetune_studio.models.llama_loader import DEFAULT_N_CTX
+    from finetune_studio.webui.app import inference_engine
+    body = await _json_body(request)
+    model_path = body.get("model_path") or body.get("path") or ""
+    if not model_path:
+        return JSONResponse({"error": "No model_path provided"}, status_code=400)
+    try:
+        est = inference_engine.estimate_memory(
+            model_path,
+            n_ctx=body.get("n_ctx", DEFAULT_N_CTX),
+            n_gpu_layers=body.get("n_gpu_layers", -1),
+        )
+        try:
+            from finetune_studio.webui.routes.system import _vram
+            vram = _vram()
+            if vram:
+                est["currently_used_gb"] = vram[0]["used_gb"]
+                est["total_gpu_gb"] = vram[0]["total_gb"]
+        except Exception as e:  # noqa: BLE001
+            log.debug("GPU usage probe failed: %s", e)
+        return est
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"error": str(e)}, status_code=500)

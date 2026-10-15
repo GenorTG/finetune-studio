@@ -1,0 +1,76 @@
+{# Shared per-case results table — used by benchmarks.html + testing.html.
+   Context: scores (dict), cases (list of dicts with name/case_name, category,
+   question, correct_answer/expected, model_answer, verdict, judge_reasoning,
+   time_ms, ran_at). #}
+{% if scores %}
+<div class="case-results-summary" id="case-scores-summary">
+  <span>total: {{ scores.total | default(0) }}</span>
+  <span>judged: {{ scores.judged | default(0) }}</span>
+  <span>unjudged: {{ scores.unjudged | default(0) }}</span>
+  <span>passed: {{ scores.passed | default(0) }}</span>
+  <span>partial: {{ scores.partial | default(0) }}</span>
+  <span>failed: {{ scores.failed | default(0) }}</span>
+  {% if (scores.judged | default(0)) == 0 %}
+  <span class="pass-rate" title="No cases judged yet — pass_rate is not meaningful">pass_rate: —</span>
+  {% else %}
+  <span class="pass-rate">pass_rate: {{ scores.pass_rate }}%</span>
+  {% endif %}
+  {% if scores.eval_kind is defined and scores.eval_kind %}
+  <span class="pill outline" title="{{ scores.leakage_warning | default('') }}">{{ scores.eval_kind }}</span>
+  {% endif %}
+</div>
+{% if scores.leakage_warning is defined and scores.leakage_warning %}
+<div class="text-xs dim mt-1" role="status" id="case-leakage-warning">{{ scores.leakage_warning }}</div>
+{% endif %}
+{% endif %}
+{% if cases %}
+{# Scroll wrapper: parent .content uses overflow-x:hidden, so long Q/A cells
+   must scroll inside this box or verdict/time columns disappear off-screen. #}
+<div class="case-results-scroll" role="region" aria-label="Case results" tabindex="0">
+<table class="table case-results-table" id="case-results-table">
+  <thead>
+    <tr>
+      <th class="case-col-idx">#</th>
+      <th class="case-col-name">Case name</th>
+      <th class="case-col-cat">Category</th>
+      <th class="case-col-text">Question</th>
+      <th class="case-col-text">Expected</th>
+      <th class="case-col-answer">Model answer</th>
+      <th class="case-col-verdict">Verdict</th>
+      <th class="case-col-judge">Judge reasoning</th>
+      <th class="case-col-time">Time (ms)</th>
+      <th class="case-col-ran">Ran at</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in cases %}
+    {% set v = c.verdict or '' %}
+    {% set vclass = 'verdict-pass' if v == 'pass' else ('verdict-partial' if v == 'partial' else ('verdict-fail' if v == 'fail' else 'verdict-none')) %}
+    <tr>
+      <td class="case-col-idx">{{ loop.index }}</td>
+      <td class="mono case-col-name">{{ c.name or c.case_name or '' }}</td>
+      <td class="case-col-cat">{{ c.category or '—' }}</td>
+      <td class="case-col-text case-col-fixed">{{ c.question or '' }}</td>
+      <td class="case-col-text case-col-fixed">{{ c.correct_answer or c.expected or '' }}</td>
+      <td class="case-col-answer"><pre class="case-answer-pre">{{ c.model_answer or c.response or '' }}</pre></td>
+      <td class="case-col-verdict"><span class="verdict-badge {{ vclass }}">{{ v or 'none' }}</span>
+        {% if verdict_editable and c.id %}
+        <select class="select verdict-select" data-cid="{{ c.id }}" aria-label="Change verdict for case {{ loop.index }}"
+                title="Override the judge. Your verdict is saved as a human judgement and the score is recomputed.">
+          <option value="">change…</option>
+          {% for opt in ('pass', 'partial', 'fail') %}<option value="{{ opt }}"{% if opt == v %} disabled{% endif %}>{{ opt }}</option>{% endfor %}
+        </select>
+        {% endif %}
+        {% if c.judge == 'human' %}<div class="text-xs dim">set by you</div>{% endif %}
+      </td>
+      <td class="judge-reasoning case-col-judge">
+        <details><summary>reasoning</summary><div class="text-xs">{% if c.judge_reasoning %}{{ c.judge_reasoning }}{% elif c.error %}[not scored] the model run failed: {{ c.error }}{% elif v %}[{{ c.judge or 'judge' }}] {{ v }} verdict, no explanation recorded{% else %}[not scored] no verdict for this case{% endif %}</div></details>
+      </td>
+      <td class="mono case-col-time">{{ c.time_ms if c.time_ms is defined else '—' }}</td>
+      <td class="dim case-col-ran">{{ c.ran_at or c._ran_at_str or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}

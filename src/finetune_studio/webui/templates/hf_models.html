@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% block title %}HF Explorer · Finetune Studio{% endblock %}
+{% block nav_models_explore %}active{% endblock %}
+{% block sb_path %}~ / tools / hf-explorer{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Model Library</h1>
+  <div class="sub">
+    Browse and download models from <a href="https://huggingface.co" target="_blank" class="cyan">HuggingFace</a>.
+    Use <span class="pill solid-green">safetensors</span> for training (LoRA / QLoRA) —
+    <span class="pill solid-purple">gguf</span> is inference-only.
+  </div>
+</div>
+
+{# Filters bar — sticky #}
+<div class="card mb-4" id="filter-bar" style="position:sticky;top:var(--header-h);z-index:10;backdrop-filter:blur(8px);background:var(--bg-card-translucent);">
+  <div class="flex gap-3 items-center">
+    <input id="hf-q" class="input" placeholder="Search qwen, llama, polish embed…" style="flex:1;"
+           autofocus
+           oninput="onHfQueryInput()"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();doSearch();}">
+    <select id="hf-task" class="select" style="max-width:220px;">
+      <option value="text-generation" selected>text-generation</option>
+      <option value="image-text-to-text">image-text-to-text (vision)</option>
+      <option value="feature-extraction">feature-extraction (embed)</option>
+      <option value="text2text-generation">text2text</option>
+      <option value="text-to-image">text-to-image</option>
+      <option value="image-classification">image-classification</option>
+      <option value="automatic-speech-recognition">automatic-speech-recognition</option>
+      <option value="">— any —</option>
+    </select>
+    <select id="hf-sort" class="select" style="max-width:160px;">
+      <option value="downloads" selected>Downloads</option>
+      <option value="likes">Likes</option>
+      <option value="trending">Trending</option>
+    </select>
+    <button class="btn primary" onclick="doSearch()">Search</button>
+  </div>
+  <div id="hf-status" class="mt-2 text-xs muted"><span class="spinner"></span> Loading…</div>
+</div>
+
+<div id="hf-results">
+  <div class="hf-grid" id="hf-grid"></div>
+  <div class="empty" id="hf-empty">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
+    <div>Loading...</div>
+  </div>
+</div>
+
+{# Modal for model info / file picker #}
+<div id="hf-modal" class="modal-back" hidden role="dialog" aria-modal="true"
+     aria-labelledby="hf-modal-title"
+     onclick="if(event.target===this)closeHfModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <strong id="hf-modal-title">Model</strong>
+      <button type="button" class="btn ghost icon" id="hf-modal-close"
+              onclick="closeHfModal()" aria-label="Close"
+              style="margin-left:auto;">✕</button>
+    </div>
+    <div class="modal-body" id="hf-modal-body">…</div>
+    <div class="modal-foot" id="hf-modal-foot"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function doSearch() {
+  const q = document.getElementById('hf-q').value.trim();
+  const task = document.getElementById('hf-task').value;
+  const sort = document.getElementById('hf-sort').value;
+  const status = document.getElementById('hf-status');
+  const grid = document.getElementById('hf-grid');
+  // Live feedback: clear results, show spinner
+  status.innerHTML = '<span class="spinner"></span> Searching for "' + esc(q || '(all)') + '"…';
+  if (grid) grid.innerHTML = '';
+  try {
+    const url = `/api/hf/search?q=${encodeURIComponent(q)}&task=${encodeURIComponent(task)}&sort=${encodeURIComponent(sort)}&limit=24`;
+    const data = await fts.api.get(url);
+    renderResults(data.results || []);
+    const n = data.results?.length || 0;
+    const took = (data.took_ms || 0).toFixed(0);
+    status.textContent = `${n} result${n === 1 ? '' : 's'} · ${took}ms`;
+  } catch (e) {
+    status.textContent = '⚠ Search failed: ' + (e.message || e);
+    console.error('HF search error:', e);
+  }
+}
+
+// Live status feedback as the user types (so they know typing is being captured)
+let _hfTypingTimer = null;
+function onHfQueryInput() {
+  const status = document.getElementById('hf-status');
+  if (!status) return;
+  status.innerHTML = '<span class="text-dim">▌ typing… press Enter to search</span>';
+  if (_hfTypingTimer) clearTimeout(_hfTypingTimer);
+  _hfTypingTimer = setTimeout(() => {
+    status.innerHTML = '<span class="text-dim">Ready.</span>';
+  }, 3000);
+}
+
+// ── Model favorites ──────────────────────────────────────────────
+const _favCache = new Set();
+async function loadFavorites() {
+  try {
+    const r = await fetch('/api/favorites');
+    const d = await r.json();
+    _favCache.clear();
+    (d || []).forEach(f => _favCache.add(f.path));
+  } catch (_) { /* ignore */ }
+}
+function isFavorited(repoId) {
+  // Match by repo_id or by path suffix
+  for (const path of _favCache) {
+    if (path.endsWith(repoId) || repoId.endsWith(path)) return true;
+  }
+  return false;
+}
+async function toggleFavorite(repoId, btn) {
+  if (!repoId) return;
+  if (isFavorited(repoId)) {
+    // Remove
+    const path = [..._favCache].find(p => p.endsWith(repoId)) || repoId;
+    await fetch('/api/favorites/' + encodeURIComponent(path), { method: 'DELETE' });
+    _favCache.delete(path);
+    if (btn) { btn.textContent = '☆'; btn.classList.remove('fav-active'); btn.title = 'Add to favorites'; btn.setAttribute('aria-label', 'Add to favorites'); }
+    if (window.fts) window.fts.notify('Removed from favorites', 'info');
+  } else {
+    // Add
+    await fetch('/api/favorites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: repoId, name: repoId })
+    });
+    _favCache.add(repoId);
+    if (btn) { btn.textContent = '★'; btn.classList.add('fav-active'); btn.title = 'Remove from favorites'; btn.setAttribute('aria-label', 'Remove from favorites'); }
+    if (window.fts) window.fts.notify('Added to favorites', 'success');
+  }
+}
+function renderResults(results) {
+  const grid = document.getElementById('hf-grid');
+  const empty = document.getElementById('hf-empty');
+  if (!grid) return;
+  grid.innerHTML = '';
+  if (empty) empty.style.display = '';
+  if (!results.length) {
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">No results.</div>';
+    if (empty) empty.style.display = 'none';
+    return;
+  }
+  const COLORS = ['solid-blue','solid-green','solid-purple','solid-orange','solid-pink','solid-cyan','solid-amber'];
+  const safeColor = (i, j) => (COLORS[(i + j) % COLORS.length] || '');
+  grid.innerHTML = results.map((r, i) => {
+    const repo = r.repo_id || '?';
+    const fav = isFavorited(repo);
+    const tagPills = (r.tags || []).slice(0, 4).map((t, j) =>
+      `<span class="pill ${safeColor(i, j)}">${esc(t)}</span>`).join('');
+    return `
+      <div class="hf-card">
+        <div class="head">
+          <div class="icon">${esc(((repo.split('/').slice(-1)[0] || repo)[0] || '?').toUpperCase())}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="name truncate" title="${esc(repo)}">${esc(repo)}</div>
+            <div class="text-xs dim mono truncate">${esc(r.id || '')}</div>
+          </div>
+        </div>
+        <div class="pills">${tagPills}</div>
+        <div class="meta">
+          <span class="stat" title="Downloads on Hugging Face">⬇ <span class="num">${fmtM(r.downloads || 0)}</span></span>
+          <span class="stat" title="Likes on Hugging Face">♥ <span class="num">${fmtK(r.likes || 0)}</span></span>
+          ${r.pipeline_tag ? `<span class="pill outline">${esc(r.pipeline_tag)}</span>` : ''}
+        </div>
+        <div class="actions">
+          <button class="btn sm primary" onclick="showInfo('${esc(repo)}', this)">View</button>
+          <button class="btn sm" onclick="showFiles('${esc(repo)}', this)">Files</button>
+          <button class="btn sm" data-confirm="Download all files of ${esc(repo)}?" data-action="/api/hf/download" data-body='${JSON.stringify({repo_id: repo})}' data-method="POST" title="Download every file of this model to this machine">Download</button>
+          <button class="btn sm fav-btn${fav ? ' fav-active' : ''}" data-repo="${esc(repo)}" onclick="toggleFavorite('${esc(repo)}', this)" title="${fav ? 'Remove from favorites' : 'Add to favorites'}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${fav ? '★' : '☆'}</button>
+        </div>
+      </div>`;
+  }).join('');
+  if (empty) empty.style.display = 'none';
+}
+
+function esc(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtM(n) { return (n/1e6).toFixed(n>=1e6 ? 1 : 2) + 'M'; }
+function fmtK(n) { return (n/1e3).toFixed(n>=1e3 ? 1 : 2) + 'K'; }
+
+let _hfModalPrevFocus = null;
+function closeHfModal() {
+  const m = document.getElementById('hf-modal');
+  if (!m || m.hidden) return;
+  m.hidden = true;
+  const prev = _hfModalPrevFocus;
+  _hfModalPrevFocus = null;
+  if (prev && typeof prev.focus === 'function') {
+    try { prev.focus(); } catch (_) { /* ignore */ }
+  }
+}
+function openHfModal() {
+  const m = document.getElementById('hf-modal');
+  if (!m) return;
+  _hfModalPrevFocus = document.activeElement;
+  m.hidden = false;
+  const closeBtn = document.getElementById('hf-modal-close');
+  if (closeBtn) closeBtn.focus();
+}
+document.addEventListener('keydown', function (ev) {
+  if (ev.key !== 'Escape') return;
+  const m = document.getElementById('hf-modal');
+  if (!m || m.hidden) return;
+  ev.preventDefault();
+  closeHfModal();
+});
+
+async function showInfo(repo, btn) {
+  const m = document.getElementById('hf-modal');
+  document.getElementById('hf-modal-title').textContent = repo;
+  document.getElementById('hf-modal-body').innerHTML = '<div class="spinner lg"></div>';
+  document.getElementById('hf-modal-foot').innerHTML = '';
+  openHfModal();
+  try {
+    const d = await fts.api.get(`/api/hf/info/${encodeURIComponent(repo)}`);
+    document.getElementById('hf-modal-body').innerHTML = `
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px;">
+        <div><span class="dim text-xs">Downloads</span><div class="text-2xl mono">${fmtM(d.downloads || 0)}</div></div>
+        <div><span class="dim text-xs">Likes</span><div class="text-2xl mono">${fmtK(d.likes || 0)}</div></div>
+        <div><span class="dim text-xs">Pipeline</span><div>${esc(d.pipeline_tag || '—')}</div></div>
+        <div><span class="dim text-xs">License</span><div>${esc(d.card_data?.license || '—')}</div></div>
+      </div>
+      <div class="divider"></div>
+      <div class="text-sm" style="line-height:1.6;">${esc((d.card_data?.description || 'No description.').slice(0, 600))}</div>
+      <div class="divider"></div>
+      <div class="text-xs dim">Last updated: ${esc(d.last_modified || 'unknown')}</div>
+    `;
+    document.getElementById('hf-modal-foot').innerHTML = `
+      <button class="btn primary" data-confirm="Download all files of ${esc(repo)}?" data-action="/api/hf/download" data-body='${JSON.stringify({repo_id: repo})}' data-method="POST">Download all files</button>
+      <button class="btn" onclick="showFiles('${esc(repo)}', null)">Pick files…</button>
+    `;
+  } catch (e) {
+    document.getElementById('hf-modal-body').textContent = 'Failed: ' + e.message;
+  }
+}
+
+async function showFiles(repo, btn) {
+  const m = document.getElementById('hf-modal');
+  document.getElementById('hf-modal-title').textContent = `Files in ${repo}`;
+  document.getElementById('hf-modal-body').innerHTML = '<div class="spinner lg"></div>';
+  document.getElementById('hf-modal-foot').innerHTML = '';
+  openHfModal();
+  try {
+    const d = await fts.api.get(`/api/hf/local/${encodeURIComponent(repo)}/files`);
+    const files = d.files || [];
+    if (!files.length) {
+      document.getElementById('hf-modal-body').innerHTML = '<div class="empty">No files downloaded yet.</div>';
+      return;
+    }
+    const colors = ['solid-blue','solid-green','solid-purple','solid-orange','solid-pink','solid-cyan'];
+    document.getElementById('hf-modal-body').innerHTML = `
+      <div class="text-sm">
+        ${files.map(f => `
+          <div class="src">
+            <span class="pill ${colors[(f.path||'').length % colors.length]}">${esc((f.path||'').split('.').pop().toUpperCase())}</span>
+            <div class="body">
+              <div class="mono truncate">${esc(f.path)}</div>
+              <div class="meta">${(f.size_bytes/1024/1024).toFixed(1)} MB</div>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  } catch (e) {
+    document.getElementById('hf-modal-body').textContent = 'Failed: ' + e.message;
+  }
+}
+
+// Initial load — results are never server-rendered; favorites first so stars render right.
+loadFavorites().then(doSearch);
+</script>
+{% endblock %}

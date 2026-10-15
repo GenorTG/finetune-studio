@@ -1,0 +1,134 @@
+---
+out: board_pack_q3_2024.pptx
+tier: core
+---
+# Korvane Cold Chain Sp. z o.o. — Board Pack Q3 2024
+- Management accounts to 30 September 2024 (unaudited, subject to the usual close adjustments)
+- Board meeting: Thursday 24 October 2024, 14:00 CET, boardroom "Bałtyk", ul. Łużycka 14, Gdynia
+- Pack ref. KCC-BP-2024-Q3 — draft v4 circulated 17 Oct, final issued 22 Oct
+- Presented by Priya Venkataraman-Holt, CFO
+- STRICTLY CONFIDENTIAL — numbered copies, to be returned to the Board Secretary after the meeting
+Notes: Agnieszka (board sec.) pls double check v4 against v3 — in v3 the capex table still carried the old RTM-3 number and I would rather not explain that live. Printed copies are numbered 1 to 9, copy 7 is for Dr Kielich as usual.
+
+=== slide
+# A word from the CEO
+Dear Board, I will keep this short, which anyone who knows me will find unlikely. September was loud. Citrus came early, Fruttoria Baltica doubled their call-offs in the second week without telling anybody, and for about four days Jarek's team was basically living on the quay at Gdynia.
+I walked all four depots plus Kłaipėda in the last three weeks — Hanneke gave me the Maasvlakte tour in a hi-vis that fit nobody — and what stuck with me is not the numbers, it is how calm people were. On the night of 19 September the owls moved 612 boxes through GDY-1 between 22:00 and 06:00, which is a record, and Olek only told me about it because I asked why the coffee machine was empty.
+Yes, we still have the Oakhaven matter and no, I have not forgotten it. Priya will take you through the provision. Please read the risks slide properly this time.
+Thank you all. Back to the numbers, which are better than we budgeted, and I say that with a superstitious knock on wood.
+Notes: Marta wrote this herself on the train back from Hamburg, hence the length. Do not shorten without asking her. Dieter wanted the line about the coffee machine cut; she refused.
+
+=== slide
+# Q3 2024 at a glance
+- Revenue EUR 29.5m for the quarter (Q3 2023: EUR 25.5m), +15.7% year on year; nine-month revenue EUR 84.4m
+- EBITDA EUR 5.9m, margin 20.0% (Q3 2023: EUR 4.5m, 17.6%); nine-month EBITDA EUR 15.7m = 18.6% margin
+- Net debt EUR 57.5m at 30.09.2024; leverage 2.74x LTM EBITDA against a covenant ceiling of 3.50x
+- Headcount 327 FTE at quarter end (30 June: 321)
+- Capex 9M EUR 11.8m, i.e. EUR 2.4m below the nine-month budget line of EUR 14.2m
+- Oakhaven provision of EUR 0.84m (booked in Q2) left unchanged — no release, no top-up
+Notes: Q3 beat the budget quarter (EUR 28.2m revenue) by about 1.3m, most of it Pharma Lanes. Do NOT describe the EBITDA margin as "record" in the minutes, Q4 2021 was higher on a tiny base and Dieter will remember.
+
+=== slide
+# Revenue by segment (EUR m)
+| Segment | Q3 2024 | Q3 2023 | Change | 9M 2024 |
+| Reefer Services | 15.1 | 13.6 | +11.0% | 43.6 |
+| Pharma Lanes | 6.9 | 5.8 | +19.0% | 19.8 |
+| Monitoring & Software | 4.8 | 3.9 | +23.1% | 13.5 |
+| Yard & Trans-shipment | 2.7 | 2.2 | +22.7% | 7.5 |
+| Group | 29.5 | 25.5 | +15.7% | 84.4 |
+- Reefer Services growth is mostly volume: container-days up 8.4%, the rest is rate card uplift
+- Pharma Lanes helped by two new HAM-2 lanes for Helvetia Pharma Logistik GmbH from 1 August
+- Monitoring & Software: 41,300 active KC-Tag 4 units on the platform at 30 Sept; recurring subscriptions are 87% of segment revenue
+Notes: Yard & Trans-shipment is small but the Kłaipėda yard (KLJ-5) is now contributing every month, finally. Please do not let anyone compare the Q3 2023 column with the old deck — segment boundaries were redrawn in January (monitoring revenue used to sit inside Reefer Services).
+
+=== slide
+# EBITDA bridge Q3 2023 to Q3 2024 (EUR m)
+| Step | EUR m |
+| Q3 2023 EBITDA | 4.5 |
+| Volume | +1.2 |
+| Price and mix | +0.9 |
+| Wage inflation | -0.4 |
+| Energy and fuel | -0.3 |
+| Q3 2024 EBITDA | 5.9 |
+- Segment EBITDA in Q3: Reefer Services 2.6 (17.2%), Pharma Lanes 1.8 (26.1%), Monitoring & Software 1.5 (31.3%), Yard & Trans-shipment 0.4 (14.8%), central costs -0.4
+- Energy line is mostly reefer plug-in power at RTM-3 and GDY-1; fuel is yard equipment diesel
+Notes: Price and mix includes the 1 March 2024 rate card (see rate_card_2024). The wage line is only a partial year of the Gdynia yard grid change, expect it to get bigger.
+
+=== slide
+# People — headcount at 30 September 2024 (FTE)
+| Location | FTE |
+| GDY-1 Gdynia | 118 |
+| HAM-2 Hamburg-Waltershof | 61 |
+| RTM-3 Rotterdam-Maasvlakte | 49 |
+| GOT-4 Gothenburg-Arendal | 27 |
+| KLJ-5 Kłaipėda | 9 |
+| Group functions | 63 |
+| Total | 327 |
+- 14 open vacancies, of which 6 are yard operators at RTM-3
+- Annualised attrition (LTM) 9.8%; year-end forecast 338 FTE
+- Night shift in Gdynia ("the owls") is 31 FTE, included in the GDY-1 line
+- Agency labour spend EUR 0.47m in Q3 vs EUR 0.62m in Q2
+Notes: Ines asked that we stop calling the Group functions line "overhead" in front of the depot managers. Fine. It is Group functions. The 338 year-end number is not yet reconciled to the 2025 budget opening headcount, small differences possible.
+
+=== slide
+# Capital expenditure (EUR m)
+| Project | 9M actual | FY forecast |
+| RTM-3 plug racks phase 1 (140 points) | 2.9 | 3.4 |
+| KC-Tag 4 tooling and production batch 2 | 1.1 | 1.3 |
+| GOT-4 reach stacker RS-45 | 0.9 | 0.9 |
+| Tidewalk v7 capitalised development | 1.0 | 1.4 |
+| Reefer unit refresh (Thermaglide) | 4.3 | 5.9 |
+| Other / maintenance | 1.6 | 4.0 |
+| Total | 11.8 | 16.9 |
+- FY2024 capex budget EUR 19.5m; forecast underspend EUR 2.6m is mainly timing (Thermaglide deliveries slipping into 2025)
+- Q3 capex alone EUR 4.3m
+Notes: The "Other / maintenance" line is lumpy — most of the Q4 spend is the HAM-2 gantry repainting that Gunnar keeps postponing. If the Board asks, the answer is "weather".
+
+=== slide
+# Net debt and covenants at 30 September 2024
+| Item | EUR m |
+| Term loan (Nordhafen Bank AG) | 38.5 |
+| RCF drawn (limit 15.0) | 7.0 |
+| IFRS 16 lease liabilities | 21.7 |
+| Cash and equivalents | -9.7 |
+| Net debt | 57.5 |
+- LTM EBITDA EUR 21.0m, so net debt / EBITDA is 2.74x vs maximum 3.50x
+- Headroom: EBITDA could fall by EUR 4.6m (21.8%) before the leverage test is breached
+- Interest cover 6.3x vs minimum 4.0x
+- Both tests are run quarterly; compliance certificate due to the bank by 15 November 2024
+Notes: LTM = Q4 2023 (5.3) plus the nine months (15.7). Headroom is measured on EBITDA, not on net debt; on net debt it would be about EUR 16.0m. The bank's own spreadsheet rounds differently, we have agreed it is the 2.74.
+
+=== slide
+# FY2024 outlook (EUR m)
+| | FY2024 budget | FY2024 forecast | FY2023 actual |
+| Revenue | 106.2 | 113.8 | 97.6 |
+| EBITDA | 19.4 | 21.5 | 17.9 |
+| Capex | 19.5 | 16.9 | 16.4 |
+| Year-end net debt | 55.0 | 56.8 | 54.9 |
+- Q4 forecast: revenue EUR 29.4m, EBITDA EUR 5.8m (19.7% margin)
+- Forecast EBITDA margin for the year 18.9%
+- Q4 assumes normal citrus volumes and no repeat of the September call-off spike from Fruttoria Baltica
+Notes: Revenue forecast sits above the top of the range we gave investors in April (104–108m); Priya is updating the guidance in the investor note after the Board.
+
+=== slide
+# Three risks we would like the Board to look at
+- 1. Reefer unit supply: Thermaglide Reefer Units BV quote a 19-week lead time and +6.5% on list price from 1 January 2025; 38 units for the 2025 peak are exposed if the order is not placed by mid-November
+- 2. Oakhaven Dairy Ltd claim: customer states EUR 1.12m, we provide EUR 0.84m; Seaboard Insurance Brokers confirm a deductible of EUR 150,000; mediation is set for 20 November 2024
+- 3. Labour cost step in January: Gdynia yard wage grid +6.5% and Hamburg collective agreement +4.2%, together about EUR 1.7m annualised
+Notes: On risk 2 Sofia asked me to say "provision" and never "settlement" in anything that leaves the building. Risk 3 is already in budget v3, risk 1 is the only one where a Board decision changes the outcome.
+
+=== slide
+# Decisions requested today
+- D1. Approve phase 2 of the RTM-3 plug racks: 120 additional points, EUR 2.35m (budget line CX-25-01), to be sourced through a three-bid tender
+- D2. Authorise the CFO to sign the amendment moving the RCF maturity from 31 October 2026 to 31 October 2027; amendment fee 0.35% of the EUR 15.0m commitment, i.e. EUR 52,500
+- D3. Note the FY2025 budget v3 (revenue EUR 126.4m, EBITDA EUR 24.8m) as the working basis for lender discussions; final adoption is planned for 12 December 2024
+Notes: Resolution wording for D1 and D2 is in the draft minutes folder. D3 is "note", not "approve" — Dr Kielich insisted on this distinction in June.
+
+=== slide
+# Next steps and calendar
+- 7 November 2024, 15:00 CET: Q3 investor call
+- 15 November 2024: covenant compliance certificate to Nordhafen Bank AG
+- Week of 2 December 2024: audit planning with Aldermoor Kessler Audit Sp. z o.o.
+- 12 December 2024: Board meeting, FY2025 budget adoption
+- Figures in EUR m unless stated; totals may not add because of rounding; Q3 average rate EUR/PLN 4.3194 used for translation of PLN entities
+Notes: Reminder that nothing in this pack is guidance until it appears in the investor note. If the slides look weird on the boardroom screen it is the 4:3 template, Kamil is aware.

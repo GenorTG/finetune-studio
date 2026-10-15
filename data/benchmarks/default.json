@@ -1,0 +1,37 @@
+[
+  {
+    "name": "greeting_basic",
+    "messages": [{"role": "user", "content": "Say hello in one word."}],
+    "expected_keywords": ["hello", "hi", "hey", "greetings"],
+    "forbidden_keywords": ["error", "undefined", "null"],
+    "category": "greeting"
+  },
+  {
+    "name": "arithmetic_simple",
+    "messages": [{"role": "user", "content": "What is 2 + 2? Answer with just the number."}],
+    "expected_keywords": ["4"],
+    "forbidden_keywords": ["5", "6", "three", "five", "i don't know"],
+    "category": "math"
+  },
+  {
+    "name": "capital_recall",
+    "messages": [{"role": "user", "content": "What is the capital of France? One word."}],
+    "expected_keywords": ["paris"],
+    "forbidden_keywords": ["london", "berlin", "madrid", "rome"],
+    "category": "knowledge"
+  },
+  {
+    "name": "color_naming",
+    "messages": [{"role": "user", "content": "Name one primary color."}],
+    "expected_keywords": ["red", "blue", "yellow"],
+    "forbidden_keywords": ["green", "purple", "orange"],
+    "category": "knowledge"
+  },
+  {
+    "name": "boolean_truth",
+    "messages": [{"role": "user", "content": "Is the sky usually blue? Answer yes or no."}],
+    "expected_keywords": ["yes"],
+    "forbidden_keywords": ["no", "never"],
+    "category": "common_sense"
+  }
+]

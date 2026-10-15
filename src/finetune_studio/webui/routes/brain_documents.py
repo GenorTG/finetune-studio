@@ -1,0 +1,259 @@
+"""Smart Brain documents: what is in the project's index, chunk previews, removing documents.
+
+The index lives on disk (``$FTS_ROOT/brain/<pid>/``: ``chunks.parquet``, ``sources/<doc_id>.txt``), not in SQLite.
+Mounted under ``/api/projects``:
+
+  GET    /{pid}/brain/documents                    -- inventory (one row per indexed document)
+  GET    /{pid}/brain/documents/{doc_id}/chunks    -- chunk previews of one document
+  DELETE /{pid}/brain/documents/{doc_id}           -- remove one document from the index
+  DELETE /{pid}/brain/documents                    -- empty the index (directory and settings stay)
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import mimetypes
+import time
+from pathlib import Path
+from typing import Any
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
+
+from finetune_studio.data.fs.paths import brain_index_dir
+from finetune_studio.smart_brain.source_labels import prettify_source_label
+
+log = logging.getLogger(__name__)
+router = APIRouter()
+
+
+def corpus_dir(pid: str) -> Path:
+    """Return the on-disk corpus directory for ``pid``."""
+    return brain_index_dir(pid)
+
+
+def _guess_mime(filename: str) -> str:
+    """Guess a MIME type from ``filename``; default to text/plain."""
+    mime, _ = mimetypes.guess_type(filename or "")
+    return mime or "text/plain"
+
+
+def _format_ts(ts: float) -> str:
+    """Format a unix timestamp for display; empty string if unset."""
+    if not ts:
+        return ""
+    try:
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(float(ts)))
+    except (OSError, ValueError, OverflowError, TypeError):
+        return ""
+
+
+def list_indexed_docs(pid: str) -> list[dict[str, Any]]:
+    """Inventory of documents indexed into the project's RAG corpus.
+
+    Each item::
+
+        {
+          "id": str,           # document_id / sources stem
+          "name": str,         # display filename
+          "mime": str,         # guessed from name
+          "chunks": int,
+          "status": str,       # indexed | pending | error
+          "last_indexed": str, # display timestamp
+          "last_indexed_ts": float,
+          "size_bytes": int,
+        }
+
+    Does **not** load the embedder — only reads manifest / parquet / sources.
+    """
+    root = corpus_dir(pid)
+    manifest_path = root / "manifest.json"
+    sources_dir = root / "sources"
+    chunks_path = root / "chunks.parquet"
+
+    has_corpus = manifest_path.exists() or chunks_path.exists()
+    if not has_corpus:
+        return []
+
+    updated_at = 0.0
+    if manifest_path.exists():
+        try:
+            from finetune_studio.smart_brain.io import read_json
+
+            m = read_json(manifest_path)
+            updated_at = float(m.get("updated_at") or m.get("created_at") or 0.0)
+        except Exception:  # noqa: BLE001
+            updated_at = 0.0
+
+    # document_id -> {filename, chunk_count}
+    by_doc: dict[str, dict[str, Any]] = {}
+    if chunks_path.exists():
+        try:
+            from finetune_studio.smart_brain.io import try_import_pandas
+
+            pd = try_import_pandas()
+            df = pd.read_parquet(chunks_path)
+            if len(df) > 0 and "document_id" in df.columns:
+                for doc_id, group in df.groupby("document_id"):
+                    did = str(doc_id)
+                    fname = ""
+                    source_path = ""
+                    if "filename" in group.columns and len(group):
+                        fname = str(group["filename"].iloc[0] or "")
+                    if "source" in group.columns and len(group):
+                        source_path = str(group["source"].iloc[0] or "")
+                    by_doc[did] = {
+                        "filename": prettify_source_label(fname, source_path or None),
+                        "chunks": len(group),
+                    }
+        except Exception as e:  # noqa: BLE001
+            log.warning("list_indexed_docs: parquet read failed for %s: %s", pid, e)
+
+    # Prefer manifest documents_meta when parquet is empty/missing but
+    # the current corpus records documents there (still no orphan scan).
+    if not by_doc and manifest_path.exists():
+        try:
+            from finetune_studio.smart_brain.io import read_json
+
+            m = read_json(manifest_path)
+            for d in (m.get("extra") or {}).get("documents_meta") or []:
+                did = str(d.get("document_id") or d.get("id") or "")
+                if not did:
+                    continue
+                by_doc[did] = {
+                    "filename": prettify_source_label(
+                        str(d.get("filename") or ""),
+                        d.get("source"),
+                    ),
+                    "chunks": 0,
+                }
+        except Exception as e:  # noqa: BLE001
+            log.warning("list_indexed_docs: documents_meta read failed for %s: %s", pid, e)
+
+    # Attach size/mtime from sources/ only for docs already in the current
+    # corpus — never invent inventory rows from stale orphan .txt files.
+    if sources_dir.exists():
+        for did, entry in by_doc.items():
+            f = sources_dir / f"{did}.txt"
+            if not f.is_file():
+                continue
+            entry["size_bytes"] = f.stat().st_size
+            entry["mtime"] = f.stat().st_mtime
+
+    docs: list[dict[str, Any]] = []
+
+    def _sort_key(item: tuple[str, dict[str, Any]]) -> str:
+        return str(item[1].get("filename") or item[0])
+
+    for did, meta in sorted(by_doc.items(), key=_sort_key):
+        chunks = int(meta.get("chunks") or 0)
+        name = str(meta.get("filename") or did)
+        mtime = float(meta.get("mtime") or updated_at or 0.0)
+        if chunks > 0:
+            status = "indexed"
+        elif (sources_dir / f"{did}.txt").exists():
+            status = "pending"
+        else:
+            status = "error"
+        docs.append({
+            "id": did,
+            "name": name,
+            "mime": _guess_mime(name),
+            "chunks": chunks,
+            "status": status,
+            "last_indexed": _format_ts(mtime if mtime else updated_at),
+            "last_indexed_ts": mtime if mtime else updated_at,
+            "size_bytes": int(meta.get("size_bytes") or 0),
+        })
+    return docs
+
+
+def list_doc_chunks(pid: str, doc_id: str) -> list[dict[str, Any]]:
+    """Return chunk previews for one document (id + first 120 chars of text)."""
+    chunks_path = corpus_dir(pid) / "chunks.parquet"
+    if not chunks_path.exists():
+        return []
+    try:
+        from finetune_studio.smart_brain.io import try_import_pandas
+
+        pd = try_import_pandas()
+        df = pd.read_parquet(chunks_path)
+    except Exception as e:  # noqa: BLE001
+        log.warning("list_doc_chunks failed: %s", e)
+        return []
+    if len(df) == 0 or "document_id" not in df.columns:
+        return []
+    rows = df[df["document_id"].astype(str) == str(doc_id)]
+    out: list[dict[str, Any]] = []
+    for _, row in rows.iterrows():
+        text = str(row.get("text") or "")
+        out.append({
+            "chunk_id": str(row.get("id") or ""),
+            "chunk_index": int(row.get("chunk_index") or 0),
+            "preview": text[:120],
+            "chars": len(text),
+        })
+    out.sort(key=lambda c: c["chunk_index"])
+    return out
+
+
+def total_chunk_count(docs: list[dict[str, Any]]) -> int:
+    """Sum of ``chunks`` across indexed-doc dicts."""
+    return sum(int(d.get("chunks") or 0) for d in docs)
+
+
+@router.get("/{pid}/brain/documents")
+async def brain_documents_inventory(pid: str) -> dict[str, Any]:
+    """List indexed documents with per-doc chunk counts and status."""
+    from finetune_studio import db
+
+    if not db.get_project(pid):
+        raise HTTPException(status_code=404, detail="project not found")
+    docs = await asyncio.to_thread(list_indexed_docs, pid)
+    return {
+        "docs": docs,
+        "document_count": len(docs),
+        "chunk_count": total_chunk_count(docs),
+    }
+
+
+@router.get("/{pid}/brain/documents/{doc_id}/chunks")
+async def brain_doc_chunks(pid: str, doc_id: str) -> dict[str, Any]:
+    """List chunk id + text preview for one indexed document."""
+    from finetune_studio import db
+
+    if not db.get_project(pid):
+        raise HTTPException(status_code=404, detail="project not found")
+    chunks = await asyncio.to_thread(list_doc_chunks, pid, doc_id)
+    return {"doc_id": doc_id, "chunks": chunks, "count": len(chunks)}
+
+
+@router.delete("/{pid}/brain/documents/{doc_id}")
+async def brain_delete_document(pid: str, doc_id: str):
+    """Remove a single source from the corpus."""
+    from finetune_studio.smart_brain import BrainIndex
+    index = BrainIndex(corpus_dir(pid))
+    if not index.exists():
+        return JSONResponse({"error": "no corpus"}, status_code=404)
+    try:
+        index.remove_source(doc_id)
+        return {"ok": True, "removed": doc_id}
+    except Exception as e:
+        log.exception("remove source failed")
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@router.delete("/{pid}/brain/documents")
+async def brain_clear_documents(pid: str):
+    """Clear source text and all search indexes while retaining the corpus directory."""
+    from finetune_studio.smart_brain import BrainIndex
+    index = BrainIndex(corpus_dir(pid))
+    if not index.exists():
+        return JSONResponse({"error": "no corpus"}, status_code=404)
+    try:
+        index.clear_sources()
+        return {"ok": True}
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+

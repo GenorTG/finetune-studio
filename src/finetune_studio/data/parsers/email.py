@@ -1,0 +1,78 @@
+"""Email (.eml / .msg) parser — RFC 822 headers + body."""
+
+from __future__ import annotations
+
+import email
+import email.policy
+from email import message_from_bytes
+from pathlib import Path
+
+from ._base import cli_run, make_result
+
+
+def parse(path: Path) -> dict:
+    raw = path.read_text(encoding="utf-8", errors="replace")
+    try:
+        # Bytes, not str: a str message with 8-bit UTF-8 bodies is decoded by ``get_content()`` through an ASCII
+        # round-trip that turned "Gdańsk" into "Gda\\u0144sk" and "Wspólnicy" into "Wsp�lnicy".
+        msg = message_from_bytes(path.read_bytes(), policy=email.policy.default)
+    except Exception as e:  # noqa: BLE001
+        return make_result(raw, {"type": "email", "error": str(e)},
+                           parser="email_v1", warnings=[f"email parse failed: {e}"])
+    headers = {k: str(v) for k, v in msg.items()}
+    header_lines = [
+        f"{k}: {v}" for k, v in (
+            ("From", msg.get("From", "")), ("To", msg.get("To", "")),
+            ("Cc", msg.get("Cc", "")), ("Date", msg.get("Date", "")),
+            ("Subject", msg.get("Subject", "")),
+        ) if v
+    ]
+    header_block = "\n".join(header_lines)
+    parts_text = []
+    attachments = []
+    for part in msg.walk():
+        ctype = part.get_content_type()
+        disp = str(part.get("Content-Disposition") or "")
+        if part.is_multipart():
+            continue
+        if "attachment" in disp:
+            attachments.append({
+                "filename": part.get_filename(),
+                "content_type": ctype,
+                "size": len(part.get_payload(decode=True) or b""),
+            })
+            continue
+        try:
+            body = part.get_content()
+        except (LookupError, ValueError):
+            body = part.get_payload()
+        if isinstance(body, str) and body.strip():
+            parts_text.append(f"[{ctype}]\n{body}")
+    if parts_text:
+        body = "\n\n".join(parts_text)
+    else:
+        body_part = msg.get_body(preferencelist=("plain", "html"))
+        try:
+            body = body_part.get_content() if body_part is not None else ""
+        except Exception:  # noqa: BLE001 — malformed MIME part content
+            body = ""
+    text = f"{header_block}\n\n{body}" if header_block and body else (header_block or body)
+    if not isinstance(text, str) or not text:
+        text = raw  # last resort
+    structured = {
+        "type": "email",
+        "subject": msg.get("Subject", ""),
+        "from": msg.get("From", ""),
+        "to": msg.get("To", ""),
+        "cc": msg.get("Cc", ""),
+        "date": msg.get("Date", ""),
+        "message_id": msg.get("Message-ID", ""),
+        "headers": headers,
+        "attachment_count": len(attachments),
+        "attachments": attachments,
+    }
+    return make_result(text, structured, parser="email_v1")
+
+
+if __name__ == "__main__":
+    cli_run(parse)

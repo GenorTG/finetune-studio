@@ -1,0 +1,1606 @@
+{
+ "summary": "total: 200\njudged: 200\nunjudged: 0\npassed: 134\npartial: 16\nfailed: 50\npass_rate: 67%\nTRAINING_LEAKAGE",
+ "categories": "knowledge: 31/61\nnumeric: 14/24\nfactual: 10/14\ngeneral: 63/76\nspatial: 6/8\ncode: 5/7\ntemporal: 3/6\nreasoning: 2/4",
+ "cases": [
+  {
+   "name": "what_is_the_amount_of_the_home_office_allowance_paid_to_empl",
+   "category": "knowledge",
+   "question": "What is the amount of the home-office allowance paid to employees at KORVANE COLD CHAIN Sp. z o.o.?",
+   "answer": "A home-office allowance of PLN 60 gross per month is paid to employees who work remotely on at least 4 days per month on average.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "within_what_timeframe_can_a_sanction_be_imposed_after_a_line",
+   "category": "numeric",
+   "question": "Within what timeframe can a sanction be imposed after a line manager becomes aware of the conduct complained of?",
+   "answer": "A sanction may be imposed only within 10 working days after the line manager became aware of the conduct complained of.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "who_is_the_action_owner_for_corrective_action_request_kc_car",
+   "category": "factual",
+   "question": "Who is the action owner for Corrective Action Request KC-CAR-24-088?",
+   "answer": "The action owner for Corrective Action Request KC-CAR-24-088 is Quality (B. Aaltonen).",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing or contradictory source anchors: ops gdynia"
+  },
+  {
+   "name": "how_often_is_the_base_pay_reviewed",
+   "category": "general",
+   "question": "How often is the base pay reviewed?",
+   "answer": "Base pay is reviewed once a year in March.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_hotel_per_night_ceiling_for_germany_according_to",
+   "category": "knowledge",
+   "question": "What is the hotel per night ceiling for Germany according to section 6.2 of the KORVANE COLD CHAIN Sp. z o.o. Employee Handbook?",
+   "answer": "The hotel per night ceiling for Germany is EUR 146.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 128"
+  },
+  {
+   "name": "how_is_benedikta_aaltonen_quality_compliance_contacted_a",
+   "category": "general",
+   "question": "How is Benedikta Aaltonen, Quality & Compliance, contacted after GDP load affected?",
+   "answer": "Benedikta Aaltonen, Quality & Compliance, is contacted via ext 4309.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "how_long_are_records_kept_for_standard_loads",
+   "category": "general",
+   "question": "How long are records kept for standard loads?",
+   "answer": "Records are kept 7 years.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_total_duration_that_the_product_was_outside_the",
+   "category": "knowledge",
+   "question": "What is the total duration that the product was outside the permitted band according to the Thread Oakhaven Incident document?",
+   "answer": "The product was outside the band for 9 hours 5 minutes.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_action_should_be_taken_if_the_kc_tag_4_shows_error_e12",
+   "category": "general",
+   "question": "What action should be taken if the KC-Tag 4 shows error E12?",
+   "answer": "For error E12, bring the tag within the range of the hub, because E12 means \"no contact with a hub for 14 days\".",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: recalibration, send"
+  },
+  {
+   "name": "who_was_the_audit_host_throughout_the_process_at_korvane",
+   "category": "general",
+   "question": "Who was the audit host throughout the process at Korvane?",
+   "answer": "Olga Serikova, Quality & Compliance Manager, was the audit host throughout.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing or contradictory source anchors: benedikta aaltonen"
+  },
+  {
+   "name": "what_was_the_previous_revision_date_for_document_rb_017",
+   "category": "general",
+   "question": "What was the previous revision date for document RB-017?",
+   "answer": "The previous revision of document RB-017 was dated 14 February 2024.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_items_are_covered_by_the_one_off_equipment_stipend_for",
+   "category": "general",
+   "question": "What items are covered by the one-off equipment stipend for KORVANE COLD CHAIN Sp. z o.o. employees?",
+   "answer": "The one-off equipment stipend covers a monitor or chair, against receipt.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "by_what_date_must_carried_over_leave_be_taken_by_the_employe",
+   "category": "general",
+   "question": "By what date must carried-over leave be taken by the employee?",
+   "answer": "Carried-over leave must be taken by 31 May of the following year.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_was_the_headcount_on_30_june",
+   "category": "general",
+   "question": "What was the headcount on 30 June?",
+   "answer": "The headcount on 30 June was 327 FTE.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 321"
+  },
+  {
+   "name": "what_is_the_close_date_for_opportunity_opp_24_0345",
+   "category": "knowledge",
+   "question": "What is the close_date for opportunity OPP-24-0345?",
+   "answer": "The close_date for opportunity OPP-24-0345 is 2024-12-17.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_kc_tag_4",
+   "category": "knowledge",
+   "question": "What is the KC-Tag 4?",
+   "answer": "The KC-Tag 4 is a wireless logger for reefer containers.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "on_what_date_did_revision_6_of_sop_kc_ops_sop_031_become_eff",
+   "category": "general",
+   "question": "On what date did revision 6 of SOP KC-OPS-SOP-031 become effective?",
+   "answer": "Revision 6 became effective on 1 September 2024.",
+   "verdict": "partial",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 2"
+  },
+  {
+   "name": "who_is_contacted_after_60_min_or_any_sev1_in_the_escalatio",
+   "category": "factual",
+   "question": "Who is contacted after 60 min, or any SEV1, in the escalation ladder?",
+   "answer": "Kamil Zdunek, IT Support Lead (hands in the yard), is contacted after 60 min, or any SEV1.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "how_many_working_days_of_annual_leave_is_the_employee_entitl",
+   "category": "numeric",
+   "question": "How many working days of annual leave is the Employee entitled to at commencement?",
+   "answer": "At commencement the Employee's entitlement is 21 working days per leave year.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_does_the_energy_and_fuel_line_in_the_q3_2024_ebitda_bri",
+   "category": "general",
+   "question": "What does the energy and fuel line in the Q3 2024 EBITDA bridge consist of?",
+   "answer": "The energy line is mostly reefer plug-in power at RTM-3 and GDY-1, while the fuel part is yard equipment diesel.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_action_required_if_error_e12_calibration_older",
+   "category": "knowledge",
+   "question": "What is the action required if error E12 'Calibration older than 13 months' occurs?",
+   "answer": "Send the tag for recalibration.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_severity_level_for_one_hub_at_any_depot",
+   "category": "knowledge",
+   "question": "What is the severity level for one hub at any depot?",
+   "answer": "The severity level for one hub, any depot is SEV3.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_amount_eur_for_account_fruttoria_baltica",
+   "category": "knowledge",
+   "question": "What is the amount_eur for account Fruttoria Baltica?",
+   "answer": "The amount_eur for account Fruttoria Baltica is 318750.00.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 186400.00"
+  },
+  {
+   "name": "which_document_prevails_if_there_is_a_conflict_between_this",
+   "category": "general",
+   "question": "Which document prevails if there is a conflict between this Amendment and the MSA?",
+   "answer": "This Amendment prevails if it conflicts with the MSA.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_hanneke_s_action_item_regarding_the_rotterdam_feeder",
+   "category": "knowledge",
+   "question": "What is Hanneke's action item regarding the Rotterdam feeder numbers?",
+   "answer": "Hanneke must provide Rotterdam feeder numbers for the 31.10 review, owned by her.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_instruction_is_given_regarding_sanna_s_fan_in_cab_2",
+   "category": "general",
+   "question": "What instruction is given regarding Sanna's fan in cab 2?",
+   "answer": "Do not tidy Sanna's fan in cab 2, it confuses the airflow.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "who_is_responsible_for_assessing_tax_and_social_security_con",
+   "category": "factual",
+   "question": "Who is responsible for assessing tax and social-security consequences of work from abroad?",
+   "answer": "The employee is responsible for assessing any tax and social-security consequences of working from abroad personally.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing or contradictory source anchors: the company"
+  },
+  {
+   "name": "under_what_circumstances_is_alcohol_reimbursed_in_korvane_co",
+   "category": "general",
+   "question": "Under what circumstances is alcohol reimbursed in KORVANE COLD CHAIN Sp. z o.o.?",
+   "answer": "Alcohol is not reimbursed under any circumstances, including client entertainment.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "on_what_date_did_the_client_open_corrective_action_request_k",
+   "category": "general",
+   "question": "On what date did the client open corrective action request KC-CAR-24-088?",
+   "answer": "The client opened corrective action request KC-CAR-24-088 on 17 September 2024.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_was_being_verified_by_the_reference_thermometer_rt_ham",
+   "category": "general",
+   "question": "What was being verified by the reference thermometer RT-HAM-07 during the pre-trip inspection?",
+   "answer": "The reference thermometer RT-HAM-07 was being used to verify the setpoint of the KC-Tag 4 logger KT4-RUS-112.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_was_the_average_gap_between_a_temperature_excursion_sta",
+   "category": "numeric",
+   "question": "What was the average gap between a temperature excursion starting and someone at Fruttoria knowing about it in 2022?",
+   "answer": "Fruttoria's own audit of 2022 found that the average gap between a temperature excursion starting and anybody at the company knowing about it was 3 h 40 min.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "how_was_the_ltm_ebitda_calculated_in_the_board_pack_q3_speak",
+   "category": "general",
+   "question": "How was the LTM EBITDA calculated in the Board Pack Q3 speaker notes?",
+   "answer": "LTM was calculated as Q4 2023 (5.8) plus the nine months (17.6).",
+   "verdict": "partial",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 15.7, 5.3"
+  },
+  {
+   "name": "what_is_the_amount_eur_for_the_opportunity_opp_24_0310",
+   "category": "knowledge",
+   "question": "What is the amount_eur for the opportunity OPP-24-0310?",
+   "answer": "The amount_eur for the opportunity OPP-24-0310 is 186400.00.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 22640.00"
+  },
+  {
+   "name": "what_does_the_new_clause_4_7_require_korvane_to_fit_to_conta",
+   "category": "general",
+   "question": "What does the new clause 4.7 require Korvane to fit to containers carrying the Customer's Chilled Dairy Products, and at what cost?",
+   "answer": "New clause 4.7 requires Korvane to fit a second KC-Tag 4 logger, placed at the door end of the container, at no additional cost.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_was_the_agency_labour_spend_in_q3",
+   "category": "numeric",
+   "question": "What was the Agency labour spend in Q3?",
+   "answer": "The Agency labour spend in Q3 was EUR 0.47m.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_must_benedikta_do_if_a_helvetia_pharma_logistik_load_is",
+   "category": "general",
+   "question": "What must Benedikta do if a Helvetia Pharma Logistik load is affected for more than 15 minutes?",
+   "answer": "If a Helvetia Pharma Logistik load is affected for more than 15 minutes, Benedikta must phone the cold-chain desk on ext 2600 within the same hour.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 24, away, deviation, hours, know, needs, open, record, right"
+  },
+  {
+   "name": "what_were_the_temperatures_of_the_box_during_the_evening_bef",
+   "category": "general",
+   "question": "What were the temperatures of the box during the evening before the change occurred?",
+   "answer": "The box had been sitting at +2.9 to +3.2 all evening.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_evaluation_was_missing_from_the_oakhaven_dairy_load_rel",
+   "category": "general",
+   "question": "What evaluation was missing from the Oakhaven dairy load release?",
+   "answer": "There was no evaluation of the logger's low-battery alert history.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_wage_grid_increase_for_gdynia_yard_in_january",
+   "category": "numeric",
+   "question": "What is the wage grid increase for Gdynia yard in January?",
+   "answer": "The Gdynia yard wage grid is +6.5% in January.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "which_depot_is_equipment_mc_rtm_02_located_in",
+   "category": "spatial",
+   "question": "Which Depot is equipment MC-RTM-02 located in?",
+   "answer": "Equipment MC-RTM-02 is located in Depot RTM-3.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_was_korvane_s_ltm_ebitda_and_the_net_debt_ebitda_leve",
+   "category": "numeric",
+   "question": "What was Korvane's LTM EBITDA and the net debt / EBITDA leverage at 30 September 2024?",
+   "answer": "LTM EBITDA was EUR 16.4m, so net debt / EBITDA was 2.75x (covenant threshold 3.00x).",
+   "verdict": "partial",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 21, against, maximum"
+  },
+  {
+   "name": "what_are_the_due_dates_for_the_minor_nonconformities_f_02_to",
+   "category": "knowledge",
+   "question": "What are the due dates for the minor nonconformities F-02 to F-05 of the ISO 22000 surveillance audit?",
+   "answer": "The due dates are: F-02 on 9 October 2024; F-03 on 18 October 2024; F-04 on 4 November 2024; and F-05 on 15 November 2024.",
+   "verdict": "partial",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 11, 2, date, have, o-01, o-03, observations"
+  },
+  {
+   "name": "what_are_the_notes_for_equipment_fl_klj_02",
+   "category": "knowledge",
+   "question": "What are the Notes for equipment FL-KLJ-02?",
+   "answer": "The Notes for equipment FL-KLJ-02 are shared with Rentway. Ask Hanneke if they borrow it (they often do).",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: breaks, forklift, gdy-1, klaip, only, ring"
+  },
+  {
+   "name": "who_is_the_owner_of_action_item_ai_5",
+   "category": "factual",
+   "question": "Who is the owner of action item AI-5?",
+   "answer": "The owner of action item AI-5 is Kamil Zdunek.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing or contradictory source anchors: aneta gorczyca"
+  },
+  {
+   "name": "what_is_the_monthly_compensation_amount_paid_by_the_employer",
+   "category": "knowledge",
+   "question": "What is the monthly compensation amount paid by the Employer to the Employee during the non-competition period?",
+   "answer": "The Employer shall pay the Employee a monthly compensation equal to 40% of the average monthly remuneration received by the Employee in the 6 months preceding the termination.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_limit_for_client_entertainment_per_head_in_the_k",
+   "category": "knowledge",
+   "question": "What is the limit for client entertainment per head in the KORVANE COLD CHAIN Sp. z o.o. Employee Handbook?",
+   "answer": "Client entertainment is limited to PLN 180 per head.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 70"
+  },
+  {
+   "name": "what_is_the_maximum_number_of_self_certified_absence_days_ac",
+   "category": "numeric",
+   "question": "What is the maximum number of self-certified absence days accepted in any calendar year according to section 4.2?",
+   "answer": "Not more than 4 self-certified absence days are accepted in any calendar year.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_handwritten_note_regarding_the_extension_in_hamb",
+   "category": "knowledge",
+   "question": "What is the handwritten note regarding the extension in Hamburg?",
+   "answer": "The handwritten note says: \"ask Hanneke, who has it on her list, not me\".",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 4419, check, forwarding"
+  },
+  {
+   "name": "how_is_observation_o_03_of_the_audit_report_worded",
+   "category": "general",
+   "question": "How is observation O-03 of the audit report worded?",
+   "answer": "Observation O-03 (clause 6.3): KC-Hub alerts at the depot level go to the dispatch desk phone line, which is answered in an average of 9 minutes; the target of 5 minutes is not monitored.",
+   "verdict": "partial",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 200, 3.8, change, date, firmware, ham-2, record, release, rolled, rtm-3, without"
+  },
+  {
+   "name": "how_long_did_switching_the_unit_over_to_its_back_up_controll",
+   "category": "general",
+   "question": "How long did switching the unit over to its back-up controller buy them?",
+   "answer": "Switching the unit over to its back-up controller bought nothing for about two hours while the on-call engineer traced the problem remotely.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_was_the_status_of_the_oakhaven_provision_of_eur_0_84m_b",
+   "category": "general",
+   "question": "What was the status of the Oakhaven provision of EUR 0.84m booked in Q2?",
+   "answer": "The Oakhaven provision of EUR 0.84m (booked in Q2) remains unchanged with no release and no top-up.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "which_door_and_which_seal_numbers_apply_to_the_nordkj_l_cod",
+   "category": "general",
+   "question": "Which door and which seal numbers apply to the Nordkjøl cod loins pick-up?",
+   "answer": "Bay 2 door 1; ask Jonas at the cold store who has the seal numbers, which are TLXU 440812 to 440814.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "within_what_timeframe_must_all_company_property_be_returned",
+   "category": "general",
+   "question": "Within what timeframe must all Company property be returned after the last day of employment according to Section 12.4?",
+   "answer": "All Company property must be returned within 3 working days after the last day of employment.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "how_is_the_employee_s_gross_monthly_base_pay_determined_in_s",
+   "category": "general",
+   "question": "How is the Employee's gross monthly base pay determined in section 5.1?",
+   "answer": "The Employee's gross monthly base pay shall be [amount] PLN, within the band for the Employee's grade as set out in Table A of the Employer's Remuneration Grading Matrix, a copy of which is annexed to this contract.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_are_the_details_for_lane_code_rc_08_in_the_korvane_cold",
+   "category": "code",
+   "question": "What are the details for lane code RC-08 in the KORVANE COLD CHAIN — RATE CARD 2024 (card ref. RC-2024-A)?",
+   "answer": "For lane code RC-08, the Route is Gdynia - Rotterdam, 20' reefer EUR/day is 36.9, 40' reefer EUR/day is 58.25, 40' HC reefer EUR/day is 63.45, Lift move EUR is 39.7, and Free days is 3.",
+   "verdict": "partial",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 36.25, 4, 58.2, hamburg, klaipeda"
+  },
+  {
+   "name": "what_information_did_olek_provide_regarding_the_door_contac",
+   "category": "general",
+   "question": "What information did olek provide regarding the door, contact person, and seal numbers on 2024-09-18 at 22:10?",
+   "answer": "olek stated it is bay 2 door 1, to ask for jonas at the cold store who has the seal numbers 440812 to 440814.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "who_was_the_chair_of_the_ops_weekly_review",
+   "category": "general",
+   "question": "Who was the chair of the OPS WEEKLY REVIEW?",
+   "answer": "The chair of the OPS WEEKLY REVIEW was J. Lindqvist (Ops Ld).",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_are_the_technical_details_for_the_863_870_mhz_band_on_t",
+   "category": "knowledge",
+   "question": "What are the technical details for the 863–870 MHz band on the KT4-R2-868?",
+   "answer": "The 863–870 MHz band has +14 dBm (125 mW) and a receiver sensitivity of −121 dBm.",
+   "verdict": "partial",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 118, features"
+  },
+  {
+   "name": "what_is_the_action_for_item_ai_5_in_the_table",
+   "category": "knowledge",
+   "question": "What is the action for item AI-5 in the table?",
+   "answer": "The action for item AI-5 is Process the 5,100 EUR credit note CN-2024-0388 within 15 working days.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 120, 5, alarm, alert, canary, end-to-end, every, latency, minutes, seconds, synthetic"
+  },
+  {
+   "name": "by_how_much_did_q3_beat_the_budget_quarter_revenue",
+   "category": "general",
+   "question": "By how much did Q3 beat the budget quarter revenue?",
+   "answer": "Q3 beat the budget quarter revenue of EUR 29.2m by only EUR 0.3m.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 1, 28, about"
+  },
+  {
+   "name": "who_is_permitted_to_be_disclosed_the_confidential_terms_of_c",
+   "category": "factual",
+   "question": "Who is permitted to be disclosed the confidential terms of clause 7 by either party?",
+   "answer": "The terms may be disclosed only to lawyers, accountants and auditors who are bound by professional confidentiality.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "within_what_timeframe_must_the_decision_of_a_disciplinary_me",
+   "category": "general",
+   "question": "Within what timeframe must the decision of a disciplinary meeting be delivered in writing?",
+   "answer": "The decision is delivered in writing within 5 working days after the meeting.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_specific_hub_address_for_hub_gdy1_03",
+   "category": "knowledge",
+   "question": "What is the specific hub address for hub-gdy1-03?",
+   "answer": "The hub address for hub-gdy1-03 is 10.41.7.33.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "when_does_the_excess_power_draw_en_1_surcharge_become_effe",
+   "category": "temporal",
+   "question": "When does the Excess power draw (EN-1) surcharge become effective from?",
+   "answer": "The Excess power draw (EN-1) surcharge becomes effective from 01.03.2024.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "how_many_reefer_plug_in_operators_were_employed_at_ham_2_on",
+   "category": "numeric",
+   "question": "How many reefer plug-in operators were employed at HAM-2 on 10 September 2024?",
+   "answer": "There were 41 reefer plug-in operators employed at HAM-2 on 10 September 2024.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "how_many_tickets_did_the_missing_white_renault_t_fuel_card_c",
+   "category": "numeric",
+   "question": "How many tickets did the missing white Renault T fuel card cause, and how much reserve does the tank hold?",
+   "answer": "It caused 3 tickets already; the tank holds 60 l reserve.",
+   "verdict": "partial",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 17, 2024, causing, liter, only, pool, september, them"
+  },
+  {
+   "name": "what_is_the_amount_for_the_currency_adjustment_caf_1_surch",
+   "category": "knowledge",
+   "question": "What is the amount for the Currency adjustment (CAF-1) surcharge?",
+   "answer": "The amount for the Currency adjustment (CAF-1) surcharge is 1.5%.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_evidence_did_the_auditors_find_regarding_the_risk_evalu",
+   "category": "general",
+   "question": "What evidence did the auditors find regarding the risk evaluation of the temperature–time profile?",
+   "answer": "The auditors found no evidence that a risk evaluation of the temperature–time profile was performed.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_did_the_printed_monday_sheet_say_regarding_the_cut_off",
+   "category": "general",
+   "question": "What did the printed Monday sheet say regarding the cut-off?",
+   "answer": "The printed Monday sheet still said Friday.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_extension_number_for_the_fleet_workshop_gunnar",
+   "category": "knowledge",
+   "question": "What is the extension number for the Fleet workshop (Gunnar Halvorsrud)?",
+   "answer": "The extension number for the Fleet workshop (Gunnar Halvorsrud) is ext 2750.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "how_often_did_the_silence_regarding_warm_containers_used_to",
+   "category": "general",
+   "question": "How often did the silence regarding warm containers used to arrive for Fruttoria Baltica?",
+   "answer": "The silence used to arrive roughly every second Monday.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "under_what_condition_is_the_employee_not_required_to_repay_t",
+   "category": "general",
+   "question": "Under what condition is the Employee NOT required to repay the Employer for training costs if employment ends within 18 months of course completion?",
+   "answer": "The Employee is not required to repay if the termination is by reason of the Employer's fault.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_does_error_code_e04_mean_for_the_kc_tag_4",
+   "category": "code",
+   "question": "What does error code E04 mean for the KC-Tag 4?",
+   "answer": "Error code E04 means Temperature sensor: short circuit.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 3.0, battery, radio, sends, under, voltage"
+  },
+  {
+   "name": "what_is_the_opp_id_for_account_nordkj_l_seafood_as",
+   "category": "knowledge",
+   "question": "What is the opp_id for account Nordkjøl Seafood AS?",
+   "answer": "The opp_id for account Nordkjøl Seafood AS is OPP-24-0315.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 0302, opp-24-0302"
+  },
+  {
+   "name": "when_was_the_internal_email_from_jarek_lindqvist_to_benedikt",
+   "category": "temporal",
+   "question": "When was the internal email from Jarek Lindqvist to Benedikta Aaltonen sent regarding OD-231?",
+   "answer": "The internal email from Jarek Lindqvist to Benedikta Aaltonen was sent on Monday, 17 June 2024 at 16:30.",
+   "verdict": "partial",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 17:09"
+  },
+  {
+   "name": "what_is_the_purpose_of_the_tape_strips_in_the_kc_tag_4_insta",
+   "category": "knowledge",
+   "question": "What is the purpose of the tape strips in the KC-Tag 4 installation?",
+   "answer": "The tape strips are meant as the help for positioning only.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "how_many_printed_copies_of_the_board_pack_q3_are_there",
+   "category": "numeric",
+   "question": "How many printed copies of the Board Pack Q3 are there?",
+   "answer": "There are 12 printed copies.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 1, 9, numbered"
+  },
+  {
+   "name": "what_is_the_reference_number_for_the_customer_s_written_appr",
+   "category": "knowledge",
+   "question": "What is the reference number for the customer's written approval of publication?",
+   "answer": "The reference number is FB-LEGAL-0917.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "where_is_the_blanket_located_according_to_olek",
+   "category": "spatial",
+   "question": "Where is the blanket located according to olek?",
+   "answer": "The blanket is in the gate cabin box.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_was_the_reason_for_why_5_regarding_why_it_was_not_notic",
+   "category": "reasoning",
+   "question": "What was the reason for Why 5 regarding why it was not noticed?",
+   "answer": "Why 5 - why not noticed? No on-call number for the cold store plant room; owls had no way to page anyone.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 2023, against, change, check, evaluator, field, form, impact, kc-qf-114, pro-017"
+  },
+  {
+   "name": "what_is_the_limit_for_pharma_loads_in_a_40_container",
+   "category": "knowledge",
+   "question": "What is the limit for pharma loads in a 40' container?",
+   "answer": "Pharma loads are limited to 23 in a 40'.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 20"
+  },
+  {
+   "name": "what_are_the_notes_for_opportunity_opp_24_0314",
+   "category": "knowledge",
+   "question": "What are the notes for opportunity OPP-24-0314?",
+   "answer": "The notes for opportunity OPP-24-0314 are 9% + 1 point, max EUR 54k (EU recovery cap). Lose to Helvetia Pharma Insurances if we price above EUR 56.7k.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 3, 9740, alert, claim, closed, contact, discount, missed, open, quote, rautio, still, till, tuomas"
+  },
+  {
+   "name": "what_is_measure_m2_of_corrective_action_request_kc_car_24_08",
+   "category": "knowledge",
+   "question": "What is measure M2 of corrective action request KC-CAR-24-088?",
+   "answer": "M2 is the FSTL on-call rota, 24/7: primary B. Aaltonen (ext 4419), backup K. Sokolowska (ext 4431).",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 2024, 30.09, attached, done, evaluator, fields, form, hold, hours, kc-qf-114, mandatory, name, owner, profile"
+  },
+  {
+   "name": "is_there_an_exemption_for_customer_released_loads_in_measure",
+   "category": "general",
+   "question": "Is there an exemption for customer-released loads in measure M1 of the KORVANE COLD CHAIN - CORRECTIVE ACTION REQUEST?",
+   "answer": "There is no exemption for customer-released loads.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_close_date_for_opportunity_opp_24_0341",
+   "category": "knowledge",
+   "question": "What is the close_date for opportunity OPP-24-0341?",
+   "answer": "The close_date for opportunity OPP-24-0341 is 2024-12-17.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "why_did_skagerrak_sj_mat_as_go_to_coldarc_nordic",
+   "category": "numeric",
+   "question": "Why did Skagerrak Sjømat AS go to ColdArc Nordic?",
+   "answer": "Skagerrak Sjømat AS went to ColdArc Nordic for its 99.9% uptime SLA and Finnish support desk on +48 555 0170 (Kamil's voice, 17 October).",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_are_the_notes_for_the_role_service_duty_ops_desk_24",
+   "category": "knowledge",
+   "question": "What are the Notes for the Role / service Duty Ops desk (24/7)?",
+   "answer": "The Notes for Duty Ops desk (24/7) are escalation primary, ring 10.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: maraszek, night, olek, owls, pick, usually, voice"
+  },
+  {
+   "name": "what_action_is_required_if_the_incident_is_sev2_or_worse",
+   "category": "general",
+   "question": "What action is required if the incident is SEV2 or worse?",
+   "answer": "If the incident is SEV2 or worse, an INC must be opened with the label `hub-offline`.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_instruction_did_wacek_give_regarding_the_sheet_at_08_02",
+   "category": "general",
+   "question": "What instruction did wacek give regarding the sheet at 08:02?",
+   "answer": "wacek told the day crew to ignore the sheet because it was from last night.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_assumptions_are_made_for_q4_regarding_citrus_volumes_an",
+   "category": "general",
+   "question": "What assumptions are made for Q4 regarding citrus volumes and Fruttoria Baltica in the Board Pack Q3?",
+   "answer": "Q4 assumes normal citrus volumes and no repeat of the September call-off from Fruttoria Baltica.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_specific_types_of_claims_are_included_in_the_full_and_f",
+   "category": "general",
+   "question": "What specific types of claims are included in the full and final settlement for the Incident?",
+   "answer": "The claims included are cargo loss, rejection, recall, retailer notice under the Master Services Agreement, and the sums claimed in the Letter of 18 June 2024.",
+   "verdict": "partial",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 28, chargebacks, include"
+  },
+  {
+   "name": "how_is_the_adjustment_of_the_fees_in_table_c_calculated_acco",
+   "category": "general",
+   "question": "How is the adjustment of the fees in Table C calculated according to section 11.3?",
+   "answer": "The adjustment is calculated by multiplying the Fee by the fraction whose numerator is the percentage change (or, if fees have been reduced, the negative percentage change) in the Index between the October most recently published and the October twelve months before that, and whose denominator is the value of the Index in the October twelve months before that.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_required_response_time_for_an_unannounced_night",
+   "category": "knowledge",
+   "question": "What is the required response time for an unannounced night test call?",
+   "answer": "The unannounced night test call must be answered in under 10 minutes.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "how_is_the_reference_in_clause_4_4_of_the_oakhaven_msa_to_t",
+   "category": "numeric",
+   "question": "How is the reference in clause 4.4 of the Oakhaven MSA to \"the percentage stated in Table A\" to be read under Amendment No. 2?",
+   "answer": "As a reference to the new Table A (amended by Amendment No. 2), which replaces the old Table A in its entirety.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 3.5"
+  },
+  {
+   "name": "what_is_the_status_of_the_management_accounts_for_korvane_co",
+   "category": "numeric",
+   "question": "What is the status of the management accounts for Korvane Cold Chain Sp. z o.o. as of 30 September 2024?",
+   "answer": "The management accounts are unaudited and subject to the usual close adjustments.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_information_did_olek_share_regarding_rotterdam_reefers",
+   "category": "general",
+   "question": "What information did olek share regarding Rotterdam reefers on 2024-09-22 at 23:50?",
+   "answer": "olek stated that starting from Monday 23.09, the Rotterdam reefers will reduce to 2 trucks per night instead of 3.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "which_clause_of_amendment_no_2_to_the_master_services_agree",
+   "category": "general",
+   "question": "Which clause of Amendment No. 2 to the Master Services Agreement takes effect on signature?",
+   "answer": "Clause 7 of Amendment No. 2 to the Master Services Agreement takes effect on signature.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "under_what_conditions_can_an_assignment_for_the_employee_be",
+   "category": "general",
+   "question": "Under what conditions can an assignment for the Employee be made beyond the Tri-City area?",
+   "answer": "Any posting beyond the Tri-City area shall be made only by agreement or by change notice under § 2.1.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_next_step_for_opportunity_opp_24_0340",
+   "category": "knowledge",
+   "question": "What is the next_step for opportunity OPP-24-0340?",
+   "answer": "The next_step for opportunity OPP-24-0340 is Final redlines, call with Sofia.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: draft, quote"
+  },
+  {
+   "name": "what_is_the_opp_id_for_account_nordhavn_spedisjon_as",
+   "category": "knowledge",
+   "question": "What is the opp_id for account Nordhavn Spedisjon AS?",
+   "answer": "The opp_id for account Nordhavn Spedisjon AS is OPP-24-0315.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 0343, opp-24-0343"
+  },
+  {
+   "name": "who_is_the_client_listed_in_the_aldermark_certification_a_s",
+   "category": "numeric",
+   "question": "Who is the client listed in the Aldermark Certification A/S — Food Safety Management System Audit Report?",
+   "answer": "The client is Korvane Cold Chain Sp. z o.o.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "who_reviewed_and_who_made_the_change_in_the_21_august_2024_t",
+   "category": "general",
+   "question": "Who reviewed and who made the change in the 21 August 2024 Tidewalk alert delay (summary of roles)?",
+   "answer": "Kamil Staszewski (platform lead) reviewed; Wiktor changed.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_are_the_specifications_for_the_radio_configuration_of",
+   "category": "knowledge",
+   "question": "What are the specifications for the Radio (configuration) of the KT4-R2-868?",
+   "answer": "The Radio (configuration) of the KT4-R2-868 is 868 MHz, EU CE marked.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 5.0, bluetooth, kc-config, pairing, used"
+  },
+  {
+   "name": "how_many_spare_units_are_held_in_gothenburg_for_hardware_rma",
+   "category": "numeric",
+   "question": "How many spare units are held in Gothenburg for Hardware RMA?",
+   "answer": "There are 50 spares held in Gothenburg for Hardware RMA.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 1"
+  },
+  {
+   "name": "when_does_the_currency_adjustment_caf_1_surcharge_become_e",
+   "category": "temporal",
+   "question": "When does the Currency adjustment (CAF-1) surcharge become effective from?",
+   "answer": "The Currency adjustment (CAF-1) surcharge becomes effective from 01.03.2024.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_was_the_total_value_of_fruttoria_s_cargo_write_offs_for",
+   "category": "general",
+   "question": "What was the total value of Fruttoria's cargo write-offs for the year 2022?",
+   "answer": "The cargo write-offs for 2022 came to EUR 189,400.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 214300, written"
+  },
+  {
+   "name": "what_is_the_name_of_the_senior_dispatcher_on_the_night_shift",
+   "category": "factual",
+   "question": "What is the name of the Senior Dispatcher on the night shift at Fruttoria Baltica?",
+   "answer": "The Senior Dispatcher on the night shift is Olek Maraszek.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "where_is_the_peak_season_leave_restriction_applied_informall",
+   "category": "spatial",
+   "question": "Where is the peak-season leave restriction applied informally?",
+   "answer": "The peak-season restriction (informally \"do not book 10 November to 23 December\") is applied at Gdynia.",
+   "verdict": "partial",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 1, 5, been, custom, five, ham-2, more, rather, rule, shift, team, than"
+  },
+  {
+   "name": "what_amount_replaces_eur_4_000_000_in_clause_9_1_a_of_the",
+   "category": "spatial",
+   "question": "What amount replaces \"EUR 4,000,000\" in clause 9.1(a) of the MSA?",
+   "answer": "In clause 9.1(a) of the MSA, \"EUR 4,000,000\" is replaced by \"EUR 6,000,000\".",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_workaround_for_the_d_09_ghosts_problem",
+   "category": "knowledge",
+   "question": "What is the workaround for the D-09 \"ghosts\" problem?",
+   "answer": "Use D-12 until D-09 is fixed (spare line, blue).",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_were_the_9m_actual_and_fy_forecast_capex_for_the_got_4",
+   "category": "general",
+   "question": "What were the 9M actual and FY forecast capex for the GOT-4 reach stacker RS-45 in the Korvane Q3 2024 board pack?",
+   "answer": "EUR 0.9m 9M actual and EUR 0.9m FY forecast.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "on_which_form_are_expenses_claimed_by_korvane_cold_chain_sp",
+   "category": "general",
+   "question": "On which form are expenses claimed by KORVANE COLD CHAIN Sp. z o.o. employees?",
+   "answer": "Expenses are claimed on form EX-7.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "why_did_the_escalation_to_the_shift_lead_not_fire_after_20_m",
+   "category": "reasoning",
+   "question": "Why did the escalation to the shift lead not fire after 20 minutes of no clearing?",
+   "answer": "The escalation to the shift lead did not fire because the rule was attached to the alarm group \"dairy-cold\" and OD-231 was still in the old group \"dairy-chilled\".",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_percentage_of_segment_revenue_for_monitoring_software",
+   "category": "code",
+   "question": "What percentage of segment revenue for Monitoring & Software comes from recurring subscriptions?",
+   "answer": "Recurring subscriptions are 87% of segment revenue for Monitoring & Software.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "how_many_teu_does_fruttoria_baltica_forecast_for_2024",
+   "category": "numeric",
+   "question": "How many TEU does Fruttoria Baltica forecast for 2024?",
+   "answer": "1,410 TEU (2023: 1,268).",
+   "verdict": "partial",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 1236"
+  },
+  {
+   "name": "on_what_date_does_the_recertification_audit_begin",
+   "category": "general",
+   "question": "On what date does the recertification audit begin?",
+   "answer": "The recertification audit starts on 14 October 2024.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "how_many_nonconformities_were_raised_at_sa1",
+   "category": "numeric",
+   "question": "How many nonconformities were raised at SA1?",
+   "answer": "Four minor nonconformities were raised at SA1.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "which_customs_office_and_contact_extension_go_with_depot_got",
+   "category": "general",
+   "question": "Which customs office and contact extension go with depot GOT-4?",
+   "answer": "The customs office for GOT-4 is Tullverket Göteborg Hamn, post 42, and the contact extension is 2700.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_benefit_do_customers_with_a_tidewalk_subscription_recei",
+   "category": "code",
+   "question": "What benefit do customers with a Tidewalk subscription receive regarding calibration?",
+   "answer": "Customers with a Tidewalk subscription get the first calibration renewal free of charge.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "why_were_the_due_dates_shorter_than_the_90_day_maximum",
+   "category": "reasoning",
+   "question": "Why were the due dates shorter than the 90-day maximum?",
+   "answer": "The due dates were shorter because several of the nonconformities had been open for most of that period already.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 14, 2024, audit, before, begins, closed, corrections, falls, inside, like, october, recertification, starting, team, window, would"
+  },
+  {
+   "name": "what_happens_in_the_korvane_handbook_if_a_leave_request_is_n",
+   "category": "general",
+   "question": "What happens in the Korvane Handbook if a leave request is not answered within 4 working days?",
+   "answer": "It is escalated automatically to the Depot Manager (or, for office staff, the Head of Department).",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_excess_power_draw_surcharge_en_1_on_the_korvan",
+   "category": "knowledge",
+   "question": "What is the excess power draw surcharge (EN-1) on the Korvane 2024 rate card?",
+   "answer": "EUR 1.35 per kW above 7.5 kW per day, metered at the plug (valid 01.03.2024 to 28.02.2025).",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_should_a_user_do_if_any_item_from_the_kc_tag_4_quick_st",
+   "category": "general",
+   "question": "What should a user do if any item from the KC-Tag 4 Quick Start Guide is missing?",
+   "answer": "If any item from the KC-Tag 4 Quick Start Guide is missing, the user should contact their Korvane sales representative.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_happens_to_the_car_if_the_requirements_are_missed",
+   "category": "general",
+   "question": "What happens to the CAR if the requirements are missed?",
+   "answer": "If missed, CAR stays open.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "who_must_an_employee_who_is_unable_to_attend_work_inform_if",
+   "category": "factual",
+   "question": "Who must an employee who is unable to attend work inform if they are operations staff?",
+   "answer": "An employee who is unable to attend work and is operations staff must inform the shift lead.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_happened_with_hub_gdy1_03_in_the_platform_oncall_chat",
+   "category": "general",
+   "question": "What happened with hub-gdy1-03 in the #platform-oncall chat of 2024-08-27 23:48?",
+   "answer": "sanna.v reported hub-gdy1-03 offline again, the 3rd time this month: the PoE injector in cab 2 gets hot when the dock doors are shut (Kamil's group measured 41 °C inside on 27.08).",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_happened_to_the_cut_off_for_the_stack_regarding_vistula",
+   "category": "general",
+   "question": "What happened to the cut-off for the stack regarding VISTULA STAR CUT-OFF?",
+   "answer": "The cut-off for the stack changed 3 days before.",
+   "verdict": "partial",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 4, times"
+  },
+  {
+   "name": "what_are_the_dimensions_and_type_of_foam_tape_included_in_th",
+   "category": "knowledge",
+   "question": "What are the dimensions and type of foam tape included in the retail box?",
+   "answer": "The retail box includes two strips of the double-sided foam tape, 60 mm wide and 120 mm long.",
+   "verdict": "partial",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 20, size"
+  },
+  {
+   "name": "what_is_the_total_size_of_the_fleet_after_the_delivery_of_wa",
+   "category": "knowledge",
+   "question": "What is the total size of the fleet after the delivery of Wave 3?",
+   "answer": "The size of the fleet after the delivery of Wave 3 is 160 tags.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 410, brings"
+  },
+  {
+   "name": "how_many_fte_are_at_location_gdy_1_gdynia",
+   "category": "numeric",
+   "question": "How many FTE are at Location: GDY-1 Gdynia?",
+   "answer": "There are 127 FTE at Location: GDY-1 Gdynia.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 118"
+  },
+  {
+   "name": "how_long_did_sanna_s_diagnosis_take_after_the_false_recovery",
+   "category": "general",
+   "question": "How long did Sanna's diagnosis take after the false recovery at 12:34?",
+   "answer": "Sanna was diagnosed at 13:02, which is 68 minutes after the false recovery at 12:34.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 24, took"
+  },
+  {
+   "name": "what_is_the_weight_of_the_kt4_r2_868",
+   "category": "knowledge",
+   "question": "What is the weight of the KT4-R2-868?",
+   "answer": "The weight of the KT4-R2-868 is 139 g.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 148"
+  },
+  {
+   "name": "what_is_the_loading_window_for_chilled_cargo_when_the_yard_i",
+   "category": "temporal",
+   "question": "What is the loading window for Chilled cargo when the yard is up to 25 °C?",
+   "answer": "The loading window for Chilled cargo when the yard is up to 25 °C is 38 minutes.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_are_the_typical_roles_and_pay_range_for_grade_o2",
+   "category": "knowledge",
+   "question": "What are the typical roles and pay range for Grade O2?",
+   "answer": "For Grade O2, the typical roles are Reefer technician and container handler, with a minimum monthly base pay of 5,600 PLN gross and a maximum monthly base pay of 7,300 PLN gross.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 5800, 6850"
+  },
+  {
+   "name": "what_is_the_warranty_period_for_the_device",
+   "category": "knowledge",
+   "question": "What is the warranty period for the device?",
+   "answer": "The warranty of the device is 24 months from the date of the delivery to the Customer.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_address_for_notices_to_korvane_according_to_sect",
+   "category": "knowledge",
+   "question": "What is the address for notices to Korvane according to Section 17.3?",
+   "answer": "Notices to Korvane go to ul. Łużycka 14, 81-537 Gdynia.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "who_wrote_the_note_about_power_cycling_a_hub_again_at_minute",
+   "category": "general",
+   "question": "Who wrote the note about power-cycling a hub again at minute 3, and what was the mistake?",
+   "answer": "Kamil; the mistake was writing \"3 minutes\" instead of \"3 m\".",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_are_the_notes_for_the_opportunity_opp_24_0307_vestfold",
+   "category": "knowledge",
+   "question": "What are the notes for the opportunity OPP-24-0307 (Vestfold Fisk AS)?",
+   "answer": "The notes for the opportunity OPP-24-0307 (Vestfold Fisk AS) are quota 14.00 t, plus 6 workers on shift. Fishmeal 9% and kelp extract 2%. Visit 3 Oct.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 2, 200, 2023, badge, emails, haddock, nordic, reefer, reefers, scan, summit, unanswered"
+  },
+  {
+   "name": "is_the_discretionary_annual_bonus_considered_an_element_of_r",
+   "category": "general",
+   "question": "Is the discretionary annual bonus considered an element of remuneration for the Employee?",
+   "answer": "The bonus is not an element of remuneration.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "when_did_the_alarm_that_tidewalk_generated_go_out",
+   "category": "temporal",
+   "question": "When did the alarm that Tidewalk generated go out?",
+   "answer": "The alarm that Tidewalk did generate went out at 22:30.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 22:41"
+  },
+  {
+   "name": "what_is_the_stage_of_the_opportunity_with_opp_id_opp_24_0303",
+   "category": "numeric",
+   "question": "What is the stage of the opportunity with opp_id OPP-24-0303?",
+   "answer": "The stage of the opportunity with opp_id OPP-24-0303 is Negotiation.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: proposal"
+  },
+  {
+   "name": "what_helped_lower_the_insurance_premium_for_fruttoria_baltic",
+   "category": "general",
+   "question": "What helped lower the insurance premium for Fruttoria Baltica in 2024?",
+   "answer": "A 2023 loss record that no longer needed footnotes helped lower the premium.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "why_did_olek_keep_stuffing_for_the_3310027_box_at_08_30_afte",
+   "category": "reasoning",
+   "question": "Why did Olek keep stuffing for the 3310027 box at 08:30 after the Vistula Star cut-off moved to 15:00?",
+   "answer": "Olek kept stuffing because the stuffing list was already printed and 08:30 was the start of stuffing, not the cut-off.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "which_yard_was_not_involved_in_the_scenario_used_for_the_o_0",
+   "category": "general",
+   "question": "Which yard was NOT involved in the scenario used for the O-01 mock recall?",
+   "answer": "The scenario used for the O-01 mock recall involved GDY-1 and RTM-3 only, so KLJ-5 was not involved.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "where_are_the_measurements_taken_by_the_tag_stored",
+   "category": "spatial",
+   "question": "Where are the measurements taken by the tag stored?",
+   "answer": "The tag keeps every measurement in its own memory.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "who_was_the_auditor_and_technical_expert_for_refrigerated_lo",
+   "category": "general",
+   "question": "Who was the auditor and technical expert for refrigerated logistics on the audit team?",
+   "answer": "Katarzyna Ostrowicz-Bell was the auditor and technical expert for refrigerated logistics.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_does_error_code_e05_mean_for_the_kc_tag_4",
+   "category": "code",
+   "question": "What does error code E05 mean for the KC-Tag 4?",
+   "answer": "Error code E05 means Battery voltage under 3.0 V when the tag is warm.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "how_many_hubs_cover_the_fruttoria_site_at_pruszcz_gda_ski_an",
+   "category": "numeric",
+   "question": "How many hubs cover the Fruttoria site at Pruszcz Gdański and who covers the yard side?",
+   "answer": "Two KC-Hub 200 gateways cover the site; Korvane's yard side is covered by its own hubs on the other road.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_capacity_of_equipment_tt_klj_01",
+   "category": "spatial",
+   "question": "What is the Capacity of equipment TT-KLJ-01?",
+   "answer": "The Capacity of equipment TT-KLJ-01 is 32 t.",
+   "verdict": "partial",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: towing"
+  },
+  {
+   "name": "do_the_contents_of_the_korvane_cold_chain_sp_z_o_o_emplo",
+   "category": "general",
+   "question": "Do the contents of the KORVANE COLD CHAIN Sp. z o.o. — Employee Handbook create contractual entitlements beyond those in an employment contract?",
+   "answer": "Nothing herein creates a contractual entitlement beyond those expressly incorporated into an employment contract.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "in_which_countries_is_the_employee_restricted_from_competing",
+   "category": "general",
+   "question": "In which countries is the employee restricted from competing with the Employer for 9 months after termination?",
+   "answer": "The employee is restricted in Poland, Germany, the Netherlands, Sweden or Lithuania.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "who_is_responsible_for_chasing_the_written_confirmation_from",
+   "category": "factual",
+   "question": "Who is responsible for chasing the written confirmation from Bastion Ochrona?",
+   "answer": "Ola F. is to chase it.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_status_of_the_facilities_ticket_for_replacing_th",
+   "category": "knowledge",
+   "question": "What is the status of the Facilities ticket for replacing the injector?",
+   "answer": "The Facilities ticket is open FAC-1187.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_was_the_capex_on_tidewalk_v7_capitalised_development_in",
+   "category": "general",
+   "question": "What was the capex on Tidewalk v7 capitalised development in the Q3 2024 board pack?",
+   "answer": "Tidewalk v7 capitalised development had capex of EUR 1.0m over nine months and an FY forecast of EUR 1.4m.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_are_the_annual_leave_entitlements_for_a_full_time_emplo",
+   "category": "knowledge",
+   "question": "What are the annual leave entitlements for a full-time employee with 3 to 5 completed years of service?",
+   "answer": "For a full-time employee with 3 to 5 completed years of service, the entitlement is 24 working days of leave per leave year.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_opp_id_for_account_aarhus_is_a_s",
+   "category": "knowledge",
+   "question": "What is the opp_id for account Aarhus Is A/S?",
+   "answer": "The opp_id for account Aarhus Is A/S is OPP-24-0315.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 0342, opp-24-0342"
+  },
+  {
+   "name": "are_appendix_a_and_appendix_b_reproduced_in_the_current_docu",
+   "category": "general",
+   "question": "Are Appendix A and Appendix B reproduced in the current document?",
+   "answer": "No, Appendix A (raw notifier logs) and Appendix B (the Pingwave throttling correspondence) are not reproduced here.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_are_the_details_for_the_saturday_reefer_from_lumikko_o",
+   "category": "knowledge",
+   "question": "What are the details for the Saturday reefer from Lumikko (Oulu feeder) mentioned by olek?",
+   "answer": "The Saturday reefer from Lumikko (Oulu feeder) is on KRVU 3310067-8, 20' at 9.45.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 0, 3310112, d-09, goes, plug"
+  },
+  {
+   "name": "who_is_the_owner_of_the_opportunity_opp_24_0305_oakhaven_da",
+   "category": "factual",
+   "question": "Who is the owner of the opportunity OPP-24-0305 (Oakhaven Dairy Ltd)?",
+   "answer": "The owner of the opportunity OPP-24-0305 (Oakhaven Dairy Ltd) is YD.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "where_did_monitoring_revenue_used_to_sit_before_the_boundary",
+   "category": "spatial",
+   "question": "Where did monitoring revenue used to sit before the boundary changes?",
+   "answer": "Monitoring revenue used to sit inside Reefer Services.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_pay_condition_for_all_other_employees_during_an",
+   "category": "knowledge",
+   "question": "What is the pay condition for all other employees during an absence of 34 to 90 days?",
+   "answer": "For all other employees, an absence of 34 to 90 days results in statutory sickness benefit only.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_solution_was_implemented_for_the_hot_poe_injector_in_ca",
+   "category": "code",
+   "question": "What solution was implemented for the hot PoE injector in cab 2?",
+   "answer": "A 120mm fan on a usb brick was put in there.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_final_vistula_star_gate_cut_off",
+   "category": "knowledge",
+   "question": "What is the final Vistula Star gate cut-off?",
+   "answer": "Thursday 15:00 (Jarek, 19 September).",
+   "verdict": "partial",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 13:30, 16:00, crane, fixed"
+  },
+  {
+   "name": "what_does_a_red_and_green_alternating_led_pattern_mean_on_th",
+   "category": "general",
+   "question": "What does a Red and green alternating LED pattern mean on the KC-Tag 4?",
+   "answer": "Red and green alternating means Firmware update in progress, do not remove the battery.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_was_the_start_time_of_the_ops_weekly_review",
+   "category": "general",
+   "question": "What was the start time of the OPS WEEKLY REVIEW?",
+   "answer": "The start time of the OPS WEEKLY REVIEW was 10:00.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_wiki_mirror_for_document_rb_017",
+   "category": "knowledge",
+   "question": "What is the wiki mirror for document RB-017?",
+   "answer": "The wiki mirror for document RB-017 is kb.korvane.example/rb/017.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_maximum_amount_of_planned_maintenance_allowed_in",
+   "category": "knowledge",
+   "question": "What is the maximum amount of Planned Maintenance allowed in any calendar month for the Tidewalk monitoring portal?",
+   "answer": "Planned Maintenance shall not exceed 6 hours in any calendar month.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "in_accordance_with_which_sections_of_the_employer_s_employee",
+   "category": "general",
+   "question": "In accordance with which sections of the Employer's Employee Handbook is the Employee entitled to annual leave and sick pay?",
+   "answer": "The Employee is entitled to annual leave and sick pay in accordance with Sections 3 and 4 of the Employer's Employee Handbook.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_happened_at_12_27_regarding_support_and_the_on_call_pri",
+   "category": "general",
+   "question": "What happened at 12:27 regarding Support and the on-call primary?",
+   "answer": "At 12:27, Support paged the on-call primary.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "where_is_the_night_shift_in_gdynia_the_owls_included",
+   "category": "spatial",
+   "question": "Where is the Night shift in Gdynia (\"the owls\") included?",
+   "answer": "The Night shift in Gdynia (\"the owls\") is included in the GDY-1 line.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_new_rcf_maturity_date_after_the_amendment",
+   "category": "knowledge",
+   "question": "What is the new RCF maturity date after the amendment?",
+   "answer": "The new RCF maturity date is 31 October 2027.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_amount_eur_for_the_opportunity_opp_24_0305_oakh",
+   "category": "knowledge",
+   "question": "What is the amount_eur for the opportunity OPP-24-0305 (Oakhaven Dairy Ltd)?",
+   "answer": "The amount_eur for the opportunity OPP-24-0305 (Oakhaven Dairy Ltd) is 18900.00.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 129300.00"
+  },
+  {
+   "name": "what_information_did_kuba_provide_regarding_the_lumikko_box",
+   "category": "general",
+   "question": "What information did kuba provide regarding the lumikko box on 2024-09-21 at 04:03?",
+   "answer": "kuba stated that it is the same, 6 boxes for lumikko and 4 for the orange ones.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 2, 2.1, d-12, probe, setpoint"
+  },
+  {
+   "name": "what_is_the_timeframe_for_commencing_court_action_regarding",
+   "category": "numeric",
+   "question": "What is the timeframe for commencing court action regarding cargo damage under the Master Services Agreement?",
+   "answer": "Any court action must be commenced within 12 months after delivery or, if delivery did not take place, after the date on which delivery should have taken place.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "does_the_customer_owe_anything_for_terminating_under_the_new",
+   "category": "general",
+   "question": "Does the Customer owe anything for terminating under the new clause 14.5 of the MSA?",
+   "answer": "No. Termination under clause 14.5 gives rise to no liability for early termination and neither party claims any consequential loss arising from it.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_are_the_requirements_to_obtain_approval_for_work_from_a",
+   "category": "knowledge",
+   "question": "What are the requirements to obtain approval for work from abroad at KORVANE COLD CHAIN Sp. z o.o.?",
+   "answer": "Approval must be written from the line manager and People & Culture obtained at least 15 working days before the first day abroad.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_confidentiality_status_of_the_board_pack_q3_2024",
+   "category": "knowledge",
+   "question": "What is the confidentiality status of the Board Pack Q3 2024?",
+   "answer": "The document is marked CONFIDENTIAL.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_summary_of_finding_f_04_regarding_the_pest_contr",
+   "category": "knowledge",
+   "question": "What is the summary of finding F-04 regarding the pest control bait station map?",
+   "answer": "The pest control company's latest map of bait station BS-GDY-08 was not inside the KC-Hub kiosk folder; it lay in a PDF on the desk of the facilities supervisor.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 46, 49, field, found, gdy-1, shows, stations"
+  },
+  {
+   "name": "what_time_zone_are_the_dashboard_timestamps_in",
+   "category": "general",
+   "question": "What time zone are the dashboard timestamps in?",
+   "answer": "The dashboard timestamps are Warsaw time.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_matter_is_still_ongoing_according_to_the_ceo_s_message",
+   "category": "numeric",
+   "question": "What matter is still ongoing according to the CEO's message?",
+   "answer": "The Oakhaven matter is still ongoing.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "who_is_the_contact_person_for_the_fleet_workshop_role_servic",
+   "category": "factual",
+   "question": "Who is the contact person for the Fleet workshop role/service?",
+   "answer": "The contact person for the Fleet workshop role/service is Gunnar Halvorsrud.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "who_is_the_fruttoria_cfo_and_when_did_they_sign_off_the_choi",
+   "category": "factual",
+   "question": "Who is the Fruttoria CFO and when did they sign off the choice of Korvane?",
+   "answer": "The Fruttoria CFO is Dominik Szewczyk, and he signed off the choice on 21 February 2023, three weeks before the contract started.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "who_is_contacted_after_30_min_in_the_escalation_ladder",
+   "category": "factual",
+   "question": "Who is contacted after 30 min in the escalation ladder?",
+   "answer": "Kamil Zdunek, Platform lead, is contacted after 30 min.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing or contradictory source anchors: wiktor szczepaniak"
+  },
+  {
+   "name": "what_priority_level_was_ticked_for_the_corrective_action_req",
+   "category": "general",
+   "question": "What priority level was ticked for the Corrective Action Request?",
+   "answer": "The priority box ticked was HIGH (certificate).",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "who_is_updating_the_guidance_in_the_investor_note_after_the",
+   "category": "factual",
+   "question": "Who is updating the guidance in the investor note after the Board meeting according to the speaker notes in the Board Pack Q3?",
+   "answer": "Priya is updating the guidance in the investor note after the Board.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_comment_for_the_late_gate_in_after_cut_off_lg_1",
+   "category": "knowledge",
+   "question": "What is the comment for the Late gate-in after cut-off (LG-1) surcharge?",
+   "answer": "The comment for the Late gate-in after cut-off (LG-1) surcharge is cut-off 16:30 local.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_did_wacek_tell_the_day_crew_about_the_vistula_star_cut",
+   "category": "general",
+   "question": "What did Wacek tell the day crew about the Vistula Star cut-off on 18 September 2024 at 08:02?",
+   "answer": "The cut-off is THURSDAY 13:30 for Vistula Star, not friday as the sheet says (the sheet is from july).",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_amendment_fee_for_the_rcf_maturity_change",
+   "category": "knowledge",
+   "question": "What is the amendment fee for the RCF maturity change?",
+   "answer": "The amendment fee for the RCF maturity change is EUR 1,250 (including VAT).",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 0.35%, 15, 52500, commitment"
+  },
+  {
+   "name": "what_is_the_condition_for_tier_t2",
+   "category": "knowledge",
+   "question": "What is the condition for Tier T2?",
+   "answer": "The condition for Tier T2 is contract of at least 12 months.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "what_is_the_clause_associated_with_finding_f_02",
+   "category": "knowledge",
+   "question": "What is the Clause associated with finding F-02?",
+   "answer": "The Clause is 8.9.4.2.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 5.1, 7.1"
+  },
+  {
+   "name": "what_is_the_instruction_regarding_the_length_of_marta_s_text",
+   "category": "knowledge",
+   "question": "What is the instruction regarding the length of Marta's text on Slide 2?",
+   "answer": "The text should not be shortened without asking her.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "which_two_specific_audits_in_the_2024_internal_audit_program",
+   "category": "code",
+   "question": "Which two specific audits in the 2024 internal audit programme were carried out more than 60 days after the planned date?",
+   "answer": "The two audits carried out more than 60 days after the planned date were the ones covering goods-in at RTM-3 and calibration at GOT-4.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "when_did_the_three_vistula_star_boxes_enter_the_gate_on_19_s",
+   "category": "temporal",
+   "question": "When did the three Vistula Star boxes enter the gate on 19 September and was that before the cut-off?",
+   "answer": "The three Vistula Star boxes were in the gate at 16:55 on 19 September, which was before the cut-off.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 14:41, 15:00, logged, olek"
+  },
+  {
+   "name": "how_many_fte_are_at_location_ham_2_hamburg_waltershof",
+   "category": "numeric",
+   "question": "How many FTE are at Location: HAM-2 Hamburg-Waltershof?",
+   "answer": "There are 127 FTE at Location: HAM-2 Hamburg-Waltershof.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 61"
+  },
+  {
+   "name": "what_is_the_amount_eur_for_opportunity_opp_24_0343",
+   "category": "knowledge",
+   "question": "What is the amount_eur for opportunity OPP-24-0343?",
+   "answer": "The amount_eur for opportunity OPP-24-0343 is 186400.00.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 90000.00"
+  },
+  {
+   "name": "what_is_the_consequence_of_paying_an_invoice_later_than_45_d",
+   "category": "knowledge",
+   "question": "What is the consequence of paying an invoice later than 45 days from the invoice date?",
+   "answer": "A payment later than 45 days from invoice date drops the customer by one tier for the following quarter (NOTE C).",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "who_are_the_2_deputies_for_the_fstl_on_call_rota",
+   "category": "factual",
+   "question": "Who are the 2 deputies for the FSTL on-call rota?",
+   "answer": "The 2 deputies for the FSTL on-call rota are W. Lenartowicz and K. Sokolowska-Reyes.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "which_component_is_excluded_from_the_24_month_warranty_of_th",
+   "category": "general",
+   "question": "Which component is excluded from the 24-month warranty of the device?",
+   "answer": "The battery is excluded from the 24-month warranty.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  },
+  {
+   "name": "for_depot_ham_2_how_many_reefer_plugs_are_available",
+   "category": "numeric",
+   "question": "For depot HAM-2, how many Reefer plugs are available?",
+   "answer": "There are 184 Reefer plugs for depot HAM-2.",
+   "verdict": "fail",
+   "why": "reasoning[source_critical_facts; validity=valid] missing source anchors: 236"
+  },
+  {
+   "name": "at_what_time_were_the_3_boxes_entered_on_thursday",
+   "category": "general",
+   "question": "At what time were the 3 boxes entered on Thursday?",
+   "answer": "The 3 boxes were in at 14:41.",
+   "verdict": "pass",
+   "why": "reasoning[source_critical_facts; validity=valid] all critical facts and content anchors are present"
+  }
+ ]
+}

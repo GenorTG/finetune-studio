@@ -1,0 +1,91 @@
+---
+out: postmortem_tidewalk_alert_outage_2024_08.docx
+tier: core
+---
+# Postmortem PM-2024-07: Tidewalk alert delivery delayed on 21 August 2024
+
+Korvane Cold Chain Sp. z o.o. — Engineering / Platform. Classification: internal. Status: FINAL (v3, circulated 29.08.2024, reviewed in the engineering meeting of 3 September).
+
+Author: Wiktor Szczepaniak (Platform lead), with input from Dominik Pawelec, Sanna Virtanen, Aneta Gorczyca-Reyes and Kamil Zdunek. Sponsor: Tomasz Wrzesiński (CTO).
+
+## 1. Summary
+
+On Wednesday 21 August 2024, between 09:14 and 13:06 CEST (3 hours 52 minutes), Tidewalk accepted telemetry from the KC-Hub 200 gateways normally and evaluated alert rules normally, but held back outgoing notifications (SMS, e-mail, webhook) and released them in large batches. The cause was a single configuration value, `alert.dispatch.batch_window_ms`, which went to production as 6000000 instead of the intended 6000. In practice that turned a six-second batching window, there to merge duplicate alerts for the same container, into a window of 100 minutes.
+
+No cargo was lost and, as far as we have been able to establish with the customers concerned, no load was spoilt. This was luck as much as design, and the rest of this document tries to be honest about that.
+
+This review follows our blameless-ish convention: we name people where it helps the reader find the right context, and we do not use names to assign fault. The honest part of "blameless-ish" is that one person made the change and one person approved it; the process allowed both, and the process is what we are fixing.
+
+## 2. Impact
+
+- **1,173 alerts** were delivered late. The median delay was 47 minutes and the maximum delay 100 minutes.
+- **64** of the late alerts were of class CRIT (temperature excursion or door-open beyond limit). Our customer-facing commitment is delivery of CRIT alerts within 5 minutes, so all 64 breached it.
+- In **9** of those 64 cases the excursion was still in progress when the alert finally reached the customer, which is the number that matters most to us.
+- **212 containers** on **38 customer accounts** were affected.
+- Three customers contacted us before we knew ourselves: Nordkjøl Seafood AS, Samsø Berry Co-op and Brunnen & Sohn Frischdienst. We thank them for the patience and the politeness, because the second call in particular was entitled to be less polite.
+- Service credit: 5% of the monthly Tidewalk monitoring fee for each of the 38 accounts, total **6,180 EUR**, approved by Priya Venkataraman-Holt on 4 September.
+
+Customers are not billed for monitoring on a per-alert basis, so the credit was a goodwill-plus-contract matter. Sofia Brandão confirmed that the Standard Monitoring Schedule does not oblige us to pay for a partial outage under four hours, and that we should pay anyway. Management agreed.
+
+## 3. Timeline
+
+All times are CEST on 21.08.2024 unless noted.
+
+| time | event |
+|---|---|
+| 09:06 | Wiktor approves change CHG-2291 (release 6.4.2 hotfix, plus a re-render of `values-prod.yaml`). Review comment: "lgtm, template only". |
+| 09:12 | Dominik starts the CHG-2291 rollout. |
+| 09:14 | Notifier workers notifier-01, -02 and -03 restart with the new config. Batch window now 6000000 ms. **Impact begins.** |
+| 10:54 | First mass flush: 311 alerts leave the queue at once. The SMS provider Pingwave throttles at 120 messages per minute, so the last of them lands about 2 minutes 35 seconds later. |
+| 11:38 | Nordkjøl Seafood AS rings the IT support desk: no door-open alert received. Desk logs INC-48213 and, reasonably but wrongly, suspects the customer's phone settings. |
+| 12:02 | Samsø Berry Co-op reports the same. No link made to the first call. |
+| 12:19 | Brunnen & Sohn Frischdienst reports the same, with some feeling. Kamil recognises the pattern. |
+| 12:27 | Support pages the on-call primary (Sanna). Acknowledged at 12:29. |
+| 12:34 | Second natural flush; alerts start arriving and the incident looks, briefly, self-healed. Diagnosis loses about 15 minutes to this. |
+| 12:58 | Sanna finds `batch_window_ms: 6000000` in the rendered notifier config. |
+| 13:06 | Emergency change CHG-2294 corrects the value, workers restart and flush. **Impact ends.** |
+| 13:41 | Backlog confirmed drained; quiet period observed before declaring done. |
+| 14:30 | Customer notice sent to all 38 affected accounts by Yusuf Demirkıran's team. |
+
+## 4. Root cause
+
+The file `values-prod.yaml` is generated for each release from a template plus an overlay. The overlay for the staging load-test profile deliberately sets a huge batch window (6000000 ms) so that synthetic floods are collapsed into a handful of notifications. During the 6.4.2 hotfix preparation the overlay was copied as the starting point for a different edit and the load-test value survived into the production render. The diff of the production values file was 214 lines because of unrelated re-ordering; the one line that mattered was line 187 and it did not stand out. The reviewer saw "template only" in the description and read it as such.
+
+Three further factors turned a configuration slip into a nearly four-hour incident:
+
+1. **The watchdog used the same pipe.** Our dead-man's switch for the alert pipeline, `watchdog.alert_pipeline`, delivers through the same notifier. When the notifier batches, the watchdog batches. The lag alert `pipeline.lag.warn_s` (threshold 900 seconds) was therefore evaluated correctly and delivered 100 minutes late.
+2. **No bounds on the value.** The configuration schema accepted any positive integer for `batch_window_ms`.
+3. **Customer calls did not escalate.** Three independent "I got no alert" calls over 41 minutes were handled as three separate tickets.
+
+## 5. What went well
+
+Kamil's recognition at 12:19 was fast once the third call came in. Sanna's diagnosis, after the false recovery at 12:34, took 24 minutes, which we consider good given the misleading signal. CHG-2294 was approved and rolled out within 8 minutes. The customer notice was clear and was written by people who had been on the phone with the customers.
+
+## 6. Action items
+
+| id | action | owner | due |
+|---|---|---|---|
+| AI-1 | Add schema validation: `batch_window_ms` may not exceed 30000, with a CI check on the rendered production values | Dominik Pawelec | 06.09.2024 |
+| AI-2 | Move `watchdog.alert_pipeline` to an independent notifier path (separate worker pool and SMS route) | Sanna Virtanen | 27.09.2024 |
+| AI-3 | Support procedure: two or more "no alert received" calls within 30 minutes page the on-call engineer | Kamil Zdunek | 13.09.2024 |
+| AI-4 | Split the staging load-test overlay out of the shared values tree so it cannot be copied by accident | Wiktor Szczepaniak | 20.09.2024 |
+| AI-5 | Synthetic canary alert every 5 minutes, end-to-end latency alarm at 120 seconds | Aneta Gorczyca-Reyes | 18.10.2024 |
+| AI-6 | Process the 6,180 EUR service credits in ColdLedger | Priya Venkataraman-Holt's team | 10.09.2024 |
+
+AI-1 was completed on 5 September, a day early. AI-6 slipped, because ColdLedger needed a manual credit-note template for multi-account credits, which it did not have; it was finished on 12 September. We note, with the usual weariness, that ColdLedger is a recurring character in our postmortems.
+
+## 7. Lessons (management view)
+
+The easy conclusion is that someone typed two extra zeros. That is true and unhelpful. Any engineer in this company could have approved that diff, and I would not bet that I would have caught it on a Wednesday morning with 214 changed lines in front of me.
+
+The better conclusion is about **how we learn that something is wrong**. For 3 hours and 5 minutes the first, and only, working detector of this failure was a customer. A company whose product is telling customers that something is wrong cannot rely on the customer to tell it that it is not telling them. That is the story of the 14th of June (the Oakhaven incident) from the other direction, and I would like us to stop re-learning it.
+
+Second, review of large generated diffs is theatre unless the reviewer is shown what matters. AI-1 and AI-4 are cheap guard rails; I would rather build ten more of those than ask people to read harder.
+
+Third, independence of the watchdog is not a nice-to-have. A monitor that shares the failure path of the thing it monitors is a decoration. AI-2 is the most important item on the list and I have asked Sanna to treat its date as firm.
+
+Finally, thanks to the support desk. The decision to page at 12:27 rather than wait for another ticket was a judgement call and it was the right one.
+
+— Tomasz Wrzesiński, CTO, 3 September 2024
+
+*Appendix A (raw notifier logs) and Appendix B (the Pingwave throttling correspondence) are in the PM-2024-07 folder on the engineering share and are not reproduced here.*

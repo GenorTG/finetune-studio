@@ -1,0 +1,80 @@
+---
+out: budget_2025_v3.xlsx
+tier: extended
+---
+## By depot
+| KORVANE COLD CHAIN - BUDGET 2025 - working version v3 (FP&A, 15.10.2024) - EUR m unless noted | | | | | | | |
+| Depot | Code | Revenue 2024 fcst | Revenue 2025 budget | Growth | Container-days 2025 (k) | Direct EBITDA 2025 | Direct margin |
+| Gdynia (the Mothership) | GDY-1 | 38.8 | 41.1 | 5.9% | 910 | 9.9 | 24.1% |
+| Hamburg-Waltershof | HAM-2 | 22.1 | 23.0 | 4.1% | 520 | 4.6 | 20.0% |
+| Rotterdam-Maasvlakte | RTM-3 | 18.0 | 20.4 | 13.3% | 470 | 4.1 | 20.1% |
+| Gothenburg-Arendal | GOT-4 | 12.0 | 12.2 | 1.7% | 220 | 1.9 | 15.6% |
+| Klaipeda yard | KLJ-5 | 4.1 | 6.8 | 65.9% | 70 | 0.7 | 10.3% |
+| Tidewalk / KC-Tag subscriptions (not depot-allocated) | GRP | 18.8 | 22.9 | 21.8% | n/a | 6.7 | 29.3% |
+| Central costs | HQ | | | | | -3.1 | |
+| TOTAL | | 113.8 | 126.4 | 11.1% | 2,190 | 24.8 | 19.6% |
+| NOTE 1 | v2 (circulated 11.09.2024) had 2025 revenue of 124.9 and EBITDA of 23.7. v3 SUPERSEDES v2: the two Helvetia lanes at HAM-2 and RTM-3 plug phase 2 were added. | | | | | | |
+| NOTE 2 | RTM-3 includes the 120 additional plug points from 1 July 2025 only (half year effect). Full-year effect in 2026 is worth about 1.3 on revenue. | | | | | | |
+| NOTE 3 | KLJ-5 is budgeted at break-even on direct EBITDA from Q2 2025; the 0.7 for the year is therefore mostly Q3-Q4. Do not show this to Dr Kielich without the sensitivity page. | | | | | | |
+| NOTE 4 | Container-days 2024 forecast: 2,000k (rounded, see Jarek's yard report). Budget 2025 assumes +9.5%. | | | | | | |
+| NOTE 5 | Direct EBITDA is before central cost allocation. Central costs of 3.1 include 0.9 for the ColdLedger replacement preparation (opex part; the capex part is CX-25-09) and 0.4 for the ISO 22000 recertification follow-up. | | | | | | |
+
+## Headcount plan
+| FTE by function | 31.12.2024 fcst | 31.03.2025 | 30.06.2025 | 30.09.2025 | 31.12.2025 |
+| Yard & terminal operations | 124 | 128 | 131 | 134 | 136 |
+| Dispatch & control room (incl. night shift) | 47 | 48 | 50 | 51 | 52 |
+| Fleet & maintenance | 38 | 38 | 39 | 40 | 41 |
+| Sales & key accounts | 21 | 22 | 23 | 24 | 24 |
+| Engineering (Tidewalk, KC-Tag) | 36 | 39 | 42 | 44 | 46 |
+| Finance | 18 | 18 | 19 | 19 | 19 |
+| People & Culture | 9 | 9 | 10 | 10 | 10 |
+| Legal & compliance | 6 | 6 | 7 | 7 | 7 |
+| IT support & infrastructure | 14 | 14 | 15 | 15 | 16 |
+| Quality | 11 | 12 | 12 | 13 | 13 |
+| Management & administration | 14 | 14 | 14 | 14 | 14 |
+| TOTAL | 338 | 348 | 362 | 371 | 378 |
+| NOTE 1 | v2 closing headcount for 31.12.2025 was 369; v3 adds 9 (7 yard operators for RTM-3 phase 2 and 2 engineers for Tidewalk v7). | | | | |
+| NOTE 2 | The opening figure of 338 is a forecast and has not been reconciled to the Q3 board pack (327 at 30.09.2024). Expect 11 net hires in Q4. | | | | |
+| NOTE 3 | Average cost per FTE 2025 assumed at EUR 82,400 including employer charges and bonus pool, up from EUR 76,900 in 2023. | | | | |
+| NOTE 4 | Agency labour is NOT in the FTE count; separate line of EUR 1.6m is in direct costs (2024 forecast: EUR 2.0m). | | | | |
+
+## Capex
+| Code | Project | Depot / area | Amount EUR k | Timing | Status |
+| CX-25-01 | RTM-3 plug racks phase 2 (120 points) | RTM-3 | 2,350 | Q1-Q3 2025 | subject to Board decision D1 on 24.10.2024 |
+| CX-25-02 | Reach stacker replacement RS-3 | GDY-1 | 1,180 | Q2 2025 | approved in 2025 plan |
+| CX-25-03 | KC-Tag 4 production batch 3 (30,000 units) | Group | 1,640 | Q1-Q3 2025 | approved in 2025 plan |
+| CX-25-04 | Shore power upgrade 1.6 MVA | GOT-4 | 920 | Q3 2025 | tender open |
+| CX-25-05 | Yard resurfacing and gate | KLJ-5 | 610 | Q2 2025 | approved in 2025 plan |
+| CX-25-06 | Tidewalk v7 capitalised development | Group | 1,450 | full year | recurring |
+| CX-25-07 | Gantry repainting and rack refurbishment | HAM-2 | 480 | Q2-Q3 2025 | postponed from 2024 (again) |
+| CX-25-08 | Electric yard tractors (6 units) | GDY-1 / HAM-2 | 690 | Q4 2025 | approved in principle |
+| CX-25-09 | ColdLedger replacement, phase 0 | Group | 385 | Q4 2025 | not yet approved |
+| CX-25-10 | Reefer unit refresh, Thermaglide TG-40 (38 units) | Group pool | 3,900 | Q1-Q2 2025 | order needed by mid-November 2024 |
+| CX-25-11 | Contingency | n/a | 700 | n/a | held by CFO |
+| TOTAL | | | 14,305 | | |
+| NOTE 1 | Thermaglide price assumed +6.5% on list from 1.1.2025 (supplier letter of 30.09.2024). Without the increase CX-25-10 would be 3,662; the increase is therefore 238. | | | | |
+| NOTE 2 | Capex 2025 budget of 14,305 compares with 16.9m forecast for 2024 (19.5m budget). The lower figure reflects the end of the KC-Tag 4 tooling spend and the finished RTM-3 phase 1. | | | | |
+| NOTE 3 | CX-25-08 depends on a grid connection at GDY-1 which Kamil says is not his problem. | | | | |
+
+## Assumptions
+| Parameter | Value | Unit | Owner | Comment |
+| Volume growth, container-days | 9.5% | per year | Jarek Lindqvist | v2 assumed 8.0% |
+| Average price uplift | 3.2% | from 1 March 2025 | Rafal Nowogrodzki | rate card 2025 not yet issued; 2024 card uplift was 3.9% |
+| Wage grid Gdynia yard | 6.5% | from 1 January 2025 | Ines Baptista-Okafor | v2 assumed 5.5% - SUPERSEDED by the agreed grid |
+| Collective agreement Hamburg | 4.2% | from 1 January 2025 | Ines Baptista-Okafor | signed 3 October 2024 |
+| Rotterdam wage indexation | 3.8% | from 1 July 2025 | Hanneke Dijkgraaf | CAO sector agreement |
+| Electricity price Gdynia | 171 | EUR per MWh | Priya Venkataraman-Holt | 2023 actual 168.1 |
+| Electricity price Rotterdam | 152 | EUR per MWh | Priya Venkataraman-Holt | day-ahead plus collar |
+| Electricity price Gothenburg | 119 | EUR per MWh | Gunnar Halvorsrud | |
+| EUR/PLN | 4.28 | rate | Treasury | budget rate |
+| EUR/SEK | 11.35 | rate | Treasury | budget rate |
+| 3-month EURIBOR | 2.65% | average 2025 | Treasury | term loan margin 1.85% on top |
+| Interest-rate swap | 2.87% | fixed rate on EUR 22.5m | Treasury | five-year swap approved on 28 June 2024 |
+| Days sales outstanding | 47 | days | Collections | 2023 actual 50.1 days |
+| Effective tax rate | 25.0% | | Tax | |
+| Depreciation and amortisation | 10.4 | EUR m | FP&A | |
+| KC-Tag 4 active units at year-end | 56,000 | units | Tomasz Wrzesinski | v2 assumed 52,000 |
+| Average subscription per tag | 29.40 | EUR per month | Tomasz Wrzesinski | 2023 actual 28.00 |
+| Dividend payout ratio | 30% | of net profit | Board | policy range 25-35% |
+| Interest cover covenant headroom floor | 5.0x | internal minimum | Priya Venkataraman-Holt | bank covenant is 4.0x |
+| NOTE | Budget v3 is a WORKING version for lender discussion only. Final adoption is planned for the Board meeting on 12 December 2024. Do not forward outside Finance and the Board. | | | |

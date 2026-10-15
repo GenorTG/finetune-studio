@@ -1,0 +1,1222 @@
+{
+  "answerable": [
+    {
+      "id": "e001",
+      "fact": "comms-0038",
+      "q": "What incident reference number did Korvane open for the Oakhaven temperature excursion?",
+      "expect": [
+        "INC-2024-0614"
+      ],
+      "reply": "Korvane opened incident KC-INC-0884.",
+      "ok": false
+    },
+    {
+      "id": "e002",
+      "fact": "comms-0061",
+      "q": "Which trailer ID and how many pallets were on the guard list sent at 23:10 for the Helvetia load?",
+      "expect": [
+        "HELV-PH-0917",
+        "18"
+      ],
+      "reply": "The guard list sent at 23:10 had trailer ID TLX-7734 with 26 pallets.",
+      "ok": false
+    },
+    {
+      "id": "e003",
+      "fact": "comms-0077",
+      "q": "When does the Vistula Star sail (ETD)?",
+      "expect": [
+        "Thursday",
+        "19:00"
+      ],
+      "reply": "The Vistula Star sails on Wed 02:00.",
+      "ok": false
+    },
+    {
+      "id": "e004",
+      "fact": "comms-0106",
+      "q": "How long was the Helvetia trailer held at the gate on 17.09 and why?",
+      "expect": [
+        "16 minutes",
+        "16 pallets",
+        "18"
+      ],
+      "reply": "The Helvetia trailer was held 2h 40min at the gate on 17.09 because the guard list had 36 pallets vs 38 real.",
+      "ok": false
+    },
+    {
+      "id": "e005",
+      "fact": "comms-0113",
+      "q": "Which socket at the yard is the new 32 A one and what current was measured on pull-down?",
+      "expect": [
+        "C-41",
+        "11.8 A"
+      ],
+      "reply": "It is socket C at the yard, and the pull-down current was 11.8 A.",
+      "ok": false
+    },
+    {
+      "id": "e006",
+      "fact": "comms-0130",
+      "q": "What are the last digits of the new pool fuel card and its daily limit?",
+      "expect": [
+        "7741",
+        "400"
+      ],
+      "reply": "The new pool fuel card ends in 7741 and has a daily limit of 60 EUR.",
+      "ok": false
+    },
+    {
+      "id": "e007",
+      "fact": "compliance-0003",
+      "q": "Which audit number in the three-year ISO cycle was the 2024 audit and when was the report issued?",
+      "expect": [
+        "SA2",
+        "24 September 2024"
+      ],
+      "reply": "The 2024 audit was audit number 3 of the three-year ISO cycle, and the report was issued on 24 September 2024.",
+      "ok": false
+    },
+    {
+      "id": "e008",
+      "fact": "compliance-0024",
+      "q": "How many major nonconformities, minor nonconformities and observations did the 2024 ISO 22000 audit raise?",
+      "expect": [
+        "one major",
+        "four minor",
+        "three observations"
+      ],
+      "reply": "The audit raised two minor nonconformities, one observation, and no major nonconformities.",
+      "ok": false
+    },
+    {
+      "id": "e009",
+      "fact": "compliance-0031",
+      "q": "Finding F-02 concerned which reference thermometer, used at which depot?",
+      "expect": [
+        "RT-HAM-07",
+        "HAM-2"
+      ],
+      "reply": "Finding F-02 concerned reference thermometer RT-HAM-07, used at Hamburg-Waltershof.",
+      "ok": false
+    },
+    {
+      "id": "e010",
+      "fact": "compliance-0059",
+      "q": "At RTM-3, how many of the sampled pre-trip inspection records were complete, and how fast could Hanneke Dijkgraaf's team retrieve a file?",
+      "expect": [
+        "40",
+        "two minutes"
+      ],
+      "reply": "29 of the 30 pre-trip inspection records sampled were complete; Hanneke Dijkgraaf's team retrieved the file in under two minutes.",
+      "ok": false
+    },
+    {
+      "id": "e011",
+      "fact": "compliance-0066",
+      "q": "Which certificate number did the lead auditor recommend maintaining, and by when did Korvane have to submit a corrective action plan for F-01?",
+      "expect": [
+        "FSMS-PL-7741-2021",
+        "27 September 2024"
+      ],
+      "reply": "The lead auditor recommended that the organisation maintain certificate no. PL/2023/0147, and Korvane had to submit a corrective action plan for F-01 by 27 September 2024.",
+      "ok": false
+    },
+    {
+      "id": "e012",
+      "fact": "compliance-0073",
+      "q": "What is the name of the certification body's complaints and appeals procedure handed over at the audit?",
+      "expect": [
+        "ACP-19"
+      ],
+      "reply": "The certification body's complaints and appeals procedure handed over is document KC-QF-131.",
+      "ok": false
+    },
+    {
+      "id": "e013",
+      "fact": "compliance-0094",
+      "q": "When was the corrective action plan sent to Aldermark and when is the evidence pack for closure due?",
+      "expect": [
+        "26.09.2024",
+        "09.10.2024"
+      ],
+      "reply": "The corrective action plan was sent to Aldermark on 17 September 2024; the evidence pack for closure is due by 22 October 2024.",
+      "ok": false
+    },
+    {
+      "id": "e014",
+      "fact": "finance-0011",
+      "q": "What was Korvane's nine-month 2024 EBITDA and margin?",
+      "expect": [
+        "15.7",
+        "18.6%"
+      ],
+      "reply": "EUR 24.9m (18.6%).",
+      "ok": false
+    },
+    {
+      "id": "e015",
+      "fact": "finance-0018",
+      "q": "What was Reefer Services revenue in Q3 2024 compared with Q3 2023?",
+      "expect": [
+        "15.1",
+        "13.6"
+      ],
+      "reply": "Reefer Services revenue was EUR 14.6m in Q3 2024, up 9.6% from EUR 13.3m in Q3 2023.",
+      "ok": false
+    },
+    {
+      "id": "e016",
+      "fact": "finance-0032",
+      "q": "How many FTE did the Gdynia depot GDY-1 have at 30 September 2024?",
+      "expect": [
+        "118"
+      ],
+      "reply": "The Gdynia depot GDY-1 had 49 FTE at 30 September 2024.",
+      "ok": false
+    },
+    {
+      "id": "e017",
+      "fact": "finance-0039",
+      "q": "What is the annualised attrition rate and the year-end 2024 headcount forecast?",
+      "expect": [
+        "9.8%",
+        "338"
+      ],
+      "reply": "The annualised attrition rate is 9.8% and the year-end 2024 headcount forecast is 335.",
+      "ok": false
+    },
+    {
+      "id": "e018",
+      "fact": "finance-0053",
+      "q": "What is the limit of the revolving credit facility and how much was drawn at 30 September 2024?",
+      "expect": [
+        "15.0",
+        "7.0"
+      ],
+      "reply": "The revolving credit facility is EUR 15.0 million, of which EUR 9.4 million was drawn at 30 September 2024.",
+      "ok": false
+    },
+    {
+      "id": "e019",
+      "fact": "finance-0060",
+      "q": "By what date is the covenant compliance certificate due to the bank?",
+      "expect": [
+        "15 November 2024"
+      ],
+      "reply": "The covenant compliance certificate is due to the bank by 15 March.",
+      "ok": false
+    },
+    {
+      "id": "e020",
+      "fact": "finance-0067",
+      "q": "What is the forecast full-year 2024 EBITDA margin?",
+      "expect": [
+        "18.9%"
+      ],
+      "reply": "The forecast full-year 2024 EBITDA margin is 19.6%.",
+      "ok": false
+    },
+    {
+      "id": "e021",
+      "fact": "finance-0089",
+      "q": "What is the day rate for a 20-foot reefer on lane RC-03 Gdynia to Gothenburg, and how many free days does it include?",
+      "expect": [
+        "44.20",
+        "2"
+      ],
+      "reply": "The day rate for a 20-foot reefer on lane RC-03 Gdynia to Gothenburg is EUR 39.60 per day, and it includes 4 free days.",
+      "ok": false
+    },
+    {
+      "id": "e022",
+      "fact": "finance-0096",
+      "q": "Who must be asked for a quote for 45-foot units, which are not on the rate card?",
+      "expect": [
+        "Rafal Nowogrodzki"
+      ],
+      "reply": "You must ask Jarek Lindqvist for a quote for 45-foot units, which are not on the rate card.",
+      "ok": false
+    },
+    {
+      "id": "e023",
+      "fact": "finance-0103",
+      "q": "What does dangerous goods handling DG-1 cost per box per move?",
+      "expect": [
+        "185.00"
+      ],
+      "reply": "DG-1 is EUR 14.80 per box per move.",
+      "ok": false
+    },
+    {
+      "id": "e024",
+      "fact": "finance-0117",
+      "q": "What is the maximum discount for pharma customers regardless of volume tier?",
+      "expect": [
+        "8.00%"
+      ],
+      "reply": "The discount for pharma customers is capped at 8.00% irrespective of the volume tier.",
+      "ok": true
+    },
+    {
+      "id": "e025",
+      "fact": "finance-0081",
+      "q": "In which week does audit planning with Aldermoor Kessler Audit take place?",
+      "expect": [
+        "2 December 2024"
+      ],
+      "reply": "Audit planning with Aldermoor Kessler Audit takes place in week 46.",
+      "ok": false
+    },
+    {
+      "id": "e026",
+      "fact": "hr-0011",
+      "q": "What is the annual leave year at Korvane and how is part-time leave credited?",
+      "expect": [
+        "calendar year",
+        "pro rata"
+      ],
+      "reply": "The annual leave year is the calendar year. Part-time employees are credited pro rata on the basis of hours worked in the year.",
+      "ok": true
+    },
+    {
+      "id": "e027",
+      "fact": "hr-0018",
+      "q": "By what date does the Company notify employees of unilaterally scheduled leave above the carry-over limit?",
+      "expect": [
+        "30 November"
+      ],
+      "reply": "The Company notifies employees by 15 March.",
+      "ok": false
+    },
+    {
+      "id": "e028",
+      "fact": "hr-0026",
+      "q": "By what time must office staff without a fixed shift call in sick?",
+      "expect": [
+        "09:30"
+      ],
+      "reply": "Office staff without a fixed shift must call in by 07:30.",
+      "ok": false
+    },
+    {
+      "id": "e029",
+      "fact": "hr-0033",
+      "q": "What percentage of base pay do employees with at least three completed years get during days 34 to 90 of sickness?",
+      "expect": [
+        "88%"
+      ],
+      "reply": "85% of base pay.",
+      "ok": false
+    },
+    {
+      "id": "e030",
+      "fact": "hr-0041",
+      "q": "What are Korvane's core working hours?",
+      "expect": [
+        "10:00",
+        "15:00"
+      ],
+      "reply": "Korvane's core working hours are 10:00-15:00 on weekdays.",
+      "ok": true
+    },
+    {
+      "id": "e031",
+      "fact": "hr-0049",
+      "q": "What are the expense ceilings in Germany for meals per day, hotel per night and private-car mileage?",
+      "expect": [
+        "36",
+        "128",
+        "0.34"
+      ],
+      "reply": "Germany: meals EUR 36 per day, hotel EUR 128 per night, private car EUR 0.39 per km.",
+      "ok": false
+    },
+    {
+      "id": "e032",
+      "fact": "hr-0056",
+      "q": "On which flights is economy class required, and what class of rail travel applies?",
+      "expect": [
+        "6 hours",
+        "second class"
+      ],
+      "reply": "Economy class is required on all flights operated by low-cost carriers (Poech, Vistula, Air Baltic) and on any flight longer than 8 hours. Second class is the limit on rail.",
+      "ok": false
+    },
+    {
+      "id": "e033",
+      "fact": "hr-0064",
+      "q": "How long does a disciplinary Stage 1 conversation stay on the personnel file?",
+      "expect": [
+        "6 months"
+      ],
+      "reply": "A disciplinary Stage 1 conversation stays on the personnel file for 12 months.",
+      "ok": false
+    },
+    {
+      "id": "e034",
+      "fact": "hr-0071",
+      "q": "Within how many days must a disciplinary appeal be lodged with the Head of People & Culture?",
+      "expect": [
+        "7"
+      ],
+      "reply": "A disciplinary appeal must be lodged within 7 days.",
+      "ok": true
+    },
+    {
+      "id": "e035",
+      "fact": "hr-0078",
+      "q": "What notice applies to either party during the 3-month probation period?",
+      "expect": [
+        "5 working days"
+      ],
+      "reply": "A 1-month notice applies to either party during the 3-month probation period.",
+      "ok": false
+    },
+    {
+      "id": "e036",
+      "fact": "hr-0100",
+      "q": "How does Korvane define a night shift?",
+      "expect": [
+        "three hours",
+        "22:00",
+        "06:00"
+      ],
+      "reply": "A night shift is any shift of which at least 8 hours fall between 22:00 and 06:00.",
+      "ok": false
+    },
+    {
+      "id": "e037",
+      "fact": "hr-0107",
+      "q": "How much time off in lieu is given per overtime hour?",
+      "expect": [
+        "1.5 hours"
+      ],
+      "reply": "Time off in lieu is granted at the rate of one hour off for every hour of overtime worked.",
+      "ok": false
+    },
+    {
+      "id": "e038",
+      "fact": "hr-0114",
+      "q": "What is the monthly gross pay band for grade O5, shift supervisor?",
+      "expect": [
+        "9,200",
+        "11,300"
+      ],
+      "reply": "The monthly gross pay band for grade O5, shift supervisor, is 6,800 to 8,600 PLN.",
+      "ok": false
+    },
+    {
+      "id": "e039",
+      "fact": "hr-0121",
+      "q": "How long does the employee's confidentiality duty last after employment ends?",
+      "expect": [
+        "5"
+      ],
+      "reply": "The duty of confidentiality survives the end of employment for 5 (five) years.",
+      "ok": true
+    },
+    {
+      "id": "e040",
+      "fact": "hr-0128",
+      "q": "How long does the post-employment non-compete last and which countries does it cover?",
+      "expect": [
+        "9",
+        "Poland",
+        "Germany",
+        "Netherlands",
+        "Sweden",
+        "Lithuania"
+      ],
+      "reply": "The post-employment non-compete lasts for 9 months after the end of employment and covers the territories of Poland, Germany, the Netherlands and Lithuania.",
+      "ok": false
+    },
+    {
+      "id": "e041",
+      "fact": "it-0014",
+      "q": "How many KC-Hub gateways do HAM-2 and RTM-3 each have?",
+      "expect": [
+        "four"
+      ],
+      "reply": "HAM-2 and RTM-3 each have 3 KC-Hub gateways.",
+      "ok": false
+    },
+    {
+      "id": "e042",
+      "fact": "it-0021",
+      "q": "What is the GOT-4 management subnet and its edge switch?",
+      "expect": [
+        "10.74.7.0/24",
+        "sw-got4-edge-01"
+      ],
+      "reply": "The GOT-4 management subnet is 10.41.7.0/24, edge switch sw-got4-edge-01 (poe-in 802.3at).",
+      "ok": false
+    },
+    {
+      "id": "e043",
+      "fact": "it-0028",
+      "q": "Which bastion host and port are used for the ping test by VPN users?",
+      "expect": [
+        "bastion-gdy1.korvane.example",
+        "2200"
+      ],
+      "reply": "The bastion host is bastion-gdy1.korvane.example with port 2220.",
+      "ok": false
+    },
+    {
+      "id": "e044",
+      "fact": "it-0042",
+      "q": "Which port and user are used for SSH to a hub, and who grants missing access?",
+      "expect": [
+        "2222",
+        "kcops",
+        "Wiktor"
+      ],
+      "reply": "Use SSH port 2222 and the hub's own `hubctl` user; ask Wiktor Szczepaniak (platform lead) for missing access, not on #platform-oncall.",
+      "ok": false
+    },
+    {
+      "id": "e045",
+      "fact": "it-0049",
+      "q": "At what clock skew versus Tidewalk does ingest reject with an error, and which error code?",
+      "expect": [
+        "90",
+        "E-4108"
+      ],
+      "reply": "Ingest rejects with E-4111 when the skew versus Tidewalk exceeds 90 s.",
+      "ok": false
+    },
+    {
+      "id": "e046",
+      "fact": "it-0056",
+      "q": "What error appears after a hub swap with the wrong gateway token?",
+      "expect": [
+        "E-4031"
+      ],
+      "reply": "E1104 appears after a hub swap with the wrong gateway token.",
+      "ok": false
+    },
+    {
+      "id": "e047",
+      "fact": "it-0063",
+      "q": "How long does the old firmware slot survive after an update?",
+      "expect": [
+        "14 days"
+      ],
+      "reply": "The old firmware slot survives the update for 7 days.",
+      "ok": false
+    },
+    {
+      "id": "e048",
+      "fact": "it-0070",
+      "q": "At the 30-minute escalation point, who is reached and on which desk extension?",
+      "expect": [
+        "Wiktor Szczepaniak",
+        "4417"
+      ],
+      "reply": "At the 30-minute escalation point, Wiktor Szczepaniak, Platform lead, is reached on desk extension 4419.",
+      "ok": false
+    },
+    {
+      "id": "e049",
+      "fact": "it-0077",
+      "q": "If a Helvetia Pharma Logistik load is affected for more than how many minutes must Benedikta be told?",
+      "expect": [
+        "15"
+      ],
+      "reply": "If a Helvetia Pharma Logistik load is affected for more than 15 minutes, Benedikta must be told.",
+      "ok": true
+    },
+    {
+      "id": "e050",
+      "fact": "it-0098",
+      "q": "How many of the late alerts in the Tidewalk alerting outage were of class CRIT?",
+      "expect": [
+        "64"
+      ],
+      "reply": "14 of the late alerts were of class CRIT.",
+      "ok": false
+    },
+    {
+      "id": "e051",
+      "fact": "it-0119",
+      "q": "At what time did the customer notice go out to the affected accounts in the Tidewalk outage, and to how many accounts?",
+      "expect": [
+        "14:30",
+        "38"
+      ],
+      "reply": "The customer notice went out to the affected accounts at 09:54, and there were 31 of them.",
+      "ok": false
+    },
+    {
+      "id": "e052",
+      "fact": "it-0133",
+      "q": "Which owner and due date does action item AI-4 have?",
+      "expect": [
+        "Wiktor Szczepaniak",
+        "20.09.2024"
+      ],
+      "reply": "AI-4 is owned by Kamil Zdunek (Legal) and is due 30.09.2024.",
+      "ok": false
+    },
+    {
+      "id": "e053",
+      "fact": "legal-0004",
+      "q": "On what date was the Oakhaven master services agreement made?",
+      "expect": [
+        "3 April 2023"
+      ],
+      "reply": "The Oakhaven master services agreement was made on 3 April 2023.",
+      "ok": true
+    },
+    {
+      "id": "e054",
+      "fact": "legal-0011",
+      "q": "What is the set-point for chilled dairy products under the Oakhaven MSA?",
+      "expect": [
+        "+3.0"
+      ],
+      "reply": "The set-point for chilled dairy products is +0.5 to +3.5 °C.",
+      "ok": true
+    },
+    {
+      "id": "e055",
+      "fact": "legal-0028",
+      "q": "Within how many days are unapplied service credits paid out on expiry or termination of the Oakhaven MSA?",
+      "expect": [
+        "60 days"
+      ],
+      "reply": "Unapplied service credits are paid out within 30 days on expiry or termination.",
+      "ok": false
+    },
+    {
+      "id": "e056",
+      "fact": "legal-0036",
+      "q": "Within what period must court actions under the Oakhaven MSA be commenced?",
+      "expect": [
+        "12 months"
+      ],
+      "reply": "Any court action under the MSA must be commenced within six years after the event on which the claim is based.",
+      "ok": false
+    },
+    {
+      "id": "e057",
+      "fact": "legal-0044",
+      "q": "Within how many days are invoices under the Oakhaven MSA payable?",
+      "expect": [
+        "35 days"
+      ],
+      "reply": "Invoices are payable within 35 days.",
+      "ok": true
+    },
+    {
+      "id": "e058",
+      "fact": "legal-0052",
+      "q": "What breach-remedy period allows immediate termination of the Oakhaven MSA for material breach?",
+      "expect": [
+        "30 days"
+      ],
+      "reply": "A breach-remedy period of 60 days after notice allows immediate termination for material breach.",
+      "ok": false
+    },
+    {
+      "id": "e059",
+      "fact": "legal-0059",
+      "q": "When are e-mail notices under the Oakhaven MSA deemed received?",
+      "expect": [
+        "09:00",
+        "next Business Day"
+      ],
+      "reply": "E-mail notices are deemed received when sent, provided the sender keeps the copy with the sent message.",
+      "ok": false
+    },
+    {
+      "id": "e060",
+      "fact": "legal-0071",
+      "q": "What does dwell at GDY-1 cost per day after the free days, and how many free days are there?",
+      "expect": [
+        "14.75",
+        "3"
+      ],
+      "reply": "Dwell at GDY-1 is EUR 36.80 per day after 4 free days.",
+      "ok": false
+    },
+    {
+      "id": "e061",
+      "fact": "legal-0085",
+      "q": "What service credit does an excursion of more than 4.0 and up to 8.0 hours earn under the amended Table A?",
+      "expect": [
+        "30%"
+      ],
+      "reply": "An excursion of more than 4.0 and up to 8.0 hours earns a service credit of 25%.",
+      "ok": false
+    },
+    {
+      "id": "e062",
+      "fact": "legal-0092",
+      "q": "What does new clause 4.7 of the Oakhaven amendment require for containers carrying chilled dairy?",
+      "expect": [
+        "second",
+        "KC-Tag 4",
+        "door end"
+      ],
+      "reply": "A second KC-Tag 4 logger, placed at the door end of the container, for every consignment carrying chilled dairy.",
+      "ok": true
+    },
+    {
+      "id": "e063",
+      "fact": "legal-0099",
+      "q": "After Amendment No. 2, what convenience notice period applies to Korvane and to the customer?",
+      "expect": [
+        "180",
+        "120"
+      ],
+      "reply": "A convenience notice of 120 days applies to Korvane and 60 days to the customer.",
+      "ok": false
+    },
+    {
+      "id": "e064",
+      "fact": "legal-0106",
+      "q": "What does Oakhaven's release of Korvane for the incident not extend to?",
+      "expect": [
+        "death",
+        "personal injury"
+      ],
+      "reply": "The release does not extend to claims for death or personal injury, or to any matter unconnected with the Incident.",
+      "ok": true
+    },
+    {
+      "id": "e065",
+      "fact": "ops-0002",
+      "q": "When did revision 6 of SOP KC-OPS-SOP-031 take effect?",
+      "expect": [
+        "2 September 2024"
+      ],
+      "reply": "Revision 6 took effect on 2 September 2024.",
+      "ok": true
+    },
+    {
+      "id": "e066",
+      "fact": "ops-0018",
+      "q": "By how much are pre-cool times extended when the yard is warmer than the threshold, and what is the threshold?",
+      "expect": [
+        "90 minutes",
+        "28"
+      ],
+      "reply": "Pre-cool times are extended by 20 minutes whenever the yard is warmer than +26 °C at the probe.",
+      "ok": false
+    },
+    {
+      "id": "e067",
+      "fact": "ops-0025",
+      "q": "What is the maximum pallet height in a 20-foot or standard 40-foot container?",
+      "expect": [
+        "2.06"
+      ],
+      "reply": "The maximum pallet height in a 20-foot or standard 40-foot container is 2.06 metres.",
+      "ok": true
+    },
+    {
+      "id": "e068",
+      "fact": "ops-0032",
+      "q": "How many KC-Tag 4 loggers go into each 40-foot and each 20-foot load?",
+      "expect": [
+        "three",
+        "two"
+      ],
+      "reply": "Ten KC-Tag 4 loggers go into every 40-foot load and six go into every 20-foot load.",
+      "ok": false
+    },
+    {
+      "id": "e069",
+      "fact": "ops-0039",
+      "q": "Within how long must an activated tag show online on the KC-Hub 200 or be replaced?",
+      "expect": [
+        "90 seconds"
+      ],
+      "reply": "An activated tag must show online on the KC-Hub 200 within 5 minutes, or it is replaced.",
+      "ok": false
+    },
+    {
+      "id": "e070",
+      "fact": "ops-0046",
+      "q": "What is the loading window for pharma GDP cargo up to 25 degrees and above 25 degrees?",
+      "expect": [
+        "16 minutes",
+        "12 minutes"
+      ],
+      "reply": "The loading window for pharma GDP cargo is 18 minutes up to 25 degrees and 14 minutes above 25.",
+      "ok": false
+    },
+    {
+      "id": "e071",
+      "fact": "ops-0053",
+      "q": "What triggers Amber Level 1 for standard cargo and for pharma cargo?",
+      "expect": [
+        "1.5",
+        "20 minutes",
+        "0.8",
+        "10 minutes"
+      ],
+      "reply": "Amber Level 1 is triggered when the KC-Tag 4 shows any of the following: the battery is below 20 % at the scheduled pickup, or the tag reports a sustained excursion of more than 3.0 °C for 15 minutes in a 15 °C setpoint, or more than 6.0 °C for 30 minutes in a 25 °C setpoint. Pharma cargo gets a tighter rule: any sustained excursion of more than 1.5 °C for 10 minutes puts you straight at Amber Level 1.",
+      "ok": false
+    },
+    {
+      "id": "e072",
+      "fact": "ops-0060",
+      "q": "At Red level, within how long does the account manager phone the customer and what sticker is applied?",
+      "expect": [
+        "60 minutes",
+        "HOLD-R"
+      ],
+      "reply": "At Red level, the account manager phones the customer within 2 hours and a HOLD sticker is applied.",
+      "ok": false
+    },
+    {
+      "id": "e073",
+      "fact": "ops-0074",
+      "q": "Within what time must tag data be downloaded after a Level 2 or higher excursion?",
+      "expect": [
+        "2 hours"
+      ],
+      "reply": "Tag data is downloaded within 2 hours after a Level 2 or higher excursion.",
+      "ok": true
+    },
+    {
+      "id": "e074",
+      "fact": "ops-0081",
+      "q": "What is the address of the GDY-1 depot?",
+      "expect": [
+        "Węglowa 3",
+        "81-340"
+      ],
+      "reply": "The address of the GDY-1 depot is ul. Węglowa 8, 81-567 Gdynia.",
+      "ok": false
+    },
+    {
+      "id": "e075",
+      "fact": "ops-0088",
+      "q": "How many reefer plugs does HAM-2 have and how many of them are on the old bund?",
+      "expect": [
+        "236",
+        "16"
+      ],
+      "reply": "HAM-2 has 46 reefer plugs, of which 12 are on the old bund (OB-1) and should not be used after the flood.",
+      "ok": false
+    },
+    {
+      "id": "e076",
+      "fact": "ops-0102",
+      "q": "What are the opening hours of KLJ-5?",
+      "expect": [
+        "Monday to Saturday",
+        "07:00",
+        "19:00"
+      ],
+      "reply": "The opening hours of KLJ-5 are Mon-Fri 05:00-22:00, Sat 06:00-14:00, and Sun closed.",
+      "ok": false
+    },
+    {
+      "id": "e077",
+      "fact": "ops-0109",
+      "q": "Which forklift is FL-GDY-04 and what is its capacity?",
+      "expect": [
+        "Toyoda 8FD35",
+        "3.5"
+      ],
+      "reply": "FL-GDY-04 is a Toyota 8FG25 at 2.5 t.",
+      "ok": false
+    },
+    {
+      "id": "e078",
+      "fact": "ops-0116",
+      "q": "What equipment is RS-GOT-01, where, and who shares it at weekends?",
+      "expect": [
+        "Lundin RS40",
+        "GOT-4",
+        "Arendal Port Services"
+      ],
+      "reply": "RS-GOT-01 is the only terminal crane at row G, and the only one that the Rotterdam feeder uses; at weekends it is shared with Maasvlakte Terminal Services (MVT) for their reefer repairs.",
+      "ok": false
+    },
+    {
+      "id": "e079",
+      "fact": "ops-0123",
+      "q": "What is the extension of the fleet workshop led by Gunnar Halvorsrud?",
+      "expect": [
+        "2750"
+      ],
+      "reply": "The extension of the fleet workshop, Gunnar Halvorsrud, is FL-HAM-05.",
+      "ok": false
+    },
+    {
+      "id": "e080",
+      "fact": "ops-0130",
+      "q": "What is the phone number of the Arendal Port Services security gate control for GOT-4?",
+      "expect": [
+        "+46 31 555 0128"
+      ],
+      "reply": "The phone number of the Arendal Port Services security gate control for GOT-4 is +47 123 45678.",
+      "ok": false
+    },
+    {
+      "id": "e081",
+      "fact": "product-0007",
+      "q": "Which magnet type is in the KC-Tag 4 retail box?",
+      "expect": [
+        "KM-2"
+      ],
+      "reply": "The retail box contains the strong magnet KM-2.",
+      "ok": true
+    },
+    {
+      "id": "e082",
+      "fact": "product-0028",
+      "q": "What does a green LED flash once every 5 seconds mean on a KC-Tag 4?",
+      "expect": [
+        "logging",
+        "hub"
+      ],
+      "reply": "Logging normally.",
+      "ok": false
+    },
+    {
+      "id": "e083",
+      "fact": "product-0050",
+      "q": "How often does the KC-Tag 4 report when a limit is exceeded, and how fast is a door event transmitted?",
+      "expect": [
+        "60 seconds",
+        "5 seconds"
+      ],
+      "reply": "When a limit is exceeded the KC-Tag 4 reports every minute until it is back. A door event is transmitted within 5 seconds.",
+      "ok": false
+    },
+    {
+      "id": "e084",
+      "fact": "product-0057",
+      "q": "At what temperature and hub distance was the KC-Tag 4 battery life table measured?",
+      "expect": [
+        "+5",
+        "60 m"
+      ],
+      "reply": "The KC-Tag 4 battery life table was measured at +25 °C and a hub distance of 30 m.",
+      "ok": false
+    },
+    {
+      "id": "e085",
+      "fact": "product-0071",
+      "q": "What does error code E09 mean on the KC-Tag 4 and what is the hub's tag limit?",
+      "expect": [
+        "E09",
+        "250"
+      ],
+      "reply": "E09 means the hub reached its tag limit of 250 tags.",
+      "ok": true
+    },
+    {
+      "id": "e086",
+      "fact": "product-0078",
+      "q": "What is required to return a KC-Tag 4 device?",
+      "expect": [
+        "RMA"
+      ],
+      "reply": "A returned KC-Tag 4 needs the original packing and the calibration certificate.",
+      "ok": false
+    },
+    {
+      "id": "e087",
+      "fact": "product-0085",
+      "q": "What is the KC-Tag 4 housing made of and what colour?",
+      "expect": [
+        "PC/ASA",
+        "7035"
+      ],
+      "reply": "The housing of the KC-Tag 4 is made of polycarbonate, colour RAL 7035 light grey.",
+      "ok": false
+    },
+    {
+      "id": "e088",
+      "fact": "product-0099",
+      "q": "What sensor does the KC-Tag 4 use for the door, and at what gap does it open and close?",
+      "expect": [
+        "Hall",
+        "12 mm",
+        "9 mm"
+      ],
+      "reply": "The door uses a Hall sensor; it opens above +9.0 mm gap and closes below +6.5 mm gap.",
+      "ok": false
+    },
+    {
+      "id": "e089",
+      "fact": "product-0106",
+      "q": "Which part number is the KC-Tag 4 logger in retail box KT4-BOX-1?",
+      "expect": [
+        "KT4-R2-868"
+      ],
+      "reply": "The KC-Tag 4 logger in retail box KT4-BOX-1 is part number KT4-R2.",
+      "ok": false
+    },
+    {
+      "id": "e090",
+      "fact": "product-0113",
+      "q": "What do customers with a Tidewalk subscription get free for the KC-Tag 4?",
+      "expect": [
+        "calibration"
+      ],
+      "reply": "Customers with a Tidewalk subscription get the first year of monitoring free.",
+      "ok": false
+    },
+    {
+      "id": "e091",
+      "fact": "sales-0006",
+      "q": "What is Fruttoria Baltica's forecast volume for 2024?",
+      "expect": [
+        "1,410"
+      ],
+      "reply": "Fruttoria Baltica forecasts a volume of 1,950 TEU for 2024.",
+      "ok": false
+    },
+    {
+      "id": "e092",
+      "fact": "sales-0013",
+      "q": "When did Fruttoria Baltica sign, and on which plan?",
+      "expect": [
+        "14 March 2023",
+        "Fairway"
+      ],
+      "reply": "Fruttoria Baltica signed on 14 January 2024 on the Growth plan.",
+      "ok": false
+    },
+    {
+      "id": "e093",
+      "fact": "sales-0027",
+      "q": "How did Fruttoria Baltica's cargo write-offs change between 2022 and 2023?",
+      "expect": [
+        "214,300",
+        "58,900"
+      ],
+      "reply": "Cargo write-offs fell from EUR 124,300 in 2022 to EUR 68,900 in 2023.",
+      "ok": false
+    },
+    {
+      "id": "e094",
+      "fact": "sales-0036",
+      "q": "For how long was Fruttoria Baltica's contract renewed in July 2024?",
+      "expect": [
+        "24 months"
+      ],
+      "reply": "Fruttoria Baltica's contract was renewed for 24 months.",
+      "ok": true
+    },
+    {
+      "id": "e095",
+      "fact": "sales-0043",
+      "q": "What is Korvane Cold Chain's registered address?",
+      "expect": [
+        "Łużycka 14",
+        "81-537"
+      ],
+      "reply": "Korvane Cold Chain Sp. z o.o. has its registered address at ul. Łużycka 14, 81-537 Gdynia, Poland.",
+      "ok": true
+    },
+    {
+      "id": "e096",
+      "fact": "sales-0050",
+      "q": "How does ColdArc Nordic's price compare for Nordkjøl Seafood and what does its offer lack?",
+      "expect": [
+        "11%",
+        "door-open"
+      ],
+      "reply": "It is lower than that of ColdArc Nordic's for Nordkjøl Seafood, but the offer lacks the 25 % off setup for 120 tags.",
+      "ok": false
+    },
+    {
+      "id": "e097",
+      "fact": "sales-0064",
+      "q": "Who is the contact at Tarnowska Mrożonki S.A. and when is the site visit?",
+      "expect": [
+        "Rafał Dybek",
+        "3 Oct",
+        "10:00"
+      ],
+      "reply": "The contact is Marta Kowarzik, Dyrektora Operacyjnego, and the visit is on Tue 17 Jun, 10:00-11:30, at their GDY-1 site.",
+      "ok": false
+    },
+    {
+      "id": "e098",
+      "fact": "sales-0071",
+      "q": "What ICP score does Adriatic Citrus have and what is the cutoff?",
+      "expect": [
+        "38",
+        "60"
+      ],
+      "reply": "Adriatic Citrus has an ICP of 58, which is above the 45 cutoff.",
+      "ok": false
+    },
+    {
+      "id": "e099",
+      "fact": "sales-0092",
+      "q": "What discount did Norrland Lax AB get and what was the approver's cap?",
+      "expect": [
+        "10.5%",
+        "11%"
+      ],
+      "reply": "Norrland Lax AB got 6.5% off (I knew it was 6.5 from the day). The approver's cap was 7, and Ola F. did not sign for 7.",
+      "ok": false
+    },
+    {
+      "id": "e100",
+      "fact": "sales-0099",
+      "q": "What discount did Haugesund Fiskemottak AS ask for and what is the KAM limit?",
+      "expect": [
+        "6%",
+        "7.5%"
+      ],
+      "reply": "They asked for 6%, the KAM limit is 4.5%.",
+      "ok": false
+    },
+    {
+      "id": "e101",
+      "fact": "comms-0099",
+      "q": "At what time on Thursday were Korvane's three boxes in at the terminal?",
+      "expect": [
+        "14:41"
+      ],
+      "reply": "Korvane's three boxes were in at 04:20 on Thursday.",
+      "ok": false
+    },
+    {
+      "id": "e102",
+      "fact": "comms-0092",
+      "q": "When and where did the weekly ops review of 24 September 2024 take place?",
+      "expect": [
+        "10:00",
+        "Orka"
+      ],
+      "reply": "The review took place on Tue 24 Sept 2024, in the boardroom (RB-3), with a view of the yard from the window.",
+      "ok": false
+    }
+  ],
+  "unanswerable": [
+    {
+      "id": "u01",
+      "q": "What is the annual base salary of Korvane's CFO Priya Venkataraman-Holt?",
+      "reply": "EUR 146,000 per annum in base salary.",
+      "ok": false
+    },
+    {
+      "id": "u02",
+      "q": "What is the registered capital (kapitał zakładowy) of Korvane Cold Chain Sp. z o.o.?",
+      "reply": "The registered capital of Korvane Cold Chain Sp. z o.o. is PLN 1,200,000.",
+      "ok": false
+    },
+    {
+      "id": "u03",
+      "q": "Which insurance policy number covers the Rotterdam depot RTM-3 against fire?",
+      "reply": "The insurance policy number is ZV-2024-088.",
+      "ok": false
+    },
+    {
+      "id": "u04",
+      "q": "What was Korvane's revenue in the second quarter of 2022?",
+      "reply": "Korvane's revenue in the second quarter of 2022 was EUR 19.4m.",
+      "ok": false
+    },
+    {
+      "id": "u05",
+      "q": "What is the IP address of the KC-Hub 200 at the Klaipeda yard KLJ-5 on the guest Wi-Fi?",
+      "reply": "The KC-Hub 200 at the Klaipeda yard KLJ-5 on the guest Wi-Fi is 10.52.7.1.",
+      "ok": false
+    },
+    {
+      "id": "u06",
+      "q": "How many days of paternity leave does the Korvane handbook grant to employees in Sweden?",
+      "reply": "The Korvane handbook grants 10 days of paternity leave to employees in Sweden.",
+      "ok": false
+    },
+    {
+      "id": "u07",
+      "q": "What is the maximum take-off weight of the Korvane company aircraft?",
+      "reply": "The maximum take-off weight of the Korvane company aircraft is 68,000 kg.",
+      "ok": false
+    },
+    {
+      "id": "u08",
+      "q": "What is the telephone number of Korvane's customer Brunnen & Sohn Frischdienst's purchasing director?",
+      "reply": "The telephone number of Korvane's customer Brunnen & Sohn Frischdienst's purchasing director is +49 40 555 0147.",
+      "ok": false
+    },
+    {
+      "id": "u09",
+      "q": "What is the battery capacity in mAh of the KC-Tag 3?",
+      "reply": "The battery capacity is 3.8 V Li-SOCl2, 2,600 mAh.",
+      "ok": false
+    },
+    {
+      "id": "u10",
+      "q": "On what date did Korvane open its depot in Gdansk-Port Północny?",
+      "reply": "Korvane opened its depot in Gdansk-Port Północny on 15 May 2023.",
+      "ok": false
+    },
+    {
+      "id": "u11",
+      "q": "What is the penalty rate for late payment of invoices to Thermaglide Reefer Units BV in the 2021 supply agreement?",
+      "reply": "The penalty for late payment is 1.5% per month on the outstanding amount.",
+      "ok": false
+    },
+    {
+      "id": "u12",
+      "q": "What is the name of the Korvane employee who won the 2023 safety award?",
+      "reply": "The name of the Korvane employee who won the 2023 safety award is Jarek Lindqvist.",
+      "ok": false
+    },
+    {
+      "id": "u13",
+      "q": "What does the Korvane canteen at GDY-1 charge for a lunch menu?",
+      "reply": "The Korvane canteen at GDY-1 charges PLN 34.60 for a lunch menu.",
+      "ok": false
+    },
+    {
+      "id": "u14",
+      "q": "Which Tidewalk version introduced the dark mode?",
+      "reply": "The Tidewalk version that introduced the dark mode is 4.8.",
+      "ok": false
+    },
+    {
+      "id": "u15",
+      "q": "How many TEU did Korvane move in 2019?",
+      "reply": "In 2019, Korvane moved 1,283 TEU.",
+      "ok": false
+    },
+    {
+      "id": "u16",
+      "q": "What is the Wi-Fi password of the HAM-2 gate cabin?",
+      "reply": "The Wi-Fi password of the HAM-2 gate cabin is ham2wifi.",
+      "ok": false
+    },
+    {
+      "id": "u17",
+      "q": "What is the cancellation fee in the Helvetia Pharma Logistik quality agreement for a missed audit?",
+      "reply": "The cancellation fee is EUR 1,250.",
+      "ok": false
+    },
+    {
+      "id": "u18",
+      "q": "Who is the Head of Procurement at Korvane?",
+      "reply": "The Head of Procurement at Korvane is Jarek Lindqvist.",
+      "ok": false
+    },
+    {
+      "id": "u19",
+      "q": "What is the diameter of the KC-Hub 200's external antenna mast in millimetres?",
+      "reply": "The diameter of the KC-Hub 200's external antenna mast is 68 mm.",
+      "ok": false
+    },
+    {
+      "id": "u20",
+      "q": "What is the interest rate margin on Korvane's term loan with Baltic Commerz Bank?",
+      "reply": "The interest rate margin on Korvane's term loan with Baltic Commerz Bank is 1.75%.",
+      "ok": false
+    }
+  ]
+}

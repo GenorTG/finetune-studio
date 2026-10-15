@@ -1,0 +1,41 @@
+---
+out: depot_directory_2024.xls
+tier: core
+---
+## Depots
+| KORVANE COLD CHAIN - DEPOT DIRECTORY 2024 - rev 7 - updated 11.01.2024 (J.L.) - internal, do not forward | | | | | | | |
+| Code | Nickname | Site address | Gate hours | Reefer plugs | Customs office | Contact ext | Notes |
+| GDY-1 | the Mothership | ul. Węglowa 3 (Gate B), 81-340 Gdynia | Mon 00:00 - Sat 22:00 non-stop; Sun 06:00-20:00 | 412 | Urząd Celno-Skarbowy w Gdyni, Oddział Portowy, window 3 | 2100 | plus 24 temp plugs on pad C Oct-Jan (see JL mail 03.02) - NOT counted in the 412!! Gate B only, Gate A is the HQ car park, drivers keep mixing them up |
+| HAM-2 | Waltershof | Containerterminal-Zufahrt 5, 21129 Hamburg | Mon-Fri 05:00-22:00; Sat 06:00-14:00; Sun closed | 236 | Hauptzollamt Hamburg-Hafen, Zollstelle Waltershof | 2300 | 236 incl. 16 on the old bund (Greta counted 16 on 12.03 - keep 236). Lane 2 only open after 18:00. |
+| RTM-3 | Maasvlakte | Amazonehaven-West, unit 12, 3199 LC Maasvlakte | Mon 00:00 - Sat 20:00 non-stop; Sun 22:00-24:00 only | 184 | Douane Rotterdam Haven, loket 4 | 2400 | contact is Hanneke Dijkgraaf (depot mgr), not the old gate cabin number which still rings in the 2022 leaflets |
+| GOT-4 | Arendal | Skarviksvägen 9, 418 34 Göteborg | Mon-Fri 06:00-21:00; weekends by appointment, 24 h notice via Arendal Port Services | 96 | Tullverket Göteborg Hamn, kontor 2 | 2500 | ask for Mats NOT Lars (Lars left in June) |
+| KLJ-5 | the yard | Nemuno g. 71, 91199 Klaipėda | Mon-Sat 07:00-19:00, no night gate | 38 | Klaipėdos teritorinė muitinė, post 2 | 2600 | opened 2023. 6 of the 38 plugs are 16A only - no 32A boxes on those, check before you promise anyone a frozen load |
+## Cranes & equipment
+| Equipment ID | Type | Depot | Model | Capacity | Notes | | |
+| RS-GDY-01 | reach stacker | GDY-1 | Lundin RS45 | 45 t | main stacker; keys live in the shift office safe | | |
+| RS-GDY-02 | reach stacker | GDY-1 | Lundin RS45 | 45 t | backup, do NOT lend to Waltershof again | | |
+| GC-GDY-01 | rail-mounted gantry crane | GDY-1 | Brandstad RMG-6 | 40 t under spreader | spans 6 rows plus one truck lane; wind cut-off 16 m/s | | |
+| FL-GDY-04 | forklift (diesel) | GDY-1 | Toyoda 8FD35 | 3.5 t | | | |
+| FL-GDY-05 | forklift (LPG) | GDY-1 | Toyoda 8FG25 | 2.5 t | indoor use only in Hall 4 with the gas alarm on | | |
+| RS-HAM-01 | reach stacker | HAM-2 | Lundin RS45 | 42 t | derated from 45 t after the boom repair in 2022, plate says 42 | | |
+| FL-HAM-02 | forklift (electric) | HAM-2 | Toyoda 8FBE30 | 3.0 t | charger in bay 3 | | |
+| RS-RTM-01 | reach stacker | RTM-3 | Lundin RS45 | 45 t | | | |
+| FL-RTM-03 | forklift (diesel) | RTM-3 | Toyoda 8FD35 | 3.5 t | | | |
+| MC-RTM-02 | mobile crane (hired) | RTM-3 | Terex-class 60 | 60 t | hire contract ends 31.12.2024, ask Hanneke before planning heavy lifts after that | | |
+| RS-GOT-01 | reach stacker | GOT-4 | Lundin RS40 | 40 t | shared with Arendal Port Services at weekends | | |
+| FL-GOT-02 | forklift (diesel) | GOT-4 | Toyoda 8FD28 | 2.8 t | | | |
+| TT-KLJ-01 | terminal tractor | KLJ-5 | Mol TT32 | 32 t towing | | | |
+| FL-KLJ-02 | forklift (electric) | KLJ-5 | Toyoda 8FBE30 | 3.0 t | the only forklift in Klaipėda - if it breaks, ring GDY-1 | | |
+## Emergency
+| Role / service | Name | Number | Notes | | | | |
+| Duty Ops desk (24/7) | Dispatch, Gdynia | ext 2000 or +48 58 555 0147 | owls pick up at night, Olek Maraszek is usually the voice |
+| Head of Operations | Jarek Lindqvist | ext 2010 or +48 58 555 0110 | any Black excursion, any injury |
+| Quality on-call | Benedikta Aaltonen | ext 2620 | escalate Red excursions here |
+| Fleet workshop | Gunnar Halvorsrud | ext 2750 | swap boxes, unit faults |
+| Cold-store plant room GDY-1 | Hall 4 plant room | ext 2199 | ammonia alarm panel is outside the north door |
+| Fire / ambulance / police (EU) | national dispatcher | 112 | say which depot, say CONTAINER TERMINAL first |
+| Gdynia port authority control | harbour control | +48 58 555 0233 | for spills on the quay, not for fires |
+| Hamburg port authority | Hafenkapitän duty officer | +49 40 555 0182 | HAM-2 |
+| Customs broker (GreyLine Customs Agency) | Annelie Wibbeke | +48 58 555 0381 | out of hours: +49 40 555 0145 |
+| Insurance claims line (Seaboard Insurance Brokers) | claims desk | +44 20 555 0166 | quote policy no. SB-KCC-7710-24 |
+| Arendal Port Services security | gate control | +46 31 555 0128 | GOT-4 |

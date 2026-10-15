@@ -1,0 +1,145 @@
+---
+out: security_policy_2024.docx
+tier: extended
+---
+# Information Security Policy — Korvane Cold Chain Sp. z o.o.
+
+**Policy no. ISP-2024-03** · Effective 1 July 2024 · Version 3.1 (draft 3.0 circulated 20 May 2024) · Classification: INTERNAL
+
+Prepared with the support of Brandvarn Security Advisory (lead consultant: Leopold Hartvig-Nkemelu) · Policy owner: Tomasz Wrzesiński, CTO · Information Security Officer: Kamil Zdunek, IT Support Lead · Deputy ISO: Sanna Virtanen · Legal review: Sofia Brandão
+
+## 1. Purpose, scope and status
+
+1.1 This Policy sets out the minimum information security requirements that apply to Korvane Cold Chain Sp. z o.o. (the "Company") and to every person who has access to Company information or systems, whether as an employee, an agency worker, a contractor, an intern or a visitor who has been given a guest account (together, "Users"). It applies at all five depots, at the registered office, in the field, and at home, and to all Company-owned and, to the extent set out in section 6, personally owned devices.
+
+1.2 This Policy replaces the Information Security Policy ISP-2022-01 dated 1 March 2022 ("the 2022 Policy"), which is withdrawn with effect from 1 July 2024. Where this Policy and the 2022 Policy differ, this Policy applies. For the avoidance of doubt, the most visible changes are the password rules (section 3), the introduction of mandatory hardware keys for privileged access (section 4) and the shortening of the incident reporting period (section 8).
+
+1.3 Nothing in this Policy limits the Company's obligations under the General Data Protection Regulation, the Polish Act on the Protection of Personal Data, the NIS2 implementing legislation as it applies to the Company, or the security clauses of any customer contract. Where a customer contract (for instance, the quality agreement with Helvetia Pharma Logistik GmbH) requires a stricter rule, the stricter rule prevails for that customer's data.
+
+1.4 The Information Security Officer ("ISO") is responsible for the day-to-day operation of this Policy. Deviations require a written exception under section 11.
+
+> *Consultant's note (L.H.-N.): In our June walkthrough we found that the 2022 Policy was known, by name, to about one employee in four, and was read by considerably fewer. This revision is shorter by 11 pages. We recommend the Company resists the temptation to add them back.*
+
+## 2. Roles
+
+The CTO owns the Policy and reports on it to the Management Board twice a year, in March and in September. The ISO operates the controls, runs the access reviews and keeps the incident log. Line managers are responsible for ensuring their teams complete the training in section 10 and for requesting and removing access promptly. Every User is responsible for protecting the information entrusted to them, for following this Policy and for reporting any incident or suspected incident without delay.
+
+## 3. Passwords
+
+3.1 A password for a personal Company account must be at least **14 characters** long. The 2022 Policy's minimum of 10 characters is withdrawn. A passphrase of four or more unrelated words satisfies the requirement, and Users are encouraged to use one.
+
+3.2 Passwords must not be re-used across Company and non-Company services, and a User's new password must differ from each of the last 12 passwords. Passwords are checked at creation against a list of known-breached passwords; a password found on the list is rejected.
+
+3.3 Passwords do **not** expire on a fixed schedule. The 2022 Policy required a change every 90 days, which is withdrawn because forced rotation has been shown to produce weaker passwords. A password must however be changed immediately if there is any suspicion that it has been disclosed.
+
+3.4 Passwords must be kept in the Company-approved password manager (at the date of this Policy, KeepKey Teams, with the vault named KC-General for shared items). Passwords must not be written on paper, stored in spreadsheets, or sent by e-mail or chat. A User who needs to share a credential must use the password manager's sharing function.
+
+3.5 Shared personal accounts are prohibited. A role mailbox or a service account is not a shared personal account, but each must have a named owner. Service account passwords must be at least 32 characters long, generated randomly, and rotated at least every 180 days or when the owner leaves the Company.
+
+3.6 After 8 consecutive failed log-in attempts a Company account is locked for 30 minutes. (This figure differs from the lock-out rule inside Tidewalk, which has its own tenant settings and is described in the Tidewalk Administrator's Guide.)
+
+> The 2022 Policy also stated that "passwords must contain at least 1 digit and 1 symbol, and must be 10 characters long". We mention it only so that no one is tempted to quote it.
+
+## 4. Multi-factor authentication
+
+4.1 Multi-factor authentication ("MFA") is mandatory for: all remote access to the Company network; Company e-mail and the collaboration suite; the password manager; the Tidewalk administration console for Korvane staff; ColdLedger administrative roles; and any cloud provider console.
+
+4.2 For privileged access, meaning production infrastructure at Lintu Cloud Hosting, the hub provisioning vault, domain administration and the Tenant Admin role in Tidewalk held by Korvane staff, a hardware security key (FIDO2) is required. Time-based one-time passwords alone are not sufficient for these purposes from 1 October 2024. Every holder of privileged access must register two hardware keys, one primary and one spare kept in the office safe of their home depot.
+
+4.3 Push-based MFA must use number matching. Approving a prompt that the User did not initiate is a reportable event under section 8.
+
+4.4 MFA reset requests are handled by the IT Support desk (ext. 4120) and require verification of the User's identity by their line manager over a channel other than the one used for the request. Resets are logged.
+
+## 5. Patching and vulnerability management
+
+5.1 Patches and mitigations must be applied within the periods below, counted from the time the patch or mitigation is available to the Company. Severity is taken from the CVSS v3.1 base score unless the ISO decides, in writing, that the environmental context justifies a different class.
+
+| severity | CVSS score | internet-facing systems | internal systems |
+|---|---|---|---|
+| Emergency (known to be exploited) | any | 24 hours | 72 hours |
+| Critical | 9.0 to 10.0 | 72 hours | 7 days |
+| High | 7.0 to 8.9 | 14 days | 30 days |
+| Medium | 4.0 to 6.9 | 45 days | 90 days |
+| Low | below 4.0 | 120 days | next scheduled cycle |
+
+5.2 The "next scheduled cycle" for internal systems is the second Tuesday of each month, and the maintenance window for Company workstations is from 18:00 to 21:00 on that day, with the laptop updater forcing a restart after 3 postponements.
+
+5.3 Operating-system and browser updates on laptops must be installed within 10 days of release, whatever their severity. Laptops that have not checked in with the management console for 21 days are blocked from the network.
+
+5.4 Vulnerability scans of the internet-facing estate run weekly, on Sundays at 02:00. Internal scans run monthly. An external penetration test of Tidewalk is commissioned once a year; the 2024 test was carried out between 3 and 21 June 2024.
+
+5.5 End-of-life software must not be used for any system that handles customer data. The sole current exception, approved until 31 December 2024, is the legacy KC-Tag 3 programming station at Rotterdam, which runs on an operating system that is no longer supported and is disconnected from the network between uses.
+
+## 6. Laptops and mobile devices
+
+6.1 Company laptops are encrypted with full-disk encryption (BitLocker on Windows, LUKS on Linux, FileVault on macOS) and must lock after 5 minutes of inactivity. Users must not disable encryption or the screen lock.
+
+6.2 Local administrator rights are not granted to Users by default. Engineers who need them obtain a time-limited elevation of up to 4 hours through the management console.
+
+6.3 A User may be assigned at most 2 Company devices of any kind at the same time. Devices are replaced every 4 years or sooner on failure. The IT Support desk keeps a loan pool of 18 laptops for travel and emergencies; a loaned laptop must be returned within 14 days.
+
+6.4 Removable storage (USB sticks, external drives) must not be connected to Company devices unless issued by IT Support and encrypted. Customer data must not be copied to removable media at all.
+
+6.5 Personal phones may be used to receive MFA prompts and Company e-mail only if they are enrolled in the Company mobile-device management profile, which enforces a 6-digit PIN or better, encryption and the ability to wipe the Company container remotely. Personal laptops may not be used to process Company information.
+
+6.6 A lost or stolen Company device must be reported to the IT Support desk or the ISO within **2 hours** of the User noticing the loss. The 2022 Policy gave 24 hours. The device will be remotely locked and, if not recovered within 5 working days, wiped.
+
+6.7 When travelling outside the European Economic Area, Users must take a clean loan laptop from the pool described in 6.3 and not their usual device. Taking a Company laptop to a country on the Company's restricted travel list requires the ISO's written approval at least 7 days before departure.
+
+6.8 In the depots, shared terminals in the dispatch room are exempt from the 5-minute lock but must lock after 15 minutes, may be used only with a personal log-in, and are fitted with privacy screens. The night shift (the owls) have told us that the privacy screens are unpopular. They remain.
+
+## 7. Access control and leavers
+
+7.1 Access is granted on a least-privilege basis and requires approval by the line manager. Privileged access additionally requires the approval of the ISO.
+
+7.2 The ISO runs an access review every quarter, in the first two weeks of January, April, July and October. Managers must confirm or revoke each of their team members' entitlements within 10 working days of receiving the review. Entitlements that are not confirmed are revoked.
+
+7.3 When an employee leaves, all access is removed within **4 hours** after the end of their last working day, and in the case of dismissal immediately. Contractor and agency accounts expire automatically after 90 days and must be renewed by the sponsoring manager.
+
+7.4 Access to the server room at the registered office, and to the network cabinets at the depots, is limited to named persons. The list is reviewed every month by the ISO and is held by Facilities. Visitors must wear a badge and be escorted at all times in areas where Company information is processed.
+
+## 8. Incident reporting
+
+8.1 "Security incident" means any event that actually or potentially compromises the confidentiality, integrity or availability of Company or customer information, including: loss or theft of a device; a phishing e-mail that was clicked or answered; an unexpected MFA prompt that was approved; malware; unauthorised access; mis-sent e-mail containing customer data; and any suspicion of the above.
+
+8.2 Users must report a security incident **within 1 hour** of becoming aware of it, at any time of day or night. The 2022 Policy allowed 24 hours. Reports go to security@korvane.example, to the IT Support desk at ext. 4120 (staffed 06:00–22:00 on weekdays) or, outside those hours, to the emergency mobile number on the back of the staff badge, which is answered by the on-call engineer.
+
+8.3 The ISO acknowledges a report within 30 minutes during support hours and within 2 hours outside them, classifies the incident and informs the CTO. Incident classes are S1 (confirmed loss of customer data or loss of the Tidewalk service), S2 (probable compromise of an account or device), S3 (policy violation without compromise) and S4 (near miss).
+
+8.4 Where an incident involves personal data, the Company's legal counsel (Sofia Brandão) decides whether notification to the supervisory authority is required. If it is, notification is made within 72 hours of the Company becoming aware of the breach. Customers whose data is affected by a confirmed breach are informed within 48 hours of confirmation, which is the period most of our contracts use; contracts with a shorter period prevail.
+
+8.5 Users must not attempt to investigate an incident themselves, delete evidence, or contact the person who may have caused the incident. Reporting an incident in good faith will not lead to disciplinary action even if the User made a mistake; failure to report will.
+
+8.6 The incident log is kept for 3 years. Incidents of class S1 and S2 are followed by a post-incident review, written within 5 working days, in the format the engineering team has used since the Tidewalk alerting postmortem of August 2024.
+
+## 9. Backup, remote work and physical security
+
+9.1 Company file shares and mailboxes are backed up daily at 23:00, with a retention period of 30 days for daily copies and 12 months for monthly copies. Backups are copied off-site to Lintu Cloud Hosting and encrypted. Restore tests are carried out every 6 months.
+
+9.2 Remote access to the Company network is through the Company VPN only, which requires MFA. Split tunnelling is disabled. Public Wi-Fi may be used only with the VPN switched on.
+
+9.3 A clean-desk rule applies in the dispatch rooms, in the finance office and wherever customer documents are handled: documents containing customer data must be locked away when the User leaves their desk for more than 30 minutes, and at the end of every shift. Printouts are collected by the shredding service on the first Wednesday of every month, in locked bins.
+
+## 10. Training and awareness
+
+10.1 Every User completes the security awareness course of 45 minutes within 30 days of joining and then once every year. Completion rates are reported to the Management Board; the target is 98%.
+
+10.2 Phishing simulations are run every quarter. The target click rate is below 6%. A User who clicks on three simulated phishing messages within 12 months is offered one-to-one coaching with the ISO; this is not a disciplinary measure, although some people have felt it was.
+
+## 11. Exceptions, enforcement and review
+
+11.1 An exception to any requirement of this Policy must be requested in writing, state the risk and the compensating controls, and be approved by the ISO and by the CTO. An exception is valid for at most 6 months and is recorded in the exceptions register.
+
+11.2 Breach of this Policy may lead to disciplinary action in accordance with the employee handbook, up to and including termination of employment or contract.
+
+11.3 The Policy is reviewed every 12 months, or sooner after an S1 incident. The next scheduled review is in June 2025.
+
+## Document history
+
+| version | date | summary |
+|---|---|---|
+| ISP-2022-01 | 1 March 2022 | First consolidated policy (withdrawn) |
+| 3.0 (draft) | 20 May 2024 | Circulated for comments to department heads |
+| 3.1 | 1 July 2024 | Approved by the Management Board on 24 June 2024, effective 1 July 2024 |
+
+*Approved: Marta Kowarzik, CEO, on behalf of the Management Board.*

@@ -1,0 +1,395 @@
+{% extends "base.html" %}
+{% block title %}Projects · Finetune Studio{% endblock %}
+{% block nav_projects %}active{% endblock %}
+{% block sb_path %}~ / projects{% endblock %}
+
+{% block topbar_right %}
+  <button class="btn" onclick="document.getElementById('import-project-modal').hidden=false" title="Import project from archive">⇧ Import</button>
+{% endblock %}
+
+{% block content %}
+<div class="page-head row">
+  <div>
+    <h1>Projects</h1>
+    <div class="sub">Each project groups its files and knowledge, training runs, the Smart Brain and chat history.</div>
+  </div>
+</div>
+
+{# New project form #}
+<div class="card mb-6" id="new-project" hidden>
+  <div class="card-head">
+    <div>
+      <div class="card-title">New project</div>
+      <div class="card-sub">Pick a template to pre-fill common settings, or start from scratch.</div>
+    </div>
+  </div>
+  <form id="np-form" data-api="/api/projects" data-reload="true">
+    <div class="mb-4">
+      <span class="muted text-xs">Template</span>
+      <div class="flex gap-2 mt-1" id="np-templates">
+        <button type="button" class="btn sm template-btn active" data-template="blank" onclick="selectTemplate('blank')">📄 Blank</button>
+        <button type="button" class="btn sm template-btn" data-template="chat" onclick="selectTemplate('chat')">💬 Chat-focused</button>
+        <button type="button" class="btn sm template-btn" data-template="training" onclick="selectTemplate('training')">🎯 Training</button>
+        <button type="button" class="btn sm template-btn" data-template="brain" onclick="selectTemplate('brain')">🧠 Smart Brain</button>
+      </div>
+    </div>
+    <div class="grid" style="grid-template-columns:1fr 1fr;">
+      <label>
+        <span class="muted text-xs">Name</span>
+        <input class="input" name="name" placeholder="e.g. Helios handbook" required>
+      </label>
+      <label>
+        <span class="muted text-xs">Base model (optional)</span>
+        <select class="select" name="base_model" id="np-base">
+          <option value="">— pick later —</option>
+        </select>
+      </label>
+      <label style="grid-column:1 / -1;">
+        <span class="muted text-xs">Description</span>
+        <textarea class="textarea" name="description" rows="2" placeholder="What is this project for?"></textarea>
+      </label>
+      <label style="grid-column:1 / -1;">
+        <span class="muted text-xs">Tags (comma-separated)</span>
+        <input class="input" name="tags" placeholder="e.g. handbook, production, experiment">
+      </label>
+      <label style="grid-column:1 / -1;">
+        <span class="muted text-xs">System prompt</span>
+        <textarea class="textarea" name="system_prompt" rows="3" placeholder="You are a helpful assistant that…"></textarea>
+      </label>
+    </div>
+    <div class="flex gap-2 mt-4">
+      <button type="submit" class="btn primary">Create</button>
+      <button type="button" class="btn ghost" onclick="document.getElementById('new-project').hidden=true">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<div class="flex mb-4">
+  <div class="flex gap-2 items-center">
+    <input id="proj-search" class="input" placeholder="Search projects…" style="max-width:280px;" oninput="filterProjects()">
+    <select id="proj-sort" class="select" style="max-width:140px;" onchange="filterProjects()" title="Sort projects">
+      <option value="updated">Last updated</option>
+      <option value="created">Newest first</option>
+      <option value="name">Name A-Z</option>
+      <option value="name-desc">Name Z-A</option>
+    </select>
+  </div>
+  <button class="btn primary" id="new-project-btn" onclick="(function(){const c=document.getElementById('new-project');if(c){c.hidden=false;c.scrollIntoView({behavior:'smooth',block:'start'});}})()" style="margin-left:auto;">＋ New project</button>
+</div>
+
+{# Bulk-action bar — shows when at least one card is selected. #}
+<div class="bulk-bar" id="bulk-bar">
+  <label class="flex items-center gap-2" style="font-size:12px;">
+    <input type="checkbox" id="proj-select-all" onclick="event.stopPropagation(); selectAll(this.checked);">
+    <span class="muted">all visible</span>
+  </label>
+  <span id="bulk-count" class="mono text-xs">0 selected</span>
+  <button type="button" class="btn ghost" style="margin-left:auto;" onclick="clearSelection()">Clear</button>
+  <button type="button" class="btn danger" onclick="bulkDelete()">Delete selected</button>
+</div>
+
+{% if not projects %}
+  <div class="empty">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
+    <div>No projects yet.</div>
+    <button class="btn primary" style="margin-top:12px;" onclick="document.getElementById('new-project').hidden=false">Create your first project</button>
+  </div>
+{% else %}
+  <div class="proj-list" id="proj-list">
+    {% for p in projects %}
+    <a class="proj-card" href="/projects/{{ p.id }}" data-link data-search="{{ (p.name + ' ' + (p.description or '') + ' ' + (p.tags or ''))|lower }}" data-pid="{{ p.id }}" data-name="{{ p.name|e }}" data-created="{{ p.created_at or 0 }}" data-updated="{{ p.updated_at or 0 }}">
+      <input type="checkbox" class="proj-select"
+             onclick="event.preventDefault(); event.stopPropagation(); toggleSelect('{{ p.id }}', this.checked);"
+             aria-label="Select {{ p.name|e }}">
+      <button type="button" class="proj-delete"
+              onclick="event.preventDefault(); event.stopPropagation(); confirmDelete(['{{ p.id }}'], this.closest('.proj-card').dataset.name);"
+              aria-label="Delete {{ p.name|e }}">✕</button>
+      <button type="button" class="proj-work"
+              onclick="event.preventDefault(); event.stopPropagation(); window.location='/projects/{{ p.id }}/wizard';"
+              title="One page: train a model or build the Smart Brain from your files">⚡ quick work</button>
+      <div class="ph-icon lg">
+        {{ p.name[0]|upper }}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div class="name">{{ p.name }}</div>
+        <div class="desc truncate" title="{{ p.description or 'No description yet — click to open.' }}">{{ p.description or 'No description yet — click to open.' }}</div>
+        <div class="flex gap-2 mt-1" style="font-size:11px;">
+          {% if p.base_model %}<span class="pill solid-blue">base: {{ p.base_model.split('/')[-1].replace('__', '/') }}</span>{% endif %}
+          {% if p.production_run %}<span class="pill solid-green">● production</span>{% endif %}
+          {% if p.tags %}{% for t in p.tags.split(',') %}<span class="pill solid-purple">{{ t.strip() }}</span>{% endfor %}{% endif %}
+          <span class="dim mono">{{ p.id[:8] }}</span>
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{# Import modal. #}
+<div class="modal-back" id="import-project-modal" hidden onclick="if(event.target===this)this.hidden=true">
+  <div class="modal">
+    <h3 style="margin-top:0;">Import project</h3>
+    <p class="muted text-sm">Upload a <code>.tar.gz</code> archive exported from another Finetune Studio instance.</p>
+    <form id="import-form" enctype="multipart/form-data" class="mt-3">
+      <input type="file" id="import-file" accept=".tar.gz,.tar" class="input" required>
+      <div id="import-status" class="text-xs dim mt-2"></div>
+    </form>
+    <div class="modal-foot" style="margin-top:16px;">
+      <button class="btn ghost" onclick="document.getElementById('import-project-modal').hidden=true">Cancel</button>
+      <button class="btn primary" onclick="submitImport()">Import</button>
+    </div>
+  </div>
+</div>
+
+{# Delete-confirm modal; one instance reused for single + bulk delete. #}
+<div class="modal-bg" id="delete-modal-bg" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3 id="delete-modal-title" style="margin-top:0;">Confirm delete</h3>
+    <p id="delete-modal-body" class="muted text-sm"></p>
+    <div class="flex gap-2 mt-4" style="justify-content:flex-end;">
+      <button type="button" class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button type="button" class="btn danger" id="delete-modal-confirm">Delete</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+/* Per-card select checkbox + delete button. Positioned absolutely so
+   they overlay the navigation card without breaking the <a> wrapper. */
+.proj-card { position: relative; }
+.proj-card .proj-select {
+  position: absolute; left: 10px; top: 10px;
+  width: 16px; height: 16px; z-index: 5;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.proj-card .proj-delete {
+  position: absolute; right: 8px; top: 8px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-dim, #666); padding: 2px 7px;
+  font-family: var(--font-mono, monospace); font-size: 11px;
+  cursor: pointer; z-index: 5;
+  border-radius: 3px;
+}
+.proj-card .proj-delete:hover {
+  color: var(--accent-red, #ff4444);
+  border-color: var(--accent-red, #ff4444);
+}
+/* One-click entry to the whole pipeline — sits bottom-right of the card. */
+.proj-card .proj-work {
+  position: absolute; right: 10px; bottom: 10px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-muted); padding: 3px 8px;
+  font-family: var(--font-mono, monospace); font-size: 11px;
+  cursor: pointer; z-index: 5; border-radius: 3px;
+}
+.proj-card .proj-work:hover { color: var(--accent); border-color: var(--accent); }
+.proj-card.selected { outline: 1px solid var(--accent); }
+
+/* Bulk-action toolbar. */
+.bulk-bar {
+  display: none; align-items: center; gap: 14px;
+  padding: 10px 14px; margin-bottom: 12px;
+  border: 1px solid var(--border); background: var(--bg-elevated, #0a0a0a);
+}
+.bulk-bar.visible { display: flex; }
+.bulk-bar .btn.danger { background: var(--accent-red, #ff4444); color: #000; }
+
+/* Confirm modal. */
+.modal-bg {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+  z-index: 100; display: none; align-items: center; justify-content: center;
+}
+.modal-bg.visible { display: flex; }
+.modal-bg .modal {
+  background: var(--bg, #000); border: 1px solid var(--border);
+  padding: 24px; max-width: 480px; width: 90%;
+}
+</style>
+
+<script>
+// /projects#new (e.g. the tour's "Create my first project") opens the form.
+// On a full load the hash is already set; on an SPA swap pushState happens
+// after page scripts run, so also check once fts:navigated fires.
+(function () {
+  function openIfNew() {
+    if (location.hash !== '#new') return;
+    const c = document.getElementById('new-project');
+    if (c) { c.hidden = false; c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  }
+  openIfNew();
+  document.addEventListener('fts:navigated', openIfNew, { once: true });
+})();
+fts.api.get('/api/models/list').then(models => {
+  const sel = document.getElementById('np-base');
+  if (!sel) return;
+  models.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.path;
+    opt.textContent = `${m.name} (${m.format}, ${m.size_gb} GB)`;
+    sel.appendChild(opt);
+  });
+});
+
+const _projSelected = new Set();
+
+function toggleSelect(pid, checked) {
+  if (checked) _projSelected.add(pid); else _projSelected.delete(pid);
+  const card = document.querySelector(`.proj-card[data-pid="${pid}"]`);
+  if (card) card.classList.toggle('selected', checked);
+  updateBulkBar();
+}
+
+function selectAll(checked) {
+  document.querySelectorAll('#proj-list .proj-card').forEach(card => {
+    if (card.hidden) return;
+    const cb = card.querySelector('.proj-select');
+    if (!cb) return;
+    cb.checked = checked;
+    const pid = card.dataset.pid;
+    if (checked) _projSelected.add(pid); else _projSelected.delete(pid);
+    card.classList.toggle('selected', checked);
+  });
+  updateBulkBar();
+}
+
+function clearSelection() {
+  _projSelected.clear();
+  document.querySelectorAll('#proj-list .proj-card').forEach(card => {
+    card.classList.remove('selected');
+    const cb = card.querySelector('.proj-select');
+    if (cb) cb.checked = false;
+  });
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById('bulk-bar');
+  const n = _projSelected.size;
+  bar.classList.toggle('visible', n > 0);
+  document.getElementById('bulk-count').textContent = `${n} selected`;
+  const allCb = document.getElementById('proj-select-all');
+  if (!allCb) return;
+  const visible = [...document.querySelectorAll('#proj-list .proj-card')].filter(c => !c.hidden);
+  const selVisible = visible.filter(c => _projSelected.has(c.dataset.pid));
+  allCb.checked = visible.length > 0 && selVisible.length === visible.length;
+  allCb.indeterminate = selVisible.length > 0 && selVisible.length < visible.length;
+}
+
+function confirmDelete(ids, name) {
+  const title = document.getElementById('delete-modal-title');
+  const body = document.getElementById('delete-modal-body');
+  if (ids.length === 1) {
+    title.textContent = 'Delete project?';
+    body.textContent = `Permanently delete ${name || ids[0]} along with all its runs, datasets, RAGs, and activity. This cannot be undone.`;
+  } else {
+    title.textContent = `Delete ${ids.length} projects?`;
+    body.textContent = `Permanently delete ${ids.length} projects along with all their runs, datasets, RAGs, and activity. This cannot be undone.`;
+  }
+  document.getElementById('delete-modal-confirm').onclick = () => doDelete(ids);
+  document.getElementById('delete-modal-bg').classList.add('visible');
+}
+
+function closeModal() {
+  const bg = document.getElementById('delete-modal-bg');
+  if (bg) bg.classList.remove('visible');
+}
+
+async function doDelete(ids) {
+  const btn = document.getElementById('delete-modal-confirm');
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = 'Deleting…';
+  let ok = 0, fail = 0, lastErr = '';
+  for (const id of ids) {
+    try {
+      const r = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+      if (r.ok) ok++; else { fail++; lastErr = `${r.status} ${await r.text().catch(()=>'')}`; }
+    } catch (e) { fail++; lastErr = String(e); }
+  }
+  btn.disabled = false;
+  btn.textContent = origText;
+  closeModal();
+  if (fail > 0) {
+    if (window.fts && window.fts.notify) window.fts.notify(`Deleted ${ok}, failed ${fail}: ${lastErr}`, 'error');
+  }
+  _projSelected.clear();
+  // Full reload so server-side counts (badge, etc.) refresh.
+  location.reload();
+}
+
+// Project templates
+const _TEMPLATES = {
+  blank:      { tags: '',    system_prompt: 'You are a helpful assistant.' },
+  chat:       { tags: 'chat', system_prompt: 'You are a friendly and knowledgeable assistant. Be concise and helpful.' },
+  training:   { tags: 'training', system_prompt: 'You are an expert tutor. Explain concepts clearly with examples.' },
+  brain:      { tags: 'smart-brain', system_prompt: 'You are a research assistant. Answer based on the provided context. If you don\'t know, say so.' },
+};
+function selectTemplate(name) {
+  document.querySelectorAll('.template-btn').forEach(b => b.classList.toggle('active', b.dataset.template === name));
+  const t = _TEMPLATES[name];
+  if (!t) return;
+  const form = document.getElementById('np-form');
+  const tags = form.querySelector('[name=tags]');
+  const sp = form.querySelector('[name=system_prompt]');
+  if (tags && !tags.value) tags.value = t.tags;
+  if (sp && !sp.value) sp.value = t.system_prompt;
+}
+
+function bulkDelete() {
+  if (_projSelected.size === 0) return;
+  confirmDelete([..._projSelected], null);
+}
+
+function filterProjects() {
+  const q = document.getElementById('proj-search').value.trim().toLowerCase();
+  const sort = document.getElementById('proj-sort')?.value || 'updated';
+  const cards = [...document.querySelectorAll('#proj-list .proj-card')];
+  // Filter
+  cards.forEach(el => {
+    const s = el.dataset.search || '';
+    el.hidden = q && !s.includes(q);
+  });
+  // Sort
+  const visible = cards.filter(c => !c.hidden);
+  const list = document.getElementById('proj-list');
+  visible.sort((a, b) => {
+    switch (sort) {
+      case 'created': return (b.dataset.created || 0) - (a.dataset.created || 0);
+      case 'name': return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+      case 'name-desc': return (b.dataset.name || '').localeCompare(a.dataset.name || '');
+      case 'updated': default: return (b.dataset.updated || 0) - (a.dataset.updated || 0);
+    }
+  });
+  visible.forEach(el => list.appendChild(el));
+  updateBulkBar();
+}
+
+// Project import
+async function submitImport() {
+  const file = document.getElementById('import-file').files[0];
+  const status = document.getElementById('import-status');
+  if (!file) { status.textContent = 'Select a file first.'; return; }
+  status.textContent = 'Uploading…';
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch('/api/projects/import', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.error) { status.textContent = 'Error: ' + d.error; }
+    else { status.textContent = 'Imported ' + d.count + ' project(s). Reloading…'; setTimeout(() => location.reload(), 1000); }
+  } catch (e) { status.textContent = 'Failed: ' + e.message; }
+}
+
+// ESC closes the modal.
+function _projEscClose(e) {
+  if (e.key === 'Escape') closeModal();
+}
+document.addEventListener('keydown', _projEscClose);
+document.addEventListener('fts:beforeNavigate', () => {
+  document.removeEventListener('keydown', _projEscClose);
+}, { once: true });
+</script>
+{% endblock %}

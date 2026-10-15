@@ -1,0 +1,119 @@
+# Local junk
+tmp/
+uploads/
+rag_data/
+*.pyc
+__pycache__/
+.venv/
+.env
+# User data directories at the repo ROOT only (not source code under src/).
+# The previous `data/` matched src/finetune_studio/data/ and silently ignored
+# any new source files added under that path — which broke the file-library
+# build on the deploy host. Use anchored patterns + explicit names instead.
+# Everything under data/ is runtime state EXCEPT the one shipped seed file the
+# app reads at startup (the default benchmark suite). This must be `/data/*`
+# and not `/data/`: git does not descend into a directory excluded by a bare
+# `/data/`, so the negations below could never re-include anything. An earlier
+# unanchored `data/` also matched src/finetune_studio/data/ and silently
+# ignored new source files — which broke the file-library build on the deploy host.
+/data/*
+# Three-step re-include, and it must stay three steps: `/data/*` excludes the
+# benchmarks DIR, and git never descends into an excluded dir, so the dir must
+# be un-ignored before the file inside it can be. Then re-ignore everything
+# else in benchmarks/ — a single `!/data/benchmarks/` exposed the runtime
+# hf_cache/ tree (21 files) that had been invisible under the old bare /data/.
+!/data/benchmarks/
+/data/benchmarks/*
+!/data/benchmarks/default.json
+/.finetune-studio.db
+*.sqlite
+*.sqlite3
+/projects/
+/output/
+/screenshots/
+# Runtime dirs that were previously NOT ignored even though the contributor rules list
+# them as "runtime artifacts, never committed": a user's corpus, downloaded
+# weights, and inbound media staging all sat untracked-but-visible, one
+# `git add -A` away from being committed.
+/datasets/
+/models/
+/media/
+# Build artifacts that should never enter version control. The llama.cpp
+# build lives under .llama.cpp/ at the repo root (project-local, see
+# LLAMA_CPP_DIR in install.sh) so the install scripts don't reach into
+# $HOME for binaries.
+/.llama.cpp/
+/build/
+/dist/
+*.gguf
+*.safetensors
+# Common runtime / build artifacts
+*.log
+*.tmp
+# Tool caches / local agent state — never repo content.
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+/.serena/
+node_modules/
+# Written into the repo root by unsloth at import time (compiled trainer
+# copies + lock files). tests/test_import_smoke.py triggers it, so a plain
+# `make test` would otherwise leave ~31 untracked files behind.
+/unsloth_compiled_cache/
+
+# Workspace-level OpenClaw files (Amy persona, handoff notes).
+# These belong in ~/.openclaw/workspace/, NEVER inside a project repo.
+IDENTITY.md
+SOUL.md
+USER.md
+HANDOFF-*.md
+
+# Local agent playbook + working notes (workflow guides, techniques, scratch).
+# Deliberately NOT versioned — per Genor's request, 2026-09-11.
+.agent/
+
+# Session daily-notes logs (memory/YYYY-MM-DD.md) — local continuity, not project code.
+/memory/
+.openclaw/
+# Developer / agent docs stay local (Genor 2026-10-03): kept on disk for agentic
+# development, never published. Public docs (README, TUTORIAL, INSTALL,
+# DEPLOYMENT, DEPENDENCIES, LEGAL, ATTRIBUTIONS, index.html, screenshots/) stay
+# tracked. Guard: tests/test_repo_hygiene.py::test_dev_docs_are_not_tracked.
+/docs/ARCHITECTURE.md
+/docs/CODEMAP.md
+/docs/DEVELOPER.md
+/docs/GOTCHAS.md
+/docs/PRODUCT-BRIEF.md
+/docs/TOPOLOGY.md
+/docs/README.md
+/docs/REFACTOR-SPEC.md
+/docs/UI-AUDIT-PLAN.md
+/docs/WORKFLOW-EXECUTION-PLAN.md
+/docs/WORKPLAN.md
+/docs/modules/
+/docs/audit/
+/docs/archive/
+/docs/judging/
+
+# Internal agent/ops notes stay local (public map: docs/DESIGN.md)
+/AGENTS.md
+/HANDOFF.md
+/PHASES.md
+/RESTART.md
+/CLAUDE.md
+/TODO-*.md
+
+# Runs, exports, test outputs, secrets (public cleanup 2026-10-15)
+*.db
+*.db-wal
+*.db-shm
+/adapters/
+/checkpoints/
+checkpoint-*/
+/reports/
+/test-results/
+/htmlcov/
+.coverage
+coverage.xml
+.env.*
+!.env.example

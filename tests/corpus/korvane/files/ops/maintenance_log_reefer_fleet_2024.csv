@@ -1,0 +1,96 @@
+unit_id,date,depot,fault_code,fault,part_no,part,labour_h,technician,note
+KCU-0112,2024-01-08,GDY-1,AL-52,evap fan motor seized,TGP-2207,evaporator fan motor,2.5,Bartek Wrona,noise reported by driver on the T-A run
+KCU-0187,2024-01-09,GDY-1,AL-12,return sensor reads -40,TGP-1184,return air sensor,0.8,Ewelina Szulc,wiring chafed at the bracket
+KCU-0143,2024-01-11,HAM-2,AL-41,phase loss on pedestal H-14,TGP-5105,phase monitor relay,1.5,Tobias Reinsdorf,pedestal was the problem not the unit - relay swapped anyway
+KCU-0201,2024-01-15,GOT-4,AL-33,defrost never terminates,TGP-4421,defrost heater element,3.2,Jens Hallqvist,ice block under the coil
+KCU-0156,2024-01-16,GDY-1,AL-07,high pressure cut-out,TGP-6002,HP pressure switch,1.1,Marek Pietrusiński,condenser coil full of leaves from pad C
+KCU-0229,2024-01-18,RTM-3,AL-64,door switch fault,TGP-7316,door reed switch,0.6,Daan Kuipers,
+KCU-0133,2024-01-22,KLJ-5,AL-58,low refrigerant,R452A-kg,R-452A top-up 1.8 kg,2.0,Vytautas Rimkus,leak at the service valve - retightened
+KCU-0170,2024-01-23,GDY-1,AL-21,compressor overload,TGP-3390,compressor contactor,2.8,Bartek Wrona,second time this unit - watch it
+KCU-0118,2024-01-25,GDY-1,AL-71,controller battery low,TGP-8140,controller backup battery,0.4,Ewelina Szulc,
+KCU-0194,2024-01-29,HAM-2,AL-52,evap fan motor noisy,TGP-2207,evaporator fan motor,2.4,Tobias Reinsdorf,
+KCU-0165,2024-02-01,GDY-1,AL-12,return sensor drift,TGP-1184,return air sensor,0.7,Marek Pietrusiński,
+KCU-0222,2024-02-02,RTM-3,AL-33,defrost fail,TGP-4421,defrost heater element,3.0,Daan Kuipers,sea water got in over the weekend
+KCU-0138,2024-02-05,GDY-1,AL-41,phase loss,TGP-6619,32A power cable and plug,1.9,Bartek Wrona,plug melted at pin 3 - IR scan was clean last month!
+KCU-0207,2024-02-07,GOT-4,AL-07,high pressure cut-out,TGP-9033,condenser fan blade,2.2,Jens Hallqvist,blade cracked
+KCU-0151,2024-02-08,KLJ-5,AL-71,controller battery low,TGP-8140,controller backup battery,0.4,Vytautas Rimkus,
+KCU-0176,2024-02-12,GDY-1,AL-58,low refrigerant,R452A-kg,R-452A top-up 2.6 kg,2.3,Ewelina Szulc,
+KCU-0123,2024-02-13,HAM-2,AL-64,door switch fault,TGP-7316,door reed switch,0.5,Tobias Reinsdorf,
+KCU-0214,2024-02-15,GDY-1,AL-52,evap fan motor seized,TGP-2207,evaporator fan motor,2.6,Marek Pietrusiński,
+KCU-0190,2024-02-19,RTM-3,AL-21,compressor overload,TGP-3390,compressor contactor,2.9,Daan Kuipers,
+KCU-0108,2024-02-20,GDY-1,AL-12,return sensor fault,TGP-1184,return air sensor,0.9,Bartek Wrona,
+KCU-0236,2024-02-22,GOT-4,AL-33,defrost fail,TGP-2891,drain heater,1.4,Jens Hallqvist,drain froze in the storm week
+KCU-0160,2024-02-26,GDY-1,AL-07,high pressure cut-out,TGP-6002,HP pressure switch,1.0,Ewelina Szulc,
+KCU-0147,2024-02-28,HAM-2,AL-58,low refrigerant,R452A-kg,R-452A top-up 3.4 kg,2.8,Tobias Reinsdorf,slow leak at the evaporator joint - warranty claim opened
+KCU-0181,2024-03-04,GDY-1,AL-52,evap fan noisy,TGP-2207,evaporator fan motor,2.5,Bartek Wrona,
+KCU-0198,2024-03-06,KLJ-5,AL-41,phase loss,TGP-5105,phase monitor relay,1.6,Vytautas Rimkus,16A pedestal - not our unit's fault
+KCU-0129,2024-03-07,RTM-3,AL-64,door switch fault,TGP-7316,door reed switch,0.6,Daan Kuipers,
+KCU-0173,2024-03-11,GDY-1,AL-21,compressor overload,TGP-5877,compressor oil charge 1 l,3.6,Marek Pietrusiński,oil low and contactor fine this time
+KCU-0239,2024-03-12,GDY-1,AL-12,return sensor fault,TGP-1184,return air sensor,0.8,Ewelina Szulc,
+KCU-0116,2024-03-14,GOT-4,AL-71,controller battery low,TGP-8140,controller backup battery,0.4,Jens Hallqvist,
+KCU-0204,2024-03-18,HAM-2,AL-07,high pressure cut-out,TGP-9033,condenser fan blade,2.1,Tobias Reinsdorf,
+KCU-0152,2024-03-19,GDY-1,AL-33,defrost fail,TGP-4421,defrost heater element,3.1,Bartek Wrona,
+KCU-0185,2024-03-21,RTM-3,AL-58,low refrigerant,R452A-kg,R-452A top-up 2.2 kg,2.4,Daan Kuipers,
+KCU-0140,2024-03-25,GDY-1,AL-52,evap fan motor seized,TGP-2207,evaporator fan motor,2.7,Marek Pietrusiński,ice on the fan guard
+KCU-0225,2024-03-27,KLJ-5,AL-12,return sensor reads -40,TGP-1184,return air sensor,0.7,Vytautas Rimkus,
+KCU-0167,2024-04-02,GDY-1,AL-41,phase loss,TGP-5105,phase monitor relay,1.4,Ewelina Szulc,
+KCU-0103,03.04.2024,HAM-2,AL-64,door switch fault,TGP-7316,door reed switch,0.5,Tobias Reinsdorf,date typed by hand - german style
+KCU-0211,2024-04-04,GDY-1,AL-07,high pressure cut-out,TGP-6002,HP pressure switch,1.2,Bartek Wrona,
+KCU-0179,2024-04-08,GOT-4,AL-21,compressor overload,TGP-3390,compressor contactor,3.0,Jens Hallqvist,
+KCU-0121,2024-04-09,RTM-3,AL-33,defrost fail,TGP-4421,defrost heater element,3.3,Daan Kuipers,
+KCU-0196,2024-04-11,GDY-1,AL-58,low refrigerant,R452A-kg,R-452A top-up 1.4 kg,2.0,Marek Pietrusiński,
+KCU-0158,2024-04-15,GDY-1,AL-71,controller battery low,TGP-8140,controller backup battery,0.4,Ewelina Szulc,third battery this month - bad batch from Voltrac?
+KCU-0233,2024-04-16,HAM-2,AL-52,evap fan motor noisy,TGP-2207,evaporator fan motor,2.5,Tobias Reinsdorf,
+KCU-0110,2024-04-18,GDY-1,AL-12,return sensor fault,TGP-3012,supply air sensor,0.9,Bartek Wrona,wrong sensor ordered - supply not return - both swapped later
+KCU-0186,2024-04-22,KLJ-5,AL-07,high pressure cut-out,TGP-9033,condenser fan blade,2.3,Vytautas Rimkus,
+KCU-0142,2024-04-23,RTM-3,AL-64,door switch fault,TGP-7316,door reed switch,0.6,Daan Kuipers,
+KCU-0218,2024-04-25,GDY-1,AL-41,phase loss,TGP-6619,32A power cable and plug,2.0,Marek Pietrusiński,
+KCU-0127,2024-04-29,GOT-4,AL-33,defrost fail,TGP-2891,drain heater,1.3,Jens Hallqvist,
+KCU-0174,2024-05-02,GDY-1,AL-21,compressor overload,TGP-3390,compressor contactor,2.9,Ewelina Szulc,
+KCU-0195,2024-05-06,HAM-2,AL-58,low refrigerant,R452A-kg,R-452A top-up 4.0 kg,3.1,Tobias Reinsdorf,big leak at the condenser header
+KCU-0137,2024-05-07,GDY-1,AL-12,return sensor drift,TGP-1184,return air sensor,0.8,Bartek Wrona,
+KCU-0227,2024-05-09,RTM-3,AL-52,evap fan seized,TGP-2207,evaporator fan motor,2.6,Daan Kuipers,
+KCU-0162,2024-05-13,GDY-1,AL-71,controller battery low,TGP-8140,controller backup battery,0.4,Marek Pietrusiński,
+KCU-0106,2024-05-14,KLJ-5,AL-64,door switch fault,TGP-7316,door reed switch,0.5,Vytautas Rimkus,
+KCU-0208,2024-05-16,GDY-1,AL-07,high pressure cut-out,TGP-6002,HP pressure switch,1.1,Ewelina Szulc,
+KCU-0183,2024-05-20,GOT-4,AL-41,phase loss,TGP-5105,phase monitor relay,1.5,Jens Hallqvist,
+KCU-0149,2024-05-21,GDY-1,AL-33,defrost fail,TGP-4421,defrost heater element,3.2,Bartek Wrona,
+KCU-0231,2024-05-23,HAM-2,AL-21,compressor overload,TGP-5877,compressor oil charge 1 l,3.4,Tobias Reinsdorf,
+KCU-0114,2024-05-27,GDY-1,AL-58,low refrigerant,R452A-kg,R-452A top-up 2.0 kg,2.2,Marek Pietrusiński,
+KCU-0200,2024-05-28,RTM-3,AL-12,return sensor reads -40,TGP-1184,return air sensor,0.7,Daan Kuipers,
+KCU-0169,2024-06-03,GDY-1,AL-52,evap fan noisy,TGP-2207,evaporator fan motor,2.4,Ewelina Szulc,
+KCU-0145,2024-06-05,KLJ-5,AL-33,defrost fail,TGP-4421,defrost heater element,3.0,Vytautas Rimkus,
+KCU-0220,2024-06-06,GOT-4,AL-07,high pressure cut-out,TGP-9033,condenser fan blade,2.2,Jens Hallqvist,
+KCU-0192,2024-06-10,GDY-1,AL-64,door switch fault,TGP-7316,door reed switch,0.5,Bartek Wrona,
+KCU-0131,2024-06-12,HAM-2,AL-41,phase loss,TGP-6619,32A power cable and plug,1.8,Tobias Reinsdorf,
+KCU-0154,2024-06-14,GDY-1,AL-21,compressor overload,TGP-3390,compressor contactor,3.1,Marek Pietrusiński,back at the depot that afternoon - routine swap
+KCU-0154,2024-06-17,GDY-1,PTI,full inspection requested by Quality,none,no part,4.5,Marek Pietrusiński,logged for Quality - report sent to Benedikta
+KCU-0235,2024-06-19,RTM-3,AL-58,low refrigerant,R452A-kg,R-452A top-up 1.6 kg,2.1,Daan Kuipers,
+KCU-0105,2024-06-24,GDY-1,AL-12,return sensor fault,TGP-1184,return air sensor,0.8,Ewelina Szulc,
+KCU-0188,2024-06-26,HAM-2,AL-07,high pressure cut-out,TGP-6002,HP pressure switch,1.0,Tobias Reinsdorf,
+KCU-0163,2024-07-01,GDY-1,AL-71,controller battery low,TGP-8140,controller backup battery,0.4,Bartek Wrona,
+KCU-0212,2024-07-03,KLJ-5,AL-52,evap fan seized,TGP-2207,evaporator fan motor,2.8,Vytautas Rimkus,part came from Gdynia by T-D
+KCU-0119,2024-07-08,GDY-1,AL-33,defrost fail,TGP-2891,drain heater,1.5,Marek Pietrusiński,
+KCU-0177,2024-07-10,GOT-4,AL-21,compressor overload,TGP-3390,compressor contactor,2.9,Jens Hallqvist,
+KCU-0240,2024-07-15,GDY-1,AL-58,low refrigerant,R452A-kg,R-452A top-up 2.8 kg,2.5,Ewelina Szulc,
+KCU-0134,2024-07-16,RTM-3,AL-41,phase loss,TGP-5105,phase monitor relay,1.4,Daan Kuipers,
+KCU-0209,2024-07-18,GDY-1,AL-64,door switch fault,TGP-7316,door reed switch,0.6,Bartek Wrona,
+KCU-0184,2024-07-22,HAM-2,AL-12,return sensor reads -40,TGP-1184,return air sensor,0.8,Tobias Reinsdorf,
+KCU-0150,2024-07-24,GDY-1,AL-52,evap fan noisy,TGP-2207,evaporator fan motor,2.5,Marek Pietrusiński,
+KCU-0226,2024-07-29,GDY-1,AL-07,high pressure cut-out,TGP-1550,filter drier,2.7,Ewelina Szulc,drier choked - first time we saw this on the A4 units
+KCU-0172,2024-08-01,KLJ-5,AL-71,controller battery low,TGP-8140,controller backup battery,0.4,Vytautas Rimkus,
+KCU-0125,2024-08-05,GDY-1,AL-33,defrost fail,TGP-4421,defrost heater element,3.2,Bartek Wrona,
+KCU-0199,2024-08-07,RTM-3,AL-21,compressor overload,TGP-4708,thermostatic expansion valve,3.8,Daan Kuipers,hunting valve - tech says 'classic'
+KCU-0141,2024-08-12,GOT-4,AL-58,low refrigerant,R452A-kg,R-452A top-up 1.2 kg,1.9,Jens Hallqvist,
+KCU-0216,2024-08-14,GDY-1,AL-12,return sensor fault,TGP-1184,return air sensor,0.7,Marek Pietrusiński,
+KCU-0157,2024-08-19,HAM-2,AL-64,door switch fault,TGP-7316,door reed switch,0.5,Tobias Reinsdorf,
+KCU-0109,2024-08-21,GDY-1,AL-41,phase loss,TGP-6619,32A power cable and plug,2.1,Ewelina Szulc,
+KCU-0193,2024-08-26,GDY-1,AL-52,evap fan seized,TGP-2207,evaporator fan motor,2.6,Bartek Wrona,
+KCU-0238,2024-09-02,RTM-3,AL-07,high pressure cut-out,TGP-9033,condenser fan blade,2.2,Daan Kuipers,
+KCU-0130,2024-09-04,GDY-1,AL-71,controller battery low,TGP-8140,controller backup battery,0.4,Marek Pietrusiński,
+KCU-0168,2024-09-09,KLJ-5,AL-58,low refrigerant,R452A-kg,R-452A top-up 2.4 kg,2.3,Vytautas Rimkus,
+KCU-0206,2024-09-11,GDY-1,AL-33,defrost fail,TGP-4421,defrost heater element,3.1,Ewelina Szulc,
+KCU-0182,2024-09-16,HAM-2,AL-21,compressor overload,TGP-3390,compressor contactor,3.0,Tobias Reinsdorf,
+KCU-0115,2024-09-18,GOT-4,AL-12,return sensor drift,TGP-1184,return air sensor,0.8,Jens Hallqvist,
+KCU-0223,2024-09-23,GDY-1,AL-64,door switch fault,TGP-7316,door reed switch,0.6,Bartek Wrona,
+KCU-0159,2024-09-26,GDY-1,AL-52,evap fan noisy,TGP-2207,evaporator fan motor,2.5,Marek Pietrusiński,last entry before the export - Gunnar wants a pivot table by Monday

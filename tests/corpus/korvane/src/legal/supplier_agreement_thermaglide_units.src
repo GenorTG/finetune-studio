@@ -1,0 +1,300 @@
+---
+out: supplier_agreement_thermaglide_units.pdf
+tier: extended
+---
+# SUPPLY AND SERVICE AGREEMENT — REEFER REFRIGERATION UNITS
+
+Korvane Cold Chain Sp. z o.o. / Thermaglide Reefer Units B.V. — Korvane ref. KCC/SUP/2022/009 — EXECUTION VERSION (Vandersloot Heemstra draft v7, 29 August 2022, incorporating Korvane comments of 2, 17 and 26 August)
+
+*Cover note from Legal, for the contract file: the margin remarks marked [SB:] are mine and were left in this file copy on purpose so that Procurement and Fleet can see why a given clause reads the way it does. They are not part of the signed text. The signed text sits in the safe next to the Oakhaven MSA. Sofia Brandão, 8 September 2022.*
+
+THIS SUPPLY AND SERVICE AGREEMENT (the "Agreement") is entered into on 7 September 2022 by and between:
+
+THERMAGLIDE REEFER UNITS B.V., a private company with limited liability under Dutch law, having its statutory seat in Schiedam, the Netherlands, its office at Havenkade 47, 3116 BC Schiedam, registered with the Chamber of Commerce under number 24318870 (the "Supplier"); and
+
+KORVANE COLD CHAIN SP. Z O.O., a limited liability company under Polish law, having its registered office at ul. Łużycka 14, 81-537 Gdynia, entered in the register of entrepreneurs of the National Court Register under KRS 0000488213 (the "Buyer").
+
+WHEREAS the Supplier designs and manufactures reefer refrigeration units and the Buyer, which operates depots at Gdynia, Hamburg-Waltershof, Rotterdam-Maasvlakte and Gothenburg-Arendal and a trans-shipment yard at Kłaipėda, wishes to equip and re-equip its fleet of reefer containers and chassis-mounted gensets over the coming years; and WHEREAS the parties have already exchanged confidential information under a mutual non-disclosure agreement dated 9 February 2022 and wish to record their commercial terms in one instrument; NOW THEREFORE the parties agree as follows.
+
+## Article 1 — Definitions
+
+1.1 In this Agreement the following capitalised terms have the meanings given here. "Units" means the TG-440 reefer refrigeration unit (the "Standard Unit") and the TG-440X reefer refrigeration unit with the second evaporator circuit (the "X Unit"), in each case with the TG-Logic controller and the GlideLink telematics module as delivered. "Spare Parts" means every component, consumable, assembly or software licence key supplied by the Supplier for the maintenance or repair of a Unit. "Delivery Point" means the Supplier's works at Havenkade 47, Schiedam, FCA (Incoterms 2020), unless the Buyer asks in an Order for delivery to a Buyer depot, in which case Article 5.6 applies. "Working Day" means a day other than a Saturday, a Sunday or a public holiday in the Netherlands, in the Supplier's case, or in Poland, in the Buyer's case, depending on whose performance is in question.
+
+1.2 "Contract Year" means each period of twelve months beginning on 1 October, the first beginning on 1 October 2022 (the "Commencement Date"). "Firm Order Schedule" means the quantities and quarters set out in Annex C. "Order Forecast" means the rolling twelve-month forecast the Buyer supplies under Article 4. "Acceptance" means acceptance of a Unit in accordance with Article 6.
+
+1.3 "Category 1 Parts", "Category 2 Parts" and "Category 3 Parts" bear the meanings in Article 8.2. "Serial Defect" bears the meaning in Article 7.7. "Annual Spare Parts Spend" means the net amount, excluding VAT and freight, invoiced by the Supplier for Spare Parts in a Contract Year.
+
+[SB: the Dutch side wanted "Working Day" to follow the Supplier's calendar only. I refused. In a delivery penalty dispute the calendar that counts is the calendar of the party who has to act, otherwise Carnival week in Limburg would cost us money. Accepted in the end.]
+
+## Article 2 — Scope and purchase commitment
+
+2.1 The Supplier shall sell and deliver, and the Buyer shall buy, the Units and the Spare Parts on the terms of this Agreement. Each purchase of Units is made by an Order issued by the Buyer on the form in Annex F-1 and accepted by the Supplier under Article 4.3. This Agreement does not oblige the Buyer to buy Units or Spare Parts exclusively from the Supplier, save as in Article 2.3.
+
+2.2 The Buyer commits to the Firm Order Schedule in Annex C, being 80 Units in total over the five quarters from the quarter starting on the Commencement Date. Beyond the Firm Order Schedule the Buyer shall order not fewer than 30 Units in each Contract Year of the Initial Term (the "Minimum Annual Commitment").
+
+2.3 If in any Contract Year the Buyer orders fewer Units than the Minimum Annual Commitment, the Buyer shall pay the Supplier, within 45 days after the Supplier's invoice, a shortfall payment of 12% of the Standard Unit price in force on the last day of that Contract Year for each Unit of the shortfall. The shortfall payment is the Supplier's sole remedy for the shortfall and the Buyer shall not be treated as in breach. Units ordered in the final Contract Year but delivered after the Initial Term count as ordered.
+
+2.4 While the Buyer's purchases in a Contract Year are not fewer than the Minimum Annual Commitment, the Supplier shall treat the Buyer as a preferred customer, which means that the Supplier shall allocate production slots to the Buyer's Orders ahead of any customer who has no volume commitment, and shall assign a named account manager. At signature the account manager is Joris Kuipers-Bax and the head of service is Femke Oosterhuis.
+
+2.5 Cumulative volume rebate. When the cumulative number of Units delivered under this Agreement reaches 41, the price of each further Unit is reduced by 2.5%; when it reaches 81, the price of each further Unit is reduced by 4.0% (counted against the prices in Annex A as adjusted under Article 3). The rebate is applied on the invoice and is not retroactive.
+
+## Article 3 — Prices and adjustment
+
+3.1 The prices of the Units are those in Annex A, in euro, exclusive of VAT, and are fixed until 30 September 2024. The Standard Unit costs EUR 18,740 and the X Unit costs EUR 21,260. The price of the GlideLink module is included in both prices for the first 24 months after delivery of each Unit; thereafter the Supplier may charge a GlideLink licence fee of EUR 2.10 per Unit per month on 60 days' notice.
+
+3.2 From 1 October 2024, and on each 1 October after that, the Unit prices shall be adjusted by the percentage change over the preceding twelve months of the producer price index for the manufacture of refrigeration and ventilation equipment published by Statistics Netherlands (CBS), the adjustment not to exceed 4.5% in any one year in either direction.
+
+3.3 Copper surcharge. If the average LME copper settlement price over the calendar month preceding the Delivery Point date of a Unit exceeds USD 9,400 per tonne, the Supplier may add a surcharge of EUR 36 per Unit for each full USD 100 by which the monthly average exceeds USD 9,400, and the surcharge shall be shown as a separate line on the invoice. The surcharge shall not exceed EUR 1,260 per Unit. If the average falls below USD 7,600 per tonne, the Supplier shall give the Buyer a credit of EUR 36 per Unit per full USD 100 below that level, on the same basis and within the same cap.
+
+3.4 No other surcharge, fee or price addition (including energy, packaging, container-stuffing and documentation fees) is payable by the Buyer, save for freight and insurance where the Buyer has asked for delivery to a Buyer depot under Article 5.6.
+
+[SB: the 4.5% collar in 3.2 and the copper cap in 3.3 were what Priya wanted, since the 2021 prices were reopened three times by the previous refrigeration supplier. Do not let anyone "simplify" these in the renewal talks.]
+
+## Article 4 — Forecasts and Orders
+
+4.1 No later than the 10th day of January, April, July and October the Buyer shall provide the Supplier with an Order Forecast covering the next twelve months by quarter and by Unit type. The Order Forecast is not binding except to the extent of the Firm Order Schedule and of the frozen horizon in Article 4.4.
+
+4.2 An Order shall state the quantity and type of Units, the requested delivery week, the delivery destination and the Buyer's purchase order number. An Order shall be placed not less than 14 weeks before the requested delivery week.
+
+4.3 The Supplier shall confirm or reject an Order in writing within 5 Working Days after receipt. A confirmation is binding on both parties. An Order not rejected within that period is deemed accepted if it is consistent with the latest Order Forecast and with the Supplier's stated capacity of 55 Units per month for the Buyer.
+
+4.4 From the date 8 weeks before the confirmed delivery week the Order is frozen and may not be changed except by agreement. Between 8 and 14 weeks before the confirmed delivery week the Buyer may change the quantity of the Order by up to 15%, upwards or downwards, and the delivery week by up to 2 weeks, free of charge.
+
+## Article 5 — Delivery, delay and risk
+
+5.1 The Supplier shall deliver the Units at the Delivery Point in the quarter, and in the week, confirmed under Article 4.3. The Units shall be properly packed for road or sea carriage and marked with the Buyer's purchase order number and the unit serial number.
+
+5.2 The Supplier shall not deliver more than 5 days before the confirmed delivery date unless the Buyer agrees. Early delivery which the Buyer has not accepted shall be stored by the Supplier at its own cost and risk, and the payment terms in Article 10 run from the confirmed delivery date.
+
+5.3 Delivery penalty. If the Supplier delivers a Unit later than the confirmed delivery date, the Supplier shall pay the Buyer a penalty of 0.4% of the net price of the late Unit for each full day of delay during the first 10 days, and 0.9% of the net price for each full day of delay after the tenth day. The aggregate penalty for a Unit shall not exceed 12% of its net price. The penalty accrues without the need for notice of default.
+
+5.4 If a delay exceeds 45 days, the Buyer may cancel the Order for the late Unit by written notice without liability, and the penalty accrued to the date of cancellation remains payable. The penalty is the Buyer's sole financial remedy for delay up to that point, but does not limit the Buyer's right to cancel under this Article 5.4 or to terminate under Article 14.
+
+5.5 The Supplier is not liable for delay to the extent that it is caused by the Buyer's failure to supply information or approvals, or by force majeure under Article 16, provided that the Supplier gives notice within 3 Working Days after becoming aware of the cause.
+
+5.6 If the Buyer asks in an Order for delivery to a Buyer depot (for the purposes of this Agreement, GDY-1, HAM-2, RTM-3, GOT-4 or KLJ-5), delivery is DAP (Incoterms 2020) at that depot, and the Supplier may charge freight at cost plus 6%, supported by the carrier's invoice. For delivery to a depot, the confirmed delivery date shall mean the date on which the Units arrive at the depot gate, and the delay penalty runs against that date.
+
+5.7 Risk in the Units passes at the Delivery Point under Incoterms 2020; title passes upon full payment of the price of the Unit, but the Buyer may resell or install a Unit in the ordinary course of its business before then.
+
+[SB: 5.3 is the clause I fought for hardest. The Supplier's first draft had a flat 2% cap. 12% came out of the fact that a reefer unit that is two weeks late means a container sits on the quay at our cost. Fleet (Gunnar H.) says average real delay at the previous supplier was 9 days.]
+
+## Article 6 — Inspection and Acceptance
+
+6.1 The Buyer shall inspect and test each Unit within 10 Working Days after delivery (the "Acceptance Period"). The Supplier shall make a technician available for the first test of every batch of 10 Units at the Buyer's depot, at the Supplier's cost.
+
+6.2 A Unit is accepted if it passes the tests specified in Annex E: (a) pull-down from +20.0 °C to −18.0 °C in not more than 118 minutes measured at the return air sensor in an empty 40 ft high-cube container at 30 °C ambient; (b) temperature stability of ±0.3 K over a continuous 4-hour hold at the set-point of −18.0 °C; (c) electrical consumption of not more than 6.8 kW in the conditions of (a) after pull-down; and (d) completion of the GlideLink handshake with the Buyer's KC-Hub 200 gateway within 90 seconds.
+
+6.3 If the Unit fails a test, the Buyer shall notify the Supplier in writing with the test log, and the Supplier shall repair or replace the Unit within 15 Working Days after notification. A repaired or replacement Unit is retested; the Buyer is entitled to two retests per Unit free of charge. After a second failed retest the Buyer may reject the Unit and require a refund of everything paid for it, within 30 days.
+
+6.4 If the Buyer gives no notice of failure within the Acceptance Period and has not accepted in writing, the Unit is deemed accepted at the end of the Acceptance Period, but only if the Supplier's technician (where required under 6.1) was present at the first test of the batch. Acceptance does not prejudice the Buyer's warranty rights.
+
+## Article 7 — Warranty
+
+7.1 The Supplier warrants that each Unit conforms to the specification in Annex E and is free from defects in material and workmanship for the periods set out below, in each case counted from the date of Acceptance of that Unit: compressor assembly (including the motor and the inverter) 60 months; evaporator coil assembly 48 months; TG-Logic controller and GlideLink module 36 months; all other components 24 months. Labour for the repair of a defect is covered for 12 months from Acceptance.
+
+7.2 A Spare Part installed to repair a Unit under the warranty carries a warranty of 12 months from installation or the remainder of the warranty of the part it replaces, whichever is longer. A Spare Part purchased otherwise than for warranty repair carries a warranty of 12 months from delivery.
+
+7.3 The Supplier shall run a service hotline, staffed 24 hours a day, 7 days a week, and shall provide a remote diagnosis within 4 hours after the Buyer reports a failure. If remote diagnosis does not resolve the failure, a technician shall be on site within 48 hours in the Netherlands, Germany and Belgium, within 72 hours in Poland, Sweden and Lithuania and within 96 hours elsewhere in Europe, in each case after the diagnosis. If the Supplier misses these times, it shall reimburse the Buyer's reasonable costs of a third-party technician up to EUR 1,150 per call-out.
+
+7.4 The Buyer shall report warranty claims through the Supplier's GlideCare portal and shall do so within 30 days after it discovers a defect. The Supplier shall acknowledge a claim within 2 Working Days. A claim reported after the 30 days is still valid if the delay did not worsen the defect.
+
+7.5 The warranty does not cover (a) damage caused by operation outside the supply voltage range of 380–440 V, 50 Hz; (b) damage caused by refrigerant other than R-452A, or by a service not performed by an authorised technician; (c) wear parts listed as such in Annex D (door gaskets, drain hoses, filter-driers and fan belts); or (d) corrosion where the Unit has been fitted with the optional marine coating package and the Buyer has not carried out the 6-monthly wash described in Annex D, though the evaporator coil warranty remains in force for 48 months in all other cases of corrosion.
+
+7.6 Where a defective Unit cannot be repaired in the Buyer's depot and is shipped to the Supplier's works, the Supplier shall bear the freight both ways and shall provide a loan Unit of the same type within 5 Working Days where one is available.
+
+7.7 Serial Defect. If the same failure mode affects more than 3.5% of the Units delivered in any period of six consecutive months (the "Serial Defect Threshold"), or affects three or more Units in any one batch of ten, the Supplier shall at its own cost retrofit or replace the affected component in all Units of the relevant batch within 90 days after the Buyer's notice, and the warranty period on that component restarts for those Units.
+
+[SB: the 60-month compressor warranty is the number Gunnar needed. The standard Thermaglide offer was 48. We got 60 in exchange for the minimum commitment in Article 2.2 and for dropping our demand for a bank guarantee. Note that the sales brochure still says 48 and must not be relied on in any conversation with the customers.]
+
+## Article 8 — Spare Parts
+
+8.1 For a period of 12 years after delivery of the last Unit sold under this Agreement, the Supplier shall keep Spare Parts available to the Buyer on the terms of this Article.
+
+8.2 Spare Parts are classified as follows. Category 1 Parts are parts the failure of which stops a Unit from operating (compressor, controller, fan motors, sensors, contactors). Category 2 Parts are parts the failure of which degrades the Unit's performance but does not stop it. Category 3 Parts are all other Spare Parts, including body and frame parts, and wear parts.
+
+8.3 The Supplier shall ship Spare Parts within 2 Working Days after the order for Category 1 Parts, within 5 Working Days for Category 2 Parts and within 15 Working Days for Category 3 Parts. An emergency shipment, requested by the Buyer for a Category 1 Part out of hours, is shipped within 12 hours and is subject to a flat emergency fee of EUR 190 plus freight.
+
+8.4 Consignment stock. The Supplier shall hold at its own cost, in the Buyer's depots at RTM-3 and HAM-2, a consignment stock of Category 1 Parts with a list-price value of EUR 85,000 at RTM-3 and EUR 60,000 at HAM-2. The Buyer pays for a consignment part only when it takes the part from the stock, and the Supplier replenishes the stock within 10 Working Days after each withdrawal. The Buyer shall insure the consignment stock for its replacement value while it is in the Buyer's depot, and shall allow the Supplier to audit the stock once per quarter on 5 Working Days' notice.
+
+8.5 Spare Parts prices are the Supplier's list prices in force at the date of the Buyer's order, less the tier discount in Annex B according to the Annual Spare Parts Spend. The tiers are: Tier 1, Annual Spare Parts Spend up to EUR 49,999, no discount; Tier 2, EUR 50,000 to EUR 149,999, discount 7.5%; Tier 3, EUR 150,000 to EUR 299,999, discount 12%; Tier 4, EUR 300,000 and above, discount 15.5%. The tier applies from the first order in the Contract Year following the Contract Year in which the threshold was reached; for the first Contract Year, Tier 2 applies from the Commencement Date.
+
+8.6 The Supplier shall not increase its list prices for Spare Parts earlier than 12 months after the date of this Agreement, and shall thereafter not increase them more than once in a Contract Year or by more than 6.0%, with 90 days' notice to the Buyer.
+
+8.7 The Supplier shall give the Buyer not less than 18 months' notice of the discontinuation of any Spare Part, so that the Buyer may make a last-time buy at the then applicable tier price. For parts in the consignment stock, the Supplier shall take back the remainder of the stock at the price at which it was supplied.
+
+## Article 9 — Software, firmware and data
+
+9.1 The Supplier grants the Buyer a non-exclusive, non-transferable licence, for the life of each Unit, to use the firmware in the TG-Logic controller and the GlideLink module. Firmware updates released during the warranty period of a Unit are supplied at no charge; the Supplier shall give not less than 14 days' notice of any update that changes the operating behaviour of the Unit, and the Buyer may delay an update on a Unit carrying cargo.
+
+9.2 The operating data generated by the Units, including temperature, set-point, alarm and power data, belongs to the Buyer. The Supplier may use such data in anonymised and aggregated form for product development, and shall not pass the data to a third party, save to its sub-contractors under a duty of confidentiality, without the Buyer's consent.
+
+9.3 The Supplier shall provide, at no charge, the integration specification enabling the GlideLink module to report to the Buyer's KC-Hub 200 gateway and the Tidewalk platform. The Buyer is entitled to disable the Supplier's cloud connection from the module settings without loss of warranty.
+
+## Article 9A — Training, documentation and field support
+
+9A.1 The Supplier shall provide, free of charge, technical documentation for each Unit type in English, comprising the service manual, wiring diagrams, the alarm code list (alarm codes TG-E01 to TG-E79) and the parts catalogue, and shall provide updates within 30 days after any engineering change. Documents in Polish are not required. [SB: Gunnar says the technicians at Waltershof read the English manuals anyway and use the Dutch ones as a joke.]
+
+9A.2 The Supplier shall train up to 24 Buyer technicians in the first Contract Year, in groups of not more than 8, in sessions of 3 days each at the Supplier's works or at a Buyer depot as the Buyer chooses; training at a Buyer depot is given by a Supplier trainer whose travel costs the Supplier bears. Each further group of up to 8 technicians in any later Contract Year is charged at EUR 2,350 per group.
+
+9A.3 The Supplier shall assign a field engineer to the first installation of Units at each depot receiving Units for the first time (RTM-3, HAM-2, GOT-4, KLJ-5), for up to 5 working days at the Supplier's cost. The Buyer shall provide a safe place of work, 400 V three-phase power at the testing bay and access to a KC-Hub 200 gateway.
+
+## Article 9B — Field campaigns
+
+9B.1 If the Supplier decides, or a competent authority requires, that Units of a type or batch are to be inspected, modified or recalled for safety or compliance reasons (a "Field Campaign"), the Supplier shall notify the Buyer within 48 hours after the decision, and in any event before further Units of the batch are shipped. The Supplier shall carry out the Field Campaign at its own cost, including the transport of the Units and the loss of use of a Unit, which the Supplier shall compensate at EUR 55 per Unit per day for each day beyond 3 days that the Unit is out of service because of the Field Campaign.
+
+9B.2 Where a refrigerant is phased out or restricted by regulation during the term, the Supplier shall offer a conversion kit or a replacement Unit using a permitted refrigerant, and the parties shall agree the price in good faith; the price of the conversion kit shall not exceed 22% of the then current Standard Unit price.
+
+## Article 10 — Price payment
+
+10.1 Payment for Units: 20% of the price of each Order on confirmation of the Order under Article 4.3, 70% within 30 days after the date of delivery, and 10% within 30 days after Acceptance. Payment for Spare Parts is due within 30 days after the invoice date.
+
+10.2 Overdue amounts bear interest at 1.0% per month, from the due date to the date of payment. The Buyer may withhold payment of an invoice amount that is the subject of a good faith dispute notified in writing within the payment period, provided it pays the undisputed part.
+
+10.3 The Buyer may set off against any invoice any penalty due under Article 5.3 and any cost reimbursement due under Article 7.3, on written notice. The Supplier waives any right of retention.
+
+## Article 11 — Liability and insurance
+
+11.1 The Supplier's aggregate liability to the Buyer under or in connection with this Agreement in any Contract Year shall not exceed EUR 4,500,000. Penalties paid under Article 5.3 and the shortfall payments by the Buyer under Article 2.3 do not count towards this limit.
+
+11.2 Neither party shall be liable for indirect or consequential loss, loss of profit, loss of customers or goodwill, save as provided in Article 11.3.
+
+11.3 If a Unit within its warranty period suffers a defect that results in the spoilage of cargo, the Supplier shall compensate the Buyer for the Buyer's liability to its customer for the cargo, provided that (a) the Buyer's data from the KC-Tag 4 logger and the GlideLink log both record the event, (b) the defect is one that the warranty covers, and (c) the Buyer has complied with the Supplier's maintenance instructions in Annex D. The Supplier's liability under this Article 11.3 is limited to EUR 60,000 per event and EUR 900,000 per Contract Year, and counts towards the limit in Article 11.1.
+
+11.4 Nothing in this Agreement limits liability for death or personal injury, for wilful misconduct or gross negligence, or for liability which cannot be limited by law.
+
+11.5 The Supplier shall maintain throughout the term, and for 3 years after, product liability insurance with a cover of not less than EUR 10,000,000 per claim and shall provide a certificate on request. The Buyer's own insurance is described in the schedule to its letter of 12 July 2022 and is not repeated here.
+
+## Article 12 — Intellectual property
+
+12.1 All intellectual property rights in the Units, the Spare Parts, the firmware and the GlideLink module remain with the Supplier or its licensors. The Buyer's logos and trade marks remain with the Buyer; the Supplier shall not use them in marketing without the Buyer's written consent.
+
+12.2 The Supplier shall indemnify the Buyer against any claim that a Unit, as delivered and used in accordance with its specification, infringes a third party's patent, copyright or other rights in the European Economic Area, provided that the Buyer gives prompt notice, allows the Supplier to conduct the defence and gives reasonable help. The Supplier may replace or modify the Unit so that it does not infringe, or refund the price paid, less 20% depreciation for each year of use.
+
+## Article 13 — Confidentiality
+
+13.1 The mutual non-disclosure agreement between the parties dated 9 February 2022 continues to apply to information exchanged before this Agreement. For information exchanged after the date of this Agreement, each party shall keep confidential all information of the other that is designated confidential or that a reasonable person would regard as such, during the term of this Agreement and for 5 years after its end, and shall use it only for the purposes of this Agreement.
+
+13.2 The prices in Annex A and Annex B, the delivery schedule in Annex C and the consignment stock levels in Article 8.4 are the Buyer's Confidential Information and the Supplier's Confidential Information at the same time.
+
+## Article 13A — Compliance, audit and quality
+
+13A.1 Each party shall comply with applicable anti-bribery and anti-corruption laws and shall not offer or accept any improper payment or advantage in connection with this Agreement. Gifts and hospitality between the parties are permitted only if modest and recorded; neither party's employee shall receive a gift worth more than EUR 120 in any calendar year from the other party without his or her line manager's written permission.
+
+13A.2 The Supplier warrants that neither it nor any of its sub-contractors is the subject of sanctions imposed by the European Union, the United Kingdom, the United States or the United Nations, and shall notify the Buyer within 5 Working Days of becoming the subject of any. The Buyer may suspend Orders while a sanctions notice is outstanding.
+
+13A.3 The Supplier shall operate a quality management system certified to ISO 9001 and shall keep that certification throughout the term. The Buyer may audit the Supplier's works, once in each Contract Year, on 15 Working Days' notice, for not more than 2 days, with not more than 3 auditors, and the Supplier shall give access to production, test and warranty records for the Units. The Buyer may audit more often, on 5 Working Days' notice, after a Serial Defect. Each party bears its own audit costs, save that if an audit shows a material non-conformity, the Supplier shall reimburse the Buyer's reasonable audit costs up to EUR 3,800.
+
+13A.4 The Supplier shall provide, not later than the 20th day after the end of each calendar quarter, a performance report covering on-time delivery by Unit, warranty claims by component, hotline response times and the Serial Defect statistics under Article 7.7. The first report is due on 20 January 2023. The parties shall meet to review each report in the month after it is delivered, with Gunnar Halvorsrud for the Buyer and Femke Oosterhuis for the Supplier.
+
+13A.5 If on-time delivery of Units, measured by number of Units delivered not later than the confirmed delivery date, falls below 92% in any calendar quarter, the Supplier shall, at the Buyer's request, present a written recovery plan within 10 Working Days and implement it. The recovery plan does not suspend the Buyer's right to the penalty in Article 5.3.
+
+## Article 14 — Term and termination
+
+14.1 This Agreement begins on the Commencement Date and continues for an initial term of 5 years, to 30 September 2027 (the "Initial Term"). It then renews for successive periods of 2 years unless either party gives written notice of non-renewal not less than 12 months before the end of the Initial Term or the renewal period concerned.
+
+14.2 Either party may terminate this Agreement with immediate effect by written notice if the other party commits a material breach and fails to remedy it within 30 days after notice, or is declared bankrupt, is granted a suspension of payments, or is dissolved.
+
+14.3 The Buyer may terminate this Agreement by 90 days' written notice, with effect from the end of any calendar month, if (a) a Serial Defect has occurred twice within any period of 24 months, or (b) the Supplier has delivered more than 20% of the Units delivered in any Contract Year later than 21 days after the confirmed delivery date.
+
+14.4 On termination or expiry the Supplier shall continue to honour Article 7 and Article 8 in respect of all Units delivered. Articles 11, 13, 17 and this Article 14.4 survive termination.
+
+14.5 Exit assistance. For 12 months after termination or expiry, the Supplier shall continue to supply Spare Parts at the Tier 2 discount even if the Buyer's Annual Spare Parts Spend was in a lower tier, shall continue to answer the hotline, and shall on request supply a copy of the maintenance records held in GlideCare for the Buyer's Units in CSV format within 20 Working Days. The consignment stock under Article 8.4 shall be returned or bought out within 60 days after termination: the Buyer may purchase all or part of the stock at list price less the tier discount applicable at the time.
+
+14.6 Buy-back option. If the Buyer terminates under Article 14.3, the Supplier shall, at the Buyer's option exercised within 90 days after the termination date, repurchase any Unit that is less than 24 months old and has run fewer than 3,000 operating hours at the price paid less 1.5% for each full month since Acceptance.
+
+## Article 15 — Assignment and subcontracting
+
+15.1 Neither party may assign this Agreement without the written consent of the other, which shall not be unreasonably withheld, but the Buyer may assign it to a company in its group on notice. The Supplier may use sub-contractors for the installation and service of the Units in Poland, Sweden and Lithuania, and shall remain responsible for them. A sub-contractor who has access to the Buyer's depots shall sign the Buyer's site safety acknowledgement.
+
+## Article 16 — Force majeure
+
+16.1 A party is not liable for failure to perform to the extent that it is prevented by an event beyond its reasonable control, including natural disaster, war, general mobilisation, port closure, strike other than of its own staff, fire and failure of public utilities. The party affected shall notify the other within 3 Working Days. If the event continues for more than 60 days, either party may terminate the Order or Orders concerned without liability.
+
+16.2 A shortage of components, or an increase in the price of materials, is not force majeure, save that a shortage of semiconductors certified by the Supplier's chip distributor in writing, as a general allocation, shall extend the delivery date by the length of the allocation period, up to 12 weeks.
+
+## Article 17 — Governing law and disputes
+
+17.1 This Agreement is governed by the laws of the Netherlands. The United Nations Convention on Contracts for the International Sale of Goods does not apply.
+
+17.2 Any dispute shall first be referred to the managing director of the Supplier and the Buyer's Chief Operating Officer, who shall meet within 15 Working Days. If they do not settle the dispute within 30 days after the referral, the dispute shall be finally settled under the Arbitration Rules of the Netherlands Arbitration Institute (NAI). The tribunal shall consist of three arbitrators, the seat of arbitration shall be Rotterdam, and the language of the arbitration shall be English. Either party may apply for interim measures to the competent court.
+
+## Article 18 — Notices and general
+
+18.1 Notices shall be in writing in English and sent by courier or registered post to the address in the heading, for the attention, in the case of the Buyer, of the Legal Counsel (Sofia Brandão), copied by e-mail to legal@korvane.example, and, in the case of the Supplier, of the managing director. A notice is deemed received on the second Working Day after sending by courier or on the fifth Working Day after posting.
+
+18.2 This Agreement, with its Annexes, is the entire agreement of the parties on its subject matter. Amendments must be in writing and signed by both parties. If one provision is void, the others stand. The Annexes form part of the Agreement; in a conflict between the body and an Annex, the Annex prevails on prices, quantities and technical values, the body on everything else. This Agreement is signed in two originals.
+
+Signed on 7 September 2022 in Schiedam for the Supplier by Bart Wiegersma (Managing Director) and in Schiedam for the Buyer by Marta Kowarzik (Chief Executive Officer) and Dieter Ahlbeck-Roe (Chief Operating Officer).
+
+\pagebreak
+
+## Annex A — Unit prices (EUR, excluding VAT, fixed to 30 September 2024)
+
+| Item | Description | Price |
+|---|---|---|
+| TG-440 | Standard Unit, single evaporator | EUR 18,740 |
+| TG-440X | X Unit, second evaporator circuit | EUR 21,260 |
+| MC-PKG | Optional marine coating package, per Unit | EUR 640 |
+| TT-KIT | Twin tray door-end sensor kit | EUR 215 |
+
+Rebate notes: 2.5% from the 41st Unit and 4.0% from the 81st Unit, see Article 2.5. The marine coating package is not discounted.
+
+## Annex B — Spare Parts tier discounts and lead times
+
+| Tier | Annual Spare Parts Spend | Discount from list |
+|---|---|---|
+| Tier 1 | up to EUR 49,999 | 0% |
+| Tier 2 | EUR 50,000 to EUR 149,999 | 7.5% |
+| Tier 3 | EUR 150,000 to EUR 299,999 | 12% |
+| Tier 4 | EUR 300,000 and above | 15.5% |
+
+| Category | Shipping time | Examples |
+|---|---|---|
+| Category 1 | 2 Working Days | compressor, controller, fan motors |
+| Category 2 | 5 Working Days | evaporator fins, defrost heaters |
+| Category 3 | 15 Working Days | body panels, wear parts |
+
+Note: the Supplier's first draft of Annex B had a fifth tier at EUR 500,000 with an 18% discount. This was dropped at the 17 August meeting because the Buyer will not realistically reach it, and so the top tier is Tier 4.
+
+## Annex C — Firm Order Schedule
+
+| Quarter | Units | Destination depot |
+|---|---|---|
+| Q4 2022 | 12 | RTM-3 |
+| Q1 2023 | 20 | HAM-2 (10) and GDY-1 (10) |
+| Q2 2023 | 16 | GDY-1 |
+| Q3 2023 | 14 | GOT-4 |
+| Q4 2023 | 18 | KLJ-5 (6) and GDY-1 (12) |
+
+Total 80 Units. Mix: not less than 65 Standard Units; the balance X Units. (This annex was drawn before the Kłaipėda yard lease was finalised; if the yard opens later than Q3 2023, the 6 KLJ-5 Units go to GDY-1 instead and no penalty accrues under Article 5.3 for the redirection.)
+
+## Annex D — Maintenance instructions and wear parts (extract)
+
+Wear parts excluded from warranty: door gaskets, drain hoses, filter-driers, fan belts. Preventive service interval: every 1,500 operating hours or 12 months, whichever comes first. Marine coating package: fresh-water wash of the coil every 6 months. Coolant: R-452A only; charge weight 3.9 kg for a Standard Unit and 4.6 kg for an X Unit.
+
+## Annex E — Acceptance specification (extract)
+
+| Test | Requirement |
+|---|---|
+| Pull-down +20.0 °C to −18.0 °C | not more than 118 minutes |
+| Stability at −18.0 °C, 4 hours | ±0.3 K |
+| Electrical consumption after pull-down | not more than 6.8 kW |
+| GlideLink handshake with KC-Hub 200 | within 90 seconds |
+
+## Annex G — Service credits for hotline response (extract)
+
+If the remote diagnosis under Article 7.3 is later than 4 hours, the Supplier gives the following credit against the next Spare Parts invoice, per late response.
+
+| Delay beyond 4 hours | Credit |
+|---|---|
+| up to 2 hours | EUR 150 |
+| more than 2 and up to 8 hours | EUR 420 |
+| more than 8 hours | EUR 950 |
+
+The aggregate hotline credits in a calendar quarter are capped at EUR 6,500. A credit is not payable where the delay was caused by the Buyer's failure to provide access to the Unit's log.
+
+## Annex F — Contacts
+
+For the Supplier: Joris Kuipers-Bax (account manager), Femke Oosterhuis (head of service, hotline +31 10 555 0182). For the Buyer: Gunnar Halvorsrud (Fleet and Maintenance Lead), Sofia Brandão (Legal Counsel).
+
+Annex F-1: Order form — blank form, not reproduced in this copy.

@@ -1,0 +1,22 @@
+---
+out: oncall_rotation_2024_q4.csv
+tier: extended
+---
+week_start,iso_week,primary,secondary,depot_hands,notes
+2024-09-30,W40,Sanna Virtanen,Dominik Pawelec,GDY-1: Mikołaj Czarnecki,
+2024-10-07,W41,Dominik Pawelec,Aneta Gorczyca-Reyes,HAM-2: Lena Ostermann,
+2024-10-14,W42,Aneta Gorczyca-Reyes,Bartosz Olszewski,RTM-3: Joris van Beek,Bartosz covers Tue 15.10 evening for Aneta (dentist)
+2024-10-21,W43,Bartosz Olszewski,Sanna Virtanen,GOT-4: Elin Karlsson,
+2024-10-28,W44,Sanna Virtanen,Aneta Gorczyca-Reyes,KLJ-5: Tadas Jankauskas,Fri 1 Nov is a public holiday in Poland; Kłaipėda works normally
+2024-11-04,W45,Dominik Pawelec,Bartosz Olszewski,GDY-1: Mikołaj Czarnecki,Hub firmware ring 1 soak ends Thu 7 Nov — watch hub-ham2-02
+2024-11-11,W46,Aneta Gorczyca-Reyes,Wiktor Szczepaniak,HAM-2: Lena Ostermann,Mon 11.11 public holiday (Niepodległości); handover done by chat at 09:00 anyway
+2024-11-18,W47,Sanna Virtanen,Dominik Pawelec,RTM-3: Joris van Beek,
+2024-11-25,W48,Bartosz Olszewski,Aneta Gorczyca-Reyes,GOT-4: Elin Karlsson,Tidewalk 6.7 goes out Tue 26.11 - Wiktor release engineer on standby from 21:30
+2024-12-02,W49,Dominik Pawelec,Sanna Virtanen,KLJ-5: Tadas Jankauskas,
+2024-12-09,W50,Aneta Gorczyca-Reyes,Bartosz Olszewski,GDY-1: Mikołaj Czarnecki,Change freeze from Fri 13.12 18:00 for 6.8
+2024-12-16,W51,Sanna Virtanen,Wiktor Szczepaniak,HAM-2: Lena Ostermann,6.8 release Tue 17.12 - primary stays reachable until 23:00
+2024-12-23,W52,Bartosz Olszewski,Dominik Pawelec,RTM-3: Joris van Beek,Christmas: support desk ext. 4120 forwards to the on-call mobile 24-26.12
+NOTE,Handover is every Monday 09:00 CET in #platform-oncall,,,,
+NOTE,Swaps must be posted in #platform-oncall at least 48 hours ahead and confirmed by Wiktor,,,,
+NOTE,On-call allowance 180 PLN per week plus 90 PLN per SEV1 or SEV2 page outside 07:00-22:00,,,,
+NOTE,Sheet owner: Wiktor Szczepaniak - exported from the rota tool 2024-09-27 (v3),,,,

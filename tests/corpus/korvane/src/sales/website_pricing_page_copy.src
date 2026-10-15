@@ -1,0 +1,136 @@
+---
+out: website_pricing_page_copy.html
+tier: extended
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pricing - Tidewalk plans and KC-Tag hardware | Korvane Cold Chain</title>
+<meta name="description" content="Simple pricing for Tidewalk monitoring: Harbour, Fairway and Deep Water. Hardware, rental and installation.">
+<meta name="cms-page-id" content="pg_00418">
+<meta name="cms-last-edited" content="2024-09-26T16:12:09+02:00 by lsandberg">
+<link rel="canonical" href="https://www.korvane.example/pricing">
+<link rel="stylesheet" href="/static/site.css?rev=7731">
+<script async src="https://www.googletagmanager.example/gtm.js?id=GTM-KVN4X2"></script>
+</head>
+<body class="page-pricing">
+<div id="cookie-consent">We use cookies. <button id="cc-accept">OK</button> <button id="cc-settings">Settings</button></div>
+<div class="topbar">+48 58 555 0100 &nbsp;|&nbsp; EN | PL | DE | SV &nbsp;|&nbsp; <a href="/login">Customer login</a></div>
+<header>
+  <a class="logo" href="/"><img src="/static/korvane-logo.svg" alt="Korvane"></a>
+  <ul class="mainnav">
+    <li><a href="/solutions">Solutions</a></li><li><a href="/tidewalk">Tidewalk</a></li><li><a href="/hardware">Hardware</a></li><li class="active"><a href="/pricing">Pricing</a></li><li><a href="/customers">Customers</a></li><li><a href="/careers">Careers</a></li><li><a href="/contact">Contact</a></li>
+  </ul>
+</header>
+<div class="breadcrumb"><a href="/">Home</a> / <a href="/tidewalk">Tidewalk</a> / Pricing</div>
+<div class="banner banner--info">Heads up: list prices change on 1 November 2024. Prices on this page are valid until 31 October 2024 inclusive.</div>
+
+<main id="content">
+<h1>Pricing that does not need a decoder ring</h1>
+<p class="lead">Three plans, one hardware price list, no per-alert fees and no surprise at the end of the month. All prices are in euro and exclude VAT. If you want to talk it through, our sales team answers the phone before the third ring; if they do not, it is because they are on the other line with somebody like you.</p>
+
+<section class="plans" id="plans">
+  <div class="plan plan--harbour">
+    <h2>Harbour</h2>
+    <p class="tagline">For small and seasonal shippers who want to stop guessing.</p>
+    <p class="price"><strong>EUR 349</strong> per month</p>
+    <ul>
+      <li>120 container-days included every month</li>
+      <li>Extra container-days at EUR 3.45 each</li>
+      <li>E-mail alerts</li>
+      <li>Support on working days, 08:00 to 17:00</li>
+      <li>Onboarding fee EUR 150, waived on terms of 24 months or longer</li>
+    </ul>
+    <a class="btn" href="/contact?plan=harbour">Start with Harbour</a>
+  </div>
+  <div class="plan plan--fairway plan--featured">
+    <span class="badge">Most popular</span>
+    <h2>Fairway</h2>
+    <p class="tagline">For importers and exporters who move containers every week.</p>
+    <p class="price"><strong>EUR 1,190</strong> per month</p>
+    <ul>
+      <li>600 container-days included every month</li>
+      <li>Extra container-days at EUR 2.60 each</li>
+      <li>Alerts by e-mail, SMS and webhook</li>
+      <li>Tidewalk API access</li>
+      <li>Support Monday to Saturday, 06:00 to 22:00</li>
+      <li>Onboarding fee EUR 480, waived on terms of 24 months or longer</li>
+    </ul>
+    <a class="btn btn--primary" href="/contact?plan=fairway">Choose Fairway</a>
+  </div>
+  <div class="plan plan--deepwater">
+    <h2>Deep Water</h2>
+    <p class="tagline">For large networks, pharma and anybody who needs a name to call at 3 a.m.</p>
+    <p class="price">from <strong>EUR 4,900</strong> per month</p>
+    <ul>
+      <li>Volume and price agreed per customer</li>
+      <li>Minimum term 24 months</li>
+      <li>Phone escalation on top of e-mail, SMS and webhook</li>
+      <li>24/7 support with a named Key Account Manager</li>
+      <li>GDP annex and calibration certificates for pharma customers</li>
+      <li>Onboarding included</li>
+    </ul>
+    <a class="btn" href="/contact?plan=deepwater">Talk to us</a>
+  </div>
+</section>
+
+<section id="how-container-days-work">
+<h2>What is a container-day, exactly?</h2>
+<p>One tagged container being monitored for one calendar day counts as one container-day, and a day is counted from 00:00 to 24:00 Central European Time. A container that is tagged at 23:50 counts for that day as well, which we find charming and our finance team finds necessary. Unused container-days do not roll over to the next month. If you regularly use more than 600 container-days on Fairway, ask us about Deep Water, because beyond about 1,100 container-days a month the arithmetic starts to favour a custom plan.</p>
+</section>
+
+<section id="hardware">
+<h2>Hardware</h2>
+<p>You can buy the tags and gateways outright or rent the tags. Renting suits seasonal customers; buying suits everybody who is going to use a tag for more than about 200 days, which is where the cumulative rental cost passes the price of a tag.</p>
+<table class="price-table">
+<thead><tr><th>Item</th><th>Price (EUR)</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>KC-Tag 4, 1 to 199 units</td><td>118.00 each</td><td>Battery temperature, humidity and door-open logger</td></tr>
+<tr><td>KC-Tag 4, 200 to 499 units</td><td>104.50 each</td><td>Volume tier</td></tr>
+<tr><td>KC-Tag 4, 500 units or more</td><td>96.00 each</td><td>Volume tier</td></tr>
+<tr><td>KC-Tag 4 rental</td><td>0.58 per tag per day</td><td>Minimum rental 30 days per tag</td></tr>
+<tr><td>KC-Hub 200 gateway</td><td>1,640.00 each</td><td>One hub per yard or site is usually enough</td></tr>
+<tr><td>Hub installation</td><td>380.00 per site</td><td>Travel beyond 60 km from the nearest Korvane depot: 0.74 per km</td></tr>
+</tbody>
+</table>
+<p>Hub maintenance with 4-hour on-site response is available within our service areas; ask for a quote. Old KC-Tag 3 loggers can be traded in against new KC-Tag 4 tags during our current autumn campaign.</p>
+</section>
+
+<section id="compare">
+<h2>Compare plans</h2>
+<table class="compare">
+<thead><tr><th></th><th>Harbour</th><th>Fairway</th><th>Deep Water</th></tr></thead>
+<tbody>
+<tr><th>Container-days included</th><td>120</td><td>600</td><td>agreed</td></tr>
+<tr><th>Extra container-day</th><td>EUR 3.45</td><td>EUR 2.60</td><td>agreed</td></tr>
+<tr><th>Alert channels</th><td>E-mail</td><td>E-mail, SMS, webhook</td><td>E-mail, SMS, webhook, phone</td></tr>
+<tr><th>API access</th><td>No</td><td>Yes</td><td>Yes</td></tr>
+<tr><th>Support hours</th><td>Working days 08:00-17:00</td><td>Mon-Sat 06:00-22:00</td><td>24/7</td></tr>
+<tr><th>Standard contract term</th><td>12 months</td><td>12 months</td><td>24 months minimum</td></tr>
+<tr><th>Named account manager</th><td>No</td><td>No</td><td>Yes</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="getting-started">
+<h2>How fast can we start?</h2>
+<p>Most customers see their first live alerts typically within 5 weeks of signing. Customers with their own hubs on site, such as Fruttoria Baltica, who started with 120 tags and now run 410, tend to be quicker. Month-to-month contracts are possible on Harbour only, at a surcharge of 18%. If you pay an invoice within 8 days we take 1.2% off it, no questions asked.</p>
+</section>
+
+<aside class="chat-widget">Chat with us - we are online Mon-Fri 08:00-16:00 CET</aside>
+</main>
+
+<footer>
+<div class="smallprint">
+<p><sup>1</sup> All prices exclude VAT. Prices valid until 31 October 2024; from 1 November 2024 list prices increase by 3.4%. <sup>2</sup> A container-day is one tagged container monitored for one calendar day (00:00-24:00 CET). <sup>3</sup> Rental tags must be returned within 14 days of the end of the rental, otherwise the purchase price of EUR 118.00 is invoiced. <sup>4</sup> The onboarding fee is waived only for terms of 24 months or longer and only on Harbour and Fairway. <sup>5</sup> Offers are not cumulative. Rafał Nowogrodzki, Head of Sales, reserves the right to be reasonable.</p>
+</div>
+<div class="footcols">
+<ul><li><a href="/about">About Korvane</a></li><li><a href="/careers">Careers</a></li><li><a href="/press">Press</a></li></ul>
+<ul><li><a href="/legal/terms">Master terms</a></li><li><a href="/legal/privacy">Privacy</a></li><li><a href="/legal/cookies">Cookies</a></li></ul>
+</div>
+<p>&copy; 2024 Korvane Cold Chain Sp. z o.o. &middot; ul. Łużycka 14, 81-537 Gdynia &middot; KRS 0000488213 &middot; Page last edited 26 September 2024</p>
+</footer>
+<script src="/static/site.js?rev=7731"></script>
+</body>
+</html>

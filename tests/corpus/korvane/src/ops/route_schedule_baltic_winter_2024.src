@@ -1,0 +1,33 @@
+---
+out: route_schedule_baltic_winter_2024.xlsx
+tier: extended
+---
+## Feeder sailings
+| KORVANE OPS - Baltic winter schedule 2024/25 - valid 28.10.2024 to 30.03.2025 - v3 (owls + Hanneke edit) | | | | | | | | |
+| Service | Route | Sails | Departs | Transit | Reefer gate cut-off | Docs cut-off | Vessel | Notes |
+| BW1 | Gdynia to Hamburg-Waltershof | Mon, Thu | 18:00 | 31 h | Mon 10:30; Thu 10:30 | Sun 16:00; Wed 16:00 | MV Nordic Plover | 40 reefer slots/week (Mon 24, Thu 16); no plugs on deck 3 in January, vessel office says "temporarily" |
+| BW2 | Hamburg-Waltershof to Gdynia | Tue, Fri | 20:00 | 30 h | Tue 12:00; Fri 12:00 | Mon 17:00; Thu 17:00 | MV Nordic Plover | return leg of BW1, same slots |
+| BW3 | Gdynia to Rotterdam-Maasvlakte | Wed | 06:30 | 52 h | Tue 18:00 | Tue 09:00 | MV Skagerrak Dawn | 12 reefer slots/week; fruit season gets +4 on request, ask 7 days ahead |
+| BW4 | Rotterdam-Maasvlakte to Gdynia | Sat | 22:00 | 51 h | Sat 14:00 | Fri 15:00 | MV Skagerrak Dawn | Hanneke: gate closes Sat 20:00 so gate-in must be BEFORE that, the 14:00 is not a typo |
+| BW5 | Gdynia to Gothenburg-Arendal | Tue, Sat | 21:15 | 17 h | Tue 13:00; Sat 13:00 | Mon 14:00; Fri 14:00 | MV Kattegat Lark | 18 reefer slots/week |
+| BW6 | Gothenburg-Arendal to Gdynia | Wed, Sun | 19:30 | 18 h | Wed 11:30; Sun 11:30 | Tue 14:00; Sat 14:00 | MV Kattegat Lark | Sunday gate-in only by appointment (24 h notice) |
+| BW7 | Gdynia to Klaipėda | Mon, Wed, Fri | 23:00 | 14 h | Mon 15:00; Wed 15:00; Fri 15:00 | Mon 09:00; Wed 09:00; Fri 09:00 | MV Neris Star | 8 reefer slots/week, 16A plugs only on 6 of them, check the plug list |
+| BW8 | Klaipėda to Gdynia | Tue, Thu, Sat | 22:30 | 14 h | Tue 14:30; Thu 14:30; Sat 14:30 | Tue 09:30; Thu 09:30; Sat 09:30 | MV Neris Star | KLJ-5 gate closes 19:00, trucks must be in the yard before that |
+## Truck lines
+| Line | Route | Days | Loading complete by | Departs | Planned arrival | Notes | |
+| T-A | GDY-1 to HAM-2 | Mon-Fri | 03:00 | 03:30 | 15:30 | the daily workhorse, 2 trucks | |
+| T-B | GDY-1 to RTM-3 | Tue, Thu | 04:30 | 05:00 | 09:30 next day | overnight stop at the HAM-2 gate, driver rest 11 h | |
+| T-C | HAM-2 to RTM-3 | Mon-Sat | 03:45 | 04:15 | 11:45 | customs window at RTM-3 closes 21:00 weekdays | |
+| T-D | GDY-1 to KLJ-5 | Wed, Sat | 03:15 | 04:00 | 17:00 | KLJ-5 yard shuts at 19:00, border queue allowance 90 min already included | |
+| T-E | KLJ-5 to GDY-1 | Thu, Sun | 05:30 | 06:00 | 19:15 | 16A reefers not allowed on this line in January | |
+| T-F | GOT-4 to HAM-2 | Mon, Thu | 05:30 | 06:00 | 19:45 | via the bridge, ferry only as plan B | |
+## Rules and surcharges
+| Rule | Value | Applies to | Note | | | | |
+| Roll fee for a reefer arriving after the gate cut-off | 120 EUR per box | all feeder services | box rolls to the next sailing, no refund of the slot | | | | |
+| Winter bunker surcharge (WBS) | 4.5 % | all feeder services | valid 1 Nov 2024 to 31 Mar 2025 | | | | |
+| Storm cancellation threshold | wave height above 4.5 m | all feeder services | announced by 14:00 on the day of sailing | | | | |
+| Christmas sailing gap | 24 Dec 18:00 to 26 Dec 06:00 | all feeder services | no departures in this window | | | | |
+| Christmas early cut-off BW1 | 08:00 | BW1 on 23 Dec and 27 Dec | instead of the normal 10:30 | | | | |
+| Plug-in before gate cut-off | 6 hours | reefers over 20 pallets? NO - all reefers | owls: ignore the question mark, rule is for all reefers | | | | |
+| Feeder booking desk | +48 58 555 0310 | all feeder services | office hours 07:00-17:00 on weekdays | | | | |
+| Late docs penalty at feeder | 60 EUR per box | all feeder services | on top of the GreyLine fee | | | | |

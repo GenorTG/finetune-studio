@@ -1,0 +1,40 @@
+---
+out: calibration_log_2024.xlsx
+tier: extended
+---
+## Calibrations 2024
+| Cert no | Serial | Cal date | Technician | Offset +40.0 C | Offset 0.0 C | Offset -25.0 C | RH 11.3 % offset | RH 75.3 % offset | Result | Next due |
+|---|---|---|---|---|---|---|---|---|---|---|
+| KCC-2024-00031 | KT4-2301-00044 | 2024-01-16 | W. Szymaniak-Reyes | 0.08 | 0.05 | -0.11 | 0.6 | 0.9 | As found OK | 2025-01-16 |
+| KCC-2024-00032 | KT4-2301-00045 | 2024-01-16 | W. Szymaniak-Reyes | 0.12 | 0.03 | -0.14 | 0.4 | 1.1 | As found OK | 2025-01-16 |
+| KCC-2024-00033 | KT4-2301-00061 | 2024-01-16 | W. Szymaniak-Reyes | 0.19 | 0.10 | -0.22 | 1.2 | 1.8 | As found OK | 2025-01-16 |
+| KCC-2024-00034 | KT4-2302-00108 | 2024-01-16 | W. Szymaniak-Reyes | 0.31 | 0.14 | -0.09 | 0.8 | 0.7 | Adjusted | 2025-01-16 |
+| KCC-2024-00057 | KT4-2310-00533 | 2024-02-07 | J. Kapusta-Lindén | -0.04 | 0.02 | 0.07 | -0.3 | 0.5 | As found OK | 2025-02-07 |
+| KCC-2024-00058 | KT4-2310-00534 | 2024-02-07 | J. Kapusta-Lindén | 0.22 | 0.17 | 0.25 | 1.0 | 1.4 | As found OK | 2025-02-07 |
+| KCC-2024-00059 | KT4-2310-00540 | 2024-02-07 | J. Kapusta-Lindén | 0.47 | 0.29 | 0.52 | 1.6 | 1.9 | Adjusted | 2025-02-07 |
+| KCC-2024-00102 | KT4-2318-00221 | 2024-03-12 | W. Szymaniak-Reyes | 0.10 | 0.09 | -0.06 | 0.2 | 0.4 | As found OK | 2025-03-12 |
+| KCC-2024-00103 | KT4-2318-00222 | 2024-03-12 | W. Szymaniak-Reyes | -0.18 | -0.21 | -0.19 | -0.9 | -1.3 | As found OK | 2025-03-12 |
+| KCC-2024-00104 | KT4-2318-00230 | 2024-03-12 | W. Szymaniak-Reyes | 0.62 | 0.55 | 0.71 | 1.7 | 2.2 | Adjusted (temp + RH) | 2025-03-12 |
+| KCC-2024-00149 | KT4-2327-00402 | 2024-04-18 | M. Duszyński | 0.05 | 0.01 | -0.03 | 0.1 | 0.3 | As found OK | 2025-04-18 |
+| KCC-2024-00150 | KT4-2327-00403 | 2024-04-18 | M. Duszyński | 0.14 | 0.11 | 0.18 | 0.7 | 1.1 | As found OK | 2025-04-18 |
+| KCC-2024-00151 | KT4-2327-00417 | 2024-04-18 | M. Duszyński | 0.28 | 0.16 | 0.20 | 1.3 | 1.5 | Adjusted | 2025-04-18 |
+| KCC-2024-00188 | KT4-2335-00712 | 2024-05-23 | J. Kapusta-Lindén | 0.09 | 0.04 | -0.07 | 0.5 | 0.8 | As found OK | 2025-05-23 |
+| KCC-2024-00189 | KT4-2335-00713 | 2024-05-23 | J. Kapusta-Lindén | 0.16 | 0.12 | 0.15 | 0.9 | 1.2 | As found OK | 2025-05-23 |
+| KCC-2024-00190 | KT4-2335-00740 | 2024-05-23 | J. Kapusta-Lindén | 0.35 | 0.30 | 0.38 | 1.1 | 1.6 | Adjusted | 2025-05-23 |
+| KCC-2024-00241 | KT4-2340-00911 | 2024-06-27 | W. Szymaniak-Reyes | -0.07 | -0.02 | 0.04 | -0.2 | 0.2 | As found OK | 2025-06-27 |
+| KCC-2024-00242 | KT4-2340-00912 | 2024-06-27 | W. Szymaniak-Reyes | 0.13 | 0.06 | -0.12 | 0.6 | 0.7 | As found OK | 2025-06-27 |
+| KCC-2024-00288 | KT4-2347-01190 | 2024-07-31 | M. Duszyński | 0.21 | 0.19 | 0.23 | 1.4 | 1.7 | As found OK | 2025-07-31 |
+| KCC-2024-00289 | KT4-2347-01191 | 2024-07-31 | M. Duszyński | 0.44 | 0.41 | 0.49 | 2.3 | 2.6 | Adjusted (temp + RH) | 2025-07-31 |
+| KCC-2024-00335 | KT4-2352-01388 | 2024-09-04 | J. Kapusta-Lindén | 0.03 | 0.00 | -0.02 | 0.1 | 0.2 | As found OK | 2025-09-04 |
+| KCC-2024-00336 | KT4-2352-01389 | 2024-09-04 | J. Kapusta-Lindén | 0.17 | 0.13 | 0.20 | 0.8 | 1.0 | As found OK | 2025-09-04 |
+
+## Rejected units
+| Serial | HW rev | Cal date | Failed point | As-found offset | Action | Outcome | Note |
+|---|---|---|---|---|---|---|---|
+| KT4-2231-00019 | R1 | 2024-02-07 | -25.0 C | 0.93 | Sensor board SNS-4R1-A replaced | Repeat OK, cert KCC-2024-00060 | R1 unit, limit 0.40 |
+| KT4-2318-00237 | R2 | 2024-03-12 | +40.0 C | 1.12 | Sensor board SNS-4R2-B replaced | Repeat OK, cert KCC-2024-00105 | Condensation traces on old board |
+| KT4-2327-00455 | R2 | 2024-04-18 | 0.0 C | -0.84 | Sensor board SNS-4R2-B replaced | Rejected twice, scrap form WF-22 no. 2024-007 | Second test failed at -25.0 C with 0.91 |
+| KT4-2335-00761 | R2 | 2024-05-23 | -25.0 C | 0.88 | Sensor board SNS-4R2-B replaced | Repeat OK, cert KCC-2024-00191 | |
+| KT4-2340-00934 | R2 | 2024-06-27 | RH 75.3 % | 5.4 | Sensor board SNS-4R2-B replaced | Repeat OK, cert KCC-2024-00243 | Humidity still outside limit after adjustment |
+| KT4-2347-01203 | R2 | 2024-07-31 | +40.0 C | 1.35 | None, unit scrapped | Scrap form WF-22 no. 2024-009 | Cracked housing, water inside, not worth repair |
+| KT4-2352-01402 | R2 | 2024-09-04 | 0.0 C | 0.81 | Sensor board SNS-4R2-B replaced | Repeat OK, cert KCC-2024-00337 | Just above the 0.80 limit |

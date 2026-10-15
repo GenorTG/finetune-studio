@@ -1,0 +1,100 @@
+"""Readable result surfaces — no raw JSON dumps on main run/result panels."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+_ROOT = Path(__file__).resolve().parents[1]
+_TEMPLATES = _ROOT / "src" / "finetune_studio" / "webui" / "templates"
+_TRAINING = _TEMPLATES / "project_training.html"
+_KV = _TEMPLATES / "_kv_grid.html"
+_CASE = _TEMPLATES / "_case_results.html"
+_EXPORT = _TEMPLATES / "export_models.html"
+_TESTING = _TEMPLATES / "project_testing.html"
+
+
+def test_training_detail_uses_kv_grid_not_json_pre() -> None:
+    html = _TRAINING.read_text(encoding="utf-8")
+    assert '_kv_grid.html' in html
+    assert "detail_run.settings" in html
+    # Must not dump settings/metrics as indented JSON <pre>.
+    assert "detail_run.settings|tojson(indent=2)" not in html
+    assert "detail_run.metrics|tojson(indent=2)" not in html
+    assert "run-error" in html
+    assert '<pre class="mono text-xs run-settings">' not in html
+
+
+def test_kv_grid_renders_fields() -> None:
+    env = Environment(
+        loader=FileSystemLoader(str(_TEMPLATES)),
+        autoescape=select_autoescape(["html", "xml"]),
+    )
+    tpl = env.get_template("_kv_grid.html")
+    html = tpl.render(
+        title="Settings",
+        rows={"epochs": 3, "lr": 0.0002, "nested": {"a": 1}},
+    )
+    assert "Settings" in html
+    assert "epochs" in html
+    assert "3" in html
+    assert "lr" in html
+    assert "run-kv-table" in html
+    assert "<pre" not in html
+
+
+def test_case_results_is_table_not_json_dump() -> None:
+    html = _CASE.read_text(encoding="utf-8")
+    assert "case-results-table" in html
+    assert "case-results-scroll" in html
+    assert "verdict-badge" in html
+    assert "tojson(indent" not in html
+
+
+def test_testing_results_render_a_review_pane_not_a_json_dump() -> None:
+    html = _TESTING.read_text(encoding="utf-8")
+    assert "rv-list" in html and "rv-pane" in html
+    assert "verdict-badge" in html
+    assert "JSON.stringify(scores" not in html
+    # raw transcripts are one click away as a download and inside each case, never the primary view
+    assert "rv-export-json" in html and "Full transcript" in html
+
+
+def test_training_detail_debug_is_collapsed() -> None:
+    html = _TRAINING.read_text(encoding="utf-8")
+    assert "Debug JSON" in html
+    assert "<details" in html
+    # Primary panels stay as kv grids, not open JSON dumps.
+    assert '_kv_grid.html' in html
+
+
+def test_brain_and_data_prep_results_are_tables() -> None:
+    rag = (_TEMPLATES / "brain.html").read_text(encoding="utf-8")
+    assert "run-kv-table" in rag
+    assert "runQuery" in rag
+    assert "Debug JSON" in rag
+    # Primary query view builds a table, not a bare JSON.stringify dump.
+    assert "ref-table" in rag
+    dp = (_TEMPLATES / "data_prep.html").read_text(encoding="utf-8")
+    assert "dp-results-table" in dp
+    # Raw-JSON debug box removed from data prep (plain-language audit 2026-10-03).
+    assert "Debug JSON" not in dp
+
+
+def test_export_result_panel_is_field_grid() -> None:
+    html = _EXPORT.read_text(encoding="utf-8")
+    assert 'id="export-result"' in html
+    assert "run-kv-table" in html
+    assert "showResultCard" in html
+    # Failures must surface actionable text (not a silent 200).
+    assert "export failed" in html
+    assert "Missing" in html
+    assert "non-empty GGUF" in html or "without artifacts" in html
+    # Readable handling when the API returns HTML/500 instead of JSON.
+    assert "non-JSON response" in html
+    assert "d.detail" in html
+    # Unavailable converters are disabled in the UI (not advertised as ready).
+    assert 'id="export-caps"' in html
+    assert "export-gguf-unavailable" in html
+    assert "checked:not(:disabled)" in html

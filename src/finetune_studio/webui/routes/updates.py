@@ -1,0 +1,261 @@
+"""Routes for the self-healing /api/system/update endpoint.
+
+POST /api/system/update              — queue a background update.sh run
+GET  /api/system/update/events       — SSE live progress (UI primary path)
+GET  /api/system/update/latest       — one-shot snapshot (SSE silent fallback)
+GET  /api/system/update/{uid}        — poll status + log tail
+GET  /api/system/updates             — list recent update attempts
+
+The worker spawns the update.sh script as a subprocess and streams
+each stdout line into the system_updates.log_text DB field via
+append_log(), so the UI can show a live tail of what the script is
+doing.
+
+FTS_SKIP_UPDATE=1 short-circuits the worker with a canned log so
+end-to-end tests can assert the full lifecycle without spawning a
+real shell process.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import subprocess
+from pathlib import Path
+from typing import Any
+
+from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi.responses import JSONResponse
+
+from finetune_studio import db
+from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
+
+log = logging.getLogger(__name__)
+router = APIRouter()
+
+# Repo root = four levels up from src/finetune_studio/webui/routes/updates.py.
+# Path(__file__)         = .../finetune-studio/src/finetune_studio/webui/routes/updates.py
+# parents[0]             = .../finetune-studio/src/finetune_studio/webui/routes
+# parents[1]             = .../finetune-studio/src/finetune_studio/webui
+# parents[2]             = .../finetune-studio/src/finetune_studio
+# parents[3]             = .../finetune-studio/src
+# parents[4]             = .../finetune-studio      ← repo root (update.sh lives here)
+REPO_ROOT = Path(__file__).resolve().parents[4]
+
+
+def _find_update_script() -> Path | None:
+    """Locate update.sh. Prefers the path next to the package; falls
+    back to $FTS_UPDATE_SCRIPT, then CWD/update.sh."""
+    candidates = [
+        REPO_ROOT / "update.sh",
+        Path(os.environ.get("FTS_UPDATE_SCRIPT", "") or ""),
+        Path.cwd() / "update.sh",
+    ]
+    for c in candidates:
+        try:
+            if c and c.is_file():
+                return c
+        except (OSError, ValueError):
+            pass
+    return None
+
+
+@router.post("/system/update")
+async def trigger_update(request: Request, background: BackgroundTasks):
+    """Queue a self-healing update.
+
+    Body:
+      mode:           'update' (default) | 'check' | 'repair'
+      no_pull:        bool \u2014 skip 'git pull'
+      no_llama:       bool \u2014 skip llama.cpp CLI build
+      no_restart:     bool \u2014 skip service restart
+      triggered_by:   'user' (default) | 'system'
+
+    Returns: {ok, update_id, status: 'queued'}
+    """
+    body: Any = {}
+    if request.headers.get("content-type", "").startswith("application/json"):
+        try:
+            body = await request.json()
+        except ValueError:
+            return JSONResponse({"error": "invalid JSON"}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "expected JSON object"}, status_code=400)
+    mode = str(body.get("mode") or "update").lower()
+    if mode not in ("update", "check", "repair"):
+        return JSONResponse({"error": f"invalid mode: {mode}"}, status_code=400)
+    options = {
+        "no_pull": bool(body.get("no_pull", False)),
+        "no_llama": bool(body.get("no_llama", False)),
+        "no_restart": bool(body.get("no_restart", False)),
+    }
+    triggered_by = str(body.get("triggered_by") or "user")[:32]
+    row = db.create_update(mode=mode, options=options,
+                           triggered_by=triggered_by)
+    background.add_task(_update_worker, row["id"], mode, options)
+    return {"ok": True, "update_id": row["id"], "status": "queued",
+            "mode": mode, "options": options}
+
+
+def _latest_update_payload() -> dict[str, Any]:
+    """Compact snapshot for SSE frames and the one-shot /latest poll."""
+    row = db.latest_update_in_progress()
+    if not row:
+        return {"exists": False}
+    log_text = row.get("log_text") or ""
+    out = dict(row)
+    out["exists"] = True
+    out["log_tail"] = log_text[-4000:]
+    out["log_length"] = len(log_text)
+    return out
+
+
+@router.get("/system/updates")
+async def list_updates(limit: int = 50):
+    return db.list_updates_recent(limit=limit)
+
+
+@router.get("/system/update/latest")
+async def latest_update():
+    """One-shot snapshot of the in-progress update.
+
+    Silent poll fallback when EventSource is unavailable
+    (settings.js + fts.subscribe). Prefer /system/update/events.
+    """
+    return _latest_update_payload()
+
+
+@router.get("/system/update/events")
+async def update_events():
+    """SSE stream of the latest in-progress update until it finishes.
+
+    Emits JSON snapshots ``{exists, status, mode, log_tail, ...}``.
+    When no update is running, emits ``{exists: false}`` once and exits
+    so the client can pull history. Keepalive comments while status is
+    unchanged avoid a 2s full-panel redraw.
+    """
+
+    async def gen():
+        last: str | None = None
+        idle_frames = 0
+        while True:
+            payload = _latest_update_payload()
+            if not payload.get("exists"):
+                yield sse_data(payload)
+                return
+            fingerprint = (
+                f"{payload.get('status')}|{payload.get('log_length')}|"
+                f"{payload.get('error')}"
+            )
+            if fingerprint != last:
+                last = fingerprint
+                idle_frames = 0
+                yield sse_data(payload)
+            else:
+                idle_frames += 1
+                yield sse_comment()
+            status = str(payload.get("status") or "")
+            if status not in ("queued", "running"):
+                yield sse_data(payload)
+                return
+            # Cap runaway streams (e.g. stuck queued) at ~30 min.
+            if idle_frames > 1800:
+                yield sse_data(payload)
+                return
+            await asyncio.sleep(1.0)
+
+    return sse_response(gen())
+
+
+@router.get("/system/update/{uid}")
+async def get_update_status(uid: str, full: bool = False):
+    """Status + log tail for one update attempt."""
+    row = db.get_update(uid)
+    if not row:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    # Compact the log_text in the response by default \u2014 a full 256KB
+    # blob is too big for a poll request. The UI can ask for the full
+    # text via ?full=1 if needed.
+    log_text = row.get("log_text") or ""
+    row["log_tail"] = log_text[-4000:] if not full else log_text
+    row["log_length"] = len(log_text)
+    return row
+
+
+def _update_worker(uid: str, mode: str, options: dict) -> None:
+    """Spawn update.sh as subprocess, stream output to the DB row.
+
+    Test mode: FTS_SKIP_UPDATE=1 emits a canned log and marks the row
+    done without spawning anything. Use this for unit/integration tests.
+    """
+    if os.environ.get("FTS_SKIP_UPDATE") == "1":
+        db.mark_update_running(uid)
+        db.append_update_log(uid, "[FTS_SKIP_UPDATE=1] test mode \u2014 not running real update.sh\n")
+        db.append_update_log(uid, f"  mode={mode} options={options}\n")
+        db.append_update_log(uid, "  step 1: git pull (skipped)\n")
+        db.append_update_log(uid, "  step 2: pip sync (skipped)\n")
+        db.append_update_log(uid, "  step 3: llama.cpp (skipped)\n")
+        db.append_update_log(uid, "  step 4: init_db (skipped)\n")
+        db.append_update_log(uid, "  step 5: restart (skipped)\n")
+        db.mark_update_done(uid)
+        return
+
+    script_path = _find_update_script()
+    if script_path is None:
+        db.mark_update_failed(uid, error="update.sh not found in repo root, "
+                                "$FTS_UPDATE_SCRIPT, or cwd")
+        return
+
+    args = [str(script_path)]
+    if options.get("no_pull"):
+        args.append("--no-pull")
+    if options.get("no_llama"):
+        args.append("--no-llama")
+    if options.get("no_restart"):
+        args.append("--no-restart")
+    if mode == "check":
+        args.append("--check")
+    elif mode == "repair":
+        args.append("--repair")
+
+    db.mark_update_running(uid)
+    db.append_update_log(uid, f"$ {' '.join(args)}\n")
+
+    try:
+        proc = subprocess.Popen(
+            args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            cwd=str(script_path.parent),
+        )
+        # Stream output line by line into the DB. We block here until
+        # the script exits \u2014 this runs in a FastAPI BackgroundTask,
+        # not on the request thread.
+        assert proc.stdout is not None
+        restart_seen = False
+        for line in proc.stdout:
+            if "Restarting finetune-studio.service" in line:
+                restart_seen = True
+            db.append_update_log(uid, line)
+        proc.wait()
+        if proc.returncode == 0:
+            db.mark_update_done(uid)
+        elif restart_seen:
+            # update.sh was SIGTERMed by the very restart it triggered —
+            # every real step (pull, deps, migrations) already succeeded.
+            # Mark done, not error: -15 here is success, not failure.
+            db.append_update_log(uid,
+                "\n[worker] update.sh ended by the service restart it "
+                "triggered (expected) → marked done\n")
+            db.mark_update_done(uid)
+        else:
+            db.mark_update_failed(
+                uid,
+                error=f"update.sh exited with code {proc.returncode}",
+            )
+    except Exception as e:
+        log.exception("update worker failed")
+        db.mark_update_failed(uid, error=str(e))

@@ -1,0 +1,2784 @@
+{% extends "base.html" %}
+{% block title %}Question-answer pairs · {{ project.name }} · Finetune Studio{% endblock %}
+{% block nav_data_prep %}active{% endblock %}
+{% block sb_path %}~ / projects / {{ project.name }} / pairs{% endblock %}
+{% block breadcrumb_tab %}pairs{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Question-answer pairs — {{ project.name }}</h1>
+  <div class="sub">
+    <b>Step 1 · Files &amp; Knowledge → pairs.</b> A model cannot learn from raw documents — it learns
+    from questions and their answers. This page reads each parsed file and writes those
+    pairs for you; you approve or edit them, then export them as the <b>dataset</b> that
+    <a href="/projects/{{ pid }}/training" data-link>training (step 2)</a> consumes.
+    <br><span class="text-xs">Files come from the
+    <a href="/projects/{{ pid }}/data" data-link>files</a>, parsed once for training and the Smart Brain. Writing the pairs
+    uses the helper model <span class="mono" id="dp-helper-label">{{ helper_label }}</span>. Want to mine them conversationally instead?
+    <a href="/projects/{{ pid }}/chat?mode=agent" data-link>Agent chat</a>.</span>
+  </div>
+</div>
+
+<div class="card mb-4" id="dp-workflow">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Workflow</div>
+      <div class="card-sub">Upload → Mine each file → Review until complete → Export → Train</div>
+    </div>
+    <div class="flex gap-2">
+      <button class="btn primary" type="button" id="dp-jump-review" title="Jump to the review workspace">Review pairs · <span id="dp-jump-count">0</span> pending ↓</button>
+      <a href="/projects/{{ pid }}/brain" class="btn" data-link id="dp-cta-brain">Open the Smart Brain →</a>
+    </div>
+  </div>
+  <ol class="brain-workflow-steps" aria-label="Data prep workflow">
+    <li><b>Upload</b> files into the library below; every readable file is parsed on arrival (<b>Use as source</b> retries a failed one)</li>
+    <li><b>Mine</b> each file: its data-point checklist, pairs, checks and fixes</li>
+    <li><b>Review</b> the pairs until every file is <b>complete</b></li>
+    <li>Export approved pairs to Training (the <a href="/projects/{{ pid }}/brain" data-link>Smart Brain</a> needs no pairs)</li>
+  </ol>
+</div>
+
+<!-- ── Uploaded files (Stage 1B) ──────────────────────────────────────────── -->
+<div class="card mb-6" id="dp-uploaded-files">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Uploaded files</div>
+      <div class="card-sub">
+        Raw uploads in the project file library. Drag files in, organise into folders,
+        hand-edit. Parsing a file (or clicking <b>Use as source</b>) creates a <b>Parsed source</b>
+        (next section) — your original upload is never changed.
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button class="btn" id="fl-toggle-trash" onclick="flToggleTrash()">Show trash</button>
+      <a href="/projects/{{ pid }}/chat?mode=agent" class="btn" data-link>Open chat in Agent mode →</a>
+    </div>
+  </div>
+
+  <div class="grid grid-2 gap-4 mt-4 fl-grid">
+    <!-- ── Folder tree (left) ── -->
+    <div class="fl-col">
+      <div class="fl-section-head">
+        <span class="muted text-xs">FOLDERS</span>
+        <button class="btn sm fl-add-folder" onclick="flPromptCreateFolder()" title="Create a new user folder">+ new</button>
+      </div>
+      <ul id="fl-folders" class="fl-tree">
+        <li class="dim text-xs">Loading…</li>
+      </ul>
+      <div class="fl-section-head mt-4"><span class="muted text-xs">TRASH</span></div>
+      <ul id="fl-trash-list" class="fl-tree fl-trash" hidden></ul>
+    </div>
+
+    <!-- ── File list (right) ── -->
+    <div class="fl-col">
+      <div class="fl-section-head fl-files-head">
+        <span class="muted text-xs" id="fl-files-label">ALL FILES</span>
+        <div class="flex gap-2 fl-actions">
+          <input type="text" id="fl-search" placeholder="Search filenames…" class="input fl-search" oninput="flSearch(this.value)">
+          <label class="btn fl-upload-btn" title="Click or drop files here">
+            <input type="file" id="fl-upload-input" multiple hidden onchange="flUploadFiles(this.files)">
+            ⬆ Upload
+          </label>
+        </div>
+      </div>
+      <div id="fl-drop-zone" class="fl-drop">
+        <div class="table-scroll">
+        <table class="fl-table">
+          <thead>
+            <tr>
+              <th class="fl-col-check"><input type="checkbox" id="fl-select-all" aria-label="Select all files" onchange="flSelectAll(this.checked)"></th>
+              <th class="fl-col-name">name</th>
+              <th class="fl-col-ver">v</th>
+              <th class="fl-col-type">type</th>
+              <th class="fl-col-size">size</th>
+              <th class="fl-col-status">status</th>
+              <th class="fl-col-actions">actions</th>
+            </tr>
+          </thead>
+          <tbody id="fl-files-body">
+            <tr><td colspan="7" class="dim text-xs" style="text-align:center;padding:32px">Loading…</td></tr>
+          </tbody>
+        </table>
+        </div>
+        <div id="fl-drop-hint" class="fl-drop-hint">Drop files here to upload</div>
+      </div>
+      <pre id="fl-upload-status" class="fl-upload-status text-xs mt-2" role="status" aria-live="polite" hidden style="white-space:pre-wrap;margin:8px 0 0"></pre>
+      <div class="fl-footer text-xs dim mt-2" id="fl-footer"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Mine pairs, file by file ──────────────────────────────────────────── -->
+<div class="card mb-6" id="dp-mining">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Mine pairs, file by file</div>
+      <div class="card-sub">Each file gets a checklist of its data points; pairs are written, checked against it and fixed until every point is stated.</div>
+    </div>
+    <div class="flex gap-2 wrap">
+      <button class="btn sm primary" type="button" id="dp-mine-selected" title="Build the checklist and mine the ticked files">Mine selected</button>
+      <button class="btn sm" type="button" id="dp-fill-selected" title="Ask the helper again for the data points no pair states yet">Fill gaps on selected</button>
+      <button class="btn sm success" type="button" id="dp-build-selected" title="Build a dataset from the approved pairs of the ticked files">Build dataset from selected</button>
+      <button class="btn sm" type="button" id="dp-files-refresh">Refresh</button>
+    </div>
+  </div>
+  <details class="page-more text-xs">
+    <summary>More about mining</summary>
+    <ol class="dp-mining-steps">
+      <li><b>Inventory</b> — every statement with a number, date, code or name, plus the facts the helper lists (also the ones that need several parts of the file, such as a later correction). A value that is not in the file is dropped.</li>
+      <li><b>Mine</b> — one call per chunk with that chunk's checklist; pairs arrive <i>pending</i>.</li>
+      <li><b>Check and fix</b> — data points no pair states go back to the helper, up to three rounds or until a round adds nothing.</li>
+      <li><b>Review</b> — approve or reject below. A rejected pair can reopen a data point: <b>Fill gaps</b> asks again (with your reject reasons), or write the pair yourself, or exclude a point that is not a fact.</li>
+    </ol>
+    A file is <b>complete</b> when every data point is stated by an approved pair or excluded; export needs every file complete. Every helper call is kept: open a file's checklist and look under <b>Rounds</b>.
+  </details>
+  <div class="flex gap-2 wrap items-center text-xs" style="margin:8px 0;">
+    <span>Helper: <b id="dp-helper-name">{{ helper_label }}</b> <span class="dim" id="dp-helper-par"></span></span>
+    <span style="flex:1 1 auto;"></span>
+    <span id="dp-promote-panel" class="prep-promote-panel" hidden>
+      <button type="button" class="btn sm" id="dp-promote-library-btn" onclick="flPromoteEligibleFromLibrary()">Use text/markdown from file library</button>
+      <span id="dp-promote-status" class="text-xs dim" role="status" aria-live="polite"></span>
+    </span>
+  </div>
+  <pre id="dp-mining-status" role="status" aria-live="polite" hidden style="margin:0 0 8px;font-size:12px;white-space:pre-wrap;"></pre>
+  <div id="prep-helper-picker" hidden></div>
+  <div id="dp-files" class="text-sm">Loading…</div>
+  <div id="dp-file-panel" class="dp-file-panel" hidden></div>
+</div>
+
+<div class="card mb-6" id="dp-review-card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Training / Q&amp;A output</div>
+      <div class="card-sub">
+        Question–answer pairs for fine-tuning.
+        Review → approve → export to project datasets. The Smart Brain does not
+        need them: it reads the same parsed files directly.
+      </div>
+    </div>
+    <button class="btn sm" type="button" id="prep-results-refresh" onclick="prepRefreshResults()">Refresh</button>
+  </div>
+
+  <div id="dp-review-toolbar" class="dp-review-toolbar">
+    <div class="flex gap-2 wrap items-center" style="margin-bottom:8px;">
+      <span class="pill outline" id="dp-stat-total">0 total</span>
+      <span class="pill solid-amber" id="dp-stat-pending">0 pending</span>
+      <span class="pill solid-green" id="dp-stat-approved">0 approved</span>
+      <span class="pill solid-rose" id="dp-stat-rejected">0 rejected</span>
+      <span style="flex:1 1 auto;"></span>
+      <div class="flex gap-1" role="group" aria-label="Status filter">
+        <button class="btn sm" type="button" data-dp-filter="all" id="dp-filter-all">All</button>
+        <button class="btn sm primary" type="button" data-dp-filter="pending" id="dp-filter-pending">Pending</button>
+        <button class="btn sm" type="button" data-dp-filter="approved" id="dp-filter-approved">Approved</button>
+        <button class="btn sm" type="button" data-dp-filter="rejected" id="dp-filter-rejected">Rejected</button>
+      </div>
+    </div>
+    <div class="flex gap-2 wrap items-center" style="margin-bottom:8px;">
+      <button class="btn sm success" type="button" id="dp-bulk-approve" title="Approve checked rows (or all visible pending if none checked)">Approve selected</button>
+      <button class="btn sm danger" type="button" id="dp-bulk-reject" title="Reject checked rows">Reject selected</button>
+      <button class="btn sm success" type="button" id="dp-approve-all-pending" title="Mark every pending pair approved">Approve all pending</button>
+      <button class="btn sm primary" type="button" id="dp-export-approved" title="Write approved pairs as ShareGPT JSONL and register it for Training">Export approved → Training</button>
+      <a class="btn sm" href="/projects/{{ pid }}/training" data-link id="dp-open-training">Open Training</a>
+    </div>
+    <div id="dp-grounded-opts" class="flex gap-2 wrap items-center" style="margin-bottom:4px;">
+      <label class="text-sm flex gap-1 items-center" for="dp-grounded">
+        <input type="checkbox" id="dp-grounded">
+        Include retrieved context in
+      </label>
+      <input type="number" id="dp-grounded-pct" min="1" max="100" value="40" style="width:4.5rem;" aria-label="Percent of rows that carry retrieved context">
+      <span class="text-sm">% of rows</span>
+    </div>
+    <div class="text-xs dim" id="dp-grounded-note" style="margin-bottom:8px;">
+      Only matters if the trained model will answer with the Smart Brain's context (chat with sources). That share of rows gets the Smart Brain chat prompt with the pair's own source passage (cited by filename) added; answers stay the same. In one test on a 0.6B model this took grounded answers from 2/5 to 4/5.
+      <span id="dp-grounded-state"></span>
+    </div>
+    <pre id="dp-bridge-status" role="status" aria-live="polite" hidden
+         style="margin:0 0 8px;font-size:12px;white-space:pre-wrap;"></pre>
+    <div id="dp-exported-datasets" class="dp-exported-panel text-sm" hidden></div>
+  </div>
+
+  <div id="dp-results" class="text-sm muted">Loading…</div>
+</div>
+
+<div class="card mb-6" id="dp-pref-card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Preference pairs (DPO)</div>
+      <div class="card-sub">An optional second training stage that teaches the model what a <em>good</em> answer looks like next to a bad one.</div>
+    </div>
+    <span class="pill outline" id="dp-pref-approved">0 approved pairs</span>
+  </div>
+  <div class="text-sm" style="margin-bottom:8px;">
+    Each preference pair is one question with two answers: the <b>chosen</b> one (your approved, source-faithful answer
+    or an honest “not covered”) and a <b>rejected</b> one (what a model writes when it guesses). Training on them
+    pushes the model away from inventing facts.
+  </div>
+  <div class="text-xs dim" style="margin-bottom:12px;">
+    <b>When to use it:</b> after the normal fine-tune (SFT) has taught the facts, to curb hallucination and teach the
+    model to say “that isn’t in the documents”. It needs approved pairs above and the helper model loaded
+    (it writes the rejected answers). Not a replacement for SFT.
+  </div>
+  <fieldset class="dp-pref-kinds" id="dp-pref-kinds">
+    <legend class="text-xs dim">Which pairs to build</legend>
+    <label class="dp-pref-kind"><input type="checkbox" id="dp-pref-kind-hallucination" value="hallucination" checked>
+      <span><b>Stick to the source</b> — chosen: the approved answer. Rejected: what the model says to the same
+      question <em>without</em> the source. Kept only when the guess is clearly less grounded.</span></label>
+    <label class="dp-pref-kind"><input type="checkbox" id="dp-pref-kind-abstain" value="abstain" checked>
+      <span><b>Admit it doesn’t know</b> — a plausible question the documents do <em>not</em> answer. Chosen: a short
+      honest refusal. Rejected: a confident made-up answer.</span></label>
+  </fieldset>
+  <div class="flex gap-2 wrap items-center" style="margin:10px 0;">
+    <label class="text-sm" for="dp-pref-max">Up to</label>
+    <input type="number" id="dp-pref-max" min="2" max="2000" value="100" style="width:5.5rem;" aria-label="Maximum number of preference pairs">
+    <span class="text-sm">pairs</span>
+    <details class="text-xs dim" style="margin-left:8px;"><summary>Advanced</summary>
+      <label for="dp-pref-seed">Seed</label>
+      <input type="number" id="dp-pref-seed" value="42" style="width:5rem;" aria-label="Random seed">
+    </details>
+    <span style="flex:1 1 auto;"></span>
+    <button class="btn sm primary" type="button" id="dp-pref-build" title="Write the pairs and register the dataset for Training">Build preference pairs</button>
+  </div>
+  <div id="dp-pref-progress" hidden>
+    <div class="hpbar" role="progressbar" aria-label="Building preference pairs" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="dp-pref-bar"><div class="hpbar-fill" id="dp-pref-fill"></div></div>
+    <div class="text-xs dim" id="dp-pref-progress-text" role="status" aria-live="polite" style="margin-top:4px;"></div>
+  </div>
+  <pre id="dp-pref-status" role="status" aria-live="polite" hidden style="margin:8px 0 0;font-size:12px;white-space:pre-wrap;"></pre>
+  <div id="dp-pref-result" class="dp-exported-panel text-sm" hidden></div>
+</div>
+
+<style>
+.dp-review-toolbar { padding: 0 4px 4px; }
+.dp-results-table { width: 100%; font-size: 12px; }
+.dp-results-table td { padding: 6px 8px; vertical-align: top; }
+.dp-results-table tr:nth-child(even) td { background: var(--bg-elevated, #0a0a0a); }
+.dp-results-table .q { color: var(--cyan-text, var(--accent-cyan, #66ddff)); }
+.dp-results-table .a { color: var(--text, #ccc); }
+.dp-results-table .meta { color: var(--text-dim, #666); font-size: 11px; }
+.dp-results-table .dp-acts { white-space: nowrap; }
+.dp-status-pending  { color: var(--warn-text, var(--accent-amber, #ffaa00)); }
+.dp-status-approved { color: var(--accent); }
+.dp-status-rejected { color: var(--accent-rose, #ff6666); }
+.dp-rq-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+.dp-rq-bar select { max-width: 340px; }
+.dp-rq-bar input[type=search] { min-width: 240px; flex: 0 1 320px; }
+.dp-rq-help { padding: 6px 10px; border: 1px solid var(--border, #333); border-radius: 4px; margin-bottom: 8px; line-height: 1.7; }
+.dp-rq-main { display:grid; grid-template-columns: minmax(280px, 38%) 1fr; gap: 12px; align-items: start; }
+@media (max-width: 900px) { .dp-rq-main { grid-template-columns: 1fr; } }
+.dp-rq-list { max-height: 78vh; overflow-y: auto; border: 1px solid var(--border, #333); border-radius: 4px; }
+.dp-rq-list .dp-results-table td { padding: 5px 8px; }
+.dp-rq-row { cursor: pointer; }
+.dp-rq-row.cur td { background: rgba(0, 204, 255, 0.14) !important; box-shadow: inset 3px 0 0 var(--accent, #00ccff); }
+.dp-rq-a { color: var(--text-dim, #888); font-size: 11px; }
+.dp-rq-detail { position: sticky; top: 8px; max-height: 92vh; overflow-y: auto; padding: 10px 12px; border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-elevated, #0a0a0a); }
+.dp-rq-detail textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; margin: 2px 0 8px; resize: vertical; }
+.dp-rq-head { margin-bottom: 8px; }
+.dp-rq-actions { display:flex; gap:6px; flex-wrap: wrap; margin: 4px 0 8px; }
+.dp-rq-reasons { display:flex; gap:6px; flex-wrap: wrap; align-items:center; margin-bottom: 8px; }
+.dp-rq-reasons input { flex: 1 1 200px; }
+.dp-rq-add { margin: 8px 0; padding: 8px; border: 1px dashed var(--border, #444); border-radius: 4px; }
+.dp-rq-src { white-space: pre-wrap; word-break: break-word; font-size: 12px; max-height: 38vh; overflow-y: auto; padding: 8px; border: 1px solid var(--border, #333); border-radius: 4px; margin: 4px 0 0; }
+.dp-rq-src mark { background: rgba(255, 200, 0, 0.28); color: inherit; padding: 0 1px; }
+.dp-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-dim, #888);
+  font-style: italic;
+}
+.dp-pref-kinds { border: 1px solid var(--border); padding: 8px 12px; margin: 0; }
+.dp-pref-kind { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; font-size: 13px; }
+.dp-pref-kind input { margin-top: 3px; }
+.dp-pref-warn { color: var(--warn-text, var(--warn)); }
+.dp-pref-err { color: var(--err-text, var(--err)); }
+.dp-pref-result-grid { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.dp-exported-panel {
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  background: var(--bg-elevated, #0a0a0a);
+}
+.dp-exported-panel .dp-ds-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 0;
+}
+
+/* ── Mining: file table, per-file checklist and rounds ── */
+.dp-mining-steps { margin: 6px 0 6px 18px; padding: 0; line-height: 1.6; }
+.dp-points-bar { display: inline-flex; width: 90px; height: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; vertical-align: middle; margin-right: 6px; background: var(--bg-elevated); }
+.dp-points-bar span { display: block; height: 100%; }
+.dp-points-bar .ok { background: var(--ok); }
+.dp-points-bar .ex { background: var(--text-dim); }
+.dp-points-bar .pe { background: var(--warn); }
+.dp-points-bar .op { background: var(--err); }
+.dp-open { color: var(--err); }
+.dp-file-acts { white-space: nowrap; text-align: right; }
+#dp-files-table tr.dp-file-open td { box-shadow: inset 3px 0 0 var(--accent); }
+.dp-file-panel { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); }
+.dp-panel-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.dp-items-scroll { max-height: 60vh; overflow-y: auto; }
+/* Checklist rows are prose + buttons: the global .table td ellipsis clipped the item text and hid "Write pair". */
+.dp-items-table td { vertical-align: top; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.dp-items-table td.dp-file-acts { white-space: normal; width: 11rem; }
+.dp-items-table td.dp-file-acts .btn { margin: 0 0 4px 4px; }
+.dp-item-chunk td { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; padding-top: 10px; }
+.dp-item-approved { color: var(--ok); }
+.dp-item-pending { color: var(--warn); }
+.dp-item-open { color: var(--err); }
+.dp-item-excluded { color: var(--text-dim); }
+.dp-item-write textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 12px; margin: 4px 0; }
+.dp-round-row { cursor: pointer; }
+.dp-round-row.cur td { box-shadow: inset 3px 0 0 var(--accent); }
+.dp-rq-covers { margin-bottom: 6px; line-height: 1.6; }
+.dp-cover { display: inline-block; padding: 0 6px; margin: 1px 2px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.dp-cover.last { border-color: var(--err); }
+
+/* ── File library (Stage 1B) ── */
+.fl-grid { align-items: start; }
+.fl-col { min-width: 0; }
+.fl-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border, #222);
+}
+.fl-files-head { gap: 8px; }
+.fl-actions { display: flex; gap: 6px; align-items: center; }
+.fl-search { font-size: 11px; padding: 4px 8px; min-width: 180px; }
+.fl-upload-btn {
+  cursor: pointer;
+  font-size: 11px;
+  padding: 4px 10px;
+  border: 1px dashed var(--accent, #00ccff);
+  color: var(--accent, #00ccff);
+}
+.fl-upload-btn:hover { background: rgba(0, 204, 255, 0.1); }
+
+/* Folder tree */
+.fl-tree { list-style: none; margin: 0; padding: 0; font-size: 11px; }
+.fl-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  cursor: default;
+}
+.fl-tree-row:hover { background: rgba(255, 255, 255, 0.04); }
+.fl-tree-sel { background: rgba(0, 204, 255, 0.15) !important; color: var(--accent, #00ccff); }
+.fl-tree-icon { font-size: 12px; opacity: 0.7; }
+.fl-tree-name {
+  flex: 1;
+  color: var(--text, #ccc);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fl-tree-actions { display: flex; gap: 4px; opacity: 0.4; }
+.fl-tree-row:hover .fl-tree-actions { opacity: 1; }
+.fl-act {
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 2px;
+  color: var(--text-dim, #888);
+}
+.fl-act:hover { color: var(--accent, #00ccff); background: rgba(0, 204, 255, 0.1); }
+.fl-act-del:hover { color: var(--err, #ff6666); background: rgba(255, 68, 68, 0.1); }
+.fl-tree-section {
+  margin-top: 10px;
+  padding: 4px 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim, #666);
+  border-bottom: 1px solid var(--border, #222);
+}
+.fl-tree-empty { padding: 6px; font-style: italic; }
+.fl-add-folder { font-size: 11px; padding: 3px 7px; }
+
+/* File table */
+.fl-drop {
+  position: relative;
+  border: 1px solid var(--border, #222);
+  border-radius: 4px;
+  min-height: 180px;
+  max-height: 60vh;  /* use viewport-relative max so the 22 files scroll inside without being clipped to ~150px */
+  overflow: auto;
+}
+.fl-drop-hover { border-color: var(--accent, #00ccff); background: rgba(0, 204, 255, 0.04); }
+.fl-table {
+  width: 100%;
+  font-size: 12px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.fl-table th, .fl-table td {
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border, #222);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fl-table th {
+  background: var(--bg-elevated, #0a0a0a);
+  font-weight: 600;
+  /* 11px readability floor — this local rule was overriding the global
+     .table th fix and kept data-prep's headers at 10px. */
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim, #888);
+}
+.fl-table tr:hover td { background: rgba(255, 255, 255, 0.03); }
+.fl-col-check { width: 28px; }
+.fl-col-name { width: 30%; }
+.fl-col-ver { width: 56px; text-align: center; white-space: nowrap; }
+.fl-col-type { width: 17%; }
+.fl-col-size { width: 72px; text-align: right; }
+.fl-col-status { width: 56px; }
+.fl-col-actions { width: 160px; text-align: right; }
+.fl-name, .fl-mime {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 0; /* fixed-layout: force ellipsis under header */
+}
+.fl-table td[colspan] {
+  white-space: normal;
+  text-overflow: clip;
+  overflow: visible;
+  text-align: center;
+}
+.fl-use-source {
+  font-size: 11px;
+  padding: 3px 7px;
+  white-space: nowrap;
+}
+.fl-act-source-ok {
+  font-size: 11px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.prep-promote-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.fl-version {
+  display: inline-block;
+  padding: 1px 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  font-size: 10px;
+  color: var(--text-dim, #aaa);
+}
+.fl-parsed-ind {
+  display: inline-block;
+  margin-left: 2px;
+  font-size: 10px;
+  cursor: help;
+  opacity: 0.85;
+}
+.fl-parsed-ind.no { opacity: 0.35; }
+.fl-preview-banner {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border, #333);
+  background: var(--bg-elevated, #0a0a0a);
+  color: var(--text-dim, #aaa);
+  font-size: 12px;
+  border-radius: 4px;
+}
+.fl-conv-timeline { list-style: none; margin: 0; padding: 0; }
+.fl-conv-step {
+  position: relative;
+  padding: 10px 12px 10px 28px;
+  border-left: 2px solid var(--border, #333);
+  margin-left: 8px;
+}
+.fl-conv-step::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 14px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-dim, #888);
+}
+.fl-conv-step.ok::before { background: var(--accent); }
+.fl-conv-step.err::before { background: var(--err, #ff6666); }
+.fl-conv-step .fl-conv-title { font-weight: 600; font-size: 12px; }
+.fl-conv-step .fl-conv-meta { font-size: 11px; color: var(--text-dim, #888); margin-top: 2px; }
+.fl-ver-current { outline: 1px solid var(--accent, #00ccff); background: rgba(0, 204, 255, 0.06); }
+.fl-name { max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fl-name-text { font-weight: 500; }
+.fl-mime { color: var(--text-dim, #888); font-size: 11px; font-family: monospace; }
+.fl-status-ok { color: var(--accent); }
+.fl-drift {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 9px;
+  background: rgba(255, 170, 0, 0.15);
+  color: var(--accent-amber, #ffaa00);
+  border-radius: 3px;
+  cursor: help;
+}
+.fl-row-actions { display: flex; gap: 4px; justify-content: flex-end; opacity: 0.5; }
+.fl-file-row:hover .fl-row-actions { opacity: 1; }
+.fl-drop-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--text-dim, #555);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.fl-drop-hover .fl-drop-hint { opacity: 1; background: rgba(0, 204, 255, 0.05); }
+</style>
+
+<script>
+// ── File library (Stage 1B) ───────────────────────────────────────────────
+const _flPid = "{{ pid }}";
+const _dpHelperProviderId = "{{ helper_provider_id }}";
+// Parser-supported extensions (finetune_studio.data.parsers.PARSERS, injected).
+const _FL_PROMOTE_EXTS = {{ promotable_extensions | tojson }};
+let _flFolders = [];
+let _flFiles = [];
+let _flTrash = [];
+let _flCurrentFolder = null;     // null = all
+let _flSelected = new Set();     // checked file ids
+let _flSearchQuery = '';
+let _flTrashVisible = false;
+let _flConvCache = {};           // fid -> conversions[]
+let _flSources = [];             // data-prep sources (parsed.txt pipeline)
+let _flTotalCount = 0;           // project-wide live count (API total_count)
+
+function flIsPromotableText(name) {
+  const lower = String(name || '').toLowerCase();
+  const i = lower.lastIndexOf('.');
+  if (i < 0) return false;
+  return _FL_PROMOTE_EXTS.indexOf(lower.slice(i)) >= 0;
+}
+
+function flEligibleLibraryFiles() {
+  return (_flFiles || []).filter((f) =>
+    flIsPromotableText(f.original_name) && !flMatchSource(f.original_name)
+  );
+}
+
+function flUpdatePromotePanel() {
+  const panel = document.getElementById('dp-promote-panel');
+  if (panel) panel.hidden = !flEligibleLibraryFiles().length;
+}
+
+async function flInit() {
+  await Promise.all([flLoadFolders(), flLoadFiles(), flLoadTrash(), flLoadSources()]);
+  // Re-render after sources land so "Use as source" vs "✓ source" is accurate.
+  flRenderFiles();
+  flUpdatePromotePanel();
+}
+
+async function flLoadFolders() {
+  try {
+    const r = await fetch('/api/projects/' + _flPid + '/folders').then((r) => r.json());
+    _flFolders = r.folders || [];
+    flRenderFolders();
+  } catch (e) { console.error('flLoadFolders', e); }
+}
+
+async function flLoadSources() {
+  await dpLoadFiles();
+}
+
+async function flRefreshSources() {
+  await flLoadSources();
+}
+
+async function flPrefetchConversions(files) {
+  const list = (files || []).filter((f) => f && f.id);
+  if (!list.length) return;
+  await Promise.all(list.map(async (f) => {
+    try {
+      const r = await fetch('/api/projects/' + _flPid + '/files/' + f.id + '/conversions');
+      const d = await r.json();
+      _flConvCache[f.id] = d.conversions || [];
+    } catch (_) {
+      _flConvCache[f.id] = [];
+    }
+  }));
+}
+
+async function flLoadFiles() {
+  try {
+    const params = new URLSearchParams();
+    if (_flCurrentFolder) params.set('folder_id', _flCurrentFolder);
+    if (_flSearchQuery) params.set('search', _flSearchQuery);
+    const r = await fetch('/api/projects/' + _flPid + '/files?' + params).then((r) => r.json());
+    _flFiles = r.files || [];
+    // Prefer API total_count (unfiltered). Never derive "all files" from the
+    // filtered page length — that races with flLoadFolders and lies in a folder.
+    if (typeof r.total_count === 'number') {
+      _flTotalCount = r.total_count;
+    } else if (!_flCurrentFolder && !_flSearchQuery) {
+      _flTotalCount = _flFiles.length;
+    }
+    flRenderFolders();
+    // Paint rows immediately — do not block the table on conversion prefetch
+    // (that was leaving an empty table after bulk upload until a full reload).
+    flRenderFiles();
+    flPrefetchConversions(_flFiles).then(function () { flRenderFiles(); });
+  } catch (e) { console.error('flLoadFiles', e); }
+}
+
+async function flLoadTrash() {
+  try {
+    const r = await fetch('/api/projects/' + _flPid + '/files/trash').then((r) => r.json());
+    _flTrash = r.trash || [];
+    flRenderTrash();
+  } catch (e) { console.error('flLoadTrash', e); }
+}
+
+function flRenderFolders() {
+  const ul = document.getElementById('fl-folders');
+  if (!ul) return;
+  const auto = _flFolders.filter(f => f.kind === 'auto').sort((a, b) => a.name.localeCompare(b.name));
+  const user = _flFolders.filter(f => f.kind === 'user').sort((a, b) => a.name.localeCompare(b.name));
+
+  function row(f, opts = {}) {
+    const sel = _flCurrentFolder === f.id ? 'fl-tree-sel' : '';
+    const icon = opts.icon || '📁';
+    const actions = opts.actions || '';
+    return '<li class="fl-tree-row ' + sel + '" data-folder-id="' + escapeHtml(f.id) + '" data-folder-name="' + escapeHtml(f.name) + '">' +
+      '<span class="fl-tree-icon">' + icon + '</span>' +
+      '<a href="#" class="fl-tree-name" onclick="flSelectFolder(' + jsArg(f.id) + ', ' + jsArg(f.name) + '); return false;">' + escapeHtml(f.name) + '</a>' +
+      '<span class="fl-tree-actions">' + actions + '</span>' +
+    '</li>';
+  }
+
+  let html = '<li class="fl-tree-row ' + (_flCurrentFolder === null ? 'fl-tree-sel' : '') + '" data-folder-id="">' +
+    '<span class="fl-tree-icon">📚</span>' +
+    '<a href="#" class="fl-tree-name" onclick="flSelectFolder(null, \'ALL FILES\'); return false;">all files</a>' +
+    '<span class="fl-tree-actions dim text-xs" id="fl-all-count">' + _flTotalCount + '</span>' +
+  '</li>';
+
+  if (auto.length) {
+    html += '<li class="fl-tree-section">RAW (auto)</li>';
+    html += auto.map(f => row(f, { icon: '🗂️' })).join('');
+  }
+  if (user.length) {
+    html += '<li class="fl-tree-section">USER</li>';
+    html += user.map(f => row(f, {
+      icon: '📁',
+      actions: '<span class="fl-act" title="Rename" onclick="flPromptRenameFolder(' + jsArg(f.id) + ', ' + jsArg(f.name) + ')">✎</span>' +
+               '<span class="fl-act fl-act-del" title="Delete folder (files survive)" onclick="flDeleteFolder(' + jsArg(f.id) + ', ' + jsArg(f.name) + ')">✕</span>',
+    })).join('');
+  } else {
+    html += '<li class="fl-tree-empty dim text-xs">No user folders yet. Click <b>+ new</b> above.</li>';
+  }
+  ul.innerHTML = html;
+}
+
+function flSelectFolder(folderId, label) {
+  _flCurrentFolder = folderId || null;
+  document.getElementById('fl-files-label').textContent = label || 'ALL FILES';
+  _flSelected.clear();
+  flRenderFolders();
+  flLoadFiles();
+}
+
+function flRenderFiles() {
+  const tbody = document.getElementById('fl-files-body');
+  const footer = document.getElementById('fl-footer');
+  if (!tbody) return;
+  const _q = _flSearchQuery.trim().toLowerCase();
+  const _visible = _flFiles.filter(f => {
+    if (_q) {
+      const hay = (f.original_name + ' ' + (f.tags||'') + ' ' + (f.mime_type||'')).toLowerCase();
+      if (!hay.includes(_q)) return false;
+    }
+    return true;
+  });
+  if (!_visible.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7" class="dim text-xs" style="text-align:center;padding:32px">' +
+      (_q ? 'No files match your search.' : 'No files yet. ' + (_flCurrentFolder ? 'Pick a different folder, or ' : '') + 'drop files above or click ⬆ Upload.') +
+      '</td></tr>';
+    if (footer) footer.textContent = '';
+    flUpdatePromotePanel();
+    return;
+  }
+  const html = _visible.map(f => {
+    const checked = _flSelected.has(f.id) ? 'checked' : '';
+    const version = f.current_version || 1;
+    const size = flFormatBytes(f.size_bytes || 0);
+    const drift = f.last_trained_at && f.uploaded_at > f.last_trained_at ? '<span class="fl-drift" title="This file changed after the last dataset that included it.">⚠ drift</span>' : '';
+    const mime = window.fts && window.fts.fileTypeLabel
+      ? window.fts.fileTypeLabel(f.original_name, f.mime_type)
+      : ((f.mime_type || '').split('/').pop() || '?');
+    const hasParsed = flHasParsedMd(f);
+    const parsedInd = hasParsed
+      ? '<span class="fl-parsed-ind" title="Parsed MD ready">📝</span>'
+      : '<span class="fl-parsed-ind no" title="No parsed output yet">·</span>';
+    const promotable = flIsPromotableText(f.original_name);
+    const alreadySource = !!flMatchSource(f.original_name);
+    let promoteAct = '';
+    if (alreadySource) {
+      // Any parsed source (csv/pdf/docx/…), not only text uploads.
+      promoteAct = '<span class="fl-act-source-ok" title="Already in the Source file picker">✓ source</span>';
+    } else if (promotable) {
+      promoteAct =
+        '<button type="button" class="btn sm fl-use-source" data-file-id="' + f.id + '"' +
+        ' title="Parse and add this file to the Source file picker"' +
+        ' onclick="flUseAsSource(' + jsArg(f.id) + ', ' + jsArg(f.original_name) + ')">' +
+        'Use as source</button>';
+    }
+    const actions = '<div class="fl-row-actions">' +
+      promoteAct +
+      '<span class="fl-act" title="Tags & Notes" onclick="flEditTags(' + jsArg(f.id) + ', ' + jsArg(f.original_name) + ')">🏷</span>' +
+      '<span class="fl-act" title="Rename" onclick="flRenameFile(' + jsArg(f.id) + ', ' + jsArg(f.original_name) + ')">✎</span>' +
+      '<span class="fl-act" title="Preview" onclick="flPreviewFile(' + jsArg(f.id) + ', ' + jsArg(f.original_name) + ', ' + jsArg(f.mime_type || '') + ')">👁</span>' +
+      '<a class="fl-act" title="Download raw" href="/api/projects/' + _flPid + '/files/' + f.id + '/raw" download="' + escapeHtml(f.original_name) + '">↓</a>' +
+      '<span class="fl-act fl-act-del" title="Delete (soft, to trash)" onclick="flDeleteFile(' + jsArg(f.id) + ', ' + jsArg(f.original_name) + ')">🗑</span>' +
+    '</div>';
+    return '<tr class="fl-file-row">' +
+      '<td class="fl-col-check"><input type="checkbox" aria-label="Select file" ' + checked + ' onchange="flToggleSelect(' + jsArg(f.id) + ', this.checked)"></td>' +
+      '<td class="fl-name" title="' + escapeHtml(f.original_name) + '">' +
+        '<span class="fl-name-text">' + escapeHtml(f.original_name) + '</span>' + drift +
+      '</td>' +
+      '<td class="fl-col-ver"><span class="fl-version">v' + version + '</span>' + parsedInd + '</td>' +
+      '<td class="fl-mime" title="' + escapeHtml(f.mime_type || '') + '">' + escapeHtml(mime) + '</td>' +
+      '<td class="fl-col-size">' + size + '</td>' +
+      '<td><span class="fl-status-ok">✓</span></td>' +
+      '<td class="fl-col-actions">' + actions + '</td>' +
+    '</tr>';
+  }).join('');
+  tbody.innerHTML = html;
+  if (footer) {
+    const selCount = _flSelected.size;
+    footer.textContent = _visible.length + ' file(s) in this view' + (selCount ? ' · ' + selCount + ' selected' : '');
+  }
+  const selectAll = document.getElementById('fl-select-all');
+  if (selectAll) selectAll.checked = _visible.length > 0 && _flSelected.size === _visible.length;
+  flUpdatePromotePanel();
+}
+
+function flRenderTrash() {
+  const ul = document.getElementById('fl-trash-list');
+  if (!ul) return;
+  if (!_flTrash.length) {
+    ul.innerHTML = '<li class="fl-tree-empty dim text-xs">Empty.</li>';
+    return;
+  }
+  ul.innerHTML = _flTrash.map(it =>
+    '<li class="fl-tree-row fl-trash-row" title="deleted ' + it.age_days + 'd ago">' +
+      '<span class="fl-tree-icon">🗑</span>' +
+      '<span class="fl-tree-name">' + escapeHtml(it.original_name) + '</span>' +
+      '<span class="fl-tree-actions">' +
+        '<span class="fl-act" title="Restore" onclick="flRestoreFile(' + jsArg(it.id) + ', ' + jsArg(it.original_name) + ')">↶</span>' +
+        '<span class="fl-act fl-act-del" title="Hard-delete now" onclick="flPurgeOne(' + jsArg(it.id) + ')">✕</span>' +
+      '</span>' +
+    '</li>'
+  ).join('');
+}
+
+function flSearch(q) { _flSearchQuery = q || ''; flRenderFiles(); }
+function flToggleSelect(fid, checked) { if (checked) _flSelected.add(fid); else _flSelected.delete(fid); flRenderFiles(); }
+function flSelectAll(checked) { _flFiles.forEach(f => { if (checked) _flSelected.add(f.id); else _flSelected.delete(f.id); }); flRenderFiles(); }
+
+async function flPromoteToDataPrep(fileId) {
+  // A library file whose parse is missing or failed: parse it now (POST data-prep/sources {file_id}).
+  // Promote so the Source file picker sees them without a second upload.
+  try {
+    const r = await fetch('/api/projects/' + _flPid + '/data-prep/sources', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_id: fileId }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg = (d && typeof d.error === 'string') ? d.error : ('HTTP ' + r.status);
+      console.warn('promote source failed', msg);
+      return { ok: false, error: msg };
+    }
+    return { ok: true, source: d.source || null };
+  } catch (e) {
+    console.warn('promote source failed', e);
+    return { ok: false, error: (e && e.message) || 'network error' };
+  }
+}
+
+async function flUseAsSource(fileId, name) {
+  const label = name || fileId;
+  flReport('Adding "' + label + '" as a source…', 'info');
+  const statusEl = document.getElementById('dp-promote-status');
+  if (statusEl) statusEl.textContent = 'Adding…';
+  const result = await flPromoteToDataPrep(fileId);
+  if (!result.ok || !result.source) {
+    const err = (result && result.error) || 'could not add as a source';
+    flReport('Could not add "' + label + '" as a source: ' + err, 'error');
+    if (statusEl) statusEl.textContent = err;
+    return;
+  }
+  await flLoadSources();
+  flRenderFiles();
+  const src = result.source;
+  const chunks = src.chunk_count || 0;
+  const srcName = src.name || src.filename || label;
+  flReport('Added as a source: ' + srcName + ' · ' + chunks + ' chunks', 'success');
+  if (statusEl) statusEl.textContent = 'Added ' + srcName;
+}
+
+async function flPromoteEligibleFromLibrary() {
+  const eligible = flEligibleLibraryFiles();
+  const statusEl = document.getElementById('dp-promote-status');
+  if (!eligible.length) {
+    if (statusEl) statusEl.textContent = 'Nothing to add';
+    flReport('All text/markdown library files are already sources.', 'info');
+    return;
+  }
+  if (statusEl) statusEl.textContent = 'Adding ' + eligible.length + '…';
+  let ok = 0;
+  let fail = 0;
+  for (const f of eligible) {
+    const result = await flPromoteToDataPrep(f.id);
+    if (result.ok && result.source) {
+      ok += 1;
+    } else {
+      fail += 1;
+    }
+  }
+  await flLoadSources();
+  flRenderFiles();
+  const msg = 'Added ' + ok + ' source(s)' + (fail ? '; ' + fail + ' failed' : '') + '.';
+  flReport(msg, fail ? 'error' : 'success');
+  if (statusEl) statusEl.textContent = msg;
+}
+
+async function flUploadFiles(files) {
+  if (!files || !files.length) return;
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f, f.name);
+  // Disable the input during upload
+  const input = document.getElementById('fl-upload-input');
+  if (input) input.disabled = true;
+  try {
+    const r = await fetch('/api/projects/' + _flPid + '/files/upload', { method: 'POST', body: fd });
+    const data = await r.json();
+    flShowUploadReport(data);
+    // Parsing is server-side background work. Do not serially issue one
+    // blocking promotion request per uploaded file from the browser.
+    // Show all files after upload so new MIME-folder rows are visible in-place.
+    _flCurrentFolder = null;
+    const label = document.getElementById('fl-files-label');
+    if (label) label.textContent = 'ALL FILES';
+    await flInit();
+  } catch (e) {
+    flReport('Upload failed: ' + e.message, 'error');
+  } finally {
+    if (input) { input.disabled = false; input.value = ''; }
+  }
+}
+
+function flShowUploadReport(data) {
+  const counts = data.counts || {};
+  const lines = [];
+  lines.push('Uploaded:    ' + (counts.uploaded || 0));
+  lines.push('Duplicates:  ' + (counts.duplicates_skipped || 0));
+  lines.push('Errors:      ' + (counts.errors || 0));
+  const promoted = (data.report || []).filter((r) => r.source_id || r.source);
+  if (promoted.length) {
+    lines.push('Parsed sources: ' + promoted.length);
+    promoted.slice(0, 8).forEach((r) => {
+      const src = r.source || {};
+      lines.push('  · ' + (r.filename || src.filename || r.source_id) +
+        ' → ' + (src.chunk_count || 0) + ' chunks');
+    });
+  }
+  if (data.report) {
+    const dups = data.report.filter(r => r.status === 'duplicate');
+    const errs = data.report.filter(r => r.status === 'error');
+    if (dups.length) {
+      lines.push('');
+      lines.push('Skipped duplicates:');
+      dups.slice(0, 10).forEach(d => lines.push('  · ' + d.filename + ' (already have ' + d.duplicate_of + ')'));
+      if (dups.length > 10) lines.push('  …and ' + (dups.length - 10) + ' more');
+    }
+    if (errs.length) {
+      lines.push('');
+      lines.push('Errors:');
+      errs.slice(0, 5).forEach(d => lines.push('  · ' + d.filename + ' — ' + d.error));
+    }
+  }
+  const bad = (counts.errors || 0) > 0;
+  flReport(lines.join('\n'), bad ? 'error' : 'success');
+}
+
+// Non-blocking status: inline role=status line + toast. No native alert —
+// a native modal freezes the page for users and browser automation alike.
+function flReport(msg, type) {
+  const el = document.getElementById('fl-upload-status');
+  if (el) {
+    el.textContent = msg;
+    el.dataset.state = type || 'info';
+    el.hidden = false;
+  }
+  if (window.fts && fts.notify) fts.notify(msg.split('\n').slice(0, 3).join(' · '), type || 'info');
+}
+
+async function flDeleteFile(fid, name) {
+  const ok = await fts.confirm('Move ' + name + ' to trash?', {
+    title: 'Confirm delete', danger: true, okText: 'Move to trash'
+  });
+  if (!ok) return;
+  try {
+    const r = await fetch('/api/projects/' + _flPid + '/files/' + fid, { method: 'DELETE' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    await flInit();
+    fts.notify(name + ' moved to trash', 'success');
+  } catch (e) { fts.notify('Delete failed: ' + e.message, 'error'); }
+}
+
+async function flRenameFile(fid, currentName) {
+  const newName = await fts.prompt('Rename file:', currentName);
+  if (!newName || newName === currentName) return;
+  fetch('/api/projects/' + _flPid + '/files/' + fid + '/rename', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_name: newName, name: newName })
+  }).then(async (r) => {
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const detail = (d && d.detail) ? d.detail : ('HTTP ' + r.status);
+      throw new Error(detail);
+    }
+    fts.notify('Renamed to ' + newName, 'success');
+    flInit();
+  }).catch((e) => fts.notify('Rename failed: ' + e.message, 'error'));
+}
+
+function flEditTags(fid, name) {
+  fetch('/api/projects/' + _flPid + '/files/' + fid)
+    .then(r => r.json())
+    .then(f => {
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = '<div class="modal-dialog" style="max-width:500px;">' +
+        '<div class="modal-head">' + escapeHtml(name) + '</div>' +
+        '<div class="modal-body">' +
+        '<label class="block mb-3"><span class="muted text-xs">Tags (comma-separated)</span>' +
+        '<input id="fl-tag-input" class="input" value="' + escapeHtml(f.tags || '') + '" placeholder="e.g. training, verified"></label>' +
+        '<label class="block mb-3"><span class="muted text-xs">Notes</span>' +
+        '<textarea id="fl-note-input" class="textarea" rows="4" placeholder="Notes about this file...">' + escapeHtml(f.notes || '') + '</textarea></label>' +
+        '<div id="fl-tag-status" class="text-xs dim"></div></div>' +
+        '<div class="modal-actions"><button class="btn" data-action="cancel">Cancel</button>' +
+        '<button class="btn primary" data-action="save">Save</button></div></div>';
+      document.body.appendChild(modal);
+      const cleanup = () => modal.remove();
+      modal.addEventListener('click', (e) => { if (e.target === modal) cleanup(); });
+      modal.querySelector('[data-action=cancel]').addEventListener('click', cleanup);
+      modal.querySelector('[data-action=save]').addEventListener('click', () => {
+        const tags = document.getElementById('fl-tag-input').value;
+        const notes = document.getElementById('fl-note-input').value;
+        fetch('/api/projects/' + _flPid + '/files/' + fid + '/tags', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tags, notes })
+        }).then(r => r.json()).then(d => {
+          if (d.error) document.getElementById('fl-tag-status').textContent = 'Error: ' + d.error;
+          else { cleanup(); flInit(); fts.notify('Tags & notes saved', 'success'); }
+        }).catch(e => { document.getElementById('fl-tag-status').textContent = 'Failed: ' + e.message; });
+      });
+    });
+}
+
+function flRelativeTime(ts) {
+  if (ts == null || ts === '') return '—';
+  const t = Number(ts);
+  if (!Number.isFinite(t) || t <= 0) return '—';
+  const diff = Math.max(0, Date.now() / 1000 - t);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  if (diff < 86400 * 30) return Math.floor(diff / 86400) + 'd ago';
+  if (diff < 86400 * 365) return Math.floor(diff / (86400 * 30)) + 'mo ago';
+  return Math.floor(diff / (86400 * 365)) + 'y ago';
+}
+
+function flFileStem(name) {
+  const base = String(name || '').split(/[/\\]/).pop() || '';
+  const i = base.lastIndexOf('.');
+  return i > 0 ? base.slice(0, i) : base;
+}
+
+function flFindSiblingMd(fid, name) {
+  const stem = flFileStem(name).toLowerCase();
+  if (!stem) return null;
+  return (_flFiles || []).find((f) => {
+    if (!f || f.id === fid) return false;
+    const n = (f.original_name || '').toLowerCase();
+    return n === stem + '.md' || flFileStem(n) === stem && /\.md$/i.test(n);
+  }) || null;
+}
+
+function flMatchSource(name) {
+  const stem = flFileStem(name).toLowerCase();
+  const lower = String(name || '').toLowerCase();
+  return (_flSources || []).find((s) => {
+    const fn = String(s.filename || '').toLowerCase();
+    return fn === lower || flFileStem(fn) === stem;
+  }) || null;
+}
+
+function flHasParsedMd(f) {
+  if (!f) return false;
+  const name = f.original_name || '';
+  if (/\.md$/i.test(name)) return true;
+  if (flFindSiblingMd(f.id, name)) return true;
+  if (flMatchSource(name)) return true;
+  const convs = _flConvCache[f.id] || [];
+  return convs.some((c) => {
+    const fmt = String(c.format || '').toLowerCase();
+    return (fmt === 'md' || fmt === 'txt' || fmt === 'markdown') &&
+      String(c.status || '').toLowerCase() !== 'error';
+  });
+}
+
+function flBuildRawInner(fid, name, mime) {
+  if (mime && mime.startsWith('image/')) {
+    return '<img src="/api/projects/' + _flPid + '/files/' + fid + '/raw" alt="' + escapeHtml(name) +
+      '" style="max-width:100%;max-height:70vh;border-radius:4px;">';
+  }
+  if (mime === 'application/pdf') {
+    return '<iframe src="/api/projects/' + _flPid + '/files/' + fid + '/raw" style="width:100%;height:70vh;border:none;border-radius:4px;"></iframe>';
+  }
+  if (mime && (mime.startsWith('text/') || mime === 'application/json' || mime === 'application/xml' ||
+      mime === 'application/javascript' || mime.endsWith('+json') || mime.endsWith('+xml') ||
+      /\.(md|txt|csv|json|xml|yaml|yml|log|py|js|ts|html|css)$/i.test(name))) {
+    return '<pre id="fl-preview-content" class="mono text-xs" style="max-height:70vh;overflow:auto;padding:12px;background:var(--surface,var(--bg-panel));border:1px solid var(--border);border-radius:4px;">Loading…</pre>';
+  }
+  const size = ((_flFiles || []).find((x) => x.id === fid) || {}).size_bytes;
+  return '<div class="dim" style="padding:24px;text-align:center">' +
+    'No inline preview for this type.<br><br>' +
+    '<a class="btn primary" href="/api/projects/' + _flPid + '/files/' + encodeURIComponent(fid) +
+    '/raw" download="' + escapeHtml(name) + '">⬇ Download raw</a>' +
+    '<div class="text-xs mt-2 mono">' + flFormatBytes(size || 0) + ' · ' + escapeHtml(mime || 'unknown') + '</div></div>';
+}
+
+function flLoadRawTextIfNeeded(fid, name, mime) {
+  const needsText = !(mime && mime.startsWith('image/')) && mime !== 'application/pdf' &&
+    document.getElementById('fl-preview-content');
+  if (!needsText) return;
+  fetch('/api/projects/' + _flPid + '/files/' + fid + '/raw')
+    .then((r) => r.text())
+    .then((t) => { const el = document.getElementById('fl-preview-content'); if (el) el.textContent = t; })
+    .catch(() => { const el = document.getElementById('fl-preview-content'); if (el) el.textContent = 'Failed to load'; });
+}
+
+async function flFillParsedPanel(panel, fid, name) {
+  // Prefer the real GET /files/{fid}/parsed endpoint; keep sibling-/banner
+  // heuristics as fallback when the endpoint is unavailable or returns 422.
+  try {
+    const r = await fetch('/api/projects/' + _flPid + '/files/' + fid + '/parsed');
+    if (r.ok) {
+      const d = await r.json();
+      const src = d.source || 'unknown';
+      panel.innerHTML =
+        '<div class="text-xs dim mb-2">Parsed MD · source=<code>' +
+        escapeHtml(src) + '</code></div>' +
+        '<pre id="fl-parsed-content" class="mono text-xs" style="max-height:60vh;overflow:auto;padding:12px;background:var(--surface,var(--bg-panel));border:1px solid var(--border);border-radius:4px;"></pre>';
+      const el = document.getElementById('fl-parsed-content');
+      if (el) el.textContent = d.parsed_md || '';
+      return;
+    }
+    if (r.status === 422) {
+      const d = await r.json().catch(() => ({}));
+      const detail = (d && d.detail) ? String(d.detail) : 'binary / unsupported format';
+      panel.innerHTML =
+        '<div class="fl-preview-banner">' + escapeHtml(detail) + '</div>';
+      // Fall through to heuristics below for any sibling / prep-source hints.
+    }
+  } catch (_) {
+    console.warn('[flPreview] GET /parsed failed — using heuristic fallback for', fid);
+  }
+
+  const bannerHtml =
+    '<div class="fl-preview-banner">Parsed MD preview not yet available for this file. ' +
+    'Use <b>Use as source</b> on it first (parse + chunk).</div>';
+
+  const sibling = flFindSiblingMd(fid, name);
+  if (sibling) {
+    panel.innerHTML =
+      '<div class="text-xs dim mb-2">Sibling markdown heuristic: showing <code>' +
+      escapeHtml(sibling.original_name) +
+      '</code>.</div>' +
+      '<pre id="fl-parsed-content" class="mono text-xs" style="max-height:60vh;overflow:auto;padding:12px;background:var(--surface,var(--bg-panel));border:1px solid var(--border);border-radius:4px;">Loading…</pre>';
+    try {
+      const t = await fetch('/api/projects/' + _flPid + '/files/' + sibling.id + '/raw').then((r) => r.text());
+      const el = document.getElementById('fl-parsed-content');
+      if (el) el.textContent = t;
+    } catch (_) {
+      const el = document.getElementById('fl-parsed-content');
+      if (el) el.textContent = 'Failed to load sibling markdown.';
+    }
+    return;
+  }
+
+  if (/\.md$/i.test(name)) {
+    panel.innerHTML = '<div class="text-xs dim mb-2">This file is already markdown — showing raw as parsed.</div>' +
+      '<pre id="fl-parsed-content" class="mono text-xs" style="max-height:60vh;overflow:auto;padding:12px;background:var(--surface,var(--bg-panel));border:1px solid var(--border);border-radius:4px;">Loading…</pre>';
+    try {
+      const t = await fetch('/api/projects/' + _flPid + '/files/' + fid + '/raw').then((r) => r.text());
+      const el = document.getElementById('fl-parsed-content');
+      if (el) el.textContent = t;
+    } catch (_) {
+      const el = document.getElementById('fl-parsed-content');
+      if (el) el.textContent = 'Failed to load';
+    }
+    return;
+  }
+
+  let convs = _flConvCache[fid];
+  if (!convs) {
+    try {
+      const d = await fetch('/api/projects/' + _flPid + '/files/' + fid + '/conversions').then((r) => r.json());
+      convs = d.conversions || [];
+      _flConvCache[fid] = convs;
+    } catch (_) { convs = []; }
+  }
+  const mdConv = (convs || []).find((c) => {
+    const fmt = String(c.format || '').toLowerCase();
+    return (fmt === 'md' || fmt === 'txt' || fmt === 'markdown') &&
+      String(c.status || '').toLowerCase() !== 'error';
+  });
+  const src = flMatchSource(name);
+  let meta = '';
+  if (mdConv) {
+    meta += '<div class="text-xs mono dim mb-2">Conversion record found: format=' +
+      escapeHtml(mdConv.format || '') + ' · converter=' + escapeHtml(mdConv.converter || '—') +
+      ' · size=' + flFormatBytes(mdConv.converted_size || 0) +
+      ' — content not fetchable without a parsed endpoint.</div>';
+  }
+  if (src) {
+    meta += '<div class="text-xs mono dim mb-2">Prep source match: ' +
+      escapeHtml(src.filename || '') + ' · ' + (src.chunk_count || 0) + ' chunks · parser=' +
+      escapeHtml(src.parser || '—') + '</div>';
+  }
+  panel.innerHTML = bannerHtml + meta;
+}
+
+async function flFillVersionsPanel(panel, fid, currentVersion) {
+  panel.innerHTML = '<div class="dim text-xs">Loading versions…</div>';
+  try {
+    const d = await fetch('/api/projects/' + _flPid + '/files/' + fid + '/versions').then((r) => r.json());
+    const vers = d.versions || [];
+    if (!vers.length) {
+      panel.innerHTML = '<div class="dim">No versions recorded.</div>';
+      return;
+    }
+    const cur = currentVersion != null ? Number(currentVersion) : null;
+    let html = '<table class="fl-table"><thead><tr>' +
+      '<th>Ver</th><th>Uploaded</th><th>Size</th><th>Hash</th><th></th></tr></thead><tbody>';
+    html += vers.map((v) => {
+      const hash = (v.raw_hash || '').slice(0, 12);
+      const isCur = cur != null && Number(v.version) === cur;
+      const parser = v.parser || v.converter || '';
+      return '<tr class="' + (isCur ? 'fl-ver-current' : '') + '">' +
+        '<td class="mono">v' + escapeHtml(v.version) + (isCur ? ' · current' : '') + '</td>' +
+        '<td class="mono dim" title="' + escapeHtml(v.uploaded_at || '') + '">' + flRelativeTime(v.uploaded_at) + '</td>' +
+        '<td class="mono">' + flFormatBytes(v.raw_size || 0) + '</td>' +
+        '<td class="mono text-xs" title="' + escapeHtml(v.raw_hash || '') + '">' + escapeHtml(hash || '—') +
+          (parser ? '<div class="dim">' + escapeHtml(parser) + '</div>' : '') + '</td>' +
+        '<td><a class="btn sm" href="/api/projects/' + _flPid + '/files/' + encodeURIComponent(fid) +
+          '/raw?version=' + encodeURIComponent(v.version) + '" download>Download</a></td></tr>';
+    }).join('');
+    html += '</tbody></table>';
+    panel.innerHTML = html;
+  } catch (e) {
+    panel.innerHTML = '<div class="err text-xs">Failed to load versions: ' + escapeHtml(e.message || String(e)) + '</div>';
+  }
+}
+
+async function flFillConversionsPanel(panel, fid, name, switchToRaw) {
+  panel.innerHTML = '<div class="dim text-xs">Loading conversions…</div>';
+  try {
+    const d = await fetch('/api/projects/' + _flPid + '/files/' + fid + '/conversions').then((r) => r.json());
+    const convs = d.conversions || [];
+    _flConvCache[fid] = convs;
+    const src = flMatchSource(name);
+    const steps = [];
+    steps.push({
+      key: 'raw',
+      title: 'raw',
+      ok: true,
+      meta: 'Original upload',
+      linkRaw: true,
+    });
+    const byFmt = {};
+    (convs || []).forEach((c) => {
+      const fmt = String(c.format || 'converted').toLowerCase();
+      if (!byFmt[fmt] || (c.converted_at || 0) > (byFmt[fmt].converted_at || 0)) byFmt[fmt] = c;
+    });
+    ['md', 'txt', 'markdown', 'structured_json'].forEach((fmt) => {
+      if (!byFmt[fmt]) return;
+      const c = byFmt[fmt];
+      const ok = String(c.status || '').toLowerCase() !== 'error';
+      const label = (fmt === 'md' || fmt === 'markdown') ? 'markdown' : fmt;
+      steps.push({
+        key: label,
+        title: label,
+        ok: ok,
+        meta: 'parser: ' + (c.converter || '—') +
+          ' · v' + (c.version != null ? c.version : '?') +
+          ' · ' + flFormatBytes(c.converted_size || 0) +
+          (c.error_message ? ' · error: ' + c.error_message : '') +
+          (ok ? ' · status: ' + (c.status || 'ok') : ' · status: error'),
+      });
+      delete byFmt[fmt];
+    });
+    Object.keys(byFmt).forEach((fmt) => {
+      const c = byFmt[fmt];
+      const ok = String(c.status || '').toLowerCase() !== 'error';
+      steps.push({
+        key: fmt,
+        title: fmt,
+        ok: ok,
+        meta: 'parser: ' + (c.converter || '—') +
+          (c.error_message ? ' · error: ' + c.error_message : '') +
+          ' · status: ' + (c.status || (ok ? 'ok' : 'error')),
+      });
+    });
+    const chunkCount = src && src.chunk_count != null ? src.chunk_count : null;
+    steps.push({
+      key: 'chunks',
+      title: 'chunks',
+      ok: chunkCount != null && chunkCount > 0,
+      meta: chunkCount != null
+        ? ('chunk_count: ' + chunkCount + (src.parser ? ' · parser: ' + src.parser : ''))
+        : 'No chunk count yet (run a prep job / parse pipeline).',
+    });
+
+    let html = '<ul class="fl-conv-timeline">';
+    steps.forEach((s) => {
+      const cls = s.ok ? 'ok' : (s.key === 'chunks' && chunkCount == null ? '' : 'err');
+      const link = s.linkRaw
+        ? ' <a href="#" class="fl-act" data-goto-raw="1">open RAW tab</a>'
+        : '';
+      html += '<li class="fl-conv-step ' + cls + '">' +
+        '<div class="fl-conv-title">' + escapeHtml(s.title) + link + '</div>' +
+        '<div class="fl-conv-meta">' + escapeHtml(s.meta) + '</div></li>';
+    });
+    html += '</ul>';
+    if (!convs.length && chunkCount == null) {
+      html = '<div class="dim text-xs mb-2">No conversion records for this file yet.</div>' + html;
+    }
+    panel.innerHTML = html;
+    panel.querySelectorAll('[data-goto-raw]').forEach((a) => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (typeof switchToRaw === 'function') switchToRaw();
+      });
+    });
+  } catch (e) {
+    panel.innerHTML = '<div class="err text-xs">Failed to load conversions: ' + escapeHtml(e.message || String(e)) + '</div>';
+  }
+}
+
+function flPreviewFile(fid, name, mime) {
+  const fileMeta = (_flFiles || []).find((x) => x.id === fid) || {};
+  const currentVersion = fileMeta.current_version || 1;
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  const rawInner = flBuildRawInner(fid, name, mime);
+  modal.innerHTML = '<div class="modal-dialog" style="max-width:860px;">' +
+    '<div class="modal-head">' + escapeHtml(name) + '</div>' +
+    '<div class="modal-body">' +
+      '<div class="data-tabs" role="tablist">' +
+        '<button type="button" class="data-tab active" data-fl-tab="raw" role="tab">RAW</button>' +
+        '<button type="button" class="data-tab" data-fl-tab="parsed" role="tab">PARSED</button>' +
+        '<button type="button" class="data-tab" data-fl-tab="versions" role="tab">VERSIONS</button>' +
+        '<button type="button" class="data-tab" data-fl-tab="conversions" role="tab">CONVERSIONS</button>' +
+      '</div>' +
+      '<div class="data-panel active" data-fl-panel="raw">' + rawInner + '</div>' +
+      '<div class="data-panel" data-fl-panel="parsed"><div class="dim text-xs">Open this tab to load parsed preview…</div></div>' +
+      '<div class="data-panel" data-fl-panel="versions"><div class="dim text-xs">Open this tab to load versions…</div></div>' +
+      '<div class="data-panel" data-fl-panel="conversions"><div class="dim text-xs">Open this tab to load conversions…</div></div>' +
+    '</div>' +
+    '<div class="modal-actions"><button class="btn" data-action="close">Close</button></div>' +
+  '</div>';
+  document.body.appendChild(modal);
+  const cleanup = () => modal.remove();
+  modal.addEventListener('click', (e) => { if (e.target === modal) cleanup(); });
+  modal.querySelector('[data-action=close]').addEventListener('click', cleanup);
+
+  const loaded = { raw: true, parsed: false, versions: false, conversions: false };
+
+  function switchTab(tab) {
+    modal.querySelectorAll('[data-fl-tab]').forEach((btn) => {
+      btn.classList.toggle('active', btn.getAttribute('data-fl-tab') === tab);
+    });
+    modal.querySelectorAll('[data-fl-panel]').forEach((panel) => {
+      panel.classList.toggle('active', panel.getAttribute('data-fl-panel') === tab);
+    });
+    const panel = modal.querySelector('[data-fl-panel="' + tab + '"]');
+    if (!panel) return;
+    if (tab === 'parsed' && !loaded.parsed) {
+      loaded.parsed = true;
+      flFillParsedPanel(panel, fid, name);
+    } else if (tab === 'versions' && !loaded.versions) {
+      loaded.versions = true;
+      flFillVersionsPanel(panel, fid, currentVersion);
+    } else if (tab === 'conversions' && !loaded.conversions) {
+      loaded.conversions = true;
+      flFillConversionsPanel(panel, fid, name, () => switchTab('raw'));
+    }
+  }
+
+  modal.querySelectorAll('[data-fl-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => switchTab(btn.getAttribute('data-fl-tab')));
+  });
+
+  flLoadRawTextIfNeeded(fid, name, mime);
+}
+
+async function flRestoreFile(fid, name) {
+  try {
+    const r = await fetch('/api/projects/' + _flPid + '/files/' + fid + '/restore', { method: 'POST' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    await flInit();
+  } catch (e) { flReport('Restore failed: ' + e.message, 'error'); }
+}
+
+async function flPurgeOne(fid) {
+  if (!await fts.confirm('Hard-delete this file from trash now?', {danger: true, okText: 'Delete permanently'})) return;
+  try {
+    const r = await fetch('/api/projects/' + _flPid + '/files/' + fid + '/purge', { method: 'POST' });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const detail = (d && d.detail) ? d.detail : ('HTTP ' + r.status);
+      throw new Error(detail);
+    }
+    await flInit();
+  } catch (e) { flReport('Purge failed: ' + e.message, 'error'); }
+}
+
+function flToggleTrash() {
+  _flTrashVisible = !_flTrashVisible;
+  const ul = document.getElementById('fl-trash-list');
+  const btn = document.getElementById('fl-toggle-trash');
+  if (ul) ul.hidden = !_flTrashVisible;
+  if (btn) btn.textContent = _flTrashVisible ? 'Hide trash' : 'Show trash';
+}
+
+async function flPromptCreateFolder() {
+  const name = await fts.prompt('New folder name:');
+  if (!name) return;
+  try {
+    const r = await fetch('/api/projects/' + _flPid + '/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim() }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    await flLoadFolders();
+  } catch (e) { flReport('Create failed: ' + e.message, 'error'); }
+}
+
+async function flPromptRenameFolder(fid, oldName) {
+  const name = await fts.prompt('Rename folder:', oldName);
+  if (!name || name === oldName) return;
+  try {
+    const r = await fetch('/api/projects/' + _flPid + '/folders/' + fid, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim() }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    await flLoadFolders();
+  } catch (e) { flReport('Rename failed: ' + e.message, 'error'); }
+}
+
+async function flDeleteFolder(fid, name) {
+  if (!await fts.confirm('Delete folder "' + name + '"? Files inside it survive (they become unfoldered).', {danger: true, okText: 'Delete folder'})) return;
+  try {
+    const r = await fetch('/api/projects/' + _flPid + '/folders/' + fid, { method: 'DELETE' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (_flCurrentFolder === fid) _flCurrentFolder = null;
+    await flInit();
+  } catch (e) { flReport('Delete failed: ' + e.message, 'error'); }
+}
+
+function flFormatBytes(n) {
+  if (n < 1024) return n + 'B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + 'KB';
+  if (n < 1024 * 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + 'MB';
+  return (n / 1024 / 1024 / 1024).toFixed(2) + 'GB';
+}
+
+// Drag-drop wiring on the drop zone.
+(function () {
+  const drop = () => {
+    const dz = document.getElementById('fl-drop-zone');
+    if (!dz) return;
+    const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
+    ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, (e) => { stop(e); dz.classList.add('fl-drop-hover'); }));
+    ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, (e) => { stop(e); dz.classList.remove('fl-drop-hover'); }));
+    dz.addEventListener('drop', (e) => {
+      stop(e);
+      const files = e.dataTransfer && e.dataTransfer.files;
+      if (files && files.length) flUploadFiles(files);
+    });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', drop);
+  else drop();
+  // Also init the library once the DOM is ready.
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', flInit);
+  else flInit();
+})();
+
+// ── Review workspace: one pair at a time, keyboard first, no refetch per verdict ───────────────────────
+// State lives here; a verdict updates it at once and is saved in the background (ordered queue). The server
+// returns slim rows in document order (GET .../qa/queue) and a pair's whole source chunk on demand (.../context).
+var _prepPid = {{ pid | tojson }};
+var _dpFilter = 'pending';
+var _rq = {
+  items: [], total: 0, counts: { pending: 0, approved: 0, rejected: 0 }, sources: [], sourceSig: '',
+  status: 'pending', source: '', text: '', cur: 0, ctx: {}, ctxP: {}, undo: [], chain: Promise.resolve(),
+  inflight: 0, loading: false, rejecting: false, adding: false, pageSize: 200, built: false, lastTouch: 0, saved: 0,
+};
+var RQ_REASONS = ['wrong value', 'quote echo / not a real question', 'duplicate of another pair', 'junk / unusable',
+                  'missing unit or wrong premise'];
+
+function dpBridgeStatus(msg, state) {
+  var el = document.getElementById('dp-bridge-status');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.dataset.state = state || 'info';
+  el.hidden = !msg;
+  if (msg && (state === 'error' || state === 'success') && window.fts && fts.notify) {
+    fts.notify(msg, state === 'error' ? 'error' : 'success');
+  }
+}
+
+function rqBase() { return '/api/projects/' + encodeURIComponent(_prepPid) + '/data-prep'; }
+
+function rqCur() { return _rq.items[_rq.cur] || null; }
+
+function dpSetFilter(next) {
+  _dpFilter = _rq.status = next || 'all';
+  document.querySelectorAll('[data-dp-filter]').forEach(function (btn) {
+    btn.classList.toggle('primary', btn.getAttribute('data-dp-filter') === _dpFilter);
+  });
+  rqLoad({});
+}
+
+function dpUpdateStats() {
+  var c = _rq.counts, set = function (id, text) { var el = document.getElementById(id); if (el) el.textContent = text; };
+  set('dp-stat-total', (c.pending + c.approved + c.rejected) + ' total');
+  set('dp-stat-pending', c.pending + ' pending');
+  set('dp-stat-approved', c.approved + ' approved');
+  set('dp-stat-rejected', c.rejected + ' rejected');
+  dpPrefSyncApproved(c.approved);
+  set('dp-jump-count', String(c.pending));
+}
+
+(function dpWireJump() {
+  var b = document.getElementById('dp-jump-review');
+  if (b) b.addEventListener('click', function () {
+    var card = document.getElementById('dp-review-card');
+    if (card) card.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
+})();
+
+function dpSelectedIds() {
+  var ids = [];
+  document.querySelectorAll('#dp-results input.dp-qa-check:checked').forEach(function (b) { if (b.value) ids.push(b.value); });
+  return ids;
+}
+
+function dpDataEditorHref(dataPath) {
+  // Single path segment so absolute paths survive (/tmp/... → %2Ftmp%2F...).
+  return '/projects/' + encodeURIComponent(_prepPid) + '/data/' + encodeURIComponent(String(dataPath || ''));
+}
+
+async function dpRefreshExportedDatasets() {
+  var panel = document.getElementById('dp-exported-datasets');
+  if (!panel) return;
+  try {
+    var r = await fetch('/api/projects/' + encodeURIComponent(_prepPid) + '/datasets', { cache: 'no-store' });
+    var data = r.ok ? await r.json().catch(function () { return {}; }) : {};
+    var datasets = (data && data.datasets) || [];
+    var fromPrep = datasets.filter(function (d) {
+      return (d.source || '') === 'data-prep-export' || String(d.name || '').indexOf('sharegpt') >= 0;
+    });
+    var show = fromPrep.length ? fromPrep : datasets.slice(0, 5);
+    if (!show.length) {
+      panel.hidden = true;
+      panel.innerHTML = '';
+      return;
+    }
+    var rows = show.map(function (d) {
+      var name = escapeHtml(d.name || 'dataset');
+      var n = (d.qa_count != null) ? d.qa_count : '?';
+      var path = d.data_path || '';
+      var editor = path ? ('<a class="btn sm" href="' + dpDataEditorHref(path) + '" data-link>Review in Data Editor</a>') : '';
+      return '<div class="dp-ds-row">' +
+        '<span><strong>' + name + '</strong> · ' + n + ' pairs' +
+        (d.source ? ' · <span class="dim">' + escapeHtml(d.source) + '</span>' : '') +
+        '</span>' +
+        editor +
+        '<a class="btn sm primary" href="/projects/' + encodeURIComponent(_prepPid) + '/training" data-link>Select in Training</a>' +
+        '</div>';
+    }).join('');
+    panel.innerHTML = '<div class="text-xs muted mb-1">Project datasets ready for Training</div>' + rows;
+    panel.hidden = false;
+  } catch (e) {
+    panel.hidden = true;
+  }
+}
+
+function rqUrl(offset) {
+  var p = new URLSearchParams();
+  if (_rq.status !== 'all') p.set('status', _rq.status);
+  if (_rq.source) p.set('source_id', _rq.source);
+  if (_rq.text) p.set('q', _rq.text);
+  p.set('offset', String(offset));
+  p.set('limit', String(_rq.pageSize));
+  return rqBase() + '/qa/queue?' + p.toString();
+}
+
+// Load a page. opts.append adds the next page; opts.keepId keeps the cursor on that pair after a reload.
+async function rqLoad(opts) {
+  opts = opts || {};
+  if (_rq.loading) { if (!opts.append) _rq.queuedLoad = opts; return; }  // run it as soon as the one in flight ends
+  _rq.loading = true;
+  try {
+    if (opts.append) await _rq.chain;  // pending saves must land first, or the server's offsets no longer match our list
+    var res = await fetch(rqUrl(opts.append ? _rq.items.length : 0), { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var data = await res.json();
+    var keep = opts.keepId || (opts.append ? null : (rqCur() || {}).id);
+    if (opts.append) {
+      var have = {};
+      _rq.items.forEach(function (q) { have[q.id] = true; });
+      _rq.items = _rq.items.concat((data.items || []).filter(function (q) { return !have[q.id]; }));
+    } else {
+      _rq.items = data.items || [];
+      var at = keep ? _rq.items.findIndex(function (q) { return q.id === keep; }) : -1;
+      _rq.cur = at >= 0 ? at : Math.min(_rq.cur, Math.max(_rq.items.length - 1, 0));
+    }
+    _rq.total = data.total || 0;
+    _rq.counts = data.counts || _rq.counts;
+    _rq.sources = data.sources || [];
+  } catch (e) {
+    var el = document.getElementById('dp-results');
+    if (el && !_rq.built) el.innerHTML = '<div class="dp-empty">Failed to load: ' + escapeHtml((e && e.message) || String(e)) + '</div>';
+    else dpBridgeStatus('Could not load pairs: ' + ((e && e.message) || e), 'error');
+    return;
+  } finally {
+    _rq.loading = false;
+  }
+  rqRender();
+  if (_rq.queuedLoad) { var next = _rq.queuedLoad; _rq.queuedLoad = null; await rqLoad(next); }
+}
+
+function rqShell() {
+  var el = document.getElementById('dp-results');
+  if (!el) return false;
+  if (_rq.built && el.querySelector('.dp-rq')) return true;
+  el.innerHTML =
+    '<div class="dp-rq">' +
+      '<div class="dp-rq-bar">' +
+        '<select id="dp-rq-source" aria-label="Source file"></select>' +
+        '<input id="dp-rq-search" type="search" placeholder="Search question / answer  ( / )" aria-label="Search pairs">' +
+        '<span id="dp-rq-saving" class="text-xs dim" role="status" aria-live="polite"></span>' +
+        '<span style="flex:1 1 auto"></span>' +
+        '<button class="btn sm" type="button" id="dp-rq-help-btn" title="Keyboard shortcuts">Keys ?</button>' +
+      '</div>' +
+      '<div id="dp-rq-help" class="dp-rq-help text-xs" hidden>' +
+        '<b>A</b> approve &amp; next · <b>R</b> reject (then <b>1–5</b> picks a reason, <b>0</b> types your own + Enter) · <b>U</b> undo · ' +
+        '<b>J / K</b> or arrows next / previous · <b>E</b> edit the answer · <b>Ctrl+Enter</b> in a field = save edit &amp; approve · ' +
+        '<b>N</b> add a pair the miner missed · <b>/</b> search · <b>Esc</b> leave a field' +
+      '</div>' +
+      '<div class="dp-rq-main">' +
+        '<div class="dp-rq-list" id="dp-rq-list"></div>' +
+        '<div class="dp-rq-detail" id="dp-rq-detail"></div>' +
+      '</div>' +
+    '</div>';
+  document.getElementById('dp-rq-source').addEventListener('change', function (ev) {
+    _rq.source = ev.target.value; rqLoad({});
+  });
+  var timer = null;
+  document.getElementById('dp-rq-search').addEventListener('input', function (ev) {
+    clearTimeout(timer);
+    var v = ev.target.value;
+    timer = setTimeout(function () { _rq.text = v; rqLoad({}); }, 250);
+  });
+  document.getElementById('dp-rq-help-btn').addEventListener('click', function () {
+    var h = document.getElementById('dp-rq-help'); h.hidden = !h.hidden;
+  });
+  document.getElementById('dp-rq-list').addEventListener('click', function (ev) {
+    if (ev.target.closest && ev.target.closest('input.dp-qa-check')) return;
+    var tr = ev.target.closest && ev.target.closest('tr[data-i]');
+    if (tr) rqGo(parseInt(tr.getAttribute('data-i'), 10) - _rq.cur);
+  });
+  document.getElementById('dp-rq-detail').addEventListener('click', rqDetailClick);
+  _rq.built = true;
+  return true;
+}
+
+function rqRender() {
+  var c = _rq.counts;
+  dpUpdateStats();
+  var el = document.getElementById('dp-results');
+  if (!el) return;
+  if (!(c.pending + c.approved + c.rejected)) {
+    _rq.built = false;
+    el.innerHTML = '<div class="dp-empty">No Q&amp;A pairs yet. Mine your files above (or use the Chat tab in Agent mode), then approve and export here so Training can pick the dataset.</div>';
+    el.dataset.ready = '1';
+    return;
+  }
+  rqShell();
+  rqRenderSources();
+  rqRenderList();
+  // A background load (next page, 15 s refresh) must not rebuild the pane under the reviewer's hands: only a new pair does.
+  if ((rqCur() || {}).id !== _rq.shownId || !document.getElementById('dp-rq-q')) rqRenderDetail();
+  rqIndicator();
+  el.dataset.ready = '1';
+}
+
+function rqRenderSources() {
+  var sel = document.getElementById('dp-rq-source');
+  if (!sel) return;
+  var sig = JSON.stringify(_rq.sources) + '|' + _rq.source;
+  if (sig === _rq.sourceSig) return;
+  _rq.sourceSig = sig;
+  var c = _rq.counts;
+  sel.innerHTML = '<option value="">All files · ' + c.pending + ' pending</option>' + _rq.sources.map(function (s) {
+    return '<option value="' + escapeHtml(s.source_id) + '"' + (s.source_id === _rq.source ? ' selected' : '') + '>' +
+      escapeHtml(s.filename) + ' · ' + s.pending + ' pending / ' + s.approved + ' ok / ' + s.rejected + ' rej</option>';
+  }).join('');
+}
+
+function rqRenderList() {
+  var host = document.getElementById('dp-rq-list');
+  if (!host) return;
+  if (!_rq.items.length) {
+    host.innerHTML = '<div class="dp-empty">No ' + escapeHtml(_rq.status === 'all' ? '' : _rq.status) + ' pairs here. ' +
+      (_rq.status === 'pending' ? 'Everything in this view is reviewed — switch the filter to look back, or export.' : 'Change the filter.') + '</div>';
+    return;
+  }
+  var rows = _rq.items.map(function (q, i) {
+    var st = q.status || 'pending';
+    return '<tr data-i="' + i + '" class="dp-rq-row' + (i === _rq.cur ? ' cur' : '') + '">' +
+      '<td class="meta"><input type="checkbox" class="dp-qa-check" value="' + escapeHtml(q.id) + '" aria-label="Select pair"></td>' +
+      '<td class="meta"><span class="dp-status-' + st + '" title="' + st + '">' + (st === 'approved' ? '✓' : st === 'rejected' ? '✗' : '·') + '</span></td>' +
+      '<td class="q"><div>' + escapeHtml((q.question || '').slice(0, 110)) + '</div>' +
+      '<div class="a dp-rq-a">' + escapeHtml((q.answer || '').slice(0, 90)) + '</div>' +
+      '<div class="meta">' + escapeHtml(q.source_filename || '') + ' #' + (q.chunk_idx || '?') + '</div></td></tr>';
+  }).join('');
+  var keepChecked = {};
+  host.querySelectorAll('input.dp-qa-check:checked').forEach(function (b) { keepChecked[b.value] = true; });
+  host.innerHTML = '<table class="dp-results-table"><tbody>' + rows + '</tbody></table>' +
+    (_rq.items.length < _rq.total
+      ? '<div class="dim text-xs mt-2">' + _rq.items.length + ' of ' + _rq.total + ' loaded — the next page loads as you reach the end.</div>' : '');
+  host.querySelectorAll('input.dp-qa-check').forEach(function (b) { if (keepChecked[b.value]) b.checked = true; });
+  var row = host.querySelector('tr.cur');
+  if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
+}
+
+function rqMarkCur() {
+  var host = document.getElementById('dp-rq-list');
+  if (!host) return;
+  var prev = host.querySelector('tr.cur');
+  if (prev) prev.classList.remove('cur');
+  var next = host.querySelector('tr[data-i="' + _rq.cur + '"]');
+  if (next) { next.classList.add('cur'); if (next.scrollIntoView) next.scrollIntoView({ block: 'nearest' }); }
+}
+
+function rqRenderDetail() {
+  var box = document.getElementById('dp-rq-detail');
+  if (!box) return;
+  var it = rqCur();
+  _rq.shownId = it ? it.id : null;
+  if (!it) { box.innerHTML = '<div class="dp-empty">Nothing selected.</div>'; return; }
+  var st = it.status || 'pending';
+  box.innerHTML =
+    '<div class="dp-rq-head text-xs">' +
+      '<b>' + escapeHtml(it.source_filename || it.source_id || '') + '</b> · chunk <span id="dp-rq-chunkpos">' + (it.chunk_idx || '?') + '</span>' +
+      ' · <span class="dp-status-' + st + '">' + st + '</span>' + (it.origin ? ' · ' + escapeHtml(it.origin) : '') +
+      (it.note ? ' · note: ' + escapeHtml(it.note) : '') +
+      (it.created_at ? ' · ' + rqTime(it.created_at) : '') +
+      ' · <span class="dim">' + (_rq.cur + 1) + ' / ' + _rq.items.length + (_rq.total > _rq.items.length ? ' (of ' + _rq.total + ')' : '') + '</span>' +
+    '</div>' +
+    '<div id="dp-rq-covers" class="dp-rq-covers text-xs"></div>' +
+    '<label class="text-xs dim" for="dp-rq-q">Question</label>' +
+    '<textarea id="dp-rq-q" rows="2" spellcheck="false">' + escapeHtml(it.question || '') + '</textarea>' +
+    '<label class="text-xs dim" for="dp-rq-a">Answer</label>' +
+    '<textarea id="dp-rq-a" rows="3" spellcheck="false">' + escapeHtml(it.answer || '') + '</textarea>' +
+    '<div class="dp-rq-actions">' +
+      '<button class="btn success" type="button" data-rq="approve" title="Approve (A)">Approve · A</button>' +
+      '<button class="btn danger" type="button" data-rq="reject" title="Reject (R)">Reject · R</button>' +
+      '<button class="btn" type="button" data-rq="undo" title="Undo the last verdict (U)">Undo · U</button>' +
+      '<button class="btn" type="button" data-rq="prev" title="Previous (K)">◀</button>' +
+      '<button class="btn" type="button" data-rq="next" title="Next (J)">▶</button>' +
+      '<button class="btn" type="button" data-rq="add" title="Add a pair the miner missed (N)">+ Add pair · N</button>' +
+    '</div>' +
+    '<div id="dp-rq-reasons" class="dp-rq-reasons" hidden>' +
+      RQ_REASONS.map(function (r, i) { return '<button class="btn sm" type="button" data-rq-reason="' + i + '">' + (i + 1) + ' · ' + escapeHtml(r) + '</button>'; }).join('') +
+      '<input id="dp-rq-reason" type="text" placeholder="0 · other reason, Enter to reject" aria-label="Reject reason">' +
+    '</div>' +
+    '<div id="dp-rq-add" class="dp-rq-add" hidden>' +
+      '<div class="text-xs dim">A fact in this chunk that no pair states (saved approved, chunk ' + (it.chunk_idx || '?') + ').</div>' +
+      '<textarea id="dp-rq-add-q" rows="2" placeholder="Question" spellcheck="false"></textarea>' +
+      '<textarea id="dp-rq-add-a" rows="2" placeholder="Answer" spellcheck="false"></textarea>' +
+      '<button class="btn sm success" type="button" data-rq="add-save">Save pair · Ctrl+Enter</button>' +
+    '</div>' +
+    '<div class="text-xs dim" style="margin-top:10px;">Source chunk <span id="dp-rq-chunkof"></span></div>' +
+    '<pre id="dp-rq-src" class="dp-rq-src">Loading source…</pre>';
+  _rq.rejecting = false; _rq.adding = false;
+  rqRenderSource();
+  rqRenderCovers(it.id);
+  rqEnsureCtx(it.id);
+  rqPrefetch();
+}
+
+// Which data points of the file's checklist this pair states, and whether it is the last pair stating one.
+function rqRenderCovers(id) {
+  fetch(dpMiningBase() + '/pairs/' + encodeURIComponent(id) + '/items', { cache: 'no-store' }).then(function (r) {
+    return r.ok ? r.json() : null;
+  }).then(function (d) {
+    var box = document.getElementById('dp-rq-covers');
+    if (!box || (rqCur() || {}).id !== id) return;
+    if (!d || !d.items.length) { box.innerHTML = '<span class="dim">States no data point of the checklist.</span>'; return; }
+    var last = d.items.filter(function (x) { return x.last_cover; });
+    box.innerHTML = 'States ' + d.items.length + ' data point(s): ' + d.items.slice(0, 4).map(function (x) {
+      return '<span class="dp-cover' + (x.last_cover ? ' last' : '') + '">' + escapeHtml(x.text.slice(0, 70)) + '</span>';
+    }).join(' ') + (d.items.length > 4 ? ' …' : '') +
+      (last.length ? '<div class="dp-open">Only pair stating ' + last.length + ' of them: rejecting it reopens them (Fill gaps or write a pair).</div>' : '');
+  }).catch(function () { /* the checklist is optional context for the reviewer */ });
+}
+
+// Created time in the reader's local time, UTC on hover.
+function rqTime(ts) {
+  var utc = ts ? new Date(ts * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC' : '';
+  return ts ? '<span title="' + utc + '">' + new Date(ts * 1000).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) + '</span>' : '';
+}
+
+function rqEnsureCtx(id) {
+  if (_rq.ctx[id]) return Promise.resolve(_rq.ctx[id]);
+  if (_rq.ctxP[id]) return _rq.ctxP[id];
+  _rq.ctxP[id] = fetch(rqBase() + '/qa/' + encodeURIComponent(id) + '/context', { cache: 'no-store' }).then(function (r) {
+    return r.ok ? r.json() : null;
+  }).then(function (ctx) {
+    if (ctx) _rq.ctx[id] = ctx;
+    delete _rq.ctxP[id];
+    var it = rqCur();
+    if (it && it.id === id) rqRenderSource();
+    return ctx;
+  }).catch(function () { delete _rq.ctxP[id]; return null; });
+  return _rq.ctxP[id];
+}
+
+function rqPrefetch() {
+  for (var k = 1; k <= 3; k++) {
+    var nxt = _rq.items[_rq.cur + k];
+    if (nxt) rqEnsureCtx(nxt.id);
+  }
+  var keys = Object.keys(_rq.ctx);
+  if (keys.length > 60) keys.slice(0, keys.length - 60).forEach(function (k) { delete _rq.ctx[k]; });
+}
+
+// Highlight the answer's distinctive tokens (numbers, codes, longer words) inside the source chunk.
+function rqHighlight(chunk, answer) {
+  var toks = {};
+  (String(answer || '').match(/[0-9][0-9.,:%\/-]*|[A-Za-zÀ-ɏ][\wÀ-ɏ.-]{3,}/g) || []).forEach(function (t) {
+    t = t.replace(/[.,:;-]+$/, '');
+    if (t.length >= 2) toks[t.toLowerCase()] = true;
+  });
+  var list = Object.keys(toks).sort(function (a, b) { return b.length - a.length; }).slice(0, 40);
+  var safe = escapeHtml(chunk);
+  if (!list.length) return safe;
+  var rx = new RegExp('(' + list.map(function (t) { return escapeHtml(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('|') + ')', 'gi');
+  return safe.replace(rx, '<mark>$1</mark>');
+}
+
+function rqRenderSource() {
+  var it = rqCur(), pre = document.getElementById('dp-rq-src');
+  if (!it || !pre) return;
+  var ctx = _rq.ctx[it.id];
+  if (!ctx) { pre.textContent = 'Loading source…'; return; }
+  pre.innerHTML = rqHighlight(ctx.chunk_text || '', (document.getElementById('dp-rq-a') || {}).value || it.answer);
+  var of = document.getElementById('dp-rq-chunkof');
+  if (of) of.textContent = '(' + ctx.chunk_idx + ' of ' + ctx.chunk_total + (ctx.same_chunk_pairs ? ' · ' + ctx.same_chunk_pairs + ' other pair(s) from this chunk' : '') + ')';
+}
+
+function rqIndicator() {
+  var el = document.getElementById('dp-rq-saving');
+  if (!el) return;
+  el.textContent = _rq.inflight ? 'saving ' + _rq.inflight + '…' : (_rq.saved ? 'all saved' : '');
+}
+
+// Saves run strictly in order; a failure reloads the list from the server so the screen never lies about what is stored.
+function rqSend(job) {
+  _rq.inflight++;
+  rqIndicator();
+  _rq.chain = _rq.chain.then(job).then(function () { _rq.saved++; }).catch(function (e) {
+    dpBridgeStatus('Saving failed: ' + ((e && e.message) || e) + ' — reloading from the server.', 'error');
+    return rqLoad({ keepId: (rqCur() || {}).id });
+  }).then(function () { _rq.inflight--; rqIndicator(); });
+  return _rq.chain;
+}
+
+function rqPatch(id, fields) {
+  return rqSend(function () {
+    return fetch(rqBase() + '/qa/' + encodeURIComponent(id), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields),
+    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); });
+  });
+}
+
+function rqMaybeLoadMore() {
+  if (_rq.items.length < _rq.total && _rq.items.length - _rq.cur < 40 && !_rq.loading) rqLoad({ append: true });
+}
+
+function rqGo(delta) {
+  if (!_rq.items.length) return;
+  var next = Math.max(0, Math.min(_rq.items.length - 1, _rq.cur + delta));
+  if (next === _rq.cur && delta !== 0) { rqMaybeLoadMore(); return; }
+  _rq.cur = next;
+  rqMarkCur();
+  rqRenderDetail();
+  rqMaybeLoadMore();
+}
+
+// Apply a verdict on screen first, then persist it. note = reject reason.
+function rqVerdict(action, note) {
+  var it = rqCur();
+  if (!it) return;
+  var qEl = document.getElementById('dp-rq-q'), aEl = document.getElementById('dp-rq-a');
+  var fields = { status: action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'pending' };
+  if (action === 'approve') {
+    var q = qEl ? qEl.value.trim() : it.question, a = aEl ? aEl.value.trim() : it.answer;
+    if (q && q !== it.question) fields.question = q;
+    if (a && a !== it.answer) fields.answer = a;
+  }
+  if (note != null) fields.note = note;
+  var before = { id: it.id, status: it.status || 'pending', note: it.note || '', question: it.question, answer: it.answer };
+  _rq.undo.push(before);
+  if (_rq.undo.length > 100) _rq.undo.shift();
+  var c = _rq.counts;
+  c[before.status] = Math.max(0, c[before.status] - 1);
+  c[fields.status] = (c[fields.status] || 0) + 1;
+  Object.assign(it, fields);
+  var matches = _rq.status === 'all' || _rq.status === fields.status;
+  if (matches) { _rq.cur = Math.min(_rq.cur + 1, _rq.items.length - 1); }
+  else { _rq.items.splice(_rq.cur, 1); _rq.total = Math.max(0, _rq.total - 1); _rq.cur = Math.min(_rq.cur, Math.max(_rq.items.length - 1, 0)); }
+  _rq.rejecting = false;
+  rqRenderSources(); // counts per file changed
+  rqPatchSourceCounts(it.source_id, before.status, fields.status);
+  dpUpdateStats();
+  rqRenderList();
+  rqRenderDetail();
+  rqPatch(it.id, fields);
+  rqMaybeLoadMore();
+  dpCoverageChanged();
+}
+
+function rqPatchSourceCounts(sourceId, from, to) {
+  _rq.sources.forEach(function (s) {
+    if (s.source_id !== sourceId) return;
+    s[from] = Math.max(0, s[from] - 1); s[to] = (s[to] || 0) + 1;
+  });
+  _rq.sourceSig = ''; rqRenderSources();
+}
+
+function rqUndo() {
+  var last = _rq.undo.pop();
+  if (!last) { dpBridgeStatus('Nothing to undo.', 'info'); return; }
+  rqPatch(last.id, { status: last.status, note: last.note, question: last.question, answer: last.answer }).then(function () {
+    return rqLoad({ keepId: last.id });
+  });
+}
+
+function rqShowReasons(on) {
+  _rq.rejecting = on;
+  var box = document.getElementById('dp-rq-reasons');
+  if (!box) return;
+  box.hidden = !on;
+  if (on) { var inp = document.getElementById('dp-rq-reason'); if (inp) { inp.value = ''; } }
+}
+
+function rqShowAdd(on) {
+  _rq.adding = on;
+  var box = document.getElementById('dp-rq-add');
+  if (!box) return;
+  box.hidden = !on;
+  if (on) { var q = document.getElementById('dp-rq-add-q'); if (q) q.focus(); }
+}
+
+async function rqAddPair() {
+  var it = rqCur(), q = document.getElementById('dp-rq-add-q'), a = document.getElementById('dp-rq-add-a');
+  if (!it || !q || !a || !q.value.trim() || !a.value.trim()) { dpBridgeStatus('Write both a question and an answer.', 'error'); return; }
+  _rq.inflight++;  // counts as an unsaved change until the server has it and the list is back in step
+  rqIndicator();
+  try {
+    await _rq.chain;
+    var res = await fetch(rqBase() + '/qa', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source_id: it.source_id, chunk_idx: it.chunk_idx, question: q.value, answer: a.value }),
+    });
+    var data = await res.json().catch(function () { return {}; });
+    if (!res.ok) { dpBridgeStatus(String(data.error || ('HTTP ' + res.status)), 'error'); return; }
+    _rq.counts.approved++;
+    q.value = ''; a.value = '';
+    rqShowAdd(false);
+    dpBridgeStatus('Added and approved: ' + data.question.slice(0, 80), 'success');
+    await rqLoad({ keepId: it.id });
+    dpCoverageChanged();
+  } finally {
+    _rq.inflight--;
+    rqIndicator();
+  }
+}
+
+function rqDetailClick(ev) {
+  var reason = ev.target.closest && ev.target.closest('[data-rq-reason]');
+  if (reason) { rqVerdict('reject', RQ_REASONS[parseInt(reason.getAttribute('data-rq-reason'), 10)]); return; }
+  var btn = ev.target.closest && ev.target.closest('[data-rq]');
+  if (!btn) return;
+  var act = btn.getAttribute('data-rq');
+  if (act === 'approve') rqVerdict('approve');
+  else if (act === 'reject') rqShowReasons(!_rq.rejecting);
+  else if (act === 'undo') rqUndo();
+  else if (act === 'prev') rqGo(-1);
+  else if (act === 'next') rqGo(1);
+  else if (act === 'add') rqShowAdd(!_rq.adding);
+  else if (act === 'add-save') rqAddPair();
+}
+
+function rqKey(ev) {
+  if (!document.getElementById('dp-rq-detail')) return;
+  var t = ev.target, tag = t && t.tagName;
+  var typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable);
+  if (typing) {
+    if (ev.key === 'Escape') { t.blur(); return; }
+    if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
+      ev.preventDefault();
+      if (t.id === 'dp-rq-add-q' || t.id === 'dp-rq-add-a') rqAddPair(); else rqVerdict('approve');
+      return;
+    }
+    if (t.id === 'dp-rq-reason' && ev.key === 'Enter' && t.value.trim()) { ev.preventDefault(); rqVerdict('reject', t.value.trim()); }
+    if (t.id === 'dp-rq-a') setTimeout(rqRenderSource, 0); // keep the highlight in step with the edited answer
+    return;
+  }
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  var inside = document.activeElement === document.body || (document.activeElement && document.activeElement.closest && document.activeElement.closest('.dp-rq'));
+  if (!inside) return;
+  var key = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+  if (_rq.rejecting && (key === '0' || key === 'o')) {
+    ev.preventDefault();
+    var other = document.getElementById('dp-rq-reason');
+    if (other) other.focus();
+    return;
+  }
+  if (_rq.rejecting && /^[1-9]$/.test(key)) {
+    var reason = RQ_REASONS[parseInt(key, 10) - 1];
+    if (reason) { ev.preventDefault(); rqVerdict('reject', reason); }
+    return;
+  }
+  var handled = true;
+  if (key === 'a') rqVerdict('approve');
+  else if (key === 'r') rqShowReasons(!_rq.rejecting);
+  else if (key === 'u') rqUndo();
+  else if (key === 'j' || key === 'ArrowDown') rqGo(1);
+  else if (key === 'k' || key === 'ArrowUp') rqGo(-1);
+  else if (key === 'e') { var a = document.getElementById('dp-rq-a'); if (a) { a.focus(); a.setSelectionRange(a.value.length, a.value.length); } }
+  else if (key === 'n') rqShowAdd(!_rq.adding);
+  else if (key === '/') { var s = document.getElementById('dp-rq-search'); if (s) s.focus(); }
+  else if (key === '?') { var h = document.getElementById('dp-rq-help'); if (h) h.hidden = !h.hidden; }
+  else if (key === 'Escape') { rqShowReasons(false); rqShowAdd(false); }
+  else handled = false;
+  if (handled) ev.preventDefault();
+}
+document.addEventListener('keydown', rqKey);
+document.addEventListener('fts:beforeNavigate', function () { document.removeEventListener('keydown', rqKey); }, { once: true });
+
+// The 15 s poll and the Refresh button: refresh the counts and, when the reviewer is idle, the list. Never re-render under their hands.
+async function prepRefreshResults() {
+  var el = document.getElementById('dp-results');
+  if (!el) return;
+  if (!_rq.built) { if (!_rq.items.length && !el.dataset.ready) el.innerHTML = 'Loading…'; await rqLoad({}); dpRefreshExportedDatasets(); return; }
+  if (_rq.inflight || _rq.loading || _rq.adding || _rq.rejecting) return;
+  var active = document.activeElement;
+  if (active && active.closest && active.closest('.dp-rq') && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) return;
+  await rqLoad({ keepId: (rqCur() || {}).id });
+  dpRefreshExportedDatasets();
+}
+
+// Bulk actions on the ticked rows (or, for approve, the whole current view).
+async function dpBulkAction(ids, action, note) {
+  if (!ids || !ids.length) {
+    dpBridgeStatus('Select at least one pair, or use Approve all pending.', 'error');
+    return;
+  }
+  try {
+    await _rq.chain;
+    var r = await fetch('/api/projects/' + encodeURIComponent(_prepPid) + '/data-prep/qa/bulk', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ids, action: action, note: note }),
+    });
+    var data = await r.json().catch(function () { return {}; });
+    if (!r.ok) {
+      dpBridgeStatus(String((data && (data.error || data.detail)) || ('HTTP ' + r.status)), 'error');
+      return;
+    }
+    var n = (data && data.updated != null) ? data.updated : ids.length;
+    dpBridgeStatus((action === 'approve' ? 'Approved ' : 'Rejected ') + n + ' pair(s).', 'success');
+    await rqLoad({});
+    dpCoverageChanged();                 // the file table's status/coverage follows the review (it stayed stale after a bulk approve)
+  } catch (e) {
+    dpBridgeStatus('Bulk ' + action + ' failed: ' + ((e && e.message) || e), 'error');
+  }
+}
+
+async function dpApproveSelected() {
+  var ids = dpSelectedIds();
+  if (!ids.length) {
+    ids = _rq.items.filter(function (q) { return (q.status || 'pending') === 'pending'; }).map(function (q) { return q.id; });
+  }
+  await dpBulkAction(ids, 'approve');
+}
+
+async function dpRejectSelected() {
+  await dpBulkAction(dpSelectedIds(), 'reject', 'rejected in bulk');
+}
+
+// Every pending pair of the project (not just the loaded page): page through the queue to collect the ids.
+async function dpApproveAllPending() {
+  // Scoped like the review card: with a file picked, only that file's pending pairs (it approved the whole project before).
+  var ids = [], offset = 0, scope = _rq.source ? '&source_id=' + encodeURIComponent(_rq.source) : '';
+  for (;;) {
+    var res = await fetch(rqBase() + '/qa/queue?status=pending&limit=1000&offset=' + offset + scope, { cache: 'no-store' });
+    var page = await res.json();
+    (page.items || []).forEach(function (q) { ids.push(q.id); });
+    offset += (page.items || []).length;
+    if (!page.items || !page.items.length || offset >= page.total) break;
+  }
+  if (!ids.length) {
+    dpBridgeStatus('No pending pairs to approve.', 'info');
+    return;
+  }
+  var where = _rq.source ? 'in ' + ((_rq.sources || []).find(function (x) { return x.source_id === _rq.source; }) || {}).filename
+    : 'in ALL files of this project';
+  if (!await fts.confirm('Approve ' + ids.length + ' pending pair(s) ' + where + ' without reading them?', { okText: 'Approve ' + ids.length })) return;
+  await dpBulkAction(ids, 'approve');
+}
+
+// Share of rows that carry retrieved context: 0 when the box is off.
+function dpGroundedShare() {
+  var on = document.getElementById('dp-grounded');
+  var pct = document.getElementById('dp-grounded-pct');
+  if (!on || !on.checked) return 0;
+  var n = Math.min(100, Math.max(1, parseInt(pct && pct.value, 10) || 40));
+  return (n / 100).toFixed(2);
+}
+
+// Default on only when the project has a built Smart Brain index (same rule as the server's auto mode).
+(async function dpInitGrounded() {
+  var on = document.getElementById('dp-grounded');
+  var state = document.getElementById('dp-grounded-state');
+  if (!on) return;
+  try {
+    var st = await fetch('/api/projects/' + encodeURIComponent(_prepPid) + '/brain').then(function (res) { return res.json(); });
+    on.checked = !!(st && st.exists);
+    if (state) state.textContent = st && st.exists
+      ? ' This project has a Smart Brain index, so it is on by default.'
+      : ' This project has no Smart Brain index yet, so it is off by default.';
+  } catch (e) {
+    if (state) state.textContent = ' Could not check for a Smart Brain index; choose manually.';
+  }
+})();
+
+async function dpExportApproved() {
+  var approved = _rq.counts.approved;
+  if (!approved) {
+    dpBridgeStatus('No approved pairs yet. Approve pending rows first, then export.', 'error');
+    return;
+  }
+  dpBridgeStatus('Exporting ' + approved + ' approved pair(s)…', 'info');
+  try {
+    var url = '/api/projects/' + encodeURIComponent(_prepPid) + '/data-prep/export?fmt=sharegpt&only=approved&grounded_share=' + dpGroundedShare();
+    var r = await fetch(url, { cache: 'no-store' });
+    if (r.status === 409) {
+      var gap = await r.json().catch(function () { return {}; });
+      var files = (gap.incomplete_files || []).map(function (f) {
+        return f.filename + ' (' + f.status + (f.counts && f.counts.open ? ', ' + f.counts.open + ' open' : '') + ')';
+      });
+      var ok = await fts.confirm('Not every data point is approved yet in: ' + files.join(', ') +
+        '. Export the approved pairs anyway?', { okText: 'Export anyway' });
+      if (!ok) { dpBridgeStatus('Export cancelled: ' + files.length + ' file(s) not complete.', 'info'); return; }
+      r = await fetch(url + '&force=true', { cache: 'no-store' });
+    }
+    if (!r.ok) {
+      var err = {};
+      try { err = await r.json(); } catch (e2) { /* ignore */ }
+      dpBridgeStatus(String((err && (err.error || err.detail)) || ('Export failed (HTTP ' + r.status + ')')), 'error');
+      return;
+    }
+    // Side effect on the server registers project_datasets; also offer a local download.
+    var groundedRows = parseInt(r.headers.get('X-Grounded-Rows') || '0', 10) || 0;
+    var rowCount = parseInt(r.headers.get('X-Rows') || '', 10);
+    var blob = await r.blob();
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = _prepPid + '-sharegpt-approved.jsonl';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    await dpRefreshExportedDatasets();
+    dpBridgeStatus(
+      'Exported ' + (isNaN(rowCount) ? approved : rowCount) + ' pair(s)' +
+      ' (reviewed, approved pairs only)' +
+      (groundedRows ? ' (' + groundedRows + ' with retrieved context)' : ' (no retrieved-context rows)') +
+      ' into project datasets. Select it in Training → “From this project”, or review the JSONL in Data Editor.',
+      'success'
+    );
+    // Make the next step un-missable: CTA row attached to the exported-datasets panel.
+    var panel = document.getElementById('dp-exported-datasets');
+    if (panel && !panel.hidden && !document.getElementById('dp-post-export-cta')) {
+      var cta = document.createElement('div');
+      cta.id = 'dp-post-export-cta';
+      cta.className = 'dp-ds-row';
+      cta.style.marginTop = '8px';
+      cta.innerHTML = '<span class="text-xs dim">Next step: configure a run</span>' +
+        '<a class="btn sm primary" href="/projects/' + encodeURIComponent(_prepPid) + '/training?dataset=latest" data-link>Start training with this dataset →</a>';
+      panel.appendChild(cta);
+    }
+  } catch (e) {
+    dpBridgeStatus('Export failed: ' + ((e && e.message) || e), 'error');
+  }
+}
+
+// ── Preference pairs (DPO): build, with real progress polled from the server ──
+var DP_PREF_DROP_LABELS = {
+  not_less_grounded: 'guess was as grounded as the real answer', near_duplicate: 'guess nearly identical to the answer',
+  refusal_as_rejected: 'model refused or hedged instead of guessing', identical: 'identical answers',
+  empty_rejected: 'empty answer', generation_error: 'model error', malformed_question: 'malformed question',
+  off_subject: 'question off-subject', duplicate_question: 'repeated question',
+  no_novel_detail: 'question looked answerable from the documents',
+  answerable_by_model_check: 'passage actually answers it'
+};
+
+function dpPrefSyncApproved(approved) {
+  var pill = document.getElementById('dp-pref-approved');
+  if (pill) pill.textContent = approved + ' approved pair' + (approved === 1 ? '' : 's');
+}
+
+function dpPrefStatus(msg, state) {
+  var el = document.getElementById('dp-pref-status');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = state === 'error' ? 'dp-pref-err' : '';
+  el.hidden = !msg;
+}
+
+function dpPrefKinds() {
+  return ['hallucination', 'abstain'].filter(function (k) {
+    var el = document.getElementById('dp-pref-kind-' + k);
+    return el && el.checked;
+  });
+}
+
+function dpPrefRenderProgress(p) {
+  var planned = p.planned || 0, done = p.attempted || 0;
+  var pct = planned ? Math.min(100, Math.round(100 * done / planned)) : 0;
+  var fill = document.getElementById('dp-pref-fill');
+  var bar = document.getElementById('dp-pref-bar');
+  var txt = document.getElementById('dp-pref-progress-text');
+  if (fill) fill.style.width = pct + '%';
+  if (bar) bar.setAttribute('aria-valuenow', String(pct));
+  var kept = Object.keys(p.kept || {}).map(function (k) { return (p.kept[k] || 0) + ' ' + k; }).join(', ');
+  if (txt) txt.textContent = planned
+    ? 'Tried ' + done + ' of up to ' + planned + ' candidates · kept ' + kept + ' (the model writes each answer — a few seconds each)'
+    : 'Starting — waiting for the model…';
+}
+
+function dpPrefRenderResult(d, pid) {
+  var panel = document.getElementById('dp-pref-result');
+  if (!panel) return;
+  var kinds = Object.keys(d.by_kind || {}).map(function (k) {
+    return '<span class="pill outline">' + escapeHtml(k) + ': ' + d.by_kind[k] + '</span>';
+  }).join('');
+  var drops = [];
+  Object.keys(d.dropped || {}).forEach(function (k) {
+    Object.keys(d.dropped[k]).forEach(function (r) {
+      drops.push(escapeHtml(k + ' · ' + (DP_PREF_DROP_LABELS[r] || r)) + ': ' + d.dropped[k][r]);
+    });
+  });
+  var ln = d.length || {};
+  var warn = ln.warning ? '<div class="dp-pref-warn" style="margin-top:6px;">⚠ ' + escapeHtml(ln.warning) + '</div>' : '';
+  panel.innerHTML =
+    '<div><b>' + d.pairs + ' preference pairs</b> written to <span class="mono">' + escapeHtml(d.dataset.name) + '</span>' +
+    ' · training will hold out ' + ((d.split || {}).val || 0) + ' for validation</div>' +
+    '<div class="dp-pref-result-grid">' + kinds + '</div>' +
+    '<div class="text-xs dim">Answer length: chosen ' + ln.mean_chosen_chars + ' chars vs rejected ' + ln.mean_rejected_chars +
+    ' (ratio ' + ln.ratio + ')</div>' + warn +
+    (drops.length ? '<details class="text-xs dim" style="margin-top:6px;"><summary>' + drops.length +
+      ' kinds of candidate dropped by quality checks</summary><ul style="margin:4px 0 0 16px;"><li>' +
+      drops.join('</li><li>') + '</li></ul></details>' : '') +
+    '<div class="dp-ds-row" style="margin-top:8px;"><span class="text-xs dim">Next step</span>' +
+    '<a class="btn sm primary" id="dp-pref-train" data-link href="' + escapeHtml(d.train_url) + '">Train with this dataset →</a></div>';
+  panel.hidden = false;
+}
+
+async function dpPrefBuild() {
+  var kinds = dpPrefKinds();
+  var btn = document.getElementById('dp-pref-build');
+  var result = document.getElementById('dp-pref-result');
+  var maxPairs = parseInt(document.getElementById('dp-pref-max').value, 10);
+  var seed = parseInt(document.getElementById('dp-pref-seed').value, 10);
+  if (!kinds.length) { dpPrefStatus('Tick at least one kind of pair.', 'error'); return; }
+  if (!(maxPairs >= 2 && maxPairs <= 2000)) { dpPrefStatus('Pairs must be between 2 and 2000.', 'error'); return; }
+  if (result) result.hidden = true;
+  dpPrefStatus('', 'info');
+  btn.disabled = true;
+  var progress = document.getElementById('dp-pref-progress');
+  progress.hidden = false;
+  dpPrefRenderProgress({});
+  var base = '/api/projects/' + encodeURIComponent(_prepPid) + '/data-prep/preference';
+  var timer = setInterval(async function () {
+    try {
+      var pr = await fetch(base + '/progress', { cache: 'no-store' });
+      if (pr.ok) { var p = await pr.json(); if (p.running) dpPrefRenderProgress(p); }
+    } catch (e) { /* transient poll error: the build request reports the real outcome */ }
+  }, 1000);
+  try {
+    var r = await fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kinds: kinds, max_pairs: maxPairs, seed: Number.isFinite(seed) ? seed : 42 }) });
+    var d = {};
+    try { d = await r.json(); } catch (e2) { /* non-JSON error body */ }
+    if (!r.ok) {
+      var extra = '';
+      if (d.dropped) {
+        extra = '\n' + Object.keys(d.dropped).map(function (k) {
+          return k + ': ' + Object.keys(d.dropped[k]).map(function (x) { return (DP_PREF_DROP_LABELS[x] || x) + ' ×' + d.dropped[k][x]; }).join(', ');
+        }).join('\n');
+      }
+      dpPrefStatus(String(d.error || (d.detail && JSON.stringify(d.detail)) || ('Build failed (HTTP ' + r.status + ')')) + extra, 'error');
+      return;
+    }
+    dpPrefRenderProgress({ planned: 1, attempted: 1, kept: d.by_kind });
+    dpPrefRenderResult(d, _prepPid);
+    if (window.fts && fts.notify) fts.notify('Built ' + d.pairs + ' preference pairs', 'success');
+  } catch (e) {
+    dpPrefStatus('Build failed: ' + ((e && e.message) || e), 'error');
+  } finally {
+    clearInterval(timer);
+    btn.disabled = false;
+    progress.hidden = true;
+  }
+}
+
+(function dpWirePreference() {
+  var btn = document.getElementById('dp-pref-build');
+  if (btn) btn.addEventListener('click', dpPrefBuild);
+})();
+
+(function dpWireReviewControls() {
+  document.querySelectorAll('[data-dp-filter]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      dpSetFilter(btn.getAttribute('data-dp-filter'));
+    });
+  });
+  var map = [
+    ['dp-bulk-approve', dpApproveSelected],
+    ['dp-bulk-reject', dpRejectSelected],
+    ['dp-approve-all-pending', dpApproveAllPending],
+    ['dp-export-approved', dpExportApproved],
+  ];
+  map.forEach(function (pair) {
+    var el = document.getElementById(pair[0]);
+    if (el) el.addEventListener('click', pair[1]);
+  });
+})();
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// HTML escaping alone does not protect a value interpolated into JavaScript.
+function jsArg(value) {
+  return escapeHtml(JSON.stringify(String(value)));
+}
+
+// ── Mining: one job per file (inventory → mine → check → fix), live table + per-file checklist and rounds ───────────
+var _dpJobs = {};           // source_id -> active job (queued/running)
+var _dpHelper = null;       // helper as the jobs API reports it (label, kind, concurrency)
+var _dpFilesTimer = null;
+var _dpPanel = { sid: '', tab: 'items', filter: 'open', data: null, rounds: null, round: null };
+var DP_STATE_LABEL = { approved: 'approved', pending: 'awaiting review', open: 'open', excluded: 'excluded' };
+var DP_STATUS = {
+  parsed: ['outline', 'not mined'], mining: ['solid-amber', 'mining'], gaps: ['solid-rose', 'gaps'],
+  review: ['solid-amber', 'review'], complete: ['solid-green', 'complete'],
+};
+
+// _flPid, not _prepPid: the file library calls this while the script is still running, before _prepPid is set.
+function dpMiningBase() { return '/api/projects/' + encodeURIComponent(_flPid) + '/mining'; }
+
+function dpMiningStatus(msg, state) {
+  var el = document.getElementById('dp-mining-status');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.dataset.state = state || 'info';
+  el.hidden = !msg;
+  if (msg && state === 'error' && window.fts && fts.notify) fts.notify(msg, 'error');
+}
+
+async function dpLoadFiles() {
+  try {
+    var both = await Promise.all([
+      fetch('/api/projects/' + encodeURIComponent(_flPid) + '/data-prep/sources', { cache: 'no-store' }).then(function (r) { return r.json(); }),
+      fetch(dpMiningBase() + '/jobs?active=true', { cache: 'no-store' }).then(function (r) { return r.json(); }),
+    ]);
+    _flSources = both[0].sources || [];
+    _dpJobs = {};
+    (both[1].jobs || []).forEach(function (j) { _dpJobs[j.source_id] = j; });
+    _dpHelper = both[1].helper || null;
+  } catch (e) {
+    dpMiningStatus('Could not load the files: ' + ((e && e.message) || e), 'error');
+    return;
+  }
+  dpRenderHelper();
+  dpRenderFiles();
+  flUpdatePromotePanel();
+  if (_dpPanel.sid) dpLoadPanel(false);
+  clearTimeout(_dpFilesTimer);
+  if (Object.keys(_dpJobs).length) _dpFilesTimer = setTimeout(dpLoadFiles, 2000);  // live while jobs run, idle otherwise
+}
+
+function dpRenderHelper() {
+  var par = document.getElementById('dp-helper-par'), name = document.getElementById('dp-helper-name');
+  if (!_dpHelper) return;
+  if (name && _dpHelper.label) name.textContent = _dpHelper.label;
+  if (par) par.textContent = _dpHelper.kind === 'openai_compat'
+    ? '· API, ' + _dpHelper.concurrency + ' calls in parallel' + (_dpHelper.reasoning_effort ? ', reasoning ' + _dpHelper.reasoning_effort : '')
+    : '· local model, one call at a time';
+}
+
+function dpPointsCell(m) {
+  if (!m || !m.counts || !m.counts.items) return '<span class="dim">—</span>';
+  var c = m.counts, n = c.items;
+  var seg = function (k, cls) { return c[k] ? '<span class="' + cls + '" style="width:' + (100 * c[k] / n).toFixed(1) + '%"></span>' : ''; };
+  return '<div class="dp-points-bar" title="' + c.approved + ' approved · ' + c.pending + ' awaiting review · ' + c.open +
+    ' open · ' + c.excluded + ' excluded">' + seg('approved', 'ok') + seg('excluded', 'ex') + seg('pending', 'pe') + seg('open', 'op') + '</div>' +
+    '<span class="text-xs">' + (c.approved + c.excluded) + '/' + n + '</span>' +
+    (c.open ? ' <span class="text-xs dp-open">' + c.open + ' open</span>' : '') +
+    (c.proposed ? ' <span class="text-xs dim" title="The helper proposes to exclude these: confirm them on the checklist">(' + c.proposed + ' to confirm)</span>' : '');
+}
+
+function dpFileActions(s, job) {
+  var m = s.mining || {}, b = [];
+  var btn = function (act, label, cls, title) {
+    return '<button type="button" class="btn sm ' + (cls || '') + '" data-dp-act="' + act + '" data-sid="' + escapeHtml(s.id) + '"' +
+      (job ? ' data-job="' + escapeHtml(job.id) + '"' : '') + (title ? ' title="' + escapeHtml(title) + '"' : '') + '>' + label + '</button>';
+  };
+  if (s.parse_status === 'error') return '<span class="text-xs dp-open" title="' + escapeHtml(s.error || '') + '">parse failed</span>';
+  if (job) return btn('cancel', 'Cancel', 'danger');
+  if (!m.counts || !m.counts.items) return btn('mine', 'Mine', 'primary');
+  b.push(btn('items', 'Checklist'));
+  if (m.counts.open) b.push(btn('fill', 'Fill gaps', 'primary', 'Ask the helper again for the open data points'));
+  b.push(btn('reset', 'Reset', '', 'Forget the checklist, its rounds and the unreviewed pairs; reviewed pairs stay'));
+  return b.join(' ');
+}
+
+function dpRenderFiles() {
+  var host = document.getElementById('dp-files');
+  if (!host) return;
+  var list = _flSources || [];
+  if (!list.length) {
+    host.innerHTML = '<p class="dp-empty" id="dp-files-empty">No files to mine yet. Upload under <b>Uploaded files</b> ' +
+      '(text and markdown become sources at once), or click <b>Use as source</b> on a library file.</p>';
+    return;
+  }
+  var ticked = {};
+  host.querySelectorAll('.dp-source-check:checked').forEach(function (b) { ticked[b.value] = true; });
+  host.innerHTML = '<div class="table-scroll"><table class="table compact" id="dp-files-table"><thead><tr>' +
+    '<th><input type="checkbox" id="dp-source-check-all" aria-label="Select all files"></th><th>File</th><th>Status</th>' +
+    '<th>Data points</th><th>Pairs</th><th class="num">Chunks</th><th></th></tr></thead><tbody>' +
+    list.map(function (s) {
+      var m = s.mining || {}, job = _dpJobs[s.id];
+      var st = job ? 'mining' : (m.status || 'parsed');
+      var pill = DP_STATUS[st] || ['outline', st];
+      var label = job ? (job.stage === 'queued' ? 'queued' : job.stage) : pill[1];
+      var detail = job ? (job.message || '') : '';
+      var p = m.pairs || {};
+      var bad = s.parse_status === 'error';
+      return '<tr data-sid="' + escapeHtml(s.id) + '"' + (_dpPanel.sid === s.id ? ' class="dp-file-open"' : '') + '>' +
+        '<td><input type="checkbox" class="dp-source-check" aria-label="Select file" value="' + escapeHtml(s.id) + '"' +
+          (bad ? ' disabled' : '') + (ticked[s.id] ? ' checked' : '') + '></td>' +
+        '<td class="mono cell-wrap"><a href="#" data-dp-act="items" data-sid="' + escapeHtml(s.id) + '">' + escapeHtml(s.filename || s.id) + '</a></td>' +
+        '<td><span class="pill ' + (bad ? 'solid-rose' : pill[0]) + '">' + escapeHtml(bad ? 'parse error' : label) + '</span>' +
+          (detail ? '<div class="text-xs dim">' + escapeHtml(detail) + '</div>' : '') + '</td>' +
+        '<td>' + dpPointsCell(m) + '</td>' +
+        '<td class="text-xs">' + (p.total ? (p.approved + ' ok · ' + p.pending + ' pending · ' + p.rejected + ' rej') : '<span class="dim">—</span>') + '</td>' +
+        '<td class="num">' + (s.chunk_count || 0) + '</td>' +
+        '<td class="dp-file-acts">' + dpFileActions(s, job) + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+  var all = document.getElementById('dp-source-check-all');
+  if (all) all.addEventListener('change', function () {
+    host.querySelectorAll('.dp-source-check:not(:disabled)').forEach(function (box) { box.checked = all.checked; });
+  });
+}
+
+function dpSelectedSourceIds() {
+  return Array.from(document.querySelectorAll('.dp-source-check:checked')).map(function (box) { return box.value; }).filter(Boolean);
+}
+
+// The local GGUF is loaded on request (never implicitly by the server); an API helper needs nothing.
+async function dpEnsureHelperLoaded() {
+  if (_dpHelper && _dpHelper.kind === 'openai_compat') return;
+  var providers = await fetch('/api/providers', { cache: 'no-store' }).then(function (r) { return r.json(); });
+  var helperId = providers.helper_provider_id || _dpHelperProviderId || 'local-default';
+  var active = providers.active || null;
+  if (active && active.loaded && active.id === helperId) return;
+  if (providers.helper && providers.helper.kind === 'openai_compat') return;
+  dpMiningStatus('Loading the helper model…', 'info');
+  var r = await fetch('/api/providers/' + encodeURIComponent(helperId) + '/load', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+  });
+  var data = await r.json().catch(function () { return {}; });
+  if (!r.ok || data.ok === false) {
+    if (data.code === 'helper_missing') dpShowHelperPicker();
+    throw new Error(data.error || ('helper load HTTP ' + r.status));
+  }
+}
+
+async function dpShowHelperPicker() {
+  var box = document.getElementById('prep-helper-picker');
+  if (!box) return;
+  var st = await fetch('/api/providers/helper/status', { cache: 'no-store' }).then(function (r) { return r.json(); }).catch(function () { return null; });
+  if (!st) return;
+  var cands = st.candidates || [];
+  var html = '<div class="text-xs muted mb-1">Pick an installed GGUF as the helper' +
+    (cands.length ? ':' : ' — none installed yet. <a href="/models/explore">Download one in Model library</a>.') + '</div>';
+  cands.forEach(function (c) {
+    html += '<button type="button" class="btn mr-1 mb-1" data-path="' + escapeHtml(c.path) + '">' + escapeHtml(c.name) + ' (' + c.size_gb + ' GB)</button>';
+  });
+  box.innerHTML = html;
+  box.hidden = false;
+  box.querySelectorAll('button[data-path]').forEach(function (b) {
+    b.addEventListener('click', async function () {
+      var r = await fetch('/api/providers/helper/use', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: b.dataset.path }),
+      });
+      var d = await r.json().catch(function () { return {}; });
+      if (!r.ok) { dpMiningStatus(d.error || 'Could not use that file.', 'error'); return; }
+      box.hidden = true;
+      dpMiningStatus('Helper set to ' + d.path + '. Run again.', 'success');
+    });
+  });
+}
+
+async function dpSubmit(kind, ids) {
+  if (!ids.length) { dpMiningStatus('Tick at least one file.', 'error'); return; }
+  dpMiningStatus((kind === 'mine' ? 'Queueing mining for ' : 'Queueing gap filling for ') + ids.length + ' file(s)…', 'info');
+  try {
+    await dpEnsureHelperLoaded();
+    var r = await fetch(dpMiningBase() + '/jobs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_ids: ids, kind: kind }),
+    });
+    var data = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+    dpMiningStatus('Queued ' + data.jobs.length + ' file job(s). The table updates as they run.', 'success');
+  } catch (e) {
+    dpMiningStatus((kind === 'mine' ? 'Mining' : 'Gap filling') + ' not started: ' + ((e && e.message) || e), 'error');
+  }
+  await dpLoadFiles();
+}
+
+async function dpFilesAction(act, sid, jobId) {
+  var name = ((_flSources || []).find(function (s) { return s.id === sid; }) || {}).filename || sid;
+  if (act === 'items') { dpOpenFile(sid); return; }
+  if (act === 'mine' || act === 'fill') { await dpSubmit(act, [sid]); return; }
+  if (act === 'cancel') {
+    var c = await fetch(dpMiningBase() + '/jobs/' + encodeURIComponent(jobId) + '/cancel', { method: 'POST' });
+    var cd = await c.json().catch(function () { return {}; });
+    dpMiningStatus(c.ok ? 'Cancelling the job on ' + name + '…' : (cd.error || ('HTTP ' + c.status)), c.ok ? 'info' : 'error');
+  } else if (act === 'reset') {
+    var ok = await fts.confirm('Reset ' + name + '? Its checklist, rounds and unreviewed pairs are deleted; approved and rejected pairs stay. Mine it again afterwards.', { danger: true, okText: 'Reset' });
+    if (!ok) return;
+    var r = await fetch(dpMiningBase() + '/files/' + encodeURIComponent(sid) + '/reset', { method: 'POST' });
+    var d = await r.json().catch(function () { return {}; });
+    dpMiningStatus(r.ok ? 'Reset ' + name + ': ' + d.items_removed + ' data points and ' + d.pending_pairs_removed + ' unreviewed pairs removed.' : (d.error || ('HTTP ' + r.status)), r.ok ? 'success' : 'error');
+    if (_dpPanel.sid === sid) dpClosePanel();
+    prepRefreshResults();
+  }
+  await dpLoadFiles();
+}
+
+// ── Per-file panel: checklist (items with their state and pairs) and rounds (every helper call, prompt and reply) ──
+function dpOpenFile(sid) {
+  _dpPanel = { sid: sid, tab: 'items', filter: 'open', data: null, rounds: null, round: null };
+  dpLoadPanel(true);
+  document.querySelectorAll('#dp-files-table tr[data-sid]').forEach(function (tr) {
+    tr.classList.toggle('dp-file-open', tr.getAttribute('data-sid') === sid);
+  });
+}
+
+function dpClosePanel() {
+  _dpPanel.sid = '';
+  var box = document.getElementById('dp-file-panel');
+  if (box) { box.hidden = true; box.innerHTML = ''; }
+  document.querySelectorAll('#dp-files-table tr.dp-file-open').forEach(function (tr) { tr.classList.remove('dp-file-open'); });
+}
+
+async function dpLoadPanel(scroll) {
+  var sid = _dpPanel.sid;
+  if (!sid) return;
+  var box = document.getElementById('dp-file-panel');
+  if (!box) return;
+  if (!_dpPanel.data) { box.hidden = false; box.innerHTML = '<div class="dim">Loading the checklist…</div>'; }
+  try {
+    var r = await fetch(dpMiningBase() + '/files/' + encodeURIComponent(sid) + '/items', { cache: 'no-store' });
+    var d = await r.json();
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    if (_dpPanel.sid !== sid) return;
+    _dpPanel.data = d;
+    if (_dpPanel.tab === 'rounds') {
+      var rr = await fetch(dpMiningBase() + '/files/' + encodeURIComponent(sid) + '/rounds', { cache: 'no-store' }).then(function (x) { return x.json(); });
+      _dpPanel.rounds = rr.rounds || [];
+    }
+  } catch (e) {
+    box.innerHTML = '<div class="dp-pref-err">Could not load the checklist: ' + escapeHtml((e && e.message) || e) + '</div>';
+    return;
+  }
+  dpRenderPanel();
+  if (scroll && box.scrollIntoView) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function dpRenderPanel() {
+  var box = document.getElementById('dp-file-panel'), d = _dpPanel.data;
+  if (!box || !d) return;
+  var src = (_flSources || []).find(function (s) { return s.id === _dpPanel.sid; }) || {};
+  var c = d.coverage.counts;
+  var tab = function (id, label) { return '<button type="button" class="btn sm' + (_dpPanel.tab === id ? ' primary' : '') + '" data-dp-tab="' + id + '">' + label + '</button>'; };
+  var head = '<div class="dp-panel-head"><b>' + escapeHtml(src.filename || _dpPanel.sid) + '</b> · ' +
+    '<span class="pill ' + (DP_STATUS[d.coverage.status] || ['outline'])[0] + '">' + escapeHtml((DP_STATUS[d.coverage.status] || [0, d.coverage.status])[1]) + '</span> · ' +
+    c.items + ' data points: ' + c.approved + ' approved, ' + c.pending + ' awaiting review, ' + c.open + ' open, ' + c.excluded + ' excluded' +
+    '<span style="flex:1 1 auto"></span>' + tab('items', 'Checklist') + tab('rounds', 'Rounds') +
+    '<button type="button" class="btn sm" data-dp-tab="close" aria-label="Close">✕</button></div>';
+  box.hidden = false;
+  box.innerHTML = head + (_dpPanel.tab === 'rounds' ? dpRoundsHtml() : dpItemsHtml(d));
+}
+
+function dpItemsHtml(d) {
+  var f = _dpPanel.filter, c = d.coverage.counts;
+  var chip = function (id, label, n) { return '<button type="button" class="btn sm' + (f === id ? ' primary' : '') + '" data-dp-filter-items="' + id + '">' + label + ' ' + n + '</button>'; };
+  var bar = '<div class="flex gap-1 wrap" style="margin:8px 0;">' + chip('open', 'Open', c.open) +
+    (c.proposed ? chip('proposed', 'Helper proposes to skip', c.proposed) : '') + chip('pending', 'Awaiting review', c.pending) +
+    chip('approved', 'Approved', c.approved) + chip('excluded', 'Excluded', c.excluded) + chip('all', 'All', c.items) +
+    (f === 'proposed' && c.proposed ? '<span style="flex:1 1 auto"></span><button type="button" class="btn sm primary" data-dp-item="confirm-all" data-item="" ' +
+      'title="Exclude every data point the helper proposed to skip, with its reason">Confirm all ' + c.proposed + ' skips</button>' : '') + '</div>';
+  var items = d.items.filter(function (it) {
+    return f === 'all' || (f === 'proposed' ? it.state === 'open' && it.proposed_reason : it.state === f);
+  });
+  if (!items.length) return bar + '<div class="dp-empty">' + (f === 'open' ? 'No open data point: every one is stated by a pair or excluded.' : 'Nothing here.') + '</div>';
+  var lastChunk = -1, rows = [];
+  items.forEach(function (it) {
+    if (it.chunk_idx !== lastChunk) { rows.push('<tr class="dp-item-chunk"><td colspan="3">Chunk ' + it.chunk_idx + '</td></tr>'); lastChunk = it.chunk_idx; }
+    var text = it.header ? '<span class="dim">[' + escapeHtml(it.header) + ']</span> ' + escapeHtml(it.text) : escapeHtml(it.text);
+    var vals = it.origin === 'rule' ? '' : '<div class="text-xs dim">must state: ' + it.values.map(function (v) { return '<code>' + escapeHtml(v) + '</code>'; }).join(' · ') + '</div>';
+    var pairs = (it.pairs || []).map(function (p) {
+      return '<div class="text-xs"><span class="dp-status-' + p.status + '">' + (p.status === 'approved' ? '✓' : '·') + '</span> ' + escapeHtml(p.question) + '</div>';
+    }).join('');
+    var acts = it.state === 'excluded'
+      ? '<div class="text-xs dim">excluded: ' + escapeHtml(it.excluded_reason) + '</div><button type="button" class="btn sm" data-dp-item="include" data-item="' + escapeHtml(it.id) + '">Include again</button>'
+      : (it.state === 'open' && it.proposed_reason
+        ? '<div class="text-xs dim">helper: skip — ' + escapeHtml(it.proposed_reason) + '</div>' +
+          '<button type="button" class="btn sm primary" data-dp-item="confirm" data-item="' + escapeHtml(it.id) + '">Confirm skip</button> '
+        : '') + (it.state === 'open'
+        ? '<button type="button" class="btn sm" data-dp-item="write" data-item="' + escapeHtml(it.id) + '">Write pair</button> '
+        : '') + (it.state === 'open' && it.proposed_reason ? ''
+        : '<button type="button" class="btn sm" data-dp-item="exclude" data-item="' + escapeHtml(it.id) + '" title="Not a fact worth training on">Exclude</button>');
+    rows.push('<tr data-item-row="' + escapeHtml(it.id) + '"><td><span class="pill dp-item-' + it.state + '">' + escapeHtml(DP_STATE_LABEL[it.state] || it.state) + '</span>' +
+      '<div class="text-xs dim">' + escapeHtml(it.origin === 'rule' ? 'from the text' : it.origin === 'agent_file' ? 'helper, whole file' : 'helper') + '</div></td>' +
+      '<td>' + text + vals + pairs + '<div class="dp-item-write" data-write-for="' + escapeHtml(it.id) + '" hidden></div></td><td class="dp-file-acts">' + acts + '</td></tr>');
+  });
+  return bar + '<div class="table-scroll dp-items-scroll"><table class="table compact dp-items-table"><tbody>' + rows.join('') + '</tbody></table></div>';
+}
+
+function dpRoundsHtml() {
+  var rounds = _dpPanel.rounds;
+  if (!rounds) return '<div class="dim" style="margin-top:8px;">Loading rounds…</div>';
+  if (!rounds.length) return '<div class="dp-empty">No helper call recorded for this file yet.</div>';
+  var rows = rounds.map(function (r) {
+    return '<tr data-round="' + escapeHtml(r.id) + '" class="dp-round-row' + (_dpPanel.round && _dpPanel.round.id === r.id ? ' cur' : '') + '">' +
+      '<td>' + escapeHtml(r.kind.replace('_', ' ')) + '</td><td class="num">' + (r.chunk_idx || 'file') + '</td>' +
+      '<td class="num">' + (r.seconds || 0).toFixed(1) + ' s</td><td class="num">' + r.parsed + '</td><td class="num">' + r.accepted + '</td>' +
+      '<td class="num">' + r.items_added + '</td><td class="text-xs' + (r.error ? ' dp-open' : ' dim') + '">' + escapeHtml(r.error || r.model) + '</td></tr>';
+  }).join('');
+  var detail = '';
+  if (_dpPanel.round) {
+    var msgs = (_dpPanel.round.messages || []).map(function (m) { return '── ' + m.role + ' ──\n' + m.content; }).join('\n\n');
+    detail = '<div class="grid grid-2 gap-2" style="margin-top:8px;"><div><div class="text-xs dim">Prompt</div><pre class="dp-rq-src">' + escapeHtml(msgs) +
+      '</pre></div><div><div class="text-xs dim">Raw reply</div><pre class="dp-rq-src">' + escapeHtml(_dpPanel.round.reply || _dpPanel.round.error || '(empty)') + '</pre></div></div>';
+  }
+  return '<div class="table-scroll dp-items-scroll" style="margin-top:8px;"><table class="table compact"><thead><tr><th>Round</th><th>Chunk</th><th>Time</th>' +
+    '<th>Parsed</th><th>Pairs kept</th><th>Items added</th><th>Model / error</th></tr></thead><tbody>' + rows + '</tbody></table></div>' + detail;
+}
+
+async function dpItemAction(act, itemId) {
+  if (act === 'confirm' || act === 'confirm-all') {
+    // The helper's skip proposals become exclusions (reason "helper: …"); "Include again" undoes one.
+    var cr = await fetch(dpMiningBase() + '/files/' + encodeURIComponent(_dpPanel.sid) + '/proposals/confirm', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(act === 'confirm' ? { item_ids: [itemId] } : {}),
+    });
+    var cd = await cr.json().catch(function () { return {}; });
+    if (!cr.ok) { dpMiningStatus(cd.error || ('HTTP ' + cr.status), 'error'); return; }
+    dpMiningStatus('Excluded ' + cd.confirmed + ' data point(s) the helper proposed to skip.', 'success');
+    await dpLoadFiles();
+    return;
+  }
+  var it = ((_dpPanel.data || {}).items || []).find(function (x) { return x.id === itemId; });
+  if (!it) return;
+  if (act === 'write') {
+    var slot = document.querySelector('[data-write-for="' + itemId + '"]');
+    if (!slot) return;
+    slot.hidden = false;
+    slot.innerHTML = '<textarea class="dp-write-q" rows="2" placeholder="Question (name the subject)"></textarea>' +
+      '<textarea class="dp-write-a" rows="2" placeholder="Answer with the exact values"></textarea>' +
+      '<button type="button" class="btn sm success" data-dp-item="save" data-item="' + escapeHtml(itemId) + '">Save pair (approved)</button>';
+    slot.querySelector('.dp-write-q').focus();
+    return;
+  }
+  if (act === 'save') {
+    var box = document.querySelector('[data-write-for="' + itemId + '"]');
+    var q = box.querySelector('.dp-write-q').value.trim(), a = box.querySelector('.dp-write-a').value.trim();
+    if (!q || !a) { dpMiningStatus('Write both a question and an answer.', 'error'); return; }
+    var r = await fetch(rqBase() + '/qa', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source_id: _dpPanel.sid, chunk_idx: it.chunk_idx, question: q, answer: a }),
+    });
+    var d = await r.json().catch(function () { return {}; });
+    if (!r.ok) { dpMiningStatus(d.error || ('HTTP ' + r.status), 'error'); return; }
+    dpMiningStatus('Pair added and approved.', 'success');
+    prepRefreshResults();
+  } else {
+    var reason = '';
+    if (act === 'exclude') {
+      reason = await fts.prompt('Why is this not a fact worth training on? (kept with the item)', '');
+      if (reason == null) return;
+      reason = reason.trim() || 'not a fact';
+    }
+    var x = await fetch(dpMiningBase() + '/items/' + encodeURIComponent(itemId) + '/exclude', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: reason }),
+    });
+    if (!x.ok) { var xd = await x.json().catch(function () { return {}; }); dpMiningStatus(xd.error || ('HTTP ' + x.status), 'error'); return; }
+  }
+  await dpLoadFiles();
+}
+
+async function dpOpenRound(roundId) {
+  var r = await fetch(dpMiningBase() + '/rounds/' + encodeURIComponent(roundId), { cache: 'no-store' });
+  _dpPanel.round = r.ok ? await r.json() : null;
+  dpRenderPanel();
+}
+
+(function dpWireMining() {
+  var on = function (id, fn) { var el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+  on('dp-mine-selected', function () { dpSubmit('mine', dpSelectedSourceIds()); });
+  on('dp-fill-selected', function () { dpSubmit('fill', dpSelectedSourceIds()); });
+  on('dp-build-selected', dpBuildSelectedDataset);
+  on('dp-files-refresh', dpLoadFiles);
+  var files = document.getElementById('dp-files');
+  if (files) files.addEventListener('click', function (ev) {
+    var b = ev.target.closest && ev.target.closest('[data-dp-act]');
+    if (!b) return;
+    ev.preventDefault();
+    dpFilesAction(b.getAttribute('data-dp-act'), b.getAttribute('data-sid'), b.getAttribute('data-job'));
+  });
+  var panel = document.getElementById('dp-file-panel');
+  if (panel) panel.addEventListener('click', function (ev) {
+    var t = ev.target.closest && ev.target.closest('[data-dp-tab],[data-dp-filter-items],[data-dp-item],tr[data-round]');
+    if (!t) return;
+    if (t.hasAttribute('data-dp-tab')) {
+      var tab = t.getAttribute('data-dp-tab');
+      if (tab === 'close') { dpClosePanel(); return; }
+      _dpPanel.tab = tab; _dpPanel.round = null;
+      dpLoadPanel(false);
+    } else if (t.hasAttribute('data-dp-filter-items')) {
+      _dpPanel.filter = t.getAttribute('data-dp-filter-items');
+      dpRenderPanel();
+    } else if (t.hasAttribute('data-dp-item')) {
+      dpItemAction(t.getAttribute('data-dp-item'), t.getAttribute('data-item'));
+    } else {
+      dpOpenRound(t.getAttribute('data-round'));
+    }
+  });
+})();
+
+async function dpBuildSelectedDataset() {
+  var sourceIds = dpSelectedSourceIds();
+  if (!sourceIds.length) { dpMiningStatus('Tick at least one file to build a dataset from.', 'error'); return; }
+  dpMiningStatus('Building a dataset from ' + sourceIds.length + ' file(s)…', 'info');
+  try {
+    var body = { source_ids: sourceIds, fmt: 'sharegpt' };
+    var r = await fetch('/api/projects/' + encodeURIComponent(_prepPid) + '/datasets/subset', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    var data = await r.json().catch(function () { return {}; });
+    if (r.status === 409 && data.incomplete_files) {
+      var names = data.incomplete_files.map(function (f) { return f.filename + ' (' + f.status + ')'; }).join(', ');
+      if (!(await fts.confirm('Not complete yet: ' + names + '. Build from the approved pairs anyway?', { okText: 'Build anyway' }))) {
+        dpMiningStatus('Dataset not built: ' + names + ' not complete.', 'info');
+        return;
+      }
+      body.force = true;
+      r = await fetch('/api/projects/' + encodeURIComponent(_prepPid) + '/datasets/subset', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      data = await r.json().catch(function () { return {}; });
+    }
+    if (!r.ok) throw new Error(data.error || data.detail || ('HTTP ' + r.status));
+    dpMiningStatus('Built ' + data.rows + ' training rows from ' + sourceIds.length + ' file(s).', 'success');
+    await dpRefreshExportedDatasets();
+  } catch (e) {
+    dpMiningStatus('Dataset build failed: ' + ((e && e.message) || e), 'error');
+  }
+}
+
+// Verdicts change which data points are covered: refresh the file table a moment after the reviewer pauses.
+var _dpCoverTimer = null;
+function dpCoverageChanged() {
+  clearTimeout(_dpCoverTimer);
+  _dpCoverTimer = setTimeout(dpLoadFiles, 2500);
+}
+
+// Initial load — soft refresh every 15s for new pairs (not progress redraw).
+prepRefreshResults();
+var _prepPoll = setInterval(prepRefreshResults, 15000);
+document.addEventListener('fts:beforeNavigate', function () {
+  clearInterval(_prepPoll);
+  clearTimeout(_dpFilesTimer);
+  clearTimeout(_dpCoverTimer);
+}, { once: true });
+</script>
+{% endblock %}

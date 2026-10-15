@@ -1,0 +1,970 @@
+{
+  "per_file": {
+    "thread_oakhaven_incident_2024_06.eml": {
+      "total": 51,
+      "covered": 51,
+      "lenient_only": 6,
+      "missing": [],
+      "union_only": 12
+    },
+    "ops_chat_export_2024_09_w38.txt": {
+      "total": 40,
+      "covered": 38,
+      "lenient_only": 9,
+      "missing": [
+        {
+          "id": "comms-0080",
+          "locator": "19 Sep 09:46",
+          "fact": "Olek decided stuffing for KRVU 3310027-8 stays at 08:30 even after the cut-off moved to 15:00.",
+          "values": [
+            "leave 08:30"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "comms-0091",
+          "locator": "18 Sep 13:40",
+          "fact": "Gunnar finished the tyre pressures on the three Volvos on 18 September with nothing exciting to report.",
+          "values": [
+            "three Volvos",
+            "nothing exciting"
+          ],
+          "kind": "casual"
+        }
+      ],
+      "union_only": 8
+    },
+    "minutes_ops_review_2024_09_24.txt": {
+      "total": 50,
+      "covered": 45,
+      "lenient_only": 16,
+      "missing": [
+        {
+          "id": "comms-0111",
+          "locator": "item 3",
+          "fact": "Plug C-37 trips the breaker above 14 A.",
+          "values": [
+            "C-37 trips the breaker above 14 A"
+          ],
+          "kind": "text"
+        },
+        {
+          "id": "comms-0120",
+          "locator": "item 4",
+          "fact": "Jarek said \"we live with it for five weeks\".",
+          "values": [
+            "we live with it for five weeks"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "comms-0122",
+          "locator": "item 5",
+          "fact": "Olek lent the driver a blanket from the gate cabin box, which Jarek had not known about.",
+          "values": [
+            "blanket from the gate cabin box"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "comms-0125",
+          "locator": "item 5",
+          "fact": "Blankets stay and need no policy.",
+          "values": [
+            "Blankets stay"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "comms-0140",
+          "locator": "addendum Wed 25.09",
+          "fact": "Jarek's addendum of 25.09 moved the electrician visit to Thu 03.10 instead of Wed.",
+          "values": [
+            "electrician moved to Thu 03.10"
+          ],
+          "kind": "text"
+        }
+      ],
+      "union_only": 7
+    },
+    "iso22000_surveillance_audit_report_2024.docx": {
+      "total": 75,
+      "covered": 72,
+      "lenient_only": 4,
+      "missing": [
+        {
+          "id": "compliance-0041",
+          "locator": "Section 5 F-01",
+          "fact": "The Oakhaven load was held under a red hold label from 02:15 on 15 June 2024.",
+          "values": [
+            "02:15 on 15 June"
+          ],
+          "kind": "text"
+        },
+        {
+          "id": "compliance-0042",
+          "locator": "Section 5 F-01",
+          "fact": "The release for onward delivery was recorded on form KC-QF-114 at 04:40 on 16 June, a hold of 26 hours 25 minutes, signed by the duty shift lead alone.",
+          "values": [
+            "KC-QF-114",
+            "04:40 on 16 June",
+            "26 hours 25 minutes"
+          ],
+          "kind": "text"
+        },
+        {
+          "id": "compliance-0059",
+          "locator": "Section 6",
+          "fact": "The pre-trip inspection records sampled remotely at RTM-3 were complete in 40 out of 40 files, and Hanneke Dijkgraaf's team could retrieve any file in about two minutes.",
+          "values": [
+            "40 out of 40",
+            "about two minutes"
+          ],
+          "kind": "text"
+        }
+      ],
+      "union_only": 18
+    },
+    "scanned_corrective_action_0917.pdf": {
+      "total": 22,
+      "covered": 22,
+      "lenient_only": 0,
+      "missing": [],
+      "union_only": 7
+    },
+    "board_pack_q3_2024.pptx": {
+      "total": 84,
+      "covered": 74,
+      "lenient_only": 7,
+      "missing": [
+        {
+          "id": "finance-0029",
+          "locator": "slide 5 bullet 1",
+          "fact": "Q3 2024 segment EBITDA was 1.5 for Monitoring & Software (31.3%), 0.4 for Yard & Trans-shipment (14.8%), with central costs of -0.4, in EUR m.",
+          "values": [
+            "1.5 (31.3%)",
+            "0.4 (14.8%)",
+            "central costs -0.4"
+          ],
+          "kind": "list"
+        },
+        {
+          "id": "finance-0030",
+          "locator": "slide 5 bullet 2",
+          "fact": "The energy line in the bridge is mostly reefer plug-in power at RTM-3 and GDY-1, while the fuel part is yard equipment diesel.",
+          "values": [
+            "RTM-3 and GDY-1",
+            "yard equipment diesel"
+          ],
+          "kind": "list"
+        },
+        {
+          "id": "finance-0043",
+          "locator": "slide 7 table",
+          "fact": "RTM-3 plug racks phase 1 (140 points) had capex of 2.9 EUR m over nine months with a full-year forecast of 3.4.",
+          "values": [
+            "RTM-3 plug racks phase 1 (140 points)",
+            "2.9",
+            "3.4"
+          ],
+          "kind": "table"
+        },
+        {
+          "id": "finance-0044",
+          "locator": "slide 7 table",
+          "fact": "KC-Tag 4 tooling and production batch 2 had capex of 1.1 EUR m over nine months with a full-year forecast of 1.3.",
+          "values": [
+            "KC-Tag 4 tooling and production batch 2",
+            "1.1",
+            "1.3"
+          ],
+          "kind": "table"
+        },
+        {
+          "id": "finance-0045",
+          "locator": "slide 7 table",
+          "fact": "The GOT-4 reach stacker RS-45 has capex of 0.9 EUR m both over nine months and as the full-year forecast.",
+          "values": [
+            "GOT-4 reach stacker RS-45",
+            "0.9"
+          ],
+          "kind": "table"
+        },
+        {
+          "id": "finance-0046",
+          "locator": "slide 7 table",
+          "fact": "Tidewalk v7 capitalised development had capex of 1.0 EUR m over nine months with a full-year forecast of 1.4.",
+          "values": [
+            "Tidewalk v7 capitalised development",
+            "1.0",
+            "1.4"
+          ],
+          "kind": "table"
+        },
+        {
+          "id": "finance-0047",
+          "locator": "slide 7 table",
+          "fact": "The Thermaglide reefer unit refresh had capex of 4.3 EUR m over nine months with a full-year forecast of 5.9.",
+          "values": [
+            "Reefer unit refresh (Thermaglide)",
+            "4.3",
+            "5.9"
+          ],
+          "kind": "table"
+        },
+        {
+          "id": "finance-0052",
+          "locator": "slide 8 table",
+          "fact": "The term loan with Nordhafen Bank AG stood at 38.5 EUR m at 30 September 2024.",
+          "values": [
+            "Term loan (Nordhafen Bank AG)",
+            "38.5"
+          ],
+          "kind": "table"
+        },
+        {
+          "id": "finance-0054",
+          "locator": "slide 8 table",
+          "fact": "IFRS 16 lease liabilities were 21.7 EUR m at 30 September 2024.",
+          "values": [
+            "IFRS 16 lease liabilities",
+            "21.7"
+          ],
+          "kind": "table"
+        },
+        {
+          "id": "finance-0055",
+          "locator": "slide 8 table",
+          "fact": "Cash and equivalents were 9.7 EUR m at 30 September 2024, which is deducted to give net debt.",
+          "values": [
+            "Cash and equivalents",
+            "-9.7"
+          ],
+          "kind": "table"
+        }
+      ],
+      "union_only": 22
+    },
+    "rate_card_2024.xlsx": {
+      "total": 36,
+      "covered": 36,
+      "lenient_only": 2,
+      "missing": [],
+      "union_only": 9
+    },
+    "handbook_v4_extract_leave_expenses_discipline.pdf": {
+      "total": 86,
+      "covered": 83,
+      "lenient_only": 0,
+      "missing": [
+        {
+          "id": "hr-0013",
+          "locator": "Section 3.3",
+          "fact": "Absences longer than 5 consecutive working days must be requested at least 10 working days ahead, while shorter absences need two working days' notice.",
+          "values": [
+            "10 working days",
+            "5 consecutive working days",
+            "two working days"
+          ],
+          "kind": "text"
+        },
+        {
+          "id": "hr-0014",
+          "locator": "Section 3.3",
+          "fact": "The line manager is expected to answer a leave request within 4 working days, and an unanswered request is escalated to the Depot Manager or Head of Department rather than deemed approved.",
+          "values": [
+            "4 working days",
+            "Silence is not approval"
+          ],
+          "kind": "text"
+        },
+        {
+          "id": "hr-0016",
+          "locator": "Section 3.4",
+          "fact": "The peak-season leave restriction is applied informally at HAM-2 by custom rather than by rule.",
+          "values": [
+            "HAM-2",
+            "by custom rather than by rule"
+          ],
+          "kind": "casual"
+        }
+      ],
+      "union_only": 19
+    },
+    "employment_contract_template_ops_staff.docx": {
+      "total": 49,
+      "covered": 49,
+      "lenient_only": 6,
+      "missing": [],
+      "union_only": 15
+    },
+    "runbook_kchub_offline.md": {
+      "total": 86,
+      "covered": 86,
+      "lenient_only": 12,
+      "missing": [],
+      "union_only": 13
+    },
+    "postmortem_tidewalk_alert_outage_2024_08.docx": {
+      "total": 57,
+      "covered": 57,
+      "lenient_only": 3,
+      "missing": [],
+      "union_only": 13
+    },
+    "msa_oakhaven_dairy_2023.pdf": {
+      "total": 83,
+      "covered": 80,
+      "lenient_only": 1,
+      "missing": [
+        {
+          "id": "legal-0028",
+          "locator": "cl. 4.5",
+          "fact": "Service credits not yet applied on expiry or termination of the Oakhaven MSA are paid out within 60 days.",
+          "values": [
+            "within 60 days"
+          ],
+          "kind": "legal"
+        },
+        {
+          "id": "legal-0042",
+          "locator": "cl. 11.1",
+          "fact": "An Autumn Peak surcharge of 7.5% on the leg fee applies to consignments gated in between 15 August and 15 October.",
+          "values": [
+            "15 August and 15 October",
+            "7.5%"
+          ],
+          "kind": "legal"
+        },
+        {
+          "id": "legal-0484",
+          "locator": "cl. 4.5",
+          "fact": "Service credits under the Oakhaven MSA are set off against the next invoice.",
+          "values": [
+            "set off against the next invoice"
+          ],
+          "kind": "legal"
+        }
+      ],
+      "union_only": 6
+    },
+    "amendment_no2_oakhaven_2024.doc": {
+      "total": 44,
+      "covered": 42,
+      "lenient_only": 2,
+      "missing": [
+        {
+          "id": "legal-0099",
+          "locator": "cl. 6.1",
+          "fact": "Clause 14.2 of the MSA is deleted and replaced so that Korvane keeps a 180-day convenience notice while the Customer's convenience notice drops to 120 days.",
+          "values": [
+            "Clause 14.2 of the MSA is deleted and replaced as follows",
+            "not less than 120 days' written notice"
+          ],
+          "kind": "legal"
+        },
+        {
+          "id": "legal-0110",
+          "locator": "drafting history",
+          "fact": "Draft v3 of 21 August 2024 had set the Oakhaven settlement at EUR 88,000 and the Customer notice at 150 days, both replaced after the call of 27 August.",
+          "values": [
+            "21 August 2024",
+            "EUR 88,000",
+            "150-day Customer notice",
+            "27 August"
+          ],
+          "kind": "text"
+        }
+      ],
+      "union_only": 9
+    },
+    "sop_reefer_loading_and_excursions.rtf": {
+      "total": 79,
+      "covered": 78,
+      "lenient_only": 4,
+      "missing": [
+        {
+          "id": "ops-0031",
+          "locator": "section 2",
+          "fact": "The first 20 cm in front of the unit bulkhead must be kept completely clear of cartons.",
+          "values": [
+            "first 20 cm in front of the unit bulkhead"
+          ],
+          "kind": "text"
+        }
+      ],
+      "union_only": 13
+    },
+    "depot_directory_2024.xls": {
+      "total": 51,
+      "covered": 51,
+      "lenient_only": 3,
+      "missing": [],
+      "union_only": 16
+    },
+    "kctag4_quick_start_guide.pdf": {
+      "total": 82,
+      "covered": 82,
+      "lenient_only": 7,
+      "missing": [],
+      "union_only": 12
+    },
+    "kctag4_datasheet.html": {
+      "total": 39,
+      "covered": 38,
+      "lenient_only": 8,
+      "missing": [
+        {
+          "id": "product-0117",
+          "locator": "page footer",
+          "fact": "The datasheet page was last modified on 12.02.2024 and its content owner is Product Management KC-Tag.",
+          "values": [
+            "12.02.2024",
+            "Product Management KC-Tag"
+          ],
+          "kind": "text"
+        }
+      ],
+      "union_only": 7
+    },
+    "case_study_fruttoria_baltica.pdf": {
+      "total": 47,
+      "covered": 46,
+      "lenient_only": 2,
+      "missing": [
+        {
+          "id": "sales-0026",
+          "locator": "What actually changed, para 2",
+          "fact": "The average time between an excursion starting and Fruttoria Baltica knowing about it fell from 3 h 40 min to 11 minutes.",
+          "values": [
+            "11 minutes"
+          ],
+          "kind": "text"
+        }
+      ],
+      "union_only": 17
+    },
+    "crm_export_2024_q3.csv": {
+      "total": 69,
+      "covered": 38,
+      "lenient_only": 0,
+      "missing": [
+        {
+          "id": "sales-0067",
+          "locator": "OPP-24-0309 notes",
+          "fact": "Kaunas Berries UAB ships via the K\u0142aip\u0117da yard KLJ-5, so 1 hub is enough, and its decision maker is Giedrius Vaitkus.",
+          "values": [
+            "KLJ-5",
+            "1 hub is enough",
+            "Giedrius Vaitkus"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0068",
+          "locator": "OPP-24-0309 notes",
+          "fact": "Fairway support runs Mon-Sat 06:00-22:00 only, so Kaunas Berries UAB's weekend support wish needs Deep Water for 24/7.",
+          "values": [
+            "Mon-Sat 06:00-22:00",
+            "24/7 needs Deep Water"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0069",
+          "locator": "OPP-24-0310 notes",
+          "fact": "Dolina Warzyw Sp. z o.o. renewed (OPP-24-0310) on the Harbour plan with 60 tags.",
+          "values": [
+            "stays on Harbour, 60 tags",
+            "OPP-24-0310"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0070",
+          "locator": "OPP-24-0310 notes",
+          "fact": "Dolina Warzyw asked for 5% off but the owner's limit is 4%, so they received 4% plus a free install of 1 hub approved by RN by chat.",
+          "values": [
+            "Asked 5% off",
+            "WS limit is 4%",
+            "free install of 1 hub"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0071",
+          "locator": "OPP-24-0311 notes",
+          "fact": "Adriatic Citrus d.o.o. has an ICP score of 38/100 against a cutoff of 60, with only a Rijeka to Gdynia leg.",
+          "values": [
+            "38/100",
+            "cutoff is 60",
+            "Rijeka to Gdynia leg only"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0072",
+          "locator": "OPP-24-0312 notes",
+          "fact": "Hanseatic Fleisch GmbH ships 31 reefers a week via Hamburg and its Frostline contract ends 31 Dec 2024.",
+          "values": [
+            "31 reefers a week",
+            "Frostline contract ends 31 Dec 2024"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0073",
+          "locator": "OPP-24-0312 notes",
+          "fact": "The contact at Hanseatic Fleisch GmbH is Birgit Lenz, head of logistics.",
+          "values": [
+            "Birgit Lenz"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0074",
+          "locator": "OPP-24-0313 notes",
+          "fact": "Brunnen & Sohn Frischdienst wants an expansion of 2 sites, Freiburg and Basel, with an amount of 96450.00 EUR.",
+          "values": [
+            "Freiburg and Basel",
+            "96450.00"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0075",
+          "locator": "OPP-24-0313 notes",
+          "fact": "No quote revision for Brunnen & Sohn Frischdienst may go out until the credit note is issued, which KV promised as EUR 1,846.20 by 20.09.",
+          "values": [
+            "NO quote revision until credit note is out",
+            "EUR 1,846.20 by 20.09"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0078",
+          "locator": "OPP-24-0315 notes",
+          "fact": "Zeeland Bloemen BV closed on the Harbour plan for 12 months with 40 tags and its amount is 17950.00 EUR.",
+          "values": [
+            "Harbour plan 12 mo and 40 tags",
+            "17950.00"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0079",
+          "locator": "OPP-24-0315 notes",
+          "fact": "Zeeland Bloemen BV's hub install in Vlissingen is booked for 17.09 after slipping from 3.09.",
+          "values": [
+            "Hub install booked 17.09",
+            "slipped from 3.09"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0080",
+          "locator": "OPP-24-0316 notes",
+          "fact": "Pomorskie Mleczarnia S.A. went with TermoTrans Gda\u0144sk at a flat EUR 0.49 per tag per day with no subscription.",
+          "values": [
+            "TermoTrans Gda\u0144sk",
+            "EUR 0.49 per tag per day"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0081",
+          "locator": "OPP-24-0316 notes",
+          "fact": "Korvane's offer to Pomorskie Mleczarnia S.A. was 22% higher than TermoTrans Gda\u0144sk and was never escalated to RN.",
+          "values": [
+            "22% higher"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0082",
+          "locator": "OPP-24-0317 notes",
+          "fact": "Lofoten Torsk AS is a stockfish exporter active only January to April.",
+          "values": [
+            "stockfish",
+            "active Jan-Apr only"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0083",
+          "locator": "OPP-24-0317 notes",
+          "fact": "RN will allow one 3-month subscription pause per year on Fairway as an exception.",
+          "values": [
+            "ONE 3-month pause per year on Fairway"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0085",
+          "locator": "OPP-24-0319 notes",
+          "fact": "The Estonian lead P\u00e4rnu Kalat\u00f6\u00f6stus AS was moved to WS per RN on 02.09 and its customs agent is GreyLine Customs Agency.",
+          "values": [
+            "Estonia moved to WS per RN 02.09",
+            "GreyLine Customs Agency"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0086",
+          "locator": "OPP-24-0320 notes",
+          "fact": "Fruttoria Baltica's separate opportunity OPP-24-0320 covers SSO plus 2 hubs for new ripening rooms 9 and 10, which open in Feb 2025.",
+          "values": [
+            "OPP-24-0320",
+            "2 hubs",
+            "ripening rooms 9 and 10",
+            "Feb 2025"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0087",
+          "locator": "OPP-24-0321 notes",
+          "fact": "Helvetia Pharma Logistik GmbH renewed hub maintenance for 3 hubs with 4 h on-site response, signed with no discount, for 74320.00 EUR.",
+          "values": [
+            "3 hubs, 4 h on-site response",
+            "signed with no discount",
+            "74320.00"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0088",
+          "locator": "OPP-24-0322 notes",
+          "fact": "Nordkj\u00f8l Seafood AS's phase 2 Bergen terminal opportunity depends on the 2 Dec go-live of phase 1.",
+          "values": [
+            "phase 2 Bergen terminal",
+            "2 Dec go-live"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0089",
+          "locator": "OPP-24-0323 notes",
+          "fact": "Oakhaven Dairy Ltd requested an extra lane via RTM-3 Rotterdam and Hanneke Dijkgraaf is aware.",
+          "values": [
+            "extra lane via RTM-3 Rotterdam",
+            "Hanneke Dijkgraaf"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0096",
+          "locator": "OPP-24-0328 notes",
+          "fact": "Skagerrak Sj\u00f8mat AS went to ColdArc Nordic for its 99.9% uptime SLA and Scandinavian-language support desk, and price was not the issue.",
+          "values": [
+            "99.9% uptime SLA",
+            "Scandinavian-language support desk",
+            "Price was not the issue"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0097",
+          "locator": "OPP-24-0330 notes",
+          "fact": "Radom Mro\u017ania S.A. has its budget frozen to Feb 2025 and runs its own loggers with USB read-out.",
+          "values": [
+            "budget frozen to Feb 2025",
+            "USB read-out"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0098",
+          "locator": "OPP-24-0331 notes",
+          "fact": "Fruttoria Baltica allows reference calls of max 2 per quarter, and Mecklenburger Beeren GmbH's would be the first.",
+          "values": [
+            "max 2 per quarter"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0099",
+          "locator": "OPP-24-0332 notes",
+          "fact": "Haugesund Fiskemottak AS asked for 6% off, above the owner's 4% limit, so Yusuf must sign within his KAM limit of 7.5%.",
+          "values": [
+            "asked 6% off",
+            "KAM limit 7.5%"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0100",
+          "locator": "OPP-24-0333 notes",
+          "fact": "Pozna\u0144 Ch\u0142odnie S.A. is a cold storage operator with 7 warehouses that asked for white-label, which RN says is not available before 2025.",
+          "values": [
+            "7 warehouses",
+            "no white-label before 2025"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0101",
+          "locator": "OPP-24-0334 notes",
+          "fact": "Wejherowo Dr\u00f3b Sp. z o.o. said a KC-Tag at 118.00 is too much for a thermometer and stays with its spreadsheet and own loggers.",
+          "values": [
+            "118.00",
+            "too much for a thermometer"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0102",
+          "locator": "OPP-24-0335 notes",
+          "fact": "Vilnius \u017duvis UAB uses Excel and USB loggers for 6 reefers per week and has a demo on 14.10 at 11:00.",
+          "values": [
+            "Demo 14.10 at 11:00",
+            "6 reefers/wk"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0103",
+          "locator": "OPP-24-0336 notes",
+          "fact": "Bergen Sj\u00f8mat Eksport AS wants 24/7 support so Deep Water applies, from EUR 4,900 per month with a minimum term of 24 months.",
+          "values": [
+            "from EUR 4,900/mo",
+            "min term 24 months"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0104",
+          "locator": "OPP-24-0337 notes",
+          "fact": "Zaanstad Kaas B.V. runs 14 reefers per week and was introduced warmly by Hanneke Dijkgraaf of RTM-3.",
+          "values": [
+            "14 reefers/wk",
+            "Hanneke Dijkgraaf (RTM-3)"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0105",
+          "locator": "OPP-24-0338 notes",
+          "fact": "Tartu Piim AS is a dairy with 1 reefer a week, below the minimum, and is nurture only.",
+          "values": [
+            "1 reefer a week"
+          ],
+          "kind": "casual"
+        },
+        {
+          "id": "sales-0106",
+          "locator": "OPP-24-0339 notes",
+          "fact": "Hamburg S\u00fcdfr\u00fcchte AG asked 12.5%, which needs RN and CFO co-sign above 11%, and Priya's office has had the request since 18.09.",
+          "values": [
+            "Asked 12.5%",
+            "RN + CFO co-sign",
+            "since 18.09"
+          ],
+          "kind": "casual"
+        }
+      ],
+      "union_only": 3
+    }
+  },
+  "total": 1130,
+  "covered": 1068,
+  "unmatched_pair_ids": [
+    "01d6fe2f8f59",
+    "0318e503a2a3",
+    "04300d9885b3",
+    "07abe35c7b3e",
+    "09cc735bac5a",
+    "0a16afed4e3a",
+    "0cd0e8d869cf",
+    "0d4b420e9912",
+    "0ef09a4b67b3",
+    "10e91f3a3fba",
+    "14c696fa1a5a",
+    "19f56dc19886",
+    "1a7c438c266c",
+    "207adf741b22",
+    "211c2998aac6",
+    "21cc734f8450",
+    "21eb337943f1",
+    "226fc4f3a2aa",
+    "2304f67d7660",
+    "266f18172649",
+    "277ad2c5f1a7",
+    "293221c28a5e",
+    "2edabc1b8b7d",
+    "2fb663b8bf60",
+    "303de7cd93dd",
+    "307018f1972e",
+    "340f64095ee2",
+    "36551d1e6ed8",
+    "3765825f4af7",
+    "3a06d19cb114",
+    "3cf5f856bee6",
+    "419b7379ea3f",
+    "449cab2415bc",
+    "464ca6a2c5aa",
+    "4694a0a25b9f",
+    "46af0fb00063",
+    "472aaf0ab478",
+    "491b744740fe",
+    "49988fecf009",
+    "4a04dab3b886",
+    "4ae2d7e1a39d",
+    "4b8bcb7b2b37",
+    "4cb315ac48bc",
+    "4e4e4a78e66a",
+    "4e75090cc89b",
+    "4f0f6d7ce0a9",
+    "502ccb5c98f6",
+    "5101154788fe",
+    "51a0df243b5a",
+    "52098bf6b4d4",
+    "52395234ce33",
+    "531547c2eb48",
+    "539bd214b43c",
+    "544ad4ce576c",
+    "54e88268e471",
+    "554885a28c2e",
+    "573a3087b87c",
+    "585b1f40520b",
+    "5877c57db507",
+    "59ffd82480c9",
+    "5d84cb6446b4",
+    "5d9a376cb2aa",
+    "5f1c72956bad",
+    "5fdda50f5d30",
+    "60cb09707148",
+    "61c5f695d6fe",
+    "6267cd36d5a7",
+    "63a481932d3d",
+    "63edeebb1c93",
+    "662bc1f61f04",
+    "6715691d8145",
+    "6c8b71fc79b4",
+    "6d217ab30c4d",
+    "6f0b7e32bbbf",
+    "70478cf16b9f",
+    "70e2e6fc2b1d",
+    "742be22cbd41",
+    "7494ba9c1804",
+    "751fd29634ac",
+    "754f4c705ed7",
+    "75560503caf9",
+    "76d3be870068",
+    "7a7b7c72548e",
+    "7c5161f85f74",
+    "7d27d73a7d13",
+    "7e8f1af8d151",
+    "7f0ad53bfce0",
+    "7f984f147e71",
+    "8031b8f598ba",
+    "80e7fad2db06",
+    "81597b6c5d9f",
+    "81fb18533d4e",
+    "841949e342d7",
+    "85057d7ae4db",
+    "87d7e3d6e1a3",
+    "897102ca6ffa",
+    "8a557f4ee689",
+    "8cb9fec54f9d",
+    "8cc8aba40422",
+    "8d66c4f016aa",
+    "8d9613fd4ba6",
+    "8f0fb917e451",
+    "90a2570dcf20",
+    "9229d1326d9e",
+    "93277a4036eb",
+    "9409cb140d40",
+    "94d5c53ff3ba",
+    "94ed38f76d96",
+    "95c2e732ac27",
+    "976d0dd61927",
+    "9852c8711a9c",
+    "99030d813fad",
+    "9b60e22c84a1",
+    "9bf3172bc338",
+    "9ca3697a2774",
+    "9f291daf0141",
+    "a0afe3c3b598",
+    "a1c63322aa29",
+    "a28c822c9262",
+    "a2e28c914801",
+    "a6bafc675a5b",
+    "a9a865af5265",
+    "ac8c5eb901cb",
+    "ae120554385e",
+    "aeb68c9a20c7",
+    "af5ccefb5e1e",
+    "b0365457d0bd",
+    "b1e51c84c5c1",
+    "b30af598d00f",
+    "b31114665947",
+    "b381c4326a9a",
+    "b39751715f99",
+    "b39d8e0256b3",
+    "b85fd324df0b",
+    "b9979249d821",
+    "ba836803da98",
+    "baaff7b52a5c",
+    "bde492f4724b",
+    "bf2ab66cae39",
+    "bfd510ba66f7",
+    "c013b49c1785",
+    "c16bcd51d5b9",
+    "c350ffb6309c",
+    "c402e621625c",
+    "c4269f565502",
+    "c573966c9e1f",
+    "c76d0eb24995",
+    "c76ea95f5458",
+    "c7cd6f01465a",
+    "c8213979afb2",
+    "cadecfd03157",
+    "ce9e06b053a3",
+    "ced29a3984eb",
+    "cfcb51ba0f77",
+    "d0507e33bc63",
+    "d0fa9c6e9fd4",
+    "d34c0d3aac99",
+    "d3ac079f61d0",
+    "d48c3e48af64",
+    "d5db842a9bf0",
+    "d66514069c3f",
+    "d69a4f6fe627",
+    "d9b0801700c5",
+    "d9d7ebd87c04",
+    "da294e6bf63e",
+    "dc2485e5aca9",
+    "dc5d99198b12",
+    "dc6a9f79fea7",
+    "dcf330cbdf1f",
+    "dd69647a00ff",
+    "ddd991d5000e",
+    "de30549b8b3a",
+    "def59686cdd5",
+    "df6460c55eb3",
+    "e0df87d8773b",
+    "e101272fe167",
+    "e1797490dd67",
+    "e1a27735625b",
+    "e281b0165bd2",
+    "e35eeaea9c0b",
+    "e3d817285697",
+    "e550a9369395",
+    "e573bca4e0bf",
+    "e599a3230686",
+    "e5ded6475da1",
+    "e70a5c07b202",
+    "e9c6c3a9423e",
+    "e9df6a2879b0",
+    "ec5aaabaa9ab",
+    "f284ca22b32a",
+    "f3b0ca187ab0",
+    "f59240cb5876",
+    "f7c65beb38d0",
+    "fa3cfc70bab6",
+    "fb6e1806bfe1",
+    "fb98b7f085a4",
+    "ff94be6052a2"
+  ]
+}

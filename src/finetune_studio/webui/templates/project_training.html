@@ -1,0 +1,1297 @@
+{% extends "base.html" %}
+{% block title %}Training — {{ project.name }}{% endblock %}
+{% block nav_training %}active{% endblock %}
+{% block sb_path %}~ / projects / {{ project.name }} / training{% endblock %}
+{% block breadcrumb_tab %}training{% endblock %}
+
+{% block content %}
+{% set res_compact = true %}
+{% include "_resources.html" %}
+
+<div class="page-head row">
+  <div>
+    <h1>Training</h1>
+    <div class="sub"><b>Step 2 · Train a model.</b> Teaches a base model your dataset so it
+      answers from memory. Pick the base model and the dataset built in
+      <a href="/projects/{{ pid }}/data-prep" data-link>Files &amp; Knowledge → pairs</a>, choose a preset, start.
+      Hours, not minutes — the page keeps live progress. Then
+      <a href="/projects/{{ pid }}/testing" data-link>test it (step 3)</a>.</div>
+  </div>
+  <div class="actions">
+    <span class="pill solid-green" id="production-run-pill"
+          {% if not production_run %}hidden{% endif %}
+          data-run-id="{{ production_run.id if production_run else '' }}">
+      ● production{% if production_run %} · {{ production_run.name }}{% endif %}
+    </span>
+  </div>
+</div>
+
+{% if detail_run %}
+{# ── Run-detail panel — only rendered when ?run=<id> is in the URL ── #}
+<div class="card mb-6 run-detail">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Run details · {{ detail_run.name }}</div>
+      <div class="card-sub">
+        <a href="/projects/{{ pid }}/training" data-link class="muted">← Back to all runs</a>
+      </div>
+    </div>
+    <span class="pill {{ {'done':'solid-green','failed':'solid-rose','running':'solid-amber','stopped':'outline'}.get(detail_run.status, 'outline') }}">
+      {{ detail_run.status }}
+    </span>
+  </div>
+
+  <div class="grid grid-2 gap-4">
+    <div>
+      <table class="table compact run-meta">
+        <tr><td class="meta muted">ID</td><td class="mono">{{ detail_run.id }}</td></tr>
+        <tr><td class="meta muted">Base model</td>
+            <td class="mono">{{ detail_run.base_model.split('/')[-1] if detail_run.base_model else '—' }}</td></tr>
+        <tr><td class="meta muted">Dataset</td>
+            <td class="mono" title="{{ detail_run.data_path or '' }}">{{ detail_run.data_path.split('/')[-1] if detail_run.data_path else '—' }}</td></tr>
+        <tr><td class="meta muted">Output</td>
+            <td class="mono" title="{{ detail_run.output_path or '' }}">{{ detail_run.output_path or '—' }}</td></tr>
+        <tr><td class="meta muted">Created</td><td class="mono js-time" data-ts="{{ detail_run.created_at }}">—</td></tr>
+        <tr><td class="meta muted">Started</td><td class="mono js-time" data-ts="{{ detail_run.started_at or '' }}">—</td></tr>
+        <tr><td class="meta muted">Finished</td><td class="mono js-time" data-ts="{{ detail_run.finished_at or '' }}">—</td></tr>
+        <tr><td class="meta muted">Final loss</td>
+            <td class="mono num">{{ '%.4f' % detail_run.final_loss if detail_run.final_loss else '—' }}</td></tr>
+      </table>
+    </div>
+
+    <div>
+      {% with title='Settings', rows=detail_run.settings, empty='No settings recorded.', table_class='run-settings' %}
+        {% include "_kv_grid.html" %}
+      {% endwith %}
+      {% if detail_run.metrics and (detail_run.metrics|length > 0) %}
+      <div class="mt-3">
+        {% with title='Metrics', rows=detail_run.metrics, table_class='run-settings' %}
+          {% include "_kv_grid.html" %}
+        {% endwith %}
+      </div>
+      {% endif %}
+      {% if detail_run.notes %}
+      <h4 class="text-xs muted mb-1 mt-3">Notes</h4>
+      <div class="text-xs">{{ detail_run.notes }}</div>
+      {% endif %}
+      {% if detail_run.error %}
+      <h4 class="text-xs muted mb-1 mt-3" style="color:var(--err)">Error</h4>
+      <div class="text-xs run-error" role="status" style="white-space:pre-wrap;color:var(--err);border:1px solid var(--border);padding:8px 10px;border-radius:var(--radius-sm);background:var(--bg-app);">{{ detail_run.error }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="flex gap-2 mt-4 wrap">
+    <a class="btn sm" href="/projects/{{ pid }}/training?run={{ detail_run.id }}" data-link>Refresh</a>
+    <a class="btn sm primary"
+       href="/inference{% if detail_run.output_path %}?adapter_path={{ detail_run.output_path }}{% endif %}"
+       data-link>Use adapter in inference</a>
+    <button class="btn sm danger"
+            data-action="/api/projects/{{ pid }}/runs/{{ detail_run.id }}"
+            data-method="DELETE"
+            data-confirm="Delete this run? Output files on disk will be kept."
+            data-reload="true">Delete</button>
+  </div>
+  <details class="mt-3">
+    <summary class="text-xs muted">Debug JSON</summary>
+    <pre class="mono text-xs" style="max-height:200px;overflow:auto;white-space:pre-wrap;margin:6px 0 0;">{{ detail_run | tojson(indent=2) }}</pre>
+  </details>
+</div>
+{% endif %}
+
+<div class="card mb-6">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Configuration</div>
+      <div class="card-sub">Settings used for the next training run.</div>
+    </div>
+  </div>
+
+  {# ── Project nav step indicator ── #}
+  <div class="steps">
+    <div class="step done"><span class="num">1</span> Configure</div>
+    <div class="step"><span class="num">2</span> Start</div>
+    <div class="step"><span class="num">3</span> Monitor</div>
+    <div class="step"><span class="num">4</span> Evaluate</div>
+  </div>
+
+  <form id="train-form" class="grid grid-2 gap-4 mt-4" data-api="/api/training/start">
+    <input type="hidden" name="project_id" value="{{ pid }}">
+    <input type="hidden" name="dataset_id" id="dataset-id-input" value="">
+    <input type="hidden" name="data_path" id="data-path-input" value="">
+
+    <fieldset class="card-inner" style="grid-column:1/-1;">
+      <legend class="text-xs muted">Training route</legend>
+      <div class="flex gap-4 wrap mt-2">
+        <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="sft" checked> Supervised fine-tuning (SFT)</label>
+        <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="dpo"> Preference tuning (DPO)</label>
+        <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="kto"> Good/bad examples (KTO)</label>
+        <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="tool_sft"> Tool-calling SFT</label>
+        <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="continued_pretraining"> Continued pretraining</label>
+        <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="reasoning_distillation"> Reasoning distillation</label>
+      </div>
+      <div id="training-mode-help" class="text-xs muted mt-2">SFT learns from prompt/answer examples. Choose an approved Q&amp;A export or a conversational JSONL dataset.</div>
+      <div id="dpo-format-help" class="text-xs muted mt-2" hidden>
+        DPO learns which answer is preferred for the same prompt. Use at least 2 judged pairs; the app reserves a deterministic 10% holdout.
+        JSONL example: <code>{"prompt":[{"role":"user","content":"Question"}],"chosen":[{"role":"assistant","content":"Preferred answer"}],"rejected":[{"role":"assistant","content":"Less helpful answer"}]}</code>
+        String-valued prompt/chosen/rejected are accepted too. Do not use model-generated rejected answers without review.
+      </div>
+      <div id="kto-format-help" class="text-xs muted mt-2" hidden>
+        KTO learns from single answers marked good or bad, so it works when you cannot pair them. Each row needs a
+        <code>prompt</code>, a <code>completion</code> and a true/false <code>label</code>; preference rows
+        (prompt/chosen/rejected) are accepted and split into one good and one bad example. It needs both labels and a
+        batch size of at least 2.
+        JSONL example: <code>{"prompt":"Question","completion":"An answer","label":true}</code>
+      </div>
+      <div id="advanced-format-help" class="text-xs muted mt-2" hidden></div>
+    </fieldset>
+
+    <fieldset class="card-inner" id="preference-options" style="grid-column:1/-1;" hidden>
+      <legend class="text-xs muted">Preference options</legend>
+      <div class="grid grid-2 gap-4 mt-2">
+        <label>
+          <span class="block text-xs muted mb-1" for="start-run-select">Start from</span>
+          <select name="start_run_id" id="start-run-select" class="select" title="Preference tuning works best on top of a finished SFT run: that run's merged model becomes the starting point and the reference the new adapter is measured against.">
+            <option value="">The base model chosen below</option>
+          </select>
+          <span class="block text-xs muted mt-1" id="start-run-hint" role="status">Looking for finished SFT runs with a merged model…</span>
+        </label>
+        <label>
+          <span class="block text-xs muted mb-1" for="preference-beta">Beta (how far the model may move from its starting point)</span>
+          <input type="text" name="preference_beta" id="preference-beta" value="0.1" class="input" title="Higher keeps the model closer to where it started; lower lets it move further. 0.1 is the TRL and DPO-paper default.">
+        </label>
+        <label id="preference-sft-weight-row">
+          <span class="block text-xs muted mb-1" for="preference-sft-weight">Keep-chosen weight (DPO)</span>
+          <input type="text" name="preference_sft_weight" id="preference-sft-weight" value="1.0" class="input" title="Adds a supervised loss on the chosen answers next to DPO (RPO). Plain DPO lowers the probability of chosen answers as well; on small datasets that makes the model forget facts. 0 = plain DPO.">
+        </label>
+      </div>
+    </fieldset>
+
+    <label>
+      <span class="block text-xs muted mb-1" title="Hugging Face / safetensors causal LM used as the training base. GGUF exports are inference-only — use Inference or Chat for those.">Base Model</span>
+      <select name="model_path" id="train-base-model" class="select"{% if not models %} disabled{% endif %}>
+        {% if models %}
+          {% for model in models %}
+          <option value="{{ model.path }}" {% if model.path == project.base_model %}selected{% endif %}>{{ model.name }} ({{ model.format }}, {{ model.size_gb }} GB)</option>
+          {% endfor %}
+        {% else %}
+          <option value="" selected disabled>No transformer-compatible base models found</option>
+        {% endif %}
+      </select>
+      {% if not models %}
+      <div class="text-xs muted mt-1" id="train-base-model-empty" role="status">
+        Training needs a Hugging Face / safetensors causal LM (not GGUF).
+        Download one from the <a href="/models/explore" data-link>Model library</a>, then refresh this page.
+        Local-helper GGUFs stay available on <a href="/projects/{{ pid }}/chat" data-link>Chat</a> / Inference.
+      </div>
+      {% else %}
+      <div class="text-xs muted mt-1" id="train-base-model-hint">
+        Only Transformers-compatible bases are listed. GGUF exports are for inference only.
+      </div>
+      {% endif %}
+    </label>
+
+    {# ── Training Data — tabs (project datasets vs upload) ── #}
+    <div class="data-source">
+      <span class="block text-xs muted mb-1" title="Pick or upload JSONL. SFT expects prompt/answer examples; DPO expects prompt/chosen/rejected preference rows.">Training Data <span class="dim">?</span></span>
+      <div class="data-tabs" role="tablist">
+        <button type="button" class="data-tab active" data-tab="project" role="tab" title="Datasets registered for this project — typically exported from the pairs page.">From this project</button>
+        <button type="button" class="data-tab" data-tab="upload" role="tab" title="Upload a JSONL file directly. It's saved to this project's datasets dir and registered for future runs.">Upload my own</button>
+      </div>
+
+      <div class="data-panel active" data-panel="project">
+        {% if project.datasets %}
+          <select id="dataset-select" class="select mt-1" title="Each dataset is a registered JSONL file with Q&A pairs. Selecting one sets the data path for the training run.">
+            <option value="">— pick a dataset —</option>
+            {% for ds in project.datasets %}
+            <option value="{{ ds.id }}" data-path="{{ ds.data_path }}" title="A Q&A pair is one training example: a user question + an assistant answer. qa_count is how many pairs this file contains.">
+              {{ ds.name }} · {{ ds.qa_count }} rows · {{ (ds.size_bytes / 1024)|round(1) }} KB
+              {% if ds.source == 'data-prep-export' %} · (from data-prep){% endif %}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="text-xs muted mt-1">
+            Manage datasets in
+            <a href="/projects/{{ pid }}/data-prep" data-link>pairs page</a>
+            — exports land here automatically.
+          </div>
+        {% else %}
+          <div class="empty small">
+            No datasets yet.
+            In <a href="/projects/{{ pid }}/data-prep" data-link>the pairs page</a>,
+            approve pending Q&amp;A then click <strong>Export approved → Training</strong>,
+            or switch to <strong>Upload my own</strong>.
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="data-panel" data-panel="upload">
+        <input type="file" id="dataset-upload" accept=".jsonl,.json,.csv" class="input mt-1" title="Upload .jsonl, .json or .csv. Chat formats (messages / ShareGPT / prompt+completion) are used as-is; tables with question + answer columns (or Alpaca instruction / input / output) are converted to chat examples.">
+        <div id="dataset-upload-status" class="text-xs muted mt-1">
+          Pick a jsonl file. It's saved to this project's dataset folder and added
+          to the list above.
+        </div>
+      </div>
+      <div id="dataset-health" class="text-xs mt-2" hidden aria-live="polite"></div>
+    </div>
+
+    <label>
+      <span class="block text-xs muted mb-1" title="Where training output (adapter, merged model, GGUF export) will be written. Relative paths resolve under this project's directory.">Output Dir <span class="dim">?</span></span>
+      <input type="text" name="output_dir" value="output" class="input">
+    </label>
+    <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;" title="After training, merge the LoRA adapter into the base model. The merged model is a standalone file you can load directly (no need to keep the adapter separate) and is what the Testing page's \"auto (latest merged)\" model uses. Larger on disk (roughly the base model's size): untick to keep only the adapter and merge later at export time.">
+      <input type="checkbox" name="merge_on_save" value="1" id="merge-on-save-check" checked>
+      <span class="block text-xs muted">Also save merged model (standalone; roughly the size of the base model)</span>
+    </label>
+    <label style="grid-column: 1 / -1;">
+      <span class="block text-xs muted mb-1" title="How the system prompt is handled during training and export.">System Prompt Mode <span class="dim">?</span></span>
+      <select name="system_prompt_mode" id="system-prompt-mode" class="select">
+        <option value="bake">Bake into training (default)</option>
+        <option value="runtime">Runtime (saved separately)</option>
+        <option value="none">None</option>
+      </select>
+      <span class="block text-xs muted mt-1" id="system-prompt-help">Bake: model always behaves this way. Runtime: export includes a system_prompt.txt for inference engines. None: no system prompt.</span>
+    </label>
+    <label style="grid-column: 1 / -1;">
+      <span class="block text-xs muted mb-1" title="Presets fill every field below with a vetted starting point. The Quick-work wizard offers size-based presets (Nano, Standard, Large, QLoRA) that fill the same fields. Your evidence for what works lives in benchmarks: the 95%-strict run used PRECISION on a 515-pair domain dataset; 4-epoch runs at the same rank hit only 67%.">Training preset (by effort) <span class="dim">?</span></span>
+      <select id="training-preset" class="select" aria-label="Training preset">
+        <option value="" selected>— pick a preset (updates fields below, then adjust) —</option>
+        <option value="smoke">🔥 Smoke test — fast & lossy (minutes; proves the plumbing)</option>
+        <option value="balanced">⚖ Baseline — good quality, sane time (recommended start)</option>
+        <option value="precision">🎯 Precision — very good for factual/domain recall</option>
+        <option value="overkill">💀 Overkill — probably unnecessary; only for stubborn domains</option>
+      </select>
+      <span class="block text-xs mt-1" id="preset-note" role="status" style="color:var(--text-dim);">Pick a preset to prefill epochs, rank, LR, batch. Values stay editable — the preset is a starting point, not a cage.</span>
+      <div id="preset-advisory" class="card" hidden style="margin-top:8px;padding:10px 12px;font-size:12px;"></div>
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1" title="How many trainable parameters the LoRA adapter has. Higher rank = more expressive but slower to train and bigger adapter file. Typical range: 8–64. 64 is a good default; 8 if you're memory-constrained.">LoRA Rank <span class="dim">?</span></span>
+      <input type="number" name="lora_rank" value="64" class="input">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1" title="Step size for each gradient update. Higher = faster learning but risk of overshooting. For LoRA, 1e-4 to 2e-4 is typical; 8e-5 is a safe default.">Learning Rate <span class="dim">?</span></span>
+      <input type="text" name="learning_rate" value="8e-5" class="input">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1" title="How many times the model sees the full training dataset. 1–3 is typical for LoRA; more can cause overfitting (model memorises instead of generalising). Watch the loss curve.">Epochs <span class="dim">?</span></span>
+      <input type="number" name="num_epochs" value="4" class="input">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1" title="How many training examples are processed before the model updates its weights. Bigger batches train more stably but use more VRAM. 1–4 is typical for LoRA on consumer GPUs.">Batch size <span class="dim">?</span></span>
+      <input type="number" name="batch_size" value="2" class="input">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1" title="Maximum tokens per training example (prompt + response). Longer = more context but more VRAM and slower training. Truncate examples longer than this; pad shorter ones up to it.">Max sequence <span class="dim">?</span></span>
+      <input type="number" name="max_seq_length" value="2048" class="input">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1" for="gradient-accum-steps">Gradient accumulation steps</span>
+      <input type="number" name="gradient_accumulation_steps" id="gradient-accum-steps" value="1" min="1" max="32" class="input" title="Accumulate gradients over multiple steps. Effective batch size = batch_size × this value.">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1" for="warmup-steps">Warmup steps</span>
+      <input type="number" name="warmup_steps" id="warmup-steps" value="100" min="0" class="input" title="Learning rate warmup steps. Helps stabilize early training.">
+    </label>
+    <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;" title="Unsloth loads the model in 4-bit (QLoRA) with faster kernels: roughly half the VRAM and noticeably quicker. Falls back to standard training if Unsloth is not installed.">
+      <input type="hidden" name="unsloth" value="0">
+      <input type="checkbox" name="unsloth" value="1" id="unsloth-check">
+      <span class="text-xs">Use Unsloth (4-bit, faster, less VRAM)</span>
+    </label>
+    <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;" title="Save intermediate checkpoints every 100 steps (or at every evaluation when early stopping is on) so an interrupted run keeps its progress.">
+      <input type="hidden" name="save_checkpoints" value="0">
+      <input type="checkbox" name="save_checkpoints" value="1" id="save-checkpoints-check" checked>
+      <span class="text-xs">Save checkpoints during training</span>
+    </label>
+    <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;" title="Stop when the held-out validation loss has not improved for 3 evaluations, and keep the best checkpoint. Needs 'Eval every N steps' above 0.">
+      <input type="checkbox" name="early_stopping" value="1" id="early-stopping-check">
+      <span class="text-xs">Early stopping (stop when validation loss stops improving)</span>
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1" for="save-limit">Keep last N checkpoints</span>
+      <input type="number" name="save_limit" id="save-limit" value="3" min="1" max="10" class="input" title="Maximum checkpoints to keep. Older ones are deleted.">
+    </label>
+    <label>
+      <span class="block text-xs muted mb-1" for="eval-steps">Eval every N steps</span>
+      <input type="number" name="eval_steps" id="eval-steps" value="50" min="0" class="input" title="Measure loss on the 10% held-out split every N steps. 0 = no evaluation during training. Small datasets need a small value, or no evaluation happens before training ends.">
+    </label>
+    <div class="flex gap-2 mt-4" style="grid-column: 1 / -1;">
+      <button type="submit" class="btn primary" id="start-btn" disabled title="Pick or upload a dataset first">Start training</button>
+      <button type="button" class="btn danger" id="stop-btn" data-action="/api/training/stop" data-reload="true"
+              disabled title="No active training run">Stop</button>
+    </div>
+  </form>
+  <div data-forge class="mt-3" id="training-forge"></div>
+</div>
+
+<div class="card mb-6">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Live status</div>
+      <div class="card-sub">Streaming while training is running.</div>
+    </div>
+    <span class="pill outline" id="train-status-badge">idle</span>
+  </div>
+  <div id="train-status" class="text-sm" aria-live="polite">No run in progress.</div>
+  <div id="train-failure" class="run-failure" role="alert" hidden>
+    <div class="run-failure-head">
+      <strong id="train-failure-title">Run failed</strong>
+      <span id="train-failure-when" class="text-xs muted"></span>
+    </div>
+    <details id="train-failure-details" class="run-err">
+      <summary id="train-failure-summary"></summary>
+      <pre id="train-failure-full" class="mono"></pre>
+    </details>
+    <div id="train-failure-hint" class="run-failure-hint" hidden>
+      <p id="train-failure-hint-summary" class="text-sm"></p>
+      <div class="text-xs muted mb-1">What to change (the Training form above uses these field names):</div>
+      <ul id="train-failure-knobs" class="run-failure-knobs text-sm"></ul>
+      <ul id="train-failure-tips" class="run-failure-knobs text-xs"></ul>
+    </div>
+  </div>
+  <div class="bar mt-3"><div class="fill" id="train-progress-bar" style="width:0%"></div></div>
+  <div id="train-pref-metrics" class="text-sm mono mt-2" aria-live="polite" hidden
+       title="Preference training: share of pairs where the model ranks the chosen answer above the rejected one (accuracy) and by how much (margin), measured against the starting model. Accuracy 0.5 with margin 0 means nothing has changed yet."></div>
+  <div class="text-xs muted mt-3 mb-1">Step log</div>
+  <pre id="train-log" class="text-xs mono" role="log" aria-live="polite" style="font-size:11px;line-height:1.5;white-space:pre-wrap;background:var(--bg-app);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);max-height:220px;min-height:3.5em;overflow-y:auto;margin:0;">(no log lines yet)</pre>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Past runs</div>
+      <div class="card-sub">All training runs for this project.</div>
+    </div>
+  </div>
+  {% if project.runs %}
+  {# QA pass: this table had no .table-scroll wrapper — at 768/375 the
+     fixed-layout columns pushed the row action buttons PAST the viewport
+     (probe: buttons@800/819 at 768px) where the body clip made them
+     unreachable. Wrap it so narrow viewports scroll instead. #}
+  <div class="table-scroll">
+  <table class="table" id="past-runs-table">
+    <thead><tr><th>Name</th><th>Status</th><th>Started</th><th>Duration</th><th>Loss</th><th></th><th>Actions</th></tr></thead>
+    <tbody id="past-runs-body">
+      {% for run in project.runs %}
+      <tr class="row-hover {% if detail_run and detail_run.id == run.id %}row-active{% endif %}"
+          data-run-id="{{ run.id }}"
+          data-run-name="{{ run.name }}"
+          data-status="{{ run.status }}"
+          data-output-path="{{ run.output_path or '' }}"
+          data-started="{{ run.started_at or '' }}"
+          data-duration="{{ run.duration or '' }}"
+          data-loss="{{ run.final_loss if run.final_loss is not none else '' }}">
+        <td class="name cell-wrap" title="{{ run.name }}">
+          {{ run.name }}
+          {% if project.production_run == run.id %}
+          <span class="pill solid-green prod-pill">⭐ production</span>
+          {% endif %}
+          {% if run.status == 'failed' and run.error %}
+          <details class="run-err run-err-cell text-xs">
+            <summary title="{{ run.error }}">{{ run.error[:120] }}{% if run.error|length > 120 %}…{% endif %}</summary>
+            <pre class="mono">{{ run.error }}</pre>
+          </details>
+          {% endif %}
+        </td>
+        <td><span class="pill {{ {'running':'solid-amber','loading':'solid-amber','training':'solid-amber','saving':'solid-amber','done':'solid-green','failed':'solid-rose','error':'solid-rose','stopped':'outline'}.get(run.status, 'outline') }}">{{ run.status }}</span></td>
+        <td class="meta mono js-time" data-ts="{{ run.started_at or '' }}" title="When this run started">—</td>
+        <td class="meta mono js-duration" data-secs="{{ run.duration or '' }}">—</td>
+        <td class="num mono">{{ '%.4f'|format(run.final_loss) if run.final_loss else '—' }}</td>
+        <td><a class="btn sm" href="/projects/{{ pid }}/training?run={{ run.id }}" data-link>Details</a></td>
+        <td class="flex gap-1 wrap">
+          {% set can_act = run.status == 'done' and run.output_path %}
+          <button type="button" class="btn sm js-set-prod"
+                  data-run-id="{{ run.id }}" data-run-name="{{ run.name }}"
+                  {% if not can_act %}disabled title="Only finished runs with an output path can be production"{% else %}title="Set as production run"{% endif %}>⭐ Set production</button>
+          <button type="button" class="btn sm js-open-inf"
+                  data-path="{{ run.output_path or '' }}"
+                  {% if not can_act %}disabled title="No finished output path"{% else %}title="Load adapter in inference"{% endif %}>▶ Open in inference</button>
+          {% if can_act %}
+          <a class="btn sm" href="/projects/{{ pid }}/export?run={{ run.id }}" data-link title="Export this run">⬇ Export</a>
+          {% else %}
+          <a class="btn sm" href="#" aria-disabled="true" tabindex="-1" style="pointer-events:none;opacity:0.5;" title="Export requires a finished run with output">⬇ Export</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty" id="past-runs-empty">No runs yet. Configure above and hit "Start training".</div>
+  {% endif %}
+</div>
+
+{# ── Behaviour for the data-source tabs + dataset upload + form submit ── #}
+<script>
+(function () {
+  // Tab switching
+  const tabs = document.querySelectorAll(".data-tab");
+  const panels = document.querySelectorAll(".data-panel");
+  tabs.forEach((t) => {
+    t.addEventListener("click", () => {
+      tabs.forEach((x) => x.classList.remove("active"));
+      panels.forEach((p) => p.classList.remove("active"));
+      t.classList.add("active");
+      const panel = document.querySelector(`.data-panel[data-panel="${t.dataset.tab}"]`);
+      if (panel) panel.classList.add("active");
+    });
+  });
+
+  const dataPathInput = document.getElementById("data-path-input");
+  const datasetIdInput = document.getElementById("dataset-id-input");
+  const select = document.getElementById("dataset-select");
+  const fileInput = document.getElementById("dataset-upload");
+  const statusEl = document.getElementById("dataset-upload-status");
+  const startBtn = document.getElementById("start-btn");
+  const modeHelp = document.getElementById("training-mode-help");
+  const dpoHelp = document.getElementById("dpo-format-help");
+  const ktoHelp = document.getElementById("kto-format-help");
+  const prefOptions = document.getElementById("preference-options");
+  const PREF_MODES = ["dpo", "kto"];
+  // Mirrors PREFERENCE_DEFAULTS in routes/training.py (measured on short runs; see HANDOFF).
+  const PREF_DEFAULTS = {
+    dpo: { learning_rate: "1e-4", num_epochs: "3", warmup_steps: "0" },
+    kto: { learning_rate: "1e-5", num_epochs: "3", warmup_steps: "0" },
+  };
+  const advancedHelp = document.getElementById("advanced-format-help");
+  const routeHelp = {
+    sft: "SFT learns from prompt/answer examples. Choose an approved Q&A export or a conversational JSONL dataset.",
+    dpo: "DPO tunes preferences between two reviewed answers to the same prompt. Selecting it sets LoRA preference defaults (LR 1e-4, 3 epochs, no warmup, plus a keep-chosen term) measured on ~50-step runs; for thousands of pairs lower the learning rate to 5e-6–2e-5. Watch rewards/accuracies and margins in the live panel: if they stay at 0.5 and 0 the model is not moving. Build the comparisons from your approved pairs on the Pairs page (“Preference pairs (DPO)”), or upload your own reviewed pairs.",
+    kto: "KTO tunes a model from answers marked good or bad (no pairing needed). Defaults: LR 1e-5, 3 epochs (the least damaging rate we measured; on a facts-and-refusals test KTO did not beat the SFT start). Watch rewards/margins in the live panel. Start from your SFT-merged run when you have one.",
+    tool_sft: "Tool-calling SFT teaches structured tool requests and tool results. JSONL rows need messages (including tool_calls/tool turns) and a tools JSON-schema array; use a model with a compatible chat template.",
+    continued_pretraining: "Continued pretraining adapts domain language on raw text, not question/answer pairs. JSONL rows need a non-empty text field. It does not teach instruction following by itself.",
+    reasoning_distillation: "Reasoning distillation is supervised training on teacher-produced traces and final answers. Upload reviewed messages JSONL; keep teacher/evaluation data separate and do not treat hidden reasoning as automatically correct.",
+  };
+  let previousTrainingMode = document.querySelector('input[name="training_mode"]:checked')?.value || "sft";
+  let valuesBeforeDpo = null;
+  document.querySelectorAll('input[name="training_mode"]').forEach((input) => {
+    input.addEventListener("change", () => {
+      if (!input.checked) return;
+      const toPref = PREF_MODES.includes(input.value), fromPref = PREF_MODES.includes(previousTrainingMode);
+      if (toPref) {
+        if (!fromPref) {
+          valuesBeforeDpo = Object.fromEntries(Object.keys(PREF_DEFAULTS.dpo).map((name) => {
+            const field = document.querySelector(`#train-form [name="${name}"]`);
+            return [name, field?.value ?? ""];
+          }));
+        }
+        for (const [name, value] of Object.entries(PREF_DEFAULTS[input.value])) {
+          const field = document.querySelector(`#train-form [name="${name}"]`);
+          if (field) field.value = value;
+        }
+      } else if (fromPref && valuesBeforeDpo) {
+        for (const [name, value] of Object.entries(valuesBeforeDpo)) {
+          const field = document.querySelector(`#train-form [name="${name}"]`);
+          if (field) field.value = value;
+        }
+        valuesBeforeDpo = null;
+      }
+      previousTrainingMode = input.value;
+      modeHelp.textContent = routeHelp[input.value] || routeHelp.sft;
+      dpoHelp.hidden = input.value !== "dpo";
+      ktoHelp.hidden = input.value !== "kto";
+      prefOptions.hidden = !PREF_MODES.includes(input.value);
+      document.getElementById("preference-sft-weight-row").hidden = input.value !== "dpo";
+      if (!prefOptions.hidden) loadStartPoints();
+      advancedHelp.hidden = !["tool_sft", "continued_pretraining", "reasoning_distillation"].includes(input.value);
+      advancedHelp.textContent = advancedHelp.hidden ? "" : "Evaluation and production promotion remain a separate human-reviewed step.";
+      loadHealth(datasetIdInput?.value);
+    });
+  });
+
+  let startPointsLoaded = false;
+  async function loadStartPoints() {
+    if (startPointsLoaded) return;
+    const sel = document.getElementById("start-run-select");
+    const hint = document.getElementById("start-run-hint");
+    try {
+      const r = await fetch("/api/training/start-points/{{ pid }}", { cache: "no-store" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      startPointsLoaded = true;
+      for (const p of d.start_points) {
+        const opt = document.createElement("option");
+        opt.value = p.run_id;
+        opt.textContent = `${p.name} (${p.training_mode}${p.final_loss != null ? ", loss " + Number(p.final_loss).toFixed(3) : ""}) — merged model`;
+        sel.appendChild(opt);
+      }
+      hint.textContent = d.start_points.length
+        ? "Recommended: start from a finished SFT run so the preference step refines what it learned."
+        : "No finished run in this project has a merged model yet, so preference tuning starts from the base model. Run SFT with “Also save merged model” ticked first for the usual SFT → preference recipe.";
+    } catch (e) {
+      hint.textContent = "Could not list starting runs: " + (e.message || e);
+    }
+  }
+
+  function syncStartEnabled() {
+    const hasData = !!(dataPathInput && dataPathInput.value);
+    if (!startBtn) return;
+    startBtn.disabled = !hasData;
+    startBtn.title = hasData ? "Start training" : "Pick or upload a dataset first";
+  }
+  syncStartEnabled();
+
+  // Training presets: fill all config fields with vetted starting points.
+  // Evidence: PRECISION is the config that hit 95.1% strict on the 515-case
+  // domain suite (12ep r128 α256 lr 2e-4); 4-epoch runs at the same rank hit 67%.
+  const PRESETS = {
+    smoke: {
+      note: "Minutes-long run to prove the pipeline works end-to-end. The model will NOT memorize your domain — expect low benchmark scores. Use it to validate export/chat plumbing, then upgrade.",
+      values: { num_epochs: 1, learning_rate: "2e-4", lora_rank: 16, batch_size: 2, gradient_accumulation_steps: 1 },
+    },
+    balanced: {
+      note: "Recommended start for most datasets. Enough real optimizer steps for solid recall on typical domain datasets without gold-plating. If the benchmark shows underfit, move up to Precision.",
+      values: { num_epochs: 6, learning_rate: "2e-4", lora_rank: 64, batch_size: 2, gradient_accumulation_steps: 4 },
+    },
+    precision: {
+      note: "The config that produced the 95.1% strict result on a 515-pair factual domain dataset (Qwen3-4B base). Slower, but the sweet spot when recall actually matters.",
+      values: { num_epochs: 12, learning_rate: "2e-4", lora_rank: 128, batch_size: 2, gradient_accumulation_steps: 4 },
+    },
+    overkill: {
+      note: "Long run, big rank, slow LR — only worth it if Precision still fails your benchmark AND you've verified the dataset itself is solid. Wastes hours otherwise; benchmark before assuming you need this.",
+      values: { num_epochs: 24, learning_rate: "1e-4", lora_rank: 256, batch_size: 2, gradient_accumulation_steps: 4 },
+    },
+  };
+  const presetSel = document.getElementById("training-preset");
+  const presetNote = document.getElementById("preset-note");
+  if (presetSel) {
+    const advisoryEl = () => document.getElementById("preset-advisory");
+    const gid = (id) => document.getElementById(id);
+    async function fetchAdvisory() {
+      const tier = presetSel.value;
+      const adv = advisoryEl();
+      if (!tier || !adv) { if (adv) adv.hidden = true; return; }
+      const baseSel = gid("train-base-model");
+      const dsSel = gid("dataset-select");
+      const params = new URLSearchParams({
+        tier,
+        base_model: baseSel ? (baseSel.selectedOptions[0]?.value || "") : "",
+        dataset: dsSel ? (dsSel.selectedOptions[0]?.getAttribute("data-path") || "") : "",
+      });
+      try {
+        const r = await fetch(`/api/training/recommend?${params}`);
+        const d = await r.json();
+        if (!r.ok || d.error) { adv.hidden = false; adv.textContent = "Advisor: " + (d.error || r.status); return; }
+        const lines = [];
+        lines.push(`<b>Advisor (${d.tier})</b> — sized for ~${d.base_params_b ?? "?"}B base · ${d.pair_count} pairs`);
+        lines.push(`Proposed: ${d.num_epochs} epochs · rank ${d.lora_rank} (α ${d.lora_alpha}) · LR ${d.learning_rate} · batch ${d.batch_size}×${d.gradient_accumulation_steps}`);
+        lines.push(`Step math: ${d.pair_count} × ${d.num_epochs} / ${d.effective_batch} = ~${d.optimizer_steps} optimizer steps (tier floor ${d.steps_floor || "—"})`);
+        if (d.notes) lines.push(d.notes.map((n) => "• " + n).join("<br>"));
+        if (d.warnings && d.warnings.length) lines.push(`<span style="color:var(--warn)">⚠ ${d.warnings.map((w) => "" + w).join("<br>⚠ ")}</span>`);
+        adv.innerHTML = lines.join("<br>");
+        adv.hidden = false;
+        if (presetNote && PRESETS[tier]) presetNote.textContent = PRESETS[tier].note;
+        for (const [k, v] of Object.entries({ num_epochs: d.num_epochs, learning_rate: d.learning_rate, lora_rank: d.lora_rank, lora_alpha: d.lora_alpha, batch_size: d.batch_size, gradient_accumulation_steps: d.gradient_accumulation_steps, warmup_steps: d.warmup_steps })) {
+          const el = document.querySelector(`[name="${k}"]`);
+          if (el && el.value !== undefined && v !== undefined && v !== null) el.value = v;
+        }
+        if (document.querySelector('input[name="training_mode"][value="dpo"]')?.checked) {
+          for (const [name, value] of Object.entries({ learning_rate: "1e-6", num_epochs: "1", warmup_steps: "0" })) {
+            const field = document.querySelector(`#train-form [name="${name}"]`);
+            if (field) field.value = value;
+          }
+        }
+      } catch (e) {
+        adv.hidden = false; adv.textContent = "Advisor unreachable — fields keep previous preset values.";
+      }
+    }
+    presetSel.addEventListener("change", fetchAdvisory);
+    // Re-run when base model or dataset changes (only if a tier is picked).
+    const baseSel = gid("train-base-model");
+    const dsSel = gid("dataset-select");
+    if (baseSel) baseSel.addEventListener("change", () => { if (presetSel.value) fetchAdvisory(); });
+    if (dsSel) dsSel.addEventListener("change", () => { if (presetSel.value) fetchAdvisory(); });
+    if (presetSel.value) fetchAdvisory();
+  }
+
+
+  // Dataset health: checked as soon as a dataset is picked or uploaded.
+  const healthEl = document.getElementById("dataset-health");
+  const healthApi = (did, what) => `/api/projects/{{ pid }}/datasets/${encodeURIComponent(did)}/${what}`;
+  const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const SEV = { error: ["✕", "var(--err)"], warning: ["⚠", "var(--warn)"], info: ["ℹ", "var(--muted, inherit)"] };
+
+  async function loadHealth(did) {
+    if (!healthEl) return;
+    if (!did) { healthEl.hidden = true; healthEl.innerHTML = ""; return; }
+    healthEl.hidden = false;
+    healthEl.textContent = "Checking dataset…";
+    try {
+      const trainingMode = document.querySelector('input[name="training_mode"]:checked')?.value || "sft";
+      const params = new URLSearchParams({ training_mode: trainingMode });
+      const r = await fetch(`${healthApi(did, "health")}?${params}`);
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`);
+      const editorHref = "/projects/{{ pid }}/data/" + encodeURIComponent(dataPathInput.value || "");
+      const head = `<b>Dataset check:</b> ${d.trainable} of ${d.examples} examples usable · ${d.holdout} held out for validation` +
+        (d.stats.avg_answer_words ? ` · answers average ${d.stats.avg_answer_words} words` : "");
+      if (!d.issues.length) {
+        healthEl.innerHTML = `${head}<br><span style="color:var(--ok)">✓ No problems found.</span>`;
+        return;
+      }
+      const items = d.issues.map((i) => {
+        const [icon, color] = SEV[i.severity] || SEV.info;
+        const lines = i.lines && i.lines.length ? ` <span class="muted">(line${i.lines.length > 1 ? "s" : ""} ${i.lines.join(", ")}${i.count > i.lines.length ? ", …" : ""})</span>` : "";
+        const fix = i.action === "dedup" ? ` <button type="button" class="btn sm" data-health-dedup="${escHtml(did)}">Remove ${i.count} duplicate${i.count > 1 ? "s" : ""} (saves a copy)</button>` : "";
+        return `<li><span style="color:${color}">${icon} <b>${escHtml(i.title)}</b></span> — ${escHtml(i.detail)}${lines}${fix}</li>`;
+      }).join("");
+      healthEl.innerHTML = `${head}<ul class="mt-1" style="list-style:none;padding-left:0">${items}</ul>` +
+        `<a href="${editorHref}" data-link>Open in Data Editor</a> to fix individual rows.`;
+    } catch (e) {
+      healthEl.textContent = "Dataset check failed: " + (e.message || e);
+    }
+  }
+
+  if (healthEl) {
+    healthEl.addEventListener("click", async (ev) => {
+      const btn = ev.target.closest("[data-health-dedup]");
+      if (!btn) return;
+      btn.disabled = true;
+      try {
+        const r = await fetch(healthApi(btn.dataset.healthDedup, "dedup"), { method: "POST" });
+        const ds = await r.json();
+        if (!r.ok || ds.error) throw new Error(ds.error || `HTTP ${r.status}`);
+        // Train on the de-duplicated copy from here on. The dropdown only exists
+        // once the project had datasets at page load, so set the fields directly.
+        dataPathInput.value = ds.data_path;
+        datasetIdInput.value = ds.id;
+        syncStartEnabled();
+        if (select) {
+          const opt = document.createElement("option");
+          opt.value = ds.id;
+          opt.setAttribute("data-path", ds.data_path);
+          opt.textContent = `${ds.name} · ${ds.qa_count} pairs · (duplicates removed)`;
+          select.insertBefore(opt, select.options[1] || null);
+          opt.selected = true;
+        }
+        if (statusEl) statusEl.textContent = `✓ Using ${ds.name} (${ds.qa_count} pairs, ${ds.removed} duplicate${ds.removed > 1 ? "s" : ""} removed)`;
+        loadHealth(ds.id);
+        window.fts?.notify(`Removed ${ds.removed} duplicate(s) → ${ds.name}`, "success");
+      } catch (e) {
+        btn.disabled = false;
+        window.fts?.notify(e.message || "Dedup failed", "error");
+      }
+    });
+  }
+
+  // Picking a project dataset fills both hidden fields.
+  if (select) {
+    select.addEventListener("change", () => {
+      const opt = select.selectedOptions[0];
+      if (!opt) return;
+      const path = opt.getAttribute("data-path");
+      if (path) {
+        dataPathInput.value = path;
+        datasetIdInput.value = opt.value;
+      } else {
+        dataPathInput.value = "";
+        datasetIdInput.value = "";
+      }
+      syncStartEnabled();
+      loadHealth(datasetIdInput.value);
+    });
+  }
+
+  // Deep-link from Data Prep: /training?dataset=latest | <dataset id>[&mode=dpo]
+  // (must run after the change listener above is wired, or the hidden dataset fields stay empty)
+  // Prefills that registered dataset (and the training route) so one click lands ready-to-run.
+  (function prefillDatasetFromQuery() {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const want = q.get("dataset");
+      if (!want || !select || !select.options.length) return;
+      const mode = q.get("mode");
+      const modeInput = mode && document.querySelector(`input[name="training_mode"][value="${CSS.escape(mode)}"]`);
+      if (modeInput) { modeInput.checked = true; modeInput.dispatchEvent(new Event("change")); }
+      if (want === "latest") {
+        if (select.options.length > 1) { select.selectedIndex = 1; select.dispatchEvent(new Event("change")); }
+        return;
+      }
+      const idx = Array.from(select.options).findIndex((o) => o.value === want);
+      if (idx > 0) { select.selectedIndex = idx; select.dispatchEvent(new Event("change")); }
+    } catch (_) {}
+  })();
+
+  // File upload: POST to /datasets/upload, then fill the hidden fields.
+  if (fileInput) {
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      statusEl.textContent = `Uploading ${file.name}…`;
+      const fd = new FormData();
+      fd.append("file", file);
+      try {
+        const r = await fetch(`/api/projects/{{ pid }}/datasets/upload`, { method: "POST", body: fd });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.error || `HTTP ${r.status}`);
+        }
+        const ds = await r.json();
+        statusEl.textContent = `✓ ${ds.name} (${ds.qa_count} pairs)`;
+        dataPathInput.value = ds.data_path;
+        datasetIdInput.value = ds.id;
+        syncStartEnabled();
+        loadHealth(ds.id);
+        // Switch back to "From project" tab so the user sees the new entry.
+        tabs.forEach((t) => t.classList.remove("active"));
+        panels.forEach((p) => p.classList.remove("active"));
+        document.querySelector('.data-tab[data-tab="project"]').classList.add("active");
+        document.querySelector('.data-panel[data-panel="project"]').classList.add("active");
+        // Inject the new option into the dropdown so it's discoverable.
+        if (select) {
+          const opt = document.createElement("option");
+          opt.value = ds.id;
+          opt.setAttribute("data-path", ds.data_path);
+          opt.textContent = `${ds.name} · ${ds.qa_count} pairs · (just uploaded)`;
+          opt.selected = true;
+          select.insertBefore(opt, select.firstChild);
+        }
+      } catch (e) {
+        statusEl.textContent = `✗ upload failed: ${e.message || e}`;
+      }
+    });
+  }
+
+  // Form submission: validate a dataset/data_path is selected AND wrap the
+  // submit so the Start button always resets on failure. The global
+  // data-api handler in app.js doesn't reset the button when the POST
+  // rejects, which used to leave it stuck on "Starting…" forever.
+  const form = document.getElementById("train-form");
+  if (form) {
+    form.addEventListener("submit", (ev) => {
+      const btn = document.getElementById("start-btn");
+      const originalText = btn ? btn.textContent : "Start training";
+
+      if (!dataPathInput.value) {
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        statusEl && (statusEl.textContent = "✗ Pick or upload a dataset first.");
+        // Bring user to the project tab so the dropdown is visible.
+        tabs.forEach((t) => t.classList.remove("active"));
+        panels.forEach((p) => p.classList.remove("active"));
+        const projectTab = document.querySelector('.data-tab[data-tab="project"]');
+        const projectPanel = document.querySelector('.data-panel[data-panel="project"]');
+        projectTab && projectTab.classList.add("active");
+        projectPanel && projectPanel.classList.add("active");
+        if (btn) { btn.disabled = true; btn.textContent = originalText; }
+        syncStartEnabled();
+        return;
+      }
+
+      // Otherwise wrap the submit: show "Starting…" while the global handler
+      // does its api.post(). Use a flag to detect failure so we can reset.
+      if (startBtn) {
+        startBtn.disabled = true;
+        startBtn.textContent = "Starting…";
+      }
+      // Listen for the next notify/error to re-enable. fts.notify() appends
+      // a .toast to #toasts — observe that.
+      const toasts = document.getElementById("toasts");
+      let resetTimer = setTimeout(() => {
+        // After 5s with no response, assume training started and reset is OK
+        // to leave up to the live-status polling.
+        if (startBtn) { startBtn.disabled = false; startBtn.textContent = originalText; }
+      }, 5000);
+      if (toasts) {
+        const obs = new MutationObserver((muts) => {
+          muts.forEach((m) => {
+            m.addedNodes.forEach((n) => {
+              if (n.classList && n.classList.contains("toast")) {
+                clearTimeout(resetTimer);
+                if (startBtn) { startBtn.disabled = false; startBtn.textContent = originalText; }
+                setTimeout(() => obs.disconnect(), 100);
+              }
+            });
+          });
+        });
+        obs.observe(toasts, { childList: true });
+        // Safety: always reset after 30s no matter what
+        setTimeout(() => obs.disconnect(), 30000);
+      }
+    }, true); // capture phase: run BEFORE the global app.js handler
+  }
+
+  // Render ISO-formatted times for run detail rows.
+  document.querySelectorAll(".js-time").forEach((el) => {
+    const ts = parseFloat(el.dataset.ts || "");
+    if (!ts || isNaN(ts)) { el.textContent = "—"; return; }
+    const d = new Date(ts * 1000);
+    el.textContent = d.toLocaleString();
+  });
+
+  // ── Past-runs Actions: Set production / Open in inference / refresh ──
+  const PID = {{ pid|tojson }};
+  const DETAIL_RUN_ID = {{ (detail_run_id or '')|tojson }};
+  let productionRunId = {{ (production_run.id if production_run else '')|tojson }};
+
+  function notify(msg, type) {
+    if (window.fts && window.fts.notify) window.fts.notify(msg, type || "info");
+    else console.log(msg);
+  }
+
+  function statusPillClass(status) {
+    const map = {
+      running: "solid-amber", loading: "solid-amber", training: "solid-amber",
+      saving: "solid-amber", done: "solid-green", failed: "solid-rose",
+      error: "solid-rose", stopped: "outline",
+    };
+    return map[status] || "outline";
+  }
+
+  function formatLoss(v) {
+    if (v == null || v === "") return "—";
+    const n = Number(v);
+    return Number.isFinite(n) ? n.toFixed(4) : "—";
+  }
+
+  function formatDuration(secs) {
+    if (secs == null || secs === "") return "—";
+    const s = Number(secs);
+    if (!Number.isFinite(s) || s < 0) return "—";
+    const m = Math.floor(s / 60);
+    const r = Math.floor(s % 60);
+    if (m <= 0) return r + "s";
+    return m + "m " + r + "s";
+  }
+
+  function formatStarted(ts) {
+    if (ts == null || ts === "") return "—";
+    const n = Number(ts);
+    if (!Number.isFinite(n) || n <= 0) return "—";
+    return new Date(n * 1000).toLocaleString();
+  }
+
+  function updateProductionPill(runId, name) {
+    productionRunId = runId || "";
+    const pill = document.getElementById("production-run-pill");
+    if (!pill) return;
+    if (!runId) {
+      pill.hidden = true;
+      pill.dataset.runId = "";
+      pill.textContent = "● production";
+      return;
+    }
+    pill.hidden = false;
+    pill.dataset.runId = runId;
+    pill.textContent = "● production · " + (name || runId.slice(0, 8));
+  }
+
+  function confirmModal(message) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "modal-overlay";
+      overlay.innerHTML =
+        '<div class="modal-dialog" style="max-width:420px;">' +
+        '<div class="modal-head">Confirm</div>' +
+        '<div class="modal-body"><p class="text-sm">' + message + "</p></div>" +
+        '<div class="modal-actions">' +
+        '<button type="button" class="btn" data-act="cancel">Cancel</button>' +
+        '<button type="button" class="btn primary" data-act="ok">Confirm</button>' +
+        "</div></div>";
+      document.body.appendChild(overlay);
+      const done = (val) => { overlay.remove(); resolve(val); };
+      overlay.addEventListener("click", (e) => { if (e.target === overlay) done(false); });
+      overlay.querySelector('[data-act="cancel"]').addEventListener("click", () => done(false));
+      overlay.querySelector('[data-act="ok"]').addEventListener("click", () => done(true));
+    });
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function renderRunsTable(runs) {
+    let tbody = document.getElementById("past-runs-body");
+    const empty = document.getElementById("past-runs-empty");
+    if (!runs || runs.length === 0) {
+      if (tbody) tbody.innerHTML = "";
+      if (empty) empty.hidden = false;
+      return;
+    }
+    if (empty) empty.hidden = true;
+    if (!tbody) {
+      // Table may be missing if page started empty — rebuild wrapper.
+      const host = document.getElementById("past-runs-table");
+      if (!host) return;
+      tbody = host.querySelector("tbody") || host;
+    }
+    tbody.innerHTML = runs.map((run) => {
+      const id = run.id || "";
+      const name = run.name || id.slice(0, 8);
+      const status = run.status || "";
+      const out = run.output_path || "";
+      const err = run.error || "";
+      const isProd = productionRunId && productionRunId === id;
+      const canAct = status === "done" && !!out;
+      const prodMark = isProd ? ' <span class="pill solid-green prod-pill">⭐ production</span>' : "";
+      const errLine = (status === "failed" && err)
+        ? '<details class="run-err run-err-cell text-xs"><summary title="' + esc(err) + '">' +
+          esc(err.length > 120 ? err.slice(0, 120) + "…" : err) + '</summary><pre class="mono">' + esc(err) + "</pre></details>"
+        : "";
+      const setProdDisabled = canAct ? "" : " disabled title=\"Only finished runs with an output path can be production\"";
+      const infDisabled = canAct ? "" : " disabled title=\"No finished output path\"";
+      const exportBtn = canAct
+        ? '<a class="btn sm" href="/projects/' + esc(PID) + "/export?run=" + esc(id) +
+          '" data-link title="Export this run">⬇ Export</a>'
+        : '<a class="btn sm" href="#" aria-disabled="true" tabindex="-1" style="pointer-events:none;opacity:0.5;" title="Export requires a finished run with output">⬇ Export</a>';
+      const active = DETAIL_RUN_ID && DETAIL_RUN_ID === id ? " row-active" : "";
+      return (
+        '<tr class="row-hover' + active + '" data-run-id="' + esc(id) + '" data-run-name="' + esc(name) + '"' +
+        ' data-status="' + esc(status) + '" data-output-path="' + esc(out) + '">' +
+        '<td class="name cell-wrap" title="' + esc(name) + '">' + esc(name) + prodMark + errLine + "</td>" +
+        '<td><span class="pill ' + statusPillClass(status) + '">' + esc(status) + "</span></td>" +
+        '<td class="meta mono">' + esc(formatStarted(run.started_at)) + "</td>" +
+        '<td class="meta mono">' + esc(formatDuration(run.duration)) + "</td>" +
+        '<td class="num mono">' + esc(formatLoss(run.final_loss)) + "</td>" +
+        '<td><a class="btn sm" href="/projects/' + esc(PID) + "/training?run=" + esc(id) + '" data-link>Details</a></td>' +
+        '<td class="flex gap-1 wrap">' +
+        '<button type="button" class="btn sm js-set-prod" data-run-id="' + esc(id) +
+        '" data-run-name="' + esc(name) + '"' + setProdDisabled +
+        (canAct ? ' title="Set as production run"' : "") + ">⭐ Set production</button>" +
+        '<button type="button" class="btn sm js-open-inf" data-path="' + esc(out) + '"' +
+        infDisabled + (canAct ? ' title="Load adapter in inference"' : "") + ">▶ Open in inference</button>" +
+        exportBtn +
+        "</td></tr>"
+      );
+    }).join("");
+  }
+
+  async function refreshPastRuns() {
+    try {
+      const r = await fetch("/api/projects/" + PID + "/runs", { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const runs = await r.json();
+      renderRunsTable(Array.isArray(runs) ? runs : []);
+    } catch (e) {
+      notify("Failed to refresh runs: " + (e.message || e), "error");
+    }
+  }
+
+  async function setProduction(runId, runName, btn) {
+    const ok = await confirmModal(
+      "Set <strong>" + esc(runName || runId) +
+      "</strong> as production run? This will replace the current production adapter used by the Chat tab."
+    );
+    if (!ok) return;
+    try {
+      const api = window.fts && window.fts.api;
+      const r = api
+        ? await api.post("/api/projects/" + PID + "/promote", { run_id: runId })
+        : await fetch("/api/projects/" + PID + "/promote", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ run_id: runId }),
+          }).then((x) => x.json());
+      if (r && r.error) { notify(r.error, "error"); return; }
+      const run = r && r.run ? r.run : null;
+      const name = run ? (run.name || run.id) : runName;
+      updateProductionPill(run ? run.id : runId, name);
+      window.dispatchEvent(new CustomEvent("production_run_changed", {
+        detail: { run_id: run ? run.id : runId, name: name, run: run },
+      }));
+      if (btn) {
+        const prev = btn.textContent;
+        btn.textContent = "⭐ ✓";
+        setTimeout(() => { btn.textContent = prev; }, 1500);
+      }
+      notify("Production run updated", "success");
+      await refreshPastRuns();
+    } catch (e) {
+      notify("Promote failed: " + (e.message || e), "error");
+    }
+  }
+
+  async function openInInference(path) {
+    if (!path) { notify("No output path for this run", "error"); return; }
+    try {
+      const api = window.fts && window.fts.api;
+      const r = api
+        ? await api.post("/api/models/load", { path })
+        : await fetch("/api/models/load", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path }),
+          }).then((x) => x.json());
+      if (r && (r.error || r.status === "error" || r.loaded === false)) {
+        notify(r.error || "Model failed to load (still unloaded)", "error");
+        return;
+      }
+      notify("Model loaded", "success");
+      location.href = "/inference";
+    } catch (e) {
+      notify("Load failed: " + (e.message || e), "error");
+    }
+  }
+
+  const onRunsClick = (ev) => {
+    const prodBtn = ev.target.closest(".js-set-prod");
+    if (prodBtn && !prodBtn.disabled) {
+      ev.preventDefault();
+      setProduction(prodBtn.dataset.runId, prodBtn.dataset.runName, prodBtn);
+      return;
+    }
+    const infBtn = ev.target.closest(".js-open-inf");
+    if (infBtn && !infBtn.disabled) {
+      ev.preventDefault();
+      openInInference(infBtn.dataset.path || "");
+    }
+  };
+  const onProdChanged = (ev) => {
+    const d = ev.detail || {};
+    updateProductionPill(d.run_id, d.name);
+  };
+  document.addEventListener("click", onRunsClick);
+  window.addEventListener("production_run_changed", onProdChanged);
+  // SPA: document/window outlive the page, so drop listeners on leave
+  // (otherwise each revisit stacks another handler and double-prompts).
+  document.addEventListener("fts:beforeNavigate", () => {
+    document.removeEventListener("click", onRunsClick);
+    window.removeEventListener("production_run_changed", onProdChanged);
+  }, { once: true });
+
+  // ── Live training monitor: SSE /api/training/progress (fallback: /status) ──
+  (function trainMonitor() {
+    const badge = document.getElementById("train-status-badge");
+    const statusEl = document.getElementById("train-status");
+    const bar = document.getElementById("train-progress-bar");
+    const logEl = document.getElementById("train-log");
+    const ACTIVE = { loading: 1, training: 1, saving: 1 };
+    let wasActive = false;
+    let unsub = null;
+    const failEl = document.getElementById("train-failure");
+    let failToken = 0;
+
+    function hideFailure() {
+      failToken++;
+      if (failEl) failEl.hidden = true;
+    }
+
+    function listItems(ul, items) {
+      ul.textContent = "";
+      items.forEach((t) => {
+        const li = document.createElement("li");
+        li.textContent = t;
+        ul.appendChild(li);
+      });
+      ul.hidden = items.length === 0;
+    }
+
+    function showFailure(f) {
+      if (!failEl || !f) return;
+      const err = String(f.error || "training failed");
+      const first = err.split("\n")[0];
+      const get = (id) => document.getElementById(id);
+      get("train-failure-title").textContent = (f.hint ? f.hint.title + " — " : "Run failed — ") + (f.name || f.run_id);
+      const when = get("train-failure-when");
+      when.textContent = f.finished_at ? new Date(f.finished_at * 1000).toLocaleString() : "";
+      get("train-failure-summary").textContent = first.length > 140 ? first.slice(0, 140) + "…" : first;
+      get("train-failure-full").textContent = err;
+      // Short single-line errors have nothing more to reveal; long ones stay collapsed.
+      const details = get("train-failure-details");
+      details.open = false;
+      details.classList.toggle("is-short", err.length <= 140 && err.indexOf("\n") < 0);
+      const hintBox = get("train-failure-hint");
+      const h = f.hint;
+      hintBox.hidden = !h;
+      if (h) {
+        get("train-failure-hint-summary").textContent = h.summary;
+        listItems(get("train-failure-knobs"), (h.knobs || []).map((k) =>
+          k.label + " (" + k.field + "): " + k.current + (k.suggested !== k.current ? " → " + k.suggested : "") +
+          (k.note ? ". " + k.note : "")));
+        listItems(get("train-failure-tips"), h.tips || []);
+      }
+      if (badge && badge.textContent === "idle") {
+        badge.textContent = "failed";
+        badge.className = "pill " + statusPillClass("failed");
+      }
+      if (statusEl && statusEl.textContent === "No run in progress.") statusEl.textContent = "Last run failed. Details below.";
+      failEl.hidden = false;
+    }
+
+    // The newest run of THIS project, only when it failed (survives reload and service restart).
+    async function loadFailure(retries) {
+      const token = ++failToken;
+      try {
+        const r = await fetch("/api/training/failure?project_id=" + encodeURIComponent(PID), { cache: "no-store" });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (token !== failToken) return;
+        if (d.failure) { showFailure(d.failure); return; }
+        // The DB row is written by the run's own callback; give it a moment after a live failure.
+        if (retries > 0) setTimeout(() => { if (token === failToken) loadFailure(retries - 1); }, 1200);
+      } catch (_e) { /* the Past runs row still carries the error */ }
+    }
+
+    function fmtEta(sec) {
+      if (!sec || sec <= 0) return "";
+      if (sec < 60) return Math.round(sec) + "s";
+      return Math.floor(sec / 60) + "m " + Math.round(sec % 60) + "s";
+    }
+
+    function showPrefMetrics(m) {
+      const el = document.getElementById("train-pref-metrics");
+      if (!el) return;
+      const f = (v, d) => (typeof v === "number" ? v.toFixed(d) : "—");
+      const has = m && Object.keys(m).length > 0;
+      el.hidden = !has;
+      if (!has) return;
+      const parts = [
+        "accuracy " + f(m["rewards/accuracies"], 2), "margin " + f(m["rewards/margins"], 3),
+        "chosen " + f(m["rewards/chosen"], 3), "rejected " + f(m["rewards/rejected"], 3),
+      ];
+      if (typeof m.kl === "number") parts.push("KL " + f(m.kl, 3));
+      let line = "Train · " + parts.join(" · ");
+      if (typeof m["eval_rewards/accuracies"] === "number" || typeof m["eval_rewards/margins"] === "number") {
+        line += "\nHeld-out · accuracy " + f(m["eval_rewards/accuracies"], 2) + " · margin " + f(m["eval_rewards/margins"], 3);
+      }
+      el.textContent = line;
+      el.style.whiteSpace = "pre-line";
+    }
+
+    function applyStatus(s) {
+      if (!s || typeof s !== "object") return;
+      showPrefMetrics(s.pref_metrics);
+      // The engine is process-wide: an error from another project's run is not this page's news.
+      if (s.status === "error" && s.project_id && s.project_id !== PID) return;
+      const st = s.status || "idle";
+      const step = s.step || s.current_step || 0;
+      const total = s.total_steps || 0;
+      const loss = s.loss;
+      const eta = s.eta;
+      const msg = s.message || "";
+      const lines = Array.isArray(s.log_lines) ? s.log_lines : [];
+      const stopBtn = document.getElementById("stop-btn");
+      if (stopBtn) {
+        const running = !!ACTIVE[st];
+        stopBtn.disabled = !running;
+        stopBtn.title = running ? "Stop the current training run" : "No active training run";
+      }
+
+      if (badge) {
+        badge.textContent = st;
+        badge.className = "pill " + statusPillClass(st === "idle" ? "stopped" : st);
+      }
+      if (ACTIVE[st]) {
+        wasActive = true;
+        if (failEl && !failEl.hidden) hideFailure();
+        let line = msg || st;
+        if (st === "training" && total > 0) {
+          line = "Step " + step + "/" + total;
+          if (loss != null && loss !== "") line += " · loss " + Number(loss).toFixed(4);
+          if (eta) line += " · ETA " + fmtEta(eta);
+          if (msg) line += " · " + msg;
+        }
+        if (statusEl) statusEl.textContent = line;
+        if (bar && total > 0) {
+          const pct = Math.min(100, (step / total) * 100);
+          bar.style.width = pct.toFixed(1) + "%";
+          bar.classList.remove("indeterminate");
+        } else if (bar) {
+          bar.style.width = "0%";
+        }
+        if (logEl) {
+          logEl.textContent = lines.length
+            ? lines.slice(-40).join("\n")
+            : (msg ? msg : "(waiting for step logs…)");
+        }
+      } else {
+        if (statusEl && wasActive) {
+          statusEl.textContent = msg || (st === "done" ? "Training complete!" : st);
+        }
+        if (logEl && lines.length) logEl.textContent = lines.slice(-40).join("\n");
+        if (bar && st === "done") bar.style.width = "100%";
+        if (st === "error") {
+          // Never say "No run in progress" about a run that just failed: show why.
+          if (statusEl) statusEl.textContent = "Training failed.";
+          if (failEl && failEl.hidden) {
+            showFailure({ name: "", run_id: "", error: s.error || msg, hint: null });
+            loadFailure(4);
+          }
+        }
+        if (wasActive && (st === "done" || st === "error" || st === "stopped" || st === "idle")) {
+          wasActive = false;
+          if (typeof refreshPastRuns === "function") refreshPastRuns();
+        }
+      }
+    }
+
+    function arm() {
+      if (unsub) return;
+      const sub = window.fts && window.fts.subscribe;
+      if (sub) {
+        unsub = sub("/api/training/progress", applyStatus, {
+          pollUrl: "/api/training/status",
+          fallbackMs: 5000,
+        });
+      } else {
+        // Minimal fallback without claiming a 2s redraw cadence.
+        const tick = async () => {
+          try {
+            const r = await fetch("/api/training/status", { cache: "no-store" });
+            if (r.ok) applyStatus(await r.json());
+          } catch (_e) { /* ignore */ }
+        };
+        tick();
+        const timer = setInterval(tick, 5000);
+        unsub = () => clearInterval(timer);
+      }
+    }
+    arm();
+    loadFailure(0);
+    document.addEventListener("fts:navigated", () => {
+      if (unsub) { unsub(); unsub = null; }
+    }, { once: true });
+  })();
+})();
+</script>
+
+{# ── Populate the model dropdown from /api/hf/local so newly downloaded
+   models show up without restarting the server. ── #}
+<script>
+(async () => {
+  const sel = document.querySelector('select[name="model_path"]');
+  if (!sel) return;
+  try {
+    const r = await fetch('/api/hf/local');
+    if (!r.ok) return;
+    const d = await r.json();
+    const local = d.models || [];
+    if (local.length === 0) return;
+    // Merge HF downloads into the server-rendered list (trainable HF weights
+    // only — never wipe it (E2E-19); never add GGUF/GPTQ inference artifacts).
+    // Skip incomplete pulls (no weight files) so stale stubs don't crowd out
+    // retained installs in the Training selector.
+    const known = new Set([...sel.options].map(o => o.value));
+    for (const m of local) {
+      if (known.has(m.path)) continue;
+      const files = m.files || [];
+      const hasGguf = files.some(f => {
+        const p = (f.path || f || '').toLowerCase();
+        return p.endsWith('.gguf');
+      });
+      if (hasGguf) continue;
+      const pathL = String(m.path || '').toLowerCase();
+      if (pathL.endsWith('.gguf') || /\/(gptq|gguf|awq)(\/|$)/.test(pathL)) continue;
+      const hasWeights = files.some(f => {
+        const p = (f.path || f || '').toLowerCase();
+        return p.endsWith('.safetensors') || p.endsWith('.bin');
+      });
+      if (!hasWeights) continue;
+      const opt = document.createElement('option');
+      opt.value = m.path;
+      const gb = (m.size_bytes / 1e9).toFixed(2);
+      opt.textContent = `${m.repo_id.replace(/__/g, '/')} (${gb} GB)`;
+      sel.appendChild(opt);
+      // Re-enable if the page rendered the empty placeholder.
+      sel.disabled = false;
+      const empty = document.getElementById('train-base-model-empty');
+      if (empty) empty.hidden = true;
+    }
+  } catch (e) {
+    console.warn('model dropdown refresh failed:', e);
+  }
+})();
+</script>
+{% endblock %}

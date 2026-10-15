@@ -1,0 +1,386 @@
+---
+out: kctag4_service_manual.pdf
+tier: extended
+---
+# KC-Tag 4 Service Manual
+
+**Document KC-SM-4, Revision 3.2 — 18 September 2024**
+Replaces Revision 3.1 (May 2024) and all earlier drafts. Internal use: Korvane service workshops and authorised repair partners only. Not for distribution to end customers.
+
+Prepared by: Mikael Ostrowicz (Hardware Engineering), with contributions from Ewelina Brzozowska-Nyman (Technical Writing) and Dagny Pettersen-Vu (Customer Support Engineering). Reviewed by Gunnar Halvorsrud (Fleet & Maintenance Lead). Released by Benedikta Aaltonen (Quality & Compliance).
+
+## 0. Preface and how to read this manual
+
+This manual describes everything the Korvane workshops are allowed to do to a KC-Tag 4 of hardware revision R2 once it has left the factory. It covers the opening of the housing, the replacement of the battery and of the boards, flashing of the firmware, the calibration, and the fault finding. Revision R1 units (shipped between May 2022 and 8 October 2023) are mostly the same mechanically, but their sensor board is a different part and the calibration limits are different, and for these units the older manual KC-SM-4 Rev. 2.4 stays valid. We kept Rev. 2.4 in the document system under the same number on purpose, so if you open a PDF from the shared drive please check the revision on the title line first. It already happened twice that a Rotterdam colleague worked with the wrong one.
+
+The manual is long because it is the only place where certain numbers are written down. Where a chapter says "see Appendix C" the appendix is at the end of this file. References to the procedures WF-17 (workshop job card) and WF-22 (scrap form) point to forms in the quality system, which are not part of this document.
+
+A word about the three service levels used throughout:
+
+- **Level 1 (field).** What a depot technician may do without opening anything: reading the LED and the error code, pressing the button, repositioning the bracket or the magnet, releasing the tag in Tidewalk, and a restart by holding the button for 10 seconds.
+- **Level 2 (depot swap).** Replacement of the bracket KB4-D, the magnet KM-2 and the housing screws kit; change of the reporting interval with KC-Config. At Level 2 the housing remains closed. Hamburg-Waltershof, Rotterdam-Maasvlakte and Gothenburg-Arendal work at Level 2 only, with one exception: Rotterdam is allowed to exchange batteries since March 2024 (see chapter 5.1).
+- **Level 3 (workshop).** Everything where the housing is opened. Only the Gdynia workshop, called Bay 3 in the building GDY-1, does Level 3. Bay 3 has two certified technicians and a third in training; the person responsible for Bay 3 in September 2024 is Wiktor Szymaniak-Reyes.
+
+### 0.1 Safety
+
+The KC-Tag 4 contains one primary lithium thionyl chloride cell (Voltrac VB-36L). It cannot be charged. Never try to charge it, never short the terminals, never heat it above +85 °C, never crush or puncture it. A cell that is hot to the touch, swollen or leaking is put into the sand bucket next to the door of Bay 3 immediately and the workshop lead is informed. Do not use water on a burning lithium cell; use the class D extinguisher mounted at the entrance of the bay (the red one with the yellow label, not the CO2 one, a mistake which was made during a drill in 2023 and is the reason the labels are yellow now).
+
+All work with opened housings is done at an ESD-safe workstation with a wrist strap with a 1 MΩ series resistor. The workshop climate is kept at 18 to 26 °C and 30 to 60 % relative humidity. Below 30 % RH the ionizer fan on the bench must be on. Opened boards are never placed on the bare bench, only on the grey conductive mat.
+
+The cleaning agent is isopropyl alcohol of at least 99 %; do not use acetone because it clouds the sensor cap.
+
+## 1. Tools, equipment and consumables
+
+The list below is the minimum equipment for a Level 3 workstation. Asset numbers are those in the workshop inventory.
+
+| Item | Asset / type | Remark |
+|---|---|---|
+| Torque screwdriver | TS-04, range 0.2 to 1.2 N·m | Calibrate every 6 months |
+| Torque screwdriver | TS-07, range 0.05 to 0.30 N·m | For the small board screws only |
+| Torx bit T6 | for the housing screws | Replace bit after 400 openings |
+| Torx bit T15 | for the bracket screws | |
+| Torx bit T3 | for the retainer screws of the sensor board | |
+| Dry-block calibrator | TB-120 | Stability ±0.02 °C at the three calibration points |
+| Reference probe | RX-400, serial 88213 | Calibration due 2025-02 |
+| Humidity chamber | HC-2, 4-litre, with two salt jars | LiCl and NaCl solutions |
+| Pressure decay tester | PD-25 | For the housing leak test |
+| Programming cable | KC-PROG-1 (USB to UART with pogo adapter) | Driver in the KC-Service Tool installer |
+| Laptop | Workshop image WS-2023-11 | With KC-Service Tool v1.14 |
+| Multimeter | any 4½-digit | Used for the battery voltage check |
+| Load resistor | 1 kΩ, 0.25 W, with clips | Battery passivation test, chapter 5.3 |
+
+Consumables per opening: one gasket G-4 (silicone cord seal, cord diameter 2.0 mm), six housing screws, and a sticker for the opening seal. The housing screws are M2 × 8 with Torx T6 head and are reused at most three times; after the third opening, the whole screws kit KSK-4 (six screws M2 × 8 plus four screws M1.6 × 4) is replaced. The gasket is single use — always. We know that it still looks perfect after opening. Replace it anyway.
+
+## 2. Identification of the unit
+
+### 2.1 Serial number and label
+
+The serial number has the form KT4-YYWW-NNNNN: year (two digits), calendar week of the final test, and a running number which restarts every year. For example KT4-2335-00712 was tested in week 35 of 2023 and was the 712th unit that year. The label is laser engraved on the rear of the housing next to the bracket guide and is repeated in a QR code. The label also carries the hardware revision (R1 or R2) and the radio variant 868.
+
+The running numbers of 2024 so far reach about 03000 (state September), which is the reason why the Tidewalk database field was widened from 4 to 5 digits, and why you should not be surprised by an old export that is missing the leading zeros.
+
+### 2.2 What is inside
+
+| Assembly | Part number | Function |
+|---|---|---|
+| Main board | MB-4R2-C | MCU, radio, BLE, flash memory, door sensor (Hall) |
+| Sensor board | SNS-4R2-B | Temperature and humidity sensor on a flexible arm to the sensor cap |
+| Antenna | ANT1 (flex antenna, fixed to the inside of the lid) | 868 MHz |
+| Housing set | KH4-R2 | Lid, base, sensor cap, latch |
+| Gasket | G-4 | Seal between lid and base |
+| Battery | VB-36L | 3.6 V, 2,600 mAh |
+
+On R1 the sensor board is SNS-4R1-A and cannot be exchanged with the R2 part. R2 also introduced gold-plated battery contact springs; on R1 they are nickel and corrode in salty atmospheres, which is the main reason for the "random reset" tickets from the Baltic customers in 2022 and 2023.
+
+## 3. Opening the housing (disassembly)
+
+Before the first screw: record the serial, read the error code and the firmware version with the KC-Service Tool (command `ver`), and read out the memory contents if the customer wants the data (command `mem dump`). After the opening the memory is not lost, but the clock is, if the battery is removed for more than 20 minutes. Fill in the job card WF-17.
+
+1. Take the tag off the bracket by pushing the latch down with a small screwdriver and sliding the tag upwards by about 8 mm.
+2. Put the tag face down on the conductive mat. Put on the wrist strap.
+3. Remove the six housing screws M2 × 8 with the T6 bit. They are numbered 1 to 6 on the rear, and the loosening sequence is 6-5-4-3-2-1 (the reverse of the tightening sequence given in chapter 4). Put the screws into the tray. Do not mix the screws of different tags if you plan to reuse them, they have started to make slight grooves.
+4. Lift the base straight up. Warning: the sensor arm is attached to the lid, not to the base. Do not rotate the base in relation to the lid, because the flex arm of the sensor board is only 34 mm long and tears.
+5. Remove the gasket G-4 and put it in the waste. Check the groove for dirt and salt crystals and clean it with the swab and isopropyl alcohol.
+6. Disconnect the battery connector BT1 (two-pin, polarised). Pull on the plug, not on the wires.
+7. Flip up the black latch of the flex connector J3 (it opens by about 90 degrees; do not force it) and take out the sensor flex. If you break the latch, the main board MB-4R2-C is scrap; this is the most expensive mistake that can be made in Bay 3 (see the spare parts list in chapter 9).
+8. Release the antenna cable at the u.FL connector ANT1 with the plastic spudger, never with the tweezers.
+9. Remove the four retainer screws M1.6 × 4 of the sensor board with the T3 bit and take the sensor board out of the lid.
+
+A normal opening, including the reading of the data, takes about 9 minutes for an experienced technician. If it takes longer than 15 minutes something is wrong and you should ask for help; this was written into the manual after a long afternoon in July in which a trainee spent 40 minutes on a J3 that was in fact already open.
+
+NOTE (Gunnar): when you take out the battery put a piece of tape over the terminals before the cell goes into the bin L-3, otherwise the bin warms up. we had a yellow-lid bin that was warm on a Monday morning once. not funny.
+
+## 4. Reassembly and torque values
+
+### 4.1 Order of reassembly
+
+Reassembly is the reverse of the opening, with the following additions: the new gasket G-4 must be seated without twisting; the sensor flex enters J3 with the contacts facing down and the latch is closed with a click you can feel; the antenna cable is clipped in before the battery is connected; and before the base is placed the inside is inspected with the magnifier for loose strands of the antenna and for pieces of the old gasket.
+
+Tightening sequence of the six housing screws is 1-4-2-5-3-6 in two passes: first pass 0.15 N·m, second pass 0.35 N·m. Do the second pass within 5 minutes of the first.
+
+### 4.2 Torque table
+
+| Fastener | Size | Torque | Tool |
+|---|---|---|---|
+| Housing screws (6 pcs) | M2 × 8, Torx T6 | 0.35 N·m (first pass 0.15 N·m) | TS-07 |
+| Sensor board retainer screws (4 pcs) | M1.6 × 4, Torx T3 | 0.12 N·m | TS-07 |
+| Bracket screws KB4-D (4 pcs) | M4 × 12, Torx T15 | 1.2 N·m, maximum 1.5 N·m | TS-04 |
+| Pole clamp screw of the optional pole adapter | M5 × 20 | 2.0 N·m | TS-04 |
+
+The pole adapter is a customer-specific item for the yards that have no door frames to mount on (the Kłaipėda yard uses it for its stack-end poles). It is not part of the standard product.
+
+### 4.3 Leak test (mandatory after every opening)
+
+After reassembly every tag is put into the pressure decay tester PD-25. The test pressure is 25 kPa (overpressure), the stabilisation time is 20 seconds, and the measuring time is 45 seconds. The tag passes if the pressure drop within the measuring time is not larger than 0.8 kPa. A tag that fails is opened again once, the gasket is exchanged again and the groove is checked; if it fails a second time the housing set KH4-R2 is exchanged. The test result is written into the job card, together with the PD-25 serial of the device on which the test was made.
+
+A tag which passed the leak test is closed with the opening seal sticker, a round white sticker with the Korvane logo and the date in the format DD.MM.YY, placed over screw number 3. A tag without that sticker must be considered as not serviced and shall not be shipped back to a customer.
+
+## 5. Battery replacement
+
+### 5.1 Who is allowed to do it
+
+Battery replacement is a Level 3 job. The only exception is Rotterdam-Maasvlakte, where since March 2024 the depot technicians Sanne Verhoeven and Bas Okonkwo-Pruis may replace batteries, because the Rotterdam yard has by far the most KC-Tag 4 units in the field and the logistic of sending 600 tags a year to Gdynia was not sensible. They use the same procedure and the same leak test (there is a PD-25 in Rotterdam too, serial 0412), and the opened job cards are sent monthly to Bay 3 for filing.
+
+### 5.2 Procedure
+
+1. Open the housing as in chapter 3.
+2. Measure the open-circuit voltage of the new battery before it is fitted. A good Voltrac VB-36L reads at least 3.55 V. A cell below 3.55 V is not used and is returned to the supplier with a note.
+3. Check the production date on the cell: cells older than 18 months from the date of manufacture are not fitted, even if the voltage is fine. (Lithium thionyl chloride cells build up a passivation layer in storage, see 5.3.)
+4. Remove the old battery, connect the new one with the connector BT1, observe the polarity. The first thing which you should see on the LED is amber for 2 seconds, then green.
+5. Connect the KC-PROG-1 cable and issue the command `batt reset`. It resets the battery gauge and writes the date of the replacement into the tag. Without this command the remaining capacity shown in Tidewalk is wrong, and the 20 % warning (amber blink) will come at a wrong moment.
+6. Close and test as described in chapter 4.
+7. In Tidewalk, open the device record and enter the battery change (menu Device, Service, Battery changed). The workshop does this at the end of the day for all tags of the day.
+
+The replaced cell: put tape over both terminals, and put it into the bin L-3 (yellow lid). Full bins are collected by the waste contractor on the first Tuesday of each month.
+
+### 5.3 Passivation
+
+A lithium thionyl chloride cell that has been stored for a long time gets a passivation layer, which causes a voltage dip when the load is first applied. For this reason the following is done for every new cell which is older than 12 months from the date of manufacture (but still younger than the 18 months limit): apply the 1 kΩ load resistor for 30 seconds, then measure the voltage again after 10 seconds without load. If the voltage is not back above 3.50 V the cell is rejected. The battery gauge of the firmware version 2.6 and later detects a passivation dip at start and shows the error code E04 if the voltage under radio load is below 3.0 V; E04 on a tag with a brand-new battery is nearly always a passivated cell and not a fault of the tag.
+
+### 5.4 Replacement criteria
+
+The Tidewalk monitoring creates a battery ticket when the battery estimate is below 15 %. The workshop plans the replacement within 60 days from that ticket. A tag with E04 shall be replaced within 5 working days. In customer contracts with a pharma clause (for example Helvetia Pharma Logistik GmbH) the batteries are replaced at 20 % remaining, not at 15 %, but this is configured in the Tidewalk customer profile and not in the tag.
+
+## 6. Firmware
+
+### 6.1 Overview
+
+The firmware of the KC-Tag 4 has two parts: the bootloader (version 1.3 in all R2 units) and the application image. The application is delivered as a file named kt4_fw_<version>_r2.bin, for instance kt4_fw_2.9.0_r2.bin, together with a file of the same name with the extension .sig. The signature is checked by the bootloader against the public key with the ID KCSIG-2023-B; an image signed with another key is refused and the tag stays on the old firmware (error E11 may be shown). The SHA-256 of every released image is listed in the release record, which is kept by the Hardware Engineering team. Do not ask the support team for these hashes.
+
+The latest released version on 18 September 2024 is 2.9.0 (see the release notes for the history). The oldest version that may still be used with the KC-Hub 200 is 2.4.
+
+### 6.2 Flashing by cable (UART)
+
+Use this method when the tag shows E11, when the over-the-air update fails, or when the tag is new from the board stage and has no application at all.
+
+1. Open the housing (chapter 3). The battery stays connected.
+2. Place the pogo adapter of the KC-PROG-1 on the programming pads J5, which are the six gold pads next to the antenna connector; pad 1 is marked with a small triangle. The pad assignment is: 1 = 3V3, 2 = TX, 3 = RX, 4 = GND, 5 = BOOT, 6 = RESET.
+3. Start the KC-Service Tool, choose "Flash image", select the .bin file. The tool checks the .sig and shows the version number.
+4. Press and hold the button, short the pad BOOT to GND (the adapter has a switch for this) and release the button. The LED alternates red and green: the bootloader is waiting.
+5. Press "Write". The transfer speed is 115,200 baud and a full image of about 212 KB takes approximately 38 seconds. After the write the tool verifies the image and the tag restarts by itself.
+6. Check with `ver` that the new version is reported, and run `cal show` to be sure that the calibration data survived. Calibration data is kept in a separate flash page and is not touched by the application update; the bootloader update, which is rare, erases nothing either, but a complete erase with `mem erase` does delete the logged data, and is never done without the customer's permission.
+
+If the write is interrupted (cable pulled, laptop in sleep mode) the tag shows alternating red-green forever. That is not a defect. Just start again at step 4.
+
+### 6.3 Over-the-air update through the hub
+
+An update over the air is done from Tidewalk (Fleet, Firmware campaigns) and is processed by the KC-Hub 200. At most 20 tags are updated at the same time per hub; the others wait in the queue. The reason for this limit is the radio duty cycle in the 868 MHz band, which is something you do not want to discuss with a regulator. A tag takes part in a campaign only if its battery estimate is at least 30 % and its battery voltage in the last report was at least 3.3 V, otherwise it is skipped and a note appears in the campaign report. The update of one tag takes about 11 minutes. During that time the LED shows red and green alternately and the tag must not be removed from the door.
+
+When the campaign fails for a tag three times in a row the tag is put on the list "OTA failed" and the customer's support case is opened automatically with the priority P3. The workshop should then try the UART method if the tag can be brought in, but in most of the cases the reason is simply a weak radio link, 80 metres or more in a stack with the hub behind a reefer wall.
+
+### 6.4 After the flash
+
+After a firmware change the following checks are done and written on the job card: version by `ver`; the reporting interval is unchanged (default 10 minutes unless the customer chose another); the clock is within 5 seconds of the hub time; one complete report is seen in Tidewalk; and the door sensor reacts when the magnet is moved away by 15 mm.
+
+## 7. Calibration
+
+### 7.1 Principle and schedule
+
+Each KC-Tag 4 is calibrated at the factory and then once every 12 months. The calibration is a three-point check of the temperature and a two-point check of the humidity. The results are written on the calibration certificate (template KC-CAL-T, certificate numbers have the form KCC-2024-NNNNN in 2024) and the correction offsets are stored in the tag. A tag whose last calibration is older than 13 months shows the error E12. Customers under a pharma contract require a certificate which is not older than 12 months at the time of use; for these customers Tidewalk raises a warning 45 days before the certificate expires.
+
+Calibration is done only in Bay 3. Rotterdam has no calibration equipment, and no-one should be tempted to use an ice bath in the kitchen. Yes, this was suggested. Twice.
+
+### 7.2 Temperature: procedure
+
+1. Condition the tags at room temperature (20 to 24 °C) for at least 2 hours after they have been taken out of any cold storage. Tags which come directly from a freezer container have condensation on the inside of the sensor cap and read wrong for hours.
+2. Place up to 12 tags in the insert of the dry-block calibrator TB-120 together with the reference probe RX-400 in the central hole. Put the sensor caps in the holes of the insert; the housings stay outside the block.
+3. Run the points in this order: +40.0 °C, 0.0 °C, −25.0 °C. (Hot first, because the block cools slower than it heats and the cold point at the end saves about 40 minutes per batch.)
+4. At each point wait until the block display is stable within ±0.02 °C for 5 minutes, then wait a further soak time of 25 minutes. Then read all tags with the KC-Service Tool (`cal read`) and write the offset of every tag against the reference.
+5. The offset is the tag reading minus the reference reading.
+
+### 7.3 Acceptance and adjustment
+
+| Condition at any of the three points | Result | Action |
+|---|---|---|
+| Absolute offset up to 0.25 °C | As found: OK | Offsets stored, certificate issued |
+| Absolute offset above 0.25 °C and up to 0.80 °C | Adjusted | Correction written with `cal set`, point re-measured, residual offset must be 0.10 °C or less |
+| Absolute offset above 0.80 °C | Rejected | Sensor board SNS-4R2-B replaced, full calibration repeated |
+| Rejected twice (same serial) | Scrap | Scrap form WF-22, unit goes to the recycling box |
+
+For R1 units the limit between "OK" and "Adjusted" is 0.40 °C, not 0.25 °C; those units have the older sensor.
+
+The expanded uncertainty stated on the certificate for the temperature points is ±0.08 °C (k = 2). The reference probe RX-400 itself is calibrated by an external accredited laboratory; its certificate is renewed every 12 months and the next date is February 2025.
+
+### 7.4 Humidity
+
+The humidity is checked at +25 °C in the chamber HC-2 with two salt solutions: lithium chloride, which gives 11.3 % RH, and sodium chloride, which gives 75.3 % RH. The tags stay in each jar for 4 hours (not less; we measured it and 3 hours is not enough for the sensor to settle). The acceptance limit is ±2.0 % RH at both points. A tag which is outside the limit is adjusted with `cal set hum`, and if it is still outside after adjustment, the sensor board is replaced as for the temperature.
+
+Humidity calibration is only done for the tags whose customers need humidity (Brunnen & Sohn Frischdienst is one of them, as are the pharma customers). All others receive the humidity check but not the adjustment unless the offset is bigger than 5 % RH, in which case a note is made on the certificate.
+
+### 7.5 Certificate and records
+
+The certificate lists the serial number, the date, the technician, the reference probe and its serial, the three temperature offsets as found and after adjustment, the humidity offsets, the result and the next due date. Calibration records are kept for 7 years. The log of the year is kept in a spreadsheet by the Bay 3 lead (see the calibration log for 2024) and the paper originals are stored in the grey cabinet of Bay 3, shelf 2.
+
+The calibration interval of the reference probe, the dry-block, and both torque screwdrivers is listed in the workshop inventory. When any of these is overdue, calibration work stops. No exceptions, not even for a good customer.
+
+## 8. Fault finding
+
+This chapter is written as a set of trees, which in this form are a bit unusual, but the workshop likes them. Each tree begins with the symptom as the customer or the support describes it. Branch "Y" means yes, "N" means no.
+
+### 8.1 Tree A — "The LED never lights"
+
+- A1. Is the red pull-tab still in? (Rotterdam found this three times in one week of 2023.) Y: remove it. N: continue.
+- A2. Press the button for 1 second. Does the LED react? Y: the tag was only sleeping; check the reporting in Tidewalk. N: continue.
+- A3. Open the tag (Level 3) and measure the battery voltage. Below 2.5 V: replace the battery (chapter 5). Between 2.5 V and 3.55 V: do the passivation test 5.3. Above 3.55 V: continue.
+- A4. Is the connector BT1 seated, are the contact springs clean? Clean with isopropyl alcohol. On R1 units replace the springs set if they show green corrosion.
+- A5. Still dark: replace the main board MB-4R2-C.
+
+### 8.2 Tree B — "The tag blinks green but there are no reports in Tidewalk"
+
+- B1. Is the green pattern one short flash every 5 seconds (hub in contact) or two (no hub contact)? One flash: the problem is not the radio, look at the hub or at the Tidewalk device mapping. Two flashes: continue.
+- B2. Is the tag released from an old hub? A tag stays paired to the old hub until released. Release in Tidewalk, pair again.
+- B3. Is the hub reachable at all? Put the tag within 5 metres of the hub and restart the tag by holding the button 10 seconds. Reports come: the problem is the distance. No reports: continue.
+- B4. Check the antenna connector ANT1 and the flex antenna on the lid (Level 3). A loose u.FL connector reduces the range to under 10 metres. This is the number one reason for "works on the bench, not in the yard".
+- B5. Read `rf test` with the KC-Service Tool; the transmit power must be +14 dBm ±1.5 dB. Outside: replace the main board.
+
+### 8.3 Tree C — "The temperature reading looks wrong"
+
+- C1. Compare the tag with a known reference for at least 30 minutes in the same place. Difference below 0.6 °C is within the datasheet outside the main band and is not a fault; below 0.3 °C inside the band likewise.
+- C2. Is the calibration certificate older than 13 months? Then E12 would appear; recalibrate.
+- C3. Was the tag exposed to direct sun or to the cold air jet of the unit? Mounting problem; move it.
+- C4. Is there condensation visible inside the sensor cap? Dry the cap for 24 hours at 40 °C, then test again. If the condensation returns the gasket is leaking: leak test.
+- C5. Read the sensor line voltage with `sns raw`. At 25 °C the value must be 1.318 V ±0.020 V. Outside: the sensor board SNS-4R2-B is replaced.
+- C6. If a single reading is wild (spike) but the others are fine, update to firmware 2.7 or later, which filters single-sample spikes caused by radio bursts (bug ID KCF-1421 in the release notes).
+
+### 8.4 Tree D — "Door events are missing or false"
+
+- D1. Is the magnet gap between 3 and 8 mm with the door closed? No: reposition (error E10 at start if the magnet is not found at all).
+- D2. Is the door a steel door with a heavy gasket frame which holds it open 10 mm when "closed"? Then the 12 mm threshold is rarely crossed; use the shim set from the support (3 shims of 2 mm) under the magnet.
+- D3. A second magnet nearby (for example, the magnetic latch of the neighbouring container) shifts the Hall sensor. Keep other magnets 100 mm away.
+- D4. If the magnet is fine and the events still wrong, read `door raw`: a closed door should read between 340 and 420 counts; open above 900. A tag outside these limits has a faulty Hall sensor and the main board is replaced.
+- D5. Since firmware 2.9 a door that stays open longer than 20 minutes raises a "door left open" alarm. This is a feature, not a fault. See the release notes.
+
+### 8.5 Tree E — "The battery empties too fast"
+
+The calculated life in the quick start guide assumes a hub at 60 metres and +5 °C. Do these checks before blaming the cell.
+
+- E1. What is the reporting interval? 2 minutes gives 11 months at best.
+- E2. Is the tag used in a freezer at −25 °C or colder? Take 35 % off the table.
+- E3. Are there lots of retries because of a weak link? A tag that cannot reach the hub does up to 3 transmissions per report. Improve the link.
+- E4. Measure the sleep current in the service mode (`pwr sleep`). It must be below 8 µA. Between 8 and 25 µA there is probably moisture on the board; clean and dry. Above 25 µA the main board is replaced.
+- E5. A tag with the old battery and a drain larger than 12 % per month is replaced and the old cell goes into the quality lab for examination (Benedikta Aaltonen asks for at least 5 samples a quarter).
+
+### 8.6 Tree F — error codes at the workshop level
+
+| Code | Workshop action |
+|---|---|
+| E01, E02 | Open; check J3 latch and flex; reseat; if the code remains, replace SNS-4R2-B |
+| E03 | Dry the sensor board 24 hours at 40 °C; if the code remains, replace SNS-4R2-B |
+| E04 | Passivation test (5.3); replace battery within 5 working days |
+| E05 | UART reflash (6.2) and `mem erase` with customer permission; if the code returns, replace MB-4R2-C |
+| E06 | Check hub link; dump and erase memory if the customer agrees |
+| E07 | Check the RTC; `rtc set` from the laptop; if the drift returns within 7 days, replace MB-4R2-C |
+| E08 | Hub fault, not a tag fault (see KC-Hub 200 guide) |
+| E09 | Hub capacity: release tags or add a hub |
+| E10 | Mounting; see tree D |
+| E11 | UART reflash (6.2) |
+| E12 | Calibration (chapter 7) |
+
+## 9. Spare parts and stock
+
+Prices are internal transfer prices in EUR, excluding VAT, as of the September 2024 list. The minimum stock is the number below which Bay 3 re-orders.
+
+| Part | Part number | Transfer price (EUR) | Minimum stock |
+|---|---|---|---|
+| Main board | MB-4R2-C | 27.90 | 15 |
+| Sensor board | SNS-4R2-B | 18.20 | 25 |
+| Housing set | KH4-R2 | 6.85 | 30 |
+| Gasket | G-4 | 0.65 | 400 |
+| Screws kit | KSK-4 | 1.40 | 100 |
+| Battery | VB-36L | 9.40 | 120 |
+| Door bracket | KB4-D | 2.15 | 80 |
+| Magnet (bag of 10) | KM-2 | 3.30 | 20 bags |
+| Shim set (3 × 2 mm) | KS-3 | 0.40 | 60 |
+
+The batteries are supplied by Voltrac Battery Systems in cartons of 120. The delivery time from the order is usually 3 weeks; for this reason the minimum stock of 120 was chosen so that one carton is always on the shelf while the next is on its way. Do not store more than 2 cartons; remember the 18-month rule.
+
+## 10. Service records and quality
+
+Every service job generates a job card WF-17, which includes the serial number, the symptom, the actions, the replaced parts with their lot numbers, the firmware before and after, the leak test result and the signature of the technician. Job cards are scanned the same day and stored for 7 years. Benedikta Aaltonen's team audits 10 job cards per month at random and the results are reported in the quarterly quality review; the target for completeness is 98 %.
+
+The turn-around time promised to customers for a tag that comes to Bay 3 is 10 working days for a battery replacement and 15 working days for a repair that needs a calibration. The express service is 3 working days for an extra EUR 45.00 per tag, limited to 40 tags per week because of the limited capacity of the dry-block.
+
+## 11. Lessons from the field (informal, collected by Dagny)
+
+The following is not official procedure but it saves time. The numbers have been verified by the people who told us.
+
+- A tag that has been in a freezer container for weeks and is then opened in a warm workshop will fog up inside within seconds. Wait 2 hours before opening. This is the single most common reason for rejected humidity points.
+- Tags returned from the Kłaipėda yard have salt on the bracket. Rinse the bracket, not the tag.
+- If a customer says that "door events come late", the cause is almost always the reporting interval: door events are sent within 5 seconds only if the hub is in contact; otherwise they are stored.
+- Since the Oakhaven incident on 14 June 2024 (9 hours of excursion, which is described elsewhere), the dairy customer asked for a check of every tag in the affected fleet. In the fleet of 212 tags Bay 3 found 6 tags with a hub link problem and none with a sensor problem. Firmware 2.9 was done in direct response, and the "door left open" alarm is the visible result.
+- Never use the tag as a handle for the door. Yes, the Hamburg driver did.
+
+## 12. Final functional test (after every Level 3 job)
+
+A tag is not released after the leak test alone. The final functional test is a fixed sequence run in Bay 3 on the cold bench (the small chest freezer with the window, asset CB-1, set to −22 °C ± 1 °C), and it takes about 3 hours in total, so it is done in batches of up to 20 tags in the morning and the afternoon.
+
+1. Soak: the tags lie in the freezer for 90 minutes with the lid closed. The reporting interval is set to 2 minutes for the test.
+2. Reports: at least 40 reports from each tag must have reached the Bay 3 test hub (a KC-Hub 200 with the hostname bay3-hub, hub number 1 of 2 in the building). A tag with fewer than 40 reports in the 90 minutes is put aside for the radio check B5.
+3. Temperature: every tag must read −22 °C within ±0.6 °C of the reference logger in the freezer. The reference logger is a second RX-400-class probe, asset RX-401, which is checked once a month against RX-400.
+4. Door: at minute 100 the magnet is moved from 5 mm to 15 mm away from each tag; the Tidewalk test tenant must show the door-open event in 5 seconds or less. After moving back to 5 mm, the door-closed event is expected.
+5. Warm-up: the tags are taken out and lie for 30 minutes on the bench; the humidity values are compared with the room hygrometer (limit ±5 % RH, a loose limit because of the condensation).
+6. Pass: a tag that passes all steps gets the label "FT OK" with the technician's initials and the date, and the job card is signed.
+
+A tag that fails twice in the functional test is not sent back to a customer, whatever the customer says about the urgency. In May 2024 a tag was shipped to the Samsø Berry Co-op without the second pass, because the berry season was starting and there were no spares, and it came back from the field six days later with a radio fault. The decision to skip was not documented and it was not repeated.
+
+## 13. Returns and shipping
+
+### 13.1 Returns (RMA)
+
+A tag arrives in Bay 3 only with an RMA number, which is created by the support (the support engineers use the portal, not e-mail). The RMA has the form RMA-YYYY-NNNNN. The goods receipt in Gdynia is open Monday to Friday from 07:30 to 15:30; deliveries outside these hours are not accepted by the gate and go back with the courier, which regularly causes angry e-mails. Rotterdam collects the RMA tags of the Benelux customers and sends them to Gdynia on Thursdays with the regular trailer.
+
+On receipt the technician checks: seal sticker present? (if yes, the unit has been serviced by Korvane before, and the previous job card is looked up); condition of the housing; signs of liquid inside; mounting damage on the bracket; and whether the battery is still the original one. The result is entered on the job card as "incoming inspection".
+
+### 13.2 Mechanical damage
+
+Cracks in the lid at the latch are caused by over-torque on the bracket screws in about 70 % of the cases which Bay 3 looked at in 2024. Another frequent damage is a bent sensor cap, caused by a pallet jack. The sensor cap is part of the housing set KH4-R2 and is not sold separately. If the base is cracked but the electronics are fine, the housing set is exchanged and the leak test is done as usual. A damaged unit under the warranty is repaired free of charge if the damage is not caused by the customer; the decision is made by the Bay 3 lead together with the support engineer. Over-torque is counted as a customer's cause.
+
+### 13.3 Shipping the batteries
+
+Loose lithium cells are not shipped from the workshops. If a depot needs cells, they are ordered from Voltrac Battery Systems directly to the depot, in the original carton, and booked into the depot inventory under the item number BAT-VB36L. A tag with an installed battery may be shipped as a normal parcel because the cell is within the exemption limits, but the outer carton must carry the lithium battery handling mark and the shipping paper must name the device with the battery installed. Dangerous-goods questions go to Benedikta Aaltonen's team, not to the courier's hotline.
+
+## 14. Training and authorisation of technicians
+
+Nobody opens a KC-Tag 4 without an authorisation card for Level 3. To get one, a technician follows the course ST-4 (two days, in Gdynia, in English or in Polish) and passes a practical test with ten steps, which include one opening, one battery replacement, one UART flash and one calibration batch of 6 tags. The pass limit is 9 of 10 steps correct and no leak test failure. The authorisation card is valid for 24 months and must be renewed with a short refresher of half a day. At the moment of this revision, 5 people hold a valid card: the 3 from Bay 3, plus the 2 Rotterdam technicians (who hold a restricted card valid only for battery replacement and the leak test, not for calibration and not for flashing by UART).
+
+Trainees work under supervision and their job cards are counter-signed by the technician in charge. The trainee does not do the calibration of a pharma customer's tags, ever.
+
+## 15. Environmental and ageing remarks
+
+For the engineers who ask where the numbers come from: the housing is qualified for 500 temperature cycles between −40 °C and +80 °C, with a dwell time of 30 minutes at each end. The gasket G-4 is qualified for 3 years of service in the stated temperature range, therefore the unit should not be considered watertight beyond that, even when the leak test passes, if it has been in the field for more than 3 years without a gasket exchange. This is the reason why units older than 3 years that come in for a battery replacement always get the gasket exchanged (which, as said, happens in every opening anyway).
+
+The shock resistance of the unit is 1.5 m drop onto concrete on all six faces, 3 drops per face, and the vibration test is according to the road transport profile of the customer's trailer fleet, 4 hours per axis. These tests were passed by the R2 design in October 2023; the report is in the document system as KC-QR-4-0097. The temperature of the sensor cap has a time constant of about 4 minutes in moving air and about 11 minutes in still air, which should be remembered when a customer complains that the tag "reacts slowly" when the unit is switched on and off: the cap is slow on purpose, so that the short door openings do not create spikes.
+
+## Appendix A — Service commands (KC-Service Tool v1.14)
+
+| Command | Effect |
+|---|---|
+| `ver` | Shows bootloader and application version, serial, hardware revision |
+| `batt` | Shows battery voltage, estimated capacity and date of last change |
+| `batt reset` | Resets the gauge after a battery replacement |
+| `cal show` | Shows stored calibration offsets and the date |
+| `cal read` | Reads current temperature and humidity raw values for the calibration run |
+| `cal set` | Writes temperature correction for one point; `cal set hum` for humidity |
+| `mem dump` | Reads all stored records (65,536 maximum) to a CSV file |
+| `mem erase` | Erases the logged data; needs customer permission |
+| `rtc set` | Sets the internal clock from the laptop time |
+| `rf test` | Transmit test, shows output power |
+| `sns raw` | Shows sensor line voltage |
+| `door raw` | Shows Hall counts |
+| `pwr sleep` | Measures sleep current |
+
+## Appendix B — Revision history of this manual
+
+| Revision | Date | Change |
+|---|---|---|
+| 1.0 | 14.11.2022 | First release for R1 |
+| 2.4 | 20.04.2023 | Gasket made single use; leak test added |
+| 3.0 | 11.12.2023 | Rewritten for R2; 13-month E12 rule |
+| 3.1 | 06.05.2024 | Rotterdam allowed to exchange batteries |
+| 3.2 | 18.09.2024 | Firmware 2.9, door left open alarm, lessons from the field |
+
+## Appendix C — Quick reference card (for the wall of Bay 3)
+
+Housing screws 0.35 N·m. Sensor board screws 0.12 N·m. Bracket screws 1.2 N·m. Leak test 25 kPa, max drop 0.8 kPa. Calibration points +40.0, 0.0, −25.0 °C; humidity 11.3 % and 75.3 % RH. OK limit 0.25 °C; reject above 0.80 °C. Battery new ≥ 3.55 V, max age 18 months.
+
+— end of document KC-SM-4 Rev. 3.2 —

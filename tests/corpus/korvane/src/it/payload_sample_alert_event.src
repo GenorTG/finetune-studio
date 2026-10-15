@@ -1,0 +1,42 @@
+---
+out: payload_sample_alert_event.json
+tier: extended
+---
+{
+  "event": "alert.fired",
+  "delivery_id": "dlv_01J9QX4T7M2K8Z5N0R6B3C1WYE",
+  "tenant": "KT-20417",
+  "sent_at": "2024-10-02T03:51:09Z",
+  "data": {
+    "alert_id": "AL-0419331",
+    "severity": "CRIT",
+    "rule": "PHARMA-2-8 upper limit, worst-case of 3 tags",
+    "status": "open",
+    "fired_at": "2024-10-02T03:48:30Z",
+    "condition": "temperature above 8.0 C for 3 min",
+    "measured_value": "8.4 C",
+    "worst_tag": "KT4-9A41C07E",
+    "container": {
+      "id": "cnt_H7R2QW90LMXA",
+      "container_no": "TCNU 4417389 6",
+      "customer_group": "Zone 3 transfer - insulin pallets",
+      "profile": "PHARMA-2-8",
+      "position_text": "Quay 14, Gothenburg-Arendal (GOT-4), 2 km from the gate"
+    },
+    "hub": {
+      "name": "hub-got4-02",
+      "last_heartbeat_age": "38 s",
+      "firmware": "2.14.6"
+    },
+    "escalation": {
+      "chain": "Pharma night chain",
+      "level": "2 of 3",
+      "next_level_at": "2024-10-02T04:03:30Z",
+      "contacts_notified": "Ragnhild Strand (SMS), Gothenburg quality desk (voice)"
+    },
+    "ack_policy": "acknowledgement lapses after 4 hours",
+    "notes": "Reefer unit Thermaglide TG-RX 90 reported compressor defrost cycle at 03:41; driver call pending.",
+    "console_url": "https://console.tidewalk.korvane.example/alerts/AL-0419331"
+  },
+  "signature_hint": "HMAC-SHA256 over raw body, header X-Tidewalk-Signature, secret rotated 2024-09-18"
+}

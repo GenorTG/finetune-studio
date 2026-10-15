@@ -1,0 +1,303 @@
+---
+out: annual_report_2023_extract.pdf
+tier: extended
+---
+# Korvane Cold Chain Sp. z o.o.
+## Annual Report 2023 — extract: Management Discussion and Analysis and Financial Review
+
+Registered office: ul. Łużycka 14, 81-537 Gdynia · KRS 0000488213 · NIP 586-217-40-93
+
+This extract reproduces the narrative sections of the Annual Report for the financial year ended 31 December 2023 that the Board resolved to publish on 12 April 2024. It is not a substitute for the full statutory financial statements, which together with the auditor's report were filed with the National Court Register in accordance with the Accounting Act. Where this extract and the full financial statements differ, the financial statements prevail. Figures are presented in EUR million (EUR m) unless stated otherwise; the Group's presentation currency has been the euro since 1 January 2020, even though the parent company keeps its statutory books in PLN. Totals may not add up exactly because of rounding. Forward-looking statements reflect management's expectations at the date of approval and are not guarantees.
+
+## 1. Letter from the Chief Executive Officer
+
+Dear shareholders, customers, colleagues and — yes — the people at the quay who read these things for fun,
+
+When Dieter and I started this company in a rented office above a tyre shop in Gdynia in 2011, the business plan fitted on four pages and the word "ColdLedger" had not yet been invented, which in hindsight was a happier time. Twelve years later the plan is considerably longer and the billing system is considerably more complicated, but the idea has not changed: put a refrigerated box on a ship, and make sure that what comes out at the other end is as cold as what went in.
+
+2023 was the year in which that idea became a four-country operation that happens to have a fifth, tiny, extremely windy yard at Kłaipėda. Group revenue rose to EUR 97.6m from EUR 84.3m, an increase of 15.8%, and EBITDA reached EUR 17.9m, a rise of 20.9% on 2022. Net profit was EUR 4.7m. I am proud of those numbers, but I am prouder of three others that rarely make it into a letter like this one: we handled 612,400 lift moves in the year without a single reportable injury at the Mothership, we closed the KC-Tag 3 handover window on schedule, and our pharma customers recorded a 99.64% excursion-free delivery rate across the 14 GDP contracts we now hold.
+
+It was not an easy year. Electricity was still expensive in the first half, the Kłaipėda yard cost us more than we told the Board it would, and the KC-Tag 3 end-of-life programme turned out to involve rather more batteries than anyone had counted. Kamil's team spent most of November explaining to us what a "legacy tag handover window" is. I will spare you the details but I would like to record my gratitude.
+
+For 2024 we expect revenue between EUR 104m and EUR 108m and an EBITDA of EUR 19.0m to EUR 20.0m; the Board has approved a capital expenditure envelope of up to EUR 19.5m, a large part of which goes to the refresh of our refrigeration fleet and to plug capacity at Rotterdam-Maasvlakte. We intend to continue to pay out between a quarter and a third of net profit as dividend, and the Board will recommend a distribution of EUR 1.5m for 2023 to the Ordinary Shareholders' Meeting on 27 May 2024.
+
+Thank you.
+
+Marta Kowarzik
+Chief Executive Officer, Gdynia, 12 April 2024
+
+## 2. Financial review (Chief Financial Officer)
+
+### 2.1 Headline results
+
+I will try to write this the way I would explain it to Marta on the way to the airport, which is to say with the tables at the back and the story at the front. The Group's results for 2023 compared with 2022 are summarised below.
+
+| EUR m | 2023 | 2022 | Change |
+| Revenue | 97.6 | 84.3 | +15.8% |
+| EBITDA | 17.9 | 14.8 | +20.9% |
+| EBITDA margin | 18.3% | 17.6% | +0.7 pp |
+| Depreciation and amortisation | 8.5 | 7.7 | +10.4% |
+| Operating profit (EBIT) | 9.4 | 7.1 | +32.4% |
+| Net finance costs | 3.1 | 2.1 | +47.6% |
+| Profit before tax | 6.3 | 5.0 | +26.0% |
+| Income tax | 1.6 | 1.2 | +33.3% |
+| Net profit | 4.7 | 3.8 | +23.7% |
+
+Revenue growth came from all four segments, though in uneven proportions, as the segment review in section 3 explains. Reefer Services remains more than half of the Group at 53.6% of revenue (2022: 56.8%), and its share fell not because it shrank but because Pharma Lanes and Monitoring & Software grew faster. The EBITDA margin improved by 0.7 percentage points to 18.3%. Two items deserve a mention because they flatter or burden the comparison: first, a one-off write-down of KC-Tag 3 battery inventory of EUR 214,000 was booked in December after discussion with the auditors, and second, the 2022 comparative contains EUR 0.35m of start-up costs for the Rotterdam depot that did not repeat.
+
+Depreciation and amortisation rose to EUR 8.5m, made up of EUR 6.1m depreciation of property, plant and equipment, EUR 2.0m depreciation of right-of-use assets and EUR 0.4m amortisation of intangible assets. Net finance costs grew by almost half, which is entirely a function of interest rates; the breakdown is EUR 2.5m interest on borrowings, EUR 0.8m interest on lease liabilities, EUR 0.2m net foreign exchange loss, less EUR 0.4m of interest income on cash balances. The effective tax rate was 25.4%, higher than the blended statutory rate because a portion of the Swedish losses carried no deferred tax asset.
+
+Quarterly phasing is shown below since several readers asked for it after the half-year. The second half carries the produce season, and for 2023 the fourth quarter was both the biggest quarter by revenue and by EBITDA.
+
+| EUR m | Q1 2023 | Q2 2023 | Q3 2023 | Q4 2023 |
+| Revenue | 22.9 | 23.3 | 25.5 | 25.9 |
+| EBITDA | 3.9 | 4.2 | 4.5 | 5.3 |
+
+[[chart bar "Group revenue 2019-2023" | 2019=52.4, 2020=56.9, 2021=68.8, 2022=84.3, 2023=97.6 | unit=EUR m]]
+
+*Figure 1 — Group revenue by financial year, EUR m. The compound annual growth rate over 2019–2023 is 16.8%.*
+
+### 2.2 Cost structure
+
+Operating costs before depreciation were EUR 79.7m. Direct operating costs, which are everything that moves with the number of boxes and days, were EUR 52.4m; staff costs EUR 22.6m; and other operating expenses EUR 4.7m. Within direct costs the biggest line is subcontracted haulage at EUR 14.9m, followed by electricity at EUR 9.8m, port and terminal fees at EUR 8.4m, repairs and maintenance at EUR 5.2m and fuel at EUR 3.1m; the remaining EUR 11.0m is a mixed bag of container leases, insurance premiums, cloud hosting and consumables that we have, for the time being, not split further.
+
+Electricity deserves a paragraph of its own. We consumed 58,300 MWh in 2023 at an average all-in price of EUR 168.1 per MWh, which meant a total spend 7.5% lower than the year before (EUR 10.6m was spent in 2022) but still roughly double what the same energy cost in 2019. The fixed-price contract we signed for Gdynia expired at the end of June, and the Rotterdam depot buys on the day-ahead market with a small forward collar. As a rule of thumb each EUR 10 per MWh change in the average price moves EBITDA by EUR 0.58m.
+
+### 2.3 Cash flow and balance sheet
+
+Cash flow from operating activities, after interest and tax, was EUR 14.2m. We invested EUR 16.4m in capital expenditure, paid EUR 1.0m of dividend relating to 2022 and signed new leases worth EUR 2.7m, and as a consequence net debt rose by EUR 5.9m to EUR 54.9m. Net debt to EBITDA improved nevertheless from 3.31x to 3.07x because EBITDA grew faster than debt. Interest cover, which is EBITDA divided by net finance costs, was 5.8x.
+
+[[chart line "Net debt / EBITDA by quarter-end" | Q1-22=3.62, Q2-22=3.58, Q3-22=3.44, Q4-22=3.31, Q1-23=3.26, Q2-23=3.19, Q3-23=3.12, Q4-23=3.07 | unit=x]]
+
+*Figure 2 — Net debt to LTM EBITDA at each quarter-end, 2022–2023. Covenant ceiling 3.75x until 31 March 2024, 3.50x thereafter.*
+
+Trade receivables stood at EUR 13.4m, corresponding to 50.1 days of sales outstanding; the expected credit loss allowance is EUR 0.52m and write-offs in the year were EUR 0.09m. Total assets were EUR 131.7m and equity EUR 31.6m, an equity ratio of 24.0%. Property, plant and equipment (EUR 88.4m), right-of-use assets (EUR 21.9m) and intangible assets (EUR 7.6m, of which EUR 3.9m capitalised development) are the bulk of the asset side.
+
+### 2.4 Five-year summary
+
+Some readers prefer the long view, so here it is. Headcount has grown by a factor of 1.6 since 2019, whereas revenue has grown by a factor of 1.86 over the same period, the year in which ColdLedger went live and I joined, and both events were, depending on whom you ask, either coincidence or cause.
+
+| EUR m unless stated | 2019 | 2020 | 2021 | 2022 | 2023 |
+| Revenue | 52.4 | 56.9 | 68.8 | 84.3 | 97.6 |
+| EBITDA | 9.1 | 10.2 | 12.0 | 14.8 | 17.9 |
+| EBITDA margin | 17.4% | 17.9% | 17.4% | 17.6% | 18.3% |
+| Net profit | 2.3 | 2.9 | 3.0 | 3.8 | 4.7 |
+| FTE at year-end | 188 | 201 | 229 | 273 | 301 |
+
+The 2020 uptick in margin was a pandemic effect: pharma volumes rose sharply while produce was disrupted for about two quarters. The 2021 dip came from the cost of building the Tidewalk v5 platform, most of which was expensed rather than capitalised under the policy then in force.
+
+### 2.5 Alternative performance measures
+
+For the avoidance of doubt, the following definitions are used in this extract and in lender reporting. EBITDA is operating profit before depreciation, amortisation and impairment, and is shown before any item that management classifies as exceptional only if that item exceeds EUR 0.5m; no item exceeded that threshold in 2023, so the EBITDA reported here is also the EBITDA after exceptional items. Net debt means interest-bearing borrowings plus lease liabilities less cash and cash equivalents. LTM means last twelve months. Net debt to EBITDA uses period-end net debt and LTM EBITDA, and the covenant calculation in the facilities agreement differs from the figure in this report only in that it excludes capitalised arrangement fees of EUR 0.3m. Free cash flow, a measure that the Board does not currently use for targets, is not reported.
+
+### 2.6 Result against budget and previous guidance
+
+In December 2022 the Board approved a 2023 budget with revenue of EUR 92.4m and EBITDA of EUR 16.1m. Actual revenue was EUR 5.2m ahead and EBITDA EUR 1.8m ahead, which flatters the budget process more than it should; roughly half of the revenue outperformance came from two things that were not in the plan at all — the early Kłaipėda start in March, and a surge of seafood shipments in the fourth quarter after a hold-up at another Baltic port. The capex budget of EUR 14.8m was exceeded by EUR 1.6m, mostly through the Kłaipėda yard overrun described in the segment section. The most recent guidance given to investors before year-end, in the Q3 note of October 2023, was revenue of EUR 95m to EUR 98m, EBITDA of EUR 17.0m to EUR 18.0m and net debt to EBITDA of about 3.1x; all three metrics landed inside the range.
+
+## 3. Segment review
+
+Since 2023 the Group reports four segments. They were redefined with effect from 1 January 2024 in the internal reporting (monitoring revenue was previously reported inside Reefer Services), but the 2023 figures here follow the new definitions and have been restated for 2022.
+
+| EUR m | Revenue 2023 | Revenue 2022 | Growth | EBITDA 2023 | EBITDA margin |
+| Reefer Services | 52.3 | 47.9 | +9.2% | 8.4 | 16.1% |
+| Pharma Lanes | 21.8 | 17.6 | +23.9% | 5.6 | 25.7% |
+| Monitoring & Software | 14.6 | 11.5 | +27.0% | 4.3 | 29.5% |
+| Yard & Trans-shipment | 8.9 | 7.3 | +21.9% | 1.3 | 14.6% |
+| Central costs | — | — | — | -1.7 | — |
+| Group | 97.6 | 84.3 | +15.8% | 17.9 | 18.3% |
+
+### 3.1 Reefer Services (Jarek Lindqvist, Head of Operations)
+
+Reefer Services is the original business: we receive reefer containers at the yard, plug them in, watch them, move them, and give them back to the line or the cargo owner. Revenue was EUR 52.3m, up 9.2%, and EBITDA EUR 8.4m (16.1%). Container-days, which is the volume unit that matters, were 1,847,000 against 1,749,000 in 2022, an increase of 5.6%. The average revenue per container-day, including lift moves and surcharges, was EUR 28.32.
+
+Plug capacity is the physical constraint. At year-end the five yards had 6,240 plug points in total — 2,310 at GDY-1, 1,480 at HAM-2, 1,320 at RTM-3, 860 at GOT-4 and 270 at KLJ-5 — and the average number of boxes plugged on any day was 5,060, a utilisation of 81.1%. In the peak weeks of the citrus season utilisation at Gdynia touched 96% and we turned away roughly four hundred box-days, which I would describe as a quality problem rather than a failure but which Rafał, correctly, does not.
+
+Price and mix contributed 2.9 percentage points of growth, volume the rest. Our rate card changed on 1 March 2024 for the new financial year, with an average increase of 3.9%. Customer concentration remains moderate: the largest customer, Fruttoria Baltica, accounted for 9.3% of Group revenue (2022: 10.1%), and the five largest customers together for 28.3%, the next biggest being Helvetia Pharma Logistik GmbH at 7.1%, Nordkjøl Seafood AS at 4.6%, Brunnen & Sohn Frischdienst at 3.9% and Oakhaven Dairy Ltd at 3.4%. The ten largest customers represent 41.8% of revenue.
+
+Operationally the year was dominated by two things: the first full year of the Rotterdam yard under Hanneke Dijkgraaf, where average plugged boxes rose from 880 to 1,240, and the introduction of automated gate-in at GDY-1, which cut the average truck turnaround from 31 to 22 minutes. The gate automation cost EUR 1.69m and is included in the capital expenditure table in section 5.
+
+### 3.2 Pharma Lanes (Benedikta Aaltonen, Quality & Compliance, with Sales)
+
+Pharma Lanes — temperature-controlled lanes for medicinal products under Good Distribution Practice — grew 23.9% to EUR 21.8m with an EBITDA of EUR 5.6m, a margin of 25.7% which is the highest of the three physical segments. We ended the year with 14 active GDP contracts against 11 twelve months earlier. The first of them dates from 2016.
+
+Quality outcomes: 99.64% of pharma consignments were delivered without a temperature excursion outside the validated range, and of the remainder every one was either within the customer's allowable excursion window or reported within the contractual 4 hours. Helvetia Pharma Logistik GmbH audited the Hamburg and Gdynia sites in November 2023 and raised two minor observations (calibration records for two handheld probes; a missing signature on one change control form) which were closed on 19 December 2023. The cost of GDP compliance — validation, calibration, audits, qualified-person time — was EUR 0.31m in the year; part of it is recovered via the GDP-1 temperature mapping charge and the reduced discount cap for pharma customers described in the rate card.
+
+Looking ahead, two lanes for Helvetia from HAM-2 are in contract negotiation as this extract goes to the printer; a signature is expected before the summer, and management has *not* included them in the revenue range for 2024, because experience says contract negotiations with pharmaceutical customers have a way of lasting longer than a Baltic winter.
+
+### 3.3 Monitoring & Software (Tomasz Wrzesiński, CTO)
+
+Revenue EUR 14.6m (+27.0%), EBITDA EUR 4.3m (29.5%). Terse version: more tags, more subscriptions, same cost base, margin up. Longer version below.
+
+- Active KC-Tag 4 units at 31.12.2023: 36,900 (2022: 28,400 incl. KC-Tag 3). Remaining KC-Tag 3 in the field after the handover window closed on 31 October: 4,100, all of which are being swapped on the customer's next visit to a depot.
+- Annual recurring revenue (ARR) at year-end: EUR 12.4m, i.e. 85% of segment revenue is recurring; average subscription EUR 28.00 per tag per month, platform included.
+- Net revenue retention 111%; gross logo churn 4.1%.
+- Tidewalk 6.4 availability 99.93% over twelve months measured at the public API (`api.tidewalk.korvane.example`); the three outages were all hosting-side at Lintu Cloud Hosting and totalled 6 hours 12 minutes.
+- Development of Tidewalk v7 started in Q2; EUR 1.31m was capitalised in 2023 under IAS 38 after the criteria were met on 1 June (see note 14 in section 13). The beta is planned for 2025.
+
+Hardware margin on KC-Tag 4 is thin by design — the tag is closer to a razor than a blade — and the batteries come from Voltrac Battery Systems under a framework agreement that expires on 30 June 2026. We took delivery of production batch 1 (22,000 units) in the second quarter and capital tooling for batch 2 was ordered in December.
+
+### 3.4 Yard & Trans-shipment (Dieter Ahlbeck-Roe, COO)
+
+Revenue EUR 8.9m, up 21.9% from EUR 7.3m; EBITDA EUR 1.3m, a margin of 14.6%. The segment sells yard storage, stuffing and unstuffing, and trans-shipment between feeder and mainline vessels. The big event was the opening of the small trans-shipment yard at Kłaipėda (KLJ-5), which started operating in March 2023 and contributed EUR 1.4m of revenue but an EBITDA loss of EUR 0.2m in its first year, against our plan of break-even by the first anniversary. Winter weather and a late delivery of the gate system explain most of the gap. Break-even is now expected in the second quarter of 2024.
+
+At Gothenburg-Arendal the trans-shipment of 93,400 boxes under the agreement with Arendal Port Services was in line with the prior year; we hold the agreement until 31 December 2026 with an option to extend by two years. The segment's EBITDA margin is structurally lower than the other three because of the labour-intensive nature of stuffing work, and management's priority for 2024 is not margin but utilisation.
+
+### 3.5 Fleet and equipment (Gunnar Halvorsrud, Fleet & Maintenance Lead)
+
+I have been asked to keep this to half a page and I have disobeyed in the usual way. The owned pool at 31 December 2023 consisted of 1,312 reefer containers of which 904 are 40-foot high-cube units, 288 are 40-foot standard and 120 are 20-foot, together with 38 yard tractors, 11 reach stackers, 4 straddle-carrier conversions and the usual cloud of forklifts that nobody can count the same way twice. The remainder of the boxes that pass through our yards belong to the shipping lines or to the cargo owners; we are a plug-and-watch business first and an equipment owner second.
+
+Availability of the owned pool measured over the year was 97.2%, against an internal target of 96.5%. The mean time between refrigeration failures was 19,400 operating hours for units fitted since 2019 and 11,800 hours for units installed before 2016 — which is the arithmetic reason for the eight-year refresh cycle the CFO describes in section 5. In 2023 we carried out 3,980 pre-trip inspections on behalf of customers and 1,126 on our own boxes; the PTI failure rate was 4.3% on customer boxes and 2.6% on ours, a gap we attribute to the fact that our own technicians know where the bodies are buried.
+
+The gantry at HAM-2 is overdue for repainting. This has been on the maintenance plan since 2022, and it will be on the plan in 2025 unless somebody finds out how to paint steel in an unbroken run of dry days in Hamburg.
+
+### 3.6 Systems and IT (Kamil Zdunek, IT Support Lead)
+
+The platform landscape is two systems and a lot of glue. Tidewalk is the dispatch and monitoring web application, at version 6.4 at year-end, and ColdLedger is the billing and invoicing module of the ERP from which we have been trying to graduate since roughly the week after we adopted it. ColdLedger processed 61,840 invoices in 2023, an average of 5,153 per month, with a first-time-right rate of 93.5%; the remaining 6.5% were corrected by Finance, which means about 4,020 credit notes and reissues, a number that does not make anybody happy.
+
+The IT estate comprises 412 managed endpoints (laptops, yard tablets and shared consoles), 62 KC-Hub 200 gateways deployed across the five yards, and a monitoring stack hosted by Lintu Cloud Hosting in two availability zones. IT spent EUR 3.07m in the year including licences and hosting but excluding capitalised development, or 3.1% of revenue. A scoping study for ColdLedger's replacement was completed in October at a cost of EUR 0.06m; the study estimates implementation at EUR 2.8m over eighteen months and recommends a go-live outside the peak season. The Board has not yet been asked to approve it.
+
+### 3.7 Pricing and contract terms
+
+Most customer relationships are governed by a framework agreement with a one-page rate schedule drawn from the annual rate card, and by call-offs. Payment terms are 30 days net as a default, 45 or 60 days for large shippers where a contract says so; the weighted average contractual term in 2023 was 36 days, while actual collection took 50.1 days of sales outstanding, which is the gap that Finance's collections team is working on. Volume discounts are tiered on annual container-days, and the average discount actually granted was 4.7% of base day charges, up from 4.1% in 2022, driven by customers moving up a tier. Fuel and energy adjustments are applied quarterly. Contracts with GDP-audited customers carry a cost-recovery element, and about a fifth of Pharma Lanes revenue is under a fixed-price annual contract with a one-time indexation clause every 1 January.
+
+### 3.8 Competitive environment
+
+We compete with three kinds of players and the Board should not mistake them for one another. The first are the large terminal operators, who offer plug-in as an extra on the same invoice as the lift and who can price it below our cost per day if it helps them fill a vessel call; against them we win on dwell-time reporting, on pharma-grade validation and on the fact that our people pick up the phone at 03:00. The second are the regional reefer depots of Baltic and North Sea ports, of which there are around fifteen of meaningful size, and where the contest is mostly on price and plug availability in the peak. The third are the software-only monitoring vendors, with whom we compete only in the narrowest sense, because the KC-Tag 4 sells best attached to a service.
+
+Our estimate of Korvane's share of reefer plug capacity in the Gdynia–Hamburg–Rotterdam corridor is about 7%, based on published capacity figures and our own plug counts; we hold roughly 11% of the Polish market for reefer container handling at the Baltic ports. These are management estimates and have not been verified by an independent party.
+
+\pagebreak
+
+## 4. People and employment costs
+
+At 31 December 2023 the Group employed 301 full-time equivalents (306 persons), compared with 273 FTE a year earlier. By country: Poland 173, Germany 56, the Netherlands 41, Sweden 24 and Lithuania 7. The average number of FTE in the year was 294, so staff costs of EUR 22.6m correspond to roughly EUR 76,900 per average FTE, including employer's social charges, the annual bonus pool and the cost of agency staff converted to a per-FTE equivalent. Voluntary attrition was 8.7% (2022: 11.2%). The Head of People & Culture, Ines Baptista-Okafor, would like it to be noted that this is the lowest figure since 2018 and that the "owls" night shift in Gdynia, historically the most mobile group, contributed no leavers in the last quarter.
+
+Training spend was EUR 0.38m or EUR 1,262 per FTE; the largest component was refrigeration-technician certification (F-gas) for 41 colleagues. The Employee Participation Trust, which holds shares on behalf of staff, distributed EUR 0.15m of dividend to 118 members in June 2023.
+
+Executive directors' remuneration for 2023 totalled EUR 1.96m, of which fixed pay was EUR 1.42m and annual bonus EUR 0.54m. The independent chair of the Board is paid a flat annual fee of EUR 48,000; other non-executive directors waive fees. No options or other long-term incentives were granted in 2023.
+
+## 5. Capital expenditure
+
+Capital expenditure was EUR 16.4m in 2023 (2022: EUR 12.1m), or 16.8% of revenue. The programme is summarised below. As in earlier years about two thirds is growth capex and the rest replaces equipment at end of life.
+
+| Programme | EUR m | Comment |
+| Kłaipėda yard KLJ-5 construction and equipment | 3.9 | opened March 2023 |
+| Reefer refrigeration unit refresh (Thermaglide Reefer Units BV) | 4.8 | 61 units delivered |
+| KC-Tag 4 tooling and production batch 1 | 2.6 | 22,000 units |
+| GDY-1 automated gate | 1.69 | live 14 September |
+| Tidewalk v7 capitalised development | 1.31 | IAS 38, from 1 June |
+| Other and maintenance | 2.10 | |
+| Total | 16.4 | |
+
+The Thermaglide programme replaces refrigeration machinery in our owned equipment pool on a rolling eight-year cycle. Thermaglide delivered 61 units in 2023 against 70 ordered; the missing nine arrived in January 2024, which explains why our contingent commitment note shows a purchase obligation of EUR 7.9m at the year end. We intend to order the next tranche in the third quarter of 2024.
+
+## 6. Liquidity, funding and covenants
+
+The Group's borrowing is concentrated with one lender. The senior facilities agreement with Nordhafen Bank AG, Hamburg, dated 12 September 2022, provides a EUR 45.0m amortising term loan with final maturity on 31 October 2029 and a EUR 15.0m revolving credit facility maturing on 31 October 2026. Scheduled repayments on the term loan were EUR 3.5m in 2023, rising to EUR 1.0m per quarter from 1 January 2024, so that the balance at 31 December 2023 was EUR 41.5m. The revolving facility was drawn by EUR 4.0m at the year end. The term loan carries a margin of 1.85% over three-month EURIBOR, the revolving facility 1.65%, and a commitment fee of 0.7% is payable on the undrawn part. The weighted average cost of borrowings was 5.1% in 2023 compared with 3.9% in 2022. All borrowings are floating; no interest-rate hedging was in place at 31 December 2023, although the Board has asked management to bring a proposal in the first half of the year.
+
+Net debt at 31 December 2023 consisted of the term loan of EUR 41.5m, the revolving facility of EUR 4.0m and lease liabilities of EUR 22.6m, less cash of EUR 13.2m. A change of 100 basis points in EURIBOR would change annual interest cost by EUR 0.46m on the floating debt.
+
+There are two financial covenants, tested quarterly on a rolling twelve-month basis. The first is a leverage covenant: net debt (including IFRS 16 lease liabilities) to EBITDA must not exceed 3.75x until and including 31 March 2024, stepping down to 3.50x from 30 June 2024. The second is an interest cover covenant, EBITDA to net finance costs, which must not fall below 4.0x. Both were met at every test date in 2023; at 31 December 2023 the leverage ratio was 3.07x, leaving headroom of 18.2% of EBITDA, and interest cover was 5.8x. Cash at year end was EUR 13.2m and undrawn committed facilities EUR 11.0m, so total liquidity was EUR 24.2m.
+
+Foreign-exchange exposure is modest: 91% of revenue is invoiced in EUR, 6% in SEK and 3% in PLN, whereas about 38% of the cost base is in PLN. A 10% strengthening of the zloty against the euro would reduce EBITDA by about EUR 1.4m on an annual basis. We do not hedge PLN costs at present; the sensitivity is reviewed every quarter by Treasury, which is Priya's team plus one analyst and a very good spreadsheet.
+
+## 7. Principal risks and uncertainties
+
+The Board reviews the risk register twice a year; the following are the risks that in management's view could materially affect the Group in 2024. They are listed in no particular order, and the omission of a risk does not imply that it is regarded as immaterial.
+
+**Customer and cargo concentration.** The Group serves produce, seafood, dairy and pharmaceutical shippers, and the produce season dominates the second half-year. The loss of the largest customer would reduce revenue by 9.3% and EBITDA by a lesser percentage because the fixed yard cost would remain. Customer contracts generally run for twelve to thirty-six months with price review clauses linked to the rate card.
+
+**Equipment availability.** The supply of refrigeration units is concentrated with Thermaglide Reefer Units BV; lead times were 14 weeks at the end of 2023, and management considers a lead time above 18 weeks to be a threat to peak-season readiness. A dual-sourcing study is underway but a second supplier has not yet been qualified.
+
+**Energy.** See section 2.2. A sustained rise of EUR 25 per MWh would erase roughly EUR 1.5m of EBITDA before pass-through via the fuel and energy adjustment.
+
+**Product liability and temperature excursions.** A material excursion on a load of high-value cargo can lead to claims. The Group carries cargo-handler liability insurance through Seaboard Insurance Brokers with a limit of EUR 20m per event and a deductible of EUR 150,000 per claim; the policy renews on 1 January.
+
+**Cyber and systems.** ColdLedger, our billing platform, is an end-of-life customised ERP module whose vendor will cease support in 2027. A replacement project has been scoped but not approved. Tidewalk is hosted with Lintu Cloud Hosting under a contract that includes a 99.9% availability service level.
+
+**Regulation.** The EU F-gas regulation, the revised GDP guidelines and the CSRD reporting duties, which become applicable to the Group for the financial year 2026 on the current timetable, all increase compliance cost.
+
+## 8. Corporate governance (extract)
+
+The Board consists of five directors: Ulrika Stenmark-Doyle as independent chair, Marta Kowarzik, Dieter Ahlbeck-Roe, Priya Venkataraman-Holt and Dr Bartosz Kielich, who was nominated by Baltic Growth Partners. The Chief Technology Officer, Tomasz Wrzesiński, attends by invitation but is not a director. The Board held seven meetings in 2023, with an attendance rate of 94%. The Audit Committee, which is chaired by Ulrika Stenmark-Doyle with Dr Kielich as its other member, met four times; the external auditor attended three of those meetings without management present for part of the agenda.
+
+The shareholders at 31 December 2023 were Marta Kowarzik (31.5%), Dieter Ahlbeck-Roe (29.5%), Baltic Growth Partners (24.0%) and the Employee Participation Trust (15.0%). A shareholders' agreement of 3 March 2021 contains tag-along and drag-along provisions and a reserved-matters list, in particular any single investment above EUR 5.0m and any change to the dividend policy, which requires consent from shareholders holding at least 75% of the votes.
+
+The financial statements were audited by Aldermoor Kessler Audit Sp. z o.o., with Henrik Szymański-Dahl as the key statutory auditor, which issued an unmodified opinion dated 12 April 2024. Audit fees for the year were EUR 148,000, plus EUR 22,000 for non-audit services (agreed-upon procedures on covenant calculations). The Audit Committee has decided that non-audit fees may not exceed 30% of audit fees. A separate management letter containing control observations will be issued to the Board after the date of this report.
+
+## 9. Geography and customer sectors
+
+Management reports its depots as the primary geographic unit, since the cost base and the customer relationship are local even though the contracts are usually written in Gdynia. The table assigns revenue to the country in which the service is delivered; the subscription revenue of Monitoring & Software is shown on its own line because a Tidewalk user in Rotterdam may be a Hamburg customer's subsidiary and we have long given up trying to untangle that in ColdLedger.
+
+| EUR m | 2023 | 2022 | Change |
+| Poland (GDY-1) | 30.1 | 27.6 | +9.1% |
+| Germany (HAM-2) | 20.9 | 19.4 | +7.7% |
+| Netherlands (RTM-3) | 17.1 | 14.0 | +22.1% |
+| Sweden (GOT-4) | 12.3 | 11.8 | +4.2% |
+| Lithuania (KLJ-5) | 2.6 | — | n/m |
+| Monitoring & Software subscriptions | 14.6 | 11.5 | +27.0% |
+| Group | 97.6 | 84.3 | +15.8% |
+
+The Netherlands grew fastest because 2022 contained only ten months of operations at the Maasvlakte, whereas the Gothenburg depot, our most mature, has little room left to grow inside the current footprint and added a modest 4.2%. Gdynia grew 9.1% and the depot manager, Jarek, wants it recorded that this was achieved while the gate was being rebuilt around the trucks. The Lithuanian figure of EUR 2.6m consists of EUR 1.4m trans-shipment and yard services and EUR 1.2m of plug rental for boxes waiting for feeder connections.
+
+By cargo sector, fresh produce (citrus, berries, bananas, vegetables) made up 46% of container-days, seafood 17%, dairy and chilled food 19%, pharmaceuticals and other temperature-sensitive healthcare 11% by container-days but 22% of revenue, and a residual 7% of flowers, chemicals and project cargo. The point is that a pharma box earns about twice as much per day as a banana box, and a cautious reader of these numbers should be careful about concluding anything about volume from revenue mix alone.
+
+## 10. Sustainability, energy and safety
+
+We have not yet adopted the full CSRD reporting framework, but we collect the data. Total electricity consumption was 58,300 MWh, of which 41% was covered by guarantees of origin for renewable energy; the Rotterdam yard is supplied 100% from certified renewable sources and Gdynia is the weak point at 22%. Scope 1 emissions (yard diesel and company vehicles) were 3,120 tonnes CO2e. Scope 2 emissions were 12,450 tonnes CO2e on a market-based basis and 21,800 tonnes on a location-based basis. The energy intensity of our core service, expressed as kWh of electricity per plugged container-day, was 31.6 kWh. Management's target is to bring this down to 29.0 kWh per container-day by the end of 2026 through better insulation of the plug racks, smarter defrost scheduling in the KC-Hub 200 gateways, and the retirement of the oldest refrigeration units.
+
+Refrigerant top-ups in our owned equipment pool amounted to 183 kg of R-513A, a leakage rate of 2.4% of the installed charge, which is within the 3.0% tolerance in our maintenance standard. The Group worked 586,000 hours in 2023 and recorded three lost-time injuries, a rate of 5.1 per million hours worked; none occurred at GDY-1. Gunnar Halvorsrud's fleet team has proposed, and the Board has accepted in principle, a programme to replace diesel yard tractors with electric ones as they reach end of life, starting with six units in 2025.
+
+The Quality & Compliance function maintains certification to ISO 9001 and ISO 22000 for the Gdynia, Hamburg-Waltershof and Rotterdam-Maasvlakte sites. The surveillance audit in September 2023 produced no major non-conformities and four minor ones; the next full recertification audit is scheduled for the autumn of 2024.
+
+## 11. Treasury, insurance and tax
+
+Treasury policy is to keep liquidity, defined as cash plus undrawn committed facilities, above EUR 15.0m at all times and above 12% of annual revenue at each quarter-end; at 31 December 2023 the figures were EUR 24.2m and 24.8%. Surplus cash is held at relationship banks with a minimum rating of A-, with no single counterparty holding more than EUR 8.0m, except for the operating accounts of Nordhafen Bank AG, which are under a separate set-off arrangement. Foreign currency borrowing is not permitted without Board approval.
+
+Insurance is placed through Seaboard Insurance Brokers. In addition to the cargo-handler liability policy mentioned in the risk section (EUR 20m per event, EUR 150,000 deductible), the Group carries property damage cover for a replacement value of EUR 118m, business interruption cover with a twelve-month indemnity period, and a cyber policy with a limit of EUR 5.0m and a retention of EUR 75,000. The total premium for 2023 was EUR 1.34m, which is 1.4% of revenue and about 12% more than in 2022 after the market hardened for cold-storage risks.
+
+On tax, the effective rate of 25.4% reflects Polish, German, Dutch, Swedish and Lithuanian taxable profits and the non-recognition of a deferred tax asset of EUR 1.9m on Swedish tax losses carried forward, which management does not yet consider probable of utilisation. Income tax paid in cash was EUR 1.2m. A German tax audit of the Hamburg entity covering 2019 to 2021 was concluded in November 2023 with additional tax of EUR 86,000 plus interest, which was charged to the 2023 result.
+
+## 12. Related parties, going concern and events after the reporting date
+
+*Related parties.* The head office at ul. Łużycka 14 is leased from Ahlbeck-Roe Nieruchomości Sp. z o.o., a company controlled by Dieter Ahlbeck-Roe, at a rent of EUR 31,400 per month, i.e. EUR 376,800 for the year. The lease runs until 31 March 2030; the rent was benchmarked against an independent valuation in 2022, and Dieter abstained when the Board approved the last indexation. There were no other transactions with directors or shareholders in the year except for dividends and remuneration.
+
+*Going concern.* The directors have assessed the Group's ability to continue as a going concern for at least twelve months from the date of approval. In the downside case, in which revenue is 12% below the 2024 budget and EBITDA 22% below, liquidity remains positive throughout and both covenants are met with limited headroom in the first half of 2025. The directors therefore consider it appropriate to prepare the financial statements on a going-concern basis.
+
+*Events after the reporting date.* Remaining nine refrigeration units from the 2023 Thermaglide order were delivered in January 2024. A 36-month contract with Lumikko Foods Oy started on 1 February 2024. Release 6.5 of Tidewalk went live on 21 February 2024. The new rate card entered into force on 1 March 2024. No adjusting events occurred between the reporting date and the date of approval.
+
+## 13. Extract from the notes to the financial statements
+
+### Note 2 — Significant accounting policies (excerpt)
+
+*Revenue.* Day charges for plugged and stored containers are recognised over time, per started day, as the service is provided. Lift moves, gate-in handling and pre-trip inspections are recognised at the point in time at which the move or inspection is complete. Subscription revenue for KC-Tag 4 and Tidewalk is recognised monthly over the contract period; hardware delivered as part of a bundle is not accounted for separately because it is not distinct. Variable consideration, mainly volume discounts, is estimated using the expected value method and recognised as a reduction of revenue, and a refund liability of EUR 0.64m was recorded at 31 December 2023 for discounts not yet credited.
+
+*Property, plant and equipment.* Depreciation is straight-line over the following useful lives: plug racks and electrical installations 12 years; refrigeration units 8 years; reach stackers and yard tractors 10 years; KC-Tag 4 devices rented to customers 6 years; buildings 25 years. Right-of-use assets are depreciated over the lease term. The incremental borrowing rate used to discount lease payments was 5.4% for leases commencing in 2023.
+
+*Development costs.* Costs of developing software are capitalised from the date on which the technical feasibility, the intention and ability to complete, and the probable future benefit have been demonstrated. For Tidewalk v7 these conditions were judged to be met on 1 June 2023; costs incurred before that date, EUR 0.27m, were expensed.
+
+### Note 14 — Intangible assets (excerpt)
+
+Intangible assets of EUR 7.6m comprise capitalised development costs of EUR 3.9m, software licences of EUR 2.2m, and customer-related intangibles acquired with the 2019 purchase of the Gothenburg business of EUR 1.5m, the latter with a remaining amortisation period of 5 years. The Monitoring & Software cash-generating unit was tested for impairment using a discount rate of 9.1% after tax and a terminal growth rate of 2.0%; the recoverable amount exceeded the carrying amount by EUR 11.3m.
+
+### Note 22 — Provisions (excerpt)
+
+Provisions at 31 December 2023 were EUR 1.18m. The largest items are a warranty provision for KC-Tag 4 of EUR 0.37m, calculated on a 12-month warranty and an observed return rate of 1.9% of units sold, an onerous-lease provision of EUR 0.41m for the surplus Rotterdam warehouse space that Korvane hopes to sub-let, and a provision for holiday pay and bonus of EUR 0.40m. No provision has been recognised for contingent liabilities relating to customer claims in excess of EUR 0.25m, because none were pending at the reporting date.
+
+### Note 31 — Commitments (excerpt)
+
+Purchase commitments for capital expenditure contracted but not yet delivered at 31 December 2023 amounted to EUR 7.9m, mostly refrigeration units and the second KC-Tag batch tooling. Future minimum lease payments under non-cancellable leases of low-value assets and short-term leases not recognised on the balance sheet were EUR 0.63m.
+
+## 14. Outlook 2024, dividend and calendar
+
+Our guidance for 2024 is as follows. Revenue is expected to be in the range of EUR 104m to EUR 108m, EBITDA between EUR 19.0m and EUR 20.0m (an EBITDA margin of 18% to 19%), and capital expenditure not above EUR 19.5m. Net debt to EBITDA is expected to be below 3.0x at the end of 2024 and the Group expects to remain in compliance with both covenants. The guidance does not include the potential effects of the contracts under negotiation described in section 3.2.
+
+The Board proposes a dividend of EUR 1.5m for 2023, which is 31.9% of net profit, to be considered by the Ordinary Shareholders' Meeting on 27 May 2024, with payment on 20 June 2024. The dividend policy remains a payout ratio of 25% to 35% of net profit.
+
+Financial calendar: Q1 2024 management accounts to the lenders by 15 May 2024; half-year results at the Board meeting on 28 June 2024; Q3 figures in October.
+
+## 15. Statement of the Board
+
+The Board confirms that, to the best of its knowledge, the annual financial statements give a true and fair view of the assets, liabilities, financial position and result of the Company and that the management report presents a fair review of the development, achievements and position of the Company together with the principal risks. The statement is made on behalf of the Board by the President of the Management Board and the Chief Financial Officer.
+
+*Korvane Cold Chain Sp. z o.o. — Annual Report 2023 (extract) — printed in Gdynia. Not to be reproduced in whole or in part without the written permission of the Company Secretary.*

@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark light">
+  <script>
+    /* Pre-paint theme — must run before CSS paints to avoid flash. */
+    (function () {
+      try {
+        var t = localStorage.getItem('fts-theme');
+        if (t !== 'light' && t !== 'dark') t = 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+  <style>
+    /* Light palette — remaps the app.css :root tokens. */
+    :root[data-theme="light"] {
+      --bg-app:        #f4f6f4;
+      --bg-nav:        #e8ece8;
+      --bg-panel:      #ffffff;
+      --bg-panel-2:    #f0f3f0;
+      --bg-elevated:   #e4ebe4;
+      --bg:            #f4f6f4;
+      --fg:            #1a2a1a;
+      --card:          #ffffff;
+
+      --border:        #b8c8b8;
+      --border-strong: #7a9a7a;
+      --border-hot:    #006633;
+
+      --text:          #1a2a1a;
+      /* Light-theme dim tones were lifted straight from the dark palette's
+         ratios and failed WCAG on every page: --text-muted read 3.85:1 and
+         --text-dim 3.22:1 against the nav/panel backgrounds (version chip,
+         breadcrumb prompt, "Flow" label). Darkened to clear 4.5:1 against
+         the LIGHTEST surface they sit on (#e8ece8 nav), not just white. */
+      --text-muted:    #3a5a3a;
+      --text-dim:      #4a6a4a;
+
+      --accent:        #006633;
+      --accent-2:      #338855;
+      --accent-glow:   rgba(0,102,51,0.25);
+      --on-accent:     #ffffff;
+      /* --warn is the FILL colour (bars, borders). --warn-text is the same
+         hue darkened until amber-on-tint text clears 4.5:1 — amber pills and
+         the chat "no model loaded" box read 3.99:1 with the fill colour. */
+      --warn:          #b86e00;
+      --warn-text:     #8a5200;
+      --ok-text:       #14683a;
+      --err-text:      #a01c1c;
+      --cyan-text:     #0a6272;
+      --magenta-text:  #7d1268;
+      --err:           #c62828;
+      --ok:            #1b7a3d;
+      --cyan:          #007a8a;
+      --magenta:       #a01880;
+    }
+    :root[data-theme="dark"] {
+      --bg:   #060a07;
+      --fg:   #d2ffda;
+      --card: #0c1810;
+    }
+  </style>
+  <title>{% block title %}Finetune Studio{% endblock %} · {{ release_channel }}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/css/app.css?v=88">
+</head>
+<body>
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <div class="app" id="app">
+
+    {# ── Session bar (tmux-style tabs) ──────────────────────────────── #}
+    <header class="session-bar" id="session-bar">
+
+      {# Brand cluster — minimal, always present #}
+      <a href="/" class="sb-brand" data-link title="Finetune Studio">
+        <span class="logo">FS</span>
+      </a>
+
+      {# Nav shell: scrollport + explicit overflow affordances (scroll + [nav]) #}
+      <div class="sb-nav-shell" id="sb-nav-shell" data-overflow="false">
+        <button type="button" class="sb-nav-scroll sb-nav-scroll-prev" id="sb-nav-scroll-prev"
+                aria-label="Scroll navigation left" title="Scroll left" hidden>‹</button>
+
+        <nav class="sb-tabs" id="sb-tabs" aria-label="Sessions" tabindex="0">
+
+          {# GROUP: System #}
+          <div class="sb-group">
+            <span class="sb-group-label" title="System">[sys]</span>
+            <a href="/" class="sb-tab {% block nav_dashboard %}{% endblock %}" data-link data-tab="dashboard">
+              <span class="sb-tab-label">dashboard</span>
+              <span class="sb-cursor" aria-hidden="true">▮</span>
+            </a>
+            <a href="/projects" class="sb-tab {% block nav_projects %}{% endblock %}" data-link data-tab="projects">
+              <span class="sb-tab-label">projects</span>
+              {% if projects %}<span class="sb-badge">{{ projects|length }}</span>{% endif %}
+            </a>
+          </div>
+
+          {# GROUP: Tools #}
+          <div class="sb-group sb-group-tools">
+            <span class="sb-group-label" title="Tools">[tools]</span>
+            <a href="/models/explore" class="sb-tab {% block nav_models_explore %}{% endblock %}" data-link data-tab="hf" title="Browse + download base models from Hugging Face">
+              <span class="sb-tab-label">model library</span>
+            </a>
+            <a href="/models" class="sb-tab {% block nav_models_local %}{% endblock %}" data-link data-tab="my-models" title="Models already on this machine: downloaded bases and your trained exports">
+              <span class="sb-tab-label">my models</span>
+            </a>
+            {# QABUG-004: project-scoped chat is the real inference surface;
+               global /inference remains when no project is active. #}
+            <a href="{% if pid is defined and pid %}/projects/{{ pid }}/chat{% else %}/inference{% endif %}"
+               class="sb-tab {% block nav_inference %}{% endblock %}" data-link data-tab="inference">
+              <span class="sb-tab-label">{% if pid is defined and pid %}chat{% else %}inference{% endif %}</span>
+            </a>
+            <a href="/settings" class="sb-tab {% block nav_settings %}{% endblock %}" data-link data-tab="settings">
+              <span class="sb-tab-label">settings</span>
+            </a>
+          </div>
+        </nav>
+
+        <button type="button" class="sb-nav-scroll sb-nav-scroll-next" id="sb-nav-scroll-next"
+                aria-label="Scroll navigation right" title="Scroll right" hidden>›</button>
+
+        {# Always-present menu: every route reachable when the strip clips #}
+        <details class="sb-nav-more" id="sb-nav-more">
+          <summary class="sb-nav-more-btn" aria-label="Open navigation menu"
+                   title="Open navigation menu">☰</summary>
+          <div class="sb-nav-more-panel" id="sb-nav-more-panel" role="menu"
+               aria-label="All navigation links">
+            {# Populated from .sb-tabs by nav_overflow.js; static fallback below
+               keeps links reachable if JS is delayed. #}
+            <div class="sb-nav-more-list" id="sb-nav-more-list">
+              <a href="/" class="sb-nav-more-link" data-link data-tab="dashboard" role="menuitem">dashboard</a>
+              <a href="/projects" class="sb-nav-more-link" data-link data-tab="projects" role="menuitem">projects</a>
+              {% if pid is defined and pid %}
+              <a href="/projects/{{ pid }}" class="sb-nav-more-link" data-link data-tab="overview" role="menuitem">overview</a>
+              <a href="/projects/{{ pid }}/wizard" class="sb-nav-more-link" data-link data-tab="wizard" role="menuitem">⚡ quick work</a>
+              <a href="/projects/{{ pid }}/data" class="sb-nav-more-link" data-link data-tab="data" role="menuitem">files</a>
+              <a href="/projects/{{ pid }}/data-prep" class="sb-nav-more-link" data-link data-tab="data-prep" role="menuitem">pairs</a>
+              <a href="/projects/{{ pid }}/brain" class="sb-nav-more-link" data-link data-tab="brain" role="menuitem">smart brain</a>
+              <a href="/projects/{{ pid }}/training" class="sb-nav-more-link" data-link data-tab="training" role="menuitem">training</a>
+              <a href="/projects/{{ pid }}/testing" class="sb-nav-more-link" data-link data-tab="testing" role="menuitem">testing</a>
+              <a href="/projects/{{ pid }}/compare" class="sb-nav-more-link" data-link data-tab="compare" role="menuitem">compare</a>
+              <a href="/projects/{{ pid }}/benchmarks" class="sb-nav-more-link" data-link data-tab="benchmarks" role="menuitem">benchmarks</a>
+              <a href="/projects/{{ pid }}/chat" class="sb-nav-more-link" data-link data-tab="project-chat" role="menuitem">chat</a>
+              <a href="/projects/{{ pid }}/export" class="sb-nav-more-link" data-link data-tab="export" role="menuitem">export</a>
+              {% endif %}
+              <a href="/models/explore" class="sb-nav-more-link" data-link data-tab="hf" role="menuitem" title="Browse + download base models from Hugging Face">model library</a>
+              <a href="/models" class="sb-nav-more-link" data-link data-tab="my-models" role="menuitem" title="Models already on this machine">my models</a>
+              <a href="{% if pid is defined and pid %}/projects/{{ pid }}/chat{% else %}/inference{% endif %}"
+                 class="sb-nav-more-link" data-link data-tab="inference" role="menuitem">{% if pid is defined and pid %}chat{% else %}inference{% endif %}</a>
+              <a href="/settings" class="sb-nav-more-link" data-link data-tab="settings" role="menuitem">settings</a>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      {# Right cluster — all top-bar buttons on one visible line #}
+      <div class="sb-right">
+        <button id="theme-toggle" class="btn sm" type="button"
+                onclick="window.ftsThemeToggle && window.ftsThemeToggle()"
+                title="Toggle dark/light theme" aria-label="Toggle dark/light theme">🌙</button>
+        <button class="sb-activity" id="sb-activity" title="Activity feed — running tasks" aria-label="Open activity feed">
+          <span class="sb-activity-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 9h3l2-5 3 10 2-5h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="sb-activity-count" id="sb-activity-count" hidden>0</span>
+        </button>
+        <button class="sb-palette sb-guide" id="sb-guide" title="Guide — ask about any page, setting or step" aria-label="Open the guide" aria-expanded="false" aria-controls="guide-panel">
+          <span aria-hidden="true">?</span><span>guide</span>
+        </button>
+        <button class="sb-palette" id="sb-palette" title="Command palette (Ctrl+K)" aria-label="Open command palette">
+          <span class="sb-palette-key">⌘</span><span>K</span>
+        </button>
+        <span class="status-pill" id="model-status-pill" title="Loaded model">
+          <span class="status-dot" id="model-status-dot"></span>
+          <span class="status-label" id="model-status-label">no model</span>
+        </span>
+        <button class="sb-palette" id="model-unload-btn" title="Unload the currently loaded model (frees VRAM)"
+                style="display:none" aria-label="Unload model">⏏</button>
+        <span class="version" title="{{ release_channel }} release · v{{ app_version }}">
+          <span class="version-number">v{{ app_version }}</span>
+        </span>
+      </div>
+
+      {# Path row: on project pages the breadcrumb (links) IS the path; elsewhere the page's sb_path text.
+         The header is sticky, so this row and the tabs stay visible while the page scrolls (QABUG-009). #}
+      <div class="sb-active-bar">
+        {% if pid is defined and pid %}
+        <nav id="project-breadcrumb" class="project-breadcrumb" aria-label="Breadcrumb">
+          <span class="bc-root"><a href="/" data-link>dashboard</a>
+          <span class="bc-sep">/</span>
+          <a href="/projects" data-link>projects</a>
+          <span class="bc-sep">/</span></span>
+          <a href="/projects/{{ pid }}" data-link class="bc-project">{{ (project.name if project is defined and project else pid) }}</a>
+          <span class="bc-sep">/</span>
+          <span class="bc-tab">{% block breadcrumb_tab %}overview{% endblock %}</span>
+        </nav>
+        {% else %}
+        <span class="sb-active-prefix">{% block sb_path %}{% endblock %}</span>
+        {% endif %}
+        <span class="sb-active-cursor">█</span>
+      </div>
+    </header>
+
+    {# Service health: restart/crash/unreachable notices (service.js, GET /api/service/status) #}
+    <div id="service-banner" class="service-banner" role="alert" hidden></div>
+
+    {% if pid is defined and pid %}
+    {# The ONE project nav (Genor 2026-10-14): files go one route — Files & Knowledge — and are then either trained
+       into a model or served by the Smart Brain. Both are step 2; test and use follow. ``here`` is server-rendered
+       from each page's ``breadcrumb_tab``. #}
+    {% set bc = self.breadcrumb_tab()|trim %}
+    <nav id="workspace-subnav" class="workspace-subnav" aria-label="Project flow">
+      <span class="ws-label" title="Files are prepared once, then trained into a model or served by the Smart Brain">Flow</span>
+      <a href="/projects/{{ pid }}" data-link data-tab="overview" class="ws-link {% if bc in ('overview', 'models') %}here{% endif %}" title="Project home">home</a>
+      <a href="/projects/{{ pid }}/wizard" data-link data-tab="wizard" class="ws-link {% if bc == 'quick work' %}here{% endif %}" title="All steps on one page, in order">⚡ quick work</a>
+      <span class="ws-sep" aria-hidden="true">|</span>
+      <span class="ws-steps-label ws-group" title="1 · Upload, read, edit, parse and mine your files">1 Files &amp; Knowledge</span>
+      <a href="/projects/{{ pid }}/data" data-link data-tab="data" class="ws-link {% if bc in ('files', 'data') %}here{% endif %}" title="Upload, organise, read and edit your files">files</a>
+      <a href="/projects/{{ pid }}/data-prep" data-link data-tab="data-prep" class="ws-link {% if bc in ('pairs', 'data-prep') %}here{% endif %}" title="Mine question-answer pairs from the files, review them, build the dataset">pairs</a>
+      <span class="ws-sep" aria-hidden="true">|</span>
+      <a href="/projects/{{ pid }}/training" data-link data-tab="training" class="ws-link {% if bc == 'training' %}here{% endif %}" title="2 · Train a model on the reviewed pairs (LoRA adapter or merged model)">2 train</a>
+      <span class="ws-steps-label" aria-hidden="true">or</span>
+      <a href="/projects/{{ pid }}/brain" data-link data-tab="brain" class="ws-link {% if bc == 'smart brain' %}here{% endif %}" title="2 · Smart Brain: answer from the files without training (search index, chat with sources, standalone server)">2 Smart Brain</a>
+      <span class="ws-sep" aria-hidden="true">|</span>
+      <a href="/projects/{{ pid }}/testing" data-link data-tab="testing" class="ws-link {% if bc == 'testing' %}here{% endif %}" title="3 · Score the model or the Smart Brain on your own questions">3 test</a>
+      <a href="/projects/{{ pid }}/export" data-link data-tab="export" class="ws-link {% if bc == 'export' %}here{% endif %}" title="4 · Export / use the trained model">4 use it</a>
+      <span class="ws-sep" aria-hidden="true">|</span>
+      <span class="ws-steps-label" aria-hidden="true">also</span>
+      <a href="/projects/{{ pid }}/compare" data-link data-tab="compare" class="ws-link {% if bc == 'compare' %}here{% endif %}" title="Same questions to several models, answers side by side, judged afterwards">compare</a>
+      <a href="/projects/{{ pid }}/benchmarks" data-link data-tab="benchmarks" class="ws-link {% if bc in ('benchmarks', 'bench') %}here{% endif %}" title="Public exams (MMLU, GSM8K, HellaSwag)">benchmarks</a>
+      <a href="/projects/{{ pid }}/chat" data-link data-tab="project-chat" class="ws-link {% if bc == 'chat' %}here{% endif %}" title="Chat with a model, with or without the Smart Brain">chat</a>
+      <a href="/projects/{{ pid }}/settings" data-link data-tab="project-settings" class="ws-link {% if bc == 'settings' %}here{% endif %}" title="Project settings">settings</a>
+    </nav>
+    {% endif %}
+
+    {# ── Command palette (Ctrl+K) — stub for now, real impl in palette.js ── #}
+    <div class="palette-backdrop" id="palette-backdrop" hidden></div>
+    <div class="palette" id="palette" hidden role="dialog" aria-label="Command palette">
+      <div class="palette-head">
+        <span class="palette-prefix">&gt;</span>
+        <input type="text" id="palette-input" class="palette-input" autocomplete="off"
+               placeholder="jump to...  (try 'models', 'brain', 'chat')" />
+        <span class="palette-hint">ESC</span>
+      </div>
+      <div class="palette-results" id="palette-results" role="listbox"></div>
+      <div class="palette-foot">
+        <span><kbd>↑↓</kbd> navigate</span>
+        <span><kbd>↵</kbd> open</span>
+        <span><kbd>esc</kbd> close</span>
+      </div>
+    </div>
+
+    {# ── Activity drawer (bottom-right slide-up) ────────────────── #}
+    <div class="activity-backdrop" id="activity-backdrop" hidden></div>
+    <aside class="activity" id="activity" hidden aria-label="Activity feed">
+      <div class="activity-head">
+        <span class="activity-title">ACTIVITY<span class="activity-title-pulse" aria-hidden="true">▮▮</span></span>
+        <span class="activity-sub" id="activity-sub">Loading…</span>
+        <button class="activity-close" id="activity-close" title="Close (Esc)" aria-label="Close">✕</button>
+      </div>
+      <div class="activity-filters" id="activity-filters">
+        <select id="activity-filter-type" class="select" onchange="activityApplyFilter()" style="flex:1;">
+          <option value="">All types</option>
+          <option value="data_prep">Data prep</option>
+          <option value="training">Training</option>
+          <option value="benchmark">Benchmarks</option>
+          <option value="export">Exports</option>
+          <option value="model_load">Model load</option>
+          <option value="inference">Inference</option>
+          <option value="brain_build">Smart Brain build</option>
+          <option value="brain_ready">Smart Brain ready</option>
+          <option value="download">HF downloads</option>
+          <option value="system_update">Updates</option>
+          <option value="operation">Operations</option>
+          <option value="upload">Uploads</option>
+          <option value="brain_query">Smart Brain queries</option>
+          <option value="testing">Testing</option>
+        </select>
+        <select id="activity-filter-project" class="select" onchange="activityApplyFilter()" style="flex:1;">
+          <option value="">All projects</option>
+        </select>
+        <select id="activity-filter-status" class="select" onchange="activityApplyFilter()" style="flex:1;">
+          <option value="">All statuses</option>
+          <option value="running">Running</option>
+          <option value="queued">Queued</option>
+          <option value="done">Done</option>
+          <option value="error">Error</option>
+        </select>
+      </div>
+      <div class="activity-body" id="activity-body"></div>
+      <div class="activity-foot">
+        <span class="dim text-xs">Live</span>
+        <span class="dim text-xs">ESC to close</span>
+      </div>
+    </aside>
+
+    {# ── Guide panel: docked, lives outside #content so SPA navigation never unloads it ── #}
+    <aside class="guide" id="guide-panel" hidden aria-label="Guide">
+      <div class="guide-head">
+        <span class="guide-title">GUIDE</span>
+        <span class="guide-ctx" id="guide-ctx">no project</span>
+        <button class="guide-hbtn" id="guide-clear" type="button" title="Clear the conversation" aria-label="Clear the conversation">⟲</button>
+        <button class="guide-hbtn" id="guide-close" type="button" title="Close the guide" aria-label="Close the guide">✕</button>
+      </div>
+      <div class="guide-msgs" id="guide-msgs" role="log" aria-live="polite"></div>
+      <div class="guide-compose">
+        <textarea id="guide-input" rows="2" class="input" aria-label="Ask the guide" placeholder="Ask about any page, setting or step… (Shift+Enter for a new line)"></textarea>
+        <div class="guide-compose-row">
+          <span class="guide-hint">Uses the helper model. It guides; you press the buttons.</span>
+          <button class="btn sm" id="guide-stop" type="button" disabled title="Stop">⏹ Stop</button>
+          <button class="btn sm primary" id="guide-send" type="button">Send</button>
+        </div>
+      </div>
+    </aside>
+
+    {# ── Main content ────────────────────────────────────────────────── #}
+    <div class="main">
+      <main class="content" id="content">
+        {# Page-level actions (Import / New project, project Settings / Delete, …).
+           Inside #content so SPA swaps carry them. The session-bar redesign
+           (b960ca3) stopped rendering this block, which hid Import project. #}
+        {% set _page_actions %}{% block topbar_right %}{% endblock %}{% endset %}
+        {% if _page_actions|trim %}<div class="page-actions" id="page-actions">{{ _page_actions }}</div>{% endif %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js?v=24"></script>
+  <script src="/static/js/sprites.js?v=19"></script>
+  <script src="/static/js/nav_overflow.js?v=2"></script>
+  <script src="/static/js/spa.js?v=19"></script>
+  <script src="/static/js/palette.js?v=15"></script>
+  <script src="/static/js/tutorial.js?v=16"></script>
+  <script src="/static/js/activity.js?v=16"></script>
+  <script src="/static/js/service.js?v=3"></script>
+  <script src="/static/js/guide.js?v=1"></script>
+  <script>
+    window.ftsCopyText = async function (text) {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const input = document.createElement('textarea');
+          input.value = text;
+          input.setAttribute('readonly', '');
+          input.style.position = 'fixed';
+          input.style.opacity = '0';
+          document.body.appendChild(input);
+          input.select();
+          if (!document.execCommand('copy')) throw new Error('copy failed');
+          input.remove();
+        }
+        window.fts?.notify('Path copied', 'success');
+      } catch (error) {
+        window.fts?.notify('Clipboard unavailable', 'warn');
+      }
+    };
+
+    // Global "loaded model" indicator — polls /api/providers every 3s on
+    // any page (data-prep, brain, inference, training, testing) so the user
+    // can see at a glance whether a model is loaded from anywhere. The
+    // label is the model file's basename for local_gguf providers,
+    // otherwise the provider's name. Clicking the pill opens the
+    // inference/chat tab (project chat when a project is active).
+    (function () {
+      const dot  = document.getElementById('model-status-dot');
+      const lbl  = document.getElementById('model-status-label');
+      const pill = document.getElementById('model-status-pill');
+      if (!dot || !lbl || !pill) return;
+      let lastState = null;
+      function deriveLabel(p) {
+        if (!p) return 'no model';
+        if (p.kind === 'local_gguf' && p.model_id) {
+          const base = String(p.model_id).split(/[\\/]/).pop() || p.model_id;
+          const stripped = base.replace(/\.gguf$/i, '');
+          if (stripped) return stripped;
+        }
+        return p.name || p.id || '(unnamed)';
+      }
+      function render(d) {
+        const active = d && d.active;
+        const fingerprint = active ? active.id + ':' + (active.model_id || '') + ':' + (active.loaded ? '1' : '0') : 'none';
+        if (fingerprint === lastState) return;
+        lastState = fingerprint;
+        const unloadBtn = document.getElementById('model-unload-btn');
+        if (active && active.loaded) {
+          dot.className = 'status-dot idle';
+          lbl.textContent = '● ' + deriveLabel(active);
+          pill.title = 'Loaded: ' + deriveLabel(active) + '\n' + JSON.stringify(active, null, 2);
+          if (unloadBtn) unloadBtn.style.display = '';
+        } else {
+          dot.className = 'status-dot';
+          lbl.textContent = '○ no model';
+          pill.title = 'No model loaded. Click to open Inference.';
+          if (unloadBtn) unloadBtn.style.display = 'none';
+        }
+      }
+      async function tick() {
+        try {
+          const [d, ie] = await Promise.all([
+            fetch('/api/providers').then(r => r.json()).catch(() => null),
+            fetch('/api/inference/status').then(r => r.json()).catch(() => null),
+          ]);
+          if (d && !(d.active && d.active.loaded) && ie && ie.loaded && ie.model) {
+            // Model is online via the global inference engine (loaded on the
+            // Inference tab) but no provider is marked active — still show it.
+            d.active = { id: '_global_inference', kind: 'local_gguf', model_id: ie.model, name: ie.model, loaded: true };
+          }
+          render(d);
+        } catch (e) { /* ignore */ }
+      }
+      pill.addEventListener('click', () => {
+        // Click the real nav link so the SPA (data-link) handles navigation.
+        const infLink = document.querySelector('#sb-tabs a[data-tab="inference"]');
+        if (infLink) infLink.click(); else window.location.href = '/inference';
+      });
+      const unloadBtn = document.getElementById('model-unload-btn');
+      if (unloadBtn) {
+        unloadBtn.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          if (unloadBtn.dataset.busy === '1') return;
+          unloadBtn.dataset.busy = '1';
+          unloadBtn.textContent = '…';
+          try {
+            const r = await fetch('/api/models/unload', { method: 'POST' });
+            const d = await r.json().catch(() => ({}));
+            if (r.ok && !d.error) {
+              lbl.textContent = '○ no model';
+              dot.className = 'status-dot';
+              unloadBtn.style.display = 'none';
+              lastState = null; // force re-render on next tick
+            } else {
+              if (window.fts) window.fts.notify('Unload failed: ' + (d.error || ('HTTP ' + r.status)), 'error');
+            }
+          } catch (e) {
+            if (window.fts) window.fts.notify('Unload failed: ' + e.message, 'error');
+          } finally {
+            unloadBtn.dataset.busy = '';
+            unloadBtn.textContent = '⏏';
+          }
+        });
+      }
+      tick();
+      setInterval(tick, 3000);
+    })();
+  </script>
+  <div id="page-scripts" hidden>{% block scripts %}{% endblock %}</div>
+</body>
+</html>

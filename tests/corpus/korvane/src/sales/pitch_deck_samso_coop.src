@@ -1,0 +1,90 @@
+---
+out: pitch_deck_samso_coop.pptx
+tier: extended
+---
+=== slide
+# Samsø Berry Co-op x Korvane: cold-chain monitoring from the pier to the port
+Prepared for the board of Samsø Berry Co-op
+Presented by Yusuf Demirkıran, Key Account Manager, Korvane Cold Chain
+Deck v3, 14 October 2024 (v2 had 24 slides, nobody liked it)
+Notes:
+Open with the ferry photo, not with the logo. The board chair is Henrik Bundgaard and he does not like being sold to, he likes being shown a number. The board meets on 22 October 2024 at 18:00 in the co-op hall and our slot is 20 minutes, of which 5 are questions. Rafał said I may offer up to the KAM limit of 7.5% if somebody asks about price, but only if somebody asks.
+
+=== slide
+# What we heard you are
+14 member farms on Samsø, picking from the first week of June to mid-September
+1,860 pallets of strawberries and raspberries shipped in 2023
+Pallets leave from the Ballen and Kolby Kås piers, cross to Jutland by ferry and continue by reefer truck to the Hamburg-Waltershof depot (HAM-2)
+Notes:
+The 1,860 figure is from the treasurer, Maja Ladefoged, who sent the 2023 shipping log on 2 October. Ask her to confirm it is pallets and not boxes, because last year somebody else said 1,860 and meant boxes. Do not confuse the co-op with the Samsø Energy Academy, who are lovely but not our customer.
+
+=== slide
+# The problem in your own numbers
+76 pallets rejected at the wholesaler for temperature in 2023, which is 4.1% of everything shipped
+Value of the rejected pallets: about EUR 52,400
+Average time from picking to cooling at the pier: 3 h 15 min
+6 of the 14 farms have no mains power at their pier, so a normal gateway cannot be used there
+Notes:
+Value per pallet works out at about EUR 690, a number Maja gave us, not one of ours. The 3 h 15 min is from a stopwatch exercise two of the farmers did on 17 July. Do not say 'cold chain failure', say 'warm pallets', the farmers hate the first phrase because it sounds like an audit.
+
+=== slide
+# What we propose
+Tidewalk Harbour plan for monitoring and alerts
+120 KC-Tag 4 tags in reefer trailers and ferry containers
+4 KC-Hub 200 gateways at Ballen, Kolby Kås, Tranebjerg and Nordby
+Off-grid piers run on the battery hubs; the two farms with mains power use the standard wall installation
+Notes:
+Be careful here. The off-grid hub variant is not a standard line item, Tomasz's team confirmed on 8 October that it can be done with a battery pack and a solar panel but has not given a price. So we price standard KC-Hub 200 units and say the off-grid kit is a quote on request. If the chair asks for a date for that quote, say 'before Christmas' and write it down.
+
+=== slide
+# What it costs (EUR, excluding VAT, 36-month term)
+| Item | Quantity | Unit price | Total |
+|---|---|---|---|
+| Tidewalk Harbour, per month | 36 | 349.00 | 12,564.00 |
+| KC-Tag 4 | 120 | 118.00 | 14,160.00 |
+| KC-Hub 200 | 4 | 1,640.00 | 6,560.00 |
+| Installation per site | 4 | 380.00 | 1,520.00 |
+| Total | | | 34,804.00 |
+Notes:
+All at list price, no discount on this slide, which is deliberate. VAT: Danish B2B customers get a reverse charge invoice from our Polish entity, so prices are shown excluding VAT. The 120 tags are below the 200-tag tier so they are at EUR 118.00 and not EUR 104.50; if the chair pushes, mention that the tier starts at 200 and the co-op could share tags with the Jūrmala berry co-op in Latvia (no, I am joking, do not say that). The board has told us in writing that their ceiling is EUR 40,000 and we are EUR 5,196 under it.
+
+=== slide
+# Try it first: the 30-day pilot
+20 KC-Tag 4 tags, free of charge, for 30 days
+Runs on the co-op's frozen-berry loads to Hamburg from 4 November to 3 December 2024
+We read the results together on 5 December 2024
+Notes:
+The pilot is on frozen berries because there is nothing fresh to ship in November. Two hubs only, at Ballen and Kolby Kås. Rafał signed off the pilot terms on 9 October: pilots are limited to 30 days and 20 tags, and anything longer needs his approval. If the board asks whether the pilot tags can be kept afterwards, the answer is they can be bought at EUR 118.00 each with the pilot period credited as nothing, sorry.
+
+=== slide
+# Timeline to the 2025 season
+Contract signature by 15 November 2024
+Hubs installed at all four piers by 30 April 2025
+Training for the 14 farm contacts on 12 March 2025
+First live season starts in the first week of June 2025
+Notes:
+The 14 contacts are one person per farm, collected by Henrik. Training is remote, 3 hours, on Teams, with Marcin from onboarding. Installation is scheduled by operations, never by sales, so do not promise a date for any particular pier. Jarek's team needs 6 weeks' notice for Danish ferry bookings.
+
+=== slide
+# What this could be worth
+If rejected pallets were halved, savings of about EUR 26,200 a year
+Break-even on the full 36-month package: about 16 months
+Alerts reach your phone, not the wholesaler's phone
+Notes:
+Careful with the halving. We have the Fruttoria numbers (alerts down from 6.8 to 1.9 per 1,000 container-days, so roughly 72% fewer) but those are unaudited and for a different segment, and the playbook says we may not extrapolate from one customer to another. So say 'if' and show the arithmetic, 76 pallets halved is 38 pallets, 38 times EUR 690 is EUR 26,220, which we round to 26,200. Do not promise it.
+
+=== slide
+# Who else is on this
+Fruttoria Baltica, citrus importer, 410 tags in service, Tidewalk Fairway
+Reference call available through Yusuf, with 5 working days' notice
+Notes:
+Fruttoria is the only customer we may name. Do not name Helvetia or Nordkjøl, even if the chair says he already knows them (he does, from the Nordic Reefer Summit last year). The Fruttoria reference slot this quarter is shared with Mecklenburger Beeren, so offer a call in the week of 18 November rather than October.
+
+=== slide
+# Next steps
+Board decision on 22 October 2024
+Signature by 15 November 2024
+Pilot starts 4 November 2024
+Contact: Yusuf Demirkıran, +48 58 555 0112, yusuf.demirkiran@korvane.example
+Notes:
+If they say yes on the 22nd I need Sofia to look at the order form before the 15th, and she wants 3 working days. If they say not yet, ask for the next board date, which Henrik thinks is 12 December. Thank Maja for the shipping log, personally, in writing. Leave the 24-slide deck at home.

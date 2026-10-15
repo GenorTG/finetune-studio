@@ -1,0 +1,448 @@
+"""ModelManager — one inference model loaded at a time.
+
+Embeddings have their own resident model (sentence-transformers) that is
+NEVER unloaded. The inference model is swapped atomically: a request to
+load a new local model first unloads the current one.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import sqlite3
+import threading
+import time
+from contextlib import closing
+from pathlib import Path
+
+from finetune_studio.models.gguf_layers import resolve_block_count
+from finetune_studio.models.providers import (
+    ModelProvider,
+    ProviderConfig,
+    build_provider,
+)
+
+log = logging.getLogger(__name__)
+
+_DB_PATH = Path(os.environ.get("FTS_DB", str(Path.home() / ".finetune-studio" / "fts.db")))
+
+
+def _ensure_db() -> None:
+    _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(_DB_PATH) as c:
+        c.executescript("""
+        CREATE TABLE IF NOT EXISTS model_providers (
+            id          TEXT PRIMARY KEY,
+            name        TEXT NOT NULL,
+            kind        TEXT NOT NULL,
+            model_id    TEXT NOT NULL DEFAULT '',
+            base_url    TEXT NOT NULL DEFAULT '',
+            api_key     TEXT NOT NULL DEFAULT '',
+            extra_json  TEXT NOT NULL DEFAULT '{}',
+            created_at  REAL NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS app_state (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        """)
+        # Default local helper (Gemma 4 12B Uncensored GGUF) if no providers
+        # configured yet, plus the alternate (Qwen3-30B-A3B) as a second local
+        # helper so the user can swap via the Inference picker.
+        from finetune_studio.models.helper import (
+            ALTERNATE_HELPER_EXTRA,
+            ALTERNATE_HELPER_LABEL,
+            ALTERNATE_HELPER_PROVIDER_ID,
+            DEFAULT_HELPER_EXTRA,
+            DEFAULT_HELPER_LABEL,
+            DEFAULT_HELPER_PROVIDER_ID,
+            alternate_helper_gguf_path,
+            default_helper_gguf_path,
+        )
+
+        cur = c.execute("SELECT COUNT(*) FROM model_providers").fetchone()
+        if cur[0] == 0:
+            now = time.time()
+            c.execute(
+                "INSERT INTO model_providers (id, name, kind, model_id, base_url, api_key, extra_json, created_at) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (
+                    DEFAULT_HELPER_PROVIDER_ID,
+                    DEFAULT_HELPER_LABEL,
+                    "local_gguf",
+                    default_helper_gguf_path(),
+                    "",
+                    "",
+                    json_dumps(dict(DEFAULT_HELPER_EXTRA)),
+                    now,
+                ),
+            )
+            c.execute(
+                "INSERT INTO model_providers (id, name, kind, model_id, base_url, api_key, extra_json, created_at) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (
+                    ALTERNATE_HELPER_PROVIDER_ID,
+                    ALTERNATE_HELPER_LABEL,
+                    "local_gguf",
+                    alternate_helper_gguf_path(),
+                    "",
+                    "",
+                    json_dumps(dict(ALTERNATE_HELPER_EXTRA)),
+                    now,
+                ),
+            )
+        else:
+            # Rename legacy "Local GGUF" label to the explicit helper name.
+            c.execute(
+                "UPDATE model_providers SET name = ? "
+                "WHERE id = ? AND (name = '' OR name = 'Local GGUF' OR name = 'local')",
+                (DEFAULT_HELPER_LABEL, DEFAULT_HELPER_PROVIDER_ID),
+            )
+            # 2026-09-18 fleet rule (Genor): helper seat must be <27B. Migrate the
+            # legacy 27B label/path to the current helper defaults.
+            c.execute(
+                "UPDATE model_providers SET name = ? "
+                "WHERE id = ? AND name = ?",
+                (DEFAULT_HELPER_LABEL, DEFAULT_HELPER_PROVIDER_ID,
+                 "Helper · Qwen3.8-27B GGUF"),
+            )
+            c.execute(
+                "UPDATE model_providers SET model_id = ? "
+                "WHERE id = ? AND model_id LIKE ?",
+                (default_helper_gguf_path(), DEFAULT_HELPER_PROVIDER_ID,
+                 "%Qwen3.8-27B-abliterated-Q4_K_M.gguf"),
+            )
+            # 2026-09-28 fleet update: seed the alternate (Qwen3-30B-A3B)
+            # helper row when the user upgrades past Gemma-only helpers.
+            cur_alt = c.execute(
+                "SELECT COUNT(*) FROM model_providers WHERE id = ?",
+                (ALTERNATE_HELPER_PROVIDER_ID,),
+            ).fetchone()
+            if cur_alt[0] == 0:
+                c.execute(
+                    "INSERT INTO model_providers (id, name, kind, model_id, base_url, api_key, extra_json, created_at) "
+                    "VALUES (?,?,?,?,?,?,?,?)",
+                    (
+                        ALTERNATE_HELPER_PROVIDER_ID,
+                        ALTERNATE_HELPER_LABEL,
+                        "local_gguf",
+                        alternate_helper_gguf_path(),
+                        "",
+                        "",
+                        json_dumps(dict(ALTERNATE_HELPER_EXTRA)),
+                        time.time(),
+                    ),
+                )
+            # 2026-09-28 fleet update: previous default was an 8B Q5_K_M
+            # (Qwen3-8B) that the user is now replacing with Gemma 4 12B. Any
+            # lingering row whose model_id points at the old 8B filename is
+            # migrated to the new default label + path.
+            c.execute(
+                "UPDATE model_providers SET name = ?, model_id = ? "
+                "WHERE id = ? AND model_id LIKE ?",
+                (
+                    DEFAULT_HELPER_LABEL,
+                    default_helper_gguf_path(),
+                    DEFAULT_HELPER_PROVIDER_ID,
+                    "%Qwen3-8B-Q5_K_M.gguf",
+                ),
+            )
+            c.execute(
+                "UPDATE model_providers SET name = ? "
+                "WHERE id = ? AND name = ?",
+                (
+                    DEFAULT_HELPER_LABEL,
+                    DEFAULT_HELPER_PROVIDER_ID,
+                    "Helper · Qwen3-8B GGUF",
+                ),
+            )
+
+
+_LOG = logging.getLogger(__name__)
+
+
+# Loader parameters exposed through ModelManager.load(pid, extra=...).
+# Kept module-level so callers (load() merge loop, tests) can iterate.
+_LOADER_KEYS = (
+    "n_ctx", "n_gpu_layers", "n_batch", "n_threads",
+    "seed", "rope_freq_base", "rope_freq_scale",
+    "flash_attn", "mmap", "mlock", "keep_in_memory",
+    # KV-cache quantization (GGML type enums; 8 = q8_0). Required so the
+    # helper can run 32k contexts without the f16 KV cache eating ~9.4GB.
+    "type_k", "type_v",
+)
+
+
+def json_dumps(d: dict) -> str:
+    import json
+    return json.dumps(d, ensure_ascii=False)
+
+
+def json_loads(s: str) -> dict:
+    import json
+    try:
+        return json.loads(s) if s else {}
+    except (TypeError, json.JSONDecodeError):
+        return {}
+
+
+class ModelManager:
+    """Holds the single active inference provider.
+
+    State transitions:
+      idle --load(cfg)--> loading (unloads prior local) --> loaded
+      loaded --unload()--> idle
+    """
+
+    def __init__(self):
+        self._lock = threading.RLock()
+        # Dedicated lock for *model invocation* — llama_cpp.Llama is not thread-safe,
+        # so concurrent chat/generate calls must be serialized. Remote providers are
+        # safe either way, so we always go through this lock; cost is negligible.
+        self._invoke_lock = threading.Lock()
+        self._provider: ModelProvider | None = None
+        self._active_id: str = ""
+        self._engine_instance = None
+        _ensure_db()
+
+    @property
+    def engine(self):
+        """The ONE InferenceEngine every local model load goes through.
+
+        webui/app.py's global ``inference_engine`` points at this exact
+        object, so a model loaded via a named provider (data-prep's helper)
+        and a model loaded via a raw path (testing/chat/benchmarks) can
+        never both be resident — there is structurally only one holder of
+        local model state in this process, not two coordinated ones.
+
+        getattr-guarded rather than assuming __init__ ran: a test subclass
+        that skips ModelManager.__init__ (to avoid touching the real DB)
+        must still get a working engine on first access.
+        """
+        eng = getattr(self, "_engine_instance", None)
+        if eng is None:
+            # Supervisor P2: the model lives in the inference worker process; this is its proxy
+            # (same interface as InferenceEngine). A worker crash can no longer take the server down.
+            from finetune_studio.inference import get_engine
+            eng = get_engine()
+            self._engine_instance = eng
+        return eng
+
+    # ── provider CRUD (DB) ─────────────────────────────────────
+
+    def list_providers(self) -> list[dict]:
+        from finetune_studio.models.helper import annotate_provider
+
+        with sqlite3.connect(_DB_PATH) as c:
+            rows = c.execute("SELECT id, name, kind, model_id, base_url, api_key, extra_json, created_at FROM model_providers ORDER BY created_at").fetchall()
+        out = []
+        for r in rows:
+            d = {
+                "id": r[0], "name": r[1], "kind": r[2],
+                "model_id": r[3], "base_url": r[4],
+                "api_key_set": bool(r[5]),  # the key itself never leaves the server (see ``_api_key_for``)
+                "extra": json_loads(r[6]),
+                "created_at": r[7],
+            }
+            out.append(annotate_provider(d))
+        return out
+
+    @staticmethod
+    def _state_db() -> sqlite3.Connection:
+        _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        c = sqlite3.connect(_DB_PATH)
+        c.execute("CREATE TABLE IF NOT EXISTS app_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        return c
+
+    @staticmethod
+    def get_state(key: str, default: str = "") -> str:
+        with closing(ModelManager._state_db()) as c:
+            row = c.execute("SELECT value FROM app_state WHERE key = ?", (key,)).fetchone()
+        return str(row[0]) if row else default
+
+    @staticmethod
+    def set_state(key: str, value: str) -> None:
+        with closing(ModelManager._state_db()) as c, c:
+            c.execute(
+                "INSERT INTO app_state (key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value),
+            )
+
+    @staticmethod
+    def _api_key_for(pid: str) -> str:
+        """Stored key of a remote provider (server-side use only; never serialise)."""
+        with sqlite3.connect(_DB_PATH) as c:
+            row = c.execute("SELECT api_key FROM model_providers WHERE id = ?", (pid,)).fetchone()
+        return str(row[0]) if row and row[0] else ""
+
+    def get_provider(self, pid: str) -> dict | None:
+        for p in self.list_providers():
+            if p["id"] == pid:
+                return p
+        return None
+
+    def upsert_provider(self, **kw) -> dict:
+        allowed = {"id", "name", "kind", "model_id", "base_url", "api_key", "extra"}
+        fields = {k: v for k, v in kw.items() if k in allowed}
+        if "id" not in fields or not fields["id"]:
+            raise ValueError("Provider id required")
+        # The public API calls this field ``extra``; SQLite stores its JSON
+        # representation in ``extra_json``. Keep the names separate so edits
+        # from the WebUI actually persist instead of raising SQL errors.
+        if "extra" in fields:
+            fields["extra_json"] = json_dumps(fields.pop("extra"))
+        with sqlite3.connect(_DB_PATH) as c:
+            existing = c.execute("SELECT id FROM model_providers WHERE id = ?", (fields["id"],)).fetchone()
+            if existing:
+                sets = ", ".join(f"{k} = ?" for k in fields if k != "id")
+                vals = [fields[k] for k in fields if k != "id"] + [fields["id"]]
+                c.execute(f"UPDATE model_providers SET {sets} WHERE id = ?", vals)
+            else:
+                now = time.time()
+                cols = ["id", "name", "kind", "model_id", "base_url", "api_key", "extra_json", "created_at"]
+                vals = [fields.get("id"), fields.get("name", ""), fields.get("kind", "openai_compat"),
+                        fields.get("model_id", ""), fields.get("base_url", ""), fields.get("api_key", ""),
+                        fields.get("extra_json") or json_dumps({}), now]
+                c.execute(f"INSERT INTO model_providers ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})", vals)
+        return self.get_provider(fields["id"])
+
+    def delete_provider(self, pid: str) -> bool:
+        with sqlite3.connect(_DB_PATH) as c:
+            cur = c.execute("DELETE FROM model_providers WHERE id = ?", (pid,))
+            return cur.rowcount > 0
+
+    # ── active model management ──────────────────────────────────
+
+    def active(self) -> dict | None:
+        # Deliberately lock-free: load() holds ``self._lock`` for the whole model load (~1 min for a 12B) and this
+        # is called from async route handlers, so waiting on it froze the entire event loop — every page and
+        # status poll stalled for the length of a load (found in the live walkthrough: 56 s). Reading one
+        # reference is atomic; describe() only reads attributes.
+        provider = self._provider
+        if provider is None:
+            return None
+        d = provider.describe()
+        d["idle_seconds"] = int(time.time() - provider._loaded_at) if provider._loaded_at else 0
+        return d
+
+    def load(self, pid: str, extra: dict | None = None) -> dict:
+        cfg_row = self.get_provider(pid)
+        if not cfg_row:
+            raise ValueError(f"Unknown provider: {pid}")
+        # Merge any runtime-provided loader params on top of the persisted
+        # extra JSON. None / unknown keys are dropped so the provider's own
+        # defaults kick in.
+        merged_extra = dict(cfg_row.get("extra") or {})
+        explicit_keys = {k for k in _LOADER_KEYS if extra and k in extra and extra[k] is not None}
+        if extra:
+            for k in explicit_keys:
+                merged_extra[k] = extra[k]
+        # An explicit override (the user actually chose a value, not an
+        # auto-trigger loading with an empty/default body) is written back
+        # to the provider's persisted extra. Without this, a value set on
+        # one page (e.g. Inference) only applied to that single in-memory
+        # load — the very next auto-load from a DIFFERENT page (data-prep's
+        # "Generate pairs", RAG's "Ask the model", testing's "Load model",
+        # benchmarks' judge-model load, ...) would reload from the stale
+        # persisted default and silently discard it. One override now
+        # becomes the shared default everywhere the provider loads next,
+        # instead of nine independent copies of "what context should this
+        # use" drifting out of sync with each other.
+        if explicit_keys:
+            persisted = dict(cfg_row.get("extra") or {})
+            persisted.update({k: merged_extra[k] for k in explicit_keys})
+            try:
+                self.upsert_provider(id=pid, extra=persisted)
+            except Exception:
+                log.exception("load %s: failed to persist explicit loader override %s", pid, explicit_keys)
+        # Resolve real model topology from the GGUF header. Legacymagic
+        # n_gpu_layers=99 meant "all layers" — translate it to llama.cpp's
+        # true idiom (-1) and expose the actual block count so the UI can
+        # show "36/36 layers" instead of a fake 99.
+        if merged_extra.get("n_gpu_layers") in (99, "99"):
+            merged_extra["n_gpu_layers"] = -1
+        self._topology = resolve_block_count(cfg_row["model_id"])
+        if self._topology.get("block_count") is not None:
+            merged_extra.setdefault("topology_block_count", self._topology["block_count"])
+        elif merged_extra.get("n_gpu_layers") == -1:
+            log.warning("load %s: n_gpu_layers=-1 but model is not GGUF; "
+                        "n_gpu_layers will apply as-is via llama.cpp", pid)
+        with self._lock:
+            if (self._provider is not None
+                    and self._active_id == pid
+                    and self._provider.is_loaded()):
+                # Fast path: same provider, already loaded with the same
+                # merged_extra — no-op. Without this guard, calling load()
+                # a second time was building a fresh LocalGGUFProvider,
+                # calling .load() on it, and triggering 'Failed to load
+                # model from file' because a second Llama() can't be
+                # instantiated while the first still holds the mmap/VRAM.
+                if getattr(self._provider, "_used_extra", None) == merged_extra:
+                    return self.active()
+                # Loader params actually changed — unload + reload so the
+                # new n_ctx / n_gpu_layers / etc. take effect.
+                self._safe_unload()
+        cfg = ProviderConfig(
+            id=cfg_row["id"], name=cfg_row["name"], kind=cfg_row["kind"],
+            model_id=cfg_row["model_id"], base_url=cfg_row["base_url"],
+            api_key=self._api_key_for(pid) if cfg_row["kind"] == "openai_compat" else "",
+            extra=merged_extra,
+        )
+        new_provider = build_provider(cfg, engine=self.engine if cfg.kind == "local_gguf" else None)
+        new_provider._used_extra = dict(merged_extra)  # snapshot for fast-path
+        with self._lock:
+            # Unload previous local model (mutual exclusion)
+            if self._provider is not None and isinstance(self._provider, type(new_provider)) is False:
+                # Different kind — unload unconditionally
+                self._safe_unload()
+            elif self._provider is not None and self._active_id != pid:
+                self._safe_unload()
+            new_provider.load()
+            self._provider = new_provider
+            self._active_id = pid
+        return self.active()
+
+    def unload(self) -> None:
+        with self._lock:
+            self._safe_unload()
+            self._active_id = ""
+
+    def _safe_unload(self) -> None:
+        if self._provider is None:
+            return
+        try:
+            self._provider.unload()
+        except Exception:
+            log.exception("unload failed")
+        self._provider = None
+
+    def chat(self, messages: list[dict], **gen) -> str:
+        with self._lock:
+            p = self._provider
+        if p is None:
+            raise RuntimeError("No model loaded")
+        if getattr(p, "concurrent", False):  # an API provider serves parallel requests; a local GGUF is one GPU
+            return p.chat(messages, **gen)
+        with self._invoke_lock:
+            return p.chat(messages, **gen)
+
+    def generate(self, prompt: str, **gen) -> str:
+        with self._lock:
+            p = self._provider
+        if p is None:
+            raise RuntimeError("No model loaded")
+        with self._invoke_lock:
+            return p.generate(prompt, **gen)
+
+
+# Singleton (process-wide)
+_manager: ModelManager | None = None
+_manager_lock = threading.Lock()
+
+
+def get_manager() -> ModelManager:
+    global _manager
+    with _manager_lock:
+        if _manager is None:
+            _manager = ModelManager()
+        return _manager

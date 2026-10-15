@@ -1,0 +1,95 @@
+---
+out: nda_mutual_thermaglide_2022.docx
+tier: extended
+---
+# MUTUAL NON-DISCLOSURE AGREEMENT
+
+Thermaglide Reefer Units B.V. — Korvane Cold Chain Sp. z o.o. — Project name on both sides' files: "HADDOCK"
+
+Template: Vandersloot Heemstra Advocaten, Rotterdam, form NDA-M/2021 rev. 3. Korvane Legal file no. KCC/NDA/2022/004.
+
+This Mutual Non-Disclosure Agreement (the "Agreement") is made on 9 February 2022 (the "Effective Date") between:
+
+Thermaglide Reefer Units B.V., Havenkade 47, 3116 BC Schiedam, the Netherlands, Chamber of Commerce no. 24318870 ("Thermaglide"); and
+
+Korvane Cold Chain Sp. z o.o., ul. Łużycka 14, 81-537 Gdynia, Poland, KRS 0000488213 ("Korvane"),
+
+each a "Party" and together the "Parties".
+
+## 1. Purpose
+
+1.1 The Parties wish to evaluate and, if they so decide, negotiate the supply by Thermaglide to Korvane of reefer refrigeration units and related spare parts and services, in particular for the Rotterdam-Maasvlakte depot which Korvane is opening in March 2022 and for the later re-equipment of Korvane's wider container fleet (the "Purpose"). To do so each Party expects to disclose to the other information that it regards as confidential.
+
+## 2. Confidential Information
+
+2.1 "Confidential Information" means all information, in any form, disclosed by or on behalf of a Party (the "Discloser") to the other Party (the "Recipient") during the Disclosure Period in connection with the Purpose, which is marked as confidential or which a reasonable person would understand to be confidential from its nature or the circumstances of its disclosure. It includes, without limitation: for Thermaglide, the unit drawings, controller firmware, compressor curves, cost build-ups and the price lists for TG-440 and TG-440X units; and for Korvane, fleet size and utilisation data, customer names, route and dwell-time statistics, the interface specification of the KC-Hub 200 gateway and the Tidewalk API, and Korvane's price expectations.
+
+2.2 Information disclosed orally or visually is Confidential Information if the Discloser identifies it as confidential at the time or confirms that in writing within 10 days after the disclosure. The existence and subject matter of the discussions between the Parties, and the project name "HADDOCK", are themselves Confidential Information of both Parties.
+
+2.3 The "Disclosure Period" is the period of 24 months starting on the Effective Date, that is, until 8 February 2024, unless ended earlier under clause 9.
+
+## 3. Obligations of the Recipient
+
+3.1 The Recipient shall (a) keep the Discloser's Confidential Information confidential with at least the care it applies to its own information of a similar nature, and in any event with not less than reasonable care; (b) use it only for the Purpose; (c) not disclose it to any third party except as permitted by this Agreement; and (d) not copy it except as reasonably necessary for the Purpose, marking any copy with the Discloser's confidentiality legend.
+
+3.2 The Recipient may disclose Confidential Information to its Authorised Representatives who need to know it for the Purpose and who are bound by confidentiality obligations no less protective than those in this Agreement. "Authorised Representatives" means the directors, employees, professional advisers, auditors and insurers of the Recipient and its group companies, and, in the case of Korvane, its freight insurer, Seaboard Insurance Brokers, and, in the case of Thermaglide, its component sub-suppliers named in writing by Thermaglide and approved by Korvane. Each Party shall keep a list of the individuals who have received the other's drawings or firmware and shall provide it within 10 days of request.
+
+3.3 The Recipient shall be responsible for any breach of this Agreement by its Authorised Representatives as if it had committed the breach itself.
+
+3.4 The Recipient shall not reverse engineer, disassemble or decompile any hardware, firmware or software received from the Discloser, and shall not analyse samples handed over for testing, except for the evaluation tests agreed in writing. This clause does not prevent Korvane from running the acceptance tests it may later agree with Thermaglide.
+
+## 4. Exceptions
+
+4.1 The obligations in clause 3 do not apply to information which the Recipient can show (a) is or becomes publicly available other than through a breach of this Agreement; (b) was lawfully known to the Recipient, without a confidentiality obligation, before disclosure; (c) was independently developed by the Recipient without use of the Confidential Information; or (d) was lawfully received from a third party free of any duty of confidentiality.
+
+4.2 The Recipient may disclose Confidential Information to the extent that disclosure is required by law, by a court or by a regulator, provided that, where lawful, it gives the Discloser at least 5 Business Days' prior notice (or as much notice as is possible) and discloses only the minimum necessary. A "Business Day" is a day other than a Saturday, Sunday or public holiday in the Netherlands or in Poland.
+
+## 5. Return and destruction
+
+5.1 Within 14 days after the Discloser's written request, or after the end of the Disclosure Period if earlier, the Recipient shall return or destroy all Confidential Information of the Discloser in its possession, and confirm in writing that it has done so. The Recipient may keep one archival copy in the files of its legal department, solely to evidence its obligations, and copies automatically stored in IT backup systems until the backup is overwritten in the ordinary cycle, provided that such copies are not accessed.
+
+## 6. No licence, no warranty
+
+6.1 All Confidential Information remains the property of the Discloser. Nothing in this Agreement grants any licence under any patent, copyright, trade secret or other right, or obliges either Party to enter into any further agreement. Each Party is free to end the discussions at any time without liability.
+
+6.2 Confidential Information is provided "as is" without warranty of accuracy or completeness, except that each Party warrants that it is entitled to disclose it.
+
+## 7. Term of the confidentiality obligations
+
+7.1 The obligations in clause 3 apply from the Effective Date and continue for 5 years after the end of the Disclosure Period, that is until 8 February 2029. Obligations relating to Confidential Information that constitutes a trade secret, including Thermaglide's controller firmware and Korvane's customer list, continue for as long as the information remains a trade secret.
+
+## 8. Contractual penalty and remedies
+
+8.1 If a Party breaches clause 3 or clause 5, it shall pay the other Party a contractual penalty of EUR 50,000 for each separate breach, without the need to prove loss. The penalty does not prevent the other Party from claiming additional damages, to the extent that they exceed the penalty, nor from seeking an injunction. A series of closely connected acts of disclosure of the same information to the same third party is a single breach.
+
+8.2 The Parties acknowledge that damages alone may not be an adequate remedy for breach of this Agreement and that each Party is entitled to seek interim relief.
+
+## 9. Term, termination, and non-solicitation
+
+9.1 Either Party may end the Disclosure Period earlier by 30 days' written notice to the other. The obligations in clauses 3, 5, 7 and 8 survive.
+
+9.2 During the Disclosure Period and for 12 months after it, neither Party shall solicit for employment any employee of the other Party who was directly involved in the Purpose, except through a general advertisement not directed at such persons. This clause does not restrict an approach by an employee on his or her own initiative.
+
+## 10. General
+
+10.1 This Agreement is the entire agreement of the Parties about its subject matter and replaces any earlier understanding about confidentiality for the Purpose, including the informal exchange of e-mails of 24 January 2022. It may be changed only in writing signed by both Parties. Neither Party may assign it without the other's consent.
+
+10.2 Notices shall be sent by courier or registered post, with a copy by e-mail, to the other Party's address above, marked for the attention of the managing director in the case of Thermaglide and of the Legal Counsel in the case of Korvane.
+
+10.3 This Agreement is governed by Dutch law. Any dispute that the Parties cannot settle by negotiation within 30 days shall be submitted to the exclusive jurisdiction of the District Court of Rotterdam (Rechtbank Rotterdam), save that a Party may seek interim relief from any competent court.
+
+## Schedule 1 — Named contacts for the exchange of Confidential Information
+
+| Party | Name | Role |
+|---|---|---|
+| Korvane | Gunnar Halvorsrud | Fleet and Maintenance Lead, technical contact |
+| Korvane | Tomasz Wrzesiński | Chief Technology Officer, interface specification contact |
+| Korvane | Sofia Brandão | Legal Counsel, notices |
+| Thermaglide | Joris Kuipers-Bax | Account manager, commercial contact |
+| Thermaglide | Femke Oosterhuis | Head of service, technical contact |
+
+Each Party may add up to 12 named Authorised Representatives to this list on written notice; no person not on the list may receive firmware or drawings.
+
+Signed on 9 February 2022 by Dieter Ahlbeck-Roe (Chief Operating Officer) for Korvane Cold Chain Sp. z o.o. and by Bart Wiegersma (Managing Director) for Thermaglide Reefer Units B.V.
+
+*Margin note, S. Brandão, 11 February 2022: the Dutch template had a penalty of EUR 100,000 per breach; I got it down to EUR 50,000 by pointing out that Korvane's side is exposed through the Tidewalk API specification, which is a longer document and passes through more hands than their drawings do. Do not let the 2024 renewal discussions raise it again without asking me.*

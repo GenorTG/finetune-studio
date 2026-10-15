@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tidewalk Public API v2 — Reference | Korvane Developer Portal</title>
+<meta name="generator" content="Korvane CMS 4.11.2">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/static/portal-2024-07.css">
+<script>window.dataLayer=window.dataLayer||[];</script>
+</head>
+<body class="page-docs sidebar-open">
+<div id="cookie-bar" class="cookie">We use cookies to improve your experience on this site. <a href="/privacy">Learn more</a> <button>Accept all</button> <button>Only necessary</button></div>
+<header class="site-header">
+<nav>
+<ul class="topnav">
+<li><a href="/">Home</a></li>
+<li><a href="/products">Products</a></li>
+<li class="active"><a href="/developers">Developers</a></li>
+<li><a href="/status">Status</a></li>
+<li><a href="/contact">Contact</a></li>
+<li><a href="/login">Customer login</a></li>
+</ul>
+</nav>
+<div class="lang">EN | PL | DE</div>
+</header>
+<aside class="sidebar">
+<ul>
+<li><a href="#intro">Introduction</a></li>
+<li><a href="#auth">Authentication</a></li>
+<li><a href="#limits">Rate limits</a></li>
+<li><a href="#endpoints">Endpoints</a></li>
+<li><a href="#errors">Errors</a></li>
+<li><a href="#ingest">Hub ingest (restricted)</a></li>
+<li><a href="#sandbox">Sandbox</a></li>
+<li><a href="#deprecations">Deprecations</a></li>
+</ul>
+<p class="sidebar-promo">NEW: Tidewalk v7 beta programme — talk to your account manager!</p>
+</aside>
+<main class="content">
+<h1>Tidewalk Public API — v2 reference</h1>
+<p class="breadcrumb">Developers / Tidewalk / API reference</p>
+<p class="meta">Page owner: Wiktor Szczepaniak · Last edited 30.09.2024 11:42 by bart.o · Applies to Tidewalk 6.5 · Draft status: <em>live</em></p>
+
+<h2 id="intro">1. Introduction</h2>
+<p>The Tidewalk public API lets customers and integration partners read containers, readings and alerts, acknowledge alerts, and manage webhooks, without going through the web console. It is a JSON-over-HTTPS API; every request and every response body is UTF-8 JSON, with the single exception of exports, which can also be CSV. The production base URL is <code>https://api.tidewalk.korvane.example/v2</code>. Anything that does not start with <code>/v2</code> is either a legacy path or a mistake.</p>
+<p>All timestamps are ISO 8601 in UTC with a trailing Z (for example <code>2024-09-18T04:07:31Z</code>), and all temperatures are degrees Celsius with one decimal. Identifiers are opaque strings. Container identifiers look like <code>cnt_</code> followed by 12 characters, alerts like <code>AL-</code> followed by 7 digits, hubs like <code>hub_</code> and the hub's name. Please do not parse them; we have changed the length once already and may do so again.</p>
+<p>Access is by API key, which a Tenant Admin creates in the console (Admin &gt; Integrations &gt; API keys). How many keys a tenant may hold depends on the edition and is stated in the Administrator's Guide. Everything below is subject to the Tidewalk Terms of Service and the Fair Use Annex, which nobody reads but which does exist.</p>
+
+<h2 id="auth">2. Authentication</h2>
+<p>Send the key as a bearer token: <code>Authorization: Bearer twk_live_...</code>. Live keys begin with <code>twk_live_</code> and test (sandbox) keys with <code>twk_test_</code>; the rest of the key is 40 characters of base62. A key is shown once at creation. If it is lost, rotate it. When a key is rotated, the old one stays valid for 48 hours so that deployments can be switched over without a gap.</p>
+<p>Keys carry the role <em>Integrator</em> by default, which can read data and acknowledge alerts through the API only if the key was explicitly given the scope <code>alerts:ack</code>. The available scopes are <code>read</code>, <code>alerts:ack</code>, <code>alerts:comment</code>, <code>webhooks:manage</code>, <code>export</code> and <code>audit:read</code>. The last one is available only to keys created by a Tenant Admin whose tenant also has an Auditor.</p>
+<p>For partners who need short-lived credentials there is an OAuth 2.0 client-credentials endpoint at <code>POST /oauth/token</code>. Access tokens live for 3600 seconds and cannot be refreshed; fetch a new one. A client secret is valid for 12 months. Client-credentials is available on Plus and Pharma only.</p>
+<p>Keys are bound to the tenant that created them. Optionally, a key can be bound to a list of up to 10 source IP addresses or CIDR ranges; requests from elsewhere get a 403 with error code TW-403-02.</p>
+
+<h2 id="limits">3. Rate limits</h2>
+<p>Limits are applied per key, per minute, using a sliding window. The default is 300 requests per minute, with a burst allowance of 50 requests in any one second. Tenants on Plus get 900 requests per minute and tenants on Pharma 1,800. Some endpoints have their own, stricter limits, shown in the endpoint table.</p>
+<p>Every response carries the headers <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code> and <code>X-RateLimit-Reset</code> (the last in seconds until the window frees up). When the limit is exceeded the API answers <code>429 Too Many Requests</code> with a <code>Retry-After</code> header, in seconds. A client that ignores <code>Retry-After</code> and keeps hammering gets a temporary block: 10 consecutive 429 responses lead to a 15-minute block of the key, answered with TW-429-02.</p>
+<p>Polling is a poor way to use the API. If you want alerts, use webhooks. If you must poll, poll no more than once per 30 seconds per container list, because the underlying data does not change faster than that (a tag reports every 30 seconds).</p>
+
+<h2 id="endpoints">4. Endpoints</h2>
+<table border="1" cellpadding="4">
+<thead><tr><th>Method and path</th><th>Scope</th><th>Notes</th><th>Own limit</th></tr></thead>
+<tbody>
+<tr><td>GET /containers</td><td>read</td><td>Cursor-paginated. Default page size 100, maximum 500. Filter: <code>site</code>, <code>group</code>, <code>state</code>.</td><td>—</td></tr>
+<tr><td>GET /containers/{id}</td><td>read</td><td>Includes up to 3 tags and the latest reading per tag.</td><td>—</td></tr>
+<tr><td>GET /containers/{id}/readings</td><td>read</td><td>Parameters <code>from</code> and <code>to</code>; the range may not exceed 31 days. Max 1,000 readings per page.</td><td>120 per minute</td></tr>
+<tr><td>GET /alerts</td><td>read</td><td>Filter: <code>severity</code>, <code>status</code>, <code>since</code>. Default sort newest first.</td><td>—</td></tr>
+<tr><td>POST /alerts/{id}/ack</td><td>alerts:ack</td><td>Body: optional <code>comment</code> up to 2,000 characters. Idempotent.</td><td>60 per minute</td></tr>
+<tr><td>POST /alerts/{id}/comments</td><td>alerts:comment</td><td>Max 2,000 characters.</td><td>60 per minute</td></tr>
+<tr><td>GET /hubs</td><td>read</td><td>Lists hubs with <code>last_hb_age_s</code> and <code>ingest_state</code>.</td><td>—</td></tr>
+<tr><td>GET /hubs/{name}/status</td><td>read</td><td>Same fields for one hub, plus the firmware slot versions.</td><td>—</td></tr>
+<tr><td>POST /webhooks</td><td>webhooks:manage</td><td>Creates a webhook; the secret appears once in the response.</td><td>20 per hour</td></tr>
+<tr><td>POST /webhooks/{id}/test</td><td>webhooks:manage</td><td>Sends a test event with the type <code>test.ping</code>.</td><td>10 per hour</td></tr>
+<tr><td>POST /exports</td><td>export</td><td>Asynchronous. Returns an export id; poll <code>GET /exports/{id}</code>. Max 250,000 rows.</td><td>6 per hour</td></tr>
+<tr><td>GET /audit</td><td>audit:read</td><td>Returns audit entries, newest first, page size max 200.</td><td>30 per minute</td></tr>
+</tbody>
+</table>
+<p>Pagination uses an opaque cursor: pass back <code>next_cursor</code> from the previous response as <code>cursor</code>. A cursor expires 10 minutes after it was issued. Do not store them.</p>
+<p>Writes accept an optional <code>Idempotency-Key</code> header of up to 64 characters. Repeating a request with the same key within 24 hours returns the original response with the header <code>Idempotent-Replay: true</code>, and does not repeat the action. Reusing a key with a different body is an error (TW-409-01).</p>
+<p>Exports produced through the API are kept for 14 days, same as in the console. The download URL returned by <code>GET /exports/{id}</code> is signed and valid for 60 minutes.</p>
+
+<h3>4.1 Webhook events</h3>
+<p>Webhook deliveries have the form <code>{"event": "...", "tenant": "KT-20417", "data": {...}}</code> and are signed as described in the Administrator's Guide (header <code>X-Tidewalk-Signature</code>). The event types are <code>alert.fired</code>, <code>alert.acked</code>, <code>alert.cleared</code>, <code>hub.lost</code>, <code>hub.recovered</code> and <code>test.ping</code>. A delivery has the header <code>X-Tidewalk-Delivery</code> with a unique id, which receivers should use for de-duplication, because the same event may be delivered more than once when a retry is triggered by a slow response (receivers have 8 seconds).</p>
+
+<h2 id="errors">5. Errors</h2>
+<p>Errors are returned with the matching HTTP status and a JSON body: <code>{"error": {"code": "TW-404-01", "message": "...", "request_id": "req_..."}}</code>. The <code>request_id</code> is what the support desk will ask for first, so please keep it.</p>
+<table border="1" cellpadding="4">
+<thead><tr><th>Code</th><th>HTTP</th><th>Meaning</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td>TW-400-01</td><td>400</td><td>Malformed JSON or unknown parameter</td><td>Fix the request</td></tr>
+<tr><td>TW-400-07</td><td>400</td><td>Time range longer than 31 days</td><td>Split the range or use an export</td></tr>
+<tr><td>TW-401-01</td><td>401</td><td>Missing or invalid key</td><td>Check the Authorization header</td></tr>
+<tr><td>TW-401-04</td><td>401</td><td>Key expired or rotated more than 48 hours ago</td><td>Create a new key</td></tr>
+<tr><td>TW-403-01</td><td>403</td><td>Key lacks the required scope</td><td>Add the scope</td></tr>
+<tr><td>TW-403-02</td><td>403</td><td>Request from an IP not on the key's allow-list</td><td>Update the allow-list</td></tr>
+<tr><td>TW-404-01</td><td>404</td><td>Resource not found or not in your tenant</td><td>Check the identifier</td></tr>
+<tr><td>TW-409-01</td><td>409</td><td>Idempotency key reused with a different body</td><td>Use a fresh key</td></tr>
+<tr><td>TW-422-03</td><td>422</td><td>Alert already cleared, cannot be acknowledged</td><td>Nothing, it is fine</td></tr>
+<tr><td>TW-429-01</td><td>429</td><td>Rate limit exceeded</td><td>Wait for Retry-After</td></tr>
+<tr><td>TW-429-02</td><td>429</td><td>Key temporarily blocked after 10 consecutive 429 responses</td><td>Wait 15 minutes</td></tr>
+<tr><td>TW-500-00</td><td>500</td><td>Internal error</td><td>Retry with backoff; quote the request_id</td></tr>
+<tr><td>TW-503-01</td><td>503</td><td>Maintenance window</td><td>Retry after the time in Retry-After</td></tr>
+</tbody>
+</table>
+<p>For 5xx responses use exponential backoff starting at 2 seconds and doubling up to 64 seconds, with some jitter. If you receive more than five TW-500-00 within one minute, please stop and write to api-support@korvane.example rather than retrying forever. We do monitor, but not at three o'clock in the morning for a partner whose retry loop has a bug.</p>
+
+<h2 id="ingest">6. Hub ingest (restricted)</h2>
+<p>This chapter is for completeness. The ingest endpoint, <code>POST /ingest/v1/packets</code>, is used by KC-Hub 200 gateways, authenticates with the gateway token issued at provisioning and is not available to customer keys. Gateway packets are batched with a maximum of 200 tag readings per request. The ingest service rejects a packet whose hub clock differs from the server by more than 90 seconds, answering with the hub error <code>E-4108</code>, and rejects a request with an unknown or mismatched gateway token with <code>E-4031</code>. Those two hub-side error codes are the reason for most "hub offline" tickets that turn out not to be offline hubs; the on-call runbook has the cures.</p>
+
+<h2 id="sandbox">7. Sandbox</h2>
+<p>A sandbox is available at <code>https://sandbox.api.tidewalk.korvane.example/v2</code>. It uses test keys, runs the latest release candidate (at the time of writing 6.6-rc2) and is reset every Sunday at 04:00 UTC, which deletes everything you created. Rate limits in the sandbox are 60 requests per minute for every key. The sandbox contains 40 synthetic containers, and one of them, <code>cnt_SANDBOXEXC01</code>, is always in a CRIT temperature excursion, which is what you want when you test your alert handling and is nothing to worry about.</p>
+
+<h3>7.1 Sample: acknowledge an alert</h3>
+<pre>
+POST /v2/alerts/AL-0418862/ack HTTP/1.1
+Host: api.tidewalk.korvane.example
+Authorization: Bearer twk_live_REDACTED
+Idempotency-Key: 7f0c1c9e-2e2a-4a1d-9f4b-0b6d1f9a7e33
+Content-Type: application/json
+
+{
+  "comment": "Reefer unit restarted by driver at 04:22, re-check at 05:00",
+  "notify_contacts": false
+}
+</pre>
+<p>A successful response is <code>200</code> with the updated alert. The <code>status</code> is then <code>acked</code> and the field <code>ack_expires_at</code> carries the time at which the acknowledgement lapses (4 hours after the acknowledgement, unless the rule says otherwise).</p>
+
+<h2 id="deprecations">8. Deprecations and versions</h2>
+<p>API v1 is deprecated and will be switched off on 31 March 2025. Customers still on v1 receive a <code>Warning: 299</code> header on every response and a monthly e-mail from Yusuf Demirkıran's team, who would prefer to send fewer. v2 has been the current version since 12 March 2023. The minor revisions of v2 are announced in the developer newsletter and are never breaking; we add fields and endpoints, we do not rename or remove. Clients must ignore unknown fields.</p>
+<p>A breaking change, when it comes, will appear as v3 with at least 12 months of overlap. A beta of the v3 design for the Tidewalk v7 programme is being discussed with a small group of partners; it is not public and this page does not describe it.</p>
+
+<h2>9. Contact</h2>
+<p>Integration questions: <a href="mailto:api-support@korvane.example">api-support@korvane.example</a>, answered within 1 working day. Security issues: security@korvane.example. Incidents are posted on the status page.</p>
+</main>
+<footer class="site-footer">
+<div class="cols">
+<div><h4>Korvane Cold Chain</h4><p>ul. Łużycka 14<br>81-537 Gdynia<br>KRS 0000488213</p></div>
+<div><h4>Company</h4><a href="/about">About</a> <a href="/careers">Careers</a> <a href="/press">Press</a></div>
+<div><h4>Legal</h4><a href="/terms">Terms</a> <a href="/privacy">Privacy</a> <a href="/cookies">Cookies</a> <a href="/fair-use">Fair Use Annex</a></div>
+</div>
+<p>© 2024 Korvane Cold Chain Sp. z o.o. All rights reserved. Page rendered 02.10.2024 07:15 · Views: 1,284 · <a href="/print">Print</a> · <a href="/feedback">Was this page useful?</a></p>
+</footer>
+<script src="/static/portal-2024-07.js" defer></script>
+</body>
+</html>

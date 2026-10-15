@@ -1,0 +1,272 @@
+"""Shared test fixtures for finetune-studio tests.
+
+Provides:
+- temp_db: real SQLite database in tmp dir, schema initialized via init_db()
+- mock_settings: MagicMock with full settings interface + patched into config
+- client: FastAPI TestClient bound to the webui app
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+# Ensure src/ is on path
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_ocr_tessdata() -> None:
+    """Pre-install tessdata so OCR tests are green on a fresh clone.
+
+    Honours ``FTS_OCR_AUTOINSTALL=0`` (air-gapped CI). Idempotent — already-
+    installed languages are skipped. Failures are logged but do not raise:
+    the OCR tests themselves report the actionable install command in their
+    own failure messages.
+    """
+    if os.environ.get("FTS_OCR_AUTOINSTALL", "1") == "0":
+        return
+    try:
+        from finetune_studio.data import ocr
+    except Exception as e:  # noqa: BLE001 — fixture must never crash pytest
+        print(f"\n[conftest] could not import ocr module: {e}", file=sys.stderr)
+        return
+    if ocr.is_available():
+        return
+    if not ocr._tesseract_cmd():
+        # Binary missing entirely; tests will surface the install hint.
+        return
+    try:
+        ocr.install()
+    except Exception as e:  # noqa: BLE001 — tessdata download failure must not crash pytest
+        print(f"\n[conftest] tessdata self-install failed: {e}", file=sys.stderr)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_rag_model_cache():
+    """The RAG embedder/reranker cache is process-wide: never let one test's model leak into the next."""
+    yield
+    mod = sys.modules.get("finetune_studio.smart_brain.model_cache")
+    if mod is not None:
+        mod.brain_model_cache.release_all("test teardown")
+
+
+@pytest.fixture(autouse=True)
+def temp_db(monkeypatch):
+    """Redirect the database at a temp SQLite file, yield its path, clean up.
+
+    Autouse: tests that touch ``db`` directly (without requesting
+    ``client``/``mock_settings``) used to write straight into the real dev
+    database — that produced 226 stray "Recent Suite Runs" / "Limit Suite
+    Runs" / "ensure-helper" project rows. Isolating by default makes the leak
+    structurally impossible instead of relying on every test remembering to
+    request a fixture.
+
+    The patch is a full-fidelity copy of the real ``Settings`` with only
+    ``db_path`` redirected, NOT a minimal stub: this fixture now applies to
+    every test in the suite, so a stub would strip ``data_dir``, ``rag``,
+    ``model_dirs``… from any application code a test exercises.
+    """
+    # A private dir per test: ``<db dir>/projects/<pid>/datasets`` is derived from
+    # the DB's parent, so a shared /tmp would collect every test's dataset dirs.
+    db_dir = Path(tempfile.mkdtemp(prefix="fts-test-db-"))
+    db_path = str(db_dir / "finetune_studio.db")
+
+    # Patch settings.db_path before importing db modules
+    import dataclasses
+
+    import finetune_studio.config as cfg
+
+    original_settings = cfg.settings
+    fake = dataclasses.replace(
+        original_settings, db_path=db_path, host="127.0.0.1", port=7860
+    )
+    monkeypatch.setattr(cfg, "settings", fake)
+
+    # ``db.connection`` bound its own ``settings`` reference at import
+    # (``from finetune_studio.config import settings``), so patching only
+    # ``cfg.settings`` left every DB write pointing at the real dev database.
+    # Patch the reference ``_connect`` actually reads so each test is truly
+    # isolated and never pollutes ``data/finetune_studio.db``.
+    import finetune_studio.db.connection as _conn
+    monkeypatch.setattr(_conn, "settings", fake)
+
+    # ``db.datasets`` (and every other module that did ``from config import
+    # settings``) still holds the ORIGINAL singleton, and ``datasets_dir`` /
+    # ``paths.project_roots`` derive ``<db dir>/projects/<pid>/datasets`` from
+    # its ``db_path``: every dataset-touching test left a ``data/projects/<id>``
+    # dir in the repo cwd (~250 of them). Point the singleton's db_path at the
+    # temp dir IN PLACE (monkeypatch restores it) — tests that patch that same
+    # singleton later (``monkeypatch.setattr(settings, "db_path", ...)``) still
+    # override it exactly as before.
+    monkeypatch.setattr(original_settings, "db_path", db_path)
+
+    # Initialise schema with the real init_db
+    _conn.init_db()
+
+    # models.manager keeps ITS OWN separate SQLite file (model_providers,
+    # app_state) at a module-level ``_DB_PATH`` computed from FTS_DB at
+    # import time — entirely independent of ``cfg.settings.db_path`` above.
+    # A test that exercises the real ModelManager (not a get_provider/
+    # list_providers mock) writes straight through to the real dev
+    # ~/.finetune-studio/fts.db otherwise: confirmed live when
+    # test_model_manager.py's persistence tests overwrote the real
+    # ``local-default`` helper provider row with fake test data
+    # (model_id=/fake/model.gguf) before this fixture covered it.
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f2:
+        models_db_path = f2.name
+    import finetune_studio.models.manager as _mgr_mod
+    monkeypatch.setattr(_mgr_mod, "_DB_PATH", Path(models_db_path))
+    # get_manager() caches a process-wide ModelManager() singleton in
+    # _mgr_mod._manager. Redirecting _DB_PATH above has no effect on a
+    # singleton some EARLIER test already constructed — it keeps its
+    # original sqlite3 connection to that earlier test's (now-deleted)
+    # temp file, so any route calling get_manager() 500s with "no such
+    # table". Reset the singleton per test so it re-reads _ensure_db()
+    # against THIS test's fresh path on first use.
+    monkeypatch.setattr(_mgr_mod, "_manager", None)
+
+    # The per-project filesystem (file library, QA sources, RAG corpora) lives
+    # under FTS_ROOT, resolved once at import — a test that uploads a file or
+    # hits a project route used to create ``~/.finetune-studio/projects/<pid>``
+    # on the real machine (122 empty leaked dirs found after a live e2e run).
+    import shutil
+
+    from finetune_studio.data.fs import paths as _fts_paths
+    fts_root = Path(tempfile.mkdtemp(prefix="fts-test-root-"))
+    monkeypatch.setattr(_fts_paths, "_ROOT", fts_root)
+    monkeypatch.setattr(_fts_paths, "_PROJECTS", fts_root / "projects")
+    # Modules that resolve FTS_ROOT per call (accel.saved_choice) must not touch the real one either.
+    monkeypatch.setenv("FTS_ROOT", str(fts_root))
+
+    yield db_path
+    shutil.rmtree(fts_root, ignore_errors=True)
+    shutil.rmtree(db_dir, ignore_errors=True)
+    try:
+        os.unlink(models_db_path)
+    except OSError:
+        pass
+
+
+@pytest.fixture
+def mock_settings(temp_db, monkeypatch):
+    """MagicMock with full settings interface, patched into config singleton."""
+    import finetune_studio.config as cfg
+    m = MagicMock()
+    m.db_path = temp_db
+    m.host = "127.0.0.1"
+    m.port = 7860
+    m.projects_dir = "data/projects"
+    m.shared_models_dir = ".finetune-studio/shared_models"
+    m.hf_cache_dir = ".finetune-studio/hf_models"
+    m.data_dir = "data"
+    monkeypatch.setattr(cfg, "settings", m)
+    return m
+
+
+@pytest.fixture
+def client(mock_settings, monkeypatch):
+    """FastAPI TestClient for the webui app with heavy deps mocked."""
+    from fastapi.testclient import TestClient
+
+    # Stub missing aiofiles
+    try:
+        import aiofiles  # noqa: F401
+    except ImportError:
+        import types
+        fake = types.ModuleType("aiofiles")
+        fake.open = lambda *a, **kw: open(*a, **kw)  # noqa: SIM115 — callback, not a file-open site
+        monkeypatch.setitem(sys.modules, "aiofiles", fake)
+
+    from finetune_studio.models.manager import get_manager
+
+    with patch("finetune_studio.models.registry.scan_models") as mock_scan, \
+         patch("finetune_studio.training.engine.TrainingEngine"), \
+         patch("finetune_studio.testing.inference.InferenceEngine"):
+        mock_scan.return_value = []
+        # The engine is the inference-worker proxy (supervisor P2); "heavy deps mocked" means the app's engine
+        # is a MagicMock here, as it was when the in-process class was patched: ``.model`` is truthy, nothing
+        # talks to a socket. Restored afterwards so other tests see the real proxy.
+        mgr = get_manager()
+        prev_engine = getattr(mgr, "_engine_instance", None)
+        mgr._engine_instance = MagicMock(name="inference_engine")
+        import importlib
+
+        import finetune_studio.webui.app as app_module
+        importlib.reload(app_module)
+        app = app_module.app
+        try:
+            with TestClient(app) as c:
+                yield c
+        finally:
+            mgr._engine_instance = prev_engine
+
+
+@pytest.fixture
+def project_env(tmp_path, monkeypatch):
+    """A TestClient, one freshly created project id and its projects dir, all rooted in tmp_path.
+
+    Shared by the Pairs/Data-prep tests so they stop re-declaring the same root/DB patching. Returns ``(client, pid, projects)``.
+    """
+    import uuid
+
+    from fastapi.testclient import TestClient
+
+    from finetune_studio import db
+    from finetune_studio.config import settings
+    from finetune_studio.data.fs import qa as qa_fs
+    from finetune_studio.webui.app import app
+
+    monkeypatch.setattr(settings, "db_path", str(tmp_path / "fts_test.db"))
+    root = tmp_path / "fts_root"
+    projects = root / "projects"
+    projects.mkdir(parents=True)
+    monkeypatch.setattr("finetune_studio.data.fs.paths._ROOT", root)
+    monkeypatch.setattr("finetune_studio.data.fs.paths._PROJECTS", projects)
+    monkeypatch.setattr(qa_fs, "project_dir", lambda pid: projects / pid)
+    db.init_db()
+    client = TestClient(app)
+    r = client.post("/api/projects", json={"name": f"pe-{uuid.uuid4().hex[:6]}", "base_model": "x/test"})
+    assert r.status_code == 200, r.text
+    return client, r.json()["id"], projects
+
+
+@pytest.fixture(autouse=True)
+def _no_real_inference_worker(monkeypatch):
+    """No test may start a REAL inference worker (torch import, GPU context, minutes). A test that needs
+    a worker uses the fake engine explicitly (see tests/test_inference_worker.py); everything else
+    patches ``finetune_studio.webui.app.inference_engine``."""
+    from finetune_studio.inference import launch
+
+    def refuse(sock, extra_args=()):
+        raise RuntimeError("tests must not spawn a real inference worker: patch webui.app.inference_engine "
+                           "or use launch._spawn_private with ('--engine', 'fake')")
+
+    monkeypatch.setattr(launch, "_spawn_private", refuse)
+
+
+@pytest.fixture(autouse=True)
+def _no_shared_model_downloads(monkeypatch):
+    """No test may download, load and hash a real embedder/reranker into the LIVE shared model store.
+    ``shared_models.register(src_dir=None)`` did exactly that from every BrainIndex build: ~13 s per test,
+    38 Hugging Face requests and a 2.5 GB CUDA context on the user's GPU (it killed a concurrent training
+    run on 2026-10-12). The download branch now fails like an offline machine (callers already handle that:
+    the corpus keeps its plain model names); the copy branch (``src_dir`` given) stays real, and a test that
+    writes it points ``sm.SHARED``/``EMBEDDERS``/``RERANKERS`` at tmp. ``register.real`` tests the download."""
+    from finetune_studio.data import shared_models as sm
+
+    real_register = sm.register
+
+    def register(model_name: str, kind: str, src_dir=None, prefer_cached: bool = True):
+        if src_dir is not None:
+            return real_register(model_name, kind, src_dir=src_dir, prefer_cached=prefer_cached)
+        raise OSError(f"tests do not download models (shared {kind} {model_name!r}); use src_dir or register.real with fakes")
+
+    register.real = real_register
+    monkeypatch.setattr(sm, "register", register)

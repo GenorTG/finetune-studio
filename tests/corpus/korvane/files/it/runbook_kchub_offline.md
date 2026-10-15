@@ -1,0 +1,105 @@
+# RB-017 — KC-Hub 200 gateway offline
+
+> owner: platform on-call (Wrzesiński's group) · last reviewed 2024-09-12 by D. Pawelec · prev rev 2024-05-30 (rev 6, "rev 5" in the wiki is stale, ignore it)
+> wiki mirror: kb.korvane.example/rb/017 — **this file in the repo is the source of truth**, wiki gets synced nightly at 03:10 so don't edit there
+
+## 0. when does this fire
+
+Tidewalk raises `HUB_HEARTBEAT_LOST` when a KC-Hub 200 has sent no heartbeat for **7 minutes** (`hub.hb.timeout_s = 420`). Do not change it, the hubs beat every 60 s and we tried 4 min in 2023, it flapped like crazy whenever the yard Wi-Fi bridge rebooted.
+
+Severity as paged:
+- one hub, any depot → SEV3 (ack within 15 min, business hours or not)
+- two or more hubs at the same depot → SEV2
+- any hub at GDY-1 between 22:00 and 06:00 (the owls are on shift and they *will* ring you) → SEV2 even if only one
+- all hubs of a depot → SEV1, skip straight to section 6
+
+Hub names: `hub-<depot>-<nn>`, e.g. `hub-gdy1-03`. Fleet as of Q3: gdy1 = 01..06, ham2 = 01..04, rtm3 = 01..04, got4 = 01..02, klj5 = 01 (one hub, no spare — sorry Kłaipėda).
+
+Mgmt VLAN per depot, hub address = base + (nn × 11) + 0 — yes it's an ugly scheme, Marek's, don't ask:
+
+| depot | mgmt subnet | edge switch |
+|---|---|---|
+| GDY-1 | 10.41.7.0/24 | sw-gdy1-edge-02 |
+| HAM-2 | 10.52.7.0/24 | sw-ham2-edge-01 |
+| RTM-3 | 10.63.7.0/24 | sw-rtm3-edge-01 |
+| GOT-4 | 10.74.7.0/24 | sw-got4-edge-01 |
+| KLJ-5 | 10.85.7.0/24 | sw-klj5-edge-01 |
+
+so hub-gdy1-03 = 10.41.7.33. (hub-gdy1-06 is .66, hub-ham2-04 is .44 etc.)
+
+## 1. first 5 minutes — is it really the hub
+
+1. `twctl hub status --hub hub-gdy1-03 --json` — look at `last_hb_age_s` and `ingest_state`. If `ingest_state` is `REJECTING` it is NOT offline, jump to gotcha G1 (clock).
+2. Is the whole depot gone? `twctl hub list --depot GDY-1 --state offline`. More than one → check the uplink first (`ping 10.41.7.1`, then the Lintu Cloud VPN tunnel `lc-vpn-gdy1`), hubs are innocent most of the time.
+3. `ping -c 5 -i 5 10.41.7.33` from `bastion-gdy1` (VPN users: bastion-gdy1.korvane.example, port 2200). 3 of 5 replies or better = hub is up, proceed to section 3. Zero replies = section 2.
+
+Do **nothing** destructive in the first 5 minutes after a hub was powered on or cycled: a cold KC-Hub 200 needs 4 min 20 s to finish booting and re-lock the radio. People have power-cycled it again at minute 3 and then wondered why it never came up. Yes that was me. — S.V.
+
+## 2. no ping — power
+
+- Physical port map is in the depot binder AND in `netbox`; hub-gdy1-03 sits on `Gi1/0/19` of sw-gdy1-edge-02 (PoE, 802.3at).
+- `ssh netops@sw-gdy1-edge-02` then `show power inline Gi1/0/19`. Draw under 4.0 W or "faulty" = bad cable or dead PoE injector in the cabinet.
+- Cycle the port: `poe cycle Gi1/0/19` (alias for shut / 15 s / no shut). Wait the full 5 minutes. **Max two cycles per hub in any 30-minute window** — after the second one stop, the eMMC journal doesn't love it.
+- Still dark after 2 cycles → someone has to go to the yard. Ring IT Support (Kamil's desk, ext. 4120, or 4121 for the second line at HAM-2/RTM-3). They carry a spare hub in each depot cabinet except KLJ-5.
+- Spare swap: new unit comes unprovisioned. `kchubctl provision --site GDY-1 --slot 03 --token <from vault path kv/tidewalk/hub-provision>`. Token lives 20 minutes only. Reuse the old hostname, never invent `-07`.
+
+## 3. pingable but not reporting
+
+1. `ssh -p 2222 kcops@10.41.7.33` (key only, your key must be in `kcops-keys` group — if it isn't, ask Wiktor, not Kamil).
+2. `systemctl status kchubd` and `journalctl -u kchubd --since "-20min" | tail -80`.
+3. `kchubctl radio status`. Healthy GDY-1 hub: `RX locked`, `tags_seen_3m` at or above 20. Anything below 8 on a loaded GDY-1 hub means antenna or interference (the new crane at row F is a known offender). Quieter depots: healthy is 6 or more.
+4. Restart the daemon: `sudo systemctl restart kchubd` — takes about 40 s, tags are cached on the tag side for 15 min so a restart loses nothing.
+5. No change after 10 minutes → reboot the hub (`sudo systemctl reboot`), then see the 5 minute rule above.
+
+## 4. gotchas (the ones that actually bit us)
+
+**G1 — clock skew.** Since firmware 2.14.6 the hub does not step its clock on its own. If skew vs Tidewalk exceeds 90 s the ingest answers `E-4108` and drops everything, the hub looks "offline" from the UI side. Fix: `sudo chronyc makestep` and confirm `chronyc tracking` says under 0.5 s. NTP source is `ntp.gdy1.korvane.example` for all depots (yes also Rotterdam, change request open, CHG-2204, nobody owns it).
+
+**G2 — outbox full.** `/var/spool/kchub/outbox` is capped at 5,000 files; at the cap the hub stops accepting tag packets *silently*. `ls /var/spool/kchub/outbox | wc -l`. If over 4,500 find out why upstream is refusing before you purge anything. Purge is `kchubctl outbox flush --older-than 6h`, and it is irreversible, so ask the secondary first.
+
+**G3 — disk 85%.** `df -h /var` over 85% triggers log-rotation panic mode and the radio thread starves. `kchubctl logs trim` gets back roughly 1.2 GB.
+
+**G4 — wrong gateway token after a swap.** error `E-4031`, hub shows online in the VPN but is "unknown" in Tidewalk. Re-provision, see section 2.
+
+**G5 — Friday 17:30 backup.** Tidewalk backup window freezes ingest for up to 12 minutes at GDY-1 on Fridays. Not an outage. Don't page anybody.
+
+> **#platform-oncall, 2024-08-27 23:48** —
+> **sanna.v:** hub-gdy1-03 offline again, 3rd time this month
+> **bart.o:** is it the cabinet again? lol
+> **sanna.v:** yep the PoE injector in cab 2 gets hot when the owls prop the door shut. i put a 120mm fan in there on a usb brick. pls dont tidy it away
+> **bart.o:** noted. what do we write in the runbook
+> **sanna.v:** "if gdy1-03 is dark first ask if the cab door is closed"
+> **bart.o:** 🤣 ok
+
+(Sanna's fan is still in cab 2. Facilities ticket FAC-1187 is open to replace the injector. If you read this after the ticket is closed, delete the aside.)
+
+## 5. rollback
+
+Firmware: the hub has A/B slots. After a bad update run `kchubctl fw rollback` — it boots the previous slot (2.13.9 at time of writing) and takes ~6 minutes. The old slot survives **14 days** after an update, then it gets overwritten by the staged image, after which you can only go forward. Afterwards pin it: `kchubctl fw pin 2.13.9`, otherwise the nightly updater at 02:30 puts the bad build back. Rollback needs the OK of the Platform lead (Wiktor Szczepaniak) if more than 3 hubs are involved.
+
+Config: `kchubctl cfg history` keeps the last 20 revisions. `kchubctl cfg restore --rev HEAD~1` then `sudo systemctl restart kchubd`. Don't hand-edit `/etc/kchub/hub.toml` (the next push overwrites you).
+
+Tidewalk side (if a rule change started it): ruleset snapshots are taken before every publish — `twctl rules rollback --snapshot <id>`. Do this *before* touching any hub if several depots went dark within the same minute.
+
+## 6. escalation ladder
+
+| after | who | how |
+|---|---|---|
+| 0 min | on-call primary | page (rotation sheet: oncall_rotation_2024_q4) |
+| 15 min unacked / unresolved | on-call secondary | auto page |
+| 30 min | Wiktor Szczepaniak, Platform lead | mobile via pager, desk ext. 4417 |
+| 45 min, or any SEV1 | Kamil Zdunek, IT Support Lead (hands in the yard) | ext. 4120 |
+| 60 min, or any SEV1 | Tomasz Wrzesiński, CTO | ext. 4400, do not call before 07:00 unless SEV1 |
+| customer-facing | Yusuf Demirkıran, Key Account Manager | ext. 4251 |
+| GDP load affected | Benedikta Aaltonen, Quality & Compliance | ext. 4309 |
+| night dispatch desk (the owls) | Olek Maraszek | ext. 4733 |
+
+Customer rules of thumb: if **25 or more containers** have had no telemetry for more than **20 minutes**, Yusuf gets told and the dispatch desk writes the note in Tidewalk. If a Helvetia Pharma Logistik load is affected for more than 15 minutes, Benedikta needs to know right away — she has to open a deviation record within 24 hours, that is not optional, it's their GDP audit.
+
+Hardware RMA: Kestrel Embedded AB, contract KE-2231-7, replacement unit shipped in 3 working days (we hold 5 spares in Gdynia, 2 each in Hamburg and Rotterdam, 1 in Gothenburg).
+
+## 7. after the incident
+
+Close the page, write 3 lines in #platform-oncall, and if SEV2 or worse open an INC with the label `hub-offline`. Postmortem within 5 working days for SEV1/SEV2. Template: see the Tidewalk alerting postmortem from August, it's the best one we have so copy its shape, not its length.
+
+*todo (Dominik): add the Gothenburg switch port map, never got it from Arendal Port Services*

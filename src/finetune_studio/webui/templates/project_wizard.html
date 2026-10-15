@@ -1,0 +1,852 @@
+{% extends "base.html" %}
+{% block title %}Quick work — {{ project.name }}{% endblock %}
+{% block nav_project_wizard %}active{% endblock %}
+{% block sb_path %}~ / projects / {{ project.name }} / quick work{% endblock %}
+{% block breadcrumb_tab %}quick work{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>⚡ Quick work</h1>
+  <div class="sub">Upload <b>files</b>, then get a <b>trained model</b> (Quick start runs the steps in order) or a <b>Smart Brain</b> that answers from the files (step 1b, no training) from this one page.</div>
+  <details class="page-more"><summary>More about this page</summary>
+  <div class="sub">Quick start chains files &rarr; question-answer pairs &rarr; dataset &rarr; training &rarr; test &rarr; pin, one step at a time. &#128218; A Smart Brain is one click and needs no training. &#128736; Step by step shows every control separately, in any order.</div>
+  </details>
+</div>
+
+<div class="flex gap-2 wrap mb-3" role="tablist" aria-label="Wizard mode">
+  <button class="btn primary" id="mode-btn-quick" type="button" role="tab"
+          onclick="wizSetMode('quick')" title="Guided: do the next thing, in order">⚡ Quick start</button>
+  <button class="btn" id="mode-btn-advanced" type="button" role="tab"
+          onclick="wizSetMode('advanced')" title="All controls, any order">🛠 Step by step</button>
+</div>
+
+{# ───────────────────────── QUICK MODE ───────────────────────── #}
+<div id="wiz-quick">
+
+  <div class="card mb-2" id="wiz-step-files">
+    <div class="card-head"><div>
+      <div class="card-title">Step 1 · Upload your files</div>
+      <div class="card-sub text-dim">
+        Put the documents the model should learn from into the project —
+        PDF, Word, text, markdown, code, CSV. They are parsed automatically.
+      </div>
+    </div><span class="pill outline" id="wiz-files-pill">…</span></div>
+    <div class="text-sm" id="wiz-files-sub">—</div>
+    <div class="flex gap-2 wrap mt-2">
+      <a class="btn primary" href="/projects/{{ pid }}/data" data-link>Upload files</a>
+      <button class="btn sm" type="button" onclick="wizRefresh('files')">Refresh</button>
+    </div>
+  </div>
+
+  <div class="card mb-2" id="wiz-step-brain" style="border-color: var(--cyan);">
+    <div class="card-head"><div>
+      <div class="card-title">Step 1b · Or answer from the files now (Smart Brain)</div>
+      <div class="card-sub text-dim">
+        Skips training entirely: every parsed file becomes a searchable
+        knowledge index you can query and chat with right away. Independent of
+        the steps below — do both, in any order.
+      </div>
+    </div><span class="pill outline" id="wiz-brain-pill">…</span></div>
+    <div class="text-sm" id="wiz-brain-sub">—</div>
+    <div class="flex gap-2 wrap mt-2">
+      <button class="btn primary" type="button" id="wiz-brain-btn" onclick="wizBrainQuick()" title="Parse every uploaded file that is not parsed yet and build the Smart Brain index — one click">⚡ Build Smart Brain index</button>
+      <a class="btn sm" href="/projects/{{ pid }}/brain" data-link>Open Smart Brain</a>
+      <button class="btn sm" type="button" onclick="wizRefresh('brain')">Refresh</button>
+    </div>
+  </div>
+
+  <div class="card mb-2" id="wiz-step-qa">
+    <div class="card-head"><div>
+      <div class="card-title">Step 2 · Make question-answer pairs</div>
+      <div class="card-sub text-dim">
+        Each parsed document gets a checklist of its data points; the helper
+        writes pairs until every point is stated, then quick mode approves them.
+        Want to review them first? Open the pairs page.
+      </div>
+    </div><span class="pill outline" id="wiz-qa-pill">…</span></div>
+    <div class="text-sm" id="wiz-qa-sub">—</div>
+    <div class="flex gap-2 wrap mt-2">
+      <button class="btn primary" type="button" id="wiz-qa-btn" onclick="wizGenerate()">Generate pairs</button>
+      <a class="btn sm" href="/projects/{{ pid }}/data-prep" data-link>Review / edit pairs</a>
+    </div>
+  </div>
+
+  <div class="card mb-2" id="wiz-step-dataset">
+    <div class="card-head"><div>
+      <div class="card-title">Step 3 · Build the dataset</div>
+      <div class="card-sub text-dim">
+        Turns the approved pairs into one training-ready dataset file.
+        Uncovered passages are filled with extractive pairs first, so the
+        dataset covers every source. Extractive pairs are text fragments from
+        your files, not written Q&amp;A — generate pairs with a helper model
+        (step 2) for a better dataset, and for a quiz that makes sense.
+      </div>
+    </div><span class="pill outline" id="wiz-dataset-pill">…</span></div>
+    <div class="text-sm" id="wiz-dataset-sub">—</div>
+    <div class="mt-2 text-sm" id="wiz-dataset-gate" role="alert" hidden></div>
+    <div class="flex gap-2 wrap mt-2">
+      <button class="btn primary" type="button" id="wiz-dataset-btn" onclick="wizExport()">Build dataset</button>
+      <button class="btn sm" type="button" onclick="wizRefresh('dataset')">Refresh</button>
+    </div>
+  </div>
+
+  <div class="card mb-2" id="wiz-step-train">
+    <div class="card-head"><div>
+      <div class="card-title">Step 4 · Train the model</div>
+      <div class="card-sub text-dim">
+        Fine-tunes a base model on your dataset with the chosen preset.
+        The merged model is saved automatically when it finishes.
+        This is the long step — hours, not minutes, on a 4B+ model.
+      </div>
+    </div><span class="pill outline" id="wiz-train-pill">…</span></div>
+    <div class="grid grid-12 gap-3 mt-1">
+      <div class="col-span-6">
+        <label class="block text-xs muted mb-1">Base model</label>
+        <select id="wiz-base-model" aria-label="Base model" class="select" {% if not models %}disabled{% endif %}>
+          {% if models %}
+            {% for model in models %}
+            <option value="{{ model.path }}" {% if model.path == project.base_model %}selected{% endif %}>{{ model.name }} ({{ model.format }}, {{ model.size_gb }} GB)</option>
+            {% endfor %}
+          {% else %}
+            <option value="" selected disabled>No trainable base models found — put one in the models folder</option>
+          {% endif %}
+        </select>
+      </div>
+      <div class="col-span-3">
+        <label class="block text-xs muted mb-1" title="Presets here are grouped by model size (Nano, Standard, Large, QLoRA). The Training page offers effort-based presets (Smoke test, Baseline, Precision, Overkill) that fill the same fields.">Preset by model size</label>
+        <select id="wiz-preset" aria-label="Training preset" class="select">
+          <option value="standard" selected>Standard — balanced (good default)</option>
+        </select>
+      </div>
+      <div class="col-span-3 flex items-end">
+        <button class="btn primary" type="button" id="wiz-train-btn" onclick="wizTrain()" style="width:100%;">Start training</button>
+      </div>
+    </div>
+    <details class="mt-2" id="wiz-train-adv">
+      <summary class="text-xs muted" style="cursor:pointer;">Advanced: how long to train</summary>
+      <div class="flex gap-2 wrap items-center mt-2">
+        <label class="text-xs muted" for="wiz-epochs" title="Epochs = passes over your whole dataset. Optimizer steps = (training rows ÷ effective batch) × epochs. This is the same num_epochs field the Training page sends.">Epochs</label>
+        <input id="wiz-epochs" class="input" type="number" min="1" max="100" step="1" placeholder="preset" style="max-width:96px" inputmode="numeric">
+        <button class="btn sm" type="button" id="wiz-epochs-suggest" hidden>Use 0 epochs</button>
+      </div>
+      <div class="text-xs mt-2" id="wiz-steps-hint" role="status" style="color:var(--text-dim);">Leave empty to use the preset's own epoch count.</div>
+      <div class="text-xs mt-1 steps-hint-warn" id="wiz-steps-warn" role="status" hidden></div>
+    </details>
+    <div class="text-sm mt-2" id="wiz-train-sub">—</div>
+  </div>
+
+  <div class="card mb-2" id="wiz-step-test">
+    <div class="card-head"><div>
+      <div class="card-title">Step 5 · Test it</div>
+      <div class="card-sub text-dim">
+        Generates a quiz that covers <b>every row</b> of the training data —
+        100 rows means 100 questions — and scores the trained model's answers.
+        The pass rate tells you whether the model actually learned the material.
+      </div>
+    </div><span class="pill outline" id="wiz-test-pill">…</span></div>
+    <div class="text-sm" id="wiz-test-sub">—</div>
+    <div class="flex gap-2 wrap mt-1 items-center">
+      <label class="text-xs muted" for="wiz-test-sample">Limit to a random sample of</label>
+      <input id="wiz-test-sample" class="input" type="number" min="1" placeholder="all" style="max-width:96px" title="Only for huge datasets — leave empty to test every row. A sampled run is labeled 'sampled' everywhere so it can't masquerade as full coverage.">
+      <span class="text-xs muted">questions (huge datasets only — leave empty for the full test).</span>
+    </div>
+    <div class="flex gap-2 wrap mt-2">
+      <button class="btn primary" type="button" id="wiz-test-btn" onclick="wizTest()">Run the test</button>
+      <a class="btn sm" href="/projects/{{ pid }}/testing" data-link>Open testing</a>
+    </div>
+  </div>
+
+  <div class="card mb-2" id="wiz-step-done">
+    <div class="card-head"><div>
+      <div class="card-title">Step 6 · Save &amp; use it</div>
+      <div class="card-sub text-dim">
+        Pin a version so you can reproduce this exact result later, or export
+        the model for chat / GGUF.
+      </div>
+    </div><span class="pill outline" id="wiz-version-pill">…</span></div>
+    <form id="wiz-version-form" class="flex gap-2 wrap" style="margin:0">
+      <input class="input" id="wiz-version-label" placeholder="label (e.g. v3-my-corpus)" style="max-width:220px">
+      <button class="btn sm primary" type="submit">Pin version</button>
+    </form>
+    <div class="flex gap-2 wrap mt-2">
+      <a class="btn sm" href="/projects/{{ pid }}/export" data-link>Export model</a>
+      <a class="btn sm" href="/projects/{{ pid }}/chat" data-link>Chat with it</a>
+      <span class="text-xs dim" id="wiz-version-list"></span>
+    </div>
+  </div>
+
+  <div class="card mb-2" style="border-color: var(--accent);">
+    <div class="card-head"><div>
+      <div class="card-title">Run everything at once</div>
+      <div class="card-sub text-dim">
+        Chains steps 2 → 5 with no more clicks. Needs files already uploaded
+        (step 1). Keep this page open — progress shows below.
+      </div>
+    </div></div>
+    <button class="btn primary" type="button" id="wiz-run-all" onclick="wizRunAll()">⚡ Run steps 2-5 now</button>
+  </div>
+</div>
+
+{# ─────────────────────── ADVANCED MODE ──────────────────────── #}
+<div id="wiz-advanced" hidden>
+  <div class="sub mb-2 text-dim">Everything the Quick start does, one control at a time — same APIs, any order.</div>
+  <div class="flow-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">
+    <div class="card mb-2" id="flow-files">
+      <div class="card-head"><div>
+        <div class="card-title">Files</div>
+        <div class="card-sub text-dim" id="flow-files-sub">—</div>
+      </div><span class="pill outline" id="flow-files-pill">…</span></div>
+      <div class="flex gap-2 wrap">
+        <a class="btn sm" href="/projects/{{ pid }}/data" data-link>Open file library</a>
+        <button class="btn sm" type="button" onclick="flowCheck('files')">Refresh</button>
+      </div>
+    </div>
+    <div class="card mb-2" id="flow-qa">
+      <div class="card-head"><div>
+        <div class="card-title">Question-answer pairs</div>
+        <div class="card-sub text-dim" id="flow-qa-sub">—</div>
+      </div><span class="pill outline" id="flow-qa-pill">…</span></div>
+      <div class="flex gap-2 wrap">
+        <a class="btn sm" href="/projects/{{ pid }}/data-prep" data-link>Open data-prep</a>
+        <button class="btn sm" type="button" onclick="flowCheck('qa')">Refresh</button>
+      </div>
+    </div>
+    <div class="card mb-2" id="flow-dataset">
+      <div class="card-head"><div>
+        <div class="card-title">Dataset</div>
+        <div class="card-sub text-dim" id="flow-dataset-sub">—</div>
+      </div><span class="pill outline" id="flow-dataset-pill">…</span></div>
+      <div class="flex gap-2 wrap">
+        <a class="btn sm" href="/projects/{{ pid }}/training" data-link>Go to training</a>
+        <button class="btn sm" type="button" onclick="flowExport()">Full export</button>
+      </div>
+    </div>
+    <div class="card mb-2" id="flow-brain">
+      <div class="card-head"><div>
+        <div class="card-title">Smart Brain</div>
+        <div class="card-sub text-dim" id="flow-brain-sub">—</div>
+      </div><span class="pill outline" id="flow-brain-pill">…</span></div>
+      <div class="flex gap-2 wrap">
+        <a class="btn sm" href="/projects/{{ pid }}/brain" data-link>Open Smart Brain</a>
+        <button class="btn sm" type="button" onclick="flowRagBuild()">Build / rebuild</button>
+      </div>
+    </div>
+    <div class="card mb-2" id="flow-train">
+      <div class="card-head"><div>
+        <div class="card-title">Training runs</div>
+        <div class="card-sub text-dim" id="flow-train-sub">—</div>
+      </div><span class="pill outline" id="flow-train-pill">…</span></div>
+      <div class="flex gap-2 wrap">
+        <a class="btn sm" href="/projects/{{ pid }}/training" data-link>Open training</a>
+        <button class="btn sm" type="button" onclick="flowCheck('train')">Refresh</button>
+      </div>
+    </div>
+    <div class="card mb-2" id="flow-test">
+      <div class="card-head"><div>
+        <div class="card-title">Test</div>
+        <div class="card-sub text-dim" id="flow-test-sub">—</div>
+      </div><span class="pill outline" id="flow-test-pill">…</span></div>
+      <div class="flex gap-2 wrap">
+        <a class="btn sm" href="/projects/{{ pid }}/testing" data-link>Open testing</a>
+        <button class="btn sm" type="button" onclick="flowCheck('test')">Refresh</button>
+      </div>
+    </div>
+    <div class="card mb-2" id="flow-version">
+      <div class="card-head"><div>
+        <div class="card-title">Pin version</div>
+        <div class="card-sub text-dim" id="flow-version-sub">—</div>
+      </div><span class="pill outline" id="flow-version-pill">…</span></div>
+      <form id="flow-version-form" class="flex gap-2 wrap" style="margin:0">
+        <input class="input" id="flow-version-label" placeholder="label (e.g. v3-my-corpus)" style="max-width:200px">
+        <button class="btn sm primary" type="submit">Save version</button>
+      </form>
+      <div class="flex gap-2 wrap mt-2">
+        <button class="btn sm" type="button" onclick="flowCheck('version')">Refresh</button>
+        <span class="text-xs dim" id="flow-version-list"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<pre id="flow-log" class="mono text-xs bg-elev" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);padding:10px;white-space:pre-wrap">Idle — status checks run on load.</pre>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Project wizard — Quick start chains the real pipeline APIs in order;
+   Step-by-step mode reuses the same status checks per card. */
+(function () {
+  var PID = {{ pid | tojson }};
+  var log = document.getElementById("flow-log");
+  function line(s) {
+    if (!log) return;
+    var ts = new Date().toTimeString().slice(0, 8);
+    log.textContent += "[" + ts + "] " + s + "\n";
+    log.scrollTop = log.scrollHeight;
+  }
+  function pill(id, text, ok) {
+    var el = document.getElementById(id + "-pill");
+    if (!el) return;
+    el.textContent = text;
+    el.className = "pill " + (ok === true ? "ok" : ok === false ? "warn" : "outline");
+  }
+  function set(id, sub) {
+    var el = document.getElementById(id + "-sub");
+    if (el) el.textContent = sub;
+  }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  async function api(u, opts) {
+    var r = await fetch(u, opts);
+    var d = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error((d && (d.detail || d.error)) || ("HTTP " + r.status));
+    return d;
+  }
+  function post(u, body) {
+    return api(u, { method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body || {}) });
+  }
+
+  /* ── mode toggle ── */
+  window.wizSetMode = function (m) {
+    try { localStorage.setItem("wizard-mode", m); } catch (e) { /* private mode */ }
+    var quick = m !== "advanced";
+    document.getElementById("wiz-quick").hidden = !quick;
+    document.getElementById("wiz-advanced").hidden = quick;
+    document.getElementById("mode-btn-quick").className = "btn" + (quick ? " primary" : "");
+    document.getElementById("mode-btn-advanced").className = "btn" + (quick ? "" : " primary");
+  };
+  var savedMode = "quick";
+  try { savedMode = localStorage.getItem("wizard-mode") || "quick"; } catch (e) { /* noop */ }
+  wizSetMode(savedMode);
+
+  /* ── status checks (shared by both modes) ── */
+  async function wizRefresh(which) {
+    if (!which || which === "files") {
+      api("/api/projects/" + PID + "/data-prep/sources").then(function (d) {
+        var n = (d.sources || []).length;
+        set("wiz-files", n + " parsed document(s) ready");
+        pill("wiz-files", n > 0 ? "ready" : "empty", n > 0);
+        set("flow-files", n + " parsed source(s)");
+        pill("flow-files", n > 0 ? "ready" : "empty", n > 0);
+        line("files: " + n + " parsed sources");
+      }).catch(function (e) { pill("wiz-files", "error", false); line("files: ERROR " + e); });
+    }
+    if (!which || which === "qa") {
+      api("/api/projects/" + PID + "/data-prep/qa").then(function (d) {
+        var items = d.items || [];
+        var approved = items.filter(function (i) { return i.status === "approved"; }).length;
+        set("wiz-qa", approved + " approved of " + items.length + " pairs");
+        pill("wiz-qa", approved > 0 ? "ready" : "empty", approved > 0);
+        set("flow-qa", approved + " approved / " + items.length + " pairs");
+        pill("flow-qa", approved > 0 ? "ready" : "empty", approved > 0);
+        line("qa: " + approved + "/" + items.length + " approved");
+      }).catch(function (e) { pill("wiz-qa", "error", false); line("qa: ERROR " + e); });
+    }
+    if (!which || which === "dataset") {
+      api("/api/projects/" + PID + "/datasets").then(function (d) {
+        var ds = d.datasets || [];
+        var newest = ds[0];
+        var txt = ds.length + " dataset(s)" + (newest ? " · newest " + (newest.qa_count || "?") + " rows" : "");
+        set("wiz-dataset", txt);
+        pill("wiz-dataset", ds.length > 0 ? "ready" : "empty", ds.length > 0);
+        set("flow-dataset", txt);
+        pill("flow-dataset", ds.length > 0 ? ds.length + " ok" : "empty", ds.length > 0);
+        line("datasets: " + ds.length);
+      }).catch(function (e) { pill("wiz-dataset", "error", false); line("datasets: ERROR " + e); });
+    }
+    if (!which || which === "brain") {
+      api("/api/projects/" + PID + "/brain/coverage").then(function (d) {
+        if (d.state === "no_sources" || d.state === "not_built") {
+          pill("flow-brain", "not built", false); set("flow-brain", "index missing — build it on the Smart Brain page");
+          pill("wiz-brain", "not built", false);
+          set("wiz-brain", d.state === "no_sources"
+            ? "no index yet — add and parse files in Step 1 first"
+            : "no index yet — ⚡ Build Smart Brain below does it in one click");
+          line("Smart Brain coverage: " + d.state.replace("_", " "));
+          return;
+        }
+        set("flow-brain", d.covered + "/" + d.parsed_sources + " sources · " + d.coverage_pct + "%");
+        pill("flow-brain", d.missing_sources.length === 0 ? "100%" : d.coverage_pct + "%", d.missing_sources.length === 0);
+        set("wiz-brain", d.covered + "/" + d.parsed_sources + " sources indexed · " + d.coverage_pct + "% coverage");
+        pill("wiz-brain", d.missing_sources.length === 0 ? "ready" : d.coverage_pct + "%", d.missing_sources.length === 0);
+        line("Smart Brain coverage: " + d.covered + "/" + d.parsed_sources);
+      }).catch(function () {
+        pill("flow-brain", "not built", false); set("flow-brain", "index missing — build it on the Smart Brain page");
+        pill("wiz-brain", "not built", false);
+        set("wiz-brain", "no index yet — \u26a1 Build Smart Brain below does it in one click (needs parsed files from Step 1)");
+      });
+    }
+    if (!which || which === "train") {
+      api("/api/training/runs/" + PID).then(function (rows) {
+        rows = Array.isArray(rows) ? rows : [];
+        var done = rows.filter(function (r) { return ["done", "completed"].indexOf(r.status) >= 0; });
+        var txt = done.length + " completed run(s)" + (done[0] && done[0].final_loss != null ? " · last loss " + done[0].final_loss : "");
+        set("wiz-train", txt);
+        pill("wiz-train", done.length > 0 ? done.length + " done" : "none", done.length > 0);
+        set("flow-train", done.length + " completed run(s)");
+        pill("flow-train", done.length > 0 ? done.length + " done" : "none", done.length > 0);
+        line("training runs: " + rows.length + " total, " + done.length + " completed");
+      }).catch(function (e) { pill("wiz-train", "error", false); line("training: ERROR " + e); });
+    }
+    if (!which || which === "test") {
+      api("/api/training/runs/" + PID).then(function (rows) {
+        rows = Array.isArray(rows) ? rows : [];
+        var done = rows.filter(function (r) { return ["done", "completed"].indexOf(r.status) >= 0; });
+        var checks = done.slice(0, 3).map(function (r) {
+          return api("/api/training/runs/" + r.id + "/auto-suites").then(function (s) {
+            return (Array.isArray(s) && s.length > 0) ? r : null;
+          }).catch(function () { return null; });
+        });
+        return Promise.all(checks).then(function (c) { return { checked: c, nDone: done.length }; });
+      }).then(function (res) {
+        var tested = res.checked.filter(Boolean);
+        // "ready" only when a finished run exists to test (was shown with 0 runs).
+        var state = tested.length > 0 ? "tested" : (res.nDone > 0 ? "ready" : "needs a trained model");
+        set("wiz-test", res.nDone ? tested.length + " run(s) have a generated quiz"
+                                  : "train a model in Step 4 first");
+        pill("wiz-test", state, tested.length > 0);
+        set("flow-test", tested.length + " run(s) with generated suite(s)");
+        pill("flow-test", tested.length > 0 ? "tested" : "no runs", tested.length > 0);
+        line("runs with a generated quiz: " + tested.length);
+      }).catch(function (e) { pill("wiz-test", "error", false); line("test: ERROR " + e); });
+    }
+    if (!which || which === "version") {
+      api("/api/projects/" + PID + "/versions").then(function (d) {
+        var vs = d.versions || [];
+        pill("wiz-version", vs.length > 0 ? "v" + vs[0].version_number + " latest" : "none", vs.length > 0);
+        set("wiz-version", vs.length + " version(s) pinned");
+        pill("flow-version", vs.length > 0 ? "v" + vs[0].version_number + " latest" : "none", vs.length > 0);
+        set("flow-version", vs.length + " version(s) pinned");
+        var names = vs.slice(0, 4).map(function (v) { return "v" + v.version_number + (v.label ? " " + v.label : ""); }).join(" · ");
+        ["wiz-version-list", "flow-version-list"].forEach(function (lid) {
+          var t = document.getElementById(lid);
+          if (t) t.textContent = names;
+        });
+        line("versions pinned: " + vs.length);
+      }).catch(function (e) { pill("wiz-version", "error", false); pill("flow-version", "error", false); line("versions: ERROR " + e); });
+    }
+  }
+  window.wizRefresh = wizRefresh;
+  window.flowCheck = wizRefresh;  /* advanced cards reuse the same checks */
+
+  /* ── quick-mode actions ── */
+  var busy = false;
+  function setBusy(b) {
+    busy = b;
+    ["wiz-qa-btn", "wiz-dataset-btn", "wiz-train-btn", "wiz-test-btn", "wiz-run-all", "wiz-brain-btn"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.disabled = b;
+    });
+  }
+  var wizLastRunId = "";
+
+  window.wizGenerate = async function () {
+    if (busy) { line("Already running — wait for the current step."); return false; }
+    setBusy(true);
+    try {
+      var srcs = await api("/api/projects/" + PID + "/data-prep/sources");
+      var sources = (srcs.sources || []).filter(function (s) { return s.parse_status !== "error"; });
+      if (!sources.length) { line("Step 2: no parsed documents yet — upload files (step 1) first."); return false; }
+      // Per-file mining: files never mined get a "mine" job, mined files with open data points a "fill" job.
+      var mine = sources.filter(function (s) { return !s.mining || s.mining.status === "parsed"; }).map(function (s) { return s.id; });
+      var fill = sources.filter(function (s) { return s.mining && s.mining.status === "gaps"; }).map(function (s) { return s.id; });
+      if (!mine.length && !fill.length) { line("Step 2: every document is already mined; review the pairs on the pairs page."); wizRefresh("qa"); return true; }
+      // A local helper must be resident; an API helper is seated on demand by the server.
+      var prov = await api("/api/providers");
+      var helperId = prov.helper_provider_id || "local-default";
+      if ((prov.helper || {}).kind !== "openai_compat" && (!prov.active || prov.active.id !== helperId)) {
+        line("Loading helper (" + (prov.helper_label || helperId) + ")…");
+        var lr = await post("/api/providers/" + helperId + "/load", {});
+        if (!lr || lr.ok === false || lr.error) throw new Error("helper load failed: " + ((lr && lr.error) || "unknown"));
+        line("Helper ready.");
+      }
+      // Quick mode approves only what THIS run wrote: pairs that were pending before stay for the reviewer.
+      var before = await api("/api/projects/" + PID + "/data-prep/qa");
+      var existingQaIds = new Set((before.items || []).map(function (i) { return i.id; }));
+      var jobIds = [];
+      for (var kind of ["mine", "fill"]) {
+        var ids = kind === "mine" ? mine : fill;
+        if (!ids.length) continue;
+        var q = await post("/api/projects/" + PID + "/mining/jobs", { source_ids: ids, kind: kind });
+        if (!q || q.error) throw new Error((q && q.error) || "could not queue the mining jobs");
+        q.jobs.forEach(function (j) { jobIds.push(j.id); });
+        line("Queued " + q.jobs.length + " " + (kind === "mine" ? "mining" : "gap-filling") + " job(s), one per document.");
+      }
+      var wanted = new Set(jobIds), jobs = [];
+      for (;;) {
+        await sleep(3000);
+        var d = await api("/api/projects/" + PID + "/mining/jobs?limit=500");
+        jobs = (d.jobs || []).filter(function (j) { return wanted.has(j.id); });
+        var running = jobs.filter(function (j) { return j.status === "queued" || j.status === "running"; });
+        set("wiz-qa", (jobs.length - running.length) + "/" + jobs.length + " document(s) mined" + (running[0] ? " · " + running[0].filename + ": " + (running[0].message || running[0].stage) : ""));
+        if (!running.length) break;
+      }
+      var ok = jobs.filter(function (j) { return j.status === "done" || j.status === "gaps"; });
+      jobs.forEach(function (j) {
+        line("  " + j.filename + ": " + j.status + (j.error ? " — " + j.error : (j.message ? " — " + j.message : "")));
+      });
+      if (!ok.length) { line("Step 2 failed: no document was mined — fix the error above and retry."); return false; }
+      var succeededSourceIds = new Set();
+      ok.forEach(function (s) { succeededSourceIds.add(s.source_id); });
+      var qa = await api("/api/projects/" + PID + "/data-prep/qa?status=pending");
+      var pending = (qa.items || []).filter(function (i) {
+        return !existingQaIds.has(i.id) && succeededSourceIds.has(i.source_id);
+      }).map(function (i) { return i.id; });
+      if (pending.length) {
+        await post("/api/projects/" + PID + "/data-prep/qa/bulk", { ids: pending, action: "approve" });
+        line("Approved " + pending.length + " pending pair(s) (quick mode; review them any time on the pairs page).");
+      }
+      wizRefresh("qa");
+      return true;
+    } catch (e) {
+      line("Step 2 failed: " + e.message);
+      return false;
+    } finally { setBusy(false); }
+  };
+
+  window.wizBrainQuick = async function () {
+    if (busy) { line("Already running — wait for the current step."); return false; }
+    setBusy(true);
+    try {
+      pill("wiz-brain", "building…", false);
+      set("wiz-brain", "building the index — the first build downloads the embedding model and can take a minute or two. Keep this page open.");
+      line("Smart Brain quick build: parsing every unparsed file + building the index…");
+      var d = await post("/api/projects/" + PID + "/brain/quick", {});
+      if (d && d.error) throw new Error(d.error);
+      var b = d.build || {};
+      if (b.ok === false) throw new Error(b.error || "build failed");
+      line("Smart Brain ready: " + (b.documents != null ? b.documents : "?") + " docs / "
+           + (b.chunks != null ? b.chunks : "?") + " chunks"
+           + (d.promoted ? " · " + d.promoted + " file(s) newly promoted" : "")
+           + (d.failed && d.failed.length ? " · " + d.failed.length + " file(s) could not parse (see the Smart Brain page)" : ""));
+      await sleep(1500);  /* coverage endpoint can lag the manifest flush by ~1s */
+      await wizRefresh("brain");
+      return true;
+    } catch (e) {
+      line("Smart Brain quick build FAILED: " + e.message);
+      wizRefresh("brain");
+      return false;
+    } finally { setBusy(false); }
+  };
+
+  // The export gate (409) names the files whose data points are not all approved yet. The remedies — review them on the
+  // pairs page, or export the approved pairs anyway — are offered here, not left as prose.
+  function wizShowExportGate(files, message) {
+    var box = document.getElementById("wiz-dataset-gate");
+    if (!box) return;
+    box.textContent = "";
+    var p = document.createElement("div");
+    p.textContent = message;
+    box.appendChild(p);
+    var row = document.createElement("div");
+    row.className = "flex gap-2 wrap mt-1";
+    var force = document.createElement("button");
+    force.type = "button";
+    force.className = "btn sm";
+    force.textContent = "Export the approved pairs anyway";
+    force.addEventListener("click", function () { window.wizExport(true); });
+    row.appendChild(force);
+    var lib = document.createElement("a");
+    lib.className = "btn sm";
+    lib.href = "/projects/" + PID + "/data-prep";
+    lib.setAttribute("data-link", "");
+    lib.textContent = "Open the pairs page to finish " + files.slice(0, 3).join(", ") + (files.length > 3 ? " and more" : "");
+    row.appendChild(lib);
+    box.appendChild(row);
+    box.hidden = false;
+  }
+
+  window.wizExport = async function (force) {
+    if (busy) { line("Already running — wait for the current step."); return false; }
+    setBusy(true);
+    var gate = document.getElementById("wiz-dataset-gate");
+    if (gate) { gate.hidden = true; gate.textContent = ""; }
+    try {
+      line(force === true ? "Building dataset from the approved pairs (force)…" : "Building dataset (completeness check + export)…");
+      var r = await fetch("/api/projects/" + PID + "/data-prep/export" + (force === true ? "?force=true" : ""));
+      if (!r.ok) {
+        var d = await r.json().catch(function () { return {}; });
+        if (r.status === 409 && Array.isArray(d.incomplete_files) && d.incomplete_files.length) {
+          wizShowExportGate(d.incomplete_files.map(function (f) { return f.filename; }), d.error || "Dataset export blocked.");
+        }
+        throw new Error(d.detail || d.error || ("HTTP " + r.status));
+      }
+      var b = await r.blob();
+      var rows = r.headers.get("X-Rows"), grounded = r.headers.get("X-Grounded-Rows");
+      line("Dataset built and registered (" + Math.round(b.size / 1024) + " KB" + (rows ? ", " + rows + " rows" + (grounded && grounded !== "0" ? ", " + grounded + " with retrieved context" : "") : "") + ").");
+      wizRefresh("dataset");
+      return true;
+    } catch (e) {
+      line("Step 3 failed: " + e.message);
+      return false;
+    } finally { setBusy(false); }
+  };
+
+  // Failed run: add the plain-language hint (out of GPU memory, with the knobs) to the log.
+  async function wizExplainFailure() {
+    try {
+      var d = await api("/api/training/failure?project_id=" + encodeURIComponent(PID));
+      var h = d && d.failure && d.failure.hint;
+      if (!h) return;
+      line(h.title + ": " + h.summary);
+      (h.knobs || []).forEach(function (k) {
+        line("  • " + k.label + ": " + k.current + (k.suggested !== k.current ? " → " + k.suggested : "") + (k.note ? " — " + k.note : ""));
+      });
+      (h.tips || []).forEach(function (t) { line("  • " + t); });
+      line("Change batch size / max sequence on the Training page, then start again.");
+    } catch (e) { /* the failure line above already carries the error */ }
+  }
+
+  // Epochs hint: the real optimizer-step count this run will get, and a warning when it is tiny.
+  var wizPresets = {};
+  var wizDatasetRows = 0;
+  var TINY_STEPS = 100, GOOD_STEPS = 150;
+  function wizPlannedSteps(epochs, preset) {
+    var batch = Number(preset.batch_size) || 2, accum = Number(preset.gradient_accumulation_steps) || 1;
+    var train = Math.floor(wizDatasetRows * 0.9);   // the engine holds out 10% (int(n*0.9) train rows)
+    var perEpoch = Math.max(1, Math.ceil(train / (batch * accum)));
+    return { train: train, eff: batch * accum, perEpoch: perEpoch, total: perEpoch * epochs };
+  }
+  function wizUpdateStepsHint() {
+    var hint = document.getElementById("wiz-steps-hint");
+    var warnEl = document.getElementById("wiz-steps-warn");
+    var epochsEl = document.getElementById("wiz-epochs");
+    var sugg = document.getElementById("wiz-epochs-suggest");
+    var presetId = (document.getElementById("wiz-preset") || {}).value || "standard";
+    var preset = wizPresets[presetId];
+    if (!hint || !epochsEl) return;
+    if (sugg) sugg.hidden = true;
+    if (warnEl) { warnEl.hidden = true; warnEl.textContent = ""; }
+    if (preset) epochsEl.placeholder = String(preset.num_epochs || "preset");
+    if (!preset || !wizDatasetRows) {
+      hint.textContent = "Leave empty to use the preset's own epoch count" + (preset ? " (" + preset.num_epochs + ")." : ".");
+      return;
+    }
+    var typed = Number((epochsEl.value || "").trim());
+    var epochs = Number.isInteger(typed) && typed >= 1 ? typed : Number(preset.num_epochs) || 1;
+    var p = wizPlannedSteps(epochs, preset);
+    hint.textContent = "About " + p.total + " optimizer steps: " + p.train + " training rows ÷ effective batch " + p.eff +
+      " = " + p.perEpoch + " per epoch × " + epochs + " epochs" + (epochsEl.value.trim() ? "." : " (preset default).");
+    if (p.total >= TINY_STEPS || !warnEl) return;
+    var need = Math.ceil(GOOD_STEPS / p.perEpoch);
+    warnEl.textContent = "Under " + TINY_STEPS + " steps is too short to memorise facts: expect the final loss to stay above ~0.5. " +
+      "Try " + need + " epochs (~" + (need * p.perEpoch) + " steps) or add more training data.";
+    warnEl.hidden = false;
+    if (sugg) { sugg.textContent = "Use " + need + " epochs"; sugg.dataset.epochs = String(need); sugg.hidden = false; }
+    var adv = document.getElementById("wiz-train-adv");
+    if (adv) adv.open = true;
+  }
+  (function wireEpochs() {
+    var epochsEl = document.getElementById("wiz-epochs");
+    var presetEl = document.getElementById("wiz-preset");
+    var sugg = document.getElementById("wiz-epochs-suggest");
+    if (epochsEl) epochsEl.addEventListener("input", wizUpdateStepsHint);
+    if (presetEl) presetEl.addEventListener("change", wizUpdateStepsHint);
+    if (sugg) sugg.addEventListener("click", function () {
+      if (epochsEl) epochsEl.value = sugg.dataset.epochs || "";
+      wizUpdateStepsHint();
+    });
+    api("/api/projects/" + PID + "/datasets").then(function (ds) {
+      var first = (ds.datasets || [])[0];
+      wizDatasetRows = first ? Number(first.qa_count) || 0 : 0;
+      wizUpdateStepsHint();
+    }).catch(function () { /* hint stays generic */ });
+  })();
+
+  window.wizTrain = async function () {
+    if (busy) { line("Already running — wait for the current step."); return false; }
+    var model = (document.getElementById("wiz-base-model") || {}).value || "";
+    if (!model) { line("Step 4: pick a base model first (or add one to the models folder)."); return false; }
+    var preset = (document.getElementById("wiz-preset") || {}).value || "standard";
+    setBusy(true);
+    try {
+      var ds = await api("/api/projects/" + PID + "/datasets");
+      var list = ds.datasets || [];
+      if (!list.length) { line("Step 4: no dataset yet — run step 3 first."); return false; }
+      var dataset = list[0];
+      // Free VRAM: a resident helper GGUF + the trainable base can stack past
+      // the card and OOM the run at step zero.
+      try {
+        var provT = await api("/api/providers");
+        if (provT && provT.active) { await post("/api/providers/unload", {}); line("Unloaded resident helper to free VRAM for training."); }
+      } catch (e) { /* best effort */ }
+      line("Starting training: " + (dataset.qa_count || "?") + " rows · preset " + preset + " · base " + model);
+      var startBody = {
+        project_id: PID, dataset_id: dataset.id, model_path: model,
+        preset_id: preset, merge_on_save: true, export_gguf: false,
+      };
+      var epochsRaw = ((document.getElementById("wiz-epochs") || {}).value || "").trim();
+      if (epochsRaw) {
+        var ep = Number(epochsRaw);
+        if (!Number.isInteger(ep) || ep < 1) { line("Step 4: epochs must be a whole number of 1 or more."); return false; }
+        startBody.num_epochs = ep;   // top-level field, same as the Training page form
+      }
+      var r = await post("/api/training/start", startBody);
+      if (r.error) throw new Error(r.error);
+      wizLastRunId = r.run_id || "";
+      line("Training started (" + (r.steps || "?") + " steps). This page will keep polling — long step, go do something else and come back.");
+      for (;;) {
+        await sleep(6000);
+        var st = await api("/api/training/status");
+        if (st.status === "done") { line("Training finished. Final loss: " + (st.loss != null ? Number(st.loss).toFixed(4) : "?")); break; }
+        if (st.status === "error") throw new Error(st.error || st.message || "training failed");
+        var pct = st.total_steps ? Math.round(100 * (st.step || 0) / st.total_steps) : 0;
+        set("wiz-train", st.status + " — step " + (st.step || 0) + "/" + (st.total_steps || "?") + " (" + pct + "%)" + (st.loss != null ? " · loss " + Number(st.loss).toFixed(3) : "") + (st.eta ? " · eta " + st.eta : ""));
+      }
+      wizRefresh("train");
+      return true;
+    } catch (e) {
+      line("Step 4 failed: " + e.message);
+      await wizExplainFailure();
+      wizRefresh("train");
+      return false;
+    } finally { setBusy(false); }
+  };
+
+  window.wizTest = async function () {
+    if (busy) { line("Already running — wait for the current step."); return false; }
+    setBusy(true);
+    try {
+      var rows = await api("/api/training/runs/" + PID);
+      var done = (rows || []).filter(function (r) { return ["done", "completed"].indexOf(r.status) >= 0; });
+      if (!done.length) { line("Step 5: no completed training run to test yet."); return false; }
+      var run = null;
+      for (var i = 0; i < done.length; i++) if (done[i].id === wizLastRunId) run = done[i];
+      if (!run) run = done[0];
+      line("Generating quiz for run " + run.id + "…");
+      var sampleEl = document.getElementById("wiz-test-sample");
+      var sampleN = sampleEl && sampleEl.value ? parseInt(sampleEl.value, 10) : 0;
+      if (sampleN > 0) line("Sampling " + sampleN + " random questions (explicit opt-in) — the verdict will be labeled sampled.");
+      var gen = await post("/api/training/runs/" + run.id + "/auto-suites/generate", sampleN > 0 ? { sample_size: sampleN } : {});
+      if (gen && gen.error) throw new Error(gen.error);
+      var suites = await api("/api/training/runs/" + run.id + "/auto-suites");
+      if (!Array.isArray(suites) || !suites.length) throw new Error("no quiz was generated");
+      var suite = suites[0];
+      line("Running the " + suite.case_count + "-question test against the trained model — this can take 10-20 minutes…");
+      set("wiz-test", "running " + suite.case_count + " questions…");
+      var started = await post("/api/testing/run-suite", {
+        project_id: PID, suite_path: suite.suite_path,
+        model_path: (run.output_path || "") + "/merged", max_tokens: 256,
+      });
+      if (started.error) throw new Error(started.error);
+      var bid = started.benchmark_id;
+      var runRow = null;
+      for (;;) {
+        await sleep(4000);
+        runRow = await api("/api/testing/projects/" + PID + "/runs/" + bid);
+        set("wiz-test", "answering " + (runRow.progress_done || 0) + "/" + (runRow.progress_total || suite.case_count) + "…");
+        if (["done", "failed", "cancelled"].indexOf(runRow.status) >= 0) break;
+      }
+      if (runRow.status === "failed") throw new Error(runRow.error || "the test run failed");
+      line("The model answered " + (runRow.progress_done || 0) + " question(s); the raw answers are saved with the correct answers.");
+      // Judging is a separate step. It only starts by itself when the user turned auto-judge on.
+      var autoJudge = false;
+      try { autoJudge = !!((await api("/api/settings/testing")).auto_judge); } catch (e) { /* default off */ }
+      var link = "/projects/" + PID + "/testing?run=" + encodeURIComponent(bid);
+      if (!autoJudge) {
+        line("Not judged yet (auto-judge is off). Judge the answers with an AI model or review them yourself: " + link);
+        set("wiz-test", "answers saved — awaiting judgement");
+        pill("wiz-test", "unjudged", false);
+        wizRefresh("test");
+        return true;
+      }
+      line("Auto-judge is on — the judge is reading the saved answers…");
+      for (;;) {
+        await sleep(4000);
+        runRow = await api("/api/testing/projects/" + PID + "/runs/" + bid);
+        set("wiz-test", "judging " + (runRow.judge_done || 0) + "/" + (runRow.judge_total || "?") + "…");
+        if (["done", "failed", "cancelled"].indexOf(runRow.judge_status) >= 0) break;
+        if (!runRow.judge_status && runRow.status === "done" && !(runRow.active || []).length) break;
+      }
+      if (runRow.judge_status === "failed") {
+        line("Judging failed: " + (runRow.judge_error || "unknown error") + ". The answers are saved; judge them from the Testing page: " + link);
+        set("wiz-test", "answers saved — judging failed");
+        pill("wiz-test", "unjudged", false);
+        wizRefresh("test");
+        return true;
+      }
+      var sc = runRow.scores || {};
+      var cases = await api("/api/testing/projects/" + PID + "/runs/" + bid + "/cases");
+      var passed = sc.passed || 0, total = sc.total || cases.length;
+      var pct = sc.pass_rate != null ? sc.pass_rate : 0;
+      line("Test result (judge " + (runRow.judge_model || "?") + "): " + passed + "/" + total + " passed (" + pct + "%)"
+        + (sc.awaiting ? ", " + sc.awaiting + " not judged" : "") + ". Review or override verdicts: " + link);
+      // Grounded rows are asked with the CONTEXT they were trained with (transcript opens with a
+      // system turn); plain rows are asked bare. Two different skills, so report both.
+      var withCtx = cases.filter(function (x) { return x.judge_input && x.judge_input.grounded; });
+      if (withCtx.length) {
+        var okCtx = withCtx.filter(function (x) { return x.verdict === "pass"; }).length;
+        var plain = cases.length - withCtx.length, okPlain = passed - okCtx;
+        line("  from memory (no context): " + okPlain + "/" + plain + " · answering from the retrieved context they were trained with: " + okCtx + "/" + withCtx.length);
+      }
+      set("wiz-test", passed + "/" + total + " passed (" + pct + "%)");
+      pill("wiz-test", pct >= 80 ? "strong" : pct >= 50 ? "ok" : "weak", pct >= 50);
+      wizRefresh("test");
+      return true;
+    } catch (e) {
+      line("Step 5 failed: " + e.message);
+      return false;
+    } finally { setBusy(false); }
+  };
+
+  window.wizRunAll = async function () {
+    if (busy) return;
+    line("Quick start: running steps 2-5 in order…");
+    if (!await wizGenerate()) return;
+    if (!await wizExport()) return;
+    if (!await wizTrain()) return;
+    await wizTest();
+    line("Quick start finished. Pin a version (step 6) if you want to keep this exact result.");
+  };
+
+  /* presets + version form + initial status sweep */
+  api("/api/training/presets").then(function (ps) {
+    var sel = document.getElementById("wiz-preset");
+    if (!sel || !Array.isArray(ps) || !ps.length) return;
+    sel.innerHTML = "";
+    ps.forEach(function (p) {
+      wizPresets[p.id] = p;
+      var o = document.createElement("option");
+      o.value = p.id;
+      o.textContent = (p.name || p.id) + (p.description ? " — " + p.description : "");
+      if (p.id === "standard") o.selected = true;
+      sel.appendChild(o);
+    });
+    wizUpdateStepsHint();
+  }).catch(function () { /* keep the static default */ });
+
+  function pinVersion(formId, labelId, fallback) {
+    var label = (document.getElementById(labelId) || {}).value || "";
+    post("/api/projects/" + PID + "/versions", { label: label || fallback })
+      .then(function (v) {
+        if (v.error) throw new Error(v.error);
+        line("Version v" + v.version_number + " pinned.");
+        wizRefresh("version");
+      })
+      .catch(function (e) { line("Pin version failed: " + e.message); });
+  }
+  [["wiz-version-form", "wiz-version-label"], ["flow-version-form", "flow-version-label"]].forEach(function (pair) {
+    var f = document.getElementById(pair[0]);
+    if (!f) return;
+    f.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      pinVersion(pair[0], pair[1], "saved-from-wizard");
+    });
+  });
+
+  window.flowExport = function () { wizExport(); };
+  window.flowRagBuild = function () {
+    pill("wiz-brain", "building…", false);
+    set("wiz-brain", "building the index — the first build downloads the embedding model and can take a minute or two.");
+    line("Smart Brain build starting (can take a minute on first use)…");
+    post("/api/projects/" + PID + "/brain/build", { reset: false }).then(function (d) {
+      if (d.error) throw new Error(d.error);
+      line("Smart Brain build done: " + d.documents + " docs / " + d.chunks + " chunks");
+      wizRefresh("brain");
+    }).catch(function (e) { line("Smart Brain build FAILED: " + e.message); });
+  };
+
+  ["files", "qa", "dataset", "brain", "train", "test", "version"].forEach(wizRefresh);
+})();
+</script>
+{% endblock %}

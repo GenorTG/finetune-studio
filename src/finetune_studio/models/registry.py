@@ -1,0 +1,395 @@
+"""Track available models and their paths.
+
+WHAT THIS FILE DOES
+==================
+A simple registry that remembers what models are available:
+  - On disk: scans model directories for .gguf files
+  - In HuggingFace cache: checks ~/.cache/huggingface/
+  - Remote: lists models from HuggingFace Hub (if HF_TOKEN is set)
+
+KEY CONCEPTS
+============
+- Registry pattern: a single source of truth for "what models exist".
+- Auto-discovery: scan directories instead of hardcoding paths.
+- Caching: don't re-scan every time; cache the results.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+from dataclasses import dataclass
+
+from finetune_studio.hf_env import is_in_hub_cache
+
+log = logging.getLogger(__name__)
+
+
+@dataclass
+class ModelInfo:
+    name: str
+    path: str
+    format: str
+    size_gb: float
+    architecture: str = ""
+    parameters: str = ""
+    modified: str = ""
+    vision: bool = False
+    category: str = "discovered"   # discovered | base_model | trained_export | local_helper | downloaded
+    project_id: str = ""           # which project produced this (for trained_export)
+    run_id: str = ""               # which training run produced this
+
+# Non-chat model architectures to skip (embeddings, vision encoders, projectors)
+_SKIP_ARCHES = {
+    "BertModel", "BertForMaskedLM",
+    "RobertaModel", "RobertaForMaskedLM",
+    "XLMRobertaModel", "XLMRobertaForMaskedLM",
+    "MPNetModel",
+    "ClipVisionModel", "CLIPVisionModel",
+    "SiglipVisionModel", "MultiModalProjector",
+}
+# File patterns that indicate non-model files
+_SKIP_GGUF_PATTERNS = ("mmproj", "projector", "vision")
+
+# Categories suitable for Inference selectors (and as the first pass for
+# Training). local_helper GGUFs stay selectable for chat; shared_models
+# embedders/rerankers are dropped via path check in models_for_selectors.
+_SELECTOR_CATEGORIES = frozenset({
+    "discovered", "base_model", "trained_export", "downloaded", "local_helper",
+})
+
+# Formats that can be loaded for chat/inference but cannot be used as a
+# Transformers training base (Unsloth / Peft expect HF weights + config.json).
+_TRAINING_EXCLUDED_FORMATS = frozenset({"gguf", "gptq", "awq"})
+
+
+def _readable_file_size(path: str) -> int | None:
+    """Return byte size, or None when the path is missing / a broken symlink."""
+    try:
+        if not os.path.exists(path):
+            return None
+        return os.path.getsize(path)
+    except OSError:
+        return None
+
+
+def _weight_bytes(root: str, files: list[str]) -> int:
+    """Sum readable weight-file sizes; ignore dangling HF hub symlinks."""
+    total = 0
+    for name in files:
+        if not name.endswith((".safetensors", ".bin", ".pt")):
+            continue
+        size = _readable_file_size(os.path.join(root, name))
+        if size is None or size <= 0:
+            continue
+        total += size
+    return total
+
+
+def models_for_selectors(models: list) -> list:
+    """Filter discovered models for Inference (and chat) dropdowns.
+
+    Keeps installed chat / fine-tune weights including GGUF helpers. Drops
+    shared_models embedder and reranker caches. Training pages must use
+    ``models_for_training`` instead so GGUF/GPTQ are not offered as bases.
+    """
+    out = []
+    for m in models:
+        path = getattr(m, "path", None)
+        cat = getattr(m, "category", None)
+        if isinstance(m, dict):
+            path = m.get("path", path)
+            cat = m.get("category", cat)
+        path_l = (path or "").replace("\\", "/").lower()
+        if "shared_models/" in path_l or path_l.rstrip("/").endswith("shared_models"):
+            continue
+        if cat is None:
+            cat = "discovered"
+        if cat not in _SELECTOR_CATEGORIES:
+            continue
+        out.append(m)
+    return out
+
+
+def _model_attr(m: object, key: str, default: str = "") -> str:
+    """Read a ModelInfo field or dict key as a string."""
+    if isinstance(m, dict):
+        val = m.get(key, default)
+    else:
+        val = getattr(m, key, default)
+    return str(val or default)
+
+
+def is_trainable_base_model(m: object) -> bool:
+    """True when ``m`` is a Transformers-compatible training base.
+
+    Excludes GGUF files, GPTQ/AWQ export dirs, and other inference-only
+    artifacts. Safetensors / bin HF dirs remain eligible.
+    """
+    fmt = _model_attr(m, "format").lower().strip()
+    path = _model_attr(m, "path").replace("\\", "/")
+    path_l = path.lower()
+    if fmt in _TRAINING_EXCLUDED_FORMATS:
+        return False
+    if path_l.endswith(".gguf"):
+        return False
+    # Path heuristics for export layouts (format may still say safetensors).
+    parts = [p for p in path_l.split("/") if p]
+    if parts and parts[-1] in ("gptq", "gguf", "awq"):
+        return False
+    padded = f"/{path_l}/"
+    return not (
+        "/gptq/" in padded or "/gguf/" in padded or "/awq/" in padded
+    )
+
+
+def models_for_training(models: list) -> list:
+    """Filter for Training base-model selectors only.
+
+    Same category / shared_models rules as ``models_for_selectors``, then drops
+    GGUF / GPTQ / AWQ and other inference-only artifacts. Inference pages must
+    keep using ``models_for_selectors`` so local-helper GGUFs remain available.
+    """
+    return [m for m in models_for_selectors(models) if is_trainable_base_model(m)]
+
+
+def _safe_model_name(root: str, cfg: dict, project_name: str = "") -> str:
+    """Extract a human-readable model name from config or directory path.
+
+    Returns the most descriptive name available. For trained exports in generic
+    dirs ("merged", "abliterated"), uses the project name for context.
+    """
+    # Try config.json fields
+    for key in ("name", "model_name"):
+        if cfg.get(key):
+            return cfg[key]
+    # Use model_type + architecture for a readable name
+    model_type = cfg.get("model_type", "")
+    arch = (cfg.get("architectures") or [""])[0]
+    # Strip common suffixes from arch
+    for suffix in ("ForCausalLM", "ForConditionalGeneration", "ForSequenceClassification"):
+        arch = arch.replace(suffix, "")
+    # Directory name — prefer parent if current is a hash
+    dirname = os.path.basename(root)
+    if len(dirname) == 40 and all(c in "0123456789abcdef" for c in dirname):
+        # HuggingFace cache hash — use parent dir name
+        parent = os.path.dirname(root)
+        dirname = os.path.basename(parent)
+        # HF hub layout is models--<org>--<repo>/snapshots/<hash> — skip "snapshots"
+        if dirname == "snapshots":
+            dirname = os.path.basename(os.path.dirname(parent))
+        # e.g. "models--unsloth--gemma-4-E4B-it-unsloth-bnb-4bit" → "gemma-4-E4B-it-unsloth-bnb-4bit"
+        if dirname.startswith("models--"):
+            dirname = dirname.split("--", 2)[-1] if "--" in dirname else dirname
+    # App HF Explorer cache: Org__Repo → Org/Repo (strip optional @rev)
+    elif "__" in dirname:
+        bare = dirname.split("@", 1)[0]
+        if "__" in bare:
+            org, repo = bare.split("__", 1)
+            if org and repo:
+                dirname = f"{org}/{repo}"
+    # If dirname is a generic export dir, use project name + dirname for context
+    generic_dirs = {
+        "merged", "abliterated", "gguf", "gptq", "adapter",
+        "checkpoint-0", "checkpoint-1",
+    }
+    if dirname.lower() in generic_dirs:
+        if project_name:
+            return f"{project_name} ({dirname})"
+        parent = os.path.basename(os.path.dirname(root))
+        if parent and parent not in ("output", "models"):
+            return f"{parent}/{dirname}"
+        return dirname
+    # Use the directory name (which is usually descriptive) as the primary name
+    if dirname and dirname not in ("export", "model", "snapshots"):
+        return dirname
+    if arch and model_type:
+        return f"{arch} ({model_type})"
+    if arch:
+        return arch
+    if model_type:
+        return model_type
+    return dirname
+
+
+def _lookup_project_name(output_path: str) -> tuple[str, str]:
+    """Look up (project_id, project_name) for a model path.
+
+    Primary: parse ``projects/<pid>/runs/<rid>/<kind>`` and read the project
+    row via the APP db layer — the old raw-sqlite lookup pointed at
+    ~/.finetune-studio/finetune_studio.db, which is NOT where the deployed
+    DB lives (FTS_DB_PATH), so it silently failed and every run export was
+    labelled with its bare hash dir. Fallback: DB walk-up on output_path.
+    """
+    try:
+        from finetune_studio import db, naming
+
+        info = naming.resolve_run_path(output_path)
+        if info and info.get("project_id"):
+            proj = db.get_project(info["project_id"])
+            if proj:
+                return (info["project_id"], str(proj.get("name") or ""))
+
+        check = output_path
+        for _ in range(6):
+            with db.cursor() as c:
+                row = c.execute(
+                    "SELECT tr.project_id, p.name FROM training_runs tr "
+                    "LEFT JOIN projects p ON p.id = tr.project_id "
+                    "WHERE tr.output_path = ? OR ? LIKE tr.output_path || '%' LIMIT 1",
+                    (check, check),
+                ).fetchone()
+            if row:
+                return (str(row["project_id"] or ""), str(row["name"] or ""))
+            parent = os.path.dirname(check)
+            if parent == check:
+                break
+            check = parent
+    except Exception:
+        log.exception("project lookup for %s failed", output_path)
+    return ("", "")
+
+
+def scan_models(directories: list) -> list:
+    models = []
+    for d in directories:
+        d = os.path.expanduser(d)
+        if not os.path.isdir(d):
+            continue
+        for root, dirs, files in os.walk(d):
+            dirs[:] = [x for x in dirs if not x.startswith(".") and x != "__pycache__"]
+            # Detect mmproj files in this directory
+            has_mmproj = any("mmproj" in f.lower() for f in files if f.endswith(".gguf"))
+            for f in files:
+                if f.endswith(".gguf"):
+                    # Skip multimodal projectors and vision encoders
+                    fl = f.lower()
+                    if any(p in fl for p in _SKIP_GGUF_PATTERNS):
+                        continue
+                    fp = os.path.join(root, f)
+                    size_b = _readable_file_size(fp)
+                    if size_b is None or size_b <= 0:
+                        continue
+                    size = size_b / (1024**3)
+                    # Determine category from path
+                    cat = "discovered"
+                    proj_id = ""
+                    run_id = ""
+                    p = root.lower()
+                    display_name = f
+                    from finetune_studio import naming as _naming
+                    # resolve_run_path works for RELATIVE scan roots too — the
+                    # deployed box scans "output/projects/…" (no leading slash),
+                    # so the old "/output" substring test never matched and
+                    # every run export kept its bare hash-dir name.
+                    _info = _naming.resolve_run_path(fp)
+                    if _info or "/output" in p or "output_" in p:
+                        cat = "trained_export"
+                        # Every run exports model-<quant>.gguf; label with the
+                        # full naming scheme (project · base · version · kind ·
+                        # quant · abliterated) instead of a bare run-dir hash.
+                        _nnamed = ""
+                        if _info:
+                            proj_id = _info.get("project_id") or ""
+                            run_id = _info.get("run_id_full") or _info.get("run_id") or ""
+                            _nnamed = _naming.model_full_name(
+                                _info.get("project_name") or "",
+                                _info.get("base") or "",
+                                _info.get("version") or "",
+                                _info.get("kind") or "gguf",
+                                _info.get("quant") or _naming.detect_quant(f),
+                                _info.get("abliterated") or _naming.detect_abliterated(f),
+                            )
+                        if _nnamed:
+                            display_name = _nnamed
+                        else:
+                            run_dir = os.path.dirname(root) if os.path.basename(root) == "gguf" else root
+                            display_name = f"{os.path.basename(run_dir)}/{f}"
+                    elif "shared_models" in p or "/models/gguf" in p.replace("\\", "/"):
+                        cat = "local_helper"
+                        from finetune_studio.models.helper import (
+                            helper_display_label,
+                            is_helper_gguf_path,
+                        )
+                        if is_helper_gguf_path(fp):
+                            display_name = helper_display_label(model_id=fp)
+                    elif "hf_models" in p:
+                        cat = "downloaded"
+                    elif is_in_hub_cache(p):
+                        cat = "base_model"
+                    models.append(ModelInfo(
+                        name=display_name, path=fp, format="gguf", size_gb=round(size, 2),
+                        vision=has_mmproj, category=cat, project_id=proj_id, run_id=run_id,
+                    ))
+            has_st = any(f.endswith(".safetensors") for f in files)
+            has_cfg = "config.json" in files
+            if has_st and has_cfg:
+                cfg_path = os.path.join(root, "config.json")
+                try:
+                    with open(cfg_path) as cf:
+                        cfg = json.load(cf)
+                    arch = cfg.get("architectures", [""])[0] if cfg.get("architectures") else ""
+                    params = cfg.get("model_type", "")
+                except (json.JSONDecodeError, OSError):
+                    arch, params = "", ""
+                # Skip non-chat models (embeddings, vision encoders, projectors)
+                if arch in _SKIP_ARCHES:
+                    dirs.clear()
+                    continue
+                # Readable weights only — dangling hub symlinks must not abort
+                # the whole scan (which would omit later retained models).
+                total_bytes = _weight_bytes(root, files)
+                total = total_bytes / (1024**3)
+                # Skip tiny / incomplete installs (< 0.5GB) — projectors, adapters,
+                # config-only hub leftovers after a cache reset.
+                if total < 0.5:
+                    dirs.clear()
+                    continue
+                name = _safe_model_name(root, cfg)
+                # Determine category from path
+                cat = "discovered"
+                proj_id = ""
+                run_id = ""
+                proj_name = ""
+                p = root.lower()
+                from finetune_studio import naming as _naming
+                # resolve_run_path works for RELATIVE scan roots too (deployed
+                # box scans "output/projects/…" without a leading slash).
+                _info = _naming.resolve_run_path(root)
+                if _info or "/output" in p or "output_" in p or "/models/safetensors/" in p:
+                    cat = "trained_export"
+                    # Full readable name via the naming scheme: project · base
+                    # model · pinned version · kind (+ quant/abliterated).
+                    if _info:
+                        proj_id = _info.get("project_id") or ""
+                        run_id = _info.get("run_id_full") or _info.get("run_id") or ""
+                        proj_name = _info.get("project_name") or ""
+                        full = _naming.model_full_name(
+                            proj_name, _info.get("base") or "",
+                            _info.get("version") or "", _info.get("kind") or "",
+                            _info.get("quant"), _info.get("abliterated"),
+                        )
+                        if full:
+                            name = full
+                    if not proj_id:
+                        # Non-standard layout: fall back to the DB walk-up.
+                        proj_id, proj_name = _lookup_project_name(root)
+                        if proj_name and (
+                            name.lower() in ("merged", "abliterated", "gguf", "adapter", "gptq")
+                            or "/" in name
+                        ):
+                            name = f"{proj_name} ({name})"
+                elif "shared_models" in p:
+                    cat = "local_helper"
+                elif "hf_models" in p:
+                    cat = "downloaded"
+                elif is_in_hub_cache(p):
+                    cat = "base_model"
+                models.append(ModelInfo(
+                    name=name, path=root, format="safetensors",
+                    size_gb=round(total, 2), architecture=arch, parameters=params,
+                    category=cat, project_id=proj_id, run_id=run_id,
+                ))
+                dirs.clear()
+    return models

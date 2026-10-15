@@ -1,0 +1,646 @@
+{
+ "note": "Hand-labelled by a reviewer (Claude, 2026-10-09) from the Korvane run archives: expected verdict per case.",
+ "cases": [
+  {
+   "id": "run2-6ep:e005",
+   "source": "run2-6ep",
+   "question": "Which socket at the yard is the new 32 A one and what current was measured on pull-down?",
+   "correct_answer": "C-41; 11.8 A",
+   "keywords": [
+    "C-41",
+    "11.8 A"
+   ],
+   "model_answer": "It is socket C at the yard, and the pull-down current was 11.8 A.",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e006",
+   "source": "run2-6ep",
+   "question": "What are the last digits of the new pool fuel card and its daily limit?",
+   "correct_answer": "7741; 400",
+   "keywords": [
+    "7741",
+    "400"
+   ],
+   "model_answer": "The new pool fuel card ends in 7741 and has a daily limit of 60 EUR.",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e007",
+   "source": "run2-6ep",
+   "question": "Which audit number in the three-year ISO cycle was the 2024 audit and when was the report issued?",
+   "correct_answer": "SA2; 24 September 2024",
+   "keywords": [
+    "SA2",
+    "24 September 2024"
+   ],
+   "model_answer": "The 2024 audit was audit number 3 of the three-year ISO cycle, and the report was issued on 24 September 2024.",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e010",
+   "source": "run2-6ep",
+   "question": "At RTM-3, how many of the sampled pre-trip inspection records were complete, and how fast could Hanneke Dijkgraaf's team retrieve a file?",
+   "correct_answer": "40; two minutes",
+   "keywords": [
+    "40",
+    "two minutes"
+   ],
+   "model_answer": "29 of the 30 pre-trip inspection records sampled were complete; Hanneke Dijkgraaf's team retrieved the file in under two minutes.",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e011",
+   "source": "run2-6ep",
+   "question": "Which certificate number did the lead auditor recommend maintaining, and by when did Korvane have to submit a corrective action plan for F-01?",
+   "correct_answer": "FSMS-PL-7741-2021; 27 September 2024",
+   "keywords": [
+    "FSMS-PL-7741-2021",
+    "27 September 2024"
+   ],
+   "model_answer": "The lead auditor recommended that the organisation maintain certificate no. PL/2023/0147, and Korvane had to submit a corrective action plan for F-01 by 27 September 2024.",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e014",
+   "source": "run2-6ep",
+   "question": "What was Korvane's nine-month 2024 EBITDA and margin?",
+   "correct_answer": "15.7; 18.6%",
+   "keywords": [
+    "15.7",
+    "18.6%"
+   ],
+   "model_answer": "EUR 24.9m (18.6%).",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e017",
+   "source": "run2-6ep",
+   "question": "What is the annualised attrition rate and the year-end 2024 headcount forecast?",
+   "correct_answer": "9.8%; 338",
+   "keywords": [
+    "9.8%",
+    "338"
+   ],
+   "model_answer": "The annualised attrition rate is 9.8% and the year-end 2024 headcount forecast is 335.",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e018",
+   "source": "run2-6ep",
+   "question": "What is the limit of the revolving credit facility and how much was drawn at 30 September 2024?",
+   "correct_answer": "15.0; 7.0",
+   "keywords": [
+    "15.0",
+    "7.0"
+   ],
+   "model_answer": "The revolving credit facility is EUR 15.0 million, of which EUR 9.4 million was drawn at 30 September 2024.",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e025",
+   "source": "run2-6ep",
+   "question": "In which week does audit planning with Aldermoor Kessler Audit take place?",
+   "correct_answer": "2 December 2024",
+   "keywords": [
+    "2 December 2024"
+   ],
+   "model_answer": "Audit planning with Aldermoor Kessler Audit takes place in week 46.",
+   "expect_abstain": false,
+   "label": "fail"
+  },
+  {
+   "id": "run2-6ep:e031",
+   "source": "run2-6ep",
+   "question": "What are the expense ceilings in Germany for meals per day, hotel per night and private-car mileage?",
+   "correct_answer": "36; 128; 0.34",
+   "keywords": [
+    "36",
+    "128",
+    "0.34"
+   ],
+   "model_answer": "Germany: meals EUR 36 per day, hotel EUR 128 per night, private car EUR 0.39 per km.",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e032",
+   "source": "run2-6ep",
+   "question": "On which flights is economy class required, and what class of rail travel applies?",
+   "correct_answer": "6 hours; second class",
+   "keywords": [
+    "6 hours",
+    "second class"
+   ],
+   "model_answer": "Economy class is required on all flights operated by low-cost carriers (Poech, Vistula, Air Baltic) and on any flight longer than 8 hours. Second class is the limit on rail.",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e040",
+   "source": "run2-6ep",
+   "question": "How long does the post-employment non-compete last and which countries does it cover?",
+   "correct_answer": "9; Poland; Germany; Netherlands; Sweden; Lithuania",
+   "keywords": [
+    "9",
+    "Poland",
+    "Germany",
+    "Netherlands",
+    "Sweden",
+    "Lithuania"
+   ],
+   "model_answer": "The post-employment non-compete lasts for 9 months after the end of employment and covers the territories of Poland, Germany, the Netherlands and Lithuania.",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e042",
+   "source": "run2-6ep",
+   "question": "What is the GOT-4 management subnet and its edge switch?",
+   "correct_answer": "10.74.7.0/24; sw-got4-edge-01",
+   "keywords": [
+    "10.74.7.0/24",
+    "sw-got4-edge-01"
+   ],
+   "model_answer": "The GOT-4 management subnet is 10.41.7.0/24, edge switch sw-got4-edge-01 (poe-in 802.3at).",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e043",
+   "source": "run2-6ep",
+   "question": "Which bastion host and port are used for the ping test by VPN users?",
+   "correct_answer": "bastion-gdy1.korvane.example; 2200",
+   "keywords": [
+    "bastion-gdy1.korvane.example",
+    "2200"
+   ],
+   "model_answer": "The bastion host is bastion-gdy1.korvane.example with port 2220.",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e044",
+   "source": "run2-6ep",
+   "question": "Which port and user are used for SSH to a hub, and who grants missing access?",
+   "correct_answer": "2222; kcops; Wiktor",
+   "keywords": [
+    "2222",
+    "kcops",
+    "Wiktor"
+   ],
+   "model_answer": "Use SSH port 2222 and the hub's own `hubctl` user; ask Wiktor Szczepaniak (platform lead) for missing access, not on #platform-oncall.",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e045",
+   "source": "run2-6ep",
+   "question": "At what clock skew versus Tidewalk does ingest reject with an error, and which error code?",
+   "correct_answer": "90; E-4108",
+   "keywords": [
+    "90",
+    "E-4108"
+   ],
+   "model_answer": "Ingest rejects with E-4111 when the skew versus Tidewalk exceeds 90 s.",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e048",
+   "source": "run2-6ep",
+   "question": "At the 30-minute escalation point, who is reached and on which desk extension?",
+   "correct_answer": "Wiktor Szczepaniak; 4417",
+   "keywords": [
+    "Wiktor Szczepaniak",
+    "4417"
+   ],
+   "model_answer": "At the 30-minute escalation point, Wiktor Szczepaniak, Platform lead, is reached on desk extension 4419.",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e063",
+   "source": "run2-6ep",
+   "question": "After Amendment No. 2, what convenience notice period applies to Korvane and to the customer?",
+   "correct_answer": "180; 120",
+   "keywords": [
+    "180",
+    "120"
+   ],
+   "model_answer": "A convenience notice of 120 days applies to Korvane and 60 days to the customer.",
+   "expect_abstain": false,
+   "label": "fail"
+  },
+  {
+   "id": "run2-6ep:e078",
+   "source": "run2-6ep",
+   "question": "What equipment is RS-GOT-01, where, and who shares it at weekends?",
+   "correct_answer": "Lundin RS40; GOT-4; Arendal Port Services",
+   "keywords": [
+    "Lundin RS40",
+    "GOT-4",
+    "Arendal Port Services"
+   ],
+   "model_answer": "RS-GOT-01 is the only terminal crane at row G, and the only one that the Rotterdam feeder uses; at weekends it is shared with Maasvlakte Terminal Services (MVT) for their reefer repairs.",
+   "expect_abstain": false,
+   "label": "fail"
+  },
+  {
+   "id": "run2-6ep:e082",
+   "source": "run2-6ep",
+   "question": "What does a green LED flash once every 5 seconds mean on a KC-Tag 4?",
+   "correct_answer": "logging; hub",
+   "keywords": [
+    "logging",
+    "hub"
+   ],
+   "model_answer": "Logging normally.",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e083",
+   "source": "run2-6ep",
+   "question": "How often does the KC-Tag 4 report when a limit is exceeded, and how fast is a door event transmitted?",
+   "correct_answer": "60 seconds; 5 seconds",
+   "keywords": [
+    "60 seconds",
+    "5 seconds"
+   ],
+   "model_answer": "When a limit is exceeded the KC-Tag 4 reports every minute until it is back. A door event is transmitted within 5 seconds.",
+   "expect_abstain": false,
+   "label": "pass"
+  },
+  {
+   "id": "run2-6ep:e088",
+   "source": "run2-6ep",
+   "question": "What sensor does the KC-Tag 4 use for the door, and at what gap does it open and close?",
+   "correct_answer": "Hall; 12 mm; 9 mm",
+   "keywords": [
+    "Hall",
+    "12 mm",
+    "9 mm"
+   ],
+   "model_answer": "The door uses a Hall sensor; it opens above +9.0 mm gap and closes below +6.5 mm gap.",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e089",
+   "source": "run2-6ep",
+   "question": "Which part number is the KC-Tag 4 logger in retail box KT4-BOX-1?",
+   "correct_answer": "KT4-R2-868",
+   "keywords": [
+    "KT4-R2-868"
+   ],
+   "model_answer": "The KC-Tag 4 logger in retail box KT4-BOX-1 is part number KT4-R2.",
+   "expect_abstain": false,
+   "label": "fail"
+  },
+  {
+   "id": "run2-6ep:e096",
+   "source": "run2-6ep",
+   "question": "How does ColdArc Nordic's price compare for Nordkjøl Seafood and what does its offer lack?",
+   "correct_answer": "11%; door-open",
+   "keywords": [
+    "11%",
+    "door-open"
+   ],
+   "model_answer": "It is lower than that of ColdArc Nordic's for Nordkjøl Seafood, but the offer lacks the 25 % off setup for 120 tags.",
+   "expect_abstain": false,
+   "label": "fail"
+  },
+  {
+   "id": "run2-6ep:e100",
+   "source": "run2-6ep",
+   "question": "What discount did Haugesund Fiskemottak AS ask for and what is the KAM limit?",
+   "correct_answer": "6%; 7.5%",
+   "keywords": [
+    "6%",
+    "7.5%"
+   ],
+   "model_answer": "They asked for 6%, the KAM limit is 4.5%.",
+   "expect_abstain": false,
+   "label": "partial"
+  },
+  {
+   "id": "run2-6ep:e102",
+   "source": "run2-6ep",
+   "question": "When and where did the weekly ops review of 24 September 2024 take place?",
+   "correct_answer": "10:00; Orka",
+   "keywords": [
+    "10:00",
+    "Orka"
+   ],
+   "model_answer": "The review took place on Tue 24 Sept 2024, in the boardroom (RB-3), with a view of the yard from the window.",
+   "expect_abstain": false,
+   "label": "fail"
+  },
+  {
+   "id": "rag-base:e003",
+   "source": "rag-base",
+   "question": "When does the Vistula Star sail (ETD)?",
+   "correct_answer": "Thursday; 19:00",
+   "keywords": [
+    "Thursday",
+    "19:00"
+   ],
+   "model_answer": "The Vistula Star sails with an ETD of Thursday at 19:00.\n\nSource: [ops_chat_export_2024_09_w38.txt]",
+   "expect_abstain": false,
+   "label": "pass"
+  },
+  {
+   "id": "rag-base:e004",
+   "source": "rag-base",
+   "question": "How long was the Helvetia trailer held at the gate on 17.09 and why?",
+   "correct_answer": "16 minutes; 16 pallets; 18",
+   "keywords": [
+    "16 minutes",
+    "16 pallets",
+    "18"
+   ],
+   "model_answer": "The Helvetia trailer was held at the gate for **16 minutes** on 17.09. This occurred because the guard list indicated **16 pallets**, while there were actually **18 real** pallets due to a repack that happened after the list was generated. [minutes_ops_review_2024_09_24.txt]",
+   "expect_abstain": false,
+   "label": "pass"
+  },
+  {
+   "id": "rag-base:e005",
+   "source": "rag-base",
+   "question": "Which socket at the yard is the new 32 A one and what current was measured on pull-down?",
+   "correct_answer": "C-41; 11.8 A",
+   "keywords": [
+    "C-41",
+    "11.8 A"
+   ],
+   "model_answer": "C-41 is the new 32 A socket, and 11.8 A was measured on pull-down.\n\n[minutes_ops_review_2024_09_24.txt]",
+   "expect_abstain": false,
+   "label": "pass"
+  },
+  {
+   "id": "rag-base:e006",
+   "source": "rag-base",
+   "question": "What are the last digits of the new pool fuel card and its daily limit?",
+   "correct_answer": "7741; 400",
+   "keywords": [
+    "7741",
+    "400"
+   ],
+   "model_answer": "The last digits of the new pool fuel card are **7741**, and its daily limit is **400 PLN**.\n\nSource: [minutes_ops_review_2024_09_24.txt]",
+   "expect_abstain": false,
+   "label": "pass"
+  },
+  {
+   "id": "rag-base:e007",
+   "source": "rag-base",
+   "question": "Which audit number in the three-year ISO cycle was the 2024 audit and when was the report issued?",
+   "correct_answer": "SA2; 24 September 2024",
+   "keywords": [
+    "SA2",
+    "24 September 2024"
+   ],
+   "model_answer": "The 2024 audit was **Surveillance audit no. 2 (SA2)** of the three-year certification cycle, and the report was issued on **24 September 2024**.\n\nSource: [iso22000_surveillance_audit_report_2024.docx]",
+   "expect_abstain": false,
+   "label": "pass"
+  },
+  {
+   "id": "rag-base:e008",
+   "source": "rag-base",
+   "question": "How many major nonconformities, minor nonconformities and observations did the 2024 ISO 22000 audit raise?",
+   "correct_answer": "one major; four minor; three observations",
+   "keywords": [
+    "one major",
+    "four minor",
+    "three observations"
+   ],
+   "model_answer": "The 2024 ISO 22000 surveillance audit raised **one major nonconformity**, **four minor nonconformities**, and **three observations**.\n\nThis information is based on the following details from the document:\n*   \"The audit team raised one major nonconformity, four minor nonconformities and three observations.\" [iso22000_surveillance_audit_report_2024.docx]\n*   The findings list confirms these counts with IDs F-01 through F-05 (one Major, four Minor) and O-01 through O-03 (three Observations). [iso22000_surveillance_audit_report_2024.docx]",
+   "expect_abstain": false,
+   "label": "pass"
+  },
+  {
+   "id": "rag-base:e009",
+   "source": "rag-base",
+   "question": "Finding F-02 concerned which reference thermometer, used at which depot?",
+   "correct_answer": "RT-HAM-07; HAM-2",
+   "keywords": [
+    "RT-HAM-07",
+    "HAM-2"
+   ],
+   "model_answer": "Finding F-02 concerned the reference thermometer **RT-HAM-07**, which was used at depot **HAM-2**.\n\nSource: [iso22000_surveillance_audit_report_2024.docx]",
+   "expect_abstain": false,
+   "label": "pass"
+  },
+  {
+   "id": "rag-base:e010",
+   "source": "rag-base",
+   "question": "At RTM-3, how many of the sampled pre-trip inspection records were complete, and how fast could Hanneke Dijkgraaf's team retrieve a file?",
+   "correct_answer": "40; two minutes",
+   "keywords": [
+    "40",
+    "two minutes"
+   ],
+   "model_answer": "At RTM-3, **40 out of 40** sampled pre-trip inspection records were complete, and Hanneke Dijkgraaf's team was able to retrieve any file within about **two minutes**.\n\n[source: iso22000_surveillance_audit_report_2024.docx]",
+   "expect_abstain": false,
+   "label": "pass"
+  },
+  {
+   "id": "rag-base:e013",
+   "source": "rag-base",
+   "question": "When was the corrective action plan sent to Aldermark and when is the evidence pack for closure due?",
+   "correct_answer": "26.09.2024; 09.10.2024",
+   "keywords": [
+    "26.09.2024",
+    "09.10.2024"
+   ],
+   "model_answer": "The corrective action plan was sent to Aldermark on **26.09.2024**, and the evidence pack for closure is due on **09.10.2024**.\n\n[source: scanned_corrective_action_0917.pdf (parsed)]",
+   "expect_abstain": false,
+   "label": "pass"
+  },
+  {
+   "id": "rag-base:e014",
+   "source": "rag-base",
+   "question": "What was Korvane's nine-month 2024 EBITDA and margin?",
+   "correct_answer": "15.7; 18.6%",
+   "keywords": [
+    "15.7",
+    "18.6%"
+   ],
+   "model_answer": "Based on the provided context, there is no mention of a company named \"Korvane.\" The document details financial results for what appears to be a logistics group (with segments like Reefer Services, Pharma Lanes, etc.), reporting **nine-month EBITDA of EUR 15.7m** and a **margin of 18.6%** for the period ending September 30, 2024.\n\n[source: board_pack_q3_2024.pptx]",
+   "expect_abstain": false,
+   "label": "pass"
+  },
+  {
+   "id": "base-alone:e001",
+   "source": "base-alone",
+   "question": "What incident reference number did Korvane open for the Oakhaven temperature excursion?",
+   "correct_answer": "INC-2024-0614",
+   "keywords": [
+    "INC-2024-0614"
+   ],
+   "model_answer": "Based on the details provided in the scenario regarding the **Oakhaven** facility and the character **Korvane**, the incident reference number opened for the temperature excursion is **INC-2024-089**.\n\nThis number corresponds to the specific event where Korvane initiated the investigation into the cooling system failure that caused the temperature spike at the Oakhaven site.",
+   "expect_abstain": false,
+   "label": "fail"
+  },
+  {
+   "id": "base-alone:e002",
+   "source": "base-alone",
+   "question": "Which trailer ID and how many pallets were on the guard list sent at 23:10 for the Helvetia load?",
+   "correct_answer": "HELV-PH-0917; 18",
+   "keywords": [
+    "HELV-PH-0917",
+    "18"
+   ],
+   "model_answer": "Based on standard logistics datasets and common case studies (such as those found in SAP Transportation Management or similar supply chain training scenarios involving a \"Helvetia\" load), the details for the guard list sent at **23:10** are typically as follows:\n\n*   **Trailer ID**: **TR-842** (or sometimes referenced as **T-842** depending on the specific system format).\n*   **Number of Pallets**: **12** pallets.\n\nThis specific entry usually represents a high-risk shipment requiring security escort due to the value or nature of the goods, distinguishing it from other loads in the same batch that may not require a guard.\n\n*(Note: If this refers to a specific proprietary dataset or a unique simulation not",
+   "expect_abstain": false,
+   "label": "fail"
+  },
+  {
+   "id": "base-alone:e003",
+   "source": "base-alone",
+   "question": "When does the Vistula Star sail (ETD)?",
+   "correct_answer": "Thursday; 19:00",
+   "keywords": [
+    "Thursday",
+    "19:00"
+   ],
+   "model_answer": "The **Vistula Star** is a cruise ship operated by **MSV Cruises** (part of the Polish cruise line **MSV**), and its schedule is not fixed year-round like a ferry or a regular passenger liner. Instead, it operates on **seasonal itineraries** that typically run from **late spring to early autumn** (approximately **May to October**), depending on the specific season and the number of guests booked.\n\nBecause the schedule changes annually based on demand and weather conditions, there is no single permanent \"Every Tuesday\" or fixed weekly departure time. To find the exact **Estimated Time of Departure (ETD)** for a specific voyage:\n\n1.  **Check the Current Season's Itinerary**: You must look at the specific cruise itinerary for the current year",
+   "expect_abstain": false,
+   "label": "fail"
+  },
+  {
+   "id": "base-alone:e004",
+   "source": "base-alone",
+   "question": "How long was the Helvetia trailer held at the gate on 17.09 and why?",
+   "correct_answer": "16 minutes; 16 pallets; 18",
+   "keywords": [
+    "16 minutes",
+    "16 pallets",
+    "18"
+   ],
+   "model_answer": "Based on available public records and news reports regarding the **Helvetia** (a ferry operated by the company *Schifffahrtsgesellschaft der Helvetia AG* or similar entities depending on the specific route, often associated with the Rhine or Lake Constance regions in Switzerland), there is **no widely documented or publicly reported incident** concerning a trailer being held at a gate on **September 17th** of any recent year due to a specific, notable event.\n\nIt is possible that:\n1.  **The date or vessel name is slightly inaccurate**: Incidents involving delays at gates (such as the Rhine port of Basel, Birsfelden, or Lake Constance ports) happen frequently due to weather, technical issues, or traffic, but specific dates",
+   "expect_abstain": false,
+   "label": "fail"
+  },
+  {
+   "id": "base-alone:e005",
+   "source": "base-alone",
+   "question": "Which socket at the yard is the new 32 A one and what current was measured on pull-down?",
+   "correct_answer": "C-41; 11.8 A",
+   "keywords": [
+    "C-41",
+    "11.8 A"
+   ],
+   "model_answer": "I do not have access to the specific site plans, electrical schematics, or field measurement logs for \"the yard\" you are referring to, as I am an AI and cannot see your physical location or internal project documents.\n\nTo answer your question accurately, you will need to consult the following documents:\n\n1.  **Site Layout / Single Line Diagram (SLD):** Look for the legend or schedule indicating the new **32 A socket**. It is likely labeled with a specific identifier (e.g., \"Socket-32A-01\" or located near a specific load like a \"New EV Charger\" or \"Workshop Outlet\").\n2.  **Pull-Down Test Report / Commissioning Log:** The measured current during the pull-down test (often a continuity or",
+   "expect_abstain": false,
+   "label": "fail"
+  },
+  {
+   "id": "base-alone:e006",
+   "source": "base-alone",
+   "question": "What are the last digits of the new pool fuel card and its daily limit?",
+   "correct_answer": "7741; 400",
+   "keywords": [
+    "7741",
+    "400"
+   ],
+   "model_answer": "The **last digits** of the new pool fuel card and its **daily limit** depend on the specific organization or company issuing the card, as these details are not standardized across all entities. However, here are some general insights:\n\n1. **Last Digits of the Fuel Card**:\n   - The last digits of a fuel card (often referred to as the \"card number\" or \"account number\") are typically unique to the cardholder and are assigned by the issuing organization. These digits are usually found on the front or back of the card and may include a check digit for validation purposes.\n   - For example, if the card number is `1234567890`, the last digit (`0`) would be the check digit.\n\n2. **",
+   "expect_abstain": false,
+   "label": "fail"
+  },
+  {
+   "id": "base-alone:e007",
+   "source": "base-alone",
+   "question": "Which audit number in the three-year ISO cycle was the 2024 audit and when was the report issued?",
+   "correct_answer": "SA2; 24 September 2024",
+   "keywords": [
+    "SA2",
+    "24 September 2024"
+   ],
+   "model_answer": "Based on the standard three-year ISO surveillance cycle, the audit schedule typically follows this pattern:\n\n1.  **Year 1**: Surveillance Audit 1\n2.  **Year 2**: Surveillance Audit 2\n3.  **Year 3**: Surveillance Audit 3 (followed by the Recertification Audit)\n\nSince 2024 is the third year of a standard three-year cycle (assuming the organization was certified in 2022), the audit conducted in 2024 is **Surveillance Audit 3**.\n\nRegarding the report issuance date:\n*   **Audit Date**: The audit itself usually takes place in the first half of the year (e.g., Q1 or Q2).\n*   **Report Issuance**:",
+   "expect_abstain": false,
+   "label": "fail"
+  },
+  {
+   "id": "base-alone:e008",
+   "source": "base-alone",
+   "question": "How many major nonconformities, minor nonconformities and observations did the 2024 ISO 22000 audit raise?",
+   "correct_answer": "one major; four minor; three observations",
+   "keywords": [
+    "one major",
+    "four minor",
+    "three observations"
+   ],
+   "model_answer": "I cannot provide the specific number of major nonconformities, minor nonconformities, or observations raised in a **2024 ISO 22000 audit** for a specific organization because **you have not specified which company or facility** you are referring to.\n\nISO 22000 audits are conducted on individual food safety management systems, and the results are unique to each organization. The number of findings depends entirely on the scope of the audit, the specific site audited, and the performance of that particular organization against the standard.\n\nTo get the accurate data you need, please provide the **name of the organization** (e.g., \"Smith Foods,\" \"Global Dairy Co.\") or the **location of the facility**.\n\nIf you have a specific",
+   "expect_abstain": false,
+   "label": "fail"
+  },
+  {
+   "id": "rag-trained:u01",
+   "source": "rag-trained",
+   "question": "What is the annual base salary of Korvane's CFO Priya Venkataraman-Holt?",
+   "correct_answer": "The documents do not say.",
+   "keywords": [],
+   "model_answer": "The annual base salary of Korvane's CFO Priya Venkataraman-Holt is EUR 186,400.",
+   "expect_abstain": true,
+   "label": "fail"
+  },
+  {
+   "id": "rag-trained:u02",
+   "source": "rag-trained",
+   "question": "What is the registered capital (kapitał zakładowy) of Korvane Cold Chain Sp. z o.o.?",
+   "correct_answer": "The documents do not say.",
+   "keywords": [],
+   "model_answer": "The registered capital (kapitał zakładowy) is PLN 1,200,000.",
+   "expect_abstain": true,
+   "label": "fail"
+  },
+  {
+   "id": "rag-trained:u03",
+   "source": "rag-trained",
+   "question": "Which insurance policy number covers the Rotterdam depot RTM-3 against fire?",
+   "correct_answer": "The documents do not say.",
+   "keywords": [],
+   "model_answer": "The insurance policy number covering the Rotterdam depot RTM-3 against fire is POL-2024-NL-8831.",
+   "expect_abstain": true,
+   "label": "fail"
+  },
+  {
+   "id": "rag-trained:u04",
+   "source": "rag-trained",
+   "question": "What was Korvane's revenue in the second quarter of 2022?",
+   "correct_answer": "The documents do not say.",
+   "keywords": [],
+   "model_answer": "Korvane's revenue in the second quarter of 2022 was EUR 14.6m.",
+   "expect_abstain": true,
+   "label": "fail"
+  },
+  {
+   "id": "rag-trained:u05",
+   "source": "rag-trained",
+   "question": "What is the IP address of the KC-Hub 200 at the Klaipeda yard KLJ-5 on the guest Wi-Fi?",
+   "correct_answer": "The documents do not say.",
+   "keywords": [],
+   "model_answer": "The KC-Hub 200 at the Klaipeda yard KLJ-5 on the guest Wi-Fi has IP 10.85.7.33.",
+   "expect_abstain": true,
+   "label": "fail"
+  },
+  {
+   "id": "rag-trained:u06",
+   "source": "rag-trained",
+   "question": "How many days of paternity leave does the Korvane handbook grant to employees in Sweden?",
+   "correct_answer": "The documents do not say.",
+   "keywords": [],
+   "model_answer": "In Sweden, paternity leave is 105 days.",
+   "expect_abstain": true,
+   "label": "fail"
+  }
+ ]
+}

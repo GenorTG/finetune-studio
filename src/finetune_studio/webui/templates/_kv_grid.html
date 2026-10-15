@@ -1,0 +1,28 @@
+{# Key/value field grid — replaces raw JSON dumps for dict-like data.
+   Context: title (str), rows (dict or mapping), empty (optional str). #}
+{% set _rows = rows if rows is mapping else {} %}
+{% if title %}<h4 class="text-xs muted mb-1 {{ title_class|default('') }}">{{ title }}</h4>{% endif %}
+{% if _rows and (_rows|length > 0) %}
+<table class="table text-xs run-kv-table {{ table_class|default('') }}">
+  <tbody>
+    {% for k, v in _rows.items() %}
+    <tr>
+      <td class="meta muted" style="width:40%;">{{ k }}</td>
+      <td class="mono">
+        {%- if v is mapping -%}
+          {{ v|tojson }}
+        {%- elif v is sequence and v is not string -%}
+          {{ v|tojson }}
+        {%- elif v is none -%}
+          —
+        {%- else -%}
+          {{ v }}
+        {%- endif -%}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="text-xs muted">{{ empty|default('None recorded.') }}</div>
+{% endif %}

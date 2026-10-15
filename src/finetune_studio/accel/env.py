@@ -1,0 +1,270 @@
+"""GPU visibility policy — which physical GPUs this process may touch.
+
+Single responsibility: translate ``FTS_GPU_DEVICES`` (allowlist) and
+``FTS_GPU_EXCLUDE`` (denylist) into the vendor visibility env vars
+(``CUDA_VISIBLE_DEVICES`` / ``HIP_VISIBLE_DEVICES``) *before* torch or
+llama.cpp initialise a driver. Masking at the env level is the only way to
+keep llama.cpp (which splits layers across every device it sees) and torch
+off a GPU that is reserved for something else.
+
+Tokens match case-insensitively against the GPU name (substring), the index,
+or the UUID prefix, e.g. ``FTS_GPU_EXCLUDE="GTX 1070"`` or ``FTS_GPU_DEVICES=0,1``.
+A number that is the index of a listed GPU matches that index only ("0" must not
+hit "RTX 30**9**0"); any other number ("1070") is a name fragment.
+A policy that would hide every GPU is ignored (CPU is only for GPU-less hosts);
+an explicit ``CUDA_VISIBLE_DEVICES`` / ``HIP_VISIBLE_DEVICES`` always wins.
+
+When no environment variable pins a device, the choice saved from the Settings page
+(``saved_choice``: Auto / one GPU / CPU only) is applied here, once, at process start.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import os
+import shutil
+import subprocess
+from collections.abc import Callable, Mapping, MutableMapping
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from finetune_studio.accel.device import Accelerator
+from finetune_studio.accel.saved_choice import (
+    SavedChoice,
+    choice_path,
+    env_overrides,
+    load,
+)
+
+log = logging.getLogger(__name__)
+
+Runner = Callable[[list[str]], str]
+
+
+@dataclass(frozen=True)
+class PhysicalGPU:
+    index: int
+    ident: str   # value usable in the visibility env var (UUID for NVIDIA, index for AMD)
+    name: str
+
+
+# Where vendor CLIs live when they are NOT on PATH. A systemd --user unit gets the
+# system PATH only: on one dev box /usr/bin/nvidia-smi is a dangling alternatives link
+# and the real binary sits in ~/.local/bin, so `shutil.which` alone listed no GPU.
+_TOOL_DIRS: tuple[str, ...] = (
+    "~/.local/bin",
+    "/usr/lib/nvidia/current",
+    "/usr/lib/wsl/lib",
+    "/usr/local/cuda/bin",
+    "/opt/rocm/bin",
+    "/opt/intel/oneapi/bin",
+)
+
+
+def vendor_tool(name: str) -> str | None:
+    """Absolute path of a vendor CLI (``nvidia-smi``, ``rocm-smi``, …) or ``None``.
+
+    PATH first, then the well-known install dirs above. A dangling symlink is not
+    a tool (``os.path.isfile`` follows the link and fails).
+    """
+    found = shutil.which(name)
+    if found:
+        return found
+    for d in _TOOL_DIRS:
+        cand = os.path.join(os.path.expanduser(d), name)
+        if os.path.isfile(cand) and os.access(cand, os.X_OK):
+            return cand
+    return None
+
+
+def _run(cmd: list[str]) -> str:
+    tool = vendor_tool(cmd[0])
+    if tool is None:
+        return ""
+    out = subprocess.run([tool, *cmd[1:]], capture_output=True, text=True, timeout=10, check=False)
+    return out.stdout if out.returncode == 0 else ""
+
+
+def _tokens(raw: str | None) -> list[str]:
+    return [t.strip().lower() for t in (raw or "").split(",") if t.strip()]
+
+
+def matches(gpu: PhysicalGPU, tokens: list[str], indices: frozenset[int]) -> bool:
+    """True when any policy token selects ``gpu`` (``indices`` = every listed GPU index)."""
+    uuid = gpu.ident.lower()
+    for t in tokens:
+        if t.isdigit() and int(t) in indices:
+            if int(t) == gpu.index:
+                return True
+            continue  # an index token never falls through to name/UUID matching
+        if t in gpu.name.lower() or (len(t) >= 4 and uuid.startswith(t)):
+            return True
+    return False
+
+
+def list_nvidia(run: Runner = _run) -> list[PhysicalGPU]:
+    if vendor_tool("nvidia-smi") is None and run is _run:
+        return []
+    gpus: list[PhysicalGPU] = []
+    for line in run(["nvidia-smi", "--query-gpu=index,uuid,name",
+                     "--format=csv,noheader"]).splitlines():
+        parts = [p.strip() for p in line.split(",", 2)]
+        if len(parts) == 3 and parts[0].isdigit():
+            gpus.append(PhysicalGPU(int(parts[0]), parts[1], parts[2]))
+    return gpus
+
+
+def list_amd(run: Runner = _run) -> list[PhysicalGPU]:
+    if vendor_tool("rocm-smi") is None and run is _run:
+        return []
+    try:
+        data = json.loads(run(["rocm-smi", "--showproductname", "--json"]) or "{}")
+    except ValueError:
+        return []
+    gpus: list[PhysicalGPU] = []
+    for key, val in data.items():
+        if key.startswith("card") and key[4:].isdigit() and isinstance(val, dict):
+            name = str(val.get("Card Series") or val.get("Card series")
+                       or val.get("Card Model") or key)
+            gpus.append(PhysicalGPU(int(key[4:]), key[4:], name))
+    return sorted(gpus, key=lambda g: g.index)
+
+
+def _select(gpus: list[PhysicalGPU], allow: list[str], deny: list[str]) -> list[PhysicalGPU]:
+    indices = frozenset(g.index for g in gpus)
+    kept = [g for g in gpus if not allow or matches(g, allow, indices)]
+    return [g for g in kept if not (deny and matches(g, deny, indices))]
+
+
+def isolated_env(acc: Accelerator, environ: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Env vars that make ``acc`` the *only* device (index 0) a child process can see.
+
+    Libraries hard-code device 0 (transformers' ``Trainer``/``TrainingArguments``, accelerate,
+    bitsandbytes, unsloth), so a child that must train on another card is started with that card
+    remapped to index 0 — the one fix that covers every library. ``acc.index`` is a position in the
+    *currently visible* list, so an existing ``CUDA_VISIBLE_DEVICES=1,0`` is composed, not replaced.
+    ``{}`` when the device is already alone at index 0 or the backend has no such variable.
+    """
+    env = os.environ if environ is None else environ
+    if acc.kind == "cuda":
+        var = "CUDA_VISIBLE_DEVICES"
+    elif acc.kind == "rocm":
+        var = ("CUDA_VISIBLE_DEVICES" if "CUDA_VISIBLE_DEVICES" in env and "HIP_VISIBLE_DEVICES" not in env
+               else "HIP_VISIBLE_DEVICES")
+    elif acc.kind == "xpu":
+        var = "ZE_AFFINITY_MASK"
+    else:
+        return {}
+    if acc.index == 0 and acc.device_count <= 1:
+        return {}
+    listed = [t.strip() for t in env.get(var, "").split(",") if t.strip()]
+    return {var: listed[acc.index] if acc.index < len(listed) else str(acc.index)}
+
+
+@dataclass(frozen=True)
+class AppliedPolicy:
+    """What ``apply_device_policy`` did at start-up (the API reports it as the *effective* choice)."""
+    source: str                              # "env" | "saved" | "default"
+    saved: SavedChoice                       # the saved choice as read at start-up
+    env_overrides: tuple[str, ...] = ()      # explicit variables present at start-up
+    applied: dict[str, str] = field(default_factory=dict)
+    note: str = ""                           # why a saved choice could not be honoured
+
+
+_applied = AppliedPolicy("default", SavedChoice())
+
+
+def get_applied() -> AppliedPolicy:
+    """The policy this process started with (``default`` until ``apply_device_policy`` ran)."""
+    return _applied
+
+
+def find_saved_gpu(saved: SavedChoice, gpus: list[PhysicalGPU]) -> PhysicalGPU | None:
+    """The physical GPU a saved choice refers to: id first, then same name (+ same index if ambiguous)."""
+    named = [g for g in gpus if g.name == saved.name]
+    by_id = next((g for g in gpus if g.ident == saved.uuid and (not saved.name or g in named)), None)
+    if by_id:
+        return by_id
+    if len(named) == 1:
+        return named[0]
+    return next((g for g in named if g.index == saved.index), None)
+
+
+def _apply_saved(saved: SavedChoice, env: MutableMapping[str, str], nvidia: Runner,
+                 amd: Runner) -> tuple[dict[str, str], str]:
+    """Apply a non-Auto saved choice; returns (env vars set, note when it could not be honoured)."""
+    if saved.mode == "cpu":
+        # Masking is what makes it CPU-only: FTS_DEVICE=cpu steers torch, but llama.cpp offloads to
+        # any visible card when n_gpu_layers=-1.
+        applied = {"CUDA_VISIBLE_DEVICES": "", "HIP_VISIBLE_DEVICES": "", "FTS_DEVICE": "cpu"}
+        env.update(applied)
+        log.info("accel: CPU-only (saved compute-device choice)")
+        return applied, ""
+    var, lister, runner = (("CUDA_VISIBLE_DEVICES", list_nvidia, nvidia) if saved.vendor == "nvidia"
+                           else ("HIP_VISIBLE_DEVICES", list_amd, amd))
+    gpus = lister(runner)
+    gpu = find_saved_gpu(saved, gpus)
+    if gpu is None:
+        note = (f"Saved GPU {saved.name or saved.uuid} is not present on this host; "
+                "running with automatic selection.")
+        log.warning("accel: %s", note)
+        return {}, note
+    if len(gpus) > 1:
+        env[var] = gpu.ident
+        log.info("accel: %s=%s (saved choice %s; masked: %s)", var, gpu.ident, gpu.name,
+                 ", ".join(g.name for g in gpus if g is not gpu))
+        return {var: gpu.ident}, ""
+    return {}, ""  # the only card of its vendor: nothing to mask
+
+
+def apply_device_policy(
+    environ: MutableMapping[str, str] | None = None,
+    nvidia: Runner = _run,
+    amd: Runner = _run,
+    saved_path: Path | None = None,
+) -> dict[str, str]:
+    """Apply the GPU policy; return the env vars that were set.
+
+    Order: ``FTS_GPU_DEVICES`` / ``FTS_GPU_EXCLUDE`` / an explicit ``*_VISIBLE_DEVICES`` or
+    ``FTS_DEVICE`` first (the saved choice is then ignored), else the saved compute-device choice.
+    An injected ``environ`` is hermetic: it reads a saved file only when ``saved_path`` is given.
+    """
+    global _applied
+    env = os.environ if environ is None else environ
+    overrides = env_overrides(env)
+    path = saved_path or (choice_path() if environ is None else None)
+    saved = load(path) if path else SavedChoice()
+    allow, deny = _tokens(env.get("FTS_GPU_DEVICES")), _tokens(env.get("FTS_GPU_EXCLUDE"))
+    applied: dict[str, str] = {}
+    note = ""
+    if allow or deny:
+        applied = _apply_env_policy(env, allow, deny, nvidia, amd)
+    elif not overrides and saved.mode != "auto":
+        applied, note = _apply_saved(saved, env, nvidia, amd)
+    source = "env" if overrides else ("saved" if saved.mode != "auto" else "default")
+    _applied = AppliedPolicy(source, saved, overrides, dict(applied), note)
+    return applied
+
+
+def _apply_env_policy(env: MutableMapping[str, str], allow: list[str], deny: list[str],
+                      nvidia: Runner, amd: Runner) -> dict[str, str]:
+    applied: dict[str, str] = {}
+    for var, lister, runner in (("CUDA_VISIBLE_DEVICES", list_nvidia, nvidia),
+                                ("HIP_VISIBLE_DEVICES", list_amd, amd)):
+        if var in env or (var == "HIP_VISIBLE_DEVICES" and "ROCR_VISIBLE_DEVICES" in env):
+            continue  # the operator pinned devices explicitly
+        gpus = lister(runner)
+        if not gpus:
+            continue
+        kept = _select(gpus, allow, deny)
+        if not kept:
+            log.warning("accel: FTS_GPU_DEVICES/FTS_GPU_EXCLUDE would hide every %s GPU; "
+                        "ignoring the policy (CPU is only used on GPU-less hosts)", var.split("_")[0])
+            continue
+        if len(kept) == len(gpus):
+            continue  # nothing masked, leave the driver default alone
+        env[var] = ",".join(g.ident for g in kept)
+        applied[var] = env[var]
+        log.info("accel: %s=%s (masked: %s)", var, env[var],
+                 ", ".join(g.name for g in gpus if g not in kept))
+    return applied

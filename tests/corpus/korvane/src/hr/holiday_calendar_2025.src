@@ -1,0 +1,37 @@
+---
+out: holiday_calendar_2025.csv
+tier: extended
+---
+date,weekday,occasion,GDY-1,HAM-2,RTM-3,GOT-4,KLJ-5,HQ_office,remarks
+2025-01-01,Wed,New Year's Day,REDUCED,CLOSED,REDUCED,CLOSED,CLOSED,CLOSED,"pharma pick-ups at GDY-1 only with 24h notice"
+2025-01-06,Mon,Epiphany,REDUCED,OPEN,OPEN,CLOSED,OPEN,CLOSED,"PL + SE holiday"
+2025-03-11,Tue,Restoration of Independence (LT),OPEN,OPEN,OPEN,OPEN,CLOSED,OPEN,"KLJ-5 gate shut; trucks diverted to GDY-1 per standing order"
+2025-04-18,Fri,Good Friday,OPEN,CLOSED,OPEN,CLOSED,OPEN,"OPEN (finish 13:00)","HQ office early finish agreed by Ines, not in the Handbook"
+2025-04-21,Mon,Easter Monday,REDUCED,CLOSED,CLOSED,CLOSED,REDUCED,CLOSED,
+2025-05-01,Thu,Labour Day,REDUCED,CLOSED,OPEN,CLOSED,CLOSED,CLOSED,"citrus vessel call at RTM-3 expected so RTM-3 stays open"
+2025-05-02,Fri,Bridge day (company),OPEN,OPEN,OPEN,OPEN,OPEN,CLOSED,"HQ office closure = day in lieu for Sat 3 May (Handbook 3.8)"
+2025-05-03,Sat,Constitution Day (PL),REDUCED,OPEN,OPEN,OPEN,OPEN,CLOSED,"falls on a Saturday; see 2 May"
+2025-05-15,Thu,Founders' Day (half day),"OPEN (ends 12:00)","OPEN (ends 12:00)","OPEN (ends 12:00)","OPEN (ends 12:00)","OPEN (ends 12:00)","OPEN (ends 12:00)","live yard shifts exempt; time in lieu"
+2025-05-29,Thu,Ascension Day,OPEN,CLOSED,CLOSED,CLOSED,OPEN,OPEN,
+2025-06-06,Fri,National Day of Sweden,OPEN,OPEN,OPEN,CLOSED,OPEN,OPEN,
+2025-06-09,Mon,Whit Monday,OPEN,CLOSED,CLOSED,OPEN,OPEN,OPEN,
+2025-06-19,Thu,Corpus Christi (PL),REDUCED,OPEN,OPEN,OPEN,OPEN,CLOSED,
+2025-06-20,Fri,Midsummer Eve (SE),OPEN,OPEN,OPEN,CLOSED,OPEN,OPEN,"GOT-4 customers notified by 6 June"
+2025-08-15,Fri,Assumption (PL),REDUCED,OPEN,OPEN,OPEN,OPEN,CLOSED,
+2025-10-03,Fri,Day of German Unity,OPEN,CLOSED,OPEN,OPEN,OPEN,OPEN,
+2025-11-01,Sat,All Saints (PL),REDUCED,OPEN,OPEN,OPEN,OPEN,CLOSED,"Saturday holiday; day in lieu for HQ office = Fri 14 Nov"
+2025-11-11,Tue,Independence Day (PL),REDUCED,OPEN,OPEN,OPEN,OPEN,CLOSED,
+2025-11-14,Fri,Day in lieu for 1 Nov,OPEN,OPEN,OPEN,OPEN,OPEN,CLOSED,"depots schedule their own days in lieu (Depot Manager)"
+2025-12-24,Wed,Christmas Eve,REDUCED,REDUCED,REDUCED,CLOSED,CLOSED,CLOSED,"first year as PL public holiday; HAM-2 and RTM-3 until 12:00"
+2025-12-25,Thu,Christmas Day,REDUCED,CLOSED,REDUCED,CLOSED,CLOSED,CLOSED,
+2025-12-26,Fri,Boxing Day / St Stephen's,REDUCED,CLOSED,CLOSED,CLOSED,REDUCED,CLOSED,
+2025-12-29,Mon,Year-end skeleton operations,REDUCED,REDUCED,REDUCED,REDUCED,REDUCED,"SKELETON (4 people)","office staff may take leave without the 10-day notice rule"
+2025-12-31,Wed,New Year's Eve,REDUCED,REDUCED,REDUCED,CLOSED,CLOSED,"OPEN (finish 13:00)",
+,,,,,,,,,
+LEGEND,,"OPEN = normal operations; CLOSED = no gate movements and alarms handled by on-call only; REDUCED = limited gate hours and lanes as per the depot parameters below",,,,,,,
+PARAMS,,"GDY-1 reduced: gate 06:00-14:00, 3 of 8 reefer lanes",,,,,,,
+PARAMS,,"HAM-2 reduced: gate 07:00-13:00, 4 of 10 lanes",,,,,,,
+PARAMS,,"RTM-3 reduced: gate 06:00-14:00, 6 of 14 lanes",,,,,,,
+PARAMS,,"GOT-4 reduced: gate 07:00-12:00, 2 of 6 lanes",,,,,,,
+PARAMS,,"KLJ-5 reduced: gate 08:00-14:00, 1 of 3 lanes",,,,,,,
+OWNER,,"People & Culture with depot managers; v3 of this calendar issued 11 Nov 2024; changes only via hr@korvane.example",,,,,,,

@@ -1,0 +1,67 @@
+VOXSCRIBE 3.2 - AUTOMATIC VOICEMAIL TRANSCRIPTION - BATCH EXPORT
+Mailbox: ops-voicemail@korvane.example (main line +48 58 555 0100, press 4)
+Export window: 2024-10-01 00:00 to 2024-10-11 23:59 (Europe/Warsaw) | 12 messages | language pack: pl-PL/en-GB/de-DE (auto)
+NOTE: transcripts are machine generated and may contain errors. Do not use for legal purposes. Audio is deleted after 30 days.
+
+------------------------------------------------------------
+MESSAGE 01 of 12 | received 2024-10-01 06:12 | caller +48 601 555 0187 | duration 00:52 | confidence 0.78
+------------------------------------------------------------
+hi olek its radek um radoslaw pietrzak here i am on the a1 near tczew kilometer fifty seven northbound and the reefer on the truck has thrown a fault code its tee gee dash e forty seven on the display the compressor is not coming on the box is kay are vee you five five three oh two eight one dash four and its seventeen pallets for lumikko the product is three point one at the probe set point is plus two so i have i think about two hours before it gets silly please call gunnar for a recovery truck or a mobile engineer i will keep the engine running for the cab and keep the doors shut call me back on this number thanks bye
+
+------------------------------------------------------------
+MESSAGE 02 of 12 | received 2024-10-01 14:37 | caller +48 58 692 0417 | duration 00:41 | confidence 0.84
+------------------------------------------------------------
+dzień dobry this is miroslaw szeliga from fruttoria baltica calling for yusuf demirkiran um i wanted to say the first vessel for the season the nordic mistral is now late thirty one hours so the first containers will not be in rotterdam on the seventh of october but on the ninth around noon so about thirty eight boxes first and please do not start the clock on the detention before the ninth yeah we will send you the updated list tomorrow ewelina is cc on that please call me back on the number that you see thank you do widzenia
+
+------------------------------------------------------------
+MESSAGE 03 of 12 | received 2024-10-02 07:05 | caller +44 1270 555 0143 | duration 01:08 | confidence 0.71
+------------------------------------------------------------
+good morning this is szymon karpinski oakhaven dairy transport desk i am trying to reach mrs alton in at korvane quality i think its benedikta alton in um two things the first one is the new second logger the one at the door end we are sending a load on thursday the third of october trailer oh dee two oh four and nineteen pallets of butter and i want to know where exactly your people put the second tag and who signs that it is there and the second thing is the credit note you promised me in june i have the number here its cee en dash two zero two four dash zero three eight eight and i do not see it on my statement yet it has been fifteen weeks and my finance people are asking could somebody ring me before noon uk time thank you
+
+------------------------------------------------------------
+MESSAGE 04 of 12 | received 2024-10-02 16:48 | caller +31 10 555 0178 | duration 00:57 | confidence 0.80
+------------------------------------------------------------
+hello this is jorrit de wit from thermaglide reefer units b v service coordination calling for gunnar halvorsrud um regarding the contactor part for the compressor units the part number is tee gee dash cee tee dash two two nine zero it is on backorder from the factory for six weeks i am sorry we can send four from our consignment stock at hamburg that is available now and our engineer will come to gdynia on tuesday the fifteenth of october at nine hundred hours to inspect the four units on your purchase order forty five hundred dash one seven seven three one please confirm by email thank you
+
+------------------------------------------------------------
+MESSAGE 05 of 12 | received 2024-10-03 08:20 | caller +49 30 555 0166 | duration 01:15 | confidence 0.76
+------------------------------------------------------------
+guten morgen ... um good morning this is frau brandstetter from helvetia pharma logistik quality assurance we have our audit at korvane on the fifth of november ten oclock and for that we need a list of all the kay see tag four loggers that are in our gdp lanes with their last calibration date there should be about forty eight of them and the list please by friday the twenty fifth of october [unintelligible] also we want to see the deviation report from august again the one about the tide walk outage [crosstalk] please do not send it via the portal send it by email to my address it ends in helvetia dash pharma dot example thank you auf wiedersehen
+
+------------------------------------------------------------
+MESSAGE 06 of 12 | received 2024-10-03 18:22 | caller +31 6 555 0129 | duration 00:38 | confidence 0.88
+------------------------------------------------------------
+hi jarek hanneke here from rotterdam just a short one the feeder numbers for the last three weeks are in and the average is twenty one pallets per night so that is over the nineteen we said which means we go back to three trucks per night from monday the fourteenth of october not the thirty first so please tell olek and the owls i know i know jarek said five weeks and i am sorry it was just my loaders came faster than expected bye
+
+------------------------------------------------------------
+MESSAGE 07 of 12 | received 2024-10-04 05:51 | caller +48 601 555 0133 | duration 00:44 | confidence 0.69
+------------------------------------------------------------
+hey its dawid krawiec the new driver from the hamburg run i am at the gate at waltershof and the guard says my name is not on the list for the dryer building and also the barrier is not going up the box is tee el ex you six zero four four three one dash zero um or maybe six I am not sure it is a smudge on the seal paper the seal number is four four one zero seven seven please somebody tell the guard that i am allowed ok thank you i am waiting here
+
+------------------------------------------------------------
+MESSAGE 08 of 12 | received 2024-10-07 07:30 | caller +45 555 5 0192 | duration 00:49 | confidence 0.73
+------------------------------------------------------------
+goddag this is henrik bundgaard from samso berry co op i am calling about the last pickup at ballen harbour the final fourteen pallets it will be on tuesday the twenty ninth of october between six and eight in the morning and we need the truck to have the cooling on from the night before because it has been seven degrees in the shed and we do not want to waste any of it also there is a dispute about three invoices total four thousand one hundred eighty euros we will send it to your lawyer sofie brandau so you can ignore it for now just do the pickup thank you
+
+------------------------------------------------------------
+MESSAGE 09 of 12 | received 2024-10-08 12:03 | caller +48 58 555 0122 | duration 00:35 | confidence 0.91
+------------------------------------------------------------
+message for jarek and olek from kamil in IT. the hub in yard b the one called why bee aitch oh three gets a firmware update to three point five point one on sunday the thirteenth of october between two and four am. it will be offline for about twelve minutes during that window and the tags will buffer, nothing is lost. if the owls see an amber lamp that is normal. do not power cycle it. thanks.
+
+------------------------------------------------------------
+MESSAGE 10 of 12 | received 2024-10-09 15:41 | caller +31 20 555 0185 | duration 00:46 | confidence 0.82
+------------------------------------------------------------
+hello this is fenna van egmond from seaboard insurance brokers calling for priya venkataraman holt i have the certificate of the increased cargo cover for the oakhaven dairy contract ready it will be issued on friday the eighteenth of october and it has to be with oakhaven by the twenty second so please do not let it sit in the signature queue the policy number ends in seven zero four nine one i will email it as pdf and send the original by courier to lushuzka fourteen thank you bye
+
+------------------------------------------------------------
+MESSAGE 11 of 12 | received 2024-10-10 06:55 | caller +48 512 555 0171 | duration 01:21 | confidence 0.74
+------------------------------------------------------------
+dzień dobry my name is marcin olszewski i am calling about the job ad for the senior dispatcher night shift um i saw it on the careers page, the reference is kay see dash dee eye es dash zero nine four. i have eleven years in a liner agency in gdansk and the last four as a shift lead. my question is about the salary: the add said a range, my expectation is nine thousand two hundred gross a month base, and is the night allowance separate or inside this. also i can start on the first of january because i have three months notice. please call me back after three pm, i work nights now. thank you very much, bye bye
+
+------------------------------------------------------------
+MESSAGE 12 of 12 | received 2024-10-11 21:14 | caller +49 761 555 0148 | duration 00:58 | confidence 0.79
+------------------------------------------------------------
+yes hello this is gerda wickenhauser from brunnen und sohn dispatch in freiburg i am calling because the truck bee ess dash gee dee why dash eight one arrived today at sixteen forty with twenty one pallets and the order says twenty four so three pallets are missing the fresh pasta from the lot with the label four one nine seven the driver says he only loaded twenty one in gdynia i want a call tomorrow saturday before ten and a credit for the three pallets that is eleven hundred twenty eight euros sixty and not a cent less. danke.
+
+------------------------------------------------------------
+END OF EXPORT. Next scheduled export: 2024-10-21 00:00. Retention policy RP-VM-03. Questions to it-support@korvane.example.
