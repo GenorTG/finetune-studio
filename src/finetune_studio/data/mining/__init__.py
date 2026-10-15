@@ -2,7 +2,7 @@
 
 One file = one job with fixed stages (``job``), every model round and every inventory item stored (``db.mining``), coverage
 recomputed from the stored items and the file's pairs whenever it is asked for (``coverage``), files run in parallel with the
-helper calls bounded globally (``scheduler``).
+helper calls bounded globally by the mining worker job (``scheduler`` queues, ``worker`` runs).
 """
 from __future__ import annotations
 
@@ -14,18 +14,24 @@ from finetune_studio.data.mining.coverage import (
 )
 from finetune_studio.data.mining.scheduler import (
     MiningError,
+    ensure_worker,
     get_scheduler,
     helper_info,
     interrupt_after_restart,
+    recover_after_restart,
+    running_mining_job_ids,
 )
 
 __all__ = [
     "FileCoverage",
     "MiningError",
+    "ensure_worker",
     "file_coverage",
     "get_scheduler",
     "helper_info",
     "interrupt_after_restart",
     "item_states",
     "project_coverage",
+    "recover_after_restart",
+    "running_mining_job_ids",
 ]

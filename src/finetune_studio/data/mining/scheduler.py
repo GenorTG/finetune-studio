@@ -1,19 +1,23 @@
-"""Process-wide queue of mining jobs: files in parallel, helper calls bounded globally.
+"""Web side of mining: queue jobs, cancel, reset, and keep a mining worker running while jobs are queued.
 
-Each file is its own job (``job.MiningJob``). Jobs run on a thread pool of ``MAX_PARALLEL_FILES``; every helper call of every
-job goes through one semaphore per helper, sized by the helper: an API helper serves ``concurrency`` calls at once
-(Settings -> Helper model, default ``DEFAULT_API_CONCURRENCY``), a local GGUF one (it is one GPU). So a 19-file corpus on an API
-helper runs as one wide stream of calls, and on the local GGUF as one call at a time.
+Each file is its own job (``job.MiningJob``), a ``mining_jobs`` row. The rows are the queue; the jobs run in the mining
+WORKER, a job process of its own (``jobs.kinds.mining`` -> ``worker``), so a web restart (an update, "Apply now",
+``fts restart web``) no longer ends them. The worker runs ``MAX_PARALLEL_FILES`` files at once and bounds every helper call
+with one semaphore per helper: an API helper serves ``concurrency`` calls at once (Settings -> Helper model, default
+``DEFAULT_API_CONCURRENCY``), a local GGUF one (it is one GPU). One worker for all projects keeps that bound global.
 
-The local GGUF is never loaded here: submitting jobs needs a helper that is already usable (``resolve_generator``); an API
-helper is seated on demand by the generator. A restart cannot resume a thread, so jobs that were running are marked
-``interrupted`` at startup (``interrupt_after_restart``); their items and pairs are kept, and "Fill gaps" continues them.
+The local GGUF is never loaded: submitting jobs needs a helper that is already usable (``resolve_generator``); the job
+records which one (``seat.current_target``) and the worker only talks to that. The worker takes no GPU lease: a local
+helper is the model already loaded in the inference worker.
+
+After a restart (``recover_after_restart``) jobs whose worker is alive are left alone, jobs whose worker is gone are
+``interrupted`` (items and pairs kept; "Fill gaps" continues them) and still-queued jobs get a worker.
 """
 from __future__ import annotations
 
 import logging
 import threading
-from concurrent.futures import ThreadPoolExecutor
+import time
 from pathlib import Path
 from typing import Any
 
@@ -62,34 +66,101 @@ def helper_info() -> dict[str, Any]:
     }
 
 
-class _Batch:
-    """The files of one submit: the last one to finish closes the shared Vision reader (unloads a local model it loaded)."""
+KIND = "mining"                       # the worker's job kind (jobs.runner.KINDS)
+INTERRUPTED_REASON = "interrupted by a service restart: run Fill gaps to continue"
 
-    def __init__(self, n: int, vision: Any) -> None:
-        self.vision = vision
-        self._left = n
-        self._lock = threading.Lock()
 
-    def done(self) -> None:
-        with self._lock:
-            self._left -= 1
-            last = self._left == 0
-        if last and self.vision is not None:
-            self.vision.close()
+# ── the worker job ──────────────────────────────────────────────────────────────────────────────────────────────────
+
+def running_mining_job_ids() -> set[str]:
+    """Ids of the mining worker jobs that are alive (their files keep running across a web restart)."""
+    from finetune_studio.jobs import launch
+
+    return {j["id"] for j in launch.list_jobs(KIND, running_only=True)}
+
+
+def reconcile(reason: str = INTERRUPTED_REASON) -> int:
+    """Running jobs whose worker is gone (crashed, killed, or from before mining ran as a job) become ``interrupted``.
+
+    Reads the rows' workers BEFORE the live ones: a worker that took a job after the first read is alive in the second."""
+    from finetune_studio import db
+
+    runners = db.mining.runners_of_running()
+    if not runners:
+        return 0
+    dead = runners - running_mining_job_ids()
+    n = sum(db.mining.interrupt_running(reason, runner=r) for r in dead)
+    if n:
+        log.warning("mining: %d job(s) lost their worker: %s", n, reason)
+    return n
+
+
+def ensure_worker() -> str:
+    """A worker that still takes jobs, started when there is none; returns its job id. Call after queueing rows."""
+    from finetune_studio.jobs import launch, store
+
+    for j in launch.list_jobs(KIND, running_only=True):
+        if (j.get("state") or {}).get("accepting", True):
+            return str(j["id"])
+    spec = store.JobSpec(id=store.new_id(KIND), kind=KIND, title="mining worker", stop_grace_s=30.0)
+    try:
+        launch.start(spec)
+    except launch.JobRejected as e:
+        raise MiningError(f"could not start the mining worker: {e}", e.status if e.status >= 400 else 503) from e
+    log.info("mining: started worker %s", spec.id)
+    return spec.id
+
+
+def recover_after_restart() -> dict[str, Any]:
+    """Web startup: leave jobs whose worker outlived the restart, interrupt the ones whose worker is gone, and start a
+    worker for jobs still queued. Never raises (startup must not fail on it); the reason is logged."""
+    from finetune_studio import db
+
+    out: dict[str, Any] = {"interrupted": 0, "queued": 0, "worker": ""}
+    out["interrupted"] = reconcile(INTERRUPTED_REASON)
+    out["queued"] = sum(1 for j in db.mining.list_jobs(active=True, limit=500) if j["status"] == "queued")
+    if out["queued"]:
+        try:
+            out["worker"] = ensure_worker()
+        except MiningError as e:
+            log.error("mining: %d queued job(s) have no worker: %s", out["queued"], e)
+    return out
+
+
+def interrupt_after_restart() -> int:
+    """Startup (kept for callers of the old name): ``recover_after_restart``; returns how many jobs were interrupted."""
+    return int(recover_after_restart()["interrupted"])
+
+
+def on_finished(job: dict[str, Any]) -> None:
+    """Web process (``jobs.watch``): a mining worker ended. Its running files are interrupted with the reason; files
+    still queued (submitted while it was exiting or stopping) get a new worker."""
+    from finetune_studio import db
+
+    ex = job.get("exit") or {}
+    status = str(ex.get("status") or "ended")
+    if status not in ("done", "stopped"):
+        detail = ex.get("error") or ex.get("detail") or ""
+        reconcile(f"the mining worker {status}{': ' + str(detail)[:300] if detail else ''}: run Fill gaps to continue")
+    else:
+        reconcile(INTERRUPTED_REASON if status == "done" else "the mining worker was stopped: run Fill gaps to continue")
+    if any(j["status"] == "queued" for j in db.mining.list_jobs(active=True, limit=500)):
+        try:
+            ensure_worker()
+        except MiningError:
+            log.exception("mining: queued jobs have no worker")
 
 
 class MiningScheduler:
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._pool = ThreadPoolExecutor(max_workers=MAX_PARALLEL_FILES, thread_name_prefix="fts-mining")
-        self._limiters: dict[tuple[str, int], threading.BoundedSemaphore] = {}
-        self._cancel: dict[str, threading.Event] = {}
+    """The requests the mining routes make (web process); the work runs in the worker job."""
 
     # ── requests ────────────────────────────────────────────────────────────────────────────────────────────────
 
     def submit(self, pid: str, source_ids: list[str], kind: str) -> list[dict[str, Any]]:
-        """Queue one job per file. Refuses the whole request (nothing queued) when any file cannot run."""
+        """Queue one job per file and make sure a worker runs them. Refuses the whole request (nothing queued) when any
+        file cannot run."""
         from finetune_studio import db
+        from finetune_studio.data.mining import seat
         from finetune_studio.data.prep.generator import (
             helper_resolution_error,
             resolve_generator,
@@ -106,6 +177,7 @@ class MiningScheduler:
         unknown = [s for s in ids if s not in sources]
         if unknown:
             raise MiningError(f"unknown file id(s): {unknown[:10]}", 404)
+        reconcile()                                  # a crashed worker's files must not block them as "busy"
         busy = {j["source_id"] for j in db.mining.list_jobs(pid, active=True)}
         has_items = {it["source_id"] for it in db.mining.list_items(pid)}
         problems = []
@@ -121,27 +193,27 @@ class MiningScheduler:
                 problems.append(f"{name}: the parser failed on it ({sources[sid].error or 'no text'})")
         if problems:
             raise MiningError("; ".join(problems))
-        chat = resolve_generator()
-        if chat is None:
+        if resolve_generator() is None:
             raise MiningError(helper_resolution_error())
         helper = helper_info()
-        limiter = self._limiter(helper["provider_id"], helper["concurrency"])
-        vision = self._vision_reader(helper) if kind == "mine" else None
-        batch = _Batch(len(ids), vision)
-        jobs = []
-        for sid in ids:
-            job = db.mining.create_job(pid, sid, sources[sid].filename or sid, kind, helper)
-            event = threading.Event()
-            with self._lock:
-                self._cancel[job["id"]] = event
-            self._pool.submit(self._run, pid, job, chat, limiter, helper, event, batch)
-            jobs.append(job)
+        helper["target"] = seat.current_target()
+        helper["vision"] = {"mode": "off", "local_model": ""}
+        if kind == "mine" and self._vision_reader(helper) is not None:     # refused here, before anything is queued
+            helper["vision"] = seat.vision_seat()
+        jobs = [db.mining.create_job(pid, sid, sources[sid].filename or sid, kind, helper) for sid in ids]
+        try:
+            ensure_worker()
+        except MiningError as e:
+            for job in jobs:
+                db.mining.update_job(job["id"], status="failed", stage="done", error=str(e), message=f"Failed: {e}")
+            raise
         return jobs
 
     @staticmethod
     def _vision_reader(helper: dict[str, Any]) -> Any:
-        """The batch's Vision reader, or None when the seat is off. A local reader that would evict a different local
-        helper from the one worker in the middle of mining is refused here, before anything is queued."""
+        """The Vision reader the batch would use, or None when the seat is off. A local reader that would evict a
+        different local helper from the one worker in the middle of mining is refused here, before anything is queued.
+        (Only a check: the worker builds its own reader from the recorded seat.)"""
         from finetune_studio.models.helper import paths_match
         from finetune_studio.models.vision import Reader, VisionError, get_seat
 
@@ -160,6 +232,7 @@ class MiningScheduler:
             raise MiningError(f"Vision reader: {e}") from e
 
     def cancel(self, pid: str, job_id: str) -> dict[str, Any]:
+        """A queued job is cancelled at once; a running one is asked to stop (the worker sees it within a poll)."""
         from finetune_studio import db
 
         job = db.mining.get_job(job_id)
@@ -167,18 +240,24 @@ class MiningScheduler:
             raise MiningError("unknown job", 404)
         if job["status"] not in db.mining.ACTIVE_STATUSES:
             raise MiningError(f"the job is already {job['status']}")
-        with self._lock:
-            event = self._cancel.get(job_id)
-        if event is None:                       # queued before a restart and never picked up: nothing runs it
-            return db.mining.update_job(job_id, status="cancelled", stage="done", message="Cancelled.")  # type: ignore[return-value]
-        event.set()
-        return db.mining.update_job(job_id, message="Cancelling…")  # type: ignore[return-value]
+        if db.mining.cancel_queued(job_id):
+            return db.mining.get_job(job_id)  # type: ignore[return-value]
+        if not db.mining.request_cancel(job_id):
+            job = db.mining.get_job(job_id) or job
+            raise MiningError(f"the job is already {job['status']}")
+        job = db.mining.get_job(job_id) or job
+        if job["status"] == "running" and job.get("runner") not in running_mining_job_ids():
+            # Its worker is gone: nothing would ever read the request.
+            return db.mining.update_job(job_id, status="cancelled", stage="done", finished_at=time.time(),  # type: ignore[return-value]
+                                        message="Cancelled.")
+        return job
 
     def reset(self, pid: str, source_id: str) -> dict[str, int]:
         """Forget a file's inventory, rounds and UNREVIEWED pairs so it can be mined afresh. Reviewed pairs stay."""
         from finetune_studio import db
         from finetune_studio.data.fs import qa as qa_fs
 
+        reconcile()
         if db.mining.list_jobs(pid, source_id=source_id, active=True, limit=1):
             raise MiningError("a job is working on this file: cancel it first")
         removed = 0
@@ -187,33 +266,6 @@ class MiningScheduler:
         items = len(db.mining.list_items(pid, source_id))
         db.mining.delete_file_records(pid, source_id)
         return {"pending_pairs_removed": removed, "items_removed": items}
-
-    # ── execution ───────────────────────────────────────────────────────────────────────────────────────────────
-
-    def _limiter(self, provider_id: str, concurrency: int) -> threading.BoundedSemaphore:
-        with self._lock:
-            key = (provider_id, concurrency)
-            if key not in self._limiters:
-                self._limiters[key] = threading.BoundedSemaphore(concurrency)
-            return self._limiters[key]
-
-    def _run(self, pid: str, job: dict[str, Any], chat: Any, limiter: threading.BoundedSemaphore,
-             helper: dict[str, Any], cancel: threading.Event, batch: _Batch | None = None) -> None:
-        from finetune_studio.data.mining.job import JobContext, MiningJob
-
-        try:
-            if cancel.is_set():
-                from finetune_studio import db
-                db.mining.update_job(job["id"], status="cancelled", stage="done", message="Cancelled.")
-                return
-            MiningJob(JobContext(pid=pid, job=job, chat=chat, limiter=limiter, model=helper["model"],
-                                 workers=helper["concurrency"], cancel=cancel,
-                                 vision=batch.vision if batch else None)).run()
-        finally:
-            with self._lock:
-                self._cancel.pop(job["id"], None)
-            if batch is not None:
-                batch.done()
 
 
 _scheduler: MiningScheduler | None = None
@@ -226,13 +278,3 @@ def get_scheduler() -> MiningScheduler:
         if _scheduler is None:
             _scheduler = MiningScheduler()
         return _scheduler
-
-
-def interrupt_after_restart() -> int:
-    """Startup: jobs that claimed to run belonged to the previous process. Their items and pairs stay."""
-    from finetune_studio import db
-
-    n = db.mining.interrupt_active_jobs("interrupted by a service restart: run Fill gaps to continue")
-    if n:
-        log.warning("mining: %d job(s) were interrupted by the restart", n)
-    return n

@@ -19,7 +19,8 @@ from typing import Any
 from finetune_studio.db.connection import cursor, new_id, row_to_dict
 
 ACTIVE_STATUSES = ("queued", "running")
-_JOB_FIELDS = {"status", "stage", "started_at", "finished_at", "error", "stats_json", "helper_json", "message"}
+_JOB_FIELDS = {"status", "stage", "started_at", "finished_at", "error", "stats_json", "helper_json", "message", "runner",
+               "cancel_requested_at"}
 
 
 # ── jobs ────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -82,6 +83,74 @@ def interrupt_active_jobs(reason: str) -> int:
             f"WHERE status IN ({', '.join('?' for _ in ACTIVE_STATUSES)})",
             (reason, now, *ACTIVE_STATUSES),
         ).rowcount
+    return int(n or 0)
+
+
+def claim_queued(runner: str, limit: int) -> list[dict]:
+    """Oldest queued jobs, each taken by ``runner`` (a mining worker job id) in one conditional UPDATE: a job is never
+    taken twice, even by two workers at once. Claimed jobs are ``running`` from here on."""
+    if limit <= 0:
+        return []
+    with cursor() as c:
+        ids = [r["id"] for r in c.execute(
+            "SELECT id FROM mining_jobs WHERE status = 'queued' ORDER BY created_at LIMIT ?", (limit,)).fetchall()]
+    claimed = []
+    now = time.time()
+    for jid in ids:
+        with cursor() as c:
+            n = c.execute("UPDATE mining_jobs SET status = 'running', runner = ?, started_at = ? "
+                          "WHERE id = ? AND status = 'queued'", (runner, now, jid)).rowcount
+        if n:
+            claimed.append(get_job(jid))
+    return [j for j in claimed if j]
+
+
+def cancel_queued(job_id: str) -> bool:
+    """Cancel a job no worker has taken yet (one statement). False when it is not queued any more."""
+    with cursor() as c:
+        n = c.execute("UPDATE mining_jobs SET status = 'cancelled', stage = 'done', message = 'Cancelled.', "
+                      "finished_at = ? WHERE id = ? AND status = 'queued'", (time.time(), job_id)).rowcount
+    return bool(n)
+
+
+def request_cancel(job_id: str) -> bool:
+    """Ask the worker running this job to stop it. False when it is not running any more."""
+    with cursor() as c:
+        n = c.execute("UPDATE mining_jobs SET cancel_requested_at = ?, message = 'Cancelling…' "
+                      "WHERE id = ? AND status = 'running'", (time.time(), job_id)).rowcount
+    return bool(n)
+
+
+def cancel_requested(job_ids: Iterable[str]) -> set[str]:
+    ids = list(job_ids)
+    if not ids:
+        return set()
+    with cursor() as c:
+        rows = c.execute(f"SELECT id FROM mining_jobs WHERE cancel_requested_at IS NOT NULL "
+                         f"AND id IN ({', '.join('?' for _ in ids)})", ids).fetchall()
+    return {r["id"] for r in rows}
+
+
+def runners_of_running() -> set[str]:
+    """Worker job ids that hold a running job ('' for jobs from before mining ran as a job)."""
+    with cursor() as c:
+        return {r["runner"] for r in c.execute("SELECT DISTINCT runner FROM mining_jobs WHERE status = 'running'")}
+
+
+def interrupt_running(reason: str, *, keep_runners: Iterable[str] = (), runner: str | None = None) -> int:
+    """Running jobs whose worker is gone become ``interrupted`` (items and pairs stay; Fill gaps continues them).
+    ``keep_runners``: workers that are alive. ``runner``: only that worker's jobs. Queued jobs are never touched."""
+    keep = list(keep_runners)
+    where, args = ["status = 'running'"], [reason, time.time()]
+    if runner is not None:
+        where.append("runner = ?")
+        args.append(runner)
+    if keep:
+        where.append(f"runner NOT IN ({', '.join('?' for _ in keep)})")
+        args.extend(keep)
+    with cursor() as c:
+        n = c.execute(f"UPDATE mining_jobs SET status = 'interrupted', error = ?, finished_at = ? "
+                      f"WHERE {' AND '.join(where)}", args).rowcount
     return int(n or 0)
 
 

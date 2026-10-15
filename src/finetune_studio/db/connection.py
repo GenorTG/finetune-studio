@@ -233,6 +233,8 @@ CREATE TABLE IF NOT EXISTS mining_jobs (
     created_at   REAL NOT NULL,
     started_at   REAL,
     finished_at  REAL,
+    runner       TEXT NOT NULL DEFAULT '',          -- id of the mining worker job (jobs.kinds.mining) that runs it
+    cancel_requested_at REAL,                       -- the reviewer asked to stop it; the worker sees it next poll
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_mining_jobs_project ON mining_jobs(project_id, source_id);
@@ -597,6 +599,8 @@ def init_db() -> None:
             _safe_alter(c, f"ALTER TABLE model_exports ADD COLUMN {col}")
         c.execute("DROP TABLE IF EXISTS data_prep_runs")  # replaced by mining_jobs (per-file mining, 2026-10-13)
         _safe_alter(c, "ALTER TABLE mining_items ADD COLUMN proposed_reason TEXT NOT NULL DEFAULT ''")
+        _safe_alter(c, "ALTER TABLE mining_jobs ADD COLUMN runner TEXT NOT NULL DEFAULT ''")
+        _safe_alter(c, "ALTER TABLE mining_jobs ADD COLUMN cancel_requested_at REAL")
         for col in ("char_count INTEGER NOT NULL DEFAULT 0", "chunk_count INTEGER NOT NULL DEFAULT 0", "edited_at REAL"):
             _safe_alter(c, f"ALTER TABLE file_conversions ADD COLUMN {col}")
         _safe_alter(c, "ALTER TABLE brain_indexes ADD COLUMN status TEXT NOT NULL DEFAULT 'ready'")

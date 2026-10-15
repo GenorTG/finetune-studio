@@ -9,6 +9,7 @@ import json
 import threading
 import time
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -87,7 +88,7 @@ class FakeHelper:
 
 
 @pytest.fixture
-def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[TestClient, FakeHelper]:
+def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[tuple[TestClient, FakeHelper]]:
     monkeypatch.setattr(settings, "db_path", str(tmp_path / "mining.db"))
     root = tmp_path / "fts"
     projects = root / "projects"
@@ -98,10 +99,16 @@ def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[TestClient, Fa
     db.init_db()
     helper = FakeHelper()
     monkeypatch.setattr("finetune_studio.data.prep.generator.resolve_generator", lambda: helper)
+    # The mining worker (a job; on a thread in tests) resolves the helper recorded on the job, not the web's.
+    monkeypatch.setattr("finetune_studio.data.mining.seat.chat_for", lambda target: helper)
     monkeypatch.setattr("finetune_studio.models.helper.get_configured_helper_provider", lambda: {
         "id": "api-helper", "kind": "openai_compat", "model_id": "fake-model", "label": "Helper · API · fake",
         "extra": {"concurrency": 3, "body": {"reasoning_effort": "none"}}})
-    return TestClient(app), helper
+    yield TestClient(app), helper
+    from finetune_studio.jobs import launch
+    for j in launch.list_jobs("mining", running_only=True):
+        launch.stop(j["id"])
+        launch.wait(j["id"], timeout=30)
 
 
 def _project_with_file(client: TestClient, text: str = DOC, name: str = "leave.txt") -> tuple[str, str]:
