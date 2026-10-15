@@ -264,14 +264,14 @@ async def test_a_test_never_takes_the_card_from_training_or_data_prep(monkeypatc
     install_engine(monkeypatch, FakeEngine())
     finished = saved_run(rid, [("Q?", "k", "a")])
 
-    monkeypatch.setattr(app_mod.training_engine, "state", SimpleNamespace(status="training"))
+    monkeypatch.setattr(app_mod, "training_engine", SimpleNamespace(state=SimpleNamespace(status="training")))
     with pytest.raises(TestingBusy, match="training"):
         await start_run_job(_spec(pid, 1))
     with pytest.raises(TestingBusy, match="training"):  # a local judge would unload the trainer's model too
         await start_judge_job(finished, "local-default")
     assert [b["id"] for b in db.list_benchmarks_for_project(pid)] == [finished]  # no row for the refused run
 
-    monkeypatch.setattr(app_mod.training_engine, "state", SimpleNamespace(status="idle"))
+    monkeypatch.setattr(app_mod, "training_engine", SimpleNamespace(state=SimpleNamespace(status="idle")))
     monkeypatch.setattr(db.mining, "list_jobs", lambda *a, **k: [{"id": "job"}])
     with pytest.raises(TestingBusy, match="mining job"):
         await start_run_job(_spec(pid, 1))

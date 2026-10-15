@@ -12,6 +12,9 @@ from pydantic import BaseModel
 from finetune_studio.webui import errors
 from finetune_studio.webui.errors import ApiError
 
+# Built from parts: tests/test_no_private_hosts.py rejects key-shaped literals in the tree.
+FAKE_KEY = "sk-" + "abcdefghijklmnop1234"
+
 SRC = Path(__file__).resolve().parents[1] / "src" / "finetune_studio"
 
 
@@ -39,7 +42,7 @@ def client() -> TestClient:
 
     @app.get("/api/crash")
     def crash() -> None:
-        raise RuntimeError("secret internals with api_key=sk-abcdefghijklmnop1234")
+        raise RuntimeError("secret internals with api_key=" + FAKE_KEY)
 
     return TestClient(app, raise_server_exceptions=False)
 

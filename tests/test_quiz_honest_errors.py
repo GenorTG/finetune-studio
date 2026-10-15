@@ -47,7 +47,7 @@ def test_there_is_no_scripted_reasoning_fallback_left():
 def test_training_start_bad_body_is_400(client):
     r = client.post("/api/training/start", json=[1])
     assert r.status_code == 400
-    assert r.json()["error"]
+    assert r.json()["detail"]
 
 
 def test_testing_load_unknown_project_is_not_200(client):

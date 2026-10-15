@@ -14,8 +14,8 @@ def test_load_missing_helper_is_actionable(client, tmp_path):
     assert r.status_code == 400
     body = r.json()
     assert body["code"] == "helper_missing"
-    assert "Model library" in body["error"]
-    assert "HFValidationError" not in body["error"]
+    assert "Model library" in body["detail"]
+    assert "HFValidationError" not in body["detail"]
     st = client.get("/api/providers/helper/status").json()
     assert st["ok"] is False and st["missing_path"] == str(ghost)
 

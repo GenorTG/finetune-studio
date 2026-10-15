@@ -161,7 +161,7 @@ def test_a_project_quiz_is_refused_here_and_points_at_the_testing_page(
 
     r = client.post(f"/api/benchmarks/projects/{pid}/runs/{rid}/run", json={"suite_path": _write_quiz(tmp_path)})
     assert r.status_code == 400, r.text
-    assert "Testing page" in r.json()["error"]
+    assert "Testing page" in r.json()["detail"]
     assert db.list_benchmarks_for_project(pid) == []  # nothing was saved or scored
 
 

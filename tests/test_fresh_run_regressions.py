@@ -79,9 +79,9 @@ def test_unknown_page_gets_styled_404_but_api_stays_json(client):
     assert "Page not found" in page.text
     api = client.get("/api/nope", headers={"accept": "text/html"})
     assert api.status_code == 404
-    assert api.json() == {"detail": "Not Found"}
+    assert api.json() == {"detail": "Not Found", "code": "not_found"}
     bare = client.get("/projects/nope/files")
-    assert bare.json() == {"detail": "Not Found"}
+    assert bare.json() == {"detail": "Not Found", "code": "not_found"}
 
 
 def test_project_overview_links_and_base_model_badge(client):

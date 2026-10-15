@@ -219,7 +219,7 @@ def test_sse_route_without_a_helper_is_a_clear_409_never_a_silent_switch(client,
     monkeypatch.setattr("finetune_studio.webui.app.inference_engine", engine)
     response = client.post("/api/guide/chat", json={"messages": [{"role": "user", "content": "hi"}]})
     assert response.status_code == 409
-    assert response.json()["error"] == HELPER_NO_MODEL_MSG
+    assert response.json()["detail"] == HELPER_NO_MODEL_MSG
 
 
 def test_kb_endpoints(client) -> None:

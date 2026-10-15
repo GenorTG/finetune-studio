@@ -85,7 +85,7 @@ def test_chat_reports_a_failed_brain_search_instead_of_answering_without_sources
     r = client.post(f"/api/chat-v2/projects/{pid}/chat",
                     json={"messages": [{"role": "user", "content": "hi"}], "enabled_index_ids": [idx["id"]]})
     assert r.status_code == 502, r.text
-    assert "handbook" in r.json()["error"] and "untick" in r.json()["error"]
+    assert "handbook" in r.json()["detail"] and "untick" in r.json()["detail"]
     assert generated == []
 
 

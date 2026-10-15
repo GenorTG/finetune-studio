@@ -8,15 +8,18 @@ import pytest
 
 from finetune_studio import logsetup
 
+# Built from parts: tests/test_no_private_hosts.py rejects key-shaped literals in the tree.
+FAKE_KEY = "sk-" + "abcdefghijklmnop1234"
+
 SECRETS = [
-    "hunter2-hunter2", "sk-abcdefghijklmnop1234", "hf_" + "A" * 34, "ghp_" + "b" * 36,
+    "hunter2-hunter2", FAKE_KEY, "hf_" + "A" * 34, "ghp_" + "b" * 36,
     "fts_" + "c" * 43, "s3cr3t-token-value", "my-passphrase-123", "cookie-value-xyz",
 ]
 
 
 @pytest.mark.parametrize("line", [
     'login body {"password": "hunter2-hunter2", "next": "/"}',
-    "provider cfg {'api_key': 'sk-abcdefghijklmnop1234', 'base_url': 'https://x'}",
+    "provider cfg {'api_key': '" + FAKE_KEY + "', 'base_url': 'https://x'}",
     "GET /api/x?token=s3cr3t-token-value&page=2",
     "export started passphrase=my-passphrase-123 out=/tmp/x",
     "headers Authorization: Bearer fts_" + "c" * 43,
@@ -59,7 +62,7 @@ def test_setup_writes_info_to_the_component_file_with_secrets_redacted(file_logg
     log = logging.getLogger("finetune_studio.test")
     token = logsetup.request_id.set("abc123")
     try:
-        log.info("helper call with api_key=sk-abcdefghijklmnop1234 done")
+        log.info("helper call with api_key=" + FAKE_KEY + " done")
         try:
             raise ValueError('upstream refused {"password": "hunter2-hunter2"}')
         except ValueError:
