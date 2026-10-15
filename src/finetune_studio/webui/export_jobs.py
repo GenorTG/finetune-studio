@@ -117,23 +117,27 @@ def start_job(
 
 
 def cancel_job(export_id: str) -> bool:
-    """Ask a running job to stop; False when it is not active in this process."""
+    """Ask a running job to stop; False when it is not active in this process or already finished.
+
+    Under ``_LOCK``: ``_run`` takes the job out of ``_ACTIVE`` (same lock) before it records the final state, so a
+    cancel can never report success for, or write "cancelling" over, a finished export (CI race, 2026-10-15)."""
     with _LOCK:
         job = _ACTIVE.get(export_id)
-    if job is None:
-        return False
-    # The runner polls this flag every 0.25 s and kills the child's group
-    # itself; no blocking kill here (called from an async handler).
-    job.ctx.cancel_event.set()
-    try:
-        db.set_export_phase(export_id, "cancelling", "stopping…")
-    except Exception:
-        log.debug("could not record cancelling phase", exc_info=True)
+        if job is None or (db.get_export(export_id) or {}).get("status") in TERMINAL_STATUSES:
+            return False
+        # The runner polls this flag every 0.25 s and kills the child's group
+        # itself; no blocking kill here (called from an async handler).
+        job.ctx.cancel_event.set()
+        try:
+            db.set_export_phase(export_id, "cancelling", "stopping…")
+        except Exception:
+            log.debug("could not record cancelling phase", exc_info=True)
     return True
 
 
 def _run(job: _Job, work: Work) -> None:
     eid = job.export_id
+    final: Callable[[], object] | None = None
     try:
         with export_job.bind(job.ctx):
             db.mark_export_running(eid)
@@ -143,15 +147,17 @@ def _run(job: _Job, work: Work) -> None:
             raise RuntimeError("export worker finished without recording a result")
     except export_job.ExportCancelled:
         log.info("export %s cancelled", eid)
-        _finish(eid, lambda: db.mark_export_cancelled(eid))
+        final = lambda: db.mark_export_cancelled(eid)
     except BaseException as e:  # a dead worker must never look alive
         log.exception("export %s failed", eid)
         error = _message(e)
-        _finish(eid, lambda: db.mark_export_failed(eid, error))
+        final = lambda: db.mark_export_failed(eid, error)
     finally:
         with _LOCK:
             _ACTIVE.pop(eid, None)
-        job.ctx.kill_children()
+        job.ctx.kill_children()         # "cancelled"/"failed" is only written once its processes are gone
+        if final is not None:
+            _finish(eid, final)
 
 
 def _message(e: BaseException) -> str:
